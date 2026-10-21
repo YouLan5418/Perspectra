@@ -15,7 +15,12 @@ import {
 } from '@harness-world/contracts'
 import { openWorldDatabase } from './world-schema.ts'
 import { parseWorldJson, rollbackAndThrow, worldJsonText } from './sqlite.ts'
-import { PLAYER_INPUT_TRANSITIONS, readPlayerInputRow, type PlayerInputJob, type PlayerInputRow } from './player-input-jobs.ts'
+import {
+  PLAYER_INPUT_TRANSITIONS,
+  readPlayerInputRow,
+  type PlayerInputJob,
+  type PlayerInputRow,
+} from './player-input-jobs.ts'
 
 export interface EnqueueRoundRequest {
   readonly playerInputId?: string
@@ -84,13 +89,16 @@ export function coordinatedRoundId(
   idempotencyKey: string,
   inputHash: WorldHash,
 ): InteractionRoundId {
-  return brandId(deterministicId('round:coordinated', { address, inboxSeq, idempotencyKey, inputHash }), 'InteractionRoundId')
+  return brandId(
+    deterministicId('round:coordinated', { address, inboxSeq, idempotencyKey, inputHash }),
+    'InteractionRoundId',
+  )
 }
 
 function boundBundleHash(result: WorldJsonValue): WorldHash | undefined {
   if (typeof result !== 'object' || result === null || Array.isArray(result)) return undefined
   const value = (result as Record<string, WorldJsonValue>).bundleHash
-  return typeof value === 'string' ? value as WorldHash : undefined
+  return typeof value === 'string' ? (value as WorldHash) : undefined
 }
 
 /** Durable admission queue and idempotency ledger for one branch's player inputs. */
@@ -98,7 +106,8 @@ export class RoundInbox {
   readonly #db: DatabaseSync
 
   readPlayerInput(address: WorldAddress, key: string): PlayerInputJob | undefined {
-    const row = this.#db.prepare('SELECT * FROM player_input_jobs WHERE address_key = ? AND idempotency_key = ?')
+    const row = this.#db
+      .prepare('SELECT * FROM player_input_jobs WHERE address_key = ? AND idempotency_key = ?')
       .get(worldAddressKey(address), key) as PlayerInputRow | undefined
     return row === undefined ? undefined : readPlayerInputRow(row)
   }
@@ -114,15 +123,20 @@ export class RoundInbox {
   enqueue(request: EnqueueRoundRequest, queueLimit: number): EnqueueRoundResult {
     this.#validateText(request.idempotencyKey, 'idempotencyKey')
     this.#validateText(request.principalId, 'principalId')
-    if (!Number.isSafeInteger(queueLimit) || queueLimit <= 0) throw new RangeError('queueLimit must be a positive safe integer')
+    if (!Number.isSafeInteger(queueLimit) || queueLimit <= 0)
+      throw new RangeError('queueLimit must be a positive safe integer')
     const key = worldAddressKey(request.address)
     const inputHash = hashWorldJson('player-round-input', { principalId: request.principalId, input: request.input })
     this.#db.exec('BEGIN IMMEDIATE')
     try {
       this.#requireBranch(key)
-      const replay = this.#db.prepare(`
+      const replay = this.#db
+        .prepare(
+          `
         SELECT inbox_seq, input_hash FROM round_inbox WHERE address_key = ? AND idempotency_key = ?
-      `).get(key, request.idempotencyKey) as { inbox_seq: number; input_hash: WorldHash } | undefined
+      `,
+        )
+        .get(key, request.idempotencyKey) as { inbox_seq: number; input_hash: WorldHash } | undefined
       if (replay !== undefined) {
         if (replay.input_hash !== inputHash) {
           failWorld({
@@ -136,25 +150,50 @@ export class RoundInbox {
         }
         this.#db.exec('COMMIT')
         return {
-          status: 'already_enqueued', inboxSeq: replay.inbox_seq, inputHash,
+          status: 'already_enqueued',
+          inboxSeq: replay.inbox_seq,
+          inputHash,
           roundId: coordinatedRoundId(request.address, replay.inbox_seq, request.idempotencyKey, inputHash),
         }
       }
       this.#assertNotQuarantined(request.address, key, request.correlationId)
-      const pendingInput = (this.#db.prepare('SELECT * FROM player_input_jobs WHERE address_key = ? ORDER BY input_seq').all(key) as unknown as PlayerInputRow[])
-        .map(readPlayerInputRow).find(job => PLAYER_INPUT_TRANSITIONS[job.status].length > 0)
-      if (pendingInput !== undefined && (pendingInput.inputId !== request.playerInputId || pendingInput.status !== 'validated')) {
-        failWorld({ errorCode: 'BRANCH_DRAINING', category: 'admission', retryable: true, address: request.address,
-          correlationId: request.correlationId, message: 'earlier player input must reach a terminal or validated state before Round admission' })
+      const pendingInput = (
+        this.#db
+          .prepare('SELECT * FROM player_input_jobs WHERE address_key = ? ORDER BY input_seq')
+          .all(key) as unknown as PlayerInputRow[]
+      )
+        .map(readPlayerInputRow)
+        .find(job => PLAYER_INPUT_TRANSITIONS[job.status].length > 0)
+      if (
+        pendingInput !== undefined &&
+        (pendingInput.inputId !== request.playerInputId || pendingInput.status !== 'validated')
+      ) {
+        failWorld({
+          errorCode: 'BRANCH_DRAINING',
+          category: 'admission',
+          retryable: true,
+          address: request.address,
+          correlationId: request.correlationId,
+          message: 'earlier player input must reach a terminal or validated state before Round admission',
+        })
       }
-      const acceptedInput = pendingInput !== undefined && pendingInput.inputId === request.playerInputId
-        && pendingInput.idempotencyKey === request.idempotencyKey && pendingInput.principalId === request.principalId
-        && hashWorldJson('player-input-round-binding', request.input) === hashWorldJson('player-input-round-binding', { playerInputId: pendingInput.inputId })
-      if (request.playerInputId !== undefined && !acceptedInput) throw new TypeError('invalid durable player input binding')
+      const acceptedInput =
+        pendingInput !== undefined &&
+        pendingInput.inputId === request.playerInputId &&
+        pendingInput.idempotencyKey === request.idempotencyKey &&
+        pendingInput.principalId === request.principalId &&
+        hashWorldJson('player-input-round-binding', request.input) ===
+          hashWorldJson('player-input-round-binding', { playerInputId: pendingInput.inputId })
+      if (request.playerInputId !== undefined && !acceptedInput)
+        throw new TypeError('invalid durable player input binding')
       this.#assertAdmissionOpen(request.address, key, request.correlationId, acceptedInput)
-      const queued = this.#db.prepare(`
+      const queued = this.#db
+        .prepare(
+          `
         SELECT COUNT(*) AS count FROM round_inbox WHERE address_key = ? AND status IN ('pending', 'claimed')
-      `).get(key) as { count: number }
+      `,
+        )
+        .get(key) as { count: number }
       if (queued.count >= queueLimit) {
         failWorld({
           errorCode: 'ROUND_QUEUE_FULL',
@@ -166,22 +205,38 @@ export class RoundInbox {
           details: { queueLimit },
         })
       }
-      this.#db.prepare(`
+      this.#db
+        .prepare(
+          `
         INSERT INTO round_inbox_counters(address_key, next_inbox_seq) VALUES (?, 1)
         ON CONFLICT(address_key) DO NOTHING
-      `).run(key)
-      const counter = this.#db.prepare(`
+      `,
+        )
+        .run(key)
+      const counter = this.#db
+        .prepare(
+          `
         SELECT next_inbox_seq FROM round_inbox_counters WHERE address_key = ?
-      `).get(key) as { next_inbox_seq: number }
+      `,
+        )
+        .get(key) as { next_inbox_seq: number }
       const inboxSeq = counter.next_inbox_seq
-      this.#db.prepare(`UPDATE round_inbox_counters SET next_inbox_seq = ? WHERE address_key = ?`).run(inboxSeq + 1, key)
-      this.#db.prepare(`
+      this.#db
+        .prepare(`UPDATE round_inbox_counters SET next_inbox_seq = ? WHERE address_key = ?`)
+        .run(inboxSeq + 1, key)
+      this.#db
+        .prepare(
+          `
         INSERT INTO round_inbox(address_key, inbox_seq, idempotency_key, input_hash, principal_id, input_json, status)
         VALUES (?, ?, ?, ?, ?, ?, 'pending')
-      `).run(key, inboxSeq, request.idempotencyKey, inputHash, request.principalId, worldJsonText(request.input))
+      `,
+        )
+        .run(key, inboxSeq, request.idempotencyKey, inputHash, request.principalId, worldJsonText(request.input))
       this.#db.exec('COMMIT')
       return {
-        status: 'enqueued', inboxSeq, inputHash,
+        status: 'enqueued',
+        inboxSeq,
+        inputHash,
         roundId: coordinatedRoundId(request.address, inboxSeq, request.idempotencyKey, inputHash),
       }
     } catch (error: unknown) {
@@ -191,12 +246,15 @@ export class RoundInbox {
 
   claimNext(address: WorldAddress, ownerId: string, fencingToken: number): ClaimedRound | undefined {
     this.#validateText(ownerId, 'ownerId')
-    if (!Number.isSafeInteger(fencingToken) || fencingToken <= 0) throw new RangeError('fencingToken must be a positive safe integer')
+    if (!Number.isSafeInteger(fencingToken) || fencingToken <= 0)
+      throw new RangeError('fencingToken must be a positive safe integer')
     const key = worldAddressKey(address)
     this.#db.exec('BEGIN IMMEDIATE')
     try {
       this.#assertCurrentLease(address, key, ownerId, fencingToken)
-      const row = this.#db.prepare(`
+      const row = this.#db
+        .prepare(
+          `
         SELECT inbox_seq, idempotency_key, principal_id, input_json, input_hash
         FROM round_inbox
         WHERE address_key = ? AND (
@@ -205,15 +263,21 @@ export class RoundInbox {
           OR (status = 'claimed' AND claim_owner_id = ? AND claim_fencing_token = ?)
         )
         ORDER BY inbox_seq LIMIT 1
-      `).get(key, fencingToken, ownerId, fencingToken) as InboxRow | undefined
+      `,
+        )
+        .get(key, fencingToken, ownerId, fencingToken) as InboxRow | undefined
       if (row === undefined) {
         this.#db.exec('COMMIT')
         return undefined
       }
-      this.#db.prepare(`
+      this.#db
+        .prepare(
+          `
         UPDATE round_inbox SET status = 'claimed', claim_owner_id = ?, claim_fencing_token = ?
         WHERE address_key = ? AND inbox_seq = ?
-      `).run(ownerId, fencingToken, key, row.inbox_seq)
+      `,
+        )
+        .run(ownerId, fencingToken, key, row.inbox_seq)
       this.#db.exec('COMMIT')
       return this.#claimed(row)
     } catch (error: unknown) {
@@ -245,30 +309,41 @@ export class RoundInbox {
     this.#db.exec('BEGIN IMMEDIATE')
     try {
       this.#assertCurrentLease(address, key, ownerId, fencingToken)
-      const current = this.#db.prepare(`
+      const current = this.#db
+        .prepare(
+          `
         SELECT status, claim_owner_id, claim_fencing_token, result_hash, result_json,
           commit_transaction_id, commit_bundle_hash
         FROM round_inbox WHERE address_key = ? AND inbox_seq = ?
-      `).get(key, inboxSeq) as {
-        status: 'pending' | 'claimed' | 'completed' | 'failed' | 'cancelled'
-        claim_owner_id: string | null
-        claim_fencing_token: number | null
-        result_hash: WorldHash | null
-        result_json: string | null
-        commit_transaction_id: string | null
-        commit_bundle_hash: WorldHash | null
-      } | undefined
+      `,
+        )
+        .get(key, inboxSeq) as
+        | {
+            status: 'pending' | 'claimed' | 'completed' | 'failed' | 'cancelled'
+            claim_owner_id: string | null
+            claim_fencing_token: number | null
+            result_hash: WorldHash | null
+            result_json: string | null
+            commit_transaction_id: string | null
+            commit_bundle_hash: WorldHash | null
+          }
+        | undefined
       if (current?.status === 'completed') {
         if (
-          current.result_hash !== resultHash
-          || current.result_json !== resultText
-          || current.commit_transaction_id !== proof.transactionId
-          || current.commit_bundle_hash !== proof.bundleHash
-        ) this.#completionConflict(address, key)
+          current.result_hash !== resultHash ||
+          current.result_json !== resultText ||
+          current.commit_transaction_id !== proof.transactionId ||
+          current.commit_bundle_hash !== proof.bundleHash
+        )
+          this.#completionConflict(address, key)
         this.#db.exec('COMMIT')
         return { status: 'already_completed', resultHash }
       }
-      if (current?.status !== 'claimed' || current.claim_owner_id !== ownerId || current.claim_fencing_token !== fencingToken) {
+      if (
+        current?.status !== 'claimed' ||
+        current.claim_owner_id !== ownerId ||
+        current.claim_fencing_token !== fencingToken
+      ) {
         failWorld({
           errorCode: 'WRITER_LEASE_LOST',
           category: 'runtime',
@@ -278,9 +353,13 @@ export class RoundInbox {
           address,
         })
       }
-      const commit = this.#db.prepare(`
+      const commit = this.#db
+        .prepare(
+          `
         SELECT bundle_hash FROM round_commits WHERE transaction_id = ? AND address_key = ?
-      `).get(proof.transactionId, key) as { bundle_hash: WorldHash } | undefined
+      `,
+        )
+        .get(proof.transactionId, key) as { bundle_hash: WorldHash } | undefined
       if (commit?.bundle_hash !== proof.bundleHash) {
         failWorld({
           errorCode: 'BUNDLE_HASH_MISMATCH',
@@ -291,11 +370,15 @@ export class RoundInbox {
           address,
         })
       }
-      this.#db.prepare(`
+      this.#db
+        .prepare(
+          `
         UPDATE round_inbox SET status = 'completed', result_hash = ?, result_json = ?,
           commit_transaction_id = ?, commit_bundle_hash = ?
         WHERE address_key = ? AND inbox_seq = ?
-      `).run(resultHash, resultText, proof.transactionId, proof.bundleHash, key, inboxSeq)
+      `,
+        )
+        .run(resultHash, resultText, proof.transactionId, proof.bundleHash, key, inboxSeq)
       this.#db.exec('COMMIT')
       return { status: 'completed', resultHash }
     } catch (error: unknown) {
@@ -304,25 +387,31 @@ export class RoundInbox {
   }
 
   readCompleted(address: WorldAddress, idempotencyKey: string): WorldJsonValue | undefined {
-    const row = this.#db.prepare(`
+    const row = this.#db
+      .prepare(
+        `
       SELECT result_json, result_hash, commit_transaction_id, commit_bundle_hash FROM round_inbox
       WHERE address_key = ? AND idempotency_key = ? AND status = 'completed'
-    `).get(worldAddressKey(address), idempotencyKey) as {
-      result_json: string
-      result_hash: WorldHash
-      commit_transaction_id: string | null
-      commit_bundle_hash: WorldHash | null
-    } | undefined
+    `,
+      )
+      .get(worldAddressKey(address), idempotencyKey) as
+      | {
+          result_json: string
+          result_hash: WorldHash
+          commit_transaction_id: string | null
+          commit_bundle_hash: WorldHash | null
+        }
+      | undefined
     if (row === undefined) return undefined
     const result = parseWorldJson(row.result_json)
     const resultText = worldJsonText(result)
     const resultHash = hashWorldJson('player-round-result', result)
     if (
-      resultText !== row.result_json
-      || resultHash !== row.result_hash
-      || boundBundleHash(result) !== row.commit_bundle_hash
-      || row.commit_transaction_id === null
-      || row.commit_bundle_hash === null
+      resultText !== row.result_json ||
+      resultHash !== row.result_hash ||
+      boundBundleHash(result) !== row.commit_bundle_hash ||
+      row.commit_transaction_id === null ||
+      row.commit_bundle_hash === null
     ) {
       failWorld({
         errorCode: 'BUNDLE_HASH_MISMATCH',
@@ -333,9 +422,13 @@ export class RoundInbox {
         address,
       })
     }
-    const commit = this.#db.prepare(`
+    const commit = this.#db
+      .prepare(
+        `
       SELECT bundle_hash FROM round_commits WHERE transaction_id = ? AND address_key = ?
-    `).get(row.commit_transaction_id, worldAddressKey(address)) as { bundle_hash: WorldHash } | undefined
+    `,
+      )
+      .get(row.commit_transaction_id, worldAddressKey(address)) as { bundle_hash: WorldHash } | undefined
     if (commit?.bundle_hash !== row.commit_bundle_hash) {
       failWorld({
         errorCode: 'BUNDLE_HASH_MISMATCH',
@@ -355,14 +448,28 @@ export class RoundInbox {
     const result = row.result_json === null ? null : parseWorldJson(row.result_json)
     if (result !== null && hashWorldJson('player-round-result', result) !== row.result_hash) {
       failWorld({
-        errorCode: 'BUNDLE_HASH_MISMATCH', category: 'integrity', message: 'Round status result is corrupt',
-        retryable: false, correlationId: `round-status:${worldAddressKey(address)}:${row.inbox_seq}`, address,
+        errorCode: 'BUNDLE_HASH_MISMATCH',
+        category: 'integrity',
+        message: 'Round status result is corrupt',
+        retryable: false,
+        correlationId: `round-status:${worldAddressKey(address)}:${row.inbox_seq}`,
+        address,
       })
     }
-    const status = row.status === 'pending' ? 'queued' : row.status === 'claimed' ? 'processing' : row.status === 'completed' ? 'committed' : row.status
+    const status =
+      row.status === 'pending'
+        ? 'queued'
+        : row.status === 'claimed'
+          ? 'processing'
+          : row.status === 'completed'
+            ? 'committed'
+            : row.status
     return {
-      status, inboxSeq: row.inbox_seq, idempotencyKey: row.idempotency_key,
-      roundId: coordinatedRoundId(address, row.inbox_seq, row.idempotency_key, row.input_hash), result,
+      status,
+      inboxSeq: row.inbox_seq,
+      idempotencyKey: row.idempotency_key,
+      roundId: coordinatedRoundId(address, row.inbox_seq, row.idempotency_key, row.input_hash),
+      result,
     }
   }
 
@@ -378,20 +485,37 @@ export class RoundInbox {
       }
       if (row.status !== 'pending') {
         failWorld({
-          errorCode: 'ROUND_NOT_CANCELLABLE', category: 'admission', message: 'only a queued Round can be cancelled',
-          retryable: false, correlationId, address,
+          errorCode: 'ROUND_NOT_CANCELLABLE',
+          category: 'admission',
+          message: 'only a queued Round can be cancelled',
+          retryable: false,
+          correlationId,
+          address,
           roundId: coordinatedRoundId(address, row.inbox_seq, row.idempotency_key, row.input_hash),
         })
       }
       const result = { status: 'cancelled', reason: 'cancelled_before_claim' } as const
-      this.#db.prepare(`
+      this.#db
+        .prepare(
+          `
         UPDATE round_inbox SET status = 'cancelled', result_hash = ?, result_json = ?
         WHERE address_key = ? AND inbox_seq = ? AND status = 'pending'
-      `).run(hashWorldJson('player-round-result', result), worldJsonText(result), key, row.inbox_seq)
-      this.#db.prepare(`
+      `,
+        )
+        .run(hashWorldJson('player-round-result', result), worldJsonText(result), key, row.inbox_seq)
+      this.#db
+        .prepare(
+          `
         INSERT INTO branch_audit_events(address_key, operation, correlation_id, details_json, operational_time_ms)
         VALUES (?, 'round.cancelled', ?, ?, ?)
-      `).run(key, correlationId, worldJsonText({ inboxSeq: row.inbox_seq, idempotencyKey: row.idempotency_key }), this.now())
+      `,
+        )
+        .run(
+          key,
+          correlationId,
+          worldJsonText({ inboxSeq: row.inbox_seq, idempotencyKey: row.idempotency_key }),
+          this.now(),
+        )
       this.#db.exec('COMMIT')
       return this.readStatus(address, { idempotencyKey: row.idempotency_key })!
     } catch (error: unknown) {
@@ -401,14 +525,20 @@ export class RoundInbox {
 
   /** Discover active Branch FIFOs that need a post-restart drain. */
   unfinishedAddresses(): WorldAddress[] {
-    return (this.#db.prepare(`
+    return (
+      this.#db
+        .prepare(
+          `
       SELECT DISTINCT b.tenant_id, b.world_id, b.branch_id
       FROM round_inbox i
       JOIN branches b ON b.address_key = i.address_key
       JOIN branch_controls c ON c.address_key = i.address_key
       WHERE i.status IN ('pending', 'claimed') AND c.runtime_phase = 'active'
       ORDER BY b.tenant_id, b.world_id, b.branch_id
-    `).all() as Array<{ tenant_id: string; world_id: string; branch_id: string }>).map(row => ({
+    `,
+        )
+        .all() as Array<{ tenant_id: string; world_id: string; branch_id: string }>
+    ).map(row => ({
       tenantId: brandId(row.tenant_id, 'TenantId'),
       worldId: brandId(row.world_id, 'WorldId'),
       branchId: brandId(row.branch_id, 'BranchId'),
@@ -430,16 +560,23 @@ export class RoundInbox {
   }
 
   #findStatusRow(address: WorldAddress, lookup: RoundLookup): StatusRow | undefined {
-    if ((lookup.idempotencyKey === undefined) === (lookup.roundId === undefined)) throw new TypeError('Round lookup requires exactly one selector')
-    const rows = this.#db.prepare(`
+    if ((lookup.idempotencyKey === undefined) === (lookup.roundId === undefined))
+      throw new TypeError('Round lookup requires exactly one selector')
+    const rows = this.#db
+      .prepare(
+        `
       SELECT inbox_seq, idempotency_key, principal_id, input_json, input_hash, status, result_json, result_hash
       FROM round_inbox WHERE address_key = ? ORDER BY inbox_seq
-    `).all(worldAddressKey(address)) as unknown as StatusRow[]
+    `,
+      )
+      .all(worldAddressKey(address)) as unknown as StatusRow[]
     if (lookup.idempotencyKey !== undefined) {
       this.#validateText(lookup.idempotencyKey, 'idempotencyKey')
       return rows.find(row => row.idempotency_key === lookup.idempotencyKey)
     }
-    return rows.find(row => coordinatedRoundId(address, row.inbox_seq, row.idempotency_key, row.input_hash) === lookup.roundId)
+    return rows.find(
+      row => coordinatedRoundId(address, row.inbox_seq, row.idempotency_key, row.input_hash) === lookup.roundId,
+    )
   }
 
   #validateText(value: string, name: string): void {
@@ -453,12 +590,18 @@ export class RoundInbox {
   }
 
   #assertAdmissionOpen(address: WorldAddress, key: string, correlationId: string, acceptedInput: boolean): void {
-    const control = this.#db.prepare(`
+    const control = this.#db
+      .prepare(
+        `
       SELECT admission_state, lifecycle_state FROM branch_controls WHERE address_key = ?
-    `).get(key) as {
-      admission_state: 'open' | 'draining'
-      lifecycle_state: 'active' | 'archived'
-    } | undefined
+    `,
+      )
+      .get(key) as
+      | {
+          admission_state: 'open' | 'draining'
+          lifecycle_state: 'active' | 'archived'
+        }
+      | undefined
     if (control === undefined) throw new Error(`unknown world branch ${key}`)
     if ((control.admission_state === 'open' || acceptedInput) && control.lifecycle_state === 'active') return
     failWorld({
@@ -472,26 +615,35 @@ export class RoundInbox {
   }
 
   #assertNotQuarantined(address: WorldAddress, key: string, correlationId: string): void {
-    const control = this.#db.prepare(`SELECT runtime_phase FROM branch_controls WHERE address_key = ?`).get(key) as {
-      runtime_phase: 'active' | 'maintenance' | 'quarantined' | 'archived'
-    } | undefined
+    const control = this.#db.prepare(`SELECT runtime_phase FROM branch_controls WHERE address_key = ?`).get(key) as
+      | {
+          runtime_phase: 'active' | 'maintenance' | 'quarantined' | 'archived'
+        }
+      | undefined
     if (control?.runtime_phase !== 'quarantined' && control?.runtime_phase !== 'maintenance') return
     failWorld({
       errorCode: control.runtime_phase === 'quarantined' ? 'BRANCH_QUARANTINED' : 'BRANCH_DRAINING',
-      category: 'admin', message: `branch runtime phase is ${control.runtime_phase}`, retryable: false,
-      correlationId, address,
+      category: 'admin',
+      message: `branch runtime phase is ${control.runtime_phase}`,
+      retryable: false,
+      correlationId,
+      address,
     })
   }
 
   #assertCurrentLease(address: WorldAddress, key: string, ownerId: string, fencingToken: number): void {
-    const lease = this.#db.prepare(`
+    const lease = this.#db
+      .prepare(
+        `
       SELECT owner_id, fencing_token, expires_at_ms FROM writer_leases WHERE address_key = ?
-    `).get(key) as { owner_id: string; fencing_token: number; expires_at_ms: number } | undefined
+    `,
+      )
+      .get(key) as { owner_id: string; fencing_token: number; expires_at_ms: number } | undefined
     if (
-      lease === undefined
-      || lease.owner_id !== ownerId
-      || lease.fencing_token !== fencingToken
-      || lease.expires_at_ms <= this.now()
+      lease === undefined ||
+      lease.owner_id !== ownerId ||
+      lease.fencing_token !== fencingToken ||
+      lease.expires_at_ms <= this.now()
     ) {
       failWorld({
         errorCode: 'WRITER_LEASE_LOST',

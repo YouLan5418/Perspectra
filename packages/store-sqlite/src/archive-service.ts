@@ -2,12 +2,7 @@ import { createHash } from 'node:crypto'
 import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { backup, DatabaseSync } from 'node:sqlite'
-import {
-  canonicalizeWorldJson,
-  failWorld,
-  type WorldHash,
-  type WorldJsonObject,
-} from '@harness-world/contracts'
+import { canonicalizeWorldJson, failWorld, type WorldHash, type WorldJsonObject } from '@harness-world/contracts'
 import { readPragmaInteger, rollbackAndThrow, WORLD_APPLICATION_ID } from './sqlite.ts'
 import { openWorldDatabase, WORLD_SCHEMA_VERSION } from './world-schema.ts'
 import { OperationalAuditLog } from './operational-audit.ts'
@@ -45,8 +40,11 @@ export class WorldArchiveService {
     } catch (error: unknown) {
       rmSync(targetPath, { force: true })
       failWorld({
-        errorCode: 'BACKUP_INVALID', category: 'persistence', message: `backup failed: ${String(error)}`,
-        retryable: false, correlationId,
+        errorCode: 'BACKUP_INVALID',
+        category: 'persistence',
+        message: `backup failed: ${String(error)}`,
+        retryable: false,
+        correlationId,
       })
     } finally {
       source.close()
@@ -59,16 +57,22 @@ export class WorldArchiveService {
     const artifact = this.#inspect(backupPath, correlationId, 'RESTORE_VALIDATION_FAILED')
     if (artifact.fileHash !== expectedHash) {
       failWorld({
-        errorCode: 'RESTORE_VALIDATION_FAILED', category: 'integrity', message: 'backup hash does not match restore request',
-        retryable: false, correlationId,
+        errorCode: 'RESTORE_VALIDATION_FAILED',
+        category: 'integrity',
+        message: 'backup hash does not match restore request',
+        retryable: false,
+        correlationId,
       })
     }
     writeFileSync(targetPath, readFileSync(backupPath), { flag: 'wx' })
     this.#prepareRecoveryTarget(targetPath)
     const restored = this.#inspect(targetPath, correlationId, 'RESTORE_VALIDATION_FAILED')
     const provenance = {
-      sourcePath: resolve(this.sourcePath), backupPath: resolve(backupPath), expectedHash,
-      recoveryMode: 'redeliver-outbox', artifact: restored,
+      sourcePath: resolve(this.sourcePath),
+      backupPath: resolve(backupPath),
+      expectedHash,
+      recoveryMode: 'redeliver-outbox',
+      artifact: restored,
     }
     this.#auditAt(targetPath, 'archive.restore.completed', correlationId, provenance)
     this.#audit('archive.restore.completed', correlationId, { targetPath, artifact: restored })
@@ -104,29 +108,40 @@ export class WorldArchiveService {
       canonicalizeWorldJson(envelope)
     } catch (error: unknown) {
       failWorld({
-        errorCode: 'BACKUP_INVALID', category: 'integrity', message: `portable export is invalid: ${String(error)}`,
-        retryable: false, correlationId,
+        errorCode: 'BACKUP_INVALID',
+        category: 'integrity',
+        message: `portable export is invalid: ${String(error)}`,
+        retryable: false,
+        correlationId,
       })
     }
     if (envelope.format !== 'world-portable-export/v1' || envelope.backup.format !== 'world-sqlite-backup/v1') {
       failWorld({
-        errorCode: 'BACKUP_INVALID', category: 'integrity', message: 'portable export format is unsupported',
-        retryable: false, correlationId,
+        errorCode: 'BACKUP_INVALID',
+        category: 'integrity',
+        message: 'portable export format is unsupported',
+        retryable: false,
+        correlationId,
       })
     }
     const bytes = Buffer.from(envelope.sqliteBase64, 'base64')
     if (bytes.byteLength !== envelope.backup.byteLength || hashBytes(bytes) !== envelope.backup.fileHash) {
       failWorld({
-        errorCode: 'BACKUP_INVALID', category: 'integrity', message: 'portable export payload hash is invalid',
-        retryable: false, correlationId,
+        errorCode: 'BACKUP_INVALID',
+        category: 'integrity',
+        message: 'portable export payload hash is invalid',
+        retryable: false,
+        correlationId,
       })
     }
     writeFileSync(targetPath, bytes, { flag: 'wx' })
     this.#prepareRecoveryTarget(targetPath)
     const imported = this.#inspect(targetPath, correlationId, 'BACKUP_INVALID')
     const provenance = {
-      sourcePath: resolve(this.sourcePath), exportPath: resolve(exportPath),
-      recoveryMode: 'redeliver-outbox', artifact: imported,
+      sourcePath: resolve(this.sourcePath),
+      exportPath: resolve(exportPath),
+      recoveryMode: 'redeliver-outbox',
+      artifact: imported,
     }
     this.#auditAt(targetPath, 'archive.import.completed', correlationId, provenance)
     this.#audit('archive.import.completed', correlationId, { targetPath, artifact: imported })
@@ -136,8 +151,11 @@ export class WorldArchiveService {
   #guardNewTarget(targetPath: string, correlationId: string): void {
     if (resolve(targetPath) === resolve(this.sourcePath) || existsSync(targetPath)) {
       failWorld({
-        errorCode: 'IMPORT_ID_CONFLICT', category: 'admin', message: 'archive target already exists or aliases the source',
-        retryable: false, correlationId,
+        errorCode: 'IMPORT_ID_CONFLICT',
+        category: 'admin',
+        message: 'archive target already exists or aliases the source',
+        retryable: false,
+        correlationId,
       })
     }
   }
@@ -173,7 +191,11 @@ export class WorldArchiveService {
     }
   }
 
-  #inspect(path: string, correlationId: string, errorCode: 'BACKUP_INVALID' | 'RESTORE_VALIDATION_FAILED'): WorldBackupArtifact {
+  #inspect(
+    path: string,
+    correlationId: string,
+    errorCode: 'BACKUP_INVALID' | 'RESTORE_VALIDATION_FAILED',
+  ): WorldBackupArtifact {
     try {
       const bytes = readFileSync(path)
       const db = new DatabaseSync(path, { readOnly: true })
@@ -181,17 +203,29 @@ export class WorldArchiveService {
         const applicationId = readPragmaInteger(db, 'application_id')
         const schemaVersion = readPragmaInteger(db, 'user_version')
         const quickCheck = db.prepare('PRAGMA quick_check').get() as { quick_check?: string }
-        if (applicationId !== WORLD_APPLICATION_ID || schemaVersion !== WORLD_SCHEMA_VERSION || quickCheck.quick_check !== 'ok') {
+        if (
+          applicationId !== WORLD_APPLICATION_ID ||
+          schemaVersion !== WORLD_SCHEMA_VERSION ||
+          quickCheck.quick_check !== 'ok'
+        ) {
           throw new Error('SQLite identity, schema, or integrity check failed')
         }
       } finally {
         db.close()
       }
-      return { format: 'world-sqlite-backup/v1', byteLength: bytes.byteLength, fileHash: hashBytes(bytes), schemaVersion: WORLD_SCHEMA_VERSION }
+      return {
+        format: 'world-sqlite-backup/v1',
+        byteLength: bytes.byteLength,
+        fileHash: hashBytes(bytes),
+        schemaVersion: WORLD_SCHEMA_VERSION,
+      }
     } catch (error: unknown) {
       failWorld({
-        errorCode, category: 'integrity', message: `archive validation failed: ${String(error)}`,
-        retryable: false, correlationId,
+        errorCode,
+        category: 'integrity',
+        message: `archive validation failed: ${String(error)}`,
+        retryable: false,
+        correlationId,
       })
     }
   }

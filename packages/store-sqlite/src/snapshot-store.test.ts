@@ -34,11 +34,19 @@ describe('SnapshotStore', () => {
     expect(() => store.read(address, 'snapshot:missing')).toThrow('header is missing')
     expect(() => store.create(address, -1, { projection: {} }, 'snapshot:invalid')).toThrow(RangeError)
     expect(() => store.create(address, 0, {}, 'snapshot:empty')).toThrow(TypeError)
-    const first = store.create(address, 5, { projection: { claims: ['one'] }, characterViews: { count: 1 } }, 'snapshot:first')
+    const first = store.create(
+      address,
+      5,
+      { projection: { claims: ['one'] }, characterViews: { count: 1 } },
+      'snapshot:first',
+    )
     expect(first).toMatchObject({ status: 'created', bundle: { asOfSeq: 5, status: 'ready' } })
-    expect(store.create(address, 5, { characterViews: { count: 1 }, projection: { claims: ['one'] } }, 'snapshot:replay'))
-      .toEqual({ ...first, status: 'already_created' })
-    expect(() => store.create(address, 5, { projection: { claims: ['changed'] } }, 'snapshot:conflict')).toThrow('different units')
+    expect(
+      store.create(address, 5, { characterViews: { count: 1 }, projection: { claims: ['one'] } }, 'snapshot:replay'),
+    ).toEqual({ ...first, status: 'already_created' })
+    expect(() => store.create(address, 5, { projection: { claims: ['changed'] } }, 'snapshot:conflict')).toThrow(
+      'different units',
+    )
     const second = store.create(address, 8, { projection: { claims: ['two'] } }, 'snapshot:second')
     expect(store.latest(address)).toEqual(second.bundle)
     expect(store.list(address)).toEqual([first.bundle, second.bundle])

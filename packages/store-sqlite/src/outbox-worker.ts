@@ -36,7 +36,8 @@ export interface ClaimedOutboxDelivery {
   readonly claimExpiresAtMs: number
 }
 
-export interface DeadLetterRecord extends Omit<ClaimedOutboxDelivery, 'claimOwnerId' | 'claimToken' | 'claimExpiresAtMs'> {
+export interface DeadLetterRecord
+  extends Omit<ClaimedOutboxDelivery, 'claimOwnerId' | 'claimToken' | 'claimExpiresAtMs'> {
   readonly lastError: string
 }
 
@@ -68,7 +69,11 @@ export class WorldOutbox {
   readonly #now: () => number
   readonly #createClaimToken: () => string
 
-  constructor(path: string, private readonly faultInjector?: FaultInjector, options: WorldOutboxOptions = {}) {
+  constructor(
+    path: string,
+    private readonly faultInjector?: FaultInjector,
+    options: WorldOutboxOptions = {},
+  ) {
     this.#workerId = options.workerId ?? `outbox-worker:${randomUUID()}`
     this.#claimTtlMs = options.claimTtlMs ?? 30_000
     this.#now = options.now ?? Date.now
@@ -85,7 +90,9 @@ export class WorldOutbox {
     const addressKey = worldAddressKey(address)
     this.#db.exec('BEGIN IMMEDIATE')
     try {
-      const row = this.#db.prepare(`
+      const row = this.#db
+        .prepare(
+          `
         SELECT o.delivery_id, o.session_id, o.payload_hash, o.payload_json, o.critical,
           o.attempt_count, o.session_delivery_seq, o.first_attempt_at_ms
         FROM outbox o
@@ -98,55 +105,72 @@ export class WorldOutbox {
               AND earlier.delivery_status IN ('pending', 'inflight', 'dead_letter')
           )
         ORDER BY o.world_seq, o.delivery_id LIMIT 1
-      `).get(addressKey, now, now) as {
-        delivery_id: DeliveryId
-        session_id: SessionId
-        payload_hash: WorldHash
-        payload_json: string
-        critical: number
-        attempt_count: number
-        session_delivery_seq: number | null
-        first_attempt_at_ms: number | null
-      } | undefined
+      `,
+        )
+        .get(addressKey, now, now) as
+        | {
+            delivery_id: DeliveryId
+            session_id: SessionId
+            payload_hash: WorldHash
+            payload_json: string
+            critical: number
+            attempt_count: number
+            session_delivery_seq: number | null
+            first_attempt_at_ms: number | null
+          }
+        | undefined
       if (row === undefined) {
         this.#db.exec('COMMIT')
         return undefined
       }
       let sequence = row.session_delivery_seq
       if (sequence === null) {
-        this.#db.prepare(`
+        this.#db
+          .prepare(
+            `
           INSERT INTO outbox_session_counters(session_id, next_delivery_seq) VALUES (?, 1)
           ON CONFLICT(session_id) DO NOTHING
-        `).run(row.session_id)
-        const counter = this.#db.prepare(`
+        `,
+          )
+          .run(row.session_id)
+        const counter = this.#db
+          .prepare(
+            `
           SELECT next_delivery_seq FROM outbox_session_counters WHERE session_id = ?
-        `).get(row.session_id) as { next_delivery_seq: number }
+        `,
+          )
+          .get(row.session_id) as { next_delivery_seq: number }
         sequence = counter.next_delivery_seq
-        this.#db.prepare(`UPDATE outbox_session_counters SET next_delivery_seq = ? WHERE session_id = ?`)
+        this.#db
+          .prepare(`UPDATE outbox_session_counters SET next_delivery_seq = ? WHERE session_id = ?`)
           .run(sequence + 1, row.session_id)
       }
       const attemptCount = row.attempt_count + 1
       const firstAttemptAtMs = row.first_attempt_at_ms ?? now
       const claimToken = `outbox-claim:${this.#createClaimToken()}`
       const claimExpiresAtMs = now + this.#claimTtlMs
-      this.#db.prepare(`
+      this.#db
+        .prepare(
+          `
         UPDATE outbox SET delivery_status = 'inflight', attempt_count = ?, first_attempt_at_ms = ?,
           session_delivery_seq = ?, last_error = NULL,
           claim_owner_id = ?, claim_token = ?, claim_expires_at_ms = ?
         WHERE address_key = ? AND delivery_id = ? AND ((delivery_status = 'pending' AND next_attempt_at_ms <= ?)
           OR (delivery_status = 'inflight' AND (claim_token IS NULL OR claim_expires_at_ms <= ?)))
-      `).run(
-        attemptCount,
-        firstAttemptAtMs,
-        sequence,
-        this.#workerId,
-        claimToken,
-        claimExpiresAtMs,
-        addressKey,
-        row.delivery_id,
-        now,
-        now,
-      )
+      `,
+        )
+        .run(
+          attemptCount,
+          firstAttemptAtMs,
+          sequence,
+          this.#workerId,
+          claimToken,
+          claimExpiresAtMs,
+          addressKey,
+          row.delivery_id,
+          now,
+          now,
+        )
       this.#db.exec('COMMIT')
       return {
         address,
@@ -170,26 +194,34 @@ export class WorldOutbox {
   async recordDelivered(delivery: ClaimedOutboxDelivery): Promise<void> {
     this.#db.exec('BEGIN IMMEDIATE')
     try {
-      const result = this.#db.prepare(`
+      const result = this.#db
+        .prepare(
+          `
         UPDATE outbox SET delivery_status = 'delivered', last_error = NULL, next_attempt_at_ms = 0,
           claim_owner_id = NULL, claim_token = NULL, claim_expires_at_ms = NULL
         WHERE address_key = ? AND delivery_id = ? AND session_id = ? AND session_delivery_seq = ? AND payload_hash = ?
           AND delivery_status = 'inflight' AND attempt_count = ? AND claim_owner_id = ? AND claim_token = ?
-      `).run(
-        worldAddressKey(delivery.address),
-        delivery.deliveryId,
-        delivery.sessionId,
-        delivery.sessionDeliverySeq,
-        delivery.payloadHash,
-        delivery.attemptCount,
-        delivery.claimOwnerId,
-        delivery.claimToken,
-      )
+      `,
+        )
+        .run(
+          worldAddressKey(delivery.address),
+          delivery.deliveryId,
+          delivery.sessionId,
+          delivery.sessionDeliverySeq,
+          delivery.payloadHash,
+          delivery.attemptCount,
+          delivery.claimOwnerId,
+          delivery.claimToken,
+        )
       if (result.changes !== 1) throw new Error('Outbox delivery claim is stale or does not match the claimed item')
-      this.#db.prepare(`
+      this.#db
+        .prepare(
+          `
         INSERT INTO outbox_delivery_receipts(delivery_id, session_id, session_delivery_seq, payload_hash)
         VALUES (?, ?, ?, ?)
-      `).run(delivery.deliveryId, delivery.sessionId, delivery.sessionDeliverySeq, delivery.payloadHash)
+      `,
+        )
+        .run(delivery.deliveryId, delivery.sessionId, delivery.sessionDeliverySeq, delivery.payloadHash)
       this.faultInjector?.hit('outbox.before-receipt-commit')
       this.#db.exec('COMMIT')
     } catch (error: unknown) {
@@ -204,45 +236,61 @@ export class WorldOutbox {
     maxAttempts: number,
     maxAgeMs = 600_000,
   ): 'retry_scheduled' | 'dead_letter' {
-    if (!Number.isSafeInteger(maxAttempts) || maxAttempts <= 0) throw new RangeError('maxAttempts must be a positive safe integer')
-    if (!Number.isSafeInteger(maxAgeMs) || maxAgeMs <= 0) throw new RangeError('maxAgeMs must be a positive safe integer')
+    if (!Number.isSafeInteger(maxAttempts) || maxAttempts <= 0)
+      throw new RangeError('maxAttempts must be a positive safe integer')
+    if (!Number.isSafeInteger(maxAgeMs) || maxAgeMs <= 0)
+      throw new RangeError('maxAgeMs must be a positive safe integer')
     const now = this.#now()
     const delays = [1_000, 2_000, 4_000, 8_000, 16_000, 30_000] as const
     const retryDelayMs = delays[Math.min(delivery.attemptCount - 1, delays.length - 1)]!
-    const exhausted = delivery.attemptCount >= maxAttempts
-      || now >= delivery.firstAttemptAtMs + maxAgeMs
-      || now + retryDelayMs > delivery.firstAttemptAtMs + maxAgeMs
+    const exhausted =
+      delivery.attemptCount >= maxAttempts ||
+      now >= delivery.firstAttemptAtMs + maxAgeMs ||
+      now + retryDelayMs > delivery.firstAttemptAtMs + maxAgeMs
     const status = exhausted ? 'dead_letter' : 'pending'
     const nextAttemptAtMs = status === 'pending' ? now + retryDelayMs : 0
     const addressKey = worldAddressKey(delivery.address)
     this.#db.exec('BEGIN IMMEDIATE')
     try {
-      const result = this.#db.prepare(`
+      const result = this.#db
+        .prepare(
+          `
         UPDATE outbox SET delivery_status = ?, last_error = ?, next_attempt_at_ms = ?,
           claim_owner_id = NULL, claim_token = NULL, claim_expires_at_ms = NULL
         WHERE address_key = ? AND delivery_id = ? AND delivery_status = 'inflight' AND attempt_count = ?
           AND claim_owner_id = ? AND claim_token = ?
-      `).run(
-        status,
-        message,
-        nextAttemptAtMs,
-        addressKey,
-        delivery.deliveryId,
-        delivery.attemptCount,
-        delivery.claimOwnerId,
-        delivery.claimToken,
-      )
+      `,
+        )
+        .run(
+          status,
+          message,
+          nextAttemptAtMs,
+          addressKey,
+          delivery.deliveryId,
+          delivery.attemptCount,
+          delivery.claimOwnerId,
+          delivery.claimToken,
+        )
       if (result.changes !== 1) throw new Error('Outbox delivery claim is stale')
       if (status === 'dead_letter') {
-        this.#db.prepare(`
+        this.#db
+          .prepare(
+            `
           INSERT INTO branch_audit_events(address_key, operation, correlation_id, details_json, operational_time_ms)
           VALUES (?, 'outbox.dead-lettered', ?, ?, ?)
-        `).run(
-          addressKey,
-          `outbox:${delivery.deliveryId}`,
-          worldJsonText({ deliveryId: delivery.deliveryId, sessionId: delivery.sessionId, attemptCount: delivery.attemptCount, message }),
-          now,
-        )
+        `,
+          )
+          .run(
+            addressKey,
+            `outbox:${delivery.deliveryId}`,
+            worldJsonText({
+              deliveryId: delivery.deliveryId,
+              sessionId: delivery.sessionId,
+              attemptCount: delivery.attemptCount,
+              message,
+            }),
+            now,
+          )
       }
       this.#db.exec('COMMIT')
       return status === 'dead_letter' ? 'dead_letter' : 'retry_scheduled'
@@ -251,26 +299,26 @@ export class WorldOutbox {
     }
   }
 
-  recordIntegrityFailure(
-    delivery: ClaimedOutboxDelivery,
-    error: ErrorEnvelope,
-    source: string,
-  ): QuarantineResult {
+  recordIntegrityFailure(delivery: ClaimedOutboxDelivery, error: ErrorEnvelope, source: string): QuarantineResult {
     this.#db.exec('BEGIN IMMEDIATE')
     try {
-      const result = this.#db.prepare(`
+      const result = this.#db
+        .prepare(
+          `
         UPDATE outbox SET delivery_status = 'dead_letter', last_error = ?, next_attempt_at_ms = 0,
           claim_owner_id = NULL, claim_token = NULL, claim_expires_at_ms = NULL
         WHERE address_key = ? AND delivery_id = ? AND delivery_status = 'inflight' AND attempt_count = ?
           AND claim_owner_id = ? AND claim_token = ?
-      `).run(
-        error.message,
-        worldAddressKey(delivery.address),
-        delivery.deliveryId,
-        delivery.attemptCount,
-        delivery.claimOwnerId,
-        delivery.claimToken,
-      )
+      `,
+        )
+        .run(
+          error.message,
+          worldAddressKey(delivery.address),
+          delivery.deliveryId,
+          delivery.attemptCount,
+          delivery.claimOwnerId,
+          delivery.claimToken,
+        )
       if (result.changes !== 1) throw new Error('Outbox delivery claim is stale')
       const quarantine = applyBranchQuarantine(this.#db, { address: delivery.address, error, source }, this.#now())
       this.faultInjector?.hit('quarantine.before-commit')
@@ -283,11 +331,15 @@ export class WorldOutbox {
   }
 
   deadLetters(address: WorldAddress): DeadLetterRecord[] {
-    const rows = this.#db.prepare(`
+    const rows = this.#db
+      .prepare(
+        `
       SELECT delivery_id, session_id, session_delivery_seq, payload_hash, payload_json, critical, attempt_count,
         first_attempt_at_ms, last_error
       FROM outbox WHERE address_key = ? AND delivery_status = 'dead_letter' ORDER BY world_seq, delivery_id
-    `).all(worldAddressKey(address)) as Array<{
+    `,
+      )
+      .all(worldAddressKey(address)) as Array<{
       delivery_id: DeliveryId
       session_id: SessionId
       session_delivery_seq: number
@@ -313,13 +365,17 @@ export class WorldOutbox {
   }
 
   deliveryLedger(address: WorldAddress, correlationId: string): WorldDeliveryLedgerRecord[] {
-    const rows = this.#db.prepare(`
+    const rows = this.#db
+      .prepare(
+        `
       SELECT o.delivery_id, o.session_id, o.session_delivery_seq, o.payload_hash, o.payload_json, o.delivery_status,
         r.delivery_id AS receipt_delivery_id, r.session_id AS receipt_session_id,
         r.session_delivery_seq AS receipt_delivery_seq, r.payload_hash AS receipt_payload_hash
       FROM outbox o LEFT JOIN outbox_delivery_receipts r ON r.delivery_id = o.delivery_id
       WHERE o.address_key = ? ORDER BY o.world_seq, o.delivery_id
-    `).all(worldAddressKey(address)) as Array<{
+    `,
+      )
+      .all(worldAddressKey(address)) as Array<{
       delivery_id: DeliveryId
       session_id: SessionId
       session_delivery_seq: number | null
@@ -334,16 +390,22 @@ export class WorldOutbox {
     return rows.map(row => {
       const payload = parseWorldJson(row.payload_json)
       const receiptRecorded = row.receipt_delivery_id !== null
-      const receiptMatches = row.receipt_delivery_id === row.delivery_id
-        && row.receipt_session_id === row.session_id
-        && row.receipt_delivery_seq === row.session_delivery_seq
-        && row.receipt_payload_hash === row.payload_hash
-      if (hashWorldJson('world-outbox-payload', payload) !== row.payload_hash
-        || (row.delivery_status === 'delivered' ? !receiptMatches : receiptRecorded)) {
+      const receiptMatches =
+        row.receipt_delivery_id === row.delivery_id &&
+        row.receipt_session_id === row.session_id &&
+        row.receipt_delivery_seq === row.session_delivery_seq &&
+        row.receipt_payload_hash === row.payload_hash
+      if (
+        hashWorldJson('world-outbox-payload', payload) !== row.payload_hash ||
+        (row.delivery_status === 'delivered' ? !receiptMatches : receiptRecorded)
+      ) {
         failWorld({
-          errorCode: 'BUNDLE_HASH_MISMATCH', category: 'integrity',
-          message: 'World Outbox payload or delivery receipt is divergent', retryable: false,
-          correlationId, address,
+          errorCode: 'BUNDLE_HASH_MISMATCH',
+          category: 'integrity',
+          message: 'World Outbox payload or delivery receipt is divergent',
+          retryable: false,
+          correlationId,
+          address,
         })
       }
       return {
@@ -361,17 +423,25 @@ export class WorldOutbox {
     const addressKey = worldAddressKey(address)
     this.#db.exec('BEGIN IMMEDIATE')
     try {
-      const result = this.#db.prepare(`
+      const result = this.#db
+        .prepare(
+          `
         UPDATE outbox SET delivery_status = 'pending', attempt_count = 0, first_attempt_at_ms = NULL,
           next_attempt_at_ms = 0, last_error = NULL,
           claim_owner_id = NULL, claim_token = NULL, claim_expires_at_ms = NULL
         WHERE address_key = ? AND delivery_id = ? AND delivery_status = 'dead_letter'
-      `).run(addressKey, deliveryId)
+      `,
+        )
+        .run(addressKey, deliveryId)
       if (result.changes !== 1) throw new Error('Outbox item is not a dead letter for this branch')
-      this.#db.prepare(`
+      this.#db
+        .prepare(
+          `
         INSERT INTO branch_audit_events(address_key, operation, correlation_id, details_json, operational_time_ms)
         VALUES (?, 'outbox.dead-letter.retried', ?, ?, ?)
-      `).run(addressKey, correlationId, worldJsonText({ deliveryId }), this.#now())
+      `,
+        )
+        .run(addressKey, correlationId, worldJsonText({ deliveryId }), this.#now())
       this.#db.exec('COMMIT')
     } catch (error: unknown) {
       rollbackAndThrow(this.#db, error)
@@ -379,7 +449,10 @@ export class WorldOutbox {
   }
 
   hasReceipt(deliveryId: DeliveryId): boolean {
-    return this.#db.prepare(`SELECT 1 AS present FROM outbox_delivery_receipts WHERE delivery_id = ?`).get(deliveryId) !== undefined
+    return (
+      this.#db.prepare(`SELECT 1 AS present FROM outbox_delivery_receipts WHERE delivery_id = ?`).get(deliveryId) !==
+      undefined
+    )
   }
 
   close(): void {

@@ -11,7 +11,9 @@ export async function openCreator(): Promise<void> {
   await invoke('launcher_request', { request: { operation: 'open-creator' } })
 }
 export async function packCover(packageId: string): Promise<string | null> {
-  const result = await invoke<{ dataUrl: string | null }>('launcher_request', { request: { operation: 'pack-cover', packageId } })
+  const result = await invoke<{ dataUrl: string | null }>('launcher_request', {
+    request: { operation: 'pack-cover', packageId },
+  })
   return result.dataUrl
 }
 export async function choosePackageDirectory(): Promise<string | null> {
@@ -21,58 +23,84 @@ export async function choosePackageDirectory(): Promise<string | null> {
   return typeof path === 'string' ? path : null
 }
 /** Retained only for browser Mock preview compatibility. */
-export async function choosePackageFile(): Promise<string | null> { return choosePackageDirectory() }
+export async function choosePackageFile(): Promise<string | null> {
+  return choosePackageDirectory()
+}
 
 export async function savePresetFile(text: string, name: string): Promise<boolean> {
- if (isTauri()) {
-  const { save } = await import('@tauri-apps/plugin-dialog')
-  const path = await save({ title:'导出预设',defaultPath:name,filters:[{name:'JSON',extensions:['json']}] })
-  if (!path) return false
-  await invoke('launcher_request',{request:{operation:'preset-export-file',path,text}})
- } else {
-  const url=URL.createObjectURL(new Blob([text],{type:'application/json'}))
-  const link=document.createElement('a');link.href=url;link.download=name;link.click()
-  setTimeout(()=>URL.revokeObjectURL(url),1000)
- }
- return true
+  if (isTauri()) {
+    const { save } = await import('@tauri-apps/plugin-dialog')
+    const path = await save({ title: '导出预设', defaultPath: name, filters: [{ name: 'JSON', extensions: ['json'] }] })
+    if (!path) return false
+    await invoke('launcher_request', { request: { operation: 'preset-export-file', path, text } })
+  } else {
+    const url = URL.createObjectURL(new Blob([text], { type: 'application/json' }))
+    const link = document.createElement('a')
+    link.href = url
+    link.download = name
+    link.click()
+    setTimeout(() => URL.revokeObjectURL(url), 1000)
+  }
+  return true
 }
 
 /** Keys are added by the desktop shell from the credential store; the page never sends them here. */
 export async function testModelConnection(connectionId: string, model: string): Promise<string> {
- const result=await invoke<{message:string}>('launcher_request',{request:{operation:'test-model',connectionId,model}})
- return result.message
+  const result = await invoke<{ message: string }>('launcher_request', {
+    request: { operation: 'test-model', connectionId, model },
+  })
+  return result.message
 }
 export async function listConnectionModels(connectionId: string): Promise<string[]> {
- const result=await invoke<{models:string[]}>('launcher_request',{request:{operation:'list-models',connectionId}})
- return result.models
+  const result = await invoke<{ models: string[] }>('launcher_request', {
+    request: { operation: 'list-models', connectionId },
+  })
+  return result.models
 }
 export async function setConnectionKey(connectionId: string, apiKey: string): Promise<void> {
- await invoke('launcher_request',{request:{operation:'connection-key-set',connectionId,apiKey}})
+  await invoke('launcher_request', { request: { operation: 'connection-key-set', connectionId, apiKey } })
 }
 export async function connectionKeyStatus(connectionIds: string[]): Promise<string[]> {
- const result=await invoke<{stored:string[]}>('launcher_request',{request:{operation:'connection-key-status',connectionIds}})
- return result.stored
+  const result = await invoke<{ stored: string[] }>('launcher_request', {
+    request: { operation: 'connection-key-status', connectionIds },
+  })
+  return result.stored
 }
 
 export async function chooseStoryFile(): Promise<string | null> {
   if (!isTauri()) return null
   const { open } = await import('@tauri-apps/plugin-dialog')
-  const path = await open({ title: '导入故事节点', multiple: false, filters: [{ name: 'Perspectra 故事节点', extensions: ['perspectra-story'] }] })
+  const path = await open({
+    title: '导入故事节点',
+    multiple: false,
+    filters: [{ name: 'Perspectra 故事节点', extensions: ['perspectra-story'] }],
+  })
   return typeof path === 'string' ? path : null
 }
 export async function chooseStoryDestination(): Promise<string | null> {
   if (!isTauri()) return null
   const { save } = await import('@tauri-apps/plugin-dialog')
-  return save({ title: '导出故事节点', defaultPath: '故事节点.perspectra-story', filters: [{ name: 'Perspectra 故事节点', extensions: ['perspectra-story'] }] })
+  return save({
+    title: '导出故事节点',
+    defaultPath: '故事节点.perspectra-story',
+    filters: [{ name: 'Perspectra 故事节点', extensions: ['perspectra-story'] }],
+  })
 }
 
-export interface DataLocation { current: string; next: string; locked: boolean }
-export async function dataLocation(operation = 'data-location', data: Record<string, unknown> = {}): Promise<DataLocation> {
- return invoke('launcher_request', { request: { operation, ...data } })
+export interface DataLocation {
+  current: string
+  next: string
+  locked: boolean
+}
+export async function dataLocation(
+  operation = 'data-location',
+  data: Record<string, unknown> = {},
+): Promise<DataLocation> {
+  return invoke('launcher_request', { request: { operation, ...data } })
 }
 export async function chooseDataDirectory(): Promise<string | null> {
- if (!isTauri()) return null
- const { open } = await import('@tauri-apps/plugin-dialog')
- const path = await open({ title: '选择新的数据目录（重启后生效）', directory: true, multiple: false })
- return typeof path === 'string' ? path : null
+  if (!isTauri()) return null
+  const { open } = await import('@tauri-apps/plugin-dialog')
+  const path = await open({ title: '选择新的数据目录（重启后生效）', directory: true, multiple: false })
+  return typeof path === 'string' ? path : null
 }

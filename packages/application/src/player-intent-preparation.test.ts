@@ -14,19 +14,28 @@ function prepare(input: Record<string, unknown>) {
   const world = frozenIntentWorld()
   const manifest = world.manifest
   const resolver = createCoreRulebookRegistry({ interactionPackages: [basicInteractionPackage] }).resolve(
-    manifest.rulebook.rulebookId, manifest.rulebook.version, 'preparation:test')
+    manifest.rulebook.rulebookId,
+    manifest.rulebook.version,
+    'preparation:test',
+  )
   const job = {
-    address: manifest.address, inputId: 'input:1', principalId: 'principal:player', input,
+    address: manifest.address,
+    inputId: 'input:1',
+    principalId: 'principal:player',
+    input,
   } as unknown as PlayerInputJob
   return preparePlayerIntent(job, manifest, [], resolver, undefined, 0, world.manifestHash, 0)
 }
 
 describe('preparing a command-controlled player input', () => {
   it('preserves an explicit narration as source evidence without a model', () => {
-    expect(prepare({ text: '/narrate 我把日记暂放桌上。' })).toMatchObject({ directSubmission: {
-      sourceText: '我把日记暂放桌上。', sourceSpans: [{ kind: 'narration', text: '我把日记暂放桌上。' }],
-      actions: [{ actionType: 'speak', parameters: { text: '', narration: '我把日记暂放桌上。' } }],
-    } })
+    expect(prepare({ text: '/narrate 我把日记暂放桌上。' })).toMatchObject({
+      directSubmission: {
+        sourceText: '我把日记暂放桌上。',
+        sourceSpans: [{ kind: 'narration', text: '我把日记暂放桌上。' }],
+        actions: [{ actionType: 'speak', parameters: { text: '', narration: '我把日记暂放桌上。' } }],
+      },
+    })
   })
   it('takes the version from the affordance the command exercises', () => {
     const result = prepare({ action: { actionType: 'speak', parameters: { text: '你好' } } })
@@ -34,15 +43,27 @@ describe('preparing a command-controlled player input', () => {
   })
 
   it('asks for clarification when nothing affords the action it names', () => {
-    expect(prepare({ action: { actionType: 'take', parameters: { entityId: 'entity:cup' } } }))
-      .toEqual({ clarification: 'action is not currently afforded' })
+    expect(prepare({ action: { actionType: 'take', parameters: { entityId: 'entity:cup' } } })).toEqual({
+      clarification: 'action is not currently afforded',
+    })
   })
 })
 
-it('preserves both narration and speech as source spans of one action',()=>{
- const result=prepare({action:{actionType:'speak',parameters:{text:'你好',narration:'轻轻微笑。\n抬起头。'}}})
- expect(result).toMatchObject({directSubmission:{sourceText:'轻轻微笑。\n抬起头。\n你好',
-  sourceSpans:[{kind:'narration',text:'轻轻微笑。\n抬起头。',startUtf16:0,endUtf16:10},{kind:'speech',text:'你好',startUtf16:11,endUtf16:13}]}})
- if('directSubmission' in result)expect(result.directSubmission.actions).toHaveLength(1)
- expect(prepare({text:'/narrate 轻轻微笑。\n抬起头。'})).toMatchObject({directSubmission:{actions:[{parameters:{text:'',narration:'轻轻微笑。\n抬起头。'}}]}})
+it('preserves both narration and speech as source spans of one action', () => {
+  const result = prepare({
+    action: { actionType: 'speak', parameters: { text: '你好', narration: '轻轻微笑。\n抬起头。' } },
+  })
+  expect(result).toMatchObject({
+    directSubmission: {
+      sourceText: '轻轻微笑。\n抬起头。\n你好',
+      sourceSpans: [
+        { kind: 'narration', text: '轻轻微笑。\n抬起头。', startUtf16: 0, endUtf16: 10 },
+        { kind: 'speech', text: '你好', startUtf16: 11, endUtf16: 13 },
+      ],
+    },
+  })
+  if ('directSubmission' in result) expect(result.directSubmission.actions).toHaveLength(1)
+  expect(prepare({ text: '/narrate 轻轻微笑。\n抬起头。' })).toMatchObject({
+    directSubmission: { actions: [{ parameters: { text: '', narration: '轻轻微笑。\n抬起头。' } }] },
+  })
 })

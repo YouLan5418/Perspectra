@@ -9,10 +9,7 @@ import {
 } from '@harness-world/contracts'
 import type { WorldStore } from './world-store.ts'
 
-const VISIBLE_STATE_EVENTS = [
-  'character.visible-state-upserted',
-  'character.visible-state-removed',
-] as const
+const VISIBLE_STATE_EVENTS = ['character.visible-state-upserted', 'character.visible-state-removed'] as const
 
 export interface CharacterVisibleStateRecord extends WorldJsonObject {
   readonly characterId: CharacterId
@@ -30,7 +27,8 @@ export interface CharacterVisibleStateBundle extends WorldJsonObject {
 }
 
 function object(value: WorldJsonValue, path: string): WorldJsonObject {
-  if (typeof value !== 'object' || value === null || Array.isArray(value)) throw new TypeError(`${path} must be an object`)
+  if (typeof value !== 'object' || value === null || Array.isArray(value))
+    throw new TypeError(`${path} must be an object`)
   return value as WorldJsonObject
 }
 
@@ -62,8 +60,11 @@ export class VisibleStateRebuilder {
         continue
       }
       const value = object(data.value as WorldJsonValue, `${event.eventType}@${event.seq}.value`)
-      if ((value.channel !== 'posture' && value.channel !== 'appearance')
-        || typeof value.description !== 'string' || value.description.length === 0) {
+      if (
+        (value.channel !== 'posture' && value.channel !== 'appearance') ||
+        typeof value.description !== 'string' ||
+        value.description.length === 0
+      ) {
         throw new TypeError('character.visible-state-upserted value is malformed')
       }
       states.set(identity, {
@@ -76,8 +77,10 @@ export class VisibleStateRebuilder {
     }
     const selected = [...states.values()]
       .filter(value => characterId === undefined || value.characterId === characterId)
-      .sort((left, right) => compareWorldText(left.characterId, right.characterId)
-        || compareWorldText(left.stateKey, right.stateKey))
+      .sort(
+        (left, right) =>
+          compareWorldText(left.characterId, right.characterId) || compareWorldText(left.stateKey, right.stateKey),
+      )
     const base = { address, asOfWorldSeq, states: selected }
     return { ...base, bundleHash: hashWorldJson('character-visible-state-bundle/v1', base) }
   }

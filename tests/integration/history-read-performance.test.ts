@@ -28,8 +28,9 @@ function address(): WorldAddress {
 }
 
 function planDetails(db: DatabaseSync, sql: string, ...parameters: SQLInputValue[]): string[] {
-  return (db.prepare(`EXPLAIN QUERY PLAN ${sql}`).all(...parameters) as Array<{ detail: string }>)
-    .map(row => row.detail)
+  return (db.prepare(`EXPLAIN QUERY PLAN ${sql}`).all(...parameters) as Array<{ detail: string }>).map(
+    row => row.detail,
+  )
 }
 
 function expectIndexed(details: readonly string[]): void {
@@ -51,13 +52,17 @@ describe('Phase 8.3 fixed-data performance gates', () => {
     setup.close()
     const seed = new DatabaseSync(path)
     seed.exec('PRAGMA foreign_keys = ON; BEGIN IMMEDIATE')
-    seed.prepare(`
+    seed
+      .prepare(
+        `
       INSERT INTO round_commits(
         transaction_id, address_key, request_hash, round_id, base_head_seq, base_tick,
         head_seq, tick, bundle_hash, authority_hash
       ) VALUES ('transaction:p8-performance', ?, 'sha256:request', 'round:p8-performance', 0, 0, ?, 1,
         'sha256:bundle', NULL)
-    `).run(key, HISTORY_ROWS)
+    `,
+      )
+      .run(key, HISTORY_ROWS)
     const insert = seed.prepare(`
       INSERT INTO events(
         address_key, seq, tick, event_type, event_version, data_json, previous_hash,
@@ -66,29 +71,29 @@ describe('Phase 8.3 fixed-data performance gates', () => {
     `)
     for (let seq = 1; seq <= HISTORY_ROWS; seq += 1) {
       insert.run(
-        key, seq, seq % 2 === 0 ? 'observation.upsert' : 'fixture.event',
+        key,
+        seq,
+        seq % 2 === 0 ? 'observation.upsert' : 'fixture.event',
         JSON.stringify({ id: `event:${seq}`, value: seq }),
         seq === 1 ? 'genesis' : `sha256:event:${seq - 1}`,
-        `sha256:event:${seq}`, seq - 1,
+        `sha256:event:${seq}`,
+        seq - 1,
       )
     }
-    seed.prepare('UPDATE heads SET head_seq = ?, tick = 1, event_hash = ? WHERE address_key = ?')
+    seed
+      .prepare('UPDATE heads SET head_seq = ?, tick = 1, event_hash = ? WHERE address_key = ?')
       .run(HISTORY_ROWS, `sha256:event:${HISTORY_ROWS}`, key)
     seed.exec('COMMIT')
     const eventSql = `
       SELECT seq FROM events
       WHERE address_key = ? AND seq > ? AND seq <= ? AND event_type IN (?) ORDER BY seq
     `
-    expectIndexed(planDetails(
-      seed, eventSql, key, HISTORY_ROWS - MAX_EVENT_WINDOW, HISTORY_ROWS, 'observation.upsert',
-    ))
+    expectIndexed(planDetails(seed, eventSql, key, HISTORY_ROWS - MAX_EVENT_WINDOW, HISTORY_ROWS, 'observation.upsert'))
     seed.close()
 
     const store = new WorldStore(path)
     const startedAt = performance.now()
-    const events = store.readEventsRange(
-      target, HISTORY_ROWS - MAX_EVENT_WINDOW, HISTORY_ROWS, ['observation.upsert'],
-    )
+    const events = store.readEventsRange(target, HISTORY_ROWS - MAX_EVENT_WINDOW, HISTORY_ROWS, ['observation.upsert'])
     const elapsedMs = performance.now() - startedAt
     store.close()
     expect(events).toHaveLength(MAX_EVENT_WINDOW / 2)

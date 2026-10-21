@@ -1,18 +1,54 @@
-import { characterTurnCall, presetCall, presetContext, presetDisplay, presetOutput, RequestInspector,
-  type ChatCallObservation, type RolePreset } from '@harness-world/provider-chat'
+import {
+  characterTurnCall,
+  presetCall,
+  presetContext,
+  presetDisplay,
+  presetOutput,
+  RequestInspector,
+  type ChatCallObservation,
+  type RolePreset,
+} from '@harness-world/provider-chat'
 import { CreatorRecords, type CreatorRecordsQuery } from './creator-records.ts'
 import { creatorHistory, creatorHistoryQuery, type CreatorHistoryQuery } from './creator-history.ts'
-import { creatorInspectionQuery, type CreatorInspectionQuery, type CreatorInspectionSnapshot } from './creator-inspection.ts'
-import { createCoreRulebookRegistry, currentCharacterLifecycle, currentEntityState, currentLocation, currentSceneStates,
-  RulebookRegistry } from '@harness-world/kernel'
-import { playSettings, DEFAULT_READING, DEFAULT_AUDIO, type PlaySettings, type ReadingPreferences, type AudioPreferences, type Palette } from '../play-settings.ts'
+import {
+  creatorInspectionQuery,
+  type CreatorInspectionQuery,
+  type CreatorInspectionSnapshot,
+} from './creator-inspection.ts'
+import {
+  createCoreRulebookRegistry,
+  currentCharacterLifecycle,
+  currentEntityState,
+  currentLocation,
+  currentSceneStates,
+  RulebookRegistry,
+} from '@harness-world/kernel'
+import {
+  playSettings,
+  DEFAULT_READING,
+  DEFAULT_AUDIO,
+  type PlaySettings,
+  type ReadingPreferences,
+  type AudioPreferences,
+  type Palette,
+} from '../play-settings.ts'
 import type { RuntimeModel } from '../model-connections.ts'
 import { createRoleProviders, type ModelOptions, type RoleProviders } from './role-providers.ts'
 import { TailRoundRuntime } from './tail-runtime.ts'
 import { assertSettled, snapshotTail } from '../tail-storage.ts'
-import { CharacterPresetError, CharacterTurn, characterExecutionResult, recentExecutionContext, rejectionReasonText,
-  runCharacterActivations, SceneDecisionService, WorldApplication, type ActivationTurn, type CharacterTurnRequest,
-  type RecallShadowObservation } from '@harness-world/application'
+import {
+  CharacterPresetError,
+  CharacterTurn,
+  characterExecutionResult,
+  recentExecutionContext,
+  rejectionReasonText,
+  runCharacterActivations,
+  SceneDecisionService,
+  WorldApplication,
+  type ActivationTurn,
+  type CharacterTurnRequest,
+  type RecallShadowObservation,
+} from '@harness-world/application'
 import { saveStoryNode, readStoryNodes } from '../story-nodes.ts'
 import { existsSync, unlinkSync } from 'node:fs'
 import { CoreMemoryAdapter, type MemoryContextBudget, type MemoryBuildOptions } from './memory/core-memory.ts'
@@ -28,12 +64,23 @@ import { JevShadow, type ShadowOptions } from './jev-shadow.ts'
 import { appendFileSync, mkdirSync, readFileSync } from 'node:fs'
 import { randomUUID } from 'node:crypto'
 import { resolve, relative, basename } from 'node:path'
-import { brandId, interactionPackageDescription, RECALL_KEYWORD_TOKENIZER_ID,
-  type CharacterId, type WorldJsonObject,
-  type WorldAddress } from '@harness-world/contracts'
+import {
+  brandId,
+  interactionPackageDescription,
+  RECALL_KEYWORD_TOKENIZER_ID,
+  type CharacterId,
+  type WorldJsonObject,
+  type WorldAddress,
+} from '@harness-world/contracts'
 import { createInstalledInteractionPackages } from '@harness-world/interactions-basic'
 import { gatewayTurnCall } from './gateway-turn-call.ts'
-import { CharacterViewBuilder, CharacterRuntimeAvailabilityService, PlayerInputJobs, WorldStore, WriterLeaseService } from '@harness-world/store-sqlite'
+import {
+  CharacterViewBuilder,
+  CharacterRuntimeAvailabilityService,
+  PlayerInputJobs,
+  WorldStore,
+  WriterLeaseService,
+} from '@harness-world/store-sqlite'
 import { CognitiveMemoryService } from '@harness-world/memory'
 import { adaptCompiledWorldPack, compileWorldPackSource, type CompiledWorldPackV5 } from '@harness-world/world-pack'
 import { HostBusyError, type HostAction, type HostRuntime, type HostState } from './http-server.ts'
@@ -73,12 +120,12 @@ export interface WorldHostOptions extends ModelOptions {
   readonly recentExecutionEvidence?: boolean
 }
 
-
 /** Whether a Pack directory is a v5 source, which is the one this runtime plays. */
 export function isV5SourcePackDirectory(packPath: string): boolean {
   try {
     const manifest = JSON.parse(readFileSync(resolve(packPath, 'worldpack.source.json'), 'utf8')) as {
-      readonly sourceSchemaVersion?: string }
+      readonly sourceSchemaVersion?: string
+    }
     return manifest.sourceSchemaVersion === 'worldpack-source/v5'
   } catch {
     return false
@@ -94,7 +141,8 @@ export function providerFailureNotice(httpStatus: number | undefined): string {
   if (httpStatus === 400 || httpStatus === 422) {
     return `角色模型请求被服务拒绝（HTTP ${httpStatus}）；请检查预设中的生成参数（如 frequencyPenalty、presencePenalty、stop）与模型标识是否被该服务支持`
   }
-  if (httpStatus === 401 || httpStatus === 403) return `角色模型服务拒绝认证（HTTP ${httpStatus}）；请在模型设置中检查该实例的凭证`
+  if (httpStatus === 401 || httpStatus === 403)
+    return `角色模型服务拒绝认证（HTTP ${httpStatus}）；请在模型设置中检查该实例的凭证`
   if (httpStatus === 404) return `角色模型服务找不到该模型（HTTP ${httpStatus}）；请检查模型标识`
   if (httpStatus === 429) return `角色模型服务限流（HTTP ${httpStatus}）；请稍后重试或降低调用预算`
   return `角色模型服务未完成请求（HTTP ${httpStatus}）`
@@ -111,17 +159,30 @@ export class WorldHostCore implements HostRuntime {
     this.#records.configure(enabled)
     return this.#inspector.configure(enabled)
   }
-  creatorRecords(query: CreatorRecordsQuery = {}) { return this.#records.query(query,this.#inspector.enabled) }
-  inheritCreatorBase(baseId: string, branchId: string): void {this.#records.inheritBase(baseId,branchId)}
+  creatorRecords(query: CreatorRecordsQuery = {}) {
+    return this.#records.query(query, this.#inspector.enabled)
+  }
+  inheritCreatorBase(baseId: string, branchId: string): void {
+    this.#records.inheritBase(baseId, branchId)
+  }
   creatorHistory(input: CreatorHistoryQuery = {}) {
     if (this.#closing) throw new TypeError('运行实例已关闭')
-    const query = creatorHistoryQuery(input as Record<string,unknown>)
+    const query = creatorHistoryQuery(input as Record<string, unknown>)
     if (query.characterId !== undefined && !this.#names.has(query.characterId)) throw new TypeError('未知角色')
-    const store = new WorldStore(resolve(this.#dataDirectory,'world.sqlite'))
+    const store = new WorldStore(resolve(this.#dataDirectory, 'world.sqlite'))
     try {
-      if (query.entityId !== undefined && currentEntityState(store.readEvents(this.#address),query.entityId) === undefined) throw new TypeError('未知物品')
-      return {...creatorHistory(store,this.#address,this.#worldVersion,query),scope:structuredClone(this.#records.scope)}
-    } finally {store.close()}
+      if (
+        query.entityId !== undefined &&
+        currentEntityState(store.readEvents(this.#address), query.entityId) === undefined
+      )
+        throw new TypeError('未知物品')
+      return {
+        ...creatorHistory(store, this.#address, this.#worldVersion, query),
+        scope: structuredClone(this.#records.scope),
+      }
+    } finally {
+      store.close()
+    }
   }
   creatorInspection(input: CreatorInspectionQuery = {}): CreatorInspectionSnapshot {
     if (this.#closing) throw new TypeError('运行实例已关闭')
@@ -129,53 +190,123 @@ export class WorldHostCore implements HostRuntime {
     if (query.characterId !== undefined && !this.#names.has(query.characterId)) throw new TypeError('未知角色')
     const store = new WorldStore(resolve(this.#dataDirectory, 'world.sqlite'))
     try {
-      const head = store.head(this.#address), events = store.readEvents(this.#address, head.headSeq)
+      const head = store.head(this.#address),
+        events = store.readEvents(this.#address, head.headSeq)
       if ((query.afterSeq ?? 0) > head.headSeq) throw new TypeError('查询游标超过当前世界时刻')
-      const scenes = currentSceneStates(events), limit = query.limit ?? 50
+      const scenes = currentSceneStates(events),
+        limit = query.limit ?? 50
       const characters = [...this.#names].map(([id, name]) => {
         const locationId = currentLocation(events, id) ?? null
-        return { id, name, locationId, locationName: locationId === null ? null : this.#locationNames.get(locationId) ?? locationId,
-          sceneIds: scenes.filter(scene => scene.lifecycle !== 'closed' && scene.participantIds.includes(id)).map(scene => scene.sceneId),
+        return {
+          id,
+          name,
+          locationId,
+          locationName: locationId === null ? null : (this.#locationNames.get(locationId) ?? locationId),
+          sceneIds: scenes
+            .filter(scene => scene.lifecycle !== 'closed' && scene.participantIds.includes(id))
+            .map(scene => scene.sceneId),
           lifecycle: currentCharacterLifecycle(events, id) ?? 'unknown',
-          lastMovementSeq: events.findLast(event => event.eventType === 'character.moved' && (event.data as WorldJsonObject).characterId === id)?.seq ?? null,
-          processing: { transport: this.#inspector.status(id),
-            lastActivation: this.#activationCycle?.activations.findLast(activation => activation.characterId === id)?.result ?? null } }
+          lastMovementSeq:
+            events.findLast(
+              event => event.eventType === 'character.moved' && (event.data as WorldJsonObject).characterId === id,
+            )?.seq ?? null,
+          processing: {
+            transport: this.#inspector.status(id),
+            lastActivation:
+              this.#activationCycle?.activations.findLast(activation => activation.characterId === id)?.result ?? null,
+          },
+        }
       })
-      const entityIds = [...new Set(events.filter(event => event.eventType === 'entity.upsert').map(event => String((event.data as WorldJsonObject).entityId)))]
+      const entityIds = [
+        ...new Set(
+          events
+            .filter(event => event.eventType === 'entity.upsert')
+            .map(event => String((event.data as WorldJsonObject).entityId)),
+        ),
+      ]
       const entities = entityIds.map(id => {
         const state = currentEntityState(events, id)!
         const holderLocation = characters.find(character => character.id === state.holderId)?.locationId ?? null
-        const initial = events.findLast(event => event.eventType === 'entity.upsert' && (event.data as WorldJsonObject).entityId === id)!
-        return { id, name: String((initial.data as WorldJsonObject).name ?? id), state,
-          holderMeaning: 'custody' as const, effectiveLocationId: state.locationId ?? holderLocation,
-          locationBasis: state.locationId !== null ? 'entity' as const : holderLocation !== null ? 'holder' as const : 'unknown' as const,
-          lastChangeSeq: events.findLast(event => event.eventType.startsWith('entity.') && (event.data as WorldJsonObject).entityId === id)!.seq }
+        const initial = events.findLast(
+          event => event.eventType === 'entity.upsert' && (event.data as WorldJsonObject).entityId === id,
+        )!
+        return {
+          id,
+          name: String((initial.data as WorldJsonObject).name ?? id),
+          state,
+          holderMeaning: 'custody' as const,
+          effectiveLocationId: state.locationId ?? holderLocation,
+          locationBasis:
+            state.locationId !== null
+              ? ('entity' as const)
+              : holderLocation !== null
+                ? ('holder' as const)
+                : ('unknown' as const),
+          lastChangeSeq: events.findLast(
+            event => event.eventType.startsWith('entity.') && (event.data as WorldJsonObject).entityId === id,
+          )!.seq,
+        }
       })
-      const selectedEvents = query.afterSeq === undefined ? events.slice(-limit) : events.filter(event => event.seq > query.afterSeq!).slice(0, limit)
+      const selectedEvents =
+        query.afterSeq === undefined
+          ? events.slice(-limit)
+          : events.filter(event => event.seq > query.afterSeq!).slice(0, limit)
       const nextAfterSeq = selectedEvents.at(-1)?.seq ?? query.afterSeq ?? head.headSeq
       // The creator sees true status values; players and roles only ever get their own known values.
       const truth = this.#status?.truth(events)
-      const result: CreatorInspectionSnapshot = { capturedAt: new Date().toISOString(), address: this.#address, worldVersion: this.#worldVersion,title:this.#title,
-        headSeq: head.headSeq, tick: head.tick, packHash:this.#packHash,storyParentNodeId:this.#storyParentNodeId,busy: this.#busy, paused: this.#paused,
-        captureEnabled: this.#inspector.enabled, characters, entities,
+      const result: CreatorInspectionSnapshot = {
+        capturedAt: new Date().toISOString(),
+        address: this.#address,
+        worldVersion: this.#worldVersion,
+        title: this.#title,
+        headSeq: head.headSeq,
+        tick: head.tick,
+        packHash: this.#packHash,
+        storyParentNodeId: this.#storyParentNodeId,
+        busy: this.#busy,
+        paused: this.#paused,
+        captureEnabled: this.#inspector.enabled,
+        characters,
+        entities,
         statusTruth: truth ? { public: truth.public, characters: truth.characters } : null,
         activities: this.#activity?.debugStates(events) ?? [],
         events: { items: selectedEvents, nextAfterSeq, hasMore: nextAfterSeq < head.headSeq },
-        limitations: ['holderId 表示保管或携带，不证明法律所有权。', '物品随保管者的位置是推导值，不表示精确物理位置。',
+        limitations: [
+          'holderId 表示保管或携带，不证明法律所有权。',
+          '物品随保管者的位置是推导值，不表示精确物理位置。',
           '事件中的 observation.upsert 记录实际信息接收者；对白的 addresseeIds 不等于全部观察者。',
           '调用状态是传输证据，lastActivation 是最近已完成周期结果；未采集或正在调度时不推测角色意图。',
-          ...(truth ? ['状态为事件日志中的当前真实值；玩家和角色只看到各自上次确认的值。'] : [])] }
+          ...(truth ? ['状态为事件日志中的当前真实值；玩家和角色只看到各自上次确认的值。'] : []),
+        ],
+      }
       if (query.characterId !== undefined) {
         const id = query.characterId
         const archive = this.#memoryCore?.inspectArchive(id, query.memoryOffset ?? 0, limit)
-        result.character = { id, currentView: new CharacterViewBuilder(store).rebuildAt(this.#address, brandId(id, 'CharacterId'), head.headSeq),
-          latestRequest: this.#inspector.latest(id), contextNotice: 'currentView 是当前授权视图；latestRequest 是启用采集后该角色最近一次实际请求，时刻可能早于当前世界。每角色保留最近一次，超出总容量会淘汰。',
-          memory: { mode: this.#memoryCore ? 'core' : 'native', archivePrefix: archive?.archivePrefix ?? null,
-            sections: archive?.sections ?? {}, maintenance: archive?.maintenance ?? null,
-            notice: this.#memoryCore ? '已安装档案分页，不触发整理或召回。本次实际召回见 latestRequest.contextParts 的 memories。' : '原生完整记忆档案尚未接入；授权经历见 currentView，本次召回见实际请求。' } }
+        result.character = {
+          id,
+          currentView: new CharacterViewBuilder(store).rebuildAt(
+            this.#address,
+            brandId(id, 'CharacterId'),
+            head.headSeq,
+          ),
+          latestRequest: this.#inspector.latest(id),
+          contextNotice:
+            'currentView 是当前授权视图；latestRequest 是启用采集后该角色最近一次实际请求，时刻可能早于当前世界。每角色保留最近一次，超出总容量会淘汰。',
+          memory: {
+            mode: this.#memoryCore ? 'core' : 'native',
+            archivePrefix: archive?.archivePrefix ?? null,
+            sections: archive?.sections ?? {},
+            maintenance: archive?.maintenance ?? null,
+            notice: this.#memoryCore
+              ? '已安装档案分页，不触发整理或召回。本次实际召回见 latestRequest.contextParts 的 memories。'
+              : '原生完整记忆档案尚未接入；授权经历见 currentView，本次召回见实际请求。',
+          },
+        }
       }
       return structuredClone(result)
-    } finally { store.close() }
+    } finally {
+      store.close()
+    }
   }
   readonly #application: WorldApplication
   readonly #address
@@ -243,20 +374,33 @@ export class WorldHostCore implements HostRuntime {
   #continuationController: AbortController | undefined
   readonly #models: RoleProviders
 
-  private constructor(options: WorldHostOptions, compiled: ReturnType<typeof adaptCompiledWorldPack>,
-    intentEnabled: boolean) {
+  private constructor(
+    options: WorldHostOptions,
+    compiled: ReturnType<typeof adaptCompiledWorldPack>,
+    intentEnabled: boolean,
+  ) {
     this.#options = options
     this.#worldVersion = options.worldVersion ?? randomUUID()
     this.#address = compiled.manifest.address
     this.#dataDirectory = options.dataDirectory
     const logicalRoot = options.logicalDirectory ?? options.dataDirectory
-    this.#records = new CreatorRecords(logicalRoot,{address:this.#address,worldVersion:this.#worldVersion,
-      branchId:relative(logicalRoot,options.dataDirectory).replaceAll('\\','/') || '.',runId:randomUUID()})
+    this.#records = new CreatorRecords(logicalRoot, {
+      address: this.#address,
+      worldVersion: this.#worldVersion,
+      branchId: relative(logicalRoot, options.dataDirectory).replaceAll('\\', '/') || '.',
+      runId: randomUUID(),
+    })
     this.#inspector = new RequestInspector(request => this.#records.save(request))
     this.#inspector.configure(this.#records.captureEnabled())
-    this.#playSettings = playSettings(options.playSettings??{})
-    const settings=this.#playSettings
-    this.#tuning = options.tuning ?? {...DEFAULT_RUNTIME_TUNING,maximumWaves:settings.maximumWaves,maximumNpcCalls:settings.maximumNpcCalls,maximumCallsPerCharacter:settings.maximumCallsPerCharacter,reactionDeadlineSeconds:settings.reactionDeadlineSeconds}
+    this.#playSettings = playSettings(options.playSettings ?? {})
+    const settings = this.#playSettings
+    this.#tuning = options.tuning ?? {
+      ...DEFAULT_RUNTIME_TUNING,
+      maximumWaves: settings.maximumWaves,
+      maximumNpcCalls: settings.maximumNpcCalls,
+      maximumCallsPerCharacter: settings.maximumCallsPerCharacter,
+      reactionDeadlineSeconds: settings.reactionDeadlineSeconds,
+    }
     this.#memoryShadowFile = options.memoryShadow ? resolve(options.dataDirectory, 'memory-shadow.jsonl') : undefined
     this.#manifestVersion = compiled.manifest.schemaVersion
     this.#intentEnabled = intentEnabled
@@ -266,15 +410,30 @@ export class WorldHostCore implements HostRuntime {
     this.#playerId = binding.characterId
     this.#names = new Map(compiled.manifest.characters.map(character => [character.characterId, character.name]))
     this.#locationNames = new Map(compiled.manifest.locations.map(location => [location.locationId, location.name]))
-    this.#entityNames = new Map(compiled.manifest.entities.flatMap(entity =>
-      typeof (entity as { name?: unknown }).name === 'string' ? [[entity.entityId, (entity as { name: string }).name]] : []))
+    this.#entityNames = new Map(
+      compiled.manifest.entities.flatMap(entity =>
+        typeof (entity as { name?: unknown }).name === 'string'
+          ? [[entity.entityId, (entity as { name: string }).name]]
+          : [],
+      ),
+    )
     this.#title = compiled.manifest.metadata.title
     this.#playerName = this.#names.get(this.#playerId) ?? this.#playerId
     this.#provider = options.provider
     const characters = modelCharacters(compiled.manifest, this.#playerId)
-    const models = createRoleProviders(options, settings, characters, this.#inspector,
-      observation => { this.#providerCalls += 1; this.#lastCall = observation },
-      (characterId, observation) => { this.#roleCalls.set(characterId, observation) })
+    const models = createRoleProviders(
+      options,
+      settings,
+      characters,
+      this.#inspector,
+      observation => {
+        this.#providerCalls += 1
+        this.#lastCall = observation
+      },
+      (characterId, observation) => {
+        this.#roleCalls.set(characterId, observation)
+      },
+    )
     this.#models = models
     const { shared: provider, presets: effectivePresets, timeoutMs } = models
     this.#model = models.model
@@ -283,25 +442,58 @@ export class WorldHostCore implements HostRuntime {
     this.#characterIds = characters.map(character => character.actorId)
     if (options.memoryCore) {
       if (options.provider !== 'local') throw new TypeError('Core 记忆须使用 local 配置入口。')
-      const defaultMemory: RuntimeModel = options.roleModels?.memory ?? { protocol: models.protocol, endpoint: models.endpoint.href,
-        model: models.model, ...(options.apiKey === undefined ? {} : { apiKey: options.apiKey }) }
+      const defaultMemory: RuntimeModel = options.roleModels?.memory ?? {
+        protocol: models.protocol,
+        endpoint: models.endpoint.href,
+        model: models.model,
+        ...(options.apiKey === undefined ? {} : { apiKey: options.apiKey }),
+      }
       const groups = coreRunnerGroups(options.dataDirectory, options.memoryCoreRunners)
-      const shared = options.memoryCoreRun === undefined || options.memoryCoreBuildRun === undefined ? groups.runnersFor(defaultMemory) : undefined
-      const own = options.memoryCoreRun === undefined
-        ? new Map(Object.entries(options.roleModels?.characters ?? {}).map(([id, role]) => [id, groups.runnersFor(role.memory)]))
-        : new Map<string, MemoryRunners>()
+      const shared =
+        options.memoryCoreRun === undefined || options.memoryCoreBuildRun === undefined
+          ? groups.runnersFor(defaultMemory)
+          : undefined
+      const own =
+        options.memoryCoreRun === undefined
+          ? new Map(
+              Object.entries(options.roleModels?.characters ?? {}).map(([id, role]) => [
+                id,
+                groups.runnersFor(role.memory),
+              ]),
+            )
+          : new Map<string, MemoryRunners>()
       this.#closeCore = groups.close
-      this.#memoryCore = new CoreMemoryAdapter(options.dataDirectory, this.#address, options.memoryCoreRun ?? shared!.recall, options.memoryContextBudget ?? {triggerTokens:settings.memoryTriggerTokens,compactTokens:settings.memoryCompactTokens,minimumRecentTokens:settings.memoryRecentTokens},
-        { ...options.memoryBuildConcurrency, run: options.memoryCoreBuildRun ?? shared!.build, runFor: actor => own.get(actor),
-          worldVersion: this.#worldVersion, versionValid: () => !this.#closing }, {maxItems:settings.memoryMaxItems,maxJsonChars:settings.memoryMaxJsonChars})
+      this.#memoryCore = new CoreMemoryAdapter(
+        options.dataDirectory,
+        this.#address,
+        options.memoryCoreRun ?? shared!.recall,
+        options.memoryContextBudget ?? {
+          triggerTokens: settings.memoryTriggerTokens,
+          compactTokens: settings.memoryCompactTokens,
+          minimumRecentTokens: settings.memoryRecentTokens,
+        },
+        {
+          ...options.memoryBuildConcurrency,
+          run: options.memoryCoreBuildRun ?? shared!.build,
+          runFor: actor => own.get(actor),
+          worldVersion: this.#worldVersion,
+          versionValid: () => !this.#closing,
+        },
+        { maxItems: settings.memoryMaxItems, maxJsonChars: settings.memoryMaxJsonChars },
+      )
     }
     this.#npcNames = characters.map(character => character.name)
     // The Host's interpretation profile is a contract with the world, and its deadline ceiling is part of
     // it: a longer call deadline is the adapter's business, not something to state in the profile.
-    const intentProfile = { version: 'player-intent-profile/v1' as const, providerId: 'chat-completions',
-      modelId: this.#intentModel, maxOutputTokens: 1_024, timeoutMs: Math.min(timeoutMs, 60_000) }
+    const intentProfile = {
+      version: 'player-intent-profile/v1' as const,
+      providerId: 'chat-completions',
+      modelId: this.#intentModel,
+      maxOutputTokens: 1_024,
+      timeoutMs: Math.min(timeoutMs, 60_000),
+    }
     this.#application = new WorldApplication({
-      interactionPackages:createInstalledInteractionPackages(),
+      interactionPackages: createInstalledInteractionPackages(),
       worldPath: resolve(options.dataDirectory, 'world.sqlite'),
       sessionPath: resolve(options.dataDirectory, 'session.sqlite'),
       memoryPath: resolve(options.dataDirectory, 'memory.sqlite'),
@@ -309,43 +501,80 @@ export class WorldHostCore implements HostRuntime {
       recallTokenizer: RECALL_KEYWORD_TOKENIZER_ID,
       // The world's model budget has to cover the interpreter's own output ceiling, or the Host refuses to
       // dispatch an interpretation at all: the profile states the ceiling, this is what pays for it.
-      modelBudgetTokens: 8_192, leaseTtlMs: 180_000,
+      modelBudgetTokens: 8_192,
+      leaseTtlMs: 180_000,
       // The interpreter is the Host's; whether the world wants it is the world's own declaration, and a
       // world that declared the legacy route simply keeps reading free text as speech.
-      playerIntent: { profile: intentProfile,
-        dispatch: async (request, profile, signal) => await provider.dispatch(request, profile, signal) },
+      playerIntent: {
+        profile: intentProfile,
+        dispatch: async (request, profile, signal) => await provider.dispatch(request, profile, signal),
+      },
     })
   }
 
   /** One character decision: authorized context projection, preset, model call, format retry and optional audit. */
-  async #decide(request: CharacterTurnRequest, signal: AbortSignal, reserveFormatRetry?: () => boolean): Promise<unknown> {
+  async #decide(
+    request: CharacterTurnRequest,
+    signal: AbortSignal,
+    reserveFormatRetry?: () => boolean,
+  ): Promise<unknown> {
     if (this.#memoryCore) request = await this.#memoryCore.project(request, signal)
-    if (this.#options.recentExecutionEvidence === true) request = { ...request, context: recentExecutionContext(request.context) }
+    if (this.#options.recentExecutionEvidence === true)
+      request = { ...request, context: recentExecutionContext(request.context) }
     const character = request.context.character as WorldJsonObject
-    const characterId=String(character.characterId)
+    const characterId = String(character.characterId)
     if (this.#status) {
       const store = new WorldStore(resolve(this.#options.dataDirectory, 'world.sqlite'))
       let updates
-      try { updates = store.readEventsRange(this.#address, 0, store.head(this.#address).headSeq, ['status.updated']) } finally { store.close() }
-      request = {...request, context: {...request.context,
-        knownStatus: this.#status.known(updates, characterId) as unknown as WorldJsonObject[], knownStatusNote: KNOWN_STATUS_NOTE}}
+      try {
+        updates = store.readEventsRange(this.#address, 0, store.head(this.#address).headSeq, ['status.updated'])
+      } finally {
+        store.close()
+      }
+      request = {
+        ...request,
+        context: {
+          ...request.context,
+          knownStatus: this.#status.known(updates, characterId) as unknown as WorldJsonObject[],
+          knownStatusNote: KNOWN_STATUS_NOTE,
+        },
+      }
     }
-    if (this.#knowledge) request = {...request, context: {...request.context, knowledge: this.#knowledge.select(request.context)}}
+    if (this.#knowledge)
+      request = { ...request, context: { ...request.context, knowledge: this.#knowledge.select(request.context) } }
     this.#roleCalls.delete(characterId)
-    const roleProvider=this.#models.byCharacter.get(characterId)
-    if(!roleProvider)throw new TypeError('当前角色没有可调用的预设配置。')
-    const effectivePreset=this.#effectivePresets.get(characterId)
+    const roleProvider = this.#models.byCharacter.get(characterId)
+    if (!roleProvider) throw new TypeError('当前角色没有可调用的预设配置。')
+    const effectivePreset = this.#effectivePresets.get(characterId)
     const prepare = async (visible: CharacterTurnRequest) => {
       try {
         const projected = await presetContext(visible, effectivePreset!, String(this.#playerId), signal)
-        return presetCall(this.#options.provider === 'local' && this.#models.protocols.get(characterId) !== 'google' ? gatewayTurnCall(projected) : characterTurnCall(projected),
-          effectivePreset!, projected, this.#playerName, {character:this.#names.get(characterId)??characterId,
-            scene:this.#locationNames.get(String((projected.context.scene as WorldJsonObject | undefined)?.locationId))??String((projected.context.scene as WorldJsonObject | undefined)?.locationId??'')})
-      } catch(error) { signal.throwIfAborted(); throw new CharacterPresetError('角色预设准备失败。', {cause:error}) }
+        return presetCall(
+          this.#options.provider === 'local' && this.#models.protocols.get(characterId) !== 'google'
+            ? gatewayTurnCall(projected)
+            : characterTurnCall(projected),
+          effectivePreset!,
+          projected,
+          this.#playerName,
+          {
+            character: this.#names.get(characterId) ?? characterId,
+            scene:
+              this.#locationNames.get(String((projected.context.scene as WorldJsonObject | undefined)?.locationId)) ??
+              String((projected.context.scene as WorldJsonObject | undefined)?.locationId ?? ''),
+          },
+        )
+      } catch (error) {
+        signal.throwIfAborted()
+        throw new CharacterPresetError('角色预设准备失败。', { cause: error })
+      }
     }
     const prepared = await prepare(request)
-    this.#memoryCore?.observeContext(request, prepared.messages.map(message => message.content).join('\n')
-      + JSON.stringify(prepared.schema)+(effectivePreset?.prompt??''))
+    this.#memoryCore?.observeContext(
+      request,
+      prepared.messages.map(message => message.content).join('\n') +
+        JSON.stringify(prepared.schema) +
+        (effectivePreset?.prompt ?? ''),
+    )
     const simulated = this.#activity?.simulate(request)
     const callProvider = async (call: typeof prepared) => {
       signal.throwIfAborted()
@@ -358,39 +587,76 @@ export class WorldHostCore implements HostRuntime {
       }
       return roleProvider.decide(call, signal)
     }
-    const decide = async (call: typeof prepared) => presetOutput(simulated === undefined ? await callProvider(call) : simulated, effectivePreset!, signal,
-      request.context.expressionPolicy as WorldJsonObject | undefined, this.#playSettings.publicationCharacters)
-    const raw = await decideWithFormatRetry(prepared, decide, signal, characterTurnCall(request).schema,
-      request.context.activity === undefined && simulated === undefined ? reserveFormatRetry ?? (() => false) : undefined)
-    if (this.#inspector.enabled) this.#records.trace('decision',characterId,request.decisionId ?? null,
-      {source:simulated === undefined ? 'model' : 'script',value:raw as WorldJsonObject})
+    const decide = async (call: typeof prepared) =>
+      presetOutput(
+        simulated === undefined ? await callProvider(call) : simulated,
+        effectivePreset!,
+        signal,
+        request.context.expressionPolicy as WorldJsonObject | undefined,
+        this.#playSettings.publicationCharacters,
+      )
+    const raw = await decideWithFormatRetry(
+      prepared,
+      decide,
+      signal,
+      characterTurnCall(request).schema,
+      request.context.activity === undefined && simulated === undefined
+        ? (reserveFormatRetry ?? (() => false))
+        : undefined,
+    )
+    if (this.#inspector.enabled)
+      this.#records.trace('decision', characterId, request.decisionId ?? null, {
+        source: simulated === undefined ? 'model' : 'script',
+        value: raw as WorldJsonObject,
+      })
     this.#memoryCore?.recordDecision(request, raw)
     signal.throwIfAborted()
     if (this.#closing || this.#abortedWork) throw new Error('角色任务世界版本已失效。')
     if (this.#options.publicationAudit === undefined) return raw
     const store = new WorldStore(resolve(this.#options.dataDirectory, 'world.sqlite'))
     let history
-    try { history = store.readEvents(this.#address) } finally { store.close() }
-    return auditBeforePublication({ request, raw, history, options: this.#options.publicationAudit, signal,
+    try {
+      history = store.readEvents(this.#address)
+    } finally {
+      store.close()
+    }
+    return auditBeforePublication({
+      request,
+      raw,
+      history,
+      options: this.#options.publicationAudit,
+      signal,
       decide: async revised => {
-        const call = await prepare(revised), replacement = this.#activity?.simulate(revised)
-        return presetOutput(replacement === undefined ? await callProvider(call) : replacement,
-          effectivePreset!, signal, revised.context.expressionPolicy as WorldJsonObject | undefined)
-      } })
+        const call = await prepare(revised),
+          replacement = this.#activity?.simulate(revised)
+        return presetOutput(
+          replacement === undefined ? await callProvider(call) : replacement,
+          effectivePreset!,
+          signal,
+          revised.context.expressionPolicy as WorldJsonObject | undefined,
+        )
+      },
+    })
   }
 
   static async create(options: WorldHostOptions): Promise<WorldHostCore> {
     mkdirSync(resolve(options.dataDirectory), { recursive: true })
-    const pack = await compileWorldPackSource(resolve(options.packPath), createInstalledInteractionPackages().map(interactionPackageDescription)) as CompiledWorldPackV5
+    const pack = (await compileWorldPackSource(
+      resolve(options.packPath),
+      createInstalledInteractionPackages().map(interactionPackageDescription),
+    )) as CompiledWorldPackV5
     const compiled = adaptCompiledWorldPack(pack, {
-      address: { tenantId: brandId('tenant:web-playtest', 'TenantId'),
+      address: {
+        tenantId: brandId('tenant:web-playtest', 'TenantId'),
         worldId: brandId(`world:web-playtest:${pack.packHash.slice(7, 23)}`, 'WorldId'),
-        branchId: brandId('branch:main', 'BranchId') },
+        branchId: brandId('branch:main', 'BranchId'),
+      },
       principalId: 'principal:web-playtest',
       sessionId: brandId('session:web-playtest', 'SessionId'),
     })
-    const intentEnabled = (compiled.manifest as { readonly playerInputPolicy?: { readonly version: string } })
-      .playerInputPolicy?.version === 'player-intent/v1'
+    const intentEnabled =
+      (compiled.manifest as { readonly playerInputPolicy?: { readonly version: string } }).playerInputPolicy
+        ?.version === 'player-intent/v1'
     const runtime = new WorldHostCore(options, compiled, intentEnabled)
     try {
       runtime.#packHash = pack.packHash
@@ -398,38 +664,66 @@ export class WorldHostCore implements HostRuntime {
       runtime.#autonomy = PackAutonomy.load(options.packPath, pack, runtime.#playerId)
       runtime.#application.activate(compiled)
       runtime.#status = PackStatus.load(options.packPath, pack)
-      await runtime.#status?.ensureInitial(resolve(options.dataDirectory, 'world.sqlite'), runtime.#address, runtime.#playerId)
+      await runtime.#status?.ensureInitial(
+        resolve(options.dataDirectory, 'world.sqlite'),
+        runtime.#address,
+        runtime.#playerId,
+      )
       runtime.#knowledge = PackKnowledge.load(options.packPath, pack)
-      runtime.#activity = PackActivities.load(options.packPath, pack, resolve(options.dataDirectory, 'world.sqlite'), runtime.#address,
-        runtime.#playerId, runtime.#status)
+      runtime.#activity = PackActivities.load(
+        options.packPath,
+        pack,
+        resolve(options.dataDirectory, 'world.sqlite'),
+        runtime.#address,
+        runtime.#playerId,
+        runtime.#status,
+      )
       await runtime.#refresh()
       const rebuildPath = resolve(options.dataDirectory, 'rebuild-memory.json')
       if (existsSync(rebuildPath)) {
-        const rebuild = JSON.parse(readFileSync(rebuildPath, 'utf8')) as {headSeq:number;packHash:string}
-        if (!runtime.#memoryCore || rebuild.packHash !== pack.packHash) throw new Error('故事线记忆恢复需要原游戏包与 Core 记忆。')
+        const rebuild = JSON.parse(readFileSync(rebuildPath, 'utf8')) as { headSeq: number; packHash: string }
+        if (!runtime.#memoryCore || rebuild.packHash !== pack.packHash)
+          throw new Error('故事线记忆恢复需要原游戏包与 Core 记忆。')
         const head = await runtime.#application.head(runtime.#address)
         if (head.headSeq !== rebuild.headSeq) throw new Error('故事节点的世界前缀不一致。')
         // Restoring derived archives must not hold a world writer across file installation.
         await runtime.#application.release(runtime.#address)
         const memoryPath = resolve(options.dataDirectory, 'core-memory.json')
-        const archives = existsSync(memoryPath) ? JSON.parse(readFileSync(memoryPath, 'utf8')) as WorldJsonObject : {}
-        if (!archives || typeof archives !== 'object' || Array.isArray(archives)) throw new Error('故事节点记忆快照损坏。')
+        const archives = existsSync(memoryPath) ? (JSON.parse(readFileSync(memoryPath, 'utf8')) as WorldJsonObject) : {}
+        if (!archives || typeof archives !== 'object' || Array.isArray(archives))
+          throw new Error('故事节点记忆快照损坏。')
         runtime.#memoryCore.restoreArchives(archives, runtime.#characterIds)
         runtime.#memoryCore.snapshotAliases(runtime.#characterIds)
         unlinkSync(rebuildPath)
       }
-      if (options.storyNodes && readStoryNodes(options.logicalDirectory ?? options.dataDirectory).length === 0) await runtime.saveNode('首次保存节点')
+      if (options.storyNodes && readStoryNodes(options.logicalDirectory ?? options.dataDirectory).length === 0)
+        await runtime.saveNode('首次保存节点')
       if (options.shadowAudit !== undefined) {
-        if (options.shadowAudit.items.some(item => !compiled.manifest.entities.some(entity => entity.entityId === item.entityId))) {
+        if (
+          options.shadowAudit.items.some(
+            item => !compiled.manifest.entities.some(entity => entity.entityId === item.entityId),
+          )
+        ) {
           throw new TypeError('shadow item is not declared in this Pack')
         }
         const head = await runtime.#application.head(runtime.#address)
-        runtime.#shadow = new JevShadow({ ...options.shadowAudit, address: runtime.#address,
-          characters: compiled.manifest.characters.map(character => ({ characterId: character.characterId, name: character.name })),
-          initialSeq: head.headSeq, readEvents: asOfSeq => {
+        runtime.#shadow = new JevShadow({
+          ...options.shadowAudit,
+          address: runtime.#address,
+          characters: compiled.manifest.characters.map(character => ({
+            characterId: character.characterId,
+            name: character.name,
+          })),
+          initialSeq: head.headSeq,
+          readEvents: asOfSeq => {
             const store = new WorldStore(resolve(options.dataDirectory, 'world.sqlite'))
-            try { return store.readEvents(runtime.#address, asOfSeq) } finally { store.close() }
-          } })
+            try {
+              return store.readEvents(runtime.#address, asOfSeq)
+            } finally {
+              store.close()
+            }
+          },
+        })
       }
       return runtime
     } catch (error) {
@@ -439,48 +733,83 @@ export class WorldHostCore implements HostRuntime {
   }
 
   /** The world this session serves, so a caller can read it back without re-deriving the address. */
-  get packHash(): string { return this.#packHash }
-  validateCognition(): void { this.#memoryCore?.snapshotAliases(this.#characterIds) }
+  get packHash(): string {
+    return this.#packHash
+  }
+  validateCognition(): void {
+    this.#memoryCore?.snapshotAliases(this.#characterIds)
+  }
   get address(): WorldAddress {
     return this.#address
   }
 
   async state(): Promise<HostState> {
-    const canInterrupt = this.#busy && this.#allowInterruption && !this.#abortedWork
-      && !this.#paused && !this.#escaping && !this.#closing
+    const canInterrupt =
+      this.#busy && this.#allowInterruption && !this.#abortedWork && !this.#paused && !this.#escaping && !this.#closing
     // The player waits only for roles in their own scene. Off-scene work never names its role.
     const present = new Set((this.#currentScene?.recipients ?? []).map(person => person.id))
     const running = [...this.#running.keys()]
     const responders = running.filter(id => present.has(id)).map(id => this.#names.get(id) ?? id)
     return {
       playerFeedback: { phase: this.#phaseLabel, message: this.#notice },
-      busy: this.#busy, canInterrupt,
-      background: canInterrupt && running.length > 0 && responders.length === 0, responders,
-      paused: this.#paused, phaseLabel: this.#phaseLabel,
-      notice: this.#notice, error: this.#error, transcript: this.#transcript,
-      playerSettings: {inputCharacters:this.#playSettings.playerInputCharacters,reading:this.#options.reading??DEFAULT_READING,audio:{...(this.#options.audio??DEFAULT_AUDIO)},...(this.#options.palette?{palette:this.#options.palette}:{})},
+      busy: this.#busy,
+      canInterrupt,
+      background: canInterrupt && running.length > 0 && responders.length === 0,
+      responders,
+      paused: this.#paused,
+      phaseLabel: this.#phaseLabel,
+      notice: this.#notice,
+      error: this.#error,
+      transcript: this.#transcript,
+      playerSettings: {
+        inputCharacters: this.#playSettings.playerInputCharacters,
+        reading: this.#options.reading ?? DEFAULT_READING,
+        audio: { ...(this.#options.audio ?? DEFAULT_AUDIO) },
+        ...(this.#options.palette ? { palette: this.#options.palette } : {}),
+      },
       availableActions: this.#availableActions,
-      actionNames: Object.fromEntries(this.#availableActions.flatMap(a => (a.interactions ?? []).flatMap(option => {
-        const recipient = (option.arguments as WorldJsonObject | undefined)?.recipientId
-        const target = (option.targetRef as WorldJsonObject | undefined)?.id
-        return [recipient, target].filter((id): id is string => typeof id === 'string' && (this.#names.has(id) || this.#entityNames.has(id)))
-          .map(id => [id, this.#names.get(id) ?? this.#entityNames.get(id)!])
-      }))),
+      actionNames: Object.fromEntries(
+        this.#availableActions.flatMap(a =>
+          (a.interactions ?? []).flatMap(option => {
+            const recipient = (option.arguments as WorldJsonObject | undefined)?.recipientId
+            const target = (option.targetRef as WorldJsonObject | undefined)?.id
+            return [recipient, target]
+              .filter(
+                (id): id is string => typeof id === 'string' && (this.#names.has(id) || this.#entityNames.has(id)),
+              )
+              .map(id => [id, this.#names.get(id) ?? this.#entityNames.get(id)!])
+          }),
+        ),
+      ),
       ...(this.#memoryCore ? { memoryMaintenance: this.#memoryCore.backgroundState() } : {}),
       ...(this.#activityView ? { activity: structuredClone(this.#activityView) } : {}),
       ...(this.#activityViews ? { activities: structuredClone(this.#activityViews) } : {}),
       ...(this.#statusBar ? { statusBar: structuredClone(this.#statusBar) } : {}),
       ...(this.#statusTruth?.length ? { statusTruth: structuredClone(this.#statusTruth) } : {}),
-      world: { title: this.#title, playerName: this.#playerName, npcNames: this.#npcNames,
-        ...(this.#currentScene === undefined ? {} : { currentScene: this.#currentScene }) },
-      debug: { ...this.#debug, worldVersion: this.#worldVersion, provider: this.#provider, model: this.#model, intentModel: this.#intentModel,
-        providerCalls: this.#providerCalls, paused: this.#paused, lastPlayerIntent: this.#lastPlayerIntent,
+      world: {
+        title: this.#title,
+        playerName: this.#playerName,
+        npcNames: this.#npcNames,
+        ...(this.#currentScene === undefined ? {} : { currentScene: this.#currentScene }),
+      },
+      debug: {
+        ...this.#debug,
+        worldVersion: this.#worldVersion,
+        provider: this.#provider,
+        model: this.#model,
+        intentModel: this.#intentModel,
+        providerCalls: this.#providerCalls,
+        paused: this.#paused,
+        lastPlayerIntent: this.#lastPlayerIntent,
         playerInputMode: this.#intentEnabled ? 'command-controlled' : 'legacy-speech',
         lastProviderCall: this.#lastCall,
         ...(this.#statusRoundError === undefined ? {} : { statusRoundError: this.#statusRoundError }),
         ...(this.#autoStartError === undefined ? {} : { autoStartError: this.#autoStartError }),
-        ...(this.#status && Object.keys(this.#status.policyErrors).length ? { statusPolicyError: this.#status.policyErrors } : {}),
-        ...(this.#shadow === undefined ? {} : { shadowAudit: this.#shadow.stats() }) },
+        ...(this.#status && Object.keys(this.#status.policyErrors).length
+          ? { statusPolicyError: this.#status.policyErrors }
+          : {}),
+        ...(this.#shadow === undefined ? {} : { shadowAudit: this.#shadow.stats() }),
+      },
     }
   }
 
@@ -495,7 +824,8 @@ export class WorldHostCore implements HostRuntime {
       return this.state()
     }
     if (this.#activity?.current()?.game.active) {
-      if (text.startsWith('/') && !text.startsWith('/act ') && !text.startsWith('/status ')) throw new TypeError('活动期间禁止变量调试与未声明命令。')
+      if (text.startsWith('/') && !text.startsWith('/act ') && !text.startsWith('/status '))
+        throw new TypeError('活动期间禁止变量调试与未声明命令。')
       if (text.startsWith('/status ') && !this.#status) throw new TypeError('本包没有状态脚本')
       this.#beginWork()
       try {
@@ -510,16 +840,31 @@ export class WorldHostCore implements HostRuntime {
           // During an activity a status operation is an ordinary interaction under the activity's policy.
           const match = /^\/status ([a-z][a-z0-9-]*) (.+)$/su.exec(text)
           if (match === null) throw new TypeError('状态命令格式无效')
-          await this.#activity.worldAction({ actionType: 'interact', parameters: { targetRef: { kind: 'character', id: this.#playerId },
-            bindingId: 'status', definitionRef: { id: 'status:' + match[1]!, version: 1 }, arguments: JSON.parse(match[2]!) as WorldJsonObject } },
-          idempotencyKey ?? randomUUID())
+          await this.#activity.worldAction(
+            {
+              actionType: 'interact',
+              parameters: {
+                targetRef: { kind: 'character', id: this.#playerId },
+                bindingId: 'status',
+                definitionRef: { id: 'status:' + match[1]!, version: 1 },
+                arguments: JSON.parse(match[2]!) as WorldJsonObject,
+              },
+            },
+            idempotencyKey ?? randomUUID(),
+          )
         } else await this.#activity.speak(text, idempotencyKey ?? randomUUID())
         // A retried key commits nothing; only a newly committed input ends a status round.
         const committed = (await this.#application.head(this.#address)).headSeq > this.#rootBeforeSeq
         this.#notice = '操作已提交；单纯对白不消耗游戏行动回合。'
         await this.#activateCharacters(true)
         if (committed) await this.#endPlayerRound()
-      } finally { try { await this.#refresh() } finally { this.#endWork() } }
+      } finally {
+        try {
+          await this.#refresh()
+        } finally {
+          this.#endWork()
+        }
+      }
       return this.state()
     }
     if (text.startsWith('/status ')) {
@@ -527,16 +872,34 @@ export class WorldHostCore implements HostRuntime {
       const match = /^\/status ([a-z][a-z0-9-]*) (.+)$/su.exec(text)
       if (match === null) throw new TypeError('状态命令格式无效')
       const parameters = JSON.parse(match[2]!) as WorldJsonObject
-      this.#beginWork(); this.#error = false; this.#notice = ''
+      this.#beginWork()
+      this.#error = false
+      this.#notice = ''
       try {
         this.#rootBeforeSeq = (await this.#application.head(this.#address)).headSeq
         await this.#application.release(this.#address)
-        const changed = await this.#status.apply(resolve(this.#dataDirectory, 'world.sqlite'), this.#address, this.#playerId,
-          match[1]!, parameters, idempotencyKey ?? randomUUID())
+        const changed = await this.#status.apply(
+          resolve(this.#dataDirectory, 'world.sqlite'),
+          this.#address,
+          this.#playerId,
+          match[1]!,
+          parameters,
+          idempotencyKey ?? randomUUID(),
+        )
         // A retried request returns its original result; it starts no second round.
         this.#notice = changed ? '状态操作已提交。' : '已返回原提交结果，没有再次执行。'
-        if (changed) { await this.#refresh(); await this.#activateCharacters(); await this.#endPlayerRound() }
-      } finally { try { await this.#refresh() } finally { this.#endWork() } }
+        if (changed) {
+          await this.#refresh()
+          await this.#activateCharacters()
+          await this.#endPlayerRound()
+        }
+      } finally {
+        try {
+          await this.#refresh()
+        } finally {
+          this.#endWork()
+        }
+      }
       return this.state()
     }
     this.#beginWork()
@@ -548,13 +911,18 @@ export class WorldHostCore implements HostRuntime {
       this.#activationCycle = undefined
       this.#rootBeforeSeq = (await this.#application.head(this.#address)).headSeq
       this.#lastPlayerIntent = text.startsWith('/') ? 'command' : 'natural-language'
-      const result = await this.#application.submitText(this.#address, { text, idempotencyKey: key,
-        principalId: this.#principalId, correlationId: key })
+      const result = await this.#application.submitText(this.#address, {
+        text,
+        idempotencyKey: key,
+        principalId: this.#principalId,
+        correlationId: key,
+      })
       // A clarification is a durable answer, not a failure: nothing was spent and the world did not move.
       if (result.status === 'service_failed') {
         this.#error = true
         if (result.reason === 'candidate_source_order_invalid') {
-          this.#notice = '模型把你的动作按与原文不符的顺序排列，这次输入没有提交。原文已保留；可以拆成“先表现、再移动”两句重试。'
+          this.#notice =
+            '模型把你的动作按与原文不符的顺序排列，这次输入没有提交。原文已保留；可以拆成“先表现、再移动”两句重试。'
           this.#lastPlayerIntent = 'model-output-invalid'
         } else if (result.reason === 'invalid_response') {
           this.#notice = '模型返回的输入解释格式无效，这次输入没有提交。原文已保留；可以重试或拆成两句。'
@@ -588,24 +956,28 @@ export class WorldHostCore implements HostRuntime {
   }
 
   #beginWork(): void {
-    this.#allowInterruption=false
+    this.#allowInterruption = false
     this.#autonomyCycle = undefined
     this.#abortedWork = false
     this.#busy = true
     this.#phaseLabel = '正在提交操作'
-    this.#workDone = new Promise<void>(done => { this.#finishWork = done })
+    this.#workDone = new Promise<void>(done => {
+      this.#finishWork = done
+    })
   }
   #endWork(): void {
-    this.#allowInterruption=false
+    this.#allowInterruption = false
     this.#busy = false
     this.#phaseLabel = this.#paused ? 'NPC 已暂停' : '可以输入'
-    this.#finishWork?.(); this.#finishWork = undefined
+    this.#finishWork?.()
+    this.#finishWork = undefined
   }
   async activityAction(request: ActivityRequest): Promise<HostState> {
     if (this.#busy || this.#escaping || this.#closing) throw new HostBusyError('请等待当前处理完成，或使用逃生按钮。')
     if (this.#paused) throw new TypeError('请先恢复 NPC，或使用逃生按钮。')
     if (!this.#activity) throw new TypeError('本包没有安装游戏脚本。')
-    this.#beginWork(); this.#error = false
+    this.#beginWork()
+    this.#error = false
     try {
       this.#rootBeforeSeq = (await this.#application.head(this.#address)).headSeq
       await this.#application.release(this.#address)
@@ -616,7 +988,13 @@ export class WorldHostCore implements HostRuntime {
         await this.#activateCharacters(true)
         if (committed) await this.#endPlayerRound()
       }
-    } finally { try { await this.#refresh() } finally { this.#endWork() } }
+    } finally {
+      try {
+        await this.#refresh()
+      } finally {
+        this.#endWork()
+      }
+    }
     return this.state()
   }
   /** The accepted player input's round is over: the status hook, then at most one author-conditioned activity start. */
@@ -647,7 +1025,8 @@ export class WorldHostCore implements HostRuntime {
     this.#statusRoundError = result.ok ? undefined : result.error
   }
   async saveNode(title: string) {
-    if (this.#busy || this.#escaping || this.#closing || this.#paused) throw new HostBusyError('请等待当前行动完成并恢复 NPC 后保存节点。')
+    if (this.#busy || this.#escaping || this.#closing || this.#paused)
+      throw new HostBusyError('请等待当前行动完成并恢复 NPC 后保存节点。')
     this.#savingNode = true
     this.#beginWork()
     try {
@@ -656,24 +1035,50 @@ export class WorldHostCore implements HostRuntime {
       await this.#application.deliver(this.#address, 'story-node:deliver')
       await this.#application.release(this.#address)
       const aliases = this.#memoryCore?.snapshotAliases(this.#characterIds) ?? {}
-      return await saveStoryNode(this.#dataDirectory, this.#address, this.#packHash, title, aliases, this.#storyParentNodeId, this.#options.logicalDirectory, this.#memoryCore?.snapshotArchives(this.#characterIds) ?? {})
-    } finally { this.#savingNode = false; this.#endWork() }
+      return await saveStoryNode(
+        this.#dataDirectory,
+        this.#address,
+        this.#packHash,
+        title,
+        aliases,
+        this.#storyParentNodeId,
+        this.#options.logicalDirectory,
+        this.#memoryCore?.snapshotArchives(this.#characterIds) ?? {},
+      )
+    } finally {
+      this.#savingNode = false
+      this.#endWork()
+    }
   }
-  beginRoundRandom(values?: readonly number[]): void { this.#activity?.beginRoundRandom(values) }
-  roundRandom(): number[] { return this.#activity?.roundRandom() ?? [] }
-  holdCognition(): void { this.#memoryCore?.holdInstallation() }
-  releaseCognition(): void { this.#memoryCore?.releaseInstallation() }
+  beginRoundRandom(values?: readonly number[]): void {
+    this.#activity?.beginRoundRandom(values)
+  }
+  roundRandom(): number[] {
+    return this.#activity?.roundRandom() ?? []
+  }
+  holdCognition(): void {
+    this.#memoryCore?.holdInstallation()
+  }
+  releaseCognition(): void {
+    this.#memoryCore?.releaseInstallation()
+  }
   #track(turn: ActivationTurn): ActivationTurn {
-    return { run: (characterId, options) => {
-      const id = String(characterId)
-      this.#running.set(id, (this.#running.get(id) ?? 0) + 1)
-      return turn.run(characterId, options).finally(() => {
-        const left = (this.#running.get(id) ?? 1) - 1
-        if (left > 0) this.#running.set(id, left); else this.#running.delete(id)
-      })
-    } }
+    return {
+      run: (characterId, options) => {
+        const id = String(characterId)
+        this.#running.set(id, (this.#running.get(id) ?? 0) + 1)
+        return turn.run(characterId, options).finally(() => {
+          const left = (this.#running.get(id) ?? 1) - 1
+          if (left > 0) this.#running.set(id, left)
+          else this.#running.delete(id)
+        })
+      },
+    }
   }
-  abortWork(): void { this.#abortedWork = true; this.#continuationController?.abort() }
+  abortWork(): void {
+    this.#abortedWork = true
+    this.#continuationController?.abort()
+  }
   async settleRound() {
     if (this.#busy || this.#escaping || this.#paused) throw new HostBusyError('当前玩家回合尚未完成。')
     await this.#application.deliver(this.#address, 'tail-round:deliver')
@@ -698,7 +1103,9 @@ export class WorldHostCore implements HostRuntime {
     this.#notice = '已取消未完成的后台整理；已安装档案和近期经历保留。'
     return this.state()
   }
-  async waitForMemory(): Promise<void> { await this.#memoryCore?.waitForBackground() }
+  async waitForMemory(): Promise<void> {
+    await this.#memoryCore?.waitForBackground()
+  }
   async escape(): Promise<HostState> {
     if (this.#savingNode || this.#closing) throw new HostBusyError('正在保存节点。')
     if (this.#escaping) return this.#escaping
@@ -709,32 +1116,78 @@ export class WorldHostCore implements HostRuntime {
       await this.#workDone
       await this.#application.release(this.#address)
       await this.#activity?.escape()
-      this.#paused = false; this.#error = false; this.#phaseLabel = '可以输入'
+      this.#paused = false
+      this.#error = false
+      this.#phaseLabel = '可以输入'
       this.#notice = '已逃离活动，恢复原本合法的交互能力；已经提交的经历保留。'
       await this.#refresh()
       return this.state()
     })()
-    try { return await this.#escaping } finally { this.#escaping = undefined }
+    try {
+      return await this.#escaping
+    } finally {
+      this.#escaping = undefined
+    }
   }
 
   /** Structured UI choices remain proposals and follow the same Rulebook path as /act. */
   async perform(action: HostAction): Promise<HostState> {
-    if(action.actionType==='interact' && (action.parameters.definitionRef as WorldJsonObject|undefined)?.id==='host:activity-quick'){
-      const operation=String(action.parameters.operation)
-      const current=this.#activity?.views(this.#playerId)?.find(view=>view.activityKey===action.parameters.activityKey)
-      if(!current || !(current.quickOperations as WorldJsonObject[]|undefined)?.some(op=>op.id===operation))throw new TypeError('活动入口已失效，请刷新')
-      return this.activityAction({activityKey:String(current.activityKey),activityId:null,revision:0,operation,parameters:{},requestId:randomUUID()})
-    }
-    if(action.actionType==='interact' && ['host:activity-start','host:activity-retry','host:activity-suspend','host:activity-resume','host:activity-abandon'].includes(String((action.parameters.definitionRef as WorldJsonObject|undefined)?.id))){
-      const current=action.parameters.activityKey===undefined?this.#activity?.view(this.#playerId)
-        :this.#activity?.views(this.#playerId).find(view=>view.activityKey===action.parameters.activityKey)
-      if(!current || (current.id??null)!==action.parameters.previousId || (current.revision??0)!==action.parameters.previousRevision)
+    if (
+      action.actionType === 'interact' &&
+      (action.parameters.definitionRef as WorldJsonObject | undefined)?.id === 'host:activity-quick'
+    ) {
+      const operation = String(action.parameters.operation)
+      const current = this.#activity
+        ?.views(this.#playerId)
+        ?.find(view => view.activityKey === action.parameters.activityKey)
+      if (!current || !(current.quickOperations as WorldJsonObject[] | undefined)?.some(op => op.id === operation))
         throw new TypeError('活动入口已失效，请刷新')
-      const operation=String((action.parameters.definitionRef as WorldJsonObject).id).slice('host:activity-'.length)
-      if(operation!=='start'&&action.parameters.startParameters!==undefined)throw new TypeError('只有开始活动可选择参与者')
-      const startParameters=action.parameters.startParameters
-      if(startParameters!==undefined&&(!startParameters||typeof startParameters!=='object'||Array.isArray(startParameters)))throw new TypeError('开始参数无效')
-      return this.activityAction({activityKey:String(current.activityKey),activityId:operation==='start'?null:String(current.id),revision:operation==='start'?0:Number(current.revision),operation,parameters:(startParameters as WorldJsonObject|undefined)??{},requestId:randomUUID()})
+      return this.activityAction({
+        activityKey: String(current.activityKey),
+        activityId: null,
+        revision: 0,
+        operation,
+        parameters: {},
+        requestId: randomUUID(),
+      })
+    }
+    if (
+      action.actionType === 'interact' &&
+      [
+        'host:activity-start',
+        'host:activity-retry',
+        'host:activity-suspend',
+        'host:activity-resume',
+        'host:activity-abandon',
+      ].includes(String((action.parameters.definitionRef as WorldJsonObject | undefined)?.id))
+    ) {
+      const current =
+        action.parameters.activityKey === undefined
+          ? this.#activity?.view(this.#playerId)
+          : this.#activity?.views(this.#playerId).find(view => view.activityKey === action.parameters.activityKey)
+      if (
+        !current ||
+        (current.id ?? null) !== action.parameters.previousId ||
+        (current.revision ?? 0) !== action.parameters.previousRevision
+      )
+        throw new TypeError('活动入口已失效，请刷新')
+      const operation = String((action.parameters.definitionRef as WorldJsonObject).id).slice('host:activity-'.length)
+      if (operation !== 'start' && action.parameters.startParameters !== undefined)
+        throw new TypeError('只有开始活动可选择参与者')
+      const startParameters = action.parameters.startParameters
+      if (
+        startParameters !== undefined &&
+        (!startParameters || typeof startParameters !== 'object' || Array.isArray(startParameters))
+      )
+        throw new TypeError('开始参数无效')
+      return this.activityAction({
+        activityKey: String(current.activityKey),
+        activityId: operation === 'start' ? null : String(current.id),
+        revision: operation === 'start' ? 0 : Number(current.revision),
+        operation,
+        parameters: (startParameters as WorldJsonObject | undefined) ?? {},
+        requestId: randomUUID(),
+      })
     }
     return this.submit(`/act ${action.actionType} ${JSON.stringify(action.parameters)}`)
   }
@@ -745,31 +1198,53 @@ export class WorldHostCore implements HostRuntime {
     const jobs = new PlayerInputJobs(worldPath)
     const world = new WorldStore(worldPath)
     try {
-      const validated = jobs.read(this.#address, idempotencyKey)?.records.validated as {
-        sourceText?: string
-        actions?: readonly { actionId: string; actionType: string }[]
-        sourceSpans?: readonly { actionId: string; endUtf16: number; text: string }[]
-      } | undefined
+      const validated = jobs.read(this.#address, idempotencyKey)?.records.validated as
+        | {
+            sourceText?: string
+            actions?: readonly { actionId: string; actionType: string }[]
+            sourceSpans?: readonly { actionId: string; endUtf16: number; text: string }[]
+          }
+        | undefined
       if (validated?.actions === undefined) return undefined
-      const resolutions = new Map(world.readEvents(this.#address, headSeq)
-        .filter(event => event.eventType === 'action.resolved' && (event.data as WorldJsonObject).sourceRole === 'player')
-        .map(event => { const data = event.data as WorldJsonObject; return [data.actionId, data] as const }))
+      const resolutions = new Map(
+        world
+          .readEvents(this.#address, headSeq)
+          .filter(
+            event => event.eventType === 'action.resolved' && (event.data as WorldJsonObject).sourceRole === 'player',
+          )
+          .map(event => {
+            const data = event.data as WorldJsonObject
+            return [data.actionId, data] as const
+          }),
+      )
       const failed = validated.actions.filter(action => resolutions.get(action.actionId)?.accepted !== true)
       const accepted = validated.actions.length - failed.length
-      const details = failed.map(action => {
-        const quote = validated.sourceSpans?.filter(span => span.actionId === action.actionId).map(span => span.text).join('')
-        const reason = resolutions.get(action.actionId)?.reason
-        // Players read the shared plain-language wording; raw rejection codes stay out of the notice.
-        const explained = typeof reason === 'string' ? rejectionReasonText(reason)?.replace(/。$/u, '') : undefined
-        return `“${quote || action.actionType}”未执行${explained === undefined ? '' : `：${explained}`}`
-      }).join('；')
+      const details = failed
+        .map(action => {
+          const quote = validated.sourceSpans
+            ?.filter(span => span.actionId === action.actionId)
+            .map(span => span.text)
+            .join('')
+          const reason = resolutions.get(action.actionId)?.reason
+          // Players read the shared plain-language wording; raw rejection codes stay out of the notice.
+          const explained = typeof reason === 'string' ? rejectionReasonText(reason)?.replace(/。$/u, '') : undefined
+          return `“${quote || action.actionType}”未执行${explained === undefined ? '' : `：${explained}`}`
+        })
+        .join('；')
       const lastEnd = Math.max(0, ...(validated.sourceSpans ?? []).map(span => span.endUtf16))
       const trailing = validated.sourceText?.slice(lastEnd).replace(/^[\s\p{P}]+|[\s\p{P}]+$/gu, '') ?? ''
-      const omitted = trailing === '' ? '' : `句尾“${trailing.length > 80 ? `${trailing.slice(0, 80)}…` : trailing}”没有映射到本次动作或表达。`
+      const omitted =
+        trailing === ''
+          ? ''
+          : `句尾“${trailing.length > 80 ? `${trailing.slice(0, 80)}…` : trailing}”没有映射到本次动作或表达。`
       if (failed.length === 0 && omitted === '') return undefined
-      const rejected = failed.length === 0 ? '' : `${accepted > 0 ? '玩家输入已部分提交' : '玩家动作未成功'}：${details}。`
+      const rejected =
+        failed.length === 0 ? '' : `${accepted > 0 ? '玩家输入已部分提交' : '玩家动作未成功'}：${details}。`
       return `${rejected}${omitted}请以转录和当前场景为准。`
-    } finally { world.close(); jobs.close() }
+    } finally {
+      world.close()
+      jobs.close()
+    }
   }
 
   /**
@@ -790,7 +1265,9 @@ export class WorldHostCore implements HostRuntime {
         : `你的输入已被世界记录（状态 ${job.status}），它会在世界能写入时完成——请不要重发。`
     } catch {
       return '本轮失败，详情只保留在本机终端。'
-    } finally { jobs.close() }
+    } finally {
+      jobs.close()
+    }
   }
 
   async pause(): Promise<HostState> {
@@ -824,41 +1301,67 @@ export class WorldHostCore implements HostRuntime {
   #rulebooks(worldPath: string): RulebookRegistry {
     const core = createCoreRulebookRegistry({ interactionPackages: createInstalledInteractionPackages() })
     if (!this.#status) return this.#activity?.rulebooks() ?? core
-    const status = this.#status.resolver(core.resolve('builtin:speak-move', 2, 'status', this.#address), worldPath, this.#address, this.#playerId)
+    const status = this.#status.resolver(
+      core.resolve('builtin:speak-move', 2, 'status', this.#address),
+      worldPath,
+      this.#address,
+      this.#playerId,
+    )
     if (this.#activity) return this.#activity.rulebooks(status)
-    const registry = new RulebookRegistry(); registry.register('builtin:speak-move', 2, status); return registry
+    const registry = new RulebookRegistry()
+    registry.register('builtin:speak-move', 2, status)
+    return registry
   }
 
   async #activateCharacters(activityOnly = false): Promise<void> {
     await this.#application.release(this.#address)
     if (this.#escaping || this.#closing || this.#abortedWork) return
     const path = resolve(this.#dataDirectory, 'world.sqlite')
-    const store = new WorldStore(path), leases = new WriterLeaseService(path)
+    const store = new WorldStore(path),
+      leases = new WriterLeaseService(path)
     const availability = new CharacterRuntimeAvailabilityService(path)
     let memory: CognitiveMemoryService | undefined
     this.#continuationController = new AbortController()
     try {
       if (this.#paused) return
-      memory = new CognitiveMemoryService(resolve(this.#dataDirectory, 'memory.sqlite'),
-        store, undefined, 2, RECALL_KEYWORD_TOKENIZER_ID)
+      memory = new CognitiveMemoryService(
+        resolve(this.#dataDirectory, 'memory.sqlite'),
+        store,
+        undefined,
+        2,
+        RECALL_KEYWORD_TOKENIZER_ID,
+      )
       const createTurn = this.#turnFactory(path, store, leases, availability, memory)
       const turn = createTurn()
       this.#phaseLabel = '角色正在处理场景与行动结果'
       const active = this.#activity?.current()
-      const due = this.#playSettings.autonomyOpportunities === 0 ? [] : (this.#autonomy?.due(store, this.#address,
-        this.#playerId, this.#rootBeforeSeq, store.head(this.#address).headSeq) ?? [])
-        // Activity owns its participants' opportunities; autonomy never takes over its turn.
-        .filter(role => !active?.game.active || !active.participants.includes(role.characterId))
+      const due =
+        this.#playSettings.autonomyOpportunities === 0
+          ? []
+          : (
+              this.#autonomy?.due(
+                store,
+                this.#address,
+                this.#playerId,
+                this.#rootBeforeSeq,
+                store.head(this.#address).headSeq,
+              ) ?? []
+            )
+              // Activity owns its participants' opportunities; autonomy never takes over its turn.
+              .filter(role => !active?.game.active || !active.participants.includes(role.characterId))
       await this.#runActivityChain(store, turn)
-      this.#allowInterruption=!this.#activity?.current()?.game.active
+      this.#allowInterruption = !this.#activity?.current()?.game.active
       if (activityOnly) {
         await this.#activateAutonomous(store, createTurn, due, new Map())
         return
       }
       await this.#runSceneReactions(store, turn, createTurn, due, active)
     } finally {
-      this.#allowInterruption=false
-      memory?.close(); availability.close(); leases.close(); store.close()
+      this.#allowInterruption = false
+      memory?.close()
+      availability.close()
+      leases.close()
+      store.close()
       this.#continuationController = undefined
       this.#modelCallBudget = undefined
       if (!this.#paused && !this.#escaping) this.#memoryCore?.startPending()
@@ -866,41 +1369,83 @@ export class WorldHostCore implements HostRuntime {
   }
 
   /** Build CharacterTurns that share this activation's store handles; `autonomous` swaps in the autonomy rules and prompt. */
-  #turnFactory(path: string, store: WorldStore, leases: WriterLeaseService, availability: CharacterRuntimeAvailabilityService,
-    memory: CognitiveMemoryService): (autonomous?: boolean) => CharacterTurn {
+  #turnFactory(
+    path: string,
+    store: WorldStore,
+    leases: WriterLeaseService,
+    availability: CharacterRuntimeAvailabilityService,
+    memory: CognitiveMemoryService,
+  ): (autonomous?: boolean) => CharacterTurn {
     const shadowFile = this.#memoryShadowFile
     return (autonomous = false) => {
       const base = this.#rulebooks(path)
-      return new CharacterTurn({ publicationCharacters:this.#playSettings.publicationCharacters, activationTimeoutMs:this.#playSettings.activationTimeoutSeconds*1000, address: this.#address, store, leases, availability,
-      ...(this.#memoryCore === undefined ? { memory } : {}),
-      rulebooks: autonomous ? this.#autonomy!.rulebooks(base.resolve('builtin:speak-move', 2, 'autonomy', this.#address)) : base,
-      decide: (request, signal, reserveFormatRetry) => this.#decide(request, signal, reserveFormatRetry),
-      onTrace:(kind,characterId,decisionId,data) => { if(this.#inspector.enabled)this.#records.trace(kind,characterId,decisionId,data) },
-      continueAfterPublish: this.#options.continueAfterPublish===true
-        && !this.#activity?.current()?.game.active && this.#options.publicationAudit===undefined,
-      beforeActionExpression: this.#options.beforeActionExpression===true
-        && !this.#activity?.current()?.game.active && this.#options.publicationAudit===undefined,
-      onCommitted: async () => { await this.#projectCommitted(store) },
-      allowUnrelatedCommits: !this.#options.serialScheduling
-        && !this.#activity?.current()?.game.active && this.#options.publicationAudit===undefined,
-      projectContext: (context: WorldJsonObject, canPerform: boolean) => {
-        const projected = this.#activity?.projectContext(context, canPerform) ?? context
-        return autonomous ? {...projected, autonomy: {
-          instruction: '现在是你自主处理自身目标的机会。依据自己的目标、经历和眼前情况决定是否行动；可以表达或 abstain。没有新消息不代表发生了你不知道的事。',
-        }} : projected
-      },
-      ...(this.#activity === undefined ? {} : {
-        validateDecision: (decision: WorldJsonObject, request: CharacterTurnRequest) => this.#activity!.validateDecision(decision, request),
-      }),
-      ...(this.#activity === undefined && this.#status === undefined ? {} : {
-        executionResult: (input: Parameters<typeof characterExecutionResult>[0]) => this.#status?.executionResult(input)
-          ?? (this.#activity?.executionResult ?? characterExecutionResult)(input),
-      }),
-      ...(this.#memoryCore === undefined ? {} : { shortTermAfterSeq: (actor: CharacterId) => this.#memoryCore!.shortTermAfterSeq(actor) }),
-      recentObservations: this.#tuning.recentObservations,
-      recentSelfObservations: this.#tuning.recentSelfObservations,
-      ...(shadowFile === undefined ? {} : { onRecallShadow: (observation: RecallShadowObservation) =>
-        appendFileSync(shadowFile, JSON.stringify(observation) + '\n') }), })
+      return new CharacterTurn({
+        publicationCharacters: this.#playSettings.publicationCharacters,
+        activationTimeoutMs: this.#playSettings.activationTimeoutSeconds * 1000,
+        address: this.#address,
+        store,
+        leases,
+        availability,
+        ...(this.#memoryCore === undefined ? { memory } : {}),
+        rulebooks: autonomous
+          ? this.#autonomy!.rulebooks(base.resolve('builtin:speak-move', 2, 'autonomy', this.#address))
+          : base,
+        decide: (request, signal, reserveFormatRetry) => this.#decide(request, signal, reserveFormatRetry),
+        onTrace: (kind, characterId, decisionId, data) => {
+          if (this.#inspector.enabled) this.#records.trace(kind, characterId, decisionId, data)
+        },
+        continueAfterPublish:
+          this.#options.continueAfterPublish === true &&
+          !this.#activity?.current()?.game.active &&
+          this.#options.publicationAudit === undefined,
+        beforeActionExpression:
+          this.#options.beforeActionExpression === true &&
+          !this.#activity?.current()?.game.active &&
+          this.#options.publicationAudit === undefined,
+        onCommitted: async () => {
+          await this.#projectCommitted(store)
+        },
+        allowUnrelatedCommits:
+          !this.#options.serialScheduling &&
+          !this.#activity?.current()?.game.active &&
+          this.#options.publicationAudit === undefined,
+        projectContext: (context: WorldJsonObject, canPerform: boolean) => {
+          const projected = this.#activity?.projectContext(context, canPerform) ?? context
+          return autonomous
+            ? {
+                ...projected,
+                autonomy: {
+                  instruction:
+                    '现在是你自主处理自身目标的机会。依据自己的目标、经历和眼前情况决定是否行动；可以表达或 abstain。没有新消息不代表发生了你不知道的事。',
+                },
+              }
+            : projected
+        },
+        ...(this.#activity === undefined
+          ? {}
+          : {
+              validateDecision: (decision: WorldJsonObject, request: CharacterTurnRequest) =>
+                this.#activity!.validateDecision(decision, request),
+            }),
+        ...(this.#activity === undefined && this.#status === undefined
+          ? {}
+          : {
+              executionResult: (input: Parameters<typeof characterExecutionResult>[0]) =>
+                this.#status?.executionResult(input) ??
+                (this.#activity?.executionResult ?? characterExecutionResult)(input),
+            }),
+        ...(this.#memoryCore === undefined
+          ? {}
+          : { shortTermAfterSeq: (actor: CharacterId) => this.#memoryCore!.shortTermAfterSeq(actor) }),
+        recentObservations: this.#tuning.recentObservations,
+        recentSelfObservations: this.#tuning.recentSelfObservations,
+        ...(shadowFile === undefined
+          ? {}
+          : {
+              onRecallShadow: (observation: RecallShadowObservation) =>
+                appendFileSync(shadowFile, JSON.stringify(observation) + '\n'),
+            }),
+      })
     }
   }
 
@@ -909,22 +1454,39 @@ export class WorldHostCore implements HostRuntime {
     const controller = this.#continuationController!
     let selected = this.#activity?.schedule()
     // Creator selects the next participant; the host bounds the entire chain.
-    const activitySignal = AbortSignal.any([controller.signal, AbortSignal.timeout(this.#playSettings.activityDeadlineSeconds*1000)])
-    for (let opportunity = 0; opportunity < this.#playSettings.activityOpportunities && selected !== undefined && !activitySignal.aborted && !this.#paused; opportunity++) {
+    const activitySignal = AbortSignal.any([
+      controller.signal,
+      AbortSignal.timeout(this.#playSettings.activityDeadlineSeconds * 1000),
+    ])
+    for (
+      let opportunity = 0;
+      opportunity < this.#playSettings.activityOpportunities &&
+      selected !== undefined &&
+      !activitySignal.aborted &&
+      !this.#paused;
+      opportunity++
+    ) {
       const result = await turn.run(brandId(selected, 'CharacterId'), {
-        signal: activitySignal, maxCalls: 2,
+        signal: activitySignal,
+        maxCalls: 2,
         stimulus: new CharacterViewBuilder(store)
           .rebuildAt(this.#address, brandId(selected, 'CharacterId'), store.head(this.#address).headSeq)
           .observations.toSorted((left, right) => left.sourceSeq - right.sourceSeq)
-          .slice(-8).map(o => o.value as WorldJsonObject),
+          .slice(-8)
+          .map(o => o.value as WorldJsonObject),
       })
       this.#error = result.failure !== undefined
-      this.#notice = result.failure === undefined ? (result.status === 'abstained'
-        ? '角色本次没有提交操作，当前轮次保留；可以再次请求处理或逃生。' : '角色处理已完成。')
-        : result.failure === 'invalid_output' ? '角色返回格式无效，当前轮次没有推进；可重试或逃生。'
-          : '角色决策处理未完成，当前轮次没有推进；可重试或逃生。'
+      this.#notice =
+        result.failure === undefined
+          ? result.status === 'abstained'
+            ? '角色本次没有提交操作，当前轮次保留；可以再次请求处理或逃生。'
+            : '角色处理已完成。'
+          : result.failure === 'invalid_output'
+            ? '角色返回格式无效，当前轮次没有推进；可重试或逃生。'
+            : '角色决策处理未完成，当前轮次没有推进；可重试或逃生。'
       selected = activitySignal.aborted ? undefined : this.#activity!.outcome(result as unknown as WorldJsonObject)
-      if (opportunity === this.#playSettings.activityOpportunities-1 && selected !== undefined) this.#notice = '本次活动处理达到宿主预算上限；已提交结果保留，可再次请求处理或逃生。'
+      if (opportunity === this.#playSettings.activityOpportunities - 1 && selected !== undefined)
+        this.#notice = '本次活动处理达到宿主预算上限；已提交结果保留，可再次请求处理或逃生。'
     }
     if (activitySignal.aborted) {
       this.#notice = '活动处理已取消或超时；已提交结果保留，未完成操作没有换手。'
@@ -933,30 +1495,62 @@ export class WorldHostCore implements HostRuntime {
   }
 
   /** One bounded wave cycle for everyone who observed the committed input, then any autonomy left due. */
-  async #runSceneReactions(store: WorldStore, turn: CharacterTurn, createTurn: (autonomous?: boolean) => CharacterTurn,
-    due: AutonomousRole[], active: ReturnType<PackActivities['current']> | undefined): Promise<void> {
+  async #runSceneReactions(
+    store: WorldStore,
+    turn: CharacterTurn,
+    createTurn: (autonomous?: boolean) => CharacterTurn,
+    due: AutonomousRole[],
+    active: ReturnType<PackActivities['current']> | undefined,
+  ): Promise<void> {
     const controller = this.#continuationController!
-    const dynamic = !this.#options.serialScheduling
-      && !this.#activity?.current()?.game.active && this.#options.publicationAudit===undefined
-    const integratedAutonomy = dynamic && !this.#options.stagedAutonomy && due.length>0
-    const {autonomy, ...cycle} = await runCharacterActivations({ store, address: this.#address, turn: this.#track(turn),
-      afterSeq: this.#rootBeforeSeq, characterIds: this.#characterIds.filter(id => !due.some(role => role.characterId === id)
-        && (!active?.game.active || !active.participants.includes(id))), signal: controller.signal,
-      presentCharacterIds: () => (this.#currentScene?.recipients ?? []).map(person => brandId(person.id, 'CharacterId')),
-      ...(dynamic ? {locationId:(id:CharacterId)=>currentLocation(store.readEvents(this.#address),id)??null}:{}),
-      ...(integratedAutonomy ? {autonomy:{turn:this.#track(createTurn(true)),
-        roles:due.map(role=>({characterId:role.characterId,opportunities:Math.min(role.opportunities,this.#playSettings.autonomyOpportunities)})),
-        maximumNpcCalls:this.#playSettings.autonomyNpcCalls,deadlineSeconds:this.#playSettings.autonomyDeadlineSeconds,
-        reactionLimits:{maximumWaves:this.#playSettings.autonomyReactionWaves,maximumNpcCalls:this.#playSettings.autonomyReactionCalls,
-          maximumCallsPerCharacter:this.#playSettings.maximumCallsPerCharacter}}}:{}),
-      strictCallBudget: true, limits: this.#tuning })
+    const dynamic =
+      !this.#options.serialScheduling &&
+      !this.#activity?.current()?.game.active &&
+      this.#options.publicationAudit === undefined
+    const integratedAutonomy = dynamic && !this.#options.stagedAutonomy && due.length > 0
+    const { autonomy, ...cycle } = await runCharacterActivations({
+      store,
+      address: this.#address,
+      turn: this.#track(turn),
+      afterSeq: this.#rootBeforeSeq,
+      characterIds: this.#characterIds.filter(
+        id => !due.some(role => role.characterId === id) && (!active?.game.active || !active.participants.includes(id)),
+      ),
+      signal: controller.signal,
+      presentCharacterIds: () =>
+        (this.#currentScene?.recipients ?? []).map(person => brandId(person.id, 'CharacterId')),
+      ...(dynamic
+        ? { locationId: (id: CharacterId) => currentLocation(store.readEvents(this.#address), id) ?? null }
+        : {}),
+      ...(integratedAutonomy
+        ? {
+            autonomy: {
+              turn: this.#track(createTurn(true)),
+              roles: due.map(role => ({
+                characterId: role.characterId,
+                opportunities: Math.min(role.opportunities, this.#playSettings.autonomyOpportunities),
+              })),
+              maximumNpcCalls: this.#playSettings.autonomyNpcCalls,
+              deadlineSeconds: this.#playSettings.autonomyDeadlineSeconds,
+              reactionLimits: {
+                maximumWaves: this.#playSettings.autonomyReactionWaves,
+                maximumNpcCalls: this.#playSettings.autonomyReactionCalls,
+                maximumCallsPerCharacter: this.#playSettings.maximumCallsPerCharacter,
+              },
+            },
+          }
+        : {}),
+      strictCallBudget: true,
+      limits: this.#tuning,
+    })
     this.#activationCycle = cycle
     this.#autonomyCycle = autonomy
     this.#reactionNotice(cycle)
     if (autonomy) this.#autonomyNotice(autonomy.terminalReason)
     else if (!controller.signal.aborted) {
       const counts = new Map<CharacterId, number>()
-      for (const activation of this.#activationCycle.activations) counts.set(activation.characterId, (counts.get(activation.characterId) ?? 0) + 1)
+      for (const activation of this.#activationCycle.activations)
+        counts.set(activation.characterId, (counts.get(activation.characterId) ?? 0) + 1)
       await this.#activateAutonomous(store, createTurn, due, counts)
     }
   }
@@ -966,21 +1560,27 @@ export class WorldHostCore implements HostRuntime {
     const terminal = cycle.terminalReason
     if (terminal === 'failed' || terminal === 'interrupted') {
       const failureStatus = terminal === 'interrupted' ? 'interrupted' : 'failed'
-      const activation = cycle.activations.find(activation => activation.result.status === failureStatus)
-        ?? cycle.activations.at(-1)
+      const activation =
+        cycle.activations.find(activation => activation.result.status === failureStatus) ?? cycle.activations.at(-1)
       const relevant = activation?.result
       const failedCall = activation === undefined ? undefined : this.#roleCalls.get(String(activation.characterId))
       const committed = relevant?.performResult !== undefined
-      const cause = terminal === 'interrupted' ? '角色处理被打断或超时'
-        : relevant?.failure === 'invalid_output' ? '角色返回格式无效'
-          : relevant?.failure === 'preset_failed' ? '角色预设处理失败，请检查提示节点与文本规则'
-          : relevant?.failure === 'provider_failed'
-            ? providerFailureNotice(failedCall?.status === 'failed' ? failedCall.httpStatus : undefined)
-            : '角色处理失败'
+      const cause =
+        terminal === 'interrupted'
+          ? '角色处理被打断或超时'
+          : relevant?.failure === 'invalid_output'
+            ? '角色返回格式无效'
+            : relevant?.failure === 'preset_failed'
+              ? '角色预设处理失败，请检查提示节点与文本规则'
+              : relevant?.failure === 'provider_failed'
+                ? providerFailureNotice(failedCall?.status === 'failed' ? failedCall.httpStatus : undefined)
+                : '角色处理失败'
       this.#error = true
-      this.#notice = `玩家输入已提交；${cause}。${committed
-        ? '交互结果已提交，后续表达未完成；请看转录中的实际结果。可以继续行动，无需重发上一句。'
-        : '已经发表的回应保留；尚未完成的角色行动或表达没有提交。可以继续行动，无需重发上一句。'}`
+      this.#notice = `玩家输入已提交；${cause}。${
+        committed
+          ? '交互结果已提交，后续表达未完成；请看转录中的实际结果。可以继续行动，无需重发上一句。'
+          : '已经发表的回应保留；尚未完成的角色行动或表达没有提交。可以继续行动，无需重发上一句。'
+      }`
     } else if (terminal === 'call_limit' || terminal === 'wave_limit' || terminal === 'character_limit') {
       this.#notice = '玩家输入已提交；本轮角色反应达到预算上限，剩余反应没有继续执行。可以继续行动，无需重发上一句。'
     } else {
@@ -988,27 +1588,43 @@ export class WorldHostCore implements HostRuntime {
     }
   }
 
-  async #activateAutonomous(store: WorldStore, createTurn: (autonomous?: boolean) => CharacterTurn,
-    due: AutonomousRole[], counts: Map<CharacterId, number>): Promise<void> {
+  async #activateAutonomous(
+    store: WorldStore,
+    createTurn: (autonomous?: boolean) => CharacterTurn,
+    due: AutonomousRole[],
+    counts: Map<CharacterId, number>,
+  ): Promise<void> {
     if (!due.length || this.#paused || this.#abortedWork || !this.#continuationController) return
     const settings = this.#playSettings
-    const signal = AbortSignal.any([this.#continuationController.signal, AbortSignal.timeout(settings.autonomyDeadlineSeconds * 1000)])
+    const signal = AbortSignal.any([
+      this.#continuationController.signal,
+      AbortSignal.timeout(settings.autonomyDeadlineSeconds * 1000),
+    ])
     const before = store.head(this.#address).headSeq
-    const activations: {characterId: CharacterId; result: Awaited<ReturnType<CharacterTurn['run']>>}[] = []
-    this.#modelCallBudget = {remaining: settings.autonomyNpcCalls, exhausted: false}
-    let calls = 0, reason = 'quiescent'
+    const activations: { characterId: CharacterId; result: Awaited<ReturnType<CharacterTurn['run']>> }[] = []
+    this.#modelCallBudget = { remaining: settings.autonomyNpcCalls, exhausted: false }
+    let calls = 0,
+      reason = 'quiescent'
     const turn = this.#track(createTurn(true))
     outer: for (let opportunity = 0; opportunity < settings.autonomyOpportunities; opportunity++) {
       for (const role of due) {
         if (opportunity >= role.opportunities) continue
-        if (this.#paused || signal.aborted) { reason = 'interrupted'; break outer }
+        if (this.#paused || signal.aborted) {
+          reason = 'interrupted'
+          break outer
+        }
         const remaining = Math.min(settings.autonomyNpcCalls - calls, this.#modelCallBudget.remaining)
-        if (remaining < 2) { reason = 'call_limit'; break outer }
-        const stimulus = new CharacterViewBuilder(store).rebuildAt(this.#address, role.characterId, store.head(this.#address).headSeq)
-          .observations.filter(o => o.sourceSeq > this.#rootBeforeSeq).map(o => o.value as WorldJsonObject)
-        const result = await turn.run(role.characterId, {signal, maxCalls: 2, maxModelCalls: remaining, stimulus})
+        if (remaining < 2) {
+          reason = 'call_limit'
+          break outer
+        }
+        const stimulus = new CharacterViewBuilder(store)
+          .rebuildAt(this.#address, role.characterId, store.head(this.#address).headSeq)
+          .observations.filter(o => o.sourceSeq > this.#rootBeforeSeq)
+          .map(o => o.value as WorldJsonObject)
+        const result = await turn.run(role.characterId, { signal, maxCalls: 2, maxModelCalls: remaining, stimulus })
         calls += result.calls
-        activations.push({characterId: role.characterId, result})
+        activations.push({ characterId: role.characterId, result })
         counts.set(role.characterId, (counts.get(role.characterId) ?? 0) + 1)
         if (result.status === 'failed' || result.status === 'interrupted') {
           reason = this.#modelCallBudget.exhausted ? 'call_limit' : result.status
@@ -1018,25 +1634,44 @@ export class WorldHostCore implements HostRuntime {
     }
     const autonomousCalls = settings.autonomyNpcCalls - this.#modelCallBudget.remaining
     let reactions: Awaited<ReturnType<typeof runCharacterActivations>> | undefined
-    if (!signal.aborted && !this.#paused && reason !== 'failed' && reason !== 'interrupted' && settings.autonomyReactionWaves > 0) {
-      this.#modelCallBudget = {remaining: settings.autonomyReactionCalls, exhausted: false}
+    if (
+      !signal.aborted &&
+      !this.#paused &&
+      reason !== 'failed' &&
+      reason !== 'interrupted' &&
+      settings.autonomyReactionWaves > 0
+    ) {
+      this.#modelCallBudget = { remaining: settings.autonomyReactionCalls, exhausted: false }
       const active = this.#activity?.current()
-      reactions = await runCharacterActivations({store, address: this.#address, turn: this.#track(createTurn()), afterSeq: before, signal,
-        characterIds: this.#characterIds.filter(id => !due.some(role => role.characterId === id)
-          && (!active?.game.active || !active.participants.includes(id))),
+      reactions = await runCharacterActivations({
+        store,
+        address: this.#address,
+        turn: this.#track(createTurn()),
+        afterSeq: before,
+        signal,
+        characterIds: this.#characterIds.filter(
+          id =>
+            !due.some(role => role.characterId === id) && (!active?.game.active || !active.participants.includes(id)),
+        ),
         presentCharacterIds: () => (this.#currentScene?.recipients ?? []).map(p => brandId(p.id, 'CharacterId')),
-        ...(!this.#options.serialScheduling && !active?.game.active
-          && this.#options.publicationAudit===undefined ? {locationId:(id:CharacterId)=>currentLocation(store.readEvents(this.#address),id)??null}:{}),
-        initialCounts: counts, strictCallBudget: true,
-        limits: {maximumWaves: settings.autonomyReactionWaves, maximumNpcCalls: settings.autonomyReactionCalls,
-          maximumCallsPerCharacter: settings.maximumCallsPerCharacter, reactionDeadlineSeconds: settings.autonomyDeadlineSeconds},
+        ...(!this.#options.serialScheduling && !active?.game.active && this.#options.publicationAudit === undefined
+          ? { locationId: (id: CharacterId) => currentLocation(store.readEvents(this.#address), id) ?? null }
+          : {}),
+        initialCounts: counts,
+        strictCallBudget: true,
+        limits: {
+          maximumWaves: settings.autonomyReactionWaves,
+          maximumNpcCalls: settings.autonomyReactionCalls,
+          maximumCallsPerCharacter: settings.maximumCallsPerCharacter,
+          reactionDeadlineSeconds: settings.autonomyDeadlineSeconds,
+        },
       })
       if (this.#modelCallBudget.exhausted) reason = 'call_limit'
       else if (reactions.terminalReason !== 'quiescent') reason = reactions.terminalReason
     }
     if (signal.aborted) reason = 'interrupted'
     const reactionCalls = reactions === undefined ? 0 : settings.autonomyReactionCalls - this.#modelCallBudget.remaining
-    this.#autonomyCycle = {activations, autonomousCalls, reactionCalls, reactions, terminalReason: reason}
+    this.#autonomyCycle = { activations, autonomousCalls, reactionCalls, reactions, terminalReason: reason }
     this.#modelCallBudget = undefined
     this.#autonomyNotice(reason)
   }
@@ -1056,18 +1691,36 @@ export class WorldHostCore implements HostRuntime {
     const view = new CharacterViewBuilder(store).rebuildAt(this.#address, this.#playerId, head.headSeq)
     const availability = new CharacterRuntimeAvailabilityService(resolve(this.#dataDirectory, 'world.sqlite'))
     try {
-      const scene = new SceneDecisionService(store, availability)
-        .decideFromEvents(this.#address, this.#playerId, store.readEvents(this.#address, head.headSeq), head.headSeq)
-      this.#transcript = playerTranscript(await presetDisplay(view, this.#effectivePresets), this.#names, this.#playerId,
-        { entityNames: this.#entityNames, locationNames: this.#locationNames })
+      const scene = new SceneDecisionService(store, availability).decideFromEvents(
+        this.#address,
+        this.#playerId,
+        store.readEvents(this.#address, head.headSeq),
+        head.headSeq,
+      )
+      this.#transcript = playerTranscript(
+        await presetDisplay(view, this.#effectivePresets),
+        this.#names,
+        this.#playerId,
+        { entityNames: this.#entityNames, locationNames: this.#locationNames },
+      )
       this.#currentScene = {
-        locationName: view.locationId === null ? '未知地点' : this.#locationNames.get(view.locationId) ?? view.locationId,
-        recipients: scene.observerIds.filter(id => id !== this.#playerId).map(id => ({ id, name: this.#names.get(id) ?? id })),
+        locationName:
+          view.locationId === null ? '未知地点' : (this.#locationNames.get(view.locationId) ?? view.locationId),
+        recipients: scene.observerIds
+          .filter(id => id !== this.#playerId)
+          .map(id => ({ id, name: this.#names.get(id) ?? id })),
         presentNpcNames: scene.observerIds.filter(id => id !== this.#playerId).map(id => this.#names.get(id) ?? id),
       }
-      this.#debug = { ...this.#debug, headSeq: head.headSeq, tick: head.tick, worldVersion: this.#worldVersion,
-        visibleSceneIds: view.scenes.map(scene => scene.sceneId) }
-    } finally { availability.close() }
+      this.#debug = {
+        ...this.#debug,
+        headSeq: head.headSeq,
+        tick: head.tick,
+        worldVersion: this.#worldVersion,
+        visibleSceneIds: view.scenes.map(scene => scene.sceneId),
+      }
+    } finally {
+      availability.close()
+    }
   }
 
   async #refresh(): Promise<void> {
@@ -1075,10 +1728,18 @@ export class WorldHostCore implements HostRuntime {
       this.#application.characterViewForPrincipal(this.#address, this.#principalId, this.#playerId),
       this.#application.head(this.#address),
     ])
-    this.#transcript = playerTranscript(await presetDisplay(view, this.#effectivePresets), this.#names, this.#playerId,
-        { entityNames: this.#entityNames, locationNames: this.#locationNames })
+    this.#transcript = playerTranscript(
+      await presetDisplay(view, this.#effectivePresets),
+      this.#names,
+      this.#playerId,
+      { entityNames: this.#entityNames, locationNames: this.#locationNames },
+    )
     this.#availableActions = await this.#application.playerAffordancesForPrincipal(
-      this.#address, this.#principalId, this.#playerId, view.asOfWorldSeq)
+      this.#address,
+      this.#principalId,
+      this.#playerId,
+      view.asOfWorldSeq,
+    )
 
     const worldPath = resolve(this.#dataDirectory, 'world.sqlite')
     const world = new WorldStore(worldPath)
@@ -1086,25 +1747,40 @@ export class WorldHostCore implements HostRuntime {
       const availability = new CharacterRuntimeAvailabilityService(worldPath)
       try {
         const events = world.readEvents(this.#address, view.asOfWorldSeq)
-        const scene = new SceneDecisionService(world, availability)
-          .decideFromEvents(this.#address, this.#playerId, events, view.asOfWorldSeq)
+        const scene = new SceneDecisionService(world, availability).decideFromEvents(
+          this.#address,
+          this.#playerId,
+          events,
+          view.asOfWorldSeq,
+        )
         if (this.#status) {
           // The player is offered status operations under the same rules as an NPC; a running activity's
           // policy filter below applies to them as to any other interaction.
-          this.#availableActions = this.#status.withOperations(this.#availableActions, events, this.#playerId, this.#playerId)
-          const named = <T extends { holderId: string | null }>(entry: T) => entry.holderId === null ? entry
-            : { ...entry, holderName: this.#names.get(entry.holderId) ?? entry.holderId,
-              ...(entry.holderId === this.#playerId ? { self: true } : {}) }
+          this.#availableActions = this.#status.withOperations(
+            this.#availableActions,
+            events,
+            this.#playerId,
+            this.#playerId,
+          )
+          const named = <T extends { holderId: string | null }>(entry: T) =>
+            entry.holderId === null
+              ? entry
+              : {
+                  ...entry,
+                  holderName: this.#names.get(entry.holderId) ?? entry.holderId,
+                  ...(entry.holderId === this.#playerId ? { self: true } : {}),
+                }
           this.#statusBar = this.#status.known(events, this.#playerId).map(named)
           // Author opt-in only: these never enter any character's context.
           this.#statusTruth = this.#status.playerTruth(events).map(named)
         }
         this.#currentScene = {
-          locationName: view.locationId === null ? '未知地点'
-            : this.#locationNames.get(view.locationId) ?? view.locationId,
-          recipients: scene.observerIds.filter(id => id !== this.#playerId).map(id => ({ id, name: this.#names.get(id) ?? id })),
-        presentNpcNames: scene.observerIds.filter(id => id !== this.#playerId)
-            .map(id => this.#names.get(id) ?? id),
+          locationName:
+            view.locationId === null ? '未知地点' : (this.#locationNames.get(view.locationId) ?? view.locationId),
+          recipients: scene.observerIds
+            .filter(id => id !== this.#playerId)
+            .map(id => ({ id, name: this.#names.get(id) ?? id })),
+          presentNpcNames: scene.observerIds.filter(id => id !== this.#playerId).map(id => this.#names.get(id) ?? id),
         }
       } finally {
         availability.close()
@@ -1121,8 +1797,12 @@ export class WorldHostCore implements HostRuntime {
       this.#availableActions = this.#activity!.filterAffordances(this.#availableActions, activityState, this.#playerId)
     }
     this.#debug = {
-      headSeq: head.headSeq, tick: head.tick, worldVersion: this.#worldVersion, manifestVersion: this.#manifestVersion,
-      outputProtocol: 'perform/publish(segments)/abstain', memoryMode: this.#memoryCore ? 'core' : 'native',
+      headSeq: head.headSeq,
+      tick: head.tick,
+      worldVersion: this.#worldVersion,
+      manifestVersion: this.#manifestVersion,
+      outputProtocol: 'perform/publish(segments)/abstain',
+      memoryMode: this.#memoryCore ? 'core' : 'native',
       activationCycle: this.#activationCycle ?? null,
       autonomy: this.#autonomyCycle ?? null,
       visibleSceneIds: view.scenes.map(scene => scene.sceneId),
@@ -1135,8 +1815,12 @@ export class WorldHostCore implements HostRuntime {
 export class WorldHostRuntime extends TailRoundRuntime {
   static async create(options: WorldHostOptions): Promise<WorldHostRuntime> {
     // Only the default runners start Python; injected runners (tests, studies) bring their own.
-    if (options.memoryCore && options.memoryCoreRunners === undefined
-      && (options.memoryCoreRun === undefined || options.memoryCoreBuildRun === undefined)) assertCoreEnvironment()
+    if (
+      options.memoryCore &&
+      options.memoryCoreRunners === undefined &&
+      (options.memoryCoreRun === undefined || options.memoryCoreBuildRun === undefined)
+    )
+      assertCoreEnvironment()
     return TailRoundRuntime.open(options, value => WorldHostCore.create(value))
   }
 }

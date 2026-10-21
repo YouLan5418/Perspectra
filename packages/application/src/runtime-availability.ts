@@ -9,7 +9,9 @@ import type { RuntimeAvailabilityState } from '@harness-world/contracts'
  * Wave, so losing one Round's race says nothing about the next Round.
  */
 const SELF_CLEARING_AVAILABILITY_STATES: readonly RuntimeAvailabilityState[] = [
-  'ready', 'session_lag', 'budget_unavailable',
+  'ready',
+  'session_lag',
+  'budget_unavailable',
 ]
 
 /**
@@ -18,12 +20,14 @@ const SELF_CLEARING_AVAILABILITY_STATES: readonly RuntimeAvailabilityState[] = [
  * the same thing to a retry decision, so they share one backoff.
  */
 const PROVIDER_QUALITY_AVAILABILITY_STATES: readonly RuntimeAvailabilityState[] = [
-  'provider_output_invalid', 'model_unavailable',
+  'provider_output_invalid',
+  'model_unavailable',
 ]
 
 /** States a Scene Decision may schedule. The Scene has no Provider quality signal, so it lists both groups. */
 export const SCHEDULABLE_AVAILABILITY_STATES: readonly RuntimeAvailabilityState[] = [
-  ...SELF_CLEARING_AVAILABILITY_STATES, ...PROVIDER_QUALITY_AVAILABILITY_STATES,
+  ...SELF_CLEARING_AVAILABILITY_STATES,
+  ...PROVIDER_QUALITY_AVAILABILITY_STATES,
 ]
 
 /**

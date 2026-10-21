@@ -3,11 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 import { afterEach, describe, expect, it } from 'vitest'
-import {
-  CONTEXT_APPLICATION_ID,
-  CONTEXT_SCHEMA_VERSION,
-  openContextDatabase,
-} from './context-database.ts'
+import { CONTEXT_APPLICATION_ID, CONTEXT_SCHEMA_VERSION, openContextDatabase } from './context-database.ts'
 
 const directories: string[] = []
 
@@ -22,10 +18,16 @@ afterEach(() => {
 })
 
 function tables(db: DatabaseSync): string[] {
-  return (db.prepare(`
+  return (
+    db
+      .prepare(
+        `
     SELECT name FROM sqlite_master
     WHERE type = 'table' AND name NOT LIKE 'sqlite_%' ORDER BY name
-  `).all() as Array<{ name: string }>).map(row => row.name)
+  `,
+      )
+      .all() as Array<{ name: string }>
+  ).map(row => row.name)
 }
 
 describe('Context database migration catalog', () => {
@@ -46,21 +48,25 @@ describe('Context database migration catalog', () => {
     db.close()
     const migrated = openContextDatabase(path)
     const rows = migrated.prepare('SELECT * FROM provider_calls ORDER BY model_call_id').all()
-    expect(rows.map(({ purpose, work_id, request_json, ...row }) => {
-      expect(purpose).toBe('round_participant')
-      expect(work_id).toBe(row.model_call_id)
-      expect(request_json).toBeNull()
-      return row
-    })).toEqual(original)
+    expect(
+      rows.map(({ purpose, work_id, request_json, ...row }) => {
+        expect(purpose).toBe('round_participant')
+        expect(work_id).toBe(row.model_call_id)
+        expect(request_json).toBeNull()
+        return row
+      }),
+    ).toEqual(original)
     migrated.close()
   })
 
   it('owns a fresh database and installs the complete contiguous schema', () => {
     const db = openContextDatabase(database('fresh.sqlite'))
-    expect((db.prepare('PRAGMA application_id').get() as { application_id: number }).application_id)
-      .toBe(CONTEXT_APPLICATION_ID)
-    expect((db.prepare('PRAGMA user_version').get() as { user_version: number }).user_version)
-      .toBe(CONTEXT_SCHEMA_VERSION)
+    expect((db.prepare('PRAGMA application_id').get() as { application_id: number }).application_id).toBe(
+      CONTEXT_APPLICATION_ID,
+    )
+    expect((db.prepare('PRAGMA user_version').get() as { user_version: number }).user_version).toBe(
+      CONTEXT_SCHEMA_VERSION,
+    )
     expect(tables(db)).toEqual([
       'context_receipts',
       'continuity_checkpoints',
@@ -82,20 +88,26 @@ describe('Context database migration catalog', () => {
     // migration at or below the stored user_version.
     const seed = openContextDatabase(path)
     seed.exec("INSERT INTO continuity_checkpoints VALUES ('checkpoint:stale', 'namespace', 0, '{}', 'sha256:stale')")
-    expect(seed.prepare('SELECT checkpoint_id FROM continuity_checkpoints').get())
-      .toEqual({ checkpoint_id: 'checkpoint:stale' })
-    expect((seed.prepare('PRAGMA table_info(provider_calls)').all() as Array<{ name: string }>)
-      .map(column => column.name)).toContain('purpose')
+    expect(seed.prepare('SELECT checkpoint_id FROM continuity_checkpoints').get()).toEqual({
+      checkpoint_id: 'checkpoint:stale',
+    })
+    expect(
+      (seed.prepare('PRAGMA table_info(provider_calls)').all() as Array<{ name: string }>).map(column => column.name),
+    ).toContain('purpose')
     seed.exec('PRAGMA user_version = 6')
     seed.close()
 
     const migrated = openContextDatabase(path)
-    expect((migrated.prepare('PRAGMA user_version').get() as { user_version: number }).user_version)
-      .toBe(CONTEXT_SCHEMA_VERSION)
+    expect((migrated.prepare('PRAGMA user_version').get() as { user_version: number }).user_version).toBe(
+      CONTEXT_SCHEMA_VERSION,
+    )
     expect(migrated.prepare('SELECT checkpoint_id FROM continuity_checkpoints').get()).toBeUndefined()
     // Version 6 must not replay: its rename would collide with the table the seed already left in the new shape.
-    expect((migrated.prepare('PRAGMA table_info(provider_calls)').all() as Array<{ name: string }>)
-      .map(column => column.name)).toContain('purpose')
+    expect(
+      (migrated.prepare('PRAGMA table_info(provider_calls)').all() as Array<{ name: string }>).map(
+        column => column.name,
+      ),
+    ).toContain('purpose')
     migrated.close()
   })
 

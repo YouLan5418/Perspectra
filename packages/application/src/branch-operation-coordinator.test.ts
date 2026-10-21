@@ -1,5 +1,10 @@
 import { brandId } from '@harness-world/contracts'
-import { createCoreRulebookRegistry, FrozenInteractionRulebook, WorldBootstrap, type CompiledWorldSpec } from '@harness-world/kernel'
+import {
+  createCoreRulebookRegistry,
+  FrozenInteractionRulebook,
+  WorldBootstrap,
+  type CompiledWorldSpec,
+} from '@harness-world/kernel'
 import {
   BranchAdministration,
   CharacterRuntimeAvailabilityService,
@@ -41,7 +46,10 @@ function lane(world: CompiledWorldSpec): RoundExecutionLane {
     manifestHash: world.manifestHash,
     enqueueRound<T>(work: () => Promise<T>): Promise<T> {
       const result = tail.then(work, work)
-      tail = result.then(() => undefined, () => undefined)
+      tail = result.then(
+        () => undefined,
+        () => undefined,
+      )
       return result
     },
   }
@@ -52,7 +60,10 @@ function coordinator(path: string, world: CompiledWorldSpec) {
   const inbox = new RoundInbox(path)
   const leases = new WriterLeaseService(path)
   const availability = new CharacterRuntimeAvailabilityService(path)
-  availability.initialize(world.manifest.address, world.manifest.characters.map(value => ({ characterId: value.characterId, state: 'ready' })))
+  availability.initialize(
+    world.manifest.address,
+    world.manifest.characters.map(value => ({ characterId: value.characterId, state: 'ready' })),
+  )
   const rounds = new RoundCoordinator({
     store,
     inbox,
@@ -66,13 +77,16 @@ function coordinator(path: string, world: CompiledWorldSpec) {
 }
 
 function enqueueAccepted(inbox: RoundInbox, world: CompiledWorldSpec, idempotencyKey: string): void {
-  inbox.enqueue({
-    address: world.manifest.address,
-    idempotencyKey,
-    principalId: 'principal:player',
-    input: { actionType: 'speak', parameters: { text: idempotencyKey } },
-    correlationId: idempotencyKey,
-  }, 8)
+  inbox.enqueue(
+    {
+      address: world.manifest.address,
+      idempotencyKey,
+      principalId: 'principal:player',
+      input: { actionType: 'speak', parameters: { text: idempotencyKey } },
+      correlationId: idempotencyKey,
+    },
+    8,
+  )
 }
 
 describe('BranchOperationCoordinator', () => {
@@ -89,30 +103,50 @@ describe('BranchOperationCoordinator', () => {
     const operations = new BranchOperationCoordinator(runtime.store, administration, runtime.rounds, {
       drainCritical: async () => 0,
     })
-    await expect(operations.forkAtHead({
-      parent: world.manifest.address,
-      child,
-      reason: 'occupied child',
-      correlationId: 'fork:occupied',
-    })).rejects.toThrow()
+    await expect(
+      operations.forkAtHead({
+        parent: world.manifest.address,
+        child,
+        reason: 'occupied child',
+        correlationId: 'fork:occupied',
+      }),
+    ).rejects.toThrow()
     expect(administration.status(world.manifest.address).admissionState).toBe('open')
-    await expect(runtime.rounds.submit({
-      idempotencyKey: 'after-compensation', principalId: 'principal:player',
-      action: { actionType: 'speak', parameters: { text: 'still open' } }, correlationId: 'after-compensation',
-    })).resolves.toMatchObject({ status: 'accepted' })
+    await expect(
+      runtime.rounds.submit({
+        idempotencyKey: 'after-compensation',
+        principalId: 'principal:player',
+        action: { actionType: 'speak', parameters: { text: 'still open' } },
+        correlationId: 'after-compensation',
+      }),
+    ).resolves.toMatchObject({ status: 'accepted' })
 
-    const failingDrain = new BranchOperationCoordinator(runtime.store, administration, {
-      drainAccepted: async () => { throw new Error('drain integrity failure') },
-      close: () => undefined,
-    }, { drainCritical: async () => 0 })
-    await expect(failingDrain.forkAtHead({
-      parent: world.manifest.address,
-      child: { ...world.manifest.address, branchId: brandId('branch:not-created', 'BranchId') },
-      reason: 'failed drain',
-      correlationId: 'fork:failed-drain',
-    })).rejects.toThrow('drain integrity failure')
+    const failingDrain = new BranchOperationCoordinator(
+      runtime.store,
+      administration,
+      {
+        drainAccepted: async () => {
+          throw new Error('drain integrity failure')
+        },
+        close: () => undefined,
+      },
+      { drainCritical: async () => 0 },
+    )
+    await expect(
+      failingDrain.forkAtHead({
+        parent: world.manifest.address,
+        child: { ...world.manifest.address, branchId: brandId('branch:not-created', 'BranchId') },
+        reason: 'failed drain',
+        correlationId: 'fork:failed-drain',
+      }),
+    ).rejects.toThrow('drain integrity failure')
     expect(administration.status(world.manifest.address).admissionState).toBe('draining')
-    administration.setAdmission(world.manifest.address, 'open', 'prepare compensation failure', 'fork:prepare-compensation')
+    administration.setAdmission(
+      world.manifest.address,
+      'open',
+      'prepare compensation failure',
+      'fork:prepare-compensation',
+    )
     class FailingCompensationAdministration extends BranchAdministration {
       override setAdmission(...args: Parameters<BranchAdministration['setAdmission']>) {
         if (args[1] === 'open') throw new Error('compensation failed')
@@ -123,12 +157,14 @@ describe('BranchOperationCoordinator', () => {
     const uncompensated = new BranchOperationCoordinator(runtime.store, failingCompensation, runtime.rounds, {
       drainCritical: async () => 0,
     })
-    await expect(uncompensated.forkAtHead({
-      parent: world.manifest.address,
-      child,
-      reason: 'force compensation failure',
-      correlationId: 'fork:compensation-failure',
-    })).rejects.toThrow('could not be reopened')
+    await expect(
+      uncompensated.forkAtHead({
+        parent: world.manifest.address,
+        child,
+        reason: 'force compensation failure',
+        correlationId: 'fork:compensation-failure',
+      }),
+    ).rejects.toThrow('could not be reopened')
     failingCompensation.close()
     runtime.rounds.close()
     runtime.inbox.close()
@@ -151,15 +187,23 @@ describe('BranchOperationCoordinator', () => {
       drainCritical: async () => 0,
     })
     const child = { ...world.manifest.address, branchId: brandId('branch:child', 'BranchId') }
-    expect(() => runtime.store.forkDrainedBranch(world.manifest.address, child, runtime.store.head(world.manifest.address).headSeq))
-      .toThrow('requires admission state draining')
+    expect(() =>
+      runtime.store.forkDrainedBranch(
+        world.manifest.address,
+        child,
+        runtime.store.head(world.manifest.address).headSeq,
+      ),
+    ).toThrow('requires admission state draining')
     const result = await operations.forkAtHead({
       parent: world.manifest.address,
       child,
       reason: 'create checkpoint branch',
       correlationId: 'operation:fork',
     })
-    expect(result).toMatchObject({ drainedRounds: 1, parentState: { admissionState: 'open', lifecycleState: 'active' } })
+    expect(result).toMatchObject({
+      drainedRounds: 1,
+      parentState: { admissionState: 'open', lifecycleState: 'active' },
+    })
     expect(runtime.store.head(child)).toEqual(runtime.store.head(world.manifest.address))
     expect(result.forkSeq).toBe(runtime.store.head(child).headSeq)
     const childHead = runtime.store.head(child)
@@ -172,16 +216,24 @@ describe('BranchOperationCoordinator', () => {
       ownerId: 'coordinator:child',
       rulebooks: createCoreRulebookRegistry({ interactionPackages: [basicInteractionPackage] }),
     })
-    await expect(childRounds.submit({
-      idempotencyKey: 'child-round', principalId: 'principal:player',
-      action: { actionType: 'speak', parameters: { text: 'child continues' } }, correlationId: 'child-round',
-    })).resolves.toMatchObject({ tick: 2 })
+    await expect(
+      childRounds.submit({
+        idempotencyKey: 'child-round',
+        principalId: 'principal:player',
+        action: { actionType: 'speak', parameters: { text: 'child continues' } },
+        correlationId: 'child-round',
+      }),
+    ).resolves.toMatchObject({ tick: 2 })
     expect(runtime.store.head(child).headSeq).toBeGreaterThan(childHead.headSeq)
     expect(runtime.store.head(world.manifest.address).headSeq).toBe(childHead.headSeq)
-    await expect(runtime.rounds.submit({
-      idempotencyKey: 'after-fork', principalId: 'principal:player',
-      action: { actionType: 'speak', parameters: { text: 'source continues' } }, correlationId: 'after-fork',
-    })).resolves.toMatchObject({ tick: 2 })
+    await expect(
+      runtime.rounds.submit({
+        idempotencyKey: 'after-fork',
+        principalId: 'principal:player',
+        action: { actionType: 'speak', parameters: { text: 'source continues' } },
+        correlationId: 'after-fork',
+      }),
+    ).resolves.toMatchObject({ tick: 2 })
     childRounds.close()
     runtime.rounds.close()
     runtime.inbox.close()
@@ -230,10 +282,14 @@ describe('BranchOperationCoordinator', () => {
     })
     expect(session.cursor(brandId('session:player', 'SessionId'))).toBe(1)
     await expect(runtime.rounds.drainAccepted('after-archive')).rejects.toThrow('closed')
-    await expect(runtime.rounds.submit({
-      idempotencyKey: 'after-archive', principalId: 'principal:player',
-      action: { actionType: 'speak', parameters: { text: 'blocked' } }, correlationId: 'after-archive',
-    })).rejects.toThrow('closed')
+    await expect(
+      runtime.rounds.submit({
+        idempotencyKey: 'after-archive',
+        principalId: 'principal:player',
+        action: { actionType: 'speak', parameters: { text: 'blocked' } },
+        correlationId: 'after-archive',
+      }),
+    ).rejects.toThrow('closed')
     outbox.close()
     session.close()
     runtime.inbox.close()

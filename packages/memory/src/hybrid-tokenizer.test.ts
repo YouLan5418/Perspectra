@@ -67,9 +67,16 @@ describe('hybrid keyword tokenizer', () => {
 
   it('does not trap on punctuation, emoji, mixed scripts or long text', () => {
     const awkward = [
-      '。，！？', '🙂🙂钥匙🙂', 'Alice把钥匙放在门口、然后走了。',
-      'ＡＢＣ１２３全角', 'x'.repeat(20_000), '钥'.repeat(500),
-      '钥匙😀花盆', '\u{20000}\u{20001}', '\uD800', '\uDC00\uD800',
+      '。，！？',
+      '🙂🙂钥匙🙂',
+      'Alice把钥匙放在门口、然后走了。',
+      'ＡＢＣ１２３全角',
+      'x'.repeat(20_000),
+      '钥'.repeat(500),
+      '钥匙😀花盆',
+      '\u{20000}\u{20001}',
+      '\uD800',
+      '\uDC00\uD800',
     ]
     for (const text of awkward) {
       const found = tokenizeHybridText(text)

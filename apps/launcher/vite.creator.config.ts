@@ -9,7 +9,11 @@ const indexEntry: Plugin = {
   enforce: 'post',
   generateBundle(_options, bundle) {
     const page = bundle['creator.html']
-    if (page) { page.fileName = 'index.html'; bundle['index.html'] = page; delete bundle['creator.html'] }
+    if (page) {
+      page.fileName = 'index.html'
+      bundle['index.html'] = page
+      delete bundle['creator.html']
+    }
   },
 }
 
@@ -19,6 +23,11 @@ export default defineConfig({
   base: '/creator/',
   publicDir: false,
   resolve: { alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) } },
-  build: { outDir: 'dist-creator', emptyOutDir: true, rollupOptions: { input: fileURLToPath(new URL('./creator.html', import.meta.url)) } },
-  server: { port: 1421, strictPort: true, open: '/creator.html' }, clearScreen: false,
+  build: {
+    outDir: 'dist-creator',
+    emptyOutDir: true,
+    rollupOptions: { input: fileURLToPath(new URL('./creator.html', import.meta.url)) },
+  },
+  server: { port: 1421, strictPort: true, open: '/creator.html' },
+  clearScreen: false,
 })

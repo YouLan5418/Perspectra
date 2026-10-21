@@ -7,7 +7,12 @@ import { useLauncherStore } from './stores/launcher.ts'
 beforeEach(() => setActivePinia(createPinia()))
 describe('Launcher prototype boundaries', () => {
   it('resolves character, group, and default without enabling hidden overrides', () => {
-    const configuration = { defaultModelId: 'flash', overridesEnabled: true, groups: { main: 'pro' }, characters: { actor: 'gpt' } }
+    const configuration = {
+      defaultModelId: 'flash',
+      overridesEnabled: true,
+      groups: { main: 'pro' },
+      characters: { actor: 'gpt' },
+    }
     expect(resolveModel(configuration, 'actor', 'main')).toBe('gpt')
     expect(resolveModel(configuration, 'other', 'main')).toBe('pro')
     expect(resolveModel(configuration, 'other', 'other')).toBe('flash')
@@ -45,10 +50,20 @@ describe('Launcher prototype boundaries', () => {
     Object.assign(instance.nodes[0]!, { privatePath: 'D:/private/node' })
     const preview = createSharePreview(instance, packages[0]!, 'tree')
     const text = JSON.stringify(preview)
-    for (const privateValue of ['secret-key', 'secret-token', 'D:/private/path', 'secret-model', 'private.example', 'D:/private/node']) expect(text).not.toContain(privateValue)
+    for (const privateValue of [
+      'secret-key',
+      'secret-token',
+      'D:/private/path',
+      'secret-model',
+      'private.example',
+      'D:/private/node',
+    ])
+      expect(text).not.toContain(privateValue)
     expect(preview.nodes).toHaveLength(5)
     expect(createSharePreview(instance, packages[0]!, 'current-node').nodes).toHaveLength(1)
-    expect(createSharePreview(instance, packages[0]!, 'storyline').nodes.map(node => node.turn)).toEqual([0, 80, 173, 284])
+    expect(createSharePreview(instance, packages[0]!, 'storyline').nodes.map(node => node.turn)).toEqual([
+      0, 80, 173, 284,
+    ])
   })
   it('blocks an invalid package and a missing model, but allows degraded packages', () => {
     const store = useLauncherStore()

@@ -57,38 +57,59 @@ export class SnapshotStore {
   }
 
   create(address: WorldAddress, asOfSeq: number, units: WorldJsonObject, correlationId: string): CreateSnapshotResult {
-    if (!Number.isSafeInteger(asOfSeq) || asOfSeq < 0) throw new RangeError('snapshot asOfSeq must be a non-negative safe integer')
+    if (!Number.isSafeInteger(asOfSeq) || asOfSeq < 0)
+      throw new RangeError('snapshot asOfSeq must be a non-negative safe integer')
     const entries = Object.entries(units).sort(([left], [right]) => compareWorldText(left, right))
-    if (entries.length === 0 || entries.some(([name]) => name.length === 0)) throw new TypeError('snapshot requires named units')
-    const unitHashes = entries.map(([name, content]) => ({ name, hash: hashWorldJson(`snapshot-unit/${name}`, content as WorldJsonValue) }))
+    if (entries.length === 0 || entries.some(([name]) => name.length === 0))
+      throw new TypeError('snapshot requires named units')
+    const unitHashes = entries.map(([name, content]) => ({
+      name,
+      hash: hashWorldJson(`snapshot-unit/${name}`, content as WorldJsonValue),
+    }))
     const bundleHash = hashWorldJson('snapshot-bundle', { address, asOfSeq, unitHashes })
     const snapshotId = deterministicId('snapshot', { address, asOfSeq, bundleHash })
     const key = worldAddressKey(address)
     this.#db.exec('BEGIN IMMEDIATE')
     try {
-      const existing = this.#db.prepare(`
+      const existing = this.#db
+        .prepare(
+          `
         SELECT snapshot_id, bundle_hash FROM snapshot_bundles WHERE address_key = ? AND as_of_seq = ?
-      `).get(key, asOfSeq) as { snapshot_id: string; bundle_hash: WorldHash } | undefined
+      `,
+        )
+        .get(key, asOfSeq) as { snapshot_id: string; bundle_hash: WorldHash } | undefined
       if (existing !== undefined) {
         if (existing.snapshot_id !== snapshotId || existing.bundle_hash !== bundleHash) {
           failWorld({
-            errorCode: 'BUNDLE_HASH_MISMATCH', category: 'integrity', message: 'snapshot boundary is bound to different units',
-            retryable: false, correlationId, address,
+            errorCode: 'BUNDLE_HASH_MISMATCH',
+            category: 'integrity',
+            message: 'snapshot boundary is bound to different units',
+            retryable: false,
+            correlationId,
+            address,
           })
         }
         const bundle = this.read(address, snapshotId)
         this.#db.exec('COMMIT')
         return { status: 'already_created', bundle }
       }
-      this.#db.prepare(`
+      this.#db
+        .prepare(
+          `
         INSERT INTO snapshot_bundles(address_key, snapshot_id, as_of_seq, bundle_hash, status)
         VALUES (?, ?, ?, ?, 'ready')
-      `).run(key, snapshotId, asOfSeq, bundleHash)
+      `,
+        )
+        .run(key, snapshotId, asOfSeq, bundleHash)
       for (const [index, [name, content]] of entries.entries()) {
-        this.#db.prepare(`
+        this.#db
+          .prepare(
+            `
           INSERT INTO snapshot_units(address_key, snapshot_id, unit_name, unit_hash, content_json)
           VALUES (?, ?, ?, ?, ?)
-        `).run(key, snapshotId, name, unitHashes[index]!.hash, worldJsonText(content as WorldJsonValue))
+        `,
+          )
+          .run(key, snapshotId, name, unitHashes[index]!.hash, worldJsonText(content as WorldJsonValue))
       }
       this.#db.exec('COMMIT')
       return { status: 'created', bundle: { snapshotId, address, asOfSeq, status: 'ready', units, bundleHash } }
@@ -98,17 +119,25 @@ export class SnapshotStore {
   }
 
   latest(address: WorldAddress): SnapshotBundle | undefined {
-    const row = this.#db.prepare(`
+    const row = this.#db
+      .prepare(
+        `
       SELECT snapshot_id FROM snapshot_bundles
       WHERE address_key = ? AND status = 'ready' ORDER BY as_of_seq DESC LIMIT 1
-    `).get(worldAddressKey(address)) as { snapshot_id: string } | undefined
+    `,
+      )
+      .get(worldAddressKey(address)) as { snapshot_id: string } | undefined
     return row === undefined ? undefined : this.read(address, row.snapshot_id)
   }
 
   list(address: WorldAddress): SnapshotBundle[] {
-    const rows = this.#db.prepare(`
+    const rows = this.#db
+      .prepare(
+        `
       SELECT snapshot_id FROM snapshot_bundles WHERE address_key = ? ORDER BY as_of_seq, snapshot_id
-    `).all(worldAddressKey(address)) as Array<{ snapshot_id: string }>
+    `,
+      )
+      .all(worldAddressKey(address)) as Array<{ snapshot_id: string }>
     return rows.map(row => this.read(address, row.snapshot_id))
   }
 
@@ -117,11 +146,16 @@ export class SnapshotStore {
   }
 
   retireBefore(address: WorldAddress, minimumAsOfSeq: number): number {
-    if (!Number.isSafeInteger(minimumAsOfSeq) || minimumAsOfSeq < 0) throw new RangeError('retention boundary must be a non-negative safe integer')
-    const result = this.#db.prepare(`
+    if (!Number.isSafeInteger(minimumAsOfSeq) || minimumAsOfSeq < 0)
+      throw new RangeError('retention boundary must be a non-negative safe integer')
+    const result = this.#db
+      .prepare(
+        `
       UPDATE snapshot_bundles SET status = 'retired'
       WHERE address_key = ? AND as_of_seq < ? AND status = 'ready'
-    `).run(worldAddressKey(address), minimumAsOfSeq)
+    `,
+      )
+      .run(worldAddressKey(address), minimumAsOfSeq)
     return Number(result.changes)
   }
 
@@ -131,14 +165,24 @@ export class SnapshotStore {
 
   #read(address: WorldAddress, snapshotId: string): SnapshotBundle {
     const key = worldAddressKey(address)
-    const header = this.#db.prepare(`
+    const header = this.#db
+      .prepare(
+        `
       SELECT as_of_seq, bundle_hash, status FROM snapshot_bundles WHERE address_key = ? AND snapshot_id = ?
-    `).get(key, snapshotId) as { as_of_seq: number; bundle_hash: WorldHash; status: SnapshotBundle['status'] } | undefined
+    `,
+      )
+      .get(key, snapshotId) as
+      | { as_of_seq: number; bundle_hash: WorldHash; status: SnapshotBundle['status'] }
+      | undefined
     if (header === undefined) throw new Error('snapshot header is missing')
-    const rows = this.#db.prepare(`
+    const rows = this.#db
+      .prepare(
+        `
       SELECT unit_name, unit_hash, content_json FROM snapshot_units
       WHERE address_key = ? AND snapshot_id = ? ORDER BY unit_name
-    `).all(key, snapshotId) as Array<{ unit_name: string; unit_hash: WorldHash; content_json: string }>
+    `,
+      )
+      .all(key, snapshotId) as Array<{ unit_name: string; unit_hash: WorldHash; content_json: string }>
     if (rows.length === 0) throw new Error('snapshot has no units')
     const units: Record<string, WorldJsonValue> = {}
     const unitHashes = rows.map(row => {

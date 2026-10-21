@@ -180,7 +180,7 @@ export interface InteractionDerivedResolverImplementation {
  * a runtime surprise. The first phase is the action's own candidate; the last is full validation.
  */
 export const INTERACTION_LIFECYCLE_PHASES = Object.freeze(['spatial', 'relation-end', 'observation'] as const)
-export type InteractionLifecyclePhase = typeof INTERACTION_LIFECYCLE_PHASES[number]
+export type InteractionLifecyclePhase = (typeof INTERACTION_LIFECYCLE_PHASES)[number]
 
 /**
  * A registered, locked step in the post-action fold. It receives the action's candidate events and
@@ -272,7 +272,11 @@ export interface InteractionPackageImplementation {
 export interface InteractionWorldSelection extends WorldJsonObject {
   readonly address: WorldAddress
   readonly packages: readonly InteractionImplementationLock[]
-  readonly definitions: readonly { readonly ref: InteractionRef; readonly definitionHash: WorldHash; readonly implementationHash: WorldHash }[]
+  readonly definitions: readonly {
+    readonly ref: InteractionRef
+    readonly definitionHash: WorldHash
+    readonly implementationHash: WorldHash
+  }[]
   readonly bindings: readonly InteractionBindingV3[]
 }
 
@@ -289,7 +293,10 @@ export interface InteractionPackageDescription extends WorldJsonObject {
 export function interactionPackageDescription(input: InteractionPackageImplementation): InteractionPackageDescription {
   return {
     lock: input.lock,
-    definitions: input.definitions.map(definition => ({ spec: definition.spec, implementationHash: definition.implementationHash })),
+    definitions: input.definitions.map(definition => ({
+      spec: definition.spec,
+      implementationHash: definition.implementationHash,
+    })),
   }
 }
 
@@ -301,7 +308,11 @@ export function interactionPackageDescription(input: InteractionPackageImplement
 export interface InteractionCatalogV3 extends WorldJsonObject {
   readonly version: 'interaction-catalog/v3'
   readonly packages: readonly InteractionImplementationLock[]
-  readonly definitions: readonly { readonly ref: InteractionRef; readonly definitionHash: WorldHash; readonly implementationHash: WorldHash }[]
+  readonly definitions: readonly {
+    readonly ref: InteractionRef
+    readonly definitionHash: WorldHash
+    readonly implementationHash: WorldHash
+  }[]
   readonly bindings: readonly InteractionBindingV3[]
 }
 

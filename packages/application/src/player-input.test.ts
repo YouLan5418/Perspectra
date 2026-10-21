@@ -14,16 +14,20 @@ describe('PlayerInputInterpreter', () => {
   it('maps ordinary text and generic commands to candidate Actions', () => {
     const interpreter = new PlayerInputInterpreter()
     expect(interpreter.interpret('大家晚上好。', afforded)).toEqual({
-      status: 'resolved', action: { actionType: 'speak', parameters: { text: '大家晚上好。' } },
+      status: 'resolved',
+      action: { actionType: 'speak', parameters: { text: '大家晚上好。' } },
     })
     expect(interpreter.interpret('/move location:hall', afforded)).toEqual({
-      status: 'resolved', action: { actionType: 'move', parameters: { locationId: 'location:hall' } },
+      status: 'resolved',
+      action: { actionType: 'move', parameters: { locationId: 'location:hall' } },
     })
     expect(interpreter.interpret('/take entity:glass', afforded)).toEqual({
-      status: 'resolved', action: { actionType: 'take', parameters: { entityId: 'entity:glass' } },
+      status: 'resolved',
+      action: { actionType: 'take', parameters: { entityId: 'entity:glass' } },
     })
     expect(interpreter.interpret('/act wave {"to":"character:bob"}', afforded)).toEqual({
-      status: 'resolved', action: { actionType: 'wave', parameters: { to: 'character:bob' } },
+      status: 'resolved',
+      action: { actionType: 'wave', parameters: { to: 'character:bob' } },
     })
   })
 
@@ -31,32 +35,42 @@ describe('PlayerInputInterpreter', () => {
     const interpreter = new PlayerInputInterpreter()
     for (const text of ['/move', '/move location:a location:b']) {
       expect(interpreter.interpret(text, afforded)).toMatchObject({
-        status: 'clarification_required', reason: 'move requires exactly one locationId',
+        status: 'clarification_required',
+        reason: 'move requires exactly one locationId',
       })
     }
     for (const text of ['/take', '/take entity:a entity:b']) {
       expect(interpreter.interpret(text, afforded)).toMatchObject({
-        status: 'clarification_required', reason: 'take requires exactly one entityId',
+        status: 'clarification_required',
+        reason: 'take requires exactly one entityId',
       })
     }
     expect(interpreter.interpret('/act', afforded)).toMatchObject({
-      status: 'clarification_required', reason: 'act requires an actionType and canonical JSON parameters',
+      status: 'clarification_required',
+      reason: 'act requires an actionType and canonical JSON parameters',
     })
     expect(interpreter.interpret('/act wave nope', afforded)).toEqual({
-      status: 'clarification_required', reason: 'act parameters must be valid World JSON', candidates: ['wave'],
+      status: 'clarification_required',
+      reason: 'act parameters must be valid World JSON',
+      candidates: ['wave'],
     })
     expect(interpreter.interpret('/act wave {"amount":1.5}', afforded)).toMatchObject({
-      status: 'clarification_required', reason: 'act parameters must be valid World JSON',
+      status: 'clarification_required',
+      reason: 'act parameters must be valid World JSON',
     })
     expect(interpreter.interpret('/act dance {}', afforded)).toMatchObject({
-      status: 'clarification_required', reason: 'action is not currently afforded',
+      status: 'clarification_required',
+      reason: 'action is not currently afforded',
     })
     expect(interpreter.interpret('/unknown', afforded)).toEqual({
-      status: 'clarification_required', reason: 'unknown player command',
+      status: 'clarification_required',
+      reason: 'unknown player command',
       candidates: ['move', 'speak', 'take', 'wave'],
     })
     expect(interpreter.interpret('hello', [])).toEqual({
-      status: 'clarification_required', reason: 'action is not currently afforded', candidates: [],
+      status: 'clarification_required',
+      reason: 'action is not currently afforded',
+      candidates: [],
     })
   })
 
@@ -64,7 +78,11 @@ describe('PlayerInputInterpreter', () => {
     const interpreter = new PlayerInputInterpreter()
     expect(() => interpreter.interpret(' padded ', afforded)).toThrow('unpadded')
     expect(() => interpreter.interpret('hello', [{ actionType: ' bad ', actionVersion: 1 }])).toThrow('unpadded')
-    expect(() => interpreter.interpret('hello', [{ actionType: 'speak', actionVersion: 0 }])).toThrow('positive safe integer')
-    expect(() => interpreter.interpret('hello', [{ actionType: 'speak', actionVersion: 1.5 }])).toThrow('positive safe integer')
+    expect(() => interpreter.interpret('hello', [{ actionType: 'speak', actionVersion: 0 }])).toThrow(
+      'positive safe integer',
+    )
+    expect(() => interpreter.interpret('hello', [{ actionType: 'speak', actionVersion: 1.5 }])).toThrow(
+      'positive safe integer',
+    )
   })
 })

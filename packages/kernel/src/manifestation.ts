@@ -25,10 +25,14 @@ export function stepManifestation(
   if (value === null) return undefined
   const codes = [...value.independent, ...(accepted ? value.onSuccess : [])]
   if (codes.length === 0) return undefined
-  return { cues: codes.map((code, index) => ({
-    cueId: `cue:${index}`, channel: ACTION_GROUP_CUES[code].channel,
-    description: ACTION_GROUP_CUES[code].description, persistence: 'event_only',
-  })) }
+  return {
+    cues: codes.map((code, index) => ({
+      cueId: `cue:${index}`,
+      channel: ACTION_GROUP_CUES[code].channel,
+      description: ACTION_GROUP_CUES[code].description,
+      persistence: 'event_only',
+    })),
+  }
 }
 
 export interface ManifestationCueResolution extends WorldJsonObject {
@@ -59,14 +63,19 @@ function text(value: WorldJsonValue | undefined, path: string): string {
 function activeVisibleStates(events: readonly RulebookEvent[], actorId: CharacterId): Set<string> {
   const states = new Set<string>()
   for (const event of events) {
-    if (event.eventType !== 'character.visible-state-upserted' && event.eventType !== 'character.visible-state-removed') continue
+    if (event.eventType !== 'character.visible-state-upserted' && event.eventType !== 'character.visible-state-removed')
+      continue
     const data = worldJsonObject(event.data)
     if (data?.characterId !== actorId) continue
     const stateKey = text(data.stateKey, `${event.eventType}.stateKey`)
     if (event.eventType === 'character.visible-state-upserted') {
       const value = data.value === undefined ? undefined : worldJsonObject(data.value)
-      if (value === undefined || (value.channel !== 'posture' && value.channel !== 'appearance')
-        || typeof value.description !== 'string' || value.description.length === 0) {
+      if (
+        value === undefined ||
+        (value.channel !== 'posture' && value.channel !== 'appearance') ||
+        typeof value.description !== 'string' ||
+        value.description.length === 0
+      ) {
         throw new TypeError('character.visible-state-upserted.value is malformed')
       }
       states.add(stateKey)
@@ -77,18 +86,25 @@ function activeVisibleStates(events: readonly RulebookEvent[], actorId: Characte
   return states
 }
 
-function stateEvent(actorId: CharacterId, actionId: string, cue: ManifestationCueProposal): WorldEventDraft | undefined {
+function stateEvent(
+  actorId: CharacterId,
+  actionId: string,
+  cue: ManifestationCueProposal,
+): WorldEventDraft | undefined {
   if (cue.persistence === 'event_only') return undefined
   return cue.operation === 'set'
     ? {
-        eventType: 'character.visible-state-upserted', eventVersion: 1,
+        eventType: 'character.visible-state-upserted',
+        eventVersion: 1,
         data: {
-          characterId: actorId, stateKey: cue.stateKey,
+          characterId: actorId,
+          stateKey: cue.stateKey,
           value: { channel: cue.channel, description: cue.description, sourceActionId: actionId },
         },
       }
     : {
-        eventType: 'character.visible-state-removed', eventVersion: 1,
+        eventType: 'character.visible-state-removed',
+        eventVersion: 1,
         data: { characterId: actorId, stateKey: cue.stateKey, sourceActionId: actionId },
       }
 }
@@ -113,21 +129,28 @@ export function resolveManifestation(request: ResolveManifestationRequest): Mani
       else states.delete(cue.stateKey)
     }
   }
-  const status = accepted.length === 0
-    ? 'rejected'
-    : accepted.length === request.manifestation.cues.length ? 'accepted' : 'partially_accepted'
-  const events: WorldEventDraft[] = accepted.length === 0 ? [] : [
-    {
-      eventType: 'character.manifested', eventVersion: 1,
-      data: {
-        roundId: request.roundId,
-        actionId: request.actionId,
-        characterId: request.actorId,
-        description: status === 'accepted' ? request.manifestation.description ?? null : null,
-        cues: accepted,
-      },
-    },
-    ...stateEvents,
-  ]
+  const status =
+    accepted.length === 0
+      ? 'rejected'
+      : accepted.length === request.manifestation.cues.length
+        ? 'accepted'
+        : 'partially_accepted'
+  const events: WorldEventDraft[] =
+    accepted.length === 0
+      ? []
+      : [
+          {
+            eventType: 'character.manifested',
+            eventVersion: 1,
+            data: {
+              roundId: request.roundId,
+              actionId: request.actionId,
+              characterId: request.actorId,
+              description: status === 'accepted' ? (request.manifestation.description ?? null) : null,
+              cues: accepted,
+            },
+          },
+          ...stateEvents,
+        ]
   return { status, cueResolutions, events }
 }

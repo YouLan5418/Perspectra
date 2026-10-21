@@ -40,14 +40,28 @@ describe('CharacterRuntimeAvailabilityService', () => {
     ])
     service.initialize(address, [{ characterId: characterA, state: 'disabled' }])
     expect(service.list(address).map(value => [value.characterId, value.state])).toEqual([
-      [characterA, 'ready'], [characterB, 'provisioning'],
+      [characterA, 'ready'],
+      [characterB, 'provisioning'],
     ])
     const states: readonly RuntimeAvailabilityState[] = [
-      'provisioning', 'ready', 'session_lag', 'model_unavailable', 'provider_output_invalid',
-      'budget_unavailable', 'offline', 'disabled',
+      'provisioning',
+      'ready',
+      'session_lag',
+      'model_unavailable',
+      'provider_output_invalid',
+      'budget_unavailable',
+      'offline',
+      'disabled',
     ]
-    for (const state of states) expect(service.set(address, characterA, state, state === 'ready' ? null : `reason:${state}`)).toMatchObject({ state, changedAtMs: 42 })
-    expect(service.set(address, characterA, 'disabled', 'reason:disabled')).toMatchObject({ state: 'disabled', changedAtMs: 42 })
+    for (const state of states)
+      expect(service.set(address, characterA, state, state === 'ready' ? null : `reason:${state}`)).toMatchObject({
+        state,
+        changedAtMs: 42,
+      })
+    expect(service.set(address, characterA, 'disabled', 'reason:disabled')).toMatchObject({
+      state: 'disabled',
+      changedAtMs: 42,
+    })
     expect(service.get(address, characterA)).toMatchObject({ state: 'disabled', reason: 'reason:disabled' })
     expect(service.get(address, brandId('character:missing', 'CharacterId'))).toBeUndefined()
     expect(world.head(address)).toEqual(before)
@@ -61,7 +75,9 @@ describe('CharacterRuntimeAvailabilityService', () => {
     const world = new WorldStore(path)
     world.createBranch(address)
     const service = new CharacterRuntimeAvailabilityService(path)
-    expect(() => service.initialize(address, [{ characterId: characterA, state: 'invalid' as RuntimeAvailabilityState }])).toThrow(TypeError)
+    expect(() =>
+      service.initialize(address, [{ characterId: characterA, state: 'invalid' as RuntimeAvailabilityState }]),
+    ).toThrow(TypeError)
     expect(service.list(address)).toEqual([])
     service.initialize(address, [{ characterId: characterA, state: 'ready' }])
     expect(() => service.set(address, characterA, 'invalid' as RuntimeAvailabilityState, null)).toThrow(TypeError)
@@ -106,12 +122,15 @@ describe('CharacterRuntimeAvailabilityService', () => {
 
     const migrated = new CharacterRuntimeAvailabilityService(path, () => 10)
     expect(migrated.get(address, characterA)).toMatchObject({ state: 'ready', changedAtMs: 9 })
-    expect(migrated.set(address, characterA, 'provider_output_invalid', 'invalid output'))
-      .toMatchObject({ state: 'provider_output_invalid', changedAtMs: 10 })
+    expect(migrated.set(address, characterA, 'provider_output_invalid', 'invalid output')).toMatchObject({
+      state: 'provider_output_invalid',
+      changedAtMs: 10,
+    })
     migrated.close()
     const check = new DatabaseSync(path, { readOnly: true })
-    expect((check.prepare('PRAGMA user_version').get() as { user_version: number }).user_version)
-      .toBe(WORLD_SCHEMA_VERSION)
+    expect((check.prepare('PRAGMA user_version').get() as { user_version: number }).user_version).toBe(
+      WORLD_SCHEMA_VERSION,
+    )
     check.close()
   })
 })

@@ -17,7 +17,8 @@ export class DeterministicClock {
   }
 
   advance(milliseconds: number): void {
-    if (!Number.isSafeInteger(milliseconds) || milliseconds < 0) throw new RangeError('advance requires a non-negative safe integer')
+    if (!Number.isSafeInteger(milliseconds) || milliseconds < 0)
+      throw new RangeError('advance requires a non-negative safe integer')
     this.value += milliseconds
   }
 }
@@ -62,12 +63,14 @@ export function fixtureCommitRequest(address = fixtureAddress()): CommitRoundReq
     expectedTick: 0,
     nextTick: 1,
     events: [{ eventType: 'fixture.event', eventVersion: 1, data: { value: 'committed' } }],
-    outbox: [{
-      deliveryId: brandId('delivery:crash-fixture', 'DeliveryId'),
-      sessionId: brandId('session:crash-fixture', 'SessionId'),
-      payload: { value: 'delivered' },
-      critical: true,
-    }],
+    outbox: [
+      {
+        deliveryId: brandId('delivery:crash-fixture', 'DeliveryId'),
+        sessionId: brandId('session:crash-fixture', 'SessionId'),
+        payload: { value: 'delivered' },
+        critical: true,
+      },
+    ],
     cognitiveJobs: [{ characterId: brandId('character:crash-fixture', 'CharacterId') }],
     authority: {
       schemaVersion: 1,
@@ -100,18 +103,21 @@ export async function hardKillAt(workerPath: string, args: readonly string[]): P
   })
   let stderr = ''
   child.stderr?.setEncoding('utf8')
-  child.stderr?.on('data', chunk => { stderr += String(chunk) })
+  child.stderr?.on('data', chunk => {
+    stderr += String(chunk)
+  })
   await new Promise<void>((resolve, reject) => {
     const timer = setTimeout(() => {
       child.kill('SIGKILL')
       reject(new Error(`crash worker did not reach its fault point: ${stderr}`))
     }, 10_000)
-    child.once('error', (error) => {
+    child.once('error', error => {
       clearTimeout(timer)
       reject(error)
     })
     child.on('message', (message: unknown) => {
-      if (typeof message !== 'object' || message === null || !('type' in message) || message.type !== 'fault-reached') return
+      if (typeof message !== 'object' || message === null || !('type' in message) || message.type !== 'fault-reached')
+        return
       child.kill('SIGKILL')
     })
     child.once('exit', (code, signal) => {

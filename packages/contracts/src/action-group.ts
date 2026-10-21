@@ -18,9 +18,13 @@ export type ActionGroupCue = keyof typeof ACTION_GROUP_CUES
 export function createStepManifestationSchema(actionType: 'speak' | 'move' | 'take' | 'interact') {
   const entries = Object.entries(ACTION_GROUP_CUES)
   const independent = entries.filter(([, cue]) => cue.actionType === null).map(([code]) => code)
-  const onSuccess = entries.filter(([, cue]) => cue.actionType === null || cue.actionType === actionType).map(([code]) => code)
+  const onSuccess = entries
+    .filter(([, cue]) => cue.actionType === null || cue.actionType === actionType)
+    .map(([code]) => code)
   return {
-    type: 'object', additionalProperties: false, required: ['independent', 'onSuccess'],
+    type: 'object',
+    additionalProperties: false,
+    required: ['independent', 'onSuccess'],
     properties: {
       independent: { type: 'array', maxItems: 8, uniqueItems: true, items: { type: 'string', enum: independent } },
       onSuccess: { type: 'array', maxItems: 8, uniqueItems: true, items: { type: 'string', enum: onSuccess } },

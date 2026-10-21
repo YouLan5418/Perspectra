@@ -2,7 +2,8 @@ import { describe, expect, it, vi } from 'vitest'
 import { creatorSource } from './source.ts'
 
 const TOKEN = 'a'.repeat(64)
-const ok = (body: unknown) => new Response(JSON.stringify(body), { status: 200, headers: { 'content-type': 'application/json' } })
+const ok = (body: unknown) =>
+  new Response(JSON.stringify(body), { status: 200, headers: { 'content-type': 'application/json' } })
 
 describe('creator page data source', () => {
   it('sends token header and query', async () => {
@@ -21,7 +22,9 @@ describe('creator page data source', () => {
     const source = creatorSource(TOKEN, fetcher)
     await source.requests(true)
     expect(fetcher).toHaveBeenCalledWith('/api/request-inspector', {
-      method: 'POST', headers: { 'x-playtest-token': TOKEN, 'content-type': 'application/json' }, body: '{"enabled":true}',
+      method: 'POST',
+      headers: { 'x-playtest-token': TOKEN, 'content-type': 'application/json' },
+      body: '{"enabled":true}',
     })
     await source.meta()
     expect(fetcher).toHaveBeenLastCalledWith('/api/creator-meta', { headers: { 'x-playtest-token': TOKEN } })

@@ -7,7 +7,7 @@ import {
 } from '@harness-world/contracts'
 
 function object(value: WorldJsonValue): WorldJsonObject | undefined {
-  return typeof value === 'object' && value !== null && !Array.isArray(value) ? value as WorldJsonObject : undefined
+  return typeof value === 'object' && value !== null && !Array.isArray(value) ? (value as WorldJsonObject) : undefined
 }
 
 /** Deterministic Observation-to-Claim derivation; it never reads hidden World Events. */
@@ -31,13 +31,15 @@ export class KnowledgeRule {
       if (typeof utterance.speakerId !== 'string' || typeof utterance.text !== 'string') {
         throw new TypeError('utterance requires speakerId and text')
       }
-      events.push(this.#claim(
-        `claim:said:${observation.id}`,
-        view,
-        `${utterance.speakerId} said: ${utterance.text}`,
-        observation.id,
-        'reported-speech',
-      ))
+      events.push(
+        this.#claim(
+          `claim:said:${observation.id}`,
+          view,
+          `${utterance.speakerId} said: ${utterance.text}`,
+          observation.id,
+          'reported-speech',
+        ),
+      )
     }
     return events
   }
@@ -75,7 +77,8 @@ export interface CharacterReflectRequest extends WorldJsonObject {
 /** Validates character.reflect against the caller's current CharacterView only. */
 export class CharacterReflectRule {
   resolve(view: CharacterView, request: CharacterReflectRequest): WorldEventDraft {
-    if (request.claimId.length === 0 || request.proposition.length === 0) this.#reject(view, request, 'reflect requires claimId and proposition')
+    if (request.claimId.length === 0 || request.proposition.length === 0)
+      this.#reject(view, request, 'reflect requires claimId and proposition')
     if (request.sourceRefs.length === 0) this.#reject(view, request, 'reflect requires at least one cognitive source')
     const seen = new Set<string>()
     for (const source of request.sourceRefs) {
@@ -84,7 +87,8 @@ export class CharacterReflectRule {
       seen.add(key)
       if (source.kind === 'summary') this.#reject(view, request, 'Session Summary is not a cognitive source')
       const records = source.kind === 'observation' ? view.observations : view.claims
-      if (!records.some(record => record.id === source.id)) this.#reject(view, request, 'reflect source is absent from CharacterView')
+      if (!records.some(record => record.id === source.id))
+        this.#reject(view, request, 'reflect source is absent from CharacterView')
     }
     return {
       eventType: 'claim.upsert',

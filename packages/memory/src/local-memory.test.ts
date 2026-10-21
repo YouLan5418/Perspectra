@@ -50,7 +50,12 @@ function goal(id: string, characterId: CharacterId, intent = `goal:${id}`): Worl
   return { eventType: 'goal.upsert', eventVersion: 1, data: { id, value: { characterId, intent } } }
 }
 
-async function commit(store: WorldStore, target: WorldAddress, suffix: string, events: readonly WorldEventDraft[]): Promise<void> {
+async function commit(
+  store: WorldStore,
+  target: WorldAddress,
+  suffix: string,
+  events: readonly WorldEventDraft[],
+): Promise<void> {
   const head = store.head(target)
   await store.commitRound({
     address: target,
@@ -108,10 +113,18 @@ describe('LocalMemoryStore', () => {
     expect(reconcile(memory, view)).toBe(1)
     const source = memorySourceRef('goal', view.goals[0]!)
     expect(source).toEqual(ref(view.goals[0]!))
-    expect(memory.capture({
-      address: address(), characterId: characterA, memoryId: 'memory:goal', text: 'pursue the clue',
-      metadata: { kind: 'goal', source }, sources: [source], asOfWorldSeq: 1, correlationId: 'memory:goal',
-    })).toBe('captured')
+    expect(
+      memory.capture({
+        address: address(),
+        characterId: characterA,
+        memoryId: 'memory:goal',
+        text: 'pursue the clue',
+        metadata: { kind: 'goal', source },
+        sources: [source],
+        asOfWorldSeq: 1,
+        correlationId: 'memory:goal',
+      }),
+    ).toBe('captured')
     expect(memory.recall(address(), characterA, 'pursue', 1)).toHaveLength(1)
     memory.close()
     world.close()
@@ -132,10 +145,17 @@ describe('LocalMemoryStore', () => {
     expect(memory.enqueueCognitiveJob(address(), characterA, 2)).toBe('already_enqueued')
     memory.recordCognitiveJobResult(address(), characterA, 2, 'completed', null)
     expect(memory.cognitiveJob(address(), characterA, 2)).toMatchObject({
-      asOfWorldSeq: 2, status: 'completed', attemptCount: 1, lastError: null,
+      asOfWorldSeq: 2,
+      status: 'completed',
+      attemptCount: 1,
+      lastError: null,
     })
     memory.recordCognitiveJobResult(address(), characterA, 2, 'failed', 'retry')
-    expect(memory.cognitiveJob(address(), characterA, 2)).toMatchObject({ status: 'failed', attemptCount: 2, lastError: 'retry' })
+    expect(memory.cognitiveJob(address(), characterA, 2)).toMatchObject({
+      status: 'failed',
+      attemptCount: 2,
+      lastError: 'retry',
+    })
     expect(() => memory.recordCognitiveJobResult(address(), characterA, 99, 'completed', null)).toThrow('missing')
     const request = {
       address: current.address,
@@ -153,16 +173,23 @@ describe('LocalMemoryStore', () => {
     await commit(world, address(), 'second', [observation('observation:2', characterA)])
     const advanced = builder.rebuildAt(address(), characterA, 3)
     expect(reconcile(memory, advanced)).toBe(3)
-    expect(memory.capture({
-      ...request,
-      memoryId: 'memory:2',
-      text: 'two observations',
-      sources: [ref(advanced.observations[1]!), ref(advanced.observations[0]!)],
-      asOfWorldSeq: 3,
-    })).toBe('captured')
-    expect(memory.recall(address(), characterA, 'red apple', 2)).toMatchObject([{
-      memoryId: 'memory:1', text: 'red apple near window', metadata: { salience: 'normal' }, sourceMaxSeq: 2,
-    }])
+    expect(
+      memory.capture({
+        ...request,
+        memoryId: 'memory:2',
+        text: 'two observations',
+        sources: [ref(advanced.observations[1]!), ref(advanced.observations[0]!)],
+        asOfWorldSeq: 3,
+      }),
+    ).toBe('captured')
+    expect(memory.recall(address(), characterA, 'red apple', 2)).toMatchObject([
+      {
+        memoryId: 'memory:1',
+        text: 'red apple near window',
+        metadata: { salience: 'normal' },
+        sourceMaxSeq: 2,
+      },
+    ])
     expect(memory.recall(address(), characterA, 'missing', 3)).toEqual([])
     expect(memory.recall(address('other'), characterA, 'red', 3)).toEqual([])
     expect(memory.recall(address(), characterB, 'red', 3)).toEqual([])
@@ -185,17 +212,25 @@ describe('LocalMemoryStore', () => {
     const world = new WorldStore(path.world)
     world.createBranch(address())
     await commit(world, address(), 'count', [
-      observation('observation:1', characterA), observation('observation:2', characterA),
+      observation('observation:1', characterA),
+      observation('observation:2', characterA),
     ])
     const view = new CharacterViewBuilder(world).rebuildAt(address(), characterA, 2)
     const memory = new LocalMemoryStore(path.memory, world)
     reconcile(memory, view)
     for (const [index, source] of view.observations.entries()) {
-      expect(memory.capture({
-        address: view.address, characterId: characterA, memoryId: `memory:signal:${index}`,
-        text: `signal relay ${index}`, metadata: {}, sources: [ref(source)],
-        asOfWorldSeq: 2, correlationId: `count:${index}`,
-      })).toBe('captured')
+      expect(
+        memory.capture({
+          address: view.address,
+          characterId: characterA,
+          memoryId: `memory:signal:${index}`,
+          text: `signal relay ${index}`,
+          metadata: {},
+          sources: [ref(source)],
+          asOfWorldSeq: 2,
+          correlationId: `count:${index}`,
+        }),
+      ).toBe('captured')
     }
     expect(memory.countRecall(address(), characterA, 'signal', 2)).toBe(2)
     // A limit of one returns one of the two, which is exactly the gap the count reports.
@@ -212,7 +247,10 @@ describe('LocalMemoryStore', () => {
     const world = new WorldStore(path.world)
     world.createBranch(address())
     world.createBranch(address('other'))
-    await commit(world, address(), 'base', [observation('observation:base', characterA), claim('claim:base', characterA)])
+    await commit(world, address(), 'base', [
+      observation('observation:base', characterA),
+      claim('claim:base', characterA),
+    ])
     const builder = new CharacterViewBuilder(world)
     const base = builder.rebuildAt(address(), characterA, 2)
     await commit(world, address(), 'future', [observation('observation:future', characterA)])
@@ -227,23 +265,60 @@ describe('LocalMemoryStore', () => {
     reconcile(memory, otherCharacter)
     reconcile(memory, otherBranch)
     const template = {
-      address: address(), characterId: characterA, memoryId: 'memory:test', text: 'verified text', metadata: {},
-      sources: [ref(future.observations[1]!)], asOfWorldSeq: 2, correlationId: 'memory-rejection',
+      address: address(),
+      characterId: characterA,
+      memoryId: 'memory:test',
+      text: 'verified text',
+      metadata: {},
+      sources: [ref(future.observations[1]!)],
+      asOfWorldSeq: 2,
+      correlationId: 'memory-rejection',
     } as const
     expect(() => memory.capture(template)).toThrow('later than')
-    expect(() => memory.capture({ ...template, memoryId: 'summary', sources: [{ ...ref(base.observations[0]!), sourceKind: 'summary' }] }))
-      .toThrow('Summary')
-    expect(() => memory.capture({ ...template, memoryId: 'missing', sources: [{ ...ref(base.observations[0]!), sourceId: 'missing' }], asOfWorldSeq: 3 }))
-      .toThrow('missing or divergent')
-    expect(() => memory.capture({ ...template, memoryId: 'hash', sources: [{ ...ref(future.observations[1]!), sourceHash: hashWorldJson('wrong', 1) }], asOfWorldSeq: 3 }))
-      .toThrow('missing or divergent')
-    expect(() => memory.capture({ ...template, memoryId: 'character', sources: [ref(otherCharacter.observations[0]!)], asOfWorldSeq: 4 }))
-      .toThrow('missing or divergent')
-    expect(() => memory.capture({ ...template, memoryId: 'branch', sources: [ref(otherBranch.observations[0]!)], asOfWorldSeq: 3 }))
-      .toThrow('missing or divergent')
+    expect(() =>
+      memory.capture({
+        ...template,
+        memoryId: 'summary',
+        sources: [{ ...ref(base.observations[0]!), sourceKind: 'summary' }],
+      }),
+    ).toThrow('Summary')
+    expect(() =>
+      memory.capture({
+        ...template,
+        memoryId: 'missing',
+        sources: [{ ...ref(base.observations[0]!), sourceId: 'missing' }],
+        asOfWorldSeq: 3,
+      }),
+    ).toThrow('missing or divergent')
+    expect(() =>
+      memory.capture({
+        ...template,
+        memoryId: 'hash',
+        sources: [{ ...ref(future.observations[1]!), sourceHash: hashWorldJson('wrong', 1) }],
+        asOfWorldSeq: 3,
+      }),
+    ).toThrow('missing or divergent')
+    expect(() =>
+      memory.capture({
+        ...template,
+        memoryId: 'character',
+        sources: [ref(otherCharacter.observations[0]!)],
+        asOfWorldSeq: 4,
+      }),
+    ).toThrow('missing or divergent')
+    expect(() =>
+      memory.capture({
+        ...template,
+        memoryId: 'branch',
+        sources: [ref(otherBranch.observations[0]!)],
+        asOfWorldSeq: 3,
+      }),
+    ).toThrow('missing or divergent')
     expect(() => memory.capture({ ...template, memoryId: '', asOfWorldSeq: 3 })).toThrow(TypeError)
     expect(() => memory.capture({ ...template, memoryId: 'empty-text', text: '', asOfWorldSeq: 3 })).toThrow(TypeError)
-    expect(() => memory.capture({ ...template, memoryId: 'no-sources', sources: [], asOfWorldSeq: 3 })).toThrow('requires committed')
+    expect(() => memory.capture({ ...template, memoryId: 'no-sources', sources: [], asOfWorldSeq: 3 })).toThrow(
+      'requires committed',
+    )
     expect(() => memory.capture({ ...template, memoryId: 'bad-asof', asOfWorldSeq: -1 })).toThrow(RangeError)
     memory.close()
     world.close()
@@ -259,8 +334,14 @@ describe('LocalMemoryStore', () => {
     const memory = new LocalMemoryStore(path.memory, world)
     reconcile(memory, original)
     memory.capture({
-      address: address(), characterId: characterA, memoryId: 'memory:stale', text: 'stale source text', metadata: {},
-      sources: [ref(original.observations[0]!)], asOfWorldSeq: 1, correlationId: 'stale',
+      address: address(),
+      characterId: characterA,
+      memoryId: 'memory:stale',
+      text: 'stale source text',
+      metadata: {},
+      sources: [ref(original.observations[0]!)],
+      asOfWorldSeq: 1,
+      correlationId: 'stale',
     })
     expect(memory.recall(address(), characterA, 'stale', 1)).toHaveLength(1)
 
@@ -268,16 +349,30 @@ describe('LocalMemoryStore', () => {
     const revised = builder.rebuildAt(address(), characterA, 2)
     expect(reconcile(memory, revised)).toBe(1)
     expect(memory.recall(address(), characterA, 'stale', 2)).toEqual([])
-    expect(() => memory.reconcile({
-      address: address(), characterId: characterA, asOfWorldSeq: 1, correlationId: 'rollback',
-    })).toThrow('cannot move a namespace backward')
-    expect(() => memory.reconcile({
-      address: address(), characterId: characterA, asOfWorldSeq: -1, correlationId: 'invalid',
-    })).toThrow(RangeError)
+    expect(() =>
+      memory.reconcile({
+        address: address(),
+        characterId: characterA,
+        asOfWorldSeq: 1,
+        correlationId: 'rollback',
+      }),
+    ).toThrow('cannot move a namespace backward')
+    expect(() =>
+      memory.reconcile({
+        address: address(),
+        characterId: characterA,
+        asOfWorldSeq: -1,
+        correlationId: 'invalid',
+      }),
+    ).toThrow(RangeError)
 
-    await commit(world, address(), 'removed', [{
-      eventType: 'observation.remove', eventVersion: 1, data: { id: 'observation:stale' },
-    }])
+    await commit(world, address(), 'removed', [
+      {
+        eventType: 'observation.remove',
+        eventVersion: 1,
+        data: { id: 'observation:stale' },
+      },
+    ])
     const removed = builder.rebuildAt(address(), characterA, 3)
     expect(reconcile(memory, removed)).toBe(0)
     expect(reconcile(memory, removed)).toBe(0)
@@ -294,7 +389,11 @@ describe('LocalMemoryStore', () => {
   it('fails closed when a source mapping is corrupted backward or diverges at one sequence', async () => {
     for (const [suffix, sql, expected] of [
       ['backward', `UPDATE memory_source_mappings SET source_seq = 99`, 'cannot move backward'],
-      ['divergent', `UPDATE memory_source_mappings SET source_hash = 'sha256:corrupt'`, 'diverged at the same sequence'],
+      [
+        'divergent',
+        `UPDATE memory_source_mappings SET source_hash = 'sha256:corrupt'`,
+        'diverged at the same sequence',
+      ],
     ] as const) {
       const path = paths()
       const world = new WorldStore(path.world)

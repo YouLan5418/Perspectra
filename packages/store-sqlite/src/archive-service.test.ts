@@ -69,14 +69,30 @@ describe('WorldArchiveService', () => {
     const sessionId = brandId('session:archive', 'SessionId')
     const firstDeliveryId = brandId('delivery:archive:one', 'DeliveryId')
     const existingSession = new SessionDeliveryAdapter(join(directory, 'existing-session.sqlite'))
-    const sourceOutbox = new WorldOutbox(source, undefined, { workerId: 'worker:source', createClaimToken: () => 'source' })
-    const failedWorker = new SessionOutboxWorker(sourceOutbox, {
-      appendIfAbsent: async () => { throw new Error('transient Session failure') },
-    }, address, 1)
-    await expect(failedWorker.runOnce('archive:dead-letter')).resolves.toMatchObject({ status: 'dead_letter', deliveryId: firstDeliveryId })
+    const sourceOutbox = new WorldOutbox(source, undefined, {
+      workerId: 'worker:source',
+      createClaimToken: () => 'source',
+    })
+    const failedWorker = new SessionOutboxWorker(
+      sourceOutbox,
+      {
+        appendIfAbsent: async () => {
+          throw new Error('transient Session failure')
+        },
+      },
+      address,
+      1,
+    )
+    await expect(failedWorker.runOnce('archive:dead-letter')).resolves.toMatchObject({
+      status: 'dead_letter',
+      deliveryId: firstDeliveryId,
+    })
     sourceOutbox.retryDeadLetter(address, firstDeliveryId, 'archive:retry-requested')
     const sourceWorker = new SessionOutboxWorker(sourceOutbox, existingSession, address)
-    await expect(sourceWorker.runOnce('archive:retry')).resolves.toMatchObject({ status: 'delivered', deliveryId: firstDeliveryId })
+    await expect(sourceWorker.runOnce('archive:retry')).resolves.toMatchObject({
+      status: 'delivered',
+      deliveryId: firstDeliveryId,
+    })
     await expect(sourceWorker.runOnce('archive:second')).resolves.toMatchObject({ status: 'delivered' })
     expect(existingSession.cursor(sessionId)).toBe(2)
     sourceOutbox.close()
@@ -86,22 +102,34 @@ describe('WorldArchiveService', () => {
     expect(artifact).toMatchObject({ format: 'world-sqlite-backup/v1', schemaVersion: WORLD_SCHEMA_VERSION })
 
     const restoredPath = join(directory, 'restored.sqlite')
-    expect(service.restore(backupPath, restoredPath, artifact.fileHash, 'backup:restore'))
-      .toMatchObject({ format: 'world-sqlite-backup/v1', schemaVersion: WORLD_SCHEMA_VERSION })
+    expect(service.restore(backupPath, restoredPath, artifact.fileHash, 'backup:restore')).toMatchObject({
+      format: 'world-sqlite-backup/v1',
+      schemaVersion: WORLD_SCHEMA_VERSION,
+    })
     const restored = new WorldStore(restoredPath)
     expect(restored.head(address)).toMatchObject({ headSeq: 1, tick: 1 })
     const eventHash = restored.readEvents(address)[0]!.eventHash
     restored.close()
-    const restoredOutbox = new WorldOutbox(restoredPath, undefined, { workerId: 'worker:restored', createClaimToken: () => 'restored' })
+    const restoredOutbox = new WorldOutbox(restoredPath, undefined, {
+      workerId: 'worker:restored',
+      createClaimToken: () => 'restored',
+    })
     const replayStatuses: string[] = []
-    const restoredWorker = new SessionOutboxWorker(restoredOutbox, {
-      appendIfAbsent: async request => {
-        const result = await existingSession.appendIfAbsent(request)
-        replayStatuses.push(result.status)
-        return result
+    const restoredWorker = new SessionOutboxWorker(
+      restoredOutbox,
+      {
+        appendIfAbsent: async request => {
+          const result = await existingSession.appendIfAbsent(request)
+          replayStatuses.push(result.status)
+          return result
+        },
       },
-    }, address)
-    await expect(restoredWorker.runOnce('restore:existing-one')).resolves.toMatchObject({ status: 'delivered', deliveryId: firstDeliveryId })
+      address,
+    )
+    await expect(restoredWorker.runOnce('restore:existing-one')).resolves.toMatchObject({
+      status: 'delivered',
+      deliveryId: firstDeliveryId,
+    })
     await expect(restoredWorker.runOnce('restore:existing-two')).resolves.toMatchObject({ status: 'delivered' })
     await expect(restoredWorker.runOnce('restore:existing-idle')).resolves.toEqual({ status: 'idle' })
     expect(replayStatuses).toEqual(['already_applied', 'already_applied'])
@@ -109,31 +137,45 @@ describe('WorldArchiveService', () => {
     restoredOutbox.close()
     existingSession.close()
     const restoreProvenance = new OperationalAuditLog(`${restoredPath}.audit.sqlite`)
-    expect(restoreProvenance.read()).toMatchObject([{
-      operation: 'archive.restore.completed',
-      details: { backupPath: expect.stringContaining('backup.sqlite'), expectedHash: artifact.fileHash },
-    }])
+    expect(restoreProvenance.read()).toMatchObject([
+      {
+        operation: 'archive.restore.completed',
+        details: { backupPath: expect.stringContaining('backup.sqlite'), expectedHash: artifact.fileHash },
+      },
+    ])
     restoreProvenance.close()
 
     const exportPath = join(directory, 'world.export.json')
     expect(await service.exportPortable(exportPath, 'export:create')).toEqual(artifact)
     const importedPath = join(directory, 'imported.sqlite')
-    expect(service.importPortable(exportPath, importedPath, 'export:import'))
-      .toMatchObject({ format: 'world-sqlite-backup/v1', schemaVersion: WORLD_SCHEMA_VERSION })
+    expect(service.importPortable(exportPath, importedPath, 'export:import')).toMatchObject({
+      format: 'world-sqlite-backup/v1',
+      schemaVersion: WORLD_SCHEMA_VERSION,
+    })
     const imported = new WorldStore(importedPath)
     expect(imported.readEvents(address)[0]!.eventHash).toBe(eventHash)
     imported.close()
     const freshSession = new SessionDeliveryAdapter(join(directory, 'fresh-session.sqlite'))
-    const importedOutbox = new WorldOutbox(importedPath, undefined, { workerId: 'worker:imported', createClaimToken: () => 'imported' })
+    const importedOutbox = new WorldOutbox(importedPath, undefined, {
+      workerId: 'worker:imported',
+      createClaimToken: () => 'imported',
+    })
     const rebuildStatuses: string[] = []
-    const importedWorker = new SessionOutboxWorker(importedOutbox, {
-      appendIfAbsent: async request => {
-        const result = await freshSession.appendIfAbsent(request)
-        rebuildStatuses.push(result.status)
-        return result
+    const importedWorker = new SessionOutboxWorker(
+      importedOutbox,
+      {
+        appendIfAbsent: async request => {
+          const result = await freshSession.appendIfAbsent(request)
+          rebuildStatuses.push(result.status)
+          return result
+        },
       },
-    }, address)
-    await expect(importedWorker.runOnce('import:fresh-one')).resolves.toMatchObject({ status: 'delivered', deliveryId: firstDeliveryId })
+      address,
+    )
+    await expect(importedWorker.runOnce('import:fresh-one')).resolves.toMatchObject({
+      status: 'delivered',
+      deliveryId: firstDeliveryId,
+    })
     await expect(importedWorker.runOnce('import:fresh-two')).resolves.toMatchObject({ status: 'delivered' })
     expect(rebuildStatuses).toEqual(['applied', 'applied'])
     expect(freshSession.cursor(sessionId)).toBe(2)
@@ -141,23 +183,37 @@ describe('WorldArchiveService', () => {
     importedOutbox.close()
     freshSession.close()
     const importProvenance = new OperationalAuditLog(`${importedPath}.audit.sqlite`)
-    expect(importProvenance.read()).toMatchObject([{
-      operation: 'archive.import.completed',
-      details: { exportPath: expect.stringContaining('world.export.json') },
-    }])
+    expect(importProvenance.read()).toMatchObject([
+      {
+        operation: 'archive.import.completed',
+        details: { exportPath: expect.stringContaining('world.export.json') },
+      },
+    ])
     importProvenance.close()
 
-    expect(() => service.restore(backupPath, join(directory, 'bad-hash.sqlite'), 'sha256:wrong', 'restore:hash'))
-      .toThrow('does not match')
-    expect(() => service.restore(backupPath, restoredPath, artifact.fileHash, 'restore:exists')).toThrow('already exists')
+    expect(() =>
+      service.restore(backupPath, join(directory, 'bad-hash.sqlite'), 'sha256:wrong', 'restore:hash'),
+    ).toThrow('does not match')
+    expect(() => service.restore(backupPath, restoredPath, artifact.fileHash, 'restore:exists')).toThrow(
+      'already exists',
+    )
     await expect(service.backup(source, 'backup:source')).rejects.toThrow('aliases the source')
-    await expect(service.backup(join(directory, 'missing', 'backup.sqlite'), 'backup:io'))
-      .rejects.toThrow('backup failed')
+    await expect(service.backup(join(directory, 'missing', 'backup.sqlite'), 'backup:io')).rejects.toThrow(
+      'backup failed',
+    )
     const audit = new OperationalAuditLog(`${source}.audit.sqlite`)
-    expect(audit.read().map(event => event.operation)).toEqual(expect.arrayContaining([
-      'archive.backup.requested', 'archive.restore.requested', 'archive.export.requested', 'archive.import.requested',
-      'archive.backup.completed', 'archive.restore.completed', 'archive.export.completed', 'archive.import.completed',
-    ]))
+    expect(audit.read().map(event => event.operation)).toEqual(
+      expect.arrayContaining([
+        'archive.backup.requested',
+        'archive.restore.requested',
+        'archive.export.requested',
+        'archive.import.requested',
+        'archive.backup.completed',
+        'archive.restore.completed',
+        'archive.export.completed',
+        'archive.import.completed',
+      ]),
+    )
     audit.close()
   })
 
@@ -167,43 +223,61 @@ describe('WorldArchiveService', () => {
     const service = new WorldArchiveService(source)
     const damaged = join(directory, 'damaged.sqlite')
     writeFileSync(damaged, 'not sqlite')
-    expect(() => service.restore(damaged, join(directory, 'restore.sqlite'), 'sha256:any', 'restore:damaged'))
-      .toThrow('archive validation failed')
+    expect(() => service.restore(damaged, join(directory, 'restore.sqlite'), 'sha256:any', 'restore:damaged')).toThrow(
+      'archive validation failed',
+    )
 
     const wrongIdentity = join(directory, 'wrong-identity.sqlite')
     const wrong = new DatabaseSync(wrongIdentity)
     wrong.exec('PRAGMA application_id = 1; PRAGMA user_version = 6; CREATE TABLE branches(id INTEGER);')
     wrong.close()
-    expect(() => service.restore(wrongIdentity, join(directory, 'wrong-restore.sqlite'), 'sha256:any', 'restore:identity'))
-      .toThrow('identity')
+    expect(() =>
+      service.restore(wrongIdentity, join(directory, 'wrong-restore.sqlite'), 'sha256:any', 'restore:identity'),
+    ).toThrow('identity')
 
     const incomplete = join(directory, 'incomplete.sqlite')
     const incompleteDb = new DatabaseSync(incomplete)
-    incompleteDb.exec('PRAGMA application_id = 0x48435757; PRAGMA user_version = 9; CREATE TABLE placeholder(id INTEGER);')
+    incompleteDb.exec(
+      'PRAGMA application_id = 0x48435757; PRAGMA user_version = 9; CREATE TABLE placeholder(id INTEGER);',
+    )
     incompleteDb.close()
     const incompleteHash = `sha256:${createHash('sha256').update(readFileSync(incomplete)).digest('hex')}` as WorldHash
-    expect(() => service.restore(incomplete, join(directory, 'incomplete-restore.sqlite'), incompleteHash, 'restore:incomplete'))
-      .toThrow('identity, schema, or integrity')
+    expect(() =>
+      service.restore(incomplete, join(directory, 'incomplete-restore.sqlite'), incompleteHash, 'restore:incomplete'),
+    ).toThrow('identity, schema, or integrity')
 
     const malformed = join(directory, 'malformed.json')
     writeFileSync(malformed, '{')
-    expect(() => service.importPortable(malformed, join(directory, 'malformed.sqlite'), 'import:malformed'))
-      .toThrow('portable export is invalid')
+    expect(() => service.importPortable(malformed, join(directory, 'malformed.sqlite'), 'import:malformed')).toThrow(
+      'portable export is invalid',
+    )
 
     const unsupported = join(directory, 'unsupported.json')
     writeFileSync(unsupported, JSON.stringify({ format: 'wrong', backup: { format: 'wrong' }, sqliteBase64: '' }))
-    expect(() => service.importPortable(unsupported, join(directory, 'unsupported.sqlite'), 'import:unsupported')).toThrow('unsupported')
+    expect(() =>
+      service.importPortable(unsupported, join(directory, 'unsupported.sqlite'), 'import:unsupported'),
+    ).toThrow('unsupported')
     const unsupportedBackup = join(directory, 'unsupported-backup.json')
-    writeFileSync(unsupportedBackup, JSON.stringify({ format: 'world-portable-export/v1', backup: { format: 'wrong' }, sqliteBase64: '' }))
-    expect(() => service.importPortable(unsupportedBackup, join(directory, 'unsupported-backup.sqlite'), 'import:unsupported-backup'))
-      .toThrow('unsupported')
+    writeFileSync(
+      unsupportedBackup,
+      JSON.stringify({ format: 'world-portable-export/v1', backup: { format: 'wrong' }, sqliteBase64: '' }),
+    )
+    expect(() =>
+      service.importPortable(
+        unsupportedBackup,
+        join(directory, 'unsupported-backup.sqlite'),
+        'import:unsupported-backup',
+      ),
+    ).toThrow('unsupported')
 
     const exportPath = join(directory, 'valid.json')
     await service.exportPortable(exportPath, 'export:valid')
     const envelope = JSON.parse(readFileSync(exportPath, 'utf8')) as Record<string, unknown>
     envelope.sqliteBase64 = Buffer.from('different').toString('base64')
     writeFileSync(exportPath, JSON.stringify(envelope))
-    expect(() => service.importPortable(exportPath, join(directory, 'divergent.sqlite'), 'import:divergent')).toThrow('payload hash')
+    expect(() => service.importPortable(exportPath, join(directory, 'divergent.sqlite'), 'import:divergent')).toThrow(
+      'payload hash',
+    )
 
     await service.exportPortable(join(directory, 'same-length-source.json'), 'export:same-length')
     const sameLengthPath = join(directory, 'same-length-source.json')
@@ -213,8 +287,9 @@ describe('WorldArchiveService', () => {
     payload[last] = payload[last]! ^ 1
     sameLength.sqliteBase64 = payload.toString('base64')
     writeFileSync(sameLengthPath, JSON.stringify(sameLength))
-    expect(() => service.importPortable(sameLengthPath, join(directory, 'same-length.sqlite'), 'import:same-length'))
-      .toThrow('payload hash')
+    expect(() =>
+      service.importPortable(sameLengthPath, join(directory, 'same-length.sqlite'), 'import:same-length'),
+    ).toThrow('payload hash')
 
     const blocked = new DatabaseSync(source)
     blocked.exec(`
@@ -227,7 +302,13 @@ describe('WorldArchiveService', () => {
     blocked.close()
     const blockedBackup = join(directory, 'blocked-backup.sqlite')
     const blockedArtifact = await service.backup(blockedBackup, 'backup:blocked-cleanup')
-    expect(() => service.restore(blockedBackup, join(directory, 'blocked-restore.sqlite'), blockedArtifact.fileHash, 'restore:blocked-cleanup'))
-      .toThrow('blocked recovery cleanup')
+    expect(() =>
+      service.restore(
+        blockedBackup,
+        join(directory, 'blocked-restore.sqlite'),
+        blockedArtifact.fileHash,
+        'restore:blocked-cleanup',
+      ),
+    ).toThrow('blocked recovery cleanup')
   })
 })

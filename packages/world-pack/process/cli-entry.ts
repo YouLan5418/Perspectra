@@ -10,6 +10,8 @@ try {
   process.stdout.write(await executeWorldPackCli(process.argv.slice(2), { interactionPackages }))
 } catch (error: unknown) {
   const envelope = worldPackCliErrorEnvelope(error, process.argv.slice(2))
-  process.stderr.write(`${Buffer.from(canonicalizeWorldJson(envelope as unknown as WorldJsonValue)).toString('utf8')}\n`)
+  process.stderr.write(
+    `${Buffer.from(canonicalizeWorldJson(envelope as unknown as WorldJsonValue)).toString('utf8')}\n`,
+  )
   process.exitCode = 1
 }

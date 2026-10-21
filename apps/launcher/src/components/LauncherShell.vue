@@ -10,27 +10,44 @@ import SessionDrawer from './SessionDrawer.vue'
 import SettingsWindow from './SettingsWindow.vue'
 
 const store = useLauncherStore()
-watch(() => store.theme, theme => { document.documentElement.dataset.theme = theme }, { immediate: true })
-watch(() => store.palette, palette => { document.documentElement.dataset.palette = palette }, { immediate: true })
+watch(
+  () => store.theme,
+  theme => {
+    document.documentElement.dataset.theme = theme
+  },
+  { immediate: true },
+)
+watch(
+  () => store.palette,
+  palette => {
+    document.documentElement.dataset.palette = palette
+  },
+  { immediate: true },
+)
 
 let noticeTimer: ReturnType<typeof setTimeout> | undefined
-watch(() => store.notice, text => {
-  if (noticeTimer) {
-    clearTimeout(noticeTimer)
-    noticeTimer = undefined
-  }
-  if (text) {
-    noticeTimer = setTimeout(() => {
-      store.notice = ''
+watch(
+  () => store.notice,
+  text => {
+    if (noticeTimer) {
+      clearTimeout(noticeTimer)
       noticeTimer = undefined
-    }, 3200)
-  }
-})
+    }
+    if (text) {
+      noticeTimer = setTimeout(() => {
+        store.notice = ''
+        noticeTimer = undefined
+      }, 3200)
+    }
+  },
+)
 
 let poll: ReturnType<typeof setInterval> | undefined
 onMounted(async () => {
   await store.initialize()
-  poll = setInterval(() => { void store.refresh() }, 2500)
+  poll = setInterval(() => {
+    void store.refresh()
+  }, 2500)
 })
 onUnmounted(() => {
   clearInterval(poll)
@@ -39,7 +56,9 @@ onUnmounted(() => {
 const panel = ref<'settings' | 'package' | null>(null)
 /** 主屏状态标签直达对应行；“⋯”打开抽屉首页。 */
 const drawer = ref<{ open: boolean; section: DrawerSection | null }>({ open: false, section: null })
-function openDrawer(section?: DrawerSection) { drawer.value = { open: true, section: section ?? null } }
+function openDrawer(section?: DrawerSection) {
+  drawer.value = { open: true, section: section ?? null }
+}
 </script>
 
 <template>

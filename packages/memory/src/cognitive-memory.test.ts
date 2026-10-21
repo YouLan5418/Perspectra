@@ -46,27 +46,48 @@ function authorSource(id: string): WorldJsonObject {
 
 function claimValue(): WorldJsonObject {
   return {
-    proposition: { text: 'The north road is blocked' }, stance: 'believed', confidencePermille: 700,
-    saliencePermille: 600, awareness: 'conscious', status: 'active', basisRefs: [], source: authorSource('claim:road'),
+    proposition: { text: 'The north road is blocked' },
+    stance: 'believed',
+    confidencePermille: 700,
+    saliencePermille: 600,
+    awareness: 'conscious',
+    status: 'active',
+    basisRefs: [],
+    source: authorSource('claim:road'),
   }
 }
 
 function goalValue(): WorldJsonObject {
   return {
-    objective: { kind: 'narrative', value: 'Reach the station' }, priorityPermille: 700,
-    awareness: 'conscious', status: 'active', parentGoalKey: null, targetKeys: ['location:station'],
-    blockerKeys: [], basisRefs: [], source: authorSource('goal:station'),
+    objective: { kind: 'narrative', value: 'Reach the station' },
+    priorityPermille: 700,
+    awareness: 'conscious',
+    status: 'active',
+    parentGoalKey: null,
+    targetKeys: ['location:station'],
+    blockerKeys: [],
+    basisRefs: [],
+    source: authorSource('goal:station'),
   }
 }
 
-async function commit(store: WorldStore, suffix: string, events: readonly WorldEventDraft[], target = address()): Promise<void> {
+async function commit(
+  store: WorldStore,
+  suffix: string,
+  events: readonly WorldEventDraft[],
+  target = address(),
+): Promise<void> {
   const head = store.head(target)
   await store.commitRound({
     address: target,
     transactionId: brandId(`transaction:memory-v2:${suffix}`, 'TransactionId'),
     roundId: brandId(`round:memory-v2:${suffix}`, 'InteractionRoundId'),
-    expectedHeadSeq: head.headSeq, expectedTick: head.tick, nextTick: head.tick + 1,
-    events, outbox: [], correlationId: `memory-v2:${suffix}`,
+    expectedHeadSeq: head.headSeq,
+    expectedTick: head.tick,
+    nextTick: head.tick + 1,
+    events,
+    outbox: [],
+    correlationId: `memory-v2:${suffix}`,
   })
 }
 
@@ -78,27 +99,66 @@ async function fixture() {
     { eventType: 'character.created', eventVersion: 1, data: { characterId: alice, locationId: 'location:road' } },
     { eventType: 'character.created', eventVersion: 1, data: { characterId: bob, locationId: 'location:road' } },
     { eventType: 'character.created', eventVersion: 1, data: { characterId: charlie, locationId: 'location:road' } },
-    { eventType: 'observation.upsert', eventVersion: 1, data: {
-      id: 'observation:rain', value: { observerId: alice, content: 'cold rain at the station', epistemicKind: 'direct_observation' },
-    } },
-    { eventType: 'observation.upsert', eventVersion: 1, data: {
-      id: 'observation:speech', value: { observerId: alice, content: {
-        actionType: 'speak', actorId: bob, speech: { characterId: bob, text: 'the bridge is closed' },
-      } },
-    } },
-    { eventType: 'observation.upsert', eventVersion: 1, data: {
-      id: 'observation:bob', value: { observerId: bob, content: { actionType: 'take', entityId: 'entity:ticket' } },
-    } },
-    { eventType: 'subjective-claim.upsert', eventVersion: 1, data: { id: 'claim:road', characterId: alice, value: claimValue() } },
-    { eventType: 'character-goal.upsert', eventVersion: 1, data: { id: 'goal:station', characterId: alice, value: goalValue() } },
+    {
+      eventType: 'observation.upsert',
+      eventVersion: 1,
+      data: {
+        id: 'observation:rain',
+        value: { observerId: alice, content: 'cold rain at the station', epistemicKind: 'direct_observation' },
+      },
+    },
+    {
+      eventType: 'observation.upsert',
+      eventVersion: 1,
+      data: {
+        id: 'observation:speech',
+        value: {
+          observerId: alice,
+          content: {
+            actionType: 'speak',
+            actorId: bob,
+            speech: { characterId: bob, text: 'the bridge is closed' },
+          },
+        },
+      },
+    },
+    {
+      eventType: 'observation.upsert',
+      eventVersion: 1,
+      data: {
+        id: 'observation:bob',
+        value: { observerId: bob, content: { actionType: 'take', entityId: 'entity:ticket' } },
+      },
+    },
+    {
+      eventType: 'subjective-claim.upsert',
+      eventVersion: 1,
+      data: { id: 'claim:road', characterId: alice, value: claimValue() },
+    },
+    {
+      eventType: 'character-goal.upsert',
+      eventVersion: 1,
+      data: { id: 'goal:station', characterId: alice, value: goalValue() },
+    },
   ])
   return { path, world, memory: new LocalMemoryStore(path.memory, world) }
 }
 
-function plan(characterId: CharacterId, query: string, asOfWorldSeq = 8, planId = `plan:${characterId}:${query}`): RecallQueryPlan {
+function plan(
+  characterId: CharacterId,
+  query: string,
+  asOfWorldSeq = 8,
+  planId = `plan:${characterId}:${query}`,
+): RecallQueryPlan {
   return {
-    schemaVersion: 'recall-query-plan/v1', planId, address: address(), characterId, asOfWorldSeq,
-    query, limit: 10, rankingAlgorithm: 'fts5-bm25-stable/v1',
+    schemaVersion: 'recall-query-plan/v1',
+    planId,
+    address: address(),
+    characterId,
+    asOfWorldSeq,
+    query,
+    limit: 10,
+    rankingAlgorithm: 'fts5-bm25-stable/v1',
   }
 }
 
@@ -113,11 +173,19 @@ describe('Cognitive Memory v2', () => {
     // Six Rounds, each closing with its Tick event and carrying exactly one visible Memory for Alice.
     for (let round = 1; round <= 6; round += 1) {
       await commit(world, `round-${round}`, [
-        { eventType: 'observation.upsert', eventVersion: 1, data: {
-          id: `observation:alice:round-${round}`, value: { observerId: alice, content: `第${round}件小事` },
-        } },
-        { eventType: 'world.tick-advanced', eventVersion: 1,
-          data: { tick: round, roundId: `round:memory-v2:round-${round}` } },
+        {
+          eventType: 'observation.upsert',
+          eventVersion: 1,
+          data: {
+            id: `observation:alice:round-${round}`,
+            value: { observerId: alice, content: `第${round}件小事` },
+          },
+        },
+        {
+          eventType: 'world.tick-advanced',
+          eventVersion: 1,
+          data: { tick: round, roundId: `round:memory-v2:round-${round}` },
+        },
       ])
     }
     const head = world.head(address())
@@ -134,10 +202,7 @@ describe('Cognitive Memory v2', () => {
       '第 4 轮 ｜ 第4件小事',
     ])
     // The cut is a Round boundary, not a record boundary: the last Summary covers Rounds 5 and 6.
-    expect(summaries[1]!.extracts).toEqual([
-      '第 5 轮 ｜ 第5件小事',
-      '第 6 轮 ｜ 第6件小事',
-    ])
+    expect(summaries[1]!.extracts).toEqual(['第 5 轮 ｜ 第5件小事', '第 6 轮 ｜ 第6件小事'])
     expect(summaries[1]!.sourceStartSeq).toBeGreaterThan(summaries[0]!.sourceEndSeq)
     memory.close()
     world.close()
@@ -151,14 +216,20 @@ describe('Cognitive Memory v2', () => {
       { eventType: 'character.created', eventVersion: 1, data: { characterId: alice, locationId: 'location:road' } },
     ])
     await commit(world, 'bad-tick', [
-      { eventType: 'observation.upsert', eventVersion: 1, data: {
-        id: 'observation:alice:bad-tick', value: { observerId: alice, content: '仍然有一条经历' },
-      } },
+      {
+        eventType: 'observation.upsert',
+        eventVersion: 1,
+        data: {
+          id: 'observation:alice:bad-tick',
+          value: { observerId: alice, content: '仍然有一条经历' },
+        },
+      },
       { eventType: 'world.tick-advanced', eventVersion: 1, data: { tick: 'soon' } },
     ])
     const memory = new LocalMemoryStore(path.memory, world)
-    expect(() => memory.catchUpV2(address(), alice, world.head(address()).headSeq, 'catchup:bad-tick'))
-      .toThrow('requires a non-negative integer tick')
+    expect(() => memory.catchUpV2(address(), alice, world.head(address()).headSeq, 'catchup:bad-tick')).toThrow(
+      'requires a non-negative integer tick',
+    )
     memory.close()
     world.close()
   })
@@ -170,26 +241,41 @@ describe('Cognitive Memory v2', () => {
     await commit(world, 'narration', [
       { eventType: 'character.created', eventVersion: 1, data: { characterId: alice, locationId: 'location:road' } },
       { eventType: 'character.created', eventVersion: 1, data: { characterId: bob, locationId: 'location:road' } },
-      { eventType: 'observation.upsert', eventVersion: 1, data: {
-        id: 'observation:narration', value: { observerId: alice, content: {
-          actionType: 'speak', actorId: bob,
-          speech: { characterId: bob, text: '', narration: '铜钥匙已经在我口袋里。' },
-        } },
-      } },
+      {
+        eventType: 'observation.upsert',
+        eventVersion: 1,
+        data: {
+          id: 'observation:narration',
+          value: {
+            observerId: alice,
+            content: {
+              actionType: 'speak',
+              actorId: bob,
+              speech: { characterId: bob, text: '', narration: '铜钥匙已经在我口袋里。' },
+            },
+          },
+        },
+      },
     ])
     const memory = new LocalMemoryStore(path.memory, world)
     try {
       memory.catchUpV2(address(), alice, 3, 'narration:alice')
       const memories = memory.recallV2(plan(alice, '铜钥匙已经在我口袋里', 3)).memories
-      expect(memories).toMatchObject([{
-        memoryKind: 'communication', epistemicKind: 'reported_speech',
-        text: 'character:bob published narration (not an adjudicated outcome): 铜钥匙已经在我口袋里。',
-        metadata: { speakerId: bob, narration: '铜钥匙已经在我口袋里。' },
-      }])
+      expect(memories).toMatchObject([
+        {
+          memoryKind: 'communication',
+          epistemicKind: 'reported_speech',
+          text: 'character:bob published narration (not an adjudicated outcome): 铜钥匙已经在我口袋里。',
+          metadata: { speakerId: bob, narration: '铜钥匙已经在我口袋里。' },
+        },
+      ])
       memory.catchUpV2(address(), bob, 3, 'narration:bob')
       expect(memory.recallV2(plan(bob, '铜钥匙已经在我口袋里', 3)).memories).toEqual([])
       expect(world.readEvents(address()).some(event => event.eventType === 'entity.transferred')).toBe(false)
-    } finally { memory.close(); world.close() }
+    } finally {
+      memory.close()
+      world.close()
+    }
   })
 
   it('captures only committed, observer-scoped manifestation content without promoting private affect', async () => {
@@ -199,40 +285,68 @@ describe('Cognitive Memory v2', () => {
     await commit(world, 'manifestation-observations', [
       { eventType: 'character.created', eventVersion: 1, data: { characterId: alice, locationId: 'location:road' } },
       { eventType: 'character.created', eventVersion: 1, data: { characterId: bob, locationId: 'location:road' } },
-      { eventType: 'observation.upsert', eventVersion: 1, data: {
-        id: 'observation:alice:manifested-speech', value: { observerId: alice, content: {
-          actionType: 'speak', actorId: bob,
-          speech: { characterId: bob, text: '我没事。' },
-          manifestation: {
-            characterId: bob, description: 'Bob 避开视线，声音发颤。',
-            cues: [
-              { cueId: 'cue:gaze', channel: 'gaze', description: '避开视线', persistence: 'event_only' },
-              { cueId: 'cue:voice', channel: 'voice', description: '声音发颤', persistence: 'event_only' },
-            ],
+      {
+        eventType: 'observation.upsert',
+        eventVersion: 1,
+        data: {
+          id: 'observation:alice:manifested-speech',
+          value: {
+            observerId: alice,
+            content: {
+              actionType: 'speak',
+              actorId: bob,
+              speech: { characterId: bob, text: '我没事。' },
+              manifestation: {
+                characterId: bob,
+                description: 'Bob 避开视线，声音发颤。',
+                cues: [
+                  { cueId: 'cue:gaze', channel: 'gaze', description: '避开视线', persistence: 'event_only' },
+                  { cueId: 'cue:voice', channel: 'voice', description: '声音发颤', persistence: 'event_only' },
+                ],
+              },
+            },
           },
-        } },
-      } },
-      { eventType: 'observation.upsert', eventVersion: 1, data: {
-        id: 'observation:alice:manifested-only', value: { observerId: alice, content: {
-          actionType: 'move', actorId: bob,
-          manifestation: {
-            characterId: bob, description: null,
-            cues: [{ cueId: 'cue:posture', channel: 'posture', description: '抱起双臂', persistence: 'event_only' }],
+        },
+      },
+      {
+        eventType: 'observation.upsert',
+        eventVersion: 1,
+        data: {
+          id: 'observation:alice:manifested-only',
+          value: {
+            observerId: alice,
+            content: {
+              actionType: 'move',
+              actorId: bob,
+              manifestation: {
+                characterId: bob,
+                description: null,
+                cues: [
+                  { cueId: 'cue:posture', channel: 'posture', description: '抱起双臂', persistence: 'event_only' },
+                ],
+              },
+            },
           },
-        } },
-      } },
+        },
+      },
     ])
     const memory = new LocalMemoryStore(path.memory, world)
     memory.catchUpV2(address(), alice, 4, 'catchup:manifestation:alice')
-    expect(memory.recallV2(plan(alice, '声音发颤', 4)).memories).toMatchObject([{
-      memoryKind: 'communication', epistemicKind: 'reported_speech',
-      text: 'character:bob said: 我没事。; character:bob appeared: Bob 避开视线，声音发颤。',
-      metadata: { manifestation: { characterId: bob } },
-    }])
-    expect(memory.recallV2(plan(alice, '抱起双臂', 4)).memories).toMatchObject([{
-      memoryKind: 'episodic', epistemicKind: 'direct_observation',
-      text: 'character:bob appeared: 抱起双臂',
-    }])
+    expect(memory.recallV2(plan(alice, '声音发颤', 4)).memories).toMatchObject([
+      {
+        memoryKind: 'communication',
+        epistemicKind: 'reported_speech',
+        text: 'character:bob said: 我没事。; character:bob appeared: Bob 避开视线，声音发颤。',
+        metadata: { manifestation: { characterId: bob } },
+      },
+    ])
+    expect(memory.recallV2(plan(alice, '抱起双臂', 4)).memories).toMatchObject([
+      {
+        memoryKind: 'episodic',
+        epistemicKind: 'direct_observation',
+        text: 'character:bob appeared: 抱起双臂',
+      },
+    ])
     memory.catchUpV2(address(), bob, 4, 'catchup:manifestation:bob')
     expect(memory.recallV2(plan(bob, '声音发颤', 4)).memories).toEqual([])
     expect(JSON.stringify(memory.recallV2(plan(alice, '声音发颤', 4)).memories)).not.toContain('jealousy')
@@ -242,24 +356,36 @@ describe('Cognitive Memory v2', () => {
 
   it.each([
     ['missing-character', { description: 'visible', cues: [{ description: 'visible' }] }, 'requires characterId'],
-    ['invalid-description', { characterId: bob, description: 1, cues: [{ description: 'visible' }] }, 'description must be string'],
+    [
+      'invalid-description',
+      { characterId: bob, description: 1, cues: [{ description: 'visible' }] },
+      'description must be string',
+    ],
     ['missing-cues', { characterId: bob, description: 'visible', cues: [] }, 'requires accepted cues'],
     ['invalid-cue', { characterId: bob, description: null, cues: [{}] }, 'cue requires description'],
-  ] as const)('fails closed for malformed committed manifestation observations: %s', async (suffix, manifestation, message) => {
-    const path = paths()
-    const world = new WorldStore(path.world)
-    world.createBranch(address())
-    await commit(world, `malformed-manifestation:${suffix}`, [
-      { eventType: 'character.created', eventVersion: 1, data: { characterId: alice, locationId: 'location:road' } },
-      { eventType: 'observation.upsert', eventVersion: 1, data: {
-        id: `observation:alice:${suffix}`, value: { observerId: alice, content: { manifestation } },
-      } },
-    ])
-    const memory = new LocalMemoryStore(path.memory, world)
-    expect(() => memory.catchUpV2(address(), alice, 2, `catchup:${suffix}`)).toThrow(message)
-    memory.close()
-    world.close()
-  })
+  ] as const)(
+    'fails closed for malformed committed manifestation observations: %s',
+    async (suffix, manifestation, message) => {
+      const path = paths()
+      const world = new WorldStore(path.world)
+      world.createBranch(address())
+      await commit(world, `malformed-manifestation:${suffix}`, [
+        { eventType: 'character.created', eventVersion: 1, data: { characterId: alice, locationId: 'location:road' } },
+        {
+          eventType: 'observation.upsert',
+          eventVersion: 1,
+          data: {
+            id: `observation:alice:${suffix}`,
+            value: { observerId: alice, content: { manifestation } },
+          },
+        },
+      ])
+      const memory = new LocalMemoryStore(path.memory, world)
+      expect(() => memory.catchUpV2(address(), alice, 2, `catchup:${suffix}`)).toThrow(message)
+      memory.close()
+      world.close()
+    },
+  )
 
   it('captures the frozen subjective inference and self intention observation kinds', async () => {
     const path = paths()
@@ -267,23 +393,37 @@ describe('Cognitive Memory v2', () => {
     world.createBranch(address())
     await commit(world, 'subjective-observations', [
       { eventType: 'character.created', eventVersion: 1, data: { characterId: alice, locationId: 'location:road' } },
-      { eventType: 'observation.upsert', eventVersion: 1, data: {
-        id: 'observation:alice:inference',
-        value: { observerId: alice, content: 'Bob may be hiding something', epistemicKind: 'subjective_inference' },
-      } },
-      { eventType: 'observation.upsert', eventVersion: 1, data: {
-        id: 'observation:alice:intention',
-        value: { observerId: alice, content: 'I will reach the station', epistemicKind: 'self_intention' },
-      } },
+      {
+        eventType: 'observation.upsert',
+        eventVersion: 1,
+        data: {
+          id: 'observation:alice:inference',
+          value: { observerId: alice, content: 'Bob may be hiding something', epistemicKind: 'subjective_inference' },
+        },
+      },
+      {
+        eventType: 'observation.upsert',
+        eventVersion: 1,
+        data: {
+          id: 'observation:alice:intention',
+          value: { observerId: alice, content: 'I will reach the station', epistemicKind: 'self_intention' },
+        },
+      },
     ])
     const memory = new LocalMemoryStore(path.memory, world)
     memory.catchUpV2(address(), alice, 3, 'catchup:subjective-observations')
-    expect(memory.recallV2(plan(alice, 'Bob', 3)).memories).toMatchObject([{
-      memoryKind: 'episodic', epistemicKind: 'subjective_inference',
-    }])
-    expect(memory.recallV2(plan(alice, 'station', 3)).memories).toMatchObject([{
-      memoryKind: 'episodic', epistemicKind: 'self_intention',
-    }])
+    expect(memory.recallV2(plan(alice, 'Bob', 3)).memories).toMatchObject([
+      {
+        memoryKind: 'episodic',
+        epistemicKind: 'subjective_inference',
+      },
+    ])
+    expect(memory.recallV2(plan(alice, 'station', 3)).memories).toMatchObject([
+      {
+        memoryKind: 'episodic',
+        epistemicKind: 'self_intention',
+      },
+    ])
     memory.close()
     world.close()
   })
@@ -297,36 +437,50 @@ describe('Cognitive Memory v2', () => {
     const replay = memory.catchUpV2(address(), alice, 8, 'catchup:alice:replay')
     expect(replay).toEqual(first)
     expect(first.watermark).toMatchObject({
-      verifiedThroughSeq: 8, capturedThroughSeq: 8, memoryEpoch: 1,
+      verifiedThroughSeq: 8,
+      capturedThroughSeq: 8,
+      memoryEpoch: 1,
     })
     expect(first.capturedMemoryIds).toHaveLength(4)
     expect(memory.cognitiveReceipt(first.receiptId)).toEqual(first)
     expect(memory.cognitiveReceipt('missing')).toBeUndefined()
 
     const communication = memory.recallV2(plan(alice, 'bridge'))
-    expect(communication.memories).toMatchObject([{
-      memoryKind: 'communication', epistemicKind: 'reported_speech',
-      text: 'character:bob said: the bridge is closed',
-    }])
+    expect(communication.memories).toMatchObject([
+      {
+        memoryKind: 'communication',
+        epistemicKind: 'reported_speech',
+        text: 'character:bob said: the bridge is closed',
+      },
+    ])
     expect(communication.receipt.selectedSourceRefs).toHaveLength(1)
     expect(memory.recallV2(plan(alice, 'north')).memories[0]).toMatchObject({
-      memoryKind: 'belief', epistemicKind: 'subjective_inference',
+      memoryKind: 'belief',
+      epistemicKind: 'subjective_inference',
     })
     expect(memory.recallV2(plan(alice, 'station')).memories.some(value => value.memoryKind === 'intention')).toBe(true)
     expect(memory.recallV2(plan(alice, '   ')).memories).toEqual([])
-    expect(memory.cognitiveSummaries(address(), alice)).toMatchObject([{
-      schemaVersion: 'memory-l1/v1', sourceStartSeq: 4, sourceEndSeq: 8,
-      algorithmId: 'deterministic-rollup-l1/v2',
-    }])
+    expect(memory.cognitiveSummaries(address(), alice)).toMatchObject([
+      {
+        schemaVersion: 'memory-l1/v1',
+        sourceStartSeq: 4,
+        sourceEndSeq: 8,
+        algorithmId: 'deterministic-rollup-l1/v2',
+      },
+    ])
     // A captured speech reads as one Summary line: the speaker, then what was said.
-    expect(memory.cognitiveSummaries(address(), alice)[0]!.extracts.join('\n'))
-      .toContain('character:bob：the bridge is closed')
+    expect(memory.cognitiveSummaries(address(), alice)[0]!.extracts.join('\n')).toContain(
+      'character:bob：the bridge is closed',
+    )
 
     memory.catchUpV2(address(), bob, 8, 'catchup:bob')
     expect(memory.recallV2(plan(bob, 'bridge')).memories).toEqual([])
-    expect(memory.recallV2(plan(bob, 'ticket')).memories).toMatchObject([{
-      memoryKind: 'episodic', epistemicKind: 'observed_action',
-    }])
+    expect(memory.recallV2(plan(bob, 'ticket')).memories).toMatchObject([
+      {
+        memoryKind: 'episodic',
+        epistemicKind: 'observed_action',
+      },
+    ])
     memory.catchUpV2(address(), charlie, 8, 'catchup:charlie')
     expect(memory.cognitiveSummaries(address(), charlie)).toEqual([])
     expect(fullHistoryRead).not.toHaveBeenCalled()
@@ -338,10 +492,13 @@ describe('Cognitive Memory v2', () => {
     const { world, memory } = await fixture()
     const child = address('child')
     world.forkBranch(address(), child, 8)
-    await commit(world, 'future', [{
-      eventType: 'observation.upsert', eventVersion: 1,
-      data: { id: 'observation:future', value: { observerId: alice, content: 'FUTURE_CANARY' } },
-    }])
+    await commit(world, 'future', [
+      {
+        eventType: 'observation.upsert',
+        eventVersion: 1,
+        data: { id: 'observation:future', value: { observerId: alice, content: 'FUTURE_CANARY' } },
+      },
+    ])
     memory.catchUpV2(address(), alice, 9, 'catchup:parent')
     memory.catchUpV2(child, alice, 8, 'catchup:child')
     memory.catchUpV2(address(), bob, 9, 'catchup:bob')
@@ -357,14 +514,17 @@ describe('Cognitive Memory v2', () => {
     expect(() => memory.catchUpV2(address(), alice, -1, 'negative')).toThrow(RangeError)
     memory.catchUpV2(address(), alice, 8, 'catchup:base')
     expect(() => memory.catchUpV2(address(), alice, 7, 'backward')).toThrow('cannot move backward')
-    expect(() => memory.recallV2(plan(bob, 'anything'))).toThrowError(expect.objectContaining({
-      envelope: expect.objectContaining({ errorCode: 'MEMORY_CATCHUP_FAILED' }),
-    }))
+    expect(() => memory.recallV2(plan(bob, 'anything'))).toThrowError(
+      expect.objectContaining({
+        envelope: expect.objectContaining({ errorCode: 'MEMORY_CATCHUP_FAILED' }),
+      }),
+    )
     for (const invalid of [
       { ...plan(alice, 'x'), asOfWorldSeq: -1 },
       { ...plan(alice, 'x'), limit: 0 },
       { ...plan(alice, 'x'), rankingAlgorithm: 'unknown' },
-    ] as unknown as RecallQueryPlan[]) expect(() => memory.recallV2(invalid)).toThrow()
+    ] as unknown as RecallQueryPlan[])
+      expect(() => memory.recallV2(invalid)).toThrow()
 
     const raw = new DatabaseSync(path.memory)
     raw.prepare(`UPDATE cognitive_memory_v2_namespaces SET source_map_hash = 'sha256:corrupt'`).run()
@@ -376,7 +536,9 @@ describe('Cognitive Memory v2', () => {
     repaired.resetCognitiveNamespace(address(), alice)
     repaired.catchUpV2(address(), alice, 8, 'recaptured')
     const sourceDamage = new DatabaseSync(path.memory)
-    sourceDamage.prepare(`UPDATE cognitive_memory_v2_sources SET source_hash = 'sha256:corrupt' WHERE namespace_key LIKE ?`).run(`%${alice}`)
+    sourceDamage
+      .prepare(`UPDATE cognitive_memory_v2_sources SET source_hash = 'sha256:corrupt' WHERE namespace_key LIKE ?`)
+      .run(`%${alice}`)
     sourceDamage.close()
     expect(() => repaired.catchUpV2(address(), alice, 8, 'source-diverged')).toThrow('divergent content')
 
@@ -386,7 +548,9 @@ describe('Cognitive Memory v2', () => {
     repaired.resetCognitiveNamespace(address(), alice)
     const receipt = repaired.catchUpV2(address(), alice, 8, 'receipt-base')
     const conflicting = new DatabaseSync(path.memory)
-    conflicting.prepare(`UPDATE cognitive_memory_v2_receipts SET receipt_hash = 'sha256:corrupt' WHERE receipt_id = ?`).run(receipt.receiptId)
+    conflicting
+      .prepare(`UPDATE cognitive_memory_v2_receipts SET receipt_hash = 'sha256:corrupt' WHERE receipt_id = ?`)
+      .run(receipt.receiptId)
     conflicting.close()
     expect(() => repaired.catchUpV2(address(), alice, 8, 'receipt-diverged')).toThrow('receipt diverged')
     repaired.close()
@@ -400,7 +564,11 @@ describe('Cognitive Memory v2', () => {
       world.createBranch(address())
       await commit(world, 'content-fallback', [
         { eventType: 'character.created', eventVersion: 1, data: { characterId: alice, locationId: 'location:a' } },
-        { eventType: 'observation.upsert', eventVersion: 1, data: { id: 'observation:self', value: { observerId: alice } } },
+        {
+          eventType: 'observation.upsert',
+          eventVersion: 1,
+          data: { id: 'observation:self', value: { observerId: alice } },
+        },
       ])
       const memory = new LocalMemoryStore(path.memory, world)
       expect(memory.catchUpV2(address(), alice, 2, 'content-fallback').capturedMemoryIds).toHaveLength(1)
@@ -418,7 +586,11 @@ describe('Cognitive Memory v2', () => {
       world.createBranch(address())
       await commit(world, `malformed:${suffix}`, [
         { eventType: 'character.created', eventVersion: 1, data: { characterId: alice, locationId: 'location:a' } },
-        { eventType: 'observation.upsert', eventVersion: 1, data: { id: suffix === 'id' ? '' : `observation:${suffix}`, value } },
+        {
+          eventType: 'observation.upsert',
+          eventVersion: 1,
+          data: { id: suffix === 'id' ? '' : `observation:${suffix}`, value },
+        },
       ])
       const memory = new LocalMemoryStore(path.memory, world)
       expect(() => memory.catchUpV2(address(), alice, 2, `malformed:${suffix}`)).toThrow(message)
@@ -457,35 +629,47 @@ describe('Cognitive Memory v2', () => {
 
   it('measures the Recall candidates a plan limit drops without writing any record', async () => {
     const { path, world, memory } = await fixture()
-    await commit(world, 'diagnostics', Array.from({ length: 5 }, (_, index) => ({
-      eventType: 'observation.upsert', eventVersion: 1,
-      data: { id: `observation:signal:${index}`, value: { observerId: alice, content: `signal relay ${index}` } },
-    })))
+    await commit(
+      world,
+      'diagnostics',
+      Array.from({ length: 5 }, (_, index) => ({
+        eventType: 'observation.upsert',
+        eventVersion: 1,
+        data: { id: `observation:signal:${index}`, value: { observerId: alice, content: `signal relay ${index}` } },
+      })),
+    )
     const asOf = world.head(address()).headSeq
     memory.catchUpV2(address(), alice, asOf, 'diagnostics:alice')
     const wide = plan(alice, 'signal', asOf, 'plan:diagnostics:wide')
     expect(memory.recallV2(wide).memories).toHaveLength(5)
-    expect(memory.recallDiagnostics(wide))
-      .toMatchObject({ schemaVersion: 'recall-candidates/v1', matchedCount: 5, limit: 10 })
+    expect(memory.recallDiagnostics(wide)).toMatchObject({
+      schemaVersion: 'recall-candidates/v1',
+      matchedCount: 5,
+      limit: 10,
+    })
     // The narrowed plan returns two of the five, which is exactly the gap the diagnostic reports.
     const narrow = { ...wide, planId: 'plan:diagnostics:narrow', limit: 2 }
     expect(memory.recallV2(narrow).memories).toHaveLength(2)
     expect(memory.recallDiagnostics(narrow)).toMatchObject({ matchedCount: 5, limit: 2 })
     // A query nothing matches, and a query with no terms, both report zero instead of failing.
-    expect(memory.recallDiagnostics({ ...narrow, planId: 'plan:diagnostics:none', query: 'absent' }))
-      .toMatchObject({ matchedCount: 0 })
-    expect(memory.recallDiagnostics({ ...narrow, planId: 'plan:diagnostics:blank', query: '   ' }))
-      .toMatchObject({ matchedCount: 0 })
+    expect(memory.recallDiagnostics({ ...narrow, planId: 'plan:diagnostics:none', query: 'absent' })).toMatchObject({
+      matchedCount: 0,
+    })
+    expect(memory.recallDiagnostics({ ...narrow, planId: 'plan:diagnostics:blank', query: '   ' })).toMatchObject({
+      matchedCount: 0,
+    })
     // Counting is not a Recall: the two diagnostic calls above added no Recall receipt of their own.
     const raw = new DatabaseSync(path.memory)
-    const receipts = raw.prepare('SELECT COUNT(*) AS total FROM cognitive_memory_v2_recall_receipts')
-      .get() as { total: number }
+    const receipts = raw.prepare('SELECT COUNT(*) AS total FROM cognitive_memory_v2_recall_receipts').get() as {
+      total: number
+    }
     raw.close()
     expect(receipts.total).toBe(2)
     memory.close()
     const unopened = new LocalMemoryStore(path.memory, world)
-    expect(() => unopened.recallDiagnostics({ ...wide, planId: 'plan:diagnostics:behind', asOfWorldSeq: asOf + 1 }))
-      .toThrow('has not reached the required as-of')
+    expect(() =>
+      unopened.recallDiagnostics({ ...wide, planId: 'plan:diagnostics:behind', asOfWorldSeq: asOf + 1 }),
+    ).toThrow('has not reached the required as-of')
     unopened.close()
     world.close()
   })

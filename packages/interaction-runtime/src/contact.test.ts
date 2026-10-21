@@ -1,9 +1,16 @@
 import { describe, expect, it } from 'vitest'
 import {
-  brandId, hashWorldJson,
-  type CharacterId, type InteractionBindingV3, type InteractionHostContext, type InteractionImplementationLock,
-  type InteractionRef, type InteractionWorldSelection, type RulebookResolutionAuthorityV1,
-  type WorldAddress, type WorldJsonObject,
+  brandId,
+  hashWorldJson,
+  type CharacterId,
+  type InteractionBindingV3,
+  type InteractionHostContext,
+  type InteractionImplementationLock,
+  type InteractionRef,
+  type InteractionWorldSelection,
+  type RulebookResolutionAuthorityV1,
+  type WorldAddress,
+  type WorldJsonObject,
 } from '@harness-world/contracts'
 import { createBasicInteractionPackage } from '@harness-world/interactions-basic'
 import { InteractionRegistry, interactionPackageHash, type FrozenInteractionWorld } from './registry.ts'
@@ -25,10 +32,14 @@ const shared = { kind: 'relation', id: 'relation:held' } as const
 const relationClass = { kind: 'relation', id: 'base:hold-hand' } as const
 
 const playerImmediate: RulebookResolutionAuthorityV1 = {
-  version: 'resolution-authority/v1', sourceRole: 'player', adjudicationMode: 'manual_player_immediate',
+  version: 'resolution-authority/v1',
+  sourceRole: 'player',
+  adjudicationMode: 'manual_player_immediate',
 }
 const agentStandard: RulebookResolutionAuthorityV1 = {
-  version: 'resolution-authority/v1', sourceRole: 'agent', adjudicationMode: 'standard',
+  version: 'resolution-authority/v1',
+  sourceRole: 'agent',
+  adjudicationMode: 'standard',
 }
 
 const pack = createBasicInteractionPackage()
@@ -36,13 +47,17 @@ const pack = createBasicInteractionPackage()
 function selection(lock: InteractionImplementationLock = pack.lock): InteractionWorldSelection {
   const bindings: InteractionBindingV3[] = [
     ...(['base:take', 'base:drop', 'base:give'] as const).map(id => ({
-      bindingId: `binding:cup-${id}`, targetRef: { kind: 'entity' as const, id: 'entity:cup' }, definitionRef: ref(id), config: {},
+      bindingId: `binding:cup-${id}`,
+      targetRef: { kind: 'entity' as const, id: 'entity:cup' },
+      definitionRef: ref(id),
+      config: {},
     })),
     { bindingId: 'binding:alice-hold', targetRef: alice, definitionRef: ref('base:hold-hand'), config: {} },
     { bindingId: 'binding:held-release', targetRef: relationClass, definitionRef: ref('base:end-contact'), config: {} },
   ]
   return {
-    address, packages: [lock],
+    address,
+    packages: [lock],
     definitions: pack.definitions.map(def => ({
       ref: { id: def.spec.id, version: def.spec.version },
       definitionHash: hashWorldJson('interaction-definition/v1', def.spec),
@@ -52,8 +67,12 @@ function selection(lock: InteractionImplementationLock = pack.lock): Interaction
   }
 }
 
-const character = (id: string, locationId = 'location:hall'): WorldJsonObject =>
-  ({ id, lifecycle: 'active', locationId, sceneIds: ['scene:hall'] })
+const character = (id: string, locationId = 'location:hall'): WorldJsonObject => ({
+  id,
+  lifecycle: 'active',
+  locationId,
+  sceneIds: ['scene:hall'],
+})
 
 /** The pair relation is inactive by default, which is the only state hold-hand can start from. */
 function host(relationActive = false, over: Partial<InteractionHostContext> = {}): InteractionHostContext {
@@ -61,15 +80,29 @@ function host(relationActive = false, over: Partial<InteractionHostContext> = {}
     { ref: { kind: 'character' as const, id: actor }, state: character(actor) },
     { ref: alice, state: character('character:alice') },
     { ref: { kind: 'entity' as const, id: 'entity:cup' }, state: { holderId: null, locationId: 'location:hall' } },
-    { ref: shared, state: { interactionId: 'base:hold-hand', relationKind: 'hand_hold', initiatorId: actor, targetId: 'character:alice', active: relationActive } },
+    {
+      ref: shared,
+      state: {
+        interactionId: 'base:hold-hand',
+        relationKind: 'hand_hold',
+        initiatorId: actor,
+        targetId: 'character:alice',
+        active: relationActive,
+      },
+    },
   ]
-  const authorizedTargets = over.authorizedTargets ?? [
-    alice, { kind: 'entity', id: 'entity:cup' }, shared,
-  ]
+  const authorizedTargets = over.authorizedTargets ?? [alice, { kind: 'entity', id: 'entity:cup' }, shared]
   return {
-    address, manifestHash, asOfWorldSeq: 3, candidatePrefixHash: prefixHash,
-    actionId: 'action:contact', actorId: actor, authority: playerImmediate,
-    targets, authorizedTargets, ...over,
+    address,
+    manifestHash,
+    asOfWorldSeq: 3,
+    candidatePrefixHash: prefixHash,
+    actionId: 'action:contact',
+    actorId: actor,
+    authority: playerImmediate,
+    targets,
+    authorizedTargets,
+    ...over,
   }
 }
 
@@ -79,8 +112,12 @@ function runtime(): FrozenInteractionWorld {
   return registry.freeze(selection())
 }
 
-const request = (id: string, targetRef: unknown, bindingId: string, args: WorldJsonObject = {}) =>
-  ({ targetRef, bindingId, definitionRef: ref(id), arguments: args })
+const request = (id: string, targetRef: unknown, bindingId: string, args: WorldJsonObject = {}) => ({
+  targetRef,
+  bindingId,
+  definitionRef: ref(id),
+  arguments: args,
+})
 
 describe('contact relation domain', () => {
   it('establishes a releaseable relation whose identity replays instead of duplicating', () => {
@@ -90,24 +127,39 @@ describe('contact relation domain', () => {
     expect(first.events).toHaveLength(1)
     expect(first.events[0]!.eventType).toBe('character.relation-started')
     expect(first.events[0]!.data).toMatchObject({
-      relationKind: 'hand_hold', initiatorId: actor, targetId: 'character:alice', interactionId: 'base:hold-hand',
+      relationKind: 'hand_hold',
+      initiatorId: actor,
+      targetId: 'character:alice',
+      interactionId: 'base:hold-hand',
     })
     // Same address, Action and pair: the relation identity is derived, so a replay mints the same one.
     expect(held.resolve(host(), request('base:hold-hand', alice, 'binding:alice-hold')).events).toEqual(first.events)
-    const other = held.resolve(host(false, { actionId: 'action:contact-2' }), request('base:hold-hand', alice, 'binding:alice-hold'))
+    const other = held.resolve(
+      host(false, { actionId: 'action:contact-2' }),
+      request('base:hold-hand', alice, 'binding:alice-hold'),
+    )
     expect(other.events[0]!.data).not.toEqual(first.events[0]!.data)
   })
 
   it('requires a Host-proven manual player to establish contact and lets either side release it', () => {
     const held = runtime()
-    expect(held.resolve(host(false, { authority: agentStandard }), request('base:hold-hand', alice, 'binding:alice-hold')).reason)
-      .toBe('HOLD_HAND_REQUIRES_MANUAL_PLAYER_IMMEDIATE')
+    expect(
+      held.resolve(host(false, { authority: agentStandard }), request('base:hold-hand', alice, 'binding:alice-hold'))
+        .reason,
+    ).toBe('HOLD_HAND_REQUIRES_MANUAL_PLAYER_IMMEDIATE')
     // The authority travels in the context; a request cannot claim it.
-    expect(held.resolve(host(false, { authority: agentStandard }), request('base:hold-hand', alice, 'binding:alice-hold')).events).toEqual([])
+    expect(
+      held.resolve(host(false, { authority: agentStandard }), request('base:hold-hand', alice, 'binding:alice-hold'))
+        .events,
+    ).toEqual([])
     const released = held.resolve(host(true), request('base:end-contact', shared, 'binding:held-release'))
     expect(released.status).toBe('accepted')
     expect(released.events[0]!.eventType).toBe('character.relation-ended')
-    expect(released.events[0]!.data).toEqual({ relationId: 'relation:held', endedByCharacterId: actor, reason: 'released' })
+    expect(released.events[0]!.data).toEqual({
+      relationId: 'relation:held',
+      endedByCharacterId: actor,
+      reason: 'released',
+    })
   })
 
   it('refuses a self pair, an already paired pair and an absent partner', () => {
@@ -115,21 +167,37 @@ describe('contact relation domain', () => {
     // The actor is the target here, which is the one pair a contact definition must never accept.
     const selfPair = host(false, { actorId: brandId('character:alice', 'CharacterId') })
     // Rejected structurally, before any rule: the target role is distinct from the actor.
-    expect(held.resolve(selfPair, request('base:hold-hand', alice, 'binding:alice-hold')).reason)
-      .toBe('PARTICIPANT_ALIAS_FORBIDDEN')
+    expect(held.resolve(selfPair, request('base:hold-hand', alice, 'binding:alice-hold')).reason).toBe(
+      'PARTICIPANT_ALIAS_FORBIDDEN',
+    )
     // Once the snapshot carries an active pair, a second start on the same pair is refused - and it
     // does not matter which side of the pair the snapshot recorded as the initiator.
-    expect(held.resolve(host(true), request('base:hold-hand', alice, 'binding:alice-hold')).reason).toBe('CONTACT_ALREADY_ACTIVE')
+    expect(held.resolve(host(true), request('base:hold-hand', alice, 'binding:alice-hold')).reason).toBe(
+      'CONTACT_ALREADY_ACTIVE',
+    )
     const reversed = host(false, {
       targets: [
         { ref: { kind: 'character', id: actor }, state: character(actor) },
         { ref: alice, state: character('character:alice') },
-        { ref: shared, state: { interactionId: 'base:hold-hand', relationKind: 'hand_hold', initiatorId: 'character:alice', targetId: actor, active: true } },
+        {
+          ref: shared,
+          state: {
+            interactionId: 'base:hold-hand',
+            relationKind: 'hand_hold',
+            initiatorId: 'character:alice',
+            targetId: actor,
+            active: true,
+          },
+        },
       ],
       authorizedTargets: [alice, shared],
     })
-    expect(held.resolve(reversed, request('base:hold-hand', alice, 'binding:alice-hold')).reason).toBe('CONTACT_ALREADY_ACTIVE')
-    expect(held.resolve(host(), request('base:end-contact', shared, 'binding:held-release')).reason).toBe('CONTACT_NOT_ACTIVE')
+    expect(held.resolve(reversed, request('base:hold-hand', alice, 'binding:alice-hold')).reason).toBe(
+      'CONTACT_ALREADY_ACTIVE',
+    )
+    expect(held.resolve(host(), request('base:end-contact', shared, 'binding:held-release')).reason).toBe(
+      'CONTACT_NOT_ACTIVE',
+    )
   })
 
   it('refuses contact across locations or scenes and from a non participant', () => {
@@ -138,7 +206,16 @@ describe('contact relation domain', () => {
       targets: [
         { ref: { kind: 'character', id: actor }, state: character(actor) },
         { ref: alice, state: character('character:alice', 'location:elsewhere') },
-        { ref: shared, state: { interactionId: 'base:hold-hand', relationKind: 'hand_hold', initiatorId: actor, targetId: 'character:alice', active: true } },
+        {
+          ref: shared,
+          state: {
+            interactionId: 'base:hold-hand',
+            relationKind: 'hand_hold',
+            initiatorId: actor,
+            targetId: 'character:alice',
+            active: true,
+          },
+        },
       ],
       authorizedTargets: [alice, shared],
     })
@@ -149,7 +226,9 @@ describe('contact relation domain', () => {
       targets: [...host(true).targets, { ref: bob, state: character('character:bob') }],
       authorizedTargets: [...host(true).authorizedTargets, bob],
     })
-    expect(held.resolve(stranger, request('base:end-contact', shared, 'binding:held-release')).reason).toBe('NOT_CONTACT_PARTICIPANT')
+    expect(held.resolve(stranger, request('base:end-contact', shared, 'binding:held-release')).reason).toBe(
+      'NOT_CONTACT_PARTICIPANT',
+    )
   })
 
   it('binds the relation participants as derived roles without the request naming them', () => {
@@ -157,7 +236,11 @@ describe('contact relation domain', () => {
     const released = held.resolve(host(true), request('base:end-contact', shared, 'binding:held-release'))
     // The proof is structural: the request carries no initiator or target, yet both rules that read
     // them ran and the event names the relation the snapshot carried.
-    expect(released.trace.map(entry => entry.rule.id)).toEqual(['base:actor-active', 'contact:active', 'contact:participant'])
+    expect(released.trace.map(entry => entry.rule.id)).toEqual([
+      'base:actor-active',
+      'contact:active',
+      'contact:participant',
+    ])
     expect(released.trace.every(entry => entry.reason === null)).toBe(true)
   })
 
@@ -170,21 +253,35 @@ describe('contact relation domain', () => {
       ],
       authorizedTargets: [shared],
     })
-    expect(held.resolve(broken, request('base:end-contact', shared, 'binding:held-release')).reason).toBe('PARTICIPANT_NOT_AUTHORIZED')
+    expect(held.resolve(broken, request('base:end-contact', shared, 'binding:held-release')).reason).toBe(
+      'PARTICIPANT_NOT_AUTHORIZED',
+    )
   })
 
   it('offers contact only to the authority the definition names', () => {
     const view = runtime().view({
-      address, manifestHash, asOfWorldSeq: 3, characterId: actor, candidatePrefixHash: prefixHash,
-      authority: playerImmediate, viewPolicyHash: hashWorldJson('contact/view-policy/v1', {}),
-      targets: host().targets, authorizedTargets: host().authorizedTargets,
+      address,
+      manifestHash,
+      asOfWorldSeq: 3,
+      characterId: actor,
+      candidatePrefixHash: prefixHash,
+      authority: playerImmediate,
+      viewPolicyHash: hashWorldJson('contact/view-policy/v1', {}),
+      targets: host().targets,
+      authorizedTargets: host().authorizedTargets,
     })
     // The cup is also co-located and unheld, so take is offered alongside hold-hand.
     expect(view.options.map(option => option.definitionRef.id)).toEqual(['base:hold-hand', 'base:take'])
     const asAgent = runtime().view({
-      address, manifestHash, asOfWorldSeq: 3, characterId: actor, candidatePrefixHash: prefixHash,
-      authority: agentStandard, viewPolicyHash: hashWorldJson('contact/view-policy/v1', {}),
-      targets: host().targets, authorizedTargets: host().authorizedTargets,
+      address,
+      manifestHash,
+      asOfWorldSeq: 3,
+      characterId: actor,
+      candidatePrefixHash: prefixHash,
+      authority: agentStandard,
+      viewPolicyHash: hashWorldJson('contact/view-policy/v1', {}),
+      targets: host().targets,
+      authorizedTargets: host().authorizedTargets,
     })
     // The agent authority cannot establish contact, and the pair is not active, so nothing is offered.
     expect(asAgent.options.map(option => option.definitionRef.id)).toEqual(['base:take'])
@@ -195,22 +292,39 @@ describe('contact relation domain', () => {
     // directly: it is the last line for a caller that hands it something else.
     const effects = pack.effects
     const context = {
-      host: host(false), definition: pack.definitions.find(def => def.spec.id === 'base:hold-hand')!.spec,
+      host: host(false),
+      definition: pack.definitions.find(def => def.spec.id === 'base:hold-hand')!.spec,
       binding: { bindingId: 'binding:alice-hold', targetRef: alice, definitionRef: ref('base:hold-hand'), config: {} },
-      arguments: {}, roles: { actor: { kind: 'character' as const, id: actor }, target: alice },
+      arguments: {},
+      roles: { actor: { kind: 'character' as const, id: actor }, target: alice },
     }
-    for (const [id, expected] of [['contact:start-effect', /requires one event/u], ['contact:end-effect', /requires one event/u]] as const) {
+    for (const [id, expected] of [
+      ['contact:start-effect', /requires one event/u],
+      ['contact:end-effect', /requires one event/u],
+    ] as const) {
       const effect = effects.find(entry => entry.lock.ref.id === id)!
       expect(() => effect.validate(context, [])).toThrow(expected)
       if (id === 'contact:end-effect') continue
-      expect(() => effect.validate(context, [{ eventType: 'character.relation-started', eventVersion: 1, data: {} }] as never))
-        .toThrow(/does not match the resolved participants/u)
+      expect(() =>
+        effect.validate(context, [{ eventType: 'character.relation-started', eventVersion: 1, data: {} }] as never),
+      ).toThrow(/does not match the resolved participants/u)
     }
     const start = effects.find(entry => entry.lock.ref.id === 'contact:start-effect')!
-    const selfContext = { ...context, roles: { actor: { kind: 'character' as const, id: actor }, target: { kind: 'character' as const, id: actor } } }
+    const selfContext = {
+      ...context,
+      roles: { actor: { kind: 'character' as const, id: actor }, target: { kind: 'character' as const, id: actor } },
+    }
     expect(() => start.validate(selfContext, start.build(selfContext))).toThrow(/cannot target the actor/u)
     const end = effects.find(entry => entry.lock.ref.id === 'contact:end-effect')!
-    const stranger = { ...context, roles: { actor: { kind: 'character' as const, id: 'character:bob' }, contact: shared, initiator: alice, target: alice } }
+    const stranger = {
+      ...context,
+      roles: {
+        actor: { kind: 'character' as const, id: 'character:bob' },
+        contact: shared,
+        initiator: alice,
+        target: alice,
+      },
+    }
     expect(() => end.validate(stranger, end.build(stranger))).toThrow(/requires a participant/u)
   })
 
@@ -220,8 +334,16 @@ describe('contact relation domain', () => {
       targets: [
         { ref: { kind: 'character', id: actor }, state: character(actor) },
         { ref: alice, state: character('character:alice') },
-        { ref: { kind: 'relation', id: 'relation:other' },
-          state: { interactionId: 'base:hold-hand', relationKind: 'hand_hold', initiatorId: 'character:carol', targetId: 'character:dave', active: true } },
+        {
+          ref: { kind: 'relation', id: 'relation:other' },
+          state: {
+            interactionId: 'base:hold-hand',
+            relationKind: 'hand_hold',
+            initiatorId: 'character:carol',
+            targetId: 'character:dave',
+            active: true,
+          },
+        },
       ],
       authorizedTargets: [alice, { kind: 'relation', id: 'relation:other' }],
     })
@@ -234,19 +356,33 @@ describe('contact relation domain', () => {
       ],
       authorizedTargets: [alice],
     })
-    expect(held.resolve(withoutRelation, request('base:hold-hand', alice, 'binding:alice-hold')).status).toBe('accepted')
+    expect(held.resolve(withoutRelation, request('base:hold-hand', alice, 'binding:alice-hold')).status).toBe(
+      'accepted',
+    )
   })
 
   it('refuses a role source, a resolver and a derivation the package cannot support', () => {
     const registry = new InteractionRegistry()
     const base = pack
-    const bogus = { ...base.definitions[0]!, spec: { ...base.definitions[0]!.spec, participantRoles: [
-      { name: 'actor', kind: 'character' as const, source: { kind: 'hostActor' as const }, distinctFrom: [] },
-      { name: 'item', kind: 'entity' as const, source: { kind: 'elsewhere' as never }, distinctFrom: [] },
-    ] } }
-    expect(() => new InteractionRegistry().install({ ...base, definitions: [bogus] })).toThrow(/unsupported role source/u)
-    expect(() => new InteractionRegistry().install({ ...base, resolvers: [{ lock: base.resolvers[0]!.lock, resolve: null as never }] }))
-      .toThrow(/derived resolver implementation missing/u)
+    const bogus = {
+      ...base.definitions[0]!,
+      spec: {
+        ...base.definitions[0]!.spec,
+        participantRoles: [
+          { name: 'actor', kind: 'character' as const, source: { kind: 'hostActor' as const }, distinctFrom: [] },
+          { name: 'item', kind: 'entity' as const, source: { kind: 'elsewhere' as never }, distinctFrom: [] },
+        ],
+      },
+    }
+    expect(() => new InteractionRegistry().install({ ...base, definitions: [bogus] })).toThrow(
+      /unsupported role source/u,
+    )
+    expect(() =>
+      new InteractionRegistry().install({
+        ...base,
+        resolvers: [{ lock: base.resolvers[0]!.lock, resolve: null as never }],
+      }),
+    ).toThrow(/derived resolver implementation missing/u)
     // A definition whose derivation is not installed cannot be enabled.
     registry.install(pack)
     expect(() => registry.freeze(selection())).not.toThrow()
@@ -267,19 +403,35 @@ describe('contact relation domain', () => {
     const outside = host(true, {
       targets: [
         { ref: { kind: 'character', id: actor }, state: character(actor) },
-        { ref: shared, state: { interactionId: 'base:hold-hand', relationKind: 'hand_hold', initiatorId: 'character:ghost', targetId: 'character:alice', active: true } },
+        {
+          ref: shared,
+          state: {
+            interactionId: 'base:hold-hand',
+            relationKind: 'hand_hold',
+            initiatorId: 'character:ghost',
+            targetId: 'character:alice',
+            active: true,
+          },
+        },
       ],
       authorizedTargets: [shared],
     })
-    expect(held.resolve(outside, request('base:end-contact', shared, 'binding:held-release')).reason).toBe('PARTICIPANT_NOT_AUTHORIZED')
+    expect(held.resolve(outside, request('base:end-contact', shared, 'binding:held-release')).reason).toBe(
+      'PARTICIPANT_NOT_AUTHORIZED',
+    )
     const incomplete = host(true, {
       targets: [
         { ref: { kind: 'character', id: actor }, state: character(actor) },
-        { ref: shared, state: { interactionId: 'base:hold-hand', relationKind: 'hand_hold', initiatorId: actor, active: true } },
+        {
+          ref: shared,
+          state: { interactionId: 'base:hold-hand', relationKind: 'hand_hold', initiatorId: actor, active: true },
+        },
       ],
       authorizedTargets: [shared],
     })
-    expect(held.resolve(incomplete, request('base:end-contact', shared, 'binding:held-release')).reason).toBe('PARTICIPANT_NOT_AUTHORIZED')
+    expect(held.resolve(incomplete, request('base:end-contact', shared, 'binding:held-release')).reason).toBe(
+      'PARTICIPANT_NOT_AUTHORIZED',
+    )
   })
 
   it('ends a relation once its participants are no longer in reach, without an interaction', () => {
@@ -289,14 +441,26 @@ describe('contact relation domain', () => {
       targets: [
         { ref: { kind: 'character', id: actor }, state: character(actor) },
         { ref: alice, state: character('character:alice', 'location:elsewhere') },
-        { ref: shared, state: { interactionId: 'base:hold-hand', relationKind: 'hand_hold', initiatorId: actor, targetId: 'character:alice', active: true } },
+        {
+          ref: shared,
+          state: {
+            interactionId: 'base:hold-hand',
+            relationKind: 'hand_hold',
+            initiatorId: actor,
+            targetId: 'character:alice',
+            active: true,
+          },
+        },
       ],
       authorizedTargets: [alice, shared],
     })
     const ended = held.fold(moved, [])
     expect(ended).toHaveLength(1)
-    expect(ended[0]).toEqual({ eventType: 'character.relation-ended', eventVersion: 1,
-      data: { relationId: 'relation:held', endedByCharacterId: actor, reason: 'participant_moved' } })
+    expect(ended[0]).toEqual({
+      eventType: 'character.relation-ended',
+      eventVersion: 1,
+      data: { relationId: 'relation:held', endedByCharacterId: actor, reason: 'participant_moved' },
+    })
     // Still together: the fold has nothing to end, and a fold with no relation is equally quiet.
     expect(held.fold(host(true), [])).toEqual([])
     const withoutRelation = host(true, {
@@ -315,13 +479,26 @@ describe('contact relation domain', () => {
       targets: [
         { ref: { kind: 'character', id: actor }, state: character(actor) },
         { ref: alice, state: { lifecycle: 'departed', locationId: 'location:hall', sceneIds: ['scene:hall'] } },
-        { ref: shared, state: { interactionId: 'base:hold-hand', relationKind: 'hand_hold', initiatorId: actor, targetId: 'character:alice', active: true } },
+        {
+          ref: shared,
+          state: {
+            interactionId: 'base:hold-hand',
+            relationKind: 'hand_hold',
+            initiatorId: actor,
+            targetId: 'character:alice',
+            active: true,
+          },
+        },
       ],
       authorizedTargets: [alice, shared],
     })
     expect((held.fold(gone, [])[0]!.data as { reason: string }).reason).toBe('participant_unavailable')
-    expect(() => held.fold({ ...gone, address: { ...address, worldId: brandId('world:other', 'WorldId') } }, [])).toThrow(/WorldAddress/u)
-    expect(() => held.fold({ ...gone, authorizedTargets: [{ kind: 'entity', id: 'entity:missing' }] }, [])).toThrow(/authorization set/u)
+    expect(() =>
+      held.fold({ ...gone, address: { ...address, worldId: brandId('world:other', 'WorldId') } }, []),
+    ).toThrow(/WorldAddress/u)
+    expect(() => held.fold({ ...gone, authorizedTargets: [{ kind: 'entity', id: 'entity:missing' }] }, [])).toThrow(
+      /authorization set/u,
+    )
   })
 
   it('treats a relation it cannot read as out of reach rather than guessing', () => {
@@ -331,24 +508,54 @@ describe('contact relation domain', () => {
         { ref: { kind: 'character', id: actor }, state: character(actor) },
         { ref: alice, state: character('character:alice') },
         // A participant id that is not a string, and a pair whose other side never made the snapshot.
-        { ref: shared, state: { interactionId: 'base:hold-hand', relationKind: 'hand_hold', initiatorId: 42, targetId: 'character:alice', active: true } },
-        { ref: { kind: 'relation', id: 'relation:ghost' },
-          state: { interactionId: 'base:hold-hand', relationKind: 'hand_hold', initiatorId: actor, targetId: 'character:nobody', active: true } },
+        {
+          ref: shared,
+          state: {
+            interactionId: 'base:hold-hand',
+            relationKind: 'hand_hold',
+            initiatorId: 42,
+            targetId: 'character:alice',
+            active: true,
+          },
+        },
+        {
+          ref: { kind: 'relation', id: 'relation:ghost' },
+          state: {
+            interactionId: 'base:hold-hand',
+            relationKind: 'hand_hold',
+            initiatorId: actor,
+            targetId: 'character:nobody',
+            active: true,
+          },
+        },
       ],
       authorizedTargets: [alice, shared],
     })
     const ended = held.fold(malformed, [])
-    expect(ended.map(event => (event.data as { relationId: string }).relationId).sort())
-      .toEqual(['relation:ghost', 'relation:held'])
+    expect(ended.map(event => (event.data as { relationId: string }).relationId).sort()).toEqual([
+      'relation:ghost',
+      'relation:held',
+    ])
     // The end event must credit a real participant: the unusable side is skipped, not copied through.
     for (const event of ended) {
       expect(typeof (event.data as { endedByCharacterId: unknown }).endedByCharacterId).toBe('string')
-      expect(['character:player', 'character:alice']).toContain((event.data as { endedByCharacterId: string }).endedByCharacterId)
+      expect(['character:player', 'character:alice']).toContain(
+        (event.data as { endedByCharacterId: string }).endedByCharacterId,
+      )
     }
     const unreadable = host(true, {
       targets: [
         { ref: { kind: 'character', id: actor }, state: character(actor) },
-        { ref: shared, state: { interactionId: 'base:hold-hand', relationKind: 'hand_hold', initiatorId: 42, targetId: 43, active: true } },
+        {
+          ref: shared,
+          state: {
+            interactionId: 'base:hold-hand',
+            relationKind: 'hand_hold',
+            initiatorId: 42,
+            targetId: 43,
+            active: true,
+          },
+        },
       ],
       authorizedTargets: [shared],
     })
@@ -359,7 +566,16 @@ describe('contact relation domain', () => {
       targets: [
         { ref: { kind: 'character', id: actor }, state: { lifecycle: 'active', locationId: 'location:hall' } },
         { ref: alice, state: { lifecycle: 'active', locationId: 'location:hall' } },
-        { ref: shared, state: { interactionId: 'base:hold-hand', relationKind: 'hand_hold', initiatorId: actor, targetId: 'character:alice', active: true } },
+        {
+          ref: shared,
+          state: {
+            interactionId: 'base:hold-hand',
+            relationKind: 'hand_hold',
+            initiatorId: actor,
+            targetId: 'character:alice',
+            active: true,
+          },
+        },
       ],
       authorizedTargets: [alice, shared],
     })
@@ -378,8 +594,12 @@ describe('contact relation domain', () => {
       ],
       authorizedTargets: [alice, { kind: 'entity', id: 'entity:cup' }],
     })
-    const given = held.resolve(holding, request('base:give', { kind: 'entity', id: 'entity:cup' }, 'binding:cup-base:give',
-      { recipientId: 'character:alice' }))
+    const given = held.resolve(
+      holding,
+      request('base:give', { kind: 'entity', id: 'entity:cup' }, 'binding:cup-base:give', {
+        recipientId: 'character:alice',
+      }),
+    )
     expect(given.status).toBe('accepted')
     expect(given.affectedCharacterIds).toEqual(['character:alice'])
     // Holding names only the other side, so the actor never appears as affected by their own act.
@@ -387,7 +607,10 @@ describe('contact relation domain', () => {
     expect(held2.status).toBe('accepted')
     expect(held2.affectedCharacterIds).toEqual(['character:alice'])
     // take declares no affected slot at all: the actor is the only character involved.
-    const taken = held.resolve(host(), request('base:take', { kind: 'entity', id: 'entity:cup' }, 'binding:cup-base:take'))
+    const taken = held.resolve(
+      host(),
+      request('base:take', { kind: 'entity', id: 'entity:cup' }, 'binding:cup-base:take'),
+    )
     expect(taken.affectedCharacterIds).toEqual([])
     // Ending a relation affects both of its parties, which the pack declares as two slots.
     const released = held.resolve(host(true), request('base:end-contact', shared, 'binding:held-release'))
@@ -404,33 +627,45 @@ describe('contact relation domain', () => {
     // The slots it did bind are still reported, so "did not happen" and "never got that far" differ.
     expect(refused.resolvedRoles.contact).toEqual(shared)
     // A refused give binds no recipient at all, so it names nobody as affected either.
-    const noRecipient = held.resolve(host(), request('base:give', { kind: 'entity', id: 'entity:cup' }, 'binding:cup-base:give',
-      { recipientId: 'character:alice' }))
+    const noRecipient = held.resolve(
+      host(),
+      request('base:give', { kind: 'entity', id: 'entity:cup' }, 'binding:cup-base:give', {
+        recipientId: 'character:alice',
+      }),
+    )
     expect(noRecipient.status).toBe('rejected')
     expect(noRecipient.affectedCharacterIds).toEqual([])
   })
 
   it('hands the resolved role bindings over as exactly the data behind their hash', () => {
     const held = runtime()
-    const adjudication = held.resolve(host(), request('base:take', { kind: 'entity', id: 'entity:cup' }, 'binding:cup-base:take'))
+    const adjudication = held.resolve(
+      host(),
+      request('base:take', { kind: 'entity', id: 'entity:cup' }, 'binding:cup-base:take'),
+    )
     expect(adjudication.status).toBe('accepted')
     expect(adjudication.resolvedRoles).toEqual({
-      actor: { kind: 'character', id: actor }, item: { kind: 'entity', id: 'entity:cup' },
+      actor: { kind: 'character', id: actor },
+      item: { kind: 'entity', id: 'entity:cup' },
     })
     // Handing them over is not a second account of them: this is the very data the hash covers, which
     // is what lets a Host read "who did this land on" from the same resolution it already trusts.
-    expect(hashWorldJson('interaction-role-bindings/v1', adjudication.resolvedRoles))
-      .toBe(adjudication.resolvedRoleBindingsHash)
+    expect(hashWorldJson('interaction-role-bindings/v1', adjudication.resolvedRoles)).toBe(
+      adjudication.resolvedRoleBindingsHash,
+    )
     // A domain rejection still reports what the plan bound, so a failed attempt can be told apart from
     // one that never got that far.
     const rejected = held.resolve(host(), request('base:end-contact', shared, 'binding:held-release'))
     expect(rejected.status).toBe('rejected')
     expect(rejected.resolvedRoles).toEqual({
-      actor: { kind: 'character', id: actor }, contact: shared,
-      initiator: { kind: 'character', id: actor }, target: { kind: 'character', id: 'character:alice' },
+      actor: { kind: 'character', id: actor },
+      contact: shared,
+      initiator: { kind: 'character', id: actor },
+      target: { kind: 'character', id: 'character:alice' },
     })
-    expect(hashWorldJson('interaction-role-bindings/v1', rejected.resolvedRoles))
-      .toBe(rejected.resolvedRoleBindingsHash)
+    expect(hashWorldJson('interaction-role-bindings/v1', rejected.resolvedRoles)).toBe(
+      rejected.resolvedRoleBindingsHash,
+    )
   })
 
   it('addresses a relation instance only through the class its binding names', () => {
@@ -440,18 +675,27 @@ describe('contact relation domain', () => {
       targets: [
         { ref: { kind: 'character', id: actor }, state: character(actor) },
         { ref: alice, state: character('character:alice') },
-        { ref: shared, state: { interactionId: 'base:other', initiatorId: actor, targetId: 'character:alice', active: true } },
+        {
+          ref: shared,
+          state: { interactionId: 'base:other', initiatorId: actor, targetId: 'character:alice', active: true },
+        },
       ],
       authorizedTargets: [alice, shared],
     })
-    expect(() => held.resolve(wrongClass, request('base:end-contact', shared, 'binding:held-release')))
-      .toThrow(/does not match enabled binding/u)
+    expect(() => held.resolve(wrongClass, request('base:end-contact', shared, 'binding:held-release'))).toThrow(
+      /does not match enabled binding/u,
+    )
     // A forged instance id carries no class at all, so it cannot borrow one.
-    expect(() => held.resolve(host(true), request('base:end-contact', { kind: 'relation', id: 'relation:ghost' }, 'binding:held-release')))
-      .toThrow(/does not match enabled binding/u)
+    expect(() =>
+      held.resolve(
+        host(true),
+        request('base:end-contact', { kind: 'relation', id: 'relation:ghost' }, 'binding:held-release'),
+      ),
+    ).toThrow(/does not match enabled binding/u)
     // A relation binding is not a licence to name a character through it either.
-    expect(() => held.resolve(host(true), request('base:end-contact', alice, 'binding:held-release')))
-      .toThrow(/does not match enabled binding/u)
+    expect(() => held.resolve(host(true), request('base:end-contact', alice, 'binding:held-release'))).toThrow(
+      /does not match enabled binding/u,
+    )
   })
 
   it('keeps every own release within the option budget, and fails rather than truncating', () => {
@@ -462,27 +706,53 @@ describe('contact relation domain', () => {
     const relations = Array.from({ length: 132 }, (_, index) => `relation:pair-${String(index).padStart(3, '0')}`)
     const held = registry.freeze({
       ...base,
-      bindings: [...base.bindings.filter(entry => entry.bindingId !== 'binding:held-release'),
-        ...entities.map(id => ({ bindingId: `binding:${id}`, targetRef: { kind: 'entity' as const, id },
-          definitionRef: ref('base:take'), config: {} })),
-        { bindingId: 'binding:held-release', targetRef: relationClass, definitionRef: ref('base:end-contact'), config: {} }],
+      bindings: [
+        ...base.bindings.filter(entry => entry.bindingId !== 'binding:held-release'),
+        ...entities.map(id => ({
+          bindingId: `binding:${id}`,
+          targetRef: { kind: 'entity' as const, id },
+          definitionRef: ref('base:take'),
+          config: {},
+        })),
+        {
+          bindingId: 'binding:held-release',
+          targetRef: relationClass,
+          definitionRef: ref('base:end-contact'),
+          config: {},
+        },
+      ],
     })
     const view = (relationIds: readonly string[]) => {
       const value = host(true, {
         targets: [
           { ref: { kind: 'character', id: actor }, state: character(actor) },
           { ref: alice, state: character('character:alice') },
-          ...entities.map(id => ({ ref: { kind: 'entity' as const, id }, state: { holderId: null, locationId: 'location:hall' } })),
-          ...relationIds.map(id => ({ ref: { kind: 'relation' as const, id },
-            state: { interactionId: 'base:hold-hand', initiatorId: actor, targetId: 'character:alice', active: true } })),
+          ...entities.map(id => ({
+            ref: { kind: 'entity' as const, id },
+            state: { holderId: null, locationId: 'location:hall' },
+          })),
+          ...relationIds.map(id => ({
+            ref: { kind: 'relation' as const, id },
+            state: { interactionId: 'base:hold-hand', initiatorId: actor, targetId: 'character:alice', active: true },
+          })),
         ],
-        authorizedTargets: [alice, ...entities.map(id => ({ kind: 'entity' as const, id })),
-          ...relationIds.map(id => ({ kind: 'relation' as const, id }))],
+        authorizedTargets: [
+          alice,
+          ...entities.map(id => ({ kind: 'entity' as const, id })),
+          ...relationIds.map(id => ({ kind: 'relation' as const, id })),
+        ],
       })
-      return held.view({ address, manifestHash, asOfWorldSeq: value.asOfWorldSeq, characterId: actor,
-        authority: playerImmediate, candidatePrefixHash: prefixHash,
+      return held.view({
+        address,
+        manifestHash,
+        asOfWorldSeq: value.asOfWorldSeq,
+        characterId: actor,
+        authority: playerImmediate,
+        candidatePrefixHash: prefixHash,
         viewPolicyHash: hashWorldJson('contact/view-policy/v1', {}),
-        targets: value.targets, authorizedTargets: value.authorizedTargets })
+        targets: value.targets,
+        authorizedTargets: value.authorizedTargets,
+      })
     }
     // 130 takeable items plus three releases is more options than the budget allows. Every release is
     // still offered: the budget decides what else is shown, never whether the actor can get out.
@@ -499,13 +769,19 @@ describe('contact relation domain', () => {
     const viewContext = (relationActive: boolean) => {
       const value = host(relationActive)
       return {
-        address, manifestHash, asOfWorldSeq: value.asOfWorldSeq, characterId: actor, authority: playerImmediate,
-        candidatePrefixHash: prefixHash, viewPolicyHash: hashWorldJson('contact/view-policy/v1', {}),
-        targets: value.targets, authorizedTargets: value.authorizedTargets,
+        address,
+        manifestHash,
+        asOfWorldSeq: value.asOfWorldSeq,
+        characterId: actor,
+        authority: playerImmediate,
+        candidatePrefixHash: prefixHash,
+        viewPolicyHash: hashWorldJson('contact/view-policy/v1', {}),
+        targets: value.targets,
+        authorizedTargets: value.authorizedTargets,
       }
     }
-    const releases = (relationActive: boolean) => held.view(viewContext(relationActive)).options
-      .filter(option => option.definitionRef.id === 'base:end-contact')
+    const releases = (relationActive: boolean) =>
+      held.view(viewContext(relationActive)).options.filter(option => option.definitionRef.id === 'base:end-contact')
     expect(releases(true)).toEqual([
       { targetRef: shared, bindingId: 'binding:held-release', definitionRef: ref('base:end-contact'), arguments: {} },
     ])
@@ -530,9 +806,15 @@ describe('contact relation domain', () => {
       const base = selection()
       return {
         ...base,
-        bindings: [...base.bindings.filter(entry => entry.bindingId !== 'binding:held-release'),
-          { bindingId: 'binding:held-release', targetRef: { kind: 'relation' as const, id },
-            definitionRef: ref('base:end-contact'), config: {} }],
+        bindings: [
+          ...base.bindings.filter(entry => entry.bindingId !== 'binding:held-release'),
+          {
+            bindingId: 'binding:held-release',
+            targetRef: { kind: 'relation' as const, id },
+            definitionRef: ref('base:end-contact'),
+            config: {},
+          },
+        ],
       }
     }
     // base:take is enabled, but it transfers items and creates no relation to address.
@@ -548,6 +830,8 @@ describe('contact relation domain', () => {
     expect(() => registry.install(stripped)).toThrow(/package component lock drift/u)
     registry.install(pack)
     const held = registry.freeze(selection())
-    expect(held.resolve(host(true), request('base:end-contact', shared, 'binding:held-release')).status).toBe('accepted')
+    expect(held.resolve(host(true), request('base:end-contact', shared, 'binding:held-release')).status).toBe(
+      'accepted',
+    )
   })
 })

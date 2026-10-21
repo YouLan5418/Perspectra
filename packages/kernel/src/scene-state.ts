@@ -17,8 +17,10 @@ function sceneIdOf(event: RulebookEvent): { readonly sceneId: string; readonly d
 }
 
 function participantsOf(value: Record<string, WorldJsonValue> | undefined): readonly CharacterId[] {
-  if (!Array.isArray(value?.participantIds)
-    || value.participantIds.some(participantId => typeof participantId !== 'string')) {
+  if (
+    !Array.isArray(value?.participantIds) ||
+    value.participantIds.some(participantId => typeof participantId !== 'string')
+  ) {
     throw new TypeError('scene.upsert requires string participantIds')
   }
   return value.participantIds as CharacterId[]
@@ -37,8 +39,11 @@ export function currentSceneDecisionStates(events: readonly RulebookEvent[]): re
       const { sceneId, data } = sceneIdOf(event)
       if (scenes.has(sceneId)) throw new TypeError(`Scene ${sceneId} cannot be redefined in Scene Decision v2`)
       const value = worldJsonObject(data.value as WorldJsonValue)
-      if (value === undefined || (value.lifecycle !== 'created' && value.lifecycle !== 'active' && value.lifecycle !== 'closed')
-        || (value.locationId !== null && typeof value.locationId !== 'string')) {
+      if (
+        value === undefined ||
+        (value.lifecycle !== 'created' && value.lifecycle !== 'active' && value.lifecycle !== 'closed') ||
+        (value.locationId !== null && typeof value.locationId !== 'string')
+      ) {
         throw new TypeError('Scene Decision v2 scene.upsert requires lifecycle and nullable locationId')
       }
       scenes.set(sceneId, {
@@ -62,7 +67,8 @@ export function currentSceneDecisionStates(events: readonly RulebookEvent[]): re
     const scene = scenes.get(sceneId)
     if (scene === undefined) throw new TypeError(`Scene ${sceneId} is absent from the event prefix`)
     if (event.eventType === 'scene.activated') {
-      if (scene.lifecycle !== 'created') throw new TypeError(`Scene ${sceneId} cannot be activated from ${scene.lifecycle}`)
+      if (scene.lifecycle !== 'created')
+        throw new TypeError(`Scene ${sceneId} cannot be activated from ${scene.lifecycle}`)
       scenes.set(sceneId, { ...scene, lifecycle: 'active' })
       continue
     }
@@ -99,7 +105,11 @@ export function hiddenObservers(events: readonly RulebookEvent[], sceneId: strin
       continue
     }
     const value = worldJsonObject(data.value as WorldJsonValue)
-    if (typeof value?.observerId !== 'string' || typeof value.sceneId !== 'string' || typeof value.visible !== 'boolean') {
+    if (
+      typeof value?.observerId !== 'string' ||
+      typeof value.sceneId !== 'string' ||
+      typeof value.visible !== 'boolean'
+    ) {
       throw new TypeError('visibility.upsert is malformed')
     }
     if (value.sceneId === sceneId) visibility.set(value.observerId, value.visible)
@@ -110,7 +120,10 @@ export function hiddenObservers(events: readonly RulebookEvent[], sceneId: strin
 /** The same current audience eligibility serves speech adjudication and observation delivery. */
 export function sceneObserverIds(events: readonly RulebookEvent[], scene: SceneState): readonly CharacterId[] {
   const hidden = hiddenObservers(events, scene.sceneId)
-  return scene.participantIds.filter(characterId => !hidden.has(characterId)
-    && currentCharacterLifecycle(events, characterId) === 'active'
-    && (scene.locationId === null || currentLocation(events, characterId) === scene.locationId))
+  return scene.participantIds.filter(
+    characterId =>
+      !hidden.has(characterId) &&
+      currentCharacterLifecycle(events, characterId) === 'active' &&
+      (scene.locationId === null || currentLocation(events, characterId) === scene.locationId),
+  )
 }

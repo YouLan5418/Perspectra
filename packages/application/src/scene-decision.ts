@@ -8,11 +8,7 @@ import {
   type WorldHash,
   type WorldJsonObject,
 } from '@harness-world/contracts'
-import {
-  currentSceneDecisionStates,
-  sceneObserverIds,
-  type RulebookEvent,
-} from '@harness-world/kernel'
+import { currentSceneDecisionStates, sceneObserverIds, type RulebookEvent } from '@harness-world/kernel'
 import { CharacterRuntimeAvailabilityService, WorldStore } from '@harness-world/store-sqlite'
 import { SCHEDULABLE_AVAILABILITY_STATES } from './runtime-availability.ts'
 
@@ -79,7 +75,8 @@ export class SceneDecisionService {
       const transitions: WorldEventDraft[] = []
       if (source !== undefined) {
         transitions.push({
-          eventType: 'scene.member_left', eventVersion: 1,
+          eventType: 'scene.member_left',
+          eventVersion: 1,
           data: { sceneId: source.sceneId, characterId },
         })
         // Fixed rooms remain available for a later visit, even when empty.
@@ -93,7 +90,8 @@ export class SceneDecisionService {
         }
         if (!destination.participantIds.includes(characterId)) {
           transitions.push({
-            eventType: 'scene.member_joined', eventVersion: 1,
+            eventType: 'scene.member_joined',
+            eventVersion: 1,
             data: { sceneId: destination.sceneId, characterId },
           })
         }
@@ -101,9 +99,12 @@ export class SceneDecisionService {
       return transitions
     } catch (error: unknown) {
       failWorld({
-        errorCode: 'PROJECTION_INVARIANT_FAILED', category: 'integrity',
-        message: `Scene move transition is malformed: ${String(error)}`, retryable: false,
-        correlationId: `scene-move:${characterId}:${asOfSeq}`, address,
+        errorCode: 'PROJECTION_INVARIANT_FAILED',
+        category: 'integrity',
+        message: `Scene move transition is malformed: ${String(error)}`,
+        retryable: false,
+        correlationId: `scene-move:${characterId}:${asOfSeq}`,
+        address,
         details: { characterId, targetLocationId, asOfSeq },
       })
     }
@@ -120,9 +121,12 @@ export class SceneDecisionService {
     } catch (error: unknown) {
       if (error instanceof TypeError) {
         failWorld({
-          errorCode: 'PROJECTION_INVARIANT_FAILED', category: 'integrity',
-          message: `Scene projection is malformed: ${error.message}`, retryable: false,
-          correlationId: `scene-decision:${player}:${asOfSeq}`, address,
+          errorCode: 'PROJECTION_INVARIANT_FAILED',
+          category: 'integrity',
+          message: `Scene projection is malformed: ${error.message}`,
+          retryable: false,
+          correlationId: `scene-decision:${player}:${asOfSeq}`,
+          address,
           details: { player, asOfSeq },
         })
       }
@@ -138,27 +142,35 @@ export class SceneDecisionService {
     policy: SceneObservationPolicy = { scope: 'scene_public' },
   ): SceneActionAudience {
     const recipients = policy.recipientIds ?? []
-    if (!Array.isArray(recipients) || recipients.some(value => typeof value !== 'string')
-      || new Set(recipients).size !== recipients.length
-      || ((policy.scope === 'direct' || policy.scope === 'private') && recipients.length === 0)
-      || ((policy.scope === 'scene_public' || policy.scope === 'self') && recipients.length !== 0)) {
+    if (
+      !Array.isArray(recipients) ||
+      recipients.some(value => typeof value !== 'string') ||
+      new Set(recipients).size !== recipients.length ||
+      ((policy.scope === 'direct' || policy.scope === 'private') && recipients.length === 0) ||
+      ((policy.scope === 'scene_public' || policy.scope === 'self') && recipients.length !== 0)
+    ) {
       throw new TypeError('Scene observation policy is malformed')
     }
     const decision = this.decideFromEvents(address, actorId, events, asOfSeq)
     const present = new Set(decision.observerIds)
     const direct = recipients.filter(characterId => present.has(characterId))
-    const full = policy.scope === 'scene_public'
-      ? sortedUnique([...decision.observerIds, actorId])
-      : policy.scope === 'self'
-      ? [actorId]
-      : sortedUnique([actorId, ...direct])
-    const occurrence = policy.scope === 'private'
-      ? decision.observerIds.filter(characterId => !full.includes(characterId))
-      : []
+    const full =
+      policy.scope === 'scene_public'
+        ? sortedUnique([...decision.observerIds, actorId])
+        : policy.scope === 'self'
+          ? [actorId]
+          : sortedUnique([actorId, ...direct])
+    const occurrence =
+      policy.scope === 'private' ? decision.observerIds.filter(characterId => !full.includes(characterId)) : []
     return { fullContentCharacterIds: full, occurrenceOnlyCharacterIds: occurrence }
   }
 
-  #decide(address: WorldAddress, player: CharacterId, events: readonly RulebookEvent[], asOfSeq: number): SceneDecision {
+  #decide(
+    address: WorldAddress,
+    player: CharacterId,
+    events: readonly RulebookEvent[],
+    asOfSeq: number,
+  ): SceneDecision {
     const scenes = currentSceneDecisionStates(events)
     const membership = new Map<CharacterId, string[]>()
     for (const scene of scenes.filter(value => value.lifecycle === 'active')) {
@@ -171,9 +183,12 @@ export class SceneDecisionService {
     const overlap = [...membership].find(([, sceneIds]) => sceneIds.length > 1)
     if (overlap !== undefined) {
       failWorld({
-        errorCode: 'SCENE_MEMBERSHIP_INVARIANT', category: 'integrity',
-        message: `character ${overlap[0]} belongs to multiple active Scenes`, retryable: false,
-        correlationId: `scene-membership:${overlap[0]}:${asOfSeq}`, address,
+        errorCode: 'SCENE_MEMBERSHIP_INVARIANT',
+        category: 'integrity',
+        message: `character ${overlap[0]} belongs to multiple active Scenes`,
+        retryable: false,
+        correlationId: `scene-membership:${overlap[0]}:${asOfSeq}`,
+        address,
         details: { characterId: overlap[0], asOfSeq, sceneIds: overlap[1].sort(compareWorldText) },
       })
     }

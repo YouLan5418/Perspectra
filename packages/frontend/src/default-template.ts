@@ -35,32 +35,68 @@ export const DEFAULT_PAGE = String.raw`<!doctype html>
   </section>
   <section id="history-panel" class="panel history-panel" aria-label="文字记录" hidden><div class="panel-header"><span>文字记录 · <span id="player"></span></span><button id="history-close" type="button" aria-label="关闭文字记录">×</button></div><section id="history" aria-label="玩家可见对话记录"></section><button id="latest" class="latest secondary" type="button" hidden>回到最新对话 ↓</button></section>
   <section id="action-panel" class="panel action-panel" aria-label="可用行动" hidden><div class="panel-header"><span>当前可用行动</span><button id="actions-close" type="button" aria-label="关闭行动">×</button></div><div id="actions"></div></section>
-</main><script src="/frontend/sdk.js"></script><script src="/frontend/default.js"></script></body></html>`;
+</main><script src="/frontend/sdk.js"></script><script src="/frontend/default.js"></script></body></html>`
 
-export const DEFAULT_STYLE = STAGE_STYLE;
+export const DEFAULT_STYLE = STAGE_STYLE
 
 /** Status bar rows grouped by holder, in the order the view lists them; a stale value reads "上次确认". */
-function statusBarRows(view: { statusBar?: { label: string; holderId: string | null; holderName?: string; self?: boolean; value: unknown; current: boolean }[] }) {
+function statusBarRows(view: {
+  statusBar?: {
+    label: string
+    holderId: string | null
+    holderName?: string
+    self?: boolean
+    value: unknown
+    current: boolean
+  }[]
+}) {
   // Grouped by holder ID, never by display name: two characters may share a name.
   const groups: { id: string | null; holder: string; items: { label: string; value: string; note: string }[] }[] = []
   for (const entry of view.statusBar || []) {
     let group = groups.find(item => item.id === entry.holderId)
     if (!group) {
-      group = { id: entry.holderId, holder: entry.holderId === null ? '世界' : entry.self === true ? '你' : entry.holderName || entry.holderId, items: [] }
+      group = {
+        id: entry.holderId,
+        holder: entry.holderId === null ? '世界' : entry.self === true ? '你' : entry.holderName || entry.holderId,
+        items: [],
+      }
       groups.push(group)
     }
     // A composite value is shortened for the panel only; the SDK view keeps the whole value.
     const json = typeof entry.value === 'object' && entry.value !== null ? Array.from(JSON.stringify(entry.value)) : []
-    group.items.push({ label: entry.label, value: entry.value === true ? '是' : entry.value === false ? '否'
-      : entry.value === null ? '空' : json.length ? (json.length > 120 ? json.slice(0, 120).join('') + '…' : json.join(''))
-        : String(entry.value),
-      note: entry.current ? '' : '上次确认' })
+    group.items.push({
+      label: entry.label,
+      value:
+        entry.value === true
+          ? '是'
+          : entry.value === false
+            ? '否'
+            : entry.value === null
+              ? '空'
+              : json.length
+                ? json.length > 120
+                  ? json.slice(0, 120).join('') + '…'
+                  : json.join('')
+                : String(entry.value),
+      note: entry.current ? '' : '上次确认',
+    })
   }
   return groups.map(({ holder, items }) => ({ holder, items }))
 }
 /** Quick-action group of one option; status operations belong with items and interactions. */
-function quickActionGroup(option: { action?: { actionType?: string; parameters?: { definitionRef?: { id?: unknown }; targetRef?: { kind?: unknown }; arguments?: { recipientId?: unknown } } } }) {
-  const action = option.action || {}, p = action.parameters || {}, definition = String(p.definitionRef?.id || '')
+function quickActionGroup(option: {
+  action?: {
+    actionType?: string
+    parameters?: {
+      definitionRef?: { id?: unknown }
+      targetRef?: { kind?: unknown }
+      arguments?: { recipientId?: unknown }
+    }
+  }
+}) {
+  const action = option.action || {},
+    p = action.parameters || {},
+    definition = String(p.definitionRef?.id || '')
   if (action.actionType === 'move') return 'move'
   if (definition.startsWith('host:activity') || definition.startsWith('activity:')) return 'activity'
   if (definition.startsWith('status:')) return 'items'
@@ -354,4 +390,4 @@ export const DEFAULT_SCRIPT = String.raw`(() => {
  },{passive:true});
  api.subscribe(event=>{if(event.type==='presentation'){activityOpen=event.activityOpen===true;if(activityOpen)composerExpanded=false;controls()}if(event.view){connected=true;render(event.view)}if(event.type==='disconnected'){connected=false;node('status').textContent='连接断开';node('status').dataset.state='disconnected';controls()}});
  controls();api.ready.then(info=>{canRegenerate=info.capabilities.includes('regenerate');connected=true;render(info.view)}).catch(error=>{node('notice').textContent=error.message;controls()});
-})();`;
+})();`

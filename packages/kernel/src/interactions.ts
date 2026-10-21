@@ -30,14 +30,26 @@ export function currentCharacterRelations(events: readonly RulebookEvent[]): rea
   for (const [index, event] of events.entries()) {
     if (event.eventType === 'character.relation-started') {
       const data = relationData(event, `events[${index}]`)
-      if (!exact(data, ['relationId', 'relationKind', 'initiatorId', 'targetId', 'interactionId', 'sourceActionId'])
-        || event.eventVersion !== 1 || !text(data.relationId) || !data.relationId.startsWith('relation:')
-        || data.relationKind !== 'hand_hold' || !text(data.initiatorId) || !text(data.targetId)
-        || data.initiatorId === data.targetId || !text(data.interactionId) || !text(data.sourceActionId)
-        || relations.has(data.relationId)) throw new TypeError('character relation start prefix is malformed')
-      const duplicatePair = [...relations.values()].some(relation => relation.active
-        && ((relation.initiatorId === data.initiatorId && relation.targetId === data.targetId)
-          || (relation.initiatorId === data.targetId && relation.targetId === data.initiatorId)))
+      if (
+        !exact(data, ['relationId', 'relationKind', 'initiatorId', 'targetId', 'interactionId', 'sourceActionId']) ||
+        event.eventVersion !== 1 ||
+        !text(data.relationId) ||
+        !data.relationId.startsWith('relation:') ||
+        data.relationKind !== 'hand_hold' ||
+        !text(data.initiatorId) ||
+        !text(data.targetId) ||
+        data.initiatorId === data.targetId ||
+        !text(data.interactionId) ||
+        !text(data.sourceActionId) ||
+        relations.has(data.relationId)
+      )
+        throw new TypeError('character relation start prefix is malformed')
+      const duplicatePair = [...relations.values()].some(
+        relation =>
+          relation.active &&
+          ((relation.initiatorId === data.initiatorId && relation.targetId === data.targetId) ||
+            (relation.initiatorId === data.targetId && relation.targetId === data.initiatorId)),
+      )
       if (duplicatePair) throw new TypeError('character relation prefix contains a duplicate active pair')
       relations.set(data.relationId, {
         relationId: data.relationId,
@@ -51,14 +63,21 @@ export function currentCharacterRelations(events: readonly RulebookEvent[]): rea
     }
     if (event.eventType === 'character.relation-ended') {
       const data = relationData(event, `events[${index}]`)
-      if (!exact(data, ['relationId', 'endedByCharacterId', 'reason']) || event.eventVersion !== 1
-        || !text(data.relationId) || !text(data.endedByCharacterId)
-        || (data.reason !== 'released' && data.reason !== 'participant_moved' && data.reason !== 'participant_unavailable')) {
+      if (
+        !exact(data, ['relationId', 'endedByCharacterId', 'reason']) ||
+        event.eventVersion !== 1 ||
+        !text(data.relationId) ||
+        !text(data.endedByCharacterId) ||
+        (data.reason !== 'released' && data.reason !== 'participant_moved' && data.reason !== 'participant_unavailable')
+      ) {
         throw new TypeError('character relation end prefix is malformed')
       }
       const relation = relations.get(data.relationId)
-      if (relation === undefined || !relation.active
-        || (data.endedByCharacterId !== relation.initiatorId && data.endedByCharacterId !== relation.targetId)) {
+      if (
+        relation === undefined ||
+        !relation.active ||
+        (data.endedByCharacterId !== relation.initiatorId && data.endedByCharacterId !== relation.targetId)
+      ) {
         throw new TypeError('character relation end violates the relation prefix')
       }
       relations.set(data.relationId, { ...relation, active: false })
@@ -86,13 +105,22 @@ function currentScenes(events: readonly RulebookEvent[]): readonly SceneState[] 
     if (event.eventType === 'scene.upsert') {
       const data = worldJsonObject(event.data)
       const value = data?.value === undefined ? undefined : worldJsonObject(data.value)
-      if (typeof data?.sceneId !== 'string' || value === undefined
-        || (value.lifecycle !== 'created' && value.lifecycle !== 'active' && value.lifecycle !== 'closed')
-        || !Array.isArray(value.participantIds) || value.participantIds.some(id => typeof id !== 'string')
-        || new Set(value.participantIds).size !== value.participantIds.length || scenes.has(data.sceneId)) {
+      if (
+        typeof data?.sceneId !== 'string' ||
+        value === undefined ||
+        (value.lifecycle !== 'created' && value.lifecycle !== 'active' && value.lifecycle !== 'closed') ||
+        !Array.isArray(value.participantIds) ||
+        value.participantIds.some(id => typeof id !== 'string') ||
+        new Set(value.participantIds).size !== value.participantIds.length ||
+        scenes.has(data.sceneId)
+      ) {
         throw new TypeError('scene prefix is malformed')
       }
-      scenes.set(data.sceneId, { sceneId: data.sceneId, lifecycle: value.lifecycle, participantIds: value.participantIds as string[] })
+      scenes.set(data.sceneId, {
+        sceneId: data.sceneId,
+        lifecycle: value.lifecycle,
+        participantIds: value.participantIds as string[],
+      })
       continue
     }
     if (!event.eventType.startsWith('scene.')) continue
@@ -117,7 +145,8 @@ function currentScenes(events: readonly RulebookEvent[]): readonly SceneState[] 
       continue
     }
     if (event.eventType !== 'scene.member_joined' && event.eventType !== 'scene.member_left') continue
-    if (scene.lifecycle === 'closed' || typeof data.characterId !== 'string') throw new TypeError('scene prefix is malformed')
+    if (scene.lifecycle === 'closed' || typeof data.characterId !== 'string')
+      throw new TypeError('scene prefix is malformed')
     const members = new Set(scene.participantIds)
     if (event.eventType === 'scene.member_joined' ? members.has(data.characterId) : !members.has(data.characterId)) {
       throw new TypeError('scene membership prefix is malformed')
@@ -134,7 +163,8 @@ export function characterRelationObservations(
   resolved: readonly RulebookEvent[],
 ): readonly WorldJsonObject[] {
   const relations = currentCharacterRelations([...prefix, ...resolved])
-  return resolved.filter(event => event.eventType === 'character.relation-started' || event.eventType === 'character.relation-ended')
+  return resolved
+    .filter(event => event.eventType === 'character.relation-started' || event.eventType === 'character.relation-ended')
     .map(event => {
       const data = worldJsonObject(event.data)!
       const relation = relations.find(value => value.relationId === data.relationId)!

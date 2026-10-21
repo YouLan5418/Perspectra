@@ -73,7 +73,7 @@ function serialize(value: unknown, ancestors: Set<object>): string {
       }
     }
     stringKeys.sort(compareWorldText)
-    const entries = stringKeys.map((key) => `${JSON.stringify(key)}:${serialize(Reflect.get(value, key), ancestors)}`)
+    const entries = stringKeys.map(key => `${JSON.stringify(key)}:${serialize(Reflect.get(value, key), ancestors)}`)
     return `{${entries.join(',')}}`
   } finally {
     ancestors.delete(value)

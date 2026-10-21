@@ -56,13 +56,21 @@ export function movementRoute(
   after: { readonly events: readonly RulebookEvent[]; readonly asOfSeq: number },
 ): MovementRoute | undefined {
   if (moved === undefined) return undefined
-  const data = moved.data as { readonly characterId: CharacterId; readonly fromLocationId: string | null; readonly toLocationId: string }
+  const data = moved.data as {
+    readonly characterId: CharacterId
+    readonly fromLocationId: string | null
+    readonly toLocationId: string
+  }
   return {
     characterId: data.characterId,
     fromLocationId: data.fromLocationId,
     toLocationId: data.toLocationId,
-    departureObservers: new Set(scene.decideFromEvents(address, data.characterId, before.events, before.asOfSeq).observerIds),
-    arrivalObservers: new Set(scene.decideFromEvents(address, data.characterId, after.events, after.asOfSeq).observerIds),
+    departureObservers: new Set(
+      scene.decideFromEvents(address, data.characterId, before.events, before.asOfSeq).observerIds,
+    ),
+    arrivalObservers: new Set(
+      scene.decideFromEvents(address, data.characterId, after.events, after.asOfSeq).observerIds,
+    ),
   }
 }
 
@@ -80,25 +88,38 @@ export function actionObservations(input: ActionObservationInput): {
   const outbox: OutboxDraft[] = []
   const observerIds = [...new Set([...input.audience.fullContentCharacterIds, ...occurrenceOnly])]
   for (const observerId of observerIds) {
-    const content: WorldJsonObject = occurrenceOnly.has(observerId) ? {
-      actorId: input.actorId,
-      actionType: 'private_interaction',
-      status: input.status,
-      contentVisibility: 'occurrence_only',
-    } : {
-      actorId: input.actorId,
-      actionType: input.actionType,
-      status: input.skipped === true ? 'skipped' : input.status,
-      ...input.perObserver?.(observerId),
-      ...input.shared,
-      ...routeClause(input.route, observerId, input.actorId),
-    }
-    const observationId = deterministicId('observation:scene-result', { roundId: input.roundId, actionId: input.actionId, observerId })
+    const content: WorldJsonObject = occurrenceOnly.has(observerId)
+      ? {
+          actorId: input.actorId,
+          actionType: 'private_interaction',
+          status: input.status,
+          contentVisibility: 'occurrence_only',
+        }
+      : {
+          actorId: input.actorId,
+          actionType: input.actionType,
+          status: input.skipped === true ? 'skipped' : input.status,
+          ...input.perObserver?.(observerId),
+          ...input.shared,
+          ...routeClause(input.route, observerId, input.actorId),
+        }
+    const observationId = deterministicId('observation:scene-result', {
+      roundId: input.roundId,
+      actionId: input.actionId,
+      observerId,
+    })
     const value = { observerId, actionId: input.actionId, content }
     events.push({ eventType: 'observation.upsert', eventVersion: 1, data: { id: observationId, value } })
     for (const binding of input.playerBindings.filter(entry => entry.characterId === observerId)) {
       outbox.push({
-        deliveryId: brandId(deterministicId('delivery:scene-result', { roundId: input.roundId, observationId, sessionId: binding.sessionId }), 'DeliveryId'),
+        deliveryId: brandId(
+          deterministicId('delivery:scene-result', {
+            roundId: input.roundId,
+            observationId,
+            sessionId: binding.sessionId,
+          }),
+          'DeliveryId',
+        ),
         sessionId: binding.sessionId,
         payload: { observationId, value },
         critical: true,

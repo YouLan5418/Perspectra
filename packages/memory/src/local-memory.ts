@@ -139,8 +139,11 @@ function observedManifestation(
   if (typeof manifestation.characterId !== 'string' || manifestation.characterId.length === 0) {
     throw new Error('manifestation observation requires characterId')
   }
-  if (manifestation.description !== null && manifestation.description !== undefined
-    && typeof manifestation.description !== 'string') {
+  if (
+    manifestation.description !== null &&
+    manifestation.description !== undefined &&
+    typeof manifestation.description !== 'string'
+  ) {
     throw new Error('manifestation observation description must be string or null')
   }
   if (!Array.isArray(manifestation.cues) || manifestation.cues.length === 0) {
@@ -155,9 +158,7 @@ function observedManifestation(
   })
   return {
     characterId: manifestation.characterId,
-    text: typeof manifestation.description === 'string'
-      ? manifestation.description
-      : cueDescriptions.join('；'),
+    text: typeof manifestation.description === 'string' ? manifestation.description : cueDescriptions.join('；'),
     value: manifestation,
   }
 }
@@ -172,7 +173,12 @@ function orderedSources(values: readonly CognitiveSourceCandidate[]): CognitiveS
  * candidate set can never drift from the set a real Recall ranks.
  */
 function recallTerms(query: string): string {
-  return query.trim().split(/\s+/u).filter(Boolean).map(term => `"${term.replaceAll('"', '""')}"`).join(' AND ')
+  return query
+    .trim()
+    .split(/\s+/u)
+    .filter(Boolean)
+    .map(term => `"${term.replaceAll('"', '""')}"`)
+    .join(' AND ')
 }
 
 /** Canonical text of a CharacterGoal objective; capture and its recall clue must tokenize identically. */
@@ -238,26 +244,37 @@ export class LocalMemoryStore {
       throw new RangeError('requiredAsOfSeq must be a non-negative safe integer')
     }
     const characterView = this.#viewBuilder.rebuildAt(address, characterId, requiredAsOfSeq, heartbeat)
-    const cognitionHistory = new CognitionProjectionRebuilder(this.#worldStore).historyAt(address, requiredAsOfSeq, heartbeat)
+    const cognitionHistory = new CognitionProjectionRebuilder(this.#worldStore)
+      .historyAt(address, requiredAsOfSeq, heartbeat)
       .filter(record => record.characterId === characterId)
     const candidates = orderedSources([
       ...this.#observationCandidates(address, characterId, requiredAsOfSeq, correlationId, heartbeat),
-      ...cognitionHistory.filter(record => record.kind === 'subjective-claim').map(record => ({
-        sourceType: 'subjective_claim' as const,
-        sourceRef: record.sourceRef,
-        memoryKind: 'belief' as const,
-        epistemicKind: 'subjective_inference' as const,
-        text: canonicalText(objectValue(record.value, 'SubjectiveClaim').proposition as WorldJsonValue),
-        metadata: { projectionId: record.id, stance: objectValue(record.value, 'SubjectiveClaim').stance as WorldJsonValue },
-      })),
-      ...cognitionHistory.filter(record => record.kind === 'character-goal').map(record => ({
-        sourceType: 'character_goal' as const,
-        sourceRef: record.sourceRef,
-        memoryKind: 'intention' as const,
-        epistemicKind: 'self_intention' as const,
-        text: goalObjectiveText(record.value),
-        metadata: { projectionId: record.id, status: objectValue(record.value, 'CharacterGoal').status as WorldJsonValue },
-      })),
+      ...cognitionHistory
+        .filter(record => record.kind === 'subjective-claim')
+        .map(record => ({
+          sourceType: 'subjective_claim' as const,
+          sourceRef: record.sourceRef,
+          memoryKind: 'belief' as const,
+          epistemicKind: 'subjective_inference' as const,
+          text: canonicalText(objectValue(record.value, 'SubjectiveClaim').proposition as WorldJsonValue),
+          metadata: {
+            projectionId: record.id,
+            stance: objectValue(record.value, 'SubjectiveClaim').stance as WorldJsonValue,
+          },
+        })),
+      ...cognitionHistory
+        .filter(record => record.kind === 'character-goal')
+        .map(record => ({
+          sourceType: 'character_goal' as const,
+          sourceRef: record.sourceRef,
+          memoryKind: 'intention' as const,
+          epistemicKind: 'self_intention' as const,
+          text: goalObjectiveText(record.value),
+          metadata: {
+            projectionId: record.id,
+            status: objectValue(record.value, 'CharacterGoal').status as WorldJsonValue,
+          },
+        })),
     ])
     const sourceRefs = candidates.map(candidate => candidate.sourceRef)
     const sourceMapHash = hashWorldJson('cognitive-memory-source-map/v2', { address, characterId, sourceRefs })
@@ -269,15 +286,21 @@ export class LocalMemoryStore {
     const key = namespace(address, characterId)
     this.#db.exec('BEGIN IMMEDIATE')
     try {
-      const current = this.#db.prepare(`
+      const current = this.#db
+        .prepare(
+          `
         SELECT verified_through_seq, captured_through_seq, memory_epoch, source_map_hash
         FROM cognitive_memory_v2_namespaces WHERE namespace_key = ?
-      `).get(key) as {
-        verified_through_seq: number
-        captured_through_seq: number
-        memory_epoch: number
-        source_map_hash: WorldHash
-      } | undefined
+      `,
+        )
+        .get(key) as
+        | {
+            verified_through_seq: number
+            captured_through_seq: number
+            memory_epoch: number
+            source_map_hash: WorldHash
+          }
+        | undefined
       if (current !== undefined && current.verified_through_seq > requiredAsOfSeq) {
         this.#unverifiedV2(address, correlationId, 'Cognitive Memory watermark cannot move backward')
       }
@@ -288,14 +311,24 @@ export class LocalMemoryStore {
       for (const candidate of candidates) this.#captureV2Candidate(key, address, characterId, candidate, correlationId)
       const rows = this.#readV2Entries(key, requiredAsOfSeq)
       const summaries = this.#replaceV2Summaries(
-        key, address, characterId, rows, this.#summaryRounds(address, requiredAsOfSeq),
+        key,
+        address,
+        characterId,
+        rows,
+        this.#summaryRounds(address, requiredAsOfSeq),
       )
       const watermark: CognitiveMemoryWatermark = {
-        schemaVersion: 'cognitive-memory-watermark/v2', address, characterId,
-        verifiedThroughSeq: requiredAsOfSeq, capturedThroughSeq: requiredAsOfSeq,
-        memoryEpoch, sourceMapHash,
+        schemaVersion: 'cognitive-memory-watermark/v2',
+        address,
+        characterId,
+        verifiedThroughSeq: requiredAsOfSeq,
+        capturedThroughSeq: requiredAsOfSeq,
+        memoryEpoch,
+        sourceMapHash,
       }
-      this.#db.prepare(`
+      this.#db
+        .prepare(
+          `
         INSERT INTO cognitive_memory_v2_namespaces(
           namespace_key, verified_through_seq, captured_through_seq, memory_epoch, source_map_hash, source_bundle_hash
         ) VALUES (?, ?, ?, ?, ?, ?)
@@ -304,14 +337,26 @@ export class LocalMemoryStore {
           captured_through_seq = excluded.captured_through_seq,
           source_map_hash = excluded.source_map_hash,
           source_bundle_hash = excluded.source_bundle_hash
-      `).run(key, requiredAsOfSeq, requiredAsOfSeq, memoryEpoch, sourceMapHash, sourceBundleHash)
+      `,
+        )
+        .run(key, requiredAsOfSeq, requiredAsOfSeq, memoryEpoch, sourceMapHash, sourceBundleHash)
       if (options?.keywordTokenizerId !== undefined) {
         this.#ensureV2KeywordIndex(key, rows, options.keywordTokenizerId)
       }
-      const receiptId = deterministicId('cognitive-memory-receipt/v2', { address, characterId, requiredAsOfSeq, memoryEpoch })
+      const receiptId = deterministicId('cognitive-memory-receipt/v2', {
+        address,
+        characterId,
+        requiredAsOfSeq,
+        memoryEpoch,
+      })
       const receiptInput = {
         schemaVersion: 'cognitive-memory-receipt/v2' as const,
-        receiptId, address, characterId, requiredAsOfSeq, watermark, sourceBundleHash,
+        receiptId,
+        address,
+        characterId,
+        requiredAsOfSeq,
+        watermark,
+        sourceBundleHash,
         capturedMemoryIds: rows.map(row => row.memoryId),
         summaryIds: summaries.map(summary => summary.summaryId),
       }
@@ -319,17 +364,25 @@ export class LocalMemoryStore {
         ...receiptInput,
         receiptHash: hashWorldJson('cognitive-memory-receipt/v2', receiptInput),
       }
-      const existing = this.#db.prepare(`
+      const existing = this.#db
+        .prepare(
+          `
         SELECT receipt_hash FROM cognitive_memory_v2_receipts WHERE receipt_id = ?
-      `).get(receiptId) as { receipt_hash: WorldHash } | undefined
+      `,
+        )
+        .get(receiptId) as { receipt_hash: WorldHash } | undefined
       if (existing !== undefined && existing.receipt_hash !== receipt.receiptHash) {
         this.#unverifiedV2(address, correlationId, 'Cognitive Memory receipt diverged for one identity')
       }
-      this.#db.prepare(`
+      this.#db
+        .prepare(
+          `
         INSERT OR IGNORE INTO cognitive_memory_v2_receipts(
           receipt_id, namespace_key, required_as_of_seq, receipt_hash, receipt_json
         ) VALUES (?, ?, ?, ?, ?)
-      `).run(receiptId, key, requiredAsOfSeq, receipt.receiptHash, worldJsonText(receipt))
+      `,
+        )
+        .run(receiptId, key, requiredAsOfSeq, receipt.receiptHash, worldJsonText(receipt))
       this.#db.exec('COMMIT')
       heartbeat?.()
       return receipt
@@ -344,15 +397,29 @@ export class LocalMemoryStore {
     const terms = recallTerms(plan.query)
     const memories = terms.length === 0 ? [] : this.#readV2Recall(key, terms, plan.asOfWorldSeq, plan.limit)
     const selectedSourceRefs = memories.map(memory => memory.sourceRef)
-    const ranking = memories.map((memory, index) => ({ memoryId: memory.memoryId, rank: index + 1, sourceRef: memory.sourceRef }))
+    const ranking = memories.map((memory, index) => ({
+      memoryId: memory.memoryId,
+      rank: index + 1,
+      sourceRef: memory.sourceRef,
+    }))
     const planHash = hashWorldJson('recall-query-plan/v1', plan)
     const queryHash = hashWorldJson('recall-query/v1', { query: plan.query })
     const resultHash = hashWorldJson('cognitive-memory-recall-result/v2', { memories, ranking })
-    const receiptId = deterministicId('recall-receipt/v1', { address: plan.address, characterId: plan.characterId, planId: plan.planId })
+    const receiptId = deterministicId('recall-receipt/v1', {
+      address: plan.address,
+      characterId: plan.characterId,
+      planId: plan.planId,
+    })
     const receiptInput = {
       schemaVersion: 'recall-receipt/v1' as const,
-      receiptId, planHash, queryHash, resultHash, watermark,
-      selectedSourceRefs, ranking, exclusionReasons: [] as const,
+      receiptId,
+      planHash,
+      queryHash,
+      resultHash,
+      watermark,
+      selectedSourceRefs,
+      ranking,
+      exclusionReasons: [] as const,
     }
     const receipt: RecallReceipt = { ...receiptInput, receiptHash: hashWorldJson('recall-receipt/v1', receiptInput) }
     this.#persistV2RecallReceipt(key, plan, receipt)
@@ -368,31 +435,46 @@ export class LocalMemoryStore {
     const { key, watermark } = this.#assertV2KeywordPlan(plan)
     const queryTokens = tokenizeFor(plan.tokenizerId, plan.queryText)
     const clueTokens = plan.clues.flatMap(clue => tokenizeFor(plan.tokenizerId, clue.text))
-    const candidates = queryTokens.length === 0 && clueTokens.length === 0
-      ? []
-      : this.#readV2KeywordCandidates(key, plan.asOfWorldSeq, queryTokens, clueTokens, this.#dictionaryFor(key, plan))
+    const candidates =
+      queryTokens.length === 0 && clueTokens.length === 0
+        ? []
+        : this.#readV2KeywordCandidates(key, plan.asOfWorldSeq, queryTokens, clueTokens, this.#dictionaryFor(key, plan))
     const selected = candidates.slice(0, plan.resultLimit)
-    const memories = this.#readV2KeywordEntries(key, selected.map(candidate => candidate.memoryId))
+    const memories = this.#readV2KeywordEntries(
+      key,
+      selected.map(candidate => candidate.memoryId),
+    )
     const ranking: RecallKeywordRanking[] = selected.map((candidate, index) => ({
-      memoryId: candidate.memoryId, rank: index + 1, score: candidate.score,
-      matchedTokens: candidate.matchedTokens, clueMatched: candidate.clueMatched,
+      memoryId: candidate.memoryId,
+      rank: index + 1,
+      score: candidate.score,
+      matchedTokens: candidate.matchedTokens,
+      clueMatched: candidate.clueMatched,
       sourceRef: candidate.sourceRef,
     }))
     const receiptInput = {
       schemaVersion: 'recall-receipt/v2' as const,
       receiptId: deterministicId('recall-receipt/v2', {
-        address: plan.address, characterId: plan.characterId, planId: plan.planId,
+        address: plan.address,
+        characterId: plan.characterId,
+        planId: plan.planId,
       }),
       planHash: hashWorldJson('recall-query-plan/v2', plan),
-      strategyId: plan.strategyId, tokenizerId: plan.tokenizerId,
-      dictionaryEnabled: plan.dictionaryEnabled, dictionaryWatermark: plan.dictionaryWatermark,
+      strategyId: plan.strategyId,
+      tokenizerId: plan.tokenizerId,
+      dictionaryEnabled: plan.dictionaryEnabled,
+      dictionaryWatermark: plan.dictionaryWatermark,
       clueIds: plan.clues.map(clue => clue.sourceId),
-      watermark, matchedCount: candidates.length,
+      watermark,
+      matchedCount: candidates.length,
       droppedByResultLimit: candidates.length - selected.length,
-      selectedSourceRefs: memories.map(memory => memory.sourceRef), ranking,
+      selectedSourceRefs: memories.map(memory => memory.sourceRef),
+      ranking,
       exclusionReasons: (candidates.length === 0
         ? ['no_match']
-        : candidates.length > selected.length ? ['result_limit'] : []) as readonly RecallExclusionReasonV2[],
+        : candidates.length > selected.length
+          ? ['result_limit']
+          : []) as readonly RecallExclusionReasonV2[],
       resultHash: hashWorldJson('cognitive-memory-recall-result/v3', { memories, ranking }),
     }
     const receipt: RecallReceiptV2 = { ...receiptInput, receiptHash: hashWorldJson('recall-receipt/v2', receiptInput) }
@@ -410,19 +492,35 @@ export class LocalMemoryStore {
       const queryTokens = tokenizeFor(plan.tokenizerId, plan.queryText)
       const clueTokens = plan.clues.flatMap(clue => tokenizeFor(plan.tokenizerId, clue.text))
       return {
-        schemaVersion: 'recall-candidates/v1', address: plan.address, characterId: plan.characterId,
-        asOfWorldSeq: plan.asOfWorldSeq, query: plan.queryText, limit: plan.resultLimit,
-        matchedCount: queryTokens.length === 0 && clueTokens.length === 0
-          ? 0
-          : this.#readV2KeywordCandidates(key, plan.asOfWorldSeq, queryTokens, clueTokens, this.#dictionaryFor(key, plan)).length,
+        schemaVersion: 'recall-candidates/v1',
+        address: plan.address,
+        characterId: plan.characterId,
+        asOfWorldSeq: plan.asOfWorldSeq,
+        query: plan.queryText,
+        limit: plan.resultLimit,
+        matchedCount:
+          queryTokens.length === 0 && clueTokens.length === 0
+            ? 0
+            : this.#readV2KeywordCandidates(
+                key,
+                plan.asOfWorldSeq,
+                queryTokens,
+                clueTokens,
+                this.#dictionaryFor(key, plan),
+              ).length,
       }
     }
     const { key } = this.#assertV2RecallPlan(plan)
     const terms = recallTerms(plan.query)
     const matchedCount = terms.length === 0 ? 0 : this.#countV2Recall(key, terms, plan.asOfWorldSeq)
     return {
-      schemaVersion: 'recall-candidates/v1', address: plan.address, characterId: plan.characterId,
-      asOfWorldSeq: plan.asOfWorldSeq, query: plan.query, matchedCount, limit: plan.limit,
+      schemaVersion: 'recall-candidates/v1',
+      address: plan.address,
+      characterId: plan.characterId,
+      asOfWorldSeq: plan.asOfWorldSeq,
+      query: plan.query,
+      matchedCount,
+      limit: plan.limit,
     }
   }
 
@@ -434,16 +532,24 @@ export class LocalMemoryStore {
   ): void {
     this.#db.exec('BEGIN IMMEDIATE')
     try {
-      const existing = this.#db.prepare(`
+      const existing = this.#db
+        .prepare(
+          `
         SELECT receipt_hash FROM cognitive_memory_v2_recall_receipts WHERE receipt_id = ?
-      `).get(receipt.receiptId) as { receipt_hash: WorldHash } | undefined
+      `,
+        )
+        .get(receipt.receiptId) as { receipt_hash: WorldHash } | undefined
       if (existing !== undefined && existing.receipt_hash !== receipt.receiptHash) {
         this.#unverifiedV2(plan.address, `recall:${plan.planId}`, 'Recall receipt identity is bound to another result')
       }
-      this.#db.prepare(`
+      this.#db
+        .prepare(
+          `
         INSERT OR IGNORE INTO cognitive_memory_v2_recall_receipts(receipt_id, namespace_key, as_of_seq, receipt_hash, receipt_json)
         VALUES (?, ?, ?, ?, ?)
-      `).run(receipt.receiptId, key, plan.asOfWorldSeq, receipt.receiptHash, worldJsonText(receipt))
+      `,
+        )
+        .run(receipt.receiptId, key, plan.asOfWorldSeq, receipt.receiptHash, worldJsonText(receipt))
       this.#db.exec('COMMIT')
     } catch (error: unknown) {
       rollbackAndThrow(this.#db, error)
@@ -456,11 +562,15 @@ export class LocalMemoryStore {
    * as-of, with no extra rebuild. A goal that is no longer active stops being a clue.
    */
   openObjectiveClues(address: WorldAddress, characterId: CharacterId, asOfWorldSeq: number): readonly RecallClue[] {
-    const rows = this.#db.prepare(`
+    const rows = this.#db
+      .prepare(
+        `
       SELECT source_id, text_value, metadata_json FROM cognitive_memory_v2_sources
       WHERE namespace_key = ? AND source_seq <= ? AND source_type = 'character_goal'
       ORDER BY source_seq, source_id
-    `).all(namespace(address, characterId), asOfWorldSeq) as Array<{
+    `,
+      )
+      .all(namespace(address, characterId), asOfWorldSeq) as Array<{
       source_id: string
       text_value: string
       metadata_json: string
@@ -473,33 +583,51 @@ export class LocalMemoryStore {
     return clues
   }
 
-  cognitiveWatermark(address: WorldAddress, characterId: CharacterId): CognitiveMemoryWatermark | undefined {    const row = this.#db.prepare(`
+  cognitiveWatermark(address: WorldAddress, characterId: CharacterId): CognitiveMemoryWatermark | undefined {
+    const row = this.#db
+      .prepare(
+        `
       SELECT verified_through_seq, captured_through_seq, memory_epoch, source_map_hash
       FROM cognitive_memory_v2_namespaces WHERE namespace_key = ?
-    `).get(namespace(address, characterId)) as {
-      verified_through_seq: number
-      captured_through_seq: number
-      memory_epoch: number
-      source_map_hash: WorldHash
-    } | undefined
-    return row === undefined ? undefined : {
-      schemaVersion: 'cognitive-memory-watermark/v2', address, characterId,
-      verifiedThroughSeq: row.verified_through_seq, capturedThroughSeq: row.captured_through_seq,
-      memoryEpoch: row.memory_epoch, sourceMapHash: row.source_map_hash,
-    }
+    `,
+      )
+      .get(namespace(address, characterId)) as
+      | {
+          verified_through_seq: number
+          captured_through_seq: number
+          memory_epoch: number
+          source_map_hash: WorldHash
+        }
+      | undefined
+    return row === undefined
+      ? undefined
+      : {
+          schemaVersion: 'cognitive-memory-watermark/v2',
+          address,
+          characterId,
+          verifiedThroughSeq: row.verified_through_seq,
+          capturedThroughSeq: row.captured_through_seq,
+          memoryEpoch: row.memory_epoch,
+          sourceMapHash: row.source_map_hash,
+        }
   }
 
   cognitiveReceipt(receiptId: string): CognitiveMemoryReceipt | undefined {
-    const row = this.#db.prepare(`SELECT receipt_json FROM cognitive_memory_v2_receipts WHERE receipt_id = ?`)
+    const row = this.#db
+      .prepare(`SELECT receipt_json FROM cognitive_memory_v2_receipts WHERE receipt_id = ?`)
       .get(receiptId) as { receipt_json: string } | undefined
-    return row === undefined ? undefined : parseWorldJson(row.receipt_json) as CognitiveMemoryReceipt
+    return row === undefined ? undefined : (parseWorldJson(row.receipt_json) as CognitiveMemoryReceipt)
   }
 
   cognitiveSummaries(address: WorldAddress, characterId: CharacterId): ExtractiveL1Summary[] {
-    const rows = this.#db.prepare(`
+    const rows = this.#db
+      .prepare(
+        `
       SELECT summary_id, source_start_seq, source_end_seq, source_refs_json, extracts_json, summary_hash
       FROM cognitive_memory_v2_summaries WHERE namespace_key = ? ORDER BY source_start_seq, summary_id
-    `).all(namespace(address, characterId)) as Array<{
+    `,
+      )
+      .all(namespace(address, characterId)) as Array<{
       summary_id: string
       source_start_seq: number
       source_end_seq: number
@@ -508,11 +636,16 @@ export class LocalMemoryStore {
       summary_hash: WorldHash
     }>
     return rows.map(row => ({
-      schemaVersion: 'memory-l1/v1', summaryId: row.summary_id, address, characterId,
-      sourceStartSeq: row.source_start_seq, sourceEndSeq: row.source_end_seq,
+      schemaVersion: 'memory-l1/v1',
+      summaryId: row.summary_id,
+      address,
+      characterId,
+      sourceStartSeq: row.source_start_seq,
+      sourceEndSeq: row.source_end_seq,
       sourceRefs: parseWorldJson(row.source_refs_json) as readonly ContextSourceRef[],
       extracts: parseWorldJson(row.extracts_json) as readonly string[],
-      algorithmId: 'deterministic-rollup-l1/v2', summaryHash: row.summary_hash,
+      algorithmId: 'deterministic-rollup-l1/v2',
+      summaryHash: row.summary_hash,
     }))
   }
 
@@ -529,7 +662,9 @@ export class LocalMemoryStore {
       this.#db.prepare(`DELETE FROM cognitive_memory_v2_receipts WHERE namespace_key = ?`).run(key)
       this.#db.prepare(`DELETE FROM cognitive_memory_v2_recall_receipts WHERE namespace_key = ?`).run(key)
       this.#db.prepare(`DELETE FROM cognitive_memory_v2_terms WHERE namespace_key = ?`).run(key)
-      this.#db.prepare(`
+      this.#db
+        .prepare(
+          `
         INSERT INTO cognitive_memory_v2_namespaces(
           namespace_key, verified_through_seq, captured_through_seq, memory_epoch, source_map_hash, source_bundle_hash
         ) VALUES (?, 0, 0, ?, ?, ?)
@@ -537,7 +672,9 @@ export class LocalMemoryStore {
           verified_through_seq = 0, captured_through_seq = 0, memory_epoch = excluded.memory_epoch,
           source_map_hash = excluded.source_map_hash, source_bundle_hash = excluded.source_bundle_hash,
           terms_tokenizer_id = NULL
-      `).run(key, nextEpoch, emptyHash, emptyHash)
+      `,
+        )
+        .run(key, nextEpoch, emptyHash, emptyHash)
       this.#db.exec('COMMIT')
       return nextEpoch
     } catch (error: unknown) {
@@ -558,19 +695,27 @@ export class LocalMemoryStore {
     ]
     this.#db.exec('BEGIN IMMEDIATE')
     try {
-      const watermark = this.#db.prepare(`
+      const watermark = this.#db
+        .prepare(
+          `
         SELECT as_of_seq, bundle_hash FROM memory_namespace_watermarks WHERE namespace_key = ?
-      `).get(key) as { as_of_seq: number; bundle_hash: WorldHash } | undefined
+      `,
+        )
+        .get(key) as { as_of_seq: number; bundle_hash: WorldHash } | undefined
       if (watermark !== undefined && watermark.as_of_seq > request.asOfWorldSeq) {
         this.#unverifiedReconcile(request, 'Memory reconciliation cannot move a namespace backward')
       }
       if (watermark?.as_of_seq === request.asOfWorldSeq && watermark.bundle_hash !== view.bundleHash) {
         this.#unverifiedReconcile(request, 'Memory reconciliation diverged at the same asOfWorldSeq')
       }
-      const currentMappings = this.#db.prepare(`
+      const currentMappings = this.#db
+        .prepare(
+          `
         SELECT source_kind, source_id, source_seq, source_hash
         FROM memory_source_mappings WHERE namespace_key = ?
-      `).all(key) as Array<{
+      `,
+        )
+        .all(key) as Array<{
         source_kind: 'observation' | 'claim' | 'goal'
         source_id: string
         source_seq: number
@@ -580,33 +725,47 @@ export class LocalMemoryStore {
       for (const [index, current] of currentMappings.entries()) {
         if (index % 128 === 0) heartbeat?.()
         if (!sourceKeys.has(`${current.source_kind}\u001f${current.source_id}`)) {
-          this.#db.prepare(`
+          this.#db
+            .prepare(
+              `
             DELETE FROM memory_source_mappings
             WHERE namespace_key = ? AND source_kind = ? AND source_id = ?
-          `).run(key, current.source_kind, current.source_id)
+          `,
+            )
+            .run(key, current.source_kind, current.source_id)
         }
       }
       for (const [index, source] of sources.entries()) {
         if (index % 128 === 0) heartbeat?.()
         const hash = sourceHash(source.kind, source.record)
-        const current = currentMappings.find(value => value.source_kind === source.kind && value.source_id === source.record.id)
+        const current = currentMappings.find(
+          value => value.source_kind === source.kind && value.source_id === source.record.id,
+        )
         if (current !== undefined && current.source_seq > source.record.sourceSeq) {
           this.#unverifiedReconcile(request, 'Memory source sequence cannot move backward')
         }
         if (current?.source_seq === source.record.sourceSeq && current.source_hash !== hash) {
           this.#unverifiedReconcile(request, 'Memory source hash diverged at the same sequence')
         }
-        this.#db.prepare(`
+        this.#db
+          .prepare(
+            `
           INSERT INTO memory_source_mappings(namespace_key, source_kind, source_id, source_seq, source_hash)
           VALUES (?, ?, ?, ?, ?)
           ON CONFLICT(namespace_key, source_kind, source_id) DO UPDATE SET
             source_seq = excluded.source_seq, source_hash = excluded.source_hash
-        `).run(key, source.kind, source.record.id, source.record.sourceSeq, hash)
+        `,
+          )
+          .run(key, source.kind, source.record.id, source.record.sourceSeq, hash)
       }
-      this.#db.prepare(`
+      this.#db
+        .prepare(
+          `
         INSERT INTO memory_namespace_watermarks(namespace_key, as_of_seq, bundle_hash) VALUES (?, ?, ?)
         ON CONFLICT(namespace_key) DO UPDATE SET as_of_seq = excluded.as_of_seq, bundle_hash = excluded.bundle_hash
-      `).run(key, request.asOfWorldSeq, view.bundleHash)
+      `,
+        )
+        .run(key, request.asOfWorldSeq, view.bundleHash)
       this.#db.exec('COMMIT')
       heartbeat?.()
       return sources.length
@@ -618,8 +777,10 @@ export class LocalMemoryStore {
   capture(request: CaptureMemoryRequest): 'captured' | 'already_captured' {
     this.#validateCapture(request)
     const key = namespace(request.address, request.characterId)
-    const sortedSources = [...request.sources].sort((left, right) => compareWorldText(left.sourceKind, right.sourceKind)
-      || compareWorldText(left.sourceId, right.sourceId))
+    const sortedSources = [...request.sources].sort(
+      (left, right) =>
+        compareWorldText(left.sourceKind, right.sourceKind) || compareWorldText(left.sourceId, right.sourceId),
+    )
     const captureHash = hashWorldJson('local-memory-capture', {
       namespace: key,
       memoryId: request.memoryId,
@@ -629,37 +790,60 @@ export class LocalMemoryStore {
     })
     this.#db.exec('BEGIN IMMEDIATE')
     try {
-      const existing = this.#db.prepare(`
+      const existing = this.#db
+        .prepare(
+          `
         SELECT capture_hash FROM memory_entries WHERE namespace_key = ? AND memory_id = ?
-      `).get(key, request.memoryId) as { capture_hash: WorldHash } | undefined
+      `,
+        )
+        .get(key, request.memoryId) as { capture_hash: WorldHash } | undefined
       if (existing !== undefined) {
-        if (existing.capture_hash !== captureHash) this.#unverified(request, 'memoryId is already bound to different content')
+        if (existing.capture_hash !== captureHash)
+          this.#unverified(request, 'memoryId is already bound to different content')
         this.#db.exec('COMMIT')
         return 'already_captured'
       }
       for (const source of sortedSources) {
         if (source.sourceKind === 'summary') this.#unverified(request, 'Session Summary cannot be a Memory source')
-        const mapping = this.#db.prepare(`
+        const mapping = this.#db
+          .prepare(
+            `
           SELECT source_seq, source_hash FROM memory_source_mappings
           WHERE namespace_key = ? AND source_kind = ? AND source_id = ?
-        `).get(key, source.sourceKind, source.sourceId) as { source_seq: number; source_hash: WorldHash } | undefined
-        if (mapping === undefined || mapping.source_seq !== source.sourceSeq || mapping.source_hash !== source.sourceHash) {
+        `,
+          )
+          .get(key, source.sourceKind, source.sourceId) as { source_seq: number; source_hash: WorldHash } | undefined
+        if (
+          mapping === undefined ||
+          mapping.source_seq !== source.sourceSeq ||
+          mapping.source_hash !== source.sourceHash
+        ) {
           this.#unverified(request, 'Memory source mapping is missing or divergent')
         }
-        if (source.sourceSeq > request.asOfWorldSeq) this.#unverified(request, 'Memory source is later than asOfWorldSeq')
+        if (source.sourceSeq > request.asOfWorldSeq)
+          this.#unverified(request, 'Memory source is later than asOfWorldSeq')
       }
       const sourceMaxSeq = Math.max(...sortedSources.map(source => source.sourceSeq))
-      this.#db.prepare(`
+      this.#db
+        .prepare(
+          `
         INSERT INTO memory_entries(namespace_key, memory_id, text_value, metadata_json, capture_hash, source_max_seq, forgotten_seq)
         VALUES (?, ?, ?, ?, ?, ?, NULL)
-      `).run(key, request.memoryId, request.text, worldJsonText(request.metadata), captureHash, sourceMaxSeq)
+      `,
+        )
+        .run(key, request.memoryId, request.text, worldJsonText(request.metadata), captureHash, sourceMaxSeq)
       for (const source of sortedSources) {
-        this.#db.prepare(`
+        this.#db
+          .prepare(
+            `
           INSERT INTO memory_sources(namespace_key, memory_id, source_kind, source_id, source_seq, source_hash)
           VALUES (?, ?, ?, ?, ?, ?)
-        `).run(key, request.memoryId, source.sourceKind, source.sourceId, source.sourceSeq, source.sourceHash)
+        `,
+          )
+          .run(key, request.memoryId, source.sourceKind, source.sourceId, source.sourceSeq, source.sourceHash)
       }
-      this.#db.prepare(`INSERT INTO memory_fts(namespace_key, memory_id, text_value) VALUES (?, ?, ?)`)
+      this.#db
+        .prepare(`INSERT INTO memory_fts(namespace_key, memory_id, text_value) VALUES (?, ?, ?)`)
         .run(key, request.memoryId, request.text)
       this.#db.exec('COMMIT')
       return 'captured'
@@ -673,10 +857,13 @@ export class LocalMemoryStore {
    * It mirrors `recall`'s filters exactly, and writes nothing.
    */
   countRecall(address: WorldAddress, characterId: CharacterId, query: string, asOfWorldSeq: number): number {
-    if (!Number.isSafeInteger(asOfWorldSeq) || asOfWorldSeq < 0) throw new RangeError('asOfWorldSeq must be a non-negative safe integer')
+    if (!Number.isSafeInteger(asOfWorldSeq) || asOfWorldSeq < 0)
+      throw new RangeError('asOfWorldSeq must be a non-negative safe integer')
     const terms = recallTerms(query)
     if (terms.length === 0) return 0
-    const row = this.#db.prepare(`
+    const row = this.#db
+      .prepare(
+        `
       SELECT COUNT(*) AS matched
       FROM memory_fts f JOIN memory_entries e
         ON e.namespace_key = f.namespace_key AND e.memory_id = f.memory_id
@@ -690,19 +877,28 @@ export class LocalMemoryStore {
           WHERE s.namespace_key = e.namespace_key AND s.memory_id = e.memory_id
             AND (m.source_id IS NULL OR m.source_seq != s.source_seq OR m.source_hash != s.source_hash OR s.source_seq > ?)
         )
-    `).get(
-      terms, namespace(address, characterId), asOfWorldSeq, asOfWorldSeq, asOfWorldSeq,
-    ) as { matched: number }
+    `,
+      )
+      .get(terms, namespace(address, characterId), asOfWorldSeq, asOfWorldSeq, asOfWorldSeq) as { matched: number }
     return row.matched
   }
 
-  recall(address: WorldAddress, characterId: CharacterId, query: string, asOfWorldSeq: number, limit = DEFAULT_RECALL_LIMIT): RecalledMemory[] {
-    if (!Number.isSafeInteger(asOfWorldSeq) || asOfWorldSeq < 0) throw new RangeError('asOfWorldSeq must be a non-negative safe integer')
+  recall(
+    address: WorldAddress,
+    characterId: CharacterId,
+    query: string,
+    asOfWorldSeq: number,
+    limit = DEFAULT_RECALL_LIMIT,
+  ): RecalledMemory[] {
+    if (!Number.isSafeInteger(asOfWorldSeq) || asOfWorldSeq < 0)
+      throw new RangeError('asOfWorldSeq must be a non-negative safe integer')
     if (!Number.isSafeInteger(limit) || limit <= 0) throw new RangeError('limit must be a positive safe integer')
     const terms = recallTerms(query)
     if (terms.length === 0) return []
     const key = namespace(address, characterId)
-    const rows = this.#db.prepare(`
+    const rows = this.#db
+      .prepare(
+        `
       SELECT e.memory_id, e.text_value, e.metadata_json, e.source_max_seq, e.capture_hash
       FROM memory_fts f JOIN memory_entries e
         ON e.namespace_key = f.namespace_key AND e.memory_id = f.memory_id
@@ -717,7 +913,9 @@ export class LocalMemoryStore {
             AND (m.source_id IS NULL OR m.source_seq != s.source_seq OR m.source_hash != s.source_hash OR s.source_seq > ?)
         )
       ORDER BY bm25(memory_fts), e.memory_id LIMIT ?
-    `).all(terms, key, asOfWorldSeq, asOfWorldSeq, asOfWorldSeq, limit) as Array<{
+    `,
+      )
+      .all(terms, key, asOfWorldSeq, asOfWorldSeq, asOfWorldSeq, limit) as Array<{
       memory_id: string
       text_value: string
       metadata_json: string
@@ -734,20 +932,32 @@ export class LocalMemoryStore {
   }
 
   forget(address: WorldAddress, characterId: CharacterId, memoryId: string, atWorldSeq: number): void {
-    const result = this.#db.prepare(`
+    const result = this.#db
+      .prepare(
+        `
       UPDATE memory_entries SET forgotten_seq = ?
       WHERE namespace_key = ? AND memory_id = ? AND source_max_seq <= ?
-    `).run(atWorldSeq, namespace(address, characterId), memoryId, atWorldSeq)
+    `,
+      )
+      .run(atWorldSeq, namespace(address, characterId), memoryId, atWorldSeq)
     if (result.changes !== 1) throw new Error('Memory cannot be forgotten before its sources exist or it is missing')
   }
 
-  enqueueCognitiveJob(address: WorldAddress, characterId: CharacterId, asOfWorldSeq: number): 'enqueued' | 'already_enqueued' {
+  enqueueCognitiveJob(
+    address: WorldAddress,
+    characterId: CharacterId,
+    asOfWorldSeq: number,
+  ): 'enqueued' | 'already_enqueued' {
     const key = namespace(address, characterId)
     const jobHash = hashWorldJson('cognitive-memory-job', { address, characterId, asOfWorldSeq })
-    const result = this.#db.prepare(`
+    const result = this.#db
+      .prepare(
+        `
       INSERT OR IGNORE INTO cognitive_jobs(namespace_key, as_of_seq, job_hash, status, attempt_count, last_error)
       VALUES (?, ?, ?, 'pending', 0, NULL)
-    `).run(key, asOfWorldSeq, jobHash)
+    `,
+      )
+      .run(key, asOfWorldSeq, jobHash)
     return result.changes === 1 ? 'enqueued' : 'already_enqueued'
   }
 
@@ -758,32 +968,44 @@ export class LocalMemoryStore {
     status: 'completed' | 'failed',
     error: string | null,
   ): void {
-    const result = this.#db.prepare(`
+    const result = this.#db
+      .prepare(
+        `
       UPDATE cognitive_jobs
       SET status = ?, attempt_count = attempt_count + 1, last_error = ?
       WHERE namespace_key = ? AND as_of_seq = ?
-    `).run(status, error, namespace(address, characterId), asOfWorldSeq)
+    `,
+      )
+      .run(status, error, namespace(address, characterId), asOfWorldSeq)
     if (result.changes !== 1) throw new Error('cognitive job is missing')
   }
 
   cognitiveJob(address: WorldAddress, characterId: CharacterId, asOfWorldSeq: number): CognitiveJobRecord | undefined {
-    const row = this.#db.prepare(`
+    const row = this.#db
+      .prepare(
+        `
       SELECT as_of_seq, status, attempt_count, last_error, job_hash
       FROM cognitive_jobs WHERE namespace_key = ? AND as_of_seq = ?
-    `).get(namespace(address, characterId), asOfWorldSeq) as {
-      as_of_seq: number
-      status: CognitiveJobRecord['status']
-      attempt_count: number
-      last_error: string | null
-      job_hash: WorldHash
-    } | undefined
-    return row === undefined ? undefined : {
-      asOfWorldSeq: row.as_of_seq,
-      status: row.status,
-      attemptCount: row.attempt_count,
-      lastError: row.last_error,
-      jobHash: row.job_hash,
-    }
+    `,
+      )
+      .get(namespace(address, characterId), asOfWorldSeq) as
+      | {
+          as_of_seq: number
+          status: CognitiveJobRecord['status']
+          attempt_count: number
+          last_error: string | null
+          job_hash: WorldHash
+        }
+      | undefined
+    return row === undefined
+      ? undefined
+      : {
+          asOfWorldSeq: row.as_of_seq,
+          status: row.status,
+          attemptCount: row.attempt_count,
+          lastError: row.last_error,
+          jobHash: row.job_hash,
+        }
   }
 
   /** Delete one derived namespace so it can be rebuilt exclusively from the verified World prefix. */
@@ -811,22 +1033,21 @@ export class LocalMemoryStore {
     heartbeat?: () => void,
   ): CognitiveSourceCandidate[] {
     const candidates: CognitiveSourceCandidate[] = []
-    for (const [index, event] of this.#worldStore.readEventsRange(
-      address,
-      0,
-      asOfWorldSeq,
-      ['observation.upsert'],
-    ).entries()) {
+    for (const [index, event] of this.#worldStore
+      .readEventsRange(address, 0, asOfWorldSeq, ['observation.upsert'])
+      .entries()) {
       if (index % 128 === 0) heartbeat?.()
       try {
         const data = objectValue(event.data, `observation.upsert@${event.seq}`)
-        if (typeof data.id !== 'string' || data.id.length === 0) throw new Error('observation id must be a non-empty string')
+        if (typeof data.id !== 'string' || data.id.length === 0)
+          throw new Error('observation id must be a non-empty string')
         const value = objectValue(data.value as WorldJsonValue, `observation.upsert@${event.seq}.value`)
         if (value.observerId !== characterId) continue
         const content = value.content ?? value
-        const contentObject = typeof content === 'object' && content !== null && !Array.isArray(content)
-          ? content as WorldJsonObject
-          : undefined
+        const contentObject =
+          typeof content === 'object' && content !== null && !Array.isArray(content)
+            ? (content as WorldJsonObject)
+            : undefined
         const speechValue = contentObject?.speech
         const manifestation = observedManifestation(
           contentObject?.manifestation,
@@ -839,15 +1060,19 @@ export class LocalMemoryStore {
         if (speechValue !== undefined) {
           const speech = objectValue(speechValue, `observation.upsert@${event.seq}.value.content.speech`)
           if (typeof speech.characterId !== 'string') throw new Error('communication observation requires characterId')
-          const segments = speech.segments === undefined ? publicationSegments(speech) : parseExpressionSegments(speech.segments)
+          const segments =
+            speech.segments === undefined ? publicationSegments(speech) : parseExpressionSegments(speech.segments)
           memoryKind = 'communication'
           epistemicKind = 'reported_speech'
-          text = publicationSourceText(speech)
-            + (manifestation === undefined ? '' : `; ${manifestation.characterId} appeared: ${manifestation.text}`)
+          text =
+            publicationSourceText(speech) +
+            (manifestation === undefined ? '' : `; ${manifestation.characterId} appeared: ${manifestation.text}`)
           metadata = {
             observationId: data.id,
             speakerId: speech.characterId,
-            ...(typeof speech.medium === 'string' ? { medium: speech.medium, addresseeIds: speech.addresseeIds ?? [] } : {}),
+            ...(typeof speech.medium === 'string'
+              ? { medium: speech.medium, addresseeIds: speech.addresseeIds ?? [] }
+              : {}),
             ...(speech.segments === undefined ? {} : { segments }),
             ...(speech.narration === undefined ? {} : { narration: speech.narration }),
             ...(manifestation === undefined ? {} : { manifestation: manifestation.value }),
@@ -861,22 +1086,36 @@ export class LocalMemoryStore {
           if (declared !== undefined && !EPISODIC_OBSERVATION_KINDS.has(declared as CognitiveEpistemicKind)) {
             throw new Error('observation epistemicKind is unsupported for episodic capture')
           }
-          epistemicKind = declared as Exclude<CognitiveEpistemicKind, 'derived_summary'> | undefined
-            ?? (contentObject?.actionType === undefined ? 'direct_observation' : 'observed_action')
+          epistemicKind =
+            (declared as Exclude<CognitiveEpistemicKind, 'derived_summary'> | undefined) ??
+            (contentObject?.actionType === undefined ? 'direct_observation' : 'observed_action')
         }
         if (contentObject?.playerInput !== undefined) {
           const input = objectValue(contentObject.playerInput, `observation.upsert@${event.seq}.playerInput`)
-          if (typeof input.actorId !== 'string' || typeof input.sourceText !== 'string'
-            || !Array.isArray(input.sourceSpans)) throw new Error('player input evidence is malformed')
+          if (
+            typeof input.actorId !== 'string' ||
+            typeof input.sourceText !== 'string' ||
+            !Array.isArray(input.sourceSpans)
+          )
+            throw new Error('player input evidence is malformed')
           // Observations already gate access. Preserve the source when a speech-specific renderer
           // replaces the generic content; it stays a player report, never a committed effect.
-          if (speechValue !== undefined) text += `; original player input (interpretation evidence, not an adjudicated outcome): ${input.sourceText}`
-          metadata = { ...metadata as WorldJsonObject, playerInput: input }
+          if (speechValue !== undefined)
+            text += `; original player input (interpretation evidence, not an adjudicated outcome): ${input.sourceText}`
+          metadata = { ...(metadata as WorldJsonObject), playerInput: input }
         }
         candidates.push({
           sourceType: 'observation',
-          sourceRef: { sourceKind: 'world_event', sourceId: `event:${event.seq}`, sourceSeq: event.seq, sourceHash: event.eventHash },
-          memoryKind, epistemicKind, text, metadata,
+          sourceRef: {
+            sourceKind: 'world_event',
+            sourceId: `event:${event.seq}`,
+            sourceSeq: event.seq,
+            sourceHash: event.eventHash,
+          },
+          memoryKind,
+          epistemicKind,
+          text,
+          metadata,
         })
       } catch (error: unknown) {
         this.#unverifiedV2(address, correlationId, `Observation source is malformed: ${String(error)}`)
@@ -893,49 +1132,83 @@ export class LocalMemoryStore {
     correlationId: string,
   ): void {
     const memoryId = deterministicId('cognitive-memory-entry/v2', {
-      address, characterId, sourceType: candidate.sourceType, sourceRef: candidate.sourceRef,
+      address,
+      characterId,
+      sourceType: candidate.sourceType,
+      sourceRef: candidate.sourceRef,
     })
     const captureInput = {
-      memoryId, memoryKind: candidate.memoryKind, epistemicKind: candidate.epistemicKind,
-      text: candidate.text, metadata: candidate.metadata, sourceRef: candidate.sourceRef,
+      memoryId,
+      memoryKind: candidate.memoryKind,
+      epistemicKind: candidate.epistemicKind,
+      text: candidate.text,
+      metadata: candidate.metadata,
+      sourceRef: candidate.sourceRef,
     }
     const captureHash = hashWorldJson('cognitive-memory-capture/v2', captureInput)
-    const existing = this.#db.prepare(`
+    const existing = this.#db
+      .prepare(
+        `
       SELECT source_seq, source_hash, capture_hash FROM cognitive_memory_v2_sources
       WHERE namespace_key = ? AND source_id = ?
-    `).get(key, candidate.sourceRef.sourceId) as {
-      source_seq: number
-      source_hash: WorldHash
-      capture_hash: WorldHash
-    } | undefined
-    if (existing !== undefined && (existing.source_seq !== candidate.sourceRef.sourceSeq
-      || existing.source_hash !== candidate.sourceRef.sourceHash || existing.capture_hash !== captureHash)) {
+    `,
+      )
+      .get(key, candidate.sourceRef.sourceId) as
+      | {
+          source_seq: number
+          source_hash: WorldHash
+          capture_hash: WorldHash
+        }
+      | undefined
+    if (
+      existing !== undefined &&
+      (existing.source_seq !== candidate.sourceRef.sourceSeq ||
+        existing.source_hash !== candidate.sourceRef.sourceHash ||
+        existing.capture_hash !== captureHash)
+    ) {
       this.#unverifiedV2(address, correlationId, 'Cognitive Memory source identity is bound to divergent content')
     }
-    const inserted = this.#db.prepare(`
+    const inserted = this.#db
+      .prepare(
+        `
       INSERT OR IGNORE INTO cognitive_memory_v2_sources(
         namespace_key, memory_id, source_type, source_id, source_seq, source_hash,
         memory_kind, epistemic_kind, text_value, metadata_json, capture_hash
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(
-      key, memoryId, candidate.sourceType, candidate.sourceRef.sourceId, candidate.sourceRef.sourceSeq,
-      candidate.sourceRef.sourceHash, candidate.memoryKind, candidate.epistemicKind,
-      candidate.text, worldJsonText(candidate.metadata), captureHash,
-    )
+    `,
+      )
+      .run(
+        key,
+        memoryId,
+        candidate.sourceType,
+        candidate.sourceRef.sourceId,
+        candidate.sourceRef.sourceSeq,
+        candidate.sourceRef.sourceHash,
+        candidate.memoryKind,
+        candidate.epistemicKind,
+        candidate.text,
+        worldJsonText(candidate.metadata),
+        captureHash,
+      )
     if (inserted.changes === 1) {
-      this.#db.prepare(`INSERT INTO cognitive_memory_v2_fts(namespace_key, memory_id, text_value) VALUES (?, ?, ?)`)
+      this.#db
+        .prepare(`INSERT INTO cognitive_memory_v2_fts(namespace_key, memory_id, text_value) VALUES (?, ?, ?)`)
         .run(key, memoryId, candidate.text)
     }
   }
 
   #readV2Entries(key: string, asOfWorldSeq: number): CognitiveMemoryEntry[] {
-    const rows = this.#db.prepare(`
+    const rows = this.#db
+      .prepare(
+        `
       SELECT memory_id, memory_kind, epistemic_kind, text_value, metadata_json,
              source_id, source_seq, source_hash, capture_hash
       FROM cognitive_memory_v2_sources
       WHERE namespace_key = ? AND source_seq <= ?
       ORDER BY source_seq, source_type, source_id
-    `).all(key, asOfWorldSeq) as Array<{
+    `,
+      )
+      .all(key, asOfWorldSeq) as Array<{
       memory_id: string
       memory_kind: CognitiveMemoryKind
       epistemic_kind: Exclude<CognitiveEpistemicKind, 'derived_summary'>
@@ -947,28 +1220,42 @@ export class LocalMemoryStore {
       capture_hash: WorldHash
     }>
     return rows.map(row => ({
-      memoryId: row.memory_id, memoryKind: row.memory_kind, epistemicKind: row.epistemic_kind,
-      text: row.text_value, metadata: parseWorldJson(row.metadata_json),
-      sourceRef: { sourceKind: 'world_event', sourceId: row.source_id, sourceSeq: row.source_seq, sourceHash: row.source_hash },
+      memoryId: row.memory_id,
+      memoryKind: row.memory_kind,
+      epistemicKind: row.epistemic_kind,
+      text: row.text_value,
+      metadata: parseWorldJson(row.metadata_json),
+      sourceRef: {
+        sourceKind: 'world_event',
+        sourceId: row.source_id,
+        sourceSeq: row.source_seq,
+        sourceHash: row.source_hash,
+      },
       captureHash: row.capture_hash,
     }))
   }
 
   /** Shared plan validation and watermark gate, so a diagnostic cannot describe a different candidate set. */
-  #assertV2RecallPlan(
-    plan: RecallQueryPlan,
-  ): { readonly key: string; readonly watermark: CognitiveMemoryWatermark } {
-    if (!Number.isSafeInteger(plan.asOfWorldSeq) || plan.asOfWorldSeq < 0) throw new RangeError('asOfWorldSeq must be a non-negative safe integer')
-    if (!Number.isSafeInteger(plan.limit) || plan.limit <= 0) throw new RangeError('limit must be a positive safe integer')
+  #assertV2RecallPlan(plan: RecallQueryPlan): { readonly key: string; readonly watermark: CognitiveMemoryWatermark } {
+    if (!Number.isSafeInteger(plan.asOfWorldSeq) || plan.asOfWorldSeq < 0)
+      throw new RangeError('asOfWorldSeq must be a non-negative safe integer')
+    if (!Number.isSafeInteger(plan.limit) || plan.limit <= 0)
+      throw new RangeError('limit must be a positive safe integer')
     if (plan.rankingAlgorithm !== 'fts5-bm25-stable/v1') throw new TypeError('rankingAlgorithm is unsupported')
     const key = namespace(plan.address, plan.characterId)
     const watermark = this.cognitiveWatermark(plan.address, plan.characterId)
-    if (watermark === undefined || watermark.verifiedThroughSeq < plan.asOfWorldSeq
-      || watermark.capturedThroughSeq < plan.asOfWorldSeq) {
+    if (
+      watermark === undefined ||
+      watermark.verifiedThroughSeq < plan.asOfWorldSeq ||
+      watermark.capturedThroughSeq < plan.asOfWorldSeq
+    ) {
       failWorld({
-        errorCode: 'MEMORY_CATCHUP_FAILED', category: 'runtime',
-        message: 'Cognitive Memory has not reached the required as-of sequence', retryable: true,
-        correlationId: `recall:${plan.planId}`, address: plan.address,
+        errorCode: 'MEMORY_CATCHUP_FAILED',
+        category: 'runtime',
+        message: 'Cognitive Memory has not reached the required as-of sequence',
+        retryable: true,
+        correlationId: `recall:${plan.planId}`,
+        address: plan.address,
         details: { characterId: plan.characterId, requiredAsOfSeq: plan.asOfWorldSeq },
       })
     }
@@ -976,16 +1263,23 @@ export class LocalMemoryStore {
   }
 
   #countV2Recall(key: string, terms: string, asOfWorldSeq: number): number {
-    const row = this.#db.prepare(`
+    const row = this.#db
+      .prepare(
+        `
       SELECT COUNT(*) AS matched
       FROM cognitive_memory_v2_fts f JOIN cognitive_memory_v2_sources s
         ON s.namespace_key = f.namespace_key AND s.memory_id = f.memory_id
       WHERE cognitive_memory_v2_fts MATCH ? AND s.namespace_key = ? AND s.source_seq <= ?
-    `).get(terms, key, asOfWorldSeq) as { matched: number }
+    `,
+      )
+      .get(terms, key, asOfWorldSeq) as { matched: number }
     return row.matched
   }
 
-  #readV2Recall(key: string, terms: string, asOfWorldSeq: number, limit: number): CognitiveMemoryEntry[] {    const rows = this.#db.prepare(`
+  #readV2Recall(key: string, terms: string, asOfWorldSeq: number, limit: number): CognitiveMemoryEntry[] {
+    const rows = this.#db
+      .prepare(
+        `
       SELECT s.memory_id, s.memory_kind, s.epistemic_kind, s.text_value, s.metadata_json,
              s.source_id, s.source_seq, s.source_hash, s.capture_hash
       FROM cognitive_memory_v2_fts f JOIN cognitive_memory_v2_sources s
@@ -993,7 +1287,9 @@ export class LocalMemoryStore {
       WHERE cognitive_memory_v2_fts MATCH ? AND s.namespace_key = ? AND s.source_seq <= ?
       ORDER BY bm25(cognitive_memory_v2_fts), s.source_seq DESC, s.memory_id
       LIMIT ?
-    `).all(terms, key, asOfWorldSeq, limit) as Array<{
+    `,
+      )
+      .all(terms, key, asOfWorldSeq, limit) as Array<{
       memory_id: string
       memory_kind: CognitiveMemoryKind
       epistemic_kind: Exclude<CognitiveEpistemicKind, 'derived_summary'>
@@ -1005,9 +1301,17 @@ export class LocalMemoryStore {
       capture_hash: WorldHash
     }>
     return rows.map(row => ({
-      memoryId: row.memory_id, memoryKind: row.memory_kind, epistemicKind: row.epistemic_kind,
-      text: row.text_value, metadata: parseWorldJson(row.metadata_json),
-      sourceRef: { sourceKind: 'world_event', sourceId: row.source_id, sourceSeq: row.source_seq, sourceHash: row.source_hash },
+      memoryId: row.memory_id,
+      memoryKind: row.memory_kind,
+      epistemicKind: row.epistemic_kind,
+      text: row.text_value,
+      metadata: parseWorldJson(row.metadata_json),
+      sourceRef: {
+        sourceKind: 'world_event',
+        sourceId: row.source_id,
+        sourceSeq: row.source_seq,
+        sourceHash: row.source_hash,
+      },
       captureHash: row.capture_hash,
     }))
   }
@@ -1024,28 +1328,27 @@ export class LocalMemoryStore {
         this.#insertV2Terms(key, entry.memoryId, entry.sourceRef.sourceSeq, entry.text, tokenizerId)
       }
     } else {
-      const missing = this.#db.prepare(`
+      const missing = this.#db
+        .prepare(
+          `
         SELECT s.memory_id, s.source_seq, s.text_value FROM cognitive_memory_v2_sources s
         WHERE s.namespace_key = ? AND NOT EXISTS (
           SELECT 1 FROM cognitive_memory_v2_terms t
           WHERE t.namespace_key = s.namespace_key AND t.memory_id = s.memory_id
         )
-      `).all(key) as Array<{ memory_id: string; source_seq: number; text_value: string }>
+      `,
+        )
+        .all(key) as Array<{ memory_id: string; source_seq: number; text_value: string }>
       for (const row of missing) {
         this.#insertV2Terms(key, row.memory_id, row.source_seq, row.text_value, tokenizerId)
       }
     }
-    this.#db.prepare(`UPDATE cognitive_memory_v2_namespaces SET terms_tokenizer_id = ? WHERE namespace_key = ?`)
+    this.#db
+      .prepare(`UPDATE cognitive_memory_v2_namespaces SET terms_tokenizer_id = ? WHERE namespace_key = ?`)
       .run(tokenizerId, key)
   }
 
-  #insertV2Terms(
-    key: string,
-    memoryId: string,
-    sourceSeq: number,
-    text: string,
-    tokenizerId: RecallTokenizerId,
-  ): void {
+  #insertV2Terms(key: string, memoryId: string, sourceSeq: number, text: string, tokenizerId: RecallTokenizerId): void {
     const insert = this.#db.prepare(`
       INSERT OR IGNORE INTO cognitive_memory_v2_terms(namespace_key, memory_id, token, token_kind, token_weight, source_seq)
       VALUES (?, ?, ?, ?, ?, ?)
@@ -1062,9 +1365,13 @@ export class LocalMemoryStore {
    * as-of prefix, so the same watermark always yields the same one.
    */
   #dictionaryTerms(key: string, asOfWorldSeq: number, tokenizerId: RecallTokenizerId): ReadonlySet<string> {
-    const rows = this.#db.prepare(`
+    const rows = this.#db
+      .prepare(
+        `
       SELECT metadata_json FROM cognitive_memory_v2_sources WHERE namespace_key = ? AND source_seq <= ?
-    `).all(key, asOfWorldSeq) as Array<{ metadata_json: string }>
+    `,
+      )
+      .all(key, asOfWorldSeq) as Array<{ metadata_json: string }>
     const terms = new Set<string>()
     for (const row of rows) {
       const speakerId = (parseWorldJson(row.metadata_json) as WorldJsonObject).speakerId
@@ -1076,22 +1383,25 @@ export class LocalMemoryStore {
 
   /** Which tokenizer built the terms of this namespace, or `null` when the index was never built. */
   #v2TermsTokenizer(key: string): string | null {
-    const row = this.#db.prepare(`SELECT terms_tokenizer_id FROM cognitive_memory_v2_namespaces WHERE namespace_key = ?`)
+    const row = this.#db
+      .prepare(`SELECT terms_tokenizer_id FROM cognitive_memory_v2_namespaces WHERE namespace_key = ?`)
       .get(key) as { terms_tokenizer_id: string | null } | undefined
     return row?.terms_tokenizer_id ?? null
   }
 
   /** The dictionary a plan asks for: empty when the world disabled it, derived from its own sources when not. */
   #dictionaryFor(key: string, plan: RecallQueryPlanV2): ReadonlySet<string> {
-    return plan.dictionaryEnabled
-      ? this.#dictionaryTerms(key, plan.asOfWorldSeq, plan.tokenizerId)
-      : new Set<string>()
+    return plan.dictionaryEnabled ? this.#dictionaryTerms(key, plan.asOfWorldSeq, plan.tokenizerId) : new Set<string>()
   }
 
   #countV2Documents(key: string, asOfWorldSeq: number): number {
-    const row = this.#db.prepare(`
+    const row = this.#db
+      .prepare(
+        `
       SELECT COUNT(*) AS total FROM cognitive_memory_v2_sources WHERE namespace_key = ? AND source_seq <= ?
-    `).get(key, asOfWorldSeq) as { total: number }
+    `,
+      )
+      .get(key, asOfWorldSeq) as { total: number }
     return row.total
   }
 
@@ -1129,13 +1439,17 @@ export class LocalMemoryStore {
     }
     const terms = [...weights.keys()]
     const placeholders = terms.map(() => '?').join(', ')
-    const rows = this.#db.prepare(`
+    const rows = this.#db
+      .prepare(
+        `
       SELECT t.memory_id, t.token, s.source_id, s.source_seq, s.source_hash
       FROM cognitive_memory_v2_terms t
       JOIN cognitive_memory_v2_sources s
         ON s.namespace_key = t.namespace_key AND s.memory_id = t.memory_id
       WHERE t.namespace_key = ? AND t.source_seq <= ? AND t.token IN (${placeholders})
-    `).all(key, asOfWorldSeq, ...terms) as Array<{
+    `,
+      )
+      .all(key, asOfWorldSeq, ...terms) as Array<{
       memory_id: string
       token: string
       source_id: string
@@ -1143,12 +1457,15 @@ export class LocalMemoryStore {
       source_hash: WorldHash
     }>
     const documentsByToken = new Map<string, Set<string>>()
-    const matched = new Map<string, {
-      tokens: string[]
-      sourceId: string
-      sourceSeq: number
-      sourceHash: WorldHash
-    }>()
+    const matched = new Map<
+      string,
+      {
+        tokens: string[]
+        sourceId: string
+        sourceSeq: number
+        sourceHash: WorldHash
+      }
+    >()
     for (const row of rows) {
       const documentIds = documentsByToken.get(row.token) ?? new Set<string>()
       documentIds.add(row.memory_id)
@@ -1156,26 +1473,38 @@ export class LocalMemoryStore {
       const document = matched.get(row.memory_id)
       if (document === undefined) {
         matched.set(row.memory_id, {
-          tokens: [row.token], sourceId: row.source_id, sourceSeq: row.source_seq, sourceHash: row.source_hash,
+          tokens: [row.token],
+          sourceId: row.source_id,
+          sourceSeq: row.source_seq,
+          sourceHash: row.source_hash,
         })
       } else {
         document.tokens.push(row.token)
       }
     }
-    return [...matched.entries()].map(([memoryId, document]) => ({
-      memoryId,
-      matchedTokens: [...document.tokens].sort(compareWorldText),
-      score: document.tokens.reduce((total, token) => total
-        + (documentCount + 1 - documentsByToken.get(token)!.size) * weights.get(token)!
-          * (dictionaryTerms.has(token) ? 2 : 1), 0),
-      clueMatched: document.tokens.some(token => clueTerms.has(token)),
-      sourceRef: {
-        sourceKind: 'world_event' as const, sourceId: document.sourceId,
-        sourceSeq: document.sourceSeq, sourceHash: document.sourceHash,
-      },
-    // Relevance, then recent first, then the canonical text order. Three stable passes rather than one
-    // chained comparator, because a chain would hide its last key behind two keys that never both tie.
-    })).sort((left, right) => compareWorldText(left.memoryId, right.memoryId))
+    return [...matched.entries()]
+      .map(([memoryId, document]) => ({
+        memoryId,
+        matchedTokens: [...document.tokens].sort(compareWorldText),
+        score: document.tokens.reduce(
+          (total, token) =>
+            total +
+            (documentCount + 1 - documentsByToken.get(token)!.size) *
+              weights.get(token)! *
+              (dictionaryTerms.has(token) ? 2 : 1),
+          0,
+        ),
+        clueMatched: document.tokens.some(token => clueTerms.has(token)),
+        sourceRef: {
+          sourceKind: 'world_event' as const,
+          sourceId: document.sourceId,
+          sourceSeq: document.sourceSeq,
+          sourceHash: document.sourceHash,
+        },
+        // Relevance, then recent first, then the canonical text order. Three stable passes rather than one
+        // chained comparator, because a chain would hide its last key behind two keys that never both tie.
+      }))
+      .sort((left, right) => compareWorldText(left.memoryId, right.memoryId))
       .sort((left, right) => right.sourceRef.sourceSeq - left.sourceRef.sourceSeq)
       .sort((left, right) => right.score - left.score)
   }
@@ -1184,11 +1513,15 @@ export class LocalMemoryStore {
   #readV2KeywordEntries(key: string, memoryIds: readonly string[]): CognitiveMemoryEntry[] {
     if (memoryIds.length === 0) return []
     const placeholders = memoryIds.map(() => '?').join(', ')
-    const rows = this.#db.prepare(`
+    const rows = this.#db
+      .prepare(
+        `
       SELECT memory_id, memory_kind, epistemic_kind, text_value, metadata_json,
              source_id, source_seq, source_hash, capture_hash
       FROM cognitive_memory_v2_sources WHERE namespace_key = ? AND memory_id IN (${placeholders})
-    `).all(key, ...memoryIds) as Array<{
+    `,
+      )
+      .all(key, ...memoryIds) as Array<{
       memory_id: string
       memory_kind: CognitiveMemoryKind
       epistemic_kind: Exclude<CognitiveEpistemicKind, 'derived_summary'>
@@ -1203,11 +1536,16 @@ export class LocalMemoryStore {
     return memoryIds.map(memoryId => {
       const row = byId.get(memoryId)!
       return {
-        memoryId: row.memory_id, memoryKind: row.memory_kind, epistemicKind: row.epistemic_kind,
-        text: row.text_value, metadata: parseWorldJson(row.metadata_json),
+        memoryId: row.memory_id,
+        memoryKind: row.memory_kind,
+        epistemicKind: row.epistemic_kind,
+        text: row.text_value,
+        metadata: parseWorldJson(row.metadata_json),
         sourceRef: {
-          sourceKind: 'world_event', sourceId: row.source_id,
-          sourceSeq: row.source_seq, sourceHash: row.source_hash,
+          sourceKind: 'world_event',
+          sourceId: row.source_id,
+          sourceSeq: row.source_seq,
+          sourceHash: row.source_hash,
         },
         captureHash: row.capture_hash,
       }
@@ -1219,11 +1557,14 @@ export class LocalMemoryStore {
    * world declared the strategy without a catch-up building it, so this degrades the participant for the
    * Round instead of quietly returning an empty Recall that looks like "nothing was remembered".
    */
-  #assertV2KeywordPlan(
-    plan: RecallQueryPlanV2,
-  ): { readonly key: string; readonly watermark: CognitiveMemoryWatermark } {
-    if (!Number.isSafeInteger(plan.asOfWorldSeq) || plan.asOfWorldSeq < 0) throw new RangeError('asOfWorldSeq must be a non-negative safe integer')
-    if (!Number.isSafeInteger(plan.resultLimit) || plan.resultLimit <= 0) throw new RangeError('resultLimit must be a positive safe integer')
+  #assertV2KeywordPlan(plan: RecallQueryPlanV2): {
+    readonly key: string
+    readonly watermark: CognitiveMemoryWatermark
+  } {
+    if (!Number.isSafeInteger(plan.asOfWorldSeq) || plan.asOfWorldSeq < 0)
+      throw new RangeError('asOfWorldSeq must be a non-negative safe integer')
+    if (!Number.isSafeInteger(plan.resultLimit) || plan.resultLimit <= 0)
+      throw new RangeError('resultLimit must be a positive safe integer')
     if (plan.strategyId !== RECALL_KEYWORD_STRATEGY_ID) throw new TypeError('strategyId is unsupported')
     if (plan.tokenizerId !== RECALL_KEYWORD_TOKENIZER_ID && plan.tokenizerId !== RECALL_HYBRID_TOKENIZER_ID) {
       throw new TypeError('tokenizerId is unsupported')
@@ -1236,19 +1577,28 @@ export class LocalMemoryStore {
     const key = namespace(plan.address, plan.characterId)
     if (this.#v2TermsTokenizer(key) !== plan.tokenizerId) {
       failWorld({
-        errorCode: 'MEMORY_CATCHUP_FAILED', category: 'runtime',
-        message: 'Cognitive Memory keyword index has not been built for this namespace', retryable: true,
-        correlationId: `recall:${plan.planId}`, address: plan.address,
+        errorCode: 'MEMORY_CATCHUP_FAILED',
+        category: 'runtime',
+        message: 'Cognitive Memory keyword index has not been built for this namespace',
+        retryable: true,
+        correlationId: `recall:${plan.planId}`,
+        address: plan.address,
         details: { characterId: plan.characterId, tokenizerId: plan.tokenizerId },
       })
     }
     const watermark = this.cognitiveWatermark(plan.address, plan.characterId)
-    if (watermark === undefined || watermark.verifiedThroughSeq < plan.asOfWorldSeq
-      || watermark.capturedThroughSeq < plan.asOfWorldSeq) {
+    if (
+      watermark === undefined ||
+      watermark.verifiedThroughSeq < plan.asOfWorldSeq ||
+      watermark.capturedThroughSeq < plan.asOfWorldSeq
+    ) {
       failWorld({
-        errorCode: 'MEMORY_CATCHUP_FAILED', category: 'runtime',
-        message: 'Cognitive Memory has not reached the required as-of sequence', retryable: true,
-        correlationId: `recall:${plan.planId}`, address: plan.address,
+        errorCode: 'MEMORY_CATCHUP_FAILED',
+        category: 'runtime',
+        message: 'Cognitive Memory has not reached the required as-of sequence',
+        retryable: true,
+        correlationId: `recall:${plan.planId}`,
+        address: plan.address,
         details: { characterId: plan.characterId, requiredAsOfSeq: plan.asOfWorldSeq },
       })
     }
@@ -1279,21 +1629,37 @@ export class LocalMemoryStore {
       const sourceEndSeq = sourceRefs.at(-1)!.sourceSeq
       const summaryId = deterministicId('memory-l1-summary/v1', { address, characterId, sourceRefs })
       const summaryInput = {
-        schemaVersion: 'memory-l1/v1' as const, summaryId, address, characterId,
-        sourceStartSeq, sourceEndSeq, sourceRefs, extracts,
+        schemaVersion: 'memory-l1/v1' as const,
+        summaryId,
+        address,
+        characterId,
+        sourceStartSeq,
+        sourceEndSeq,
+        sourceRefs,
+        extracts,
         algorithmId: 'deterministic-rollup-l1/v2' as const,
       }
       const summary: ExtractiveL1Summary = {
-        ...summaryInput, summaryHash: hashWorldJson('memory-l1-summary/v1', summaryInput),
+        ...summaryInput,
+        summaryHash: hashWorldJson('memory-l1-summary/v1', summaryInput),
       }
-      this.#db.prepare(`
+      this.#db
+        .prepare(
+          `
         INSERT INTO cognitive_memory_v2_summaries(
           namespace_key, summary_id, source_start_seq, source_end_seq, source_refs_json, extracts_json, summary_hash
         ) VALUES (?, ?, ?, ?, ?, ?, ?)
-      `).run(
-        key, summaryId, sourceStartSeq, sourceEndSeq,
-        worldJsonText(sourceRefs), worldJsonText(extracts), summary.summaryHash,
-      )
+      `,
+        )
+        .run(
+          key,
+          summaryId,
+          sourceStartSeq,
+          sourceEndSeq,
+          worldJsonText(sourceRefs),
+          worldJsonText(extracts),
+          summary.summaryHash,
+        )
       summaries.push(summary)
     }
     return summaries
@@ -1306,14 +1672,13 @@ export class LocalMemoryStore {
    * ends. It reads one event per Round rather than the whole log.
    */
   #summaryRounds(address: WorldAddress, asOfWorldSeq: number): SummaryRound[] {
-    return this.#worldStore.readEventsRange(address, 0, asOfWorldSeq, ['world.tick-advanced'])
-      .map(event => {
-        const data = objectValue(event.data, `world.tick-advanced@${event.seq}`)
-        if (!Number.isSafeInteger(data.tick) || (data.tick as number) < 0) {
-          throw new Error(`world.tick-advanced@${event.seq} requires a non-negative integer tick`)
-        }
-        return { endSeq: event.seq, tick: data.tick as number }
-      })
+    return this.#worldStore.readEventsRange(address, 0, asOfWorldSeq, ['world.tick-advanced']).map(event => {
+      const data = objectValue(event.data, `world.tick-advanced@${event.seq}`)
+      if (!Number.isSafeInteger(data.tick) || (data.tick as number) < 0) {
+        throw new Error(`world.tick-advanced@${event.seq} requires a non-negative integer tick`)
+      }
+      return { endSeq: event.seq, tick: data.tick as number }
+    })
   }
 
   close(): void {
@@ -1321,10 +1686,12 @@ export class LocalMemoryStore {
   }
 
   #validateCapture(request: CaptureMemoryRequest): void {
-    if (request.memoryId.length === 0 || request.memoryId.trim() !== request.memoryId) throw new TypeError('memoryId must be a non-empty string')
+    if (request.memoryId.length === 0 || request.memoryId.trim() !== request.memoryId)
+      throw new TypeError('memoryId must be a non-empty string')
     if (request.text.length === 0) throw new TypeError('Memory text cannot be empty')
     if (request.sources.length === 0) this.#unverified(request, 'Memory capture requires committed sources')
-    if (!Number.isSafeInteger(request.asOfWorldSeq) || request.asOfWorldSeq < 0) throw new RangeError('asOfWorldSeq must be a non-negative safe integer')
+    if (!Number.isSafeInteger(request.asOfWorldSeq) || request.asOfWorldSeq < 0)
+      throw new RangeError('asOfWorldSeq must be a non-negative safe integer')
   }
 
   #unverified(request: CaptureMemoryRequest, message: string): never {
@@ -1351,8 +1718,12 @@ export class LocalMemoryStore {
 
   #unverifiedV2(address: WorldAddress, correlationId: string, message: string): never {
     failWorld({
-      errorCode: 'MEMORY_SOURCE_UNVERIFIED', category: 'integrity', message, retryable: false,
-      correlationId, address,
+      errorCode: 'MEMORY_SOURCE_UNVERIFIED',
+      category: 'integrity',
+      message,
+      retryable: false,
+      correlationId,
+      address,
     })
   }
 }

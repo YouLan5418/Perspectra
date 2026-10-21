@@ -4,16 +4,37 @@ import { characterVisibleItems } from '../../packages/application/src/character-
 import { characterRequestText } from '../../packages/provider-chat/src/character-context-text.ts'
 import { frozenInteractionWorld } from '../fixtures/frozen-interaction-world.ts'
 
-const f = frozenInteractionWorld(), actor = brandId('character:npc', 'CharacterId'), player = brandId('character:player', 'CharacterId')
-const manifest = { ...f.manifest, entities: f.manifest.entities.map(e => ({ ...e, name: e.entityId === 'entity:cup' ? '黄铜钥匙' : '银色钥匙' })) }
-const take = { eventType: 'entity.transferred', data: { characterId: player, entityId: 'entity:cup', interactionId: 'base:take',
-  fromHolderId: null, fromLocationId: 'location:room', toHolderId: player, toLocationId: null } }
-const seen = { eventType: 'observation.upsert', data: { id: 'seen', value: { observerId: actor,
-  content: { status: 'accepted', interaction: take.data } } } }
+const f = frozenInteractionWorld(),
+  actor = brandId('character:npc', 'CharacterId'),
+  player = brandId('character:player', 'CharacterId')
+const manifest = {
+  ...f.manifest,
+  entities: f.manifest.entities.map(e => ({ ...e, name: e.entityId === 'entity:cup' ? '黄铜钥匙' : '银色钥匙' })),
+}
+const take = {
+  eventType: 'entity.transferred',
+  data: {
+    characterId: player,
+    entityId: 'entity:cup',
+    interactionId: 'base:take',
+    fromHolderId: null,
+    fromLocationId: 'location:room',
+    toHolderId: player,
+    toLocationId: null,
+  },
+}
+const seen = {
+  eventType: 'observation.upsert',
+  data: { id: 'seen', value: { observerId: actor, content: { status: 'accepted', interaction: take.data } } },
+}
 const render = (events: Parameters<typeof characterVisibleItems>[1], extra: WorldJsonObject = {}) => {
   const items = characterVisibleItems(manifest, events, actor, [actor, player])
-  const request = { context: { character: { characterId: actor, locationId: 'location:room' }, items, ...extra }, continuation: false }
-  const before = JSON.stringify(request), rendered = JSON.parse(characterRequestText(request))
+  const request = {
+    context: { character: { characterId: actor, locationId: 'location:room' }, items, ...extra },
+    continuation: false,
+  }
+  const before = JSON.stringify(request),
+    rendered = JSON.parse(characterRequestText(request))
   expect(JSON.stringify(request)).toBe(before)
   expect(JSON.stringify(items)).not.toContain('narrativeBoundary')
   return rendered
@@ -31,8 +52,17 @@ it('anchors only current authorized possession, preserving names and allowing or
 
 it('refreshes the anchor after the character legally receives the item', () => {
   const before = [...f.genesisEvents, take, seen]
-  const give = { eventType: 'entity.transferred', data: { ...take.data, interactionId: 'base:give', fromHolderId: player,
-    fromLocationId: null, toHolderId: actor, toLocationId: null } }
+  const give = {
+    eventType: 'entity.transferred',
+    data: {
+      ...take.data,
+      interactionId: 'base:give',
+      fromHolderId: player,
+      fromLocationId: null,
+      toHolderId: actor,
+      toLocationId: null,
+    },
+  }
   expect(cup(render(before).context.items.current).narrativeBoundary).toContain('当前不由你保管')
   expect(cup(render([...before, give]).context.items.current).narrativeBoundary).toContain('当前由你保管')
 })
@@ -47,8 +77,10 @@ it('does not turn an unseen transfer or a player mention into a negative possess
 })
 
 it('keeps history uncertain and does not disclose an unseen later holder', () => {
-  const hidden = { eventType: 'entity.transferred', data: { ...take.data, fromHolderId: player,
-    fromLocationId: null, toHolderId: 'character:hidden' } }
+  const hidden = {
+    eventType: 'entity.transferred',
+    data: { ...take.data, fromHolderId: player, fromLocationId: null, toHolderId: 'character:hidden' },
+  }
   const rendered = render([...f.genesisEvents, take, seen, hidden]).context.items
   expect(cup(rendered.lastObserved).narrativeBoundary).toContain('当前归属与位置未确认')
   expect(cup(rendered.lastObserved).narrativeBoundary).not.toContain('不由你保管')
@@ -57,8 +89,14 @@ it('keeps history uncertain and does not disclose an unseen later holder', () =>
 
 it('does not announce a secret loss as known non-possession or overwrite a mistaken belief', () => {
   const own = { ...take, data: { ...take.data, characterId: actor, toHolderId: actor } }
-  const ownSeen = { ...seen, data: { ...seen.data, value: { ...seen.data.value, content: { status: 'accepted', interaction: own.data } } } }
-  const stolen = { ...take, data: { ...take.data, fromHolderId: actor, fromLocationId: null, toHolderId: 'character:hidden' } }
+  const ownSeen = {
+    ...seen,
+    data: { ...seen.data, value: { ...seen.data.value, content: { status: 'accepted', interaction: own.data } } },
+  }
+  const stolen = {
+    ...take,
+    data: { ...take.data, fromHolderId: actor, fromLocationId: null, toHolderId: 'character:hidden' },
+  }
   const cognition = { claims: [{ value: { text: '我认为钥匙仍在自己的口袋里。' } }] }
   const rendered = render([...f.genesisEvents, own, ownSeen, stolen], { cognition })
   expect(cup(rendered.context.items.lastObserved).narrativeBoundary).toContain('未确认')

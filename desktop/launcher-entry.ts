@@ -11,7 +11,10 @@ const lines = createInterface({ input: process.stdin, crlfDelay: Infinity })
 try {
   for await (const line of lines) {
     try {
-      if (!initialized) { await core.initialize(); initialized = true }
+      if (!initialized) {
+        await core.initialize()
+        initialized = true
+      }
       const result = await core.handle(JSON.parse(line))
       process.stdout.write(JSON.stringify({ ok: true, result }) + '\n')
     } catch (error: unknown) {
@@ -20,9 +23,18 @@ try {
       const safe = specific ? error.message : 'Launcher 本机操作失败。'
       // Temporary local diagnosis: masked errors go to a file only when explicitly enabled.
       if (!specific && process.env.PERSPECTRA_LAUNCHER_ERROR_LOG) {
-        try { await appendFile(process.env.PERSPECTRA_LAUNCHER_ERROR_LOG, new Date().toISOString() + ' ' + String((error as Error)?.stack ?? error) + '\n') } catch { /* diagnosis must never change behaviour */ }
+        try {
+          await appendFile(
+            process.env.PERSPECTRA_LAUNCHER_ERROR_LOG,
+            new Date().toISOString() + ' ' + String((error as Error)?.stack ?? error) + '\n',
+          )
+        } catch {
+          /* diagnosis must never change behaviour */
+        }
       }
       process.stdout.write(JSON.stringify({ ok: false, error: safe }) + '\n')
     }
   }
-} finally { await core.stop() }
+} finally {
+  await core.stop()
+}

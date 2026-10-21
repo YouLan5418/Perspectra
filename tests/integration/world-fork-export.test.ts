@@ -6,8 +6,11 @@ import { WorldApplication } from '@harness-world/application'
 import { brandId } from '@harness-world/contracts'
 import { currentCharacterRelations } from '@harness-world/kernel'
 import {
-  BranchAdministration, ProjectionRebuilder, SnapshotStore,
-  WorldArchiveService, WorldStore,
+  BranchAdministration,
+  ProjectionRebuilder,
+  SnapshotStore,
+  WorldArchiveService,
+  WorldStore,
 } from '@harness-world/store-sqlite'
 import { frozenInteractionWorld } from '../fixtures/frozen-interaction-world.ts'
 
@@ -18,15 +21,31 @@ import { frozenInteractionWorld } from '../fixtures/frozen-interaction-world.ts'
  */
 const compiled = frozenInteractionWorld()
 const address = compiled.manifest.address
-const holdHand = { actionType: 'interact', parameters: { targetRef: { kind: 'character', id: 'character:npc' },
-  bindingId: 'binding:character:npc:base:hold-hand', definitionRef: { id: 'base:hold-hand', version: 1 }, arguments: {} } }
+const holdHand = {
+  actionType: 'interact',
+  parameters: {
+    targetRef: { kind: 'character', id: 'character:npc' },
+    bindingId: 'binding:character:npc:base:hold-hand',
+    definitionRef: { id: 'base:hold-hand', version: 1 },
+    arguments: {},
+  },
+}
 
-const app = (worldPath: string, root: string) => new WorldApplication({ worldPath,
-  sessionPath: join(root, 'session.sqlite'), memoryPath: join(root, 'memory.sqlite'), modelBudgetTokens: 20 })
+const app = (worldPath: string, root: string) =>
+  new WorldApplication({
+    worldPath,
+    sessionPath: join(root, 'session.sqlite'),
+    memoryPath: join(root, 'memory.sqlite'),
+    modelBudgetTokens: 20,
+  })
 
 const submit = (application: WorldApplication, key: string, branch = address) =>
-  application.submit(branch, { idempotencyKey: key, principalId: 'principal:player',
-    correlationId: `frozen-deploy:${key}`, action: holdHand })
+  application.submit(branch, {
+    idempotencyKey: key,
+    principalId: 'principal:player',
+    correlationId: `frozen-deploy:${key}`,
+    action: holdHand,
+  })
 
 describe('a v10 world outside its own round', () => {
   it('forks, and the child holds hands on its own', async () => {
@@ -38,7 +57,9 @@ describe('a v10 world outside its own round', () => {
       try {
         seed.activate(compiled)
         await submit(seed, 'parent-hold')
-      } finally { await seed.close() }
+      } finally {
+        await seed.close()
+      }
       const store = new WorldStore(worldPath)
       const head = store.head(address)
       store.forkBranch(address, child, head.headSeq)
@@ -49,17 +70,22 @@ describe('a v10 world outside its own round', () => {
       try {
         forked.activate(compiled)
         await submit(forked, 'child-hold', child)
-      } finally { await forked.close() }
+      } finally {
+        await forked.close()
+      }
       const read = new WorldStore(worldPath)
       const events = read.readEvents(child)
       const resolved = events.find(event => event.eventType === 'action.resolved')!
       const authority = read.readRoundAuthority(child, resolved.transactionId)!.authority
       read.close()
       expect(authority.schemaVersion).toBe(6)
-      expect((authority.resolutions as readonly Record<string, unknown>[])
-        .some(entry => entry.interaction !== undefined)).toBe(true)
+      expect(
+        (authority.resolutions as readonly Record<string, unknown>[]).some(entry => entry.interaction !== undefined),
+      ).toBe(true)
       expect(events.filter(event => event.eventType === 'character.relation-started')).toHaveLength(1)
-    } finally { rmSync(root, { recursive: true, force: true }) }
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
   }, 60_000)
 
   it('rebuilds a projection and snapshots a v10 world without losing its frozen facts', async () => {
@@ -70,7 +96,9 @@ describe('a v10 world outside its own round', () => {
       try {
         seed.activate(compiled)
         await submit(seed, 'seed-hold')
-      } finally { await seed.close() }
+      } finally {
+        await seed.close()
+      }
       const store = new WorldStore(worldPath)
       const head = store.head(address)
       const projection = new ProjectionRebuilder(store).rebuildAt(address, head.headSeq)
@@ -89,9 +117,15 @@ describe('a v10 world outside its own round', () => {
         const again = new WorldStore(worldPath)
         try {
           expect(new ProjectionRebuilder(again).rebuildAt(address, head.headSeq)).toEqual(projection)
-        } finally { again.close() }
-      } finally { snapshots.close() }
-    } finally { rmSync(root, { recursive: true, force: true }) }
+        } finally {
+          again.close()
+        }
+      } finally {
+        snapshots.close()
+      }
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
   }, 60_000)
 
   it('refuses to archive a v10 branch until its critical delivery is drained, then archives it', async () => {
@@ -104,26 +138,37 @@ describe('a v10 world outside its own round', () => {
         seed.activate(compiled)
         await submit(seed, 'seed-hold')
         const read = new WorldStore(worldPath)
-        try { before = read.readEvents(address).map(event => event.eventHash) } finally { read.close() }
+        try {
+          before = read.readEvents(address).map(event => event.eventHash)
+        } finally {
+          read.close()
+        }
         // The player's own observation is a critical delivery. The store's archive refuses while one is
         // pending - that guard is the same for a v10 world as for any other - and the Host's own archive is
         // the step that drains first and then closes the branch.
         const admin = new BranchAdministration(worldPath)
         try {
           admin.setAdmission(address, 'draining', 'archive window', 'frozen:archive-early')
-          expect(() => admin.archive(address, 'world complete', 'frozen:archive-blocked'))
-            .toThrow(/critical delivery/u)
-        } finally { admin.close() }
+          expect(() => admin.archive(address, 'world complete', 'frozen:archive-blocked')).toThrow(/critical delivery/u)
+        } finally {
+          admin.close()
+        }
         await seed.admin.archive(address, 'world complete', 'frozen:archive')
-      } finally { await seed.close() }
+      } finally {
+        await seed.close()
+      }
       const archived = new WorldStore(worldPath)
       try {
         expect(() => archived.assertAdmissionOpen(address, 'frozen:after-archive')).toThrow()
         expect(archived.readEvents(address).map(event => event.eventHash)).toEqual(before)
         const resolved = archived.readEvents(address).find(event => event.eventType === 'action.resolved')!
         expect(archived.readRoundAuthority(address, resolved.transactionId)!.authority.schemaVersion).toBe(6)
-      } finally { archived.close() }
-    } finally { rmSync(root, { recursive: true, force: true }) }
+      } finally {
+        archived.close()
+      }
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
   }, 60_000)
 
   it('backs up and restores a world that still holds hands afterwards', async () => {
@@ -136,7 +181,9 @@ describe('a v10 world outside its own round', () => {
       try {
         seed.activate(compiled)
         await submit(seed, 'seed-hold')
-      } finally { await seed.close() }
+      } finally {
+        await seed.close()
+      }
       const read = new WorldStore(worldPath)
       const events = read.readEvents(address)
       read.close()
@@ -145,20 +192,29 @@ describe('a v10 world outside its own round', () => {
       archives.restore(backupPath, restoredPath, artifact.fileHash, 'frozen:restore')
       const restored = new WorldStore(restoredPath)
       try {
-        expect(restored.readEvents(address).map(event => event.eventHash)).toEqual(
-          events.map(event => event.eventHash))
-      } finally { restored.close() }
+        expect(restored.readEvents(address).map(event => event.eventHash)).toEqual(events.map(event => event.eventHash))
+      } finally {
+        restored.close()
+      }
       const replayed = app(restoredPath, root)
       try {
         replayed.activate(compiled)
-        await replayed.submit(address, { idempotencyKey: 'restored-move', principalId: 'principal:player',
-          correlationId: 'frozen-deploy:restored-move', action: { actionType: 'move', parameters: { locationId: 'location:next' } } })
-      } finally { await replayed.close() }
+        await replayed.submit(address, {
+          idempotencyKey: 'restored-move',
+          principalId: 'principal:player',
+          correlationId: 'frozen-deploy:restored-move',
+          action: { actionType: 'move', parameters: { locationId: 'location:next' } },
+        })
+      } finally {
+        await replayed.close()
+      }
       const after = new WorldStore(restoredPath)
       const restoredEvents = after.readEvents(address)
       after.close()
       expect(restoredEvents.filter(event => event.eventType === 'character.relation-ended')).toHaveLength(1)
       expect(currentCharacterRelations(restoredEvents).filter(relation => relation.active)).toEqual([])
-    } finally { rmSync(root, { recursive: true, force: true }) }
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
   }, 60_000)
 })

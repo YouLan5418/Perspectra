@@ -50,7 +50,8 @@ async function commit(store: WorldStore, target: WorldAddress, suffix: string, e
 
 function source(id: string): WorldJsonObject {
   return {
-    sourceKind: 'worldpack-test/v2', sourceId: `source:${id}`,
+    sourceKind: 'worldpack-test/v2',
+    sourceId: `source:${id}`,
     sourceHash: hashWorldJson('cognition-test-source', { id }),
   }
 }
@@ -64,20 +65,87 @@ function event(eventType: string, id: string, characterId: string, value: WorldJ
 }
 
 const fixtures = {
-  claim: { proposition: { text: 'The road is flooded' }, stance: 'believed', confidencePermille: 700, saliencePermille: 500, awareness: 'conscious', status: 'active', ...common('claim') },
-  goal: { objective: { kind: 'narrative', value: 'Reach the station' }, priorityPermille: 600, awareness: 'partially_conscious', status: 'blocked', parentGoalKey: null, targetKeys: ['location:station'], blockerKeys: [], ...common('goal') },
-  relationship: { target: 'character:bob', type: 'distrust', facet: 'reliability', intensityPermille: 600, confidencePermille: 500, awareness: 'unrecognized', status: 'active', ...common('relationship') },
-  affect: { type: 'anxiety', intensityPermille: 550, cause: { text: 'delay' }, targetKey: null, awareness: 'conscious', expressionMode: 'restrained', duration: 'short_lived', status: 'active', ...common('affect') },
+  claim: {
+    proposition: { text: 'The road is flooded' },
+    stance: 'believed',
+    confidencePermille: 700,
+    saliencePermille: 500,
+    awareness: 'conscious',
+    status: 'active',
+    ...common('claim'),
+  },
+  goal: {
+    objective: { kind: 'narrative', value: 'Reach the station' },
+    priorityPermille: 600,
+    awareness: 'partially_conscious',
+    status: 'blocked',
+    parentGoalKey: null,
+    targetKeys: ['location:station'],
+    blockerKeys: [],
+    ...common('goal'),
+  },
+  relationship: {
+    target: 'character:bob',
+    type: 'distrust',
+    facet: 'reliability',
+    intensityPermille: 600,
+    confidencePermille: 500,
+    awareness: 'unrecognized',
+    status: 'active',
+    ...common('relationship'),
+  },
+  affect: {
+    type: 'anxiety',
+    intensityPermille: 550,
+    cause: { text: 'delay' },
+    targetKey: null,
+    awareness: 'conscious',
+    expressionMode: 'restrained',
+    duration: 'short_lived',
+    status: 'active',
+    ...common('affect'),
+  },
   tension: {
-    title: 'Ask or stay quiet', pressurePermille: 650, awareness: 'partially_conscious', status: 'resolved', resolutionKind: 'integrated',
+    title: 'Ask or stay quiet',
+    pressurePermille: 650,
+    awareness: 'partially_conscious',
+    status: 'resolved',
+    resolutionKind: 'integrated',
     poles: [
-      { key: 'pole:ask', tendency: 'express', impulseText: 'Ask now', strengthPermille: 600, awareness: 'conscious', basisRefs: [source('pole:ask')] },
-      { key: 'pole:quiet', tendency: 'conceal', impulseText: 'Wait', strengthPermille: 700, awareness: 'unrecognized', basisRefs: [] },
+      {
+        key: 'pole:ask',
+        tendency: 'express',
+        impulseText: 'Ask now',
+        strengthPermille: 600,
+        awareness: 'conscious',
+        basisRefs: [source('pole:ask')],
+      },
+      {
+        key: 'pole:quiet',
+        tendency: 'conceal',
+        impulseText: 'Wait',
+        strengthPermille: 700,
+        awareness: 'unrecognized',
+        basisRefs: [],
+      },
     ],
     ...common('tension'),
   },
-  commitment: { content: 'Travel together', origin: 'agreement', saliencePermille: 500, awareness: 'conscious', status: 'active', ...common('commitment') },
-  loop: { kind: 'question', summary: 'Why was Bob late?', saliencePermille: 500, status: 'answered', ...common('loop') },
+  commitment: {
+    content: 'Travel together',
+    origin: 'agreement',
+    saliencePermille: 500,
+    awareness: 'conscious',
+    status: 'active',
+    ...common('commitment'),
+  },
+  loop: {
+    kind: 'question',
+    summary: 'Why was Bob late?',
+    saliencePermille: 500,
+    status: 'answered',
+    ...common('loop'),
+  },
 } as const
 
 function seven(characterId: string): readonly WorldEventDraft[] {
@@ -95,12 +163,26 @@ function seven(characterId: string): readonly WorldEventDraft[] {
 function reflectionOperation(overrides: WorldJsonObject = {}): WorldJsonObject {
   const basisRef = { ...source('reflection-basis'), sourceSeq: 1 }
   return {
-    operationId: 'operation:claim', kind: 'subjective-claim', recordId: 'claim:road',
-    expectedStateHash: hashCognitionRecordState('subjective-claim', 'claim:road', brandId('character:alice', 'CharacterId'), fixtures.claim),
+    operationId: 'operation:claim',
+    kind: 'subjective-claim',
+    recordId: 'claim:road',
+    expectedStateHash: hashCognitionRecordState(
+      'subjective-claim',
+      'claim:road',
+      brandId('character:alice', 'CharacterId'),
+      fixtures.claim,
+    ),
     basisRefs: [basisRef],
     value: {
-      ...fixtures.claim, stance: 'doubted', basisRefs: [basisRef],
-      source: { sourceKind: 'context_receipt', sourceId: 'receipt:alice', sourceSeq: 1, sourceHash: hashWorldJson('receipt', { id: 'alice' }) },
+      ...fixtures.claim,
+      stance: 'doubted',
+      basisRefs: [basisRef],
+      source: {
+        sourceKind: 'context_receipt',
+        sourceId: 'receipt:alice',
+        sourceSeq: 1,
+        sourceHash: hashWorldJson('receipt', { id: 'alice' }),
+      },
     },
     ...overrides,
   }
@@ -108,10 +190,14 @@ function reflectionOperation(overrides: WorldJsonObject = {}): WorldJsonObject {
 
 function reflectionEvent(operations: readonly WorldJsonObject[], overrides: WorldJsonObject = {}): WorldEventDraft {
   return {
-    eventType: 'character.reflect', eventVersion: 1,
+    eventType: 'character.reflect',
+    eventVersion: 1,
     data: {
-      actorId: 'character:alice', contextReceiptId: 'receipt:alice',
-      policyReceiptHash: hashWorldJson('policy-receipt', { actor: 'alice' }), operations, ...overrides,
+      actorId: 'character:alice',
+      contextReceiptId: 'receipt:alice',
+      policyReceiptHash: hashWorldJson('policy-receipt', { actor: 'alice' }),
+      operations,
+      ...overrides,
     },
   }
 }
@@ -134,7 +220,10 @@ describe('CognitionProjectionRebuilder', () => {
     await commit(store, parent, 'base', [
       { eventType: 'unrelated.event', eventVersion: 1, data: null },
       ...seven('character:alice'),
-      event('subjective-claim.upsert', 'claim:bob', 'character:bob', { ...fixtures.claim, proposition: { text: 'Alice is worried' } }),
+      event('subjective-claim.upsert', 'claim:bob', 'character:bob', {
+        ...fixtures.claim,
+        proposition: { text: 'Alice is worried' },
+      }),
     ])
     const forkSeq = store.head(parent).headSeq
     store.forkBranch(parent, child, forkSeq)
@@ -148,7 +237,9 @@ describe('CognitionProjectionRebuilder', () => {
       throw new Error('Cognition projection must use typed Event range reads')
     })
     let heartbeats = 0
-    const childBundle = rebuilder.rebuildAt(child, forkSeq, () => { heartbeats += 1 })
+    const childBundle = rebuilder.rebuildAt(child, forkSeq, () => {
+      heartbeats += 1
+    })
     expect(heartbeats).toBeGreaterThan(1)
     expect(childBundle).toMatchObject({
       asOfWorldSeq: forkSeq,
@@ -166,8 +257,7 @@ describe('CognitionProjectionRebuilder', () => {
     const parentNow = rebuilder.rebuildAt(parent, store.head(parent).headSeq)
     expect((parentNow.claims.find(value => value.id === 'claim:road')!.value as WorldJsonObject).stance).toBe('doubted')
     expect(JSON.stringify(parentNow)).toContain('FUTURE_CANARY')
-    const history = rebuilder.historyAt(parent, store.head(parent).headSeq)
-      .filter(value => value.id === 'claim:road')
+    const history = rebuilder.historyAt(parent, store.head(parent).headSeq).filter(value => value.id === 'claim:road')
     expect(history).toHaveLength(2)
     expect(history[0]!.validToSeq).toBe(history[1]!.validFromSeq)
     expect(history[1]!.validToSeq).toBeNull()
@@ -188,8 +278,12 @@ describe('CognitionProjectionRebuilder', () => {
     const ownership = new WorldStore(database('ownership.sqlite'))
     const ownershipAddress = address('main', 'ownership')
     ownership.createBranch(ownershipAddress)
-    await commit(ownership, ownershipAddress, 'owner-a', [event('subjective-claim.upsert', 'claim:same', 'character:alice', fixtures.claim)])
-    await commit(ownership, ownershipAddress, 'owner-b', [event('subjective-claim.upsert', 'claim:same', 'character:bob', fixtures.claim)])
+    await commit(ownership, ownershipAddress, 'owner-a', [
+      event('subjective-claim.upsert', 'claim:same', 'character:alice', fixtures.claim),
+    ])
+    await commit(ownership, ownershipAddress, 'owner-b', [
+      event('subjective-claim.upsert', 'claim:same', 'character:bob', fixtures.claim),
+    ])
     expect(() => new CognitionProjectionRebuilder(ownership).rebuildAt(ownershipAddress, 2)).toThrow('ownership')
     ownership.close()
 
@@ -200,7 +294,9 @@ describe('CognitionProjectionRebuilder', () => {
       event('subjective-claim.upsert', 'claim:a', 'character:alice', fixtures.claim),
       event('subjective-claim.upsert', 'claim:b', 'character:alice', fixtures.claim),
     ])
-    expect(() => new CognitionProjectionRebuilder(duplicate).rebuildAt(duplicateAddress, 2)).toThrow('multiple active Claims')
+    expect(() => new CognitionProjectionRebuilder(duplicate).rebuildAt(duplicateAddress, 2)).toThrow(
+      'multiple active Claims',
+    )
     duplicate.close()
   })
 
@@ -214,11 +310,21 @@ describe('CognitionProjectionRebuilder', () => {
       reflectionEvent([
         reflectionOperation(),
         reflectionOperation({
-          operationId: 'operation:relationship', kind: 'relationship-attitude', recordId: 'relationship:new', expectedStateHash: null,
+          operationId: 'operation:relationship',
+          kind: 'relationship-attitude',
+          recordId: 'relationship:new',
+          expectedStateHash: null,
           basisRefs: [relationshipBasis],
           value: {
-            ...fixtures.relationship, intensityPermille: 200, basisRefs: [relationshipBasis],
-            source: { sourceKind: 'context_receipt', sourceId: 'receipt:alice', sourceSeq: 1, sourceHash: hashWorldJson('receipt', { id: 'alice' }) },
+            ...fixtures.relationship,
+            intensityPermille: 200,
+            basisRefs: [relationshipBasis],
+            source: {
+              sourceKind: 'context_receipt',
+              sourceId: 'receipt:alice',
+              sourceSeq: 1,
+              sourceHash: hashWorldJson('receipt', { id: 'alice' }),
+            },
           },
         }),
       ]),
@@ -228,7 +334,10 @@ describe('CognitionProjectionRebuilder', () => {
     expect((bundle.claims[0]!.value as WorldJsonObject).stance).toBe('doubted')
     expect(bundle.relationships).toMatchObject([{ id: 'relationship:new', characterId: 'character:alice' }])
     const claimHistory = rebuilder.historyAt(target, 2).filter(value => value.id === 'claim:road')
-    expect(claimHistory.map(value => [value.validFromSeq, value.validToSeq])).toEqual([[1, 2], [2, null]])
+    expect(claimHistory.map(value => [value.validFromSeq, value.validToSeq])).toEqual([
+      [1, 2],
+      [2, null],
+    ])
     store.close()
   })
 
@@ -237,33 +346,198 @@ describe('CognitionProjectionRebuilder', () => {
     const value = reflectionOperation().value as WorldJsonObject
     const otherClaim = event('subjective-claim.upsert', 'claim:road', 'character:bob', fixtures.claim)
     const invalid: readonly (readonly [string, readonly WorldEventDraft[], string])[] = [
-      ['reflect-data', [event('subjective-claim.upsert', 'claim:road', 'character:alice', fixtures.claim), { eventType: 'character.reflect', eventVersion: 1, data: null }], 'must be an object'],
-      ['reflect-actor', [event('subjective-claim.upsert', 'claim:road', 'character:alice', fixtures.claim), reflectionEvent([reflectionOperation()], { actorId: '' })], 'actorId'],
-      ['reflect-receipt', [event('subjective-claim.upsert', 'claim:road', 'character:alice', fixtures.claim), reflectionEvent([reflectionOperation()], { contextReceiptId: '' })], 'contextReceiptId'],
-      ['reflect-policy', [event('subjective-claim.upsert', 'claim:road', 'character:alice', fixtures.claim), reflectionEvent([reflectionOperation()], { policyReceiptHash: 'bad' })], 'policyReceiptHash'],
-      ['reflect-array', [event('subjective-claim.upsert', 'claim:road', 'character:alice', fixtures.claim), reflectionEvent([] , { operations: null })], 'operations'],
-      ['reflect-operation', [event('subjective-claim.upsert', 'claim:road', 'character:alice', fixtures.claim), reflectionEvent([null as never])], 'must be an object'],
-      ['reflect-operation-id', [event('subjective-claim.upsert', 'claim:road', 'character:alice', fixtures.claim), reflectionEvent([reflectionOperation({ operationId: '' })])], 'operationId'],
-      ['reflect-kind', [event('subjective-claim.upsert', 'claim:road', 'character:alice', fixtures.claim), reflectionEvent([reflectionOperation({ kind: 'world-fact' })])], 'unsupported'],
-      ['reflect-record', [event('subjective-claim.upsert', 'claim:road', 'character:alice', fixtures.claim), reflectionEvent([reflectionOperation({ recordId: '' })])], 'recordId'],
-      ['reflect-expected', [event('subjective-claim.upsert', 'claim:road', 'character:alice', fixtures.claim), reflectionEvent([reflectionOperation({ expectedStateHash: 'bad' })])], 'expectedStateHash'],
-      ['reflect-basis-array', [event('subjective-claim.upsert', 'claim:road', 'character:alice', fixtures.claim), reflectionEvent([reflectionOperation({ basisRefs: null })])], 'basisRefs'],
-      ['reflect-basis-source', [event('subjective-claim.upsert', 'claim:road', 'character:alice', fixtures.claim), reflectionEvent([reflectionOperation({ basisRefs: [null] })])], 'must be an object'],
-      ['reflect-basis-diverged', [event('subjective-claim.upsert', 'claim:road', 'character:alice', fixtures.claim), reflectionEvent([reflectionOperation({ basisRefs: [{ ...basisRef, sourceId: 'other' }] })])], 'diverge'],
-      ['reflect-source-object', [event('subjective-claim.upsert', 'claim:road', 'character:alice', fixtures.claim), reflectionEvent([reflectionOperation({ value: { ...value, source: null } })])], 'must be an object'],
-      ['reflect-source-kind', [event('subjective-claim.upsert', 'claim:road', 'character:alice', fixtures.claim), reflectionEvent([reflectionOperation({ value: { ...value, source: { ...(value.source as WorldJsonObject), sourceKind: 'world_event' } } })])], 'prior Context'],
-      ['reflect-source-id', [event('subjective-claim.upsert', 'claim:road', 'character:alice', fixtures.claim), reflectionEvent([reflectionOperation({ value: { ...value, source: { ...(value.source as WorldJsonObject), sourceId: 'receipt:other' } } })])], 'prior Context'],
-      ['reflect-source-seq', [event('subjective-claim.upsert', 'claim:road', 'character:alice', fixtures.claim), reflectionEvent([reflectionOperation({ value: { ...value, source: { ...(value.source as WorldJsonObject), sourceSeq: 2 } } })])], 'prior Context'],
-      ['reflect-stale', [event('subjective-claim.upsert', 'claim:road', 'character:alice', fixtures.claim), reflectionEvent([reflectionOperation({ expectedStateHash: null })])], 'event prefix'],
-      ['reflect-owner', [otherClaim, reflectionEvent([reflectionOperation({
-        expectedStateHash: hashCognitionRecordState('subjective-claim', 'claim:road', brandId('character:bob', 'CharacterId'), fixtures.claim),
-      })])], 'another character'],
-      ['reflect-duplicate-operation', [event('subjective-claim.upsert', 'claim:road', 'character:alice', fixtures.claim), reflectionEvent([
-        reflectionOperation(), reflectionOperation({ recordId: 'claim:other', expectedStateHash: null }),
-      ])], 'duplicate identities'],
-      ['reflect-duplicate-record', [event('subjective-claim.upsert', 'claim:road', 'character:alice', fixtures.claim), reflectionEvent([
-        reflectionOperation(), reflectionOperation({ operationId: 'operation:other' }),
-      ])], 'duplicate identities'],
+      [
+        'reflect-data',
+        [
+          event('subjective-claim.upsert', 'claim:road', 'character:alice', fixtures.claim),
+          { eventType: 'character.reflect', eventVersion: 1, data: null },
+        ],
+        'must be an object',
+      ],
+      [
+        'reflect-actor',
+        [
+          event('subjective-claim.upsert', 'claim:road', 'character:alice', fixtures.claim),
+          reflectionEvent([reflectionOperation()], { actorId: '' }),
+        ],
+        'actorId',
+      ],
+      [
+        'reflect-receipt',
+        [
+          event('subjective-claim.upsert', 'claim:road', 'character:alice', fixtures.claim),
+          reflectionEvent([reflectionOperation()], { contextReceiptId: '' }),
+        ],
+        'contextReceiptId',
+      ],
+      [
+        'reflect-policy',
+        [
+          event('subjective-claim.upsert', 'claim:road', 'character:alice', fixtures.claim),
+          reflectionEvent([reflectionOperation()], { policyReceiptHash: 'bad' }),
+        ],
+        'policyReceiptHash',
+      ],
+      [
+        'reflect-array',
+        [
+          event('subjective-claim.upsert', 'claim:road', 'character:alice', fixtures.claim),
+          reflectionEvent([], { operations: null }),
+        ],
+        'operations',
+      ],
+      [
+        'reflect-operation',
+        [
+          event('subjective-claim.upsert', 'claim:road', 'character:alice', fixtures.claim),
+          reflectionEvent([null as never]),
+        ],
+        'must be an object',
+      ],
+      [
+        'reflect-operation-id',
+        [
+          event('subjective-claim.upsert', 'claim:road', 'character:alice', fixtures.claim),
+          reflectionEvent([reflectionOperation({ operationId: '' })]),
+        ],
+        'operationId',
+      ],
+      [
+        'reflect-kind',
+        [
+          event('subjective-claim.upsert', 'claim:road', 'character:alice', fixtures.claim),
+          reflectionEvent([reflectionOperation({ kind: 'world-fact' })]),
+        ],
+        'unsupported',
+      ],
+      [
+        'reflect-record',
+        [
+          event('subjective-claim.upsert', 'claim:road', 'character:alice', fixtures.claim),
+          reflectionEvent([reflectionOperation({ recordId: '' })]),
+        ],
+        'recordId',
+      ],
+      [
+        'reflect-expected',
+        [
+          event('subjective-claim.upsert', 'claim:road', 'character:alice', fixtures.claim),
+          reflectionEvent([reflectionOperation({ expectedStateHash: 'bad' })]),
+        ],
+        'expectedStateHash',
+      ],
+      [
+        'reflect-basis-array',
+        [
+          event('subjective-claim.upsert', 'claim:road', 'character:alice', fixtures.claim),
+          reflectionEvent([reflectionOperation({ basisRefs: null })]),
+        ],
+        'basisRefs',
+      ],
+      [
+        'reflect-basis-source',
+        [
+          event('subjective-claim.upsert', 'claim:road', 'character:alice', fixtures.claim),
+          reflectionEvent([reflectionOperation({ basisRefs: [null] })]),
+        ],
+        'must be an object',
+      ],
+      [
+        'reflect-basis-diverged',
+        [
+          event('subjective-claim.upsert', 'claim:road', 'character:alice', fixtures.claim),
+          reflectionEvent([reflectionOperation({ basisRefs: [{ ...basisRef, sourceId: 'other' }] })]),
+        ],
+        'diverge',
+      ],
+      [
+        'reflect-source-object',
+        [
+          event('subjective-claim.upsert', 'claim:road', 'character:alice', fixtures.claim),
+          reflectionEvent([reflectionOperation({ value: { ...value, source: null } })]),
+        ],
+        'must be an object',
+      ],
+      [
+        'reflect-source-kind',
+        [
+          event('subjective-claim.upsert', 'claim:road', 'character:alice', fixtures.claim),
+          reflectionEvent([
+            reflectionOperation({
+              value: { ...value, source: { ...(value.source as WorldJsonObject), sourceKind: 'world_event' } },
+            }),
+          ]),
+        ],
+        'prior Context',
+      ],
+      [
+        'reflect-source-id',
+        [
+          event('subjective-claim.upsert', 'claim:road', 'character:alice', fixtures.claim),
+          reflectionEvent([
+            reflectionOperation({
+              value: { ...value, source: { ...(value.source as WorldJsonObject), sourceId: 'receipt:other' } },
+            }),
+          ]),
+        ],
+        'prior Context',
+      ],
+      [
+        'reflect-source-seq',
+        [
+          event('subjective-claim.upsert', 'claim:road', 'character:alice', fixtures.claim),
+          reflectionEvent([
+            reflectionOperation({
+              value: { ...value, source: { ...(value.source as WorldJsonObject), sourceSeq: 2 } },
+            }),
+          ]),
+        ],
+        'prior Context',
+      ],
+      [
+        'reflect-stale',
+        [
+          event('subjective-claim.upsert', 'claim:road', 'character:alice', fixtures.claim),
+          reflectionEvent([reflectionOperation({ expectedStateHash: null })]),
+        ],
+        'event prefix',
+      ],
+      [
+        'reflect-owner',
+        [
+          otherClaim,
+          reflectionEvent([
+            reflectionOperation({
+              expectedStateHash: hashCognitionRecordState(
+                'subjective-claim',
+                'claim:road',
+                brandId('character:bob', 'CharacterId'),
+                fixtures.claim,
+              ),
+            }),
+          ]),
+        ],
+        'another character',
+      ],
+      [
+        'reflect-duplicate-operation',
+        [
+          event('subjective-claim.upsert', 'claim:road', 'character:alice', fixtures.claim),
+          reflectionEvent([
+            reflectionOperation(),
+            reflectionOperation({ recordId: 'claim:other', expectedStateHash: null }),
+          ]),
+        ],
+        'duplicate identities',
+      ],
+      [
+        'reflect-duplicate-record',
+        [
+          event('subjective-claim.upsert', 'claim:road', 'character:alice', fixtures.claim),
+          reflectionEvent([reflectionOperation(), reflectionOperation({ operationId: 'operation:other' })]),
+        ],
+        'duplicate identities',
+      ],
     ]
     for (const [suffix, events, message] of invalid) {
       const store = new WorldStore(database(`${suffix}.sqlite`))
@@ -286,68 +560,509 @@ describe('CognitionProjectionRebuilder', () => {
       ['data', { eventType: 'subjective-claim.upsert', eventVersion: 1, data: null }, 'must be an object'],
       ['id', event('subjective-claim.upsert', '', 'character:alice', fixtures.claim), '.id'],
       ['character', event('subjective-claim.upsert', 'claim:a', ' padded ', fixtures.claim), 'characterId'],
-      ['value', { eventType: 'subjective-claim.upsert', eventVersion: 1, data: { id: 'claim:a', characterId: 'character:alice', value: null } }, '.value'],
-      ['basis-array', event('subjective-claim.upsert', 'claim:a', 'character:alice', changed(fixtures.claim, { basisRefs: null })), 'basisRefs'],
-      ['basis-source', event('subjective-claim.upsert', 'claim:a', 'character:alice', changed(fixtures.claim, { basisRefs: [null] })), 'must be an object'],
-      ['source', event('subjective-claim.upsert', 'claim:a', 'character:alice', changed(fixtures.claim, { source: null })), 'must be an object'],
-      ['source-kind', event('subjective-claim.upsert', 'claim:a', 'character:alice', changed(fixtures.claim, { source: { ...source('a'), sourceKind: '' } })), 'sourceKind'],
-      ['source-id', event('subjective-claim.upsert', 'claim:a', 'character:alice', changed(fixtures.claim, { source: { ...source('a'), sourceId: '' } })), 'sourceId'],
-      ['source-hash', event('subjective-claim.upsert', 'claim:a', 'character:alice', changed(fixtures.claim, { source: { ...source('a'), sourceHash: 'sha256:ABC' } })), 'lowercase'],
-      ['claim-proposition', event('subjective-claim.upsert', 'claim:a', 'character:alice', without(fixtures.claim, 'proposition')), 'proposition'],
-      ['claim-stance', event('subjective-claim.upsert', 'claim:a', 'character:alice', changed(fixtures.claim, { stance: 'certain' })), 'vocabulary'],
-      ['claim-confidence', event('subjective-claim.upsert', 'claim:a', 'character:alice', changed(fixtures.claim, { confidencePermille: -1 })), 'safe integer'],
-      ['claim-salience', event('subjective-claim.upsert', 'claim:a', 'character:alice', changed(fixtures.claim, { saliencePermille: 1001 })), 'safe integer'],
-      ['claim-awareness', event('subjective-claim.upsert', 'claim:a', 'character:alice', changed(fixtures.claim, { awareness: 'unrecognized' })), 'vocabulary'],
-      ['claim-status', event('subjective-claim.upsert', 'claim:a', 'character:alice', changed(fixtures.claim, { status: 'resolved' })), 'active'],
-      ['goal-objective', event('character-goal.upsert', 'goal:a', 'character:alice', changed(fixtures.goal, { objective: null })), 'objective'],
-      ['goal-objective-kind', event('character-goal.upsert', 'goal:a', 'character:alice', changed(fixtures.goal, { objective: { kind: 'quest', value: 'Reach the station' } })), 'objective.kind'],
-      ['goal-priority', event('character-goal.upsert', 'goal:a', 'character:alice', changed(fixtures.goal, { priorityPermille: 'high' })), 'safe integer'],
-      ['goal-awareness', event('character-goal.upsert', 'goal:a', 'character:alice', changed(fixtures.goal, { awareness: 'hidden' })), 'vocabulary'],
-      ['goal-status', event('character-goal.upsert', 'goal:a', 'character:alice', changed(fixtures.goal, { status: 'paused' })), 'vocabulary'],
-      ['goal-parent', event('character-goal.upsert', 'goal:a', 'character:alice', changed(fixtures.goal, { parentGoalKey: 1 })), 'parentGoalKey'],
-      ['goal-target-array', event('character-goal.upsert', 'goal:a', 'character:alice', changed(fixtures.goal, { targetKeys: null })), 'targetKeys'],
-      ['goal-target-entry', event('character-goal.upsert', 'goal:a', 'character:alice', changed(fixtures.goal, { targetKeys: [''] })), 'targetKeys[0]'],
-      ['goal-target-duplicate', event('character-goal.upsert', 'goal:a', 'character:alice', changed(fixtures.goal, { targetKeys: ['a', 'a'] })), 'duplicate'],
-      ['goal-blocker-array', event('character-goal.upsert', 'goal:a', 'character:alice', changed(fixtures.goal, { blockerKeys: null })), 'blockerKeys'],
-      ['relationship-target', event('relationship-attitude.upsert', 'relationship:a', 'character:alice', changed(fixtures.relationship, { target: '' })), '.target'],
-      ['relationship-type', event('relationship-attitude.upsert', 'relationship:a', 'character:alice', changed(fixtures.relationship, { type: 'friendship' })), 'vocabulary'],
-      ['relationship-facet', event('relationship-attitude.upsert', 'relationship:a', 'character:alice', changed(fixtures.relationship, { facet: '' })), '.facet'],
-      ['relationship-intensity', event('relationship-attitude.upsert', 'relationship:a', 'character:alice', changed(fixtures.relationship, { intensityPermille: 0 })), 'from 1'],
-      ['relationship-confidence', event('relationship-attitude.upsert', 'relationship:a', 'character:alice', changed(fixtures.relationship, { confidencePermille: 1001 })), 'safe integer'],
-      ['relationship-awareness', event('relationship-attitude.upsert', 'relationship:a', 'character:alice', changed(fixtures.relationship, { awareness: 'hidden' })), 'vocabulary'],
-      ['relationship-status', event('relationship-attitude.upsert', 'relationship:a', 'character:alice', changed(fixtures.relationship, { status: 'paused' })), 'vocabulary'],
-      ['affect-type', event('affect-episode.upsert', 'affect:a', 'character:alice', changed(fixtures.affect, { type: 'confused' })), 'vocabulary'],
-      ['affect-intensity', event('affect-episode.upsert', 'affect:a', 'character:alice', changed(fixtures.affect, { intensityPermille: 0 })), 'from 1'],
-      ['affect-cause', event('affect-episode.upsert', 'affect:a', 'character:alice', without(fixtures.affect, 'cause')), 'cause'],
-      ['affect-target', event('affect-episode.upsert', 'affect:a', 'character:alice', changed(fixtures.affect, { targetKey: 1 })), 'targetKey'],
-      ['affect-awareness', event('affect-episode.upsert', 'affect:a', 'character:alice', changed(fixtures.affect, { awareness: 'hidden' })), 'vocabulary'],
-      ['affect-expression', event('affect-episode.upsert', 'affect:a', 'character:alice', changed(fixtures.affect, { expressionMode: 'loud' })), 'vocabulary'],
-      ['affect-duration', event('affect-episode.upsert', 'affect:a', 'character:alice', changed(fixtures.affect, { duration: 'forever' })), 'vocabulary'],
-      ['affect-status', event('affect-episode.upsert', 'affect:a', 'character:alice', changed(fixtures.affect, { status: 'paused' })), 'vocabulary'],
-      ['tension-title', event('inner-tension.upsert', 'tension:a', 'character:alice', changed(fixtures.tension, { title: '' })), '.title'],
-      ['tension-pressure', event('inner-tension.upsert', 'tension:a', 'character:alice', changed(fixtures.tension, { pressurePermille: 0 })), 'from 1'],
-      ['tension-awareness', event('inner-tension.upsert', 'tension:a', 'character:alice', changed(fixtures.tension, { awareness: 'hidden' })), 'vocabulary'],
-      ['tension-status', event('inner-tension.upsert', 'tension:a', 'character:alice', changed(fixtures.tension, { status: 'paused' })), 'vocabulary'],
-      ['tension-resolution', event('inner-tension.upsert', 'tension:a', 'character:alice', changed(fixtures.tension, { resolutionKind: 'won' })), 'vocabulary'],
-      ['tension-poles', event('inner-tension.upsert', 'tension:a', 'character:alice', changed(fixtures.tension, { poles: [] })), 'two through four'],
-      ['tension-pole-object', event('inner-tension.upsert', 'tension:a', 'character:alice', changed(fixtures.tension, { poles: [null, fixtures.tension.poles[1]] })), 'must be an object'],
-      ['tension-pole-key', event('inner-tension.upsert', 'tension:a', 'character:alice', changed(fixtures.tension, { poles: [{ ...fixtures.tension.poles[0], key: '' }, fixtures.tension.poles[1]] })), '.key'],
-      ['tension-pole-tendency', event('inner-tension.upsert', 'tension:a', 'character:alice', changed(fixtures.tension, { poles: [{ ...fixtures.tension.poles[0], tendency: 'freeze' }, fixtures.tension.poles[1]] })), 'vocabulary'],
-      ['tension-pole-impulse', event('inner-tension.upsert', 'tension:a', 'character:alice', changed(fixtures.tension, { poles: [{ ...fixtures.tension.poles[0], impulseText: '' }, fixtures.tension.poles[1]] })), 'impulseText'],
-      ['tension-pole-strength', event('inner-tension.upsert', 'tension:a', 'character:alice', changed(fixtures.tension, { poles: [{ ...fixtures.tension.poles[0], strengthPermille: 0 }, fixtures.tension.poles[1]] })), 'from 1'],
-      ['tension-pole-awareness', event('inner-tension.upsert', 'tension:a', 'character:alice', changed(fixtures.tension, { poles: [{ ...fixtures.tension.poles[0], awareness: 'hidden' }, fixtures.tension.poles[1]] })), 'vocabulary'],
-      ['tension-pole-basis', event('inner-tension.upsert', 'tension:a', 'character:alice', changed(fixtures.tension, { poles: [{ ...fixtures.tension.poles[0], basisRefs: null }, fixtures.tension.poles[1]] })), 'basisRefs'],
-      ['tension-pole-basis-source', event('inner-tension.upsert', 'tension:a', 'character:alice', changed(fixtures.tension, { poles: [{ ...fixtures.tension.poles[0], basisRefs: [null] }, fixtures.tension.poles[1]] })), 'must be an object'],
-      ['tension-pole-duplicate', event('inner-tension.upsert', 'tension:a', 'character:alice', changed(fixtures.tension, { poles: [fixtures.tension.poles[0], { ...fixtures.tension.poles[1], key: fixtures.tension.poles[0].key }] })), 'duplicate keys'],
-      ['commitment-content', event('commitment.upsert', 'commitment:a', 'character:alice', without(fixtures.commitment, 'content')), 'content'],
-      ['commitment-origin', event('commitment.upsert', 'commitment:a', 'character:alice', changed(fixtures.commitment, { origin: 'habit' })), 'vocabulary'],
-      ['commitment-salience', event('commitment.upsert', 'commitment:a', 'character:alice', changed(fixtures.commitment, { saliencePermille: -1 })), 'safe integer'],
-      ['commitment-awareness', event('commitment.upsert', 'commitment:a', 'character:alice', changed(fixtures.commitment, { awareness: 'unrecognized' })), 'vocabulary'],
-      ['commitment-status', event('commitment.upsert', 'commitment:a', 'character:alice', changed(fixtures.commitment, { status: 'paused' })), 'vocabulary'],
-      ['loop-kind', event('open-loop.upsert', 'loop:a', 'character:alice', changed(fixtures.loop, { kind: 'mystery' })), 'vocabulary'],
-      ['loop-summary', event('open-loop.upsert', 'loop:a', 'character:alice', changed(fixtures.loop, { summary: '' })), '.summary'],
-      ['loop-salience', event('open-loop.upsert', 'loop:a', 'character:alice', changed(fixtures.loop, { saliencePermille: 1001 })), 'safe integer'],
-      ['loop-status', event('open-loop.upsert', 'loop:a', 'character:alice', changed(fixtures.loop, { status: 'paused' })), 'vocabulary'],
+      [
+        'value',
+        {
+          eventType: 'subjective-claim.upsert',
+          eventVersion: 1,
+          data: { id: 'claim:a', characterId: 'character:alice', value: null },
+        },
+        '.value',
+      ],
+      [
+        'basis-array',
+        event('subjective-claim.upsert', 'claim:a', 'character:alice', changed(fixtures.claim, { basisRefs: null })),
+        'basisRefs',
+      ],
+      [
+        'basis-source',
+        event('subjective-claim.upsert', 'claim:a', 'character:alice', changed(fixtures.claim, { basisRefs: [null] })),
+        'must be an object',
+      ],
+      [
+        'source',
+        event('subjective-claim.upsert', 'claim:a', 'character:alice', changed(fixtures.claim, { source: null })),
+        'must be an object',
+      ],
+      [
+        'source-kind',
+        event(
+          'subjective-claim.upsert',
+          'claim:a',
+          'character:alice',
+          changed(fixtures.claim, { source: { ...source('a'), sourceKind: '' } }),
+        ),
+        'sourceKind',
+      ],
+      [
+        'source-id',
+        event(
+          'subjective-claim.upsert',
+          'claim:a',
+          'character:alice',
+          changed(fixtures.claim, { source: { ...source('a'), sourceId: '' } }),
+        ),
+        'sourceId',
+      ],
+      [
+        'source-hash',
+        event(
+          'subjective-claim.upsert',
+          'claim:a',
+          'character:alice',
+          changed(fixtures.claim, { source: { ...source('a'), sourceHash: 'sha256:ABC' } }),
+        ),
+        'lowercase',
+      ],
+      [
+        'claim-proposition',
+        event('subjective-claim.upsert', 'claim:a', 'character:alice', without(fixtures.claim, 'proposition')),
+        'proposition',
+      ],
+      [
+        'claim-stance',
+        event('subjective-claim.upsert', 'claim:a', 'character:alice', changed(fixtures.claim, { stance: 'certain' })),
+        'vocabulary',
+      ],
+      [
+        'claim-confidence',
+        event(
+          'subjective-claim.upsert',
+          'claim:a',
+          'character:alice',
+          changed(fixtures.claim, { confidencePermille: -1 }),
+        ),
+        'safe integer',
+      ],
+      [
+        'claim-salience',
+        event(
+          'subjective-claim.upsert',
+          'claim:a',
+          'character:alice',
+          changed(fixtures.claim, { saliencePermille: 1001 }),
+        ),
+        'safe integer',
+      ],
+      [
+        'claim-awareness',
+        event(
+          'subjective-claim.upsert',
+          'claim:a',
+          'character:alice',
+          changed(fixtures.claim, { awareness: 'unrecognized' }),
+        ),
+        'vocabulary',
+      ],
+      [
+        'claim-status',
+        event('subjective-claim.upsert', 'claim:a', 'character:alice', changed(fixtures.claim, { status: 'resolved' })),
+        'active',
+      ],
+      [
+        'goal-objective',
+        event('character-goal.upsert', 'goal:a', 'character:alice', changed(fixtures.goal, { objective: null })),
+        'objective',
+      ],
+      [
+        'goal-objective-kind',
+        event(
+          'character-goal.upsert',
+          'goal:a',
+          'character:alice',
+          changed(fixtures.goal, { objective: { kind: 'quest', value: 'Reach the station' } }),
+        ),
+        'objective.kind',
+      ],
+      [
+        'goal-priority',
+        event(
+          'character-goal.upsert',
+          'goal:a',
+          'character:alice',
+          changed(fixtures.goal, { priorityPermille: 'high' }),
+        ),
+        'safe integer',
+      ],
+      [
+        'goal-awareness',
+        event('character-goal.upsert', 'goal:a', 'character:alice', changed(fixtures.goal, { awareness: 'hidden' })),
+        'vocabulary',
+      ],
+      [
+        'goal-status',
+        event('character-goal.upsert', 'goal:a', 'character:alice', changed(fixtures.goal, { status: 'paused' })),
+        'vocabulary',
+      ],
+      [
+        'goal-parent',
+        event('character-goal.upsert', 'goal:a', 'character:alice', changed(fixtures.goal, { parentGoalKey: 1 })),
+        'parentGoalKey',
+      ],
+      [
+        'goal-target-array',
+        event('character-goal.upsert', 'goal:a', 'character:alice', changed(fixtures.goal, { targetKeys: null })),
+        'targetKeys',
+      ],
+      [
+        'goal-target-entry',
+        event('character-goal.upsert', 'goal:a', 'character:alice', changed(fixtures.goal, { targetKeys: [''] })),
+        'targetKeys[0]',
+      ],
+      [
+        'goal-target-duplicate',
+        event('character-goal.upsert', 'goal:a', 'character:alice', changed(fixtures.goal, { targetKeys: ['a', 'a'] })),
+        'duplicate',
+      ],
+      [
+        'goal-blocker-array',
+        event('character-goal.upsert', 'goal:a', 'character:alice', changed(fixtures.goal, { blockerKeys: null })),
+        'blockerKeys',
+      ],
+      [
+        'relationship-target',
+        event(
+          'relationship-attitude.upsert',
+          'relationship:a',
+          'character:alice',
+          changed(fixtures.relationship, { target: '' }),
+        ),
+        '.target',
+      ],
+      [
+        'relationship-type',
+        event(
+          'relationship-attitude.upsert',
+          'relationship:a',
+          'character:alice',
+          changed(fixtures.relationship, { type: 'friendship' }),
+        ),
+        'vocabulary',
+      ],
+      [
+        'relationship-facet',
+        event(
+          'relationship-attitude.upsert',
+          'relationship:a',
+          'character:alice',
+          changed(fixtures.relationship, { facet: '' }),
+        ),
+        '.facet',
+      ],
+      [
+        'relationship-intensity',
+        event(
+          'relationship-attitude.upsert',
+          'relationship:a',
+          'character:alice',
+          changed(fixtures.relationship, { intensityPermille: 0 }),
+        ),
+        'from 1',
+      ],
+      [
+        'relationship-confidence',
+        event(
+          'relationship-attitude.upsert',
+          'relationship:a',
+          'character:alice',
+          changed(fixtures.relationship, { confidencePermille: 1001 }),
+        ),
+        'safe integer',
+      ],
+      [
+        'relationship-awareness',
+        event(
+          'relationship-attitude.upsert',
+          'relationship:a',
+          'character:alice',
+          changed(fixtures.relationship, { awareness: 'hidden' }),
+        ),
+        'vocabulary',
+      ],
+      [
+        'relationship-status',
+        event(
+          'relationship-attitude.upsert',
+          'relationship:a',
+          'character:alice',
+          changed(fixtures.relationship, { status: 'paused' }),
+        ),
+        'vocabulary',
+      ],
+      [
+        'affect-type',
+        event('affect-episode.upsert', 'affect:a', 'character:alice', changed(fixtures.affect, { type: 'confused' })),
+        'vocabulary',
+      ],
+      [
+        'affect-intensity',
+        event(
+          'affect-episode.upsert',
+          'affect:a',
+          'character:alice',
+          changed(fixtures.affect, { intensityPermille: 0 }),
+        ),
+        'from 1',
+      ],
+      [
+        'affect-cause',
+        event('affect-episode.upsert', 'affect:a', 'character:alice', without(fixtures.affect, 'cause')),
+        'cause',
+      ],
+      [
+        'affect-target',
+        event('affect-episode.upsert', 'affect:a', 'character:alice', changed(fixtures.affect, { targetKey: 1 })),
+        'targetKey',
+      ],
+      [
+        'affect-awareness',
+        event(
+          'affect-episode.upsert',
+          'affect:a',
+          'character:alice',
+          changed(fixtures.affect, { awareness: 'hidden' }),
+        ),
+        'vocabulary',
+      ],
+      [
+        'affect-expression',
+        event(
+          'affect-episode.upsert',
+          'affect:a',
+          'character:alice',
+          changed(fixtures.affect, { expressionMode: 'loud' }),
+        ),
+        'vocabulary',
+      ],
+      [
+        'affect-duration',
+        event(
+          'affect-episode.upsert',
+          'affect:a',
+          'character:alice',
+          changed(fixtures.affect, { duration: 'forever' }),
+        ),
+        'vocabulary',
+      ],
+      [
+        'affect-status',
+        event('affect-episode.upsert', 'affect:a', 'character:alice', changed(fixtures.affect, { status: 'paused' })),
+        'vocabulary',
+      ],
+      [
+        'tension-title',
+        event('inner-tension.upsert', 'tension:a', 'character:alice', changed(fixtures.tension, { title: '' })),
+        '.title',
+      ],
+      [
+        'tension-pressure',
+        event(
+          'inner-tension.upsert',
+          'tension:a',
+          'character:alice',
+          changed(fixtures.tension, { pressurePermille: 0 }),
+        ),
+        'from 1',
+      ],
+      [
+        'tension-awareness',
+        event(
+          'inner-tension.upsert',
+          'tension:a',
+          'character:alice',
+          changed(fixtures.tension, { awareness: 'hidden' }),
+        ),
+        'vocabulary',
+      ],
+      [
+        'tension-status',
+        event('inner-tension.upsert', 'tension:a', 'character:alice', changed(fixtures.tension, { status: 'paused' })),
+        'vocabulary',
+      ],
+      [
+        'tension-resolution',
+        event(
+          'inner-tension.upsert',
+          'tension:a',
+          'character:alice',
+          changed(fixtures.tension, { resolutionKind: 'won' }),
+        ),
+        'vocabulary',
+      ],
+      [
+        'tension-poles',
+        event('inner-tension.upsert', 'tension:a', 'character:alice', changed(fixtures.tension, { poles: [] })),
+        'two through four',
+      ],
+      [
+        'tension-pole-object',
+        event(
+          'inner-tension.upsert',
+          'tension:a',
+          'character:alice',
+          changed(fixtures.tension, { poles: [null, fixtures.tension.poles[1]] }),
+        ),
+        'must be an object',
+      ],
+      [
+        'tension-pole-key',
+        event(
+          'inner-tension.upsert',
+          'tension:a',
+          'character:alice',
+          changed(fixtures.tension, { poles: [{ ...fixtures.tension.poles[0], key: '' }, fixtures.tension.poles[1]] }),
+        ),
+        '.key',
+      ],
+      [
+        'tension-pole-tendency',
+        event(
+          'inner-tension.upsert',
+          'tension:a',
+          'character:alice',
+          changed(fixtures.tension, {
+            poles: [{ ...fixtures.tension.poles[0], tendency: 'freeze' }, fixtures.tension.poles[1]],
+          }),
+        ),
+        'vocabulary',
+      ],
+      [
+        'tension-pole-impulse',
+        event(
+          'inner-tension.upsert',
+          'tension:a',
+          'character:alice',
+          changed(fixtures.tension, {
+            poles: [{ ...fixtures.tension.poles[0], impulseText: '' }, fixtures.tension.poles[1]],
+          }),
+        ),
+        'impulseText',
+      ],
+      [
+        'tension-pole-strength',
+        event(
+          'inner-tension.upsert',
+          'tension:a',
+          'character:alice',
+          changed(fixtures.tension, {
+            poles: [{ ...fixtures.tension.poles[0], strengthPermille: 0 }, fixtures.tension.poles[1]],
+          }),
+        ),
+        'from 1',
+      ],
+      [
+        'tension-pole-awareness',
+        event(
+          'inner-tension.upsert',
+          'tension:a',
+          'character:alice',
+          changed(fixtures.tension, {
+            poles: [{ ...fixtures.tension.poles[0], awareness: 'hidden' }, fixtures.tension.poles[1]],
+          }),
+        ),
+        'vocabulary',
+      ],
+      [
+        'tension-pole-basis',
+        event(
+          'inner-tension.upsert',
+          'tension:a',
+          'character:alice',
+          changed(fixtures.tension, {
+            poles: [{ ...fixtures.tension.poles[0], basisRefs: null }, fixtures.tension.poles[1]],
+          }),
+        ),
+        'basisRefs',
+      ],
+      [
+        'tension-pole-basis-source',
+        event(
+          'inner-tension.upsert',
+          'tension:a',
+          'character:alice',
+          changed(fixtures.tension, {
+            poles: [{ ...fixtures.tension.poles[0], basisRefs: [null] }, fixtures.tension.poles[1]],
+          }),
+        ),
+        'must be an object',
+      ],
+      [
+        'tension-pole-duplicate',
+        event(
+          'inner-tension.upsert',
+          'tension:a',
+          'character:alice',
+          changed(fixtures.tension, {
+            poles: [fixtures.tension.poles[0], { ...fixtures.tension.poles[1], key: fixtures.tension.poles[0].key }],
+          }),
+        ),
+        'duplicate keys',
+      ],
+      [
+        'commitment-content',
+        event('commitment.upsert', 'commitment:a', 'character:alice', without(fixtures.commitment, 'content')),
+        'content',
+      ],
+      [
+        'commitment-origin',
+        event(
+          'commitment.upsert',
+          'commitment:a',
+          'character:alice',
+          changed(fixtures.commitment, { origin: 'habit' }),
+        ),
+        'vocabulary',
+      ],
+      [
+        'commitment-salience',
+        event(
+          'commitment.upsert',
+          'commitment:a',
+          'character:alice',
+          changed(fixtures.commitment, { saliencePermille: -1 }),
+        ),
+        'safe integer',
+      ],
+      [
+        'commitment-awareness',
+        event(
+          'commitment.upsert',
+          'commitment:a',
+          'character:alice',
+          changed(fixtures.commitment, { awareness: 'unrecognized' }),
+        ),
+        'vocabulary',
+      ],
+      [
+        'commitment-status',
+        event(
+          'commitment.upsert',
+          'commitment:a',
+          'character:alice',
+          changed(fixtures.commitment, { status: 'paused' }),
+        ),
+        'vocabulary',
+      ],
+      [
+        'loop-kind',
+        event('open-loop.upsert', 'loop:a', 'character:alice', changed(fixtures.loop, { kind: 'mystery' })),
+        'vocabulary',
+      ],
+      [
+        'loop-summary',
+        event('open-loop.upsert', 'loop:a', 'character:alice', changed(fixtures.loop, { summary: '' })),
+        '.summary',
+      ],
+      [
+        'loop-salience',
+        event('open-loop.upsert', 'loop:a', 'character:alice', changed(fixtures.loop, { saliencePermille: 1001 })),
+        'safe integer',
+      ],
+      [
+        'loop-status',
+        event('open-loop.upsert', 'loop:a', 'character:alice', changed(fixtures.loop, { status: 'paused' })),
+        'vocabulary',
+      ],
     ]
     for (const [suffix, draft, message] of invalid) await rejected(suffix, draft, message)
   })

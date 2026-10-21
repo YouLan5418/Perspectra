@@ -54,7 +54,8 @@ export class WorldAdministration {
   }
 
   async createSnapshot(address: WorldAddress, snapshotPath: string, correlationId: string) {
-    return this.#access.integrityGuard(address, 'snapshot.create', branch => this.#access.projectionRead(address, correlationId, () => {
+    return this.#access.integrityGuard(address, 'snapshot.create', branch =>
+      this.#access.projectionRead(address, correlationId, () => {
         const head = branch.store.store.head(address)
         const projection = new ProjectionRebuilder(branch.store.store).rebuildAt(address, head.headSeq)
         const snapshots = new SnapshotStore(snapshotPath)
@@ -63,7 +64,8 @@ export class WorldAdministration {
         } finally {
           snapshots.close()
         }
-      }))
+      }),
+    )
   }
 
   backup(targetPath: string, correlationId: string) {
@@ -98,15 +100,23 @@ export class WorldAdministration {
     correlationId: string,
   ): Promise<ForkAtHeadResult> {
     const branch = await this.#access.branch(parent)
-    return new BranchOperationCoordinator(branch.store.store, branch.store.administration, branch.kernel, branch.store)
-      .forkAtHead({ parent, child, reason, correlationId })
+    return new BranchOperationCoordinator(
+      branch.store.store,
+      branch.store.administration,
+      branch.kernel,
+      branch.store,
+    ).forkAtHead({ parent, child, reason, correlationId })
   }
 
   async archive(address: WorldAddress, reason: string, correlationId: string): Promise<ArchiveBranchResult> {
     const branch = await this.#access.branch(address)
     try {
-      return await new BranchOperationCoordinator(branch.store.store, branch.store.administration, branch.kernel, branch.store)
-        .archive({ address, reason, correlationId })
+      return await new BranchOperationCoordinator(
+        branch.store.store,
+        branch.store.administration,
+        branch.kernel,
+        branch.store,
+      ).archive({ address, reason, correlationId })
     } finally {
       await this.#access.release(address)
     }
@@ -148,9 +158,12 @@ export class WorldAdministration {
       return quarantine.recover(address, correlationId, () => {
         if (!existsSync(this.#access.options.sessionPath)) {
           failWorld({
-            errorCode: 'RECOVERY_VALIDATION_FAILED', category: 'integrity',
-            message: 'Session database is missing during quarantine recovery', retryable: false,
-            correlationId, address,
+            errorCode: 'RECOVERY_VALIDATION_FAILED',
+            category: 'integrity',
+            message: 'Session database is missing during quarantine recovery',
+            retryable: false,
+            correlationId,
+            address,
           })
         }
         const store = new WorldStore(this.#access.options.worldPath)
@@ -165,21 +178,30 @@ export class WorldAdministration {
           if (contextPolicy !== undefined) {
             if (this.#access.options.memoryPath === undefined) {
               failWorld({
-                errorCode: 'RECOVERY_VALIDATION_FAILED', category: 'integrity',
-                message: 'Memory database path is missing during quarantine recovery', retryable: false,
-                correlationId, address,
+                errorCode: 'RECOVERY_VALIDATION_FAILED',
+                category: 'integrity',
+                message: 'Memory database path is missing during quarantine recovery',
+                retryable: false,
+                correlationId,
+                address,
               })
             }
             const memoryVersion = manifest.contentPack?.runtimeCapabilities.cognitiveMemoryVersion === 2 ? 2 : 1
             const memory = new CognitiveMemoryService(
-              this.#access.options.memoryPath, store, this.#access.options.faultInjector, memoryVersion,
-              this.#access.options.recallTokenizer, this.#access.options.recallDictionary ?? false,
+              this.#access.options.memoryPath,
+              store,
+              this.#access.options.faultInjector,
+              memoryVersion,
+              this.#access.options.recallTokenizer,
+              this.#access.options.recallDictionary ?? false,
             )
             try {
               memoryVerificationHash = memory.rebuildBranch(
-                address, manifest.characters.map(character => character.characterId), world.headSeq, correlationId,
+                address,
+                manifest.characters.map(character => character.characterId),
+                world.headSeq,
+                correlationId,
               )
-
             } finally {
               memory.close()
             }
@@ -187,7 +209,9 @@ export class WorldAdministration {
           const sessionIntegrity = session.verifyIntegrity(address, correlationId)
           const bindings = session.deliveryBindings()
           const byDelivery = new Map(bindings.map(binding => [binding.deliveryId, binding]))
-          const bySequence = new Map(bindings.map(binding => [`${binding.sessionId}\u001f${binding.sessionDeliverySeq}`, binding]))
+          const bySequence = new Map(
+            bindings.map(binding => [`${binding.sessionId}\u001f${binding.sessionDeliverySeq}`, binding]),
+          )
           const ledger = outbox.deliveryLedger(address, correlationId)
           const expectedDeliveryIds = new Set<string>(ledger.map(delivery => delivery.deliveryId))
           const relevantSessionIds = new Set<SessionId>([
@@ -196,9 +220,10 @@ export class WorldAdministration {
           ])
           for (const delivery of ledger) {
             const binding = byDelivery.get(delivery.deliveryId)
-            const occupied = delivery.sessionDeliverySeq === null
-              ? undefined
-              : bySequence.get(`${delivery.sessionId}\u001f${delivery.sessionDeliverySeq}`)
+            const occupied =
+              delivery.sessionDeliverySeq === null
+                ? undefined
+                : bySequence.get(`${delivery.sessionId}\u001f${delivery.sessionDeliverySeq}`)
             const bindingHash = binding === undefined ? undefined : hashWorldJson('session-delivery-binding', binding)
             const expectedBindingHash = hashWorldJson('session-delivery-binding', {
               sessionId: delivery.sessionId,
@@ -206,21 +231,33 @@ export class WorldAdministration {
               deliveryId: delivery.deliveryId,
               payloadHash: delivery.payloadHash,
             })
-            if ((bindingHash !== undefined && bindingHash !== expectedBindingHash)
-              || (occupied !== undefined && occupied.deliveryId !== delivery.deliveryId)
-              || (delivery.status === 'delivered' && binding === undefined)) {
+            if (
+              (bindingHash !== undefined && bindingHash !== expectedBindingHash) ||
+              (occupied !== undefined && occupied.deliveryId !== delivery.deliveryId) ||
+              (delivery.status === 'delivered' && binding === undefined)
+            ) {
               failWorld({
-                errorCode: 'SESSION_DELIVERY_DIVERGED', category: 'integrity',
-                message: 'World Outbox and Session delivery bindings are divergent', retryable: false,
-                correlationId, address,
+                errorCode: 'SESSION_DELIVERY_DIVERGED',
+                category: 'integrity',
+                message: 'World Outbox and Session delivery bindings are divergent',
+                retryable: false,
+                correlationId,
+                address,
               })
             }
           }
-          if (bindings.some(binding => relevantSessionIds.has(binding.sessionId) && !expectedDeliveryIds.has(binding.deliveryId))) {
+          if (
+            bindings.some(
+              binding => relevantSessionIds.has(binding.sessionId) && !expectedDeliveryIds.has(binding.deliveryId),
+            )
+          ) {
             failWorld({
-              errorCode: 'SESSION_DELIVERY_DIVERGED', category: 'integrity',
-              message: 'Session contains a delivery that is absent from the restored World Outbox', retryable: false,
-              correlationId, address,
+              errorCode: 'SESSION_DELIVERY_DIVERGED',
+              category: 'integrity',
+              message: 'Session contains a delivery that is absent from the restored World Outbox',
+              retryable: false,
+              correlationId,
+              address,
             })
           }
           return {

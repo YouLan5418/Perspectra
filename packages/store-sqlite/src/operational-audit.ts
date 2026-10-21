@@ -1,5 +1,11 @@
 import type { DatabaseSync } from 'node:sqlite'
-import { failWorld, hashWorldJson, type WorldHash, type WorldJsonObject, type WorldJsonValue } from '@harness-world/contracts'
+import {
+  failWorld,
+  hashWorldJson,
+  type WorldHash,
+  type WorldJsonObject,
+  type WorldJsonValue,
+} from '@harness-world/contracts'
 import { openMigratedDatabase, parseWorldJson, rollbackAndThrow, worldJsonText } from './sqlite.ts'
 
 export const AUDIT_APPLICATION_ID = 0x48435741
@@ -36,7 +42,10 @@ export interface OperationalAuditEvent extends WorldJsonObject {
 export class OperationalAuditLog {
   readonly #db: DatabaseSync
 
-  constructor(path: string, private readonly operationalNow: () => number = Date.now) {
+  constructor(
+    path: string,
+    private readonly operationalNow: () => number = Date.now,
+  ) {
     this.#db = openMigratedDatabase(path, AUDIT_APPLICATION_ID, [
       { version: 1, sql: AUDIT_SCHEMA },
       { version: AUDIT_SCHEMA_VERSION, sql: AUDIT_HASH_CHAIN_SCHEMA },
@@ -56,19 +65,30 @@ export class OperationalAuditLog {
     const operationalTimeMs = this.operationalNow()
     this.#db.exec('BEGIN IMMEDIATE')
     try {
-      const tail = this.#db.prepare(`SELECT record_hash FROM operational_audit_events ORDER BY audit_seq DESC LIMIT 1`)
+      const tail = this.#db
+        .prepare(`SELECT record_hash FROM operational_audit_events ORDER BY audit_seq DESC LIMIT 1`)
         .get() as { record_hash: WorldHash } | undefined
       const previousHash = tail?.record_hash ?? 'genesis'
       const recordHash = this.#hash(scopeKey, operation, correlationId, details, operationalTimeMs, previousHash)
-      const result = this.#db.prepare(`
+      const result = this.#db
+        .prepare(
+          `
         INSERT INTO operational_audit_events(
           scope_key, operation, correlation_id, details_json, operational_time_ms, previous_hash, record_hash
         ) VALUES (?, ?, ?, ?, ?, ?, ?)
-      `).run(scopeKey, operation, correlationId, worldJsonText(details), operationalTimeMs, previousHash, recordHash)
+      `,
+        )
+        .run(scopeKey, operation, correlationId, worldJsonText(details), operationalTimeMs, previousHash, recordHash)
       this.#db.exec('COMMIT')
       return {
-        auditSeq: Number(result.lastInsertRowid), scopeKey, operation, correlationId, details,
-        operationalTimeMs, previousHash, recordHash,
+        auditSeq: Number(result.lastInsertRowid),
+        scopeKey,
+        operation,
+        correlationId,
+        details,
+        operationalTimeMs,
+        previousHash,
+        recordHash,
       }
     } catch (error: unknown) {
       rollbackAndThrow(this.#db, error)
@@ -77,25 +97,33 @@ export class OperationalAuditLog {
 
   read(scopeKey?: string): OperationalAuditEvent[] {
     const rows = this.#db.prepare(`SELECT * FROM operational_audit_events ORDER BY audit_seq`).all() as Array<{
-        audit_seq: number
-        scope_key: string
-        operation: string
-        correlation_id: string
-        details_json: string
-        operational_time_ms: number
-        previous_hash: WorldHash
-        record_hash: WorldHash
-      }>
+      audit_seq: number
+      scope_key: string
+      operation: string
+      correlation_id: string
+      details_json: string
+      operational_time_ms: number
+      previous_hash: WorldHash
+      record_hash: WorldHash
+    }>
     let previousHash: WorldHash | 'genesis' = 'genesis'
     const events = rows.map(row => {
       const details = parseWorldJson(row.details_json)
       const actual = this.#hash(
-        row.scope_key, row.operation, row.correlation_id, details, row.operational_time_ms, previousHash,
+        row.scope_key,
+        row.operation,
+        row.correlation_id,
+        details,
+        row.operational_time_ms,
+        previousHash,
       )
       if (row.previous_hash !== previousHash || row.record_hash !== actual) {
         failWorld({
-          errorCode: 'BACKUP_INVALID', category: 'integrity', message: 'operational audit hash chain is divergent',
-          retryable: false, correlationId: row.correlation_id,
+          errorCode: 'BACKUP_INVALID',
+          category: 'integrity',
+          message: 'operational audit hash chain is divergent',
+          retryable: false,
+          correlationId: row.correlation_id,
         })
       }
       previousHash = row.record_hash
@@ -118,10 +146,14 @@ export class OperationalAuditLog {
   }
 
   #backfillChain(): void {
-    const rows = this.#db.prepare(`
+    const rows = this.#db
+      .prepare(
+        `
       SELECT audit_seq, scope_key, operation, correlation_id, details_json, operational_time_ms, previous_hash, record_hash
       FROM operational_audit_events ORDER BY audit_seq
-    `).all() as Array<{
+    `,
+      )
+      .all() as Array<{
       audit_seq: number
       scope_key: string
       operation: string
@@ -138,11 +170,20 @@ export class OperationalAuditLog {
       for (const row of rows) {
         const details = parseWorldJson(row.details_json)
         const recordHash = this.#hash(
-          row.scope_key, row.operation, row.correlation_id, details, row.operational_time_ms, previousHash,
+          row.scope_key,
+          row.operation,
+          row.correlation_id,
+          details,
+          row.operational_time_ms,
+          previousHash,
         )
-        this.#db.prepare(`
+        this.#db
+          .prepare(
+            `
           UPDATE operational_audit_events SET previous_hash = ?, record_hash = ? WHERE audit_seq = ?
-        `).run(previousHash, recordHash, row.audit_seq)
+        `,
+          )
+          .run(previousHash, recordHash, row.audit_seq)
         previousHash = recordHash
       }
       this.#db.exec('COMMIT')
@@ -160,7 +201,12 @@ export class OperationalAuditLog {
     previousHash: WorldHash | 'genesis',
   ): WorldHash {
     return hashWorldJson('operational-audit-record', {
-      scopeKey, operation, correlationId, details, operationalTimeMs, previousHash,
+      scopeKey,
+      operation,
+      correlationId,
+      details,
+      operationalTimeMs,
+      previousHash,
     })
   }
 }

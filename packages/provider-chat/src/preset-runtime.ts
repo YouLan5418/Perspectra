@@ -9,20 +9,34 @@ import { REGEX_WORKER_PROGRAM, type TextJob, type TextResult } from './preset-re
 
 /** A deadline can stop catastrophic backtracking without blocking the world process. */
 export async function processPresetText(jobs: readonly TextJob[], signal?: AbortSignal): Promise<TextResult[]> {
-  if (!jobs.some(job => job.rules.some(r => r.enabled && r.stage === job.stage && (r.target === 'both' || r.target === job.target)))) {
+  if (
+    !jobs.some(job =>
+      job.rules.some(r => r.enabled && r.stage === job.stage && (r.target === 'both' || r.target === job.target)),
+    )
+  ) {
     return jobs.map(job => ({ text: job.text, trace: [] }))
   }
   signal?.throwIfAborted()
-  const worker = new Worker(REGEX_WORKER_PROGRAM + `
+  const worker = new Worker(
+    REGEX_WORKER_PROGRAM +
+      `
     const {parentPort} = require('node:worker_threads');
     parentPort.once('message',jobs=>{try{parentPort.postMessage({results:run(jobs)})}catch(error){parentPort.postMessage({error:error.message})}});
-  `, { eval: true, resourceLimits: { maxOldGenerationSizeMb: 32 } })
+  `,
+    { eval: true, resourceLimits: { maxOldGenerationSizeMb: 32 } },
+  )
   try {
     return await new Promise<TextResult[]>((resolve, reject) => {
-      const fail = (error: Error) => { cleanup(); reject(error) }
+      const fail = (error: Error) => {
+        cleanup()
+        reject(error)
+      }
       const timer = setTimeout(() => fail(new Error('预设文本处理超时。')), 1000)
       const abort = () => fail(new Error('预设文本处理已取消。'))
-      const cleanup = () => { clearTimeout(timer); signal?.removeEventListener('abort', abort) }
+      const cleanup = () => {
+        clearTimeout(timer)
+        signal?.removeEventListener('abort', abort)
+      }
       signal?.addEventListener('abort', abort, { once: true })
       worker.once('error', fail)
       worker.once('exit', code => fail(new Error('预设文本处理线程退出：' + code)))
@@ -33,69 +47,124 @@ export async function processPresetText(jobs: readonly TextJob[], signal?: Abort
       })
       worker.postMessage(jobs)
     })
-  } finally { await worker.terminate() }
+  } finally {
+    await worker.terminate()
+  }
 }
 function object(value: unknown): WorldJsonObject | undefined {
-  return value !== null && typeof value === 'object' && !Array.isArray(value) ? value as WorldJsonObject : undefined
+  return value !== null && typeof value === 'object' && !Array.isArray(value) ? (value as WorldJsonObject) : undefined
 }
-interface RoleRequest { context: WorldJsonObject; continuation: boolean; decisionId?: string }
+interface RoleRequest {
+  context: WorldJsonObject
+  continuation: boolean
+  decisionId?: string
+}
 /** Only expression fields of authorized observations are transformed. Facts and affordances stay intact. */
-export async function presetContext<T extends RoleRequest>(request: T, preset: RolePreset, playerId: string, signal?: AbortSignal): Promise<T> {
-  if (!preset.textRules?.some(rule => rule.enabled && (rule.stage === 'input' || rule.stage === 'history'))) return request
+export async function presetContext<T extends RoleRequest>(
+  request: T,
+  preset: RolePreset,
+  playerId: string,
+  signal?: AbortSignal,
+): Promise<T> {
+  if (!preset.textRules?.some(rule => rule.enabled && (rule.stage === 'input' || rule.stage === 'history')))
+    return request
   const copy = structuredClone(request)
   const observations = Array.isArray(copy.context.observations) ? copy.context.observations : []
   const contentOf = (record: WorldJsonValue): WorldJsonObject | undefined => {
     const entry = object(record)
     return object((object(entry?.value) ?? entry)?.content)
   }
-  const isPlayer = (content: WorldJsonObject | undefined) => object(content?.speech)?.characterId === playerId
-    || object(content?.playerInput)?.actorId === playerId
-  const latest = observations.filter(record => isPlayer(contentOf(record))).toSorted((a,b) => Number(object(a)?.sourceSeq)-Number(object(b)?.sourceSeq)).at(-1)
+  const isPlayer = (content: WorldJsonObject | undefined) =>
+    object(content?.speech)?.characterId === playerId || object(content?.playerInput)?.actorId === playerId
+  const latest = observations
+    .filter(record => isPlayer(contentOf(record)))
+    .toSorted((a, b) => Number(object(a)?.sourceSeq) - Number(object(b)?.sourceSeq))
+    .at(-1)
   const latestSeq = object(latest)?.sourceSeq
   const latestContent = latest === undefined ? undefined : contentOf(latest)
   const latestText = object(latestContent?.playerInput)?.sourceText ?? object(latestContent?.speech)?.text
-  const jobs: TextJob[] = [], destinations: { object: Record<string, WorldJsonValue>; key: string }[] = []
+  const jobs: TextJob[] = [],
+    destinations: { object: Record<string, WorldJsonValue>; key: string }[] = []
   const seen = new Set<WorldJsonObject>()
-  for (const record of [...observations, ...(Array.isArray(copy.context.selfObservations) ? copy.context.selfObservations : []),
-    ...(Array.isArray(copy.context.stimulus) ? copy.context.stimulus : [])]) {
-    const entry = object(record), content = contentOf(record), speech = object(content?.speech), input = object(content?.playerInput)
+  for (const record of [
+    ...observations,
+    ...(Array.isArray(copy.context.selfObservations) ? copy.context.selfObservations : []),
+    ...(Array.isArray(copy.context.stimulus) ? copy.context.stimulus : []),
+  ]) {
+    const entry = object(record),
+      content = contentOf(record),
+      speech = object(content?.speech),
+      input = object(content?.playerInput)
     if (!content || seen.has(content)) continue
     seen.add(content)
-    const latestStimulus = entry?.sourceSeq === undefined && latestText !== undefined && (input?.sourceText ?? speech?.text) === latestText
-    const stage = isPlayer(content) && (latestSeq !== undefined && entry?.sourceSeq === latestSeq || latestStimulus) ? 'input' : 'history'
-    const segmentPublication = speech ?? (content.actionType === 'speak' && Array.isArray(content.segments) ? content : undefined)
-    if (Array.isArray(segmentPublication?.segments)) for (const value of segmentPublication.segments) {
-      const segment = object(value)
-      if (segment && typeof segment.text === 'string' && (segment.type === 'speech' || segment.type === 'narration')) {
-        jobs.push({ text: segment.text, stage, target: segment.type, rules: preset.textRules! })
-        destinations.push({ object: segment, key: 'text' })
+    const latestStimulus =
+      entry?.sourceSeq === undefined && latestText !== undefined && (input?.sourceText ?? speech?.text) === latestText
+    const stage =
+      isPlayer(content) && ((latestSeq !== undefined && entry?.sourceSeq === latestSeq) || latestStimulus)
+        ? 'input'
+        : 'history'
+    const segmentPublication =
+      speech ?? (content.actionType === 'speak' && Array.isArray(content.segments) ? content : undefined)
+    if (Array.isArray(segmentPublication?.segments))
+      for (const value of segmentPublication.segments) {
+        const segment = object(value)
+        if (
+          segment &&
+          typeof segment.text === 'string' &&
+          (segment.type === 'speech' || segment.type === 'narration')
+        ) {
+          jobs.push({ text: segment.text, stage, target: segment.type, rules: preset.textRules! })
+          destinations.push({ object: segment, key: 'text' })
+        }
       }
-    }
-    if (speech) for (const [key, target] of [['text', 'speech'], ['narration', 'narration']] as const) {
-      if (typeof speech[key] === 'string') { jobs.push({ text: speech[key], stage, target, rules: preset.textRules! }); destinations.push({ object: speech, key }) }
-    }
+    if (speech)
+      for (const [key, target] of [
+        ['text', 'speech'],
+        ['narration', 'narration'],
+      ] as const) {
+        if (typeof speech[key] === 'string') {
+          jobs.push({ text: speech[key], stage, target, rules: preset.textRules! })
+          destinations.push({ object: speech, key })
+        }
+      }
     if (input && typeof input.sourceText === 'string') {
-      jobs.push({ text: input.sourceText, stage, target: 'speech', rules: preset.textRules! }); destinations.push({ object: input, key: 'sourceText' })
+      jobs.push({ text: input.sourceText, stage, target: 'speech', rules: preset.textRules! })
+      destinations.push({ object: input, key: 'sourceText' })
     }
   }
   const results = await processPresetText(jobs, signal)
   results.forEach((result, i) => {
     const destination = destinations[i]!
     if (destination.key === 'sourceText' && destination.object.sourceText !== result.text) {
-      destination.object.note = '玩家输入的上下文文本投影；sourceSpans 指向未修改的原始输入存档。投影不证明动作成功，也不替角色决定行动。'
+      destination.object.note =
+        '玩家输入的上下文文本投影；sourceSpans 指向未修改的原始输入存档。投影不证明动作成功，也不替角色决定行动。'
     }
     destination.object[destination.key] = result.text
   })
   return copy
 }
 /** Core contract is fixed first; ordered preset nodes surround the authorized context. */
-export function presetCall(call: ChatCall, preset: RolePreset, request: RoleRequest, playerName: string, labels: { character?: string; scene?: string } = {}): ChatCall {
-  const character = object(request.context.character), scene = object(request.context.scene)
+export function presetCall(
+  call: ChatCall,
+  preset: RolePreset,
+  request: RoleRequest,
+  playerName: string,
+  labels: { character?: string; scene?: string } = {},
+): ChatCall {
+  const character = object(request.context.character),
+    scene = object(request.context.scene)
   const now = new Date()
-  const expand = presetMacros({ char: labels.character ?? String(character?.name ?? character?.characterId ?? ''), user: playerName,
-    scene: labels.scene ?? String(scene?.locationName ?? scene?.locationId ?? ''), date: now.toLocaleDateString('zh-CN'), time: now.toLocaleTimeString('zh-CN') })
-  const before: ChatMessage[] = [], after: ChatMessage[] = []
-  const beforeSources: MessageSource[] = [], afterSources: MessageSource[] = []
+  const expand = presetMacros({
+    char: labels.character ?? String(character?.name ?? character?.characterId ?? ''),
+    user: playerName,
+    scene: labels.scene ?? String(scene?.locationName ?? scene?.locationId ?? ''),
+    date: now.toLocaleDateString('zh-CN'),
+    time: now.toLocaleTimeString('zh-CN'),
+  })
+  const before: ChatMessage[] = [],
+    after: ChatMessage[] = []
+  const beforeSources: MessageSource[] = [],
+    afterSources: MessageSource[] = []
   for (const node of preset.nodes ?? []) {
     if (!node.enabled) continue
     const content = expand(node.content)
@@ -103,59 +172,114 @@ export function presetCall(call: ChatCall, preset: RolePreset, request: RoleRequ
       const messages = node.position === 'beforeContext' ? before : after
       const sources = node.position === 'beforeContext' ? beforeSources : afterSources
       messages.push({ role: node.role, content })
-      sources.push({source:'preset:'+node.id,name:node.name,nodeId:node.id,position:node.position,original:node.content,macroExpanded:content!==node.content})
+      sources.push({
+        source: 'preset:' + node.id,
+        name: node.name,
+        nodeId: node.id,
+        position: node.position,
+        original: node.content,
+        macroExpanded: content !== node.content,
+      })
     }
   }
-  return { ...call, messages: [...call.messages.slice(0, 1), ...before, ...call.messages.slice(1), ...after],
-    inspection:{characterId:String(character?.characterId??''),continuation:request.continuation,
-      ...(request.decisionId === undefined ? {} : {decisionId:request.decisionId}),
+  return {
+    ...call,
+    messages: [...call.messages.slice(0, 1), ...before, ...call.messages.slice(1), ...after],
+    inspection: {
+      characterId: String(character?.characterId ?? ''),
+      continuation: request.continuation,
+      ...(request.decisionId === undefined ? {} : { decisionId: request.decisionId }),
       ...(typeof (request.context.cognition as WorldJsonObject | undefined)?.asOfWorldSeq === 'number'
-        ? {asOfWorldSeq: Number((request.context.cognition as WorldJsonObject).asOfWorldSeq)} : {}),
-      sources:[{source:'core',name:'Core 固定契约'},...beforeSources,...call.messages.slice(1).map(()=>({source:'context',name:'当前角色授权上下文'})),...afterSources]} }
+        ? { asOfWorldSeq: Number((request.context.cognition as WorldJsonObject).asOfWorldSeq) }
+        : {}),
+      sources: [
+        { source: 'core', name: 'Core 固定契约' },
+        ...beforeSources,
+        ...call.messages.slice(1).map(() => ({ source: 'context', name: '当前角色授权上下文' })),
+        ...afterSources,
+      ],
+    },
+  }
 }
 /** Reject malformed originals before cleaning; domain validation still runs on the resulting expression. */
-export async function presetOutput(raw: WorldJsonValue, preset: RolePreset, signal?: AbortSignal, expression?: WorldJsonObject, maximumCharacters = 2000): Promise<WorldJsonValue> {
+export async function presetOutput(
+  raw: WorldJsonValue,
+  preset: RolePreset,
+  signal?: AbortSignal,
+  expression?: WorldJsonObject,
+  maximumCharacters = 2000,
+): Promise<WorldJsonValue> {
   const decision = object(raw)
-  if(decision?.decision==='perform'&&decision.before!==undefined) {
-    const before=object(decision.before)
-    if(!before||Object.keys(before).some(key=>!['segments','scope','addresseeIds'].includes(key)))throw new TypeError('行动前表达包含不支持的字段。')
-    const revised=object(await presetOutput({decision:'publish',...before},preset,signal,expression,maximumCharacters))!
-    const {decision: _decision,...cleaned}=revised
-    return {...decision,before:cleaned}
+  if (decision?.decision === 'perform' && decision.before !== undefined) {
+    const before = object(decision.before)
+    if (!before || Object.keys(before).some(key => !['segments', 'scope', 'addresseeIds'].includes(key)))
+      throw new TypeError('行动前表达包含不支持的字段。')
+    const revised = object(
+      await presetOutput({ decision: 'publish', ...before }, preset, signal, expression, maximumCharacters),
+    )!
+    const { decision: _decision, ...cleaned } = revised
+    return { ...decision, before: cleaned }
   }
-  if (decision?.decision !== 'publish' || !preset.textRules?.some(rule => rule.enabled && rule.stage === 'output')) return raw
-  if (Object.keys(decision).some(key => !['decision', 'segments', 'scope', 'addresseeIds'].includes(key))) throw new TypeError('表达包含不支持的字段。')
-  const segments = parseExpressionSegments(decision.segments,maximumCharacters)
+  if (decision?.decision !== 'publish' || !preset.textRules?.some(rule => rule.enabled && rule.stage === 'output'))
+    return raw
+  if (Object.keys(decision).some(key => !['decision', 'segments', 'scope', 'addresseeIds'].includes(key)))
+    throw new TypeError('表达包含不支持的字段。')
+  const segments = parseExpressionSegments(decision.segments, maximumCharacters)
   checkExpressionPolicy(segments, expression ?? {})
-  const results = await processPresetText(segments.map(segment => ({ text: segment.text, stage: 'output', target: segment.type, rules: preset.textRules! })), signal)
-  if (expression?.speech === 'choices' && segments.some((segment, i) => segment.type === 'speech' && results[i]!.text !== segment.text)) {
+  const results = await processPresetText(
+    segments.map(segment => ({ text: segment.text, stage: 'output', target: segment.type, rules: preset.textRules! })),
+    signal,
+  )
+  if (
+    expression?.speech === 'choices' &&
+    segments.some((segment, i) => segment.type === 'speech' && results[i]!.text !== segment.text)
+  ) {
     throw new TypeError('文本规则不能改写玩法对白选项。')
   }
-  const cleaned = segments.map((segment, i) => ({ ...segment, text: results[i]!.text })).filter(segment => segment.text.trim())
-  const output = { ...decision, segments: parseExpressionSegments(cleaned,maximumCharacters) }
+  const cleaned = segments
+    .map((segment, i) => ({ ...segment, text: results[i]!.text }))
+    .filter(segment => segment.text.trim())
+  const output = { ...decision, segments: parseExpressionSegments(cleaned, maximumCharacters) }
   return output
 }
 /** Display copies are never written to Event/Observation/Memory. */
-export async function presetDisplay(view: CharacterView, presets: ReadonlyMap<string, RolePreset>): Promise<CharacterView> {
+export async function presetDisplay(
+  view: CharacterView,
+  presets: ReadonlyMap<string, RolePreset>,
+): Promise<CharacterView> {
   if (![...presets.values()].some(p => p.textRules?.some(r => r.enabled && r.stage === 'display'))) return view
-  const copy = structuredClone(view), jobs: TextJob[] = [], destinations: { object: Record<string, WorldJsonValue>; key: string }[] = []
+  const copy = structuredClone(view),
+    jobs: TextJob[] = [],
+    destinations: { object: Record<string, WorldJsonValue>; key: string }[] = []
   for (const record of copy.observations) {
     const speech = object(object(object(record.value)?.content)?.speech)
     if (!speech || typeof speech.characterId !== 'string') continue
     const preset = presets.get(speech.characterId)
     if (!preset?.textRules?.some(rule => rule.enabled && rule.stage === 'display')) continue
-    if (Array.isArray(speech.segments)) for (const value of speech.segments) {
-      const segment = object(value)
-      if (segment && typeof segment.text === 'string' && (segment.type === 'speech' || segment.type === 'narration')) {
-        jobs.push({ text: segment.text, stage: 'display', target: segment.type, rules: preset.textRules })
-        destinations.push({ object: segment, key: 'text' })
+    if (Array.isArray(speech.segments))
+      for (const value of speech.segments) {
+        const segment = object(value)
+        if (
+          segment &&
+          typeof segment.text === 'string' &&
+          (segment.type === 'speech' || segment.type === 'narration')
+        ) {
+          jobs.push({ text: segment.text, stage: 'display', target: segment.type, rules: preset.textRules })
+          destinations.push({ object: segment, key: 'text' })
+        }
       }
-    }
-    for (const [key, target] of [['text', 'speech'], ['narration', 'narration']] as const) if (typeof speech[key] === 'string') {
-      jobs.push({ text: speech[key], stage: 'display', target, rules: preset.textRules }); destinations.push({ object: speech, key })
-    }
+    for (const [key, target] of [
+      ['text', 'speech'],
+      ['narration', 'narration'],
+    ] as const)
+      if (typeof speech[key] === 'string') {
+        jobs.push({ text: speech[key], stage: 'display', target, rules: preset.textRules })
+        destinations.push({ object: speech, key })
+      }
   }
   const results = await processPresetText(jobs)
-  results.forEach((result, i) => { destinations[i]!.object[destinations[i]!.key] = result.text })
+  results.forEach((result, i) => {
+    destinations[i]!.object[destinations[i]!.key] = result.text
+  })
   return copy
 }

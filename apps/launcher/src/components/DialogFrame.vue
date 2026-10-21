@@ -8,8 +8,17 @@ const embedded = inject('launcher-embedded', false)
 </script>
 <template>
   <section v-if="embedded && open" class="drawer-panel" :aria-label="title">
-    <header class="drawer-panel-head"><h2>{{ title }}</h2><p>{{ description }}</p></header>
+    <header class="drawer-panel-head">
+      <h2>{{ title }}</h2>
+      <p>{{ description }}</p>
+    </header>
     <slot />
   </section>
-  <Dialog v-else-if="!embedded" :open="open" @update:open="!$event && $emit('close')"><DialogContent :class="['launcher-dialog', {'launcher-dialog-wide':wide}]"><DialogHeader><DialogTitle>{{ title }}</DialogTitle><DialogDescription>{{ description }}</DialogDescription></DialogHeader><slot /></DialogContent></Dialog>
+  <Dialog v-else-if="!embedded" :open="open" @update:open="!$event && $emit('close')"
+    ><DialogContent :class="['launcher-dialog', { 'launcher-dialog-wide': wide }]"
+      ><DialogHeader
+        ><DialogTitle>{{ title }}</DialogTitle
+        ><DialogDescription>{{ description }}</DialogDescription></DialogHeader
+      ><slot /></DialogContent
+  ></Dialog>
 </template>

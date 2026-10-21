@@ -51,4 +51,4 @@ export const FRONTEND_SDK = String.raw`/** API v1: the only connection is a host
     synthesizeSpeech:(seq,segmentIndex,text)=>request('synthesizeSpeech',{seq,segmentIndex,text}),
     subscribe:listener=>{listeners.add(listener);return()=>listeners.delete(listener)},
   });
-})();`;
+})();`

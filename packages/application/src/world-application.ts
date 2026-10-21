@@ -15,7 +15,7 @@ import {
   type InteractionRoundId,
   type RecallTokenizerId,
   type WorldAddress,
-  type WorldJsonValue
+  type WorldJsonValue,
 } from '@harness-world/contracts'
 import { createBasicInteractionPackage } from '@harness-world/interactions-basic'
 import {
@@ -31,12 +31,8 @@ import {
   type PlayerActionInput,
   type RulebookRegistry,
 } from '@harness-world/kernel'
-import {
-  CognitiveMemoryService,
-} from '@harness-world/memory'
-import {
-  DeterministicPresenter,
-} from '@harness-world/presentation'
+import { CognitiveMemoryService } from '@harness-world/memory'
+import { DeterministicPresenter } from '@harness-world/presentation'
 import {
   WorldRuntimeRegistry,
   type BranchComponentFactory,
@@ -56,11 +52,11 @@ import {
   WorldStore,
   WriterLeaseService,
   type DeadLetterRecord,
-  type PlayerInputJob, type PlayerInputStatus,
+  type PlayerInputJob,
+  type PlayerInputStatus,
 } from '@harness-world/store-sqlite'
 import { randomUUID } from 'node:crypto'
-import {
-} from './branch-operation-coordinator.ts'
+import {} from './branch-operation-coordinator.ts'
 import { PlayerInputInterpreter, type PlayerInputInterpretation } from './player-input.ts'
 import { preparePlayerIntent } from './player-intent-preparation.ts'
 import { PlayerIntentWorker, type PlayerIntentProfile } from './player-intent-worker.ts'
@@ -69,7 +65,7 @@ import {
   parsePlayerRoundResult,
   type AcceptedRoundStep,
   type PlayerRoundResult,
-  type SubmitCoordinatedRoundRequest
+  type SubmitCoordinatedRoundRequest,
 } from './round-coordinator.ts'
 import { ApplicationRuntimeMetrics } from './runtime-metrics.ts'
 import { SceneDecisionService } from './scene-decision.ts'
@@ -83,13 +79,20 @@ function assertCompatibleContentPackVersion(
 ): void {
   if (existing === undefined || candidate.contentPack === undefined) return
   const stored = runtimeManifestFromStored(existing.manifest).contentPack
-  if (stored === undefined || stored.packId !== candidate.contentPack.packId
-    || stored.packVersion !== candidate.contentPack.packVersion
-    || stored.packHash === candidate.contentPack.packHash) return
+  if (
+    stored === undefined ||
+    stored.packId !== candidate.contentPack.packId ||
+    stored.packVersion !== candidate.contentPack.packVersion ||
+    stored.packHash === candidate.contentPack.packHash
+  )
+    return
   failWorld({
-    errorCode: 'PACK_VERSION_DIVERGED', category: 'admission',
-    message: 'same packId and packVersion resolve to different packHash values', retryable: false,
-    correlationId: `activate:${worldAddressKey(candidate.address)}`, address: candidate.address,
+    errorCode: 'PACK_VERSION_DIVERGED',
+    category: 'admission',
+    message: 'same packId and packVersion resolve to different packHash values',
+    retryable: false,
+    correlationId: `activate:${worldAddressKey(candidate.address)}`,
+    address: candidate.address,
     details: {
       packId: candidate.contentPack.packId,
       packVersion: candidate.contentPack.packVersion,
@@ -114,7 +117,11 @@ const DEFAULT_INTERACTION_PACKAGES: readonly InteractionPackageImplementation[] 
 export interface WorldApplicationOptions {
   readonly playerIntent?: {
     readonly profile: PlayerIntentProfile
-    readonly dispatch: (request: WorldJsonValue, profile: PlayerIntentProfile, signal: AbortSignal) => Promise<WorldJsonValue>
+    readonly dispatch: (
+      request: WorldJsonValue,
+      profile: PlayerIntentProfile,
+      signal: AbortSignal,
+    ) => Promise<WorldJsonValue>
   }
   readonly worldPath: string
   readonly sessionPath: string
@@ -170,25 +177,31 @@ function validateApplicationManifest(
 ): { readonly sceneEnabled: boolean; readonly contextEnabled: boolean; readonly memoryVersion: 1 | 2 } {
   const scenePolicy = manifest.plugins.find(plugin => plugin.pluginId === 'builtin:scene-decision')
   const contextPolicy = manifest.plugins.find(plugin => plugin.pluginId === 'builtin:agent-context')
-  const unsupported = scenePolicy !== undefined && scenePolicy.version !== '2.0.0'
-    ? `unsupported Scene decision policy ${scenePolicy.version}`
-    : scenePolicy !== undefined && manifest.contentPack?.runtimeCapabilities.sceneDecisionVersion !== 2
-    ? `Scene decision policy ${scenePolicy.version} requires runtime capability sceneDecisionVersion 2`
-    : contextPolicy !== undefined && contextPolicy.version !== '2.0.0'
-    ? `unsupported Agent Context policy ${contextPolicy.version}`
-    : contextPolicy !== undefined && scenePolicy === undefined
-    ? 'Agent Context v2 requires Scene decision policy selection'
-    : contextPolicy !== undefined && memoryPath === undefined
-    ? 'memoryPath must be configured for Agent Context v2'
-    : undefined
+  const unsupported =
+    scenePolicy !== undefined && scenePolicy.version !== '2.0.0'
+      ? `unsupported Scene decision policy ${scenePolicy.version}`
+      : scenePolicy !== undefined && manifest.contentPack?.runtimeCapabilities.sceneDecisionVersion !== 2
+        ? `Scene decision policy ${scenePolicy.version} requires runtime capability sceneDecisionVersion 2`
+        : contextPolicy !== undefined && contextPolicy.version !== '2.0.0'
+          ? `unsupported Agent Context policy ${contextPolicy.version}`
+          : contextPolicy !== undefined && scenePolicy === undefined
+            ? 'Agent Context v2 requires Scene decision policy selection'
+            : contextPolicy !== undefined && memoryPath === undefined
+              ? 'memoryPath must be configured for Agent Context v2'
+              : undefined
   if (unsupported !== undefined) {
     failWorld({
-      errorCode: 'MANIFEST_RUNTIME_UNAVAILABLE', category: 'runtime', message: unsupported, retryable: false,
-      correlationId, address,
+      errorCode: 'MANIFEST_RUNTIME_UNAVAILABLE',
+      category: 'runtime',
+      message: unsupported,
+      retryable: false,
+      correlationId,
+      address,
     })
   }
   const contextEnabled = contextPolicy !== undefined
-  const memoryVersion = manifest.contentPack?.runtimeCapabilities.cognitiveMemoryVersion === 2 ? 2 as const : 1 as const
+  const memoryVersion =
+    manifest.contentPack?.runtimeCapabilities.cognitiveMemoryVersion === 2 ? (2 as const) : (1 as const)
   return { sceneEnabled: scenePolicy !== undefined, contextEnabled, memoryVersion }
 }
 
@@ -255,7 +268,9 @@ export class BranchStoreComponent {
 /** Branch-owned authorized memory capture used by player commits and explicit recall. */
 export class BranchAgentComponent {
   constructor(readonly cognitiveMemory?: CognitiveMemoryService) {}
-  close(): void { this.cognitiveMemory?.close() }
+  close(): void {
+    this.cognitiveMemory?.close()
+  }
 }
 
 /** Deterministic presentation for the retained session-rendering API; no Director model. */
@@ -267,9 +282,11 @@ export class BranchPresentationComponent {
 export class WorldBranchComponentFactory implements BranchComponentFactory {
   readonly #runtimeOwnerId: string
 
-  constructor(private readonly options: WorldApplicationOptions & {
-    readonly rulebooks: RulebookRegistry
-  }) {
+  constructor(
+    private readonly options: WorldApplicationOptions & {
+      readonly rulebooks: RulebookRegistry
+    },
+  ) {
     const label = options.runtimeOwnerId ?? 'application'
     assertProtocolString(label, 'runtimeOwnerId diagnostic label')
     this.#runtimeOwnerId = `${label}:instance:${randomUUID()}`
@@ -287,26 +304,36 @@ export class WorldBranchComponentFactory implements BranchComponentFactory {
     try {
       const manifest = runtimeManifestFromStoredRecord(store.store.readManifest(scope.address))
       const policies = validateApplicationManifest(
-        manifest, scope.address, `manifest-runtime:${worldAddressKey(scope.address)}`,
+        manifest,
+        scope.address,
+        `manifest-runtime:${worldAddressKey(scope.address)}`,
         this.options.memoryPath,
       )
       cognitiveMemory = !policies.contextEnabled
         ? undefined
         : new CognitiveMemoryService(
-          this.options.memoryPath!, store.store, this.options.faultInjector, policies.memoryVersion,
-          this.options.recallTokenizer, this.options.recallDictionary ?? false,
-        )
+            this.options.memoryPath!,
+            store.store,
+            this.options.faultInjector,
+            policies.memoryVersion,
+            this.options.recallTokenizer,
+            this.options.recallDictionary ?? false,
+          )
       const agents = new BranchAgentComponent(cognitiveMemory)
       const director = new BranchPresentationComponent()
       const players = new Set(manifest.playerBindings.map(value => value.characterId))
-      store.availability.initialize(scope.address, manifest.characters.map(character => ({
-        characterId: character.characterId,
-        state: players.has(character.characterId)
-          ? manifest.runtimePolicy.playerInitialAvailability
-          : manifest.runtimePolicy.npcInitialAvailability,
-      })))
+      store.availability.initialize(
+        scope.address,
+        manifest.characters.map(character => ({
+          characterId: character.characterId,
+          state: players.has(character.characterId)
+            ? manifest.runtimePolicy.playerInitialAvailability
+            : manifest.runtimePolicy.npcInitialAvailability,
+        })),
+      )
       const sceneDecision = policies.sceneEnabled
-        ? new SceneDecisionService(store.store, store.availability) : undefined
+        ? new SceneDecisionService(store.store, store.availability)
+        : undefined
       const kernel = new RoundCoordinator({
         store: store.store,
         inbox: store.inbox,
@@ -338,7 +365,12 @@ export class WorldBranchComponentFactory implements BranchComponentFactory {
 /** One durable player input transition chain, one player Round, or idle. */
 export type BranchWorkStep =
   | { readonly status: 'idle' }
-  | { readonly status: 'player_input'; readonly inputId: string; readonly inputStatus: PlayerInputStatus; readonly round: PlayerRoundResult | null }
+  | {
+      readonly status: 'player_input'
+      readonly inputId: string
+      readonly inputStatus: PlayerInputStatus
+      readonly round: PlayerRoundResult | null
+    }
   | ({ readonly status: 'player_round' } & AcceptedRoundStep)
 
 /** Local composition root and the only production entrypoint into branch-owned state. */
@@ -379,10 +411,13 @@ export class WorldApplication {
     this.#interactionPackages = options.interactionPackages ?? DEFAULT_INTERACTION_PACKAGES
     this.#frozenInteractions = new FrozenInteractionRulebook(this.#interactionPackages)
     this.#rulebooks = options.rulebooks ?? createCoreRulebookRegistry({ frozenInteractions: this.#frozenInteractions })
-    this.runtimeRegistry = new WorldRuntimeRegistry(this.#root, new WorldBranchComponentFactory({
-      ...options,
-      rulebooks: this.#rulebooks,
-    }))
+    this.runtimeRegistry = new WorldRuntimeRegistry(
+      this.#root,
+      new WorldBranchComponentFactory({
+        ...options,
+        rulebooks: this.#rulebooks,
+      }),
+    )
   }
 
   activate(compiled: CompiledWorldSpec) {
@@ -396,19 +431,24 @@ export class WorldApplication {
         `activate:${worldAddressKey(compiled.manifest.address)}`,
         compiled.manifest.address,
       )
-      if (compiled.manifest.rulebook.rulebookId === 'builtin:speak-move'
-        && compiled.manifest.rulebook.version === 3
-        && store.readManifest(compiled.manifest.address) === undefined) {
+      if (
+        compiled.manifest.rulebook.rulebookId === 'builtin:speak-move' &&
+        compiled.manifest.rulebook.version === 3 &&
+        store.readManifest(compiled.manifest.address) === undefined
+      ) {
         failWorld({
-          errorCode: 'INVALID_REQUEST', category: 'admission',
-          message: 'Rulebook v3 is historical-only and cannot activate a new world', retryable: false,
+          errorCode: 'INVALID_REQUEST',
+          category: 'admission',
+          message: 'Rulebook v3 is historical-only and cannot activate a new world',
+          retryable: false,
           correlationId: `activate:${worldAddressKey(compiled.manifest.address)}`,
           address: compiled.manifest.address,
           details: { rulebookId: compiled.manifest.rulebook.rulebookId, version: 3 },
         })
       }
       validateApplicationManifest(
-        compiled.manifest, compiled.manifest.address,
+        compiled.manifest,
+        compiled.manifest.address,
         `activate:${worldAddressKey(compiled.manifest.address)}`,
         this.options.memoryPath,
       )
@@ -420,12 +460,22 @@ export class WorldApplication {
 
   async submit(address: WorldAddress, request: SubmitCoordinatedRoundRequest): Promise<PlayerRoundResult> {
     if (this.#intentEnabled(address)) {
-      const outcome = await this.#submitIntent(address, { ...request, text: JSON.stringify(request.action) }, request.action)
+      const outcome = await this.#submitIntent(
+        address,
+        { ...request, text: JSON.stringify(request.action) },
+        request.action,
+      )
       if (outcome.status === 'submitted') return outcome.result
-      failWorld({ errorCode: 'INVALID_REQUEST', category: 'admission', retryable: false, address,
-        correlationId: request.correlationId, message: outcome.reason })
+      failWorld({
+        errorCode: 'INVALID_REQUEST',
+        category: 'admission',
+        retryable: false,
+        address,
+        correlationId: request.correlationId,
+        message: outcome.reason,
+      })
     }
-    return this.#integrityGuard(address, 'round.submit', async (branch) => {
+    return this.#integrityGuard(address, 'round.submit', async branch => {
       return branch.kernel.submit(request)
     })
   }
@@ -438,13 +488,17 @@ export class WorldApplication {
       ['idempotencyKey', request.idempotencyKey],
       ['principalId', request.principalId],
       ['correlationId', request.correlationId],
-    ] as const) assertProtocolString(value, name)
+    ] as const)
+      assertProtocolString(value, name)
     const clarificationInput = { principalId: request.principalId, text: request.text }
     const replay = await this.#durableReadGuard(address, 'round.clarify', () => {
       const clarificationStore = new WorldStore(this.options.worldPath)
       try {
         return clarificationStore.readClarification(
-          address, request.idempotencyKey, clarificationInput, request.correlationId,
+          address,
+          request.idempotencyKey,
+          clarificationInput,
+          request.correlationId,
         )
       } finally {
         clarificationStore.close()
@@ -461,9 +515,12 @@ export class WorldApplication {
         const binding = manifest.playerBindings.find(value => value.principalId === request.principalId)
         if (binding === undefined) {
           failWorld({
-            errorCode: 'UNAUTHORIZED', category: 'admission',
-            message: 'principal has no PlayerBinding in this world', retryable: false,
-            correlationId: request.correlationId, address,
+            errorCode: 'UNAUTHORIZED',
+            category: 'admission',
+            message: 'principal has no PlayerBinding in this world',
+            retryable: false,
+            correlationId: request.correlationId,
+            address,
           })
         }
         const resolver = this.#rulebooks.resolve(
@@ -474,14 +531,17 @@ export class WorldApplication {
         )
         const head = store.head(address)
         const events = store.readEvents(address, head.headSeq)
-        return new PlayerInputInterpreter().interpret(request.text, resolver.affordances({
-          manifest,
-          events,
-          characterId: binding.characterId,
-          manifestHash: record.manifestHash,
-          asOfWorldSeq: head.headSeq,
-          resolutionAuthority: resolutionAuthority('player', 'manual_player_immediate'),
-        }))
+        return new PlayerInputInterpreter().interpret(
+          request.text,
+          resolver.affordances({
+            manifest,
+            events,
+            characterId: binding.characterId,
+            manifestHash: record.manifestHash,
+            asOfWorldSeq: head.headSeq,
+            resolutionAuthority: resolutionAuthority('player', 'manual_player_immediate'),
+          }),
+        )
       } finally {
         store.close()
       }
@@ -519,22 +579,40 @@ export class WorldApplication {
       if (stored === undefined) return false
       const manifest = runtimeManifestFromStored(stored.manifest)
       return manifest.playerInputPolicy?.version === 'player-intent/v1'
-    } finally { store.close() }
+    } finally {
+      store.close()
+    }
   }
 
-  async #submitIntent(address: WorldAddress, request: SubmitTextRequest, action?: PlayerActionInput): Promise<SubmitTextResult> {
-    for (const name of ['text', 'idempotencyKey', 'principalId', 'correlationId'] as const) assertProtocolString(request[name], name)
+  async #submitIntent(
+    address: WorldAddress,
+    request: SubmitTextRequest,
+    action?: PlayerActionInput,
+  ): Promise<SubmitTextResult> {
+    for (const name of ['text', 'idempotencyKey', 'principalId', 'correlationId'] as const)
+      assertProtocolString(request[name], name)
     const store = new WorldStore(this.options.worldPath)
     const jobs = new PlayerInputJobs(this.options.worldPath)
     try {
       const manifest = runtimeManifestFromStoredRecord(store.readManifest(address))
       if (!manifest.playerBindings.some(value => value.principalId === request.principalId)) {
-        failWorld({ errorCode: 'UNAUTHORIZED', category: 'admission', retryable: false, address,
-          correlationId: request.correlationId, message: 'principal has no PlayerBinding in this world' })
+        failWorld({
+          errorCode: 'UNAUTHORIZED',
+          category: 'admission',
+          retryable: false,
+          address,
+          correlationId: request.correlationId,
+          message: 'principal has no PlayerBinding in this world',
+        })
       }
       if (action !== undefined) parsePlayerActionInput(action)
-      const received = jobs.receive(address, request.principalId, request.idempotencyKey,
-        { text: request.text, ...(action === undefined ? {} : { action }) }, manifest.roundQueueLimit)
+      const received = jobs.receive(
+        address,
+        request.principalId,
+        request.idempotencyKey,
+        { text: request.text, ...(action === undefined ? {} : { action }) },
+        manifest.roundQueueLimit,
+      )
       this.options.faultInjector?.hit('player-input.after-received')
       let current = jobs.read(address, received.idempotencyKey)!
       while (PLAYER_INPUT_TRANSITIONS[current.status].length > 0) {
@@ -542,64 +620,123 @@ export class WorldApplication {
         current = jobs.read(address, received.idempotencyKey)!
       }
       if (current.status !== 'completed' && current.status !== 'clarification_required') {
-        const detail = current.status === 'invalid_response'
-          ? (current.records.invalid_response as { reason?: string } | undefined)?.reason : undefined
-        return { status: 'service_failed', reason: detail === 'candidate_source_order_invalid'
-          ? 'candidate_source_order_invalid' : current.status }
+        const detail =
+          current.status === 'invalid_response'
+            ? (current.records.invalid_response as { reason?: string } | undefined)?.reason
+            : undefined
+        return {
+          status: 'service_failed',
+          reason: detail === 'candidate_source_order_invalid' ? 'candidate_source_order_invalid' : current.status,
+        }
       }
       if (current.status !== 'completed') {
         const reason = (current.records[current.status] as { reason: string }).reason
-        if (['player_intent_provider_unavailable', 'invalid_player_intent_profile', 'budget_exhausted'].includes(reason)) {
+        if (
+          ['player_intent_provider_unavailable', 'invalid_player_intent_profile', 'budget_exhausted'].includes(reason)
+        ) {
           return { status: 'service_failed', reason }
         }
         return { status: 'clarification_required' as const, reason, candidates: [] }
       }
       const submission = current.records.validated as unknown as { actions: PlayerActionInput[] }
-      return { status: 'submitted' as const, action: { actionType: submission.actions[0]!.actionType, parameters: submission.actions[0]!.parameters },
-        result: parsePlayerRoundResult(current.records.completed!) }
-    } finally { jobs.close(); store.close() }
+      return {
+        status: 'submitted' as const,
+        action: { actionType: submission.actions[0]!.actionType, parameters: submission.actions[0]!.parameters },
+        result: parsePlayerRoundResult(current.records.completed!),
+      }
+    } finally {
+      jobs.close()
+      store.close()
+    }
   }
 
   #queueNextPlayerInput(address: WorldAddress, correlationId: string): Promise<PlayerInputJob | undefined> {
     const key = worldAddressKey(address)
     const previous = this.#inputTails.get(key) ?? Promise.resolve()
-    const run = previous.catch(() => undefined).then(() => this.#integrityGuard(address, 'player-input.process', branch =>
-      this.#playerIntentWorker(branch, address, correlationId).processNext()))
+    const run = previous
+      .catch(() => undefined)
+      .then(() =>
+        this.#integrityGuard(address, 'player-input.process', branch =>
+          this.#playerIntentWorker(branch, address, correlationId).processNext(),
+        ),
+      )
     this.#inputTails.set(key, run)
-    return run.finally(() => { if (this.#inputTails.get(key) === run) this.#inputTails.delete(key) })
+    return run.finally(() => {
+      if (this.#inputTails.get(key) === run) this.#inputTails.delete(key)
+    })
   }
 
   #playerIntentWorker(branch: MountedBranch, address: WorldAddress, correlationId: string): PlayerIntentWorker {
-    return new PlayerIntentWorker({ worldPath: this.options.worldPath,
-      contextPath: contextPathFor(this.options) ?? `${this.options.worldPath}.context.sqlite`, address,
+    return new PlayerIntentWorker({
+      worldPath: this.options.worldPath,
+      contextPath: contextPathFor(this.options) ?? `${this.options.worldPath}.context.sqlite`,
+      address,
       // The worker renews this as its heartbeat, starting before the interpretation is dispatched, so
       // this is where a Host that was idle takes its lease back rather than failing the player's turn.
-      renewLease: () => { branch.kernel.refreshWriterLease(); return branch.kernel.writerLease },
+      renewLease: () => {
+        branch.kernel.refreshWriterLease()
+        return branch.kernel.writerLease
+      },
       prepare: job => {
         const stored = branch.store.store.readManifest(address)!
         if (stored.manifestHash !== job.acceptedManifestHash) {
-          failWorld({ errorCode: 'BUNDLE_HASH_MISMATCH', category: 'integrity', retryable: false, address,
-            correlationId, message: 'player input accepted Manifest no longer matches branch authority' })
+          failWorld({
+            errorCode: 'BUNDLE_HASH_MISMATCH',
+            category: 'integrity',
+            retryable: false,
+            address,
+            correlationId,
+            message: 'player input accepted Manifest no longer matches branch authority',
+          })
         }
         const current = runtimeManifestFromStoredRecord(stored)
         const history = branch.store.store.readEvents(address, job.acceptedHeadSeq)
         const acceptedHash = history.at(-1)?.eventHash
         if (history.length !== job.acceptedHeadSeq || acceptedHash !== job.acceptedHeadHash) {
-          failWorld({ errorCode: 'BUNDLE_HASH_MISMATCH', category: 'integrity', retryable: false, address,
-            correlationId, message: 'player input accepted Head no longer matches World Event authority' })
+          failWorld({
+            errorCode: 'BUNDLE_HASH_MISMATCH',
+            category: 'integrity',
+            retryable: false,
+            address,
+            correlationId,
+            message: 'player input accepted Head no longer matches World Event authority',
+          })
         }
-        const prepared = preparePlayerIntent(job, current, history,
+        const prepared = preparePlayerIntent(
+          job,
+          current,
+          history,
           this.#rulebooks.resolve(current.rulebook.rulebookId, current.rulebook.version, correlationId, address),
-          this.options.playerIntent?.profile, this.options.modelBudgetTokens ?? 0,
-          stored.manifestHash, job.acceptedHeadSeq)
-        return 'request' in prepared ? { ...prepared, request: { body: prepared.request,
-          asOfWorldSeq: job.acceptedHeadSeq, baseHeadHash: job.acceptedHeadHash } } : prepared
+          this.options.playerIntent?.profile,
+          this.options.modelBudgetTokens ?? 0,
+          stored.manifestHash,
+          job.acceptedHeadSeq,
+        )
+        return 'request' in prepared
+          ? {
+              ...prepared,
+              request: {
+                body: prepared.request,
+                asOfWorldSeq: job.acceptedHeadSeq,
+                baseHeadHash: job.acceptedHeadHash,
+              },
+            }
+          : prepared
       },
       dispatch: (input, profile, signal) => this.options.playerIntent!.dispatch(input, profile, signal),
       enqueue: job => {
         const manifest = runtimeManifestFromStoredRecord(branch.store.store.readManifest(address))
-        return branch.store.inbox.enqueue({ address, idempotencyKey: job.idempotencyKey, principalId: job.principalId,
-          correlationId, playerInputId: job.inputId, input: { playerInputId: job.inputId } }, manifest.roundQueueLimit) as unknown as WorldJsonValue
+        return branch.store.inbox.enqueue(
+          {
+            address,
+            idempotencyKey: job.idempotencyKey,
+            principalId: job.principalId,
+            correlationId,
+            playerInputId: job.inputId,
+            input: { playerInputId: job.inputId },
+          },
+          manifest.roundQueueLimit,
+        ) as unknown as WorldJsonValue
       },
       complete: async job => {
         while (branch.store.inbox.readCompleted(address, job.idempotencyKey) === undefined) {
@@ -619,7 +756,8 @@ export class WorldApplication {
       ['principalId', request.principalId],
       ['correlationId', request.correlationId],
       ['action.actionType', request.action.actionType],
-    ] as const) assertProtocolString(value, name)
+    ] as const)
+      assertProtocolString(value, name)
     parsePlayerActionInput(request.action)
     return this.#durableReadGuard(address, 'round.accept', () => {
       const store = new WorldStore(this.options.worldPath)
@@ -628,22 +766,27 @@ export class WorldApplication {
         const stored = store.readManifest(address)
         if (stored === undefined) throw new Error('world branch has no active Compiled Manifest')
         const manifest = runtimeManifestFromStored(stored.manifest)
-        this.#rulebooks.resolve(
-          manifest.rulebook.rulebookId,
-          manifest.rulebook.version,
-          request.correlationId,
-          address,
-        )
+        this.#rulebooks.resolve(manifest.rulebook.rulebookId, manifest.rulebook.version, request.correlationId, address)
         if (!manifest.playerBindings.some(value => value.principalId === request.principalId)) {
           failWorld({
-            errorCode: 'UNAUTHORIZED', category: 'admission', message: 'principal has no PlayerBinding in this world',
-            retryable: false, correlationId: request.correlationId, address,
+            errorCode: 'UNAUTHORIZED',
+            category: 'admission',
+            message: 'principal has no PlayerBinding in this world',
+            retryable: false,
+            correlationId: request.correlationId,
+            address,
           })
         }
-        const queued = inbox.enqueue({
-          address, idempotencyKey: request.idempotencyKey, principalId: request.principalId,
-          input: request.action, correlationId: request.correlationId,
-        }, manifest.roundQueueLimit)
+        const queued = inbox.enqueue(
+          {
+            address,
+            idempotencyKey: request.idempotencyKey,
+            principalId: request.principalId,
+            input: request.action,
+            correlationId: request.correlationId,
+          },
+          manifest.roundQueueLimit,
+        )
         const durable = inbox.readStatus(address, { idempotencyKey: request.idempotencyKey })!
         return {
           status: durable.status,
@@ -661,9 +804,14 @@ export class WorldApplication {
   /** Execute one FIFO player input or accepted player Round, else return idle. */
   async processNextBranchWork(address: WorldAddress, correlationId: string): Promise<BranchWorkStep> {
     const input = await this.#queueNextPlayerInput(address, correlationId)
-    if (input !== undefined) return { status: 'player_input', inputId: input.inputId, inputStatus: input.status,
-      round: input.status === 'completed' ? parsePlayerRoundResult(input.records.completed!) : null }
-    return this.#integrityGuard(address, 'round.process', async (branch) => {
+    if (input !== undefined)
+      return {
+        status: 'player_input',
+        inputId: input.inputId,
+        inputStatus: input.status,
+        round: input.status === 'completed' ? parsePlayerRoundResult(input.records.completed!) : null,
+      }
+    return this.#integrityGuard(address, 'round.process', async branch => {
       const round = await branch.kernel.processNextAcceptedStep(correlationId)
       return round === undefined ? { status: 'idle' } : { ...round, status: 'player_round' }
     })
@@ -678,7 +826,10 @@ export class WorldApplication {
     }
   }
 
-  async roundStatus(address: WorldAddress, lookup: { readonly idempotencyKey?: string; readonly roundId?: InteractionRoundId }) {
+  async roundStatus(
+    address: WorldAddress,
+    lookup: { readonly idempotencyKey?: string; readonly roundId?: InteractionRoundId },
+  ) {
     return this.#durableReadGuard(address, 'round.get', () => {
       const inbox = new RoundInbox(this.options.worldPath)
       try {
@@ -694,7 +845,9 @@ export class WorldApplication {
     lookup: { readonly idempotencyKey?: string; readonly roundId?: InteractionRoundId },
     correlationId: string,
   ) {
-    return this.#integrityGuard(address, 'round.cancel-queued', branch => branch.store.inbox.cancelQueued(address, lookup, correlationId))
+    return this.#integrityGuard(address, 'round.cancel-queued', branch =>
+      branch.store.inbox.cancelQueued(address, lookup, correlationId),
+    )
   }
 
   async roundResult(address: WorldAddress, idempotencyKey: string): Promise<PlayerRoundResult | undefined> {
@@ -725,22 +878,33 @@ export class WorldApplication {
       const record = branch.store.store.readManifest(address)
       if (record === undefined) throw new Error('active world has no Manifest')
       const manifest = runtimeManifestFromStoredRecord(record)
-      if (!manifest.playerBindings.some(binding =>
-        binding.principalId === principalId && binding.characterId === characterId)) {
+      if (
+        !manifest.playerBindings.some(
+          binding => binding.principalId === principalId && binding.characterId === characterId,
+        )
+      ) {
         failWorld({
-          errorCode: 'UNAUTHORIZED', category: 'admission',
-          message: 'principal is not bound to the requested affordances', retryable: false,
-          correlationId: `affordances:${principalId}:${characterId}`, address,
+          errorCode: 'UNAUTHORIZED',
+          category: 'admission',
+          message: 'principal is not bound to the requested affordances',
+          retryable: false,
+          correlationId: `affordances:${principalId}:${characterId}`,
+          address,
         })
       }
       const asOf = asOfWorldSeq ?? branch.store.store.head(address).headSeq
       const resolver = this.#rulebooks.resolve(
-        manifest.rulebook.rulebookId, manifest.rulebook.version,
-        `affordances:${principalId}:${characterId}`, address,
+        manifest.rulebook.rulebookId,
+        manifest.rulebook.version,
+        `affordances:${principalId}:${characterId}`,
+        address,
       )
       return resolver.affordances({
-        manifest, events: branch.store.store.readEvents(address, asOf),
-        characterId, manifestHash: record.manifestHash, asOfWorldSeq: asOf,
+        manifest,
+        events: branch.store.store.readEvents(address, asOf),
+        characterId,
+        manifestHash: record.manifestHash,
+        asOfWorldSeq: asOf,
         resolutionAuthority: resolutionAuthority('player', 'manual_player_immediate'),
       })
     })
@@ -755,12 +919,18 @@ export class WorldApplication {
     assertProtocolString(principalId, 'principalId')
     return this.#integrityGuard(address, 'view.character', branch => {
       const manifest = runtimeManifestFromStoredRecord(branch.store.store.readManifest(address))
-      if (!manifest.playerBindings.some(binding =>
-        binding.principalId === principalId && binding.characterId === characterId)) {
+      if (
+        !manifest.playerBindings.some(
+          binding => binding.principalId === principalId && binding.characterId === characterId,
+        )
+      ) {
         failWorld({
-          errorCode: 'UNAUTHORIZED', category: 'admission',
-          message: 'principal is not bound to the requested CharacterView', retryable: false,
-          correlationId: `view:${principalId}:${characterId}`, address,
+          errorCode: 'UNAUTHORIZED',
+          category: 'admission',
+          message: 'principal is not bound to the requested CharacterView',
+          retryable: false,
+          correlationId: `view:${principalId}:${characterId}`,
+          address,
         })
       }
       return this.#projectionRead(address, `view:${worldAddressKey(address)}:${characterId}`, () => {
@@ -794,7 +964,14 @@ export class WorldApplication {
     const pending = [...this.#branches.values()]
     await Promise.allSettled(this.#inputTails.values())
     this.#branches.clear()
-    await Promise.all(pending.map(branch => branch.then(value => value.lease.dispose(), () => undefined)))
+    await Promise.all(
+      pending.map(branch =>
+        branch.then(
+          value => value.lease.dispose(),
+          () => undefined,
+        ),
+      ),
+    )
   }
 
   get activeBranchCount(): number {
@@ -842,9 +1019,12 @@ export class WorldApplication {
     } catch (error: unknown) {
       if (error instanceof WorldError) throw error
       failWorld({
-        errorCode: 'PROJECTION_INVARIANT_FAILED', category: 'integrity',
-        message: `Projection rebuild failed: ${String(error)}`, retryable: false,
-        correlationId, address,
+        errorCode: 'PROJECTION_INVARIANT_FAILED',
+        category: 'integrity',
+        message: `Projection rebuild failed: ${String(error)}`,
+        retryable: false,
+        correlationId,
+        address,
       })
     }
   }
@@ -880,10 +1060,12 @@ export class WorldApplication {
     }
     const lease = await this.runtimeRegistry.acquire(address, manifest.manifestHash)
     const components = lease.slot.components
-    if (!(components.kernel instanceof RoundCoordinator)
-      || !(components.store instanceof BranchStoreComponent)
-      || !(components.agents instanceof BranchAgentComponent)
-      || !(components.director instanceof BranchPresentationComponent)) {
+    if (
+      !(components.kernel instanceof RoundCoordinator) ||
+      !(components.store instanceof BranchStoreComponent) ||
+      !(components.agents instanceof BranchAgentComponent) ||
+      !(components.director instanceof BranchPresentationComponent)
+    ) {
       await lease.dispose()
       throw new Error('Branch Component Factory returned an incompatible component set')
     }

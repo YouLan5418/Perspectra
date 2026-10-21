@@ -11,7 +11,11 @@ export function packJsonAsset(root: string, pack: CompiledWorldPackV5, entry: st
   if (!lstatSync(path).isFile() || relative(realpathSync(root), realpathSync(path)) !== entry.split('/').join(sep))
     throw new TypeError('配置必须是包内普通文件：' + entry)
   const bytes = readFileSync(path)
-  if (bytes.length > maximumBytes || bytes.length !== lock.size || 'sha256:' + createHash('sha256').update(bytes).digest('hex') !== lock.contentHash)
+  if (
+    bytes.length > maximumBytes ||
+    bytes.length !== lock.size ||
+    'sha256:' + createHash('sha256').update(bytes).digest('hex') !== lock.contentHash
+  )
     throw new TypeError('配置与编译包不一致：' + entry)
   return JSON.parse(bytes.toString('utf8'))
 }

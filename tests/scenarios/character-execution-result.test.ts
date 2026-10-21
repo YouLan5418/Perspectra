@@ -5,20 +5,47 @@ import { frozenInteractionWorld } from '../fixtures/frozen-interaction-world.ts'
 
 const world = frozenInteractionWorld()
 const actorId = brandId('character:npc', 'CharacterId')
-const input = { manifest: world.manifest, events: world.genesisEvents, actorId,
+const input = {
+  manifest: world.manifest,
+  events: world.genesisEvents,
+  actorId,
   action: { actionType: 'interact', parameters: { targetRef: { kind: 'entity', id: 'entity:cup' } } },
-  status: 'rejected', reason: 'PARTICIPANT_NOT_AUTHORIZED' }
-const transfer = { eventType: 'entity.transferred', eventVersion: 1, data: {
-  characterId: 'character:player', entityId: 'entity:cup', interactionId: 'base:take', fromHolderId: null,
-  fromLocationId: 'location:room', toHolderId: 'character:player', toLocationId: null,
-} }
+  status: 'rejected',
+  reason: 'PARTICIPANT_NOT_AUTHORIZED',
+}
+const transfer = {
+  eventType: 'entity.transferred',
+  eventVersion: 1,
+  data: {
+    characterId: 'character:player',
+    entityId: 'entity:cup',
+    interactionId: 'base:take',
+    fromHolderId: null,
+    fromLocationId: 'location:room',
+    toHolderId: 'character:player',
+    toLocationId: null,
+  },
+}
 
 it('names the known holder without exposing the diagnostic code', () => {
-  const result = characterExecutionResult({ ...input, events: [...input.events, transfer,
-    { eventType: 'observation.upsert', eventVersion: 1, data: { id: 'visible-transfer', value: {
-      observerId: actorId, content: { interaction: transfer.data },
-    } } },
-  ] })
+  const result = characterExecutionResult({
+    ...input,
+    events: [
+      ...input.events,
+      transfer,
+      {
+        eventType: 'observation.upsert',
+        eventVersion: 1,
+        data: {
+          id: 'visible-transfer',
+          value: {
+            observerId: actorId,
+            content: { interaction: transfer.data },
+          },
+        },
+      },
+    ],
+  })
   expect(result.description).toContain('Player')
   expect(result.description).toContain('没有成功取得它的保管')
   expect(JSON.stringify(result)).not.toContain('PARTICIPANT_NOT_AUTHORIZED')
@@ -30,39 +57,79 @@ it('does not reveal an unobserved holder or invent a refusal of consent', () => 
 })
 
 it.each([
-  ['NOT_CO_LOCATED', '不在同一个地方'], ['ITEM_NOT_HELD', '不由你保管'],
-  ['CONSENT_REQUIRED', '尚未获得同意'], ['CONSENT_DENIED', '没有同意'],
+  ['NOT_CO_LOCATED', '不在同一个地方'],
+  ['ITEM_NOT_HELD', '不由你保管'],
+  ['CONSENT_REQUIRED', '尚未获得同意'],
+  ['CONSENT_DENIED', '没有同意'],
 ])('keeps the concrete meaning of %s', (reason, expected) => {
   expect(characterExecutionResult({ ...input, reason }).description).toContain(expected)
 })
 
 it('describes an absent target without claiming omniscient knowledge of hidden locations', () => {
-  expect(characterExecutionResult({ ...input, action: { ...input.action,
-    parameters: { targetRef: { kind: 'entity', id: 'entity:absent' } } } }).description).toContain('你面前找不到')
+  expect(
+    characterExecutionResult({
+      ...input,
+      action: { ...input.action, parameters: { targetRef: { kind: 'entity', id: 'entity:absent' } } },
+    }).description,
+  ).toContain('你面前找不到')
 })
 
 it('describes the actual completed take and remaining own possession', () => {
   const ownTake = { ...transfer, data: { ...transfer.data, toHolderId: actorId, characterId: actorId } }
-  expect(characterExecutionResult({ ...input, events: [...input.events, ownTake], status: 'accepted', reason: null,
-    action: { actionType: 'interact', parameters: { targetRef: { kind: 'entity', id: 'entity:cup' },
-      definitionRef: { id: 'base:take', version: 1 } } } }).description)
-    .toBe('你刚刚成功取得保管（物品：entity:cup）。该物品目前仍由你保管；不要求一直握在手里。')
+  expect(
+    characterExecutionResult({
+      ...input,
+      events: [...input.events, ownTake],
+      status: 'accepted',
+      reason: null,
+      action: {
+        actionType: 'interact',
+        parameters: { targetRef: { kind: 'entity', id: 'entity:cup' }, definitionRef: { id: 'base:take', version: 1 } },
+      },
+    }).description,
+  ).toBe('你刚刚成功取得保管（物品：entity:cup）。该物品目前仍由你保管；不要求一直握在手里。')
 })
 
 it('uses the author-declared Entity label instead of the runtime identity when one exists', () => {
-  const named = { ...world.manifest, entities: world.manifest.entities.map(entity =>
-    entity.entityId === 'entity:cup' ? { ...entity, name: '茶杯' } : entity) }
-  const description = characterExecutionResult({ ...input, manifest: named, status: 'accepted', reason: null,
-    action: { actionType: 'interact', parameters: { targetRef: { kind: 'entity', id: 'entity:cup' },
-      definitionRef: { id: 'base:take', version: 1 } } } }).description
+  const named = {
+    ...world.manifest,
+    entities: world.manifest.entities.map(entity =>
+      entity.entityId === 'entity:cup' ? { ...entity, name: '茶杯' } : entity,
+    ),
+  }
+  const description = characterExecutionResult({
+    ...input,
+    manifest: named,
+    status: 'accepted',
+    reason: null,
+    action: {
+      actionType: 'interact',
+      parameters: { targetRef: { kind: 'entity', id: 'entity:cup' }, definitionRef: { id: 'base:take', version: 1 } },
+    },
+  }).description
   expect(description).toContain('（物品：茶杯）')
   expect(description).not.toContain('entity:cup')
 })
 
 it('reports a pack-defined state change by its new kind, in wording that also reads well for observers', () => {
-  const cooked = { eventType: 'entity.upsert', eventVersion: 1, data: { entityId: 'entity:cup', locationId: 'location:room', kind: '一杯热可可' } }
-  const result = characterExecutionResult({ ...input, events: [...input.events, cooked], status: 'accepted', reason: null,
-    action: { actionType: 'interact', parameters: { targetRef: { kind: 'entity', id: 'entity:cup' }, definitionRef: { id: 'dinner:cook-home', version: 1 } } } })
+  const cooked = {
+    eventType: 'entity.upsert',
+    eventVersion: 1,
+    data: { entityId: 'entity:cup', locationId: 'location:room', kind: '一杯热可可' },
+  }
+  const result = characterExecutionResult({
+    ...input,
+    events: [...input.events, cooked],
+    status: 'accepted',
+    reason: null,
+    action: {
+      actionType: 'interact',
+      parameters: {
+        targetRef: { kind: 'entity', id: 'entity:cup' },
+        definitionRef: { id: 'dinner:cook-home', version: 1 },
+      },
+    },
+  })
   expect(result.description).toMatch(/现在是：一杯热可可。$/u)
   expect(result.description).not.toMatch(/你|执行交互/u)
 })

@@ -15,10 +15,18 @@ afterEach(async () => {
 async function start(saveNode?: (title: string) => Promise<{ id: string; title: string }>) {
   const server = createHostServer({ saveNode } as HostRuntime, token)
   servers.push(server)
-  server.listen(0, '127.0.0.1'); await once(server, 'listening')
-  return (title: unknown, authenticated = true, origin?: string) => fetch('http://127.0.0.1:' + (server.address() as AddressInfo).port + '/api/story-save', {
-    method: 'POST', headers: { 'content-type': 'application/json', ...(authenticated ? { 'x-playtest-token': token } : {}), ...(origin ? { origin } : {}) }, body: JSON.stringify({ title }),
-  })
+  server.listen(0, '127.0.0.1')
+  await once(server, 'listening')
+  return (title: unknown, authenticated = true, origin?: string) =>
+    fetch('http://127.0.0.1:' + (server.address() as AddressInfo).port + '/api/story-save', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        ...(authenticated ? { 'x-playtest-token': token } : {}),
+        ...(origin ? { origin } : {}),
+      },
+      body: JSON.stringify({ title }),
+    })
 }
 
 it('saves a node with the given title', async () => {
@@ -37,7 +45,9 @@ it('rejects without token and rejects cross-origin requests', async () => {
   expect(save).not.toHaveBeenCalled()
 })
 it('reports busy runtime', async () => {
-  const post = await start(async () => { throw new HostBusyError('角色仍在行动') })
+  const post = await start(async () => {
+    throw new HostBusyError('角色仍在行动')
+  })
   const response = await post('晚饭后')
   expect(response.status).toBe(409)
   expect(await response.json()).toEqual({ error: '角色仍在行动' })

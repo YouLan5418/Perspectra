@@ -6,33 +6,72 @@ import type { WorldAddress } from '@harness-world/contracts'
 import { worldAddressKey } from '@harness-world/contracts'
 
 export interface StoryNode {
-  id: string; title: string; createdAt: string; headSeq: number; tick: number
-  packHash: string; parentNodeId: string | null; files: string[]
+  id: string
+  title: string
+  createdAt: string
+  headSeq: number
+  tick: number
+  packHash: string
+  parentNodeId: string | null
+  files: string[]
 }
 export function storyId(value: unknown): string {
-  if (typeof value !== 'string' || !/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/.test(value)) throw new Error('故事节点或线路不存在。')
+  if (typeof value !== 'string' || !/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/.test(value))
+    throw new Error('故事节点或线路不存在。')
   return value
 }
-const NODE_FILES = ['world.sqlite', 'session.sqlite', 'memory.sqlite', 'context.sqlite', 'memory-aliases.json', 'core-memory.json'] as const
+const NODE_FILES = [
+  'world.sqlite',
+  'session.sqlite',
+  'memory.sqlite',
+  'context.sqlite',
+  'memory-aliases.json',
+  'core-memory.json',
+] as const
 export function readStoryNodes(directory: string): StoryNode[] {
   const root = join(directory, 'story-nodes')
   if (!existsSync(root)) return []
-  return readdirSync(root).filter(id => !id.startsWith('.')).map(id => {
-    storyId(id)
-    const node = JSON.parse(readFileSync(join(root, id, 'node.json'), 'utf8')) as StoryNode
-    if (node.id !== id || typeof node.title !== 'string' || typeof node.createdAt !== 'string'
-      || typeof node.packHash !== 'string' || !Number.isSafeInteger(node.headSeq) || node.headSeq < 0
-      || !Number.isSafeInteger(node.tick) || node.tick < 0 || !(node.parentNodeId === null || typeof node.parentNodeId === 'string')
-      || !Array.isArray(node.files) || !node.files.includes('world.sqlite') || !node.files.includes('memory-aliases.json')
-      || new Set(node.files).size !== node.files.length || node.files.some(file=>!(NODE_FILES as readonly string[]).includes(file))) throw new Error('故事节点损坏。')
-    return node
-  }).sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id))
+  return readdirSync(root)
+    .filter(id => !id.startsWith('.'))
+    .map(id => {
+      storyId(id)
+      const node = JSON.parse(readFileSync(join(root, id, 'node.json'), 'utf8')) as StoryNode
+      if (
+        node.id !== id ||
+        typeof node.title !== 'string' ||
+        typeof node.createdAt !== 'string' ||
+        typeof node.packHash !== 'string' ||
+        !Number.isSafeInteger(node.headSeq) ||
+        node.headSeq < 0 ||
+        !Number.isSafeInteger(node.tick) ||
+        node.tick < 0 ||
+        !(node.parentNodeId === null || typeof node.parentNodeId === 'string') ||
+        !Array.isArray(node.files) ||
+        !node.files.includes('world.sqlite') ||
+        !node.files.includes('memory-aliases.json') ||
+        new Set(node.files).size !== node.files.length ||
+        node.files.some(file => !(NODE_FILES as readonly string[]).includes(file))
+      )
+        throw new Error('故事节点损坏。')
+      return node
+    })
+    .sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id))
 }
 
 /** Caller holds the runtime input gate; all foreground and memory writers have stopped. */
-export async function saveStoryNode(directory: string, address: WorldAddress, packHash: string, title: string, aliases: unknown, parentNodeId: string | null = null, logicalDirectory = directory, coreMemory: unknown = {}): Promise<StoryNode> {
+export async function saveStoryNode(
+  directory: string,
+  address: WorldAddress,
+  packHash: string,
+  title: string,
+  aliases: unknown,
+  parentNodeId: string | null = null,
+  logicalDirectory = directory,
+  coreMemory: unknown = {},
+): Promise<StoryNode> {
   if (!title.trim() || title.length > 80) throw new TypeError('节点名称须为 1 至 80 个字符。')
-  const root = join(logicalDirectory, 'story-nodes'), id = randomUUID()
+  const root = join(logicalDirectory, 'story-nodes'),
+    id = randomUUID()
   mkdirSync(root, { recursive: true })
   const temporary = join(root, '.' + id)
   mkdirSync(temporary)
@@ -40,26 +79,47 @@ export async function saveStoryNode(directory: string, address: WorldAddress, pa
   let node: StoryNode
   try {
     const key = worldAddressKey(address)
-    const unfinished = world.prepare(`SELECT 1 FROM round_inbox WHERE address_key=? AND status IN ('pending','claimed')
+    const unfinished = world
+      .prepare(
+        `SELECT 1 FROM round_inbox WHERE address_key=? AND status IN ('pending','claimed')
       UNION ALL SELECT 1 FROM player_input_jobs WHERE address_key=? AND status IN ('received','prepared','dispatch_started','response_received','validated','round_enqueued')
       UNION ALL SELECT 1 FROM outbox WHERE address_key=? AND critical=1 AND delivery_status <> 'delivered'
-      UNION ALL SELECT 1 FROM writer_leases WHERE address_key=? AND expires_at_ms>? LIMIT 1`).get(key, key, key, key, Date.now())
+      UNION ALL SELECT 1 FROM writer_leases WHERE address_key=? AND expires_at_ms>? LIMIT 1`,
+      )
+      .get(key, key, key, key, Date.now())
     if (unfinished) throw new Error('世界尚未静止，请完成当前输入与角色反应后保存。')
-    const head = world.prepare('SELECT head_seq,tick FROM heads WHERE address_key=?').get(key) as {head_seq:number;tick:number} | undefined
+    const head = world.prepare('SELECT head_seq,tick FROM heads WHERE address_key=?').get(key) as
+      | { head_seq: number; tick: number }
+      | undefined
     if (!head) throw new Error('世界不存在。')
     const nodes = readStoryNodes(logicalDirectory)
-    node = { id, title: title.trim(), createdAt: new Date().toISOString(), headSeq: head.head_seq, tick: head.tick, packHash, parentNodeId: nodes.at(-1)?.id ?? parentNodeId, files: [] }
+    node = {
+      id,
+      title: title.trim(),
+      createdAt: new Date().toISOString(),
+      headSeq: head.head_seq,
+      tick: head.tick,
+      packHash,
+      parentNodeId: nodes.at(-1)?.id ?? parentNodeId,
+      files: [],
+    }
     await backup(world, join(temporary, 'world.sqlite'))
-  } finally { world.close() }
+  } finally {
+    world.close()
+  }
   for (const name of ['session.sqlite', 'memory.sqlite', 'context.sqlite']) {
     const path = join(directory, name)
     if (!existsSync(path)) continue
     const db = new DatabaseSync(path, { readOnly: true })
-    try { await backup(db, join(temporary, name)) } finally { db.close() }
+    try {
+      await backup(db, join(temporary, name))
+    } finally {
+      db.close()
+    }
   }
   writeFileSync(join(temporary, 'memory-aliases.json'), JSON.stringify(aliases))
   writeFileSync(join(temporary, 'core-memory.json'), JSON.stringify(coreMemory))
-  node.files = NODE_FILES.filter(name=>existsSync(join(temporary,name)))
+  node.files = NODE_FILES.filter(name => existsSync(join(temporary, name)))
   writeFileSync(join(temporary, 'node.json'), JSON.stringify(node))
   renameSync(temporary, join(root, id))
   return node
@@ -73,9 +133,9 @@ export function restoreStoryNode(source: string, nodeId: string, target: string,
   if (readdirSync(target).length) throw new Error('新故事线目录必须为空。')
   const origin = join(source, 'story-nodes', node.id)
   for (const name of node.files) {
-    if (!existsSync(join(origin,name))) throw new Error('完整节点文件缺失，拒绝恢复。')
+    if (!existsSync(join(origin, name))) throw new Error('完整节点文件缺失，拒绝恢复。')
   }
-  for (const name of node.files) copyFileSync(join(origin,name),join(target,name))
+  for (const name of node.files) copyFileSync(join(origin, name), join(target, name))
   writeFileSync(join(target, 'rebuild-memory.json'), JSON.stringify({ headSeq: node.headSeq, packHash }))
   return node
 }

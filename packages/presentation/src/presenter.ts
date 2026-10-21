@@ -30,7 +30,7 @@ export interface ReactionPresentationOrigin extends WorldJsonObject {
 }
 
 function object(value: WorldJsonValue): WorldJsonObject | undefined {
-  return typeof value === 'object' && value !== null && !Array.isArray(value) ? value as WorldJsonObject : undefined
+  return typeof value === 'object' && value !== null && !Array.isArray(value) ? (value as WorldJsonObject) : undefined
 }
 
 /** Pure template renderer for already-authorized Observation data. */
@@ -42,32 +42,40 @@ export class DeterministicPresenter {
     if (locale !== 'en' && locale !== 'zh-CN') throw new TypeError('unsupported presenter locale')
     if (style !== 'plain') throw new TypeError('unsupported presenter style')
     const value = object(observation)
-    const reactionOrigin = value?.observationType === 'reaction-round'
-      && typeof value.cycleId === 'string'
-      && typeof value.wave === 'number'
-      && typeof value.roundId === 'string'
-      && typeof value.rootRoundId === 'string'
-      && typeof value.value === 'object'
-      && value.value !== null
-      ? {
-          cycleId: value.cycleId,
-          wave: value.wave,
-          roundId: value.roundId,
-          rootRoundId: value.rootRoundId,
-        }
-      : undefined
-    const observationPayload = reactionOrigin !== undefined
-      ? value
-      : typeof value?.observationId === 'string' && object(value.value ?? null)?.content !== undefined
-      ? value
-      : undefined
-    const text = value?.observationType === 'player-action-result'
-      && typeof value.actionType === 'string'
-      && (value.status === 'accepted' || value.status === 'rejected')
-      ? this.#playerAction(locale, value.actionType, value.status, typeof value.reason === 'string' ? value.reason : undefined)
-      : observationPayload !== undefined
-      ? this.#observedAction(locale, observationPayload)
-      : new TextDecoder().decode(canonicalizeWorldJson(observation))
+    const reactionOrigin =
+      value?.observationType === 'reaction-round' &&
+      typeof value.cycleId === 'string' &&
+      typeof value.wave === 'number' &&
+      typeof value.roundId === 'string' &&
+      typeof value.rootRoundId === 'string' &&
+      typeof value.value === 'object' &&
+      value.value !== null
+        ? {
+            cycleId: value.cycleId,
+            wave: value.wave,
+            roundId: value.roundId,
+            rootRoundId: value.rootRoundId,
+          }
+        : undefined
+    const observationPayload =
+      reactionOrigin !== undefined
+        ? value
+        : typeof value?.observationId === 'string' && object(value.value ?? null)?.content !== undefined
+          ? value
+          : undefined
+    const text =
+      value?.observationType === 'player-action-result' &&
+      typeof value.actionType === 'string' &&
+      (value.status === 'accepted' || value.status === 'rejected')
+        ? this.#playerAction(
+            locale,
+            value.actionType,
+            value.status,
+            typeof value.reason === 'string' ? value.reason : undefined,
+          )
+        : observationPayload !== undefined
+          ? this.#observedAction(locale, observationPayload)
+          : new TextDecoder().decode(canonicalizeWorldJson(observation))
     const observationContentHash = hashWorldJson('authorized-observation', observation)
     const base = {
       rendererProfileVersion: 1 as const,
@@ -100,39 +108,46 @@ export class DeterministicPresenter {
     const speechValue = object(content.speech ?? null)
     if (speechValue?.segments !== undefined) {
       const segments = publicationSegments(speechValue)
-      const expression = segments.map(segment => segment.type === 'narration'
-        ? locale === 'zh-CN' ? `（${segment.text}）` : `*${segment.text}*`
-        : segment.text).join('\n')
+      const expression = segments
+        .map(segment =>
+          segment.type === 'narration'
+            ? locale === 'zh-CN'
+              ? `（${segment.text}）`
+              : `*${segment.text}*`
+            : segment.text,
+        )
+        .join('\n')
       return locale === 'zh-CN' ? `角色 ${actorId}：\n${expression}` : `${actorId}:\n${expression}`
     }
     const speech = typeof speechValue?.text === 'string' ? speechValue.text : null
     const manifestation = object(content.manifestation ?? null)
     const cueValues = Array.isArray(manifestation?.cues) ? manifestation.cues : []
     const cueDescriptions = cueValues.map(value => object(value)?.description)
-    const manifestationMalformed = content.manifestation !== undefined && (
-      manifestation === undefined
-      || (manifestation.description !== undefined && manifestation.description !== null
-        && typeof manifestation.description !== 'string')
-      || cueValues.length === 0
-      || cueDescriptions.some(value => typeof value !== 'string')
-    )
+    const manifestationMalformed =
+      content.manifestation !== undefined &&
+      (manifestation === undefined ||
+        (manifestation.description !== undefined &&
+          manifestation.description !== null &&
+          typeof manifestation.description !== 'string') ||
+        cueValues.length === 0 ||
+        cueDescriptions.some(value => typeof value !== 'string'))
     if (manifestationMalformed) return new TextDecoder().decode(canonicalizeWorldJson(payload))
-    const stage = typeof speechValue?.narration === 'string' && speechValue.narration.length > 0
-      ? speechValue.narration : typeof manifestation?.description === 'string'
-      ? manifestation.description
-      : manifestation === undefined ? null : (cueDescriptions as string[]).join(locale === 'zh-CN' ? '，' : ', ')
+    const stage =
+      typeof speechValue?.narration === 'string' && speechValue.narration.length > 0
+        ? speechValue.narration
+        : typeof manifestation?.description === 'string'
+          ? manifestation.description
+          : manifestation === undefined
+            ? null
+            : (cueDescriptions as string[]).join(locale === 'zh-CN' ? '，' : ', ')
     if (speech === '' && stage !== null) {
       return locale === 'zh-CN' ? `角色 ${actorId}：（${stage}）` : `${actorId}: *${stage}*`
     }
     if (locale === 'zh-CN') {
-      const action = speech !== null
-        ? `角色 ${actorId} 说："${speech}"`
-        : `角色 ${actorId} 行动：${actionType}`
+      const action = speech !== null ? `角色 ${actorId} 说："${speech}"` : `角色 ${actorId} 行动：${actionType}`
       return stage === null ? action : `（${stage}）\n${action}`
     }
-    const action = speech !== null
-      ? `${actorId} says: "${speech}"`
-      : `${actorId} acts: ${actionType}`
+    const action = speech !== null ? `${actorId} says: "${speech}"` : `${actorId} acts: ${actionType}`
     return stage === null ? action : `*${stage}*\n${action}`
   }
 }

@@ -1,9 +1,5 @@
 import type { WorldAddress, WorldJsonObject } from '@harness-world/contracts'
-import {
-  BranchAdministration,
-  WorldStore,
-  type BranchControlState,
-} from '@harness-world/store-sqlite'
+import { BranchAdministration, WorldStore, type BranchControlState } from '@harness-world/store-sqlite'
 
 export interface AcceptedRoundDrainPort {
   drainAccepted(correlationId: string): Promise<number>

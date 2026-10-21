@@ -34,22 +34,31 @@ export const BRANCH_WORK_FAILURE_OPERATION = 'branch.work.failed'
 export class BranchAdministration {
   readonly #db: DatabaseSync
 
-  constructor(path: string, private readonly operationalNow: () => number = Date.now) {
+  constructor(
+    path: string,
+    private readonly operationalNow: () => number = Date.now,
+  ) {
     this.#db = openWorldDatabase(path)
   }
 
   status(address: WorldAddress): BranchControlState {
-    const row = this.#db.prepare(`
+    const row = this.#db
+      .prepare(
+        `
       SELECT admission_state, lifecycle_state, runtime_phase, runtime_epoch, reason, revision
       FROM branch_controls WHERE address_key = ?
-    `).get(worldAddressKey(address)) as {
-      admission_state: BranchControlState['admissionState']
-      lifecycle_state: BranchControlState['lifecycleState']
-      runtime_phase: BranchControlState['runtimePhase']
-      runtime_epoch: number
-      reason: string | null
-      revision: number
-    } | undefined
+    `,
+      )
+      .get(worldAddressKey(address)) as
+      | {
+          admission_state: BranchControlState['admissionState']
+          lifecycle_state: BranchControlState['lifecycleState']
+          runtime_phase: BranchControlState['runtimePhase']
+          runtime_epoch: number
+          reason: string | null
+          revision: number
+        }
+      | undefined
     if (row === undefined) throw new Error(`unknown world branch ${worldAddressKey(address)}`)
     return {
       admissionState: row.admission_state,
@@ -61,15 +70,23 @@ export class BranchAdministration {
     }
   }
 
-  setAdmission(address: WorldAddress, state: 'open' | 'draining', reason: string, correlationId: string): BranchControlState {
+  setAdmission(
+    address: WorldAddress,
+    state: 'open' | 'draining',
+    reason: string,
+    correlationId: string,
+  ): BranchControlState {
     assertProtocolString(reason, 'administrative reason')
     assertProtocolString(correlationId, 'correlationId')
-    return this.#mutate(address, 'branch.admission.changed', correlationId, (current) => {
+    return this.#mutate(address, 'branch.admission.changed', correlationId, current => {
       if (current.runtimePhase !== 'active') {
         failWorld({
           errorCode: current.runtimePhase === 'quarantined' ? 'BRANCH_QUARANTINED' : 'BRANCH_DRAINING',
-          category: 'admin', message: `branch is ${current.runtimePhase}`, retryable: false,
-          correlationId, address,
+          category: 'admin',
+          message: `branch is ${current.runtimePhase}`,
+          retryable: false,
+          correlationId,
+          address,
         })
       }
       return { ...current, admissionState: state, reason }
@@ -80,24 +97,45 @@ export class BranchAdministration {
     assertProtocolString(reason, 'administrative reason')
     assertProtocolString(correlationId, 'correlationId')
     return this.#mutate(address, 'maintenance.entered', correlationId, (current, key, now) => {
-      const activeLease = this.#db.prepare(`
+      const activeLease = this.#db
+        .prepare(
+          `
         SELECT 1 AS present FROM writer_leases WHERE address_key = ? AND expires_at_ms > ?
-      `).get(key, now)
-      const unfinishedRound = this.#db.prepare(`
+      `,
+        )
+        .get(key, now)
+      const unfinishedRound = this.#db
+        .prepare(
+          `
         SELECT 1 AS present FROM round_inbox WHERE address_key = ? AND status IN ('pending', 'claimed')
         UNION ALL SELECT 1 FROM player_input_jobs WHERE address_key = ?
           AND status IN ('received','prepared','dispatch_started','response_received','validated','round_enqueued') LIMIT 1
-      `).get(key, key)
-      const criticalInflight = this.#db.prepare(`
+      `,
+        )
+        .get(key, key)
+      const criticalInflight = this.#db
+        .prepare(
+          `
         SELECT 1 FROM outbox WHERE address_key = ? AND critical = 1 AND delivery_status = 'inflight' LIMIT 1
-      `).get(key)
-      if (current.runtimePhase !== 'active' || current.lifecycleState !== 'active'
-        || current.admissionState !== 'draining' || activeLease !== undefined || unfinishedRound !== undefined
-        || criticalInflight !== undefined) {
+      `,
+        )
+        .get(key)
+      if (
+        current.runtimePhase !== 'active' ||
+        current.lifecycleState !== 'active' ||
+        current.admissionState !== 'draining' ||
+        activeLease !== undefined ||
+        unfinishedRound !== undefined ||
+        criticalInflight !== undefined
+      ) {
         failWorld({
-          errorCode: 'BRANCH_DRAINING', category: 'admin',
-          message: 'maintenance requires a drained active branch with no active writer, unfinished Round, or critical inflight delivery',
-          retryable: true, correlationId, address,
+          errorCode: 'BRANCH_DRAINING',
+          category: 'admin',
+          message:
+            'maintenance requires a drained active branch with no active writer, unfinished Round, or critical inflight delivery',
+          retryable: true,
+          correlationId,
+          address,
         })
       }
       return { ...current, runtimePhase: 'maintenance', reason }
@@ -108,14 +146,21 @@ export class BranchAdministration {
     assertProtocolString(reason, 'administrative reason')
     assertProtocolString(correlationId, 'correlationId')
     return this.#mutate(address, 'maintenance.exited', correlationId, (current, key, now) => {
-      const activeLease = this.#db.prepare(`
+      const activeLease = this.#db
+        .prepare(
+          `
         SELECT 1 AS present FROM writer_leases WHERE address_key = ? AND expires_at_ms > ?
-      `).get(key, now)
+      `,
+        )
+        .get(key, now)
       if (current.runtimePhase !== 'maintenance' || current.lifecycleState !== 'active' || activeLease !== undefined) {
         failWorld({
-          errorCode: 'BRANCH_DRAINING', category: 'admin',
+          errorCode: 'BRANCH_DRAINING',
+          category: 'admin',
           message: 'only an offline maintenance branch can return to active service',
-          retryable: true, correlationId, address,
+          retryable: true,
+          correlationId,
+          address,
         })
       }
       return {
@@ -138,10 +183,14 @@ export class BranchAdministration {
   }
 
   readAudit(address: WorldAddress): BranchAuditEvent[] {
-    const rows = this.#db.prepare(`
+    const rows = this.#db
+      .prepare(
+        `
       SELECT audit_seq, operation, correlation_id, details_json, operational_time_ms
       FROM branch_audit_events WHERE address_key = ? ORDER BY audit_seq
-    `).all(worldAddressKey(address)) as Array<{
+    `,
+      )
+      .all(worldAddressKey(address)) as Array<{
       audit_seq: number
       operation: string
       correlation_id: string
@@ -157,25 +206,28 @@ export class BranchAdministration {
     }))
   }
 
-  recordBranchWorkFailure(
-    address: WorldAddress,
-    correlationId: string,
-    details: WorldJsonObject,
-  ): BranchAuditEvent {
+  recordBranchWorkFailure(address: WorldAddress, correlationId: string, details: WorldJsonObject): BranchAuditEvent {
     assertProtocolString(correlationId, 'correlationId')
     const key = worldAddressKey(address)
     const operationalTimeMs = this.operationalNow()
     this.#db.exec('BEGIN IMMEDIATE')
     try {
       this.status(address)
-      const result = this.#db.prepare(`
+      const result = this.#db
+        .prepare(
+          `
         INSERT INTO branch_audit_events(address_key, operation, correlation_id, details_json, operational_time_ms)
         VALUES (?, ?, ?, ?, ?)
-      `).run(key, BRANCH_WORK_FAILURE_OPERATION, correlationId, worldJsonText(details), operationalTimeMs)
+      `,
+        )
+        .run(key, BRANCH_WORK_FAILURE_OPERATION, correlationId, worldJsonText(details), operationalTimeMs)
       this.#db.exec('COMMIT')
       return {
-        auditSeq: Number(result.lastInsertRowid), operation: BRANCH_WORK_FAILURE_OPERATION, correlationId,
-        details, operationalTimeMs,
+        auditSeq: Number(result.lastInsertRowid),
+        operation: BRANCH_WORK_FAILURE_OPERATION,
+        correlationId,
+        details,
+        operationalTimeMs,
       }
     } catch (error: unknown) {
       rollbackAndThrow(this.#db, error)
@@ -199,17 +251,30 @@ export class BranchAdministration {
       const current = this.status(address)
       const candidate = update(current, key, operationalTimeMs)
       const next = { ...candidate, revision: current.revision + 1 }
-      this.#db.prepare(`
+      this.#db
+        .prepare(
+          `
         UPDATE branch_controls SET admission_state = ?, lifecycle_state = ?, runtime_phase = ?, runtime_epoch = ?,
           reason = ?, revision = ? WHERE address_key = ?
-      `).run(
-        next.admissionState, next.lifecycleState, next.runtimePhase, next.runtimeEpoch,
-        next.reason, next.revision, key,
-      )
-      this.#db.prepare(`
+      `,
+        )
+        .run(
+          next.admissionState,
+          next.lifecycleState,
+          next.runtimePhase,
+          next.runtimeEpoch,
+          next.reason,
+          next.revision,
+          key,
+        )
+      this.#db
+        .prepare(
+          `
         INSERT INTO branch_audit_events(address_key, operation, correlation_id, details_json, operational_time_ms)
         VALUES (?, ?, ?, ?, ?)
-      `).run(key, operation, correlationId, worldJsonText({ before: current, after: next }), operationalTimeMs)
+      `,
+        )
+        .run(key, operation, correlationId, worldJsonText({ before: current, after: next }), operationalTimeMs)
       this.#db.exec('COMMIT')
       return next
     } catch (error: unknown) {
@@ -224,29 +289,45 @@ export class BranchAdministration {
     correlationId: string,
     operationalTimeMs: number,
   ): void {
-    const activeLease = this.#db.prepare(`
+    const activeLease = this.#db
+      .prepare(
+        `
       SELECT 1 AS present FROM writer_leases WHERE address_key = ? AND expires_at_ms > ?
-    `).get(addressKey, operationalTimeMs)
-    const unfinishedRound = this.#db.prepare(`
+    `,
+      )
+      .get(addressKey, operationalTimeMs)
+    const unfinishedRound = this.#db
+      .prepare(
+        `
       SELECT 1 AS present FROM round_inbox WHERE address_key = ? AND status IN ('pending', 'claimed')
       UNION ALL SELECT 1 FROM player_input_jobs WHERE address_key = ?
         AND status IN ('received','prepared','dispatch_started','response_received','validated','round_enqueued') LIMIT 1
-    `).get(addressKey, addressKey)
-    const unresolvedCriticalDelivery = this.#db.prepare(`
+    `,
+      )
+      .get(addressKey, addressKey)
+    const unresolvedCriticalDelivery = this.#db
+      .prepare(
+        `
       SELECT 1 AS present FROM outbox
       WHERE address_key = ? AND critical = 1 AND delivery_status <> 'delivered' LIMIT 1
-    `).get(addressKey)
+    `,
+      )
+      .get(addressKey)
     if (
-      current.admissionState !== 'draining'
-      || current.runtimePhase !== 'active'
-      || activeLease !== undefined
-      || unfinishedRound !== undefined
-      || unresolvedCriticalDelivery !== undefined
+      current.admissionState !== 'draining' ||
+      current.runtimePhase !== 'active' ||
+      activeLease !== undefined ||
+      unfinishedRound !== undefined ||
+      unresolvedCriticalDelivery !== undefined
     ) {
       failWorld({
-        errorCode: 'BRANCH_DRAINING', category: 'admin',
-        message: 'branch archive requires a drained admission barrier with no active writer, unfinished Round, or critical delivery',
-        retryable: true, correlationId, address,
+        errorCode: 'BRANCH_DRAINING',
+        category: 'admin',
+        message:
+          'branch archive requires a drained admission barrier with no active writer, unfinished Round, or critical delivery',
+        retryable: true,
+        correlationId,
+        address,
       })
     }
   }

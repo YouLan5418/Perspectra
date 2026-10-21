@@ -8,7 +8,8 @@ import type { HostState } from './http-server.ts'
 
 function object(value: unknown): Record<string, unknown> | undefined {
   return value !== null && typeof value === 'object' && !Array.isArray(value)
-    ? value as Record<string, unknown> : undefined
+    ? (value as Record<string, unknown>)
+    : undefined
 }
 
 function manifestationText(value: unknown): string | undefined {
@@ -50,54 +51,105 @@ export function playerTranscript(
   playerId: CharacterId,
   labels: PlayerTranscriptLabels = {},
 ): HostState['transcript'] {
-  return view.observations.flatMap(observation => {
-    const content = object(object(observation.value)?.content)
-    const speech = object(content?.speech)
-    const stage = typeof speech?.narration === 'string' && speech.narration.length > 0
-      ? speech.narration : manifestationText(content?.manifestation)
-    if (content?.status !== 'accepted') return []
-    if (typeof speech?.characterId !== 'string' || (typeof speech.text !== 'string' && speech.segments === undefined)) {
-      if (content?.actionType === 'interact' && typeof content.actorId === 'string') {
-        const transfer = object(content.interaction)
-        if (typeof transfer?.entityId !== 'string') {
-          return typeof content.resultDescription === 'string' && content.resultDescription.trim() ? [{seq: observation.sourceSeq,
-            speaker: object(content.activity) || object(object(content.resultMetadata)?.activity) ? '游戏结果' : names.get(content.actorId) ?? content.actorId,
-            ...(object(content.activity) || object(object(content.resultMetadata)?.activity) ? {} : {speakerId: brandId(content.actorId, 'CharacterId')}),
-            text: content.resultDescription, player: false}] : []
+  return view.observations
+    .flatMap(observation => {
+      const content = object(object(observation.value)?.content)
+      const speech = object(content?.speech)
+      const stage =
+        typeof speech?.narration === 'string' && speech.narration.length > 0
+          ? speech.narration
+          : manifestationText(content?.manifestation)
+      if (content?.status !== 'accepted') return []
+      if (
+        typeof speech?.characterId !== 'string' ||
+        (typeof speech.text !== 'string' && speech.segments === undefined)
+      ) {
+        if (content?.actionType === 'interact' && typeof content.actorId === 'string') {
+          const transfer = object(content.interaction)
+          if (typeof transfer?.entityId !== 'string') {
+            return typeof content.resultDescription === 'string' && content.resultDescription.trim()
+              ? [
+                  {
+                    seq: observation.sourceSeq,
+                    speaker:
+                      object(content.activity) || object(object(content.resultMetadata)?.activity)
+                        ? '游戏结果'
+                        : (names.get(content.actorId) ?? content.actorId),
+                    ...(object(content.activity) || object(object(content.resultMetadata)?.activity)
+                      ? {}
+                      : { speakerId: brandId(content.actorId, 'CharacterId') }),
+                    text: content.resultDescription,
+                    player: false,
+                  },
+                ]
+              : []
+          }
+          // The player reads a label, not the runtime identity of the entity.
+          const item = labels.entityNames?.get(transfer.entityId) ?? transfer.entityId
+          const destination =
+            transfer.toHolderId === null
+              ? '解除个人保管，留在当前场所'
+              : `交由${names.get(String(transfer.toHolderId)) ?? transfer.toHolderId}保管`
+          return [
+            {
+              seq: observation.sourceSeq,
+              speaker: names.get(content.actorId) ?? content.actorId,
+              speakerId: brandId(content.actorId, 'CharacterId'),
+              text: `${item} 已${destination}。`,
+              player: content.actorId === playerId,
+            },
+          ]
         }
-        // The player reads a label, not the runtime identity of the entity.
-        const item = labels.entityNames?.get(transfer.entityId) ?? transfer.entityId
-        const destination = transfer.toHolderId === null ? '解除个人保管，留在当前场所' : `交由${names.get(String(transfer.toHolderId)) ?? transfer.toHolderId}保管`
-        return [{ seq: observation.sourceSeq, speaker: names.get(content.actorId) ?? content.actorId, speakerId: brandId(content.actorId, 'CharacterId'), text: `${item} 已${destination}。`, player: content.actorId === playerId }]
+        if ((content?.actionType !== 'move' && content?.actionType !== 'take') || typeof content.actorId !== 'string')
+          return []
+        const movement = object(content.movement)
+        const movedTo =
+          typeof movement?.toLocationId === 'string'
+            ? (labels.locationNames?.get(movement.toLocationId) ?? movement.toLocationId)
+            : undefined
+        // Third-person stage text, so a committed action never reads as the character's own line.
+        const actor = names.get(content.actorId) ?? content.actorId
+        const actionText =
+          content.actionType === 'move'
+            ? movedTo === undefined
+              ? `（${actor}离开了。）`
+              : `（${actor}去了${movedTo}。）`
+            : `（${actor}拿取了一个物品。）`
+        return [
+          {
+            seq: observation.sourceSeq,
+            speaker: names.get(content.actorId) ?? content.actorId,
+            speakerId: brandId(content.actorId, 'CharacterId'),
+            text: stage === undefined ? actionText : `（${stage}）\n${actionText}`,
+            player: content.actorId === playerId,
+          },
+        ]
       }
-      if ((content?.actionType !== 'move' && content?.actionType !== 'take') || typeof content.actorId !== 'string') return []
-      const movement = object(content.movement)
-      const movedTo = typeof movement?.toLocationId === 'string'
-        ? labels.locationNames?.get(movement.toLocationId) ?? movement.toLocationId : undefined
-      // Third-person stage text, so a committed action never reads as the character's own line.
-      const actor = names.get(content.actorId) ?? content.actorId
-      const actionText = content.actionType === 'move'
-        ? movedTo === undefined ? `（${actor}离开了。）` : `（${actor}去了${movedTo}。）`
-        : `（${actor}拿取了一个物品。）`
-      return [{
-        seq: observation.sourceSeq,
-        speaker: names.get(content.actorId) ?? content.actorId,
-        speakerId: brandId(content.actorId, 'CharacterId'),
-        text: stage === undefined ? actionText : `（${stage}）\n${actionText}`,
-        player: content.actorId === playerId,
-      }]
-    }
-    const segments = speech.segments === undefined ? undefined
-      : publicationSegments(speech as WorldJsonObject).filter(segment => segment.text.trim())
-    return [{
-      seq: observation.sourceSeq,
-      speaker: (names.get(speech.characterId) ?? speech.characterId) + (typeof speech.medium === 'string' ? `（${speech.medium}）` : ''),
-      speakerId: brandId(speech.characterId, 'CharacterId'),
-      ...(segments === undefined ? {} : { segments }),
-      text: segments !== undefined ? segments.map(segment => segment.type === 'narration' ? `（${segment.text}）` : segment.text).join('\n') : stage === undefined ? speech.text as string : [`（${stage}）`, speech.text].filter(Boolean).join('\n'),
-      player: speech.characterId === playerId,
-    }]
-  }).sort((left, right) => left.seq - right.seq)
+      const segments =
+        speech.segments === undefined
+          ? undefined
+          : publicationSegments(speech as WorldJsonObject).filter(segment => segment.text.trim())
+      return [
+        {
+          seq: observation.sourceSeq,
+          speaker:
+            (names.get(speech.characterId) ?? speech.characterId) +
+            (typeof speech.medium === 'string' ? `（${speech.medium}）` : ''),
+          speakerId: brandId(speech.characterId, 'CharacterId'),
+          ...(segments === undefined ? {} : { segments }),
+          text:
+            segments !== undefined
+              ? segments
+                  .map(segment => (segment.type === 'narration' ? `（${segment.text}）` : segment.text))
+                  .join('\n')
+              : stage === undefined
+                ? (speech.text as string)
+                : [`（${stage}）`, speech.text].filter(Boolean).join('\n'),
+          player: speech.characterId === playerId,
+        },
+      ]
+    })
+    .sort((left, right) => left.seq - right.seq)
 }
 
 export function defaultGameDirectory(): string {
@@ -105,7 +157,10 @@ export function defaultGameDirectory(): string {
   if (configured) return resolve(configured)
   let candidate: string
   do {
-    candidate = resolve('.tmp', `web-playtest-${new Date().toISOString().replaceAll(':', '-').replaceAll('.', '-')}-${randomUUID().slice(0, 8)}`)
+    candidate = resolve(
+      '.tmp',
+      `web-playtest-${new Date().toISOString().replaceAll(':', '-').replaceAll('.', '-')}-${randomUUID().slice(0, 8)}`,
+    )
   } while (existsSync(candidate))
   return candidate
 }

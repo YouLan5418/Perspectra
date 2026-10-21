@@ -22,12 +22,17 @@ describe('OperationalAuditLog', () => {
     const path = database()
     const audit = new OperationalAuditLog(path, () => 42)
     expect(audit.record('world:a', 'backup.requested', 'audit:one', { targetHash: 'sha256:value' })).toMatchObject({
-      auditSeq: 1, scopeKey: 'world:a', operation: 'backup.requested', operationalTimeMs: 42,
+      auditSeq: 1,
+      scopeKey: 'world:a',
+      operation: 'backup.requested',
+      operationalTimeMs: 42,
     })
     const second = audit.record('world:b', 'restore.requested', 'audit:two', {})
     expect(second.previousHash).toBe(audit.read()[0]!.recordHash)
     expect(audit.read()).toHaveLength(2)
-    expect(audit.read('world:a')).toMatchObject([{ correlationId: 'audit:one', details: { targetHash: 'sha256:value' } }])
+    expect(audit.read('world:a')).toMatchObject([
+      { correlationId: 'audit:one', details: { targetHash: 'sha256:value' } },
+    ])
     expect(audit.read('missing')).toEqual([])
     expect(() => audit.record('', 'operation', 'correlation', {})).toThrow(TypeError)
     expect(() => audit.record('world:a', ' padded ', 'correlation', {})).toThrow(TypeError)

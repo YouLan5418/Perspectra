@@ -104,12 +104,7 @@ CREATE TABLE IF NOT EXISTS provider_quality_ticks (
 ) STRICT;
 `
 
-const COMPLETE_CONTEXT_SCHEMA = [
-  CONTINUITY_SCHEMA,
-  RECEIPT_SCHEMA,
-  PROVIDER_CALL_SCHEMA,
-  QUALITY_SCHEMA,
-].join('\n')
+const COMPLETE_CONTEXT_SCHEMA = [CONTINUITY_SCHEMA, RECEIPT_SCHEMA, PROVIDER_CALL_SCHEMA, QUALITY_SCHEMA].join('\n')
 
 const PROVIDER_CALL_V2_SCHEMA = `
 ALTER TABLE provider_calls RENAME TO provider_calls_legacy;
@@ -117,10 +112,13 @@ DROP INDEX provider_calls_round;
 ${PROVIDER_CALL_SCHEMA.replace('round_id TEXT NOT NULL', 'round_id TEXT')
   .replace('participant_id TEXT NOT NULL', 'participant_id TEXT')
   .replace('receipt_id TEXT NOT NULL', 'receipt_id TEXT')
-  .replace('model_call_id TEXT PRIMARY KEY,', `model_call_id TEXT PRIMARY KEY,
+  .replace(
+    'model_call_id TEXT PRIMARY KEY,',
+    `model_call_id TEXT PRIMARY KEY,
     purpose TEXT NOT NULL DEFAULT 'round_participant' CHECK(purpose IN ('round_participant','player_intent')),
     work_id TEXT,
-    request_json TEXT,`)}
+    request_json TEXT,`,
+  )}
 INSERT INTO provider_calls SELECT model_call_id, 'round_participant', model_call_id, NULL,
   namespace_key,round_id,participant_id,receipt_id,receipt_hash,controller_epoch,context_hash,provider_request_hash,
   state,response_json,response_hash,proposal_json,proposal_hash,terminal_json,transaction_id,authority_hash FROM provider_calls_legacy;

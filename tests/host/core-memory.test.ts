@@ -8,12 +8,20 @@ import type { WorldJsonObject } from '@harness-world/contracts'
 import { CharacterViewBuilder, WorldStore } from '@harness-world/store-sqlite'
 import { CognitiveMemoryService } from '@harness-world/memory'
 import { WorldHostRuntime } from '../../desktop/host/world-runtime.ts'
-import { CoreMemoryAdapter, DEFAULT_MEMORY_CONTEXT_BUDGET, MEMORY_DELIVERY_BUDGET, estimateContextTokens, type MemoryContextBudget } from '../../desktop/host/memory/core-memory.ts'
+import {
+  CoreMemoryAdapter,
+  DEFAULT_MEMORY_CONTEXT_BUDGET,
+  MEMORY_DELIVERY_BUDGET,
+  estimateContextTokens,
+  type MemoryContextBudget,
+} from '../../desktop/host/memory/core-memory.ts'
 import { createHostServer } from '../../desktop/host/http-server.ts'
 import { parseHostLaunchArguments } from '../../desktop/host/launch-arguments.ts'
 import type { CoreRunner } from '../../desktop/host/memory/python-worker.ts'
 
-const roots: string[] = [], runtimes: WorldHostRuntime[] = [], servers: Server[] = []
+const roots: string[] = [],
+  runtimes: WorldHostRuntime[] = [],
+  servers: Server[] = []
 afterEach(async () => {
   vi.restoreAllMocks()
   for (const runtime of runtimes.splice(0)) await runtime.close()
@@ -24,47 +32,110 @@ afterEach(async () => {
     rmSync(root, { recursive: true, force: true })
   }
 })
-async function fixture(run: CoreRunner, options: { playSettings?: import('../../desktop/play-settings.ts').PlaySettings; memoryContextBudget?: MemoryContextBudget; publish?: boolean } = {}) {
-  const data = mkdtempSync(join(tmpdir(), 'memory-web-test-')); roots.push(data)
+async function fixture(
+  run: CoreRunner,
+  options: {
+    playSettings?: import('../../desktop/play-settings.ts').PlaySettings
+    memoryContextBudget?: MemoryContextBudget
+    publish?: boolean
+  } = {},
+) {
+  const data = mkdtempSync(join(tmpdir(), 'memory-web-test-'))
+  roots.push(data)
   const requests: WorldJsonObject[] = []
   const provider = createServer((req, res) => {
     let body = ''
-    req.on('data', c => { body += String(c) })
+    req.on('data', c => {
+      body += String(c)
+    })
     req.on('end', () => {
       const wire = JSON.parse(body)
       requests.push(JSON.parse(wire.messages.at(-1).content))
       res.writeHead(200, { 'content-type': 'application/json' })
-      res.end(JSON.stringify({ choices: [{ message: { content: JSON.stringify(options.publish ? { decision: 'publish', addresseeIds: ['character:player'], segments: [{ type: 'speech', text: '我在听。' }] } : { decision: 'abstain' }) } }] }))
+      res.end(
+        JSON.stringify({
+          choices: [
+            {
+              message: {
+                content: JSON.stringify(
+                  options.publish
+                    ? {
+                        decision: 'publish',
+                        addresseeIds: ['character:player'],
+                        segments: [{ type: 'speech', text: '我在听。' }],
+                      }
+                    : { decision: 'abstain' },
+                ),
+              },
+            },
+          ],
+        }),
+      )
     })
   })
-  servers.push(provider); provider.listen(0, '127.0.0.1'); await once(provider, 'listening')
-  const address = provider.address(); if (!address || typeof address === 'string') throw new Error('no port')
-  const runtime = await WorldHostRuntime.create({ dataDirectory: data,
-    packPath: resolve('examples/world-packs/ai-girls-hosted-guess'), provider: 'local', model: 'fixture',
-    utilityEndpoint: `http://127.0.0.1:${address.port}/v1/chat/completions`, memoryCore: true, memoryCoreRun: run, memoryCoreBuildRun: run, ...(options.playSettings?{playSettings:options.playSettings}:{}), ...(options.memoryContextBudget ? { memoryContextBudget: options.memoryContextBudget } : {}) })
+  servers.push(provider)
+  provider.listen(0, '127.0.0.1')
+  await once(provider, 'listening')
+  const address = provider.address()
+  if (!address || typeof address === 'string') throw new Error('no port')
+  const runtime = await WorldHostRuntime.create({
+    dataDirectory: data,
+    packPath: resolve('examples/world-packs/ai-girls-hosted-guess'),
+    provider: 'local',
+    model: 'fixture',
+    utilityEndpoint: `http://127.0.0.1:${address.port}/v1/chat/completions`,
+    memoryCore: true,
+    memoryCoreRun: run,
+    memoryCoreBuildRun: run,
+    ...(options.playSettings ? { playSettings: options.playSettings } : {}),
+    ...(options.memoryContextBudget ? { memoryContextBudget: options.memoryContextBudget } : {}),
+  })
   runtimes.push(runtime)
-  const head = () => { const store = new WorldStore(join(data, 'world.sqlite'))
-    try { return store.head(runtime.address).headSeq } finally { store.close() } }
+  const head = () => {
+    const store = new WorldStore(join(data, 'world.sqlite'))
+    try {
+      return store.head(runtime.address).headSeq
+    } finally {
+      store.close()
+    }
+  }
   return { data, runtime, requests, head }
 }
 function built(input: WorldJsonObject): WorldJsonObject {
-  return { archive: { scope: input.scope!, sources: input.sources!, facts: [], episodes: [], observations: [] },
-    index: { scope: input.scope!, units: [], vectors: [] } }
+  return {
+    archive: { scope: input.scope!, sources: input.sources!, facts: [], episodes: [], observations: [] },
+    index: { scope: input.scope!, units: [], vectors: [] },
+  }
 }
 const empty = { delivery: [], deliveryTrace: { delivered: [], activityCoverage: [] } }
-const ref = (source: WorldJsonObject): WorldJsonObject => Object.fromEntries(
-  ['sourceId','sourceHash','epistemicKind','worldSeq','characterId','worldAddress'].map(k => [k, source[k]!]))
+const ref = (source: WorldJsonObject): WorldJsonObject =>
+  Object.fromEntries(
+    ['sourceId', 'sourceHash', 'epistemicKind', 'worldSeq', 'characterId', 'worldAddress'].map(k => [k, source[k]!]),
+  )
 
 describe('optional web Core memory', () => {
   it('projects a fresh authorized snapshot with one view build and propagates catch-up failure', async () => {
-    const f = await fixture(async () => empty), before = f.head()
-    const adapter = new CoreMemoryAdapter(f.data, f.runtime.address, async () => { throw new Error('no installed archive') })
+    const f = await fixture(async () => empty),
+      before = f.head()
+    const adapter = new CoreMemoryAdapter(f.data, f.runtime.address, async () => {
+      throw new Error('no installed archive')
+    })
     try {
       const builds = vi.spyOn(CharacterViewBuilder.prototype, 'rebuildAt')
       const ticks = vi.spyOn(WorldStore.prototype, 'readEventTicks')
-      const history = vi.spyOn(WorldStore.prototype, 'readEvents').mockImplementation(() => { throw new Error('snapshot must not load full event payloads') })
-      const request = { context: { character: { characterId: 'character:claude', name: 'Claude' },
-        scene: { people: [] }, stimulus: [], observations: [], selfObservations: [] }, continuation: false }
+      const history = vi.spyOn(WorldStore.prototype, 'readEvents').mockImplementation(() => {
+        throw new Error('snapshot must not load full event payloads')
+      })
+      const request = {
+        context: {
+          character: { characterId: 'character:claude', name: 'Claude' },
+          scene: { people: [] },
+          stimulus: [],
+          observations: [],
+          selfObservations: [],
+        },
+        continuation: false,
+      }
       const projected = await adapter.project(request, AbortSignal.timeout(5000))
       expect(builds).toHaveBeenCalledTimes(1)
       expect(ticks).toHaveBeenCalledWith(f.runtime.address, before)
@@ -72,19 +143,33 @@ describe('optional web Core memory', () => {
       expect(projected.context.memories).toEqual([])
       expect(f.head()).toBe(before)
       ticks.mockReturnValueOnce([])
-      await expect(adapter.project(request, AbortSignal.timeout(5000))).rejects.toThrow('authorized source timestamp is missing')
+      await expect(adapter.project(request, AbortSignal.timeout(5000))).rejects.toThrow(
+        'authorized source timestamp is missing',
+      )
       const failure = new Error('memory prefix verification failed')
-      vi.spyOn(CognitiveMemoryService.prototype, 'catchUpReceipt').mockImplementation(() => { throw failure })
+      vi.spyOn(CognitiveMemoryService.prototype, 'catchUpReceipt').mockImplementation(() => {
+        throw failure
+      })
       await expect(adapter.project(request, AbortSignal.timeout(5000))).rejects.toThrow(failure)
-    } finally { await adapter.close() }
+    } finally {
+      await adapter.close()
+    }
   })
 
   it('inspects installed memory without catch-up, model work or world changes and rejects corrupt sources', async () => {
     let calls = 0
-    const f = await fixture(async input => { calls++; return input.operation === 'build' ? built(input) : empty })
-    await f.runtime.refreshMemory(); await f.runtime.waitForMemory()
-    const actor = 'character:claude', before = f.head(), beforeCalls = calls
-    const adapter = new CoreMemoryAdapter(f.data, f.runtime.address, async () => { throw new Error('inspection must not call Core') })
+    const f = await fixture(async input => {
+      calls++
+      return input.operation === 'build' ? built(input) : empty
+    })
+    await f.runtime.refreshMemory()
+    await f.runtime.waitForMemory()
+    const actor = 'character:claude',
+      before = f.head(),
+      beforeCalls = calls
+    const adapter = new CoreMemoryAdapter(f.data, f.runtime.address, async () => {
+      throw new Error('inspection must not call Core')
+    })
     const catchUp = vi.spyOn(CognitiveMemoryService.prototype, 'catchUp')
     const receipt = vi.spyOn(CognitiveMemoryService.prototype, 'catchUpReceipt')
     const snapshot = adapter.inspectArchive(actor, 0, 1)
@@ -93,9 +178,11 @@ describe('optional web Core memory', () => {
     expect(snapshot.sections.sources?.hasMore).toBe(true)
     expect(catchUp).not.toHaveBeenCalled()
     expect(receipt).not.toHaveBeenCalled()
-    expect(f.head()).toBe(before); expect(calls).toBe(beforeCalls)
+    expect(f.head()).toBe(before)
+    expect(calls).toBe(beforeCalls)
     const path = join(f.data, 'memory-core', Buffer.from(actor).toString('base64url') + '.json')
-    const original = readFileSync(path, 'utf8'), cached = JSON.parse(original)
+    const original = readFileSync(path, 'utf8'),
+      cached = JSON.parse(original)
     cached.archive.sources[0].text = 'tampered'
     writeFileSync(path, JSON.stringify(cached))
     expect(() => adapter.inspectArchive(actor, 0, 1)).toThrow('source prefix changed')
@@ -105,21 +192,35 @@ describe('optional web Core memory', () => {
   it('snapshots authorized names without rebuilding unarchived sources and protects its aliases from callers', async () => {
     const f = await fixture(async () => empty)
     const adapter = new CoreMemoryAdapter(f.data, f.runtime.address, async () => empty)
-    const seq = f.head(), actor = 'character:claude'
-    const entry = { scope: { worldAddress: { ...f.runtime.address }, characterId: actor, asOfWorldSeq: seq },
-      worldSeq: seq, people: [{ characterId: actor, name: 'Claude' }] }
+    const seq = f.head(),
+      actor = 'character:claude'
+    const entry = {
+      scope: { worldAddress: { ...f.runtime.address }, characterId: actor, asOfWorldSeq: seq },
+      worldSeq: seq,
+      people: [{ characterId: actor, name: 'Claude' }],
+    }
     writeFileSync(join(f.data, 'memory-aliases.json'), JSON.stringify({ [actor]: [entry] }))
     const catchUp = vi.spyOn(CognitiveMemoryService.prototype, 'catchUp')
     const first = adapter.snapshotAliases([actor])
-    expect(first[actor]).toEqual([entry]);expect(catchUp).not.toHaveBeenCalled()
+    expect(first[actor]).toEqual([entry])
+    expect(catchUp).not.toHaveBeenCalled()
     Object.assign((first[actor] as WorldJsonObject[])[0]!, { worldSeq: seq + 1 })
     expect(adapter.snapshotAliases([actor])[actor]).toEqual([entry])
     await adapter.close()
   })
-  it.each(['role','future'] as const)('rejects %s identity seeds before snapshotting names', async kind => {
-    const f = await fixture(async () => empty), actor = 'character:claude', seq = f.head()
-    const entry = { scope: { worldAddress: { ...f.runtime.address }, characterId: kind === 'role' ? 'character:gpt' : actor,
-      asOfWorldSeq: kind === 'future' ? seq + 1 : seq }, worldSeq: seq, people: [] }
+  it.each(['role', 'future'] as const)('rejects %s identity seeds before snapshotting names', async kind => {
+    const f = await fixture(async () => empty),
+      actor = 'character:claude',
+      seq = f.head()
+    const entry = {
+      scope: {
+        worldAddress: { ...f.runtime.address },
+        characterId: kind === 'role' ? 'character:gpt' : actor,
+        asOfWorldSeq: kind === 'future' ? seq + 1 : seq,
+      },
+      worldSeq: seq,
+      people: [],
+    }
     writeFileSync(join(f.data, 'memory-aliases.json'), JSON.stringify({ [actor]: [entry] }))
     const adapter = new CoreMemoryAdapter(f.data, f.runtime.address, async () => empty)
     expect(() => adapter.snapshotAliases([actor])).toThrow('authorized world or prefix')
@@ -129,36 +230,67 @@ describe('optional web Core memory', () => {
     expect(parseHostLaunchArguments(['--memory-core']).memoryCore).toBe(true)
     expect(parseHostLaunchArguments([]).memoryCore).toBe(true)
     expect(parseHostLaunchArguments(['--memory-native']).memoryCore).toBeUndefined()
-    expect(() => parseHostLaunchArguments(['--memory-core','--memory-core'])).toThrow('once')
+    expect(() => parseHostLaunchArguments(['--memory-core', '--memory-core'])).toThrow('once')
     expect(() => parseHostLaunchArguments(['--ollama'])).toThrow('--memory-native')
   })
   it('refuses to start default Core without Python or E5, before creating the save directory', async () => {
-    const root = mkdtempSync(join(tmpdir(), 'memory-web-test-core-env-')); roots.push(root)
-    const data = join(root, 'data'), options = { packPath: resolve('examples/world-packs/prototype-g1'), dataDirectory: data,
-      provider: 'local' as const, model: 'fixture', memoryCore: true }
+    const root = mkdtempSync(join(tmpdir(), 'memory-web-test-core-env-'))
+    roots.push(root)
+    const data = join(root, 'data'),
+      options = {
+        packPath: resolve('examples/world-packs/prototype-g1'),
+        dataDirectory: data,
+        provider: 'local' as const,
+        model: 'fixture',
+        memoryCore: true,
+      }
     vi.stubEnv('HCW_HINDSIGHT_PYTHON', join(root, 'missing-python.exe'))
     try {
       await expect(WorldHostRuntime.create(options)).rejects.toThrow('Python 环境不存在')
-      writeFileSync(join(root, 'python.exe'), ''); vi.stubEnv('HCW_HINDSIGHT_PYTHON', join(root, 'python.exe'))
+      writeFileSync(join(root, 'python.exe'), '')
+      vi.stubEnv('HCW_HINDSIGHT_PYTHON', join(root, 'python.exe'))
       vi.stubEnv('HCW_HINDSIGHT_ONNX_DIR', join(root, 'no-e5'))
       await expect(WorldHostRuntime.create(options)).rejects.toThrow('E5 编码器不存在')
       expect(readdirSync(root)).not.toContain('data')
-    } finally { vi.unstubAllEnvs() }
+    } finally {
+      vi.unstubAllEnvs()
+    }
   })
   it('refreshes authorized prefixes without world events; core requests omit private activity and variables', async () => {
     const inputs: WorldJsonObject[] = []
-    const run: CoreRunner = async input => { inputs.push(input); return input.operation === 'build' ? built(input) : empty }
-    const f = await fixture(run), before = f.head()
-    const state = await f.runtime.refreshMemory(); await f.runtime.waitForMemory()
-    expect(f.head()).toBe(before); expect(state.busy).toBe(false)
+    const run: CoreRunner = async input => {
+      inputs.push(input)
+      return input.operation === 'build' ? built(input) : empty
+    }
+    const f = await fixture(run),
+      before = f.head()
+    const state = await f.runtime.refreshMemory()
+    await f.runtime.waitForMemory()
+    expect(f.head()).toBe(before)
+    expect(state.busy).toBe(false)
     expect(JSON.stringify(state)).not.toContain('sourceHash')
     expect(inputs.filter(i => i.operation === 'build')).toHaveLength(4)
-    for (const input of inputs) for (const source of input.sources as WorldJsonObject[])
-      expect(source.characterId).toBe((input.scope as WorldJsonObject).characterId)
+    for (const input of inputs)
+      for (const source of input.sources as WorldJsonObject[])
+        expect(source.characterId).toBe((input.scope as WorldJsonObject).characterId)
     const adapter = new CoreMemoryAdapter(f.data, f.runtime.address, run)
-    await adapter.project({ context: { character: { characterId: 'character:claude', name: 'Claude' },
-      scene: { people: [] }, stimulus: [], observations: [], selfObservations: [],
-      activity: { private: 'private-answer' }, knownStatus: [{ key: 'money', label: '余额', holderId: 'character:claude', value: 'private-status', current: true }] }, continuation: false }, AbortSignal.timeout(2000))
+    await adapter.project(
+      {
+        context: {
+          character: { characterId: 'character:claude', name: 'Claude' },
+          scene: { people: [] },
+          stimulus: [],
+          observations: [],
+          selfObservations: [],
+          activity: { private: 'private-answer' },
+          knownStatus: [
+            { key: 'money', label: '余额', holderId: 'character:claude', value: 'private-status', current: true },
+          ],
+        },
+        continuation: false,
+      },
+      AbortSignal.timeout(2000),
+    )
     const recall = inputs.at(-1)!
     expect(recall.operation).toBe('recall')
     expect(recall.deliveryMode).toBe('minimal')
@@ -178,15 +310,26 @@ describe('optional web Core memory', () => {
   })
   it('rejects a cache from another character before asking Python', async () => {
     let calls = 0
-    const run: CoreRunner = async input => { calls++; return built(input) }
-    const f = await fixture(run); await f.runtime.refreshMemory(); await f.runtime.waitForMemory()
+    const run: CoreRunner = async input => {
+      calls++
+      return built(input)
+    }
+    const f = await fixture(run)
+    await f.runtime.refreshMemory()
+    await f.runtime.waitForMemory()
     const path = join(f.data, 'memory-core', Buffer.from('character:claude').toString('base64url') + '.json')
     const cached = JSON.parse(readFileSync(path, 'utf8'))
-    cached.archive.scope.characterId = 'character:gpt'; cached.index.scope.characterId = 'character:gpt'
-    writeFileSync(path, JSON.stringify(cached)); const before = calls
+    cached.archive.scope.characterId = 'character:gpt'
+    cached.index.scope.characterId = 'character:gpt'
+    writeFileSync(path, JSON.stringify(cached))
+    const before = calls
     const adapter = new CoreMemoryAdapter(f.data, f.runtime.address, run)
-    await expect(adapter.project({ context: { character: { characterId: 'character:claude' }, scene: { people: [] } },
-      continuation: false }, AbortSignal.timeout(2000))).rejects.toThrow('another role')
+    await expect(
+      adapter.project(
+        { context: { character: { characterId: 'character:claude' }, scene: { people: [] } }, continuation: false },
+        AbortSignal.timeout(2000),
+      ),
+    ).rejects.toThrow('another role')
     expect(() => adapter.snapshotAliases(['character:claude'])).toThrow('another role')
     expect(calls).toBe(before)
   })
@@ -194,29 +337,53 @@ describe('optional web Core memory', () => {
     const run: CoreRunner = async input => {
       if (input.operation === 'build') return built(input)
       const source = ((input.archive as WorldJsonObject).sources as WorldJsonObject[])[0]!
-      return { delivery: [{ text: 'wrong', sourceIds: [source.sourceId!] }], deliveryTrace: {
-        delivered: [{ sourceRefs: [{ ...ref(source), characterId: 'character:gpt' }] }] } }
+      return {
+        delivery: [{ text: 'wrong', sourceIds: [source.sourceId!] }],
+        deliveryTrace: {
+          delivered: [{ sourceRefs: [{ ...ref(source), characterId: 'character:gpt' }] }],
+        },
+      }
     }
-    const f = await fixture(run); await f.runtime.refreshMemory(); await f.runtime.waitForMemory()
+    const f = await fixture(run)
+    await f.runtime.refreshMemory()
+    await f.runtime.waitForMemory()
     const adapter = new CoreMemoryAdapter(f.data, f.runtime.address, run)
-    await expect(adapter.project({ context: { character: { characterId: 'character:claude' }, scene: { people: [] } },
-      continuation: false }, AbortSignal.timeout(2000))).rejects.toThrow('authorized evidence')
+    await expect(
+      adapter.project(
+        { context: { character: { characterId: 'character:claude' }, scene: { people: [] } }, continuation: false },
+        AbortSignal.timeout(2000),
+      ),
+    ).rejects.toThrow('authorized evidence')
   })
   it('delivers speech-supported cognition with partial evidence and rejects foreign excerpts', async () => {
     let foreign = false
     const run: CoreRunner = async input => {
       if (input.operation === 'build') return built(input)
       const source = ((input.archive as WorldJsonObject).sources as WorldJsonObject[])[0]!
-      return { delivery: [{ memoryId: 'cognition:example', memoryLevel: 'observation',
-        text: '【本角色的可修正认识】两处说法有分歧。', sourceIds: [source.sourceId!],
-        sourceTypes: ['reported_speech'], hasUnresolvedCounterEvidence: true,
-        evidenceCoverage: { complete: false, included: 0, total: 2 },
-        keyEvidence: foreign ? [{ sourceId: 'event:foreign', text: 'private' }] : [] }],
-        deliveryTrace: { delivered: [{ sourceRefs: [ref(source)] }] } }
+      return {
+        delivery: [
+          {
+            memoryId: 'cognition:example',
+            memoryLevel: 'observation',
+            text: '【本角色的可修正认识】两处说法有分歧。',
+            sourceIds: [source.sourceId!],
+            sourceTypes: ['reported_speech'],
+            hasUnresolvedCounterEvidence: true,
+            evidenceCoverage: { complete: false, included: 0, total: 2 },
+            keyEvidence: foreign ? [{ sourceId: 'event:foreign', text: 'private' }] : [],
+          },
+        ],
+        deliveryTrace: { delivered: [{ sourceRefs: [ref(source)] }] },
+      }
     }
-    const f = await fixture(run); await f.runtime.refreshMemory(); await f.runtime.waitForMemory()
+    const f = await fixture(run)
+    await f.runtime.refreshMemory()
+    await f.runtime.waitForMemory()
     const adapter = new CoreMemoryAdapter(f.data, f.runtime.address, run)
-    const request = { context: { character: { characterId: 'character:claude' }, scene: { people: [] } }, continuation: false }
+    const request = {
+      context: { character: { characterId: 'character:claude' }, scene: { people: [] } },
+      continuation: false,
+    }
     const projected = await adapter.project(request, AbortSignal.timeout(2000))
     expect((projected.context.memories as WorldJsonObject[])[0]!.hasUnresolvedCounterEvidence).toBe(true)
     foreign = true
@@ -227,26 +394,37 @@ describe('optional web Core memory', () => {
     const run: CoreRunner = async input => {
       if (input.operation === 'build') return built(input)
       const source = ((input.archive as WorldJsonObject).sources as WorldJsonObject[])[0]!
-      return { delivery: Array.from({ length: count }, (_v, i) => ({ text: `证据 ${i}`, sourceIds: [source.sourceId!] })),
-        deliveryTrace: { delivered: [{ sourceRefs: [ref(source)] }] } }
+      return {
+        delivery: Array.from({ length: count }, (_v, i) => ({ text: `证据 ${i}`, sourceIds: [source.sourceId!] })),
+        deliveryTrace: { delivered: [{ sourceRefs: [ref(source)] }] },
+      }
     }
-    const f = await fixture(run); await f.runtime.refreshMemory(); await f.runtime.waitForMemory()
+    const f = await fixture(run)
+    await f.runtime.refreshMemory()
+    await f.runtime.waitForMemory()
     const adapter = new CoreMemoryAdapter(f.data, f.runtime.address, run)
-    const request = { context: { character: { characterId: 'character:claude' }, scene: { people: [] } }, continuation: false }
+    const request = {
+      context: { character: { characterId: 'character:claude' }, scene: { people: [] } },
+      continuation: false,
+    }
     expect((await adapter.project(request, AbortSignal.timeout(2000))).context.memories).toHaveLength(6)
     count = 7
     await expect(adapter.project(request, AbortSignal.timeout(2000))).rejects.toThrow('budget exceeded')
   })
   it('background maintenance stays separate from playing and can be explicitly cancelled', async () => {
     let entered!: () => void
-    const started = new Promise<void>(done => { entered = done })
+    const started = new Promise<void>(done => {
+      entered = done
+    })
     const run: CoreRunner = async (input, signal) => {
       if (input.operation === 'recall') return empty
       return new Promise((_resolve, reject) => {
-        entered(); signal.addEventListener('abort', () => reject(signal.reason), { once: true })
+        entered()
+        signal.addEventListener('abort', () => reject(signal.reason), { once: true })
       })
     }
-    const f = await fixture(run), before = f.head()
+    const f = await fixture(run),
+      before = f.head()
     const state = await f.runtime.refreshMemory()
     await started
     expect(state.busy).toBe(false)
@@ -254,90 +432,155 @@ describe('optional web Core memory', () => {
     await f.runtime.submit('整理期间的新经历，只在这个房间里说。')
     expect(f.head()).toBeGreaterThan(before)
     expect((await f.runtime.state()).busy).toBe(false)
-    await f.runtime.cancelMemory(); await f.runtime.waitForMemory()
+    await f.runtime.cancelMemory()
+    await f.runtime.waitForMemory()
     expect((await f.runtime.state()).memoryMaintenance!.cancelled).toBe(4)
     expect((await f.runtime.state()).error).toBe(false)
   })
   it('closing a game cancels unfinished builds without installing transient results', async () => {
-    const run: CoreRunner = async (input, signal) => input.operation === 'recall' ? empty :
-      new Promise((_resolve, reject) => signal.addEventListener('abort', () => reject(signal.reason), { once: true }))
-    const f = await fixture(run), before = f.head()
-    await f.runtime.refreshMemory(); await f.runtime.close()
+    const run: CoreRunner = async (input, signal) =>
+      input.operation === 'recall'
+        ? empty
+        : new Promise((_resolve, reject) =>
+            signal.addEventListener('abort', () => reject(signal.reason), { once: true }),
+          )
+    const f = await fixture(run),
+      before = f.head()
+    await f.runtime.refreshMemory()
+    await f.runtime.close()
     expect((await f.runtime.state()).memoryMaintenance!.cancelled).toBe(4)
     expect(f.head()).toBe(before)
     const adapter = new CoreMemoryAdapter(f.data, f.runtime.address, run)
     expect(adapter.archivePrefix('character:claude')).toBe(0)
   })
   it('keeps declared activity interaction usable while background builds are pending', async () => {
-    const run: CoreRunner = async (input, signal) => input.operation === 'recall' ? empty :
-      new Promise((_resolve, reject) => signal.addEventListener('abort', () => reject(signal.reason), { once: true }))
-    const f = await fixture(run), before = f.head()
+    const run: CoreRunner = async (input, signal) =>
+      input.operation === 'recall'
+        ? empty
+        : new Promise((_resolve, reject) =>
+            signal.addEventListener('abort', () => reject(signal.reason), { once: true }),
+          )
+    const f = await fixture(run),
+      before = f.head()
     await f.runtime.refreshMemory()
     const state = await f.runtime.state()
-    const result = await f.runtime.activityAction({ activityId: state.activity!.id as string | null,
-      revision: Number(state.activity!.revision), operation: 'start', parameters: {}, requestId: 'background-start' })
+    const result = await f.runtime.activityAction({
+      activityId: state.activity!.id as string | null,
+      revision: Number(state.activity!.revision),
+      operation: 'start',
+      parameters: {},
+      requestId: 'background-start',
+    })
     expect(f.head()).toBeGreaterThan(before)
     expect((result.activity!.game as WorldJsonObject).active).toBe(true)
     expect(result.memoryMaintenance!.running).toBe(2)
     expect(result.busy).toBe(false)
-    await f.runtime.cancelMemory(); await f.runtime.waitForMemory()
+    await f.runtime.cancelMemory()
+    await f.runtime.waitForMemory()
   })
   it('reports a failed role snapshot and still starts other independent builds', async () => {
-    const f = await fixture(async input => input.operation === 'recall' ? empty : built(input))
+    const f = await fixture(async input => (input.operation === 'recall' ? empty : built(input)))
     const path = join(f.data, 'memory-core', Buffer.from('character:claude').toString('base64url') + '.json')
     writeFileSync(path, '{broken')
-    await f.runtime.refreshMemory(); await f.runtime.waitForMemory()
+    await f.runtime.refreshMemory()
+    await f.runtime.waitForMemory()
     const state = await f.runtime.state()
     expect(state.memoryMaintenance!.completed).toBe(3)
     expect(state.memoryMaintenance!.failed).toBe(1)
     expect(readFileSync(path, 'utf8')).toBe('{broken')
     const adapter = new CoreMemoryAdapter(f.data, f.runtime.address, async () => empty)
-    await expect(adapter.project({ context: { character: { characterId: 'character:claude' } }, continuation: false },
-      AbortSignal.timeout(2000))).rejects.toThrow()
+    await expect(
+      adapter.project(
+        { context: { character: { characterId: 'character:claude' } }, continuation: false },
+        AbortSignal.timeout(2000),
+      ),
+    ).rejects.toThrow()
   })
   it('HTTP maintenance is authenticated and exposes no source archive in its response', async () => {
     let builds = 0
-    const f = await fixture(async input => { if (input.operation === 'build') builds++; return built(input) })
-    const server = createHostServer(f.runtime, 'a'.repeat(64)); servers.push(server)
-    server.listen(0, '127.0.0.1'); await once(server, 'listening')
-    const address = server.address(); if (!address || typeof address === 'string') throw new Error('no port')
+    const f = await fixture(async input => {
+      if (input.operation === 'build') builds++
+      return built(input)
+    })
+    const server = createHostServer(f.runtime, 'a'.repeat(64))
+    servers.push(server)
+    server.listen(0, '127.0.0.1')
+    await once(server, 'listening')
+    const address = server.address()
+    if (!address || typeof address === 'string') throw new Error('no port')
     const url = `http://127.0.0.1:${address.port}/api/memory/refresh`
-    expect((await fetch(url, { method: 'POST' })).status).toBe(401); expect(builds).toBe(0)
+    expect((await fetch(url, { method: 'POST' })).status).toBe(401)
+    expect(builds).toBe(0)
     expect((await fetch(url.replace('refresh', 'cancel'), { method: 'POST' })).status).toBe(401)
     const response = await fetch(url, { method: 'POST', headers: { 'x-playtest-token': 'a'.repeat(64) } })
-    expect(response.status).toBe(200); await f.runtime.waitForMemory(); expect(builds).toBe(4)
+    expect(response.status).toBe(200)
+    await f.runtime.waitForMemory()
+    expect(builds).toBe(4)
     expect(await response.text()).not.toContain('sourceHash')
   })
   // Memory bookkeeping consumes the original host request, never the model-only rendering.
   function hostRequest(data: string, actor?: string): WorldJsonObject {
-    const rows = readFileSync(resolve(data, 'memory-core/model-trace.jsonl'), 'utf8').trim().split('\n')
+    const rows = readFileSync(resolve(data, 'memory-core/model-trace.jsonl'), 'utf8')
+      .trim()
+      .split('\n')
       .map(line => JSON.parse(line).request as WorldJsonObject)
-    return rows.findLast(row => !actor || ((row.context as WorldJsonObject).character as WorldJsonObject).characterId === actor)!
+    return rows.findLast(
+      row => !actor || ((row.context as WorldJsonObject).character as WorldJsonObject).characterId === actor,
+    )!
   }
   it('keeps more than eight rounds of observations and self expressions without maintenance', async () => {
     let builds = 0
-    const f = await fixture(async input => { builds++; return built(input) }, { publish: true })
+    const f = await fixture(
+      async input => {
+        builds++
+        return built(input)
+      },
+      { publish: true },
+    )
     for (let i = 0; i < 12; i++) await f.runtime.submit(i === 0 ? '记住私下的安排：银杏电台。' : `继续闲聊第 ${i} 次。`)
-    const requests = f.requests.filter(r => ((r.context as WorldJsonObject).character as WorldJsonObject).characterId === 'character:claude')
+    const requests = f.requests.filter(
+      r => ((r.context as WorldJsonObject).character as WorldJsonObject).characterId === 'character:claude',
+    )
     const context = requests.at(-1)!.context as WorldJsonObject
     expect((context.history as WorldJsonObject[]).filter(row => row.kind === 'observed').length).toBeGreaterThan(16)
     expect((context.history as WorldJsonObject[]).filter(row => row.kind === 'self').length).toBeGreaterThan(8)
     expect(JSON.stringify(context.history)).toContain('银杏电台')
     expect(builds).toBe(0)
-  },120_000) // Twelve published rounds exercise growing SQLite-backed history.
+  }, 120_000) // Twelve published rounds exercise growing SQLite-backed history.
   it('queues at the estimated token threshold, archives a complete early prefix and keeps its newer tail', async () => {
     const inputs: WorldJsonObject[] = []
-    const run: CoreRunner = async input => { inputs.push(input); return input.operation === 'build' ? built(input) : empty }
-    const f = await fixture(run, { publish: true, memoryContextBudget: { triggerTokens: 200_000, compactTokens: 150_000, minimumRecentTokens: 0 } })
-    await f.runtime.submit('第一条。'); await f.runtime.submit('第二条。')
+    const run: CoreRunner = async input => {
+      inputs.push(input)
+      return input.operation === 'build' ? built(input) : empty
+    }
+    const f = await fixture(run, {
+      publish: true,
+      memoryContextBudget: { triggerTokens: 200_000, compactTokens: 150_000, minimumRecentTokens: 0 },
+    })
+    await f.runtime.submit('第一条。')
+    await f.runtime.submit('第二条。')
     const request = hostRequest(f.data, 'character:claude')
-    const adapter = new CoreMemoryAdapter(f.data, f.runtime.address, run, { triggerTokens: 200_000, compactTokens: 150_000, minimumRecentTokens: 0 })
+    const adapter = new CoreMemoryAdapter(f.data, f.runtime.address, run, {
+      triggerTokens: 200_000,
+      compactTokens: 150_000,
+      minimumRecentTokens: 0,
+    })
     expect(DEFAULT_MEMORY_CONTEXT_BUDGET.triggerTokens).toBe(170_000)
     // Two complete event groups approximate a 150k older prefix and a 50k newer tail.
     const seqs = (request.context as WorldJsonObject).observations as WorldJsonObject[]
-    const earlier = Number(seqs[0]!.sourceSeq), later = Number(seqs.at(-1)!.sourceSeq)
-    const input = { context: { ...(request.context as WorldJsonObject), observations: [
-      { sourceSeq: earlier, text: '旧'.repeat(149_800) }, { sourceSeq: later, text: '新'.repeat(50_000) }], selfObservations: [] }, continuation: false }
+    const earlier = Number(seqs[0]!.sourceSeq),
+      later = Number(seqs.at(-1)!.sourceSeq)
+    const input = {
+      context: {
+        ...(request.context as WorldJsonObject),
+        observations: [
+          { sourceSeq: earlier, text: '旧'.repeat(149_800) },
+          { sourceSeq: later, text: '新'.repeat(50_000) },
+        ],
+        selfObservations: [],
+      },
+      continuation: false,
+    }
     adapter.observeContext(input, 'x'.repeat(3 * (200_000 - 513)))
     expect(adapter.hasPendingCompaction).toBe(false)
     adapter.observeContext(input, 'x'.repeat(3 * (200_000 - 512)))
@@ -365,11 +608,13 @@ describe('optional web Core memory', () => {
     const run: CoreRunner = async input => {
       if (mode === 'fail') throw new Error('fixture failure')
       if (mode === 'cancel') controller.abort()
-      if (mode === 'incomplete') return built({ ...input, scope: { ...(input.scope as WorldJsonObject), asOfWorldSeq: 0 }, sources: [] })
+      if (mode === 'incomplete')
+        return built({ ...input, scope: { ...(input.scope as WorldJsonObject), asOfWorldSeq: 0 }, sources: [] })
       return built(input)
     }
     const f = await fixture(run)
-    await f.runtime.submit('第一条。'); await f.runtime.submit('第二条。')
+    await f.runtime.submit('第一条。')
+    await f.runtime.submit('第二条。')
     const request = hostRequest(f.data)
     const adapter = new CoreMemoryAdapter(f.data, f.runtime.address, run, { triggerTokens: 1000, compactTokens: 100 })
     adapter.observeContext({ context: request.context as WorldJsonObject, continuation: false }, '旧'.repeat(1000))
@@ -381,49 +626,73 @@ describe('optional web Core memory', () => {
     adapter.observeContext({ context: request.context as WorldJsonObject, continuation: false }, '旧'.repeat(1000))
     mode = 'cancel'
     await expect(adapter.compactPending(controller.signal, () => {})).rejects.toThrow()
-    expect(adapter.archivePrefix(String(((request.context as WorldJsonObject).character as WorldJsonObject).characterId))).toBe(0)
+    expect(
+      adapter.archivePrefix(String(((request.context as WorldJsonObject).character as WorldJsonObject).characterId)),
+    ).toBe(0)
     expect(adapter.hasPendingCompaction).toBe(false)
     adapter.observeContext({ context: request.context as WorldJsonObject, continuation: false }, '旧'.repeat(1000))
     mode = 'ok'
     await adapter.compactPending(AbortSignal.timeout(2000), () => {})
-    expect(adapter.archivePrefix(String(((request.context as WorldJsonObject).character as WorldJsonObject).characterId))).toBeGreaterThan(0)
+    expect(
+      adapter.archivePrefix(String(((request.context as WorldJsonObject).character as WorldJsonObject).characterId)),
+    ).toBeGreaterThan(0)
   })
   it('automatic compaction is detached from the turn and leaves the game usable', async () => {
     let entered!: () => void
-    const started = new Promise<void>(done => { entered = done })
+    const started = new Promise<void>(done => {
+      entered = done
+    })
     let release!: () => void
-    const gate = new Promise<void>(done => { release = done })
+    const gate = new Promise<void>(done => {
+      release = done
+    })
     let buildInput: WorldJsonObject | undefined
     const run: CoreRunner = async (input, signal) => {
       if (input.operation === 'recall') return empty
-      buildInput = input; entered()
-      await Promise.race([gate, new Promise<never>((_resolve, reject) => signal.addEventListener('abort', () => reject(signal.reason), { once: true }))])
+      buildInput = input
+      entered()
+      await Promise.race([
+        gate,
+        new Promise<never>((_resolve, reject) =>
+          signal.addEventListener('abort', () => reject(signal.reason), { once: true }),
+        ),
+      ])
       return built(input)
     }
     const f = await fixture(run, { memoryContextBudget: { triggerTokens: 1000, compactTokens: 100 }, publish: true })
-    await f.runtime.submit('你们简单回应一句就好。'); await started
+    await f.runtime.submit('你们简单回应一句就好。')
+    await started
     expect((await f.runtime.state()).busy).toBe(false)
     expect(Number((buildInput!.scope as WorldJsonObject).asOfWorldSeq)).toBeLessThan(f.head())
     const before = f.head()
     await f.runtime.submit('后台整理时我仍然能说话。')
     expect(f.head()).toBeGreaterThan(before)
-    await f.runtime.cancelMemory(); release(); await f.runtime.waitForMemory()
+    await f.runtime.cancelMemory()
+    release()
+    await f.runtime.waitForMemory()
     const adapter = new CoreMemoryAdapter(f.data, f.runtime.address, run)
     expect(adapter.archivePrefix(String((buildInput!.scope as WorldJsonObject).characterId))).toBe(0)
   })
   it('freezes queued roles immediately, installs independent successes and keeps post-freeze events raw', async () => {
     const inputs: WorldJsonObject[] = []
     let release!: () => void
-    const gate = new Promise<void>(done => { release = done })
-    let active = 0, peak = 0
+    const gate = new Promise<void>(done => {
+      release = done
+    })
+    let active = 0,
+      peak = 0
     const run: CoreRunner = async input => {
       if (input.operation === 'recall') return empty
-      inputs.push(input); active++; peak = Math.max(peak, active)
+      inputs.push(input)
+      active++
+      peak = Math.max(peak, active)
       try {
         await gate
         if ((input.scope as WorldJsonObject).characterId === 'character:glm') throw Error('fixture build failed')
         return built(input)
-      } finally { active-- }
+      } finally {
+        active--
+      }
     }
     const f = await fixture(run, { publish: true })
     const frozen = f.head()
@@ -432,12 +701,18 @@ describe('optional web Core memory', () => {
     await f.runtime.submit('冻结之后的新暗号：紫杉七号。')
     const liveHead = f.head()
     expect(liveHead).toBeGreaterThan(frozen)
-    release(); await f.runtime.waitForMemory()
-    expect(inputs).toHaveLength(4); expect(peak).toBe(2)
+    release()
+    await f.runtime.waitForMemory()
+    expect(inputs).toHaveLength(4)
+    expect(peak).toBe(2)
     for (const input of inputs) {
       expect((input.scope as WorldJsonObject).asOfWorldSeq).toBe(frozen)
       expect(JSON.stringify(input)).not.toContain('紫杉七号')
-      expect((input.sources as WorldJsonObject[]).every(s => s.characterId === (input.scope as WorldJsonObject).characterId && Number(s.worldSeq) <= frozen)).toBe(true)
+      expect(
+        (input.sources as WorldJsonObject[]).every(
+          s => s.characterId === (input.scope as WorldJsonObject).characterId && Number(s.worldSeq) <= frozen,
+        ),
+      ).toBe(true)
     }
     const adapter = new CoreMemoryAdapter(f.data, f.runtime.address, run)
     expect(adapter.archivePrefix('character:claude')).toBe(frozen)
@@ -445,104 +720,187 @@ describe('optional web Core memory', () => {
     expect((await f.runtime.state()).memoryMaintenance!.failed).toBe(1)
     expect((await f.runtime.state()).error).toBe(false)
     await f.runtime.submit('我们继续，刚才的新暗号还记得吗？')
-    const context = f.requests.findLast(r => ((r.context as WorldJsonObject).character as WorldJsonObject).characterId === 'character:claude')!.context as WorldJsonObject
+    const context = f.requests.findLast(
+      r => ((r.context as WorldJsonObject).character as WorldJsonObject).characterId === 'character:claude',
+    )!.context as WorldJsonObject
     expect(JSON.stringify(context.history)).toContain('紫杉七号')
   })
   it('discards an older late result rather than replacing a newer archive', async () => {
     const gates = new Map<number, () => void>()
-    const f = await fixture(async input => input.operation === 'recall' ? empty : built(input))
+    const f = await fixture(async input => (input.operation === 'recall' ? empty : built(input)))
     const adapter = new CoreMemoryAdapter(f.data, f.runtime.address, async input => {
       const prefix = Number((input.scope as WorldJsonObject).asOfWorldSeq)
-      await new Promise<void>(done => { gates.set(prefix, done) })
+      await new Promise<void>(done => {
+        gates.set(prefix, done)
+      })
       return built(input)
     })
-    const older = f.head(); adapter.startRefresh(['character:claude'])
+    const older = f.head()
+    adapter.startRefresh(['character:claude'])
     await f.runtime.submit('这是更晚的一条。')
-    const newer = f.head(); adapter.startRefresh(['character:claude'])
+    const newer = f.head()
+    adapter.startRefresh(['character:claude'])
     await vi.waitFor(() => expect(gates.size).toBe(2))
     gates.get(newer)!()
     await vi.waitFor(() => expect(adapter.archivePrefix('character:claude')).toBe(newer))
-    gates.get(older)!(); await adapter.waitForBackground()
+    gates.get(older)!()
+    await adapter.waitForBackground()
     expect(adapter.archivePrefix('character:claude')).toBe(newer)
     expect(adapter.backgroundState().discarded).toBe(1)
     await adapter.close()
   })
   it('archive advancement during foreground recall does not invalidate that authorized turn', async () => {
-    const f = await fixture(async input => input.operation === 'recall' ? empty : built(input), { publish: true })
-    await f.runtime.refreshMemory(); await f.runtime.waitForMemory()
+    const f = await fixture(async input => (input.operation === 'recall' ? empty : built(input)), { publish: true })
+    await f.runtime.refreshMemory()
+    await f.runtime.waitForMemory()
     await f.runtime.submit('旧档案之后的内容。')
     const context = f.requests.at(-1)!.context as WorldJsonObject
     const request = { context, continuation: false }
-    const adapter = new CoreMemoryAdapter(f.data, f.runtime.address, async input => input.operation === 'recall' ? empty : built(input),
-      { triggerTokens: 1000, compactTokens: 100 })
+    const adapter = new CoreMemoryAdapter(
+      f.data,
+      f.runtime.address,
+      async input => (input.operation === 'recall' ? empty : built(input)),
+      { triggerTokens: 1000, compactTokens: 100 },
+    )
     // The already prepared foreground context predates this successful install.
-    await adapter.refresh([String((context.character as WorldJsonObject).characterId)], AbortSignal.timeout(2000), () => {})
+    await adapter.refresh(
+      [String((context.character as WorldJsonObject).characterId)],
+      AbortSignal.timeout(2000),
+      () => {},
+    )
     expect(() => adapter.observeContext(request, 'x'.repeat(10_000))).not.toThrow()
     expect(adapter.hasPendingCompaction).toBe(false)
   })
-
 })
 
-it('delivers the configured recall budget to Core while preserving authorized evidence checks',async()=>{
- const {playSettings}=await import('../../desktop/play-settings.ts')
- const inputs:WorldJsonObject[]=[]
- const run:CoreRunner=async input=>{inputs.push(input);return input.operation==='build'?built(input):empty}
- const f=await fixture(run,{playSettings:playSettings({memoryMaxItems:2,memoryMaxJsonChars:3000})})
- await f.runtime.submit('你好。')
- await f.runtime.refreshMemory();await f.runtime.waitForMemory()
- await f.runtime.submit('继续。')
- expect(inputs.filter(input=>input.operation==='recall').length).toBeGreaterThan(0)
- for(const input of inputs.filter(input=>input.operation==='recall'))expect(input.deliveryBudget).toEqual({maxItems:2,maxJsonChars:3000})
+it('delivers the configured recall budget to Core while preserving authorized evidence checks', async () => {
+  const { playSettings } = await import('../../desktop/play-settings.ts')
+  const inputs: WorldJsonObject[] = []
+  const run: CoreRunner = async input => {
+    inputs.push(input)
+    return input.operation === 'build' ? built(input) : empty
+  }
+  const f = await fixture(run, { playSettings: playSettings({ memoryMaxItems: 2, memoryMaxJsonChars: 3000 }) })
+  await f.runtime.submit('你好。')
+  await f.runtime.refreshMemory()
+  await f.runtime.waitForMemory()
+  await f.runtime.submit('继续。')
+  expect(inputs.filter(input => input.operation === 'recall').length).toBeGreaterThan(0)
+  for (const input of inputs.filter(input => input.operation === 'recall'))
+    expect(input.deliveryBudget).toEqual({ maxItems: 2, maxJsonChars: 3000 })
 })
-it('uses each character\'s own memory runner for recall and build', async () => {
-  const a: WorldJsonObject[] = [], b: WorldJsonObject[] = []
-  const runner = (inputs: WorldJsonObject[]): CoreRunner => async input => { inputs.push(input); return input.operation === 'build' ? built(input) : empty }
+it("uses each character's own memory runner for recall and build", async () => {
+  const a: WorldJsonObject[] = [],
+    b: WorldJsonObject[] = []
+  const runner =
+    (inputs: WorldJsonObject[]): CoreRunner =>
+    async input => {
+      inputs.push(input)
+      return input.operation === 'build' ? built(input) : empty
+    }
   const f = await fixture(runner(b))
   const own = runner(a)
-  const adapter = new CoreMemoryAdapter(f.data, f.runtime.address, runner(b), undefined,
-    { run: runner(b), runFor: actor => actor === 'character:claude' ? { recall: own, build: own } : undefined })
+  const adapter = new CoreMemoryAdapter(f.data, f.runtime.address, runner(b), undefined, {
+    run: runner(b),
+    runFor: actor => (actor === 'character:claude' ? { recall: own, build: own } : undefined),
+  })
   await adapter.refresh(['character:claude', 'character:gpt'], AbortSignal.timeout(5000), () => {})
-  await adapter.project({ context: { character: { characterId: 'character:claude', name: 'Claude' },
-    scene: { people: [] }, stimulus: [], observations: [], selfObservations: [] }, continuation: false }, AbortSignal.timeout(2000))
+  await adapter.project(
+    {
+      context: {
+        character: { characterId: 'character:claude', name: 'Claude' },
+        scene: { people: [] },
+        stimulus: [],
+        observations: [],
+        selfObservations: [],
+      },
+      continuation: false,
+    },
+    AbortSignal.timeout(2000),
+  )
   expect(a.map(input => input.operation).sort()).toEqual(['build', 'recall'])
-  const actorOf = (input: WorldJsonObject) => String(((input.scope ?? (input.archive as WorldJsonObject).scope) as WorldJsonObject).characterId)
+  const actorOf = (input: WorldJsonObject) =>
+    String(((input.scope ?? (input.archive as WorldJsonObject).scope) as WorldJsonObject).characterId)
   expect(a.map(actorOf)).toEqual(['character:claude', 'character:claude'])
   expect(b.map(actorOf)).not.toContain('character:claude')
   expect(b.map(actorOf)).toContain('character:gpt')
 })
 it('starts one Core runner per distinct memory model and never writes a key to the data directory', async () => {
-  const data = mkdtempSync(join(tmpdir(), 'memory-web-test-')); roots.push(data)
-  const provider = createServer((req, res) => { req.resume(); req.on('end', () => {
-    res.writeHead(200, { 'content-type': 'application/json' })
-    res.end(JSON.stringify({ choices: [{ message: { content: JSON.stringify({ decision: 'abstain' }) } }] })) }) })
-  servers.push(provider); provider.listen(0, '127.0.0.1'); await once(provider, 'listening')
-  const port = (provider.address() as { port: number }).port, endpoint = `http://127.0.0.1:${port}/v1/chat/completions`
+  const data = mkdtempSync(join(tmpdir(), 'memory-web-test-'))
+  roots.push(data)
+  const provider = createServer((req, res) => {
+    req.resume()
+    req.on('end', () => {
+      res.writeHead(200, { 'content-type': 'application/json' })
+      res.end(JSON.stringify({ choices: [{ message: { content: JSON.stringify({ decision: 'abstain' }) } }] }))
+    })
+  })
+  servers.push(provider)
+  provider.listen(0, '127.0.0.1')
+  await once(provider, 'listening')
+  const port = (provider.address() as { port: number }).port,
+    endpoint = `http://127.0.0.1:${port}/v1/chat/completions`
   const groups: { env: Record<string, string>; inputs: WorldJsonObject[]; closed: boolean }[] = []
   const strong = { protocol: 'openai' as const, endpoint, model: 'strong', apiKey: 'MEMORY_KEY_STRONG' }
-  const runtime = await WorldHostRuntime.create({ dataDirectory: data,
-    packPath: resolve('examples/world-packs/ai-girls-hosted-guess'), provider: 'local', model: 'fixture', utilityEndpoint: endpoint, apiKey: 'MEMORY_KEY_BASE',
-    memoryCore: true, roleModels: { characters: {
-      'character:claude': { decision: strong, memory: strong },
-      'character:gpt': { decision: strong, memory: { protocol: 'openai', endpoint, model: 'fixture', apiKey: 'MEMORY_KEY_BASE' } } } },
+  const runtime = await WorldHostRuntime.create({
+    dataDirectory: data,
+    packPath: resolve('examples/world-packs/ai-girls-hosted-guess'),
+    provider: 'local',
+    model: 'fixture',
+    utilityEndpoint: endpoint,
+    apiKey: 'MEMORY_KEY_BASE',
+    memoryCore: true,
+    roleModels: {
+      characters: {
+        'character:claude': { decision: strong, memory: strong },
+        'character:gpt': {
+          decision: strong,
+          memory: { protocol: 'openai', endpoint, model: 'fixture', apiKey: 'MEMORY_KEY_BASE' },
+        },
+      },
+    },
     memoryCoreRunners: env => {
-      const group = { env: env as Record<string, string>, inputs: [] as WorldJsonObject[], closed: false }; groups.push(group)
-      const run: CoreRunner = async input => { group.inputs.push(input); return input.operation === 'build' ? built(input) : empty }
-      return { recall: run, build: run, close: async () => { group.closed = true } }
-    } })
+      const group = { env: env as Record<string, string>, inputs: [] as WorldJsonObject[], closed: false }
+      groups.push(group)
+      const run: CoreRunner = async input => {
+        group.inputs.push(input)
+        return input.operation === 'build' ? built(input) : empty
+      }
+      return {
+        recall: run,
+        build: run,
+        close: async () => {
+          group.closed = true
+        },
+      }
+    },
+  })
   runtimes.push(runtime)
   expect(groups).toHaveLength(2)
-  const [base, own] = [groups.find(g => g.env.HCW_LOCAL_MODEL === 'fixture')!, groups.find(g => g.env.HCW_LOCAL_MODEL === 'strong')!]
-  expect(base.env).toMatchObject({ HCW_LOCAL_ENDPOINT: endpoint, HCW_MODEL_PROTOCOL: 'openai', HCW_LOCAL_API_KEY: 'MEMORY_KEY_BASE' })
+  const [base, own] = [
+    groups.find(g => g.env.HCW_LOCAL_MODEL === 'fixture')!,
+    groups.find(g => g.env.HCW_LOCAL_MODEL === 'strong')!,
+  ]
+  expect(base.env).toMatchObject({
+    HCW_LOCAL_ENDPOINT: endpoint,
+    HCW_MODEL_PROTOCOL: 'openai',
+    HCW_LOCAL_API_KEY: 'MEMORY_KEY_BASE',
+  })
   expect(own.env).toMatchObject({ HCW_LOCAL_API_KEY: 'MEMORY_KEY_STRONG' })
   expect(base.env.HCW_HINDSIGHT_UTILITY_ATTEMPTS).toBe(own.env.HCW_HINDSIGHT_UTILITY_ATTEMPTS)
   await runtime.submit('你好。')
-  await runtime.refreshMemory(); await runtime.waitForMemory()
+  await runtime.refreshMemory()
+  await runtime.waitForMemory()
   const actors = (g: typeof base) => g.inputs.map(input => String((input.scope as WorldJsonObject).characterId))
   expect(actors(own)).toEqual(['character:claude'])
   expect(actors(base)).toContain('character:gpt')
   expect(actors(base)).not.toContain('character:claude')
-  await runtime.close(); runtimes.splice(runtimes.indexOf(runtime), 1)
+  await runtime.close()
+  runtimes.splice(runtimes.indexOf(runtime), 1)
   expect(groups.every(g => g.closed)).toBe(true)
-  const files = (dir: string): string[] => readdirSync(dir, { withFileTypes: true }).flatMap(e => e.isDirectory() ? files(join(dir, e.name)) : [join(dir, e.name)])
+  const files = (dir: string): string[] =>
+    readdirSync(dir, { withFileTypes: true }).flatMap(e =>
+      e.isDirectory() ? files(join(dir, e.name)) : [join(dir, e.name)],
+    )
   for (const file of files(data)) expect(readFileSync(file).toString('latin1')).not.toMatch(/MEMORY_KEY_/)
 })

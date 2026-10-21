@@ -19,7 +19,12 @@ function view(observations: ProjectionRecord[], claims: ProjectionRecord[] = [])
     asOfWorldSeq: 1,
     lifecycleState: 'active' as const,
     locationId: 'location:room',
-    scenes: [], observations, selfObservations: [], claims, goals: [], visibility: [],
+    scenes: [],
+    observations,
+    selfObservations: [],
+    claims,
+    goals: [],
+    visibility: [],
   }
   return { ...base, bundleHash: hashWorldJson('world-character-view', base) }
 }
@@ -42,17 +47,24 @@ describe('KnowledgeRule', () => {
     expect(events).toHaveLength(2)
     expect(events[0]).toMatchObject({ data: { id: 'claim:seen', value: { epistemicStatus: 'observed' } } })
     expect(events[1]).toMatchObject({
-      data: { id: 'claim:said:observation:said', value: { proposition: 'character:other said: the moon is cheese', epistemicStatus: 'reported-speech' } },
+      data: {
+        id: 'claim:said:observation:said',
+        value: { proposition: 'character:other said: the moon is cheese', epistemicStatus: 'reported-speech' },
+      },
     })
   })
 
   it('fails closed on malformed cognitive candidates', () => {
-    expect(() => new KnowledgeRule().derive(view([
-      projection('observation', 'bad-candidate', { knowledgeCandidate: { claimId: 1 } }),
-    ]))).toThrow('knowledgeCandidate')
-    expect(() => new KnowledgeRule().derive(view([
-      projection('observation', 'bad-utterance', { utterance: { speakerId: 'speaker', text: 1 } }),
-    ]))).toThrow('utterance')
+    expect(() =>
+      new KnowledgeRule().derive(
+        view([projection('observation', 'bad-candidate', { knowledgeCandidate: { claimId: 1 } })]),
+      ),
+    ).toThrow('knowledgeCandidate')
+    expect(() =>
+      new KnowledgeRule().derive(
+        view([projection('observation', 'bad-utterance', { utterance: { speakerId: 'speaker', text: 1 } })]),
+      ),
+    ).toThrow('utterance')
   })
 })
 
@@ -82,12 +94,20 @@ describe('CharacterReflectRule', () => {
       { ...request, sourceRefs: [{ kind: 'summary' as const, id: 'summary:1' }] },
       { ...request, sourceRefs: [{ kind: 'observation' as const, id: 'observation:hidden' }] },
       { ...request, sourceRefs: [{ kind: 'claim' as const, id: 'claim:hidden' }] },
-      { ...request, sourceRefs: [{ kind: 'claim' as const, id: 'claim:old' }, { kind: 'claim' as const, id: 'claim:old' }] },
+      {
+        ...request,
+        sourceRefs: [
+          { kind: 'claim' as const, id: 'claim:old' },
+          { kind: 'claim' as const, id: 'claim:old' },
+        ],
+      },
     ]
     for (const value of invalid) {
-      expect(() => new CharacterReflectRule().resolve(characterView, value)).toThrowError(expect.objectContaining({
-        envelope: expect.objectContaining({ errorCode: 'ACTION_REJECTED' }),
-      }))
+      expect(() => new CharacterReflectRule().resolve(characterView, value)).toThrowError(
+        expect.objectContaining({
+          envelope: expect.objectContaining({ errorCode: 'ACTION_REJECTED' }),
+        }),
+      )
     }
   })
 })

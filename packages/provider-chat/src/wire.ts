@@ -28,8 +28,9 @@ export interface ChatCall {
  * message passes through as it was assembled.
  */
 export function chatMessages(messages: readonly ChatMessage[]): readonly ChatMessage[] {
-  return messages.map(message => message.role === 'developer'
-    ? { role: 'system', content: message.content } : message)
+  return messages.map(message =>
+    message.role === 'developer' ? { role: 'system', content: message.content } : message,
+  )
 }
 
 interface OfferedAffordance {
@@ -40,8 +41,12 @@ interface OfferedAffordance {
 }
 
 /** Movement's own request shape: a place, named. */
-const MOVE_PARAMETERS: WorldJsonObject = { type: 'object', additionalProperties: false,
-  required: ['locationId'], properties: { locationId: { type: 'string', minLength: 1 } } }
+const MOVE_PARAMETERS: WorldJsonObject = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['locationId'],
+  properties: { locationId: { type: 'string', minLength: 1 } },
+}
 
 /**
  * Where a move may go: the world's own destinations, as a closed set. A model left to name a place it was
@@ -54,10 +59,20 @@ function moveParameters(offer: OfferedAffordance | undefined): WorldJsonObject {
     return locationId === undefined ? [] : [{ locationId, name: text(entry.name) }]
   })
   if (places.length === 0) return MOVE_PARAMETERS
-  return { type: 'object', additionalProperties: false, required: ['locationId'],
-    properties: { locationId: { type: 'string', enum: places.map(place => place.locationId),
-      description: places.map(place => place.name === undefined ? place.locationId
-        : `${place.locationId} (${place.name})`).join(', ') } } }
+  return {
+    type: 'object',
+    additionalProperties: false,
+    required: ['locationId'],
+    properties: {
+      locationId: {
+        type: 'string',
+        enum: places.map(place => place.locationId),
+        description: places
+          .map(place => (place.name === undefined ? place.locationId : `${place.locationId} (${place.name})`))
+          .join(', '),
+      },
+    },
+  }
 }
 
 /** A `const` for a value the Host stated, and nothing where it stated none. */
@@ -72,22 +87,41 @@ function optionSchema(choice: WorldJsonObject): WorldJsonObject {
   const argumentsValue = object(choice.arguments) ?? {}
   const argumentKeys = Object.keys(argumentsValue)
   return {
-    type: 'object', additionalProperties: false,
+    type: 'object',
+    additionalProperties: false,
     required: ['targetRef', 'bindingId', 'definitionRef', 'arguments'],
     properties: {
-      targetRef: { type: 'object', additionalProperties: false, required: ['kind', 'id'],
-        properties: { kind: { type: 'string', ...constOf(targetRef.kind) },
-          id: { type: 'string', ...constOf(targetRef.id) } } },
+      targetRef: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['kind', 'id'],
+        properties: {
+          kind: { type: 'string', ...constOf(targetRef.kind) },
+          id: { type: 'string', ...constOf(targetRef.id) },
+        },
+      },
       bindingId: { type: 'string', ...constOf(choice.bindingId) },
-      definitionRef: { type: 'object', additionalProperties: false, required: ['id', 'version'],
-        properties: { id: { type: 'string', ...constOf(definitionRef.id) },
-          version: { type: 'integer', ...constOf(definitionRef.version) } } },
-      arguments: object(choice.argumentSchema) ?? { type: 'object', additionalProperties: false,
-        ...(argumentKeys.length === 0 ? {} : {
-          required: argumentKeys,
-          properties: Object.fromEntries(argumentKeys.map(key =>
-            [key, { type: typeof argumentsValue[key], ...constOf(argumentsValue[key]) }])),
-        }) },
+      definitionRef: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['id', 'version'],
+        properties: {
+          id: { type: 'string', ...constOf(definitionRef.id) },
+          version: { type: 'integer', ...constOf(definitionRef.version) },
+        },
+      },
+      arguments: object(choice.argumentSchema) ?? {
+        type: 'object',
+        additionalProperties: false,
+        ...(argumentKeys.length === 0
+          ? {}
+          : {
+              required: argumentKeys,
+              properties: Object.fromEntries(
+                argumentKeys.map(key => [key, { type: typeof argumentsValue[key], ...constOf(argumentsValue[key]) }]),
+              ),
+            }),
+      },
     },
   }
 }
@@ -104,8 +138,13 @@ export function intentCall(request: WorldJsonObject): ChatCall {
   return {
     messages: [
       { role: 'system', content: `${contract} Answer by returning the registered tool payload only.` },
-      { role: 'user', content: JSON.stringify({ sourceText: text(request.sourceText) ?? '',
-        affordances: Array.isArray(request.affordances) ? request.affordances : [] }) },
+      {
+        role: 'user',
+        content: JSON.stringify({
+          sourceText: text(request.sourceText) ?? '',
+          affordances: Array.isArray(request.affordances) ? request.affordances : [],
+        }),
+      },
     ],
     schema,
     description: 'Select the exact affordances this player input addresses, preserving source order.',
@@ -114,7 +153,8 @@ export function intentCall(request: WorldJsonObject): ChatCall {
 
 /** Parameters offered to the current single-character perform tool, in stable move/interact order. */
 export function operationSchemas(affordances: WorldJsonValue | undefined): readonly {
-  readonly actionType: 'move' | 'interact'; readonly parameters: WorldJsonObject
+  readonly actionType: 'move' | 'interact'
+  readonly parameters: WorldJsonObject
 }[] {
   const entries = Array.isArray(affordances) ? affordances.map(object) : []
   const move = entries.find(entry => entry?.actionType === 'move')
@@ -122,7 +162,8 @@ export function operationSchemas(affordances: WorldJsonValue | undefined): reado
   const steps = Array.isArray(interactions) ? interactions.map(choice => optionSchema(choice as WorldJsonObject)) : []
   return [
     { actionType: 'move', parameters: moveParameters(move as OfferedAffordance | undefined) },
-    ...(steps.length === 0 ? [] : [{ actionType: 'interact' as const,
-      parameters: steps.length === 1 ? steps[0]! : { oneOf: steps } }]),
+    ...(steps.length === 0
+      ? []
+      : [{ actionType: 'interact' as const, parameters: steps.length === 1 ? steps[0]! : { oneOf: steps } }]),
   ]
 }

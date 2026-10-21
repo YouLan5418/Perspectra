@@ -2,11 +2,16 @@ import {
   compareWorldText,
   type ManifestationChannel,
   type ManifestationCueProposal,
-  type ManifestationProposal
+  type ManifestationProposal,
 } from '@harness-world/contracts'
 
 const MANIFESTATION_CHANNELS = new Set<ManifestationChannel>([
-  'facial', 'gaze', 'posture', 'gesture', 'voice', 'appearance',
+  'facial',
+  'gaze',
+  'posture',
+  'gesture',
+  'voice',
+  'appearance',
 ])
 
 const PERSISTENT_MANIFESTATION_CHANNELS = new Set<ManifestationChannel>(['posture', 'appearance'])
@@ -14,7 +19,8 @@ const PERSISTENT_MANIFESTATION_CHANNELS = new Set<ManifestationChannel>(['postur
 const utf8 = new TextEncoder()
 
 function record(value: unknown, path: string): Record<string, unknown> {
-  if (typeof value !== 'object' || value === null || Array.isArray(value)) throw new TypeError(`${path} must be an object`)
+  if (typeof value !== 'object' || value === null || Array.isArray(value))
+    throw new TypeError(`${path} must be an object`)
   return value as Record<string, unknown>
 }
 
@@ -40,7 +46,8 @@ function exactWithOptional(
 }
 
 function text(value: unknown, path: string): string {
-  if (typeof value !== 'string' || value.length === 0 || value.trim() !== value) throw new TypeError(`${path} must be a non-empty string`)
+  if (typeof value !== 'string' || value.length === 0 || value.trim() !== value)
+    throw new TypeError(`${path} must be a non-empty string`)
   return value
 }
 
@@ -63,7 +70,11 @@ export function parseManifestationProposal(value: unknown): ManifestationProposa
     if (persistence === 'event_only') {
       exact(cue, ['cueId', 'channel', 'description', 'persistence'], `manifestation.cues[${index}]`)
     } else if (persistence === 'until_changed') {
-      exact(cue, ['cueId', 'channel', 'description', 'persistence', 'stateKey', 'operation'], `manifestation.cues[${index}]`)
+      exact(
+        cue,
+        ['cueId', 'channel', 'description', 'persistence', 'stateKey', 'operation'],
+        `manifestation.cues[${index}]`,
+      )
     } else {
       throw new TypeError(`manifestation.cues[${index}].persistence is unsupported`)
     }
@@ -73,20 +84,29 @@ export function parseManifestationProposal(value: unknown): ManifestationProposa
       throw new TypeError(`manifestation.cues[${index}].channel is unsupported`)
     }
     const description = boundedText(cue.description, `manifestation.cues[${index}].description`, 512)
-    if (persistence === 'event_only') return { cueId, channel: channel as ManifestationChannel, description, persistence }
+    if (persistence === 'event_only')
+      return { cueId, channel: channel as ManifestationChannel, description, persistence }
     if (!PERSISTENT_MANIFESTATION_CHANNELS.has(channel as ManifestationChannel)) {
       throw new TypeError('until_changed manifestation is limited to posture and appearance')
     }
     const stateKey = boundedText(cue.stateKey, `manifestation.cues[${index}].stateKey`, 128)
-    if (cue.operation !== 'set' && cue.operation !== 'clear') throw new TypeError(`manifestation.cues[${index}].operation is unsupported`)
+    if (cue.operation !== 'set' && cue.operation !== 'clear')
+      throw new TypeError(`manifestation.cues[${index}].operation is unsupported`)
     return {
-      cueId, channel: channel as 'posture' | 'appearance', description,
-      persistence, stateKey, operation: cue.operation,
+      cueId,
+      channel: channel as 'posture' | 'appearance',
+      description,
+      persistence,
+      stateKey,
+      operation: cue.operation,
     }
   })
-  if (new Set(cues.map(cue => cue.cueId)).size !== cues.length) throw new TypeError('manifestation cueId values must be unique')
+  if (new Set(cues.map(cue => cue.cueId)).size !== cues.length)
+    throw new TypeError('manifestation cueId values must be unique')
   return {
-    ...(root.description === undefined ? {} : { description: boundedText(root.description, 'submit_actions.manifestation.description', 2048) }),
+    ...(root.description === undefined
+      ? {}
+      : { description: boundedText(root.description, 'submit_actions.manifestation.description', 2048) }),
     cues,
   }
 }

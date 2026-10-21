@@ -4,8 +4,19 @@ import type { CreatorRecord } from '../../../../desktop/host/creator-records.ts'
 
 /** 轨迹条目类型。颜色与文字标签同时表示，不依赖单一色相。 */
 export type TraceKind =
-  | 'context' | 'recall' | 'model' | 'decision' | 'action' | 'turn'
-  | 'speak' | 'observation' | 'event' | 'entity' | 'movement' | 'activity' | 'world'
+  | 'context'
+  | 'recall'
+  | 'model'
+  | 'decision'
+  | 'action'
+  | 'turn'
+  | 'speak'
+  | 'observation'
+  | 'event'
+  | 'entity'
+  | 'movement'
+  | 'activity'
+  | 'world'
 
 export type StatusTone = 'ok' | 'warn' | 'danger' | 'muted' | 'accent'
 
@@ -58,4 +69,12 @@ export interface Selection {
 }
 
 /** 控制台里的页面；与左侧导航一一对应。 */
-export type ConsoleView = 'conversation' | 'trace' | 'requests' | 'world' | 'characters' | 'entities' | 'statuses' | 'activities'
+export type ConsoleView =
+  | 'conversation'
+  | 'trace'
+  | 'requests'
+  | 'world'
+  | 'characters'
+  | 'entities'
+  | 'statuses'
+  | 'activities'

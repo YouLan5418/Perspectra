@@ -2,9 +2,10 @@ import type { CharacterId, WorldJsonObject, WorldJsonValue } from '@harness-worl
 import { currentEntityState, type CompiledWorldManifest, type RulebookEvent } from '@harness-world/kernel'
 
 const object = (value: WorldJsonValue | undefined): WorldJsonObject | undefined =>
-  value !== null && typeof value === 'object' && !Array.isArray(value) ? value as WorldJsonObject : undefined
+  value !== null && typeof value === 'object' && !Array.isArray(value) ? (value as WorldJsonObject) : undefined
 
-export const expressionAfterExecution = '本次执行已经结束。现在只能自由表达这次结果后的反应，或 abstain。触碰、翻页、临时托起查看或暂放桌上不自动改变保管关系。未执行的后续移动、取得保管、转交保管或解除保管尚未发生；不能在对白或叙述中写成已经完成。若想继续改变受控状态，在下一次可执行决策中提出。'
+export const expressionAfterExecution =
+  '本次执行已经结束。现在只能自由表达这次结果后的反应，或 abstain。触碰、翻页、临时托起查看或暂放桌上不自动改变保管关系。未执行的后续移动、取得保管、转交保管或解除保管尚未发生；不能在对白或叙述中写成已经完成。若想继续改变受控状态，在下一次可执行决策中提出。'
 
 /** Domain feedback, not dialogue generation. Never infer refusal/consent from a permission code. */
 export function characterExecutionResult(input: {
@@ -19,51 +20,91 @@ export function characterExecutionResult(input: {
   const parameters = object(input.action.parameters)
   const target = object(parameters?.targetRef)
   if (status === 'accepted') {
-    const definitionId=object(parameters?.definitionRef)?.id
-    if(definitionId==='home:cook-rice'||definitionId==='home:eat-rice')return {status,description:definitionId==='home:cook-rice'
-      ?'这一份米与水已煮成一锅白米饭，放在当前房间；原食材不再可用。'
-      :'这一锅白米饭已经吃完，剩下空容器；不能再次食用或当作生米煮饭。'}
+    const definitionId = object(parameters?.definitionRef)?.id
+    if (definitionId === 'home:cook-rice' || definitionId === 'home:eat-rice')
+      return {
+        status,
+        description:
+          definitionId === 'home:cook-rice'
+            ? '这一份米与水已煮成一锅白米饭，放在当前房间；原食材不再可用。'
+            : '这一锅白米饭已经吃完，剩下空容器；不能再次食用或当作生米煮饭。',
+      }
     const definition = object(parameters?.definitionRef)?.id
-    const verb = definition === 'base:take' ? '取得保管' : definition === 'base:give' ? '转交保管'
-      : definition === 'base:drop' ? '解除个人保管并留在当前场所' : '执行交互'
+    const verb =
+      definition === 'base:take'
+        ? '取得保管'
+        : definition === 'base:give'
+          ? '转交保管'
+          : definition === 'base:drop'
+            ? '解除个人保管并留在当前场所'
+            : '执行交互'
     // The character reads a label when the author declared one; entityId stays the fallback for unnamed targets.
     const entityId = target?.kind === 'entity' && typeof target.id === 'string' ? target.id : undefined
-    const entityLabel = entityId === undefined ? undefined
-      : input.manifest.entities.find(entity => entity.entityId === entityId)?.name ?? entityId
+    const entityLabel =
+      entityId === undefined
+        ? undefined
+        : (input.manifest.entities.find(entity => entity.entityId === entityId)?.name ?? entityId)
     const actual = entityLabel === undefined ? '这次行动已经成功执行。' : `你刚刚成功${verb}（物品：${entityLabel}）。`
-    const state = target?.kind === 'entity' && typeof target.id === 'string' ? currentEntityState(input.events, target.id) : undefined
+    const state =
+      target?.kind === 'entity' && typeof target.id === 'string'
+        ? currentEntityState(input.events, target.id)
+        : undefined
     // A pack-defined state change reports the author-written result kind, without second-person wording,
     // so the transcript line reads the same for the actor and for observers.
     if (state !== undefined && typeof definition === 'string' && !definition.startsWith('base:'))
       return { status, description: `${entityLabel}现在是：${state.kind}。` }
-    return { status, description: actual + (state?.holderId === input.actorId ? '该物品目前仍由你保管；不要求一直握在手里。' : '当前状态请以本次可见场景为准。') }
+    return {
+      status,
+      description:
+        actual +
+        (state?.holderId === input.actorId
+          ? '该物品目前仍由你保管；不要求一直握在手里。'
+          : '当前状态请以本次可见场景为准。'),
+    }
   }
   if (target?.kind === 'entity' && typeof target.id === 'string') {
     const state = currentEntityState(input.events, target.id)
-    const lastChange = input.events.findLastIndex(event =>
-      (event.eventType === 'entity.transferred' || event.eventType === 'entity.upsert' || event.eventType === 'entity.taken')
-      && object(event.data)?.entityId === target.id)
+    const lastChange = input.events.findLastIndex(
+      event =>
+        (event.eventType === 'entity.transferred' ||
+          event.eventType === 'entity.upsert' ||
+          event.eventType === 'entity.taken') &&
+        object(event.data)?.entityId === target.id,
+    )
     // Possession must be known through this character's own observation, not a global state lookup alone.
     const knowsHolder = input.events.some((event, index) => {
       const value = object(object(event.data)?.value)
       const transfer = object(object(value?.content)?.interaction)
-      return index > lastChange && event.eventType === 'observation.upsert' && value?.observerId === input.actorId
-        && transfer?.entityId === target.id && transfer?.toHolderId === state?.holderId
+      return (
+        index > lastChange &&
+        event.eventType === 'observation.upsert' &&
+        value?.observerId === input.actorId &&
+        transfer?.entityId === target.id &&
+        transfer?.toHolderId === state?.holderId
+      )
     })
-    if ((reason === 'PARTICIPANT_NOT_AUTHORIZED' || reason === 'ITEM_NOT_AVAILABLE')
-      && state?.holderId !== null && state?.holderId !== undefined && knowsHolder) {
+    if (
+      (reason === 'PARTICIPANT_NOT_AUTHORIZED' || reason === 'ITEM_NOT_AVAILABLE') &&
+      state?.holderId !== null &&
+      state?.holderId !== undefined &&
+      knowsHolder
+    ) {
       const holder = input.manifest.characters.find(character => character.characterId === state.holderId)
       return { status, description: `这个物品已经由${holder?.name ?? '你看到的保管人'}保管，你没有成功取得它的保管。` }
     }
   }
-  return { status, description: rejectionReasonText(reason)
-    ?? '这次请求没有执行成功；没有产生请求中的状态变化。目前没有可向你说明的进一步原因。' }
+  return {
+    status,
+    description:
+      rejectionReasonText(reason) ?? '这次请求没有执行成功；没有产生请求中的状态变化。目前没有可向你说明的进一步原因。',
+  }
 }
 
 /** Plain-language text for a rejection code; undefined when the code has no reader-facing wording. */
 export function rejectionReasonText(reason: string | null): string | undefined {
   const descriptions: Record<string, string> = {
-    SPEECH_RECIPIENT_UNREACHABLE: '指定对象中有人不在当前可交流范围，这次表达没有传达给任何收件人。你可以根据当前场景重新决定行动、表达或结束。',
+    SPEECH_RECIPIENT_UNREACHABLE:
+      '指定对象中有人不在当前可交流范围，这次表达没有传达给任何收件人。你可以根据当前场景重新决定行动、表达或结束。',
     RAW_RICE_REQUIRED: '没有可用的生米与水材料，煮饭没有发生。',
     COOKED_RICE_REQUIRED: '没有可食用的熟米饭，这次没有吃到饭。',
     COOKER_REQUIRED: '没有可用的电饭锅，煮饭没有发生。',

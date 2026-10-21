@@ -15,21 +15,40 @@ describe('Runtime registries', () => {
     expect(CONTEXT_PROFILES.map(profile => profile.profileId)).toEqual(['compact', 'standard', 'deep'])
     expect(CONTEXT_PROFILES.map(profile => profile.maximumRequestBytes)).toEqual([32768, 98304, 196608])
     expect(CONTEXT_PROFILES[0]).toMatchObject({
-      recentInteractionBlocks: 4, recallResults: 6, checkpointActiveCognition: 12, sceneVisibleSubjects: 16,
-      activeClaims: 8, activeGoals: 4, relationshipFacets: 8, activeAffects: 4, activeInnerTensions: 2,
-      activeCommitments: 4, openLoops: 6,
+      recentInteractionBlocks: 4,
+      recallResults: 6,
+      checkpointActiveCognition: 12,
+      sceneVisibleSubjects: 16,
+      activeClaims: 8,
+      activeGoals: 4,
+      relationshipFacets: 8,
+      activeAffects: 4,
+      activeInnerTensions: 2,
+      activeCommitments: 4,
+      openLoops: 6,
     })
     expect(CONTEXT_PROFILES[2]).toMatchObject({
-      recentInteractionBlocks: 20, recallResults: 32, checkpointActiveCognition: 64, sceneVisibleSubjects: 96,
-      activeClaims: 32, activeGoals: 16, relationshipFacets: 32, activeAffects: 12, activeInnerTensions: 8,
-      activeCommitments: 16, openLoops: 24,
+      recentInteractionBlocks: 20,
+      recallResults: 32,
+      checkpointActiveCognition: 64,
+      sceneVisibleSubjects: 96,
+      activeClaims: 32,
+      activeGoals: 16,
+      relationshipFacets: 32,
+      activeAffects: 12,
+      activeInnerTensions: 8,
+      activeCommitments: 16,
+      openLoops: 24,
     })
   })
 
   it('freezes the standard Reflection policy limits', () => {
     expect(REFLECTION_PROFILE).toEqual({
-      profileId: 'standard', maximumOperations: 4, maximumNewActivePerKind: 2,
-      maximumMagnitudeChangePermille: 200, maximumNarrativeBytesPerOperation: 4096,
+      profileId: 'standard',
+      maximumOperations: 4,
+      maximumNewActivePerKind: 2,
+      maximumMagnitudeChangePermille: 200,
+      maximumNarrativeBytesPerOperation: 4096,
       maximumNarrativeBytesPerBatch: 16384,
     })
     expect(Object.isFrozen(REFLECTION_PROFILE)).toBe(true)
@@ -37,12 +56,16 @@ describe('Runtime registries', () => {
 
   it('exposes the exact Provider quality and submit_actions registry contracts to runtime code', () => {
     expect(PROVIDER_QUALITY_PROFILE).toEqual({
-      schemaVersion: 'provider-quality/v1', invalidReflectionThreshold: 3,
-      reflectionPauseEligibleTicks: 4, invalidResponseThreshold: 3,
+      schemaVersion: 'provider-quality/v1',
+      invalidReflectionThreshold: 3,
+      reflectionPauseEligibleTicks: 4,
+      invalidResponseThreshold: 3,
       probeBackoffEligibleTicks: [1, 2, 4, 8],
     })
     expect(SUBMIT_ACTIONS_PROFILE).toEqual({
-      schemaVersion: 'submit_actions/v2', maximumExternalActions: 2, maximumReflectionOperations: 4,
+      schemaVersion: 'submit_actions/v2',
+      maximumExternalActions: 2,
+      maximumReflectionOperations: 4,
     })
     expect(Object.isFrozen(PROVIDER_QUALITY_PROFILE)).toBe(true)
     expect(Object.isFrozen(PROVIDER_QUALITY_PROFILE.probeBackoffEligibleTicks)).toBe(true)
@@ -51,8 +74,13 @@ describe('Runtime registries', () => {
 
   it('locks every runtime registry with domain-separated hashes', () => {
     expect(RUNTIME_REGISTRIES.map(registry => registry.registryId)).toEqual([
-      'context-registry/v1', 'scene-registry/v1', 'memory-registry/v1', 'cognitive-policy-registry/v1',
-      'renderer-registry/v1', 'tool-schema-registry/v1', 'context-profile-registry/v1',
+      'context-registry/v1',
+      'scene-registry/v1',
+      'memory-registry/v1',
+      'cognitive-policy-registry/v1',
+      'renderer-registry/v1',
+      'tool-schema-registry/v1',
+      'context-profile-registry/v1',
     ])
     expect(RUNTIME_REGISTRY_LOCKS).toHaveLength(RUNTIME_REGISTRIES.length)
     for (const [index, registry] of RUNTIME_REGISTRIES.entries()) {

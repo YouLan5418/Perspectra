@@ -4,7 +4,13 @@ import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { brandId, type WorldAddress } from '@harness-world/contracts'
 import { DeterministicPresenter } from '@harness-world/presentation'
-import { CharacterViewBuilder, SessionDeliveryAdapter, SessionOutboxWorker, WorldOutbox, WorldStore } from '@harness-world/store-sqlite'
+import {
+  CharacterViewBuilder,
+  SessionDeliveryAdapter,
+  SessionOutboxWorker,
+  WorldOutbox,
+  WorldStore,
+} from '@harness-world/store-sqlite'
 
 describe('Phase 2 Observation and Session acceptance', () => {
   it('keeps multi-character futures private and closes the Outbox/Session/Presentation path', async () => {
@@ -31,20 +37,50 @@ describe('Phase 2 Observation and Session acceptance', () => {
         expectedTick: 0,
         nextTick: 1,
         events: [
-          { eventType: 'character.upsert', eventVersion: 1, data: { characterId: characterA, locationId: 'location:room' } },
-          { eventType: 'character.upsert', eventVersion: 1, data: { characterId: characterB, locationId: 'location:room' } },
-          { eventType: 'scene.upsert', eventVersion: 1, data: { sceneId: 'scene:room', value: { participantIds: [characterA, characterB] } } },
-          { eventType: 'observation.upsert', eventVersion: 1, data: { id: 'observation:a', value: { observerId: characterA, content: 'A_VISIBLE' } } },
-          { eventType: 'observation.upsert', eventVersion: 1, data: { id: 'observation:b', value: { observerId: characterB, content: 'B_PRIVATE' } } },
-          { eventType: 'claim.upsert', eventVersion: 1, data: { id: 'claim:a', value: { characterId: characterA, proposition: 'A_KNOWS' } } },
-          { eventType: 'goal.upsert', eventVersion: 1, data: { id: 'goal:a', value: { characterId: characterA, goal: 'A_GOAL' } } },
+          {
+            eventType: 'character.upsert',
+            eventVersion: 1,
+            data: { characterId: characterA, locationId: 'location:room' },
+          },
+          {
+            eventType: 'character.upsert',
+            eventVersion: 1,
+            data: { characterId: characterB, locationId: 'location:room' },
+          },
+          {
+            eventType: 'scene.upsert',
+            eventVersion: 1,
+            data: { sceneId: 'scene:room', value: { participantIds: [characterA, characterB] } },
+          },
+          {
+            eventType: 'observation.upsert',
+            eventVersion: 1,
+            data: { id: 'observation:a', value: { observerId: characterA, content: 'A_VISIBLE' } },
+          },
+          {
+            eventType: 'observation.upsert',
+            eventVersion: 1,
+            data: { id: 'observation:b', value: { observerId: characterB, content: 'B_PRIVATE' } },
+          },
+          {
+            eventType: 'claim.upsert',
+            eventVersion: 1,
+            data: { id: 'claim:a', value: { characterId: characterA, proposition: 'A_KNOWS' } },
+          },
+          {
+            eventType: 'goal.upsert',
+            eventVersion: 1,
+            data: { id: 'goal:a', value: { characterId: characterA, goal: 'A_GOAL' } },
+          },
         ],
-        outbox: [{
-          deliveryId: brandId('delivery:p2', 'DeliveryId'),
-          sessionId,
-          payload: { observationType: 'player-action-result', actionType: 'speak', status: 'accepted', reason: null },
-          critical: true,
-        }],
+        outbox: [
+          {
+            deliveryId: brandId('delivery:p2', 'DeliveryId'),
+            sessionId,
+            payload: { observationType: 'player-action-result', actionType: 'speak', status: 'accepted', reason: null },
+            critical: true,
+          },
+        ],
         correlationId: 'p2-base',
       })
       const forkSeq = store.head(parent).headSeq
@@ -57,7 +93,13 @@ describe('Phase 2 Observation and Session acceptance', () => {
         expectedHeadSeq: head.headSeq,
         expectedTick: head.tick,
         nextTick: head.tick + 1,
-        events: [{ eventType: 'observation.upsert', eventVersion: 1, data: { id: 'future', value: { observerId: characterA, content: 'FUTURE_CANARY' } } }],
+        events: [
+          {
+            eventType: 'observation.upsert',
+            eventVersion: 1,
+            data: { id: 'future', value: { observerId: characterA, content: 'FUTURE_CANARY' } },
+          },
+        ],
         outbox: [],
         correlationId: 'p2-future',
       })

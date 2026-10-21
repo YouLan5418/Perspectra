@@ -53,12 +53,14 @@ function object(value: unknown, path: string): WorldJsonObject {
 }
 
 function text(value: unknown, path: string): string {
-  if (typeof value !== 'string' || value.length === 0 || value.trim() !== value) throw new Error(`${path} must be a non-empty, unpadded string`)
+  if (typeof value !== 'string' || value.length === 0 || value.trim() !== value)
+    throw new Error(`${path} must be a non-empty, unpadded string`)
   return value
 }
 
 function literal(value: unknown, allowed: readonly string[], path: string): string {
-  if (typeof value !== 'string' || !allowed.includes(value)) throw new Error(`${path} uses an unsupported vocabulary value`)
+  if (typeof value !== 'string' || !allowed.includes(value))
+    throw new Error(`${path} uses an unsupported vocabulary value`)
   return value
 }
 
@@ -142,8 +144,10 @@ function validateTension(value: WorldJsonObject, path: string): void {
   permille(value.pressurePermille, `${path}.pressurePermille`, 1)
   literal(value.awareness, AWARENESS_LEVELS, `${path}.awareness`)
   literal(value.status, TENSION_STATUSES, `${path}.status`)
-  if (value.resolutionKind !== undefined) literal(value.resolutionKind, TENSION_RESOLUTION_KINDS, `${path}.resolutionKind`)
-  if (!Array.isArray(value.poles) || value.poles.length < 2 || value.poles.length > 4) throw new Error(`${path}.poles must contain two through four entries`)
+  if (value.resolutionKind !== undefined)
+    literal(value.resolutionKind, TENSION_RESOLUTION_KINDS, `${path}.resolutionKind`)
+  if (!Array.isArray(value.poles) || value.poles.length < 2 || value.poles.length > 4)
+    throw new Error(`${path}.poles must contain two through four entries`)
   const keys = value.poles.map((entry, index) => {
     const polePath = `${path}.poles[${index}]`
     const pole = object(entry, polePath)
@@ -222,7 +226,15 @@ function applyRecord(
     if (previous.characterId !== characterId) throw new Error(`${path} cannot change cognition ownership`)
     versions[versions.length - 1] = { ...previous, validToSeq: event.seq }
   }
-  versions.push({ kind, id, characterId, value, validFromSeq: event.seq, validToSeq: null, sourceRef: actualSource(event) })
+  versions.push({
+    kind,
+    id,
+    characterId,
+    value,
+    validFromSeq: event.seq,
+    validToSeq: null,
+    sourceRef: actualSource(event),
+  })
   state[kind].set(id, versions)
 }
 
@@ -232,7 +244,8 @@ function applyReflection(state: CognitionState, event: StoredWorldEvent): void {
   const actorId = text(data.actorId, `${path}.actorId`) as CharacterId
   const contextReceiptId = text(data.contextReceiptId, `${path}.contextReceiptId`)
   const policyReceiptHash = text(data.policyReceiptHash, `${path}.policyReceiptHash`)
-  if (!/^sha256:[0-9a-f]{64}$/u.test(policyReceiptHash)) throw new Error(`${path}.policyReceiptHash must be a lowercase SHA-256 WorldHash`)
+  if (!/^sha256:[0-9a-f]{64}$/u.test(policyReceiptHash))
+    throw new Error(`${path}.policyReceiptHash must be a lowercase SHA-256 WorldHash`)
   if (!Array.isArray(data.operations)) throw new Error(`${path}.operations must be an array`)
   const operationIds = new Set<string>()
   const recordKeys = new Set<string>()
@@ -241,36 +254,48 @@ function applyReflection(state: CognitionState, event: StoredWorldEvent): void {
     const operation = object(entry, operationPath)
     const operationId = text(operation.operationId, `${operationPath}.operationId`)
     const kind = text(operation.kind, `${operationPath}.kind`) as CognitionProjectionKind
-    if (!(COGNITION_PROJECTION_KINDS as readonly string[]).includes(kind)) throw new Error(`${operationPath}.kind is unsupported`)
+    if (!(COGNITION_PROJECTION_KINDS as readonly string[]).includes(kind))
+      throw new Error(`${operationPath}.kind is unsupported`)
     const id = text(operation.recordId, `${operationPath}.recordId`)
     const recordKey = `${kind}\u001f${id}`
-    if (operationIds.has(operationId) || recordKeys.has(recordKey)) throw new Error(`${path}.operations contain duplicate identities`)
+    if (operationIds.has(operationId) || recordKeys.has(recordKey))
+      throw new Error(`${path}.operations contain duplicate identities`)
     operationIds.add(operationId)
     recordKeys.add(recordKey)
     const expectedStateHash = operation.expectedStateHash
-    if (expectedStateHash !== null && (typeof expectedStateHash !== 'string' || !/^sha256:[0-9a-f]{64}$/u.test(expectedStateHash))) {
+    if (
+      expectedStateHash !== null &&
+      (typeof expectedStateHash !== 'string' || !/^sha256:[0-9a-f]{64}$/u.test(expectedStateHash))
+    ) {
       throw new Error(`${operationPath}.expectedStateHash must be null or a lowercase SHA-256 WorldHash`)
     }
     if (!Array.isArray(operation.basisRefs)) throw new Error(`${operationPath}.basisRefs must be an array`)
     operation.basisRefs.forEach((basis, basisIndex) => source(basis, `${operationPath}.basisRefs[${basisIndex}]`))
     const value = object(operation.value, `${operationPath}.value`)
-    if (hashWorldJson('reflection-basis-refs/v1', operation.basisRefs as WorldJsonValue)
-      !== hashWorldJson('reflection-basis-refs/v1', value.basisRefs as WorldJsonValue)) {
+    if (
+      hashWorldJson('reflection-basis-refs/v1', operation.basisRefs as WorldJsonValue) !==
+      hashWorldJson('reflection-basis-refs/v1', value.basisRefs as WorldJsonValue)
+    ) {
       throw new Error(`${operationPath}.basisRefs diverge from value.basisRefs`)
     }
     const reflectionSource = object(value.source, `${operationPath}.value.source`)
     source(reflectionSource, `${operationPath}.value.source`)
-    if (reflectionSource.sourceKind !== 'context_receipt' || reflectionSource.sourceId !== contextReceiptId
-      || typeof reflectionSource.sourceSeq !== 'number' || reflectionSource.sourceSeq >= event.seq) {
+    if (
+      reflectionSource.sourceKind !== 'context_receipt' ||
+      reflectionSource.sourceId !== contextReceiptId ||
+      typeof reflectionSource.sourceSeq !== 'number' ||
+      reflectionSource.sourceSeq >= event.seq
+    ) {
       throw new Error(`${operationPath}.value.source is not bound to the prior Context receipt`)
     }
     const versions = state[kind].get(id) ?? []
     const previous = versions.at(-1)
-    const actualStateHash = previous === undefined
-      ? null
-      : hashCognitionRecordState(kind, id, previous.characterId, previous.value)
-    if (actualStateHash !== expectedStateHash) throw new Error(`${operationPath}.expectedStateHash diverges from the event prefix`)
-    if (previous !== undefined && previous.characterId !== actorId) throw new Error(`${operationPath} cannot change another character's cognition`)
+    const actualStateHash =
+      previous === undefined ? null : hashCognitionRecordState(kind, id, previous.characterId, previous.value)
+    if (actualStateHash !== expectedStateHash)
+      throw new Error(`${operationPath}.expectedStateHash diverges from the event prefix`)
+    if (previous !== undefined && previous.characterId !== actorId)
+      throw new Error(`${operationPath} cannot change another character's cognition`)
     applyRecord(state, event, kind, id, actorId, value, operationPath)
   }
 }
@@ -290,11 +315,15 @@ function apply(state: CognitionState, event: StoredWorldEvent): void {
 }
 
 function orderedHistory(state: CognitionState): CognitionProjectionRecord[] {
-  return Object.values(state).flatMap(records => [...records.values()].flat())
-    .sort((left, right) => compareWorldText(left.kind, right.kind)
-      || compareWorldText(left.characterId, right.characterId)
-      || compareWorldText(left.id, right.id)
-      || left.validFromSeq - right.validFromSeq)
+  return Object.values(state)
+    .flatMap(records => [...records.values()].flat())
+    .sort(
+      (left, right) =>
+        compareWorldText(left.kind, right.kind) ||
+        compareWorldText(left.characterId, right.characterId) ||
+        compareWorldText(left.id, right.id) ||
+        left.validFromSeq - right.validFromSeq,
+    )
 }
 
 function assertUniqueClaims(records: readonly CognitionProjectionRecord[]): void {
@@ -302,13 +331,15 @@ function assertUniqueClaims(records: readonly CognitionProjectionRecord[]): void
   for (const record of records.filter(value => value.kind === 'subjective-claim' && value.validToSeq === null)) {
     const value = record.value as WorldJsonObject
     const key = `${record.characterId}\u001f${hashWorldJson('subjective-claim-proposition/v1', value.proposition as WorldJsonValue)}`
-    if (propositions.has(key)) throw new Error(`character ${record.characterId} has multiple active Claims for one proposition`)
+    if (propositions.has(key))
+      throw new Error(`character ${record.characterId} has multiple active Claims for one proposition`)
     propositions.add(key)
   }
 }
 
 function arrays(records: readonly CognitionProjectionRecord[]) {
-  const current = (kind: CognitionProjectionKind) => records.filter(value => value.kind === kind && value.validToSeq === null)
+  const current = (kind: CognitionProjectionKind) =>
+    records.filter(value => value.kind === kind && value.validToSeq === null)
   return {
     claims: current('subjective-claim'),
     goals: current('character-goal'),
@@ -325,10 +356,14 @@ export class CognitionProjectionRebuilder {
   constructor(private readonly worldStore: WorldStore) {}
 
   historyAt(address: WorldAddress, asOfWorldSeq: number, heartbeat?: () => void): readonly CognitionProjectionRecord[] {
-    if (!Number.isSafeInteger(asOfWorldSeq) || asOfWorldSeq < 0) throw new RangeError('asOfWorldSeq must be a non-negative safe integer')
-    if (asOfWorldSeq > this.worldStore.head(address).headSeq) throw new RangeError('asOfWorldSeq cannot be later than the branch head')
+    if (!Number.isSafeInteger(asOfWorldSeq) || asOfWorldSeq < 0)
+      throw new RangeError('asOfWorldSeq must be a non-negative safe integer')
+    if (asOfWorldSeq > this.worldStore.head(address).headSeq)
+      throw new RangeError('asOfWorldSeq cannot be later than the branch head')
     const state = emptyState()
-    for (const [index, event] of this.worldStore.readEventsRange(address, 0, asOfWorldSeq, COGNITION_EVENT_TYPES).entries()) {
+    for (const [index, event] of this.worldStore
+      .readEventsRange(address, 0, asOfWorldSeq, COGNITION_EVENT_TYPES)
+      .entries()) {
       if (index % 128 === 0) heartbeat?.()
       apply(state, event)
     }
@@ -350,7 +385,9 @@ export class CognitionProjectionRebuilder {
     asOfWorldSeq: number,
     heartbeat?: () => void,
   ): CharacterCognitionView {
-    const values = arrays(this.historyAt(address, asOfWorldSeq, heartbeat).filter(value => value.characterId === characterId))
+    const values = arrays(
+      this.historyAt(address, asOfWorldSeq, heartbeat).filter(value => value.characterId === characterId),
+    )
     const base = { address, characterId, asOfWorldSeq, ...values }
     return { ...base, bundleHash: hashWorldJson('world-character-cognition-view/v1', base) }
   }

@@ -38,7 +38,11 @@ export function failWorldPackContract(
   suggestion?: string,
 ): never {
   throw new WorldPackContractError({
-    severity: 'error', code, file, jsonPointer, message,
+    severity: 'error',
+    code,
+    file,
+    jsonPointer,
+    message,
     ...(suggestion === undefined ? {} : { suggestion }),
   })
 }

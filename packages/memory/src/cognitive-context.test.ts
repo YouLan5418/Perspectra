@@ -40,10 +40,26 @@ async function fixture() {
   const events: WorldEventDraft[] = [
     { eventType: 'character.created', eventVersion: 1, data: { characterId: alice, locationId: 'location:a' } },
     { eventType: 'character.created', eventVersion: 1, data: { characterId: bob, locationId: 'location:a' } },
-    { eventType: 'observation.upsert', eventVersion: 1, data: { id: 'observation:alice', value: { observerId: alice, content: 'secret red key' } } },
-    { eventType: 'observation.upsert', eventVersion: 1, data: { id: 'observation:bob', value: { observerId: bob, content: 'secret blue key' } } },
-    { eventType: 'claim.upsert', eventVersion: 1, data: { id: 'claim:alice', value: { characterId: alice, proposition: 'Alice trusts Bob' } } },
-    { eventType: 'claim.upsert', eventVersion: 1, data: { id: 'claim:bob', value: { characterId: bob, proposition: 'Bob knows culprit' } } },
+    {
+      eventType: 'observation.upsert',
+      eventVersion: 1,
+      data: { id: 'observation:alice', value: { observerId: alice, content: 'secret red key' } },
+    },
+    {
+      eventType: 'observation.upsert',
+      eventVersion: 1,
+      data: { id: 'observation:bob', value: { observerId: bob, content: 'secret blue key' } },
+    },
+    {
+      eventType: 'claim.upsert',
+      eventVersion: 1,
+      data: { id: 'claim:alice', value: { characterId: alice, proposition: 'Alice trusts Bob' } },
+    },
+    {
+      eventType: 'claim.upsert',
+      eventVersion: 1,
+      data: { id: 'claim:bob', value: { characterId: bob, proposition: 'Bob knows culprit' } },
+    },
   ]
   await world.commitRound({
     address: address(),
@@ -65,16 +81,32 @@ describe('CognitiveMemoryService', () => {
   it('exposes v2 catch-up, recall, watermark, summary, prepare, and rebuild receipts without changing v1 defaults', async () => {
     const { world, memory: legacy, alice, memoryPath } = await fixture()
     expect(() => legacy.catchUpReceipt(address(), alice, 6)).toThrow('requires version 2')
-    expect(() => legacy.recallWithReceipt({
-      schemaVersion: 'recall-query-plan/v1', planId: 'legacy', address: address(), characterId: alice,
-      asOfWorldSeq: 6, query: 'secret', limit: 2, rankingAlgorithm: 'fts5-bm25-stable/v1',
-    })).toThrow('requires Cognitive Memory version 2')
+    expect(() =>
+      legacy.recallWithReceipt({
+        schemaVersion: 'recall-query-plan/v1',
+        planId: 'legacy',
+        address: address(),
+        characterId: alice,
+        asOfWorldSeq: 6,
+        query: 'secret',
+        limit: 2,
+        rankingAlgorithm: 'fts5-bm25-stable/v1',
+      }),
+    ).toThrow('requires Cognitive Memory version 2')
     expect(legacy.watermark(address(), alice)).toBeUndefined()
     expect(legacy.summaries(address(), alice)).toEqual([])
-    expect(() => legacy.recallDiagnostics({
-      schemaVersion: 'recall-query-plan/v1', planId: 'legacy', address: address(), characterId: alice,
-      asOfWorldSeq: 6, query: 'secret', limit: 2, rankingAlgorithm: 'fts5-bm25-stable/v1',
-    })).toThrow('require Cognitive Memory version 2')
+    expect(() =>
+      legacy.recallDiagnostics({
+        schemaVersion: 'recall-query-plan/v1',
+        planId: 'legacy',
+        address: address(),
+        characterId: alice,
+        asOfWorldSeq: 6,
+        query: 'secret',
+        limit: 2,
+        rankingAlgorithm: 'fts5-bm25-stable/v1',
+      }),
+    ).toThrow('require Cognitive Memory version 2')
     legacy.close()
 
     const memory = new CognitiveMemoryService(memoryPath, world, undefined, 2)
@@ -83,33 +115,67 @@ describe('CognitiveMemoryService', () => {
     // Even one Memory gets a Summary: the trailing group is no longer discarded for being small.
     expect(memory.summaries(address(), alice)).toHaveLength(1)
     const recalled = memory.recallWithReceipt({
-      schemaVersion: 'recall-query-plan/v1', planId: 'recall:alice', address: address(), characterId: alice,
-      asOfWorldSeq: 6, query: 'secret', limit: 2, rankingAlgorithm: 'fts5-bm25-stable/v1',
+      schemaVersion: 'recall-query-plan/v1',
+      planId: 'recall:alice',
+      address: address(),
+      characterId: alice,
+      asOfWorldSeq: 6,
+      query: 'secret',
+      limit: 2,
+      rankingAlgorithm: 'fts5-bm25-stable/v1',
     })
     expect(recalled.memories).toMatchObject([{ memoryKind: 'episodic', text: 'secret red key' }])
     // The diagnostic reports the same candidate set the Receipt-recall ranked, and drops nothing itself.
-    expect(memory.recallDiagnostics({
-      schemaVersion: 'recall-query-plan/v1', planId: 'diagnostics:alice', address: address(), characterId: alice,
-      asOfWorldSeq: 6, query: 'secret', limit: 1, rankingAlgorithm: 'fts5-bm25-stable/v1',
-    })).toMatchObject({ schemaVersion: 'recall-candidates/v1', matchedCount: 1, limit: 1 })
-    expect(memory.recallDiagnostics({
-      schemaVersion: 'recall-query-plan/v1', planId: 'diagnostics:none', address: address(), characterId: alice,
-      asOfWorldSeq: 6, query: 'absent', limit: 1, rankingAlgorithm: 'fts5-bm25-stable/v1',
-    })).toMatchObject({ matchedCount: 0 })
+    expect(
+      memory.recallDiagnostics({
+        schemaVersion: 'recall-query-plan/v1',
+        planId: 'diagnostics:alice',
+        address: address(),
+        characterId: alice,
+        asOfWorldSeq: 6,
+        query: 'secret',
+        limit: 1,
+        rankingAlgorithm: 'fts5-bm25-stable/v1',
+      }),
+    ).toMatchObject({ schemaVersion: 'recall-candidates/v1', matchedCount: 1, limit: 1 })
+    expect(
+      memory.recallDiagnostics({
+        schemaVersion: 'recall-query-plan/v1',
+        planId: 'diagnostics:none',
+        address: address(),
+        characterId: alice,
+        asOfWorldSeq: 6,
+        query: 'absent',
+        limit: 1,
+        rankingAlgorithm: 'fts5-bm25-stable/v1',
+      }),
+    ).toMatchObject({ matchedCount: 0 })
     // The convenience entry point measures the same default plan a real Recall applies.
-    expect(memory.diagnoseRecall(address(), alice, 'secret', 6))
-      .toMatchObject({ schemaVersion: 'recall-candidates/v1', matchedCount: 1, limit: 10 })
+    expect(memory.diagnoseRecall(address(), alice, 'secret', 6)).toMatchObject({
+      schemaVersion: 'recall-candidates/v1',
+      matchedCount: 1,
+      limit: 10,
+    })
     expect(memory.diagnoseRecall(address(), alice, 'absent', 6)).toMatchObject({ matchedCount: 0 })
     expect(memory.recall(address(), alice, 'secret', 6)).toMatchObject([{ text: 'secret red key', sourceMaxSeq: 3 }])
     const context = memory.prepare({
-      address: address(), roundId: brandId('round:v2-context', 'InteractionRoundId'), tick: 2,
-      participantId: 'agent:alice', characterId: alice, asOfWorldSeq: 6,
+      address: address(),
+      roundId: brandId('round:v2-context', 'InteractionRoundId'),
+      tick: 2,
+      participantId: 'agent:alice',
+      characterId: alice,
+      asOfWorldSeq: 6,
       playerAction: {
-        actionId: 'action:v2', actorId: alice, actionType: 'speak', actionVersion: 1,
+        actionId: 'action:v2',
+        actorId: alice,
+        actionType: 'speak',
+        actionVersion: 1,
         parameters: { text: 'secret' },
       },
-      candidateHash: hashWorldJson('candidate:v2', null), allowedActionTypes: ['speak'],
-      sceneDecision: { sceneId: 'scene:a' }, correlationId: 'prepare:v2',
+      candidateHash: hashWorldJson('candidate:v2', null),
+      allowedActionTypes: ['speak'],
+      sceneDecision: { sceneId: 'scene:a' },
+      correlationId: 'prepare:v2',
     })
     expect(context.memorySourceRefs).toMatchObject([{ sourceKind: 'world_event', sourceSeq: 3 }])
     expect(context.recallResultHash).toBe(recalled.receipt.resultHash)
@@ -117,19 +183,30 @@ describe('CognitiveMemoryService', () => {
     expect(rebuilt).toMatch(/^sha256:/)
     expect(memory.watermark(address(), alice)?.memoryEpoch).toBe(2)
     await world.commitRound({
-      address: address(), transactionId: brandId('transaction:cognitive:second', 'TransactionId'),
+      address: address(),
+      transactionId: brandId('transaction:cognitive:second', 'TransactionId'),
       roundId: brandId('round:cognitive:second', 'InteractionRoundId'),
-      expectedHeadSeq: 6, expectedTick: 1, nextTick: 2,
-      events: [{
-        eventType: 'observation.upsert', eventVersion: 1,
-        data: { id: 'observation:alice:second', value: { observerId: alice, content: 'secret green key' } },
-      }],
-      outbox: [], correlationId: 'cognitive:second',
+      expectedHeadSeq: 6,
+      expectedTick: 1,
+      nextTick: 2,
+      events: [
+        {
+          eventType: 'observation.upsert',
+          eventVersion: 1,
+          data: { id: 'observation:alice:second', value: { observerId: alice, content: 'secret green key' } },
+        },
+      ],
+      outbox: [],
+      correlationId: 'cognitive:second',
     })
     const reaction = memory.prepareStimulus({
-      address: address(), roundId: brandId('round:v2-reaction-context', 'InteractionRoundId'),
-      participantId: 'agent:alice', characterId: alice, asOfWorldSeq: 7,
-      stimulus: { entries: [{ speech: 'secret' }, null] }, correlationId: 'prepare:v2-reaction',
+      address: address(),
+      roundId: brandId('round:v2-reaction-context', 'InteractionRoundId'),
+      participantId: 'agent:alice',
+      characterId: alice,
+      asOfWorldSeq: 7,
+      stimulus: { entries: [{ speech: 'secret' }, null] },
+      correlationId: 'prepare:v2-reaction',
     })
     expect(reaction.memoryRecall.map(value => value.text).toSorted()).toEqual(['secret green key', 'secret red key'])
     expect(reaction.recallResultHash).toMatch(/^sha256:/)
@@ -147,29 +224,55 @@ describe('CognitiveMemoryService', () => {
     const alice = brandId('character:alice', 'CharacterId')
     const bob = brandId('character:bob', 'CharacterId')
     const goal = (status: string) => ({
-      objective: { kind: 'narrative', value: 'Reach the station' }, priorityPermille: 700,
-      awareness: 'conscious', status, parentGoalKey: null, targetKeys: ['location:station'],
-      blockerKeys: [], basisRefs: [],
-      source: { sourceKind: 'worldpack-test/v2', sourceId: 'goal:clues', sourceHash: hashWorldJson('source', 'goal:clues') },
+      objective: { kind: 'narrative', value: 'Reach the station' },
+      priorityPermille: 700,
+      awareness: 'conscious',
+      status,
+      parentGoalKey: null,
+      targetKeys: ['location:station'],
+      blockerKeys: [],
+      basisRefs: [],
+      source: {
+        sourceKind: 'worldpack-test/v2',
+        sourceId: 'goal:clues',
+        sourceHash: hashWorldJson('source', 'goal:clues'),
+      },
     })
     await world.commitRound({
-      address: address(), transactionId: brandId('transaction:clues', 'TransactionId'),
+      address: address(),
+      transactionId: brandId('transaction:clues', 'TransactionId'),
       roundId: brandId('round:clues', 'InteractionRoundId'),
-      expectedHeadSeq: 0, expectedTick: 0, nextTick: 1,
+      expectedHeadSeq: 0,
+      expectedTick: 0,
+      nextTick: 1,
       events: [
         { eventType: 'character.created', eventVersion: 1, data: { characterId: alice, locationId: 'location:a' } },
         { eventType: 'character.created', eventVersion: 1, data: { characterId: bob, locationId: 'location:a' } },
-        { eventType: 'character-goal.upsert', eventVersion: 1, data: { id: 'goal:open', characterId: alice, value: goal('active') } },
-        { eventType: 'character-goal.upsert', eventVersion: 1, data: { id: 'goal:closed', characterId: alice, value: goal('completed') } },
+        {
+          eventType: 'character-goal.upsert',
+          eventVersion: 1,
+          data: { id: 'goal:open', characterId: alice, value: goal('active') },
+        },
+        {
+          eventType: 'character-goal.upsert',
+          eventVersion: 1,
+          data: { id: 'goal:closed', characterId: alice, value: goal('completed') },
+        },
       ],
-      outbox: [], cognitiveJobs: [{ characterId: alice }], correlationId: 'clues:fixture',
+      outbox: [],
+      cognitiveJobs: [{ characterId: alice }],
+      correlationId: 'clues:fixture',
     })
     const memory = new CognitiveMemoryService(memoryPath, world, undefined, 2, 'cjk-ngram/v1')
     memory.catchUpReceipt(address(), alice, 4)
     const stimulus = {
-      address: address(), roundId: brandId('round:clues:context', 'InteractionRoundId'),
-      participantId: 'agent:alice', characterId: alice, asOfWorldSeq: 4,
-      stimulus: { entries: [{ speech: 'nothing in particular' }] }, correlationId: 'prepare:clues',
+      address: address(),
+      roundId: brandId('round:clues:context', 'InteractionRoundId'),
+      participantId: 'agent:alice',
+      characterId: alice,
+      asOfWorldSeq: 4,
+      stimulus: { entries: [{ speech: 'nothing in particular' }] },
+      correlationId: 'prepare:clues',
     }
     // Self is never a clue, duplicates collapse, and a finished objective is not an open one.
     const prepared = memory.prepareStimulus({ ...stimulus, sceneCharacterIds: [alice, bob, bob] })
@@ -194,18 +297,33 @@ describe('CognitiveMemoryService', () => {
     expect(keyword.diagnoseRecall(address(), alice, 'key', 6)).toMatchObject({ matchedCount: 1, limit: 10 })
     expect(keyword.recall(address(), alice, 'key', 6)).toMatchObject([{ text: 'secret red key' }])
     const recalled = keyword.recallWithReceipt({
-      schemaVersion: 'recall-query-plan/v2', planId: 'recall:keyword', address: address(), characterId: alice,
-      asOfWorldSeq: 6, queryText: 'key', strategyId: RECALL_KEYWORD_STRATEGY_ID,
-      tokenizerId: 'cjk-ngram/v1', dictionaryEnabled: false, dictionaryWatermark: null, clues: [], resultLimit: 2,
+      schemaVersion: 'recall-query-plan/v2',
+      planId: 'recall:keyword',
+      address: address(),
+      characterId: alice,
+      asOfWorldSeq: 6,
+      queryText: 'key',
+      strategyId: RECALL_KEYWORD_STRATEGY_ID,
+      tokenizerId: 'cjk-ngram/v1',
+      dictionaryEnabled: false,
+      dictionaryWatermark: null,
+      clues: [],
+      resultLimit: 2,
     })
     expect(recalled.receipt).toMatchObject({
-      schemaVersion: 'recall-receipt/v2', tokenizerId: 'cjk-ngram/v1', matchedCount: 1,
+      schemaVersion: 'recall-receipt/v2',
+      tokenizerId: 'cjk-ngram/v1',
+      matchedCount: 1,
     })
     // The round path builds its own plan generation, so preparing a stimulus must select it too.
     const prepared = keyword.prepareStimulus({
-      address: address(), roundId: brandId('round:keyword-context', 'InteractionRoundId'),
-      participantId: 'agent:alice', characterId: alice, asOfWorldSeq: 6,
-      stimulus: { entries: [{ speech: 'key' }] }, correlationId: 'prepare:keyword',
+      address: address(),
+      roundId: brandId('round:keyword-context', 'InteractionRoundId'),
+      participantId: 'agent:alice',
+      characterId: alice,
+      asOfWorldSeq: 6,
+      stimulus: { entries: [{ speech: 'key' }] },
+      correlationId: 'prepare:keyword',
     })
     expect(prepared.recallPlan).toMatchObject({ schemaVersion: 'recall-query-plan/v2', tokenizerId: 'cjk-ngram/v1' })
     expect(prepared.recall?.receipt).toMatchObject({ schemaVersion: 'recall-receipt/v2', matchedCount: 1 })
@@ -215,9 +333,13 @@ describe('CognitiveMemoryService', () => {
     // A world that asks for the derived dictionary records the watermark it was derived at.
     const withDictionary = new CognitiveMemoryService(memoryPath, world, undefined, 2, 'cjk-ngram/v1', true)
     const dictionaryContext = withDictionary.prepareStimulus({
-      address: address(), roundId: brandId('round:keyword-dictionary', 'InteractionRoundId'),
-      participantId: 'agent:alice', characterId: alice, asOfWorldSeq: 6,
-      stimulus: { entries: [{ speech: 'key' }] }, correlationId: 'prepare:keyword-dictionary',
+      address: address(),
+      roundId: brandId('round:keyword-dictionary', 'InteractionRoundId'),
+      participantId: 'agent:alice',
+      characterId: alice,
+      asOfWorldSeq: 6,
+      stimulus: { entries: [{ speech: 'key' }] },
+      correlationId: 'prepare:keyword-dictionary',
     })
     expect(dictionaryContext.recallPlan).toMatchObject({ dictionaryEnabled: true, dictionaryWatermark: 6 })
     expect(dictionaryContext.recall?.receipt).toMatchObject({ dictionaryEnabled: true, dictionaryWatermark: 6 })
@@ -227,26 +349,34 @@ describe('CognitiveMemoryService', () => {
     world.close()
   })
 
-  it('retries a world cognitive job after failure following a committed v2 Memory receipt', async () => {    const { world, memory: legacy, alice, worldPath, memoryPath } = await fixture()
+  it('retries a world cognitive job after failure following a committed v2 Memory receipt', async () => {
+    const { world, memory: legacy, alice, worldPath, memoryPath } = await fixture()
     legacy.close()
     const leases = new WriterLeaseService(worldPath)
     const lease = leases.acquire(address(), 'cognitive:v2-worker')
     let fail = true
-    const interrupted = new CognitiveMemoryService(memoryPath, world, {
-      hit(point) {
-        if (point === 'memory.after-catchup-commit' && fail) {
-          fail = false
-          throw new Error('after v2 Memory commit')
-        }
+    const interrupted = new CognitiveMemoryService(
+      memoryPath,
+      world,
+      {
+        hit(point) {
+          if (point === 'memory.after-catchup-commit' && fail) {
+            fail = false
+            throw new Error('after v2 Memory commit')
+          }
+        },
       },
-    }, 2)
+      2,
+    )
     expect(interrupted.processPending(address(), 'cognitive:v2-worker', lease.fencingToken, () => undefined)).toEqual({
-      completed: 0, failed: [{ characterId: alice, error: 'Error: after v2 Memory commit' }],
+      completed: 0,
+      failed: [{ characterId: alice, error: 'Error: after v2 Memory commit' }],
     })
     expect(interrupted.watermark(address(), alice)).toMatchObject({ capturedThroughSeq: 6 })
     expect(world.readCognitiveJobs(address(), true)[0]).toMatchObject({ status: 'failed', attemptCount: 1 })
     expect(interrupted.processPending(address(), 'cognitive:v2-worker', lease.fencingToken, () => undefined)).toEqual({
-      completed: 1, failed: [],
+      completed: 1,
+      failed: [],
     })
     expect(world.readCognitiveJobs(address(), true)[0]).toMatchObject({ status: 'completed', attemptCount: 2 })
     interrupted.close()
@@ -258,14 +388,21 @@ describe('CognitiveMemoryService', () => {
     const { world, memory: legacy, alice, worldPath, memoryPath } = await fixture()
     legacy.close()
     await world.commitRound({
-      address: address(), transactionId: brandId('transaction:cognitive:newer', 'TransactionId'),
+      address: address(),
+      transactionId: brandId('transaction:cognitive:newer', 'TransactionId'),
       roundId: brandId('round:cognitive:newer', 'InteractionRoundId'),
-      expectedHeadSeq: 6, expectedTick: 1, nextTick: 2,
-      events: [{
-        eventType: 'observation.upsert', eventVersion: 1,
-        data: { id: 'observation:alice:newer', value: { observerId: alice, content: 'newer verified source' } },
-      }],
-      outbox: [], correlationId: 'cognitive:newer',
+      expectedHeadSeq: 6,
+      expectedTick: 1,
+      nextTick: 2,
+      events: [
+        {
+          eventType: 'observation.upsert',
+          eventVersion: 1,
+          data: { id: 'observation:alice:newer', value: { observerId: alice, content: 'newer verified source' } },
+        },
+      ],
+      outbox: [],
+      correlationId: 'cognitive:newer',
     })
     const memory = new CognitiveMemoryService(memoryPath, world, undefined, 2)
     expect(memory.catchUpReceipt(address(), alice, 7)).toMatchObject({
@@ -274,10 +411,13 @@ describe('CognitiveMemoryService', () => {
     const leases = new WriterLeaseService(worldPath)
     const lease = leases.acquire(address(), 'cognitive:subsumed-worker')
     expect(memory.processPending(address(), 'cognitive:subsumed-worker', lease.fencingToken, () => undefined)).toEqual({
-      completed: 1, failed: [],
+      completed: 1,
+      failed: [],
     })
     expect(world.readCognitiveJobs(address(), true)[0]).toMatchObject({
-      asOfWorldSeq: 6, status: 'completed', attemptCount: 1,
+      asOfWorldSeq: 6,
+      status: 'completed',
+      attemptCount: 1,
     })
     expect(memory.watermark(address(), alice)).toMatchObject({ verifiedThroughSeq: 7, capturedThroughSeq: 7 })
     memory.close()
@@ -303,7 +443,10 @@ describe('CognitiveMemoryService', () => {
       characterId: alice,
       asOfWorldSeq: 6,
       playerAction: {
-        actionId: 'action:player', actorId: alice, actionType: 'speak', actionVersion: 1,
+        actionId: 'action:player',
+        actorId: alice,
+        actionType: 'speak',
+        actionVersion: 1,
         parameters: { text: 'secret red' },
       },
       candidateHash: hashWorldJson('candidate', 1),
@@ -329,21 +472,49 @@ describe('CognitiveMemoryService', () => {
     expect(() => memory.catchUp(address(), alice, 2, 'catchup:backward')).toThrow('cannot move')
     expect(memory.job(address(), alice, 2)).toMatchObject({ status: 'failed', attemptCount: 1 })
     for (const parameters of [null, [], 1] as const) {
-      expect(memory.prepare({
-        address: address(), roundId: brandId(`round:${String(parameters)}`, 'InteractionRoundId'), tick: 2,
-        participantId: 'agent:alice', characterId: alice, asOfWorldSeq: 6,
-        playerAction: { actionId: `action:${String(parameters)}`, actorId: alice, actionType: 'wait', actionVersion: 1, parameters },
-        candidateHash: hashWorldJson('candidate', parameters), allowedActionTypes: ['speak'], sceneDecision: null,
-        correlationId: `prepare:${String(parameters)}`,
-      }).memoryRecall).toEqual([])
+      expect(
+        memory.prepare({
+          address: address(),
+          roundId: brandId(`round:${String(parameters)}`, 'InteractionRoundId'),
+          tick: 2,
+          participantId: 'agent:alice',
+          characterId: alice,
+          asOfWorldSeq: 6,
+          playerAction: {
+            actionId: `action:${String(parameters)}`,
+            actorId: alice,
+            actionType: 'wait',
+            actionVersion: 1,
+            parameters,
+          },
+          candidateHash: hashWorldJson('candidate', parameters),
+          allowedActionTypes: ['speak'],
+          sceneDecision: null,
+          correlationId: `prepare:${String(parameters)}`,
+        }).memoryRecall,
+      ).toEqual([])
     }
-    expect(memory.prepare({
-      address: address(), roundId: brandId('round:string', 'InteractionRoundId'), tick: 2,
-      participantId: 'agent:alice', characterId: alice, asOfWorldSeq: 6,
-      playerAction: { actionId: 'action:string', actorId: alice, actionType: 'speak', actionVersion: 1, parameters: 'secret' },
-      candidateHash: hashWorldJson('candidate', 'string'), allowedActionTypes: ['speak'], sceneDecision: null,
-      correlationId: 'prepare:string',
-    }).memoryRecall).toHaveLength(1)
+    expect(
+      memory.prepare({
+        address: address(),
+        roundId: brandId('round:string', 'InteractionRoundId'),
+        tick: 2,
+        participantId: 'agent:alice',
+        characterId: alice,
+        asOfWorldSeq: 6,
+        playerAction: {
+          actionId: 'action:string',
+          actorId: alice,
+          actionType: 'speak',
+          actionVersion: 1,
+          parameters: 'secret',
+        },
+        candidateHash: hashWorldJson('candidate', 'string'),
+        allowedActionTypes: ['speak'],
+        sceneDecision: null,
+        correlationId: 'prepare:string',
+      }).memoryRecall,
+    ).toHaveLength(1)
     memory.close()
     world.close()
   })
@@ -357,17 +528,25 @@ describe('CognitiveMemoryService', () => {
       hit(point) {
         if (point !== 'memory.before-catchup') return
         failWorld({
-          errorCode: 'BUNDLE_HASH_MISMATCH', category: 'integrity', message: 'integrity worker fixture',
-          retryable: false, correlationId: 'cognitive:integrity-worker', address: address(),
+          errorCode: 'BUNDLE_HASH_MISMATCH',
+          category: 'integrity',
+          message: 'integrity worker fixture',
+          retryable: false,
+          correlationId: 'cognitive:integrity-worker',
+          address: address(),
         })
       },
     })
-    expect(() => integrity.processPending(
-      address(), 'cognitive:integrity-worker', lease.fencingToken, () => undefined,
-    )).toThrowError(expect.objectContaining({ envelope: expect.objectContaining({ category: 'integrity' }) }))
-    expect(world.readCognitiveJobs(address(), true)).toMatchObject([{
-      characterId: alice, status: 'failed', attemptCount: 1,
-    }])
+    expect(() =>
+      integrity.processPending(address(), 'cognitive:integrity-worker', lease.fencingToken, () => undefined),
+    ).toThrowError(expect.objectContaining({ envelope: expect.objectContaining({ category: 'integrity' }) }))
+    expect(world.readCognitiveJobs(address(), true)).toMatchObject([
+      {
+        characterId: alice,
+        status: 'failed',
+        attemptCount: 1,
+      },
+    ])
     integrity.close()
     leases.close()
     world.close()

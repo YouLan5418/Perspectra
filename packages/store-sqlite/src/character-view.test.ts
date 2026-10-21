@@ -26,7 +26,12 @@ function address(branch = 'main'): WorldAddress {
   }
 }
 
-async function commit(store: WorldStore, worldAddress: WorldAddress, suffix: string, events: readonly WorldEventDraft[]) {
+async function commit(
+  store: WorldStore,
+  worldAddress: WorldAddress,
+  suffix: string,
+  events: readonly WorldEventDraft[],
+) {
   const head = store.head(worldAddress)
   return store.commitRound({
     address: worldAddress,
@@ -45,17 +50,46 @@ describe('CharacterViewBuilder', () => {
   it('reads one prefix for self-state and projections, applies removals, and returns independent views', async () => {
     const store = new WorldStore(database('single-prefix.sqlite'))
     try {
-      const target = address('single-prefix'), character = brandId('character:a', 'CharacterId')
+      const target = address('single-prefix'),
+        character = brandId('character:a', 'CharacterId')
       const other = brandId('character:b', 'CharacterId')
       store.createBranch(target)
       await commit(store, target, 'single-prefix-created', [
-        { eventType: 'character.created', eventVersion: 1, data: { characterId: character, locationId: 'location:home' } },
-        { eventType: 'scene.upsert', eventVersion: 1, data: { sceneId: 'scene:shared', value: { participantIds: [character, other] } } },
-        { eventType: 'observation.upsert', eventVersion: 1, data: { id: 'observation:old', value: { observerId: character, content: 'removed' } } },
-        { eventType: 'claim.upsert', eventVersion: 1, data: { id: 'claim:old', value: { characterId: character, proposition: 'removed' } } },
-        { eventType: 'goal.upsert', eventVersion: 1, data: { id: 'goal:old', value: { characterId: character, goal: 'removed' } } },
-        { eventType: 'visibility.upsert', eventVersion: 1, data: { id: 'visibility:old', value: { observerId: character, sceneId: 'scene:shared', visible: false } } },
-        { eventType: 'observation.upsert', eventVersion: 1, data: { id: 'observation:other', value: { observerId: other, content: 'OTHER_PRIVATE' } } },
+        {
+          eventType: 'character.created',
+          eventVersion: 1,
+          data: { characterId: character, locationId: 'location:home' },
+        },
+        {
+          eventType: 'scene.upsert',
+          eventVersion: 1,
+          data: { sceneId: 'scene:shared', value: { participantIds: [character, other] } },
+        },
+        {
+          eventType: 'observation.upsert',
+          eventVersion: 1,
+          data: { id: 'observation:old', value: { observerId: character, content: 'removed' } },
+        },
+        {
+          eventType: 'claim.upsert',
+          eventVersion: 1,
+          data: { id: 'claim:old', value: { characterId: character, proposition: 'removed' } },
+        },
+        {
+          eventType: 'goal.upsert',
+          eventVersion: 1,
+          data: { id: 'goal:old', value: { characterId: character, goal: 'removed' } },
+        },
+        {
+          eventType: 'visibility.upsert',
+          eventVersion: 1,
+          data: { id: 'visibility:old', value: { observerId: character, sceneId: 'scene:shared', visible: false } },
+        },
+        {
+          eventType: 'observation.upsert',
+          eventVersion: 1,
+          data: { id: 'observation:other', value: { observerId: other, content: 'OTHER_PRIVATE' } },
+        },
       ])
       const oldSeq = store.head(target).headSeq
       await commit(store, target, 'single-prefix-removed', [
@@ -63,15 +97,22 @@ describe('CharacterViewBuilder', () => {
         { eventType: 'claim.remove', eventVersion: 1, data: { id: 'claim:old' } },
         { eventType: 'goal.remove', eventVersion: 1, data: { id: 'goal:old' } },
         { eventType: 'visibility.remove', eventVersion: 1, data: { id: 'visibility:old' } },
-        { eventType: 'observation.upsert', eventVersion: 1, data: { id: 'observation:new', value: { observerId: character, content: 'new' } } },
+        {
+          eventType: 'observation.upsert',
+          eventVersion: 1,
+          data: { id: 'observation:new', value: { observerId: character, content: 'new' } },
+        },
       ])
-      const head = store.head(target).headSeq, builder = new CharacterViewBuilder(store)
+      const head = store.head(target).headSeq,
+        builder = new CharacterViewBuilder(store)
       const reads = vi.spyOn(store, 'readEventsRange')
       const view = builder.rebuildAt(target, character, head)
       expect(reads).toHaveBeenCalledTimes(1)
       expect(view.locationId).toBe('location:home')
       expect(view.observations.map(record => record.id)).toEqual(['observation:new'])
-      expect(view.claims).toEqual([]); expect(view.goals).toEqual([]); expect(view.visibility).toEqual([])
+      expect(view.claims).toEqual([])
+      expect(view.goals).toEqual([])
+      expect(view.visibility).toEqual([])
       expect(view.scenes.map(scene => scene.sceneId)).toEqual(['scene:shared'])
       expect(JSON.stringify(view)).not.toContain('OTHER_PRIVATE')
       const hash = view.bundleHash
@@ -82,18 +123,24 @@ describe('CharacterViewBuilder', () => {
       expect(old.claims.map(record => record.id)).toEqual(['claim:old'])
       expect(old.goals.map(record => record.id)).toEqual(['goal:old'])
       expect(old.scenes).toEqual([])
-    } finally { store.close() }
+    } finally {
+      store.close()
+    }
   })
 
   it('does not treat projection removal metadata as character creation evidence', async () => {
     const store = new WorldStore(database('remove-only.sqlite'))
     try {
-      const target = address('remove-only'), character = brandId('character:absent', 'CharacterId')
+      const target = address('remove-only'),
+        character = brandId('character:absent', 'CharacterId')
       store.createBranch(target)
-      await commit(store, target, 'remove-only', [{ eventType: 'claim.remove', eventVersion: 1,
-        data: { id: 'claim:absent', value: { characterId: character } } }])
+      await commit(store, target, 'remove-only', [
+        { eventType: 'claim.remove', eventVersion: 1, data: { id: 'claim:absent', value: { characterId: character } } },
+      ])
       expect(() => new CharacterViewBuilder(store).rebuildAt(target, character, 1)).toThrow('no creation event')
-    } finally { store.close() }
+    } finally {
+      store.close()
+    }
   })
 
   it('combines only one character owner scope and excludes parent future canaries', async () => {
@@ -106,28 +153,92 @@ describe('CharacterViewBuilder', () => {
     await commit(store, parent, 'base', [
       { eventType: 'character.upsert', eventVersion: 1, data: { characterId: characterA, locationId: 'location:a' } },
       { eventType: 'character.upsert', eventVersion: 1, data: { characterId: characterB, locationId: 'location:b' } },
-      { eventType: 'scene.upsert', eventVersion: 1, data: { sceneId: 'scene:shared', value: { participantIds: [characterA, characterB] } } },
-      { eventType: 'scene.upsert', eventVersion: 1, data: { sceneId: 'scene:a', value: { participantIds: [characterA] } } },
-      { eventType: 'scene.upsert', eventVersion: 1, data: { sceneId: 'scene:none', value: { participantIds: 'invalid' } } },
+      {
+        eventType: 'scene.upsert',
+        eventVersion: 1,
+        data: { sceneId: 'scene:shared', value: { participantIds: [characterA, characterB] } },
+      },
+      {
+        eventType: 'scene.upsert',
+        eventVersion: 1,
+        data: { sceneId: 'scene:a', value: { participantIds: [characterA] } },
+      },
+      {
+        eventType: 'scene.upsert',
+        eventVersion: 1,
+        data: { sceneId: 'scene:none', value: { participantIds: 'invalid' } },
+      },
       { eventType: 'scene.upsert', eventVersion: 1, data: { sceneId: 'scene:array', value: [] } },
-      { eventType: 'observation.upsert', eventVersion: 1, data: { id: 'observation:a', value: { observerId: characterA, content: 'A_ONLY' } } },
-      { eventType: 'observation.upsert', eventVersion: 1, data: { id: 'observation:b', value: { observerId: characterB, content: 'B_ONLY' } } },
-      { eventType: 'claim.upsert', eventVersion: 1, data: { id: 'claim:a', value: { characterId: characterA, proposition: 'A_CLAIM' } } },
-      { eventType: 'claim.upsert', eventVersion: 1, data: { id: 'claim:b', value: { characterId: characterB, proposition: 'B_CLAIM' } } },
-      { eventType: 'goal.upsert', eventVersion: 1, data: { id: 'goal:a', value: { characterId: characterA, goal: 'A_GOAL' } } },
-      { eventType: 'goal.upsert', eventVersion: 1, data: { id: 'goal:b', value: { characterId: characterB, goal: 'B_GOAL' } } },
-      { eventType: 'visibility.upsert', eventVersion: 1, data: { id: 'visibility:a:shared', value: { observerId: characterA, sceneId: 'scene:shared', visible: true } } },
-      { eventType: 'visibility.upsert', eventVersion: 1, data: { id: 'visibility:b:shared', value: { observerId: characterB, sceneId: 'scene:shared', visible: false } } },
-      { eventType: 'character.speak', eventVersion: 1, data: { characterId: characterA, text: 'hello', narration: 'A_EXPRESSION' } },
-      { eventType: 'action.rejected', eventVersion: 1, data: { characterId: characterA, actionType: 'move', reason: 'HIDDEN_REASON' } },
+      {
+        eventType: 'observation.upsert',
+        eventVersion: 1,
+        data: { id: 'observation:a', value: { observerId: characterA, content: 'A_ONLY' } },
+      },
+      {
+        eventType: 'observation.upsert',
+        eventVersion: 1,
+        data: { id: 'observation:b', value: { observerId: characterB, content: 'B_ONLY' } },
+      },
+      {
+        eventType: 'claim.upsert',
+        eventVersion: 1,
+        data: { id: 'claim:a', value: { characterId: characterA, proposition: 'A_CLAIM' } },
+      },
+      {
+        eventType: 'claim.upsert',
+        eventVersion: 1,
+        data: { id: 'claim:b', value: { characterId: characterB, proposition: 'B_CLAIM' } },
+      },
+      {
+        eventType: 'goal.upsert',
+        eventVersion: 1,
+        data: { id: 'goal:a', value: { characterId: characterA, goal: 'A_GOAL' } },
+      },
+      {
+        eventType: 'goal.upsert',
+        eventVersion: 1,
+        data: { id: 'goal:b', value: { characterId: characterB, goal: 'B_GOAL' } },
+      },
+      {
+        eventType: 'visibility.upsert',
+        eventVersion: 1,
+        data: { id: 'visibility:a:shared', value: { observerId: characterA, sceneId: 'scene:shared', visible: true } },
+      },
+      {
+        eventType: 'visibility.upsert',
+        eventVersion: 1,
+        data: { id: 'visibility:b:shared', value: { observerId: characterB, sceneId: 'scene:shared', visible: false } },
+      },
+      {
+        eventType: 'character.speak',
+        eventVersion: 1,
+        data: { characterId: characterA, text: 'hello', narration: 'A_EXPRESSION' },
+      },
+      {
+        eventType: 'action.rejected',
+        eventVersion: 1,
+        data: { characterId: characterA, actionType: 'move', reason: 'HIDDEN_REASON' },
+      },
       { eventType: 'character.moved', eventVersion: 1, data: { characterId: characterA, toLocationId: 'location:b' } },
     ])
     const forkSeq = store.head(parent).headSeq
     store.forkBranch(parent, child, forkSeq)
     await commit(store, parent, 'future', [
-      { eventType: 'character.lifecycle-changed', eventVersion: 1, data: { characterId: characterA, lifecycleState: 'dead' } },
-      { eventType: 'observation.upsert', eventVersion: 1, data: { id: 'observation:future', value: { observerId: characterA, content: 'FUTURE_CANARY' } } },
-      { eventType: 'claim.upsert', eventVersion: 1, data: { id: 'claim:future', value: { characterId: characterB, proposition: 'B_FUTURE' } } },
+      {
+        eventType: 'character.lifecycle-changed',
+        eventVersion: 1,
+        data: { characterId: characterA, lifecycleState: 'dead' },
+      },
+      {
+        eventType: 'observation.upsert',
+        eventVersion: 1,
+        data: { id: 'observation:future', value: { observerId: characterA, content: 'FUTURE_CANARY' } },
+      },
+      {
+        eventType: 'claim.upsert',
+        eventVersion: 1,
+        data: { id: 'claim:future', value: { characterId: characterB, proposition: 'B_FUTURE' } },
+      },
       { eventType: 'scene.remove', eventVersion: 1, data: { sceneId: 'scene:a' } },
     ])
 
@@ -167,7 +278,9 @@ describe('CharacterViewBuilder', () => {
     expect(parentNow.scenes.map(scene => scene.sceneId)).toEqual(['scene:shared'])
     expect(fullHistoryRead).not.toHaveBeenCalled()
     expect(() => builder.rebuildAt(parent, characterA, -1)).toThrow(RangeError)
-    expect(() => builder.rebuildAt(parent, characterA, store.head(parent).headSeq + 1)).toThrow('later than the branch head')
+    expect(() => builder.rebuildAt(parent, characterA, store.head(parent).headSeq + 1)).toThrow(
+      'later than the branch head',
+    )
     store.close()
   })
 
@@ -177,15 +290,40 @@ describe('CharacterViewBuilder', () => {
     const character = brandId('character:lifecycle', 'CharacterId')
     store.createBranch(target)
     await commit(store, target, 'lifecycle', [
-      { eventType: 'character.created', eventVersion: 1, data: { characterId: character, locationId: 'location:home', lifecycleState: 'active' } },
-      { eventType: 'character.lifecycle-changed', eventVersion: 1, data: { characterId: character, lifecycleState: 'incapacitated' } },
-      { eventType: 'character.lifecycle-changed', eventVersion: 1, data: { characterId: character, lifecycleState: 'dead' } },
-      { eventType: 'character.lifecycle-changed', eventVersion: 1, data: { characterId: character, lifecycleState: 'active', transition: 'revived' } },
-      { eventType: 'character.lifecycle-changed', eventVersion: 1, data: { characterId: character, lifecycleState: 'departed' } },
+      {
+        eventType: 'character.created',
+        eventVersion: 1,
+        data: { characterId: character, locationId: 'location:home', lifecycleState: 'active' },
+      },
+      {
+        eventType: 'character.lifecycle-changed',
+        eventVersion: 1,
+        data: { characterId: character, lifecycleState: 'incapacitated' },
+      },
+      {
+        eventType: 'character.lifecycle-changed',
+        eventVersion: 1,
+        data: { characterId: character, lifecycleState: 'dead' },
+      },
+      {
+        eventType: 'character.lifecycle-changed',
+        eventVersion: 1,
+        data: { characterId: character, lifecycleState: 'active', transition: 'revived' },
+      },
+      {
+        eventType: 'character.lifecycle-changed',
+        eventVersion: 1,
+        data: { characterId: character, lifecycleState: 'departed' },
+      },
     ])
     const builder = new CharacterViewBuilder(store)
-    expect([1, 2, 3, 4, 5].map(seq => builder.rebuildAt(target, character, seq).lifecycleState))
-      .toEqual(['active', 'incapacitated', 'dead', 'active', 'departed'])
+    expect([1, 2, 3, 4, 5].map(seq => builder.rebuildAt(target, character, seq).lifecycleState)).toEqual([
+      'active',
+      'incapacitated',
+      'dead',
+      'active',
+      'departed',
+    ])
     expect(builder.rebuildAt(target, character, 5).locationId).toBe('location:home')
     store.close()
   })

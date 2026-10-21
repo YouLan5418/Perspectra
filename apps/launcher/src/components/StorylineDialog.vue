@@ -11,12 +11,16 @@ const store = useLauncherStore()
 const selectedNodeId = ref('')
 const name = ref('我的新故事')
 
-watch(() => props.open, open => {
-  if (open) {
-    selectedNodeId.value = store.currentNode?.id ?? ''
-    name.value = '我的新故事'
-  }
-}, { immediate: true })
+watch(
+  () => props.open,
+  open => {
+    if (open) {
+      selectedNodeId.value = store.currentNode?.id ?? ''
+      name.value = '我的新故事'
+    }
+  },
+  { immediate: true },
+)
 
 async function chooseLine(id: string) {
   if (await store.selectStoryline(id)) selectedNodeId.value = store.currentNode?.id ?? ''
@@ -27,27 +31,49 @@ async function fork() {
 </script>
 
 <template>
-  <DialogFrame wide :open="open" title="故事线分支管理" description="过去的选择会一直保留。在游戏页面保存进度，结束游戏后从这里开启自己的故事，恢复节点当时的角色记忆。" @close="emit('close')">
+  <DialogFrame
+    wide
+    :open="open"
+    title="故事线分支管理"
+    description="过去的选择会一直保留。在游戏页面保存进度，结束游戏后从这里开启自己的故事，恢复节点当时的角色记忆。"
+    @close="emit('close')"
+  >
     <p v-if="store.currentInstance?.storyError" role="alert">{{ store.currentInstance.storyError }}</p>
 
     <div class="storyline-list">
-      <button v-for="line in store.currentInstance?.storylines" :key="line.id" class="line-choice" :class="{ active: line.id === store.currentStoryline?.id }" :disabled="store.busy || store.core.state === 'running'" @click="chooseLine(line.id)">
+      <button
+        v-for="line in store.currentInstance?.storylines"
+        :key="line.id"
+        class="line-choice"
+        :class="{ active: line.id === store.currentStoryline?.id }"
+        :disabled="store.busy || store.core.state === 'running'"
+        @click="chooseLine(line.id)"
+      >
         <CornerDownRight v-if="line.parentStorylineId" :size="16" />
         <div>
           <strong>{{ line.name }}</strong>
-          <small>{{ line.source.kind === 'original' ? '主故事线' : '来源：' + line.source.label + (store.real ? ' / 时刻 ' + line.source.turn : ' / 第 ' + line.source.turn + ' 轮') }}</small>
+          <small>{{
+            line.source.kind === 'original'
+              ? '主故事线'
+              : '来源：' +
+                line.source.label +
+                (store.real ? ' / 时刻 ' + line.source.turn : ' / 第 ' + line.source.turn + ' 轮')
+          }}</small>
         </div>
         <Check v-if="line.id === store.currentStoryline?.id" :size="16" />
       </button>
     </div>
 
-
-    <p v-if="store.real && !store.currentInstance?.storyError && !store.currentHistory.length" class="muted">暂无完整节点。开始游戏后可在游戏页面工具栏“保存进度”；旧历史不会自动补成节点。</p>
+    <p v-if="store.real && !store.currentInstance?.storyError && !store.currentHistory.length" class="muted">
+      暂无完整节点。开始游戏后可在游戏页面工具栏“保存进度”；旧历史不会自动补成节点。
+    </p>
 
     <div class="form-field">
       <label for="history-node">从历史节点开始</label>
       <select id="history-node" v-model="selectedNodeId">
-        <option v-for="node in store.currentHistory" :key="node.id" :value="node.id">{{ store.real ? '时刻 ' : '第 ' }}{{ node.turn }}{{ store.real ? '' : ' 轮' }} · {{ node.title }}</option>
+        <option v-for="node in store.currentHistory" :key="node.id" :value="node.id">
+          {{ store.real ? '时刻 ' : '第 ' }}{{ node.turn }}{{ store.real ? '' : ' 轮' }} · {{ node.title }}
+        </option>
       </select>
     </div>
 
@@ -67,16 +93,30 @@ async function fork() {
 
     <div class="dialog-actions">
       <div class="dialog-actions-left">
-        <Button variant="outline" size="sm" :disabled="!store.real || store.core.state === 'running' || store.busy" @click="$emit('import')">
+        <Button
+          variant="outline"
+          size="sm"
+          :disabled="!store.real || store.core.state === 'running' || store.busy"
+          @click="$emit('import')"
+        >
           <Upload :size="14" />导入存档
         </Button>
-        <Button variant="outline" size="sm" :disabled="!store.real || store.busy || !selectedNodeId || Boolean(store.currentInstance?.storyError)" @click="emit('export', selectedNodeId)">
+        <Button
+          variant="outline"
+          size="sm"
+          :disabled="!store.real || store.busy || !selectedNodeId || Boolean(store.currentInstance?.storyError)"
+          @click="emit('export', selectedNodeId)"
+        >
           <Download :size="14" />导出所选节点
         </Button>
       </div>
       <div class="dialog-actions-right">
         <Button variant="outline" @click="emit('close')">完成</Button>
-        <Button :disabled="store.busy || store.core.state === 'running' || !name.trim() || !selectedNodeId" @click="fork">从这里开始我的故事</Button>
+        <Button
+          :disabled="store.busy || store.core.state === 'running' || !name.trim() || !selectedNodeId"
+          @click="fork"
+          >从这里开始我的故事</Button
+        >
       </div>
     </div>
   </DialogFrame>

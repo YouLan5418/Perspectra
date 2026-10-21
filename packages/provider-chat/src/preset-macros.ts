@@ -4,7 +4,7 @@ export function presetMacros(values: Readonly<Record<string, string>>, random = 
 }
 /** Checks syntax without evaluating request values or expansion size. */
 export function validatePresetMacros(text: string): void {
-  macroEvaluator({char:'',user:'',scene:'',date:'',time:''}, () => 0, true)(text)
+  macroEvaluator({ char: '', user: '', scene: '', date: '', time: '' }, () => 0, true)(text)
 }
 function macroEvaluator(values: Readonly<Record<string, string>>, random: () => number, syntaxOnly: boolean) {
   const variables = new Map<string, string>()
@@ -14,11 +14,18 @@ function macroEvaluator(values: Readonly<Record<string, string>>, random: () => 
       if (body.includes('{{')) throw new TypeError('首版不支持嵌套宏。')
       if (body.startsWith('//')) return ''
       const [kind, key, ...rest] = body.split('::')
-      if (kind === 'trim') { trim = true; return '' }
-      if (kind === 'setvar' && key && rest.length > 0) { if (!syntaxOnly) variables.set(key, rest.join('::')); return '' }
+      if (kind === 'trim') {
+        trim = true
+        return ''
+      }
+      if (kind === 'setvar' && key && rest.length > 0) {
+        if (!syntaxOnly) variables.set(key, rest.join('::'))
+        return ''
+      }
       if (kind === 'getvar' && key) return variables.get(key) ?? ''
       if (kind === 'random' && key !== undefined) {
-        const choices = [key, ...rest]; return choices[Math.floor(random() * choices.length)]!
+        const choices = [key, ...rest]
+        return choices[Math.floor(random() * choices.length)]!
       }
       if (kind === 'roll' && key && /^\d{1,2}d\d{1,4}$/.test(key)) {
         const [count, sides] = key.split('d').map(Number)

@@ -1,79 +1,216 @@
 import type { CharacterId, WorldJsonObject } from '@harness-world/contracts'
 
-export interface PlayerAction { readonly actionType: 'move' | 'interact'; readonly parameters: WorldJsonObject }
+export interface PlayerAction {
+  readonly actionType: 'move' | 'interact'
+  readonly parameters: WorldJsonObject
+}
 
 export interface PlayerView {
   game: { title: string }
   player: { name: string }
   scene: { locationName: string; visibleCharacters: string[]; recipients: { id: string; name: string }[] } | null
   activity?: { title: string; active: boolean; phase: string; public: WorldJsonObject }
-  activities?: { key: string; title: string; active: boolean; suspended: boolean; phase: string; public: WorldJsonObject }[]
+  activities?: {
+    key: string
+    title: string
+    active: boolean
+    suspended: boolean
+    phase: string
+    public: WorldJsonObject
+  }[]
   status: 'ready' | 'busy' | 'paused' | 'error'
   canInterrupt?: boolean
   /** In-scene roles currently forming a response; off-scene roles are never listed. */
   responders?: string[]
   expression?: { speech: 'free' | 'none' | 'choices'; speechChoices: string[]; narration: boolean }
   feedback?: { phase: string; message: string }
-  settings?: { inputCharacters: number; reading: { fontSize: number; lineHeight: number; autoFollow: boolean }; audio?: { volume: number; muted: boolean; voiceEnabled: boolean }; palette?: 'sakura' | 'lamp' | 'moon' | 'forest' }
-  tailRound?: { candidateIds?: readonly string[]; candidateIndex?: number; id: string | null; worldVersion: string; canRegenerate: boolean; regenerating: boolean }
+  settings?: {
+    inputCharacters: number
+    reading: { fontSize: number; lineHeight: number; autoFollow: boolean }
+    audio?: { volume: number; muted: boolean; voiceEnabled: boolean }
+    palette?: 'sakura' | 'lamp' | 'moon' | 'forest'
+  }
+  tailRound?: {
+    candidateIds?: readonly string[]
+    candidateIndex?: number
+    id: string | null
+    worldVersion: string
+    canRegenerate: boolean
+    regenerating: boolean
+  }
   /** The player's own known status values; `current:false` is a last confirmed value. Never the true values. */
   /** `self` marks the player's own statuses by holder ID; display names may collide. */
-  statusBar?: { key: string; label: string; holderId: string | null; holderName?: string; self?: boolean; value: import('@harness-world/contracts').WorldJsonValue; current: boolean }[]
+  statusBar?: {
+    key: string
+    label: string
+    holderId: string | null
+    holderName?: string
+    self?: boolean
+    value: import('@harness-world/contracts').WorldJsonValue
+    current: boolean
+  }[]
   /** True values of statuses the author declared `playerTruth`; absent otherwise. Showing them is the frontend's choice. */
-  statusTruth?: { key: string; label: string; holderId: string | null; holderName?: string; self?: boolean; value: import('@harness-world/contracts').WorldJsonValue }[]
-  history: { seq: number; speaker: string; speakerId?: CharacterId; text: string; player: boolean; segments?: readonly import('@harness-world/contracts').ExpressionSegment[] }[]
-  actions: { id: string; label: string; action: PlayerAction; participantSelection?: { min: number; max: number; candidates: { id: string; name: string }[] } }[]
+  statusTruth?: {
+    key: string
+    label: string
+    holderId: string | null
+    holderName?: string
+    self?: boolean
+    value: import('@harness-world/contracts').WorldJsonValue
+  }[]
+  history: {
+    seq: number
+    speaker: string
+    speakerId?: CharacterId
+    text: string
+    player: boolean
+    segments?: readonly import('@harness-world/contracts').ExpressionSegment[]
+  }[]
+  actions: {
+    id: string
+    label: string
+    action: PlayerAction
+    participantSelection?: { min: number; max: number; candidates: { id: string; name: string }[] }
+  }[]
 }
 export function playerViewPatch(before: PlayerView, after: PlayerView): Record<string, unknown> | null {
   const changes: Record<string, unknown> = {}
-  for (const key of ['game', 'player', 'scene', 'status', 'canInterrupt', 'responders', 'expression', 'actions', 'tailRound', 'settings', 'activity', 'activities', 'feedback', 'statusBar', 'statusTruth'] as const) {
+  for (const key of [
+    'game',
+    'player',
+    'scene',
+    'status',
+    'canInterrupt',
+    'responders',
+    'expression',
+    'actions',
+    'tailRound',
+    'settings',
+    'activity',
+    'activities',
+    'feedback',
+    'statusBar',
+    'statusTruth',
+  ] as const) {
     if (JSON.stringify(before[key]) !== JSON.stringify(after[key])) changes[key] = after[key]
   }
   if (JSON.stringify(before.history) !== JSON.stringify(after.history)) {
-    const prefix = before.history.length <= after.history.length
-      && before.history.every((line, i) => JSON.stringify(line) === JSON.stringify(after.history[i]))
+    const prefix =
+      before.history.length <= after.history.length &&
+      before.history.every((line, i) => JSON.stringify(line) === JSON.stringify(after.history[i]))
     if (prefix) changes.historyAppend = after.history.slice(before.history.length)
     else changes.history = after.history
   }
   return Object.keys(changes).length ? changes : null
 }
-export interface FrontendActionRequest { requestId: string; actionId: string; operation: 'speak' | 'perform' | 'regenerate' | 'selectCandidate' | 'cancelRegeneration'; payload: Record<string, unknown> }
+export interface FrontendActionRequest {
+  requestId: string
+  actionId: string
+  operation: 'speak' | 'perform' | 'regenerate' | 'selectCandidate' | 'cancelRegeneration'
+  payload: Record<string, unknown>
+}
 export function frontendActionRequest(value: unknown, maximumCharacters = 2000): FrontendActionRequest {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new TypeError('前端请求无效')
   const r = value as Record<string, unknown>
-  if (Object.keys(r).sort().join(',') !== 'actionId,operation,payload,requestId'
-    || typeof r.requestId !== 'string' || !/^[a-zA-Z0-9:-]{1,100}$/.test(r.requestId)
-    || typeof r.actionId !== 'string' || !/^[a-zA-Z0-9:-]{1,100}$/.test(r.actionId)
-    || !['speak', 'perform', 'regenerate', 'selectCandidate', 'cancelRegeneration'].includes(String(r.operation))
-    || !r.payload || typeof r.payload !== 'object' || Array.isArray(r.payload)) throw new TypeError('前端请求字段无效')
+  if (
+    Object.keys(r).sort().join(',') !== 'actionId,operation,payload,requestId' ||
+    typeof r.requestId !== 'string' ||
+    !/^[a-zA-Z0-9:-]{1,100}$/.test(r.requestId) ||
+    typeof r.actionId !== 'string' ||
+    !/^[a-zA-Z0-9:-]{1,100}$/.test(r.actionId) ||
+    !['speak', 'perform', 'regenerate', 'selectCandidate', 'cancelRegeneration'].includes(String(r.operation)) ||
+    !r.payload ||
+    typeof r.payload !== 'object' ||
+    Array.isArray(r.payload)
+  )
+    throw new TypeError('前端请求字段无效')
   const payload = r.payload as Record<string, unknown>
   if (r.operation === 'speak') {
-    if (Object.keys(payload).some(key => !['text', 'narration', 'scope', 'addresseeIds'].includes(key)) || typeof payload.text !== 'string'
-      || (Object.hasOwn(payload, 'narration') && typeof payload.narration !== 'string')) throw new TypeError('发言字段无效')
+    if (
+      Object.keys(payload).some(key => !['text', 'narration', 'scope', 'addresseeIds'].includes(key)) ||
+      typeof payload.text !== 'string' ||
+      (Object.hasOwn(payload, 'narration') && typeof payload.narration !== 'string')
+    )
+      throw new TypeError('发言字段无效')
     const scope = payload.scope ?? 'scene_public'
     const recipients = payload.addresseeIds ?? []
-    if (typeof scope !== 'string' || !['scene_public', 'direct', 'private', 'self'].includes(scope)
-      || !Array.isArray(recipients) || recipients.some(id => typeof id !== 'string' || !id || id.length > 200)
-      || recipients.length > 64 || new Set(recipients).size !== recipients.length
-      || ((scope === 'direct' || scope === 'private') ? recipients.length === 0 : recipients.length !== 0)) throw new TypeError('发言范围与接收对象不匹配')
+    if (
+      typeof scope !== 'string' ||
+      !['scene_public', 'direct', 'private', 'self'].includes(scope) ||
+      !Array.isArray(recipients) ||
+      recipients.some(id => typeof id !== 'string' || !id || id.length > 200) ||
+      recipients.length > 64 ||
+      new Set(recipients).size !== recipients.length ||
+      (scope === 'direct' || scope === 'private' ? recipients.length === 0 : recipients.length !== 0)
+    )
+      throw new TypeError('发言范围与接收对象不匹配')
     const text = payload.text.replace(/\r\n?/gu, '\n').trim()
-    const narration = typeof payload.narration === 'string' ? payload.narration.replace(/\r\n?/gu, '\n').trim() : undefined
-    if (!(text || narration) || text.length + (narration?.length ?? 0) > maximumCharacters) throw new RangeError(`发言与描写合计需为 1 至 ${maximumCharacters} 个字符`)
-    return { requestId: r.requestId, actionId: r.actionId, operation: 'speak', payload: { text, ...(narration === undefined ? {} : { narration }), ...(Object.hasOwn(payload, 'scope') || Object.hasOwn(payload, 'addresseeIds') ? { scope, addresseeIds: recipients } : {}) } }
+    const narration =
+      typeof payload.narration === 'string' ? payload.narration.replace(/\r\n?/gu, '\n').trim() : undefined
+    if (!(text || narration) || text.length + (narration?.length ?? 0) > maximumCharacters)
+      throw new RangeError(`发言与描写合计需为 1 至 ${maximumCharacters} 个字符`)
+    return {
+      requestId: r.requestId,
+      actionId: r.actionId,
+      operation: 'speak',
+      payload: {
+        text,
+        ...(narration === undefined ? {} : { narration }),
+        ...(Object.hasOwn(payload, 'scope') || Object.hasOwn(payload, 'addresseeIds')
+          ? { scope, addresseeIds: recipients }
+          : {}),
+      },
+    }
   }
   if (r.operation === 'cancelRegeneration') {
     if (Object.keys(payload).length) throw new TypeError('取消不接受额外参数')
-    return {requestId:r.requestId,actionId:r.actionId,operation:'cancelRegeneration',payload:{}}
+    return { requestId: r.requestId, actionId: r.actionId, operation: 'cancelRegeneration', payload: {} }
   }
   if (r.operation === 'selectCandidate') {
-    if (Object.keys(payload).sort().join(',') !== 'candidateId,tailId' || ![payload.tailId,payload.candidateId].every(id => typeof id === 'string' && /^[a-f0-9-]{36}$/.test(id))) throw new TypeError('候选切换须引用当前回合和候选')
-    return {requestId:r.requestId,actionId:r.actionId,operation:'selectCandidate',payload:{tailId:payload.tailId,candidateId:payload.candidateId}}
+    if (
+      Object.keys(payload).sort().join(',') !== 'candidateId,tailId' ||
+      ![payload.tailId, payload.candidateId].every(id => typeof id === 'string' && /^[a-f0-9-]{36}$/.test(id))
+    )
+      throw new TypeError('候选切换须引用当前回合和候选')
+    return {
+      requestId: r.requestId,
+      actionId: r.actionId,
+      operation: 'selectCandidate',
+      payload: { tailId: payload.tailId, candidateId: payload.candidateId },
+    }
   }
   if (r.operation === 'regenerate') {
-    if (Object.keys(payload).join(',') !== 'tailId' || typeof payload.tailId !== 'string' || !/^[a-f0-9-]{36}$/.test(payload.tailId)) throw new TypeError('重新生成须引用当前末端回合')
-    return {requestId:r.requestId,actionId:r.actionId,operation:'regenerate',payload:{tailId:payload.tailId}}
+    if (
+      Object.keys(payload).join(',') !== 'tailId' ||
+      typeof payload.tailId !== 'string' ||
+      !/^[a-f0-9-]{36}$/.test(payload.tailId)
+    )
+      throw new TypeError('重新生成须引用当前末端回合')
+    return {
+      requestId: r.requestId,
+      actionId: r.actionId,
+      operation: 'regenerate',
+      payload: { tailId: payload.tailId },
+    }
   }
-  if (Object.keys(payload).some(key=>!['optionId','npcIds'].includes(key)) || typeof payload.optionId !== 'string' || payload.optionId.length > 512) throw new TypeError('行动须引用玩家当前可用的 optionId')
-  if(Object.hasOwn(payload,'npcIds')&&(!Array.isArray(payload.npcIds)||payload.npcIds.length>8||payload.npcIds.some(id=>typeof id!=='string'||!id||id.length>200)||new Set(payload.npcIds).size!==payload.npcIds.length))throw new TypeError('活动参与者选择无效')
-  return { requestId: r.requestId, actionId: r.actionId, operation: 'perform', payload: { optionId: payload.optionId,...(Object.hasOwn(payload,'npcIds')?{npcIds:payload.npcIds}:{}) } }
+  if (
+    Object.keys(payload).some(key => !['optionId', 'npcIds'].includes(key)) ||
+    typeof payload.optionId !== 'string' ||
+    payload.optionId.length > 512
+  )
+    throw new TypeError('行动须引用玩家当前可用的 optionId')
+  if (
+    Object.hasOwn(payload, 'npcIds') &&
+    (!Array.isArray(payload.npcIds) ||
+      payload.npcIds.length > 8 ||
+      payload.npcIds.some(id => typeof id !== 'string' || !id || id.length > 200) ||
+      new Set(payload.npcIds).size !== payload.npcIds.length)
+  )
+    throw new TypeError('活动参与者选择无效')
+  return {
+    requestId: r.requestId,
+    actionId: r.actionId,
+    operation: 'perform',
+    payload: { optionId: payload.optionId, ...(Object.hasOwn(payload, 'npcIds') ? { npcIds: payload.npcIds } : {}) },
+  }
 }

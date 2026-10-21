@@ -1,5 +1,10 @@
 import { FrozenInteractionRulebook, WorldBootstrap, createCoreRulebookRegistry } from '@harness-world/kernel'
-import { CharacterRuntimeAvailabilityService, RoundInbox, WorldStore, WriterLeaseService } from '@harness-world/store-sqlite'
+import {
+  CharacterRuntimeAvailabilityService,
+  RoundInbox,
+  WorldStore,
+  WriterLeaseService,
+} from '@harness-world/store-sqlite'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -18,25 +23,37 @@ it('commits a player action in a world with no NPC bindings', async () => {
   let coordinator: RoundCoordinator | undefined
   try {
     new WorldBootstrap(store, false, new FrozenInteractionRulebook([basicInteractionPackage])).activate(world)
-    availability.initialize(world.manifest.address, world.manifest.characters.map(character => ({
-      characterId: character.characterId, state: 'ready',
-    })))
+    availability.initialize(
+      world.manifest.address,
+      world.manifest.characters.map(character => ({
+        characterId: character.characterId,
+        state: 'ready',
+      })),
+    )
     const runtimeLane: RoundExecutionLane = {
       address: world.manifest.address,
       manifestHash: world.manifestHash,
-      enqueueRound<T>(work: () => Promise<T>): Promise<T> { return Promise.resolve().then(work) },
+      enqueueRound<T>(work: () => Promise<T>): Promise<T> {
+        return Promise.resolve().then(work)
+      },
     }
     coordinator = new RoundCoordinator({
-      store, inbox, leases, availability, runtimeLane,
+      store,
+      inbox,
+      leases,
+      availability,
+      runtimeLane,
       ownerId: 'coordinator:no-bindings',
       rulebooks: createCoreRulebookRegistry({ interactionPackages: [basicInteractionPackage] }),
     })
-    await expect(coordinator.submit({
-      idempotencyKey: 'responsive:no-bindings',
-      principalId: 'principal:player',
-      action: { actionType: 'speak', parameters: { text: 'no bindings' } },
-      correlationId: 'responsive:no-bindings',
-    })).resolves.toMatchObject({ status: 'accepted' })
+    await expect(
+      coordinator.submit({
+        idempotencyKey: 'responsive:no-bindings',
+        principalId: 'principal:player',
+        action: { actionType: 'speak', parameters: { text: 'no bindings' } },
+        correlationId: 'responsive:no-bindings',
+      }),
+    ).resolves.toMatchObject({ status: 'accepted' })
   } finally {
     coordinator?.close()
     availability.close()
@@ -69,5 +86,6 @@ it('strictly parses durable completed Round results', () => {
     { ...valid, tick: -1 },
     { ...valid, bundleHash: null },
     { ...valid, bundleHash: 'sha256:short' },
-  ]) expect(() => parsePlayerRoundResult(invalid as never)).toThrow(TypeError)
+  ])
+    expect(() => parsePlayerRoundResult(invalid as never)).toThrow(TypeError)
 })

@@ -1,5 +1,11 @@
 import type { TextRule } from './preset.ts'
-export interface TextJob { text: string; stage: TextRule['stage']; target: 'speech' | 'narration'; rules: readonly TextRule[]; inspect?: boolean }
+export interface TextJob {
+  text: string
+  stage: TextRule['stage']
+  target: 'speech' | 'narration'
+  rules: readonly TextRule[]
+  inspect?: boolean
+}
 /** Static worker program shared by Node and browser preview. Data is never evaluated as code. */
 export const REGEX_WORKER_PROGRAM = String.raw`
 const run = jobs => jobs.map(job => {
@@ -15,4 +21,7 @@ const run = jobs => jobs.map(job => {
   return {text, trace};
 });
 `
-export interface TextResult { text: string; trace: { id: string; name: string; text: string }[] }
+export interface TextResult {
+  text: string
+  trace: { id: string; name: string; text: string }[]
+}

@@ -1,10 +1,5 @@
 import { Context, Service, type Fiber } from '@deepseek-ai/cordis'
-import {
-  failWorld,
-  worldAddressKey,
-  type WorldAddress,
-  type WorldHash,
-} from '@harness-world/contracts'
+import { failWorld, worldAddressKey, type WorldAddress, type WorldHash } from '@harness-world/contracts'
 
 const branchScope = Symbol('harness-world.branch-scope')
 
@@ -81,7 +76,10 @@ class SerialRoundLane implements BranchExecutionLane {
   enqueueRound<T>(work: () => Promise<T>): Promise<T> {
     if (this.#disposed) return Promise.reject(new Error('branch runtime slot is disposed'))
     const execution = this.#roundTail.then(work, work)
-    this.#roundTail = execution.then(() => undefined, () => undefined)
+    this.#roundTail = execution.then(
+      () => undefined,
+      () => undefined,
+    )
     return execution
   }
 
@@ -90,7 +88,7 @@ class SerialRoundLane implements BranchExecutionLane {
   }
 
   emitEvent(name: string | symbol, ...args: any[]): void {
-    (this.context as unknown as ScopedCordisEvents).emit(this.context, name, ...args)
+    ;(this.context as unknown as ScopedCordisEvents).emit(this.context, name, ...args)
   }
 
   dispose(): void {
@@ -158,18 +156,16 @@ export class BranchRuntimeSlot {
       const agents = new BranchComponentService(ctx, 'worldAgents', addressKey, components.agents)
       const director = new BranchComponentService(ctx, 'worldDirector', addressKey, components.director)
       services = { kernel, store, agents, director }
-      ctx.effect(() => async () => {
-        const allComponents = [
-          components.kernel,
-          components.director,
-          components.agents,
-          components.store,
-        ]
-        for (const component of allComponents) {
-          if (hasDisposer(component)) await component.dispose()
-          else if (hasCloser(component)) await component.close()
-        }
-      }, `world-runtime:${addressKey}`)
+      ctx.effect(
+        () => async () => {
+          const allComponents = [components.kernel, components.director, components.agents, components.store]
+          for (const component of allComponents) {
+            if (hasDisposer(component)) await component.dispose()
+            else if (hasCloser(component)) await component.close()
+          }
+        },
+        `world-runtime:${addressKey}`,
+      )
     })
     await fiber
     return new BranchRuntimeSlot(address, manifestHash, context, fiber, lane, services, components)
@@ -212,7 +208,10 @@ interface SlotReservation {
 export class WorldRuntimeRegistry extends Service {
   readonly #slots = new Map<string, SlotReservation>()
 
-  constructor(ctx: Context, private readonly factory: BranchComponentFactory) {
+  constructor(
+    ctx: Context,
+    private readonly factory: BranchComponentFactory,
+  ) {
     super(ctx, 'worldRuntimeRegistry')
   }
 

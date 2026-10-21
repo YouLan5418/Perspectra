@@ -95,7 +95,6 @@ export interface WorldPackInteractionsSource extends WorldJsonObject {
   readonly relationBindings?: readonly WorldPackRelationBindingSource[]
 }
 
-
 export interface WorldPackRulebookProfile extends WorldJsonObject {
   readonly rulebookId: 'builtin:speak-move'
   readonly version: 2
@@ -122,10 +121,6 @@ export const WORLD_PACK_CORE_PROFILES: WorldPackCoreProfiles = Object.freeze({
   presentation: Object.freeze({ profileId: 'builtin:deterministic-presentation', version: '1.0.0' }),
 })
 
-
-
-
-
 /** The supported source manifest selects the world's interaction file. */
 export interface WorldPackSourceManifestV5 extends WorldJsonObject {
   readonly sourceSchemaVersion: typeof WORLD_PACK_SOURCE_SCHEMA_VERSION_V5
@@ -151,7 +146,11 @@ export interface WorldPackSourceManifestV5 extends WorldJsonObject {
 
 export type WorldPackReactionSource =
   | { readonly schemaVersion: typeof WORLD_PACK_REACTION_SCHEMA_VERSION; readonly mode: 'disabled' }
-  | { readonly schemaVersion: typeof WORLD_PACK_REACTION_SCHEMA_VERSION; readonly mode: 'responsive'; readonly profile: 'responsive/v1' | 'responsive/v2' }
+  | {
+      readonly schemaVersion: typeof WORLD_PACK_REACTION_SCHEMA_VERSION
+      readonly mode: 'responsive'
+      readonly profile: 'responsive/v1' | 'responsive/v2'
+    }
 
 export type WorldPackManifestationSource =
   | { readonly schemaVersion: typeof WORLD_PACK_MANIFESTATION_SCHEMA_VERSION; readonly mode: 'disabled' }
@@ -164,21 +163,41 @@ export const WORLD_PACK_MEMORY_SCHEMA_VERSION_V2 = 'worldpack-memory/v2' as cons
 export const WORLD_PACK_DOCUMENTS_SCHEMA_VERSION_V2 = 'worldpack-documents/v2' as const
 
 export const WORLD_PACK_CONTROLLER_CLASSES_V2 = Object.freeze(['manual', 'scripted'] as const)
-export type WorldPackControllerClassV2 = typeof WORLD_PACK_CONTROLLER_CLASSES_V2[number]
-export const WORLD_PACK_CHARACTER_LIFECYCLES_V2 = Object.freeze(['active', 'incapacitated', 'dead', 'departed'] as const)
-export type WorldPackCharacterLifecycleV2 = typeof WORLD_PACK_CHARACTER_LIFECYCLES_V2[number]
-export const WORLD_PACK_SCENE_LIFECYCLES_V2 = Object.freeze(['created', 'active', 'closed'] as const)
-export type WorldPackSceneLifecycleV2 = typeof WORLD_PACK_SCENE_LIFECYCLES_V2[number]
-export const WORLD_PACK_MEMORY_PROFILES_V2 = Object.freeze(['compact', 'standard', 'deep'] as const)
-export type WorldPackMemoryProfileV2 = typeof WORLD_PACK_MEMORY_PROFILES_V2[number]
-export const WORLD_PACK_DOCUMENT_USAGES_V2 = Object.freeze(['world_context', 'portrayal', 'memory_seed', 'author_note'] as const)
-export type WorldPackDocumentUsageV2 = typeof WORLD_PACK_DOCUMENT_USAGES_V2[number]
-export const WORLD_PACK_DOCUMENT_AUDIENCES_V2 = Object.freeze(['public', 'director_visible', 'character_private', 'author_only'] as const)
-export type WorldPackDocumentAudienceV2 = typeof WORLD_PACK_DOCUMENT_AUDIENCES_V2[number]
-export const WORLD_PACK_INITIAL_OBSERVATION_EPISTEMIC_KINDS_V2 = Object.freeze([
-  'direct_observation', 'observed_action', 'reported_speech', 'subjective_inference', 'self_intention',
+export type WorldPackControllerClassV2 = (typeof WORLD_PACK_CONTROLLER_CLASSES_V2)[number]
+export const WORLD_PACK_CHARACTER_LIFECYCLES_V2 = Object.freeze([
+  'active',
+  'incapacitated',
+  'dead',
+  'departed',
 ] as const)
-export type WorldPackInitialObservationEpistemicKindV2 = typeof WORLD_PACK_INITIAL_OBSERVATION_EPISTEMIC_KINDS_V2[number]
+export type WorldPackCharacterLifecycleV2 = (typeof WORLD_PACK_CHARACTER_LIFECYCLES_V2)[number]
+export const WORLD_PACK_SCENE_LIFECYCLES_V2 = Object.freeze(['created', 'active', 'closed'] as const)
+export type WorldPackSceneLifecycleV2 = (typeof WORLD_PACK_SCENE_LIFECYCLES_V2)[number]
+export const WORLD_PACK_MEMORY_PROFILES_V2 = Object.freeze(['compact', 'standard', 'deep'] as const)
+export type WorldPackMemoryProfileV2 = (typeof WORLD_PACK_MEMORY_PROFILES_V2)[number]
+export const WORLD_PACK_DOCUMENT_USAGES_V2 = Object.freeze([
+  'world_context',
+  'portrayal',
+  'memory_seed',
+  'author_note',
+] as const)
+export type WorldPackDocumentUsageV2 = (typeof WORLD_PACK_DOCUMENT_USAGES_V2)[number]
+export const WORLD_PACK_DOCUMENT_AUDIENCES_V2 = Object.freeze([
+  'public',
+  'director_visible',
+  'character_private',
+  'author_only',
+] as const)
+export type WorldPackDocumentAudienceV2 = (typeof WORLD_PACK_DOCUMENT_AUDIENCES_V2)[number]
+export const WORLD_PACK_INITIAL_OBSERVATION_EPISTEMIC_KINDS_V2 = Object.freeze([
+  'direct_observation',
+  'observed_action',
+  'reported_speech',
+  'subjective_inference',
+  'self_intention',
+] as const)
+export type WorldPackInitialObservationEpistemicKindV2 =
+  (typeof WORLD_PACK_INITIAL_OBSERVATION_EPISTEMIC_KINDS_V2)[number]
 
 export interface WorldPackPortrayalTermSourceV2 extends WorldJsonObject {
   readonly key: string
@@ -430,8 +449,6 @@ export interface WorldPackCompiledContentV2 extends WorldJsonObject {
   readonly markdown: readonly WorldPackMarkdownContent[]
 }
 
-
-
 export interface WorldPackCompilerIdentityV5 extends WorldJsonObject {
   readonly id: typeof WORLD_PACK_COMPILER_ID
   readonly version: typeof WORLD_PACK_COMPILER_VERSION_V5
@@ -468,8 +485,6 @@ export interface CompiledWorldPackV5 extends WorldJsonObject {
   readonly assets: readonly WorldPackAssetLock[]
   readonly acceptanceAssertions: readonly WorldPackAcceptanceAssertion[]
 }
-
-
 
 export interface WorldPackReactionInspection extends WorldJsonObject {
   readonly mode: 'disabled' | 'responsive'

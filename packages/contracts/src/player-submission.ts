@@ -1,8 +1,14 @@
-import { ACTION_GROUP_CUES,
-  type ActionGroupCue, type StepManifestation } from './action-group.ts'
+import { ACTION_GROUP_CUES, type ActionGroupCue, type StepManifestation } from './action-group.ts'
 import { assertProtocolString, type CharacterId } from './ids.ts'
 import type { ActionRequest, WorldAddress } from './protocol.ts'
-import { canonicalizeWorldJson, deterministicId, hashWorldJson, type WorldHash, type WorldJsonObject, type WorldJsonValue } from './world-json.ts'
+import {
+  canonicalizeWorldJson,
+  deterministicId,
+  hashWorldJson,
+  type WorldHash,
+  type WorldJsonObject,
+  type WorldJsonValue,
+} from './world-json.ts'
 
 export interface PlayerSourceSpanV1 extends WorldJsonObject {
   readonly actionId: string
@@ -67,31 +73,52 @@ const REASONS = ['none', 'ambiguous', 'not_afforded', 'unsupported'] as const
  */
 export function createPlayerIntentCandidateSchema() {
   return {
-    type: 'object', additionalProperties: false, required: ['version', 'decision', 'reason', 'actions'],
+    type: 'object',
+    additionalProperties: false,
+    required: ['version', 'decision', 'reason', 'actions'],
     properties: {
       version: { const: 'player-intent-candidate/v3' },
       decision: { enum: ['act', 'clarification_required'] },
       reason: { enum: REASONS },
-      actions: { type: 'array', maxItems: 2, items: {
-        type: 'object', additionalProperties: false, required: ['key', 'affordanceId', 'quotes'],
-        properties: { key: { type: 'string', minLength: 1 }, affordanceId: { type: 'string', minLength: 1 },
-          quotes: { type: 'array', minItems: 1, maxItems: 8, items: { type: 'string', minLength: 1 } } },
-      } },
+      actions: {
+        type: 'array',
+        maxItems: 2,
+        items: {
+          type: 'object',
+          additionalProperties: false,
+          required: ['key', 'affordanceId', 'quotes'],
+          properties: {
+            key: { type: 'string', minLength: 1 },
+            affordanceId: { type: 'string', minLength: 1 },
+            quotes: { type: 'array', minItems: 1, maxItems: 8, items: { type: 'string', minLength: 1 } },
+          },
+        },
+      },
     },
   }
 }
 
 function object(value: unknown, keys: readonly string[]): Record<string, unknown> {
-  if (typeof value !== 'object' || value === null || Array.isArray(value)
-    || Object.keys(value).sort().join(',') !== [...keys].sort().join(',')) throw new TypeError('player intent has invalid fields')
+  if (
+    typeof value !== 'object' ||
+    value === null ||
+    Array.isArray(value) ||
+    Object.keys(value).sort().join(',') !== [...keys].sort().join(',')
+  )
+    throw new TypeError('player intent has invalid fields')
   return value as Record<string, unknown>
 }
 
-function exactWithOptional(value: unknown, required: readonly string[], optional: readonly string[]): Record<string, unknown> {
-  if (typeof value !== 'object' || value === null || Array.isArray(value)) throw new TypeError('player intent has invalid fields')
+function exactWithOptional(
+  value: unknown,
+  required: readonly string[],
+  optional: readonly string[],
+): Record<string, unknown> {
+  if (typeof value !== 'object' || value === null || Array.isArray(value))
+    throw new TypeError('player intent has invalid fields')
   const keys = Object.keys(value)
-  if (keys.some(key => !required.includes(key) && !optional.includes(key))
-    || required.some(key => !keys.includes(key))) throw new TypeError('player intent has invalid fields')
+  if (keys.some(key => !required.includes(key) && !optional.includes(key)) || required.some(key => !keys.includes(key)))
+    throw new TypeError('player intent has invalid fields')
   return value as Record<string, unknown>
 }
 
@@ -185,7 +212,10 @@ function arguments_(value: unknown): void {
 }
 
 /** A pure Host binding boundary, not admission or a substitute for Rulebook revalidation. */
-export function bindPlayerIntentCandidate(value: unknown, binding: PlayerIntentBinding):
+export function bindPlayerIntentCandidate(
+  value: unknown,
+  binding: PlayerIntentBinding,
+):
   | { readonly status: 'clarification_required'; readonly reason: 'ambiguous' | 'not_afforded' | 'unsupported' }
   | { readonly status: 'validated'; readonly submission: PlayerSubmissionV2 } {
   canonicalizeWorldJson(value as WorldJsonValue)
@@ -195,14 +225,25 @@ export function bindPlayerIntentCandidate(value: unknown, binding: PlayerIntentB
   text(binding.interpretationProfile)
   const address = object(binding.address, ['tenantId', 'worldId', 'branchId'])
   for (const id of Object.values(address)) text(id)
-  if (typeof binding.sourceText !== 'string' || binding.sourceText.length === 0
-    || !/^sha256:[0-9a-f]{64}$/u.test(binding.interpretationReceiptHash)) throw new TypeError('player intent source or receipt is invalid')
-  const choices = new Map<string, { readonly choice: PlayerIntentAffordance; readonly accepted: readonly ActionGroupCue[] }>()
+  if (
+    typeof binding.sourceText !== 'string' ||
+    binding.sourceText.length === 0 ||
+    !/^sha256:[0-9a-f]{64}$/u.test(binding.interpretationReceiptHash)
+  )
+    throw new TypeError('player intent source or receipt is invalid')
+  const choices = new Map<
+    string,
+    { readonly choice: PlayerIntentAffordance; readonly accepted: readonly ActionGroupCue[] }
+  >()
   for (const choice of binding.affordances) {
-    const raw = exactWithOptional(choice, ['affordanceId', 'actionType', 'actionVersion', 'parameters'], ['performances'])
+    const raw = exactWithOptional(
+      choice,
+      ['affordanceId', 'actionType', 'actionVersion', 'parameters'],
+      ['performances'],
+    )
     text(choice.affordanceId)
-    if (choices.has(choice.affordanceId)
-      || !['speak', 'move', 'interact'].includes(choice.actionType)) throw new TypeError('player intent affordance is invalid')
+    if (choices.has(choice.affordanceId) || !['speak', 'move', 'interact'].includes(choice.actionType))
+      throw new TypeError('player intent affordance is invalid')
     const version = choice.actionVersion
     // The version belongs to the action type: only a frozen interaction addresses anything above 1, and
     // it addresses exactly 2 - it names a binding and a definition lock, which is the frozen request.
@@ -212,7 +253,8 @@ export function bindPlayerIntentCandidate(value: unknown, binding: PlayerIntentB
     if (choice.actionType === 'speak') {
       if (Object.hasOwn(choice.parameters, 'narration')) {
         const publication = object(choice.parameters, ['text', 'narration'])
-        if (publication.text !== '' || publication.narration !== '') throw new TypeError('narration choice must be an empty publication template')
+        if (publication.text !== '' || publication.narration !== '')
+          throw new TypeError('narration choice must be an empty publication template')
       } else object(choice.parameters, [])
     }
     if (choice.actionType === 'move') text(object(choice.parameters, ['locationId']).locationId)
@@ -222,21 +264,37 @@ export function bindPlayerIntentCandidate(value: unknown, binding: PlayerIntentB
   const candidate = object(value, ['version', 'decision', 'reason', 'actions'])
   // V3 is the only readable version: the Host publishes exactly this schema in the request it dispatches, so
   // an older candidate is a caller that ignored the contract it was handed rather than a peer to tolerate.
-  if (candidate.version !== 'player-intent-candidate/v3' || !REASONS.includes(candidate.reason as never)
-    || !Array.isArray(candidate.actions)) throw new TypeError('player intent candidate is invalid')
+  if (
+    candidate.version !== 'player-intent-candidate/v3' ||
+    !REASONS.includes(candidate.reason as never) ||
+    !Array.isArray(candidate.actions)
+  )
+    throw new TypeError('player intent candidate is invalid')
   if (candidate.decision === 'clarification_required') {
     if (candidate.reason === 'none' || candidate.actions.length !== 0) {
       throw new TypeError('clarification cannot contain actions')
     }
-    return { status: 'clarification_required', reason: candidate.reason as 'ambiguous' | 'not_afforded' | 'unsupported' }
+    return {
+      status: 'clarification_required',
+      reason: candidate.reason as 'ambiguous' | 'not_afforded' | 'unsupported',
+    }
   }
-  if (candidate.decision !== 'act' || candidate.reason !== 'none' || candidate.actions.length < 1 || candidate.actions.length > 2) {
+  if (
+    candidate.decision !== 'act' ||
+    candidate.reason !== 'none' ||
+    candidate.actions.length < 1 ||
+    candidate.actions.length > 2
+  ) {
     throw new TypeError('player intent action group is invalid')
   }
   const keys: string[] = []
   let requiresClarification = false
-  const chosen: { readonly key: string; readonly choice: PlayerIntentAffordance
-    readonly performance: StepManifestation | undefined; readonly quotes: readonly string[] }[] = []
+  const chosen: {
+    readonly key: string
+    readonly choice: PlayerIntentAffordance
+    readonly performance: StepManifestation | undefined
+    readonly quotes: readonly string[]
+  }[] = []
   for (const raw of candidate.actions) {
     const action = exactWithOptional(raw, ['key', 'affordanceId', 'quotes'], ['performance'])
     const key = text(action.key)
@@ -250,20 +308,31 @@ export function bindPlayerIntentCandidate(value: unknown, binding: PlayerIntentB
     // did not say - and it does not fail the action either: the player is asked again, which is the answer
     // this boundary already gives for an action that is not currently afforded. This covers a step stated
     // for an action that cannot carry one at all, because such a choice declares no accepted cues.
-    if (performance !== undefined
-      && ![...performance.independent, ...performance.onSuccess].every(cue => found.accepted.includes(cue))) {
+    if (
+      performance !== undefined &&
+      ![...performance.independent, ...performance.onSuccess].every(cue => found.accepted.includes(cue))
+    ) {
       requiresClarification = true
     }
     keys.push(key)
     chosen.push({ key, choice: found.choice, performance, quotes })
   }
   const actions: ActionRequest[] = chosen.map((entry, ordinal) => ({
-    actionId: deterministicId('action', { version: 'player-intent-action/v1', address: binding.address, inputId: binding.inputId, ordinal }),
-    actorId: binding.actorId, actionType: entry.choice.actionType, actionVersion: entry.choice.actionVersion,
+    actionId: deterministicId('action', {
+      version: 'player-intent-action/v1',
+      address: binding.address,
+      inputId: binding.inputId,
+      ordinal,
+    }),
+    actorId: binding.actorId,
+    actionType: entry.choice.actionType,
+    actionVersion: entry.choice.actionVersion,
     // The step joins the request the same way the model's does: it is adjudicated by the definition the
     // choice names, against the policy that definition locked, and it never becomes part of the effect.
-    parameters: entry.performance === undefined
-      ? entry.choice.parameters : { ...entry.choice.parameters, performance: entry.performance },
+    parameters:
+      entry.performance === undefined
+        ? entry.choice.parameters
+        : { ...entry.choice.parameters, performance: entry.performance },
   }))
   if (actions.filter(action => action.actionType !== 'speak').length > 1) {
     throw new TypeError('player input permits at most one world operation')
@@ -282,8 +351,18 @@ export function bindPlayerIntentCandidate(value: unknown, binding: PlayerIntentB
         throw new TypeError('player intent quote is not in the player text')
       }
       previousEnd = start + quote.length
-      sourceSpans.push({ actionId: action.actionId, startUtf16: start, endUtf16: previousEnd, text: quote,
-        kind: action.actionType === 'speak' ? (Object.hasOwn(entry.choice.parameters, 'narration') ? 'narration' : 'speech') : 'action' })
+      sourceSpans.push({
+        actionId: action.actionId,
+        startUtf16: start,
+        endUtf16: previousEnd,
+        text: quote,
+        kind:
+          action.actionType === 'speak'
+            ? Object.hasOwn(entry.choice.parameters, 'narration')
+              ? 'narration'
+              : 'speech'
+            : 'action',
+      })
     }
   }
   for (const action of actions) {
@@ -291,17 +370,26 @@ export function bindPlayerIntentCandidate(value: unknown, binding: PlayerIntentB
     const spans = sourceSpans.filter(span => span.actionId === action.actionId)
     // A speech is one contiguous quote: joining two of them would invent a sentence nobody said.
     if (spans.length !== 1) throw new TypeError('player speech requires one contiguous quote')
-    actions[actions.indexOf(action)] = { ...action, parameters: spans[0]!.kind === 'narration'
-      ? { text: '', narration: spans[0]!.text } : { text: spans[0]!.text } }
+    actions[actions.indexOf(action)] = {
+      ...action,
+      parameters: spans[0]!.kind === 'narration' ? { text: '', narration: spans[0]!.text } : { text: spans[0]!.text },
+    }
   }
   // A semantic clarification must not turn an otherwise malformed Provider response into a valid result.
   // Validate every action and source span first, then give the player-facing answer for an unoffered step.
   if (requiresClarification) return { status: 'clarification_required', reason: 'not_afforded' }
   const submission: PlayerSubmissionV2 = {
-    version: 'player-submission/v2', sourceText: binding.sourceText,
-    sourceTextHash: hashWorldJson('player-source-text/v1', binding.sourceText), actions, sourceSpans,
-    interpretationProfile: binding.interpretationProfile, interpretationReceiptHash: binding.interpretationReceiptHash,
+    version: 'player-submission/v2',
+    sourceText: binding.sourceText,
+    sourceTextHash: hashWorldJson('player-source-text/v1', binding.sourceText),
+    actions,
+    sourceSpans,
+    interpretationProfile: binding.interpretationProfile,
+    interpretationReceiptHash: binding.interpretationReceiptHash,
   }
   // Detach all selected parameters from mutable Host/Adapter references.
-  return { status: 'validated', submission: JSON.parse(new TextDecoder().decode(canonicalizeWorldJson(submission))) as PlayerSubmissionV2 }
+  return {
+    status: 'validated',
+    submission: JSON.parse(new TextDecoder().decode(canonicalizeWorldJson(submission))) as PlayerSubmissionV2,
+  }
 }

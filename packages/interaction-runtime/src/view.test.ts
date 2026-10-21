@@ -1,15 +1,29 @@
 import { describe, expect, it } from 'vitest'
 import { Ajv } from 'ajv'
 import {
-  brandId, createInteractionArgumentSchema, createInteractionRequestSchema, hashWorldJson,
-  type CharacterId, type InteractionBindingV3, type InteractionDefinitionImplementation,
-  type InteractionDefinitionSpec, type InteractionEffectImplementation, type InteractionImplementationLock,
-  type InteractionHostContext, type InteractionPackageImplementation, type InteractionParameterSchema,
+  brandId,
+  createInteractionArgumentSchema,
+  createInteractionRequestSchema,
+  hashWorldJson,
+  type CharacterId,
+  type InteractionBindingV3,
+  type InteractionDefinitionImplementation,
+  type InteractionDefinitionSpec,
+  type InteractionEffectImplementation,
+  type InteractionImplementationLock,
+  type InteractionHostContext,
+  type InteractionPackageImplementation,
+  type InteractionParameterSchema,
   type InteractionReactionEvidenceImplementation,
   type InteractionObservationPolicyImplementation,
-  type InteractionPerformanceImplementation, type InteractionRef,
-  type InteractionRole, type InteractionRuleImplementation, type InteractionViewContext,
-  type WorldAddress, type WorldEventDraft, type WorldJsonObject,
+  type InteractionPerformanceImplementation,
+  type InteractionRef,
+  type InteractionRole,
+  type InteractionRuleImplementation,
+  type InteractionViewContext,
+  type WorldAddress,
+  type WorldEventDraft,
+  type WorldJsonObject,
 } from '@harness-world/contracts'
 import { createBasicInteractionPackage } from '@harness-world/interactions-basic'
 import { InteractionRegistry, interactionPackageHash, type FrozenInteractionWorld } from './registry.ts'
@@ -36,7 +50,12 @@ function implementation(id: string): InteractionImplementationLock {
 
 const actorRole: InteractionRole = { name: 'actor', kind: 'character', source: { kind: 'hostActor' }, distinctFrom: [] }
 const itemRole: InteractionRole = { name: 'item', kind: 'entity', source: { kind: 'primaryTarget' }, distinctFrom: [] }
-const recipientRole: InteractionRole = { name: 'recipient', kind: 'character', source: { kind: 'argument', field: 'recipientId' }, distinctFrom: ['actor'] }
+const recipientRole: InteractionRole = {
+  name: 'recipient',
+  kind: 'character',
+  source: { kind: 'argument', field: 'recipientId' },
+  distinctFrom: ['actor'],
+}
 
 /** The shared fixtures declare no manifestation; the performance tests build their own policy. */
 /**
@@ -60,47 +79,98 @@ const noPerformance: InteractionPerformanceImplementation = {
 const publicRule: InteractionRuleImplementation = { lock: implementation('fixture:public'), check: () => null }
 const hiddenRule: InteractionRuleImplementation = {
   lock: implementation('fixture:hidden'),
-  check: context => context.binding.config.blocked === true ? 'BLOCKED' : null,
+  check: context => (context.binding.config.blocked === true ? 'BLOCKED' : null),
 }
 const transfer: InteractionEffectImplementation = {
   lock: implementation('fixture:effect'),
   eventTypes: [ref('fixture.transferred')],
-  build: (): readonly WorldEventDraft[] => { effectCalls.build++; return [{ eventType: 'fixture.transferred', eventVersion: 1, data: {} }] },
-  validate: (): void => { effectCalls.validate++ },
+  build: (): readonly WorldEventDraft[] => {
+    effectCalls.build++
+    return [{ eventType: 'fixture.transferred', eventVersion: 1, data: {} }]
+  },
+  validate: (): void => {
+    effectCalls.validate++
+  },
 }
 
 function definition(id: string, withRecipient: boolean, blocked: boolean): InteractionDefinitionImplementation {
   const spec: InteractionDefinitionSpec = {
-    versionTag: 'interaction-definition/v1', id, version: 1,
+    versionTag: 'interaction-definition/v1',
+    id,
+    version: 1,
     participantRoles: withRecipient ? [actorRole, itemRole, recipientRole] : [actorRole, itemRole],
-    argumentSchema: { fields: withRecipient ? [{ name: 'recipientId', type: 'string', maxBytes: 1024, values: [] }] : [] },
+    argumentSchema: {
+      fields: withRecipient ? [{ name: 'recipientId', type: 'string', maxBytes: 1024, values: [] }] : [],
+    },
     bindingConfigSchema: { fields: blocked ? [{ name: 'blocked', type: 'boolean' }] : [] },
-    authorityPolicyRef: ref('fixture:public'), preconditions: [...(blocked ? [ref('fixture:hidden')] : []), ref('fixture:public')],
-    spatialRequirementRefs: [], effectBuilderRef: ref('fixture:effect'), effectCapabilityRefs: [ref('fixture:effect')],
-    dependencyRefs: [], performancePolicyRef: ref('fixture:no-performance'), reactionEvidencePolicyRef: ref('fixture:no-direct'),
+    authorityPolicyRef: ref('fixture:public'),
+    preconditions: [...(blocked ? [ref('fixture:hidden')] : []), ref('fixture:public')],
+    spatialRequirementRefs: [],
+    effectBuilderRef: ref('fixture:effect'),
+    effectCapabilityRefs: [ref('fixture:effect')],
+    dependencyRefs: [],
+    performancePolicyRef: ref('fixture:no-performance'),
+    reactionEvidencePolicyRef: ref('fixture:no-direct'),
     observationPolicyRef: ref('fixture:public-outcome'),
-    lifecycleRefs: [], limits: { maximumEvents: 1 },
+    lifecycleRefs: [],
+    limits: { maximumEvents: 1 },
   }
   return { spec, implementationHash: implementation(id).implementationHash }
 }
 
 /** Install exactly this package and freeze it, so a validation failure is the only way out. */
-function singleWith(contents: Omit<InteractionPackageImplementation, 'lock'>, spec: InteractionDefinitionSpec): FrozenInteractionWorld {
-  const lock: InteractionImplementationLock = { ref: ref('package:single-with'), dependencies: [], implementationHash: interactionPackageHash(contents) }
+function singleWith(
+  contents: Omit<InteractionPackageImplementation, 'lock'>,
+  spec: InteractionDefinitionSpec,
+): FrozenInteractionWorld {
+  const lock: InteractionImplementationLock = {
+    ref: ref('package:single-with'),
+    dependencies: [],
+    implementationHash: interactionPackageHash(contents),
+  }
   const registry = new InteractionRegistry()
   registry.install({ lock, ...contents })
   return registry.freeze({
-    address, packages: [lock],
-    definitions: [{ ref: ref(spec.id), definitionHash: hashWorldJson('interaction-definition/v1', spec), implementationHash: implementation(spec.id).implementationHash }],
-    bindings: [{ bindingId: 'binding:single-with', targetRef: { kind: 'entity', id: 'entity:cup' }, definitionRef: ref(spec.id), config: {} }],
+    address,
+    packages: [lock],
+    definitions: [
+      {
+        ref: ref(spec.id),
+        definitionHash: hashWorldJson('interaction-definition/v1', spec),
+        implementationHash: implementation(spec.id).implementationHash,
+      },
+    ],
+    bindings: [
+      {
+        bindingId: 'binding:single-with',
+        targetRef: { kind: 'entity', id: 'entity:cup' },
+        definitionRef: ref(spec.id),
+        config: {},
+      },
+    ],
   })
 }
 
 function bundle() {
-  const definitions = [definition('fixture:use', false, false), definition('fixture:give', true, false), definition('fixture:guarded', false, true)]
-  const contents = { rules: [publicRule, hiddenRule], effects: [transfer], resolvers: [], lifecycle: [], performances: [noPerformance], reactionEvidence: [noDirect], observation: [noObservation], definitions }
+  const definitions = [
+    definition('fixture:use', false, false),
+    definition('fixture:give', true, false),
+    definition('fixture:guarded', false, true),
+  ]
+  const contents = {
+    rules: [publicRule, hiddenRule],
+    effects: [transfer],
+    resolvers: [],
+    lifecycle: [],
+    performances: [noPerformance],
+    reactionEvidence: [noDirect],
+    observation: [noObservation],
+    definitions,
+  }
   const lock: InteractionImplementationLock = {
-    ref: ref('package:fixture'), dependencies: [], implementationHash: interactionPackageHash(contents),
+    ref: ref('package:fixture'),
+    dependencies: [],
+    implementationHash: interactionPackageHash(contents),
   }
   return { lock, ...contents }
 }
@@ -110,12 +180,35 @@ function instantiate(extraEntities: readonly string[] = []): FrozenInteractionWo
   const registry = new InteractionRegistry()
   registry.install(pkg)
   const bindings: InteractionBindingV3[] = [
-    { bindingId: 'binding:cup-use', targetRef: { kind: 'entity', id: 'entity:cup' }, definitionRef: ref('fixture:use'), config: {} },
-    { bindingId: 'binding:cup-give', targetRef: { kind: 'entity', id: 'entity:cup' }, definitionRef: ref('fixture:give'), config: {} },
-    { bindingId: 'binding:door-use', targetRef: { kind: 'entity', id: 'entity:door' }, definitionRef: ref('fixture:use'), config: {} },
-    { bindingId: 'binding:cup-guarded', targetRef: { kind: 'entity', id: 'entity:cup' }, definitionRef: ref('fixture:guarded'), config: { blocked: true } },
+    {
+      bindingId: 'binding:cup-use',
+      targetRef: { kind: 'entity', id: 'entity:cup' },
+      definitionRef: ref('fixture:use'),
+      config: {},
+    },
+    {
+      bindingId: 'binding:cup-give',
+      targetRef: { kind: 'entity', id: 'entity:cup' },
+      definitionRef: ref('fixture:give'),
+      config: {},
+    },
+    {
+      bindingId: 'binding:door-use',
+      targetRef: { kind: 'entity', id: 'entity:door' },
+      definitionRef: ref('fixture:use'),
+      config: {},
+    },
+    {
+      bindingId: 'binding:cup-guarded',
+      targetRef: { kind: 'entity', id: 'entity:cup' },
+      definitionRef: ref('fixture:guarded'),
+      config: { blocked: true },
+    },
     ...extraEntities.map(id => ({
-      bindingId: `binding:${id}-use`, targetRef: { kind: 'entity' as const, id }, definitionRef: ref('fixture:use'), config: {},
+      bindingId: `binding:${id}-use`,
+      targetRef: { kind: 'entity' as const, id },
+      definitionRef: ref('fixture:use'),
+      config: {},
     })),
   ]
   return registry.freeze({
@@ -131,32 +224,64 @@ function instantiate(extraEntities: readonly string[] = []): FrozenInteractionWo
 }
 
 const states = {
-  character: (id: string): WorldJsonObject => ({ id, lifecycle: 'active', locationId: 'location:hall', sceneIds: ['scene:hall'] }),
+  character: (id: string): WorldJsonObject => ({
+    id,
+    lifecycle: 'active',
+    locationId: 'location:hall',
+    sceneIds: ['scene:hall'],
+  }),
   entity: (id: string): WorldJsonObject => ({ id, holderId: null, locationId: 'location:hall' }),
 }
 
 /** A world holding exactly one definition, for domain coverage that the shared bundle would blur. */
 function single(spec: InteractionDefinitionSpec): FrozenInteractionWorld {
-  const contents = { rules: [publicRule], effects: [transfer], resolvers: [], lifecycle: [], performances: [noPerformance], reactionEvidence: [noDirect], observation: [noObservation], definitions: [{ spec, implementationHash: implementation(spec.id).implementationHash }] }
-  const lock: InteractionImplementationLock = { ref: ref('package:single'), dependencies: [], implementationHash: interactionPackageHash(contents) }
+  const contents = {
+    rules: [publicRule],
+    effects: [transfer],
+    resolvers: [],
+    lifecycle: [],
+    performances: [noPerformance],
+    reactionEvidence: [noDirect],
+    observation: [noObservation],
+    definitions: [{ spec, implementationHash: implementation(spec.id).implementationHash }],
+  }
+  const lock: InteractionImplementationLock = {
+    ref: ref('package:single'),
+    dependencies: [],
+    implementationHash: interactionPackageHash(contents),
+  }
   const registry = new InteractionRegistry()
   registry.install({ lock, ...contents })
   return registry.freeze({
-    address, packages: [lock],
-    definitions: [{
-      ref: { id: spec.id, version: spec.version },
-      definitionHash: hashWorldJson('interaction-definition/v1', spec),
-      implementationHash: implementation(spec.id).implementationHash,
-    }],
-    bindings: [{ bindingId: 'binding:single', targetRef: { kind: 'entity', id: 'entity:cup' }, definitionRef: { id: spec.id, version: spec.version }, config: {} }],
+    address,
+    packages: [lock],
+    definitions: [
+      {
+        ref: { id: spec.id, version: spec.version },
+        definitionHash: hashWorldJson('interaction-definition/v1', spec),
+        implementationHash: implementation(spec.id).implementationHash,
+      },
+    ],
+    bindings: [
+      {
+        bindingId: 'binding:single',
+        targetRef: { kind: 'entity', id: 'entity:cup' },
+        definitionRef: { id: spec.id, version: spec.version },
+        config: {},
+      },
+    ],
   })
 }
 
 /** The adjudication-side counterpart of `context()`: same snapshot, one exact action. */
 function host(): InteractionHostContext {
   return {
-    address, manifestHash, asOfWorldSeq: 4, candidatePrefixHash: prefixHash,
-    actionId: 'action:perform', actorId: actor,
+    address,
+    manifestHash,
+    asOfWorldSeq: 4,
+    candidatePrefixHash: prefixHash,
+    actionId: 'action:perform',
+    actorId: actor,
     authority: { version: 'resolution-authority/v1', sourceRole: 'player', adjudicationMode: 'standard' },
     targets: [
       { ref: { kind: 'character', id: actor }, state: states.character(actor) },
@@ -176,31 +301,50 @@ function context(over: Partial<InteractionViewContext> = {}): InteractionViewCon
     { ref: { kind: 'entity' as const, id: 'entity:lamp' }, state: states.entity('entity:lamp') },
   ]
   const authorizedTargets = over.authorizedTargets ?? [
-    { kind: 'character', id: 'character:alice' }, { kind: 'character', id: 'character:bob' },
-    { kind: 'entity', id: 'entity:cup' }, { kind: 'entity', id: 'entity:door' },
+    { kind: 'character', id: 'character:alice' },
+    { kind: 'character', id: 'character:bob' },
+    { kind: 'entity', id: 'entity:cup' },
+    { kind: 'entity', id: 'entity:door' },
   ]
   return {
-    address, manifestHash, asOfWorldSeq: 4, characterId: actor, candidatePrefixHash: prefixHash,
+    address,
+    manifestHash,
+    asOfWorldSeq: 4,
+    characterId: actor,
+    candidatePrefixHash: prefixHash,
     authority: { version: 'resolution-authority/v1', sourceRole: 'player', adjudicationMode: 'standard' },
-    viewPolicyHash, targets, authorizedTargets, ...over,
+    viewPolicyHash,
+    targets,
+    authorizedTargets,
+    ...over,
   }
 }
 
 describe('model schema and host validation share one source', () => {
   const configured: InteractionDefinitionSpec = {
-    versionTag: 'interaction-definition/v1', id: 'fixture:configured', version: 1,
+    versionTag: 'interaction-definition/v1',
+    id: 'fixture:configured',
+    version: 1,
     participantRoles: [actorRole, itemRole],
-    argumentSchema: { fields: [
-      { name: 'tone', type: 'string', maxBytes: 16, values: ['soft', 'firm'] },
-      { name: 'strict', type: 'boolean' },
-      { name: 'attempts', type: 'integer', minimum: 1, maximum: 3 },
-    ] },
+    argumentSchema: {
+      fields: [
+        { name: 'tone', type: 'string', maxBytes: 16, values: ['soft', 'firm'] },
+        { name: 'strict', type: 'boolean' },
+        { name: 'attempts', type: 'integer', minimum: 1, maximum: 3 },
+      ],
+    },
     bindingConfigSchema: { fields: [] },
-    authorityPolicyRef: ref('fixture:public'), preconditions: [ref('fixture:public')],
-    spatialRequirementRefs: [], effectBuilderRef: ref('fixture:effect'), effectCapabilityRefs: [ref('fixture:effect')],
-    dependencyRefs: [], performancePolicyRef: ref('fixture:no-performance'), reactionEvidencePolicyRef: ref('fixture:no-direct'),
+    authorityPolicyRef: ref('fixture:public'),
+    preconditions: [ref('fixture:public')],
+    spatialRequirementRefs: [],
+    effectBuilderRef: ref('fixture:effect'),
+    effectCapabilityRefs: [ref('fixture:effect')],
+    dependencyRefs: [],
+    performancePolicyRef: ref('fixture:no-performance'),
+    reactionEvidencePolicyRef: ref('fixture:no-direct'),
     observationPolicyRef: ref('fixture:public-outcome'),
-    lifecycleRefs: [], limits: { maximumEvents: 1 },
+    lifecycleRefs: [],
+    limits: { maximumEvents: 1 },
   }
 
   it('accepts every offered option and rejects a mismatched triple', () => {
@@ -231,7 +375,14 @@ describe('model schema and host validation share one source', () => {
     const view = instantiate().view(context({ authorizedTargets: [] }))
     expect(view.options).toEqual([])
     const validate = new Ajv({ strict: false }).compile(createInteractionRequestSchema(view))
-    expect(validate({ targetRef: { kind: 'entity', id: 'entity:cup' }, bindingId: 'binding:cup-use', definitionRef: ref('fixture:use'), arguments: {} })).toBe(false)
+    expect(
+      validate({
+        targetRef: { kind: 'entity', id: 'entity:cup' },
+        bindingId: 'binding:cup-use',
+        definitionRef: ref('fixture:use'),
+        arguments: {},
+      }),
+    ).toBe(false)
   })
 
   it('keeps every host-accepted argument set schema-valid across the field sweep', () => {
@@ -251,7 +402,11 @@ describe('model schema and host validation share one source', () => {
     let accepted = 0
     for (const candidate of candidates) {
       let hostAccepts = true
-      try { parameters(configured.argumentSchema, candidate) } catch { hostAccepts = false }
+      try {
+        parameters(configured.argumentSchema, candidate)
+      } catch {
+        hostAccepts = false
+      }
       if (hostAccepts) accepted++
       expect(hostAccepts && !validate(candidate), JSON.stringify(candidate)).toBe(false)
     }
@@ -293,18 +448,40 @@ describe('interaction performance contract', () => {
       policy: { version: 'interaction-performance/v1', accepted: accepted as never },
     }
     const contents = {
-      rules: [publicRule], effects: [transfer], resolvers: [], lifecycle: [], performances: [policy],
+      rules: [publicRule],
+      effects: [transfer],
+      resolvers: [],
+      lifecycle: [],
+      performances: [policy],
       reactionEvidence: [noDirect],
       observation: [noObservation],
       definitions: [{ spec, implementationHash: implementation(spec.id).implementationHash }],
     }
-    const lock: InteractionImplementationLock = { ref: ref('package:perform'), dependencies: [], implementationHash: interactionPackageHash(contents) }
+    const lock: InteractionImplementationLock = {
+      ref: ref('package:perform'),
+      dependencies: [],
+      implementationHash: interactionPackageHash(contents),
+    }
     const registry = new InteractionRegistry()
     registry.install({ lock, ...contents })
     return registry.freeze({
-      address, packages: [lock],
-      definitions: [{ ref: ref(spec.id), definitionHash: hashWorldJson('interaction-definition/v1', spec), implementationHash: implementation(spec.id).implementationHash }],
-      bindings: [{ bindingId: 'binding:perform', targetRef: { kind: 'entity', id: 'entity:cup' }, definitionRef: ref(spec.id), config: {} }],
+      address,
+      packages: [lock],
+      definitions: [
+        {
+          ref: ref(spec.id),
+          definitionHash: hashWorldJson('interaction-definition/v1', spec),
+          implementationHash: implementation(spec.id).implementationHash,
+        },
+      ],
+      bindings: [
+        {
+          bindingId: 'binding:perform',
+          targetRef: { kind: 'entity', id: 'entity:cup' },
+          definitionRef: ref(spec.id),
+          config: {},
+        },
+      ],
     })
   }
 
@@ -313,18 +490,40 @@ describe('interaction performance contract', () => {
   /** Same builder as `performing`, but for a definition whose arguments carry their own contract. */
   function argumentWorld(spec: InteractionDefinitionSpec, packageId: string): FrozenInteractionWorld {
     const contents = {
-      rules: [publicRule], effects: [transfer], resolvers: [], lifecycle: [], performances: [noPerformance],
+      rules: [publicRule],
+      effects: [transfer],
+      resolvers: [],
+      lifecycle: [],
+      performances: [noPerformance],
       reactionEvidence: [noDirect],
       observation: [noObservation],
       definitions: [{ spec, implementationHash: implementation(spec.id).implementationHash }],
     }
-    const lock: InteractionImplementationLock = { ref: ref(packageId), dependencies: [], implementationHash: interactionPackageHash(contents) }
+    const lock: InteractionImplementationLock = {
+      ref: ref(packageId),
+      dependencies: [],
+      implementationHash: interactionPackageHash(contents),
+    }
     const registry = new InteractionRegistry()
     registry.install({ lock, ...contents })
     return registry.freeze({
-      address, packages: [lock],
-      definitions: [{ ref: ref(spec.id), definitionHash: hashWorldJson('interaction-definition/v1', spec), implementationHash: implementation(spec.id).implementationHash }],
-      bindings: [{ bindingId: `binding:${spec.id}`, targetRef: { kind: 'entity', id: 'entity:cup' }, definitionRef: ref(spec.id), config: {} }],
+      address,
+      packages: [lock],
+      definitions: [
+        {
+          ref: ref(spec.id),
+          definitionHash: hashWorldJson('interaction-definition/v1', spec),
+          implementationHash: implementation(spec.id).implementationHash,
+        },
+      ],
+      bindings: [
+        {
+          bindingId: `binding:${spec.id}`,
+          targetRef: { kind: 'entity', id: 'entity:cup' },
+          definitionRef: ref(spec.id),
+          config: {},
+        },
+      ],
     })
   }
 
@@ -358,9 +557,14 @@ describe('interaction performance contract', () => {
     const once = world.resolve(host(), performRequest({ independent: ['smile'], onSuccess: [] }))
     expect(collapsed.performance).toEqual(once.performance)
     // A repeat inside one list is what a step may not state, and refusing it is not a collapse.
-    expect(world.resolve(host(), performRequest({ independent: ['smile', 'smile'], onSuccess: [] })))
-      .toMatchObject({ status: 'rejected', reason: 'PERFORMANCE_NOT_ACCEPTED' })
-    expect(world.resolve(host(), performRequest({ independent: [], onSuccess: [] })).performance).toEqual({ independent: [], onSuccess: [] })
+    expect(world.resolve(host(), performRequest({ independent: ['smile', 'smile'], onSuccess: [] }))).toMatchObject({
+      status: 'rejected',
+      reason: 'PERFORMANCE_NOT_ACCEPTED',
+    })
+    expect(world.resolve(host(), performRequest({ independent: [], onSuccess: [] })).performance).toEqual({
+      independent: [],
+      onSuccess: [],
+    })
   })
 
   it('refuses to bind a voice or gait cue to an interaction step', () => {
@@ -374,24 +578,36 @@ describe('interaction performance contract', () => {
   })
 
   it('refuses a cue that would describe a role the definition never declares', () => {
-    expect(() => performing([{ cue: 'smile', placement: 'both', requiresRole: 'bystander' }])).toThrow(/undeclared role/u)
+    expect(() => performing([{ cue: 'smile', placement: 'both', requiresRole: 'bystander' }])).toThrow(
+      /undeclared role/u,
+    )
     expect(() => performing([{ cue: 'smile', placement: 'both', requiresRole: 'item' }])).not.toThrow()
   })
 
   it('binds the policy into the package lock and refuses an unknown policy version', () => {
     const base = createBasicInteractionPackage()
     const declared = [{ cue: 'smile' as const, placement: 'both' as const, requiresRole: null }]
-    const altered = { ...base, performances: [
-      { ...base.performances[0]!, policy: { version: 'interaction-performance/v1' as const, accepted: declared } },
-      { ...base.performances[0]!, lock: implementation('fixture:second-policy') },
-    ] }
+    const altered = {
+      ...base,
+      performances: [
+        { ...base.performances[0]!, policy: { version: 'interaction-performance/v1' as const, accepted: declared } },
+        { ...base.performances[0]!, lock: implementation('fixture:second-policy') },
+      ],
+    }
     expect(interactionPackageHash(altered)).not.toBe(base.lock.implementationHash)
     // The component list is hashed by identity order, so a reordering must not move the lock.
-    expect(interactionPackageHash(altered)).toBe(interactionPackageHash({ ...altered, performances: [...altered.performances].reverse() }))
+    expect(interactionPackageHash(altered)).toBe(
+      interactionPackageHash({ ...altered, performances: [...altered.performances].reverse() }),
+    )
     // A policy from a future version is refused outright rather than partly understood.
-    expect(() => new InteractionRegistry().install({
-      ...base, performances: [{ ...base.performances[0]!, policy: { version: 'interaction-performance/v2', accepted: [] } as never }],
-    })).toThrow(/unsupported performance policy/u)
+    expect(() =>
+      new InteractionRegistry().install({
+        ...base,
+        performances: [
+          { ...base.performances[0]!, policy: { version: 'interaction-performance/v2', accepted: [] } as never },
+        ],
+      }),
+    ).toThrow(/unsupported performance policy/u)
   })
 
   it('declares the accepted manifestation instead of forbidding the field', () => {
@@ -439,13 +655,29 @@ describe('interaction performance contract', () => {
     expect(accepted.performance).toEqual(submitted)
     // The same attempt against a prefix where the item is unavailable fails the action, but the
     // character still visibly smiled while trying; only the success-bound cue is cancelled.
-    const rejected = world.resolve({ ...host(), authorizedTargets: [] },
-      { targetRef: { kind: 'entity', id: 'entity:cup' }, bindingId: 'binding:perform', definitionRef: ref('fixture:perform'), arguments: {}, performance: submitted })
+    const rejected = world.resolve(
+      { ...host(), authorizedTargets: [] },
+      {
+        targetRef: { kind: 'entity', id: 'entity:cup' },
+        bindingId: 'binding:perform',
+        definitionRef: ref('fixture:perform'),
+        arguments: {},
+        performance: submitted,
+      },
+    )
     expect(rejected.status).toBe('rejected')
     expect(rejected.performance).toEqual({ independent: ['smile'], onSuccess: [] })
     expect(rejected.events).toEqual([])
-    const withheld = world.resolve({ ...host(), authorizedTargets: [] },
-      { targetRef: { kind: 'entity', id: 'entity:cup' }, bindingId: 'binding:perform', definitionRef: ref('fixture:perform'), arguments: {}, performance: { independent: [], onSuccess: ['nod'] } })
+    const withheld = world.resolve(
+      { ...host(), authorizedTargets: [] },
+      {
+        targetRef: { kind: 'entity', id: 'entity:cup' },
+        bindingId: 'binding:perform',
+        definitionRef: ref('fixture:perform'),
+        arguments: {},
+        performance: { independent: [], onSuccess: ['nod'] },
+      },
+    )
     expect(withheld.performance).toBeNull()
   })
 
@@ -455,11 +687,14 @@ describe('interaction performance contract', () => {
       { independent: ['smile'], onSuccess: ['smile', 'smile'] },
       { independent: ['smile', 'smile'], onSuccess: [] },
     ]) {
-      expect(world.resolve(host(), performRequest(step)))
-        .toMatchObject({ status: 'rejected', reason: 'PERFORMANCE_NOT_ACCEPTED' })
+      expect(world.resolve(host(), performRequest(step))).toMatchObject({
+        status: 'rejected',
+        reason: 'PERFORMANCE_NOT_ACCEPTED',
+      })
     }
-    expect(world.resolve(host(), performRequest({ independent: ['smile'], onSuccess: ['smile'] })).performance)
-      .toEqual({ independent: ['smile'], onSuccess: [] })
+    expect(world.resolve(host(), performRequest({ independent: ['smile'], onSuccess: ['smile'] })).performance).toEqual(
+      { independent: ['smile'], onSuccess: [] },
+    )
   })
 
   it('binds the affected-slot policy into the lock and refuses a policy it cannot lay out', () => {
@@ -470,9 +705,18 @@ describe('interaction performance contract', () => {
       reactionEvidencePolicyRef: ref('fixture:direct-missing-role'),
     }
     const undeclaredPackage = {
-      rules: [publicRule], effects: [transfer], resolvers: [], lifecycle: [], performances: [noPerformance],
-      reactionEvidence: [noDirect, { lock: implementation('fixture:direct-missing-role'),
-        policy: { version: 'interaction-reaction-evidence/v1' as const, directRoles: ['nobody'] } }],
+      rules: [publicRule],
+      effects: [transfer],
+      resolvers: [],
+      lifecycle: [],
+      performances: [noPerformance],
+      reactionEvidence: [
+        noDirect,
+        {
+          lock: implementation('fixture:direct-missing-role'),
+          policy: { version: 'interaction-reaction-evidence/v1' as const, directRoles: ['nobody'] },
+        },
+      ],
       observation: [noObservation],
       definitions: [{ spec: undeclared, implementationHash: implementation(undeclared.id).implementationHash }],
     }
@@ -483,9 +727,18 @@ describe('interaction performance contract', () => {
       reactionEvidencePolicyRef: ref('fixture:direct-item'),
     }
     const nonCharacterPackage = {
-      rules: [publicRule], effects: [transfer], resolvers: [], lifecycle: [], performances: [noPerformance],
-      reactionEvidence: [noDirect, { lock: implementation('fixture:direct-item'),
-        policy: { version: 'interaction-reaction-evidence/v1' as const, directRoles: ['item'] } }],
+      rules: [publicRule],
+      effects: [transfer],
+      resolvers: [],
+      lifecycle: [],
+      performances: [noPerformance],
+      reactionEvidence: [
+        noDirect,
+        {
+          lock: implementation('fixture:direct-item'),
+          policy: { version: 'interaction-reaction-evidence/v1' as const, directRoles: ['item'] },
+        },
+      ],
       observation: [noObservation],
       definitions: [{ spec: nonCharacter, implementationHash: implementation(nonCharacter.id).implementationHash }],
     }
@@ -495,24 +748,47 @@ describe('interaction performance contract', () => {
       ...definition('fixture:evidence-orphan', false, false).spec,
       reactionEvidencePolicyRef: ref('missing:evidence'),
     }
-    expect(() => singleWith({
-      rules: [publicRule], effects: [transfer], resolvers: [], lifecycle: [], performances: [noPerformance],
-      reactionEvidence: [noDirect],
-      observation: [noObservation],
-      definitions: [{ spec: orphan, implementationHash: implementation(orphan.id).implementationHash }],
-    }, orphan)).toThrow(/reaction evidence policy missing/u)
+    expect(() =>
+      singleWith(
+        {
+          rules: [publicRule],
+          effects: [transfer],
+          resolvers: [],
+          lifecycle: [],
+          performances: [noPerformance],
+          reactionEvidence: [noDirect],
+          observation: [noObservation],
+          definitions: [{ spec: orphan, implementationHash: implementation(orphan.id).implementationHash }],
+        },
+        orphan,
+      ),
+    ).toThrow(/reaction evidence policy missing/u)
     // The component is part of the published lock, by identity order rather than by array position.
     const base = createBasicInteractionPackage()
     const altered = { ...base, reactionEvidence: [...base.reactionEvidence].reverse() }
     expect(interactionPackageHash(altered)).toBe(base.lock.implementationHash)
-    expect(() => new InteractionRegistry().install({
-      ...base, reactionEvidence: [{ ...base.reactionEvidence[0]!,
-        policy: { version: 'interaction-reaction-evidence/v2', directRoles: [] } as never }],
-    })).toThrow(/unsupported reaction evidence policy/u)
-    expect(() => new InteractionRegistry().install({
-      ...base, reactionEvidence: [{ ...base.reactionEvidence[0]!,
-        policy: { version: 'interaction-reaction-evidence/v1', directRoles: ['target', 'target'] } }],
-    })).toThrow(/duplicate direct role/u)
+    expect(() =>
+      new InteractionRegistry().install({
+        ...base,
+        reactionEvidence: [
+          {
+            ...base.reactionEvidence[0]!,
+            policy: { version: 'interaction-reaction-evidence/v2', directRoles: [] } as never,
+          },
+        ],
+      }),
+    ).toThrow(/unsupported reaction evidence policy/u)
+    expect(() =>
+      new InteractionRegistry().install({
+        ...base,
+        reactionEvidence: [
+          {
+            ...base.reactionEvidence[0]!,
+            policy: { version: 'interaction-reaction-evidence/v1', directRoles: ['target', 'target'] },
+          },
+        ],
+      }),
+    ).toThrow(/duplicate direct role/u)
   })
 
   it('binds the observation policy into the lock and refuses one it cannot read', () => {
@@ -521,40 +797,104 @@ describe('interaction performance contract', () => {
       ...definition('fixture:observation-orphan', false, false).spec,
       observationPolicyRef: ref('missing:observation'),
     }
-    expect(() => singleWith({
-      rules: [publicRule], effects: [transfer], resolvers: [], lifecycle: [], performances: [noPerformance],
-      reactionEvidence: [noDirect], observation: [noObservation],
-      definitions: [{ spec: orphan, implementationHash: implementation(orphan.id).implementationHash }],
-    }, orphan)).toThrow(/observation policy missing/u)
+    expect(() =>
+      singleWith(
+        {
+          rules: [publicRule],
+          effects: [transfer],
+          resolvers: [],
+          lifecycle: [],
+          performances: [noPerformance],
+          reactionEvidence: [noDirect],
+          observation: [noObservation],
+          definitions: [{ spec: orphan, implementationHash: implementation(orphan.id).implementationHash }],
+        },
+        orphan,
+      ),
+    ).toThrow(/observation policy missing/u)
     // The component is part of the published lock, by identity order rather than by array position.
     const base = createBasicInteractionPackage()
-    expect(interactionPackageHash({ ...base, observation: [...base.observation].reverse() }))
-      .toBe(base.lock.implementationHash)
-    expect(() => new InteractionRegistry().install({
-      ...base, observation: [{ ...base.observation[0]!,
-        policy: { version: 'interaction-observation-policy/v2', onAccepted: 'scene_public', onRejected: 'self' } as never }],
-    })).toThrow(/unsupported observation policy/u)
+    expect(interactionPackageHash({ ...base, observation: [...base.observation].reverse() })).toBe(
+      base.lock.implementationHash,
+    )
+    expect(() =>
+      new InteractionRegistry().install({
+        ...base,
+        observation: [
+          {
+            ...base.observation[0]!,
+            policy: {
+              version: 'interaction-observation-policy/v2',
+              onAccepted: 'scene_public',
+              onRejected: 'self',
+            } as never,
+          },
+        ],
+      }),
+    ).toThrow(/unsupported observation policy/u)
     // A scope that names recipients has no way to name them, so only the two open scopes are declarable.
-    expect(() => new InteractionRegistry().install({
-      ...base, observation: [{ ...base.observation[0]!,
-        policy: { version: 'interaction-observation-policy/v1', onAccepted: 'scene_public', onRejected: 'private' } as never }],
-    })).toThrow(/observation scope is unsupported/u)
+    expect(() =>
+      new InteractionRegistry().install({
+        ...base,
+        observation: [
+          {
+            ...base.observation[0]!,
+            policy: {
+              version: 'interaction-observation-policy/v1',
+              onAccepted: 'scene_public',
+              onRejected: 'private',
+            } as never,
+          },
+        ],
+      }),
+    ).toThrow(/observation scope is unsupported/u)
   })
 
   it('refuses to enable a definition whose performance policy is not selected', () => {
     const base = createBasicInteractionPackage()
     const orphan: InteractionDefinitionSpec = {
-      ...base.definitions[0]!.spec, id: 'fixture:orphan', performancePolicyRef: ref('missing:policy'),
+      ...base.definitions[0]!.spec,
+      id: 'fixture:orphan',
+      performancePolicyRef: ref('missing:policy'),
     }
-    const contents = { rules: base.rules, effects: base.effects, resolvers: base.resolvers, lifecycle: base.lifecycle, performances: base.performances, reactionEvidence: base.reactionEvidence, observation: base.observation, definitions: [{ spec: orphan, implementationHash: base.definitions[0]!.implementationHash }] }
-    const lock: InteractionImplementationLock = { ref: ref('package:orphan'), dependencies: [], implementationHash: interactionPackageHash(contents) }
+    const contents = {
+      rules: base.rules,
+      effects: base.effects,
+      resolvers: base.resolvers,
+      lifecycle: base.lifecycle,
+      performances: base.performances,
+      reactionEvidence: base.reactionEvidence,
+      observation: base.observation,
+      definitions: [{ spec: orphan, implementationHash: base.definitions[0]!.implementationHash }],
+    }
+    const lock: InteractionImplementationLock = {
+      ref: ref('package:orphan'),
+      dependencies: [],
+      implementationHash: interactionPackageHash(contents),
+    }
     const registry = new InteractionRegistry()
     registry.install({ lock, ...contents })
-    expect(() => registry.freeze({
-      address, packages: [lock],
-      definitions: [{ ref: ref(orphan.id), definitionHash: hashWorldJson('interaction-definition/v1', orphan), implementationHash: base.definitions[0]!.implementationHash }],
-      bindings: [{ bindingId: 'binding:orphan', targetRef: { kind: 'entity', id: 'entity:cup' }, definitionRef: ref(orphan.id), config: {} }],
-    })).toThrow(/performance policy missing/u)
+    expect(() =>
+      registry.freeze({
+        address,
+        packages: [lock],
+        definitions: [
+          {
+            ref: ref(orphan.id),
+            definitionHash: hashWorldJson('interaction-definition/v1', orphan),
+            implementationHash: base.definitions[0]!.implementationHash,
+          },
+        ],
+        bindings: [
+          {
+            bindingId: 'binding:orphan',
+            targetRef: { kind: 'entity', id: 'entity:cup' },
+            definitionRef: ref(orphan.id),
+            config: {},
+          },
+        ],
+      }),
+    ).toThrow(/performance policy missing/u)
   })
 })
 
@@ -588,14 +928,21 @@ describe('character interaction view', () => {
     const second = instantiate().view(context())
     expect(second.options).toEqual(first.options)
     expect(second.selectedAffordanceHash).toBe(first.selectedAffordanceHash)
-    const keys = first.options.map(option => `${option.definitionRef.id}|${option.targetRef.id}|${option.bindingId}|${JSON.stringify(option.arguments)}`)
-    expect(keys).toEqual([...keys].sort((left, right) => left < right ? -1 : left > right ? 1 : 0))
+    const keys = first.options.map(
+      option =>
+        `${option.definitionRef.id}|${option.targetRef.id}|${option.bindingId}|${JSON.stringify(option.arguments)}`,
+    )
+    expect(keys).toEqual([...keys].sort((left, right) => (left < right ? -1 : left > right ? 1 : 0)))
     // A different prefix is a different view, so the affordance hash must move.
-    const moved = instantiate().view(context({ asOfWorldSeq: 5, candidatePrefixHash: hashWorldJson('fixture/prefix/v1', { at: 5 }) }))
+    const moved = instantiate().view(
+      context({ asOfWorldSeq: 5, candidatePrefixHash: hashWorldJson('fixture/prefix/v1', { at: 5 }) }),
+    )
     expect(moved.selectedAffordanceHash).not.toBe(first.selectedAffordanceHash)
     // So must a different cropping policy.
-    expect(instantiate().view(context({ viewPolicyHash: hashWorldJson('fixture/view-policy/v1', { v: 2 }) })).selectedAffordanceHash)
-      .not.toBe(first.selectedAffordanceHash)
+    expect(
+      instantiate().view(context({ viewPolicyHash: hashWorldJson('fixture/view-policy/v1', { v: 2 }) }))
+        .selectedAffordanceHash,
+    ).not.toBe(first.selectedAffordanceHash)
   })
 
   it('hides an option the plan rejects without exposing the rejection reason', () => {
@@ -614,28 +961,32 @@ describe('character interaction view', () => {
   })
 
   it('withholds a target that is visible but not authorized', () => {
-    const view = instantiate().view(context({
-      authorizedTargets: [{ kind: 'character', id: 'character:alice' }],
-    }))
+    const view = instantiate().view(
+      context({
+        authorizedTargets: [{ kind: 'character', id: 'character:alice' }],
+      }),
+    )
     expect(view.items.map(ref => ref.id)).toEqual(['entity:cup', 'entity:door', 'entity:lamp'])
     expect(view.options).toEqual([])
   })
 
   it('trims whole options to the per-character budget and reports the candidate count', () => {
     const extra = Array.from({ length: 140 }, (_, index) => `entity:bulk-${index}`)
-    const view = instantiate(extra).view(context({
-      targets: [
-        { ref: { kind: 'character' as const, id: actor }, state: states.character(actor) },
-        { ref: { kind: 'character' as const, id: 'character:alice' }, state: states.character('character:alice') },
-        { ref: { kind: 'entity' as const, id: 'entity:cup' }, state: states.entity('entity:cup') },
-        ...extra.map(id => ({ ref: { kind: 'entity' as const, id }, state: states.entity(id) })),
-      ],
-      authorizedTargets: [
-        { kind: 'character', id: 'character:alice' },
-        { kind: 'entity', id: 'entity:cup' },
-        ...extra.map(id => ({ kind: 'entity' as const, id })),
-      ],
-    }))
+    const view = instantiate(extra).view(
+      context({
+        targets: [
+          { ref: { kind: 'character' as const, id: actor }, state: states.character(actor) },
+          { ref: { kind: 'character' as const, id: 'character:alice' }, state: states.character('character:alice') },
+          { ref: { kind: 'entity' as const, id: 'entity:cup' }, state: states.entity('entity:cup') },
+          ...extra.map(id => ({ ref: { kind: 'entity' as const, id }, state: states.entity(id) })),
+        ],
+        authorizedTargets: [
+          { kind: 'character', id: 'character:alice' },
+          { kind: 'entity', id: 'entity:cup' },
+          ...extra.map(id => ({ kind: 'entity' as const, id })),
+        ],
+      }),
+    )
     // cup-use + one give recipient + 140 bulk options, clipped to the frozen budget.
     expect(view.candidateCount).toBe(142)
     expect(view.options).toHaveLength(128)
@@ -647,48 +998,92 @@ describe('character interaction view', () => {
       ...definition('fixture:freeform', true, false).spec,
       participantRoles: [actorRole, itemRole],
     }
-    const contents = { rules: [publicRule], effects: [transfer], resolvers: [], lifecycle: [], performances: [noPerformance], reactionEvidence: [noDirect], observation: [noObservation], definitions: [{ spec, implementationHash: implementation('fixture:freeform').implementationHash }] }
-    const lock: InteractionImplementationLock = { ref: ref('package:freeform'), dependencies: [], implementationHash: interactionPackageHash(contents) }
+    const contents = {
+      rules: [publicRule],
+      effects: [transfer],
+      resolvers: [],
+      lifecycle: [],
+      performances: [noPerformance],
+      reactionEvidence: [noDirect],
+      observation: [noObservation],
+      definitions: [{ spec, implementationHash: implementation('fixture:freeform').implementationHash }],
+    }
+    const lock: InteractionImplementationLock = {
+      ref: ref('package:freeform'),
+      dependencies: [],
+      implementationHash: interactionPackageHash(contents),
+    }
     const registry = new InteractionRegistry()
     registry.install({ lock, ...contents })
     const frozen = registry.freeze({
-      address, packages: [lock],
-      definitions: [{ ref: ref('fixture:freeform'), definitionHash: hashWorldJson('interaction-definition/v1', spec), implementationHash: implementation('fixture:freeform').implementationHash }],
-      bindings: [{ bindingId: 'binding:freeform', targetRef: { kind: 'entity', id: 'entity:cup' }, definitionRef: ref('fixture:freeform'), config: {} }],
+      address,
+      packages: [lock],
+      definitions: [
+        {
+          ref: ref('fixture:freeform'),
+          definitionHash: hashWorldJson('interaction-definition/v1', spec),
+          implementationHash: implementation('fixture:freeform').implementationHash,
+        },
+      ],
+      bindings: [
+        {
+          bindingId: 'binding:freeform',
+          targetRef: { kind: 'entity', id: 'entity:cup' },
+          definitionRef: ref('fixture:freeform'),
+          config: {},
+        },
+      ],
     })
     expect(() => frozen.view(context())).toThrow(/no enumerable domain/u)
   })
 
   it('fails closed when one binding exceeds the argument combination budget', () => {
-    const targets = [{ ref: { kind: 'character' as const, id: actor }, state: states.character(actor) },
+    const targets = [
+      { ref: { kind: 'character' as const, id: actor }, state: states.character(actor) },
       { ref: { kind: 'entity' as const, id: 'entity:cup' }, state: states.entity('entity:cup') },
       ...Array.from({ length: 65 }, (_, index) => ({
-        ref: { kind: 'character' as const, id: `character:c${index}` }, state: states.character(`character:c${index}`),
-      }))]
-    expect(() => instantiate().view(context({
-      targets,
-      authorizedTargets: [
-        { kind: 'entity', id: 'entity:cup' },
-        ...Array.from({ length: 65 }, (_, index) => ({ kind: 'character' as const, id: `character:c${index}` })),
-      ],
-    }))).toThrow(/exceeds the binding budget/u)
+        ref: { kind: 'character' as const, id: `character:c${index}` },
+        state: states.character(`character:c${index}`),
+      })),
+    ]
+    expect(() =>
+      instantiate().view(
+        context({
+          targets,
+          authorizedTargets: [
+            { kind: 'entity', id: 'entity:cup' },
+            ...Array.from({ length: 65 }, (_, index) => ({ kind: 'character' as const, id: `character:c${index}` })),
+          ],
+        }),
+      ),
+    ).toThrow(/exceeds the binding budget/u)
   })
 
   it('enumerates declared boolean, integer and enum domains jointly', () => {
     const spec: InteractionDefinitionSpec = {
-      versionTag: 'interaction-definition/v1', id: 'fixture:configured', version: 1,
+      versionTag: 'interaction-definition/v1',
+      id: 'fixture:configured',
+      version: 1,
       participantRoles: [actorRole, itemRole],
-      argumentSchema: { fields: [
-        { name: 'tone', type: 'string', maxBytes: 16, values: ['soft', 'firm'] },
-        { name: 'strict', type: 'boolean' },
-        { name: 'attempts', type: 'integer', minimum: 1, maximum: 3 },
-      ] },
+      argumentSchema: {
+        fields: [
+          { name: 'tone', type: 'string', maxBytes: 16, values: ['soft', 'firm'] },
+          { name: 'strict', type: 'boolean' },
+          { name: 'attempts', type: 'integer', minimum: 1, maximum: 3 },
+        ],
+      },
       bindingConfigSchema: { fields: [] },
-      authorityPolicyRef: ref('fixture:public'), preconditions: [ref('fixture:public')],
-      spatialRequirementRefs: [], effectBuilderRef: ref('fixture:effect'), effectCapabilityRefs: [ref('fixture:effect')],
-      dependencyRefs: [], performancePolicyRef: ref('fixture:no-performance'), reactionEvidencePolicyRef: ref('fixture:no-direct'),
-    observationPolicyRef: ref('fixture:public-outcome'),
-      lifecycleRefs: [], limits: { maximumEvents: 1 },
+      authorityPolicyRef: ref('fixture:public'),
+      preconditions: [ref('fixture:public')],
+      spatialRequirementRefs: [],
+      effectBuilderRef: ref('fixture:effect'),
+      effectCapabilityRefs: [ref('fixture:effect')],
+      dependencyRefs: [],
+      performancePolicyRef: ref('fixture:no-performance'),
+      reactionEvidencePolicyRef: ref('fixture:no-direct'),
+      observationPolicyRef: ref('fixture:public-outcome'),
+      lifecycleRefs: [],
+      limits: { maximumEvents: 1 },
     }
     const view = single(spec).view(context())
     expect(view.candidateCount).toBe(12)
@@ -704,30 +1099,44 @@ describe('character interaction view', () => {
 
   it('fails closed when an integer domain exceeds the binding budget', () => {
     const spec: InteractionDefinitionSpec = {
-      versionTag: 'interaction-definition/v1', id: 'fixture:wide', version: 1,
+      versionTag: 'interaction-definition/v1',
+      id: 'fixture:wide',
+      version: 1,
       participantRoles: [actorRole, itemRole],
       argumentSchema: { fields: [{ name: 'attempts', type: 'integer', minimum: 1, maximum: 100 }] },
       bindingConfigSchema: { fields: [] },
-      authorityPolicyRef: ref('fixture:public'), preconditions: [ref('fixture:public')],
-      spatialRequirementRefs: [], effectBuilderRef: ref('fixture:effect'), effectCapabilityRefs: [ref('fixture:effect')],
-      dependencyRefs: [], performancePolicyRef: ref('fixture:no-performance'), reactionEvidencePolicyRef: ref('fixture:no-direct'),
-    observationPolicyRef: ref('fixture:public-outcome'),
-      lifecycleRefs: [], limits: { maximumEvents: 1 },
+      authorityPolicyRef: ref('fixture:public'),
+      preconditions: [ref('fixture:public')],
+      spatialRequirementRefs: [],
+      effectBuilderRef: ref('fixture:effect'),
+      effectCapabilityRefs: [ref('fixture:effect')],
+      dependencyRefs: [],
+      performancePolicyRef: ref('fixture:no-performance'),
+      reactionEvidencePolicyRef: ref('fixture:no-direct'),
+      observationPolicyRef: ref('fixture:public-outcome'),
+      lifecycleRefs: [],
+      limits: { maximumEvents: 1 },
     }
     expect(() => single(spec).view(context())).toThrow(/exceeds the binding budget/u)
   })
 
   it('rejects a view context that does not belong to this world or snapshot', () => {
     const world = instantiate()
-    expect(() => world.view(context({ address: { ...address, worldId: brandId('world:other', 'WorldId') } })))
-      .toThrow(/WorldAddress mismatch/u)
-    expect(() => world.view(context({
-      targets: [
-        { ref: { kind: 'entity', id: 'entity:cup' }, state: states.entity('entity:cup') },
-        { ref: { kind: 'entity', id: 'entity:cup' }, state: states.entity('entity:cup') },
-      ],
-    }))).toThrow(/duplicate snapshot target/u)
-    expect(() => world.view(context({ authorizedTargets: [{ kind: 'entity', id: 'entity:ghost' }] })))
-      .toThrow(/invalid target authorization set/u)
+    expect(() => world.view(context({ address: { ...address, worldId: brandId('world:other', 'WorldId') } }))).toThrow(
+      /WorldAddress mismatch/u,
+    )
+    expect(() =>
+      world.view(
+        context({
+          targets: [
+            { ref: { kind: 'entity', id: 'entity:cup' }, state: states.entity('entity:cup') },
+            { ref: { kind: 'entity', id: 'entity:cup' }, state: states.entity('entity:cup') },
+          ],
+        }),
+      ),
+    ).toThrow(/duplicate snapshot target/u)
+    expect(() => world.view(context({ authorizedTargets: [{ kind: 'entity', id: 'entity:ghost' }] }))).toThrow(
+      /invalid target authorization set/u,
+    )
   })
 })

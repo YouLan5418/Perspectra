@@ -536,7 +536,10 @@ export function openWorldDatabase(path: string): DatabaseSync {
     { version: 14, sql: WORLD_OUTBOX_RETRY_SCHEMA },
     { version: 15, sql: WORLD_PROVIDER_OUTPUT_AVAILABILITY_SCHEMA },
     { version: 16, sql: WORLD_REACTION_SCHEMA },
-    { version: 17, sql: 'ALTER TABLE world_reaction_cycles ADD COLUMN action_group_max_actions INTEGER CHECK(action_group_max_actions = 2);' },
+    {
+      version: 17,
+      sql: 'ALTER TABLE world_reaction_cycles ADD COLUMN action_group_max_actions INTEGER CHECK(action_group_max_actions = 2);',
+    },
     { version: 18, sql: PLAYER_INPUT_SCHEMA },
     { version: 19, sql: WORLD_REACTION_EVIDENCE_SCHEMA },
     { version: WORLD_SCHEMA_VERSION, sql: WORLD_RETIRE_REACTION_SCHEMA },

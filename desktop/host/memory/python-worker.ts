@@ -8,8 +8,10 @@ import type { RuntimeModel } from '../../model-connections.ts'
 export type CoreRunner = (input: WorldJsonObject, signal: AbortSignal) => Promise<WorldJsonObject>
 
 export function corePythonExecutable(): string {
-  return process.env.HCW_HINDSIGHT_PYTHON ?? resolve('.tmp/hindsight-vector-venv',
-    process.platform === 'win32' ? 'Scripts/python.exe' : 'bin/python')
+  return (
+    process.env.HCW_HINDSIGHT_PYTHON ??
+    resolve('.tmp/hindsight-vector-venv', process.platform === 'win32' ? 'Scripts/python.exe' : 'bin/python')
+  )
 }
 
 function coreBridgePath(): string {
@@ -22,77 +24,134 @@ function coreBridgePath(): string {
  */
 export function assertCoreEnvironment(): void {
   const python = corePythonExecutable()
-  if (!existsSync(python)) throw new Error(`Core 记忆所需的 Python 环境不存在：${python}。请按 desktop/host/memory/README.md 准备，或设置 HCW_HINDSIGHT_PYTHON；仅离线调试可改用原生记忆（--memory-native）。`)
-  const encoder = join(process.env.HCW_HINDSIGHT_ONNX_DIR ?? resolve('.tmp/hindsight-e5-small'), 'onnx/model_quantized.onnx')
-  if (!existsSync(encoder)) throw new Error(`Core 记忆所需的 E5 编码器不存在：${encoder}。请运行 desktop/host/memory/python/core/setup-vector.py，或设置 HCW_HINDSIGHT_ONNX_DIR。`)
+  if (!existsSync(python))
+    throw new Error(
+      `Core 记忆所需的 Python 环境不存在：${python}。请按 desktop/host/memory/README.md 准备，或设置 HCW_HINDSIGHT_PYTHON；仅离线调试可改用原生记忆（--memory-native）。`,
+    )
+  const encoder = join(
+    process.env.HCW_HINDSIGHT_ONNX_DIR ?? resolve('.tmp/hindsight-e5-small'),
+    'onnx/model_quantized.onnx',
+  )
+  if (!existsSync(encoder))
+    throw new Error(
+      `Core 记忆所需的 E5 编码器不存在：${encoder}。请运行 desktop/host/memory/python/core/setup-vector.py，或设置 HCW_HINDSIGHT_ONNX_DIR。`,
+    )
 }
 
 /** Core JSON bridge. Evidence goes through stdin, never command arguments. */
 export function coreRunner(environment: NodeJS.ProcessEnv = {}): CoreRunner {
-  return (input, signal) => new Promise((resolveResult, reject) => {
-    const child = execFile(corePythonExecutable(), [coreBridgePath()], {
-      signal, timeout: input.operation === 'build' ? 600_000 : 120_000, maxBuffer: 128 * 1024 * 1024,
-      windowsHide: true, encoding: 'utf8',
-      env: { ...process.env, ...environment, PYTHONIOENCODING: 'utf-8', PYTHONHASHSEED: '0' },
-    }, (error, stdout) => {
-      if (error) { reject(new Error('Core 记忆处理失败；请检查本机 Python、E5 资产和模型接口。', { cause: error })); return }
-      try { resolveResult(JSON.parse(stdout) as WorldJsonObject) } catch (cause) {
-        reject(new Error('Core 记忆返回了无效 JSON。', { cause }))
-      }
+  return (input, signal) =>
+    new Promise((resolveResult, reject) => {
+      const child = execFile(
+        corePythonExecutable(),
+        [coreBridgePath()],
+        {
+          signal,
+          timeout: input.operation === 'build' ? 600_000 : 120_000,
+          maxBuffer: 128 * 1024 * 1024,
+          windowsHide: true,
+          encoding: 'utf8',
+          env: { ...process.env, ...environment, PYTHONIOENCODING: 'utf-8', PYTHONHASHSEED: '0' },
+        },
+        (error, stdout) => {
+          if (error) {
+            reject(new Error('Core 记忆处理失败；请检查本机 Python、E5 资产和模型接口。', { cause: error }))
+            return
+          }
+          try {
+            resolveResult(JSON.parse(stdout) as WorldJsonObject)
+          } catch (cause) {
+            reject(new Error('Core 记忆返回了无效 JSON。', { cause }))
+          }
+        },
+      )
+      child.stdin!.on('error', () => {
+        /* execFile reports cancellation/exit through its callback. */
+      })
+      child.stdin!.end(JSON.stringify(input))
     })
-    child.stdin!.on('error', () => { /* execFile reports cancellation/exit through its callback. */ })
-    child.stdin!.end(JSON.stringify(input))
-  })
 }
 
 /** One lazy Python process per web session. Only the encoder is reused; every request supplies its own scope. */
-export function createCoreWorker(environment: NodeJS.ProcessEnv = {}, command?: {
-  readonly executable: string; readonly args: readonly string[]
-}) {
+export function createCoreWorker(
+  environment: NodeJS.ProcessEnv = {},
+  command?: {
+    readonly executable: string
+    readonly args: readonly string[]
+  },
+) {
   let child: import('node:child_process').ChildProcessWithoutNullStreams | undefined
   let exited: Promise<void> = Promise.resolve()
   let closed = false
   let output = ''
-  let pending: { resolve: (result: WorldJsonObject) => void; reject: (error: Error) => void; cleanup: () => void } | undefined
+  let pending:
+    | { resolve: (result: WorldJsonObject) => void; reject: (error: Error) => void; cleanup: () => void }
+    | undefined
   const failure = () => new Error('Core 记忆处理失败；请检查本机 Python、E5 资产和模型接口。')
-  const stop = () => { child?.kill() }
+  const stop = () => {
+    child?.kill()
+  }
   const start = () => {
-    const worker = spawn(command?.executable ?? corePythonExecutable(),
-      [...(command?.args ?? [coreBridgePath(), '--serve'])], {
-        windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'],
+    const worker = spawn(
+      command?.executable ?? corePythonExecutable(),
+      [...(command?.args ?? [coreBridgePath(), '--serve'])],
+      {
+        windowsHide: true,
+        stdio: ['pipe', 'pipe', 'pipe'],
         env: { ...process.env, ...environment, PYTHONIOENCODING: 'utf-8', PYTHONHASHSEED: '0' },
-      })
-    child = worker; output = ''
+      },
+    )
+    child = worker
+    output = ''
     worker.stdout.setEncoding('utf8')
     // Drain library warnings. Private request text and credentials never enter an exposed error message.
     worker.stderr.resume()
     worker.stdout.on('data', (chunk: string) => {
       output += chunk
-      if (Buffer.byteLength(output) > 128 * 1024 * 1024) { stop(); return }
+      if (Buffer.byteLength(output) > 128 * 1024 * 1024) {
+        stop()
+        return
+      }
       const newline = output.indexOf('\n')
       if (newline === -1) return
-      const line = output.slice(0, newline); output = output.slice(newline + 1)
+      const line = output.slice(0, newline)
+      output = output.slice(newline + 1)
       const request = pending
-      if (!request) { stop(); return }
-      pending = undefined; request.cleanup()
+      if (!request) {
+        stop()
+        return
+      }
+      pending = undefined
+      request.cleanup()
       try {
         const reply = JSON.parse(line) as { result?: WorldJsonObject; error?: boolean }
         if (reply.error || reply.result === null || typeof reply.result !== 'object' || Array.isArray(reply.result)) {
-          request.reject(failure()); return
+          request.reject(failure())
+          return
         }
         request.resolve(reply.result)
       } catch {
-        request.reject(new Error('Core 记忆返回了无效 JSON。')); stop()
+        request.reject(new Error('Core 记忆返回了无效 JSON。'))
+        stop()
       }
     })
     worker.on('error', stop)
     worker.stdin.on('error', stop)
-    exited = new Promise<void>(done => worker.once('close', () => {
-      if (child === worker) { child = undefined; output = '' }
-      const request = pending; pending = undefined
-      if (request) { request.cleanup(); request.reject(failure()) }
-      done()
-    }))
+    exited = new Promise<void>(done =>
+      worker.once('close', () => {
+        if (child === worker) {
+          child = undefined
+          output = ''
+        }
+        const request = pending
+        pending = undefined
+        if (request) {
+          request.cleanup()
+          request.reject(failure())
+        }
+        done()
+      }),
+    )
     return worker
   }
   const run: CoreRunner = (input, signal) => {
@@ -103,35 +162,60 @@ export function createCoreWorker(environment: NodeJS.ProcessEnv = {}, command?: 
     return new Promise((resolveResult, reject) => {
       const timer = setTimeout(stop, input.operation === 'build' ? 600_000 : 120_000)
       signal.addEventListener('abort', stop, { once: true })
-      pending = { resolve: resolveResult, reject, cleanup: () => {
-        clearTimeout(timer); signal.removeEventListener('abort', stop)
-      } }
+      pending = {
+        resolve: resolveResult,
+        reject,
+        cleanup: () => {
+          clearTimeout(timer)
+          signal.removeEventListener('abort', stop)
+        },
+      }
       worker.stdin.write(JSON.stringify(input) + '\n')
     })
   }
-  return { run, close: async () => { closed = true; stop(); await exited } }
+  return {
+    run,
+    close: async () => {
+      closed = true
+      stop()
+      await exited
+    },
+  }
 }
 
-export interface MemoryRunners { readonly recall: CoreRunner; readonly build: CoreRunner; readonly close?: () => Promise<void> }
+export interface MemoryRunners {
+  readonly recall: CoreRunner
+  readonly build: CoreRunner
+  readonly close?: () => Promise<void>
+}
 
 /** One runner group per distinct memory model; each Python process sees only its own model's key. */
-export function coreRunnerGroups(dataDirectory: string, start: (environment: NodeJS.ProcessEnv) => MemoryRunners = environment => {
-  const worker = createCoreWorker(environment)
-  return { recall: worker.run, build: coreRunner(environment), close: worker.close }
-}) {
+export function coreRunnerGroups(
+  dataDirectory: string,
+  start: (environment: NodeJS.ProcessEnv) => MemoryRunners = environment => {
+    const worker = createCoreWorker(environment)
+    return { recall: worker.run, build: coreRunner(environment), close: worker.close }
+  },
+) {
   const groups = new Map<string, MemoryRunners>()
   return {
     runnersFor(target: RuntimeModel): MemoryRunners {
       const key = JSON.stringify([target.protocol, target.endpoint, target.model, target.apiKey ?? ''])
       let runners = groups.get(key)
       if (runners === undefined) {
-        runners = start({ HCW_LOCAL_MODEL: target.model, HCW_LOCAL_ENDPOINT: target.endpoint, HCW_MODEL_PROTOCOL: target.protocol,
+        runners = start({
+          HCW_LOCAL_MODEL: target.model,
+          HCW_LOCAL_ENDPOINT: target.endpoint,
+          HCW_MODEL_PROTOCOL: target.protocol,
           HCW_LOCAL_API_KEY: target.apiKey ?? '',
-          HCW_HINDSIGHT_UTILITY_ATTEMPTS: resolve(dataDirectory, 'memory-core', 'utility-attempts.jsonl') })
+          HCW_HINDSIGHT_UTILITY_ATTEMPTS: resolve(dataDirectory, 'memory-core', 'utility-attempts.jsonl'),
+        })
         groups.set(key, runners)
       }
       return runners
     },
-    async close(): Promise<void> { await Promise.all([...groups.values()].map(runners => runners.close?.())) },
+    async close(): Promise<void> {
+      await Promise.all([...groups.values()].map(runners => runners.close?.()))
+    },
   }
 }

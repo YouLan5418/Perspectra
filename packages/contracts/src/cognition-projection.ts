@@ -5,11 +5,16 @@ import type { WorldHash, WorldJsonObject, WorldJsonValue } from './world-json.ts
 import { hashWorldJson } from './world-json.ts'
 
 export const COGNITION_PROJECTION_KINDS = Object.freeze([
-  'subjective-claim', 'character-goal', 'relationship-attitude', 'affect-episode',
-  'inner-tension', 'commitment', 'open-loop',
+  'subjective-claim',
+  'character-goal',
+  'relationship-attitude',
+  'affect-episode',
+  'inner-tension',
+  'commitment',
+  'open-loop',
 ] as const)
 
-export type CognitionProjectionKind = typeof COGNITION_PROJECTION_KINDS[number]
+export type CognitionProjectionKind = (typeof COGNITION_PROJECTION_KINDS)[number]
 
 export interface CognitionProjectionRecord extends WorldJsonObject {
   readonly kind: CognitionProjectionKind

@@ -1,9 +1,18 @@
-import { assertProtocolString, canonicalizeWorldJson, type InteractionParameterSchema, type InteractionRef, type InteractionTargetRef, type WorldJsonObject, type WorldJsonValue } from '@harness-world/contracts'
+import {
+  assertProtocolString,
+  canonicalizeWorldJson,
+  type InteractionParameterSchema,
+  type InteractionRef,
+  type InteractionTargetRef,
+  type WorldJsonObject,
+  type WorldJsonValue,
+} from '@harness-world/contracts'
 
 export function object(value: unknown, keys: readonly string[]): Record<string, unknown> {
   if (value === null || typeof value !== 'object' || Array.isArray(value)) throw new TypeError('expected closed object')
   const names = Object.keys(value)
-  if (names.length !== keys.length || keys.some(key => !Object.hasOwn(value, key))) throw new TypeError('missing or extra fields')
+  if (names.length !== keys.length || keys.some(key => !Object.hasOwn(value, key)))
+    throw new TypeError('missing or extra fields')
   return value as Record<string, unknown>
 }
 
@@ -13,7 +22,13 @@ export function text(value: unknown): string {
 }
 
 export function integer(value: unknown, minimum: number, maximum: number): number {
-  if (!Number.isSafeInteger(value) || Object.is(value, -0) || (value as number) < minimum || (value as number) > maximum) throw new TypeError('integer outside limits')
+  if (
+    !Number.isSafeInteger(value) ||
+    Object.is(value, -0) ||
+    (value as number) < minimum ||
+    (value as number) > maximum
+  )
+    throw new TypeError('integer outside limits')
   return value as number
 }
 
@@ -38,12 +53,17 @@ export function target(value: unknown): InteractionTargetRef {
   return { kind: row.kind as InteractionTargetRef['kind'], id: text(row.id) }
 }
 
-export function targetKey(value: InteractionTargetRef): string { return `${value.kind}:${value.id}` }
+export function targetKey(value: InteractionTargetRef): string {
+  return `${value.kind}:${value.id}`
+}
 
 export function immutable<T>(value: T): T {
   const copy = JSON.parse(Buffer.from(canonicalizeWorldJson(value as WorldJsonValue)).toString('utf8')) as T
   function freeze(entry: unknown): void {
-    if (entry !== null && typeof entry === 'object') { Object.values(entry).forEach(freeze); Object.freeze(entry) }
+    if (entry !== null && typeof entry === 'object') {
+      Object.values(entry).forEach(freeze)
+      Object.freeze(entry)
+    }
   }
   freeze(copy)
   return copy
@@ -56,7 +76,11 @@ export function parameterSchema(value: unknown): InteractionParameterSchema {
     if (input === null || typeof input !== 'object') throw new TypeError('invalid parameter field')
     const field = input as Record<string, unknown>
     const name = text(field.name)
-    if (names.has(name) || ['actorId', 'authority', 'resolutionAuthority', '__proto__', 'prototype', 'constructor'].includes(name)) throw new TypeError('duplicate or reserved parameter')
+    if (
+      names.has(name) ||
+      ['actorId', 'authority', 'resolutionAuthority', '__proto__', 'prototype', 'constructor'].includes(name)
+    )
+      throw new TypeError('duplicate or reserved parameter')
     names.add(name)
     if (field.type === 'boolean') object(field, ['name', 'type'])
     else if (field.type === 'integer') {
@@ -69,7 +93,8 @@ export function parameterSchema(value: unknown): InteractionParameterSchema {
       const values = list(field.values, 64)
       if (new Set(values).size !== values.length) throw new TypeError('duplicate enum')
       for (const item of values) {
-        if (typeof item !== 'string' || Buffer.byteLength(item, 'utf8') > (field.maxBytes as number)) throw new TypeError('invalid string enum')
+        if (typeof item !== 'string' || Buffer.byteLength(item, 'utf8') > (field.maxBytes as number))
+          throw new TypeError('invalid string enum')
       }
     } else throw new TypeError('unsupported parameter field')
   }
@@ -77,13 +102,22 @@ export function parameterSchema(value: unknown): InteractionParameterSchema {
 }
 
 export function parameters(schema: InteractionParameterSchema, value: unknown): WorldJsonObject {
-  const row = object(value, schema.fields.map(field => field.name))
+  const row = object(
+    value,
+    schema.fields.map(field => field.name),
+  )
   canonicalizeWorldJson(row as WorldJsonObject)
   for (const field of schema.fields) {
     const item = row[field.name]
     if (field.type === 'integer') integer(item, field.minimum, field.maximum)
-    else if (field.type === 'boolean') { if (typeof item !== 'boolean') throw new TypeError('expected boolean') }
-    else if (typeof item !== 'string' || Buffer.byteLength(item, 'utf8') > field.maxBytes || (field.values.length > 0 && !field.values.includes(item))) throw new TypeError('string outside parameter domain')
+    else if (field.type === 'boolean') {
+      if (typeof item !== 'boolean') throw new TypeError('expected boolean')
+    } else if (
+      typeof item !== 'string' ||
+      Buffer.byteLength(item, 'utf8') > field.maxBytes ||
+      (field.values.length > 0 && !field.values.includes(item))
+    )
+      throw new TypeError('string outside parameter domain')
   }
   return immutable(row as WorldJsonObject)
 }

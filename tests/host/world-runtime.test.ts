@@ -39,102 +39,195 @@ async function listening(server: Server): Promise<number> {
   return typeof address === 'object' && address !== null ? address.port : 0
 }
 
-
 // These tests exercise the host's generic transfer mechanism, not the current
 // AI-girls pack's gameplay. Declare a local fixture instead of restoring daily
 // interactions to the real pack.
-function interactionFixture():string {
-  const root=mkdtempSync(join(tmpdir(),'frozen-interaction-fixture-'));roots.push(root)
-  cpSync(resolve('examples/world-packs/ai-girls-awaken-v10'),root,{recursive:true})
-  const definitions=['take','drop'].map(id=>({id:'base:'+id,version:1}))
-  writeFileSync(join(root,'entities.json'),JSON.stringify({schemaVersion:'worldpack-entities/v2',
-    entities:[{entityId:'entity:phone',locationId:'location:bedroom',kind:'phone',
-      interactionBindings:definitions.map(d=>({bindingId:'binding:phone-'+d.id.slice(5),definition:d,config:{}}))}]}))
-  writeFileSync(join(root,'interactions.json'),JSON.stringify({schemaVersion:'worldpack-interactions/v1',
-    packages:[{id:'package:interactions-basic',version:1}],definitions,relationBindings:[]}))
+function interactionFixture(): string {
+  const root = mkdtempSync(join(tmpdir(), 'frozen-interaction-fixture-'))
+  roots.push(root)
+  cpSync(resolve('examples/world-packs/ai-girls-awaken-v10'), root, { recursive: true })
+  const definitions = ['take', 'drop'].map(id => ({ id: 'base:' + id, version: 1 }))
+  writeFileSync(
+    join(root, 'entities.json'),
+    JSON.stringify({
+      schemaVersion: 'worldpack-entities/v2',
+      entities: [
+        {
+          entityId: 'entity:phone',
+          locationId: 'location:bedroom',
+          kind: 'phone',
+          interactionBindings: definitions.map(d => ({
+            bindingId: 'binding:phone-' + d.id.slice(5),
+            definition: d,
+            config: {},
+          })),
+        },
+      ],
+    }),
+  )
+  writeFileSync(
+    join(root, 'interactions.json'),
+    JSON.stringify({
+      schemaVersion: 'worldpack-interactions/v1',
+      packages: [{ id: 'package:interactions-basic', version: 1 }],
+      definitions,
+      relationBindings: [],
+    }),
+  )
   return root
 }
 
 describe('the web playtest on a frozen world', () => {
-
   it('reports the failed role HTTP status without exposing endpoint details', async () => {
-    const root = mkdtempSync(join(tmpdir(), 'role-http-status-')); roots.push(root)
+    const root = mkdtempSync(join(tmpdir(), 'role-http-status-'))
+    roots.push(root)
     const server = createServer((_request, response) => {
       response.writeHead(400, { 'content-type': 'application/json' })
       response.end(JSON.stringify({ error: 'private endpoint detail' }))
     })
     servers.push(server)
-    const runtime = await WorldHostRuntime.create({ dataDirectory: root,
-      packPath: interactionFixture(), provider: 'ollama', model: 'fixture',
-      utilityEndpoint: `http://127.0.0.1:${await listening(server)}/api/chat` })
+    const runtime = await WorldHostRuntime.create({
+      dataDirectory: root,
+      packPath: interactionFixture(),
+      provider: 'ollama',
+      model: 'fixture',
+      utilityEndpoint: `http://127.0.0.1:${await listening(server)}/api/chat`,
+    })
     try {
       const state = await runtime.submit('/act speak {"text":"大家早安。"}')
       expect(state.error).toBe(true)
       expect(state.notice).toContain('HTTP 400')
       expect(state.notice).not.toContain('private endpoint detail')
-    } finally { await runtime.close() }
+    } finally {
+      await runtime.close()
+    }
   })
 
   it('keeps a committed reply in another room private during incremental projection', async () => {
-    const root = mkdtempSync(join(tmpdir(), 'incremental-private-')); roots.push(root)
+    const root = mkdtempSync(join(tmpdir(), 'incremental-private-'))
+    roots.push(root)
     let entered!: () => void, release!: () => void
-    const waiting = new Promise<void>(done => { entered = done })
-    const gate = new Promise<void>(done => { release = done })
-    let movingId = '', movingName = ''
+    const waiting = new Promise<void>(done => {
+      entered = done
+    })
+    const gate = new Promise<void>(done => {
+      release = done
+    })
+    let movingId = '',
+      movingName = ''
     const server = createServer((request, response) => {
-      let body = ''; request.on('data', chunk => { body += String(chunk) })
-      request.on('end', () => { void (async () => {
-        const input = JSON.parse(JSON.parse(body).messages.at(-1).content)
-        const actor = input.context.character.characterId as string
-        if (!movingId) { movingId = actor; movingName = input.context.character.name }
-        if (actor !== movingId) { entered(); await gate }
-        const answer = actor !== movingId ? { decision: 'abstain' }
-          : input.continuation ? { decision: 'publish', segments: [{ type: 'speech', text: '另一个房间的私密回复。' }] }
-            : { decision: 'perform', actionType: 'move', parameters: { locationId: 'location:living-room' } }
-        response.writeHead(200, { 'content-type': 'application/json' })
-        response.end(JSON.stringify({ message: { content: JSON.stringify(answer) } }))
-      })() })
-    }); servers.push(server)
-    const runtime = await WorldHostRuntime.create({ dataDirectory: root,
-      packPath: resolve('examples/world-packs/ai-girls-awaken-v10'), provider: 'ollama', model: 'fixture',
-      utilityEndpoint: `http://127.0.0.1:${await listening(server)}/api/chat` })
+      let body = ''
+      request.on('data', chunk => {
+        body += String(chunk)
+      })
+      request.on('end', () => {
+        void (async () => {
+          const input = JSON.parse(JSON.parse(body).messages.at(-1).content)
+          const actor = input.context.character.characterId as string
+          if (!movingId) {
+            movingId = actor
+            movingName = input.context.character.name
+          }
+          if (actor !== movingId) {
+            entered()
+            await gate
+          }
+          const answer =
+            actor !== movingId
+              ? { decision: 'abstain' }
+              : input.continuation
+                ? { decision: 'publish', segments: [{ type: 'speech', text: '另一个房间的私密回复。' }] }
+                : { decision: 'perform', actionType: 'move', parameters: { locationId: 'location:living-room' } }
+          response.writeHead(200, { 'content-type': 'application/json' })
+          response.end(JSON.stringify({ message: { content: JSON.stringify(answer) } }))
+        })()
+      })
+    })
+    servers.push(server)
+    const runtime = await WorldHostRuntime.create({
+      dataDirectory: root,
+      packPath: resolve('examples/world-packs/ai-girls-awaken-v10'),
+      provider: 'ollama',
+      model: 'fixture',
+      utilityEndpoint: `http://127.0.0.1:${await listening(server)}/api/chat`,
+    })
     let pending: Promise<unknown> | undefined
     try {
-      pending = runtime.submit('大家早上好。'); await waiting
-      await vi.waitFor(() => {
-        const store = new WorldStore(resolve(root, 'world.sqlite'))
-        try { expect(store.readEvents(runtime.address).some(event => event.eventType === 'character.speak'
-          && JSON.stringify(event.data).includes('另一个房间的私密回复'))).toBe(true) } finally { store.close() }
-      }, { timeout: 10000 })
+      pending = runtime.submit('大家早上好。')
+      await waiting
+      await vi.waitFor(
+        () => {
+          const store = new WorldStore(resolve(root, 'world.sqlite'))
+          try {
+            expect(
+              store
+                .readEvents(runtime.address)
+                .some(
+                  event =>
+                    event.eventType === 'character.speak' &&
+                    JSON.stringify(event.data).includes('另一个房间的私密回复'),
+                ),
+            ).toBe(true)
+          } finally {
+            store.close()
+          }
+        },
+        { timeout: 10000 },
+      )
       const interim = await runtime.state()
       expect(interim.busy).toBe(true)
       expect(interim.world.currentScene?.presentNpcNames).not.toContain(movingName)
       expect(interim.transcript.some(line => line.speaker === movingName && /离开了|去了/u.test(line.text))).toBe(true)
       expect(JSON.stringify(interim)).not.toContain('另一个房间的私密回复')
-      await runtime.pause(); release(); await pending
+      await runtime.pause()
+      release()
+      await pending
       expect(JSON.stringify(await runtime.state())).not.toContain('另一个房间的私密回复')
-    } finally { release(); await pending; await runtime.close() }
+    } finally {
+      release()
+      await pending
+      await runtime.close()
+    }
   }, 30_000)
 
-
   it('projects committed replies while later NPC output is still pending', async () => {
-    const root = mkdtempSync(join(tmpdir(), 'incremental-reply-')); roots.push(root)
+    const root = mkdtempSync(join(tmpdir(), 'incremental-reply-'))
+    roots.push(root)
     let entered!: () => void, release!: () => void
-    const waiting = new Promise<void>(done => { entered = done })
-    const gate = new Promise<void>(done => { release = done })
+    const waiting = new Promise<void>(done => {
+      entered = done
+    })
+    const gate = new Promise<void>(done => {
+      release = done
+    })
     let calls = 0
     const server = createServer(async (_request, response) => {
       calls++
-      if (calls === 2) { entered(); await gate }
+      if (calls === 2) {
+        entered()
+        await gate
+      }
       response.writeHead(200, { 'content-type': 'application/json' })
-      response.end(JSON.stringify({ message: { content: JSON.stringify(calls === 1
-        ? { decision: 'publish', segments: [{ type: 'speech', text: '已提交的第一条回复。' }] }
-        : { decision: 'publish', segments: [{ type: 'speech', text: '尚未提交的第二条回复。' }] }) } }))
+      response.end(
+        JSON.stringify({
+          message: {
+            content: JSON.stringify(
+              calls === 1
+                ? { decision: 'publish', segments: [{ type: 'speech', text: '已提交的第一条回复。' }] }
+                : { decision: 'publish', segments: [{ type: 'speech', text: '尚未提交的第二条回复。' }] },
+            ),
+          },
+        }),
+      )
     })
     servers.push(server)
-    const runtime = await WorldHostRuntime.create({ dataDirectory: root,
-      packPath: resolve('examples/world-packs/ai-girls-awaken-v10'), provider: 'ollama', model: 'fixture',
-      utilityEndpoint: `http://127.0.0.1:${await listening(server)}/api/chat` })
+    const runtime = await WorldHostRuntime.create({
+      dataDirectory: root,
+      packPath: resolve('examples/world-packs/ai-girls-awaken-v10'),
+      provider: 'ollama',
+      model: 'fixture',
+      utilityEndpoint: `http://127.0.0.1:${await listening(server)}/api/chat`,
+    })
     let pending: Promise<unknown> | undefined
     try {
       pending = runtime.submit('大家早上好。')
@@ -145,91 +238,138 @@ describe('the web playtest on a frozen world', () => {
       expect(interim.transcript.some(line => line.text.includes('尚未提交的第二条回复'))).toBe(false)
       expect(JSON.stringify(interim)).not.toContain('basisRefs')
       await runtime.pause()
-      release(); await pending
+      release()
+      await pending
       const final = await runtime.state()
       expect(final.transcript.some(line => line.text.includes('已提交的第一条回复'))).toBe(true)
       expect(final.transcript.some(line => line.text.includes('尚未提交的第二条回复'))).toBe(false)
-    } finally { release(); await pending; await runtime.close() }
+    } finally {
+      release()
+      await pending
+      await runtime.close()
+    }
   }, 30_000)
 
   it('revisits emptied rooms and restores NPC speech audiences without revealing isolated speech', async () => {
-    const root=mkdtempSync(join(tmpdir(),'empty-room-return-'));roots.push(root)
-    const inputs:unknown[]=[]
-    const server=createServer((request,response)=>{
-      let body='';request.on('data',chunk=>{body+=String(chunk)})
-      request.on('end',()=>{
-        inputs.push(JSON.parse(JSON.parse(body).messages.at(-1).content))
-        response.writeHead(200,{'content-type':'application/json'})
-        response.end(JSON.stringify({message:{content:JSON.stringify({decision:'abstain'})}}))
+    const root = mkdtempSync(join(tmpdir(), 'empty-room-return-'))
+    roots.push(root)
+    const inputs: unknown[] = []
+    const server = createServer((request, response) => {
+      let body = ''
+      request.on('data', chunk => {
+        body += String(chunk)
       })
-    });servers.push(server)
-    const runtime=await WorldHostRuntime.create({dataDirectory:root,
-      packPath:resolve('examples/world-packs/ai-girls-awaken-v10'),provider:'ollama',model:'fixture',
-      utilityEndpoint:`http://127.0.0.1:${await listening(server)}/api/chat`})
+      request.on('end', () => {
+        inputs.push(JSON.parse(JSON.parse(body).messages.at(-1).content))
+        response.writeHead(200, { 'content-type': 'application/json' })
+        response.end(JSON.stringify({ message: { content: JSON.stringify({ decision: 'abstain' }) } }))
+      })
+    })
+    servers.push(server)
+    const runtime = await WorldHostRuntime.create({
+      dataDirectory: root,
+      packPath: resolve('examples/world-packs/ai-girls-awaken-v10'),
+      provider: 'ollama',
+      model: 'fixture',
+      utilityEndpoint: `http://127.0.0.1:${await listening(server)}/api/chat`,
+    })
     try {
-      for(const locationId of ['location:living-room','location:kitchen','location:living-room']){
-        const state=await runtime.submit('/act move '+JSON.stringify({locationId}))
+      for (const locationId of ['location:living-room', 'location:kitchen', 'location:living-room']) {
+        const state = await runtime.submit('/act move ' + JSON.stringify({ locationId }))
         expect(state.error).toBe(false)
         expect(state.world.currentScene?.presentNpcNames).toEqual([])
       }
-      const count=inputs.length
+      const count = inputs.length
       await runtime.submit('独处时的隔离标记-7316。')
       expect(inputs).toHaveLength(count)
-      const back=await runtime.submit('/act move {"locationId":"location:bedroom"}')
+      const back = await runtime.submit('/act move {"locationId":"location:bedroom"}')
       expect(back.world.currentScene?.presentNpcNames).toHaveLength(4)
-      inputs.length=0
+      inputs.length = 0
       await runtime.submit('我回来了，大家还在吗？')
       expect(inputs).toHaveLength(4)
       expect(JSON.stringify(inputs)).not.toContain('隔离标记-7316')
-      const invalid=await runtime.submit('/act move {"locationId":"location:absent"}')
+      const invalid = await runtime.submit('/act move {"locationId":"location:absent"}')
       expect(invalid.world.currentScene?.locationName).toBe(back.world.currentScene?.locationName)
       expect(invalid.world.currentScene?.presentNpcNames).toHaveLength(4)
-    } finally {await runtime.close()}
-  },30_000)
+    } finally {
+      await runtime.close()
+    }
+  }, 30_000)
 
   it('sends the local Gemini endpoint a flat decision schema with real movement destinations', async () => {
-    const root = mkdtempSync(join(tmpdir(), 'gemini-flat-tool-')); roots.push(root)
+    const root = mkdtempSync(join(tmpdir(), 'gemini-flat-tool-'))
+    roots.push(root)
     const schemas: unknown[] = []
     const server = createServer((request, response) => {
       let body = ''
-      request.on('data', chunk => { body += String(chunk) })
+      request.on('data', chunk => {
+        body += String(chunk)
+      })
       request.on('end', () => {
         const wire = JSON.parse(body)
         schemas.push(wire.tools[0].function.parameters)
         response.writeHead(200, { 'content-type': 'application/json' })
-        response.end(JSON.stringify({ choices: [{ message: { tool_calls: [{
-          function: { name: 'submit_actions', arguments: '{"decision":"abstain"}' },
-        }] } }] }))
+        response.end(
+          JSON.stringify({
+            choices: [
+              {
+                message: {
+                  tool_calls: [
+                    {
+                      function: { name: 'submit_actions', arguments: '{"decision":"abstain"}' },
+                    },
+                  ],
+                },
+              },
+            ],
+          }),
+        )
       })
     })
     servers.push(server)
-    const runtime = await WorldHostRuntime.create({ dataDirectory: root,
-      packPath: interactionFixture(), provider: 'local',
-      model: 'gemini-3.7-flash', memoryShadow: true,
-      utilityEndpoint: `http://127.0.0.1:${await listening(server)}/v1/chat/completions` })
+    const runtime = await WorldHostRuntime.create({
+      dataDirectory: root,
+      packPath: interactionFixture(),
+      provider: 'local',
+      model: 'gemini-3.7-flash',
+      memoryShadow: true,
+      utilityEndpoint: `http://127.0.0.1:${await listening(server)}/v1/chat/completions`,
+    })
     try {
       const state = await runtime.submit('/act speak {"text":"早上好。"}')
       expect(state.error).toBe(false)
-      const shadow = readFileSync(resolve(root, 'memory-shadow.jsonl'), 'utf8').trim().split('\n')
+      const shadow = readFileSync(resolve(root, 'memory-shadow.jsonl'), 'utf8')
+        .trim()
+        .split('\n')
         .map(line => JSON.parse(line) as { phase: string; characterId: string; asOfWorldSeq: number })
       expect(shadow).toHaveLength(4)
       expect(shadow.every(row => row.phase === 'automatic' && row.asOfWorldSeq > 0)).toBe(true)
       expect(schemas).toHaveLength(4)
       expect((schemas[0] as { oneOf?: unknown }).oneOf).toBeUndefined()
-      expect(schemas[0]).toMatchObject({ properties: {
-        decision: { enum: expect.arrayContaining(['publish', 'perform']) },
-        parameters: { additionalProperties: false, properties: {
-          locationId: { enum: expect.arrayContaining(['location:living-room']) },
-        } },
-      } })
-    } finally { await runtime.close() }
+      expect(schemas[0]).toMatchObject({
+        properties: {
+          decision: { enum: expect.arrayContaining(['publish', 'perform']) },
+          parameters: {
+            additionalProperties: false,
+            properties: {
+              locationId: { enum: expect.arrayContaining(['location:living-room']) },
+            },
+          },
+        },
+      })
+    } finally {
+      await runtime.close()
+    }
   })
   it('runs two committed operations and a final expression in one default character activation', async () => {
-    const root = mkdtempSync(join(tmpdir(), 'activation-two-operations-')); roots.push(root)
+    const root = mkdtempSync(join(tmpdir(), 'activation-two-operations-'))
+    roots.push(root)
     let claudeCalls = 0
     const server = createServer((request, response) => {
       let body = ''
-      request.on('data', chunk => { body += String(chunk) })
+      request.on('data', chunk => {
+        body += String(chunk)
+      })
       request.on('end', () => {
         const wire = JSON.parse(body)
         const input = JSON.parse(wire.messages.at(-1).content)
@@ -240,10 +380,16 @@ describe('the web playtest on a frozen world', () => {
             expect(input.canPerform).toBe(true)
             if (claudeCalls === 2) expect(input.result.status).toBe('accepted')
             const definition = claudeCalls === 1 ? 'take' : 'drop'
-            answer = { decision: 'perform', actionType: 'interact', parameters: {
-              targetRef: { kind: 'entity', id: 'entity:phone' }, bindingId: `binding:phone-${definition}`,
-              definitionRef: { id: `base:${definition}`, version: 1 }, arguments: {},
-            } }
+            answer = {
+              decision: 'perform',
+              actionType: 'interact',
+              parameters: {
+                targetRef: { kind: 'entity', id: 'entity:phone' },
+                bindingId: `binding:phone-${definition}`,
+                definitionRef: { id: `base:${definition}`, version: 1 },
+                arguments: {},
+              },
+            }
           } else {
             expect(input.canPerform).toBe(false)
             expect(input.result.status).toBe('accepted')
@@ -255,9 +401,13 @@ describe('the web playtest on a frozen world', () => {
       })
     })
     servers.push(server)
-    const runtime = await WorldHostRuntime.create({ dataDirectory: root,
-      packPath: interactionFixture(), provider: 'ollama', model: 'fixture',
-      utilityEndpoint: `http://127.0.0.1:${await listening(server)}/api/chat` })
+    const runtime = await WorldHostRuntime.create({
+      dataDirectory: root,
+      packPath: interactionFixture(),
+      provider: 'ollama',
+      model: 'fixture',
+      utilityEndpoint: `http://127.0.0.1:${await listening(server)}/api/chat`,
+    })
     try {
       const state = await runtime.submit('/act speak {"text":"大家早安。"}')
       expect(state.error).toBe(false)
@@ -268,29 +418,54 @@ describe('the web playtest on a frozen world', () => {
         const events = store.readEvents(runtime.address)
         expect(events.filter(event => event.eventType === 'entity.transferred')).toHaveLength(2)
         expect(currentEntityState(events, 'entity:phone')?.holderId).toBeNull()
-      } finally { store.close() }
-    } finally { await runtime.close() }
+      } finally {
+        store.close()
+      }
+    } finally {
+      await runtime.close()
+    }
   }, 30_000)
 
   it('drops a character operation returned after the page pauses the activation', async () => {
-    const root = mkdtempSync(join(tmpdir(), 'activation-pause-')); roots.push(root)
+    const root = mkdtempSync(join(tmpdir(), 'activation-pause-'))
+    roots.push(root)
     let wake!: () => void
-    const started = new Promise<void>(resolve => { wake = resolve })
+    const started = new Promise<void>(resolve => {
+      wake = resolve
+    })
     let finish!: () => void
-    const release = new Promise<void>(resolve => { finish = resolve })
+    const release = new Promise<void>(resolve => {
+      finish = resolve
+    })
     const server = createServer(async (_request, response) => {
       wake()
       await release
       response.writeHead(200, { 'content-type': 'application/json' })
-      response.end(JSON.stringify({ message: { content: JSON.stringify({ decision: 'perform', actionType: 'interact', parameters: {
-        targetRef: { kind: 'entity', id: 'entity:phone' }, bindingId: 'binding:phone-take',
-        definitionRef: { id: 'base:take', version: 1 }, arguments: {},
-      } }) } }))
+      response.end(
+        JSON.stringify({
+          message: {
+            content: JSON.stringify({
+              decision: 'perform',
+              actionType: 'interact',
+              parameters: {
+                targetRef: { kind: 'entity', id: 'entity:phone' },
+                bindingId: 'binding:phone-take',
+                definitionRef: { id: 'base:take', version: 1 },
+                arguments: {},
+              },
+            }),
+          },
+        }),
+      )
     })
     servers.push(server)
-    const runtime = await WorldHostRuntime.create({ dataDirectory: root,
-      packPath: interactionFixture(), provider: 'ollama', model: 'fixture',
-      utilityEndpoint: `http://127.0.0.1:${await listening(server)}/api/chat` })
+    const runtime = await WorldHostRuntime.create({
+      dataDirectory: root,
+      packPath: interactionFixture(),
+      provider: 'ollama',
+      model: 'fixture',
+      utilityEndpoint: `http://127.0.0.1:${await listening(server)}/api/chat`,
+    })
     try {
       const pending = runtime.submit('/act speak {"text":"大家早安。"}')
       await started
@@ -300,29 +475,53 @@ describe('the web playtest on a frozen world', () => {
       expect(state.error).toBe(true)
       expect(state.notice).toContain('打断或超时')
       const store = new WorldStore(resolve(root, 'world.sqlite'))
-      try { expect(store.readEvents(runtime.address).filter(event => event.eventType === 'entity.transferred')).toHaveLength(0) }
-      finally { store.close() }
-    } finally { finish(); await runtime.close() }
+      try {
+        expect(
+          store.readEvents(runtime.address).filter(event => event.eventType === 'entity.transferred'),
+        ).toHaveLength(0)
+      } finally {
+        store.close()
+      }
+    } finally {
+      finish()
+      await runtime.close()
+    }
   }, 30_000)
 
   it('reports an invalid continuation, keeps the committed item transfer, and does not replay it on reopen', async () => {
-    const root = mkdtempSync(join(tmpdir(), 'activation-reopen-')); roots.push(root)
+    const root = mkdtempSync(join(tmpdir(), 'activation-reopen-'))
+    roots.push(root)
     let calls = 0
     const server = createServer((_request, response) => {
       calls++
-      const answer = calls === 1 ? { decision: 'perform', actionType: 'interact', parameters: {
-        targetRef: { kind: 'entity', id: 'entity:phone' }, bindingId: 'binding:phone-take',
-        definitionRef: { id: 'base:take', version: 1 }, arguments: {},
-      } } : calls <= 3 ? { decision: 'publish', extra: true, segments: [{ type: 'speech', text: '没完成的续写' }] }
-        : { decision: 'abstain' }
+      const answer =
+        calls === 1
+          ? {
+              decision: 'perform',
+              actionType: 'interact',
+              parameters: {
+                targetRef: { kind: 'entity', id: 'entity:phone' },
+                bindingId: 'binding:phone-take',
+                definitionRef: { id: 'base:take', version: 1 },
+                arguments: {},
+              },
+            }
+          : calls <= 3
+            ? { decision: 'publish', extra: true, segments: [{ type: 'speech', text: '没完成的续写' }] }
+            : { decision: 'abstain' }
       response.writeHead(200, { 'content-type': 'application/json' })
       response.end(JSON.stringify({ message: { content: JSON.stringify(answer) } }))
     })
     servers.push(server)
     const port = await listening(server)
-    const open = () => WorldHostRuntime.create({ dataDirectory: root,
-      packPath: interactionFixture(), provider: 'ollama', model: 'fixture',
-      utilityEndpoint: `http://127.0.0.1:${port}/api/chat` })
+    const open = () =>
+      WorldHostRuntime.create({
+        dataDirectory: root,
+        packPath: interactionFixture(),
+        provider: 'ollama',
+        model: 'fixture',
+        utilityEndpoint: `http://127.0.0.1:${port}/api/chat`,
+      })
     const first = await open()
     let initialHead: number
     let initialHolder: string | null | undefined
@@ -340,8 +539,12 @@ describe('the web playtest on a frozen world', () => {
         expect(['character:claude', 'character:deepseek', 'character:glm', 'character:gpt']).toContain(initialHolder)
         expect(events.filter(event => event.eventType === 'entity.transferred')).toHaveLength(1)
         initialHead = store.head(first.address).headSeq
-      } finally { store.close() }
-    } finally { await first.close() }
+      } finally {
+        store.close()
+      }
+    } finally {
+      await first.close()
+    }
     const callsBeforeReopen = calls
     const reopened = await open()
     try {
@@ -353,18 +556,24 @@ describe('the web playtest on a frozen world', () => {
         const events = store.readEvents(reopened.address)
         expect(events.filter(event => event.eventType === 'entity.transferred')).toHaveLength(1)
         expect(currentEntityState(events, 'entity:phone')?.holderId).toBe(initialHolder)
+      } finally {
+        store.close()
       }
-      finally { store.close() }
-    } finally { await reopened.close() }
+    } finally {
+      await reopened.close()
+    }
   }, 30_000)
 
   it('gives eligible NPCs bounded opportunities and commits each operation before its own continuation', async () => {
-    const root = mkdtempSync(join(tmpdir(), 'single-activation-web-')); roots.push(root)
+    const root = mkdtempSync(join(tmpdir(), 'single-activation-web-'))
+    roots.push(root)
     const seen: { actor: string; continuation: boolean }[] = []
     const acted = new Set<string>()
     const server = createServer((request, response) => {
       let body = ''
-      request.on('data', chunk => { body += String(chunk) })
+      request.on('data', chunk => {
+        body += String(chunk)
+      })
       request.on('end', () => {
         const wire = JSON.parse(body)
         const input = JSON.parse(wire.messages.at(-1).content)
@@ -384,62 +593,92 @@ describe('the web playtest on a frozen world', () => {
               expect(input.context.scene.locationId).toBe('location:workspace')
               answer = { decision: 'publish', segments: [{ type: 'speech', text: '我到工作区了。' }] }
             }
-          } finally { store.close() }
+          } finally {
+            store.close()
+          }
         } else if (!acted.has(actor)) {
           acted.add(actor)
-          if (actor === 'character:claude') answer = { decision: 'perform', actionType: 'interact', parameters: {
-            targetRef: { kind: 'entity', id: 'entity:phone' }, bindingId: 'binding:phone-take',
-            definitionRef: { id: 'base:take', version: 1 }, arguments: {},
-          } }
-          if (actor === 'character:deepseek') answer = { decision: 'perform', actionType: 'move',
-            parameters: { locationId: 'location:workspace' } }
+          if (actor === 'character:claude')
+            answer = {
+              decision: 'perform',
+              actionType: 'interact',
+              parameters: {
+                targetRef: { kind: 'entity', id: 'entity:phone' },
+                bindingId: 'binding:phone-take',
+                definitionRef: { id: 'base:take', version: 1 },
+                arguments: {},
+              },
+            }
+          if (actor === 'character:deepseek')
+            answer = { decision: 'perform', actionType: 'move', parameters: { locationId: 'location:workspace' } }
         }
         response.writeHead(200, { 'content-type': 'application/json' })
         response.end(JSON.stringify({ message: { content: JSON.stringify(answer) } }))
       })
     })
     servers.push(server)
-    const runtime = await WorldHostRuntime.create({ dataDirectory: root,
-      packPath: interactionFixture(), provider: 'ollama', model: 'fixture',
-      utilityEndpoint: `http://127.0.0.1:${await listening(server)}/api/chat` })
+    const runtime = await WorldHostRuntime.create({
+      dataDirectory: root,
+      packPath: interactionFixture(),
+      provider: 'ollama',
+      model: 'fixture',
+      utilityEndpoint: `http://127.0.0.1:${await listening(server)}/api/chat`,
+    })
     try {
       const state = await runtime.submit('/act speak {"text":"大家早安。"}')
       expect(state.error).toBe(false)
-      for (const actor of ['character:claude','character:deepseek']) {
-        const first=seen.findIndex(entry=>entry.actor===actor&&!entry.continuation)
-        const continuation=seen.findIndex(entry=>entry.actor===actor&&entry.continuation)
-        expect(first).toBeGreaterThanOrEqual(0);expect(continuation).toBeGreaterThan(first)
+      for (const actor of ['character:claude', 'character:deepseek']) {
+        const first = seen.findIndex(entry => entry.actor === actor && !entry.continuation)
+        const continuation = seen.findIndex(entry => entry.actor === actor && entry.continuation)
+        expect(first).toBeGreaterThanOrEqual(0)
+        expect(continuation).toBeGreaterThan(first)
       }
       expect(new Set(seen.map(entry => entry.actor)).size).toBe(4)
       expect(seen.length).toBeLessThanOrEqual(8)
       expect(state.transcript.some(line => line.text.includes('手机拿到了'))).toBe(true)
       expect(state.transcript.some(line => line.text.includes('我到工作区了'))).toBe(false)
       expect(state.debug.outputProtocol).toBe('perform/publish(segments)/abstain')
-    } finally { await runtime.close() }
+    } finally {
+      await runtime.close()
+    }
   }, 30_000)
 
   it('does not schedule another wave for ordinary nonverbal publications', async () => {
-    const root = mkdtempSync(join(tmpdir(), 'single-expression-web-')); roots.push(root)
+    const root = mkdtempSync(join(tmpdir(), 'single-expression-web-'))
+    roots.push(root)
     let calls = 0
     const server = createServer((_request, response) => {
       calls++
       response.writeHead(200, { 'content-type': 'application/json' })
-      response.end(JSON.stringify({ message: { content: JSON.stringify({ decision: 'publish', segments: [{ type: 'narration', text: '轻轻点头。' }] }) } }))
+      response.end(
+        JSON.stringify({
+          message: {
+            content: JSON.stringify({ decision: 'publish', segments: [{ type: 'narration', text: '轻轻点头。' }] }),
+          },
+        }),
+      )
     })
     servers.push(server)
-    const runtime = await WorldHostRuntime.create({ dataDirectory: root,
-      packPath: interactionFixture(), provider: 'ollama', model: 'fixture',
-      utilityEndpoint: `http://127.0.0.1:${await listening(server)}/api/chat` })
+    const runtime = await WorldHostRuntime.create({
+      dataDirectory: root,
+      packPath: interactionFixture(),
+      provider: 'ollama',
+      model: 'fixture',
+      utilityEndpoint: `http://127.0.0.1:${await listening(server)}/api/chat`,
+    })
     try {
       const state = await runtime.submit('/act speak {"text":"大家早安。"}')
       expect(calls).toBe(4)
       expect(state.debug.activationCycle).toMatchObject({ calls: 4, wave: 1, terminalReason: 'quiescent' })
       expect(state.transcript.filter(line => line.text.includes('轻轻点头')).length).toBe(4)
-    } finally { await runtime.close() }
+    } finally {
+      await runtime.close()
+    }
   }, 30_000)
 
   it('offers NPCs a first reaction to the player’s pure nonverbal expression', async () => {
-    const root = mkdtempSync(join(tmpdir(), 'player-expression-activation-')); roots.push(root)
+    const root = mkdtempSync(join(tmpdir(), 'player-expression-activation-'))
+    roots.push(root)
     let calls = 0
     const server = createServer((_request, response) => {
       calls++
@@ -447,22 +686,30 @@ describe('the web playtest on a frozen world', () => {
       response.end(JSON.stringify({ message: { content: JSON.stringify({ decision: 'abstain' }) } }))
     })
     servers.push(server)
-    const runtime = await WorldHostRuntime.create({ dataDirectory: root,
-      packPath: interactionFixture(), provider: 'ollama', model: 'fixture',
-      utilityEndpoint: `http://127.0.0.1:${await listening(server)}/api/chat` })
+    const runtime = await WorldHostRuntime.create({
+      dataDirectory: root,
+      packPath: interactionFixture(),
+      provider: 'ollama',
+      model: 'fixture',
+      utilityEndpoint: `http://127.0.0.1:${await listening(server)}/api/chat`,
+    })
     try {
       const state = await runtime.submit('/act speak {"text":"","narration":"有点尴尬地笑了笑。"}')
       expect(state.error).toBe(false)
       expect(calls).toBe(4)
       expect(state.debug.activationCycle).toMatchObject({ calls: 4, wave: 1, terminalReason: 'quiescent' })
-    } finally { await runtime.close() }
+    } finally {
+      await runtime.close()
+    }
   }, 30_000)
 
   it('keeps compound player words intact and never dispatches an intent request', async () => {
     let intentCalls = 0
     const server = createServer((request, response) => {
       let body = ''
-      request.on('data', chunk => { body += String(chunk) })
+      request.on('data', chunk => {
+        body += String(chunk)
+      })
       request.on('end', () => {
         if (body.includes('player-intent-candidate')) intentCalls++
         response.writeHead(200, { 'content-type': 'application/json' })
@@ -470,10 +717,15 @@ describe('the web playtest on a frozen world', () => {
       })
     })
     servers.push(server)
-    const root = mkdtempSync(join(tmpdir(), 'frozen-command-mode-')); roots.push(root)
-    const runtime = await WorldHostRuntime.create({ dataDirectory: root,
-      packPath: resolve('examples/world-packs/prototype-g1'), provider: 'ollama', model: 'fixture',
-      utilityEndpoint: `http://127.0.0.1:${await listening(server)}/api/chat` })
+    const root = mkdtempSync(join(tmpdir(), 'frozen-command-mode-'))
+    roots.push(root)
+    const runtime = await WorldHostRuntime.create({
+      dataDirectory: root,
+      packPath: resolve('examples/world-packs/prototype-g1'),
+      provider: 'ollama',
+      model: 'fixture',
+      utilityEndpoint: `http://127.0.0.1:${await listening(server)}/api/chat`,
+    })
     try {
       const before = await runtime.state()
       const state = await runtime.submit('我轻轻笑了笑，走进后室看看有没有锁。')
@@ -488,6 +740,8 @@ describe('the web playtest on a frozen world', () => {
       const moved = await runtime.submit('/move location:back-room')
       expect(moved.world.currentScene?.locationName).toBe('后室')
       expect(intentCalls).toBe(0)
-    } finally { await runtime.close() }
+    } finally {
+      await runtime.close()
+    }
   }, 30_000)
 })

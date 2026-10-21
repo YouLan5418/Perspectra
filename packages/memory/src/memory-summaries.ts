@@ -64,7 +64,7 @@ export function digestExtracts(group: readonly CognitiveMemoryEntry[], rounds: r
   const byRound = new Map<number, string[]>()
   for (const entry of group) {
     const ordinal = roundOrdinal(rounds, entry.sourceRef.sourceSeq)
-    byRound.set(ordinal, [...byRound.get(ordinal) ?? [], digestText(entry.text)])
+    byRound.set(ordinal, [...(byRound.get(ordinal) ?? []), digestText(entry.text)])
   }
   return [...byRound].map(([ordinal, lines]) => {
     const round = rounds[ordinal]

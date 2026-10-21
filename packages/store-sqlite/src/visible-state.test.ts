@@ -22,14 +22,23 @@ function path(): string {
   return join(root, 'world.sqlite')
 }
 
-async function commit(store: WorldStore, suffix: string, events: readonly WorldEventDraft[], target = address()): Promise<void> {
+async function commit(
+  store: WorldStore,
+  suffix: string,
+  events: readonly WorldEventDraft[],
+  target = address(),
+): Promise<void> {
   const head = store.head(target)
   await store.commitRound({
     address: target,
     transactionId: brandId(`transaction:visible:${suffix}`, 'TransactionId'),
     roundId: brandId(`round:visible:${suffix}`, 'InteractionRoundId'),
-    expectedHeadSeq: head.headSeq, expectedTick: head.tick, nextTick: head.tick + 1,
-    events, outbox: [], correlationId: `visible:${suffix}`,
+    expectedHeadSeq: head.headSeq,
+    expectedTick: head.tick,
+    nextTick: head.tick + 1,
+    events,
+    outbox: [],
+    correlationId: `visible:${suffix}`,
   })
 }
 
@@ -42,17 +51,29 @@ describe('VisibleStateRebuilder', () => {
     const store = new WorldStore(path())
     store.createBranch(address())
     await commit(store, 'same-character-order', [
-      { eventType: 'character.visible-state-upserted', eventVersion: 1, data: {
-        characterId: 'character:a', stateKey: 'posture:z',
-        value: { channel: 'posture', description: '后一个状态' },
-      } },
-      { eventType: 'character.visible-state-upserted', eventVersion: 1, data: {
-        characterId: 'character:a', stateKey: 'appearance:a',
-        value: { channel: 'appearance', description: '前一个状态' },
-      } },
+      {
+        eventType: 'character.visible-state-upserted',
+        eventVersion: 1,
+        data: {
+          characterId: 'character:a',
+          stateKey: 'posture:z',
+          value: { channel: 'posture', description: '后一个状态' },
+        },
+      },
+      {
+        eventType: 'character.visible-state-upserted',
+        eventVersion: 1,
+        data: {
+          characterId: 'character:a',
+          stateKey: 'appearance:a',
+          value: { channel: 'appearance', description: '前一个状态' },
+        },
+      },
     ])
-    expect(new VisibleStateRebuilder(store).rebuildAt(address(), 2).states.map(value => value.stateKey))
-      .toEqual(['appearance:a', 'posture:z'])
+    expect(new VisibleStateRebuilder(store).rebuildAt(address(), 2).states.map(value => value.stateKey)).toEqual([
+      'appearance:a',
+      'posture:z',
+    ])
     store.close()
   })
 
@@ -60,32 +81,59 @@ describe('VisibleStateRebuilder', () => {
     const store = new WorldStore(path())
     store.createBranch(address())
     await commit(store, 'base', [
-      { eventType: 'character.visible-state-upserted', eventVersion: 1, data: {
-        characterId: 'character:b', stateKey: 'posture:arms',
-        value: { channel: 'posture', description: '抱起双臂' },
-      } },
-      { eventType: 'character.visible-state-upserted', eventVersion: 1, data: {
-        characterId: 'character:a', stateKey: 'appearance:sleeve',
-        value: { channel: 'appearance', description: '袖口湿了' },
-      } },
+      {
+        eventType: 'character.visible-state-upserted',
+        eventVersion: 1,
+        data: {
+          characterId: 'character:b',
+          stateKey: 'posture:arms',
+          value: { channel: 'posture', description: '抱起双臂' },
+        },
+      },
+      {
+        eventType: 'character.visible-state-upserted',
+        eventVersion: 1,
+        data: {
+          characterId: 'character:a',
+          stateKey: 'appearance:sleeve',
+          value: { channel: 'appearance', description: '袖口湿了' },
+        },
+      },
     ])
     const fork = address('fork')
     store.forkBranch(address(), fork, 2)
     await commit(store, 'change', [
-      { eventType: 'character.visible-state-upserted', eventVersion: 1, data: {
-        characterId: 'character:b', stateKey: 'posture:arms',
-        value: { channel: 'posture', description: '放下双臂' },
-      } },
-      { eventType: 'character.visible-state-removed', eventVersion: 1, data: {
-        characterId: 'character:a', stateKey: 'appearance:sleeve',
-      } },
+      {
+        eventType: 'character.visible-state-upserted',
+        eventVersion: 1,
+        data: {
+          characterId: 'character:b',
+          stateKey: 'posture:arms',
+          value: { channel: 'posture', description: '放下双臂' },
+        },
+      },
+      {
+        eventType: 'character.visible-state-removed',
+        eventVersion: 1,
+        data: {
+          characterId: 'character:a',
+          stateKey: 'appearance:sleeve',
+        },
+      },
     ])
     const rebuilder = new VisibleStateRebuilder(store)
-    expect(rebuilder.rebuildAt(address(), 2).states.map(value => value.characterId))
-      .toEqual(['character:a', 'character:b'])
-    expect(rebuilder.rebuildAt(address(), 4).states).toMatchObject([{
-      characterId: 'character:b', stateKey: 'posture:arms', description: '放下双臂', sourceSeq: 3,
-    }])
+    expect(rebuilder.rebuildAt(address(), 2).states.map(value => value.characterId)).toEqual([
+      'character:a',
+      'character:b',
+    ])
+    expect(rebuilder.rebuildAt(address(), 4).states).toMatchObject([
+      {
+        characterId: 'character:b',
+        stateKey: 'posture:arms',
+        description: '放下双臂',
+        sourceSeq: 3,
+      },
+    ])
     expect(rebuilder.rebuildAt(address(), 4, brandId('character:a', 'CharacterId')).states).toEqual([])
     const inherited = rebuilder.rebuildAt(fork, 2)
     expect(inherited.states).toHaveLength(2)
@@ -101,10 +149,38 @@ describe('VisibleStateRebuilder', () => {
     expect(() => rebuilder.rebuildAt(address(), 1)).toThrow('later than')
     for (const [suffix, event, message] of [
       ['data', { eventType: 'character.visible-state-upserted', eventVersion: 1, data: null }, 'must be an object'],
-      ['identity', { eventType: 'character.visible-state-removed', eventVersion: 1, data: { characterId: 1, stateKey: 'x' } }, 'requires characterId'],
-      ['value', { eventType: 'character.visible-state-upserted', eventVersion: 1, data: { characterId: 'character:a', stateKey: 'x', value: null } }, 'must be an object'],
-      ['channel', { eventType: 'character.visible-state-upserted', eventVersion: 1, data: { characterId: 'character:a', stateKey: 'x', value: { channel: 'voice', description: 'quiet' } } }, 'malformed'],
-      ['description', { eventType: 'character.visible-state-upserted', eventVersion: 1, data: { characterId: 'character:a', stateKey: 'x', value: { channel: 'posture', description: '' } } }, 'malformed'],
+      [
+        'identity',
+        { eventType: 'character.visible-state-removed', eventVersion: 1, data: { characterId: 1, stateKey: 'x' } },
+        'requires characterId',
+      ],
+      [
+        'value',
+        {
+          eventType: 'character.visible-state-upserted',
+          eventVersion: 1,
+          data: { characterId: 'character:a', stateKey: 'x', value: null },
+        },
+        'must be an object',
+      ],
+      [
+        'channel',
+        {
+          eventType: 'character.visible-state-upserted',
+          eventVersion: 1,
+          data: { characterId: 'character:a', stateKey: 'x', value: { channel: 'voice', description: 'quiet' } },
+        },
+        'malformed',
+      ],
+      [
+        'description',
+        {
+          eventType: 'character.visible-state-upserted',
+          eventVersion: 1,
+          data: { characterId: 'character:a', stateKey: 'x', value: { channel: 'posture', description: '' } },
+        },
+        'malformed',
+      ],
     ] as const) {
       const target = address(suffix)
       store.createBranch(target)

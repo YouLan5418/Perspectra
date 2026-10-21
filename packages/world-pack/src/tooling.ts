@@ -1,14 +1,6 @@
 import { readFile } from 'node:fs/promises'
-import {
-  brandId,
-  hashWorldJson,
-  type InteractionPackageDescription,
-} from '@harness-world/contracts'
-import {
-  WorldPackCompilerV5,
-  canonicalWorldPackBytesV5,
-  verifyCompiledWorldPackV5,
-} from './compiler.ts'
+import { brandId, hashWorldJson, type InteractionPackageDescription } from '@harness-world/contracts'
+import { WorldPackCompilerV5, canonicalWorldPackBytesV5, verifyCompiledWorldPackV5 } from './compiler.ts'
 import type {
   CompiledWorldPackV5,
   WorldPackRuntimeOptions,
@@ -35,7 +27,8 @@ export async function compileWorldPackSource(
   interactionPackages: readonly InteractionPackageDescription[] = [],
 ): Promise<CompiledWorldPackV5> {
   return await new WorldPackCompilerV5().compile(sourceDirectory, {
-    limitsProfile: WORLD_PACK_LIMITS_PROFILE_V2, interactionPackages,
+    limitsProfile: WORLD_PACK_LIMITS_PROFILE_V2,
+    interactionPackages,
   })
 }
 
@@ -88,7 +81,10 @@ export class WorldPackInspector {
 
 /** Compile/adapt test; declared runtime assertions remain Testkit inputs. */
 export class WorldPackTestRunner {
-  async run(sourceDirectory: string, interactionPackages: readonly InteractionPackageDescription[] = []): Promise<WorldPackTestReport> {
+  async run(
+    sourceDirectory: string,
+    interactionPackages: readonly InteractionPackageDescription[] = [],
+  ): Promise<WorldPackTestReport> {
     const pack = await compileWorldPackSource(sourceDirectory, interactionPackages)
     const compiled = adaptCompiledWorldPack(pack, {
       address: {

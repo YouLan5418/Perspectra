@@ -496,4 +496,4 @@ main[data-mode="activity"] .dialogue{font-size:16px;max-height:100px;min-height:
   main[data-mode="activity"] .stage-bottom{left:50%;width:calc(100% - 24px)}
   main[data-mode="activity"] #characters{right:0}
 }
-`;
+`

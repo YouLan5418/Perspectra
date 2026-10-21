@@ -11,7 +11,13 @@ import {
   type WorldJsonObject,
   type WorldJsonValue,
 } from '@harness-world/contracts'
-import { openOwnedDatabase, parseWorldJson, PROJECTION_APPLICATION_ID, rollbackAndThrow, worldJsonText } from './sqlite.ts'
+import {
+  openOwnedDatabase,
+  parseWorldJson,
+  PROJECTION_APPLICATION_ID,
+  rollbackAndThrow,
+  worldJsonText,
+} from './sqlite.ts'
 import type { WorldStore } from './world-store.ts'
 
 export const PROJECTION_EVENT_TYPES = [
@@ -41,7 +47,9 @@ CREATE UNIQUE INDEX IF NOT EXISTS projection_records_one_current
   ON projection_records(address_key, kind, record_id) WHERE valid_to_seq IS NULL;
 `
 
-function projectionOperation(event: StoredWorldEvent): { kind: ProjectionKind; operation: 'upsert' | 'remove'; id: string; value?: WorldJsonValue } | undefined {
+function projectionOperation(
+  event: StoredWorldEvent,
+): { kind: ProjectionKind; operation: 'upsert' | 'remove'; id: string; value?: WorldJsonValue } | undefined {
   const match = /^(observation|claim|goal|visibility)\.(upsert|remove)$/.exec(event.eventType)
   if (match === null) return undefined
   const data = event.data as WorldJsonObject
@@ -85,18 +93,27 @@ export class ProjectionStore {
 
   /** Query all records valid at the exact world sequence. */
   readAt(address: WorldAddress, asOfSeq: number): ProjectionRecord[] {
-    const rows = this.#db.prepare(`
+    const rows = this.#db
+      .prepare(
+        `
       SELECT kind, record_id, value_json, source_seq
       FROM projection_records
       WHERE address_key = ? AND valid_from_seq <= ? AND (valid_to_seq IS NULL OR valid_to_seq > ?)
       ORDER BY kind, record_id
-    `).all(worldAddressKey(address), asOfSeq, asOfSeq) as Array<{
+    `,
+      )
+      .all(worldAddressKey(address), asOfSeq, asOfSeq) as Array<{
       kind: ProjectionKind
       record_id: string
       value_json: string
       source_seq: number
     }>
-    return rows.map(row => ({ kind: row.kind, id: row.record_id, value: parseWorldJson(row.value_json), sourceSeq: row.source_seq }))
+    return rows.map(row => ({
+      kind: row.kind,
+      id: row.record_id,
+      value: parseWorldJson(row.value_json),
+      sourceSeq: row.source_seq,
+    }))
   }
 
   close(): void {
@@ -106,21 +123,32 @@ export class ProjectionStore {
   #apply(addressKey: string, event: StoredWorldEvent): void {
     const change = projectionOperation(event)
     if (change === undefined) return
-    this.#db.prepare(`
+    this.#db
+      .prepare(
+        `
       UPDATE projection_records SET valid_to_seq = ?
       WHERE address_key = ? AND kind = ? AND record_id = ? AND valid_to_seq IS NULL
-    `).run(event.seq, addressKey, change.kind, change.id)
+    `,
+      )
+      .run(event.seq, addressKey, change.kind, change.id)
     if (change.operation === 'remove') return
-    this.#db.prepare(`
+    this.#db
+      .prepare(
+        `
       INSERT INTO projection_records(address_key, kind, record_id, value_json, source_seq, valid_from_seq, valid_to_seq)
       VALUES (?, ?, ?, ?, ?, ?, NULL)
-    `).run(addressKey, change.kind, change.id, worldJsonText(change.value as WorldJsonValue), event.seq, event.seq)
+    `,
+      )
+      .run(addressKey, change.kind, change.id, worldJsonText(change.value as WorldJsonValue), event.seq, event.seq)
   }
 }
 
 /** Replay an exact effective prefix already read by the host. */
 export function rebuildProjectionFromEvents(
-  address: WorldAddress, asOfWorldSeq: number, events: readonly StoredWorldEvent[], heartbeat?: () => void,
+  address: WorldAddress,
+  asOfWorldSeq: number,
+  events: readonly StoredWorldEvent[],
+  heartbeat?: () => void,
 ): ProjectionBundle {
   const state = emptyState()
   for (const [index, event] of events.entries()) {
@@ -130,13 +158,17 @@ export function rebuildProjectionFromEvents(
     if (change.operation === 'remove') {
       state[change.kind].delete(change.id)
     } else {
-      state[change.kind].set(change.id, { kind: change.kind, id: change.id, value: change.value as WorldJsonValue, sourceSeq: event.seq })
+      state[change.kind].set(change.id, {
+        kind: change.kind,
+        id: change.id,
+        value: change.value as WorldJsonValue,
+        sourceSeq: event.seq,
+      })
     }
   }
   heartbeat?.()
-  const sorted = (kind: ProjectionKind): ProjectionRecord[] => [...state[kind].keys()]
-    .sort(compareWorldText)
-    .map(id => state[kind].get(id) as ProjectionRecord)
+  const sorted = (kind: ProjectionKind): ProjectionRecord[] =>
+    [...state[kind].keys()].sort(compareWorldText).map(id => state[kind].get(id) as ProjectionRecord)
   const observations = sorted('observation')
   const claims = sorted('claim')
   const goals = sorted('goal')
@@ -151,7 +183,11 @@ export class ProjectionRebuilder {
 
   /** Rebuild Observation, Claim, Goal, and Visibility exactly as of forkSeq. */
   rebuildAt(address: WorldAddress, forkSeq: number, heartbeat?: () => void): ProjectionBundle {
-    return rebuildProjectionFromEvents(address, forkSeq,
-      this.worldStore.readEventsRange(address, 0, forkSeq, PROJECTION_EVENT_TYPES), heartbeat)
+    return rebuildProjectionFromEvents(
+      address,
+      forkSeq,
+      this.worldStore.readEventsRange(address, 0, forkSeq, PROJECTION_EVENT_TYPES),
+      heartbeat,
+    )
   }
 }

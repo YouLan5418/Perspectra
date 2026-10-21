@@ -9,7 +9,9 @@ describe('resolution authority', () => {
     ['director', 'standard'],
   ] as const)('accepts %s + %s', (sourceRole, adjudicationMode) => {
     expect(validateResolutionAuthority(resolutionAuthority(sourceRole, adjudicationMode))).toEqual({
-      version: 'resolution-authority/v1', sourceRole, adjudicationMode,
+      version: 'resolution-authority/v1',
+      sourceRole,
+      adjudicationMode,
     })
   })
 
@@ -23,6 +25,7 @@ describe('resolution authority', () => {
       { version: 'resolution-authority/v1', sourceRole: 'system', adjudicationMode: 'standard' },
       { version: 'resolution-authority/v1', sourceRole: 'player', adjudicationMode: 'privileged' },
       { version: 'resolution-authority/v1', sourceRole: 'player', adjudicationMode: 'standard', forged: true },
-    ]) expect(() => validateResolutionAuthority(value as never)).toThrow('invalid')
+    ])
+      expect(() => validateResolutionAuthority(value as never)).toThrow('invalid')
   })
 })

@@ -80,7 +80,9 @@ const MAX_MARKDOWN_BYTES = 256 * 1024
 const MAX_ASSET_BYTES = 8 * 1024 * 1024
 const WINDOWS_DEVICE = /^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\..*)?$/iu
 
-interface SourceBudget { bytes: number }
+interface SourceBudget {
+  bytes: number
+}
 
 const compareText = compareWorldText
 
@@ -114,19 +116,40 @@ function isMemorySeedDocument(value: WorldPackDocumentSourceV2): boolean {
 
 function normalizedSourcePath(value: string, manifestFile: string): string {
   if (value.includes('\\') || value.includes(':') || value.startsWith('/') || isAbsolute(value)) {
-    failWorldPackContract('PACK_SOURCE_INVALID', manifestFile, '', `path ${JSON.stringify(value)} must be portable and relative`)
+    failWorldPackContract(
+      'PACK_SOURCE_INVALID',
+      manifestFile,
+      '',
+      `path ${JSON.stringify(value)} must be portable and relative`,
+    )
   }
   const segments = value.split('/')
-  if (segments.some(segment => segment.length === 0 || segment === '.' || segment === '..'
-    || segment.endsWith('.') || segment.endsWith(' ') || WINDOWS_DEVICE.test(segment))) {
-    failWorldPackContract('PACK_SOURCE_INVALID', manifestFile, '', `path ${JSON.stringify(value)} contains an unsafe segment`)
+  if (
+    segments.some(
+      segment =>
+        segment.length === 0 ||
+        segment === '.' ||
+        segment === '..' ||
+        segment.endsWith('.') ||
+        segment.endsWith(' ') ||
+        WINDOWS_DEVICE.test(segment),
+    )
+  ) {
+    failWorldPackContract(
+      'PACK_SOURCE_INVALID',
+      manifestFile,
+      '',
+      `path ${JSON.stringify(value)} contains an unsafe segment`,
+    )
   }
   return segments.join('/')
 }
 
 function withinRoot(root: string, candidate: string): boolean {
   const pathFromRoot = relative(root, candidate)
-  return pathFromRoot === '' || (!pathFromRoot.startsWith(`..${sep}`) && pathFromRoot !== '..' && !isAbsolute(pathFromRoot))
+  return (
+    pathFromRoot === '' || (!pathFromRoot.startsWith(`..${sep}`) && pathFromRoot !== '..' && !isAbsolute(pathFromRoot))
+  )
 }
 
 async function sourceFile(root: string, sourcePath: string, manifestFile: string): Promise<string> {
@@ -134,7 +157,13 @@ async function sourceFile(root: string, sourcePath: string, manifestFile: string
   const candidate = resolve(join(root, ...portable.split('/')))
   try {
     const actual = await realpath(candidate)
-    if (!withinRoot(root, actual)) failWorldPackContract('PACK_SOURCE_INVALID', manifestFile, '', `path ${JSON.stringify(sourcePath)} resolves outside the source directory`)
+    if (!withinRoot(root, actual))
+      failWorldPackContract(
+        'PACK_SOURCE_INVALID',
+        manifestFile,
+        '',
+        `path ${JSON.stringify(sourcePath)} resolves outside the source directory`,
+      )
     const info = await lstat(actual)
     if (!info.isFile()) failWorldPackContract('PACK_SOURCE_INVALID', sourcePath, '', 'must reference a regular file')
     return actual
@@ -146,7 +175,8 @@ async function sourceFile(root: string, sourcePath: string, manifestFile: string
 
 function addBudget(budget: SourceBudget, bytes: number, file: string): void {
   budget.bytes += bytes
-  if (budget.bytes > MAX_TOTAL_BYTES) failWorldPackContract('PACK_LIMIT_EXCEEDED', file, '', `source directory exceeds ${MAX_TOTAL_BYTES} declared bytes`)
+  if (budget.bytes > MAX_TOTAL_BYTES)
+    failWorldPackContract('PACK_LIMIT_EXCEEDED', file, '', `source directory exceeds ${MAX_TOTAL_BYTES} declared bytes`)
 }
 
 function decodeUtf8(bytes: Uint8Array, file: string): string {
@@ -157,33 +187,63 @@ function decodeUtf8(bytes: Uint8Array, file: string): string {
   }
 }
 
-async function loadBytes(root: string, sourcePath: string, manifestFile: string, budget: SourceBudget, limit: number): Promise<Uint8Array> {
+async function loadBytes(
+  root: string,
+  sourcePath: string,
+  manifestFile: string,
+  budget: SourceBudget,
+  limit: number,
+): Promise<Uint8Array> {
   const file = await sourceFile(root, sourcePath, manifestFile)
   const bytes = await readFile(file)
-  if (bytes.byteLength > limit) failWorldPackContract('PACK_LIMIT_EXCEEDED', sourcePath, '', `exceeds the ${limit}-byte file limit`)
+  if (bytes.byteLength > limit)
+    failWorldPackContract('PACK_LIMIT_EXCEEDED', sourcePath, '', `exceeds the ${limit}-byte file limit`)
   addBudget(budget, bytes.byteLength, sourcePath)
   return bytes
 }
 
-async function loadJson(root: string, sourcePath: string, manifestFile: string, budget: SourceBudget): Promise<WorldJsonValue> {
-  return parseStrictWorldJson(decodeUtf8(await loadBytes(root, sourcePath, manifestFile, budget, MAX_JSON_BYTES), sourcePath), sourcePath)
+async function loadJson(
+  root: string,
+  sourcePath: string,
+  manifestFile: string,
+  budget: SourceBudget,
+): Promise<WorldJsonValue> {
+  return parseStrictWorldJson(
+    decodeUtf8(await loadBytes(root, sourcePath, manifestFile, budget, MAX_JSON_BYTES), sourcePath),
+    sourcePath,
+  )
 }
 
 function allDeclaredFiles(manifest: WorldPackSourceManifestV5): readonly string[] {
-  return [manifest.worldFile, ...manifest.characterFiles, ...manifest.locationFiles, ...manifest.entityFiles,
-    ...manifest.sceneFiles, ...manifest.playerSlotFiles, ...manifest.presentationFiles,
-    ...manifest.cognitionFiles, ...manifest.memoryFiles, ...manifest.documentFiles,
-    manifest.reactionFile, manifest.manifestationFile, manifest.interactionFile,
-    ...manifest.markdownFiles, ...manifest.assetFiles, ...manifest.assertionFiles]
+  return [
+    manifest.worldFile,
+    ...manifest.characterFiles,
+    ...manifest.locationFiles,
+    ...manifest.entityFiles,
+    ...manifest.sceneFiles,
+    ...manifest.playerSlotFiles,
+    ...manifest.presentationFiles,
+    ...manifest.cognitionFiles,
+    ...manifest.memoryFiles,
+    ...manifest.documentFiles,
+    manifest.reactionFile,
+    manifest.manifestationFile,
+    manifest.interactionFile,
+    ...manifest.markdownFiles,
+    ...manifest.assetFiles,
+    ...manifest.assertionFiles,
+  ]
 }
 function validatePortablePaths(manifest: WorldPackSourceManifestV5, file: string): void {
   const paths = allDeclaredFiles(manifest).map(value => normalizedSourcePath(value, file))
   const folded = paths.map(value => value.toLowerCase())
-  if (new Set(folded).size !== folded.length) failWorldPackContract('PACK_SOURCE_INVALID', file, '', 'declared paths collide when compared case-insensitively')
+  if (new Set(folded).size !== folded.length)
+    failWorldPackContract('PACK_SOURCE_INVALID', file, '', 'declared paths collide when compared case-insensitively')
 }
 
 function uniqueAcross(values: readonly string[], file: string, at: string): void {
-  if (new Set(values).size !== values.length) failWorldPackContract('PACK_DUPLICATE_ID', file, at, 'contains duplicate identifiers across source files')
+  if (new Set(values).size !== values.length)
+    failWorldPackContract('PACK_DUPLICATE_ID', file, at, 'contains duplicate identifiers across source files')
 }
 
 function pluginLocks(profiles = WORLD_PACK_CORE_PROFILES): readonly WorldPackPluginLock[] {
@@ -203,19 +263,30 @@ function cognitionDependencies(entry: WorldPackCharacterCognitionSourceV2): Read
   const dependencies = new Map<string, readonly string[]>()
   for (const item of entry.observations) dependencies.set(item.key, item.basisKeys)
   for (const item of entry.claims) dependencies.set(item.key, item.basisKeys)
-  for (const item of entry.goals) dependencies.set(item.key, [...item.basisKeys, ...(item.parentGoalKey === null ? [] : [item.parentGoalKey])])
+  for (const item of entry.goals)
+    dependencies.set(item.key, [...item.basisKeys, ...(item.parentGoalKey === null ? [] : [item.parentGoalKey])])
   for (const item of entry.relationships) dependencies.set(item.key, item.basisKeys)
   for (const item of entry.affects) dependencies.set(item.key, item.basisKeys)
-  for (const item of entry.innerTensions) dependencies.set(item.key, [...item.basisKeys, ...item.poles.flatMap(pole => pole.basisKeys)])
+  for (const item of entry.innerTensions)
+    dependencies.set(item.key, [...item.basisKeys, ...item.poles.flatMap(pole => pole.basisKeys)])
   for (const item of entry.commitments) dependencies.set(item.key, item.basisKeys)
   for (const item of entry.openLoops) dependencies.set(item.key, item.basisKeys)
   return dependencies
 }
 
-function validateCognitionGraph(entry: WorldPackCharacterCognitionSourceV2, character: WorldPackCharacterSourceV2): void {
+function validateCognitionGraph(
+  entry: WorldPackCharacterCognitionSourceV2,
+  character: WorldPackCharacterSourceV2,
+): void {
   const cognitionKeys = [
-    ...entry.observations, ...entry.claims, ...entry.goals, ...entry.relationships, ...entry.affects,
-    ...entry.innerTensions, ...entry.commitments, ...entry.openLoops,
+    ...entry.observations,
+    ...entry.claims,
+    ...entry.goals,
+    ...entry.relationships,
+    ...entry.affects,
+    ...entry.innerTensions,
+    ...entry.commitments,
+    ...entry.openLoops,
   ].map(value => value.key)
   uniqueAcross(cognitionKeys, 'cognition', '')
   if (character.portrayal !== null) {
@@ -224,16 +295,23 @@ function validateCognitionGraph(entry: WorldPackCharacterCognitionSourceV2, char
     uniqueAcross([...cognitionKeys, ...portrayalKeys], 'cognition', '')
   }
   const dependencies = cognitionDependencies(entry)
-  const portrayalKeys = new Set(character.portrayal === null
-    ? []
-    : [...character.portrayal.drives, ...character.portrayal.principles].map(item => item.key))
+  const portrayalKeys = new Set(
+    character.portrayal === null
+      ? []
+      : [...character.portrayal.drives, ...character.portrayal.principles].map(item => item.key),
+  )
   const allowed = new Set([...dependencies.keys(), ...portrayalKeys])
   const dependents = new Map<string, string[]>()
   const remaining = new Map<string, number>()
   for (const [key, refs] of dependencies) {
     for (const ref of refs) {
       if (!allowed.has(ref)) {
-        failWorldPackContract('PACK_REFERENCE_INVALID', 'cognition', '', `character ${entry.characterId} source ${key} references unknown or forbidden basis ${ref}`)
+        failWorldPackContract(
+          'PACK_REFERENCE_INVALID',
+          'cognition',
+          '',
+          `character ${entry.characterId} source ${key} references unknown or forbidden basis ${ref}`,
+        )
       }
       if (!dependencies.has(ref)) continue
       const values = dependents.get(ref) ?? []
@@ -242,7 +320,10 @@ function validateCognitionGraph(entry: WorldPackCharacterCognitionSourceV2, char
     }
     remaining.set(key, refs.filter(ref => dependencies.has(ref)).length)
   }
-  const ready = [...remaining].filter(([, count]) => count === 0).map(([key]) => key).sort(compareText)
+  const ready = [...remaining]
+    .filter(([, count]) => count === 0)
+    .map(([key]) => key)
+    .sort(compareText)
   let processed = 0
   while (ready.length > 0) {
     const key = ready.shift()!
@@ -257,11 +338,19 @@ function validateCognitionGraph(entry: WorldPackCharacterCognitionSourceV2, char
     }
   }
   if (processed !== dependencies.size) {
-    failWorldPackContract('PACK_REFERENCE_INVALID', 'cognition', '', `character ${entry.characterId} cognition basis graph contains a cycle`)
+    failWorldPackContract(
+      'PACK_REFERENCE_INVALID',
+      'cognition',
+      '',
+      `character ${entry.characterId} cognition basis graph contains a cycle`,
+    )
   }
 }
 
-function validateCognitionCapacity(entry: WorldPackCharacterCognitionSourceV2, memory: WorldPackCharacterMemorySourceV2): void {
+function validateCognitionCapacity(
+  entry: WorldPackCharacterCognitionSourceV2,
+  memory: WorldPackCharacterMemorySourceV2,
+): void {
   const profile = CONTEXT_PROFILES.find(value => value.profileId === memory.profile)!
   const activeGoals = entry.goals.filter(value => value.status === 'active' || value.status === 'blocked').length
   const activeRelationships = entry.relationships.filter(value => value.status === 'active').length
@@ -280,12 +369,22 @@ function validateCognitionCapacity(entry: WorldPackCharacterCognitionSourceV2, m
   ] as const
   for (const [kind, count, limit] of counts) {
     if (count > limit) {
-      failWorldPackContract('PACK_LIMIT_EXCEEDED', 'cognition', '', `character ${entry.characterId} has ${count} active ${kind}; ${memory.profile} allows ${limit}`)
+      failWorldPackContract(
+        'PACK_LIMIT_EXCEEDED',
+        'cognition',
+        '',
+        `character ${entry.characterId} has ${count} active ${kind}; ${memory.profile} allows ${limit}`,
+      )
     }
   }
   const checkpointTotal = counts.reduce((total, [, count]) => total + count, 0)
   if (checkpointTotal > profile.checkpointActiveCognition) {
-    failWorldPackContract('PACK_LIMIT_EXCEEDED', 'cognition', '', `character ${entry.characterId} has ${checkpointTotal} active cognition records; ${memory.profile} allows ${profile.checkpointActiveCognition}`)
+    failWorldPackContract(
+      'PACK_LIMIT_EXCEEDED',
+      'cognition',
+      '',
+      `character ${entry.characterId} has ${checkpointTotal} active cognition records; ${memory.profile} allows ${profile.checkpointActiveCognition}`,
+    )
   }
 }
 
@@ -298,68 +397,160 @@ function validateV2References(content: WorldPackCompiledContentV2): void {
   const activeMembership = new Set<string>()
   for (const character of content.characters) {
     if (character.initialLocationId !== null && !locations.has(character.initialLocationId)) {
-      failWorldPackContract('PACK_REFERENCE_INVALID', 'characters', '', `character ${character.characterId} references unknown location ${character.initialLocationId}`)
+      failWorldPackContract(
+        'PACK_REFERENCE_INVALID',
+        'characters',
+        '',
+        `character ${character.characterId} references unknown location ${character.initialLocationId}`,
+      )
     }
-    if (character.portrayal?.backgroundTextRef !== null && character.portrayal?.backgroundTextRef !== undefined
-      && !markdown.has(character.portrayal.backgroundTextRef)) {
-      failWorldPackContract('PACK_REFERENCE_INVALID', 'characters', '', `character ${character.characterId} references unknown Markdown ${character.portrayal.backgroundTextRef}`)
+    if (
+      character.portrayal?.backgroundTextRef !== null &&
+      character.portrayal?.backgroundTextRef !== undefined &&
+      !markdown.has(character.portrayal.backgroundTextRef)
+    ) {
+      failWorldPackContract(
+        'PACK_REFERENCE_INVALID',
+        'characters',
+        '',
+        `character ${character.characterId} references unknown Markdown ${character.portrayal.backgroundTextRef}`,
+      )
     }
   }
   for (const entity of content.entities) {
-    if (!locations.has(entity.locationId)) failWorldPackContract('PACK_REFERENCE_INVALID', 'entities', '', `entity ${entity.entityId} references unknown location ${entity.locationId}`)
+    if (!locations.has(entity.locationId))
+      failWorldPackContract(
+        'PACK_REFERENCE_INVALID',
+        'entities',
+        '',
+        `entity ${entity.entityId} references unknown location ${entity.locationId}`,
+      )
   }
   for (const scene of content.scenes) {
-    if (scene.locationId !== null && !locations.has(scene.locationId)) failWorldPackContract('PACK_REFERENCE_INVALID', 'scenes', '', `Scene ${scene.sceneId} references unknown location ${scene.locationId}`)
+    if (scene.locationId !== null && !locations.has(scene.locationId))
+      failWorldPackContract(
+        'PACK_REFERENCE_INVALID',
+        'scenes',
+        '',
+        `Scene ${scene.sceneId} references unknown location ${scene.locationId}`,
+      )
     for (const characterId of scene.participantIds) {
-      if (!characters.has(characterId)) failWorldPackContract('PACK_REFERENCE_INVALID', 'scenes', '', `Scene ${scene.sceneId} references unknown Character ${characterId}`)
+      if (!characters.has(characterId))
+        failWorldPackContract(
+          'PACK_REFERENCE_INVALID',
+          'scenes',
+          '',
+          `Scene ${scene.sceneId} references unknown Character ${characterId}`,
+        )
       if (scene.lifecycle === 'active' && activeMembership.has(characterId)) {
-        failWorldPackContract('PACK_REFERENCE_INVALID', 'scenes', '', `Character ${characterId} belongs to multiple active Scenes`)
+        failWorldPackContract(
+          'PACK_REFERENCE_INVALID',
+          'scenes',
+          '',
+          `Character ${characterId} belongs to multiple active Scenes`,
+        )
       }
       if (scene.lifecycle === 'active') activeMembership.add(characterId)
     }
   }
   const player = content.playerSlots[0]!
   const playerCharacter = characters.get(player.characterId)
-  if (playerCharacter === undefined) failWorldPackContract('PACK_REFERENCE_INVALID', 'player-slots', '', 'PlayerSlot references an unknown Character')
-  if (playerCharacter.controllerClass !== 'manual') failWorldPackContract('PACK_REFERENCE_INVALID', 'player-slots', '', 'PlayerSlot Character must use manual controllerClass')
+  if (playerCharacter === undefined)
+    failWorldPackContract('PACK_REFERENCE_INVALID', 'player-slots', '', 'PlayerSlot references an unknown Character')
+  if (playerCharacter.controllerClass !== 'manual')
+    failWorldPackContract(
+      'PACK_REFERENCE_INVALID',
+      'player-slots',
+      '',
+      'PlayerSlot Character must use manual controllerClass',
+    )
   for (const fact of content.world.initialFacts) {
-    if (fact.initialAudience.some(value => !characters.has(value))) failWorldPackContract('PACK_REFERENCE_INVALID', 'world', '', `fact ${fact.factId} references an unknown audience Character`)
+    if (fact.initialAudience.some(value => !characters.has(value)))
+      failWorldPackContract(
+        'PACK_REFERENCE_INVALID',
+        'world',
+        '',
+        `fact ${fact.factId} references an unknown audience Character`,
+      )
   }
   const memoryByCharacter = new Map(content.memory.map(value => [value.characterId, value]))
   for (const entry of content.memory) {
-    if (!characters.has(entry.characterId)) failWorldPackContract('PACK_REFERENCE_INVALID', 'memory', '', `unknown Character ${entry.characterId}`)
+    if (!characters.has(entry.characterId))
+      failWorldPackContract('PACK_REFERENCE_INVALID', 'memory', '', `unknown Character ${entry.characterId}`)
   }
   for (const cognition of content.cognition) {
     const character = characters.get(cognition.characterId)
     const memory = memoryByCharacter.get(cognition.characterId)
-    if (character === undefined || memory === undefined) failWorldPackContract('PACK_REFERENCE_INVALID', 'cognition', '', `unknown Character ${cognition.characterId}`)
+    if (character === undefined || memory === undefined)
+      failWorldPackContract('PACK_REFERENCE_INVALID', 'cognition', '', `unknown Character ${cognition.characterId}`)
     validateCognitionGraph(cognition, character)
     validateCognitionCapacity(cognition, memory)
     const localKeys = new Set(cognitionDependencies(cognition).keys())
     for (const relationship of cognition.relationships) {
-      if (!characters.has(relationship.target)) failWorldPackContract('PACK_REFERENCE_INVALID', 'cognition', '', `relationship ${relationship.key} references unknown Character ${relationship.target}`)
+      if (!characters.has(relationship.target))
+        failWorldPackContract(
+          'PACK_REFERENCE_INVALID',
+          'cognition',
+          '',
+          `relationship ${relationship.key} references unknown Character ${relationship.target}`,
+        )
     }
     for (const goal of cognition.goals) {
       for (const target of [...goal.targetKeys, ...goal.blockerKeys]) {
         if (!localKeys.has(target) && !characterIds.has(target) && !locations.has(target) && !entities.has(target)) {
-          failWorldPackContract('PACK_REFERENCE_INVALID', 'cognition', '', `goal ${goal.key} references unknown target or blocker ${target}`)
+          failWorldPackContract(
+            'PACK_REFERENCE_INVALID',
+            'cognition',
+            '',
+            `goal ${goal.key} references unknown target or blocker ${target}`,
+          )
         }
       }
     }
     for (const affect of cognition.affects) {
-      if (affect.targetKey !== null && !localKeys.has(affect.targetKey) && !characterIds.has(affect.targetKey)
-        && !locations.has(affect.targetKey) && !entities.has(affect.targetKey)) {
-        failWorldPackContract('PACK_REFERENCE_INVALID', 'cognition', '', `affect ${affect.key} references unknown target ${affect.targetKey}`)
+      if (
+        affect.targetKey !== null &&
+        !localKeys.has(affect.targetKey) &&
+        !characterIds.has(affect.targetKey) &&
+        !locations.has(affect.targetKey) &&
+        !entities.has(affect.targetKey)
+      ) {
+        failWorldPackContract(
+          'PACK_REFERENCE_INVALID',
+          'cognition',
+          '',
+          `affect ${affect.key} references unknown target ${affect.targetKey}`,
+        )
       }
     }
   }
   for (const document of content.documents) {
-    if (!markdown.has(document.contentRef)) failWorldPackContract('PACK_REFERENCE_INVALID', 'documents', '', `document ${document.documentId} references unknown Markdown ${document.contentRef}`)
-    if (document.characterIds.some(value => !characters.has(value))) failWorldPackContract('PACK_REFERENCE_INVALID', 'documents', '', `document ${document.documentId} references an unknown Character`)
+    if (!markdown.has(document.contentRef))
+      failWorldPackContract(
+        'PACK_REFERENCE_INVALID',
+        'documents',
+        '',
+        `document ${document.documentId} references unknown Markdown ${document.contentRef}`,
+      )
+    if (document.characterIds.some(value => !characters.has(value)))
+      failWorldPackContract(
+        'PACK_REFERENCE_INVALID',
+        'documents',
+        '',
+        `document ${document.documentId} references an unknown Character`,
+      )
   }
 }
 
-type CognitionSeedKind = 'observation' | 'claim' | 'goal' | 'relationship' | 'affect' | 'tension' | 'commitment' | 'open-loop'
+type CognitionSeedKind =
+  | 'observation'
+  | 'claim'
+  | 'goal'
+  | 'relationship'
+  | 'affect'
+  | 'tension'
+  | 'commitment'
+  | 'open-loop'
 
 interface CognitionSeed {
   readonly kind: CognitionSeedKind
@@ -380,35 +571,52 @@ const COGNITION_EVENT_TYPES: Readonly<Record<CognitionSeedKind, string>> = Objec
   'open-loop': 'open-loop.upsert',
 })
 
-function genesisCognitionId(pack: CompiledWorldPackV5, characterId: string, kind: CognitionSeedKind | 'portrayal', key: string): string {
+function genesisCognitionId(
+  pack: CompiledWorldPackV5,
+  characterId: string,
+  kind: CognitionSeedKind | 'portrayal',
+  key: string,
+): string {
   return deterministicId(`world-pack-${kind}-id/v2`, { packHash: pack.packHash, characterId, key })
 }
 
-function genesisSource(pack: CompiledWorldPackV5, characterId: string, kind: CognitionSeedKind | 'portrayal' | 'fact' | 'document', key: string): WorldJsonObject {
-  const source = { sourceKind: `worldpack-${kind}/v2`, sourceId: deterministicId('world-pack-genesis-source/v2', {
-    packHash: pack.packHash, characterId, kind, key,
-  }) }
+function genesisSource(
+  pack: CompiledWorldPackV5,
+  characterId: string,
+  kind: CognitionSeedKind | 'portrayal' | 'fact' | 'document',
+  key: string,
+): WorldJsonObject {
+  const source = {
+    sourceKind: `worldpack-${kind}/v2`,
+    sourceId: deterministicId('world-pack-genesis-source/v2', {
+      packHash: pack.packHash,
+      characterId,
+      kind,
+      key,
+    }),
+  }
   return { ...source, sourceHash: hashWorldJson('world-pack-genesis-source/v2', source) }
 }
 
 function cognitionSeeds(entry: WorldPackCharacterCognitionSourceV2): readonly CognitionSeed[] {
-  const convert = (kind: CognitionSeedKind, values: readonly WorldJsonObject[]): CognitionSeed[] => values.map(value => {
-    const { key, basisKeys, ...state } = value
-    const dependencies = [
-      ...(basisKeys as readonly string[]),
-      ...(kind === 'goal' && state.parentGoalKey !== null ? [state.parentGoalKey as string] : []),
-      ...(kind === 'tension'
-        ? (state.poles as readonly WorldJsonObject[]).flatMap(pole => pole.basisKeys as readonly string[])
-        : []),
-    ]
-    return {
-      kind,
-      eventType: COGNITION_EVENT_TYPES[kind],
-      key: key as string,
-      value: state,
-      basisKeys: [...new Set(dependencies)].sort(compareText),
-    }
-  })
+  const convert = (kind: CognitionSeedKind, values: readonly WorldJsonObject[]): CognitionSeed[] =>
+    values.map(value => {
+      const { key, basisKeys, ...state } = value
+      const dependencies = [
+        ...(basisKeys as readonly string[]),
+        ...(kind === 'goal' && state.parentGoalKey !== null ? [state.parentGoalKey as string] : []),
+        ...(kind === 'tension'
+          ? (state.poles as readonly WorldJsonObject[]).flatMap(pole => pole.basisKeys as readonly string[])
+          : []),
+      ]
+      return {
+        kind,
+        eventType: COGNITION_EVENT_TYPES[kind],
+        key: key as string,
+        value: state,
+        basisKeys: [...new Set(dependencies)].sort(compareText),
+      }
+    })
   const values = [
     ...convert('observation', entry.observations),
     ...convert('claim', entry.claims),
@@ -430,7 +638,10 @@ function cognitionSeeds(entry: WorldPackCharacterCognitionSourceV2): readonly Co
       dependents.set(basisKey, targets)
     }
   }
-  const ready = [...remaining].filter(([, count]) => count === 0).map(([key]) => key).sort(compareText)
+  const ready = [...remaining]
+    .filter(([, count]) => count === 0)
+    .map(([key]) => key)
+    .sort(compareText)
   const ordered: CognitionSeed[] = []
   while (ready.length > 0) {
     const key = ready.shift()!
@@ -492,54 +703,86 @@ function genesisCognitionEvents(pack: CompiledWorldPackV5): readonly WorldEventD
     for (const seed of seeds) {
       const id = idByKey.get(seed.key)!
       const basisRefs = seed.basisKeys.map(key => sourceByKey.get(key)!)
-      const replace = (value: unknown): unknown => typeof value === 'string' && idByKey.has(value) ? idByKey.get(value)! : value
-      const state: WorldJsonObject = seed.kind === 'goal'
-        ? {
-            ...seed.value,
-            parentGoalKey: replace(seed.value.parentGoalKey) as WorldJsonValue,
-            targetKeys: (seed.value.targetKeys as readonly WorldJsonValue[]).map(replace) as readonly WorldJsonValue[],
-            blockerKeys: (seed.value.blockerKeys as readonly WorldJsonValue[]).map(replace) as readonly WorldJsonValue[],
-          }
-        : seed.kind === 'affect'
+      const replace = (value: unknown): unknown =>
+        typeof value === 'string' && idByKey.has(value) ? idByKey.get(value)! : value
+      const state: WorldJsonObject =
+        seed.kind === 'goal'
           ? {
               ...seed.value,
-              cause: typeof seed.value.cause === 'object' && seed.value.cause !== null && !Array.isArray(seed.value.cause)
-                && typeof (seed.value.cause as WorldJsonObject).key === 'string'
-                ? { ...seed.value.cause as WorldJsonObject, key: replace((seed.value.cause as WorldJsonObject).key) as WorldJsonValue }
-                : seed.value.cause!,
-              targetKey: replace(seed.value.targetKey) as WorldJsonValue,
+              parentGoalKey: replace(seed.value.parentGoalKey) as WorldJsonValue,
+              targetKeys: (seed.value.targetKeys as readonly WorldJsonValue[]).map(
+                replace,
+              ) as readonly WorldJsonValue[],
+              blockerKeys: (seed.value.blockerKeys as readonly WorldJsonValue[]).map(
+                replace,
+              ) as readonly WorldJsonValue[],
             }
-          : seed.kind === 'tension'
+          : seed.kind === 'affect'
             ? {
                 ...seed.value,
-                poles: (seed.value.poles as readonly WorldJsonObject[]).map(pole => {
-                  const { basisKeys, ...poleState } = pole
-                  return {
-                    ...poleState,
-                    key: deterministicId('world-pack-tension-pole-id/v2', {
-                      packHash: pack.packHash, characterId: entry.characterId, tensionId: id, key: pole.key as string,
-                    }),
-                    basisRefs: (basisKeys as readonly string[]).map(key => sourceByKey.get(key)!),
-                  }
-                }),
+                cause:
+                  typeof seed.value.cause === 'object' &&
+                  seed.value.cause !== null &&
+                  !Array.isArray(seed.value.cause) &&
+                  typeof (seed.value.cause as WorldJsonObject).key === 'string'
+                    ? {
+                        ...(seed.value.cause as WorldJsonObject),
+                        key: replace((seed.value.cause as WorldJsonObject).key) as WorldJsonValue,
+                      }
+                    : seed.value.cause!,
+                targetKey: replace(seed.value.targetKey) as WorldJsonValue,
               }
-          : seed.value
+            : seed.kind === 'tension'
+              ? {
+                  ...seed.value,
+                  poles: (seed.value.poles as readonly WorldJsonObject[]).map(pole => {
+                    const { basisKeys, ...poleState } = pole
+                    return {
+                      ...poleState,
+                      key: deterministicId('world-pack-tension-pole-id/v2', {
+                        packHash: pack.packHash,
+                        characterId: entry.characterId,
+                        tensionId: id,
+                        key: pole.key as string,
+                      }),
+                      basisRefs: (basisKeys as readonly string[]).map(key => sourceByKey.get(key)!),
+                    }
+                  }),
+                }
+              : seed.value
       const value = { ...state, basisRefs, source: sourceByKey.get(seed.key)! }
-      events.push(seed.kind === 'observation'
-        ? { eventType: seed.eventType, eventVersion: 1, data: { id, value: { ...value, observerId: entry.characterId } } }
-        : { eventType: seed.eventType, eventVersion: 1, data: { id, characterId: entry.characterId, value } })
+      events.push(
+        seed.kind === 'observation'
+          ? {
+              eventType: seed.eventType,
+              eventVersion: 1,
+              data: { id, value: { ...value, observerId: entry.characterId } },
+            }
+          : { eventType: seed.eventType, eventVersion: 1, data: { id, characterId: entry.characterId, value } },
+      )
     }
   }
   for (const fact of pack.content.world.initialFacts) {
     for (const characterId of fact.initialAudience) {
-      const id = deterministicId('world-pack-initial-fact-claim/v2', { packHash: pack.packHash, factId: fact.factId, characterId })
+      const id = deterministicId('world-pack-initial-fact-claim/v2', {
+        packHash: pack.packHash,
+        factId: fact.factId,
+        characterId,
+      })
       events.push({
-        eventType: 'subjective-claim.upsert', eventVersion: 1,
+        eventType: 'subjective-claim.upsert',
+        eventVersion: 1,
         data: {
-          id, characterId,
+          id,
+          characterId,
           value: {
-            proposition: fact.proposition, stance: 'believed', confidencePermille: 1000, saliencePermille: 500,
-            awareness: 'conscious', status: 'active', basisRefs: [],
+            proposition: fact.proposition,
+            stance: 'believed',
+            confidencePermille: 1000,
+            saliencePermille: 500,
+            awareness: 'conscious',
+            status: 'active',
+            basisRefs: [],
             source: genesisSource(pack, characterId, 'fact', fact.factId),
           },
         },
@@ -549,15 +792,22 @@ function genesisCognitionEvents(pack: CompiledWorldPackV5): readonly WorldEventD
   const markdown = new Map(pack.content.markdown.map(value => [value.path, value]))
   for (const document of pack.content.documents.filter(value => value.usage === 'memory_seed')) {
     for (const characterId of document.characterIds) {
-      const id = deterministicId('world-pack-document-observation/v2', { packHash: pack.packHash, documentId: document.documentId, characterId })
+      const id = deterministicId('world-pack-document-observation/v2', {
+        packHash: pack.packHash,
+        documentId: document.documentId,
+        characterId,
+      })
       events.push({
-        eventType: 'observation.upsert', eventVersion: 1,
+        eventType: 'observation.upsert',
+        eventVersion: 1,
         data: {
           id,
           value: {
             observerId: characterId,
             content: markdown.get(document.contentRef)!.text,
-            epistemicKind: 'direct_observation', saliencePermille: 500, basisRefs: [],
+            epistemicKind: 'direct_observation',
+            saliencePermille: 500,
+            basisRefs: [],
             source: genesisSource(pack, characterId, 'document', document.documentId),
           },
         },
@@ -567,129 +817,227 @@ function genesisCognitionEvents(pack: CompiledWorldPackV5): readonly WorldEventD
   return events
 }
 
-async function compileV5Source(sourceDirectory: string, options: WorldPackCompileOptionsV5): Promise<CompiledWorldPackV5> {
-    if (options.limitsProfile !== WORLD_PACK_LIMITS_PROFILE_V2) {
-      failWorldPackContract('PACK_PROFILE_NOT_ALLOWED', 'compile-options', '/limitsProfile', `must be ${WORLD_PACK_LIMITS_PROFILE_V2}`)
-    }
-    let root: string
-    try {
-      root = await realpath(resolve(sourceDirectory))
-      if (!(await stat(root)).isDirectory()) failWorldPackContract('PACK_SOURCE_INVALID', sourceDirectory, '', 'must be a directory')
-    } catch (error) {
-      if (error instanceof Error && error.name === 'WorldPackContractError') throw error
-      failWorldPackContract('PACK_SOURCE_INVALID', sourceDirectory, '', `cannot open source directory: ${String(error)}`)
-    }
-    const manifestFile = 'worldpack.source.json'
-    const budget: SourceBudget = { bytes: 0 }
-    const manifestInput = await loadJson(root, manifestFile, manifestFile, budget)
-    const manifest = parseWorldPackSourceManifestV5(manifestInput, manifestFile)
-    validatePortablePaths(manifest, manifestFile)
-    const reaction = parseWorldPackReactionSource(
-      await loadJson(root, manifest.reactionFile, manifestFile, budget), manifest.reactionFile)
-    const manifestation = parseWorldPackManifestationSource(
-      await loadJson(root, manifest.manifestationFile, manifestFile, budget), manifest.manifestationFile)
-    const interactionSelection = parseWorldPackInteractionsSource(
-      await loadJson(root, manifest.interactionFile, manifestFile, budget), manifest.interactionFile)
-    const world = parseWorldPackWorldSource(await loadJson(root, manifest.worldFile, manifestFile, budget), manifest.worldFile)
-    const locations: WorldPackLocationSource[] = []
-    for (const file of [...manifest.locationFiles].sort(compareText)) locations.push(...parseWorldPackLocationsSource(await loadJson(root, file, manifestFile, budget), file).locations)
-    const entities: WorldPackEntitySourceV2[] = []
-    for (const file of [...manifest.entityFiles].sort(compareText)) {
-      entities.push(...parseWorldPackEntitiesSourceV2(await loadJson(root, file, manifestFile, budget), file).entities)
-    }
-    const characters: WorldPackCharacterSourceV3[] = []
-    for (const file of [...manifest.characterFiles].sort(compareText)) {
-      characters.push(...parseWorldPackCharactersSourceV3(await loadJson(root, file, manifestFile, budget), file).characters)
-    }
-    const scenes: WorldPackSceneSourceV2[] = []
-    for (const file of [...manifest.sceneFiles].sort(compareText)) scenes.push(...parseWorldPackScenesSourceV2(await loadJson(root, file, manifestFile, budget), file).scenes)
-    const playerSlots: WorldPackPlayerSlotSource[] = []
-    for (const file of [...manifest.playerSlotFiles].sort(compareText)) playerSlots.push(...parseWorldPackPlayerSlotsSource(await loadJson(root, file, manifestFile, budget), file).playerSlots)
-    if (manifest.presentationFiles.length !== 1) failWorldPackContract('PACK_SOURCE_INVALID', manifestFile, '/presentationFiles', 'requires exactly one presentation file')
-    const presentation = parseWorldPackPresentationSource(await loadJson(root, manifest.presentationFiles[0]!, manifestFile, budget), manifest.presentationFiles[0]!)
-    const cognition: WorldPackCharacterCognitionSourceV2[] = []
-    for (const file of [...manifest.cognitionFiles].sort(compareText)) cognition.push(...parseWorldPackCognitionSourceV2(await loadJson(root, file, manifestFile, budget), file).characters)
-    const memory: WorldPackCharacterMemorySourceV2[] = []
-    for (const file of [...manifest.memoryFiles].sort(compareText)) memory.push(...parseWorldPackMemorySourceV2(await loadJson(root, file, manifestFile, budget), file).characters)
-    const documents: WorldPackDocumentSourceV2[] = []
-    for (const file of [...manifest.documentFiles].sort(compareText)) documents.push(...parseWorldPackDocumentsSourceV2(await loadJson(root, file, manifestFile, budget), file).documents)
-    const markdown: WorldPackMarkdownContent[] = []
-    for (const file of [...manifest.markdownFiles].sort(compareText)) {
-      const bytes = await loadBytes(root, file, manifestFile, budget, MAX_MARKDOWN_BYTES)
-      const decoded = decodeUtf8(bytes, file)
-      const text = decoded.replaceAll('\r\n', '\n')
-      if (text.includes('\r')) failWorldPackContract('PACK_SOURCE_INVALID', file, '', 'contains a bare carriage return')
-      markdown.push({ path: file, text, contentHash: rawHash(new TextEncoder().encode(text)) })
-    }
-    const assets: WorldPackAssetLock[] = []
-    for (const file of [...manifest.assetFiles].sort(compareText)) {
-      const bytes = await loadBytes(root, file, manifestFile, budget, MAX_ASSET_BYTES)
-      assets.push({ path: file, contentHash: rawHash(bytes), size: bytes.byteLength })
-    }
-    const acceptanceAssertions: WorldPackAcceptanceAssertion[] = []
-    for (const file of [...manifest.assertionFiles].sort(compareText)) acceptanceAssertions.push(...parseWorldPackAssertionsSource(await loadJson(root, file, manifestFile, budget), file).assertions)
+async function compileV5Source(
+  sourceDirectory: string,
+  options: WorldPackCompileOptionsV5,
+): Promise<CompiledWorldPackV5> {
+  if (options.limitsProfile !== WORLD_PACK_LIMITS_PROFILE_V2) {
+    failWorldPackContract(
+      'PACK_PROFILE_NOT_ALLOWED',
+      'compile-options',
+      '/limitsProfile',
+      `must be ${WORLD_PACK_LIMITS_PROFILE_V2}`,
+    )
+  }
+  let root: string
+  try {
+    root = await realpath(resolve(sourceDirectory))
+    if (!(await stat(root)).isDirectory())
+      failWorldPackContract('PACK_SOURCE_INVALID', sourceDirectory, '', 'must be a directory')
+  } catch (error) {
+    if (error instanceof Error && error.name === 'WorldPackContractError') throw error
+    failWorldPackContract('PACK_SOURCE_INVALID', sourceDirectory, '', `cannot open source directory: ${String(error)}`)
+  }
+  const manifestFile = 'worldpack.source.json'
+  const budget: SourceBudget = { bytes: 0 }
+  const manifestInput = await loadJson(root, manifestFile, manifestFile, budget)
+  const manifest = parseWorldPackSourceManifestV5(manifestInput, manifestFile)
+  validatePortablePaths(manifest, manifestFile)
+  const reaction = parseWorldPackReactionSource(
+    await loadJson(root, manifest.reactionFile, manifestFile, budget),
+    manifest.reactionFile,
+  )
+  const manifestation = parseWorldPackManifestationSource(
+    await loadJson(root, manifest.manifestationFile, manifestFile, budget),
+    manifest.manifestationFile,
+  )
+  const interactionSelection = parseWorldPackInteractionsSource(
+    await loadJson(root, manifest.interactionFile, manifestFile, budget),
+    manifest.interactionFile,
+  )
+  const world = parseWorldPackWorldSource(
+    await loadJson(root, manifest.worldFile, manifestFile, budget),
+    manifest.worldFile,
+  )
+  const locations: WorldPackLocationSource[] = []
+  for (const file of [...manifest.locationFiles].sort(compareText))
+    locations.push(...parseWorldPackLocationsSource(await loadJson(root, file, manifestFile, budget), file).locations)
+  const entities: WorldPackEntitySourceV2[] = []
+  for (const file of [...manifest.entityFiles].sort(compareText)) {
+    entities.push(...parseWorldPackEntitiesSourceV2(await loadJson(root, file, manifestFile, budget), file).entities)
+  }
+  const characters: WorldPackCharacterSourceV3[] = []
+  for (const file of [...manifest.characterFiles].sort(compareText)) {
+    characters.push(
+      ...parseWorldPackCharactersSourceV3(await loadJson(root, file, manifestFile, budget), file).characters,
+    )
+  }
+  const scenes: WorldPackSceneSourceV2[] = []
+  for (const file of [...manifest.sceneFiles].sort(compareText))
+    scenes.push(...parseWorldPackScenesSourceV2(await loadJson(root, file, manifestFile, budget), file).scenes)
+  const playerSlots: WorldPackPlayerSlotSource[] = []
+  for (const file of [...manifest.playerSlotFiles].sort(compareText))
+    playerSlots.push(
+      ...parseWorldPackPlayerSlotsSource(await loadJson(root, file, manifestFile, budget), file).playerSlots,
+    )
+  if (manifest.presentationFiles.length !== 1)
+    failWorldPackContract(
+      'PACK_SOURCE_INVALID',
+      manifestFile,
+      '/presentationFiles',
+      'requires exactly one presentation file',
+    )
+  const presentation = parseWorldPackPresentationSource(
+    await loadJson(root, manifest.presentationFiles[0]!, manifestFile, budget),
+    manifest.presentationFiles[0]!,
+  )
+  const cognition: WorldPackCharacterCognitionSourceV2[] = []
+  for (const file of [...manifest.cognitionFiles].sort(compareText))
+    cognition.push(
+      ...parseWorldPackCognitionSourceV2(await loadJson(root, file, manifestFile, budget), file).characters,
+    )
+  const memory: WorldPackCharacterMemorySourceV2[] = []
+  for (const file of [...manifest.memoryFiles].sort(compareText))
+    memory.push(...parseWorldPackMemorySourceV2(await loadJson(root, file, manifestFile, budget), file).characters)
+  const documents: WorldPackDocumentSourceV2[] = []
+  for (const file of [...manifest.documentFiles].sort(compareText))
+    documents.push(...parseWorldPackDocumentsSourceV2(await loadJson(root, file, manifestFile, budget), file).documents)
+  const markdown: WorldPackMarkdownContent[] = []
+  for (const file of [...manifest.markdownFiles].sort(compareText)) {
+    const bytes = await loadBytes(root, file, manifestFile, budget, MAX_MARKDOWN_BYTES)
+    const decoded = decodeUtf8(bytes, file)
+    const text = decoded.replaceAll('\r\n', '\n')
+    if (text.includes('\r')) failWorldPackContract('PACK_SOURCE_INVALID', file, '', 'contains a bare carriage return')
+    markdown.push({ path: file, text, contentHash: rawHash(new TextEncoder().encode(text)) })
+  }
+  const assets: WorldPackAssetLock[] = []
+  for (const file of [...manifest.assetFiles].sort(compareText)) {
+    const bytes = await loadBytes(root, file, manifestFile, budget, MAX_ASSET_BYTES)
+    assets.push({ path: file, contentHash: rawHash(bytes), size: bytes.byteLength })
+  }
+  const acceptanceAssertions: WorldPackAcceptanceAssertion[] = []
+  for (const file of [...manifest.assertionFiles].sort(compareText))
+    acceptanceAssertions.push(
+      ...parseWorldPackAssertionsSource(await loadJson(root, file, manifestFile, budget), file).assertions,
+    )
 
-    locations.sort((left, right) => compareText(left.locationId, right.locationId))
-    entities.sort((left, right) => compareText(left.entityId, right.entityId))
-    characters.sort((left, right) => compareText(left.characterId, right.characterId))
-    scenes.sort((left, right) => compareText(left.sceneId, right.sceneId))
-    playerSlots.sort((left, right) => compareText(left.slotId, right.slotId))
-    cognition.sort((left, right) => compareText(left.characterId, right.characterId))
-    memory.sort((left, right) => compareText(left.characterId, right.characterId))
-    documents.sort((left, right) => compareText(left.documentId, right.documentId))
-    acceptanceAssertions.sort((left, right) => compareText(left.assertionId, right.assertionId))
-    uniqueAcross(locations.map(value => value.locationId), 'locations', '')
-    uniqueAcross(entities.map(value => value.entityId), 'entities', '')
-    uniqueAcross(characters.map(value => value.characterId), 'characters', '')
-    uniqueAcross(scenes.map(value => value.sceneId), 'scenes', '')
-    uniqueAcross(playerSlots.map(value => value.slotId), 'player-slots', '')
-    uniqueAcross(cognition.map(value => value.characterId), 'cognition', '')
-    uniqueAcross(memory.map(value => value.characterId), 'memory', '')
-    uniqueAcross(documents.map(value => value.documentId), 'documents', '')
-    uniqueAcross(acceptanceAssertions.map(value => value.assertionId), 'assertions', '')
-    if (playerSlots.length !== 1) failWorldPackContract('PACK_SOURCE_INVALID', manifestFile, '', 'requires exactly one PlayerSlot across all files')
-    const cognitionByCharacter = new Map(cognition.map(value => [value.characterId, value]))
-    const memoryByCharacter = new Map(memory.map(value => [value.characterId, value]))
-    for (const character of characters) {
-      if (!cognitionByCharacter.has(character.characterId)) {
-        cognition.push({
-          characterId: character.characterId, observations: [], claims: [], goals: [], relationships: [], affects: [],
-          innerTensions: [], commitments: [], openLoops: [],
-        })
-      }
-      if (!memoryByCharacter.has(character.characterId)) {
-        memory.push({ characterId: character.characterId, profile: 'standard', attentionTopics: [] })
-      }
+  locations.sort((left, right) => compareText(left.locationId, right.locationId))
+  entities.sort((left, right) => compareText(left.entityId, right.entityId))
+  characters.sort((left, right) => compareText(left.characterId, right.characterId))
+  scenes.sort((left, right) => compareText(left.sceneId, right.sceneId))
+  playerSlots.sort((left, right) => compareText(left.slotId, right.slotId))
+  cognition.sort((left, right) => compareText(left.characterId, right.characterId))
+  memory.sort((left, right) => compareText(left.characterId, right.characterId))
+  documents.sort((left, right) => compareText(left.documentId, right.documentId))
+  acceptanceAssertions.sort((left, right) => compareText(left.assertionId, right.assertionId))
+  uniqueAcross(
+    locations.map(value => value.locationId),
+    'locations',
+    '',
+  )
+  uniqueAcross(
+    entities.map(value => value.entityId),
+    'entities',
+    '',
+  )
+  uniqueAcross(
+    characters.map(value => value.characterId),
+    'characters',
+    '',
+  )
+  uniqueAcross(
+    scenes.map(value => value.sceneId),
+    'scenes',
+    '',
+  )
+  uniqueAcross(
+    playerSlots.map(value => value.slotId),
+    'player-slots',
+    '',
+  )
+  uniqueAcross(
+    cognition.map(value => value.characterId),
+    'cognition',
+    '',
+  )
+  uniqueAcross(
+    memory.map(value => value.characterId),
+    'memory',
+    '',
+  )
+  uniqueAcross(
+    documents.map(value => value.documentId),
+    'documents',
+    '',
+  )
+  uniqueAcross(
+    acceptanceAssertions.map(value => value.assertionId),
+    'assertions',
+    '',
+  )
+  if (playerSlots.length !== 1)
+    failWorldPackContract('PACK_SOURCE_INVALID', manifestFile, '', 'requires exactly one PlayerSlot across all files')
+  const cognitionByCharacter = new Map(cognition.map(value => [value.characterId, value]))
+  const memoryByCharacter = new Map(memory.map(value => [value.characterId, value]))
+  for (const character of characters) {
+    if (!cognitionByCharacter.has(character.characterId)) {
+      cognition.push({
+        characterId: character.characterId,
+        observations: [],
+        claims: [],
+        goals: [],
+        relationships: [],
+        affects: [],
+        innerTensions: [],
+        commitments: [],
+        openLoops: [],
+      })
     }
-    cognition.sort((left, right) => compareText(left.characterId, right.characterId))
-    memory.sort((left, right) => compareText(left.characterId, right.characterId))
-    const content: WorldPackCompiledContentV5 = {
-      world, locations, entities, characters, scenes, playerSlots, cognition, memory, documents, presentation, markdown,
+    if (!memoryByCharacter.has(character.characterId)) {
+      memory.push({ characterId: character.characterId, profile: 'standard', attentionTopics: [] })
     }
-    validateV2References(content)
-    const shared = {
-      packId: manifest.packId,
-      packVersion: manifest.packVersion,
-      pluginLocks: pluginLocks(WORLD_PACK_CORE_PROFILES),
-      vocabularyLocks: BASIC_VOCABULARY_LOCKS,
-      registryLocks: RUNTIME_REGISTRY_LOCKS,
-      content,
-      assets,
-      acceptanceAssertions,
-    }
-    const unsigned: UnsignedCompiledWorldPackV5 = {
-      ...shared,
-      compiledSchemaVersion: WORLD_PACK_COMPILED_SCHEMA_VERSION_V5,
-      compiler: {
-        id: WORLD_PACK_COMPILER_ID, version: WORLD_PACK_COMPILER_VERSION_V5,
-        contractVersion: WORLD_PACK_COMPILER_CONTRACT_VERSION_V5,
-        canonicalJsonVersion: 'world-json/v1', limitsProfile: WORLD_PACK_LIMITS_PROFILE_V2,
-      },
-      reaction,
-      manifestation,
-      interactions: compileInteractionCatalog(interactionSelection, entities, characters, options.interactionPackages),
-    }
-    return { ...unsigned, packHash: packHashV5(unsigned) }
+  }
+  cognition.sort((left, right) => compareText(left.characterId, right.characterId))
+  memory.sort((left, right) => compareText(left.characterId, right.characterId))
+  const content: WorldPackCompiledContentV5 = {
+    world,
+    locations,
+    entities,
+    characters,
+    scenes,
+    playerSlots,
+    cognition,
+    memory,
+    documents,
+    presentation,
+    markdown,
+  }
+  validateV2References(content)
+  const shared = {
+    packId: manifest.packId,
+    packVersion: manifest.packVersion,
+    pluginLocks: pluginLocks(WORLD_PACK_CORE_PROFILES),
+    vocabularyLocks: BASIC_VOCABULARY_LOCKS,
+    registryLocks: RUNTIME_REGISTRY_LOCKS,
+    content,
+    assets,
+    acceptanceAssertions,
+  }
+  const unsigned: UnsignedCompiledWorldPackV5 = {
+    ...shared,
+    compiledSchemaVersion: WORLD_PACK_COMPILED_SCHEMA_VERSION_V5,
+    compiler: {
+      id: WORLD_PACK_COMPILER_ID,
+      version: WORLD_PACK_COMPILER_VERSION_V5,
+      contractVersion: WORLD_PACK_COMPILER_CONTRACT_VERSION_V5,
+      canonicalJsonVersion: 'world-json/v1',
+      limitsProfile: WORLD_PACK_LIMITS_PROFILE_V2,
+    },
+    reaction,
+    manifestation,
+    interactions: compileInteractionCatalog(interactionSelection, entities, characters, options.interactionPackages),
+  }
+  return { ...unsigned, packHash: packHashV5(unsigned) }
 }
 
 /** Deterministic compiler for worldpack-source/v5. Older source versions are rejected, never upcast. */
@@ -714,9 +1062,13 @@ export class WorldPackCompilerV5 {
     const pack = verifyCompiledWorldPackV5(packInput)
     const player = pack.content.playerSlots[0]!
     const characters: readonly ContentPackCharacterSpecV2[] = pack.content.characters.map(character => ({
-      characterId: character.characterId, name: character.displayName, locationId: character.initialLocationId,
-      controllerClass: character.controllerClass, pronouns: character.pronouns,
-      lifecycle: character.lifecycle, portrayal: character.portrayal,
+      characterId: character.characterId,
+      name: character.displayName,
+      locationId: character.initialLocationId,
+      controllerClass: character.controllerClass,
+      pronouns: character.pronouns,
+      lifecycle: character.lifecycle,
+      portrayal: character.portrayal,
     }))
     const scenes: readonly SceneSpecV2[] = pack.content.scenes.map(scene => ({ ...scene }))
     const actionGroupPolicy = { version: 'bounded-action-group/v2' as const }
@@ -733,17 +1085,25 @@ export class WorldPackCompilerV5 {
       entities: pack.content.entities,
       characters,
       scenes,
-      goals: [], claims: [], observations: [],
-      playerBindings: [{ principalId: options.principalId, characterId: player.characterId, sessionId: options.sessionId }],
+      goals: [],
+      claims: [],
+      observations: [],
+      playerBindings: [
+        { principalId: options.principalId, characterId: player.characterId, sessionId: options.sessionId },
+      ],
       plugins: [
         pack.content.world.coreProfiles.sceneDecision,
         pack.content.world.coreProfiles.agentContext,
-        { pluginId: pack.content.world.coreProfiles.presentation.profileId, version: pack.content.world.coreProfiles.presentation.version },
+        {
+          pluginId: pack.content.world.coreProfiles.presentation.profileId,
+          version: pack.content.world.coreProfiles.presentation.version,
+        },
       ],
       contentPack: contentPackBindingV2(pack),
-      reactionPolicy: pack.reaction.mode === 'disabled'
-        ? { version: 'reaction-policy/v1' as const, mode: 'disabled' as const }
-        : { version: 'reaction-policy/v1' as const, mode: 'responsive' as const, profile: pack.reaction.profile },
+      reactionPolicy:
+        pack.reaction.mode === 'disabled'
+          ? { version: 'reaction-policy/v1' as const, mode: 'disabled' as const }
+          : { version: 'reaction-policy/v1' as const, mode: 'responsive' as const, profile: pack.reaction.profile },
       manifestationPolicy: { version: 'manifestation-policy/v1' as const, mode: pack.manifestation.mode },
       interactionCatalog: pack.interactions,
       actionGroupPolicy,
@@ -758,13 +1118,20 @@ export class WorldPackCompilerV5 {
       interactionCatalog,
     })
     const genesisPlanHash = hashWorldJson('world-pack-genesis-semantic-plan/v5', {
-      address: options.address, packHash: pack.packHash, characters, scenes,
-      cognition: pack.content.cognition, initialFacts: pack.content.world.initialFacts,
+      address: options.address,
+      packHash: pack.packHash,
+      characters,
+      scenes,
+      cognition: pack.content.cognition,
+      initialFacts: pack.content.world.initialFacts,
       memorySeedDocuments: pack.content.documents.filter(isMemorySeedDocument),
     })
     const manifest: CompiledWorldManifestV10 = {
-      ...normalizedRuntime, specHash, genesisPlanHash,
-      canonicalVersion: 'world-json/v1', hashVersion: 'sha256/v1',
+      ...normalizedRuntime,
+      specHash,
+      genesisPlanHash,
+      canonicalVersion: 'world-json/v1',
+      hashVersion: 'sha256/v1',
     }
     const manifestHash = hashWorldJson('compiled-world-manifest', manifest)
     const genesisEvents: readonly WorldEventDraft[] = [
@@ -774,14 +1141,27 @@ export class WorldPackCompilerV5 {
       ...pack.content.entities.map(value => ({ eventType: 'entity.upsert', eventVersion: 1, data: value })),
       ...characters.flatMap(value => [
         { eventType: 'character.created', eventVersion: 1, data: { ...value, lifecycleState: 'active' } },
-        ...(value.lifecycle === 'active' ? [] : [{
-          eventType: 'character.lifecycle-changed', eventVersion: 1,
-          data: { characterId: value.characterId, lifecycleState: value.lifecycle, transition: 'world-pack-genesis/v2' },
-        }]),
+        ...(value.lifecycle === 'active'
+          ? []
+          : [
+              {
+                eventType: 'character.lifecycle-changed',
+                eventVersion: 1,
+                data: {
+                  characterId: value.characterId,
+                  lifecycleState: value.lifecycle,
+                  transition: 'world-pack-genesis/v2',
+                },
+              },
+            ]),
       ]),
       ...scenes.map(value => ({
-        eventType: 'scene.upsert', eventVersion: 1,
-        data: { sceneId: value.sceneId, value: { lifecycle: value.lifecycle, locationId: value.locationId, participantIds: value.participantIds } },
+        eventType: 'scene.upsert',
+        eventVersion: 1,
+        data: {
+          sceneId: value.sceneId,
+          value: { lifecycle: value.lifecycle, locationId: value.locationId, participantIds: value.participantIds },
+        },
       })),
       ...genesisCognitionEvents(pack),
       { eventType: 'player.binding.upsert', eventVersion: 1, data: normalizedRuntime.playerBindings[0]! },
@@ -801,16 +1181,31 @@ function validateInteractionTargets(pack: CompiledWorldPackV5): void {
     if (binding.targetRef.kind === 'relation') {
       // The id names the class: a definition the catalog enabled and whose instances may be addressed.
       if (!definitionIds.has(binding.targetRef.id)) {
-        failWorldPackContract('PACK_REFERENCE_INVALID', 'worldpack.json', '/interactions/bindings', `binding ${binding.bindingId} names relation class ${binding.targetRef.id}, which the catalog does not enable`)
+        failWorldPackContract(
+          'PACK_REFERENCE_INVALID',
+          'worldpack.json',
+          '/interactions/bindings',
+          `binding ${binding.bindingId} names relation class ${binding.targetRef.id}, which the catalog does not enable`,
+        )
       }
     } else {
       const declared = binding.targetRef.kind === 'entity' ? entityIds : characterIds
       if (!declared.has(binding.targetRef.id)) {
-        failWorldPackContract('PACK_REFERENCE_INVALID', 'worldpack.json', '/interactions/bindings', `binding ${binding.bindingId} names an unknown ${binding.targetRef.kind} target`)
+        failWorldPackContract(
+          'PACK_REFERENCE_INVALID',
+          'worldpack.json',
+          '/interactions/bindings',
+          `binding ${binding.bindingId} names an unknown ${binding.targetRef.kind} target`,
+        )
       }
     }
     if (!definitionRefs.has(`${binding.definitionRef.id}@${binding.definitionRef.version}`)) {
-      failWorldPackContract('PACK_REFERENCE_INVALID', 'worldpack.json', '/interactions/bindings', `binding ${binding.bindingId} references a definition outside the catalog`)
+      failWorldPackContract(
+        'PACK_REFERENCE_INVALID',
+        'worldpack.json',
+        '/interactions/bindings',
+        `binding ${binding.bindingId} references a definition outside the catalog`,
+      )
     }
   }
 }
@@ -818,7 +1213,13 @@ function validateInteractionTargets(pack: CompiledWorldPackV5): void {
 export function verifyCompiledWorldPackV5(input: unknown): CompiledWorldPackV5 {
   const pack = parseCompiledWorldPackV5(input)
   const { packHash: claimedHash, ...unsigned } = pack
-  if (packHashV5(unsigned) !== claimedHash) failWorldPackContract('PACK_SOURCE_INVALID', 'worldpack.json', '/packHash', 'does not match the compiled v5 envelope content')
+  if (packHashV5(unsigned) !== claimedHash)
+    failWorldPackContract(
+      'PACK_SOURCE_INVALID',
+      'worldpack.json',
+      '/packHash',
+      'does not match the compiled v5 envelope content',
+    )
   validateV2References(pack.content)
   validateInteractionTargets(pack)
   return pack

@@ -30,17 +30,33 @@ async function main(): Promise<void> {
   const launch = parseHostLaunchArguments(process.argv.slice(2))
   const provider = launch.provider
   const packPath = launch.packPath ?? (process.env.HCW_PLAYTEST_PACK?.trim() || undefined)
-  const dataDirectory = launch.dataDirectory
-    ?? (process.env.HCW_PLAYTEST_DATA_DIRECTORY?.trim() || defaultGameDirectory())
-  const endpoint = provider === 'ollama' ? process.env.HCW_OLLAMA_ENDPOINT
-    : provider === 'local' ? process.env.HCW_LOCAL_ENDPOINT : undefined
-  const model = provider === 'deepseek' ? (process.env.HCW_DEEPSEEK_MODEL?.trim() || PROVIDER_DEFAULTS.deepseek.model)
-    : provider === 'ollama' ? process.env.HCW_OLLAMA_MODEL : process.env.HCW_LOCAL_MODEL
-  const apiKey = provider === 'deepseek' ? process.env.DEEPSEEK_API_KEY
-    : provider === 'local' ? process.env.HCW_LOCAL_API_KEY : undefined
+  const dataDirectory =
+    launch.dataDirectory ?? (process.env.HCW_PLAYTEST_DATA_DIRECTORY?.trim() || defaultGameDirectory())
+  const endpoint =
+    provider === 'ollama'
+      ? process.env.HCW_OLLAMA_ENDPOINT
+      : provider === 'local'
+        ? process.env.HCW_LOCAL_ENDPOINT
+        : undefined
+  const model =
+    provider === 'deepseek'
+      ? process.env.HCW_DEEPSEEK_MODEL?.trim() || PROVIDER_DEFAULTS.deepseek.model
+      : provider === 'ollama'
+        ? process.env.HCW_OLLAMA_MODEL
+        : process.env.HCW_LOCAL_MODEL
+  const apiKey =
+    provider === 'deepseek'
+      ? process.env.DEEPSEEK_API_KEY
+      : provider === 'local'
+        ? process.env.HCW_LOCAL_API_KEY
+        : undefined
   // Keys stay in this process's memory only; the Core Python workers receive just the key of their own target.
   const roleModels = process.env.PERSPECTRA_ROLE_MODELS
-    ? runtimeRoleModels(JSON.parse(process.env.PERSPECTRA_ROLE_MODELS), JSON.parse(process.env.PERSPECTRA_MODEL_KEYS || '{}')) : undefined
+    ? runtimeRoleModels(
+        JSON.parse(process.env.PERSPECTRA_ROLE_MODELS),
+        JSON.parse(process.env.PERSPECTRA_MODEL_KEYS || '{}'),
+      )
+    : undefined
   delete process.env.PERSPECTRA_MODEL_KEYS
   if (packPath === undefined || !isV5SourcePackDirectory(packPath)) {
     throw new Error('请通过 --pack 指定 worldpack-source/v5 世界源目录；旧 Pack 已不再由网页试玩入口运行')
@@ -51,45 +67,102 @@ async function main(): Promise<void> {
     const classify = createClaimClassifier(process.env.OPENROUTER_JEV_KEY ?? '')
     mkdirSync(resolve(dataDirectory), { recursive: true })
     const logPath = resolve(dataDirectory, 'jev-shadow.jsonl')
-    shadowAudit = { items, classify,
-      write: async record => { await appendFile(logPath, JSON.stringify(record) + '\n', 'utf8') },
-      onError: message => { console.error(message) } }
+    shadowAudit = {
+      items,
+      classify,
+      write: async record => {
+        await appendFile(logPath, JSON.stringify(record) + '\n', 'utf8')
+      },
+      onError: message => {
+        console.error(message)
+      },
+    }
     process.stdout.write(`Jev 影子审计已启用：已发布的对白和叙述将发送到 OpenRouter。日志：${logPath}\n`)
   }
   const packWeb = await loadPackWeb(packPath)
-  const compiled = await compileWorldPackSource(packPath, createInstalledInteractionPackages().map(interactionPackageDescription)) as CompiledWorldPackV5
+  const compiled = (await compileWorldPackSource(
+    packPath,
+    createInstalledInteractionPackages().map(interactionPackageDescription),
+  )) as CompiledWorldPackV5
   const playerId = compiled.content.playerSlots[0]?.characterId
-  const creatorMeta = { title: compiled.content.world.title, storyline: process.env.PERSPECTRA_STORY_NAME || '主故事线',
-    characters: compiled.content.characters.filter(c => c.characterId !== playerId && c.controllerClass !== 'manual' && (c.lifecycle ?? 'active') === 'active').map(c => ({ id: c.characterId, name: c.displayName })) }
+  const creatorMeta = {
+    title: compiled.content.world.title,
+    storyline: process.env.PERSPECTRA_STORY_NAME || '主故事线',
+    characters: compiled.content.characters
+      .filter(
+        c => c.characterId !== playerId && c.controllerClass !== 'manual' && (c.lifecycle ?? 'active') === 'active',
+      )
+      .map(c => ({ id: c.characterId, name: c.displayName })),
+  }
   const recommended = await packPreset(packPath)
   const settings = process.env.PERSPECTRA_PRESET_ROOT ? new ModelPresets(process.env.PERSPECTRA_PRESET_ROOT) : undefined
   if (settings) await settings.load()
   const instanceId = process.env.PERSPECTRA_PRESET_INSTANCE ?? ''
   if (settings && !/^[a-f0-9-]{36}$/.test(instanceId)) throw new Error('启动预设的实例标识无效。')
-  const {mode: _mode, override: _override, ...mapping} = settings?.instances[instanceId] ?? { mode: 'auto', override: {} }
+  const {
+    mode: _mode,
+    override: _override,
+    ...mapping
+  } = settings?.instances[instanceId] ?? { mode: 'auto', override: {} }
   hostPlugins = await loadHostPlugins(hostPluginSettings(JSON.parse(process.env.PERSPECTRA_HOST_PLUGINS ?? '[]')))
   const runtime = await WorldHostRuntime.create({
-    dataDirectory, provider, packPath, ...(process.env.HCW_THINKING_LEVEL === undefined ? {} : {thinkingLevel:thinkingLevel(process.env.HCW_THINKING_LEVEL)}), protocol: providerProtocol(process.env.HCW_MODEL_PROTOCOL),
+    dataDirectory,
+    provider,
+    packPath,
+    ...(process.env.HCW_THINKING_LEVEL === undefined
+      ? {}
+      : { thinkingLevel: thinkingLevel(process.env.HCW_THINKING_LEVEL) }),
+    protocol: providerProtocol(process.env.HCW_MODEL_PROTOCOL),
     storyNodes: !!process.send,
-    ...(launch.playSettings===undefined?{}:{playSettings:launch.playSettings}),
-    ...(process.env.PERSPECTRA_READING===undefined?{}:{reading:readingPreferences(JSON.parse(process.env.PERSPECTRA_READING))}),
-    ...(process.env.PERSPECTRA_AUDIO===undefined?{}:{audio:audioPreferences(JSON.parse(process.env.PERSPECTRA_AUDIO))}),
-    ...(process.env.PERSPECTRA_PALETTE===undefined||process.env.PERSPECTRA_PALETTE===''?{}:{palette:palettePreference(process.env.PERSPECTRA_PALETTE)}),
-    ...(process.env.PERSPECTRA_STORY_PARENT_NODE ? {storyParentNodeId:process.env.PERSPECTRA_STORY_PARENT_NODE} : {}),
-    preset:settings?settings.effective(instanceId,recommended):process.env.PERSPECTRA_ROLE_PRESET===undefined?recommended:rolePreset(JSON.parse(process.env.PERSPECTRA_ROLE_PRESET)),
-    presetBaseSource:settings ? {
-      mode:settings.instances[instanceId]?.mode ?? 'auto',
-      layers:settings.instances[instanceId]?.mode === 'custom' ? [{name:'实例自定义',value:settings.instances[instanceId]!.override}]
-        : settings.instances[instanceId]?.mode === 'global' ? [{name:'全局预设',value:settings.global}]
-          : [{name:'全局预设',value:settings.global},{name:'游戏包推荐',value:recommended}],
-    } : {mode:process.env.PERSPECTRA_ROLE_PRESET === undefined ? 'pack' : 'explicit',layers:[{
-      name:process.env.PERSPECTRA_ROLE_PRESET === undefined ? '游戏包推荐' : '运行配置',
-      value:process.env.PERSPECTRA_ROLE_PRESET === undefined ? recommended : rolePreset(JSON.parse(process.env.PERSPECTRA_ROLE_PRESET)),
-    }]},
-    presetMapping:settings?rolePresetMapping(mapping):rolePresetMapping(JSON.parse(process.env.PERSPECTRA_ROLE_MAPPING??'{}')),
+    ...(launch.playSettings === undefined ? {} : { playSettings: launch.playSettings }),
+    ...(process.env.PERSPECTRA_READING === undefined
+      ? {}
+      : { reading: readingPreferences(JSON.parse(process.env.PERSPECTRA_READING)) }),
+    ...(process.env.PERSPECTRA_AUDIO === undefined
+      ? {}
+      : { audio: audioPreferences(JSON.parse(process.env.PERSPECTRA_AUDIO)) }),
+    ...(process.env.PERSPECTRA_PALETTE === undefined || process.env.PERSPECTRA_PALETTE === ''
+      ? {}
+      : { palette: palettePreference(process.env.PERSPECTRA_PALETTE) }),
+    ...(process.env.PERSPECTRA_STORY_PARENT_NODE
+      ? { storyParentNodeId: process.env.PERSPECTRA_STORY_PARENT_NODE }
+      : {}),
+    preset: settings
+      ? settings.effective(instanceId, recommended)
+      : process.env.PERSPECTRA_ROLE_PRESET === undefined
+        ? recommended
+        : rolePreset(JSON.parse(process.env.PERSPECTRA_ROLE_PRESET)),
+    presetBaseSource: settings
+      ? {
+          mode: settings.instances[instanceId]?.mode ?? 'auto',
+          layers:
+            settings.instances[instanceId]?.mode === 'custom'
+              ? [{ name: '实例自定义', value: settings.instances[instanceId]!.override }]
+              : settings.instances[instanceId]?.mode === 'global'
+                ? [{ name: '全局预设', value: settings.global }]
+                : [
+                    { name: '全局预设', value: settings.global },
+                    { name: '游戏包推荐', value: recommended },
+                  ],
+        }
+      : {
+          mode: process.env.PERSPECTRA_ROLE_PRESET === undefined ? 'pack' : 'explicit',
+          layers: [
+            {
+              name: process.env.PERSPECTRA_ROLE_PRESET === undefined ? '游戏包推荐' : '运行配置',
+              value:
+                process.env.PERSPECTRA_ROLE_PRESET === undefined
+                  ? recommended
+                  : rolePreset(JSON.parse(process.env.PERSPECTRA_ROLE_PRESET)),
+            },
+          ],
+        },
+    presetMapping: settings
+      ? rolePresetMapping(mapping)
+      : rolePresetMapping(JSON.parse(process.env.PERSPECTRA_ROLE_MAPPING ?? '{}')),
     ...(launch.memoryCore ? { memoryCore: true } : {}),
     ...(roleModels === undefined ? {} : { roleModels }),
-    ...(launch.serialScheduling?{serialScheduling:true}:{}),
+    ...(launch.serialScheduling ? { serialScheduling: true } : {}),
     ...(launch.tuning === undefined ? {} : { tuning: launch.tuning }),
     ...(shadowAudit === undefined ? {} : { shadowAudit }),
     ...(model === undefined ? {} : { model }),
@@ -98,11 +171,20 @@ async function main(): Promise<void> {
   })
   startupRuntime = runtime
   const token = randomBytes(32).toString('hex')
-  const policy:FrontendPolicy={mode:'sandbox',origin:'',revision:0}
-  const approved=process.env.PERSPECTRA_FRONTEND_APPROVED_SHA256
-  const trustedAssets=approved&&packWeb?.digest===approved&&process.send ? createTrustedFrontendServer(packWeb,policy,()=>hostOrigin) : undefined
-  let hostOrigin=''
-  const server = createHostServer(Object.assign(runtime, { creatorMeta: () => structuredClone(creatorMeta) }), token, packWeb, policy, hostPlugins.services)
+  const policy: FrontendPolicy = { mode: 'sandbox', origin: '', revision: 0 }
+  const approved = process.env.PERSPECTRA_FRONTEND_APPROVED_SHA256
+  const trustedAssets =
+    approved && packWeb?.digest === approved && process.send
+      ? createTrustedFrontendServer(packWeb, policy, () => hostOrigin)
+      : undefined
+  let hostOrigin = ''
+  const server = createHostServer(
+    Object.assign(runtime, { creatorMeta: () => structuredClone(creatorMeta) }),
+    token,
+    packWeb,
+    policy,
+    hostPlugins.services,
+  )
   let closing = false
   const close = async () => {
     if (closing) return
@@ -110,41 +192,64 @@ async function main(): Promise<void> {
     const closingResources = Promise.allSettled([runtime.close(), hostPlugins!.close()])
     if (server.listening) {
       await new Promise<void>((resolveClose, rejectClose) => {
-        server.close(error => error === undefined ? resolveClose() : rejectClose(error))
+        server.close(error => (error === undefined ? resolveClose() : rejectClose(error)))
         server.closeAllConnections()
       })
     }
-    if(trustedAssets?.listening){trustedAssets.closeAllConnections();await new Promise<void>(done=>trustedAssets.close(()=>done()))}
+    if (trustedAssets?.listening) {
+      trustedAssets.closeAllConnections()
+      await new Promise<void>(done => trustedAssets.close(() => done()))
+    }
     for (const result of await closingResources) if (result.status === 'rejected') throw result.reason
   }
-  process.once('SIGINT', () => { void close().then(() => { process.exitCode = 0 }) })
-  process.once('SIGTERM', () => { void close().then(() => { process.exitCode = 0 }) })
+  process.once('SIGINT', () => {
+    void close().then(() => {
+      process.exitCode = 0
+    })
+  })
+  process.once('SIGTERM', () => {
+    void close().then(() => {
+      process.exitCode = 0
+    })
+  })
   process.on('message', message => {
-    if(message!==null&&typeof message==='object'&&'type' in message&&message.type==='frontend-revoke'){
-      policy.mode='sandbox';policy.revision++
-      process.send?.({type:'frontend-revoked'})
+    if (message !== null && typeof message === 'object' && 'type' in message && message.type === 'frontend-revoke') {
+      policy.mode = 'sandbox'
+      policy.revision++
+      process.send?.({ type: 'frontend-revoked' })
     }
 
     if (message !== null && typeof message === 'object' && 'type' in message && message.type === 'shutdown') {
-      void close().then(() => { process.exitCode = 0; process.disconnect?.() }).catch(error => {
-        console.error('本机试玩页关闭失败：', error instanceof Error ? error.message : '未知错误')
-        process.exitCode = 1
-      })
+      void close()
+        .then(() => {
+          process.exitCode = 0
+          process.disconnect?.()
+        })
+        .catch(error => {
+          console.error('本机试玩页关闭失败：', error instanceof Error ? error.message : '未知错误')
+          process.exitCode = 1
+        })
     }
   })
   server.listen(0, '127.0.0.1')
   await once(server, 'listening')
   const port = (server.address() as AddressInfo).port
-  hostOrigin='http://127.0.0.1:'+port
-  if(trustedAssets){
-    trustedAssets.listen(0,'127.0.0.1');await once(trustedAssets,'listening')
-    policy.origin='http://127.0.0.1:'+(trustedAssets.address() as AddressInfo).port
-    policy.mode='trusted'
+  hostOrigin = 'http://127.0.0.1:' + port
+  if (trustedAssets) {
+    trustedAssets.listen(0, '127.0.0.1')
+    await once(trustedAssets, 'listening')
+    policy.origin = 'http://127.0.0.1:' + (trustedAssets.address() as AddressInfo).port
+    policy.mode = 'trusted'
   }
-  process.send?.({ type: 'ready', port, token, frontendMode:policy.mode })
+  process.send?.({ type: 'ready', port, token, frontendMode: policy.mode })
   process.stdout.write(`\n本机试玩页已启动：\nhttp://127.0.0.1:${port}/#token=${token}\n\n`)
-  process.stdout.write(`世界数据：${dataDirectory}\nProvider：${provider}\n模型：${model?.trim() || PROVIDER_DEFAULTS[provider].model}\n按 Ctrl+C 安全关闭。\n`)
-  if (launch.memoryCore) process.stdout.write('Core 记忆已开启；可在宿主页启动或取消后台整理，整理期间可以继续游玩。未整理时长期交付为空。\n')
+  process.stdout.write(
+    `世界数据：${dataDirectory}\nProvider：${provider}\n模型：${model?.trim() || PROVIDER_DEFAULTS[provider].model}\n按 Ctrl+C 安全关闭。\n`,
+  )
+  if (launch.memoryCore)
+    process.stdout.write(
+      'Core 记忆已开启；可在宿主页启动或取消后台整理，整理期间可以继续游玩。未整理时长期交付为空。\n',
+    )
   if (packPath !== undefined) process.stdout.write(`World Pack：${packPath}\n`)
 }
 

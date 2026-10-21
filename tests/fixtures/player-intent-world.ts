@@ -10,11 +10,24 @@ export function frozenIntentWorld(profile?: ReactionProfileId) {
   const base = frozenInteractionWorld(profile)
   const manifest = { ...base.manifest, playerInputPolicy: { version: 'player-intent/v1' as const } }
   const manifestHash = hashWorldJson('compiled-world-manifest', manifest)
-  const genesisEvents = base.genesisEvents.map(event => event.eventType === 'world.manifest-locked'
-    ? { ...event, data: { ...event.data as WorldJsonObject, manifestHash } } : event)
+  const genesisEvents = base.genesisEvents.map(event =>
+    event.eventType === 'world.manifest-locked'
+      ? { ...event, data: { ...(event.data as WorldJsonObject), manifestHash } }
+      : event,
+  )
   return { manifest, manifestHash, genesisEvents, genesisHash: hashWorldJson('world-genesis-plan', genesisEvents) }
 }
 
-export const intentFixtureProfile = { version: 'player-intent-profile/v1' as const, providerId: 'fixture', modelId: 'intent/v1', maxOutputTokens: 10, timeoutMs: 100 }
-export const intentFixtureResponse = { version: 'player-intent-candidate/v3', decision: 'act', reason: 'none',
-  actions: [{ key: 'a', affordanceId: 'speak', quotes: ['你好'] }] }
+export const intentFixtureProfile = {
+  version: 'player-intent-profile/v1' as const,
+  providerId: 'fixture',
+  modelId: 'intent/v1',
+  maxOutputTokens: 10,
+  timeoutMs: 100,
+}
+export const intentFixtureResponse = {
+  version: 'player-intent-candidate/v3',
+  decision: 'act',
+  reason: 'none',
+  actions: [{ key: 'a', affordanceId: 'speak', quotes: ['你好'] }],
+}

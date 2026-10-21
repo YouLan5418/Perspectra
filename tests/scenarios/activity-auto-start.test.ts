@@ -8,11 +8,16 @@ import type { WorldJsonObject } from '@harness-world/contracts'
 import { WorldHostRuntime } from '../../desktop/host/world-runtime.ts'
 
 const PLAYER = 'character:player'
-const roots: string[] = [], servers: Server[] = [], runtimes: WorldHostRuntime[] = []
+const roots: string[] = [],
+  servers: Server[] = [],
+  runtimes: WorldHostRuntime[] = []
 afterEach(async () => {
   vi.restoreAllMocks()
   for (const runtime of runtimes.splice(0)) await runtime.close()
-  for (const server of servers.splice(0)) { server.closeAllConnections(); await new Promise<void>(done => server.close(() => done())) }
+  for (const server of servers.splice(0)) {
+    server.closeAllConnections()
+    await new Promise<void>(done => server.close(() => done()))
+  }
   for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 })
 })
 
@@ -35,15 +40,31 @@ const statusScript = `globalThis.statusScript = {
 }`
 
 /** Two activities with the companion; each may carry an autoStart hook body `(truth, world, previous) => ...`. */
-async function fixture(hooks: { guess?: string; other?: string }, dynamicOther = false, openings: { guess?: string; other?: string } = {}) {
-  const root = mkdtempSync(join(tmpdir(), 'auto-start-')); roots.push(root)
-  const pack = join(root, 'pack'), data = join(root, 'data')
+async function fixture(
+  hooks: { guess?: string; other?: string },
+  dynamicOther = false,
+  openings: { guess?: string; other?: string } = {},
+) {
+  const root = mkdtempSync(join(tmpdir(), 'auto-start-'))
+  roots.push(root)
+  const pack = join(root, 'pack'),
+    data = join(root, 'data')
   cpSync(resolve('examples/world-packs/launcher-demo'), pack, { recursive: true })
   mkdirSync(join(pack, 'scripts/activities'))
-  const original = readFileSync(join(pack, 'scripts/activity.js'), 'utf8').replace('const answer = 1 + Math.floor(Math.random() * 100);', 'const answer = 73;')
+  const original = readFileSync(join(pack, 'scripts/activity.js'), 'utf8').replace(
+    'const answer = 1 + Math.floor(Math.random() * 100);',
+    'const answer = 73;',
+  )
   for (const key of ['guess', 'other'] as const) {
-    let source = original.replace("title: '轮流猜数字'", "title: '" + key + "'" + (openings[key] === undefined ? '' : ', opening: ' + JSON.stringify(openings[key])))
-    if (key === 'other' && dynamicOther) source = source.replace("npcIds: ['character:companion']", "participants: { mode: 'player-select', min: 1, max: 1 }")
+    let source = original.replace(
+      "title: '轮流猜数字'",
+      "title: '" + key + "'" + (openings[key] === undefined ? '' : ', opening: ' + JSON.stringify(openings[key])),
+    )
+    if (key === 'other' && dynamicOther)
+      source = source.replace(
+        "npcIds: ['character:companion']",
+        "participants: { mode: 'player-select', min: 1, max: 1 }",
+      )
     if (hooks[key] !== undefined) source += '\nactivityScript.autoStart = ' + hooks[key] + ';\n'
     writeFileSync(join(pack, 'scripts/activities', key + '.js'), source)
   }
@@ -53,44 +74,93 @@ async function fixture(hooks: { guess?: string; other?: string }, dynamicOther =
   writeFileSync(join(pack, 'worldpack.source.json'), JSON.stringify(manifest))
   const inputs: WorldJsonObject[] = []
   const server = createServer((request, response) => {
-    let body = ''; request.on('data', chunk => { body += String(chunk) })
+    let body = ''
+    request.on('data', chunk => {
+      body += String(chunk)
+    })
     request.on('end', () => {
       const wire = JSON.parse(body)
       inputs.push(JSON.parse(wire.messages.findLast((message: { role: string }) => message.role === 'user').content))
       response.writeHead(200, { 'content-type': 'application/json' })
-      response.end(JSON.stringify({ choices: [{ message: { tool_calls: [{ function: { name: 'submit_actions', arguments: JSON.stringify({ decision: 'abstain' }) } }] } }] }))
+      response.end(
+        JSON.stringify({
+          choices: [
+            {
+              message: {
+                tool_calls: [
+                  { function: { name: 'submit_actions', arguments: JSON.stringify({ decision: 'abstain' }) } },
+                ],
+              },
+            },
+          ],
+        }),
+      )
     })
   })
-  servers.push(server); await new Promise<void>(done => server.listen(0, '127.0.0.1', done))
+  servers.push(server)
+  await new Promise<void>(done => server.listen(0, '127.0.0.1', done))
   const port = (server.address() as { port: number }).port
-  const runtime = await WorldHostRuntime.create({ packPath: pack, provider: 'local', model: 'fixture',
-    utilityEndpoint: 'http://127.0.0.1:' + port + '/v1/chat/completions', timeoutMs: 5000, dataDirectory: data })
+  const runtime = await WorldHostRuntime.create({
+    packPath: pack,
+    provider: 'local',
+    model: 'fixture',
+    utilityEndpoint: 'http://127.0.0.1:' + port + '/v1/chat/completions',
+    timeoutMs: 5000,
+    dataDirectory: data,
+  })
   runtimes.push(runtime)
-  const events = () => { const store = new WorldStore(join(runtime.dataDirectory, 'world.sqlite')); try { return store.readEvents(runtime.address) } finally { store.close() } }
-  const starts = () => events().filter(event => event.eventType === 'activity.updated' && (event.data as WorldJsonObject).operation === 'start')
+  const events = () => {
+    const store = new WorldStore(join(runtime.dataDirectory, 'world.sqlite'))
+    try {
+      return store.readEvents(runtime.address)
+    } finally {
+      store.close()
+    }
+  }
+  const starts = () =>
+    events().filter(
+      event => event.eventType === 'activity.updated' && (event.data as WorldJsonObject).operation === 'start',
+    )
   return { runtime, inputs, events, starts }
 }
 const data = (event: { data: unknown }) => event.data as WorldJsonObject
 
 it('starts an activity whose conditions all hold after the player round, once, without counting a player round', async () => {
-  const f = await fixture({ other: '(truth, world, previous) => ({ when: [truth.public.flag >= 1, previous === null] })' })
+  const f = await fixture({
+    other: '(truth, world, previous) => ({ when: [truth.public.flag >= 1, previous === null] })',
+  })
   await f.runtime.submit('/status wait {}')
   expect(f.starts()).toHaveLength(0)
   await f.runtime.submit('/status raise {}')
   const [start] = f.starts()
   expect(start && data(start)).toMatchObject({ activityKey: 'other', source: 'auto' })
   const sameTransaction = f.events().filter(event => event.transactionId === start!.transactionId)
-  expect(sameTransaction.find(event => event.eventType === 'action.resolved')?.data).toMatchObject({ sourceRole: 'director' })
+  expect(sameTransaction.find(event => event.eventType === 'action.resolved')?.data).toMatchObject({
+    sourceRole: 'director',
+  })
   // Delivered exactly like a manual start: player and companion observe the opening.
-  expect(sameTransaction.filter(event => event.eventType === 'observation.upsert')
-    .map(event => (data(event).value as WorldJsonObject).observerId).sort()).toEqual(['character:companion', PLAYER])
+  expect(
+    sameTransaction
+      .filter(event => event.eventType === 'observation.upsert')
+      .map(event => (data(event).value as WorldJsonObject).observerId)
+      .sort(),
+  ).toEqual(['character:companion', PLAYER])
   // Two player rounds were submitted; the automatic start is not a third.
-  const rounds = f.events().filter(event => event.eventType === 'status.updated' && (data(event).source as WorldJsonObject).kind === 'round')
+  const rounds = f
+    .events()
+    .filter(event => event.eventType === 'status.updated' && (data(event).source as WorldJsonObject).kind === 'round')
   expect(rounds.map(event => (data(event).source as WorldJsonObject).round)).toEqual([1, 2])
   // Ended by its own rules; `previous` now keeps it from starting again.
   const state = await f.runtime.state()
   const other = state.activities!.find(activity => activity.activityKey === 'other')!
-  await f.runtime.activityAction({ activityKey: 'other', activityId: String(other.id), revision: Number(other.revision), operation: 'quit', parameters: {}, requestId: 'quit' })
+  await f.runtime.activityAction({
+    activityKey: 'other',
+    activityId: String(other.id),
+    revision: Number(other.revision),
+    operation: 'quit',
+    parameters: {},
+    requestId: 'quit',
+  })
   await f.runtime.submit('/status wait {}')
   expect(f.starts()).toHaveLength(1)
 })
@@ -118,9 +188,23 @@ it('prefers the candidate with more conditions and breaks ties with the recorded
 
 it('does not check while an activity runs, and commits nothing for unmet conditions', async () => {
   const f = await fixture({ guess: '() => ({ when: [false, true] })', other: '() => ({ when: [true] })' })
-  const state = await f.runtime.activityAction({ activityKey: 'other', activityId: null, revision: 0, operation: 'start', parameters: {}, requestId: 'manual' })
+  const state = await f.runtime.activityAction({
+    activityKey: 'other',
+    activityId: null,
+    revision: 0,
+    operation: 'start',
+    parameters: {},
+    requestId: 'manual',
+  })
   const other = state.activities!.find(activity => activity.activityKey === 'other')!
-  await f.runtime.activityAction({ activityKey: 'other', activityId: String(other.id), revision: Number(other.revision), operation: 'guess', parameters: { value: 5 }, requestId: 'guess' })
+  await f.runtime.activityAction({
+    activityKey: 'other',
+    activityId: String(other.id),
+    revision: Number(other.revision),
+    operation: 'guess',
+    parameters: { value: 5 },
+    requestId: 'guess',
+  })
   expect(f.starts().map(event => data(event).source ?? 'manual')).toEqual(['manual'])
 })
 
@@ -143,8 +227,14 @@ it('replaces the fixed opening line with the author notice for the player only',
   const f = await fixture({ other: "() => ({ when: [true], notice: '同伴朝你走了过来。' })" })
   await f.runtime.submit('/status wait {}')
   const [start] = f.starts()
-  const openings = f.events().filter(event => event.transactionId === start!.transactionId && event.eventType === 'observation.upsert')
-    .map(event => { const value = data(event).value as WorldJsonObject; return value.observerId + '：' + (value.content as WorldJsonObject).resultDescription }).sort()
+  const openings = f
+    .events()
+    .filter(event => event.transactionId === start!.transactionId && event.eventType === 'observation.upsert')
+    .map(event => {
+      const value = data(event).value as WorldJsonObject
+      return value.observerId + '：' + (value.content as WorldJsonObject).resultDescription
+    })
+    .sort()
   // One line each: the player reads the notice instead of "other开始。", the companion keeps the fixed line.
   expect(openings).toEqual(['character:companion：other开始。', PLAYER + '：同伴朝你走了过来。'])
   expect(JSON.stringify(f.inputs)).not.toContain('同伴朝你走了过来')
@@ -153,15 +243,30 @@ it('replaces the fixed opening line with the author notice for the player only',
 it('uses the declared opening line for a manual start, and the notice still wins for an automatic one', async () => {
   const openingsOf = (f: Awaited<ReturnType<typeof fixture>>) => {
     const [start] = f.starts()
-    return f.events().filter(event => event.transactionId === start!.transactionId && event.eventType === 'observation.upsert')
-      .map(event => { const value = data(event).value as WorldJsonObject; return value.observerId + '：' + (value.content as WorldJsonObject).resultDescription }).sort()
+    return f
+      .events()
+      .filter(event => event.transactionId === start!.transactionId && event.eventType === 'observation.upsert')
+      .map(event => {
+        const value = data(event).value as WorldJsonObject
+        return value.observerId + '：' + (value.content as WorldJsonObject).resultDescription
+      })
+      .sort()
   }
   const manual = await fixture({}, false, { other: '同伴把骰子推到你面前。' })
-  await manual.runtime.activityAction({ activityKey: 'other', activityId: null, revision: 0, operation: 'start', parameters: {}, requestId: 'manual' })
+  await manual.runtime.activityAction({
+    activityKey: 'other',
+    activityId: null,
+    revision: 0,
+    operation: 'start',
+    parameters: {},
+    requestId: 'manual',
+  })
   expect(openingsOf(manual)).toEqual(['character:companion：other开始。', PLAYER + '：同伴把骰子推到你面前。'])
   expect(JSON.stringify(manual.inputs)).not.toContain('骰子推到你面前')
 
-  const auto = await fixture({ other: "() => ({ when: [true], notice: '同伴朝你走了过来。' })" }, false, { other: '同伴把骰子推到你面前。' })
+  const auto = await fixture({ other: "() => ({ when: [true], notice: '同伴朝你走了过来。' })" }, false, {
+    other: '同伴把骰子推到你面前。',
+  })
   await auto.runtime.submit('/status wait {}')
   expect(openingsOf(auto)).toEqual(['character:companion：other开始。', PLAYER + '：同伴朝你走了过来。'])
 

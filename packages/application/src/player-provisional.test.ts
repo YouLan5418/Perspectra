@@ -20,20 +20,25 @@ it('binds exact event ordinals, rejects drift, and redacts restricted views befo
   } as const
   const resolver = new FrozenInteractionRulebook([basicInteractionPackage])
   resolver.adopt(world.manifest, world.manifestHash)
-  const resolution = resolver.resolve({
-    manifest: world.manifest,
-    events: world.genesisEvents,
-    characterId: action.actorId,
-    actionId: action.actionId,
-    manifestHash: world.manifestHash,
-    asOfWorldSeq: world.genesisEvents.length,
-    resolutionAuthority: resolutionAuthority('player', 'manual_player_immediate'),
-    roundId: brandId('round:provisional-test', 'InteractionRoundId'),
-  }, action)
+  const resolution = resolver.resolve(
+    {
+      manifest: world.manifest,
+      events: world.genesisEvents,
+      characterId: action.actorId,
+      actionId: action.actionId,
+      manifestHash: world.manifestHash,
+      asOfWorldSeq: world.genesisEvents.length,
+      resolutionAuthority: resolutionAuthority('player', 'manual_player_immediate'),
+      roundId: brandId('round:provisional-test', 'InteractionRoundId'),
+    },
+    action,
+  )
   expect(resolution.status).toBe('accepted')
   const provisional = bindPlayerProvisional(world.manifest.address, 10, world.manifestHash, action, resolution)
   expect(() => verifyPlayerProvisional(provisional, action, resolution)).not.toThrow()
-  expect(() => verifyPlayerProvisional(provisional, { ...action, actionId: 'action:changed' }, resolution)).toThrow('differs')
+  expect(() => verifyPlayerProvisional(provisional, { ...action, actionId: 'action:changed' }, resolution)).toThrow(
+    'differs',
+  )
   const corrupted = structuredClone(provisional)
   corrupted.binding.events[0]!.draftOrdinal = 4
   expect(() => verifyPlayerProvisional(corrupted, action, resolution)).toThrow('differs')
@@ -45,6 +50,10 @@ it('binds exact event ordinals, rejects drift, and redacts restricted views befo
     expect(JSON.stringify(view)).not.toContain('character:npc')
     expect(JSON.stringify(view)).not.toContain('hold-hand')
   }
-  const rejected = bindPlayerProvisional(world.manifest.address, 10, world.manifestHash, action, { status: 'rejected', reason: 'unavailable', events: [] })
+  const rejected = bindPlayerProvisional(world.manifest.address, 10, world.manifestHash, action, {
+    status: 'rejected',
+    reason: 'unavailable',
+    events: [],
+  })
   expect(rejected.binding.reason).toBe('unavailable')
 })

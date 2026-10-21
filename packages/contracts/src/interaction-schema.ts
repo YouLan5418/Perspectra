@@ -1,5 +1,7 @@
 import type {
-  InteractionCharacterView, InteractionParameterSchema, InteractionPerformanceAcceptance,
+  InteractionCharacterView,
+  InteractionParameterSchema,
+  InteractionPerformanceAcceptance,
 } from './interaction-definition.ts'
 import type { WorldJsonObject, WorldJsonValue } from './world-json.ts'
 
@@ -34,7 +36,9 @@ export function createInteractionArgumentSchema(schema: InteractionParameterSche
 const identity = (ref: { readonly id: string; readonly version: number }): string => `${ref.id}@${ref.version}`
 
 const targetSchema = (kind: string, id: string): WorldJsonObject => ({
-  type: 'object', additionalProperties: false, required: ['kind', 'id'],
+  type: 'object',
+  additionalProperties: false,
+  required: ['kind', 'id'],
   properties: { kind: { const: kind }, id: { const: id } },
 })
 
@@ -46,7 +50,9 @@ const targetSchema = (kind: string, id: string): WorldJsonObject => ({
  */
 function performanceSchema(acceptance: InteractionPerformanceAcceptance): WorldJsonObject {
   const cues = (placement: 'independent' | 'onSuccess'): readonly string[] =>
-    acceptance.accepted.filter(entry => entry.placement === 'both' || entry.placement === placement).map(entry => entry.cue)
+    acceptance.accepted
+      .filter(entry => entry.placement === 'both' || entry.placement === placement)
+      .map(entry => entry.cue)
   const list = (placement: 'independent' | 'onSuccess'): WorldJsonObject => {
     const allowed = cues(placement)
     return allowed.length === 0
@@ -54,7 +60,9 @@ function performanceSchema(acceptance: InteractionPerformanceAcceptance): WorldJ
       : { type: 'array', maxItems: 8, uniqueItems: true, items: { type: 'string', enum: allowed } }
   }
   return {
-    type: 'object', additionalProperties: false, required: ['independent', 'onSuccess'],
+    type: 'object',
+    additionalProperties: false,
+    required: ['independent', 'onSuccess'],
     properties: { independent: list('independent'), onSuccess: list('onSuccess') },
   }
 }
@@ -92,7 +100,9 @@ export function createInteractionRequestSchema(view: InteractionCharacterView): 
         targetRef: targetSchema(option.targetRef.kind, option.targetRef.id),
         bindingId: { const: option.bindingId },
         definitionRef: {
-          type: 'object', additionalProperties: false, required: ['id', 'version'],
+          type: 'object',
+          additionalProperties: false,
+          required: ['id', 'version'],
           properties: { id: { const: option.definitionRef.id }, version: { const: option.definitionRef.version } },
         },
         arguments: argumentsSchema(option.arguments),

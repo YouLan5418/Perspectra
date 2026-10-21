@@ -26,12 +26,20 @@ export function hasExactKeys(value: Record<string, unknown>, keys: readonly stri
   return names.length === keys.length && keys.every(key => Object.hasOwn(value, key))
 }
 
-export function jsonObjectAt(value: unknown, path: string, fail: UntrustedJsonFail = failWithTypeError): Record<string, unknown> {
+export function jsonObjectAt(
+  value: unknown,
+  path: string,
+  fail: UntrustedJsonFail = failWithTypeError,
+): Record<string, unknown> {
   if (!isJsonObject(value)) fail('invalid', path, 'must be an object')
   return value
 }
 
-export function jsonArrayAt(value: unknown, path: string, fail: UntrustedJsonFail = failWithTypeError): readonly unknown[] {
+export function jsonArrayAt(
+  value: unknown,
+  path: string,
+  fail: UntrustedJsonFail = failWithTypeError,
+): readonly unknown[] {
   if (!Array.isArray(value)) fail('invalid', path, 'must be an array')
   return value
 }
@@ -75,6 +83,10 @@ export function jsonKeysAt(
   }
 }
 
-export function jsonUniqueAt(values: readonly string[], path: string, fail: UntrustedJsonFail = failWithTypeError): void {
+export function jsonUniqueAt(
+  values: readonly string[],
+  path: string,
+  fail: UntrustedJsonFail = failWithTypeError,
+): void {
   if (new Set(values).size !== values.length) fail('duplicate', path, 'contains duplicate values')
 }

@@ -1,13 +1,20 @@
 import { describe, expect, it } from 'vitest'
 import type { RuntimeAvailabilityState } from '@harness-world/contracts'
 import {
-  SCHEDULABLE_AVAILABILITY_STATES, alwaysRetryableAvailability, availabilityRecovery, retryableAvailability,
+  SCHEDULABLE_AVAILABILITY_STATES,
+  alwaysRetryableAvailability,
+  availabilityRecovery,
+  retryableAvailability,
 } from './runtime-availability.ts'
 
 describe('runtime availability retry policy', () => {
   it('schedules every self-clearing state plus the Provider quality states', () => {
     expect([...SCHEDULABLE_AVAILABILITY_STATES].sort()).toEqual([
-      'budget_unavailable', 'model_unavailable', 'provider_output_invalid', 'ready', 'session_lag',
+      'budget_unavailable',
+      'model_unavailable',
+      'provider_output_invalid',
+      'ready',
+      'session_lag',
     ])
   })
 
@@ -16,7 +23,11 @@ describe('runtime availability retry policy', () => {
       expect(alwaysRetryableAvailability(state)).toBe(true)
     }
     for (const state of [
-      'provider_output_invalid', 'model_unavailable', 'provisioning', 'offline', 'disabled',
+      'provider_output_invalid',
+      'model_unavailable',
+      'provisioning',
+      'offline',
+      'disabled',
     ] as const) {
       expect(alwaysRetryableAvailability(state)).toBe(false)
     }
@@ -48,7 +59,10 @@ describe('runtime availability retry policy', () => {
 
   it('returns a participant to ready once it was retried', () => {
     for (const state of [
-      'session_lag', 'budget_unavailable', 'provider_output_invalid', 'model_unavailable',
+      'session_lag',
+      'budget_unavailable',
+      'provider_output_invalid',
+      'model_unavailable',
     ] as const) {
       expect(availabilityRecovery(state)).toEqual({ state: 'ready', reason: null })
     }

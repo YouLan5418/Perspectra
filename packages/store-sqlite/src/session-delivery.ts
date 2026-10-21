@@ -86,7 +86,10 @@ export interface SessionDeliveryBinding extends WorldJsonObject {
 export class SessionDeliveryAdapter {
   readonly #db: DatabaseSync
 
-  constructor(path: string, private readonly faultInjector?: FaultInjector) {
+  constructor(
+    path: string,
+    private readonly faultInjector?: FaultInjector,
+  ) {
     this.#db = openSessionDatabase(path)
   }
 
@@ -104,11 +107,15 @@ export class SessionDeliveryAdapter {
     const payloadText = worldJsonText(request.observationEvent)
     this.#db.exec('BEGIN IMMEDIATE')
     try {
-      const sameSequence = this.#db.prepare(`
+      const sameSequence = this.#db
+        .prepare(
+          `
         SELECT delivery_id, payload_hash
         FROM session_delivery_inbox
         WHERE session_id = ? AND session_delivery_seq = ?
-      `).get(request.sessionId, request.sessionDeliverySeq) as InboxRow | undefined
+      `,
+        )
+        .get(request.sessionId, request.sessionDeliverySeq) as InboxRow | undefined
       if (sameSequence !== undefined) {
         if (sameSequence.delivery_id === request.deliveryId && sameSequence.payload_hash === request.payloadHash) {
           this.#db.exec('COMMIT')
@@ -117,15 +124,24 @@ export class SessionDeliveryAdapter {
         this.#diverged(request, 'the delivery sequence already contains different content')
       }
 
-      const sameDelivery = this.#db.prepare(`
+      const sameDelivery = this.#db
+        .prepare(
+          `
         SELECT session_id, session_delivery_seq, payload_hash
         FROM session_delivery_inbox WHERE delivery_id = ?
-      `).get(request.deliveryId) as Record<string, unknown> | undefined
-      if (sameDelivery !== undefined) this.#diverged(request, 'the delivery id is already bound to another sequence or session')
+      `,
+        )
+        .get(request.deliveryId) as Record<string, unknown> | undefined
+      if (sameDelivery !== undefined)
+        this.#diverged(request, 'the delivery id is already bound to another sequence or session')
 
-      const cursorRow = this.#db.prepare(`
+      const cursorRow = this.#db
+        .prepare(
+          `
         SELECT last_delivery_seq FROM session_delivery_cursor WHERE session_id = ?
-      `).get(request.sessionId) as { last_delivery_seq: number } | undefined
+      `,
+        )
+        .get(request.sessionId) as { last_delivery_seq: number } | undefined
       const cursor = cursorRow?.last_delivery_seq ?? 0
       if (request.sessionDeliverySeq !== cursor + 1) {
         failWorld({
@@ -138,22 +154,34 @@ export class SessionDeliveryAdapter {
         })
       }
 
-      this.#db.prepare(`
+      this.#db
+        .prepare(
+          `
         INSERT INTO session_delivery_inbox(session_id, session_delivery_seq, delivery_id, payload_hash)
         VALUES (?, ?, ?, ?)
-      `).run(request.sessionId, request.sessionDeliverySeq, request.deliveryId, request.payloadHash)
+      `,
+        )
+        .run(request.sessionId, request.sessionDeliverySeq, request.deliveryId, request.payloadHash)
       this.faultInjector?.hit('session-delivery.after-inbox-insert')
 
-      this.#db.prepare(`
+      this.#db
+        .prepare(
+          `
         INSERT INTO session_events(session_id, session_event_seq, event_type, payload_hash, payload_json)
         VALUES (?, ?, 'world/observation', ?, ?)
-      `).run(request.sessionId, request.sessionDeliverySeq, request.payloadHash, payloadText)
+      `,
+        )
+        .run(request.sessionId, request.sessionDeliverySeq, request.payloadHash, payloadText)
       this.faultInjector?.hit('session-delivery.after-observation-append')
 
-      this.#db.prepare(`
+      this.#db
+        .prepare(
+          `
         INSERT INTO session_delivery_cursor(session_id, last_delivery_seq) VALUES (?, ?)
         ON CONFLICT(session_id) DO UPDATE SET last_delivery_seq = excluded.last_delivery_seq
-      `).run(request.sessionId, request.sessionDeliverySeq)
+      `,
+        )
+        .run(request.sessionId, request.sessionDeliverySeq)
       this.#db.exec('COMMIT')
     } catch (error: unknown) {
       rollbackAndThrow(this.#db, error)
@@ -163,33 +191,48 @@ export class SessionDeliveryAdapter {
   }
 
   /** Read a delivered Observation for recovery assertions and future Session bridges. */
-  readEvent(sessionId: SessionId, sequence: number): { readonly payloadHash: WorldHash; readonly payload: WorldJsonValue } | undefined {
-    const row = this.#db.prepare(`
+  readEvent(
+    sessionId: SessionId,
+    sequence: number,
+  ): { readonly payloadHash: WorldHash; readonly payload: WorldJsonValue } | undefined {
+    const row = this.#db
+      .prepare(
+        `
       SELECT payload_hash, payload_json FROM session_events
       WHERE session_id = ? AND session_event_seq = ?
-    `).get(sessionId, sequence) as { payload_hash: WorldHash; payload_json: string } | undefined
+    `,
+      )
+      .get(sessionId, sequence) as { payload_hash: WorldHash; payload_json: string } | undefined
     return row === undefined ? undefined : { payloadHash: row.payload_hash, payload: parseWorldJson(row.payload_json) }
   }
 
   /** Return the last atomically applied delivery sequence. */
   cursor(sessionId: SessionId): number {
-    const row = this.#db.prepare(`
+    const row = this.#db
+      .prepare(
+        `
       SELECT last_delivery_seq FROM session_delivery_cursor WHERE session_id = ?
-    `).get(sessionId) as { last_delivery_seq: number } | undefined
+    `,
+      )
+      .get(sessionId) as { last_delivery_seq: number } | undefined
     return row?.last_delivery_seq ?? 0
   }
 
   /** Verify durable Session delivery bindings used to reconstruct model-visible observations. */
   verifyIntegrity(address: WorldAddress, correlationId: string): SessionIntegrityReport {
     const quickCheck = this.#db.prepare('PRAGMA quick_check').get() as { quick_check?: string }
-    const rows = this.#db.prepare(`
+    const rows = this.#db
+      .prepare(
+        `
       SELECT i.session_id, i.session_delivery_seq, i.delivery_id, i.payload_hash,
         e.payload_hash AS event_payload_hash, e.payload_json
       FROM session_delivery_inbox i
       LEFT JOIN session_events e
         ON e.session_id = i.session_id AND e.session_event_seq = i.session_delivery_seq
       ORDER BY i.session_id, i.session_delivery_seq
-    `).all() as Array<{
+    `,
+      )
+      .all() as Array<{
       session_id: SessionId
       session_delivery_seq: number
       delivery_id: string
@@ -197,7 +240,9 @@ export class SessionDeliveryAdapter {
       event_payload_hash: WorldHash | null
       payload_json: string | null
     }>
-    const cursors = this.#db.prepare(`SELECT session_id, last_delivery_seq FROM session_delivery_cursor ORDER BY session_id`).all() as Array<{
+    const cursors = this.#db
+      .prepare(`SELECT session_id, last_delivery_seq FROM session_delivery_cursor ORDER BY session_id`)
+      .all() as Array<{
       session_id: SessionId
       last_delivery_seq: number
     }>
@@ -205,11 +250,18 @@ export class SessionDeliveryAdapter {
     const bindings: WorldJsonValue[] = []
     for (const row of rows) {
       const sequence = (expected.get(row.session_id) ?? 0) + 1
-      if (row.session_delivery_seq !== sequence || row.event_payload_hash !== row.payload_hash || row.payload_json === null) {
+      if (
+        row.session_delivery_seq !== sequence ||
+        row.event_payload_hash !== row.payload_hash ||
+        row.payload_json === null
+      ) {
         this.#integrityFailure(address, correlationId, 'Session delivery sequence or Observation binding is divergent')
       }
       const payload = parseWorldJson(row.payload_json)
-      if (worldJsonText(payload) !== row.payload_json || hashWorldJson('world-outbox-payload', payload) !== row.payload_hash) {
+      if (
+        worldJsonText(payload) !== row.payload_json ||
+        hashWorldJson('world-outbox-payload', payload) !== row.payload_hash
+      ) {
         this.#integrityFailure(address, correlationId, 'Session Observation payload is divergent')
       }
       expected.set(row.session_id, sequence)
@@ -220,8 +272,11 @@ export class SessionDeliveryAdapter {
         payloadHash: row.payload_hash,
       })
     }
-    if (quickCheck.quick_check !== 'ok' || cursors.length !== expected.size
-      || cursors.some(cursor => expected.get(cursor.session_id) !== cursor.last_delivery_seq)) {
+    if (
+      quickCheck.quick_check !== 'ok' ||
+      cursors.length !== expected.size ||
+      cursors.some(cursor => expected.get(cursor.session_id) !== cursor.last_delivery_seq)
+    ) {
       this.#integrityFailure(address, correlationId, 'Session cursor or SQLite integrity is divergent')
     }
     return {
@@ -232,15 +287,21 @@ export class SessionDeliveryAdapter {
   }
 
   deliveryBindings(): SessionDeliveryBinding[] {
-    return (this.#db.prepare(`
+    return (
+      this.#db
+        .prepare(
+          `
       SELECT session_id, session_delivery_seq, delivery_id, payload_hash
       FROM session_delivery_inbox ORDER BY session_id, session_delivery_seq
-    `).all() as Array<{
-      session_id: SessionId
-      session_delivery_seq: number
-      delivery_id: string
-      payload_hash: WorldHash
-    }>).map(row => ({
+    `,
+        )
+        .all() as Array<{
+        session_id: SessionId
+        session_delivery_seq: number
+        delivery_id: string
+        payload_hash: WorldHash
+      }>
+    ).map(row => ({
       sessionId: row.session_id,
       sessionDeliverySeq: row.session_delivery_seq,
       deliveryId: row.delivery_id,

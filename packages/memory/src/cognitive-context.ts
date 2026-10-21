@@ -25,18 +25,25 @@ import {
 } from '@harness-world/contracts'
 import { CharacterViewBuilder, type WorldStore } from '@harness-world/store-sqlite'
 import {
-  DEFAULT_RECALL_LIMIT, LocalMemoryStore, memorySourceRef,
-  type MemorySourceRef, type RecallCandidateDiagnostics, type RecalledMemory,
+  DEFAULT_RECALL_LIMIT,
+  LocalMemoryStore,
+  memorySourceRef,
+  type MemorySourceRef,
+  type RecallCandidateDiagnostics,
+  type RecalledMemory,
 } from './local-memory.ts'
 
 function legacyRecallQuery(parameters: WorldJsonValue): string {
   if (typeof parameters === 'string') return parameters
   if (typeof parameters !== 'object' || parameters === null || Array.isArray(parameters)) return ''
   const object = parameters as WorldJsonObject
-  return Object.keys(object).sort(compareWorldText).flatMap(key => {
-    const value = object[key]
-    return typeof value === 'string' ? [value] : []
-  }).join(' ')
+  return Object.keys(object)
+    .sort(compareWorldText)
+    .flatMap(key => {
+      const value = object[key]
+      return typeof value === 'string' ? [value] : []
+    })
+    .join(' ')
 }
 
 function reactionRecallQuery(stimulus: WorldJsonValue): string {
@@ -44,8 +51,11 @@ function reactionRecallQuery(stimulus: WorldJsonValue): string {
   if (Array.isArray(stimulus)) return stimulus.map(reactionRecallQuery).filter(Boolean).join(' ')
   if (typeof stimulus !== 'object' || stimulus === null) return ''
   const object = stimulus as WorldJsonObject
-  return Object.keys(object).sort(compareWorldText)
-    .map(key => reactionRecallQuery(object[key]!)).filter(Boolean).join(' ')
+  return Object.keys(object)
+    .sort(compareWorldText)
+    .map(key => reactionRecallQuery(object[key]!))
+    .filter(Boolean)
+    .join(' ')
 }
 
 export interface CognitiveProposalContext extends ProposalContext, WorldJsonObject {
@@ -113,7 +123,10 @@ export class CognitiveMemoryWorker {
 
   catchUp(address: WorldAddress, characterId: CharacterId, requiredAsOfSeq: number): CognitiveMemoryReceipt {
     return this.catchUpWithContext(
-      address, characterId, requiredAsOfSeq, `memory-catchup:${characterId}:${requiredAsOfSeq}`,
+      address,
+      characterId,
+      requiredAsOfSeq,
+      `memory-catchup:${characterId}:${requiredAsOfSeq}`,
     )
   }
 
@@ -125,7 +138,11 @@ export class CognitiveMemoryWorker {
     heartbeat?: () => void,
   ): CognitiveMemoryReceipt {
     const receipt = this.memory.catchUpV2(
-      address, characterId, requiredAsOfSeq, correlationId, heartbeat,
+      address,
+      characterId,
+      requiredAsOfSeq,
+      correlationId,
+      heartbeat,
       this.recallTokenizer === undefined ? undefined : { keywordTokenizerId: this.recallTokenizer },
     )
     this.faultInjector?.hit('memory.after-catchup-commit')
@@ -133,9 +150,7 @@ export class CognitiveMemoryWorker {
   }
 
   recall(plan: AnyRecallQueryPlan): AnyCognitiveRecallResult {
-    return plan.schemaVersion === 'recall-query-plan/v2'
-      ? this.memory.recallKeywords(plan)
-      : this.memory.recallV2(plan)
+    return plan.schemaVersion === 'recall-query-plan/v2' ? this.memory.recallKeywords(plan) : this.memory.recallV2(plan)
   }
 
   recallDiagnostics(plan: AnyRecallQueryPlan): RecallCandidateDiagnostics {
@@ -193,18 +208,29 @@ export class CognitiveMemoryService {
   ): AnyRecallQueryPlan {
     if (this.recallTokenizer === undefined) {
       return {
-        schemaVersion: 'recall-query-plan/v1', planId, address: scope.address, characterId: scope.characterId,
-        asOfWorldSeq: scope.asOfWorldSeq, query, limit: DEFAULT_RECALL_LIMIT,
+        schemaVersion: 'recall-query-plan/v1',
+        planId,
+        address: scope.address,
+        characterId: scope.characterId,
+        asOfWorldSeq: scope.asOfWorldSeq,
+        query,
+        limit: DEFAULT_RECALL_LIMIT,
         rankingAlgorithm: 'fts5-bm25-stable/v1',
       }
     }
     return {
-      schemaVersion: 'recall-query-plan/v2', planId, address: scope.address, characterId: scope.characterId,
-      asOfWorldSeq: scope.asOfWorldSeq, queryText: query, strategyId: RECALL_KEYWORD_STRATEGY_ID,
+      schemaVersion: 'recall-query-plan/v2',
+      planId,
+      address: scope.address,
+      characterId: scope.characterId,
+      asOfWorldSeq: scope.asOfWorldSeq,
+      queryText: query,
+      strategyId: RECALL_KEYWORD_STRATEGY_ID,
       tokenizerId: this.recallTokenizer,
       dictionaryEnabled: this.recallDictionary,
       dictionaryWatermark: this.recallDictionary ? scope.asOfWorldSeq : null,
-      clues, resultLimit: DEFAULT_RECALL_LIMIT,
+      clues,
+      resultLimit: DEFAULT_RECALL_LIMIT,
     }
   }
 
@@ -285,9 +311,10 @@ export class CognitiveMemoryService {
   }
 
   prepare(request: PrepareCognitiveContextRequest): CognitiveProposalContext {
-    const stimulus = request.playerManifestation === undefined
-      ? request.playerAction.parameters
-      : { action: request.playerAction.parameters, manifestation: request.playerManifestation }
+    const stimulus =
+      request.playerManifestation === undefined
+        ? request.playerAction.parameters
+        : { action: request.playerAction.parameters, manifestation: request.playerManifestation }
     const stimulusRequest = {
       address: request.address,
       roundId: request.roundId,
@@ -333,40 +360,53 @@ export class CognitiveMemoryService {
 
   #prepareStimulus(request: PrepareCognitiveStimulusRequest, query: string): PreparedCognitiveStimulus {
     const characterView = this.catchUp(
-      request.address, request.characterId, request.asOfWorldSeq, request.correlationId,
+      request.address,
+      request.characterId,
+      request.asOfWorldSeq,
+      request.correlationId,
       request.heartbeat,
     )
-    const plan = this.version === 2
-      ? this.#recallPlan(
-        { address: request.address, characterId: request.characterId, asOfWorldSeq: request.asOfWorldSeq },
-        deterministicId(
-          this.recallTokenizer === undefined ? 'round-recall-plan/v1' : 'round-recall-plan/v2',
-          { address: request.address, roundId: request.roundId, participantId: request.participantId },
-        ),
-        query,
-        this.#recallClues(
-          { address: request.address, characterId: request.characterId, asOfWorldSeq: request.asOfWorldSeq },
-          request.sceneCharacterIds,
-        ),
-      )
-      : undefined
+    const plan =
+      this.version === 2
+        ? this.#recallPlan(
+            { address: request.address, characterId: request.characterId, asOfWorldSeq: request.asOfWorldSeq },
+            deterministicId(this.recallTokenizer === undefined ? 'round-recall-plan/v1' : 'round-recall-plan/v2', {
+              address: request.address,
+              roundId: request.roundId,
+              participantId: request.participantId,
+            }),
+            query,
+            this.#recallClues(
+              { address: request.address, characterId: request.characterId, asOfWorldSeq: request.asOfWorldSeq },
+              request.sceneCharacterIds,
+            ),
+          )
+        : undefined
     const receiptRecall = plan === undefined ? undefined : this.#executeRecall(plan)
-    const memoryRecall = receiptRecall === undefined
-      ? this.#memory.recall(request.address, request.characterId, query, request.asOfWorldSeq)
-      : receiptRecall.memories.map(memory => ({
-        memoryId: memory.memoryId, text: memory.text,
-        metadata: { ...memory.metadata as WorldJsonObject, source: memory.sourceRef },
-        sourceMaxSeq: memory.sourceRef.sourceSeq, captureHash: memory.captureHash,
-      }))
-    const memorySourceRefs = (receiptRecall === undefined
-      ? memoryRecall.flatMap(memory => {
-        const metadata = memory.metadata as WorldJsonObject
-        return [metadata.source as MemorySourceRef]
-      })
-      : receiptRecall.receipt.selectedSourceRefs as readonly MemorySourceRef[])
-      .toSorted((left, right) => compareWorldText(left.sourceKind, right.sourceKind) || compareWorldText(left.sourceId, right.sourceId))
-    const recallResultHash = receiptRecall?.receipt.resultHash
-      ?? hashWorldJson('cognitive-memory-recall', { query, memories: memoryRecall, sources: memorySourceRefs })
+    const memoryRecall =
+      receiptRecall === undefined
+        ? this.#memory.recall(request.address, request.characterId, query, request.asOfWorldSeq)
+        : receiptRecall.memories.map(memory => ({
+            memoryId: memory.memoryId,
+            text: memory.text,
+            metadata: { ...(memory.metadata as WorldJsonObject), source: memory.sourceRef },
+            sourceMaxSeq: memory.sourceRef.sourceSeq,
+            captureHash: memory.captureHash,
+          }))
+    const memorySourceRefs = (
+      receiptRecall === undefined
+        ? memoryRecall.flatMap(memory => {
+            const metadata = memory.metadata as WorldJsonObject
+            return [metadata.source as MemorySourceRef]
+          })
+        : (receiptRecall.receipt.selectedSourceRefs as readonly MemorySourceRef[])
+    ).toSorted(
+      (left, right) =>
+        compareWorldText(left.sourceKind, right.sourceKind) || compareWorldText(left.sourceId, right.sourceId),
+    )
+    const recallResultHash =
+      receiptRecall?.receipt.resultHash ??
+      hashWorldJson('cognitive-memory-recall', { query, memories: memoryRecall, sources: memorySourceRefs })
     return {
       characterView,
       memoryRecall,
@@ -379,15 +419,20 @@ export class CognitiveMemoryService {
   recall(address: WorldAddress, characterId: CharacterId, query: string, asOfWorldSeq: number): RecalledMemory[] {
     this.catchUp(address, characterId, asOfWorldSeq, `memory-recall:${characterId}:${asOfWorldSeq}`)
     if (this.version === 2) {
-      return this.#executeRecall(this.#applicationRecallPlan(address, characterId, query, asOfWorldSeq))
-        .memories.map(memory => ({
-          memoryId: memory.memoryId, text: memory.text,
+      return this.#executeRecall(this.#applicationRecallPlan(address, characterId, query, asOfWorldSeq)).memories.map(
+        memory => ({
+          memoryId: memory.memoryId,
+          text: memory.text,
           metadata: {
-            ...memory.metadata as WorldJsonObject,
-            kind: memory.memoryKind, epistemicKind: memory.epistemicKind, source: memory.sourceRef,
+            ...(memory.metadata as WorldJsonObject),
+            kind: memory.memoryKind,
+            epistemicKind: memory.epistemicKind,
+            source: memory.sourceRef,
           },
-          sourceMaxSeq: memory.sourceRef.sourceSeq, captureHash: memory.captureHash,
-        }))
+          sourceMaxSeq: memory.sourceRef.sourceSeq,
+          captureHash: memory.captureHash,
+        }),
+      )
     }
     return this.#memory.recall(address, characterId, query, asOfWorldSeq)
   }
@@ -404,7 +449,11 @@ export class CognitiveMemoryService {
   ): RecallCandidateDiagnostics {
     if (this.version !== 2) {
       return {
-        schemaVersion: 'recall-candidates/v1', address, characterId, asOfWorldSeq, query,
+        schemaVersion: 'recall-candidates/v1',
+        address,
+        characterId,
+        asOfWorldSeq,
+        query,
         matchedCount: this.#memory.countRecall(address, characterId, query, asOfWorldSeq),
         limit: DEFAULT_RECALL_LIMIT,
       }
@@ -475,7 +524,10 @@ export class CognitiveMemoryService {
     ownerId: string,
     fencingToken: number,
     heartbeat: () => void,
-  ): { readonly completed: number; readonly failed: readonly { readonly characterId: CharacterId; readonly error: string }[] } {
+  ): {
+    readonly completed: number
+    readonly failed: readonly { readonly characterId: CharacterId; readonly error: string }[]
+  } {
     let completed = 0
     const failed: Array<{ characterId: CharacterId; error: string }> = []
     for (const job of this.worldStore.readCognitiveJobs(address)) {
@@ -486,17 +538,33 @@ export class CognitiveMemoryService {
         }
         heartbeat()
         this.worldStore.recordCognitiveJobResult(
-          address, job.jobId, ownerId, fencingToken, 'completed', null, `cognitive-job:${job.jobId}`,
+          address,
+          job.jobId,
+          ownerId,
+          fencingToken,
+          'completed',
+          null,
+          `cognitive-job:${job.jobId}`,
         )
         completed += 1
       } catch (error: unknown) {
         const message = String(error)
         this.worldStore.recordCognitiveJobResult(
-          address, job.jobId, ownerId, fencingToken, 'failed', message, `cognitive-job:${job.jobId}`,
+          address,
+          job.jobId,
+          ownerId,
+          fencingToken,
+          'failed',
+          message,
+          `cognitive-job:${job.jobId}`,
         )
         failed.push({ characterId: job.characterId, error: message })
-        if (error instanceof Error && 'envelope' in error
-          && (error as { envelope?: { category?: string } }).envelope?.category === 'integrity') throw error
+        if (
+          error instanceof Error &&
+          'envelope' in error &&
+          (error as { envelope?: { category?: string } }).envelope?.category === 'integrity'
+        )
+          throw error
       }
     }
     return { completed, failed }

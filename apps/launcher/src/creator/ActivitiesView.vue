@@ -4,17 +4,21 @@ import { asRecord, inlineJson } from './format.ts'
 import { useCreatorStore } from './store.ts'
 
 const store = useCreatorStore()
-const activities = computed(() => store.activities.map(value => {
-  const item = asRecord(value)
-  const game = asRecord(item.game)
-  return {
-    key: String(item.activityKey ?? 'default'),
-    state: item.state === null || item.state === undefined ? '未开始' : String(item.state),
-    description: String(item.description ?? ''),
-    participants: Array.isArray(item.participantIds) ? item.participantIds.map(id => store.label(String(id))) : [],
-    public: asRecord(game.public), private: asRecord(game.private), internal: asRecord(game.internal),
-  }
-}))
+const activities = computed(() =>
+  store.activities.map(value => {
+    const item = asRecord(value)
+    const game = asRecord(item.game)
+    return {
+      key: String(item.activityKey ?? 'default'),
+      state: item.state === null || item.state === undefined ? '未开始' : String(item.state),
+      description: String(item.description ?? ''),
+      participants: Array.isArray(item.participantIds) ? item.participantIds.map(id => store.label(String(id))) : [],
+      public: asRecord(game.public),
+      private: asRecord(game.private),
+      internal: asRecord(game.internal),
+    }
+  }),
+)
 </script>
 
 <template>
@@ -22,10 +26,22 @@ const activities = computed(() => store.activities.map(value => {
     <div class="cr-list-head" style="grid-template-columns: 140px 100px minmax(0, 1.4fr) minmax(0, 1.4fr)">
       <span>活动</span><span>状态</span><span>参与者</span><span>说明</span>
     </div>
-    <div v-for="activity in activities" :key="activity.key" class="cr-list-row" style="grid-template-columns: 140px 100px minmax(0, 1.4fr) minmax(0, 1.4fr)"
-      :class="{ selected: store.selection?.id === activity.key }" @click="store.select({ kind: 'activity', id: activity.key, label: `活动 · ${activity.key}` })">
+    <div
+      v-for="activity in activities"
+      :key="activity.key"
+      class="cr-list-row"
+      style="grid-template-columns: 140px 100px minmax(0, 1.4fr) minmax(0, 1.4fr)"
+      :class="{ selected: store.selection?.id === activity.key }"
+      @click="store.select({ kind: 'activity', id: activity.key, label: `活动 · ${activity.key}` })"
+    >
       <span class="cr-strong">{{ activity.key }}</span>
-      <span><span class="cr-tag" :class="activity.state === 'active' ? 'ok' : activity.state === '未开始' ? 'muted' : 'warn'">{{ activity.state }}</span></span>
+      <span
+        ><span
+          class="cr-tag"
+          :class="activity.state === 'active' ? 'ok' : activity.state === '未开始' ? 'muted' : 'warn'"
+          >{{ activity.state }}</span
+        ></span
+      >
       <span class="cr-muted">{{ activity.participants.join('、') || '无参与者' }}</span>
       <span class="cr-muted">{{ activity.description || '—' }}</span>
     </div>
@@ -34,11 +50,16 @@ const activities = computed(() => store.activities.map(value => {
     <section v-for="activity in activities" :key="activity.key" class="cr-section">
       <h2>{{ activity.key }}</h2>
       <div class="cr-grid">
-        <div class="cr-field-card"><small>公开变量（参与者共享）</small><span class="cr-mono">{{ inlineJson(activity.public, 160) }}</span></div>
-        <div v-for="[characterId, value] in Object.entries(activity.private)" :key="characterId" class="cr-field-card">
-          <small>私有变量 · {{ store.label(characterId) }}</small><span class="cr-mono">{{ inlineJson(value, 160) }}</span>
+        <div class="cr-field-card">
+          <small>公开变量（参与者共享）</small><span class="cr-mono">{{ inlineJson(activity.public, 160) }}</span>
         </div>
-        <div class="cr-field-card"><small>内部变量（不进入角色视图）</small><span class="cr-mono">{{ inlineJson(activity.internal, 160) }}</span></div>
+        <div v-for="[characterId, value] in Object.entries(activity.private)" :key="characterId" class="cr-field-card">
+          <small>私有变量 · {{ store.label(characterId) }}</small
+          ><span class="cr-mono">{{ inlineJson(value, 160) }}</span>
+        </div>
+        <div class="cr-field-card">
+          <small>内部变量（不进入角色视图）</small><span class="cr-mono">{{ inlineJson(activity.internal, 160) }}</span>
+        </div>
       </div>
       <p class="cr-muted">活动信息仅限创作者宿主；private 只给对应角色，internal 不进入任何角色视图。</p>
     </section>

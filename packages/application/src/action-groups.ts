@@ -1,4 +1,10 @@
-import { compareWorldText, type ActionGroupBinding, type ActionRequest, type StepManifestation, type WorldJsonObject } from '@harness-world/contracts'
+import {
+  compareWorldText,
+  type ActionGroupBinding,
+  type ActionRequest,
+  type StepManifestation,
+  type WorldJsonObject,
+} from '@harness-world/contracts'
 import type { RulebookResolution } from '@harness-world/kernel'
 
 interface GroupOrderedAction {
@@ -9,10 +15,14 @@ interface GroupOrderedAction {
 }
 
 /** A group's first step supplies its global sort key; original ordinals order its steps. */
-export function sortActionGroups<T extends GroupOrderedAction>(items: readonly T[], compare: (left: T, right: T) => number): T[] {
+export function sortActionGroups<T extends GroupOrderedAction>(
+  items: readonly T[],
+  compare: (left: T, right: T) => number,
+): T[] {
   const anchors = new Map(items.filter(item => item.proposalOrdinal === 0).map(item => [item.participantId, item]))
   return [...items].sort((left, right) => {
-    if (left.participantId === right.participantId && left.actionGroup !== undefined) return left.proposalOrdinal - right.proposalOrdinal
+    if (left.participantId === right.participantId && left.actionGroup !== undefined)
+      return left.proposalOrdinal - right.proposalOrdinal
     const a = left.actionGroup === undefined ? left : anchors.get(left.participantId)!
     const b = right.actionGroup === undefined ? right : anchors.get(right.participantId)!
     return compare(a, b) || compareWorldText(a.participantId, b.participantId)
@@ -46,9 +56,16 @@ export function resolveGroupAction(
   stopped: Set<string>,
   resolve: (action: ActionRequest) => RulebookResolution,
 ): { readonly resolution: RulebookResolution; readonly skipped: boolean } {
-  if (grouped && stopped.has(participantId)) return {
-    resolution: { status: 'rejected', events: [], reason: 'PREVIOUS_ACTION_REJECTED', observationScope: { scope: 'self' } }, skipped: true,
-  }
+  if (grouped && stopped.has(participantId))
+    return {
+      resolution: {
+        status: 'rejected',
+        events: [],
+        reason: 'PREVIOUS_ACTION_REJECTED',
+        observationScope: { scope: 'self' },
+      },
+      skipped: true,
+    }
   const resolution = resolve(action)
   if (grouped && resolution.status === 'rejected') stopped.add(participantId)
   return { resolution, skipped: false }

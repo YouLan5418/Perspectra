@@ -10,5 +10,6 @@ export function statusMarketWithoutRoundHook(): string {
 }
 
 /** The player's known value of the public `time` status. */
-export const knownTime = (state: { readonly statusBar?: readonly { readonly key: string; readonly value: unknown }[] }) =>
-  state.statusBar?.find(entry => entry.key === 'time')?.value
+export const knownTime = (state: {
+  readonly statusBar?: readonly { readonly key: string; readonly value: unknown }[]
+}) => state.statusBar?.find(entry => entry.key === 'time')?.value

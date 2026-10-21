@@ -3,16 +3,18 @@ import type { ContextSourceRef } from './context-source.ts'
 import type { WorldAddress } from './protocol.ts'
 import type { WorldHash, WorldJsonObject, WorldJsonValue } from './world-json.ts'
 
-export const COGNITIVE_MEMORY_KINDS = Object.freeze([
-  'episodic', 'communication', 'belief', 'intention',
-] as const)
-export type CognitiveMemoryKind = typeof COGNITIVE_MEMORY_KINDS[number]
+export const COGNITIVE_MEMORY_KINDS = Object.freeze(['episodic', 'communication', 'belief', 'intention'] as const)
+export type CognitiveMemoryKind = (typeof COGNITIVE_MEMORY_KINDS)[number]
 
 export const COGNITIVE_EPISTEMIC_KINDS = Object.freeze([
-  'direct_observation', 'observed_action', 'reported_speech',
-  'subjective_inference', 'self_intention', 'derived_summary',
+  'direct_observation',
+  'observed_action',
+  'reported_speech',
+  'subjective_inference',
+  'self_intention',
+  'derived_summary',
 ] as const)
-export type CognitiveEpistemicKind = typeof COGNITIVE_EPISTEMIC_KINDS[number]
+export type CognitiveEpistemicKind = (typeof COGNITIVE_EPISTEMIC_KINDS)[number]
 
 export interface CognitiveMemoryEntry extends WorldJsonObject {
   readonly memoryId: string
@@ -159,7 +161,7 @@ export interface RecallQueryPlanV2 extends WorldJsonObject {
 
 /** Why the keyword strategy withheld something a caller might have expected. */
 export const RECALL_EXCLUSION_REASONS_V2 = Object.freeze(['no_match', 'result_limit'] as const)
-export type RecallExclusionReasonV2 = typeof RECALL_EXCLUSION_REASONS_V2[number]
+export type RecallExclusionReasonV2 = (typeof RECALL_EXCLUSION_REASONS_V2)[number]
 
 export interface RecallKeywordRanking extends WorldJsonObject {
   readonly memoryId: string

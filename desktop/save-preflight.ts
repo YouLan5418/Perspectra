@@ -14,7 +14,10 @@ export interface SavePreflightResult {
 
 /** Read the saved Manifest without opening a writable WorldStore or migrating old data. */
 export async function preflightSave(packPath: string, dataDirectory: string): Promise<SavePreflightResult> {
-  const pack = await compileWorldPackSource(resolve(packPath), createInstalledInteractionPackages().map(interactionPackageDescription)) as CompiledWorldPackV5
+  const pack = (await compileWorldPackSource(
+    resolve(packPath),
+    createInstalledInteractionPackages().map(interactionPackageDescription),
+  )) as CompiledWorldPackV5
   const databasePath = resolve(currentWorldDirectory(dataDirectory), 'world.sqlite')
   if (!existsSync(databasePath)) {
     if (existsSync(dataDirectory) && readdirSync(dataDirectory).length > 0) {
@@ -26,10 +29,14 @@ export async function preflightSave(packPath: string, dataDirectory: string): Pr
   try {
     const branches = database.prepare('SELECT COUNT(*) AS count FROM branches').get() as { count: number }
     if (branches.count !== 1) throw new Error('当前桌面版只支持单分支存档。')
-    const rows = database.prepare(`
+    const rows = database
+      .prepare(
+        `
       SELECT m.manifest_json FROM branch_activations a
       JOIN world_manifests m ON m.manifest_hash = a.manifest_hash
-    `).all() as Array<{ manifest_json: string }>
+    `,
+      )
+      .all() as Array<{ manifest_json: string }>
     if (rows.length !== 1) throw new Error('存档中缺少唯一的已激活世界。')
     const manifest = JSON.parse(rows[0]!.manifest_json) as { contentPack?: { packHash?: string } }
     if (manifest.contentPack?.packHash !== pack.packHash) {

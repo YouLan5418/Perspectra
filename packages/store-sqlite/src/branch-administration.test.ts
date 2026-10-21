@@ -60,23 +60,39 @@ describe('BranchAdministration', () => {
       revision: 0,
     })
     expect(() => store.assertAdmissionOpen(target, 'player:open')).not.toThrow()
-    expect(admin.setAdmission(target, 'draining', 'maintenance', 'admin:drain')).toMatchObject({ admissionState: 'draining', revision: 1 })
+    expect(admin.setAdmission(target, 'draining', 'maintenance', 'admin:drain')).toMatchObject({
+      admissionState: 'draining',
+      revision: 1,
+    })
     expect(() => store.assertAdmissionOpen(target, 'player:blocked')).toThrow('draining')
-    await expect(store.commitRound(round(target))).rejects.toMatchObject({ envelope: { errorCode: 'BRANCH_DRAINING', retryable: true } })
-    expect(admin.setAdmission(target, 'open', 'maintenance complete', 'admin:open')).toMatchObject({ admissionState: 'open', revision: 2 })
+    await expect(store.commitRound(round(target))).rejects.toMatchObject({
+      envelope: { errorCode: 'BRANCH_DRAINING', retryable: true },
+    })
+    expect(admin.setAdmission(target, 'open', 'maintenance complete', 'admin:open')).toMatchObject({
+      admissionState: 'open',
+      revision: 2,
+    })
     const committed = await store.commitRound(round(target))
-    expect(() => admin.archive(target, 'too early', 'admin:early-archive')).toThrow('requires a drained admission barrier')
+    expect(() => admin.archive(target, 'too early', 'admin:early-archive')).toThrow(
+      'requires a drained admission barrier',
+    )
     admin.setAdmission(target, 'draining', 'archive barrier', 'admin:archive-drain')
     const archived = admin.archive(target, 'story complete', 'admin:archive')
     expect(archived).toMatchObject({ admissionState: 'draining', lifecycleState: 'archived', revision: 4 })
     await expect(store.commitRound(round(target))).resolves.toEqual({ ...committed, status: 'already_committed' })
-    await expect(store.commitRound(round(target, 'two'))).rejects.toMatchObject({ envelope: { errorCode: 'BRANCH_DRAINING', retryable: false } })
+    await expect(store.commitRound(round(target, 'two'))).rejects.toMatchObject({
+      envelope: { errorCode: 'BRANCH_DRAINING', retryable: false },
+    })
     const inconsistent = new DatabaseSync(path)
-    inconsistent.prepare(`UPDATE branch_controls SET runtime_phase = 'active' WHERE address_key = ?`).run(worldAddressKey(target))
+    inconsistent
+      .prepare(`UPDATE branch_controls SET runtime_phase = 'active' WHERE address_key = ?`)
+      .run(worldAddressKey(target))
     inconsistent.close()
     await expect(store.commitRound(round(target, 'two'))).rejects.toThrow('branch is archived')
     const restorePhase = new DatabaseSync(path)
-    restorePhase.prepare(`UPDATE branch_controls SET runtime_phase = 'archived' WHERE address_key = ?`).run(worldAddressKey(target))
+    restorePhase
+      .prepare(`UPDATE branch_controls SET runtime_phase = 'archived' WHERE address_key = ?`)
+      .run(worldAddressKey(target))
     restorePhase.close()
     expect(() => admin.setAdmission(target, 'open', 'try reopen', 'admin:reopen')).toThrow('branch is archived')
     expect(store.readEvents(target)).toHaveLength(1)
@@ -103,9 +119,12 @@ describe('BranchAdministration', () => {
     expect(() => admin.setAdmission(target, 'draining', '', 'correlation')).toThrow(TypeError)
     expect(() => admin.archive(target, 'reason', '')).toThrow(TypeError)
     expect(admin.recordBranchWorkFailure(target, 'branch-work:failure', { message: 'provider failed' })).toMatchObject({
-      operation: 'branch.work.failed', details: { message: 'provider failed' },
+      operation: 'branch.work.failed',
+      details: { message: 'provider failed' },
     })
-    expect(() => admin.recordBranchWorkFailure(address('missing'), 'branch-work:missing', {})).toThrow('unknown world branch')
+    expect(() => admin.recordBranchWorkFailure(address('missing'), 'branch-work:missing', {})).toThrow(
+      'unknown world branch',
+    )
     expect(() => admin.recordBranchWorkFailure(target, '', {})).toThrow(TypeError)
     admin.close()
 
@@ -123,23 +142,35 @@ describe('BranchAdministration', () => {
     const store = new WorldStore(path, undefined, () => 100)
     store.createBranch(target)
     const admin = new BranchAdministration(path, () => 100)
-    expect(() => admin.enterMaintenance(target, 'upgrade', 'maintenance:early')).toThrow('requires a drained active branch')
+    expect(() => admin.enterMaintenance(target, 'upgrade', 'maintenance:early')).toThrow(
+      'requires a drained active branch',
+    )
     admin.setAdmission(target, 'draining', 'upgrade', 'maintenance:drain')
     const leases = new WriterLeaseService(path, () => 100)
     const lease = leases.acquire(target, 'maintenance:writer', 1_000)
     expect(() => admin.enterMaintenance(target, 'upgrade', 'maintenance:writer-active')).toThrow('active writer')
     expect(leases.release(target, lease.ownerId, lease.fencingToken)).toBe(true)
     expect(admin.enterMaintenance(target, 'upgrade', 'maintenance:enter')).toMatchObject({
-      admissionState: 'draining', runtimePhase: 'maintenance', runtimeEpoch: 0,
+      admissionState: 'draining',
+      runtimePhase: 'maintenance',
+      runtimeEpoch: 0,
     })
     expect(() => store.assertAdmissionOpen(target, 'maintenance:blocked')).toThrow('draining')
-    expect(() => admin.enterMaintenance(target, 'again', 'maintenance:again')).toThrow('requires a drained active branch')
+    expect(() => admin.enterMaintenance(target, 'again', 'maintenance:again')).toThrow(
+      'requires a drained active branch',
+    )
     expect(admin.exitMaintenance(target, 'upgrade complete', 'maintenance:exit')).toMatchObject({
-      admissionState: 'open', runtimePhase: 'active', runtimeEpoch: 1,
+      admissionState: 'open',
+      runtimePhase: 'active',
+      runtimeEpoch: 1,
     })
-    expect(() => admin.exitMaintenance(target, 'again', 'maintenance:exit-again')).toThrow('only an offline maintenance branch')
+    expect(() => admin.exitMaintenance(target, 'again', 'maintenance:exit-again')).toThrow(
+      'only an offline maintenance branch',
+    )
     expect(admin.readAudit(target).map(value => value.operation)).toEqual([
-      'branch.admission.changed', 'maintenance.entered', 'maintenance.exited',
+      'branch.admission.changed',
+      'maintenance.entered',
+      'maintenance.exited',
     ])
     expect(() => admin.enterMaintenance(target, '', 'maintenance:invalid')).toThrow(TypeError)
     expect(() => admin.exitMaintenance(target, 'reason', '')).toThrow(TypeError)
@@ -165,13 +196,16 @@ describe('BranchAdministration', () => {
     expect(leases.release(leaseTarget, lease.ownerId, lease.fencingToken)).toBe(true)
 
     const inbox = new RoundInbox(path, () => 100)
-    inbox.enqueue({
-      address: inboxTarget,
-      idempotencyKey: 'archive:pending',
-      principalId: 'principal:archive',
-      input: { actionType: 'wait' },
-      correlationId: 'archive:pending',
-    }, 4)
+    inbox.enqueue(
+      {
+        address: inboxTarget,
+        idempotencyKey: 'archive:pending',
+        principalId: 'principal:archive',
+        input: { actionType: 'wait' },
+        correlationId: 'archive:pending',
+      },
+      4,
+    )
     admin.setAdmission(inboxTarget, 'draining', 'inbox guard', 'admin:inbox-drain')
     expect(() => admin.archive(inboxTarget, 'blocked by Round', 'admin:inbox-archive')).toThrow('unfinished Round')
     admin.setAdmission(inboxTarget, 'open', 'test fork guard', 'admin:inbox-open')
@@ -179,22 +213,33 @@ describe('BranchAdministration', () => {
 
     await store.commitRound({
       ...round(deliveryTarget),
-      outbox: [{
-        deliveryId: brandId('delivery:archive-guard', 'DeliveryId'),
-        sessionId: brandId('session:archive-guard', 'SessionId'),
-        payload: { kind: 'observation', text: 'must remain reconstructable' },
-        critical: true,
-      }],
+      outbox: [
+        {
+          deliveryId: brandId('delivery:archive-guard', 'DeliveryId'),
+          sessionId: brandId('session:archive-guard', 'SessionId'),
+          payload: { kind: 'observation', text: 'must remain reconstructable' },
+          critical: true,
+        },
+      ],
     })
     admin.setAdmission(deliveryTarget, 'draining', 'delivery guard', 'admin:delivery-drain')
-    expect(() => admin.archive(deliveryTarget, 'blocked by Outbox', 'admin:delivery-archive')).toThrow('critical delivery')
-    const outbox = new WorldOutbox(path, undefined, { workerId: 'worker:archive', now: () => 100, createClaimToken: () => 'archive' })
+    expect(() => admin.archive(deliveryTarget, 'blocked by Outbox', 'admin:delivery-archive')).toThrow(
+      'critical delivery',
+    )
+    const outbox = new WorldOutbox(path, undefined, {
+      workerId: 'worker:archive',
+      now: () => 100,
+      createClaimToken: () => 'archive',
+    })
     const claimed = outbox.claimNext(deliveryTarget)
     if (claimed === undefined) throw new Error('critical Outbox fixture is missing')
-    expect(() => admin.enterMaintenance(deliveryTarget, 'inflight guard', 'maintenance:delivery'))
-      .toThrow('critical inflight delivery')
+    expect(() => admin.enterMaintenance(deliveryTarget, 'inflight guard', 'maintenance:delivery')).toThrow(
+      'critical inflight delivery',
+    )
     await outbox.recordDelivered(claimed)
-    expect(admin.archive(deliveryTarget, 'delivered', 'admin:delivery-complete')).toMatchObject({ lifecycleState: 'archived' })
+    expect(admin.archive(deliveryTarget, 'delivered', 'admin:delivery-complete')).toMatchObject({
+      lifecycleState: 'archived',
+    })
 
     admin.setAdmission(archivedTarget, 'draining', 'archive parent', 'admin:parent-drain')
     admin.archive(archivedTarget, 'archived parent', 'admin:parent-archive')
@@ -202,11 +247,14 @@ describe('BranchAdministration', () => {
     expect(() => store.forkBranch(archivedTarget, address('illegal-child'), 0)).toThrow('archived')
     expect(() => store.assertAdmissionOpen(archivedTarget, 'archived-admission')).toThrow('archived')
     const inconsistentArchived = new DatabaseSync(path)
-    inconsistentArchived.prepare(`UPDATE branch_controls SET admission_state = 'open' WHERE address_key = ?`)
+    inconsistentArchived
+      .prepare(`UPDATE branch_controls SET admission_state = 'open' WHERE address_key = ?`)
       .run(worldAddressKey(archivedTarget))
     inconsistentArchived.close()
     expect(() => store.assertAdmissionOpen(archivedTarget, 'archived-open-admission')).toThrow('archived')
-    expect(() => store.forkBranch(address('missing-parent'), address('missing-child'), 0)).toThrow('unknown world branch')
+    expect(() => store.forkBranch(address('missing-parent'), address('missing-child'), 0)).toThrow(
+      'unknown world branch',
+    )
 
     outbox.close()
     inbox.close()
@@ -223,13 +271,16 @@ describe('BranchAdministration', () => {
     const inbox = new RoundInbox(path, () => 100)
     const leases = new WriterLeaseService(path, () => 100)
     const lease = leases.acquire(target, 'kernel:drain', 1_000)
-    const admitted = inbox.enqueue({
-      address: target,
-      idempotencyKey: 'admitted-before-drain',
-      principalId: 'principal:player',
-      input: { actionType: 'speak', parameters: { text: 'accepted' } },
-      correlationId: 'admitted-before-drain',
-    }, 4)
+    const admitted = inbox.enqueue(
+      {
+        address: target,
+        idempotencyKey: 'admitted-before-drain',
+        principalId: 'principal:player',
+        input: { actionType: 'speak', parameters: { text: 'accepted' } },
+        correlationId: 'admitted-before-drain',
+      },
+      4,
+    )
     inbox.claimNext(target, lease.ownerId, lease.fencingToken)
     const admin = new BranchAdministration(path, () => 100)
     admin.setAdmission(target, 'draining', 'drain accepted work', 'admin:drain-accepted')
@@ -238,11 +289,13 @@ describe('BranchAdministration', () => {
       writerFencingToken: lease.fencingToken,
       admissionProof: { inboxSeq: admitted.inboxSeq, inputHash: admitted.inputHash },
     }
-    await expect(store.commitRound({
-      ...request,
-      transactionId: brandId('transaction:wrong-admission', 'TransactionId'),
-      admissionProof: { ...request.admissionProof, inputHash: 'sha256:wrong' },
-    })).rejects.toThrow('no matching durable admission proof')
+    await expect(
+      store.commitRound({
+        ...request,
+        transactionId: brandId('transaction:wrong-admission', 'TransactionId'),
+        admissionProof: { ...request.admissionProof, inputHash: 'sha256:wrong' },
+      }),
+    ).rejects.toThrow('no matching durable admission proof')
     await expect(store.commitRound(request)).resolves.toMatchObject({ status: 'committed', tick: 1 })
     admin.close()
     inbox.close()

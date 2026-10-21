@@ -2,56 +2,117 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, expect, it } from 'vitest'
-import { brandId, hashWorldJson, RECALL_KEYWORD_TOKENIZER_ID, type WorldEventDraft, type WorldJsonObject } from '@harness-world/contracts'
+import {
+  brandId,
+  hashWorldJson,
+  RECALL_KEYWORD_TOKENIZER_ID,
+  type WorldEventDraft,
+  type WorldJsonObject,
+} from '@harness-world/contracts'
 import { createCoreRulebookRegistry } from '@harness-world/kernel'
 import { WorldStore, WriterLeaseService, CharacterRuntimeAvailabilityService } from '@harness-world/store-sqlite'
 import { CognitiveMemoryService } from '@harness-world/memory'
 import { characterTurnCall } from '@harness-world/provider-chat'
-import { CharacterTurn, type RecallShadowObservation, type CharacterTurnRequest } from '../../packages/application/src/character-turn.ts'
+import {
+  CharacterTurn,
+  type RecallShadowObservation,
+  type CharacterTurnRequest,
+} from '../../packages/application/src/character-turn.ts'
 import { frozenInteractionWorld, basicInteractionPackage } from '../fixtures/frozen-interaction-world.ts'
 
 const close: (() => void)[] = []
-afterEach(() => { for (const item of close.splice(0).reverse()) item() })
+afterEach(() => {
+  for (const item of close.splice(0).reverse()) item()
+})
 const npc = brandId('character:npc', 'CharacterId')
 const bob = brandId('character:bob', 'CharacterId')
 const observation = (id: string, observerId: string, content: WorldJsonObject): WorldEventDraft => ({
-  eventType: 'observation.upsert', eventVersion: 1,
+  eventType: 'observation.upsert',
+  eventVersion: 1,
   data: { id, value: { observerId, content } },
 })
-function fixture(decide: (request: CharacterTurnRequest) => Promise<unknown>, longHistory = false,
-  onRecallShadow?: (observation: RecallShadowObservation) => void) {
+function fixture(
+  decide: (request: CharacterTurnRequest) => Promise<unknown>,
+  longHistory = false,
+  onRecallShadow?: (observation: RecallShadowObservation) => void,
+) {
   const dir = mkdtempSync(join(tmpdir(), 'active-recall-'))
   close.push(() => rmSync(dir, { recursive: true, force: true }))
   const path = join(dir, 'world.sqlite')
-  const store = new WorldStore(path), leases = new WriterLeaseService(path)
+  const store = new WorldStore(path),
+    leases = new WriterLeaseService(path)
   const availability = new CharacterRuntimeAvailabilityService(path)
   const world = frozenInteractionWorld()
-  const genesisEvents = [...world.genesisEvents,
-    observation('observation:hearsay', npc, { actionType: 'speak', actorId: bob,
-      speech: { characterId: bob, text: '昨天我把钥匙交给程雨了。' } }),
-    observation('observation:witness', npc, { actionType: 'interact', actorId: npc,
-      resultDescription: '我看见钥匙仍在桌上。' }),
-    observation('observation:private', bob, { actionType: 'speak', actorId: npc,
-      speech: { characterId: npc, text: '钥匙藏在秘密抽屉里。' } }),
-    ...(longHistory ? [
-      { eventType: 'character.moved', eventVersion: 1, data: {
-        characterId: bob, fromLocationId: 'location:room', toLocationId: 'location:next',
-      } } satisfies WorldEventDraft,
-      ...Array.from({ length: 18 }, (_, index) => observation(`observation:filler-${index}`, npc, {
-        actionType: 'speak', actorId: 'character:player',
-        speech: { characterId: 'character:player', text: `现在等了${index}分钟。` },
-      })),
-    ] : []),
+  const genesisEvents = [
+    ...world.genesisEvents,
+    observation('observation:hearsay', npc, {
+      actionType: 'speak',
+      actorId: bob,
+      speech: { characterId: bob, text: '昨天我把钥匙交给程雨了。' },
+    }),
+    observation('observation:witness', npc, {
+      actionType: 'interact',
+      actorId: npc,
+      resultDescription: '我看见钥匙仍在桌上。',
+    }),
+    observation('observation:private', bob, {
+      actionType: 'speak',
+      actorId: npc,
+      speech: { characterId: npc, text: '钥匙藏在秘密抽屉里。' },
+    }),
+    ...(longHistory
+      ? [
+          {
+            eventType: 'character.moved',
+            eventVersion: 1,
+            data: {
+              characterId: bob,
+              fromLocationId: 'location:room',
+              toLocationId: 'location:next',
+            },
+          } satisfies WorldEventDraft,
+          ...Array.from({ length: 18 }, (_, index) =>
+            observation(`observation:filler-${index}`, npc, {
+              actionType: 'speak',
+              actorId: 'character:player',
+              speech: { characterId: 'character:player', text: `现在等了${index}分钟。` },
+            }),
+          ),
+        ]
+      : []),
   ]
-  store.activateBranch({ ...world, genesisEvents, genesisHash: hashWorldJson('world-genesis-plan', genesisEvents),
-    address: world.manifest.address, transactionId: brandId('transaction:active-recall-genesis', 'TransactionId'),
-    roundId: brandId('round:active-recall-genesis', 'InteractionRoundId'), correlationId: 'active-recall' })
-  const memory = new CognitiveMemoryService(join(dir, 'memory.sqlite'), store, undefined, 2, RECALL_KEYWORD_TOKENIZER_ID)
-  close.push(() => { memory.close(); availability.close(); leases.close(); store.close() })
-  const turn = new CharacterTurn({ address: world.manifest.address, store, memory, leases, availability,
+  store.activateBranch({
+    ...world,
+    genesisEvents,
+    genesisHash: hashWorldJson('world-genesis-plan', genesisEvents),
+    address: world.manifest.address,
+    transactionId: brandId('transaction:active-recall-genesis', 'TransactionId'),
+    roundId: brandId('round:active-recall-genesis', 'InteractionRoundId'),
+    correlationId: 'active-recall',
+  })
+  const memory = new CognitiveMemoryService(
+    join(dir, 'memory.sqlite'),
+    store,
+    undefined,
+    2,
+    RECALL_KEYWORD_TOKENIZER_ID,
+  )
+  close.push(() => {
+    memory.close()
+    availability.close()
+    leases.close()
+    store.close()
+  })
+  const turn = new CharacterTurn({
+    address: world.manifest.address,
+    store,
+    memory,
+    leases,
+    availability,
     rulebooks: createCoreRulebookRegistry({ interactionPackages: [basicInteractionPackage] }),
     decide: async request => decide(request),
-    ...(onRecallShadow === undefined ? {} : { onRecallShadow }) })
+    ...(onRecallShadow === undefined ? {} : { onRecallShadow }),
+  })
   return { turn, store, address: world.manifest.address }
 }
 
@@ -61,36 +122,59 @@ async function advanceTick(f: ReturnType<typeof fixture>, index: number): Promis
     address: f.address,
     transactionId: brandId('transaction:active-recall-age-' + index, 'TransactionId'),
     roundId: brandId('round:active-recall-age-' + index, 'InteractionRoundId'),
-    expectedHeadSeq: head.headSeq, expectedTick: head.tick, nextTick: head.tick + 1,
-    events: [observation('observation:clock-' + index, bob, { actionType: 'speak', actorId: bob,
-      speech: { characterId: bob, text: '另一处的新消息。' } })],
-    outbox: [], correlationId: 'active-recall-age-' + index,
+    expectedHeadSeq: head.headSeq,
+    expectedTick: head.tick,
+    nextTick: head.tick + 1,
+    events: [
+      observation('observation:clock-' + index, bob, {
+        actionType: 'speak',
+        actorId: bob,
+        speech: { characterId: bob, text: '另一处的新消息。' },
+      }),
+    ],
+    outbox: [],
+    correlationId: 'active-recall-age-' + index,
   })
 }
 
 it('lets an NPC retrieve only its attributed evidence, then decide without granting evidence world authority', async () => {
   const requests: CharacterTurnRequest[] = []
   const shadow: RecallShadowObservation[] = []
-  const f = fixture(async request => {
-    requests.push(request)
-    const schema = JSON.stringify(characterTurnCall(request).schema)
-    if (requests.length === 1) {
-      expect(schema).toContain('"const":"recall"')
-      return { decision: 'recall', query: '钥匙' }
-    }
-    expect(schema).not.toContain('"const":"recall"')
-    expect(request.recallEvidence?.query).toBe('钥匙')
-    const memories = request.recallEvidence?.memories as WorldJsonObject[]
-    expect(memories.some(m => (m.metadata as WorldJsonObject).epistemicKind === 'reported_speech'
-      && (m.metadata as WorldJsonObject).speakerId === bob && String(m.text).includes('昨天我把钥匙交给程雨了'))).toBe(true)
-    expect(memories.some(m => (m.metadata as WorldJsonObject).epistemicKind === 'observed_action'
-      && String(m.text).includes('我看见钥匙仍在桌上'))).toBe(true)
-    expect(memories.every(m => typeof (m.metadata as WorldJsonObject).source === 'object')).toBe(true)
-    expect(memories.every(m => m.sourceAgeTicks === 2)).toBe(true)
-    expect(JSON.stringify(request)).not.toContain('秘密抽屉')
-    expect(request.recallEvidence?.note).toContain('不证明')
-    return { decision: 'publish', segments: [{ type: 'speech', text: '我记得陆舟这么说过，但还得看看钥匙。' }] }
-  }, true, observation => shadow.push(observation))
+  const f = fixture(
+    async request => {
+      requests.push(request)
+      const schema = JSON.stringify(characterTurnCall(request).schema)
+      if (requests.length === 1) {
+        expect(schema).toContain('"const":"recall"')
+        return { decision: 'recall', query: '钥匙' }
+      }
+      expect(schema).not.toContain('"const":"recall"')
+      expect(request.recallEvidence?.query).toBe('钥匙')
+      const memories = request.recallEvidence?.memories as WorldJsonObject[]
+      expect(
+        memories.some(
+          m =>
+            (m.metadata as WorldJsonObject).epistemicKind === 'reported_speech' &&
+            (m.metadata as WorldJsonObject).speakerId === bob &&
+            String(m.text).includes('昨天我把钥匙交给程雨了'),
+        ),
+      ).toBe(true)
+      expect(
+        memories.some(
+          m =>
+            (m.metadata as WorldJsonObject).epistemicKind === 'observed_action' &&
+            String(m.text).includes('我看见钥匙仍在桌上'),
+        ),
+      ).toBe(true)
+      expect(memories.every(m => typeof (m.metadata as WorldJsonObject).source === 'object')).toBe(true)
+      expect(memories.every(m => m.sourceAgeTicks === 2)).toBe(true)
+      expect(JSON.stringify(request)).not.toContain('秘密抽屉')
+      expect(request.recallEvidence?.note).toContain('不证明')
+      return { decision: 'publish', segments: [{ type: 'speech', text: '我记得陆舟这么说过，但还得看看钥匙。' }] }
+    },
+    true,
+    observation => shadow.push(observation),
+  )
   await advanceTick(f, 1)
   await advanceTick(f, 2)
   const before = f.store.head(f.address).headSeq
@@ -99,10 +183,16 @@ it('lets an NPC retrieve only its attributed evidence, then decide without grant
   expect(active.characterId).toBe(npc)
   expect(active.asOfWorldSeq).toBe(before)
   expect(active.query).toBe('钥匙')
-  expect(active.deliveredSourceIds).toEqual((requests[1]!.recallEvidence!.memories as WorldJsonObject[])
-    .map(memory => ((memory.metadata as WorldJsonObject).source as WorldJsonObject).sourceId))
-  const privateEvent = f.store.readEvents(f.address).find(event =>
-    event.eventType === 'observation.upsert' && (event.data as WorldJsonObject).id === 'observation:private')!
+  expect(active.deliveredSourceIds).toEqual(
+    (requests[1]!.recallEvidence!.memories as WorldJsonObject[]).map(
+      memory => ((memory.metadata as WorldJsonObject).source as WorldJsonObject).sourceId,
+    ),
+  )
+  const privateEvent = f.store
+    .readEvents(f.address)
+    .find(
+      event => event.eventType === 'observation.upsert' && (event.data as WorldJsonObject).id === 'observation:private',
+    )!
   expect(shadow.every(observation => !observation.keywordSourceIds.includes('event:' + privateEvent.seq))).toBe(true)
   expect(shadow.some(observation => observation.phase === 'automatic')).toBe(true)
   const delta = f.store.readEvents(f.address).filter(e => e.seq > before)
@@ -119,7 +209,11 @@ it('rejects a second recall in the same activation without changing World', asyn
     return { decision: 'recall', query: '日记' }
   })
   const before = f.store.head(f.address).headSeq
-  expect(await f.turn.run(npc, { maxCalls: 1 })).toMatchObject({ status: 'failed', failure: 'invalid_output', calls: 2 })
+  expect(await f.turn.run(npc, { maxCalls: 1 })).toMatchObject({
+    status: 'failed',
+    failure: 'invalid_output',
+    calls: 2,
+  })
   expect(f.store.head(f.address).headSeq).toBe(before)
 })
 
@@ -144,8 +238,10 @@ it('returns no duplicate source when active recall repeats recent or automatic e
       return { decision: 'publish', segments: [{ type: 'speech', text: '我会把已知的说法和亲眼所见分开。' }] }
     }, longHistory)
     await advanceTick(f, 1)
-    expect(await f.turn.run(npc, { maxCalls: 1, stimulus: [{ sourceText: '钥匙' }] }))
-      .toMatchObject({ status: 'published', calls: 2 })
+    expect(await f.turn.run(npc, { maxCalls: 1, stimulus: [{ sourceText: '钥匙' }] })).toMatchObject({
+      status: 'published',
+      calls: 2,
+    })
   }
 })
 
@@ -155,11 +251,18 @@ it('marks speech addressed only to this character so the reply audience is chose
     stimulus = request.context.stimulus as WorldJsonObject[]
     return { decision: 'abstain' }
   })
-  const speech = (scope: string, addresseeIds: string[]) => ({ content: { actionType: 'speak', actorId: bob,
-    speech: { characterId: bob, scope, addresseeIds, text: '别声张。' } } })
-  await f.turn.run(npc, { maxCalls: 1, stimulus: [
-    speech('private', [npc]), speech('direct', [npc]), speech('scene_public', []), speech('private', ['character:other']),
-  ] })
+  const speech = (scope: string, addresseeIds: string[]) => ({
+    content: { actionType: 'speak', actorId: bob, speech: { characterId: bob, scope, addresseeIds, text: '别声张。' } },
+  })
+  await f.turn.run(npc, {
+    maxCalls: 1,
+    stimulus: [
+      speech('private', [npc]),
+      speech('direct', [npc]),
+      speech('scene_public', []),
+      speech('private', ['character:other']),
+    ],
+  })
   expect(stimulus.map(item => typeof item.audienceHint === 'string')).toEqual([true, true, false, false])
   expect(String(stimulus[0]!.audienceHint)).toContain('scope')
 })

@@ -6,7 +6,9 @@ import type { FrontendHostServices } from '@harness-world/frontend'
 type SpeechSynthesizer = NonNullable<FrontendHostServices['synthesizeSpeech']>
 
 declare module '@deepseek-ai/cordis' {
-  interface Context { frontendServices: FrontendServices }
+  interface Context {
+    frontendServices: FrontendServices
+  }
 }
 
 /** Host-only presentation services; this context does not contain world runtime services. */
@@ -17,7 +19,10 @@ export class FrontendServices extends Service implements FrontendHostServices {
 
   constructor(ctx: Context) {
     super(ctx, 'frontendServices')
-    ctx.effect(() => () => { this.#closed = true; this.#unregister?.() })
+    ctx.effect(() => () => {
+      this.#closed = true
+      this.#unregister?.()
+    })
   }
 
   /** Own the returned disposer with the registering plugin's ctx.effect(). */
@@ -57,9 +62,16 @@ export async function loadHostPlugins(settings: HostPluginSettings[]): Promise<H
       if (!plugin.enabled) continue
       try {
         const module: { default?: unknown } = await import(pathToFileURL(plugin.path).href)
-        if (typeof module.default !== 'function'
-          && !(module.default && typeof module.default === 'object' && 'apply' in module.default
-            && typeof module.default.apply === 'function')) throw new TypeError('缺少 Cordis 默认导出')
+        if (
+          typeof module.default !== 'function' &&
+          !(
+            module.default &&
+            typeof module.default === 'object' &&
+            'apply' in module.default &&
+            typeof module.default.apply === 'function'
+          )
+        )
+          throw new TypeError('缺少 Cordis 默认导出')
         await root.plugin(module.default as Plugin)
       } catch {
         throw new Error(`宿主插件 ${plugin.id} 加载失败，请检查插件文件；也可在设置中停用后重试。`)

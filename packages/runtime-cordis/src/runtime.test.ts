@@ -19,7 +19,10 @@ class TestComponent {
   readonly records: string[] = []
   lifecycle: 'active' | 'closed' | 'disposed' = 'active'
 
-  constructor(readonly ownerKey: string, readonly kind: string) {}
+  constructor(
+    readonly ownerKey: string,
+    readonly kind: string,
+  ) {}
 
   dispose(): void {
     this.lifecycle = 'disposed'
@@ -107,7 +110,9 @@ describe('WorldRuntimeRegistry', () => {
     await lease.dispose()
 
     const failure = vi.spyOn(BranchRuntimeSlot, 'create').mockRejectedValueOnce(new Error('mount failed'))
-    await expect(registry.acquire(fixtureAddress('failed'), hashWorldJson('manifest', 1))).rejects.toThrow('mount failed')
+    await expect(registry.acquire(fixtureAddress('failed'), hashWorldJson('manifest', 1))).rejects.toThrow(
+      'mount failed',
+    )
     expect(registry.activeSlotCount).toBe(0)
     failure.mockRestore()
   })
@@ -135,7 +140,9 @@ describe('WorldRuntimeRegistry', () => {
     const lease = await registry.acquire(fixtureAddress('fifo'), manifest)
     const order: string[] = []
     let release!: () => void
-    const gate = new Promise<void>((resolve) => { release = resolve })
+    const gate = new Promise<void>(resolve => {
+      release = resolve
+    })
     const first = scopes[0]!.enqueueRound(async () => {
       order.push('first:start')
       await gate
@@ -151,7 +158,11 @@ describe('WorldRuntimeRegistry', () => {
     release()
     await expect(Promise.all([first, second])).resolves.toEqual([1, 2])
     expect(order).toEqual(['first:start', 'first:end', 'second'])
-    await expect(lease.slot.enqueueRound(async () => { throw new Error('job failed') })).rejects.toThrow('job failed')
+    await expect(
+      lease.slot.enqueueRound(async () => {
+        throw new Error('job failed')
+      }),
+    ).rejects.toThrow('job failed')
     await expect(lease.slot.enqueueRound(async () => 3)).resolves.toBe(3)
     await lease.dispose()
     await expect(lease.slot.enqueueRound(async () => 4)).rejects.toThrow('disposed')

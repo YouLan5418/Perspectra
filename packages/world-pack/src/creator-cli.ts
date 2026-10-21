@@ -29,7 +29,8 @@ export type WorldPackCliInvocation =
   | { readonly command: 'test'; readonly sourceDirectory: string }
   | { readonly command: 'activate'; readonly compiledPackPath: string; readonly dataDirectory: string }
 
-const USAGE = 'usage: worldpack validate <dir> | compile <dir> --out <worldpack.json> | inspect <worldpack.json> | test <dir> | activate <worldpack.json> --data-dir <dir>'
+const USAGE =
+  'usage: worldpack validate <dir> | compile <dir> --out <worldpack.json> | inspect <worldpack.json> | test <dir> | activate <worldpack.json> --data-dir <dir>'
 
 function value(value: string | undefined, name: string): string {
   if (value === undefined || value.length === 0) throw new TypeError(`${name} is required; ${USAGE}`)
@@ -48,7 +49,11 @@ export function parseWorldPackCliInvocation(args: readonly string[]): WorldPackC
     return { command, compiledPackPath: value(args[1], 'compiled Pack path') }
   }
   if (command === 'activate' && args.length === 4 && args[2] === '--data-dir') {
-    return { command, compiledPackPath: value(args[1], 'compiled Pack path'), dataDirectory: value(args[3], 'data directory') }
+    return {
+      command,
+      compiledPackPath: value(args[1], 'compiled Pack path'),
+      dataDirectory: value(args[3], 'data directory'),
+    }
   }
   throw new TypeError(USAGE)
 }
@@ -85,8 +90,12 @@ async function activate(compiledPackPath: string, dataDirectoryInput: string): P
   try {
     const result = application.activate(compiled)
     return {
-      command: 'activate', status: result.status, address, manifestHash: compiled.manifestHash,
-      dataDirectory, ...paths,
+      command: 'activate',
+      status: result.status,
+      address,
+      manifestHash: compiled.manifestHash,
+      dataDirectory,
+      ...paths,
     }
   } finally {
     await application.close()
@@ -107,21 +116,40 @@ export async function executeWorldPackCli(args: readonly string[], options: Worl
   const invocation = parseWorldPackCliInvocation(args)
   if (invocation.command === 'validate') {
     const pack = await compileWorldPackSource(invocation.sourceDirectory, options.interactionPackages)
-    return output({ command: 'validate', status: 'valid', packId: pack.packId, packVersion: pack.packVersion, packHash: pack.packHash })
+    return output({
+      command: 'validate',
+      status: 'valid',
+      packId: pack.packId,
+      packVersion: pack.packVersion,
+      packHash: pack.packHash,
+    })
   }
   if (invocation.command === 'compile') {
     const pack = await compileWorldPackSource(invocation.sourceDirectory, options.interactionPackages)
     const outputPath = resolve(invocation.outputPath)
     await mkdir(dirname(outputPath), { recursive: true })
     await writeFile(outputPath, canonicalCompiledWorldPackBytes(pack))
-    return output({ command: 'compile', status: 'compiled', outputPath, packId: pack.packId, packVersion: pack.packVersion, packHash: pack.packHash })
+    return output({
+      command: 'compile',
+      status: 'compiled',
+      outputPath,
+      packId: pack.packId,
+      packVersion: pack.packVersion,
+      packHash: pack.packHash,
+    })
   }
   if (invocation.command === 'inspect') {
-    return output({ command: 'inspect', status: 'inspected', inspection: await new WorldPackInspector().inspect(invocation.compiledPackPath) })
+    return output({
+      command: 'inspect',
+      status: 'inspected',
+      inspection: await new WorldPackInspector().inspect(invocation.compiledPackPath),
+    })
   }
   if (invocation.command === 'test') {
-    return output({ command: 'test', report: await new WorldPackTestRunner()
-      .run(invocation.sourceDirectory, options.interactionPackages) })
+    return output({
+      command: 'test',
+      report: await new WorldPackTestRunner().run(invocation.sourceDirectory, options.interactionPackages),
+    })
   }
   return output(await activate(invocation.compiledPackPath, invocation.dataDirectory))
 }
@@ -133,19 +161,27 @@ export function worldPackCliErrorEnvelope(error: unknown, args: readonly string[
   if (error instanceof WorldPackContractError) {
     const diagnostic = error.diagnostics[0]
     const diagnostics: readonly WorldJsonObject[] = error.diagnostics.map(item => ({
-      severity: item.severity, code: item.code, file: item.file,
-      jsonPointer: item.jsonPointer, message: item.message,
+      severity: item.severity,
+      code: item.code,
+      file: item.file,
+      jsonPointer: item.jsonPointer,
+      message: item.message,
       ...(item.suggestion === undefined ? {} : { suggestion: item.suggestion }),
     }))
     return createErrorEnvelope({
-      errorCode: worldPackErrorCode(diagnostic.code), category: 'admission',
-      message: diagnostic.message, retryable: false, correlationId,
+      errorCode: worldPackErrorCode(diagnostic.code),
+      category: 'admission',
+      message: diagnostic.message,
+      retryable: false,
+      correlationId,
       details: { diagnostics },
     })
   }
   return createErrorEnvelope({
-    errorCode: 'INVALID_REQUEST', category: 'admission',
+    errorCode: 'INVALID_REQUEST',
+    category: 'admission',
     message: error instanceof TypeError ? error.message : 'worldpack command failed',
-    retryable: false, correlationId,
+    retryable: false,
+    correlationId,
   })
 }

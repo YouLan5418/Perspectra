@@ -19,16 +19,20 @@ describe('world-json/v1', () => {
   it('matches the versioned cross-platform byte and domain hash fixture', () => {
     expect(golden).toMatchObject({ fixtureVersion: 1, canonicalVersion: 'world-json/v1' })
     for (const fixture of golden.cases) {
-      expect(Buffer.from(canonicalizeWorldJson(fixture.value as WorldJsonValue)).toString('hex'), fixture.name)
-        .toBe(fixture.expectedUtf8Hex)
+      expect(Buffer.from(canonicalizeWorldJson(fixture.value as WorldJsonValue)).toString('hex'), fixture.name).toBe(
+        fixture.expectedUtf8Hex,
+      )
       expect(hashWorldJson(fixture.kind, fixture.value as WorldJsonValue), fixture.name).toBe(fixture.expectedHash)
     }
   })
 
   it('canonicalizes supported values without Unicode normalization', () => {
     const nullPrototype = Object.assign(Object.create(null) as Record<string, WorldJsonValue>, { z: 2, a: 1 })
-    expect(Buffer.from(canonicalizeWorldJson({ é: 'é', arr: [true, false, null, 1, '😀'], a: 'e\u0301', object: nullPrototype })).toString())
-      .toBe('{"a":"é","arr":[true,false,null,1,"😀"],"object":{"a":1,"z":2},"é":"é"}')
+    expect(
+      Buffer.from(
+        canonicalizeWorldJson({ é: 'é', arr: [true, false, null, 1, '😀'], a: 'e\u0301', object: nullPrototype }),
+      ).toString(),
+    ).toBe('{"a":"é","arr":[true,false,null,1,"😀"],"object":{"a":1,"z":2},"é":"é"}')
     expect(hashWorldJson('text', 'é')).not.toBe(hashWorldJson('text', 'e\u0301'))
     expect(hashWorldJson('left', 1)).not.toBe(hashWorldJson('right', 1))
     expect(deterministicId('thing', { a: 1 })).toMatch(/^thing:[0-9a-f]{24}$/)
@@ -40,7 +44,9 @@ describe('world-json/v1', () => {
     expect(compareWorldText('same', 'same')).toBe(0)
     expect(compareWorldText('z', 'a')).toBeGreaterThan(0)
     expect(compareWorldText('a', 'z')).toBeLessThan(0)
-    expect(hashWorldJson('utf16-domain-order/v1', values)).toBe('sha256:649fb99feda653b31c092f5a094c283d6e2f80dc6452e94486071e01d433618d')
+    expect(hashWorldJson('utf16-domain-order/v1', values)).toBe(
+      'sha256:649fb99feda653b31c092f5a094c283d6e2f80dc6452e94486071e01d433618d',
+    )
   })
 
   it.each([
@@ -54,7 +60,7 @@ describe('world-json/v1', () => {
     Symbol('value'),
     () => undefined,
     new Date(0),
-  ])('rejects an unsupported value: %s', (value) => {
+  ])('rejects an unsupported value: %s', value => {
     expect(() => canonicalizeWorldJson(value as WorldJsonValue)).toThrow(TypeError)
   })
 
@@ -124,13 +130,15 @@ describe('identifiers, errors, and registries', () => {
       causedByErrorId: 'previous',
     })
     expect(new WorldError(complete)).toMatchObject({ name: 'WorldError', envelope: complete, message: 'failed' })
-    expect(() => failWorld({
-      errorCode: minimal.errorCode,
-      category: minimal.category,
-      message: minimal.message,
-      retryable: minimal.retryable,
-      correlationId: minimal.correlationId,
-    })).toThrow(WorldError)
+    expect(() =>
+      failWorld({
+        errorCode: minimal.errorCode,
+        category: minimal.category,
+        message: minimal.message,
+        retryable: minimal.retryable,
+        correlationId: minimal.correlationId,
+      }),
+    ).toThrow(WorldError)
   })
 
   it('freezes sorted exact-version registries', () => {
@@ -150,8 +158,12 @@ describe('identifiers, errors, and registries', () => {
     const duplicate = new VersionedRegistry('action')
     duplicate.register({ name: 'same', version: 1, schemaHash: hashA })
     expect(() => duplicate.register({ name: 'same', version: 1, schemaHash: hashA })).toThrow('duplicate')
-    expect(() => new VersionedRegistry('rule').register({ name: 'bad', version: 0, schemaHash: hashA })).toThrow(TypeError)
-    expect(() => new VersionedRegistry('projection').register({ name: 'bad', version: 1.5, schemaHash: hashA })).toThrow(TypeError)
+    expect(() => new VersionedRegistry('rule').register({ name: 'bad', version: 0, schemaHash: hashA })).toThrow(
+      TypeError,
+    )
+    expect(() =>
+      new VersionedRegistry('projection').register({ name: 'bad', version: 1.5, schemaHash: hashA }),
+    ).toThrow(TypeError)
     const reverseComparison = new VersionedRegistry('event')
     reverseComparison.register({ name: 'a', version: 1, schemaHash: hashA })
     reverseComparison.register({ name: 'z', version: 1, schemaHash: hashB })

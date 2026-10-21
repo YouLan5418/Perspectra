@@ -9,8 +9,12 @@ export interface RuntimeTuning {
 }
 
 export const DEFAULT_RUNTIME_TUNING: RuntimeTuning = {
-  maximumWaves: 3, maximumNpcCalls: 8, maximumCallsPerCharacter: 2, reactionDeadlineSeconds: 30,
-  recentObservations: 16, recentSelfObservations: 8,
+  maximumWaves: 3,
+  maximumNpcCalls: 8,
+  maximumCallsPerCharacter: 2,
+  reactionDeadlineSeconds: 30,
+  recentObservations: 16,
+  recentSelfObservations: 8,
 }
 
 const bounds: Record<keyof RuntimeTuning, readonly [number, number]> = {

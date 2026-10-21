@@ -13,8 +13,15 @@ const PAGE = 100
 const DETAIL_WINDOW = 80
 export const POLL_MS = 3000
 
-export interface ServerFilters { characterId: string; entityId: string; search: string }
-export interface LocalFilters { kinds: TraceKind[]; tones: StatusTone[] }
+export interface ServerFilters {
+  characterId: string
+  entityId: string
+  search: string
+}
+export interface LocalFilters {
+  kinds: TraceKind[]
+  tones: StatusTone[]
+}
 export const EMPTY_SERVER: ServerFilters = { characterId: '', entityId: '', search: '' }
 export const EMPTY_LOCAL: LocalFilters = { kinds: [], tones: [] }
 
@@ -53,11 +60,15 @@ export const useCreatorStore = defineStore('creator', () => {
   const recordFloor = ref(0)
   const recordTotal = ref(0)
   /** 末端候选来自 history 的 selection；切换期间接口返回 409，这里只展示最近一次成功读取。 */
-  const candidate = ref<{ id: string | null; ids: string[]; tailId: string | null }>({ id: null, ids: [], tailId: null })
+  const candidate = ref<{ id: string | null; ids: string[]; tailId: string | null }>({
+    id: null,
+    ids: [],
+    tailId: null,
+  })
 
   const preview = computed(() => !token.value)
   const captureEnabled = computed(() => world.value?.captureEnabled ?? false)
-  const sourceBusy = computed(() => preview.value ? false : (world.value?.busy ?? false))
+  const sourceBusy = computed(() => (preview.value ? false : (world.value?.busy ?? false)))
   const paused = computed(() => world.value?.paused === true)
   const characters = computed(() => world.value?.characters ?? [])
   const entities = computed(() => world.value?.entities ?? [])
@@ -68,10 +79,14 @@ export const useCreatorStore = defineStore('creator', () => {
     const tables: NameTables = { characters: {}, entities: {}, locations: {} }
     for (const character of characters.value) tables.characters[character.id] = character.name
     for (const entity of entities.value) tables.entities[entity.id] = entity.name
-    for (const character of characters.value) if (character.locationId && character.locationName) tables.locations[character.locationId] = character.locationName
+    for (const character of characters.value)
+      if (character.locationId && character.locationName)
+        tables.locations[character.locationId] = character.locationName
     for (const item of history.value) {
       const data = item.event.data as Record<string, unknown>
-      const bind = (table: Record<string, string>, id: unknown, name: unknown) => { if (typeof id === 'string' && typeof name === 'string' && !table[id]) table[id] = name }
+      const bind = (table: Record<string, string>, id: unknown, name: unknown) => {
+        if (typeof id === 'string' && typeof name === 'string' && !table[id]) table[id] = name
+      }
       if (item.event.eventType === 'location.upsert') bind(tables.locations, data.locationId, data.name)
       if (item.event.eventType === 'entity.upsert') bind(tables.entities, data.entityId, data.name)
       if (item.event.eventType === 'character.upsert') bind(tables.characters, data.characterId, data.name)
@@ -84,13 +99,17 @@ export const useCreatorStore = defineStore('creator', () => {
     return names.value[table][id] ?? id.replace(/^[a-z-]+:/u, '')
   }
 
-  const trace = computed<TraceNode[]>(() => buildTrace({ history: history.value, records: records.value, details: details.value, names: names.value }))
-  const visibleTrace = computed(() => trace.value.filter(node => {
-    if (!showProcess.value && node.processing) return false
-    if (local.value.kinds.length && !local.value.kinds.includes(node.kind)) return false
-    if (local.value.tones.length && !local.value.tones.includes(node.tone)) return false
-    return true
-  }))
+  const trace = computed<TraceNode[]>(() =>
+    buildTrace({ history: history.value, records: records.value, details: details.value, names: names.value }),
+  )
+  const visibleTrace = computed(() =>
+    trace.value.filter(node => {
+      if (!showProcess.value && node.processing) return false
+      if (local.value.kinds.length && !local.value.kinds.includes(node.kind)) return false
+      if (local.value.tones.length && !local.value.tones.includes(node.tone)) return false
+      return true
+    }),
+  )
   const conversation = computed<ConversationEntry[]>(() => buildConversation(visibleTrace.value))
 
   function mergeHistory(items: CreatorHistoryItem[]) {
@@ -105,7 +124,9 @@ export const useCreatorStore = defineStore('creator', () => {
     const table = new Map(records.value.map(record => [record.id, record]))
     const before = table.size
     for (const record of items) table.set(record.id, record)
-    const next = [...table.values()].sort((a, b) => a.capturedAt.localeCompare(b.capturedAt) || a.id.localeCompare(b.id))
+    const next = [...table.values()].sort(
+      (a, b) => a.capturedAt.localeCompare(b.capturedAt) || a.id.localeCompare(b.id),
+    )
     records.value = next
     return next.length - before
   }
@@ -124,7 +145,12 @@ export const useCreatorStore = defineStore('creator', () => {
     const head = world.value?.headSeq ?? 0
     const afterSeq = reset ? Math.max(0, head - PAGE) : Math.max(0, historyFloor.value - PAGE)
     const snapshot = await source.history({ afterSeq, limit: PAGE, ...queryFilters() })
-    if (snapshot.selection) candidate.value = { id: snapshot.selection.candidateId, ids: snapshot.selection.candidateIds, tailId: snapshot.selection.tailId }
+    if (snapshot.selection)
+      candidate.value = {
+        id: snapshot.selection.candidateId,
+        ids: snapshot.selection.candidateIds,
+        tailId: snapshot.selection.tailId,
+      }
     if (reset) history.value = []
     const fresh = mergeHistory(snapshot.items)
     historyFloor.value = afterSeq
@@ -159,7 +185,9 @@ export const useCreatorStore = defineStore('creator', () => {
       if (!snapshot.record) throw new Error('记录不存在，或已被容量淘汰。')
       details.value = { ...details.value, [recordId]: snapshot.record }
       return snapshot.record
-    } finally { inflight.delete(recordId) }
+    } finally {
+      inflight.delete(recordId)
+    }
   }
 
   /** 正文用于落位、思考展示与状态文字；整个窗口内的记录都会读取一次并常驻缓存。 */
@@ -169,9 +197,12 @@ export const useCreatorStore = defineStore('creator', () => {
       .slice(-DETAIL_WINDOW)
     if (wanted.length) {
       const queue = [...wanted]
-      await Promise.all(Array.from({ length: 4 }, async () => {
-        for (let record = queue.shift(); record; record = queue.shift()) await loadRecordDetail(record.id).catch(() => null)
-      }))
+      await Promise.all(
+        Array.from({ length: 4 }, async () => {
+          for (let record = queue.shift(); record; record = queue.shift())
+            await loadRecordDetail(record.id).catch(() => null)
+        }),
+      )
     }
     // 采集进行中的记录会更新同一份文件：丢掉缓存，下一轮重新读取。
     const stale = new Set(records.value.filter(record => record.summary.status === 'pending').map(record => record.id))
@@ -202,8 +233,15 @@ export const useCreatorStore = defineStore('creator', () => {
       await loadWindowDetails()
       updatedAt.value = new Date().toISOString()
     } catch (cause) {
-      error.value = typeof cause === 'string' ? cause : cause instanceof Error ? cause.message : '读取失败，请确认当前实例仍在运行。'
-    } finally { busy.value = false }
+      error.value =
+        typeof cause === 'string'
+          ? cause
+          : cause instanceof Error
+            ? cause.message
+            : '读取失败，请确认当前实例仍在运行。'
+    } finally {
+      busy.value = false
+    }
   }
 
   /** 增量轮询：新事件按游标追加，记录按尾部窗口合并。 */
@@ -218,25 +256,49 @@ export const useCreatorStore = defineStore('creator', () => {
         const snapshot = await source.history({ afterSeq: known, limit: PAGE, ...queryFilters() })
         fresh += mergeHistory(snapshot.items)
       }
-      const recordSnapshot = await source.records({ offset: Math.max(0, recordTotal.value - 20), limit: PAGE, ...queryFilters() })
+      const recordSnapshot = await source.records({
+        offset: Math.max(0, recordTotal.value - 20),
+        limit: PAGE,
+        ...queryFilters(),
+      })
       recordTotal.value = recordSnapshot.total
       fresh += mergeRecords(recordSnapshot.items)
       await loadWindowDetails()
       updatedAt.value = new Date().toISOString()
-      if (fresh > 0) { if (follow.value) added.value = 0; else added.value += fresh }
-    } catch { /* 轮询失败保留上一次可读状态与错误提示 */ } finally { loading.value = false }
+      if (fresh > 0) {
+        if (follow.value) added.value = 0
+        else added.value += fresh
+      }
+    } catch {
+      /* 轮询失败保留上一次可读状态与错误提示 */
+    } finally {
+      loading.value = false
+    }
   }
 
   async function loadOlderHistory() {
     if (busy.value || historyFloor.value === 0) return
     busy.value = true
-    try { await loadHistory(false) } catch { error.value = '读取更早历史失败。' } finally { busy.value = false }
+    try {
+      await loadHistory(false)
+    } catch {
+      error.value = '读取更早历史失败。'
+    } finally {
+      busy.value = false
+    }
   }
 
   async function loadOlderRecords() {
     if (busy.value || recordFloor.value === 0) return
     busy.value = true
-    try { await loadRecords(false); await loadWindowDetails() } catch { error.value = '读取更早记录失败。' } finally { busy.value = false }
+    try {
+      await loadRecords(false)
+      await loadWindowDetails()
+    } catch {
+      error.value = '读取更早记录失败。'
+    } finally {
+      busy.value = false
+    }
   }
 
   async function applyServer(next: Partial<ServerFilters>) {
@@ -252,7 +314,9 @@ export const useCreatorStore = defineStore('creator', () => {
     await load(true)
   }
 
-  function setLocal(next: Partial<LocalFilters>) { local.value = { ...local.value, ...next } }
+  function setLocal(next: Partial<LocalFilters>) {
+    local.value = { ...local.value, ...next }
+  }
 
   /** 角色筛选走服务端查询，这样加载窗口里就是这个角色自己的事件与记录。 */
   async function focusCharacter(id: string) {
@@ -263,11 +327,14 @@ export const useCreatorStore = defineStore('creator', () => {
     try {
       await source.setCapture(enabled)
       if (world.value) world.value = { ...world.value, captureEnabled: enabled }
-    } catch { error.value = '采集开关未生效，请确认实例仍在运行。' }
+    } catch {
+      error.value = '采集开关未生效，请确认实例仍在运行。'
+    }
   }
 
   function select(next: Selection, options: { stack?: boolean } = {}) {
-    if (options.stack !== false && selection.value && selection.value.id !== next.id) stack.value = [...stack.value, selection.value]
+    if (options.stack !== false && selection.value && selection.value.id !== next.id)
+      stack.value = [...stack.value, selection.value]
     selection.value = next
     detailOpen.value = true
   }
@@ -281,10 +348,17 @@ export const useCreatorStore = defineStore('creator', () => {
     else select({ kind: 'event', id: node.key, label: `${KIND_LABEL[node.kind]} · ${name}`, node })
   }
 
-  function selectEntity(id: string, name: string) { select({ kind: 'entity', id, label: `物品 · ${name}` }) }
-  function selectCharacter(id: string) { select({ kind: 'character', id, label: `角色 · ${label(id)}` }) }
+  function selectEntity(id: string, name: string) {
+    select({ kind: 'entity', id, label: `物品 · ${name}` })
+  }
+  function selectCharacter(id: string) {
+    select({ kind: 'character', id, label: `角色 · ${label(id)}` })
+  }
 
-  function closeDetail() { detailOpen.value = false }  function back() {
+  function closeDetail() {
+    detailOpen.value = false
+  }
+  function back() {
     const previous = stack.value.at(-1)
     stack.value = stack.value.slice(0, -1)
     if (previous) selection.value = previous
@@ -306,20 +380,31 @@ export const useCreatorStore = defineStore('creator', () => {
   }
   const characterDetail = (characterId: string) => characterDetails.value[characterId] ?? null
 
-  const selectionDetail = computed(() => selection.value ? details.value[selection.value.id] ?? null : null)
+  const selectionDetail = computed(() => (selection.value ? (details.value[selection.value.id] ?? null) : null))
   const limitations = computed(() => world.value?.limitations ?? [])
   const selectionNode = computed(() => selection.value?.node ?? null)
   /** 失败项默认收在“处理过程”里，用计数提示它们确实存在。 */
   const failureCount = computed(() => trace.value.filter(node => node.tone === 'danger').length)
-  const hiddenProcessCount = computed(() => showProcess.value ? 0 : trace.value.filter(node => node.processing).length)
+  const hiddenProcessCount = computed(() =>
+    showProcess.value ? 0 : trace.value.filter(node => node.processing).length,
+  )
 
-  function focus(nodeKey: string) { focusKey.value = ''; focusKey.value = nodeKey }
+  function focus(nodeKey: string) {
+    focusKey.value = ''
+    focusKey.value = nodeKey
+  }
   /** 页面的游戏名、故事线与角色名；失败时保留旧值，由数据读取的错误提示说明。 */
   async function loadMeta() {
-    try { meta.value = await source.meta() } catch { /* the snapshot load reports connection errors */ }
+    try {
+      meta.value = await source.meta()
+    } catch {
+      /* the snapshot load reports connection errors */
+    }
   }
   /** 请求视图直接读写同一数据源，避免在页面里另建一条连接。 */
-  function inspectRequests(enabled?: boolean) { return source.requests(enabled) }
+  function inspectRequests(enabled?: boolean) {
+    return source.requests(enabled)
+  }
   function attach(nextToken: string) {
     if (token.value === nextToken) return
     token.value = nextToken
@@ -343,11 +428,76 @@ export const useCreatorStore = defineStore('creator', () => {
   }
 
   return {
-    token, meta, loadMeta, inspectRequests, preview, world, history, records, details, loading, busy, error, updatedAt, added, follow,
-    server, local, showProcess, selection, detailOpen, detailWidth, navCollapsed, view,
-    entityHistory, characterDetails, historyFloor, recordFloor, recordTotal, candidate, focusKey,
-    captureEnabled, sourceBusy, paused, characters, entities, activities, truncated,
-    names, label, trace, visibleTrace, conversation, selectionDetail, selectionNode, limitations, failureCount, hiddenProcessCount, canGoBack,
-    attach, load, poll, loadOlderHistory, loadOlderRecords, applyServer, resetFilters, setLocal, focusCharacter,    setCapture, select, selectNode, selectEntity, selectCharacter, selectedKey, closeDetail, back, loadEntityHistory, entityFlow, loadCharacterDetail, characterDetail, ensureDetail: loadRecordDetail, focus,
+    token,
+    meta,
+    loadMeta,
+    inspectRequests,
+    preview,
+    world,
+    history,
+    records,
+    details,
+    loading,
+    busy,
+    error,
+    updatedAt,
+    added,
+    follow,
+    server,
+    local,
+    showProcess,
+    selection,
+    detailOpen,
+    detailWidth,
+    navCollapsed,
+    view,
+    entityHistory,
+    characterDetails,
+    historyFloor,
+    recordFloor,
+    recordTotal,
+    candidate,
+    focusKey,
+    captureEnabled,
+    sourceBusy,
+    paused,
+    characters,
+    entities,
+    activities,
+    truncated,
+    names,
+    label,
+    trace,
+    visibleTrace,
+    conversation,
+    selectionDetail,
+    selectionNode,
+    limitations,
+    failureCount,
+    hiddenProcessCount,
+    canGoBack,
+    attach,
+    load,
+    poll,
+    loadOlderHistory,
+    loadOlderRecords,
+    applyServer,
+    resetFilters,
+    setLocal,
+    focusCharacter,
+    setCapture,
+    select,
+    selectNode,
+    selectEntity,
+    selectCharacter,
+    selectedKey,
+    closeDetail,
+    back,
+    loadEntityHistory,
+    entityFlow,
+    loadCharacterDetail,
+    characterDetail,
+    ensureDetail: loadRecordDetail,
+    focus,
   }
 })

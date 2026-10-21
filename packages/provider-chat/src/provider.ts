@@ -1,5 +1,12 @@
 import { thinkingRequest, type ThinkingLevel } from './thinking.ts'
-import { nativeMessages, nativePayload, providerEndpoint, providerHeaders, providerProtocol, type ProviderProtocol } from './protocol.ts'
+import {
+  nativeMessages,
+  nativePayload,
+  providerEndpoint,
+  providerHeaders,
+  providerProtocol,
+  type ProviderProtocol,
+} from './protocol.ts'
 import type { PresetOrigin, RequestInspector } from './request-inspector.ts'
 import { rolePreset, type RolePreset } from './preset.ts'
 import type { WorldJsonValue } from '@harness-world/contracts'
@@ -61,9 +68,10 @@ export class ChatTransportError extends Error {}
 
 function payloadOf(value: unknown, style: ChatStyle): WorldJsonValue {
   const root = objectValue(value)
-  const message = style === 'tool'
-    ? objectValue(objectValue(Array.isArray(root?.choices) ? root.choices[0] : undefined)?.message)
-    : objectValue(root?.message)
+  const message =
+    style === 'tool'
+      ? objectValue(objectValue(Array.isArray(root?.choices) ? root.choices[0] : undefined)?.message)
+      : objectValue(root?.message)
   const call = objectValue(Array.isArray(message?.tool_calls) ? message.tool_calls[0] : undefined)
   const fn = objectValue(call?.function)
   // Some endpoints hand the arguments over already parsed; the ones that hand over a string are the ones
@@ -81,30 +89,54 @@ function payloadOf(value: unknown, style: ChatStyle): WorldJsonValue {
   }
 }
 
-function nativeBody(protocol: 'anthropic' | 'google', messages: ChatCall['messages'], prepared: ChatCall,
-  model: string, maximum: number, generation: RolePreset, options: ChatProviderOptions, toolName: string): Record<string, unknown> {
+function nativeBody(
+  protocol: 'anthropic' | 'google',
+  messages: ChatCall['messages'],
+  prepared: ChatCall,
+  model: string,
+  maximum: number,
+  generation: RolePreset,
+  options: ChatProviderOptions,
+  toolName: string,
+): Record<string, unknown> {
   const temperature = generation.temperature ?? options.temperature
   if (protocol === 'anthropic') {
     if (generation.frequencyPenalty !== undefined || generation.presencePenalty !== undefined) {
       throw new TypeError('Anthropic 不支持 frequencyPenalty / presencePenalty；请清空这些预设参数。')
     }
     const rendered = nativeMessages(messages, protocol)
-    return { ...rendered, model, max_tokens: maximum, stream: false,
+    return {
+      ...rendered,
+      model,
+      max_tokens: maximum,
+      stream: false,
       system: String(rendered.system ?? '') + '\n请使用 ' + toolName + ' 工具返回本次决策；不要执行其他工具。',
       ...(temperature === undefined ? {} : { temperature }),
       ...(generation.topP === undefined ? {} : { top_p: generation.topP }),
       ...(generation.stop?.length ? { stop_sequences: generation.stop } : {}),
       tools: [{ name: toolName, description: prepared.description, input_schema: prepared.schema }],
-      tool_choice: { type: 'auto', disable_parallel_tool_use: true } }
+      tool_choice: { type: 'auto', disable_parallel_tool_use: true },
+    }
   }
-  return { ...nativeMessages(messages, protocol),
-    generationConfig: { maxOutputTokens: maximum, temperature: temperature ?? 0.3,
+  return {
+    ...nativeMessages(messages, protocol),
+    generationConfig: {
+      maxOutputTokens: maximum,
+      temperature: temperature ?? 0.3,
       ...(generation.topP === undefined ? {} : { topP: generation.topP }),
       ...(generation.frequencyPenalty === undefined ? {} : { frequencyPenalty: generation.frequencyPenalty }),
       ...(generation.presencePenalty === undefined ? {} : { presencePenalty: generation.presencePenalty }),
-      ...(generation.stop?.length ? { stopSequences: generation.stop } : {}) },
-    tools: [{ functionDeclarations: [{ name: toolName, description: prepared.description, parametersJsonSchema: prepared.schema }] }],
-    toolConfig: { functionCallingConfig: { mode: 'ANY', allowedFunctionNames: [toolName] } } }
+      ...(generation.stop?.length ? { stopSequences: generation.stop } : {}),
+    },
+    tools: [
+      {
+        functionDeclarations: [
+          { name: toolName, description: prepared.description, parametersJsonSchema: prepared.schema },
+        ],
+      },
+    ],
+    toolConfig: { functionCallingConfig: { mode: 'ANY', allowedFunctionNames: [toolName] } },
+  }
 }
 
 export interface ChatProvider {
@@ -124,85 +156,171 @@ export interface ChatProvider {
  * output-quality policies see them.
  */
 export function createChatProvider(options: ChatProviderOptions): ChatProvider {
-  const preset=rolePreset(options.preset??{})
+  const preset = rolePreset(options.preset ?? {})
   const post = options.fetch ?? globalThis.fetch
   const style = options.style ?? 'tool'
   const protocol = providerProtocol(options.protocol)
   if (protocol !== 'openai' && style === 'format') throw new TypeError('Ollama format 不能与原生协议混用。')
   const toolName = options.toolName ?? 'submit_actions'
 
-  async function send(prepared: ChatCall, model: string, timeoutMs: number, maximum: number,
-    kind: ChatCallObservation['kind'], signal?: AbortSignal): Promise<WorldJsonValue> {
+  async function send(
+    prepared: ChatCall,
+    model: string,
+    timeoutMs: number,
+    maximum: number,
+    kind: ChatCallObservation['kind'],
+    signal?: AbortSignal,
+  ): Promise<WorldJsonValue> {
     const headers = providerHeaders(protocol, options.apiKey)
     // The Host resolves the Secret; the adapter only carries it, and nothing here records or reports it.
-    const generation=kind==='character'?preset:{}
-    const messages=kind==='character'&&generation.prompt?.trim()
-      ? [...prepared.messages.slice(0,1),{role:'system',content:'角色表现预设：'+generation.prompt},...prepared.messages.slice(1)] : prepared.messages
-    if(kind==='character'&&generation.maxOutputTokens!==undefined)maximum=generation.maxOutputTokens
+    const generation = kind === 'character' ? preset : {}
+    const messages =
+      kind === 'character' && generation.prompt?.trim()
+        ? [
+            ...prepared.messages.slice(0, 1),
+            { role: 'system', content: '角色表现预设：' + generation.prompt },
+            ...prepared.messages.slice(1),
+          ]
+        : prepared.messages
+    if (kind === 'character' && generation.maxOutputTokens !== undefined) maximum = generation.maxOutputTokens
     const level = kind === 'character' ? options.thinkingLevel : undefined
     const enabled = level !== undefined && level !== 'off'
-    if (enabled) maximum = Math.max(maximum, {low:8192,medium:16384,high:32768}[level])
-    const body: Record<string, unknown> = protocol !== 'openai'
-      ? nativeBody(protocol, messages, prepared, model, maximum, generation, options, toolName)
-      : style === 'tool'
-      ? { model, messages, stream: false, temperature: generation.temperature ?? options.temperature ?? 0.3,
-        max_tokens: maximum,
-        ...(generation.topP===undefined?{}:{top_p:generation.topP}),
-        ...(generation.frequencyPenalty===undefined?{}:{frequency_penalty:generation.frequencyPenalty}),
-        ...(generation.presencePenalty===undefined?{}:{presence_penalty:generation.presencePenalty}),
-        ...(generation.stop?.length?{stop:generation.stop}:{}),
-        ...(level === undefined ? (options.thinking === 'unspecified' ? {} : { thinking: { type: 'disabled' } }) : thinkingRequest(protocol, model, level)),
-        tools: [{ type: 'function', function: { name: toolName, description: prepared.description,
-          parameters: prepared.schema } }],
-        tool_choice: enabled && model.toLowerCase().includes('deepseek') ? 'auto' : { type: 'function', function: { name: toolName } } }
-      : { model, messages, stream: false, format: prepared.schema,
-        options: { temperature: generation.temperature ?? options.temperature ?? 0.3, num_predict: maximum,
-          ...(generation.topP===undefined?{}:{top_p:generation.topP}),
-          ...(generation.frequencyPenalty===undefined?{}:{frequency_penalty:generation.frequencyPenalty}),
-          ...(generation.presencePenalty===undefined?{}:{presence_penalty:generation.presencePenalty}),
-          ...(generation.stop?.length?{stop:generation.stop}:{}), } }
+    if (enabled) maximum = Math.max(maximum, { low: 8192, medium: 16384, high: 32768 }[level])
+    const body: Record<string, unknown> =
+      protocol !== 'openai'
+        ? nativeBody(protocol, messages, prepared, model, maximum, generation, options, toolName)
+        : style === 'tool'
+          ? {
+              model,
+              messages,
+              stream: false,
+              temperature: generation.temperature ?? options.temperature ?? 0.3,
+              max_tokens: maximum,
+              ...(generation.topP === undefined ? {} : { top_p: generation.topP }),
+              ...(generation.frequencyPenalty === undefined ? {} : { frequency_penalty: generation.frequencyPenalty }),
+              ...(generation.presencePenalty === undefined ? {} : { presence_penalty: generation.presencePenalty }),
+              ...(generation.stop?.length ? { stop: generation.stop } : {}),
+              ...(level === undefined
+                ? options.thinking === 'unspecified'
+                  ? {}
+                  : { thinking: { type: 'disabled' } }
+                : thinkingRequest(protocol, model, level)),
+              tools: [
+                {
+                  type: 'function',
+                  function: { name: toolName, description: prepared.description, parameters: prepared.schema },
+                },
+              ],
+              tool_choice:
+                enabled && model.toLowerCase().includes('deepseek')
+                  ? 'auto'
+                  : { type: 'function', function: { name: toolName } },
+            }
+          : {
+              model,
+              messages,
+              stream: false,
+              format: prepared.schema,
+              options: {
+                temperature: generation.temperature ?? options.temperature ?? 0.3,
+                num_predict: maximum,
+                ...(generation.topP === undefined ? {} : { top_p: generation.topP }),
+                ...(generation.frequencyPenalty === undefined
+                  ? {}
+                  : { frequency_penalty: generation.frequencyPenalty }),
+                ...(generation.presencePenalty === undefined ? {} : { presence_penalty: generation.presencePenalty }),
+                ...(generation.stop?.length ? { stop: generation.stop } : {}),
+              },
+            }
     if (level !== undefined && protocol === 'anthropic') {
       Object.assign(body, thinkingRequest(protocol, model, level))
-      if (enabled) { delete body.temperature; delete body.top_p }
+      if (enabled) {
+        delete body.temperature
+        delete body.top_p
+      }
     }
-    if (level !== undefined && protocol === 'google') Object.assign(body.generationConfig as object, thinkingRequest(protocol, model, level))
+    if (level !== undefined && protocol === 'google')
+      Object.assign(body.generationConfig as object, thinkingRequest(protocol, model, level))
     const sources = [...(prepared.inspection?.sources ?? [])]
-    if (kind === 'character' && generation.prompt?.trim()) sources.splice(1, 0, {source:'preset',name:'附加角色提示',original:generation.prompt})
-    const inspection = kind === 'character' && prepared.inspection ? {...prepared.inspection,sources,
-      preset: {origin: options.presetOrigin ?? {scope:'base' as const, characterId:prepared.inspection.characterId,name:'默认预设'},value:generation}} : undefined
+    if (kind === 'character' && generation.prompt?.trim())
+      sources.splice(1, 0, { source: 'preset', name: '附加角色提示', original: generation.prompt })
+    const inspection =
+      kind === 'character' && prepared.inspection
+        ? {
+            ...prepared.inspection,
+            sources,
+            preset: {
+              origin: options.presetOrigin ?? {
+                scope: 'base' as const,
+                characterId: prepared.inspection.characterId,
+                name: '默认预设',
+              },
+              value: generation,
+            },
+          }
+        : undefined
     const inspectionId = options.inspector?.begin(body, inspection, messages, model)
     const started = performance.now()
     let httpStatus: number | undefined
     let responseBody: unknown
     try {
       const timeout = AbortSignal.timeout(timeoutMs)
-      const response = await post(providerEndpoint(options.endpoint, protocol, model), { method: 'POST', redirect: 'error', headers,
-        body: JSON.stringify(body), signal: signal === undefined ? timeout : AbortSignal.any([signal, timeout]) })
+      const response = await post(providerEndpoint(options.endpoint, protocol, model), {
+        method: 'POST',
+        redirect: 'error',
+        headers,
+        body: JSON.stringify(body),
+        signal: signal === undefined ? timeout : AbortSignal.any([signal, timeout]),
+      })
       httpStatus = response.status
       if (!response.ok) {
         // The endpoint's own words about what it refused are the operator's only clue, so they travel with
         // the failure rather than being replaced by a status code.
         const detail = (await response.text()).slice(0, 512)
-        throw new ChatTransportError(`chat endpoint returned HTTP ${response.status}${detail.length === 0 ? '' : `: ${detail}`}`)
+        throw new ChatTransportError(
+          `chat endpoint returned HTTP ${response.status}${detail.length === 0 ? '' : `: ${detail}`}`,
+        )
       }
       responseBody = await response.json()
-      const payload = protocol === 'openai' ? payloadOf(responseBody, style) : nativePayload(responseBody, protocol, toolName)
-      options.inspector?.finish(inspectionId, 'ok', Math.round(performance.now() - started), responseBody, {httpStatus})
+      const payload =
+        protocol === 'openai' ? payloadOf(responseBody, style) : nativePayload(responseBody, protocol, toolName)
+      options.inspector?.finish(inspectionId, 'ok', Math.round(performance.now() - started), responseBody, {
+        httpStatus,
+      })
       options.onCall?.({ kind, model, durationMs: Math.round(performance.now() - started), status: 'ok' })
       return payload
     } catch (error: unknown) {
-      options.inspector?.finish(inspectionId, 'failed', Math.round(performance.now() - started), responseBody,
-        {...(httpStatus === undefined ? {} : {httpStatus}), failure:signal?.aborted ? 'cancelled' : responseBody !== undefined ? 'invalid_envelope' : httpStatus !== undefined && httpStatus >= 400 ? 'http' : 'transport'})
-      options.onCall?.({ kind, model, durationMs: Math.round(performance.now() - started), status: 'failed',
-        ...(httpStatus === undefined ? {} : { httpStatus }) })
+      options.inspector?.finish(inspectionId, 'failed', Math.round(performance.now() - started), responseBody, {
+        ...(httpStatus === undefined ? {} : { httpStatus }),
+        failure: signal?.aborted
+          ? 'cancelled'
+          : responseBody !== undefined
+            ? 'invalid_envelope'
+            : httpStatus !== undefined && httpStatus >= 400
+              ? 'http'
+              : 'transport',
+      })
+      options.onCall?.({
+        kind,
+        model,
+        durationMs: Math.round(performance.now() - started),
+        status: 'failed',
+        ...(httpStatus === undefined ? {} : { httpStatus }),
+      })
       throw error
     }
   }
 
   return {
     async decide(request: ChatCall, signal: AbortSignal): Promise<WorldJsonValue> {
-      return await send(request, options.model, options.timeoutMs ?? 60_000,
-        options.maxOutputTokens ?? 2_048, 'character', signal)
+      return await send(
+        request,
+        options.model,
+        options.timeoutMs ?? 60_000,
+        options.maxOutputTokens ?? 2_048,
+        'character',
+        signal,
+      )
     },
     async dispatch(request: WorldJsonValue, profile: ChatCallProfile, signal: AbortSignal): Promise<WorldJsonValue> {
       // The Host hands over its request together with the waterline it was prepared at, so the request is
@@ -211,8 +329,14 @@ export function createChatProvider(options: ChatProviderOptions): ChatProvider {
       const prepared = intentCall(objectValue(root?.body) ?? root ?? {})
       // The profile is the Host's own statement about this call: the model it asked for, and its limits.
       const model = textValue(profile.modelId) ?? options.model
-      return await send(prepared, model, profile.timeoutMs,
-        profile.maxOutputTokens ?? options.maxOutputTokens ?? 1_024, 'intent', signal)
+      return await send(
+        prepared,
+        model,
+        profile.timeoutMs,
+        profile.maxOutputTokens ?? options.maxOutputTokens ?? 1_024,
+        'intent',
+        signal,
+      )
     },
   }
 }

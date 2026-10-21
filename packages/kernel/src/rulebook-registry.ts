@@ -11,11 +11,7 @@ import {
   type WorldJsonObject,
   type InteractionRoundId,
 } from '@harness-world/contracts'
-import {
-  type PlayerActionInput,
-  type RulebookEvent,
-  type RulebookResolution,
-} from './rulebook.ts'
+import { type PlayerActionInput, type RulebookEvent, type RulebookResolution } from './rulebook.ts'
 import type { CompiledWorldManifest } from './world-spec.ts'
 
 export interface RulebookResolutionContext {
@@ -61,7 +57,8 @@ export interface RulebookResolver {
 
 function key(rulebookId: string, version: number): string {
   assertProtocolString(rulebookId, 'rulebookId')
-  if (!Number.isSafeInteger(version) || version < 1) throw new TypeError('rulebook version must be a positive safe integer')
+  if (!Number.isSafeInteger(version) || version < 1)
+    throw new TypeError('rulebook version must be a positive safe integer')
   return `${rulebookId}\u001f${version}`
 }
 
@@ -75,12 +72,7 @@ export class RulebookRegistry {
     this.#resolvers.set(entry, resolver)
   }
 
-  resolve(
-    rulebookId: string,
-    version: number,
-    correlationId: string,
-    address?: WorldAddress,
-  ): RulebookResolver {
+  resolve(rulebookId: string, version: number, correlationId: string, address?: WorldAddress): RulebookResolver {
     const resolver = this.#resolvers.get(key(rulebookId, version))
     if (resolver !== undefined) return resolver
     failWorld({
@@ -103,18 +95,33 @@ class CoreRulebookResolver implements RulebookResolver {
   }
 
   resolve(context: RulebookResolutionContext): RulebookResolution {
-    return this.#frozen.resolve({
-      manifest: context.manifest, events: context.events, characterId: context.characterId,
-      actionId: context.actionId, manifestHash: context.manifestHash, roundId: context.roundId,
-      publicationCharacters:context.publicationCharacters, asOfWorldSeq: context.asOfWorldSeq, resolutionAuthority: context.resolutionAuthority,
-    }, context.action)
+    return this.#frozen.resolve(
+      {
+        manifest: context.manifest,
+        events: context.events,
+        characterId: context.characterId,
+        actionId: context.actionId,
+        manifestHash: context.manifestHash,
+        roundId: context.roundId,
+        publicationCharacters: context.publicationCharacters,
+        asOfWorldSeq: context.asOfWorldSeq,
+        resolutionAuthority: context.resolutionAuthority,
+      },
+      context.action,
+    )
   }
 
   affordances(context: Omit<RulebookResolutionContext, 'action' | 'actionId'>): readonly ActionAffordance[] {
     return this.#frozen.affordances({
-      manifest: context.manifest, events: context.events, characterId: context.characterId,
-      actionId: undefined, manifestHash: context.manifestHash, roundId: context.roundId,
-      publicationCharacters:context.publicationCharacters, asOfWorldSeq: context.asOfWorldSeq, resolutionAuthority: context.resolutionAuthority,
+      manifest: context.manifest,
+      events: context.events,
+      characterId: context.characterId,
+      actionId: undefined,
+      manifestHash: context.manifestHash,
+      roundId: context.roundId,
+      publicationCharacters: context.publicationCharacters,
+      asOfWorldSeq: context.asOfWorldSeq,
+      resolutionAuthority: context.resolutionAuthority,
     })
   }
 }

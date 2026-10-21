@@ -21,11 +21,15 @@ export function resolutionAuthority(
 }
 
 export function validateResolutionAuthority(value: RulebookResolutionAuthorityV1): RulebookResolutionAuthorityV1 {
-  if (typeof value !== 'object' || value === null || Array.isArray(value)
-    || Object.keys(value).sort().join(',') !== 'adjudicationMode,sourceRole,version'
-    || value.version !== 'resolution-authority/v1'
-    || (value.sourceRole !== 'player' && value.sourceRole !== 'agent' && value.sourceRole !== 'director')
-    || (value.adjudicationMode !== 'standard' && value.adjudicationMode !== 'manual_player_immediate')) {
+  if (
+    typeof value !== 'object' ||
+    value === null ||
+    Array.isArray(value) ||
+    Object.keys(value).sort().join(',') !== 'adjudicationMode,sourceRole,version' ||
+    value.version !== 'resolution-authority/v1' ||
+    (value.sourceRole !== 'player' && value.sourceRole !== 'agent' && value.sourceRole !== 'director') ||
+    (value.adjudicationMode !== 'standard' && value.adjudicationMode !== 'manual_player_immediate')
+  ) {
     throw new TypeError('resolution authority is invalid')
   }
   return resolutionAuthority(value.sourceRole, value.adjudicationMode)

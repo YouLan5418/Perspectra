@@ -26,7 +26,11 @@ export function openOwnedDatabase(path: string, applicationId: number, schema: s
 }
 
 /** Open an owned database and apply a contiguous, forward-only migration sequence atomically. */
-export function openMigratedDatabase(path: string, applicationId: number, migrations: readonly SqliteMigration[]): DatabaseSync {
+export function openMigratedDatabase(
+  path: string,
+  applicationId: number,
+  migrations: readonly SqliteMigration[],
+): DatabaseSync {
   if (migrations.length === 0 || migrations.some((migration, index) => migration.version !== index + 1)) {
     throw new TypeError('SQLite migrations must be contiguous and start at version 1')
   }

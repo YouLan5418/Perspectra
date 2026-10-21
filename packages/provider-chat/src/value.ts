@@ -11,6 +11,5 @@ export function textValue(value: unknown): string | undefined {
 
 /** A plain JSON object, or nothing. Arrays and nulls are not objects here. */
 export function objectValue(value: unknown): WorldJsonObject | undefined {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-    ? value as WorldJsonObject : undefined
+  return typeof value === 'object' && value !== null && !Array.isArray(value) ? (value as WorldJsonObject) : undefined
 }

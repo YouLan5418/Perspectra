@@ -1,6 +1,4 @@
-import {
-  parseManifestationProposal
-} from '@harness-world/agents'
+import { parseManifestationProposal } from '@harness-world/agents'
 import {
   assertProtocolString,
   brandId,
@@ -24,7 +22,7 @@ import {
   type WorldEventDraft,
   type WorldHash,
   type WorldJsonObject,
-  type WorldJsonValue
+  type WorldJsonValue,
 } from '@harness-world/contracts'
 import {
   characterRelationObservations,
@@ -36,7 +34,7 @@ import {
   type PlayerActionInput,
   type RulebookRegistry,
   type RulebookResolution,
-  type RulebookResolver
+  type RulebookResolver,
 } from '@harness-world/kernel'
 import { type CognitiveMemoryService } from '@harness-world/memory'
 import {
@@ -70,14 +68,20 @@ export interface PlayerRoundResult extends WorldJsonObject {
 
 /** Revalidate the durable idempotency result before exposing it to a caller. */
 export function parsePlayerRoundResult(value: WorldJsonValue): PlayerRoundResult {
-  if (typeof value !== 'object' || value === null || Array.isArray(value)) throw new TypeError('completed Round result must be an object')
+  if (typeof value !== 'object' || value === null || Array.isArray(value))
+    throw new TypeError('completed Round result must be an object')
   const result = value as Record<string, WorldJsonValue>
   const keys = Object.keys(result).sort(compareWorldText)
-  if (keys.join(',') !== 'bundleHash,headSeq,reason,status,tick') throw new TypeError('completed Round result has an invalid shape')
-  if (result.status !== 'accepted' && result.status !== 'rejected') throw new TypeError('completed Round status is invalid')
-  if (result.reason !== null && typeof result.reason !== 'string') throw new TypeError('completed Round reason is invalid')
-  if (!Number.isSafeInteger(result.headSeq) || (result.headSeq as number) < 0) throw new TypeError('completed Round headSeq is invalid')
-  if (!Number.isSafeInteger(result.tick) || (result.tick as number) < 0) throw new TypeError('completed Round tick is invalid')
+  if (keys.join(',') !== 'bundleHash,headSeq,reason,status,tick')
+    throw new TypeError('completed Round result has an invalid shape')
+  if (result.status !== 'accepted' && result.status !== 'rejected')
+    throw new TypeError('completed Round status is invalid')
+  if (result.reason !== null && typeof result.reason !== 'string')
+    throw new TypeError('completed Round reason is invalid')
+  if (!Number.isSafeInteger(result.headSeq) || (result.headSeq as number) < 0)
+    throw new TypeError('completed Round headSeq is invalid')
+  if (!Number.isSafeInteger(result.tick) || (result.tick as number) < 0)
+    throw new TypeError('completed Round tick is invalid')
   if (typeof result.bundleHash !== 'string' || !/^sha256:[0-9a-f]{64}$/u.test(result.bundleHash)) {
     throw new TypeError('completed Round bundleHash is invalid')
   }
@@ -254,7 +258,9 @@ export class RoundCoordinator {
   }
 
   /** Share the current writer lease with the player input worker. */
-  get writerLease(): WriterLease { return this.#lease }
+  get writerLease(): WriterLease {
+    return this.#lease
+  }
 
   /**
    * Ensure this Host is still the writer, taking the lease again if it lapsed while idle. A renewal only
@@ -262,7 +268,9 @@ export class RoundCoordinator {
    * would otherwise fail its next turn with WRITER_LEASE_LOST. `acquire` refuses a live lease another owner
    * holds, so this can never take a branch someone else is writing.
    */
-  refreshWriterLease(): void { this.#refreshLease() }
+  refreshWriterLease(): void {
+    this.#refreshLease()
+  }
 
   /** Finish every Round admitted before an administrative draining barrier. */
   drainAccepted(correlationId: string): Promise<number> {
@@ -283,7 +291,7 @@ export class RoundCoordinator {
   processNextAccepted(correlationId: string): Promise<void> {
     if (this.#closed) return Promise.reject(new Error('RoundCoordinator is closed'))
     return this.options.runtimeLane.enqueueRound(async () => {
-      if (await this.#runAcceptedStep(correlationId) === undefined) {
+      if ((await this.#runAcceptedStep(correlationId)) === undefined) {
         throw new Error('Round Inbox lost an admitted player item')
       }
     })
@@ -297,11 +305,7 @@ export class RoundCoordinator {
 
   async #runAcceptedStep(correlationId: string): Promise<AcceptedRoundStep | undefined> {
     this.#refreshLease()
-    const claimed = this.options.inbox.claimNext(
-      this.#address,
-      this.options.ownerId,
-      this.#lease.fencingToken,
-    )
+    const claimed = this.options.inbox.claimNext(this.#address, this.options.ownerId, this.#lease.fencingToken)
     if (claimed === undefined) return undefined
     const committed = await this.#commitAndComplete(claimed, correlationId)
     return {
@@ -323,10 +327,7 @@ export class RoundCoordinator {
     }
   }
 
-  async #commitAndComplete(
-    claimed: ClaimedRound,
-    correlationId: string,
-  ): Promise<CommittedAcceptedRound> {
+  async #commitAndComplete(claimed: ClaimedRound, correlationId: string): Promise<CommittedAcceptedRound> {
     const committed = await this.#commitClaimed(claimed, correlationId)
     this.#renewLease()
     this.options.inbox.complete(
@@ -340,24 +341,38 @@ export class RoundCoordinator {
     return committed
   }
 
-  async #commitClaimed(
-    claimed: ClaimedRound,
-    correlationId: string,
-  ): Promise<CommittedAcceptedRound> {
+  async #commitClaimed(claimed: ClaimedRound, correlationId: string): Promise<CommittedAcceptedRound> {
     const binding = this.#manifest.playerBindings.find(value => value.principalId === claimed.principalId)
     if (binding === undefined) throw new Error('admitted coordinated Round lost its PlayerBinding')
     const inputJob = this.options.inbox.readPlayerInput(this.#address, claimed.idempotencyKey)
-    const intentSubmission = typeof claimed.input === 'object' && claimed.input !== null && !Array.isArray(claimed.input)
-      && Object.hasOwn(claimed.input, 'playerInputId') ? inputJob?.records.validated as PlayerSubmissionV2 | undefined : undefined
-    if (typeof claimed.input === 'object' && claimed.input !== null && Object.hasOwn(claimed.input, 'playerInputId')
-      && (intentSubmission === undefined || inputJob!.principalId !== claimed.principalId
-        || (claimed.input as WorldJsonObject).playerInputId !== inputJob!.inputId
-        || intentSubmission.version !== 'player-submission/v2' || intentSubmission.actions.some(value => value.actorId !== binding.characterId))) {
+    const intentSubmission =
+      typeof claimed.input === 'object' &&
+      claimed.input !== null &&
+      !Array.isArray(claimed.input) &&
+      Object.hasOwn(claimed.input, 'playerInputId')
+        ? (inputJob?.records.validated as PlayerSubmissionV2 | undefined)
+        : undefined
+    if (
+      typeof claimed.input === 'object' &&
+      claimed.input !== null &&
+      Object.hasOwn(claimed.input, 'playerInputId') &&
+      (intentSubmission === undefined ||
+        inputJob!.principalId !== claimed.principalId ||
+        (claimed.input as WorldJsonObject).playerInputId !== inputJob!.inputId ||
+        intentSubmission.version !== 'player-submission/v2' ||
+        intentSubmission.actions.some(value => value.actorId !== binding.characterId))
+    ) {
       throw new TypeError('player input Round has no matching validated submission')
     }
-    const submission = intentSubmission === undefined ? parseClaimedPlayerSubmission(claimed.input) : { action: {
-      actionType: intentSubmission.actions[0]!.actionType, parameters: intentSubmission.actions[0]!.parameters,
-    } }
+    const submission =
+      intentSubmission === undefined
+        ? parseClaimedPlayerSubmission(claimed.input)
+        : {
+            action: {
+              actionType: intentSubmission.actions[0]!.actionType,
+              parameters: intentSubmission.actions[0]!.parameters,
+            },
+          }
     const action = submission.action
     const identity = {
       address: this.#address,
@@ -385,7 +400,10 @@ export class RoundCoordinator {
     const head = this.options.store.head(this.#address)
     const history = this.options.store.readEvents(this.#address, head.headSeq)
     const sceneDecision = this.options.sceneDecision?.decideFromEvents(
-      this.#address, binding.characterId, history, head.headSeq,
+      this.#address,
+      binding.characterId,
+      history,
+      head.headSeq,
     )
     const playerBaseResolution = this.#rulebook.resolve({
       manifest: this.#manifest,
@@ -399,67 +417,125 @@ export class RoundCoordinator {
       action: { actionType: playerAction.actionType, parameters: playerAction.parameters },
     })
     const playerObservationScope = playerBaseResolution.observationScope ?? { scope: 'scene_public' as const }
-    let playerAudience = this.options.sceneDecision !== undefined
-      ? this.options.sceneDecision.audienceForAction(
-        this.#address,
-        playerAction.actorId,
-        history,
-        head.headSeq,
-        {
-          scope: playerObservationScope.scope,
-          ...(playerObservationScope.recipientIds === undefined ? {} : {
-            recipientIds: playerObservationScope.recipientIds.map(value => brandId(value, 'CharacterId')),
-          }),
-        },
-      )
-      : undefined
-    const provisionalMoveTarget = playerAction.actionType === 'move' ? (playerAction.parameters as WorldJsonObject).locationId : undefined
-    const provisional = bindPlayerProvisional(
-      this.#address, head.headSeq, head.eventHash, playerAction, {
-        ...playerBaseResolution,
-        events: [
-          ...playerBaseResolution.events,
-          ...(playerBaseResolution.status === 'accepted' && typeof provisionalMoveTarget === 'string' && this.options.sceneDecision !== undefined
-            ? this.options.sceneDecision.transitionForMove(this.#address, history, playerAction.actorId, provisionalMoveTarget, head.headSeq) : []),
-        ],
-      },
-    )
-    const playerSteps = [{ action: playerAction, resolution: playerBaseResolution, provisional, audience: playerAudience }]
+    let playerAudience =
+      this.options.sceneDecision !== undefined
+        ? this.options.sceneDecision.audienceForAction(this.#address, playerAction.actorId, history, head.headSeq, {
+            scope: playerObservationScope.scope,
+            ...(playerObservationScope.recipientIds === undefined
+              ? {}
+              : {
+                  recipientIds: playerObservationScope.recipientIds.map(value => brandId(value, 'CharacterId')),
+                }),
+          })
+        : undefined
+    const provisionalMoveTarget =
+      playerAction.actionType === 'move' ? (playerAction.parameters as WorldJsonObject).locationId : undefined
+    const provisional = bindPlayerProvisional(this.#address, head.headSeq, head.eventHash, playerAction, {
+      ...playerBaseResolution,
+      events: [
+        ...playerBaseResolution.events,
+        ...(playerBaseResolution.status === 'accepted' &&
+        typeof provisionalMoveTarget === 'string' &&
+        this.options.sceneDecision !== undefined
+          ? this.options.sceneDecision.transitionForMove(
+              this.#address,
+              history,
+              playerAction.actorId,
+              provisionalMoveTarget,
+              head.headSeq,
+            )
+          : []),
+      ],
+    })
+    const playerSteps = [
+      { action: playerAction, resolution: playerBaseResolution, provisional, audience: playerAudience },
+    ]
     if (intentSubmission !== undefined) {
       const stopped = new Set<string>()
       if (playerBaseResolution.status === 'rejected') stopped.add('player')
       for (const extra of intentSubmission.actions.slice(1)) {
-        const prefix = [...history, ...playerSteps.flatMap(step => step.provisional!.binding.events.map(value => value.event))]
-        const { resolution } = resolveGroupAction(extra, 'player', true, stopped, () => this.#rulebook.resolve({
-          manifest: this.#manifest, events: prefix, characterId: extra.actorId, actionId: extra.actionId,
-          manifestHash: this.options.runtimeLane.manifestHash, asOfWorldSeq: head.headSeq, roundId,
-          resolutionAuthority: resolutionAuthority('player', 'manual_player_immediate'),
-          action: { actionType: extra.actionType, parameters: extra.parameters },
-        }))
+        const prefix = [
+          ...history,
+          ...playerSteps.flatMap(step => step.provisional!.binding.events.map(value => value.event)),
+        ]
+        const { resolution } = resolveGroupAction(extra, 'player', true, stopped, () =>
+          this.#rulebook.resolve({
+            manifest: this.#manifest,
+            events: prefix,
+            characterId: extra.actorId,
+            actionId: extra.actionId,
+            manifestHash: this.options.runtimeLane.manifestHash,
+            asOfWorldSeq: head.headSeq,
+            roundId,
+            resolutionAuthority: resolutionAuthority('player', 'manual_player_immediate'),
+            action: { actionType: extra.actionType, parameters: extra.parameters },
+          }),
+        )
         const target = (extra.parameters as WorldJsonObject).locationId
-        const events = [...resolution.events, ...(resolution.status === 'accepted' && extra.actionType === 'move'
-          && typeof target === 'string' && this.options.sceneDecision !== undefined
-          ? this.options.sceneDecision.transitionForMove(this.#address, prefix, extra.actorId, target, head.headSeq) : [])]
+        const events = [
+          ...resolution.events,
+          ...(resolution.status === 'accepted' &&
+          extra.actionType === 'move' &&
+          typeof target === 'string' &&
+          this.options.sceneDecision !== undefined
+            ? this.options.sceneDecision.transitionForMove(this.#address, prefix, extra.actorId, target, head.headSeq)
+            : []),
+        ]
         const scope = resolution.observationScope ?? { scope: 'scene_public' as const }
-        const audience = this.options.sceneDecision !== undefined ? this.options.sceneDecision.audienceForAction(
-          this.#address, extra.actorId, prefix, head.headSeq, { scope: scope.scope,
-            ...(scope.recipientIds === undefined ? {} : { recipientIds: scope.recipientIds.map(id => brandId(id, 'CharacterId')) }) }) : undefined
-        playerSteps.push({ action: extra, resolution, audience,
-          provisional: bindPlayerProvisional(this.#address, head.headSeq, head.eventHash, extra, { ...resolution, events }) })
+        const audience =
+          this.options.sceneDecision !== undefined
+            ? this.options.sceneDecision.audienceForAction(this.#address, extra.actorId, prefix, head.headSeq, {
+                scope: scope.scope,
+                ...(scope.recipientIds === undefined
+                  ? {}
+                  : { recipientIds: scope.recipientIds.map(id => brandId(id, 'CharacterId')) }),
+              })
+            : undefined
+        playerSteps.push({
+          action: extra,
+          resolution,
+          audience,
+          provisional: bindPlayerProvisional(this.#address, head.headSeq, head.eventHash, extra, {
+            ...resolution,
+            events,
+          }),
+        })
       }
     }
-    const s1History = provisional === undefined ? history : [...history, ...playerSteps.flatMap(step => step.provisional!.binding.events.map(value => value.event))]
-    const s1Decision = provisional === undefined ? sceneDecision
-      : this.options.sceneDecision?.decideFromEvents(this.#address, playerAction.actorId, s1History, head.headSeq)
-    if (provisional !== undefined && playerObservationScope.scope === 'scene_public' && playerAudience !== undefined && s1Decision !== undefined) {
-      playerAudience = { ...playerAudience, fullContentCharacterIds: [...new Set([
-        ...playerAudience.fullContentCharacterIds, ...s1Decision.observerIds,
-      ])].sort(compareWorldText) }
+    const s1History =
+      provisional === undefined
+        ? history
+        : [...history, ...playerSteps.flatMap(step => step.provisional!.binding.events.map(value => value.event))]
+    const s1Decision =
+      provisional === undefined
+        ? sceneDecision
+        : this.options.sceneDecision?.decideFromEvents(this.#address, playerAction.actorId, s1History, head.headSeq)
+    if (
+      provisional !== undefined &&
+      playerObservationScope.scope === 'scene_public' &&
+      playerAudience !== undefined &&
+      s1Decision !== undefined
+    ) {
+      playerAudience = {
+        ...playerAudience,
+        fullContentCharacterIds: [
+          ...new Set([...playerAudience.fullContentCharacterIds, ...s1Decision.observerIds]),
+        ].sort(compareWorldText),
+      }
     }
     playerSteps[0]!.audience = playerAudience
     for (const step of playerSteps.slice(1)) {
-      if ((step.resolution.observationScope?.scope ?? 'scene_public') === 'scene_public' && step.audience !== undefined && s1Decision !== undefined) {
-        step.audience = { ...step.audience, fullContentCharacterIds: [...new Set([...step.audience.fullContentCharacterIds, ...s1Decision.observerIds])].sort(compareWorldText) }
+      if (
+        (step.resolution.observationScope?.scope ?? 'scene_public') === 'scene_public' &&
+        step.audience !== undefined &&
+        s1Decision !== undefined
+      ) {
+        step.audience = {
+          ...step.audience,
+          fullContentCharacterIds: [
+            ...new Set([...step.audience.fullContentCharacterIds, ...s1Decision.observerIds]),
+          ].sort(compareWorldText),
+        }
       }
     }
     const proposalContext: ProposalContext = {
@@ -472,7 +548,14 @@ export class RoundCoordinator {
         baseHeadSeq: head.headSeq,
         baseTick: head.tick,
         ...(provisional === undefined ? {} : { provisionalResolutionHash: provisional.hash }),
-        ...(intentSubmission === undefined ? {} : { playerGroupHash: hashWorldJson('player-provisional-group/v1', playerSteps.map(step => step.provisional!.hash)) }),
+        ...(intentSubmission === undefined
+          ? {}
+          : {
+              playerGroupHash: hashWorldJson(
+                'player-provisional-group/v1',
+                playerSteps.map(step => step.provisional!.hash),
+              ),
+            }),
         playerAction,
         ...(submission.manifestation === undefined ? {} : { playerManifestation: submission.manifestation }),
       }),
@@ -483,21 +566,34 @@ export class RoundCoordinator {
       roundId: proposalContext.roundId,
       tick: proposalContext.tick,
       playerAction: proposalContext.playerAction,
-      ...(proposalContext.playerManifestation === undefined ? {} : {
-        playerManifestation: proposalContext.playerManifestation,
-      }),
+      ...(proposalContext.playerManifestation === undefined
+        ? {}
+        : {
+            playerManifestation: proposalContext.playerManifestation,
+          }),
       candidateHash: proposalContext.candidateHash,
     })
     const participants = [
       {
-        participantId: 'player', role: 'player', actorId: binding.characterId, terminalStatus: 'proposed',
-        providerInvocationId: null, contextHash, profileVersion: null, budgetEvaluationId: null,
-        modelReplayRecordHash: null, budgetReservationRecordHash: null,
-        responseHash: intentSubmission !== undefined ? hashWorldJson('round-player-submission-response/v2', intentSubmission) : submission.manifestation === undefined
-          ? hashWorldJson('round-player-action-response', playerAction)
-          : hashWorldJson('round-player-action-response', {
-            action: playerAction, manifestation: submission.manifestation,
-          }),
+        participantId: 'player',
+        role: 'player',
+        actorId: binding.characterId,
+        terminalStatus: 'proposed',
+        providerInvocationId: null,
+        contextHash,
+        profileVersion: null,
+        budgetEvaluationId: null,
+        modelReplayRecordHash: null,
+        budgetReservationRecordHash: null,
+        responseHash:
+          intentSubmission !== undefined
+            ? hashWorldJson('round-player-submission-response/v2', intentSubmission)
+            : submission.manifestation === undefined
+              ? hashWorldJson('round-player-action-response', playerAction)
+              : hashWorldJson('round-player-action-response', {
+                  action: playerAction,
+                  manifestation: submission.manifestation,
+                }),
         proposalId: null,
         proposalHash: hashWorldJson('round-player-proposal', {
           actions: intentSubmission?.actions ?? [playerAction],
@@ -527,11 +623,15 @@ export class RoundCoordinator {
         priority: item.priority,
         actorId: item.actorId,
         actionId: item.actionId,
-        ...(item.actionGroup === undefined ? {} : {
-          groupParticipantId: item.participantId,
-          groupFirstActionId: ordered.find(first => first.participantId === item.participantId && first.proposalOrdinal === 0)!.actionId,
-          stepOrdinal: item.proposalOrdinal,
-        }),
+        ...(item.actionGroup === undefined
+          ? {}
+          : {
+              groupParticipantId: item.participantId,
+              groupFirstActionId: ordered.find(
+                first => first.participantId === item.participantId && first.proposalOrdinal === 0,
+              )!.actionId,
+              stepOrdinal: item.proposalOrdinal,
+            }),
       },
     }))
     const resolutions: WorldJsonValue[] = []
@@ -549,61 +649,86 @@ export class RoundCoordinator {
         item.sourceRole,
         item.sourceRole === 'player' ? 'manual_player_immediate' : 'standard',
       )
-      const { resolution: baseResolution, skipped } = resolveGroupAction(rulebookAction, item.participantId,
-        item.actionGroup !== undefined, stoppedGroups,
-        () => playerSteps.find(step => step.action.actionId === item.action.actionId)!.resolution)
-      const moveTarget = item.action.actionType === 'move'
-        ? (item.action.parameters as WorldJsonObject).locationId
-        : undefined
-      const resolution: RulebookResolution = baseResolution.status === 'accepted'
-        && typeof moveTarget === 'string'
-        && this.options.sceneDecision !== undefined
-        ? {
-          ...baseResolution,
-          events: [
-            ...baseResolution.events,
-            ...this.options.sceneDecision.transitionForMove(
-              this.#address, actionPrefix, item.action.actorId, moveTarget, head.headSeq + events.length,
-            ),
-          ],
-        }
-        : baseResolution
-      const performance = item.actionGroup === undefined ? item.manifestation
-        : skipped || item.action.actionType === 'interact'
+      const { resolution: baseResolution, skipped } = resolveGroupAction(
+        rulebookAction,
+        item.participantId,
+        item.actionGroup !== undefined,
+        stoppedGroups,
+        () => playerSteps.find(step => step.action.actionId === item.action.actionId)!.resolution,
+      )
+      const moveTarget =
+        item.action.actionType === 'move' ? (item.action.parameters as WorldJsonObject).locationId : undefined
+      const resolution: RulebookResolution =
+        baseResolution.status === 'accepted' &&
+        typeof moveTarget === 'string' &&
+        this.options.sceneDecision !== undefined
+          ? {
+              ...baseResolution,
+              events: [
+                ...baseResolution.events,
+                ...this.options.sceneDecision.transitionForMove(
+                  this.#address,
+                  actionPrefix,
+                  item.action.actorId,
+                  moveTarget,
+                  head.headSeq + events.length,
+                ),
+              ],
+            }
+          : baseResolution
+      const performance =
+        item.actionGroup === undefined
+          ? item.manifestation
+          : skipped || item.action.actionType === 'interact'
+            ? undefined
+            : stepManifestation(groupPerformance, resolution.status === 'accepted')
+      const hostManifestation =
+        performance === undefined
           ? undefined
-          : stepManifestation(groupPerformance, resolution.status === 'accepted')
-      const hostManifestation = performance === undefined ? undefined : {
-        proposal: performance,
-        resolution: resolveManifestation({
-          roundId,
-          actionId: item.action.actionId,
-          actorId: item.action.actorId,
-          manifestation: performance,
-          events: actionPrefix,
-        }),
-      }
+          : {
+              proposal: performance,
+              resolution: resolveManifestation({
+                roundId,
+                actionId: item.action.actionId,
+                actorId: item.action.actorId,
+                manifestation: performance,
+                events: actionPrefix,
+              }),
+            }
       const manifestation = hostManifestation ?? resolution.manifestation
       const manifestationResolution = manifestation?.resolution
-      const resolvedEvents = hostManifestation === undefined
-        ? resolution.events
-        : [...resolution.events, ...hostManifestation.resolution.events]
+      const resolvedEvents =
+        hostManifestation === undefined
+          ? resolution.events
+          : [...resolution.events, ...hostManifestation.resolution.events]
       if (item.sourceRole === 'player' && provisional !== undefined) {
-        verifyPlayerProvisional(playerSteps.find(step => step.action.actionId === item.action.actionId)!.provisional!, item.action, { ...resolution, events: resolvedEvents })
-      }
-      const actionAudience = item.sourceRole === 'player' && provisional !== undefined ? playerSteps.find(step => step.action.actionId === item.action.actionId)!.audience : this.options.sceneDecision !== undefined
-        ? this.options.sceneDecision.audienceForAction(
-          this.#address,
-          item.action.actorId,
-          actionPrefix,
-          head.headSeq + events.length,
-          {
-            scope: resolution.observationScope?.scope ?? 'scene_public',
-            ...(resolution.observationScope?.recipientIds === undefined ? {} : {
-              recipientIds: resolution.observationScope.recipientIds.map(value => brandId(value, 'CharacterId')),
-            }),
-          },
+        verifyPlayerProvisional(
+          playerSteps.find(step => step.action.actionId === item.action.actionId)!.provisional!,
+          item.action,
+          { ...resolution, events: resolvedEvents },
         )
-        : undefined
+      }
+      const actionAudience =
+        item.sourceRole === 'player' && provisional !== undefined
+          ? playerSteps.find(step => step.action.actionId === item.action.actionId)!.audience
+          : this.options.sceneDecision !== undefined
+            ? this.options.sceneDecision.audienceForAction(
+                this.#address,
+                item.action.actorId,
+                actionPrefix,
+                head.headSeq + events.length,
+                {
+                  scope: resolution.observationScope?.scope ?? 'scene_public',
+                  ...(resolution.observationScope?.recipientIds === undefined
+                    ? {}
+                    : {
+                        recipientIds: resolution.observationScope.recipientIds.map(value =>
+                          brandId(value, 'CharacterId'),
+                        ),
+                      }),
+                },
+              )
+            : undefined
       const candidateHashBefore = candidateHash
       const ruleTraceHash = hashWorldJson('round-rule-trace', {
         rulebook: this.#manifest.rulebook,
@@ -613,15 +738,21 @@ export class RoundCoordinator {
         reason: resolution.reason ?? null,
         events: resolvedEvents,
         ...(manifestation === undefined ? {} : { manifestation }),
-        ...(this.options.sceneDecision === undefined ? {} : {
-          observationScope: resolution.observationScope ?? { scope: 'scene_public' },
-        }),
+        ...(this.options.sceneDecision === undefined
+          ? {}
+          : {
+              observationScope: resolution.observationScope ?? { scope: 'scene_public' },
+            }),
       })
-      candidateHash = resolution.status === 'accepted' || (manifestationResolution?.events.length ?? 0) > 0
-        ? hashWorldJson('round-candidate-after-resolution', {
-          candidateHashBefore, actionId: item.action.actionId, events: resolvedEvents, ruleTraceHash,
-        })
-        : candidateHashBefore
+      candidateHash =
+        resolution.status === 'accepted' || (manifestationResolution?.events.length ?? 0) > 0
+          ? hashWorldJson('round-candidate-after-resolution', {
+              candidateHashBefore,
+              actionId: item.action.actionId,
+              events: resolvedEvents,
+              ruleTraceHash,
+            })
+          : candidateHashBefore
       resolutions.push({
         actionId: item.action.actionId,
         status: skipped ? 'skipped' : resolution.status,
@@ -654,22 +785,33 @@ export class RoundCoordinator {
           ...(manifestationResolution === undefined ? {} : { manifestationStatus: manifestationResolution.status }),
         },
       })
-      const publicSpeech = (this.#manifest.rulebook.version >= 4
-        || this.#manifest.contentPack?.runtimeCapabilities.publicSpeechObservationVersion === 1)
-        ? resolution.events.find(event => event.eventType === 'character.speak')
-        : undefined
+      const publicSpeech =
+        this.#manifest.rulebook.version >= 4 ||
+        this.#manifest.contentPack?.runtimeCapabilities.publicSpeechObservationVersion === 1
+          ? resolution.events.find(event => event.eventType === 'character.speak')
+          : undefined
       const publicManifestation = resolvedEvents.find(event => event.eventType === 'character.manifested')
       const publicInteraction = resolution.events.find(event => event.eventType === 'entity.transferred')
       const relations = characterRelationObservations(actionPrefix, resolution.events)
-      const route = item.sourceRole === 'player' && resolution.status === 'accepted' && this.options.sceneDecision !== undefined
-        ? movementRoute(this.options.sceneDecision, this.#address,
-          resolvedEvents.find(event => event.eventType === 'character.moved'),
-          { events: actionPrefix, asOfSeq: head.headSeq + events.length },
-          { events: [...actionPrefix, ...resolvedEvents], asOfSeq: head.headSeq + events.length + resolvedEvents.length })
-        : undefined
+      const route =
+        item.sourceRole === 'player' && resolution.status === 'accepted' && this.options.sceneDecision !== undefined
+          ? movementRoute(
+              this.options.sceneDecision,
+              this.#address,
+              resolvedEvents.find(event => event.eventType === 'character.moved'),
+              { events: actionPrefix, asOfSeq: head.headSeq + events.length },
+              {
+                events: [...actionPrefix, ...resolvedEvents],
+                asOfSeq: head.headSeq + events.length + resolvedEvents.length,
+              },
+            )
+          : undefined
       const audience = actionAudience ?? {
         fullContentCharacterIds: this.options.sceneDecision?.decideFromEvents(
-          this.#address, binding.characterId, [...history, ...events], head.headSeq,
+          this.#address,
+          binding.characterId,
+          [...history, ...events],
+          head.headSeq,
         ).visibleResultCharacterIds ?? [binding.characterId],
         occurrenceOnlyCharacterIds: [],
       }
@@ -691,14 +833,25 @@ export class RoundCoordinator {
         },
         // Keep the complete source distinct from the extracted expression and adjudicated facts.
         // A partial audience must never receive a private sibling clause or a move destination.
-        perObserver: observerId => item.sourceRole !== 'player' || intentSubmission === undefined
-          || (observerId !== binding.characterId && !playerSteps.every(step =>
-            step.resolution.status === 'accepted' && step.action.actionType !== 'move'
-            && step.audience?.fullContentCharacterIds.includes(observerId))) ? {} : {
-            playerInput: { actorId: binding.characterId, sourceText: intentSubmission.sourceText,
-              sourceSpans: intentSubmission.sourceSpans,
-              note: '原始玩家输入，仅作解释证据；抽取可能不完整，原文不证明动作成功，也不替 NPC 决定行动。' },
-          },
+        perObserver: observerId =>
+          item.sourceRole !== 'player' ||
+          intentSubmission === undefined ||
+          (observerId !== binding.characterId &&
+            !playerSteps.every(
+              step =>
+                step.resolution.status === 'accepted' &&
+                step.action.actionType !== 'move' &&
+                step.audience?.fullContentCharacterIds.includes(observerId),
+            ))
+            ? {}
+            : {
+                playerInput: {
+                  actorId: binding.characterId,
+                  sourceText: intentSubmission.sourceText,
+                  sourceSpans: intentSubmission.sourceSpans,
+                  note: '原始玩家输入，仅作解释证据；抽取可能不完整，原文不证明动作成功，也不替 NPC 决定行动。',
+                },
+              },
         playerBindings: this.#manifest.playerBindings,
       })
       for (const observerId of observed.observerIds) observedCharacters.add(observerId)
@@ -724,7 +877,9 @@ export class RoundCoordinator {
       resolutions,
       finalCandidateHash: candidateHash,
       ...(provisional === undefined ? {} : { playerProvisional: provisional }),
-      ...(intentSubmission === undefined ? {} : { playerSubmission: intentSubmission, playerProvisionalGroup: playerSteps.map(step => step.provisional!) }),
+      ...(intentSubmission === undefined
+        ? {}
+        : { playerSubmission: intentSubmission, playerProvisionalGroup: playerSteps.map(step => step.provisional!) }),
     } as const
     this.#renewLease()
     const commit = await this.options.store.commitRound({
@@ -762,17 +917,27 @@ export class RoundCoordinator {
     this.#validateSubmission(request)
     if (!this.#manifest.playerBindings.some(value => value.principalId === request.principalId)) {
       failWorld({
-        errorCode: 'UNAUTHORIZED', category: 'admission', message: 'principal has no PlayerBinding in this world',
-        retryable: false, correlationId: request.correlationId, address: this.#address,
+        errorCode: 'UNAUTHORIZED',
+        category: 'admission',
+        message: 'principal has no PlayerBinding in this world',
+        retryable: false,
+        correlationId: request.correlationId,
+        address: this.#address,
       })
     }
-    return this.options.inbox.enqueue({
-      address: this.#address, idempotencyKey: request.idempotencyKey, principalId: request.principalId,
-      input: request.manifestation === undefined
-        ? request.action
-        : { action: request.action, manifestation: request.manifestation },
-      correlationId: request.correlationId,
-    }, this.#manifest.roundQueueLimit)
+    return this.options.inbox.enqueue(
+      {
+        address: this.#address,
+        idempotencyKey: request.idempotencyKey,
+        principalId: request.principalId,
+        input:
+          request.manifestation === undefined
+            ? request.action
+            : { action: request.action, manifestation: request.manifestation },
+        correlationId: request.correlationId,
+      },
+      this.#manifest.roundQueueLimit,
+    )
   }
 
   #committedPlayerResult(
@@ -790,17 +955,25 @@ export class RoundCoordinator {
         address: this.#address,
       })
     }
-    const playerResolutions = committed.events.filter((event) => {
-      if (event.eventType !== 'action.resolved' || event.eventVersion !== 1
-        || typeof event.data !== 'object' || event.data === null || Array.isArray(event.data)) return false
+    const playerResolutions = committed.events.filter(event => {
+      if (
+        event.eventType !== 'action.resolved' ||
+        event.eventVersion !== 1 ||
+        typeof event.data !== 'object' ||
+        event.data === null ||
+        Array.isArray(event.data)
+      )
+        return false
       const data = event.data as Record<string, WorldJsonValue>
-      return data.roundId === expectedRoundId
-        && data.actionId === expectedPlayerAction.actionId
-        && data.participantId === 'player'
-        && data.actorId === expectedPlayerAction.actorId
-        && data.actionType === expectedPlayerAction.actionType
-        && data.sourceRole === 'player'
-        && data.order === 0
+      return (
+        data.roundId === expectedRoundId &&
+        data.actionId === expectedPlayerAction.actionId &&
+        data.participantId === 'player' &&
+        data.actorId === expectedPlayerAction.actorId &&
+        data.actionType === expectedPlayerAction.actionType &&
+        data.sourceRole === 'player' &&
+        data.order === 0
+      )
     })
     if (playerResolutions.length !== 1) {
       failWorld({
@@ -813,8 +986,10 @@ export class RoundCoordinator {
       })
     }
     const resolution = playerResolutions[0]!.data as Record<string, WorldJsonValue>
-    if (typeof resolution.accepted !== 'boolean'
-      || (resolution.reason !== null && typeof resolution.reason !== 'string')) {
+    if (
+      typeof resolution.accepted !== 'boolean' ||
+      (resolution.reason !== null && typeof resolution.reason !== 'string')
+    ) {
       failWorld({
         errorCode: 'BUNDLE_HASH_MISMATCH',
         category: 'integrity',
@@ -852,22 +1027,33 @@ export class RoundCoordinator {
     playerManifestation?: ManifestationProposal,
     playerGroup?: readonly ActionRequest[],
   ): OrderedAction[] {
-    const actions: OrderedAction[] = [{
-      action: playerAction,
-      sourceRole: 'player',
-      participantId: 'player',
-      priority: Number.MAX_SAFE_INTEGER,
-      actorId: playerAction.actorId,
-      actionId: playerAction.actionId,
-      proposalOrdinal: 0,
-      ...(playerManifestation === undefined ? {} : { manifestation: playerManifestation }),
-    }]
+    const actions: OrderedAction[] = [
+      {
+        action: playerAction,
+        sourceRole: 'player',
+        participantId: 'player',
+        priority: Number.MAX_SAFE_INTEGER,
+        actorId: playerAction.actorId,
+        actionId: playerAction.actionId,
+        proposalOrdinal: 0,
+        ...(playerManifestation === undefined ? {} : { manifestation: playerManifestation }),
+      },
+    ]
     if (playerGroup !== undefined) {
-      actions.splice(0, 1, ...playerGroup.map((action, proposalOrdinal) => ({
-        action, sourceRole: 'player' as const, participantId: 'player', priority: Number.MAX_SAFE_INTEGER,
-        actorId: action.actorId, actionId: action.actionId, proposalOrdinal,
-        actionGroup: { version: 'bounded-action-group/v1' as const, manifestations: playerGroup.map(() => null) },
-      })))
+      actions.splice(
+        0,
+        1,
+        ...playerGroup.map((action, proposalOrdinal) => ({
+          action,
+          sourceRole: 'player' as const,
+          participantId: 'player',
+          priority: Number.MAX_SAFE_INTEGER,
+          actorId: action.actorId,
+          actionId: action.actionId,
+          proposalOrdinal,
+          actionGroup: { version: 'bounded-action-group/v1' as const, manifestations: playerGroup.map(() => null) },
+        })),
+      )
     }
     return actions
   }
@@ -883,7 +1069,8 @@ export class RoundCoordinator {
       assertProtocolString(value, name)
     }
     const keys = Object.keys(request.action).sort(compareWorldText)
-    if (keys.join(',') !== 'actionType,parameters') throw new TypeError('action must contain exactly actionType and parameters')
+    if (keys.join(',') !== 'actionType,parameters')
+      throw new TypeError('action must contain exactly actionType and parameters')
     if (request.manifestation !== undefined) {
       throw new TypeError('Manifest v10 does not accept legacy free-text player manifestation')
     }

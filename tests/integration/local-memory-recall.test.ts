@@ -2,12 +2,7 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import {
-  brandId,
-  hashWorldJson,
-  type ProjectionRecord,
-  type WorldAddress,
-} from '@harness-world/contracts'
+import { brandId, hashWorldJson, type ProjectionRecord, type WorldAddress } from '@harness-world/contracts'
 import { CharacterReflectRule, LocalMemoryStore, type MemorySourceRef } from '@harness-world/memory'
 import { CharacterViewBuilder, WorldStore } from '@harness-world/store-sqlite'
 
@@ -47,10 +42,13 @@ describe('Phase 4 local memory and cognition acceptance', () => {
           expectedHeadSeq: head.headSeq,
           expectedTick: head.tick,
           nextTick: head.tick + 1,
-          events: [{
-            eventType: 'observation.upsert', eventVersion: 1,
-            data: { id, value: { observerId: characterId, content: 'a blue key under the table' } },
-          }],
+          events: [
+            {
+              eventType: 'observation.upsert',
+              eventVersion: 1,
+              data: { id, value: { observerId: characterId, content: 'a blue key under the table' } },
+            },
+          ],
           outbox: [],
           correlationId: `p4:${suffix}`,
         })
@@ -59,19 +57,26 @@ describe('Phase 4 local memory and cognition acceptance', () => {
       const builder = new CharacterViewBuilder(world)
       const current = builder.rebuildAt(address(), characterA, 1)
       const memory = new LocalMemoryStore(join(directory, 'memory.sqlite'), world)
-      memory.reconcile({ address: current.address, characterId: characterA, asOfWorldSeq: 1, correlationId: 'p4:current' })
-
-      const currentRef = ref(current.observations[0]!)
-      expect(memory.capture({
+      memory.reconcile({
         address: current.address,
         characterId: characterA,
-        memoryId: 'memory:p4:key',
-        text: 'blue key under table',
-        metadata: { salience: 'high' },
-        sources: [currentRef],
         asOfWorldSeq: 1,
-        correlationId: 'p4:capture',
-      })).toBe('captured')
+        correlationId: 'p4:current',
+      })
+
+      const currentRef = ref(current.observations[0]!)
+      expect(
+        memory.capture({
+          address: current.address,
+          characterId: characterA,
+          memoryId: 'memory:p4:key',
+          text: 'blue key under table',
+          metadata: { salience: 'high' },
+          sources: [currentRef],
+          asOfWorldSeq: 1,
+          correlationId: 'p4:capture',
+        }),
+      ).toBe('captured')
       expect(memory.recall(current.address, characterA, 'blue key', 1)).toMatchObject([
         { memoryId: 'memory:p4:key', sourceMaxSeq: 1 },
       ])
@@ -83,24 +88,30 @@ describe('Phase 4 local memory and cognition acceptance', () => {
       await append(address('alternate'), 'other-branch', 'observation:p4:other', characterA)
       const otherBranch = builder.rebuildAt(address('alternate'), characterA, 1)
       for (const [candidate, correlationId] of [
-        [future, 'p4:future'], [otherCharacter, 'p4:character'], [otherBranch, 'p4:branch'],
-      ] as const) memory.reconcile({
-        address: candidate.address,
-        characterId: candidate.characterId,
-        asOfWorldSeq: candidate.asOfWorldSeq,
-        correlationId,
-      })
+        [future, 'p4:future'],
+        [otherCharacter, 'p4:character'],
+        [otherBranch, 'p4:branch'],
+      ] as const)
+        memory.reconcile({
+          address: candidate.address,
+          characterId: candidate.characterId,
+          asOfWorldSeq: candidate.asOfWorldSeq,
+          correlationId,
+        })
 
-      const rejected = (memoryId: string, source: MemorySourceRef, asOfWorldSeq = 9) => () => memory.capture({
-        address: current.address,
-        characterId: characterA,
-        memoryId,
-        text: `rejected ${memoryId}`,
-        metadata: {},
-        sources: [source],
-        asOfWorldSeq,
-        correlationId: `p4:${memoryId}`,
-      })
+      const rejected =
+        (memoryId: string, source: MemorySourceRef, asOfWorldSeq = 9) =>
+        () =>
+          memory.capture({
+            address: current.address,
+            characterId: characterA,
+            memoryId,
+            text: `rejected ${memoryId}`,
+            metadata: {},
+            sources: [source],
+            asOfWorldSeq,
+            correlationId: `p4:${memoryId}`,
+          })
       expect(rejected('future', ref(future.observations[1]!), 1)).toThrow('later than')
       expect(rejected('cross-character', ref(otherCharacter.observations[0]!))).toThrow('missing or divergent')
       expect(rejected('cross-branch', ref(otherBranch.observations[0]!))).toThrow('missing or divergent')

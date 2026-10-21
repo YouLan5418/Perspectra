@@ -62,20 +62,28 @@ interface BranchControlRow {
 
 function admissionBeforeQuarantine(db: DatabaseSync, key: string, control: BranchControlRow): 'open' | 'draining' {
   if (control.runtime_phase === 'active') return control.admission_state
-  const row = db.prepare(`
+  const row = db
+    .prepare(
+      `
     SELECT details_json FROM branch_audit_events
     WHERE address_key = ? AND operation = 'branch.quarantined'
     ORDER BY audit_seq DESC LIMIT 1
-  `).get(key) as { details_json: string } | undefined
+  `,
+    )
+    .get(key) as { details_json: string } | undefined
   if (row === undefined) return control.admission_state
   const details = parseWorldJson(row.details_json) as Record<string, WorldJsonValue>
   return details.priorAdmissionState === 'draining' ? 'draining' : 'open'
 }
 
 function controlRow(db: DatabaseSync, key: string): BranchControlRow {
-  const row = db.prepare(`
+  const row = db
+    .prepare(
+      `
     SELECT admission_state, runtime_phase, runtime_epoch FROM branch_controls WHERE address_key = ?
-  `).get(key) as BranchControlRow | undefined
+  `,
+    )
+    .get(key) as BranchControlRow | undefined
   if (row === undefined) throw new Error(`unknown world branch ${key}`)
   return row
 }
@@ -87,7 +95,10 @@ export function applyBranchQuarantine(
   occurredAtMs: number,
 ): QuarantineResult {
   assertProtocolString(request.source, 'quarantine source')
-  if (request.error.address !== undefined && worldAddressKey(request.error.address) !== worldAddressKey(request.address)) {
+  if (
+    request.error.address !== undefined &&
+    worldAddressKey(request.error.address) !== worldAddressKey(request.address)
+  ) {
     throw new TypeError('quarantine ErrorEnvelope address does not match the target branch')
   }
   const key = worldAddressKey(request.address)
@@ -96,74 +107,108 @@ export function applyBranchQuarantine(
   const control = controlRow(db, key)
   if (control.runtime_phase === 'archived') {
     failWorld({
-      errorCode: 'BRANCH_DRAINING', category: 'admin', message: 'archived branch cannot enter quarantine',
-      retryable: false, correlationId: request.error.correlationId, address: request.address,
+      errorCode: 'BRANCH_DRAINING',
+      category: 'admin',
+      message: 'archived branch cannot enter quarantine',
+      retryable: false,
+      correlationId: request.error.correlationId,
+      address: request.address,
     })
   }
-  const existing = db.prepare(`
+  const existing = db
+    .prepare(
+      `
     SELECT error_hash, status FROM branch_failures WHERE failure_id = ?
-  `).get(request.error.errorId) as { error_hash: WorldHash; status: 'open' | 'recovered' } | undefined
+  `,
+    )
+    .get(request.error.errorId) as { error_hash: WorldHash; status: 'open' | 'recovered' } | undefined
   if (existing !== undefined) {
     if (existing.error_hash !== errorHash) {
       failWorld({
-        errorCode: 'BUNDLE_HASH_MISMATCH', category: 'integrity',
-        message: 'failureId is already bound to another ErrorEnvelope', retryable: false,
-        correlationId: request.error.correlationId, address: request.address,
+        errorCode: 'BUNDLE_HASH_MISMATCH',
+        category: 'integrity',
+        message: 'failureId is already bound to another ErrorEnvelope',
+        retryable: false,
+        correlationId: request.error.correlationId,
+        address: request.address,
       })
     }
     if (existing.status === 'open' && control.runtime_phase === 'quarantined') {
       return {
-        status: 'already_quarantined', failureId: request.error.errorId,
-        abortedRoundCount: 0, runtimeEpoch: control.runtime_epoch,
+        status: 'already_quarantined',
+        failureId: request.error.errorId,
+        abortedRoundCount: 0,
+        runtimeEpoch: control.runtime_epoch,
       }
     }
-    db.prepare(`
+    db.prepare(
+      `
       UPDATE branch_failures SET status = 'open', recovered_at_ms = NULL, recovery_correlation_id = NULL
       WHERE failure_id = ?
-    `).run(request.error.errorId)
+    `,
+    ).run(request.error.errorId)
   } else {
-    db.prepare(`
+    db.prepare(
+      `
       INSERT INTO branch_failures(
         failure_id, address_key, error_hash, error_json, source, status, occurred_at_ms
       ) VALUES (?, ?, ?, ?, ?, 'open', ?)
-    `).run(request.error.errorId, key, errorHash, errorText, request.source, occurredAtMs)
+    `,
+    ).run(request.error.errorId, key, errorHash, errorText, request.source, occurredAtMs)
   }
   const priorAdmissionState = admissionBeforeQuarantine(db, key, control)
-  const rounds = db.prepare(`
+  const rounds = db
+    .prepare(
+      `
     SELECT inbox_seq FROM round_inbox
     WHERE address_key = ? AND status IN ('pending', 'claimed') AND commit_transaction_id IS NULL
     ORDER BY inbox_seq
-  `).all(key) as Array<{ inbox_seq: number }>
+  `,
+    )
+    .all(key) as Array<{ inbox_seq: number }>
   for (const round of rounds) {
     const result = {
       status: 'failed',
       failureId: request.error.errorId,
       errorCode: request.error.errorCode,
     } as const
-    db.prepare(`
+    db.prepare(
+      `
       UPDATE round_inbox SET status = 'failed', result_hash = ?, result_json = ?
       WHERE address_key = ? AND inbox_seq = ? AND status IN ('pending', 'claimed') AND commit_transaction_id IS NULL
-    `).run(hashWorldJson('player-round-result', result), worldJsonText(result), key, round.inbox_seq)
+    `,
+    ).run(hashWorldJson('player-round-result', result), worldJsonText(result), key, round.inbox_seq)
   }
   db.prepare(`DELETE FROM writer_leases WHERE address_key = ?`).run(key)
-  db.prepare(`
+  db.prepare(
+    `
     UPDATE branch_controls SET admission_state = 'draining', runtime_phase = 'quarantined',
       reason = ?, revision = revision + 1 WHERE address_key = ?
-  `).run(request.error.errorCode, key)
-  db.prepare(`
+  `,
+  ).run(request.error.errorCode, key)
+  db.prepare(
+    `
     INSERT INTO branch_audit_events(address_key, operation, correlation_id, details_json, operational_time_ms)
     VALUES (?, 'branch.quarantined', ?, ?, ?)
-  `).run(key, request.error.correlationId, worldJsonText({
-    failureId: request.error.errorId,
-    errorCode: request.error.errorCode,
-    errorHash,
-    source: request.source,
-    abortedRoundCount: rounds.length,
-    priorAdmissionState,
-  }), occurredAtMs)
+  `,
+  ).run(
+    key,
+    request.error.correlationId,
+    worldJsonText({
+      failureId: request.error.errorId,
+      errorCode: request.error.errorCode,
+      errorHash,
+      source: request.source,
+      abortedRoundCount: rounds.length,
+      priorAdmissionState,
+    }),
+    occurredAtMs,
+  )
   return {
-    status: 'quarantined', failureId: request.error.errorId,
-    abortedRoundCount: rounds.length, runtimeEpoch: control.runtime_epoch,
+    status: 'quarantined',
+    failureId: request.error.errorId,
+    abortedRoundCount: rounds.length,
+    runtimeEpoch: control.runtime_epoch,
   }
 }
 
@@ -195,11 +240,15 @@ export class BranchQuarantineService {
   explain(address: WorldAddress): QuarantineExplanation {
     const key = worldAddressKey(address)
     const control = this.#control(key)
-    const rows = this.#db.prepare(`
+    const rows = this.#db
+      .prepare(
+        `
       SELECT failure_id, error_hash, error_json, source, status, occurred_at_ms,
         recovered_at_ms, recovery_correlation_id
       FROM branch_failures WHERE address_key = ? ORDER BY occurred_at_ms, failure_id
-    `).all(key) as Array<{
+    `,
+      )
+      .all(key) as Array<{
       failure_id: string
       error_hash: WorldHash
       error_json: string
@@ -236,12 +285,16 @@ export class BranchQuarantineService {
       canonicalizeWorldJson(validation)
     } catch (error: unknown) {
       const envelope = createErrorEnvelope({
-        errorCode: 'RECOVERY_VALIDATION_FAILED', category: 'integrity',
-        message: 'controlled quarantine recovery validation failed', retryable: false,
-        correlationId, address,
-        details: error instanceof WorldError
-          ? { causedByErrorCode: error.envelope.errorCode, causedByErrorId: error.envelope.errorId }
-          : { causeType: typeof error },
+        errorCode: 'RECOVERY_VALIDATION_FAILED',
+        category: 'integrity',
+        message: 'controlled quarantine recovery validation failed',
+        retryable: false,
+        correlationId,
+        address,
+        details:
+          error instanceof WorldError
+            ? { causedByErrorCode: error.envelope.errorCode, causedByErrorId: error.envelope.errorId }
+            : { causeType: typeof error },
       })
       this.quarantine({ address, error: envelope, source: 'quarantine.recover' })
       throw new WorldError(envelope)
@@ -252,18 +305,35 @@ export class BranchQuarantineService {
     try {
       const control = this.#control(key)
       if (control.runtime_phase !== 'maintenance') throw new Error('branch left maintenance during recovery')
-      this.#db.prepare(`
+      this.#db
+        .prepare(
+          `
         UPDATE branch_failures SET status = 'recovered', recovered_at_ms = ?, recovery_correlation_id = ?
         WHERE address_key = ? AND status = 'open'
-      `).run(recoveredAtMs, correlationId, key)
-      this.#db.prepare(`
+      `,
+        )
+        .run(recoveredAtMs, correlationId, key)
+      this.#db
+        .prepare(
+          `
         UPDATE branch_controls SET admission_state = ?, runtime_phase = 'active', runtime_epoch = runtime_epoch + 1,
           reason = NULL, revision = revision + 1 WHERE address_key = ?
-      `).run(admissionBeforeQuarantine(this.#db, key, control), key)
-      this.#db.prepare(`
+      `,
+        )
+        .run(admissionBeforeQuarantine(this.#db, key, control), key)
+      this.#db
+        .prepare(
+          `
         INSERT INTO branch_audit_events(address_key, operation, correlation_id, details_json, operational_time_ms)
         VALUES (?, 'branch.quarantine.recovered', ?, ?, ?)
-      `).run(key, correlationId, worldJsonText({ validationHash, nextRuntimeEpoch: control.runtime_epoch + 1 }), recoveredAtMs)
+      `,
+        )
+        .run(
+          key,
+          correlationId,
+          worldJsonText({ validationHash, nextRuntimeEpoch: control.runtime_epoch + 1 }),
+          recoveredAtMs,
+        )
       this.faultInjector?.hit('quarantine-recovery.before-commit')
       this.#db.exec('COMMIT')
       this.faultInjector?.hit('quarantine-recovery.after-commit')
@@ -283,22 +353,33 @@ export class BranchQuarantineService {
       const control = this.#control(key)
       if (control.runtime_phase !== 'quarantined' && control.runtime_phase !== 'maintenance') {
         failWorld({
-          errorCode: 'INVALID_REQUEST', category: 'admin',
-          message: 'quarantine recovery requires a quarantined branch', retryable: false,
-          correlationId, address,
+          errorCode: 'INVALID_REQUEST',
+          category: 'admin',
+          message: 'quarantine recovery requires a quarantined branch',
+          retryable: false,
+          correlationId,
+          address,
         })
       }
       const entered = control.runtime_phase === 'quarantined'
       if (entered) {
         const operationalTimeMs = this.now()
-        this.#db.prepare(`
+        this.#db
+          .prepare(
+            `
           UPDATE branch_controls SET runtime_phase = 'maintenance', reason = 'quarantine recovery',
             revision = revision + 1 WHERE address_key = ?
-        `).run(key)
-        this.#db.prepare(`
+        `,
+          )
+          .run(key)
+        this.#db
+          .prepare(
+            `
           INSERT INTO branch_audit_events(address_key, operation, correlation_id, details_json, operational_time_ms)
           VALUES (?, 'branch.quarantine.recovery-started', ?, ?, ?)
-        `).run(key, correlationId, worldJsonText({ runtimeEpoch: control.runtime_epoch }), operationalTimeMs)
+        `,
+          )
+          .run(key, correlationId, worldJsonText({ runtimeEpoch: control.runtime_epoch }), operationalTimeMs)
       }
       this.#db.exec('COMMIT')
       if (entered) this.faultInjector?.hit('quarantine-recovery.after-maintenance-commit')

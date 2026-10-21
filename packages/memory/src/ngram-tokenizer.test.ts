@@ -10,7 +10,9 @@ import {
 
 /** Token strings in a stable, order-independent form so these cases read as a Golden set. */
 function tokens(text: string): string[] {
-  return tokenizeKeywordText(text).map(token => token.token).sort()
+  return tokenizeKeywordText(text)
+    .map(token => token.token)
+    .sort()
 }
 
 function kindOf(text: string, token: string): KeywordToken | undefined {
@@ -63,8 +65,9 @@ describe('versioned keyword tokenizer', () => {
   })
 
   it('keeps CJK and Latin runs apart inside one text', () => {
-    expect(tokens('Alice把钥匙放好'))
-      .toEqual(['alice', '把钥', '钥匙', '匙放', '放好', '把钥匙', '钥匙放', '匙放好'].sort())
+    expect(tokens('Alice把钥匙放好')).toEqual(
+      ['alice', '把钥', '钥匙', '匙放', '放好', '把钥匙', '钥匙放', '匙放好'].sort(),
+    )
   })
 
   it('counts supplementary-plane characters by code point', () => {
@@ -76,8 +79,14 @@ describe('versioned keyword tokenizer', () => {
 
   it('treats every CJK script range as a run without separators', () => {
     const pairs = [
-      '\u3400\u3401', '\u4e00\u4e01', '\uf900\uf901', '\u{20000}\u{20001}',
-      '\u3042\u3044', '\u30a2\u30a4', '\u1100\u1101', '\uac00\uac01',
+      '\u3400\u3401',
+      '\u4e00\u4e01',
+      '\uf900\uf901',
+      '\u{20000}\u{20001}',
+      '\u3042\u3044',
+      '\u30a2\u30a4',
+      '\u1100\u1101',
+      '\uac00\uac01',
     ]
     for (const pair of pairs) {
       expect(tokenizeKeywordText(pair)).toEqual([{ token: pair, kind: 'cjk-2', weight: 1 }])

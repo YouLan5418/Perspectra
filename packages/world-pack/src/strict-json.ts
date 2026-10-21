@@ -85,7 +85,8 @@ class StrictWorldJsonReader {
     if (match === null) throw new SyntaxError('contains an unexpected token')
     this.#offset += match[0].length
     const value = Number(match[0])
-    if (!Number.isSafeInteger(value) || Object.is(value, -0)) throw new SyntaxError('numbers must be safe integers and cannot be negative zero')
+    if (!Number.isSafeInteger(value) || Object.is(value, -0))
+      throw new SyntaxError('numbers must be safe integers and cannot be negative zero')
     return value
   }
 

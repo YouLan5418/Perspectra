@@ -35,13 +35,19 @@ export class WorldReadQueries {
     this.#access.assertOpen()
     const store = new WorldStore(this.#access.options.worldPath)
     try {
-      const worlds = new Map<string, { tenantId: WorldAddress['tenantId']; worldId: WorldAddress['worldId']; branchCount: number }>()
+      const worlds = new Map<
+        string,
+        { tenantId: WorldAddress['tenantId']; worldId: WorldAddress['worldId']; branchCount: number }
+      >()
       for (const address of store.listBranches()) {
         const key = `${address.tenantId}\u001f${address.worldId}`
         const current = worlds.get(key)
-        worlds.set(key, current === undefined
-          ? { tenantId: address.tenantId, worldId: address.worldId, branchCount: 1 }
-          : { ...current, branchCount: current.branchCount + 1 })
+        worlds.set(
+          key,
+          current === undefined
+            ? { tenantId: address.tenantId, worldId: address.worldId, branchCount: 1 }
+            : { ...current, branchCount: current.branchCount + 1 },
+        )
       }
       return [...worlds.values()]
     } finally {
@@ -91,23 +97,25 @@ export class WorldReadQueries {
 
   /** Integrity-checked authority history for local authoring/debug composition; not exposed by the player RPC surface. */
   async eventHistory(address: WorldAddress, asOfWorldSeq?: number): Promise<StoredWorldEvent[]> {
-    return this.#access.integrityGuard(address, 'world.events', branch => branch.store.store.readEvents(address, asOfWorldSeq))
+    return this.#access.integrityGuard(address, 'world.events', branch =>
+      branch.store.store.readEvents(address, asOfWorldSeq),
+    )
   }
 
   /** Read the immutable Round Authority bound to a committed transaction. */
   async roundAuthority(address: WorldAddress, transactionId: TransactionId): Promise<StoredRoundAuthority | undefined> {
-    return this.#access.integrityGuard(address, 'round.authority', branch => branch.store.store.readRoundAuthority(address, transactionId))
+    return this.#access.integrityGuard(address, 'round.authority', branch =>
+      branch.store.store.readRoundAuthority(address, transactionId),
+    )
   }
 
   async characterView(address: WorldAddress, characterId: CharacterId, asOfWorldSeq?: number): Promise<CharacterView> {
-    return this.#access.integrityGuard(address, 'view.character', branch => this.#access.projectionRead(
-      address,
-      `view:${worldAddressKey(address)}:${characterId}`,
-      () => {
+    return this.#access.integrityGuard(address, 'view.character', branch =>
+      this.#access.projectionRead(address, `view:${worldAddressKey(address)}:${characterId}`, () => {
         const asOf = asOfWorldSeq ?? branch.store.store.head(address).headSeq
         return new CharacterViewBuilder(branch.store.store).rebuildAt(address, characterId, asOf)
-      },
-    ))
+      }),
+    )
   }
 
   async recallMemory(
@@ -148,9 +156,12 @@ export class WorldReadQueries {
   ): CognitiveMemoryService {
     if (memory === undefined) {
       failWorld({
-        errorCode: 'MANIFEST_RUNTIME_UNAVAILABLE', category: 'runtime',
-        message: 'Cognitive Memory is not enabled by this Manifest', retryable: false,
-        correlationId: `memory-${operation}:${characterId}`, address,
+        errorCode: 'MANIFEST_RUNTIME_UNAVAILABLE',
+        category: 'runtime',
+        message: 'Cognitive Memory is not enabled by this Manifest',
+        retryable: false,
+        correlationId: `memory-${operation}:${characterId}`,
+        address,
       })
     }
     return memory
@@ -172,11 +183,15 @@ export class WorldReadQueries {
         if (event === undefined) throw new Error(`Session event ${sessionEventSeq} is missing`)
         return branch.director.presenter.render(event.payload, presenterOptions)
       } catch (error: unknown) {
-        if (error instanceof WorldError || (error instanceof Error && error.message.includes(' is missing'))) throw error
+        if (error instanceof WorldError || (error instanceof Error && error.message.includes(' is missing')))
+          throw error
         failWorld({
-          errorCode: 'SESSION_DELIVERY_DIVERGED', category: 'integrity',
-          message: `Session presentation source failed validation: ${String(error)}`, retryable: false,
-          correlationId: `session-render:${sessionId}:${sessionEventSeq}`, address,
+          errorCode: 'SESSION_DELIVERY_DIVERGED',
+          category: 'integrity',
+          message: `Session presentation source failed validation: ${String(error)}`,
+          retryable: false,
+          correlationId: `session-render:${sessionId}:${sessionEventSeq}`,
+          address,
         })
       }
     })

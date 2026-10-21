@@ -33,7 +33,11 @@ import {
   type RulebookResolution,
 } from './rulebook.ts'
 import { stepManifestation, resolveManifestation } from './manifestation.ts'
-import { manifestUsesFrozenInteractions, type CompiledWorldManifest, type CompiledWorldManifestV10 } from './world-spec.ts'
+import {
+  manifestUsesFrozenInteractions,
+  type CompiledWorldManifest,
+  type CompiledWorldManifestV10,
+} from './world-spec.ts'
 
 /** Structurally the Rulebook registry's `ActionAffordance`; declared here to keep the import acyclic. */
 export interface FrozenActionAffordance {
@@ -68,12 +72,16 @@ function text(value: unknown): string | undefined {
   return typeof value === 'string' && value.length > 0 && value.trim() === value ? value : undefined
 }
 
-
 /** The candidate prefix is identified by its own contents, never by where it happens to sit. */
 function candidatePrefixHash(events: readonly RulebookEvent[]): WorldHash {
-  return hashWorldJson('interaction-candidate-prefix/v1', events.map(event => ({
-    eventType: event.eventType, eventVersion: event.eventVersion ?? 1, data: event.data,
-  })))
+  return hashWorldJson(
+    'interaction-candidate-prefix/v1',
+    events.map(event => ({
+      eventType: event.eventType,
+      eventVersion: event.eventVersion ?? 1,
+      data: event.data,
+    })),
+  )
 }
 
 /**
@@ -116,9 +124,10 @@ export function interactionHostSnapshot(
   const entityStates = new Map<string, WorldJsonObject>()
   for (const entity of manifest.entities) {
     const current = currentEntityState(events, entity.entityId)
-    const state: WorldJsonObject = current === undefined
-      ? { locationId: null, holderId: null, kind: entity.kind }
-      : { locationId: current.locationId, holderId: current.holderId, kind: current.kind }
+    const state: WorldJsonObject =
+      current === undefined
+        ? { locationId: null, holderId: null, kind: entity.kind }
+        : { locationId: current.locationId, holderId: current.holderId, kind: current.kind }
     entityStates.set(entity.entityId, state)
     targets.push({ ref: { kind: 'entity', id: entity.entityId }, state })
   }
@@ -127,10 +136,15 @@ export function interactionHostSnapshot(
   // about what a well-formed relation prefix is, and the runtime still has no relation-kind branch.
   const relations = currentCharacterRelations(events)
   for (const relation of relations) {
-    targets.push({ ref: { kind: 'relation', id: relation.relationId }, state: {
-      interactionId: relation.interactionId, initiatorId: relation.initiatorId,
-      targetId: relation.targetId, active: relation.active,
-    } })
+    targets.push({
+      ref: { kind: 'relation', id: relation.relationId },
+      state: {
+        interactionId: relation.interactionId,
+        initiatorId: relation.initiatorId,
+        targetId: relation.targetId,
+        active: relation.active,
+      },
+    })
   }
 
   const actor = characterStates.get(actorId)
@@ -193,7 +207,10 @@ function frozenRequest(
   // carry at all; whether this definition accepts them is the runtime's decision against its own locked
   // policy, which comes back as a refusal rather than an exception.
   const required = ['targetRef', 'bindingId', 'definitionRef', 'arguments']
-  if (row === undefined || !hasExactKeys(row, Object.hasOwn(row, 'performance') ? [...required, 'performance'] : required)) {
+  if (
+    row === undefined ||
+    !hasExactKeys(row, Object.hasOwn(row, 'performance') ? [...required, 'performance'] : required)
+  ) {
     return { reason: 'INVALID_INTERACTION_PARAMETERS' }
   }
   const performance = row.performance === undefined ? undefined : stepCues(row.performance)
@@ -207,17 +224,20 @@ function frozenRequest(
   const targetRef = worldJsonObject(row.targetRef as WorldJsonValue)
   const kind = targetRef === undefined ? undefined : targetRef.kind
   const id = targetRef === undefined ? undefined : text(targetRef.id)
-  if (targetRef === undefined || !hasExactKeys(targetRef, ['kind', 'id'])
-    || (kind !== 'entity' && kind !== 'character' && kind !== 'relation') || id === undefined) {
+  if (
+    targetRef === undefined ||
+    !hasExactKeys(targetRef, ['kind', 'id']) ||
+    (kind !== 'entity' && kind !== 'character' && kind !== 'relation') ||
+    id === undefined
+  ) {
     return { reason: 'INVALID_INTERACTION_PARAMETERS' }
   }
   if (binding.targetRef.kind === 'relation') {
     // The binding names the class; the request names the instance. The class is read from the fact the
     // Host already recorded on that instance, so an instance of another class - or one that is not in
     // the snapshot at all - is refused rather than resolved through a binding it does not belong to.
-    const entry = kind === 'relation'
-      ? host.targets.find(value => value.ref.kind === 'relation' && value.ref.id === id)
-      : undefined
+    const entry =
+      kind === 'relation' ? host.targets.find(value => value.ref.kind === 'relation' && value.ref.id === id) : undefined
     if (entry === undefined || (entry.state as WorldJsonObject).interactionId !== binding.targetRef.id) {
       return { reason: 'INTERACTION_NOT_BOUND' }
     }
@@ -225,8 +245,12 @@ function frozenRequest(
     return { reason: 'INVALID_INTERACTION_PARAMETERS' }
   }
   const definitionRef = worldJsonObject(row.definitionRef as WorldJsonValue)
-  if (definitionRef === undefined || !hasExactKeys(definitionRef, ['id', 'version'])
-    || definitionRef.id !== binding.definitionRef.id || definitionRef.version !== binding.definitionRef.version) {
+  if (
+    definitionRef === undefined ||
+    !hasExactKeys(definitionRef, ['id', 'version']) ||
+    definitionRef.id !== binding.definitionRef.id ||
+    definitionRef.version !== binding.definitionRef.version
+  ) {
     return { reason: 'INVALID_INTERACTION_PARAMETERS' }
   }
   const argumentsValue = row.arguments as WorldJsonValue
@@ -234,11 +258,15 @@ function frozenRequest(
   // does not fit its definition is refused here instead of throwing from inside the trusted runtime.
   // A missing binding or a drifted lock still throws: those are integrity failures, not proposals.
   if (!world.acceptsArguments(binding.bindingId, argumentsValue)) return { reason: 'INVALID_INTERACTION_ARGUMENTS' }
-  return { request: {
-    targetRef: { kind, id }, bindingId: binding.bindingId,
-    definitionRef: binding.definitionRef, arguments: argumentsValue,
-    ...(performance === undefined ? {} : { performance }),
-  } }
+  return {
+    request: {
+      targetRef: { kind, id },
+      bindingId: binding.bindingId,
+      definitionRef: binding.definitionRef,
+      arguments: argumentsValue,
+      ...(performance === undefined ? {} : { performance }),
+    },
+  }
 }
 
 /**
@@ -247,7 +275,9 @@ function frozenRequest(
  * an unknown code, a cue that needs an action the step is not, a shape the resolver would refuse - is a
  * malformed proposal and belongs on the rejection side of this boundary.
  */
-function stepCues(value: WorldJsonValue): { readonly independent: readonly ActionGroupCue[]; readonly onSuccess: readonly ActionGroupCue[] } | undefined {
+function stepCues(
+  value: WorldJsonValue,
+): { readonly independent: readonly ActionGroupCue[]; readonly onSuccess: readonly ActionGroupCue[] } | undefined {
   const row = worldJsonObject(value)
   if (row === undefined || !hasExactKeys(row, ['independent', 'onSuccess'])) return undefined
   const read = (input: WorldJsonValue): readonly ActionGroupCue[] | undefined => {
@@ -293,7 +323,8 @@ export class FrozenInteractionRulebook {
    * `resolve` and `affordances` reuse the same cached world.
    */
   adopt(manifest: CompiledWorldManifest, manifestHash: WorldHash): void {
-    if (!manifestUsesFrozenInteractions(manifest)) throw new TypeError('the frozen interaction Rulebook only serves Manifest v10')
+    if (!manifestUsesFrozenInteractions(manifest))
+      throw new TypeError('the frozen interaction Rulebook only serves Manifest v10')
     this.#world(manifest, manifestHash)
   }
 
@@ -302,14 +333,20 @@ export class FrozenInteractionRulebook {
     if (cached !== undefined) return cached
     const catalog = manifest.interactionCatalog
     const world = this.#registry.freeze({
-      address: manifest.address, packages: catalog.packages,
-      definitions: catalog.definitions, bindings: catalog.bindings,
+      address: manifest.address,
+      packages: catalog.packages,
+      definitions: catalog.definitions,
+      bindings: catalog.bindings,
     })
     this.#worlds.set(manifestHash, world)
     return world
   }
 
-  #host(context: FrozenInteractionContext, actionId: string, authority: RulebookResolutionAuthorityV1): InteractionHostContext {
+  #host(
+    context: FrozenInteractionContext,
+    actionId: string,
+    authority: RulebookResolutionAuthorityV1,
+  ): InteractionHostContext {
     return {
       address: context.manifest.address,
       manifestHash: context.manifestHash!,
@@ -323,7 +360,8 @@ export class FrozenInteractionRulebook {
   }
 
   #manifest(context: FrozenInteractionContext): CompiledWorldManifestV10 {
-    if (!manifestUsesFrozenInteractions(context.manifest)) throw new TypeError('the frozen interaction Rulebook only serves Manifest v10')
+    if (!manifestUsesFrozenInteractions(context.manifest))
+      throw new TypeError('the frozen interaction Rulebook only serves Manifest v10')
     if (context.manifestHash === undefined || context.asOfWorldSeq === undefined) {
       throw new TypeError('Manifest v10 resolution requires the Host manifest hash and world sequence')
     }
@@ -331,7 +369,8 @@ export class FrozenInteractionRulebook {
   }
 
   #authority(context: FrozenInteractionContext): RulebookResolutionAuthorityV1 {
-    if (context.resolutionAuthority === undefined) throw new TypeError('Manifest v10 resolution requires Host authority')
+    if (context.resolutionAuthority === undefined)
+      throw new TypeError('Manifest v10 resolution requires Host authority')
     return validateResolutionAuthority(context.resolutionAuthority)
   }
 
@@ -348,7 +387,10 @@ export class FrozenInteractionRulebook {
         // A request that never named a definition has no policy to consult, and naming the reason to the
         // whole Scene would disclose the catalog: whether a binding exists, and for which target. This is
         // not the definition's failure to disclose, so it stays with the actor.
-        return { ...rejectRulebookResolution(context.characterId, 'interact', parsed.reason), observationScope: { scope: 'self' } }
+        return {
+          ...rejectRulebookResolution(context.characterId, 'interact', parsed.reason),
+          observationScope: { scope: 'self' },
+        }
       }
       const adjudication = world.resolve(host, parsed.request)
       const interactionTrace: WorldJsonObject = {
@@ -374,22 +416,55 @@ export class FrozenInteractionRulebook {
         // model input: a request that states cues cannot reach here from a Host that withheld the Round.
         throw new TypeError('a manifested interaction step requires the Round it belongs to')
       }
-      const manifestationResolution = manifestation === undefined ? undefined : resolveManifestation({
-        roundId: context.roundId!, actionId: context.actionId, actorId: brandId(context.characterId, 'CharacterId'),
-        manifestation, events: context.events,
-      })
+      const manifestationResolution =
+        manifestation === undefined
+          ? undefined
+          : resolveManifestation({
+              roundId: context.roundId!,
+              actionId: context.actionId,
+              actorId: brandId(context.characterId, 'CharacterId'),
+              manifestation,
+              events: context.events,
+            })
       const manifested = manifestationResolution?.events ?? []
-      const resolvedManifestation = manifestationResolution === undefined ? {} : {
-        manifestation: { proposal: manifestation!, resolution: manifestationResolution },
-      }
+      const resolvedManifestation =
+        manifestationResolution === undefined
+          ? {}
+          : {
+              manifestation: { proposal: manifestation!, resolution: manifestationResolution },
+            }
       return adjudication.status === 'accepted'
-        ? { status: 'accepted', events: [...adjudication.events, ...manifested], observationScope,
-            interactionTrace, resolvedRoles, definitionRef, affectedCharacterIds, ...resolvedManifestation }
-        : { ...rejectRulebookResolution(context.characterId, 'interact', adjudication.reason),
-            events: [...rejectRulebookResolution(context.characterId, 'interact', adjudication.reason).events, ...manifested],
-            observationScope, interactionTrace, resolvedRoles, definitionRef, affectedCharacterIds, ...resolvedManifestation }
+        ? {
+            status: 'accepted',
+            events: [...adjudication.events, ...manifested],
+            observationScope,
+            interactionTrace,
+            resolvedRoles,
+            definitionRef,
+            affectedCharacterIds,
+            ...resolvedManifestation,
+          }
+        : {
+            ...rejectRulebookResolution(context.characterId, 'interact', adjudication.reason),
+            events: [
+              ...rejectRulebookResolution(context.characterId, 'interact', adjudication.reason).events,
+              ...manifested,
+            ],
+            observationScope,
+            interactionTrace,
+            resolvedRoles,
+            definitionRef,
+            affectedCharacterIds,
+            ...resolvedManifestation,
+          }
     }
-    const resolution = this.#base.resolve(manifest, context.events, context.characterId, action,context.publicationCharacters??2000)
+    const resolution = this.#base.resolve(
+      manifest,
+      context.events,
+      context.characterId,
+      action,
+      context.publicationCharacters ?? 2000,
+    )
     if (resolution.status !== 'accepted' || action.actionType !== 'move') return resolution
     // A move belongs to no definition, so the world fold runs here: the union of every enabled
     // definition's handlers decide what it ended. v10 has no separate Kernel relation fallback.
@@ -402,7 +477,8 @@ export class FrozenInteractionRulebook {
     return {
       ...resolution,
       events: this.#world(manifest, context.manifestHash!).fold(
-        this.#host({ ...context, events: postAction }, context.actionId, authority), resolution.events,
+        this.#host({ ...context, events: postAction }, context.actionId, authority),
+        resolution.events,
       ),
     }
   }
@@ -420,22 +496,29 @@ export class FrozenInteractionRulebook {
       characterId: context.characterId as InteractionCharacterView['characterId'],
       authority,
       candidatePrefixHash: candidatePrefixHash(context.events),
-      viewPolicyHash: hashWorldJson('interaction-view-policy/v1', { manifestHash: context.manifestHash!, manifestVersion: 10 }),
+      viewPolicyHash: hashWorldJson('interaction-view-policy/v1', {
+        manifestHash: context.manifestHash!,
+        manifestVersion: 10,
+      }),
       ...interactionHostSnapshot(manifest, context.events, context.characterId),
     })
     // The move rule itself decides where this character may go - a target that is not a location, or the one
     // it is standing in, is not a move - so the options are asked of it rather than restated here.
     const destinations = manifest.locations
-      .filter(location => this.#base.resolve(manifest, context.events, context.characterId, {
-        actionType: 'move', parameters: { locationId: location.locationId },
-      }).status === 'accepted')
+      .filter(
+        location =>
+          this.#base.resolve(manifest, context.events, context.characterId, {
+            actionType: 'move',
+            parameters: { locationId: location.locationId },
+          }).status === 'accepted',
+      )
       .map(location => ({ locationId: location.locationId, name: location.name }))
     return [
       { actionType: 'speak', actionVersion: 1 },
-      { actionType: 'move', actionVersion: 1,
-        ...(destinations.length === 0 ? {} : { destinations }) },
+      { actionType: 'move', actionVersion: 1, ...(destinations.length === 0 ? {} : { destinations }) },
       {
-        actionType: 'interact', actionVersion: 2,
+        actionType: 'interact',
+        actionVersion: 2,
         interactions: view.options.map((option: InteractionViewOption) => ({ ...option })),
         performances: view.performances.filter(entry => entry.accepted.length > 0),
       },

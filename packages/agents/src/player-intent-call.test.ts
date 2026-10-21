@@ -28,10 +28,17 @@ it('persists one dispatch and exact response without masquerading as a Round par
     reopened.close()
     const raw = new DatabaseSync(path)
     expect(raw.prepare('SELECT purpose,work_id,round_id,participant_id,receipt_id FROM provider_calls').get()).toEqual({
-      purpose: 'player_intent', work_id: 'input:1', round_id: null, participant_id: null, receipt_id: null,
+      purpose: 'player_intent',
+      work_id: 'input:1',
+      round_id: null,
+      participant_id: null,
+      receipt_id: null,
     })
     raw.close()
-  } finally { calls.close(); rmSync(root, { recursive: true, force: true }) }
+  } finally {
+    calls.close()
+    rmSync(root, { recursive: true, force: true })
+  }
 })
 
 it('makes ambiguous dispatch terminal, records only late response hashes and rejects invalid transitions', () => {
@@ -53,10 +60,17 @@ it('makes ambiguous dispatch terminal, records only late response hashes and rej
     calls.finish(cancelled.modelCallId, 'prepared', 'failed_before_dispatch')
     const raw = new DatabaseSync(path)
     expect(raw.prepare('SELECT COUNT(*) AS n FROM player_intent_late_responses').get()).toEqual({ n: 1 })
-    raw.prepare('UPDATE provider_calls SET request_json = ? WHERE model_call_id = ?').run('{"changed":true}', call.modelCallId)
+    raw
+      .prepare('UPDATE provider_calls SET request_json = ? WHERE model_call_id = ?')
+      .run('{"changed":true}', call.modelCallId)
     expect(() => calls.read(call.modelCallId)).toThrow('conflict')
-    raw.prepare('UPDATE provider_calls SET request_json = ?,response_json = ?,response_hash = ? WHERE model_call_id = ?').run('{}', '{}', 'bad', call.modelCallId)
+    raw
+      .prepare('UPDATE provider_calls SET request_json = ?,response_json = ?,response_hash = ? WHERE model_call_id = ?')
+      .run('{}', '{}', 'bad', call.modelCallId)
     expect(() => calls.read(call.modelCallId)).toThrow('conflict')
     raw.close()
-  } finally { calls.close(); rmSync(root, { recursive: true, force: true }) }
+  } finally {
+    calls.close()
+    rmSync(root, { recursive: true, force: true })
+  }
 })

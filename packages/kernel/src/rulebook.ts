@@ -1,5 +1,11 @@
 import { parseExpressionSegments } from '@harness-world/contracts'
-import { compareWorldText, type ManifestationProposal, type WorldEventDraft, type WorldJsonObject, type WorldJsonValue } from '@harness-world/contracts'
+import {
+  compareWorldText,
+  type ManifestationProposal,
+  type WorldEventDraft,
+  type WorldJsonObject,
+  type WorldJsonValue,
+} from '@harness-world/contracts'
 import type { ManifestationResolution } from './manifestation.ts'
 import { currentSceneDecisionStates, sceneObserverIds } from './scene-state.ts'
 import { manifestUsesFrozenInteractions, type CompiledWorldManifest } from './world-spec.ts'
@@ -11,7 +17,8 @@ export interface PlayerActionInput extends WorldJsonObject {
 
 /** Revalidate a durable Inbox payload before it reaches any deterministic Rulebook. */
 export function parsePlayerActionInput(value: WorldJsonValue): PlayerActionInput {
-  if (typeof value !== 'object' || value === null || Array.isArray(value)) throw new TypeError('claimed player action must be an object')
+  if (typeof value !== 'object' || value === null || Array.isArray(value))
+    throw new TypeError('claimed player action must be an object')
   const action = value as Record<string, WorldJsonValue>
   const keys = Object.keys(action).sort(compareWorldText)
   if (keys.join(',') !== 'actionType,parameters' || typeof action.actionType !== 'string') {
@@ -61,7 +68,7 @@ export interface RulebookResolution {
 
 export function worldJsonObject(value: WorldJsonValue): Record<string, WorldJsonValue> | undefined {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
-    ? value as Record<string, WorldJsonValue>
+    ? (value as Record<string, WorldJsonValue>)
     : undefined
 }
 
@@ -76,7 +83,11 @@ export function currentLocation(events: readonly RulebookEvent[], characterId: s
   for (const event of events) {
     const data = worldJsonObject(event.data)
     if (data?.characterId !== characterId) continue
-    if ((event.eventType === 'character.upsert' || event.eventType === 'character.created') && typeof data.locationId === 'string') locationId = data.locationId
+    if (
+      (event.eventType === 'character.upsert' || event.eventType === 'character.created') &&
+      typeof data.locationId === 'string'
+    )
+      locationId = data.locationId
     if (event.eventType === 'character.moved' && typeof data.toLocationId === 'string') locationId = data.toLocationId
   }
   return locationId
@@ -103,17 +114,29 @@ export function currentEntityState(events: readonly RulebookEvent[], entityId: s
       state = { entityId, locationId: data.locationId, holderId: null, kind: data.kind }
     }
     if (event.eventType === 'entity.transferred') {
-      if (state === undefined || state.locationId !== data.fromLocationId || state.holderId !== data.fromHolderId
-        || typeof data.characterId !== 'string' || typeof data.interactionId !== 'string'
-        || !((typeof data.toLocationId === 'string' && data.toHolderId === null)
-          || (data.toLocationId === null && typeof data.toHolderId === 'string'))) {
+      if (
+        state === undefined ||
+        state.locationId !== data.fromLocationId ||
+        state.holderId !== data.fromHolderId ||
+        typeof data.characterId !== 'string' ||
+        typeof data.interactionId !== 'string' ||
+        !(
+          (typeof data.toLocationId === 'string' && data.toHolderId === null) ||
+          (data.toLocationId === null && typeof data.toHolderId === 'string')
+        )
+      ) {
         throw new TypeError(`entity.transferred for ${entityId} violates the entity event prefix`)
       }
       state = { ...state, locationId: data.toLocationId as string | null, holderId: data.toHolderId as string | null }
     }
     if (event.eventType === 'entity.taken') {
-      if (state === undefined || typeof data.characterId !== 'string' || typeof data.fromLocationId !== 'string'
-        || state.holderId !== null || state.locationId !== data.fromLocationId) {
+      if (
+        state === undefined ||
+        typeof data.characterId !== 'string' ||
+        typeof data.fromLocationId !== 'string' ||
+        state.holderId !== null ||
+        state.locationId !== data.fromLocationId
+      ) {
         throw new TypeError(`entity.taken for ${entityId} violates the entity event prefix`)
       }
       state = { ...state, locationId: null, holderId: data.characterId }
@@ -122,15 +145,23 @@ export function currentEntityState(events: readonly RulebookEvent[], entityId: s
   return state
 }
 
-export function currentCharacterLifecycle(events: readonly RulebookEvent[], characterId: string): 'active' | 'incapacitated' | 'dead' | 'departed' | undefined {
+export function currentCharacterLifecycle(
+  events: readonly RulebookEvent[],
+  characterId: string,
+): 'active' | 'incapacitated' | 'dead' | 'departed' | undefined {
   let state: 'active' | 'incapacitated' | 'dead' | 'departed' | undefined
   for (const event of events) {
     const data = worldJsonObject(event.data)
     if (data?.characterId !== characterId) continue
     if (event.eventType === 'character.upsert' || event.eventType === 'character.created') state ??= 'active'
-    if (event.eventType === 'character.lifecycle-changed'
-      && (data.lifecycleState === 'active' || data.lifecycleState === 'incapacitated'
-        || data.lifecycleState === 'dead' || data.lifecycleState === 'departed')) state = data.lifecycleState
+    if (
+      event.eventType === 'character.lifecycle-changed' &&
+      (data.lifecycleState === 'active' ||
+        data.lifecycleState === 'incapacitated' ||
+        data.lifecycleState === 'dead' ||
+        data.lifecycleState === 'departed')
+    )
+      state = data.lifecycleState
   }
   return state
 }
@@ -152,7 +183,9 @@ function resolveSpeech(
 ): RulebookResolution {
   let segments
   if (parameters?.segments !== undefined) {
-    try { segments = parseExpressionSegments(parameters.segments,maximumCharacters) } catch {
+    try {
+      segments = parseExpressionSegments(parameters.segments, maximumCharacters)
+    } catch {
       return rejectRulebookResolution(characterId, 'speak', 'invalid expression segments')
     }
     if (parameters.text !== undefined || parameters.narration !== undefined) {
@@ -171,39 +204,62 @@ function resolveSpeech(
   // Only the named publication fields below are emitted; extra model annotations
   // have no effect and need not discard an otherwise valid expression.
   const validNarration = narration === undefined || typeof narration === 'string'
-  const validText = typeof text === 'string'
-    && (text.trim().length > 0 || (typeof narration === 'string' && narration.trim().length > 0))
+  const validText =
+    typeof text === 'string' &&
+    (text.trim().length > 0 || (typeof narration === 'string' && narration.trim().length > 0))
   const validScope = scope === 'scene_public' || scope === 'direct' || scope === 'private' || scope === 'self'
-  const validAddressees = Array.isArray(addresseeIds)
-    && addresseeIds.every(value => typeof value === 'string'
-      && value !== characterId
-      && manifest.characters.some(character => character.characterId === value))
-    && new Set(addresseeIds).size === addresseeIds.length
-  const validAddressing = (scope === 'direct' || scope === 'private')
-    ? recipients.length > 0
-    : recipients.length === 0
-  const validOptionalText = (value: WorldJsonValue): boolean => value === null
-    || (typeof value === 'string' && value.length > 0 && value.trim() === value)
-  if ((segments === undefined && (!validText || !validNarration)) || !validScope || !validAddressees || !validAddressing
-    || !validOptionalText(replyTo) || !validOptionalText(declaredSpeechAct)) {
+  const validAddressees =
+    Array.isArray(addresseeIds) &&
+    addresseeIds.every(
+      value =>
+        typeof value === 'string' &&
+        value !== characterId &&
+        manifest.characters.some(character => character.characterId === value),
+    ) &&
+    new Set(addresseeIds).size === addresseeIds.length
+  const validAddressing = scope === 'direct' || scope === 'private' ? recipients.length > 0 : recipients.length === 0
+  const validOptionalText = (value: WorldJsonValue): boolean =>
+    value === null || (typeof value === 'string' && value.length > 0 && value.trim() === value)
+  if (
+    (segments === undefined && (!validText || !validNarration)) ||
+    !validScope ||
+    !validAddressees ||
+    !validAddressing ||
+    !validOptionalText(replyTo) ||
+    !validOptionalText(declaredSpeechAct)
+  ) {
     return rejectRulebookResolution(characterId, 'speak', 'speak parameters are invalid for Manifest v4')
   }
   if (scope === 'direct' || scope === 'private') {
-    const scene = currentSceneDecisionStates(events).find(value => value.lifecycle === 'active'
-      && value.participantIds.some(id => id === characterId))
+    const scene = currentSceneDecisionStates(events).find(
+      value => value.lifecycle === 'active' && value.participantIds.some(id => id === characterId),
+    )
     const present = new Set<string>(scene === undefined ? [] : sceneObserverIds(events, scene))
     if (recipients.some(id => typeof id !== 'string' || !present.has(id))) {
-      return { ...rejectRulebookResolution(characterId, 'speak', 'SPEECH_RECIPIENT_UNREACHABLE'),
-        observationScope: { scope: 'self' } }
+      return {
+        ...rejectRulebookResolution(characterId, 'speak', 'SPEECH_RECIPIENT_UNREACHABLE'),
+        observationScope: { scope: 'self' },
+      }
     }
   }
   return {
     status: 'accepted',
-    events: [{
-      eventType: 'character.speak', eventVersion: 1,
-      data: { characterId, ...(segments === undefined ? { text: text!, ...(narration === undefined ? {} : { narration }) } : { segments }),
-        addresseeIds: recipients, scope, replyTo, declaredSpeechAct },
-    }],
+    events: [
+      {
+        eventType: 'character.speak',
+        eventVersion: 1,
+        data: {
+          characterId,
+          ...(segments === undefined
+            ? { text: text!, ...(narration === undefined ? {} : { narration }) }
+            : { segments }),
+          addresseeIds: recipients,
+          scope,
+          replyTo,
+          declaredSpeechAct,
+        },
+      },
+    ],
     observationScope: {
       scope,
       ...(scope === 'direct' || scope === 'private' ? { recipientIds: recipients as readonly string[] } : {}),
@@ -224,13 +280,22 @@ export class SpeakMoveRulebook {
       return rejectRulebookResolution(characterId, action.actionType, 'the shared Rulebook only serves Manifest v10')
     }
     const lifecycle = currentCharacterLifecycle(events, characterId)
-    if (lifecycle !== 'active') return rejectRulebookResolution(characterId, action.actionType, `character lifecycle ${lifecycle ?? 'missing'} cannot act`)
+    if (lifecycle !== 'active')
+      return rejectRulebookResolution(
+        characterId,
+        action.actionType,
+        `character lifecycle ${lifecycle ?? 'missing'} cannot act`,
+      )
     if (action.actionType === 'interact' || action.actionType === 'take') {
-      return rejectRulebookResolution(characterId, action.actionType, 'Manifest v10 resolves interact and take through the frozen interaction path')
+      return rejectRulebookResolution(
+        characterId,
+        action.actionType,
+        'Manifest v10 resolves interact and take through the frozen interaction path',
+      )
     }
     const parameters = worldJsonObject(action.parameters)
     if (action.actionType === 'speak') {
-      return resolveSpeech(manifest, events, characterId, parameters,maximumCharacters)
+      return resolveSpeech(manifest, events, characterId, parameters, maximumCharacters)
     }
     if (action.actionType === 'move') {
       const target = parameters?.locationId
@@ -238,7 +303,8 @@ export class SpeakMoveRulebook {
         return rejectRulebookResolution(characterId, action.actionType, 'move target is not a manifest location')
       }
       const from = currentLocation(events, characterId)
-      if (from === target) return rejectRulebookResolution(characterId, action.actionType, 'character is already at the target location')
+      if (from === target)
+        return rejectRulebookResolution(characterId, action.actionType, 'character is already at the target location')
       const moveEvent: WorldEventDraft = {
         eventType: 'character.moved',
         eventVersion: 1,
@@ -259,7 +325,9 @@ export class SpeakMoveRulebook {
     action: PlayerActionInput,
     maximumCharacters = 2000,
   ): RulebookResolution {
-    return this.resolveSupported(manifest, events, characterId, action,maximumCharacters)
-      ?? rejectRulebookResolution(characterId, action.actionType, 'action type is not afforded by the V0 Rulebook')
+    return (
+      this.resolveSupported(manifest, events, characterId, action, maximumCharacters) ??
+      rejectRulebookResolution(characterId, action.actionType, 'action type is not afforded by the V0 Rulebook')
+    )
   }
 }
