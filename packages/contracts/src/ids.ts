@@ -25,14 +25,17 @@ export function brandId<Name extends string>(value: string, name: Name): Branded
 
 /** Validate protocol routing, idempotency, audit, and authority strings without restricting Unicode text content. */
 export function assertProtocolString(value: string, name: string): string {
-  if (value.length === 0 || value.trim() !== value) {
-    throw new TypeError(`${name} must be a non-empty, unpadded string`)
-  }
+  const problem = protocolStringProblem(value)
+  if (problem !== undefined) throw new TypeError(`${name} ${problem}`)
+  return value
+}
+
+/** Why a string is not a protocol string, or undefined when it is one. */
+export function protocolStringProblem(value: string): string | undefined {
+  if (value.length === 0 || value.trim() !== value) return 'must be a non-empty, unpadded string'
   for (let index = 0; index < value.length; index += 1) {
     const codeUnit = value.charCodeAt(index)
-    if (codeUnit <= 0x1f || codeUnit === 0x7f) {
-      throw new TypeError(`${name} must not contain ASCII control characters`)
-    }
+    if (codeUnit <= 0x1f || codeUnit === 0x7f) return 'must not contain ASCII control characters'
   }
-  return value
+  return undefined
 }

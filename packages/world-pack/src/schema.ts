@@ -12,11 +12,16 @@ import {
   GOAL_STATUSES,
   OPEN_LOOP_KINDS,
   OPEN_LOOP_STATUSES,
-  assertProtocolString,
   brandId,
   canonicalizeWorldJson,
   compareWorldText,
   hashWorldJson,
+  jsonArrayAt,
+  jsonHashAt,
+  jsonKeysAt,
+  jsonObjectAt,
+  jsonTextAt,
+  jsonUniqueAt,
   RUNTIME_REGISTRY_LOCKS,
   BASIC_VOCABULARY_LOCKS,
   RELATIONSHIP_STATUSES,
@@ -34,11 +39,12 @@ import {
   type WorldHash,
   type WorldJsonObject,
   type WorldJsonValue,
+  type UntrustedJsonFail,
+  type UntrustedJsonFailure,
 } from '@harness-world/contracts'
 import {
   WORLD_PACK_CORE_PROFILES,
   WORLD_PACK_CHARACTER_LIFECYCLES_V2,
-  WORLD_PACK_CHARACTERS_SCHEMA_VERSION_V2,
   WORLD_PACK_COGNITION_SCHEMA_VERSION_V2,
   WORLD_PACK_COMPILER_ID,
   WORLD_PACK_LIMITS_PROFILE_V2,
@@ -67,7 +73,6 @@ import {
   type WorldPackAssertionsSource,
   type WorldPackAssetLock,
   type WorldPackCharacterSourceV2,
-  type WorldPackCharactersSourceV2,
   type WorldPackCharacterCognitionSourceV2,
   type WorldPackClaimSourceV2,
   type WorldPackCognitionSourceV2,
@@ -110,7 +115,6 @@ import {
 import { failWorldPackContract, type WorldPackDiagnosticCode } from './diagnostics.ts'
 
 const EXACT_SEMVER = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/u
-const WORLD_HASH = /^sha256:[0-9a-f]{64}$/u
 const KIBIBYTE = 1024
 const MEBIBYTE = 1024 * KIBIBYTE
 // Each document is its own Markdown file, so the file limit follows the document limit.
@@ -136,6 +140,17 @@ function pointer(base: string, field: string | number): string {
   return `${base}/${token}`
 }
 
+const PACK_FAILURE_CODES: { readonly [Failure in UntrustedJsonFailure]: WorldPackDiagnosticCode } = {
+  invalid: 'PACK_SOURCE_INVALID',
+  unknown_field: 'PACK_UNKNOWN_FIELD',
+  missing_field: 'PACK_SOURCE_INVALID',
+  duplicate: 'PACK_DUPLICATE_ID',
+}
+
+function packFail(file: string): UntrustedJsonFail {
+  return (failure, at, message) => failWorldPackContract(PACK_FAILURE_CODES[failure], file, at, message)
+}
+
 function checkWorldJson(input: unknown, file: string, maximumBytes: number): void {
   let byteLength: number
   try {
@@ -149,10 +164,7 @@ function checkWorldJson(input: unknown, file: string, maximumBytes: number): voi
 }
 
 function objectAt(value: unknown, file: string, at: string): Record<string, unknown> {
-  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
-    failWorldPackContract('PACK_SOURCE_INVALID', file, at, 'must be an object')
-  }
-  return value as Record<string, unknown>
+  return jsonObjectAt(value, at, packFail(file))
 }
 
 function exactKeys(
@@ -162,18 +174,11 @@ function exactKeys(
   file: string,
   at: string,
 ): void {
-  const allowed = new Set([...required, ...optional])
-  for (const key of Object.keys(value)) {
-    if (!allowed.has(key)) failWorldPackContract('PACK_UNKNOWN_FIELD', file, pointer(at, key), 'is not allowed')
-  }
-  for (const key of required) {
-    if (!Object.hasOwn(value, key)) failWorldPackContract('PACK_SOURCE_INVALID', file, pointer(at, key), 'is required')
-  }
+  jsonKeysAt(value, at, required, { optional, fail: packFail(file), child: pointer })
 }
 
 function arrayAt(value: unknown, file: string, at: string): readonly unknown[] {
-  if (!Array.isArray(value)) failWorldPackContract('PACK_SOURCE_INVALID', file, at, 'must be an array')
-  return value
+  return jsonArrayAt(value, at, packFail(file))
 }
 
 function stringAt(value: unknown, file: string, at: string): string {
@@ -182,12 +187,7 @@ function stringAt(value: unknown, file: string, at: string): string {
 }
 
 function textAt(value: unknown, file: string, at: string): string {
-  const text = stringAt(value, file, at)
-  try {
-    return assertProtocolString(text, at)
-  } catch (error) {
-    failWorldPackContract('PACK_SOURCE_INVALID', file, at, String(error))
-  }
+  return jsonTextAt(value, at, packFail(file))
 }
 
 function textOrEmptyAt(value: unknown, file: string, at: string): string {
@@ -242,15 +242,11 @@ function semverAt(value: unknown, file: string, at: string): string {
 }
 
 function hashAt(value: unknown, file: string, at: string): WorldHash {
-  const hash = textAt(value, file, at)
-  if (!WORLD_HASH.test(hash)) failWorldPackContract('PACK_SOURCE_INVALID', file, at, 'must be a lowercase sha256 hash')
-  return hash as WorldHash
+  return jsonHashAt(value, at, packFail(file))
 }
 
 function unique(values: readonly string[], file: string, at: string): void {
-  if (new Set(values).size !== values.length) {
-    failWorldPackContract('PACK_DUPLICATE_ID', file, at, 'contains duplicate values')
-  }
+  jsonUniqueAt(values, at, packFail(file))
 }
 
 function nonEmpty(values: readonly unknown[], file: string, at: string): void {

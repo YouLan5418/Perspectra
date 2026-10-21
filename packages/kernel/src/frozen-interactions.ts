@@ -15,6 +15,7 @@ import {
   ACTION_GROUP_CUES,
   type ActionGroupCue,
   brandId,
+  hasExactKeys,
   type InteractionRoundId,
   type InteractionPerformanceAcceptance,
 } from '@harness-world/contracts'
@@ -67,9 +68,6 @@ function text(value: unknown): string | undefined {
   return typeof value === 'string' && value.length > 0 && value.trim() === value ? value : undefined
 }
 
-function exactKeys(value: Record<string, WorldJsonValue>, keys: readonly string[]): boolean {
-  return Object.keys(value).sort(compareWorldText).join(',') === [...keys].sort(compareWorldText).join(',')
-}
 
 /** The candidate prefix is identified by its own contents, never by where it happens to sit. */
 function candidatePrefixHash(events: readonly RulebookEvent[]): WorldHash {
@@ -195,7 +193,7 @@ function frozenRequest(
   // carry at all; whether this definition accepts them is the runtime's decision against its own locked
   // policy, which comes back as a refusal rather than an exception.
   const required = ['targetRef', 'bindingId', 'definitionRef', 'arguments']
-  if (row === undefined || !exactKeys(row, Object.hasOwn(row, 'performance') ? [...required, 'performance'] : required)) {
+  if (row === undefined || !hasExactKeys(row, Object.hasOwn(row, 'performance') ? [...required, 'performance'] : required)) {
     return { reason: 'INVALID_INTERACTION_PARAMETERS' }
   }
   const performance = row.performance === undefined ? undefined : stepCues(row.performance)
@@ -209,7 +207,7 @@ function frozenRequest(
   const targetRef = worldJsonObject(row.targetRef as WorldJsonValue)
   const kind = targetRef === undefined ? undefined : targetRef.kind
   const id = targetRef === undefined ? undefined : text(targetRef.id)
-  if (targetRef === undefined || !exactKeys(targetRef, ['kind', 'id'])
+  if (targetRef === undefined || !hasExactKeys(targetRef, ['kind', 'id'])
     || (kind !== 'entity' && kind !== 'character' && kind !== 'relation') || id === undefined) {
     return { reason: 'INVALID_INTERACTION_PARAMETERS' }
   }
@@ -227,7 +225,7 @@ function frozenRequest(
     return { reason: 'INVALID_INTERACTION_PARAMETERS' }
   }
   const definitionRef = worldJsonObject(row.definitionRef as WorldJsonValue)
-  if (definitionRef === undefined || !exactKeys(definitionRef, ['id', 'version'])
+  if (definitionRef === undefined || !hasExactKeys(definitionRef, ['id', 'version'])
     || definitionRef.id !== binding.definitionRef.id || definitionRef.version !== binding.definitionRef.version) {
     return { reason: 'INVALID_INTERACTION_PARAMETERS' }
   }
@@ -251,7 +249,7 @@ function frozenRequest(
  */
 function stepCues(value: WorldJsonValue): { readonly independent: readonly ActionGroupCue[]; readonly onSuccess: readonly ActionGroupCue[] } | undefined {
   const row = worldJsonObject(value)
-  if (row === undefined || !exactKeys(row, ['independent', 'onSuccess'])) return undefined
+  if (row === undefined || !hasExactKeys(row, ['independent', 'onSuccess'])) return undefined
   const read = (input: WorldJsonValue): readonly ActionGroupCue[] | undefined => {
     if (!Array.isArray(input) || input.length > 8) return undefined
     const codes: ActionGroupCue[] = []

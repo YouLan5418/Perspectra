@@ -498,20 +498,20 @@ describe('Manifest v10 binding for a compiled worldpack/v5', () => {
     }))).toThrow(/outside the frozen selection budget/u)
     expect(() => runtimeManifestFromStored(stored(draft => {
       selection(draft).packages = [definitionLock(), definitionLock()]
-    }))).toThrow(/duplicate identifiers/u)
+    }))).toThrow(/contains duplicate values/u)
     expect(() => runtimeManifestFromStored(stored(draft => {
       selection(draft).packages = [{ ...definitionLock(), extra: true }]
-    }))).toThrow(/missing or unknown fields/u)
+    }))).toThrow(/is not allowed|is required/u)
     expect(() => runtimeManifestFromStored(stored(draft => {
       selection(draft).packages = [definitionLock({ dependencies: [{ id: 'package:x', version: 1 }, { id: 'package:x', version: 1 }] })]
-    }))).toThrow(/duplicate identifiers/u)
+    }))).toThrow(/contains duplicate values/u)
     expect(() => runtimeManifestFromStored(stored(draft => {
       selection(draft).packages = [definitionLock({ ref: { id: 'package:x', version: 0 } })]
     }))).toThrow(/positive safe integer/u)
     expect(() => runtimeManifestFromStored(stored(draft => {
       const definitions = selection(draft).definitions as Record<string, unknown>[]
       definitions[0]!.extra = true
-    }))).toThrow(/missing or unknown fields/u)
+    }))).toThrow(/is not allowed|is required/u)
     expect(() => runtimeManifestFromStored(stored(draft => {
       selection(draft).definitions = Array.from({ length: 129 }, (_, index) => ({
         ref: { id: `base:d${index}`, version: 1 }, definitionHash: `sha256:${'b'.repeat(64)}`, implementationHash: `sha256:${'c'.repeat(64)}`,
@@ -520,7 +520,7 @@ describe('Manifest v10 binding for a compiled worldpack/v5', () => {
     expect(() => runtimeManifestFromStored(stored(draft => {
       const definitions = selection(draft).definitions as Record<string, unknown>[]
       definitions[1] = { ...definitions[0]! }
-    }))).toThrow(/duplicate identifiers/u)
+    }))).toThrow(/contains duplicate values/u)
     expect(() => runtimeManifestFromStored(stored(draft => {
       const bindings = selection(draft).bindings as Record<string, unknown>[]
       bindings[0]!.targetRef = { kind: 'unknown', id: 'entity:ticket-bundle' }
@@ -550,7 +550,7 @@ describe('Manifest v10 binding for a compiled worldpack/v5', () => {
     expect(() => runtimeManifestFromStored(stored(draft => {
       const bindings = selection(draft).bindings as Record<string, unknown>[]
       bindings[1]!.bindingId = bindings[0]!.bindingId
-    }))).toThrow(/duplicate identifiers/u)
+    }))).toThrow(/contains duplicate values/u)
     expect(() => runtimeManifestFromStored(stored(draft => {
       selection(draft).bindings = Array.from({ length: 4097 }, (_, index) => ({
         bindingId: `binding:b${index}`, targetRef: { kind: 'entity', id: 'entity:ticket-bundle' },
@@ -558,7 +558,7 @@ describe('Manifest v10 binding for a compiled worldpack/v5', () => {
       }))
     }))).toThrow(/outside the frozen selection budget/u)
     expect(() => runtimeManifestFromStored(stored(draft => { selection(draft).extra = true })))
-      .toThrow(/missing or unknown fields/u)
+      .toThrow(/is not allowed|is required/u)
   }, 60_000)
 
   it('reaches the v10 binding through the shared tooling entry point', async () => {

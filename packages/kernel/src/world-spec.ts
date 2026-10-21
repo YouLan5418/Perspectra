@@ -1,5 +1,11 @@
 import {
   canonicalizeWorldJson,
+  jsonArrayAt,
+  jsonHashAt,
+  jsonKeysAt,
+  jsonObjectAt,
+  jsonTextAt,
+  jsonUniqueAt,
   compareWorldText,
   hashWorldJson,
   RUNTIME_REGISTRY_LOCKS,
@@ -169,85 +175,85 @@ export interface CompiledWorldSpec {
 /** Validate a stored Manifest before opening its runtime view. */
 export function runtimeManifestFromStored(value: WorldJsonValue): CompiledWorldManifestV10 {
   canonicalizeWorldJson(value)
-  const root = objectAt(value, 'StoredWorldManifest')
+  const root = jsonObjectAt(value, 'StoredWorldManifest')
   if (root.schemaVersion !== 10) throw new TypeError('stored Manifest schemaVersion is unsupported')
-  const policy = objectAt(root.actionGroupPolicy, 'actionGroupPolicy')
-  exactKeys(policy, ['version'], 'actionGroupPolicy')
+  const policy = jsonObjectAt(root.actionGroupPolicy, 'actionGroupPolicy')
+  jsonKeysAt(policy, 'actionGroupPolicy', ['version'])
   if (policy.version !== 'bounded-action-group/v2') throw new TypeError('unsupported action group policy')
-  if (objectAt(root.manifestationPolicy, 'manifestationPolicy').mode !== 'enabled') {
+  if (jsonObjectAt(root.manifestationPolicy, 'manifestationPolicy').mode !== 'enabled') {
     throw new TypeError('action groups require manifestation enabled')
   }
   parseStoredInteractionSelection(root)
   if (Object.hasOwn(root, 'playerInputPolicy')) parsePlayerInputPolicy(root.playerInputPolicy)
-  const runtimePolicy = objectAt(root.runtimePolicy, 'StoredWorldManifest.runtimePolicy')
-  exactKeys(runtimePolicy, ['npcInitialAvailability', 'playerInitialAvailability'], 'StoredWorldManifest.runtimePolicy')
+  const runtimePolicy = jsonObjectAt(root.runtimePolicy, 'StoredWorldManifest.runtimePolicy')
+  jsonKeysAt(runtimePolicy, 'StoredWorldManifest.runtimePolicy', ['npcInitialAvailability', 'playerInitialAvailability'])
   if (runtimePolicy.npcInitialAvailability !== 'provisioning' && runtimePolicy.npcInitialAvailability !== 'ready') {
     throw new TypeError('stored Manifest npcInitialAvailability is invalid')
   }
   if (runtimePolicy.playerInitialAvailability !== 'ready') throw new TypeError('stored Manifest playerInitialAvailability is invalid')
-  arrayAt(root.locations, 'StoredWorldManifest.locations')
-  arrayAt(root.characters, 'StoredWorldManifest.characters')
-  arrayAt(root.playerBindings, 'StoredWorldManifest.playerBindings')
+  jsonArrayAt(root.locations, 'StoredWorldManifest.locations')
+  jsonArrayAt(root.characters, 'StoredWorldManifest.characters')
+  jsonArrayAt(root.playerBindings, 'StoredWorldManifest.playerBindings')
   {
-    const contentPack = objectAt(root.contentPack, 'StoredWorldManifest.contentPack')
-    exactKeys(contentPack, [
+    const contentPack = jsonObjectAt(root.contentPack, 'StoredWorldManifest.contentPack')
+    jsonKeysAt(contentPack, 'StoredWorldManifest.contentPack', [
       'schemaVersion', 'packId', 'packVersion', 'packHash', 'compiler', 'pluginLocks', 'vocabularyLocks',
       'registryLocks', 'runtimeCapabilities', 'presentation', 'initialFacts', 'memory', 'documents', 'markdown',
-    ], 'StoredWorldManifest.contentPack')
+    ])
     if (contentPack.schemaVersion !== 2) throw new TypeError('stored Manifest contentPack schemaVersion is unsupported')
-    textAt(contentPack.packId, 'StoredWorldManifest.contentPack.packId')
-    textAt(contentPack.packVersion, 'StoredWorldManifest.contentPack.packVersion')
-    hashAt(contentPack.packHash, 'StoredWorldManifest.contentPack.packHash')
-    const compiler = objectAt(contentPack.compiler, 'StoredWorldManifest.contentPack.compiler')
-    exactKeys(compiler, ['id', 'version', 'contractVersion', 'canonicalJsonVersion', 'limitsProfile'], 'StoredWorldManifest.contentPack.compiler')
+    jsonTextAt(contentPack.packId, 'StoredWorldManifest.contentPack.packId')
+    jsonTextAt(contentPack.packVersion, 'StoredWorldManifest.contentPack.packVersion')
+    jsonHashAt(contentPack.packHash, 'StoredWorldManifest.contentPack.packHash')
+    const compiler = jsonObjectAt(contentPack.compiler, 'StoredWorldManifest.contentPack.compiler')
+    jsonKeysAt(compiler, 'StoredWorldManifest.contentPack.compiler', ['id', 'version', 'contractVersion', 'canonicalJsonVersion', 'limitsProfile'])
     for (const field of ['id', 'version', 'contractVersion', 'canonicalJsonVersion', 'limitsProfile'] as const) {
-      textAt(compiler[field], `StoredWorldManifest.contentPack.compiler.${field}`)
+      jsonTextAt(compiler[field], `StoredWorldManifest.contentPack.compiler.${field}`)
     }
     if (compiler.canonicalJsonVersion !== 'world-json/v1') throw new TypeError('stored Manifest contentPack compiler canonicalJsonVersion is unsupported')
-    const locks = arrayAt(contentPack.pluginLocks, 'StoredWorldManifest.contentPack.pluginLocks').map((value, index) => {
+    const locks = jsonArrayAt(contentPack.pluginLocks, 'StoredWorldManifest.contentPack.pluginLocks').map((value, index) => {
       const path = `StoredWorldManifest.contentPack.pluginLocks[${index}]`
-      const lock = objectAt(value, path)
-      exactKeys(lock, ['kind', 'id', 'version', 'pluginHash'], path)
+      const lock = jsonObjectAt(value, path)
+      jsonKeysAt(lock, path, ['kind', 'id', 'version', 'pluginHash'])
       return {
-        kind: textAt(lock.kind, `${path}.kind`),
-        id: textAt(lock.id, `${path}.id`),
-        version: textAt(lock.version, `${path}.version`),
-        pluginHash: hashAt(lock.pluginHash, `${path}.pluginHash`),
+        kind: jsonTextAt(lock.kind, `${path}.kind`),
+        id: jsonTextAt(lock.id, `${path}.id`),
+        version: jsonTextAt(lock.version, `${path}.version`),
+        pluginHash: jsonHashAt(lock.pluginHash, `${path}.pluginHash`),
       }
     })
-    unique(locks.map(lock => lock.kind), 'StoredWorldManifest.contentPack.pluginLocks')
-    const capabilities = objectAt(contentPack.runtimeCapabilities, 'StoredWorldManifest.contentPack.runtimeCapabilities')
-    exactKeys(capabilities, [
+    jsonUniqueAt(locks.map(lock => lock.kind), 'StoredWorldManifest.contentPack.pluginLocks')
+    const capabilities = jsonObjectAt(contentPack.runtimeCapabilities, 'StoredWorldManifest.contentPack.runtimeCapabilities')
+    jsonKeysAt(capabilities, 'StoredWorldManifest.contentPack.runtimeCapabilities', [
       'publicSpeechObservationVersion', 'cognitionProjectionVersion', 'sceneDecisionVersion',
       'cognitiveMemoryVersion', 'agentContextVersion',
-    ], 'StoredWorldManifest.contentPack.runtimeCapabilities')
+    ])
     if (capabilities.publicSpeechObservationVersion !== 1) throw new TypeError('stored Manifest publicSpeechObservationVersion is unsupported')
     if (capabilities.cognitionProjectionVersion !== 1 || capabilities.sceneDecisionVersion !== 2
       || capabilities.cognitiveMemoryVersion !== 2 || capabilities.agentContextVersion !== 2) {
       throw new TypeError('stored Manifest Phase 8 runtime capability is unsupported')
     }
-    const presentation = objectAt(contentPack.presentation, 'StoredWorldManifest.contentPack.presentation')
-    exactKeys(presentation, ['schemaVersion', 'locale', 'style'], 'StoredWorldManifest.contentPack.presentation')
+    const presentation = jsonObjectAt(contentPack.presentation, 'StoredWorldManifest.contentPack.presentation')
+    jsonKeysAt(presentation, 'StoredWorldManifest.contentPack.presentation', ['schemaVersion', 'locale', 'style'])
     if (presentation.schemaVersion !== 'worldpack-presentation/v1') throw new TypeError('stored Manifest presentation schemaVersion is unsupported')
     if (presentation.locale !== 'en' && presentation.locale !== 'zh-CN') throw new TypeError('stored Manifest presentation locale is unsupported')
     if (presentation.style !== 'plain') throw new TypeError('stored Manifest presentation style is unsupported')
-    const facts = arrayAt(contentPack.initialFacts, 'StoredWorldManifest.contentPack.initialFacts')
+    const facts = jsonArrayAt(contentPack.initialFacts, 'StoredWorldManifest.contentPack.initialFacts')
     const factIds = facts.map((value, index) => {
       const path = `StoredWorldManifest.contentPack.initialFacts[${index}]`
-      const fact = objectAt(value, path)
-      exactKeys(fact, ['factId', 'proposition', 'initialAudience'], path)
-      const audience = arrayAt(fact.initialAudience, `${path}.initialAudience`).map((entry, audienceIndex) => (
-        textAt(entry, `${path}.initialAudience[${audienceIndex}]`)
+      const fact = jsonObjectAt(value, path)
+      jsonKeysAt(fact, path, ['factId', 'proposition', 'initialAudience'])
+      const audience = jsonArrayAt(fact.initialAudience, `${path}.initialAudience`).map((entry, audienceIndex) => (
+        jsonTextAt(entry, `${path}.initialAudience[${audienceIndex}]`)
       ))
-      unique(audience, `${path}.initialAudience`)
-      return textAt(fact.factId, `${path}.factId`)
+      jsonUniqueAt(audience, `${path}.initialAudience`)
+      return jsonTextAt(fact.factId, `${path}.factId`)
     })
-    unique(factIds, 'StoredWorldManifest.contentPack.initialFacts')
+    jsonUniqueAt(factIds, 'StoredWorldManifest.contentPack.initialFacts')
     exactLockedArray(contentPack.vocabularyLocks, BASIC_VOCABULARY_LOCKS, 'StoredWorldManifest.contentPack.vocabularyLocks')
     exactLockedArray(contentPack.registryLocks, RUNTIME_REGISTRY_LOCKS, 'StoredWorldManifest.contentPack.registryLocks')
-    arrayAt(contentPack.memory, 'StoredWorldManifest.contentPack.memory')
-    arrayAt(contentPack.documents, 'StoredWorldManifest.contentPack.documents')
-    arrayAt(contentPack.markdown, 'StoredWorldManifest.contentPack.markdown')
+    jsonArrayAt(contentPack.memory, 'StoredWorldManifest.contentPack.memory')
+    jsonArrayAt(contentPack.documents, 'StoredWorldManifest.contentPack.documents')
+    jsonArrayAt(contentPack.markdown, 'StoredWorldManifest.contentPack.markdown')
   }
   parseReactionPolicy(root.reactionPolicy)
   parseManifestationPolicy(root.manifestationPolicy)
@@ -256,22 +262,22 @@ export function runtimeManifestFromStored(value: WorldJsonValue): CompiledWorldM
 
 /** Definition and package identity is an id plus a positive integer version, never a label. */
 function referenceAt(value: unknown, path: string): InteractionRef {
-  const row = objectAt(value, path)
-  exactKeys(row, ['id', 'version'], path)
+  const row = jsonObjectAt(value, path)
+  jsonKeysAt(row, path, ['id', 'version'])
   const version = row.version
   if (!Number.isSafeInteger(version) || (version as number) < 1) throw new TypeError(`${path}.version must be a positive safe integer`)
-  return { id: textAt(row.id, `${path}.id`), version: version as number }
+  return { id: jsonTextAt(row.id, `${path}.id`), version: version as number }
 }
 
 function implementationLockAt(value: unknown, path: string): InteractionImplementationLock {
-  const row = objectAt(value, path)
-  exactKeys(row, ['ref', 'implementationHash', 'dependencies'], path)
-  const dependencies = arrayAt(row.dependencies, `${path}.dependencies`)
+  const row = jsonObjectAt(value, path)
+  jsonKeysAt(row, path, ['ref', 'implementationHash', 'dependencies'])
+  const dependencies = jsonArrayAt(row.dependencies, `${path}.dependencies`)
     .map((entry, index) => referenceAt(entry, `${path}.dependencies[${index}]`))
-  unique(dependencies.map(entry => `${entry.id}@${entry.version}`), `${path}.dependencies`)
+  jsonUniqueAt(dependencies.map(entry => `${entry.id}@${entry.version}`), `${path}.dependencies`)
   return {
     ref: referenceAt(row.ref, `${path}.ref`),
-    implementationHash: hashAt(row.implementationHash, `${path}.implementationHash`),
+    implementationHash: jsonHashAt(row.implementationHash, `${path}.implementationHash`),
     dependencies,
   }
 }
@@ -289,41 +295,41 @@ const MAXIMUM_STORED_INTERACTION_BINDINGS = 4096
  */
 function parseStoredInteractionSelection(root: Record<string, unknown>): void {
   const path = 'StoredWorldManifest.interactionCatalog'
-  const catalog = objectAt(root.interactionCatalog, path)
-  exactKeys(catalog, ['version', 'packages', 'definitions', 'bindings'], path)
+  const catalog = jsonObjectAt(root.interactionCatalog, path)
+  jsonKeysAt(catalog, path, ['version', 'packages', 'definitions', 'bindings'])
   if (catalog.version !== 'interaction-catalog/v3') throw new TypeError('Manifest v10 requires interaction-catalog/v3')
-  const packages = arrayAt(catalog.packages, `${path}.packages`)
+  const packages = jsonArrayAt(catalog.packages, `${path}.packages`)
     .map((entry, index) => implementationLockAt(entry, `${path}.packages[${index}]`))
   if (packages.length === 0 || packages.length > MAXIMUM_STORED_INTERACTION_PACKAGES) throw new TypeError(`${path}.packages is outside the frozen selection budget`)
-  unique(packages.map(entry => `${entry.ref.id}@${entry.ref.version}`), `${path}.packages`)
-  const definitions = arrayAt(catalog.definitions, `${path}.definitions`).map((entry, index) => {
+  jsonUniqueAt(packages.map(entry => `${entry.ref.id}@${entry.ref.version}`), `${path}.packages`)
+  const definitions = jsonArrayAt(catalog.definitions, `${path}.definitions`).map((entry, index) => {
     const at = `${path}.definitions[${index}]`
-    const row = objectAt(entry, at)
-    exactKeys(row, ['ref', 'definitionHash', 'implementationHash'], at)
+    const row = jsonObjectAt(entry, at)
+    jsonKeysAt(row, at, ['ref', 'definitionHash', 'implementationHash'])
     return {
       ref: referenceAt(row.ref, `${at}.ref`),
-      definitionHash: hashAt(row.definitionHash, `${at}.definitionHash`),
-      implementationHash: hashAt(row.implementationHash, `${at}.implementationHash`),
+      definitionHash: jsonHashAt(row.definitionHash, `${at}.definitionHash`),
+      implementationHash: jsonHashAt(row.implementationHash, `${at}.implementationHash`),
     }
   })
   if (definitions.length > MAXIMUM_STORED_INTERACTION_DEFINITIONS) throw new TypeError(`${path}.definitions is outside the frozen selection budget`)
-  unique(definitions.map(entry => `${entry.ref.id}@${entry.ref.version}`), `${path}.definitions`)
+  jsonUniqueAt(definitions.map(entry => `${entry.ref.id}@${entry.ref.version}`), `${path}.definitions`)
   const enabled = new Set(definitions.map(entry => `${entry.ref.id}@${entry.ref.version}`))
   const enabledIds = new Set(definitions.map(entry => entry.ref.id))
-  const entityIds = new Set(arrayAt(root.entities, 'StoredWorldManifest.entities')
-    .map(value => textAt(objectAt(value, 'StoredWorldManifest.entity').entityId, 'StoredWorldManifest.entity.entityId')))
-  const characterIds = new Set(arrayAt(root.characters, 'StoredWorldManifest.characters')
-    .map(value => textAt(objectAt(value, 'StoredWorldManifest.character').characterId, 'StoredWorldManifest.character.characterId')))
-  const bindings = arrayAt(catalog.bindings, `${path}.bindings`).map((entry, index): InteractionBindingV3 => {
+  const entityIds = new Set(jsonArrayAt(root.entities, 'StoredWorldManifest.entities')
+    .map(value => jsonTextAt(jsonObjectAt(value, 'StoredWorldManifest.entity').entityId, 'StoredWorldManifest.entity.entityId')))
+  const characterIds = new Set(jsonArrayAt(root.characters, 'StoredWorldManifest.characters')
+    .map(value => jsonTextAt(jsonObjectAt(value, 'StoredWorldManifest.character').characterId, 'StoredWorldManifest.character.characterId')))
+  const bindings = jsonArrayAt(catalog.bindings, `${path}.bindings`).map((entry, index): InteractionBindingV3 => {
     const at = `${path}.bindings[${index}]`
-    const row = objectAt(entry, at)
-    exactKeys(row, ['bindingId', 'targetRef', 'definitionRef', 'config'], at)
-    const targetRow = objectAt(row.targetRef, `${at}.targetRef`)
-    exactKeys(targetRow, ['kind', 'id'], `${at}.targetRef`)
+    const row = jsonObjectAt(entry, at)
+    jsonKeysAt(row, at, ['bindingId', 'targetRef', 'definitionRef', 'config'])
+    const targetRow = jsonObjectAt(row.targetRef, `${at}.targetRef`)
+    jsonKeysAt(targetRow, `${at}.targetRef`, ['kind', 'id'])
     if (targetRow.kind !== 'entity' && targetRow.kind !== 'character' && targetRow.kind !== 'relation') {
       throw new TypeError(`${at}.targetRef.kind is unknown`)
     }
-    const targetRef: InteractionTargetRef = { kind: targetRow.kind, id: textAt(targetRow.id, `${at}.targetRef.id`) }
+    const targetRef: InteractionTargetRef = { kind: targetRow.kind, id: jsonTextAt(targetRow.id, `${at}.targetRef.id`) }
     const definitionRef = referenceAt(row.definitionRef, `${at}.definitionRef`)
     if (!enabled.has(`${definitionRef.id}@${definitionRef.version}`)) throw new TypeError(`${at} references a definition the world did not enable`)
     if (targetRef.kind === 'relation') {
@@ -334,17 +340,17 @@ function parseStoredInteractionSelection(root: Record<string, unknown>): void {
       const declared = targetRef.kind === 'entity' ? entityIds : characterIds
       if (!declared.has(targetRef.id)) throw new TypeError(`${at} names an unknown ${targetRef.kind} target`)
     }
-    const config = objectAt(row.config, `${at}.config`)
+    const config = jsonObjectAt(row.config, `${at}.config`)
     canonicalizeWorldJson(config as WorldJsonValue)
-    return { bindingId: textAt(row.bindingId, `${at}.bindingId`), targetRef, definitionRef, config: config as WorldJsonObject }
+    return { bindingId: jsonTextAt(row.bindingId, `${at}.bindingId`), targetRef, definitionRef, config: config as WorldJsonObject }
   })
   if (bindings.length > MAXIMUM_STORED_INTERACTION_BINDINGS) throw new TypeError(`${path}.bindings is outside the frozen selection budget`)
-  unique(bindings.map(entry => entry.bindingId), `${path}.bindings`)
+  jsonUniqueAt(bindings.map(entry => entry.bindingId), `${path}.bindings`)
 }
 
 function parsePlayerInputPolicy(value: unknown): PlayerInputPolicyV1 {
-  const policy = objectAt(value, 'StoredWorldManifest.playerInputPolicy')
-  exactKeys(policy, ['version'], 'StoredWorldManifest.playerInputPolicy')
+  const policy = jsonObjectAt(value, 'StoredWorldManifest.playerInputPolicy')
+  jsonKeysAt(policy, 'StoredWorldManifest.playerInputPolicy', ['version'])
   if (policy.version !== 'legacy-speech/v1' && policy.version !== 'player-intent/v1') {
     throw new TypeError('stored Manifest playerInputPolicy version is unsupported')
   }
@@ -352,22 +358,22 @@ function parsePlayerInputPolicy(value: unknown): PlayerInputPolicyV1 {
 }
 
 function parseManifestationPolicy(value: unknown): ManifestationPolicyV1 {
-  const policy = objectAt(value, 'StoredWorldManifest.manifestationPolicy')
-  exactKeys(policy, ['version', 'mode'], 'StoredWorldManifest.manifestationPolicy')
+  const policy = jsonObjectAt(value, 'StoredWorldManifest.manifestationPolicy')
+  jsonKeysAt(policy, 'StoredWorldManifest.manifestationPolicy', ['version', 'mode'])
   if (policy.version !== 'manifestation-policy/v1') throw new TypeError('stored Manifest manifestationPolicy version is unsupported')
   if (policy.mode !== 'disabled' && policy.mode !== 'enabled') throw new TypeError('stored Manifest manifestationPolicy mode is unsupported')
   return policy as ManifestationPolicyV1
 }
 
 function parseReactionPolicy(value: unknown): ReactionPolicyV1 {
-  const policy = objectAt(value, 'StoredWorldManifest.reactionPolicy')
+  const policy = jsonObjectAt(value, 'StoredWorldManifest.reactionPolicy')
   if (policy.mode === 'disabled') {
-    exactKeys(policy, ['version', 'mode'], 'StoredWorldManifest.reactionPolicy')
+    jsonKeysAt(policy, 'StoredWorldManifest.reactionPolicy', ['version', 'mode'])
     if (policy.version !== 'reaction-policy/v1') throw new TypeError('stored Manifest reactionPolicy version is unsupported')
     return policy as ReactionPolicyV1
   }
   if (policy.mode === 'responsive') {
-    exactKeys(policy, ['version', 'mode', 'profile'], 'StoredWorldManifest.reactionPolicy')
+    jsonKeysAt(policy, 'StoredWorldManifest.reactionPolicy', ['version', 'mode', 'profile'])
     if (policy.version !== 'reaction-policy/v1') throw new TypeError('stored Manifest reactionPolicy version is unsupported')
     if (policy.profile !== 'responsive/v1' && policy.profile !== 'responsive/v2') throw new TypeError('stored Manifest reactionPolicy profile is unsupported')
     return policy as ReactionPolicyV1
@@ -382,39 +388,14 @@ export function runtimeManifestFromStoredRecord(
   return runtimeManifestFromStored(record.manifest)
 }
 
-function objectAt(value: unknown, path: string): Record<string, unknown> {
-  if (typeof value !== 'object' || value === null || Array.isArray(value)) throw new TypeError(`${path} must be an object`)
-  return value as Record<string, unknown>
-}
 
-function exactKeys(value: Record<string, unknown>, keys: readonly string[], path: string): void {
-  const actual = Object.keys(value).sort(compareWorldText)
-  const expected = [...keys].sort(compareWorldText)
-  if (actual.length !== expected.length || actual.some((key, index) => key !== expected[index])) throw new TypeError(`${path} contains missing or unknown fields`)
-}
 
-function textAt(value: unknown, path: string): string {
-  if (typeof value !== 'string' || value.length === 0 || value.trim() !== value) throw new TypeError(`${path} must be a non-empty, unpadded string`)
-  return value
-}
 
-function hashAt(value: unknown, path: string): WorldHash {
-  const hash = textAt(value, path)
-  if (!/^sha256:[0-9a-f]{64}$/u.test(hash)) throw new TypeError(`${path} must be a lowercase SHA-256 WorldHash`)
-  return hash as WorldHash
-}
 
-function arrayAt(value: unknown, path: string): readonly unknown[] {
-  if (!Array.isArray(value)) throw new TypeError(`${path} must be an array`)
-  return value
-}
 
-function unique(values: readonly string[], path: string): void {
-  if (new Set(values).size !== values.length) throw new TypeError(`${path} contains duplicate identifiers`)
-}
 
 function exactLockedArray(value: unknown, expected: WorldJsonValue, path: string): void {
-  const actual = arrayAt(value, path)
+  const actual = jsonArrayAt(value, path)
   if (!canonicalBytesEqual(actual as WorldJsonValue, expected)) throw new TypeError(`${path} does not match the installed Phase 8 registry`)
 }
 
