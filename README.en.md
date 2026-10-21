@@ -192,7 +192,7 @@ corepack pnpm@11.7.0 check
 corepack pnpm@11.7.0 launcher:check
 ```
 
-Automated checks verify specific mechanism boundaries, not the full quality of real-model play. `launcher:dev` displays a mock UI and cannot start the real Core. The older Electron `desktop` / `desktop:release` entry points remain, but their packaging differs from the Tauri portable candidate.
+Automated checks verify specific mechanism boundaries, not the full quality of real-model play. `launcher:dev` displays a mock UI and cannot start the real Core. The older Electron entry points were removed on 2026-10-21; the Tauri Launcher is the only desktop entry.
 
 | Topic | Document |
 | --- | --- |

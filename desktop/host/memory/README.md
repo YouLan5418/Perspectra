@@ -22,7 +22,7 @@ python -m venv .tmp/hindsight-vector-venv
 
 在源码仓库根目录运行 TypeScript 入口或构建后的 `dist/backend/playtest.mjs` 时，不设置 `PERSPECTRA_RUNTIME_ROOT`，两者均使用源码 Python 目录。便携包设置该变量为 `runtime` 的绝对路径，Python 位于其下 `memory-core/python/{core,bridge}`；Rust 桥和发行验证另行设置包内 Python、模型与缓存目录。运行时身份与 Node worker 共用 [python-paths.ts](python-paths.ts)，缺失 Python 源文件仍直接失败，不因选择原生记忆跳过身份检查。
 
-Electron 的 `desktop:build` 也复制这份 Python 源码到 `dist/backend/memory-core/python`，打包后显式将 `PERSPECTRA_RUNTIME_ROOT` 设置为 `dist/backend`。旧 Electron 入口仍显式使用原生记忆；这一步不打包解释器或 E5，也不表示 Electron 已支持默认 Core 发行。Python 模块内的仓库根目录回退只用于源码布局。
+`desktop:build` 也复制这份 Python 源码到 `dist/backend/memory-core/python`；从该目录运行构建后的后端时将 `PERSPECTRA_RUNTIME_ROOT` 设置为 `dist/backend`。这一步不打包解释器或 E5。Python 模块内的仓库根目录回退只用于源码布局。
 
 历史对照与 Python 回归仍保存在 `experiments/activity-memory`、`experiments/hindsight-core`。从仓库根目录运行其中的离线测试时，显式给出当前实现和历史研究辅助模块的搜索路径：
 

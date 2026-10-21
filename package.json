@@ -3,7 +3,6 @@
   "version": "0.3.1",
   "private": true,
   "type": "module",
-  "main": "dist/desktop/main.mjs",
   "packageManager": "pnpm@11.7.0",
   "engines": {
     "node": "^22.19.0 || >=24.0.0"
@@ -12,14 +11,12 @@
     "typecheck": "tsc --noEmit",
     "lint": "oxlint packages tests desktop vitest.config.ts vitest.regression.config.ts",
     "test": "vitest run --config vitest.regression.config.ts",
-    "desktop:build": "esbuild desktop/main.ts --bundle --platform=node --format=esm --external:electron --outfile=dist/desktop/main.mjs && esbuild desktop/preload.ts --bundle --platform=node --format=cjs --external:electron --outfile=dist/desktop/preload.cjs && esbuild desktop/renderer.ts --bundle --platform=browser --format=iife --outfile=dist/desktop/renderer.js && esbuild desktop/save-preflight-entry.ts --bundle --platform=node --format=esm --target=node24 --external:jieba-wasm --outfile=dist/backend/save-preflight.mjs && esbuild desktop/host/web-entry.ts --bundle --platform=node --format=esm --target=node24 --external:jieba-wasm --outfile=dist/backend/playtest.mjs && node scripts/build/copy-frontend-assets.mjs",
-    "desktop": "corepack pnpm@11.7.0 desktop:build && electron .",
+    "desktop:build": "esbuild desktop/save-preflight-entry.ts --bundle --platform=node --format=esm --target=node24 --external:jieba-wasm --outfile=dist/backend/save-preflight.mjs && esbuild desktop/host/web-entry.ts --bundle --platform=node --format=esm --target=node24 --external:jieba-wasm --outfile=dist/backend/playtest.mjs && node scripts/build/copy-frontend-assets.mjs",
     "worldpack": "node --import tsx packages/world-pack/process/cli-entry.ts",
     "preset:import": "node --import tsx packages/provider-chat/process/tavern-import.ts",
     "experience:web": "node --import tsx desktop/host/web-entry.ts",
     "check": "node scripts/check-host-boundaries.mjs && corepack pnpm@11.7.0 typecheck && corepack pnpm@11.7.0 lint && corepack pnpm@11.7.0 test",
     "test:related": "vitest run --config vitest.config.ts",
-    "desktop:release": "corepack pnpm@11.7.0 desktop:build && electron-builder --win --dir",
     "launcher:dev": "corepack pnpm@11.7.0 --filter @perspectra/launcher dev",
     "launcher:build": "corepack pnpm@11.7.0 --filter @perspectra/launcher build",
     "launcher:desktop": "corepack pnpm@11.7.0 --filter @perspectra/launcher desktop",
@@ -33,27 +30,10 @@
     "@types/node": "^22.20.0",
     "@vitest/coverage-v8": "4.1.8",
     "ajv": "8.17.1",
-    "electron": "^44.4.5",
-    "electron-builder": "^26.15.3",
     "esbuild": "^0.28.2",
     "oxlint": "1.76.0",
     "tsx": "4.22.4",
     "typescript": "6.0.3",
     "vitest": "4.1.8"
-  },
-  "build": {
-    "appId": "world.cordis.perspectra",
-    "productName": "Cordis World",
-    "directories": {
-      "output": "dist/release"
-    },
-    "files": [
-      "dist/desktop/**/*",
-      "dist/backend/**/*",
-      "desktop/index.html",
-      "examples/world-packs/**/*",
-      "package.json"
-    ],
-    "asar": false
   }
 }

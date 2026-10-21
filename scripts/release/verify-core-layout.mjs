@@ -32,8 +32,8 @@ const worker=bundled.createCoreWorker()
 try{for(let i=0;i<2;i++)assert.equal((await worker.run(request,AbortSignal.timeout(30000))).archive.scope.characterId,'character:test')}finally{await worker.close()}
 const encoded=execFileSync(process.env.HCW_HINDSIGHT_PYTHON,['-B','-c',"import sys,json;sys.path.insert(0,sys.argv[1]);import vector_core,numpy as np;v=vector_core.encode(['本地编码检查'],{'worldAddress':{'worldId':'layout','branchId':'main'},'characterId':'tester'});assert np.isfinite(v).all();print(json.dumps({'shape':list(v.shape)}))",join(runtime,'memory-core/python/core')],{encoding:'utf8',windowsHide:true})
 console.log('Source and bundled Core runner, reusable worker and E5 encoder passed: '+encoded.trim())
-for(const layout of ['source','electron','portable']){
-const runtimeRoot=layout==='source'?undefined:layout==='electron'?resolve('dist/backend'):runtime
+for(const layout of ['source','bundled','portable']){
+const runtimeRoot=layout==='source'?undefined:layout==='bundled'?resolve('dist/backend'):runtime
 const env={...process.env,PERSPECTRA_RUNTIME_ROOT:runtimeRoot,HCW_HINDSIGHT_CORE_DIR:layout==='source'?resolve('desktop/host/memory/python/core'):join(runtimeRoot,'memory-core/python/core')}
 const entry=layout==='portable'?join(runtime,'playtest.mjs'):resolve('dist/backend/playtest.mjs')
 const child=spawn(process.execPath,[entry,'--pack',resolve('examples/world-packs/prototype-g1'),'--data-dir',join(directory,layout+'-world')],{cwd:layout==='portable'?runtime:resolve('.'),env,windowsHide:true,stdio:['ignore','pipe','pipe']})
@@ -47,5 +47,5 @@ try{
  console.log('Built HTTP host started with default Core: '+layout+' layout.')
 }finally{if(child.exitCode===null&&child.signalCode===null){const exited=once(child,'exit');child.kill();await exited}}
 }
-await writeFile(join(directory,'result.json'),JSON.stringify({sourceRunner:true,bundledRunner:true,workerReuse:true,e5:JSON.parse(encoded),defaultCoreHttp:['source','electron','portable'],externalModelCalls:0},null,2))
+await writeFile(join(directory,'result.json'),JSON.stringify({sourceRunner:true,bundledRunner:true,workerReuse:true,e5:JSON.parse(encoded),defaultCoreHttp:['source','bundled','portable'],externalModelCalls:0},null,2))
 console.log('Evidence: '+join(directory,'result.json'))

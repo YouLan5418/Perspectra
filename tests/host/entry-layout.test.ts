@@ -14,7 +14,7 @@ it('boots the built backend from a source checkout and an isolated installed lay
     await build({ entryPoints: ['desktop/host/web-entry.ts'], outfile: entry, bundle: true,
       platform: 'node', target: 'node24', format: 'esm', external: ['jieba-wasm'], logLevel: 'silent' })
     await cp('packages/frontend/assets', join(directory, 'frontend-assets'), { recursive: true })
-    // Exercise the same payload copier used by Electron and portable release builds.
+    // Exercise the same payload copier used by the bundled backend and portable release builds.
     execFileSync(process.execPath, ['--input-type=module', '-e',
       `const {copyMemoryRuntime}=await import(${JSON.stringify(pathToFileURL(resolve('scripts/build/copy-memory-runtime.mjs')).href)});await copyMemoryRuntime(${JSON.stringify(runtime)})`], { windowsHide: true })
     await cp(entry, join(runtime, 'backend.mjs'))

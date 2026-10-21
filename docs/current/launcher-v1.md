@@ -167,7 +167,7 @@ corepack pnpm@11.7.0 launcher:desktop
 corepack pnpm@11.7.0 --filter @perspectra/launcher tauri build --debug --no-bundle
 ```
 
-根目录原有 `check` 不扫描 apps，Launcher 应单独运行 `launcher:check`。现有 Electron 的 `desktop` 命令仍指向旧试玩入口。
+根目录原有 `check` 不扫描 apps，Launcher 应单独运行 `launcher:check`。旧 Electron 的 `desktop` 命令已于 2026-10-21 删除。
 
 ## 3. 主界面实现效果
 
@@ -318,7 +318,7 @@ corepack pnpm@11.7.0 --filter @perspectra/launcher tauri build --debug --no-bund
 
 | Evidence：现有证据 | Finding：实际差异 | Path：建议处理 |
 | --- | --- | --- |
-| [desktop/main.ts](../../desktop/main.ts) 使用 Electron；新入口位于 apps/launcher/src-tauri | 两种桌面外壳并行，旧 desktop 命令不会启动新 Launcher | 当前保留可试玩旧入口，使用独立 launcher 命令；真实接入后再决定旧壳是否退役 |
+| 旧 desktop/main.ts 使用 Electron；新入口位于 apps/launcher/src-tauri | 两种桌面外壳曾并行 | 2026-10-21 已删除 Electron 外壳 |
 | desktop/main.ts 的 launchBackend 直接运行 [desktop/host/web-entry.ts](../../desktop/host/web-entry.ts)，并传递实验 tuning | 当前桌面启动边界依赖实验代码，不宜直接成为新 Launcher 的完整业务 API | 接入时提取最小正式运行入口，复用现有 Core，不复制实验控制面板 |
 | desktop/main.ts 的 SaveInfo、LaunchRequest、savesRoot 按 saves 和 saveId 组织 | 新 UI 采用“包 → 实例 → 故事线”，无法直接把旧 saveId 视为完整故事线关系 | 先确定实际需要保留的数据及映射，再选择迁移、明确不兼容或有限复用 |
 | [branch-operation-coordinator.ts](../../packages/application/src/branch-operation-coordinator.ts) 暴露 forkAtHead，并读取父分支 headSeq | 已读协调入口从当前头创建分支；没有据此证明 Launcher 的“任意历史节点开始”已接通 | 下一阶段核对历史节点与可恢复世界状态，扩展或复用最小必要路径；本次仅实现内存线路关系 |

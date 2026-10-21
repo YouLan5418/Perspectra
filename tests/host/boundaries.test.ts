@@ -16,20 +16,20 @@ it('rejects experiment dependencies and package internals while allowing current
       "join(repository, 'tests', 'experiments', 'playtest-web-entry.ts')",
       "resolve(repository, 'experiments', 'hindsight-core', 'core.py')",
     ]) {
-      writeFileSync(join(root, 'desktop/main.ts'), source)
+      writeFileSync(join(root, 'desktop/entry.ts'), source)
       const result = spawnSync(process.execPath, [resolve('scripts/check-host-boundaries.mjs'), root], { encoding: 'utf8' })
       expect(result.status).toBe(1)
       expect(result.stderr).toContain('production source depends on an experiment path')
     }
-    writeFileSync(join(root, 'desktop/main.ts'), "join(repository, 'desktop', 'host', 'web-entry.ts')")
+    writeFileSync(join(root, 'desktop/entry.ts'), "join(repository, 'desktop', 'host', 'web-entry.ts')")
     writeFileSync(join(root, 'packages/frontend/player.ts'), "import type { Host } from '../../../desktop/host/world-runtime.ts'")
     expect(spawnSync(process.execPath, [resolve('scripts/check-host-boundaries.mjs'), root], { encoding: 'utf8' }).status).toBe(1)
     writeFileSync(join(root, 'packages/frontend/player.ts'), 'export interface Player {}')
-    writeFileSync(join(root, 'desktop/main.ts'), "import { CharacterTurn } from '../packages/application/src/character-turn.ts'")
+    writeFileSync(join(root, 'desktop/entry.ts'), "import { CharacterTurn } from '../packages/application/src/character-turn.ts'")
     const internal = spawnSync(process.execPath, [resolve('scripts/check-host-boundaries.mjs'), root], { encoding: 'utf8' })
     expect(internal.status).toBe(1)
     expect(internal.stderr).toContain('use @harness-world/application')
-    writeFileSync(join(root, 'desktop/main.ts'), "import { CharacterTurn } from '@harness-world/application'")
+    writeFileSync(join(root, 'desktop/entry.ts'), "import { CharacterTurn } from '@harness-world/application'")
     writeFileSync(join(root, 'apps/launcher/src/view.ts'), [
       "import type { InspectedRequest } from '../../../packages/provider-chat/src/request-inspector.ts'",
       "import { rolePreset } from '../../../packages/provider-chat/src/preset.ts'"].join('\n'))

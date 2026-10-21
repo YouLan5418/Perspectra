@@ -197,7 +197,7 @@ corepack pnpm@11.7.0 check
 corepack pnpm@11.7.0 launcher:check
 ```
 
-自动测试验证机制边界，不能替代真实模型试玩。只浏览 Mock 界面的命令为 `launcher:dev`，它不能启动真实 Core。旧 Electron 入口 `desktop` / `desktop:release` 仍保留，其打包范围与当前 Tauri 便携候选版不同。
+自动测试验证机制边界，不能替代真实模型试玩。只浏览 Mock 界面的命令为 `launcher:dev`，它不能启动真实 Core。旧 Electron 入口已于 2026-10-21 删除，桌面入口只有 Tauri Launcher。
 
 | 想了解什么 | 入口 |
 | --- | --- |
