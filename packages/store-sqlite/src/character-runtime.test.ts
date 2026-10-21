@@ -85,7 +85,6 @@ describe('CharacterRuntimeAvailabilityService', () => {
       PRAGMA foreign_keys=OFF;
       DROP TABLE player_input_jobs;
       DROP INDEX events_type_range;
-      ALTER TABLE round_commits DROP COLUMN legacy_reaction_link;
       ALTER TABLE character_runtime_availability RENAME TO character_runtime_availability_v15;
       CREATE TABLE character_runtime_availability (
         address_key TEXT NOT NULL, character_id TEXT NOT NULL,

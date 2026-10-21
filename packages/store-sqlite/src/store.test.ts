@@ -213,7 +213,7 @@ describe('World schema v18', () => {
     expect(names).toContain('events_type_range')
     expect(names.filter(name => name.startsWith('world_reaction_'))).toEqual([])
     expect(hashWorldJson('world-sqlite-schema/v20', worldSchemaRows(raw)))
-      .toBe('sha256:cd525643e7bbcf07502085c3e4c53b3cfc08ac397de792cf92735c4705f3df00')
+      .toBe('sha256:0696d156cf2a83237729966def651397186a3b53248153e81a321c99d740c746')
     raw.close()
   })
 
@@ -247,7 +247,7 @@ describe('World schema v18', () => {
       .run(key, 'observation.upsert', 'transaction:legacy')
     const before = {
       branches: legacy.prepare('SELECT * FROM branches').all(),
-      rounds: legacy.prepare('SELECT * FROM round_commits').all().map(row => ({ ...row, legacy_reaction_link: 0 })),
+      rounds: legacy.prepare('SELECT * FROM round_commits').all(),
       events: legacy.prepare('SELECT * FROM events').all(),
     }
     legacy.close()

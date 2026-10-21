@@ -4,7 +4,6 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, expect, it } from 'vitest'
 import { WorldApplication } from '@harness-world/application'
-import { WorldStore } from '@harness-world/store-sqlite'
 import { basicInteractionPackage, frozenInteractionWorld } from '../fixtures/frozen-interaction-world.ts'
 
 const fixtures: { app: WorldApplication; directory: string }[] = []
@@ -66,45 +65,4 @@ it('drains admitted player work and delivery before maintenance without an NPC w
   expect(await f.app.roundResult(f.world.manifest.address, 'before-maintenance')).toMatchObject({ status: 'accepted' })
   await f.app.exitMaintenance(f.world.manifest.address, 'continue', 'maintenance-exit')
   expect(await f.submit()).toMatchObject({ status: 'accepted' })
-})
-
-it('drops retired Reaction Cycle tables and keeps a legacy-linked Round verifiable', async () => {
-  const f = fixture({}, true)
-  const address = f.world.manifest.address
-  expect(await f.submit()).toMatchObject({ status: 'accepted' })
-  await f.app.close()
-  // Rebuild what a schema-19 world that once ran an NPC Reaction Cycle looks like to the migration: the
-  // Cycle tables exist and the player Round that opened the Cycle stored a bundle hash covering it.
-  const raw = new DatabaseSync(f.paths.worldPath)
-  const { transaction_id: transactionId } = raw.prepare(
-    'SELECT transaction_id FROM round_commits ORDER BY head_seq DESC LIMIT 1').get() as { transaction_id: string }
-  raw.exec(`
-    ALTER TABLE round_commits DROP COLUMN legacy_reaction_link;
-    CREATE TABLE world_reaction_cycles(cycle_id TEXT PRIMARY KEY, root_transaction_id TEXT NOT NULL);
-    CREATE TABLE world_reaction_waves(cycle_id TEXT NOT NULL, result_transaction_id TEXT);
-    CREATE TABLE world_reaction_jobs(job_id TEXT PRIMARY KEY);
-    CREATE TABLE world_reaction_job_stimuli(job_id TEXT NOT NULL);
-    PRAGMA user_version = 19;
-  `)
-  raw.prepare(`INSERT INTO world_reaction_cycles VALUES ('cycle:legacy', ?)`).run(transactionId)
-  raw.prepare(`UPDATE round_commits SET bundle_hash = ? WHERE transaction_id = ?`).run(`sha256:${'f'.repeat(64)}`, transactionId)
-  raw.close()
-
-  const store = new WorldStore(f.paths.worldPath)
-  try {
-    const db = new DatabaseSync(f.paths.worldPath, { readOnly: true })
-    try {
-      expect(db.prepare(`SELECT name FROM sqlite_master WHERE name LIKE 'world_reaction_%'`).all()).toEqual([])
-      expect(db.prepare('SELECT legacy_reaction_link AS flag FROM round_commits WHERE transaction_id = ?')
-        .get(transactionId)).toEqual({ flag: 1 })
-    } finally { db.close() }
-    expect(() => store.verifyBranchIntegrity(address)).not.toThrow()
-  } finally { store.close() }
-
-  const reopened = new WorldApplication({ ...f.paths, interactionPackages: [basicInteractionPackage] })
-  try {
-    await expect(reopened.submit(address, { idempotencyKey: 'after-retirement', principalId: 'principal:player',
-      correlationId: 'after-retirement', action: { actionType: 'speak', parameters: { text: '旧存档继续。' } } }))
-      .resolves.toMatchObject({ status: 'accepted' })
-  } finally { await reopened.close() }
 })

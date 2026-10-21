@@ -531,15 +531,10 @@ ALTER TABLE world_reaction_job_stimuli ADD COLUMN evidence_json TEXT;
 `
 
 /**
- * NPC Reaction Cycles are retired and their tables dropped. A Round that opened or settled a Cycle kept a
- * bundle hash covering those rows, so it is flagged: integrity checks still verify its events, outbox and
- * authority, but can no longer re-derive the dropped part of its bundle hash.
+ * NPC Reaction Cycles are retired and their tables dropped. Worlds that ran a Cycle before this are not
+ * maintained: their stored bundle hashes covered the dropped rows and no longer verify.
  */
 export const WORLD_RETIRE_REACTION_SCHEMA = `
-ALTER TABLE round_commits ADD COLUMN legacy_reaction_link INTEGER NOT NULL DEFAULT 0 CHECK(legacy_reaction_link IN (0, 1));
-UPDATE round_commits SET legacy_reaction_link = 1
-WHERE transaction_id IN (SELECT root_transaction_id FROM world_reaction_cycles)
-  OR transaction_id IN (SELECT result_transaction_id FROM world_reaction_waves WHERE result_transaction_id IS NOT NULL);
 DROP TABLE world_reaction_job_stimuli;
 DROP TABLE world_reaction_jobs;
 DROP TABLE world_reaction_waves;
@@ -1443,7 +1438,7 @@ export class WorldStore {
   committedRound(address: WorldAddress, transactionId: TransactionId): CommittedRoundRecord | undefined {
     const addressKey = worldAddressKey(address)
     const row = this.#db.prepare(`
-      SELECT round_id, base_head_seq, base_tick, head_seq, tick, bundle_hash, authority_hash, legacy_reaction_link
+      SELECT round_id, base_head_seq, base_tick, head_seq, tick, bundle_hash, authority_hash
       FROM round_commits WHERE transaction_id = ? AND address_key = ?
     `).get(transactionId, addressKey) as {
       round_id: CommitRoundRequest['roundId']
@@ -1453,7 +1448,6 @@ export class WorldStore {
       tick: number
       bundle_hash: WorldHash
       authority_hash: WorldHash | null
-      legacy_reaction_link: 0 | 1
     } | undefined
     if (row === undefined) return undefined
     const events = this.#db.prepare(`
@@ -1508,7 +1502,7 @@ export class WorldStore {
       outboxHashes: outbox.map(item => item.payload_hash),
       ...(row.authority_hash === null ? {} : { authorityHash: row.authority_hash }),
     })
-    if (row.legacy_reaction_link === 0 && bundleHash !== row.bundle_hash) {
+    if (bundleHash !== row.bundle_hash) {
       this.#invalidCommittedRound(address, transactionId, 'committed Round bundle hash is divergent')
     }
     return {
