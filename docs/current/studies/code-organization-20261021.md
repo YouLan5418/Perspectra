@@ -142,3 +142,5 @@ node scripts/docs/check-links.mjs
 - 未读取 `D:/worlds` 下的历史存档：存储层只接受 v10 Manifest，本轮删除的分支在 v10 存档上本来就不可达，且哈希未变。
 
 验证：`corepack pnpm@11.7.0 check` 中边界检查（264 个生产文件）、typecheck、lint 通过；默认回归 **89 个文件中 88 个通过，757 项中 756 项通过**。唯一失败是 `tests/desktop/story-nodes.test.ts` 中需要本机 Core 记忆 Python 环境的一项：新 worktree 没有 `.tmp/hindsight-vector-venv`。在同一环境下对基点 `27979f1` 单独运行该文件，以同样的错误失败；借用其他检出的 Python 环境后两边又同样报 “Core 初始化失败”，因此判定为本机环境缺失，不是本轮回归，但该项在本轮没有实际通过。全部包内单元测试 `vitest run --config vitest.config.ts packages` **61 个文件、696 项通过**；`node scripts/docs/check-links.mjs` 通过。示例包哈希对比如上。未运行真实模型试玩、`launcher:check`、`desktop:build`、Python Core 离线回归；本轮只删除不可达分支和改名，角色可见行为预期不变，但没有试玩验收。
+
+**合并后复核（2026-10-21）。** 4 个旧版本示例包与旧编译产物、旧交互目录就地标为历史素材（各目录 README 与 [示例索引](../../../examples/world-packs/README.md)），未移动文件，历史文档链接不受影响；`codex/code-organization-20261021` 已快进到 `414a164`。在带 Python Core 环境的工作树上，合并后首次默认回归 756/757 通过：`tests/host/tail-round.test.ts` 中“后台档案在回合中不安装”一项 30 秒超时，当次整份文件耗时约 91 秒。第五轮没有改动该用例涉及的后台整理与异步门控；该文件单独运行 3 次、并行加压运行 4 次均通过，第五轮会话的完整回归中该项也通过。随后完整重跑默认回归 **89 个文件、757 项全部通过**（437.53 秒）。判断为高负载下的偶发超时，记为已知限制，未修改测试或超时设置；若再次出现，应先记录各闸门的到达顺序再定位。缺 Python 环境导致的 `story-nodes` 失败在本环境中不复现（单独运行 9 项通过）。
