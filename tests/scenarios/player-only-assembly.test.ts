@@ -50,7 +50,7 @@ it('reopens a committed player Round without loading the retired NPC runtime', a
   const reopened = new WorldApplication({ ...f.paths, interactionPackages: [basicInteractionPackage] })
   try {
     expect(await reopened.roundResult(f.world.manifest.address, 'assembly:speech')).toEqual(result)
-    expect(await reopened.eventHistory(f.world.manifest.address)).not.toHaveLength(0)
+    expect(await reopened.read.eventHistory(f.world.manifest.address)).not.toHaveLength(0)
     expect(existsSync(f.paths.contextPath)).toBe(false)
   } finally { await reopened.close() }
 })
@@ -60,9 +60,9 @@ it('drains admitted player work and delivery before maintenance without an NPC w
   await f.app.acceptRound(f.world.manifest.address, { idempotencyKey: 'before-maintenance',
     principalId: 'principal:player', correlationId: 'before-maintenance',
     action: { actionType: 'speak', parameters: { text: '先提交这句话。' } } })
-  expect(await f.app.enterMaintenance(f.world.manifest.address, 'maintenance check', 'maintenance'))
+  expect(await f.app.admin.enterMaintenance(f.world.manifest.address, 'maintenance check', 'maintenance'))
     .toMatchObject({ drainedRounds: 1, state: { runtimePhase: 'maintenance' } })
   expect(await f.app.roundResult(f.world.manifest.address, 'before-maintenance')).toMatchObject({ status: 'accepted' })
-  await f.app.exitMaintenance(f.world.manifest.address, 'continue', 'maintenance-exit')
+  await f.app.admin.exitMaintenance(f.world.manifest.address, 'continue', 'maintenance-exit')
   expect(await f.submit()).toMatchObject({ status: 'accepted' })
 })

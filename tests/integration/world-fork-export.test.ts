@@ -114,7 +114,7 @@ describe('a v10 world outside its own round', () => {
           expect(() => admin.archive(address, 'world complete', 'frozen:archive-blocked'))
             .toThrow(/critical delivery/u)
         } finally { admin.close() }
-        await seed.archive(address, 'world complete', 'frozen:archive')
+        await seed.admin.archive(address, 'world complete', 'frozen:archive')
       } finally { await seed.close() }
       const archived = new WorldStore(worldPath)
       try {

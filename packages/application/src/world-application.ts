@@ -14,11 +14,6 @@ import {
   type InteractionPackageImplementation,
   type InteractionRoundId,
   type RecallTokenizerId,
-  type RuntimeAvailabilityState,
-  type SessionId,
-  type StoredRoundAuthority,
-  type StoredWorldEvent,
-  type TransactionId,
   type WorldAddress,
   type WorldJsonValue
 } from '@harness-world/contracts'
@@ -38,19 +33,14 @@ import {
 } from '@harness-world/kernel'
 import {
   CognitiveMemoryService,
-  type RecallCandidateDiagnostics,
-  type RecalledMemory,
 } from '@harness-world/memory'
 import {
   DeterministicPresenter,
-  type PresentationResult,
-  type PresenterOptions,
 } from '@harness-world/presentation'
 import {
   WorldRuntimeRegistry,
   type BranchComponentFactory,
   type BranchExecutionLane,
-  type BranchRuntimeLease,
 } from '@harness-world/runtime-cordis'
 import {
   BranchAdministration,
@@ -59,12 +49,9 @@ import {
   CharacterViewBuilder,
   PLAYER_INPUT_TRANSITIONS,
   PlayerInputJobs,
-  ProjectionRebuilder,
   RoundInbox,
   SessionDeliveryAdapter,
   SessionOutboxWorker,
-  SnapshotStore,
-  WorldArchiveService,
   WorldOutbox,
   WorldStore,
   WriterLeaseService,
@@ -72,11 +59,7 @@ import {
   type PlayerInputJob, type PlayerInputStatus,
 } from '@harness-world/store-sqlite'
 import { randomUUID } from 'node:crypto'
-import { existsSync } from 'node:fs'
 import {
-  BranchOperationCoordinator,
-  type ArchiveBranchResult,
-  type ForkAtHeadResult,
 } from './branch-operation-coordinator.ts'
 import { PlayerInputInterpreter, type PlayerInputInterpretation } from './player-input.ts'
 import { preparePlayerIntent } from './player-intent-preparation.ts'
@@ -90,6 +73,9 @@ import {
 } from './round-coordinator.ts'
 import { ApplicationRuntimeMetrics } from './runtime-metrics.ts'
 import { SceneDecisionService } from './scene-decision.ts'
+import { WorldAdministration } from './world-administration.ts'
+import type { MountedBranch, WorldBranchAccess } from './world-branch-access.ts'
+import { WorldReadQueries } from './world-read-queries.ts'
 
 function assertCompatibleContentPackVersion(
   existing: { readonly manifest: WorldJsonValue } | undefined,
@@ -349,14 +335,6 @@ export class WorldBranchComponentFactory implements BranchComponentFactory {
   }
 }
 
-interface MountedBranch {
-  readonly lease: BranchRuntimeLease
-  readonly kernel: RoundCoordinator
-  readonly store: BranchStoreComponent
-  readonly agents: BranchAgentComponent
-  readonly director: BranchPresentationComponent
-}
-
 /** One durable player input transition chain, one player Round, or idle. */
 export type BranchWorkStep =
   | { readonly status: 'idle' }
@@ -382,7 +360,22 @@ export class WorldApplication {
    */
   readonly #frozenInteractions: FrozenInteractionRulebook
 
+  /** Creator, debug and operator reads that do not change world state. */
+  readonly read: WorldReadQueries
+  /** Operator actions such as backups, forks, archive, maintenance and quarantine recovery. */
+  readonly admin: WorldAdministration
+
   constructor(private readonly options: WorldApplicationOptions) {
+    const access: WorldBranchAccess = {
+      options,
+      assertOpen: () => this.#assertOpen(),
+      branch: address => this.#branch(address),
+      release: address => this.release(address),
+      integrityGuard: (address, source, operation) => this.#integrityGuard(address, source, operation),
+      projectionRead: (address, correlationId, operation) => this.#projectionRead(address, correlationId, operation),
+    }
+    this.read = new WorldReadQueries(access)
+    this.admin = new WorldAdministration(access)
     this.#interactionPackages = options.interactionPackages ?? DEFAULT_INTERACTION_PACKAGES
     this.#frozenInteractions = new FrozenInteractionRulebook(this.#interactionPackages)
     this.#rulebooks = options.rulebooks ?? createCoreRulebookRegistry({ frozenInteractions: this.#frozenInteractions })
@@ -421,64 +414,6 @@ export class WorldApplication {
       )
       return new WorldBootstrap(store, true, this.#frozenInteractions).activate(compiled)
     } finally {
-      store.close()
-    }
-  }
-
-  listWorlds() {
-    this.#assertOpen()
-    const store = new WorldStore(this.options.worldPath)
-    try {
-      const worlds = new Map<string, { tenantId: WorldAddress['tenantId']; worldId: WorldAddress['worldId']; branchCount: number }>()
-      for (const address of store.listBranches()) {
-        const key = `${address.tenantId}\u001f${address.worldId}`
-        const current = worlds.get(key)
-        worlds.set(key, current === undefined
-          ? { tenantId: address.tenantId, worldId: address.worldId, branchCount: 1 }
-          : { ...current, branchCount: current.branchCount + 1 })
-      }
-      return [...worlds.values()]
-    } finally {
-      store.close()
-    }
-  }
-
-  /** Discover player-safe chat bindings without exposing full Manifests or NPC views. */
-  listPlayerChatScopes(): PlayerChatScope[] {
-    this.#assertOpen()
-    const store = new WorldStore(this.options.worldPath)
-    try {
-      return store.listBranches().flatMap(address => {
-        const record = store.readManifest(address)
-        if (record === undefined) return []
-        const manifest = runtimeManifestFromStored(record.manifest)
-        return manifest.playerBindings.map(binding => ({
-          address,
-          principalId: binding.principalId,
-          characterId: binding.characterId,
-        }))
-      })
-    } finally {
-      store.close()
-    }
-  }
-
-  getWorld(address: WorldAddress) {
-    this.#assertOpen()
-    const store = new WorldStore(this.options.worldPath)
-    const administration = new BranchAdministration(this.options.worldPath)
-    try {
-      const manifest = store.readManifest(address)
-      if (manifest === undefined) throw new Error('world branch has no active Compiled Manifest')
-      return {
-        address,
-        manifest: manifest.manifest,
-        manifestHash: manifest.manifestHash,
-        head: store.head(address),
-        control: administration.status(address),
-      }
-    } finally {
-      administration.close()
       store.close()
     }
   }
@@ -778,73 +713,6 @@ export class WorldApplication {
     return this.#integrityGuard(address, 'world.head', branch => branch.store.store.head(address))
   }
 
-  /** Integrity-checked authority history for local authoring/debug composition; not exposed by the player RPC surface. */
-  async eventHistory(address: WorldAddress, asOfWorldSeq?: number): Promise<StoredWorldEvent[]> {
-    return this.#integrityGuard(address, 'world.events', branch => branch.store.store.readEvents(address, asOfWorldSeq))
-  }
-
-  /** Read the immutable Round Authority bound to a committed transaction. */
-  async roundAuthority(address: WorldAddress, transactionId: TransactionId): Promise<StoredRoundAuthority | undefined> {
-    return this.#integrityGuard(address, 'round.authority', branch => branch.store.store.readRoundAuthority(address, transactionId))
-  }
-
-  async characterView(address: WorldAddress, characterId: CharacterId, asOfWorldSeq?: number): Promise<CharacterView> {
-    return this.#integrityGuard(address, 'view.character', branch => this.#projectionRead(
-      address,
-      `view:${worldAddressKey(address)}:${characterId}`,
-      () => {
-        const asOf = asOfWorldSeq ?? branch.store.store.head(address).headSeq
-        return new CharacterViewBuilder(branch.store.store).rebuildAt(address, characterId, asOf)
-      },
-    ))
-  }
-
-  async recallMemory(
-    address: WorldAddress,
-    characterId: CharacterId,
-    query: string,
-    asOfWorldSeq?: number,
-  ): Promise<RecalledMemory[]> {
-    return this.#integrityGuard(address, 'memory.recall', branch => {
-      const memory = this.#requireCognitiveMemory(branch.agents.cognitiveMemory, address, characterId, 'recall')
-      const asOf = asOfWorldSeq ?? branch.store.store.head(address).headSeq
-      return memory.recall(address, characterId, query, asOf)
-    })
-  }
-
-  /**
-   * Report how many Recall candidates this query matches before the default result limit, so an operator can
-   * see what one Recall leaves unseen. Reading this writes no Recall or Context record of its own.
-   */
-  async diagnoseMemoryRecall(
-    address: WorldAddress,
-    characterId: CharacterId,
-    query: string,
-    asOfWorldSeq?: number,
-  ): Promise<RecallCandidateDiagnostics> {
-    return this.#integrityGuard(address, 'memory.diagnose', branch => {
-      const memory = this.#requireCognitiveMemory(branch.agents.cognitiveMemory, address, characterId, 'diagnose')
-      const asOf = asOfWorldSeq ?? branch.store.store.head(address).headSeq
-      return memory.diagnoseRecall(address, characterId, query, asOf)
-    })
-  }
-
-  #requireCognitiveMemory(
-    memory: CognitiveMemoryService | undefined,
-    address: WorldAddress,
-    characterId: CharacterId,
-    operation: 'recall' | 'diagnose',
-  ): CognitiveMemoryService {
-    if (memory === undefined) {
-      failWorld({
-        errorCode: 'MANIFEST_RUNTIME_UNAVAILABLE', category: 'runtime',
-        message: 'Cognitive Memory is not enabled by this Manifest', retryable: false,
-        correlationId: `memory-${operation}:${characterId}`, address,
-      })
-    }
-    return memory
-  }
-
   /** Current player options use the same Rulebook candidate snapshot as command interpretation. */
   async playerAffordancesForPrincipal(
     address: WorldAddress,
@@ -902,292 +770,12 @@ export class WorldApplication {
     })
   }
 
-  async characterAvailability(address: WorldAddress, characterId: CharacterId) {
-    return (await this.#branch(address)).store.availability.get(address, characterId)
-  }
-
-  async setCharacterAvailability(
-    address: WorldAddress,
-    characterId: CharacterId,
-    state: RuntimeAvailabilityState,
-    reason: string | null,
-  ) {
-    return (await this.#branch(address)).store.availability.set(address, characterId, state, reason)
-  }
-
   async deliver(address: WorldAddress, correlationId: string): Promise<number> {
     try {
       return await this.#integrityGuard(address, 'outbox.drain', branch => branch.store.drainCritical(correlationId))
     } catch (error: unknown) {
       this.runtimeMetrics.recordSessionDeliveryFailure()
       throw error
-    }
-  }
-
-  async deadLetters(address: WorldAddress): Promise<DeadLetterRecord[]> {
-    return (await this.#branch(address)).store.deadLetters()
-  }
-
-  async retryDeadLetter(address: WorldAddress, deliveryId: DeliveryId, correlationId: string): Promise<void> {
-    return (await this.#branch(address)).store.retryDeadLetter(deliveryId, correlationId)
-  }
-
-  async renderSession(
-    address: WorldAddress,
-    sessionId: SessionId,
-    sessionEventSeq: number,
-    presenterOptions?: PresenterOptions,
-  ): Promise<PresentationResult> {
-    return this.#integrityGuard(address, 'session.render', branch => {
-      try {
-        const event = branch.store.session.readEvent(sessionId, sessionEventSeq)
-        if (event === undefined) throw new Error(`Session event ${sessionEventSeq} is missing`)
-        return branch.director.presenter.render(event.payload, presenterOptions)
-      } catch (error: unknown) {
-        if (error instanceof WorldError || (error instanceof Error && error.message.includes(' is missing'))) throw error
-        failWorld({
-          errorCode: 'SESSION_DELIVERY_DIVERGED', category: 'integrity',
-          message: `Session presentation source failed validation: ${String(error)}`, retryable: false,
-          correlationId: `session-render:${sessionId}:${sessionEventSeq}`, address,
-        })
-      }
-    })
-  }
-
-  async createSnapshot(address: WorldAddress, snapshotPath: string, correlationId: string) {
-    return this.#integrityGuard(address, 'snapshot.create', branch => this.#projectionRead(address, correlationId, () => {
-        const head = branch.store.store.head(address)
-        const projection = new ProjectionRebuilder(branch.store.store).rebuildAt(address, head.headSeq)
-        const snapshots = new SnapshotStore(snapshotPath)
-        try {
-          return snapshots.create(address, head.headSeq, { projection }, correlationId)
-        } finally {
-          snapshots.close()
-        }
-      }))
-  }
-
-  latestSnapshot(address: WorldAddress, snapshotPath: string) {
-    this.#assertOpen()
-    const snapshots = new SnapshotStore(snapshotPath)
-    try {
-      return snapshots.latest(address)
-    } finally {
-      snapshots.close()
-    }
-  }
-
-  listSnapshots(address: WorldAddress, snapshotPath: string) {
-    this.#assertOpen()
-    const snapshots = new SnapshotStore(snapshotPath)
-    try {
-      return snapshots.list(address)
-    } finally {
-      snapshots.close()
-    }
-  }
-
-  backup(targetPath: string, correlationId: string) {
-    this.#assertOpen()
-    return new WorldArchiveService(this.options.worldPath).backup(targetPath, correlationId)
-  }
-
-  restore(backupPath: string, targetPath: string, expectedHash: string, correlationId: string) {
-    this.#assertOpen()
-    return new WorldArchiveService(this.options.worldPath).restore(
-      backupPath,
-      targetPath,
-      expectedHash as `sha256:${string}`,
-      correlationId,
-    )
-  }
-
-  exportPortable(exportPath: string, correlationId: string) {
-    this.#assertOpen()
-    return new WorldArchiveService(this.options.worldPath).exportPortable(exportPath, correlationId)
-  }
-
-  importPortable(exportPath: string, targetPath: string, correlationId: string) {
-    this.#assertOpen()
-    return new WorldArchiveService(this.options.worldPath).importPortable(exportPath, targetPath, correlationId)
-  }
-
-  async forkAtHead(
-    parent: WorldAddress,
-    child: WorldAddress,
-    reason: string,
-    correlationId: string,
-  ): Promise<ForkAtHeadResult> {
-    const branch = await this.#branch(parent)
-    return new BranchOperationCoordinator(branch.store.store, branch.store.administration, branch.kernel, branch.store)
-      .forkAtHead({ parent, child, reason, correlationId })
-  }
-
-  async archive(address: WorldAddress, reason: string, correlationId: string): Promise<ArchiveBranchResult> {
-    const branch = await this.#branch(address)
-    try {
-      return await new BranchOperationCoordinator(branch.store.store, branch.store.administration, branch.kernel, branch.store)
-        .archive({ address, reason, correlationId })
-    } finally {
-      await this.release(address)
-    }
-  }
-
-  branchStatus(address: WorldAddress) {
-    this.#assertOpen()
-    const administration = new BranchAdministration(this.options.worldPath)
-    try {
-      return administration.status(address)
-    } finally {
-      administration.close()
-    }
-  }
-
-  branchAudit(address: WorldAddress) {
-    this.#assertOpen()
-    const administration = new BranchAdministration(this.options.worldPath)
-    try {
-      return administration.readAudit(address)
-    } finally {
-      administration.close()
-    }
-  }
-
-  async enterMaintenance(address: WorldAddress, reason: string, correlationId: string) {
-    const branch = await this.#branch(address)
-    branch.store.administration.setAdmission(address, 'draining', reason, `${correlationId}:drain`)
-    const drainedRounds = await branch.kernel.drainAccepted(`${correlationId}:rounds`)
-    await branch.store.drainCritical(`${correlationId}:outbox`)
-    await this.release(address)
-    const administration = new BranchAdministration(this.options.worldPath)
-    try {
-      return {
-        drainedRounds,
-        state: administration.enterMaintenance(address, reason, `${correlationId}:enter`),
-      }
-    } finally {
-      administration.close()
-    }
-  }
-
-  async exitMaintenance(address: WorldAddress, reason: string, correlationId: string) {
-    this.#assertOpen()
-    await this.release(address)
-    const administration = new BranchAdministration(this.options.worldPath)
-    try {
-      return administration.exitMaintenance(address, reason, `${correlationId}:exit`)
-    } finally {
-      administration.close()
-    }
-  }
-
-  quarantineExplain(address: WorldAddress) {
-    this.#assertOpen()
-    const quarantine = new BranchQuarantineService(this.options.worldPath)
-    try {
-      return quarantine.explain(address)
-    } finally {
-      quarantine.close()
-    }
-  }
-
-  async quarantineRecover(address: WorldAddress, correlationId: string) {
-    this.#assertOpen()
-    await this.release(address)
-    const quarantine = new BranchQuarantineService(this.options.worldPath)
-    try {
-      return quarantine.recover(address, correlationId, () => {
-        if (!existsSync(this.options.sessionPath)) {
-          failWorld({
-            errorCode: 'RECOVERY_VALIDATION_FAILED', category: 'integrity',
-            message: 'Session database is missing during quarantine recovery', retryable: false,
-            correlationId, address,
-          })
-        }
-        const store = new WorldStore(this.options.worldPath)
-        const outbox = new WorldOutbox(this.options.worldPath)
-        const session = new SessionDeliveryAdapter(this.options.sessionPath)
-        try {
-          const world = store.verifyBranchIntegrity(address)
-          const projection = new ProjectionRebuilder(store).rebuildAt(address, world.headSeq)
-          const manifest = runtimeManifestFromStoredRecord(store.readManifest(address))
-          const contextPolicy = manifest.plugins.find(plugin => plugin.pluginId === 'builtin:agent-context')
-          let memoryVerificationHash
-          if (contextPolicy !== undefined) {
-            if (this.options.memoryPath === undefined) {
-              failWorld({
-                errorCode: 'RECOVERY_VALIDATION_FAILED', category: 'integrity',
-                message: 'Memory database path is missing during quarantine recovery', retryable: false,
-                correlationId, address,
-              })
-            }
-            const memoryVersion = manifest.contentPack?.runtimeCapabilities.cognitiveMemoryVersion === 2 ? 2 : 1
-            const memory = new CognitiveMemoryService(
-              this.options.memoryPath, store, this.options.faultInjector, memoryVersion,
-              this.options.recallTokenizer, this.options.recallDictionary ?? false,
-            )
-            try {
-              memoryVerificationHash = memory.rebuildBranch(
-                address, manifest.characters.map(character => character.characterId), world.headSeq, correlationId,
-              )
-
-            } finally {
-              memory.close()
-            }
-          }
-          const sessionIntegrity = session.verifyIntegrity(address, correlationId)
-          const bindings = session.deliveryBindings()
-          const byDelivery = new Map(bindings.map(binding => [binding.deliveryId, binding]))
-          const bySequence = new Map(bindings.map(binding => [`${binding.sessionId}\u001f${binding.sessionDeliverySeq}`, binding]))
-          const ledger = outbox.deliveryLedger(address, correlationId)
-          const expectedDeliveryIds = new Set<string>(ledger.map(delivery => delivery.deliveryId))
-          const relevantSessionIds = new Set<SessionId>([
-            ...manifest.playerBindings.map(binding => binding.sessionId),
-            ...ledger.map(delivery => delivery.sessionId),
-          ])
-          for (const delivery of ledger) {
-            const binding = byDelivery.get(delivery.deliveryId)
-            const occupied = delivery.sessionDeliverySeq === null
-              ? undefined
-              : bySequence.get(`${delivery.sessionId}\u001f${delivery.sessionDeliverySeq}`)
-            const bindingHash = binding === undefined ? undefined : hashWorldJson('session-delivery-binding', binding)
-            const expectedBindingHash = hashWorldJson('session-delivery-binding', {
-              sessionId: delivery.sessionId,
-              sessionDeliverySeq: delivery.sessionDeliverySeq,
-              deliveryId: delivery.deliveryId,
-              payloadHash: delivery.payloadHash,
-            })
-            if ((bindingHash !== undefined && bindingHash !== expectedBindingHash)
-              || (occupied !== undefined && occupied.deliveryId !== delivery.deliveryId)
-              || (delivery.status === 'delivered' && binding === undefined)) {
-              failWorld({
-                errorCode: 'SESSION_DELIVERY_DIVERGED', category: 'integrity',
-                message: 'World Outbox and Session delivery bindings are divergent', retryable: false,
-                correlationId, address,
-              })
-            }
-          }
-          if (bindings.some(binding => relevantSessionIds.has(binding.sessionId) && !expectedDeliveryIds.has(binding.deliveryId))) {
-            failWorld({
-              errorCode: 'SESSION_DELIVERY_DIVERGED', category: 'integrity',
-              message: 'Session contains a delivery that is absent from the restored World Outbox', retryable: false,
-              correlationId, address,
-            })
-          }
-          return {
-            worldVerificationHash: world.verificationHash,
-            projectionBundleHash: projection.bundleHash,
-            sessionVerificationHash: sessionIntegrity.verificationHash,
-            ...(memoryVerificationHash === undefined ? {} : { memoryVerificationHash }),
-          }
-        } finally {
-          session.close()
-          outbox.close()
-          store.close()
-        }
-      })
-    } finally {
-      quarantine.close()
     }
   }
 
