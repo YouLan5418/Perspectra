@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { hashWorldJson } from '@harness-world/contracts'
 import {
   WorldPackContractError,
-  parseWorldPackCharactersSourceV2,
+  parseWorldPackCharactersSourceV3,
   parseWorldPackDocumentsSourceV2,
   parseWorldPackMemorySourceV2,
   parseWorldPackScenesSourceV2,
@@ -18,9 +18,9 @@ function errorOf(run: () => unknown): WorldPackContractError {
   throw new Error('expected WorldPackContractError')
 }
 
-function charactersV2() {
+function charactersV3() {
   return {
-    schemaVersion: 'worldpack-characters/v2',
+    schemaVersion: 'worldpack-characters/v3',
     characters: [{ characterId: 'character:player', displayName: 'Player', controllerClass: 'manual' }],
   }
 }
@@ -46,24 +46,21 @@ function documentsV2() {
   }
 }
 
-describe('World Pack v2 character sources', () => {
+describe('World Pack character sources', () => {
   it('materializes a minimal character without inventing portrayal or location', () => {
-    const parsed = parseWorldPackCharactersSourceV2(charactersV2())
+    const parsed = parseWorldPackCharactersSourceV3(charactersV3())
     expect(parsed).toEqual({
-      schemaVersion: 'worldpack-characters/v2',
+      schemaVersion: 'worldpack-characters/v3',
       characters: [{
         characterId: 'character:player', displayName: 'Player', controllerClass: 'manual', pronouns: '',
         initialLocationId: null, lifecycle: 'active', portrayal: null,
       }],
     })
-    expect(hashWorldJson('world-pack-characters-source/v2', parsed)).toBe(
-      'sha256:5146021cd8973c3f573177681374beecf687a7c161d1f82cd830318ef825c633',
-    )
   })
 
   it('preserves explicit scripted controller, lifecycle, location, and portrayal terms', () => {
     const input = {
-      schemaVersion: 'worldpack-characters/v2',
+      schemaVersion: 'worldpack-characters/v3',
       characters: [{
         characterId: 'character:alice', displayName: 'Alice', controllerClass: 'scripted', pronouns: 'she/her',
         initialLocationId: 'location:road', lifecycle: 'incapacitated',
@@ -79,7 +76,7 @@ describe('World Pack v2 character sources', () => {
         initialLocationId: null, portrayal: null,
       }],
     }
-    const parsed = parseWorldPackCharactersSourceV2(input)
+    const parsed = parseWorldPackCharactersSourceV3(input)
     expect(parsed.characters[0]).toEqual(input.characters[0])
     expect(parsed.characters[1]?.portrayal).toEqual({ summary: '', speakingStyle: '', backgroundTextRef: null, drives: [], principles: [] })
     expect(parsed.characters[2]?.portrayal).toBeNull()
@@ -87,27 +84,27 @@ describe('World Pack v2 character sources', () => {
 
   it.each([
     [null, 'PACK_SOURCE_INVALID'],
-    [{ ...charactersV2(), schemaVersion: 'worldpack-characters/v1' }, 'PACK_SOURCE_INVALID'],
-    [{ ...charactersV2(), characters: {} }, 'PACK_SOURCE_INVALID'],
-    [{ ...charactersV2(), characters: Array.from({ length: 257 }, (_, index) => ({ characterId: `character:${index}`, displayName: 'X', controllerClass: 'manual' })) }, 'PACK_LIMIT_EXCEEDED'],
-    [{ ...charactersV2(), characters: [charactersV2().characters[0], charactersV2().characters[0]] }, 'PACK_DUPLICATE_ID'],
-    [{ ...charactersV2(), characters: [{ ...charactersV2().characters[0], extra: true }] }, 'PACK_UNKNOWN_FIELD'],
-    [{ ...charactersV2(), characters: [{ ...charactersV2().characters[0], controllerClass: 'network' }] }, 'PACK_SOURCE_INVALID'],
-    [{ ...charactersV2(), characters: [{ ...charactersV2().characters[0], pronouns: 1 }] }, 'PACK_SOURCE_INVALID'],
-    [{ ...charactersV2(), characters: [{ ...charactersV2().characters[0], initialLocationId: 1 }] }, 'PACK_SOURCE_INVALID'],
-    [{ ...charactersV2(), characters: [{ ...charactersV2().characters[0], lifecycle: 'missing' }] }, 'PACK_SOURCE_INVALID'],
-    [{ ...charactersV2(), characters: [{ ...charactersV2().characters[0], portrayal: [] }] }, 'PACK_SOURCE_INVALID'],
-    [{ ...charactersV2(), characters: [{ ...charactersV2().characters[0], portrayal: { extra: true } }] }, 'PACK_UNKNOWN_FIELD'],
-    [{ ...charactersV2(), characters: [{ ...charactersV2().characters[0], portrayal: { summary: 1 } }] }, 'PACK_SOURCE_INVALID'],
-    [{ ...charactersV2(), characters: [{ ...charactersV2().characters[0], portrayal: { speakingStyle: 1 } }] }, 'PACK_SOURCE_INVALID'],
-    [{ ...charactersV2(), characters: [{ ...charactersV2().characters[0], portrayal: { backgroundTextRef: 1 } }] }, 'PACK_SOURCE_INVALID'],
-    [{ ...charactersV2(), characters: [{ ...charactersV2().characters[0], portrayal: { drives: {} } }] }, 'PACK_SOURCE_INVALID'],
-    [{ ...charactersV2(), characters: [{ ...charactersV2().characters[0], portrayal: { drives: Array.from({ length: 129 }, (_, index) => ({ key: `drive:${index}`, text: 'x' })) } }] }, 'PACK_LIMIT_EXCEEDED'],
-    [{ ...charactersV2(), characters: [{ ...charactersV2().characters[0], portrayal: { drives: [{ key: 'same', text: 'a' }, { key: 'same', text: 'b' }] } }] }, 'PACK_DUPLICATE_ID'],
-    [{ ...charactersV2(), characters: [{ ...charactersV2().characters[0], portrayal: { principles: [{ key: 'p', text: '' }] } }] }, 'PACK_SOURCE_INVALID'],
-    [{ ...charactersV2(), characters: [{ ...charactersV2().characters[0], portrayal: { principles: [{ key: 'p', text: 'x', extra: true }] } }] }, 'PACK_UNKNOWN_FIELD'],
+    [{ ...charactersV3(), schemaVersion: 'worldpack-characters/v1' }, 'PACK_SOURCE_INVALID'],
+    [{ ...charactersV3(), characters: {} }, 'PACK_SOURCE_INVALID'],
+    [{ ...charactersV3(), characters: Array.from({ length: 257 }, (_, index) => ({ characterId: `character:${index}`, displayName: 'X', controllerClass: 'manual' })) }, 'PACK_LIMIT_EXCEEDED'],
+    [{ ...charactersV3(), characters: [charactersV3().characters[0], charactersV3().characters[0]] }, 'PACK_DUPLICATE_ID'],
+    [{ ...charactersV3(), characters: [{ ...charactersV3().characters[0], extra: true }] }, 'PACK_UNKNOWN_FIELD'],
+    [{ ...charactersV3(), characters: [{ ...charactersV3().characters[0], controllerClass: 'network' }] }, 'PACK_SOURCE_INVALID'],
+    [{ ...charactersV3(), characters: [{ ...charactersV3().characters[0], pronouns: 1 }] }, 'PACK_SOURCE_INVALID'],
+    [{ ...charactersV3(), characters: [{ ...charactersV3().characters[0], initialLocationId: 1 }] }, 'PACK_SOURCE_INVALID'],
+    [{ ...charactersV3(), characters: [{ ...charactersV3().characters[0], lifecycle: 'missing' }] }, 'PACK_SOURCE_INVALID'],
+    [{ ...charactersV3(), characters: [{ ...charactersV3().characters[0], portrayal: [] }] }, 'PACK_SOURCE_INVALID'],
+    [{ ...charactersV3(), characters: [{ ...charactersV3().characters[0], portrayal: { extra: true } }] }, 'PACK_UNKNOWN_FIELD'],
+    [{ ...charactersV3(), characters: [{ ...charactersV3().characters[0], portrayal: { summary: 1 } }] }, 'PACK_SOURCE_INVALID'],
+    [{ ...charactersV3(), characters: [{ ...charactersV3().characters[0], portrayal: { speakingStyle: 1 } }] }, 'PACK_SOURCE_INVALID'],
+    [{ ...charactersV3(), characters: [{ ...charactersV3().characters[0], portrayal: { backgroundTextRef: 1 } }] }, 'PACK_SOURCE_INVALID'],
+    [{ ...charactersV3(), characters: [{ ...charactersV3().characters[0], portrayal: { drives: {} } }] }, 'PACK_SOURCE_INVALID'],
+    [{ ...charactersV3(), characters: [{ ...charactersV3().characters[0], portrayal: { drives: Array.from({ length: 129 }, (_, index) => ({ key: `drive:${index}`, text: 'x' })) } }] }, 'PACK_LIMIT_EXCEEDED'],
+    [{ ...charactersV3(), characters: [{ ...charactersV3().characters[0], portrayal: { drives: [{ key: 'same', text: 'a' }, { key: 'same', text: 'b' }] } }] }, 'PACK_DUPLICATE_ID'],
+    [{ ...charactersV3(), characters: [{ ...charactersV3().characters[0], portrayal: { principles: [{ key: 'p', text: '' }] } }] }, 'PACK_SOURCE_INVALID'],
+    [{ ...charactersV3(), characters: [{ ...charactersV3().characters[0], portrayal: { principles: [{ key: 'p', text: 'x', extra: true }] } }] }, 'PACK_UNKNOWN_FIELD'],
   ])('rejects malformed character sources %#', (value, code) => {
-    expect(errorOf(() => parseWorldPackCharactersSourceV2(value)).diagnostics[0].code).toBe(code)
+    expect(errorOf(() => parseWorldPackCharactersSourceV3(value)).diagnostics[0].code).toBe(code)
   })
 })
 

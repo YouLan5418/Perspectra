@@ -24,7 +24,7 @@ import {
   type SceneSpecV2,
 } from '@harness-world/kernel'
 import {
-  PHASE8_CORE_PROFILES,
+  WORLD_PACK_CORE_PROFILES,
   WORLD_PACK_COMPILER_ID,
   WORLD_PACK_COMPILED_SCHEMA_VERSION_V5,
   WORLD_PACK_COMPILER_CONTRACT_VERSION_V5,
@@ -70,7 +70,7 @@ import {
   parseCompiledWorldPackV5,
   parseWorldPackReactionSource,
   parseWorldPackManifestationSource,
-  parseWorldPackWorldSourceV2,
+  parseWorldPackWorldSource,
 } from './schema.ts'
 import { parseStrictWorldJson } from './strict-json.ts'
 
@@ -186,7 +186,7 @@ function uniqueAcross(values: readonly string[], file: string, at: string): void
   if (new Set(values).size !== values.length) failWorldPackContract('PACK_DUPLICATE_ID', file, at, 'contains duplicate identifiers across source files')
 }
 
-function pluginLocks(profiles = PHASE8_CORE_PROFILES): readonly WorldPackPluginLock[] {
+function pluginLocks(profiles = WORLD_PACK_CORE_PROFILES): readonly WorldPackPluginLock[] {
   const identities = [
     { kind: 'agent-context' as const, id: profiles.agentContext.pluginId, version: profiles.agentContext.version },
     { kind: 'presentation' as const, id: profiles.presentation.profileId, version: profiles.presentation.version },
@@ -199,7 +199,6 @@ function pluginLocks(profiles = PHASE8_CORE_PROFILES): readonly WorldPackPluginL
   }))
 }
 
-/** Deterministic, filesystem-bound compiler for the Phase 7 World Pack source profile. */
 function cognitionDependencies(entry: WorldPackCharacterCognitionSourceV2): ReadonlyMap<string, readonly string[]> {
   const dependencies = new Map<string, readonly string[]>()
   for (const item of entry.observations) dependencies.set(item.key, item.basisKeys)
@@ -381,13 +380,11 @@ const COGNITION_EVENT_TYPES: Readonly<Record<CognitionSeedKind, string>> = Objec
   'open-loop': 'open-loop.upsert',
 })
 
-type Phase8CompatiblePack = CompiledWorldPackV5
-
-function phase8CognitionId(pack: Phase8CompatiblePack, characterId: string, kind: CognitionSeedKind | 'portrayal', key: string): string {
+function genesisCognitionId(pack: CompiledWorldPackV5, characterId: string, kind: CognitionSeedKind | 'portrayal', key: string): string {
   return deterministicId(`world-pack-${kind}-id/v2`, { packHash: pack.packHash, characterId, key })
 }
 
-function phase8Source(pack: Phase8CompatiblePack, characterId: string, kind: CognitionSeedKind | 'portrayal' | 'fact' | 'document', key: string): WorldJsonObject {
+function genesisSource(pack: CompiledWorldPackV5, characterId: string, kind: CognitionSeedKind | 'portrayal' | 'fact' | 'document', key: string): WorldJsonObject {
   const source = { sourceKind: `worldpack-${kind}/v2`, sourceId: deterministicId('world-pack-genesis-source/v2', {
     packHash: pack.packHash, characterId, kind, key,
   }) }
@@ -450,7 +447,7 @@ function cognitionSeeds(entry: WorldPackCharacterCognitionSourceV2): readonly Co
   return ordered
 }
 
-function contentPackBindingV2(pack: Phase8CompatiblePack): ContentPackManifestBindingV2 {
+function contentPackBindingV2(pack: CompiledWorldPackV5): ContentPackManifestBindingV2 {
   return {
     schemaVersion: 2,
     packId: pack.packId,
@@ -475,7 +472,7 @@ function contentPackBindingV2(pack: Phase8CompatiblePack): ContentPackManifestBi
   }
 }
 
-function phase8GenesisCognition(pack: Phase8CompatiblePack): readonly WorldEventDraft[] {
+function genesisCognitionEvents(pack: CompiledWorldPackV5): readonly WorldEventDraft[] {
   const events: WorldEventDraft[] = []
   for (const entry of pack.content.cognition) {
     const character = pack.content.characters.find(value => value.characterId === entry.characterId)!
@@ -483,14 +480,14 @@ function phase8GenesisCognition(pack: Phase8CompatiblePack): readonly WorldEvent
     const sourceByKey = new Map<string, WorldJsonObject>()
     const idByKey = new Map<string, string>()
     for (const seed of seeds) {
-      sourceByKey.set(seed.key, phase8Source(pack, entry.characterId, seed.kind, seed.key))
-      idByKey.set(seed.key, phase8CognitionId(pack, entry.characterId, seed.kind, seed.key))
+      sourceByKey.set(seed.key, genesisSource(pack, entry.characterId, seed.kind, seed.key))
+      idByKey.set(seed.key, genesisCognitionId(pack, entry.characterId, seed.kind, seed.key))
     }
     for (const portrayal of character.portrayal === null
       ? []
       : [...character.portrayal.drives, ...character.portrayal.principles]) {
-      sourceByKey.set(portrayal.key, phase8Source(pack, entry.characterId, 'portrayal', portrayal.key))
-      idByKey.set(portrayal.key, phase8CognitionId(pack, entry.characterId, 'portrayal', portrayal.key))
+      sourceByKey.set(portrayal.key, genesisSource(pack, entry.characterId, 'portrayal', portrayal.key))
+      idByKey.set(portrayal.key, genesisCognitionId(pack, entry.characterId, 'portrayal', portrayal.key))
     }
     for (const seed of seeds) {
       const id = idByKey.get(seed.key)!
@@ -543,7 +540,7 @@ function phase8GenesisCognition(pack: Phase8CompatiblePack): readonly WorldEvent
           value: {
             proposition: fact.proposition, stance: 'believed', confidencePermille: 1000, saliencePermille: 500,
             awareness: 'conscious', status: 'active', basisRefs: [],
-            source: phase8Source(pack, characterId, 'fact', fact.factId),
+            source: genesisSource(pack, characterId, 'fact', fact.factId),
           },
         },
       })
@@ -561,7 +558,7 @@ function phase8GenesisCognition(pack: Phase8CompatiblePack): readonly WorldEvent
             observerId: characterId,
             content: markdown.get(document.contentRef)!.text,
             epistemicKind: 'direct_observation', saliencePermille: 500, basisRefs: [],
-            source: phase8Source(pack, characterId, 'document', document.documentId),
+            source: genesisSource(pack, characterId, 'document', document.documentId),
           },
         },
       })
@@ -593,7 +590,7 @@ async function compileV5Source(sourceDirectory: string, options: WorldPackCompil
       await loadJson(root, manifest.manifestationFile, manifestFile, budget), manifest.manifestationFile)
     const interactionSelection = parseWorldPackInteractionsSource(
       await loadJson(root, manifest.interactionFile, manifestFile, budget), manifest.interactionFile)
-    const world = parseWorldPackWorldSourceV2(await loadJson(root, manifest.worldFile, manifestFile, budget), manifest.worldFile)
+    const world = parseWorldPackWorldSource(await loadJson(root, manifest.worldFile, manifestFile, budget), manifest.worldFile)
     const locations: WorldPackLocationSource[] = []
     for (const file of [...manifest.locationFiles].sort(compareText)) locations.push(...parseWorldPackLocationsSource(await loadJson(root, file, manifestFile, budget), file).locations)
     const entities: WorldPackEntitySourceV2[] = []
@@ -608,7 +605,7 @@ async function compileV5Source(sourceDirectory: string, options: WorldPackCompil
     for (const file of [...manifest.sceneFiles].sort(compareText)) scenes.push(...parseWorldPackScenesSourceV2(await loadJson(root, file, manifestFile, budget), file).scenes)
     const playerSlots: WorldPackPlayerSlotSource[] = []
     for (const file of [...manifest.playerSlotFiles].sort(compareText)) playerSlots.push(...parseWorldPackPlayerSlotsSource(await loadJson(root, file, manifestFile, budget), file).playerSlots)
-    if (manifest.presentationFiles.length !== 1) failWorldPackContract('PACK_SOURCE_INVALID', manifestFile, '/presentationFiles', 'Phase 8 requires exactly one presentation file')
+    if (manifest.presentationFiles.length !== 1) failWorldPackContract('PACK_SOURCE_INVALID', manifestFile, '/presentationFiles', 'requires exactly one presentation file')
     const presentation = parseWorldPackPresentationSource(await loadJson(root, manifest.presentationFiles[0]!, manifestFile, budget), manifest.presentationFiles[0]!)
     const cognition: WorldPackCharacterCognitionSourceV2[] = []
     for (const file of [...manifest.cognitionFiles].sort(compareText)) cognition.push(...parseWorldPackCognitionSourceV2(await loadJson(root, file, manifestFile, budget), file).characters)
@@ -650,7 +647,7 @@ async function compileV5Source(sourceDirectory: string, options: WorldPackCompil
     uniqueAcross(memory.map(value => value.characterId), 'memory', '')
     uniqueAcross(documents.map(value => value.documentId), 'documents', '')
     uniqueAcross(acceptanceAssertions.map(value => value.assertionId), 'assertions', '')
-    if (playerSlots.length !== 1) failWorldPackContract('PACK_SOURCE_INVALID', manifestFile, '', 'Phase 8 requires exactly one PlayerSlot across all files')
+    if (playerSlots.length !== 1) failWorldPackContract('PACK_SOURCE_INVALID', manifestFile, '', 'requires exactly one PlayerSlot across all files')
     const cognitionByCharacter = new Map(cognition.map(value => [value.characterId, value]))
     const memoryByCharacter = new Map(memory.map(value => [value.characterId, value]))
     for (const character of characters) {
@@ -673,7 +670,7 @@ async function compileV5Source(sourceDirectory: string, options: WorldPackCompil
     const shared = {
       packId: manifest.packId,
       packVersion: manifest.packVersion,
-      pluginLocks: pluginLocks(PHASE8_CORE_PROFILES),
+      pluginLocks: pluginLocks(WORLD_PACK_CORE_PROFILES),
       vocabularyLocks: BASIC_VOCABULARY_LOCKS,
       registryLocks: RUNTIME_REGISTRY_LOCKS,
       content,
@@ -695,7 +692,7 @@ async function compileV5Source(sourceDirectory: string, options: WorldPackCompil
     return { ...unsigned, packHash: packHashV5(unsigned) }
 }
 
-/** Deterministic compiler for explicit Phase 8 sources. It does not activate or upcast v1 Packs. */
+/** Deterministic compiler for worldpack-source/v5. Older source versions are rejected, never upcast. */
 export class WorldPackCompilerV5 {
   async compile(
     sourceDirectory: string,
@@ -786,7 +783,7 @@ export class WorldPackCompilerV5 {
         eventType: 'scene.upsert', eventVersion: 1,
         data: { sceneId: value.sceneId, value: { lifecycle: value.lifecycle, locationId: value.locationId, participantIds: value.participantIds } },
       })),
-      ...phase8GenesisCognition(pack),
+      ...genesisCognitionEvents(pack),
       { eventType: 'player.binding.upsert', eventVersion: 1, data: normalizedRuntime.playerBindings[0]! },
       { eventType: 'world.lifecycle-changed', eventVersion: 1, data: { lifecycleState: 'active' } },
     ]

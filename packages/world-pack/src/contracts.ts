@@ -115,14 +115,7 @@ export interface WorldPackCoreProfiles extends WorldJsonObject {
   readonly presentation: WorldPackPresentationProfile
 }
 
-export const PHASE7_CORE_PROFILES: WorldPackCoreProfiles = Object.freeze({
-  rulebook: Object.freeze({ rulebookId: 'builtin:speak-move', version: 2 }),
-  sceneDecision: Object.freeze({ pluginId: 'builtin:scene-decision', version: '1.0.0' }),
-  agentContext: Object.freeze({ pluginId: 'builtin:agent-context', version: '2.0.0' }),
-  presentation: Object.freeze({ profileId: 'builtin:deterministic-presentation', version: '1.0.0' }),
-})
-
-export const PHASE8_CORE_PROFILES: WorldPackCoreProfiles = Object.freeze({
+export const WORLD_PACK_CORE_PROFILES: WorldPackCoreProfiles = Object.freeze({
   rulebook: Object.freeze({ rulebookId: 'builtin:speak-move', version: 2 }),
   sceneDecision: Object.freeze({ pluginId: 'builtin:scene-decision', version: '2.0.0' }),
   agentContext: Object.freeze({ pluginId: 'builtin:agent-context', version: '2.0.0' }),
@@ -378,54 +371,6 @@ export interface WorldPackEntitySource extends WorldJsonObject {
   readonly entityId: string
   readonly locationId: string
   readonly kind: string
-}
-export interface WorldPackEntitiesSource extends WorldJsonObject {
-  readonly schemaVersion: 'worldpack-entities/v1'
-  readonly entities: readonly WorldPackEntitySource[]
-}
-
-export interface WorldPackPortrayalSource extends WorldJsonObject {
-  readonly summary: string
-  readonly speakingStyle: string
-  readonly backgroundTextRef: string | null
-}
-export interface WorldPackInitialObservationSource extends WorldJsonObject {
-  readonly observationId: string
-  readonly value: WorldJsonValue
-}
-export interface WorldPackInitialClaimSource extends WorldJsonObject {
-  readonly claimId: string
-  readonly value: WorldJsonValue
-}
-export interface WorldPackInitialGoalSource extends WorldJsonObject {
-  readonly goalId: string
-  readonly value: WorldJsonValue
-  readonly priorityPermille: number
-  readonly visibility: 'private' | 'public'
-}
-export interface WorldPackCharacterSource extends WorldJsonObject {
-  readonly characterId: CharacterId
-  readonly displayName: string
-  readonly pronouns: string
-  readonly initialLocationId: string
-  readonly lifecycle: 'active' | 'incapacitated' | 'dead' | 'departed'
-  readonly portrayal: WorldPackPortrayalSource
-  readonly initialObservations: readonly WorldPackInitialObservationSource[]
-  readonly initialClaims: readonly WorldPackInitialClaimSource[]
-  readonly initialGoals: readonly WorldPackInitialGoalSource[]
-}
-export interface WorldPackCharactersSource extends WorldJsonObject {
-  readonly schemaVersion: 'worldpack-characters/v1'
-  readonly characters: readonly WorldPackCharacterSource[]
-}
-
-export interface WorldPackSceneSource extends WorldJsonObject {
-  readonly sceneId: string
-  readonly participantIds: readonly CharacterId[]
-}
-export interface WorldPackScenesSource extends WorldJsonObject {
-  readonly schemaVersion: 'worldpack-scenes/v1'
-  readonly scenes: readonly [WorldPackSceneSource]
 }
 
 export interface WorldPackPlayerSlotSource extends WorldJsonObject {

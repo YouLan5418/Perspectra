@@ -293,7 +293,7 @@ describe('WorldPackCompilerV5', () => {
     expect(() => parseCompiledWorldPackV5({ ...pack, pluginLocks: pack.pluginLocks.slice(1) }))
       .toThrow(/Core profile/u)
     expect(() => parseCompiledWorldPackV5({ ...pack, registryLocks: [] }))
-      .toThrow(/Phase 8 lock set/u)
+      .toThrow(/runtime lock set/u)
   }, 60_000)
 
   it('rejects a hand-edited catalog whose bindings no longer match the content', async () => {
