@@ -44,6 +44,7 @@ export default defineConfig({
         'packages/runtime-cordis/src/**/*.ts',
         'packages/store-sqlite/src/**/*.ts',
         'packages/world-pack/src/**/*.ts',
+        'desktop/**/*.ts',
       ],
       exclude: ['**/*.test.ts', '**/index.ts'],
       reporter: ['text', 'json-summary'],

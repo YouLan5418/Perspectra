@@ -44,7 +44,7 @@ corepack pnpm@11.7.0 test:related packages/store-sqlite/src/store.test.ts
 corepack pnpm@11.7.0 test:related tests/integration/observation-session.test.ts
 ```
 
-默认 `vitest.regression.config.ts` 选择角色私有视图隔离、v5 游戏包编译两组测试，并自动发现 `tests/host`（游戏宿主）、`tests/desktop`（Launcher 后端）、`tests/scenarios`（跨包玩法与角色行为）和 `tests/integration`（跨包集成）下的测试，包括当前角色互动、记忆、活动、故事线、进程中断和宿主入口回归。`test:related` 使用 `vitest.config.ts`，另外运行全部包内单元测试。宿主入口测试会临时构建后端，验证 TypeScript、源码仓库内的构建产物与隔离发行目录均可启动；使用原生记忆，不依赖真实模型。它不覆盖全部新契约；旧版本断言可以随已明确改变的行为更新。新增功能需补充相关验证，不可仅凭默认测试通过宣布完成。
+默认 `vitest.regression.config.ts` 按目录运行全部包内单元测试（`packages/**/*.test.ts`），并自动发现 `tests/host`（游戏宿主）、`tests/desktop`（Launcher 后端）、`tests/scenarios`（跨包玩法与角色行为）和 `tests/integration`（跨包集成）下的测试，包括当前角色互动、记忆、活动、故事线、进程中断和宿主入口回归；只有 `tests/experiments` 不在默认回归内。`test:related` 使用 `vitest.config.ts`，发现范围是全部 packages 与 tests，用于按路径运行单个测试。宿主入口测试会临时构建后端，验证 TypeScript、源码仓库内的构建产物与隔离发行目录均可启动；使用原生记忆，不依赖真实模型。它不覆盖全部新契约；旧版本断言可以随已明确改变的行为更新。新增功能需补充相关验证，不可仅凭默认测试通过宣布完成。
 
 本机跑完整 `check` 有两个环境前提：故事分享等集成用例需要能找到 Python/E5 记忆环境（可用 `HCW_HINDSIGHT_PYTHON`、`HCW_HINDSIGHT_ONNX_DIR` 指定）；硬中断测试需要能执行 `taskkill`。受限沙箱里这两类用例会失败，这是环境问题，不要靠跳过用例或改断言来“修好”。
 
