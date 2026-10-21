@@ -94,3 +94,5 @@ node scripts/docs/check-links.mjs
 运行时身份覆盖 packages 与宿主文件路径，改名会再次改变身份；与前两轮相同，不为旧末端回合增加迁移。
 
 验证：默认回归 **79 个文件、697 项全部通过**（串行，427.83 秒）；typecheck、lint、边界检查、文档链接检查通过；`launcher:check`（类型检查与 44 项测试）、`launcher:build`、`desktop:build` 通过，打包产物中没有残留未解析的包名导入。未运行真实模型试玩、Python Core 离线回归、Rust 检查或便携包构建；本轮没有改动这些路径的源码。
+
+后续已在同一源码提交 `38b6487` 完成 [DeepSeek 官方真实试玩](code-organization-deepseek-playtest-20261021.md)：72 次模型请求全部成功，覆盖角色回合、授权知识、活动、实际 Core 整理、保存重开与候选生成／切换。仍发现一次未执行拿取却叙述取得保管的体验问题；没有同模型基点 A/B，不归因为本次整理。完整证据与限制见该报告。
