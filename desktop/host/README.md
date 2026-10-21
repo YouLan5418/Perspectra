@@ -8,6 +8,7 @@
 | HTTP、认证与前端服务 | [http-server.ts](http-server.ts)、[frontend-server.ts](frontend-server.ts)、[creator-assets.ts](creator-assets.ts) |
 | 世界装配、角色激活与故事线 | [world-runtime.ts](world-runtime.ts)、[tail-runtime.ts](tail-runtime.ts) |
 | 玩家公开视图与操作适配 | [frontend-adapter.ts](frontend-adapter.ts)；公共数据和请求形状在 [frontend](../../packages/frontend/src/player-view.ts) |
+| 模型连接与按角色预设 | [role-providers.ts](role-providers.ts)；默认模型与端点见 [provider-defaults.ts](../provider-defaults.ts) |
 | 模型请求格式 | [gateway-turn-call.ts](gateway-turn-call.ts)、[decision-format.ts](decision-format.ts) |
 | 默认 Core 记忆 | [memory/README.md](memory/README.md) |
 | 创作者只读查询 | [creator-inspection.ts](creator-inspection.ts)、[creator-history.ts](creator-history.ts)、[creator-records.ts](creator-records.ts) |

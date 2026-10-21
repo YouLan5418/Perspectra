@@ -3,6 +3,7 @@ import { existsSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import type { WorldJsonObject } from '@harness-world/contracts'
 import { corePythonRoot } from './python-paths.ts'
+import type { RuntimeModel } from '../../model-connections.ts'
 
 export type CoreRunner = (input: WorldJsonObject, signal: AbortSignal) => Promise<WorldJsonObject>
 
@@ -109,4 +110,28 @@ export function createCoreWorker(environment: NodeJS.ProcessEnv = {}, command?: 
     })
   }
   return { run, close: async () => { closed = true; stop(); await exited } }
+}
+
+export interface MemoryRunners { readonly recall: CoreRunner; readonly build: CoreRunner; readonly close?: () => Promise<void> }
+
+/** One runner group per distinct memory model; each Python process sees only its own model's key. */
+export function coreRunnerGroups(dataDirectory: string, start: (environment: NodeJS.ProcessEnv) => MemoryRunners = environment => {
+  const worker = createCoreWorker(environment)
+  return { recall: worker.run, build: coreRunner(environment), close: worker.close }
+}) {
+  const groups = new Map<string, MemoryRunners>()
+  return {
+    runnersFor(target: RuntimeModel): MemoryRunners {
+      const key = JSON.stringify([target.protocol, target.endpoint, target.model, target.apiKey ?? ''])
+      let runners = groups.get(key)
+      if (runners === undefined) {
+        runners = start({ HCW_LOCAL_MODEL: target.model, HCW_LOCAL_ENDPOINT: target.endpoint, HCW_MODEL_PROTOCOL: target.protocol,
+          HCW_LOCAL_API_KEY: target.apiKey ?? '',
+          HCW_HINDSIGHT_UTILITY_ATTEMPTS: resolve(dataDirectory, 'memory-core', 'utility-attempts.jsonl') })
+        groups.set(key, runners)
+      }
+      return runners
+    },
+    async close(): Promise<void> { await Promise.all([...groups.values()].map(runners => runners.close?.())) },
+  }
 }

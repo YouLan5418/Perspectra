@@ -27,7 +27,7 @@ export function tailRuntimeIdentity(): string {
       'desktop/host/pack-activity.ts','desktop/host/pack-activities.ts','desktop/host/pack-status.ts',
       'desktop/host/pack-autonomy.ts','desktop/play-settings.ts',
       'desktop/host/pack-knowledge.ts','desktop/host/pack-json-asset.ts',
-      'desktop/host/gateway-turn-call.ts','desktop/host/memory/python-worker.ts','desktop/host/memory/python-paths.ts','desktop/host/memory/alias-history.ts','package.json','pnpm-lock.yaml']) {
+      'desktop/host/gateway-turn-call.ts','desktop/host/role-providers.ts','desktop/provider-defaults.ts','desktop/host/memory/python-worker.ts','desktop/host/memory/python-paths.ts','desktop/host/memory/alias-history.ts','package.json','pnpm-lock.yaml']) {
       hash.update(name).update(readFileSync(join(root,name)))
     }
   }

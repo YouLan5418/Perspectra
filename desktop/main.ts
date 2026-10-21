@@ -7,6 +7,7 @@ import { dirname, join, resolve } from 'node:path'
 import { promisify } from 'node:util'
 import { fileURLToPath } from 'node:url'
 import { DEFAULT_RUNTIME_TUNING, parseRuntimeTuning, type RuntimeTuning } from './host/runtime-tuning.ts'
+import { PROVIDER_DEFAULTS } from './provider-defaults.ts'
 
 interface PackInfo { readonly path: string; readonly id: string; readonly title: string }
 interface SaveInfo { readonly id: string; readonly name: string; readonly packPath: string; readonly createdAt: string }
@@ -20,7 +21,7 @@ const smoke = process.env.HCW_DESKTOP_SMOKE === '1'
 if (smoke) app.setPath('userData', join(repository, '.tmp', 'desktop-smoke-user'))
 const nodeExecutable = app.isPackaged ? process.execPath : (process.env.HCW_DESKTOP_NODE?.trim() || 'node')
 const runFile = promisify(execFile)
-const defaultModel: ModelChoice = { provider: 'local', model: 'gemini-3.7-flash', endpoint: 'http://127.0.0.1:8045/v1/chat/completions' }
+const defaultModel: ModelChoice = { provider: 'local', ...PROVIDER_DEFAULTS.local }
 const featuredPack = join(repository, 'examples', 'world-packs', 'ai-girls-awaken-v10')
 let window: BrowserWindow
 let backend: ChildProcess | undefined
@@ -271,7 +272,7 @@ async function main(): Promise<void> {
     ) as { ready: boolean; featured: boolean; saves: number }
     await startGame({
       packPath: process.env.HCW_DESKTOP_SMOKE_PACK ? resolve(process.env.HCW_DESKTOP_SMOKE_PACK) : featuredPack,
-      provider: 'ollama', model: 'qwen3:4b', endpoint: 'http://127.0.0.1:11434/api/chat',
+      provider: 'ollama', ...PROVIDER_DEFAULTS.ollama,
       saveName: '桌面冒烟', tuning: DEFAULT_RUNTIME_TUNING,
     })
     await writeFile(join(app.getPath('userData'), 'smoke-stage.txt'), 'game started')

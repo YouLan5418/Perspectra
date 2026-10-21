@@ -96,3 +96,22 @@ node scripts/docs/check-links.mjs
 验证：默认回归 **79 个文件、697 项全部通过**（串行，427.83 秒）；typecheck、lint、边界检查、文档链接检查通过；`launcher:check`（类型检查与 44 项测试）、`launcher:build`、`desktop:build` 通过，打包产物中没有残留未解析的包名导入。未运行真实模型试玩、Python Core 离线回归、Rust 检查或便携包构建；本轮没有改动这些路径的源码。
 
 后续已在同一源码提交 `38b6487` 完成 [DeepSeek 官方真实试玩](code-organization-deepseek-playtest-20261021.md)：72 次模型请求全部成功，覆盖角色回合、授权知识、活动、实际 Core 整理、保存重开与候选生成／切换。仍发现一次未执行拿取却叙述取得保管的体验问题；没有同模型基点 A/B，不归因为本次整理。完整证据与限制见该报告。
+
+## 第四轮：版本号命名、测试分层与宿主拆分（2026-10-21）
+
+基点为 `38b6487`，分三个提交，不改变角色协议、提示内容、调度顺序、规则裁定或存储格式。
+
+**命名与退役契约**（`6559f47`）。`contracts/context-v2.ts` 中导演规划、上下文回执和各类上下文哈希约 360 行，生产代码零引用，只有自身测试在用，连同测试删除；仍在使用的 `ContextSourceRef` 移到 [context-source.ts](../../../packages/contracts/src/context-source.ts)。`memory-v2.ts`、`phase8-registries.ts` 改为 [cognitive-memory.ts](../../../packages/contracts/src/cognitive-memory.ts)、[runtime-registries.ts](../../../packages/contracts/src/runtime-registries.ts)；`PHASE8_*` 契约导出改为 `BASIC_VOCABULARY_*`、`RUNTIME_REGISTRY_*` 等。哈希域字符串与存档中的 ID 未改，词表与注册表 Golden 仍通过。
+
+**测试分层**（`6097aed`）。`tests/prototype` 按被测入口拆为 [tests/host](../../../tests/host)、[tests/desktop](../../../tests/desktop)、[tests/scenarios](../../../tests/scenarios)；根目录的 `p2/p4/p8/frozen-*` 集成测试移入 [tests/integration](../../../tests/integration) 并按行为命名。默认配置改名为 `vitest.regression.config.ts`，并纳入原先只在 `test:related` 中运行的 10 个集成测试文件（60 项，迁移前已确认全部通过）。
+
+**宿主拆分**（本提交）。模型与按角色预设的装配移到 [role-providers.ts](../../../desktop/host/role-providers.ts)，Core 记忆按模型分组的 runner 移到 [python-worker.ts](../../../desktop/host/memory/python-worker.ts)，散落在 5 处的默认模型与端点统一为 [provider-defaults.ts](../../../desktop/provider-defaults.ts)。角色决策管线从构造函数中的闭包改为私有方法 `#decide`，逻辑原样搬移。`WorldHostCore` 构造函数由约 180 行降到约 75 行。
+
+有意保留：
+- 调度（`#activateCharacters`、`#activateAutonomous`）和状态投影仍在 `WorldHostCore` 中。它们与大量可变运行状态交织，拆分需要配合真实试玩，本轮不动。
+- 创作者查询需要读取十余个私有字段，抽出只会把耦合换成大参数对象，保留在类内。
+- world-pack 中 Phase 7/Phase 8 两代格式配置、V1–V3 源文件解析器，以及 `SceneDecisionService` 的 v1 分支仍可到达。它们是多代兼容层，是否删除需先确认现存世界包与存档，未在本轮改名或删除。
+
+运行时身份新增 `role-providers.ts` 与 `provider-defaults.ts`，身份再次改变，旧末端回合同样不迁移。
+
+验证：拆分后默认回归 **89 个文件、757 项全部通过**（串行，435.92 秒）；全部包内单元测试 61 个文件、696 项通过；typecheck、lint、边界检查、文档链接检查、`launcher:check`、`launcher:build`、`desktop:build` 通过。本轮之前用户已完成一次真实试玩；本轮之后未再试玩，Python Core 离线回归、Rust 检查与便携包构建未运行。

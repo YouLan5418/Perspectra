@@ -1,13 +1,13 @@
-import { characterPreset, characterTurnCall, createChatProvider, presetCall, presetContext, presetDisplay, presetOutput,
-  providerProtocol, RequestInspector, rolePresetMapping, type ChatCallObservation, type PresetBaseSource,
-  type ProviderProtocol, type RolePreset, type RolePresetMapping, type ThinkingLevel } from '@harness-world/provider-chat'
+import { characterTurnCall, presetCall, presetContext, presetDisplay, presetOutput, RequestInspector,
+  type ChatCallObservation, type RolePreset } from '@harness-world/provider-chat'
 import { CreatorRecords, type CreatorRecordsQuery } from './creator-records.ts'
 import { creatorHistory, creatorHistoryQuery, type CreatorHistoryQuery } from './creator-history.ts'
 import { creatorInspectionQuery, type CreatorInspectionQuery, type CreatorInspectionSnapshot } from './creator-inspection.ts'
 import { createCoreRulebookRegistry, currentCharacterLifecycle, currentEntityState, currentLocation, currentSceneStates,
   RulebookRegistry } from '@harness-world/kernel'
 import { playSettings, DEFAULT_READING, DEFAULT_AUDIO, type PlaySettings, type ReadingPreferences, type AudioPreferences, type Palette } from '../play-settings.ts'
-import type { RuntimeModel, RuntimeRoleModels } from '../model-connections.ts'
+import type { RuntimeModel } from '../model-connections.ts'
+import { createRoleProviders, type ModelOptions, type RoleProviders } from './role-providers.ts'
 import { TailRoundRuntime } from './tail-runtime.ts'
 import { assertSettled, snapshotTail } from '../tail-storage.ts'
 import { CharacterPresetError, CharacterTurn, characterExecutionResult, recentExecutionContext, rejectionReasonText,
@@ -16,7 +16,7 @@ import { CharacterPresetError, CharacterTurn, characterExecutionResult, recentEx
 import { saveStoryNode, readStoryNodes } from '../story-nodes.ts'
 import { existsSync, unlinkSync } from 'node:fs'
 import { CoreMemoryAdapter, type MemoryContextBudget, type MemoryBuildOptions } from './memory/core-memory.ts'
-import { assertCoreEnvironment, createCoreWorker, coreRunner, type CoreRunner } from './memory/python-worker.ts'
+import { assertCoreEnvironment, coreRunnerGroups, type CoreRunner, type MemoryRunners } from './memory/python-worker.ts'
 import { type ActivityRequest } from './pack-activity.ts'
 import { decideWithFormatRetry } from './decision-format.ts'
 import { PackActivities } from './pack-activities.ts'
@@ -40,23 +40,10 @@ import { HostBusyError, type HostAction, type HostRuntime, type HostState } from
 import { modelCharacters, playerTranscript } from './player-transcript.ts'
 import { DEFAULT_RUNTIME_TUNING, type RuntimeTuning } from './runtime-tuning.ts'
 
-export interface WorldHostOptions {
+export interface WorldHostOptions extends ModelOptions {
   readonly dataDirectory: string
   /** The v5 Pack directory: the world the author wrote, compiled here with the Host's installed packages. */
   readonly packPath: string
-  readonly protocol?: ProviderProtocol
-  readonly thinkingLevel?: ThinkingLevel
-  readonly provider: 'local' | 'deepseek' | 'ollama'
-  readonly model?: string
-  readonly preset?: RolePreset
-  readonly presetBaseSource?: PresetBaseSource
-  readonly presetMapping?: RolePresetMapping
-  readonly intentModel?: string
-  /** The Host's Secret, from the environment. It is never written to the data directory. */
-  readonly apiKey?: string
-  readonly utilityEndpoint?: string
-  readonly timeoutMs?: number
-  readonly playSettings?: PlaySettings
   readonly reading?: ReadingPreferences
   readonly audio?: AudioPreferences
   readonly palette?: Palette
@@ -84,19 +71,9 @@ export interface WorldHostOptions {
   readonly beforeActionExpression?: boolean
   /** Read-only recent execution presentation; no planning calls or persistent strategy. */
   readonly recentExecutionEvidence?: boolean
-  /** Launcher-resolved per-character models; characters absent here use the default model above. */
-  readonly roleModels?: RuntimeRoleModels
 }
 
-export type { RuntimeModel, RuntimeRoleModels }
-export interface MemoryRunners { readonly recall: CoreRunner; readonly build: CoreRunner; readonly close?: () => Promise<void> }
 
-const LOCAL_ENDPOINT = 'http://127.0.0.1:8045/v1/chat/completions'
-const LOCAL_MODEL = 'gemini-3.7-flash'
-const DEEPSEEK_ENDPOINT = 'https://api.deepseek.com/chat/completions'
-const DEEPSEEK_MODEL = 'deepseek-flash'
-const OLLAMA_MODEL = 'qwen3:4b'
-const OLLAMA_ENDPOINT = 'http://127.0.0.1:11434/api/chat'
 /** Whether a Pack directory is a v5 source, which is the one this runtime plays. */
 export function isV5SourcePackDirectory(packPath: string): boolean {
   try {
@@ -265,7 +242,7 @@ export class WorldHostCore implements HostRuntime {
   #lastPlayerIntent: string | null = null
   #rootBeforeSeq = 0
   #continuationController: AbortController | undefined
-  readonly #decideContinuation: (request: CharacterTurnRequest, signal: AbortSignal, reserveFormatRetry?: () => boolean) => Promise<unknown>
+  readonly #models: RoleProviders
 
   private constructor(options: WorldHostOptions, compiled: ReturnType<typeof adaptCompiledWorldPack>,
     intentEnabled: boolean) {
@@ -296,137 +273,29 @@ export class WorldHostCore implements HostRuntime {
     this.#title = compiled.manifest.metadata.title
     this.#playerName = this.#names.get(this.#playerId) ?? this.#playerId
     this.#provider = options.provider
-    this.#model = options.model ?? (options.provider === 'ollama' ? OLLAMA_MODEL
-      : options.provider === 'deepseek' ? DEEPSEEK_MODEL : LOCAL_MODEL)
-    this.#intentModel = options.intentModel ?? this.#model
-    const timeoutMs = options.timeoutMs ?? (options.playSettings?settings.modelTimeoutSeconds*1000:options.provider === 'ollama' ? 120_000 : 60_000)
-    const endpoint = options.provider === 'ollama'
-      ? new URL(options.utilityEndpoint ?? OLLAMA_ENDPOINT)
-      : options.provider === 'deepseek' ? new URL(DEEPSEEK_ENDPOINT)
-        : new URL(options.utilityEndpoint ?? LOCAL_ENDPOINT)
-    if (options.provider === 'deepseek' && options.apiKey === undefined) {
-      throw new TypeError('DeepSeek credential unavailable')
-    }
-    const onCall = (observation: ChatCallObservation) => {
-      this.#providerCalls += 1
-      this.#lastCall = observation
-    }
-    const protocol = providerProtocol(options.protocol)
-    if (protocol !== 'openai' && options.provider !== 'local') throw new TypeError('原生协议须使用 local 配置入口。')
-    const providerOptions = { ...(options.thinkingLevel === undefined ? {} : {thinkingLevel:options.thinkingLevel}), protocol, endpoint, model: this.#model,
-      ...(options.apiKey === undefined ? {} : { apiKey: options.apiKey }),
-      ...(options.preset===undefined?{}:{preset:options.preset}),
-      inspector:this.#inspector, style: options.provider === 'ollama' ? 'format' as const : 'tool' as const, timeoutMs, onCall }
-    const provider = createChatProvider(providerOptions)
     const characters = modelCharacters(compiled.manifest, this.#playerId)
-    const mapping=rolePresetMapping(options.presetMapping??{})
-    if([...Object.keys(mapping.characters??{}),...Object.keys(mapping.memberships??{})].some(id=>!characters.some(c=>c.actorId===id)))throw new TypeError('预设引用了此包之外或不可调用的角色。')
-    const roleModels=options.roleModels?.characters ?? {}
-    if(options.roleModels !== undefined && options.provider !== 'local') throw new TypeError('按角色模型须使用 local 配置入口。')
-    if(Object.keys(roleModels).some(id=>!characters.some(c=>c.actorId===id)))throw new TypeError('模型配置引用了此包之外或不可调用的角色。')
-    // An override replaces the whole target, so the default key and thinking level never reach another provider.
-    const {thinkingLevel:_thinking,apiKey:_key,...sharedOptions}=providerOptions
-    const decisionTarget=(id:string)=>{const own=roleModels[id]?.decision;return own===undefined?providerOptions:{...sharedOptions,
-      protocol:own.protocol,endpoint:new URL(own.endpoint),model:own.model,
-      ...(own.thinkingLevel===undefined?{}:{thinkingLevel:own.thinkingLevel}),...(own.apiKey===undefined?{}:{apiKey:own.apiKey})}}
-    const roleProtocols=new Map(characters.map(c=>[String(c.actorId),decisionTarget(String(c.actorId)).protocol]))
-    const effectivePresets=new Map(characters.map(c=>[String(c.actorId),characterPreset(options.preset??{},mapping,c.actorId)]))
-    this.#effectivePresets=effectivePresets
-    const roleProviders=new Map(characters.map(c=>[String(c.actorId),createChatProvider({...decisionTarget(String(c.actorId)),preset:effectivePresets.get(c.actorId)!,
-      presetOrigin:Object.hasOwn(mapping.characters??{},c.actorId) ? {scope:'character',characterId:String(c.actorId),name:'角色专属预设'}
-        : mapping.memberships?.[c.actorId] ? {scope:'group',characterId:String(c.actorId),groupId:mapping.memberships[c.actorId]!,name:mapping.groups![mapping.memberships[c.actorId]!]!.name}
-          : {scope:'base',characterId:String(c.actorId),name:'默认预设',
-            base:options.presetBaseSource ?? {mode:'explicit',layers:[{name:'运行配置',value:effectivePresets.get(c.actorId)!}]}},
-      onCall: observation => { onCall(observation); this.#roleCalls.set(String(c.actorId), observation) }})]))
+    const models = createRoleProviders(options, settings, characters, this.#inspector,
+      observation => { this.#providerCalls += 1; this.#lastCall = observation },
+      (characterId, observation) => { this.#roleCalls.set(characterId, observation) })
+    this.#models = models
+    const { shared: provider, presets: effectivePresets, timeoutMs } = models
+    this.#model = models.model
+    this.#intentModel = models.intentModel
+    this.#effectivePresets = effectivePresets
     this.#characterIds = characters.map(character => character.actorId)
     if (options.memoryCore) {
       if (options.provider !== 'local') throw new TypeError('Core 记忆须使用 local 配置入口。')
-      // One runner group per distinct memory model; each Python process sees only its own model's key.
-      const defaultMemory: RuntimeModel = options.roleModels?.memory ?? { protocol, endpoint: endpoint.href, model: this.#model,
-        ...(options.apiKey === undefined ? {} : { apiKey: options.apiKey }) }
-      const startRunners = options.memoryCoreRunners ?? ((environment: NodeJS.ProcessEnv): MemoryRunners => {
-        const worker = createCoreWorker(environment)
-        return { recall: worker.run, build: coreRunner(environment), close: worker.close }
-      })
-      const groups = new Map<string, MemoryRunners>()
-      const runnersFor = (target: RuntimeModel): MemoryRunners => {
-        const key = JSON.stringify([target.protocol, target.endpoint, target.model, target.apiKey ?? ''])
-        let runners = groups.get(key)
-        if (runners === undefined) {
-          runners = startRunners({ HCW_LOCAL_MODEL: target.model, HCW_LOCAL_ENDPOINT: target.endpoint, HCW_MODEL_PROTOCOL: target.protocol,
-            HCW_LOCAL_API_KEY: target.apiKey ?? '',
-            HCW_HINDSIGHT_UTILITY_ATTEMPTS: resolve(options.dataDirectory, 'memory-core', 'utility-attempts.jsonl') })
-          groups.set(key, runners)
-        }
-        return runners
-      }
-      const shared = options.memoryCoreRun === undefined || options.memoryCoreBuildRun === undefined ? runnersFor(defaultMemory) : undefined
+      const defaultMemory: RuntimeModel = options.roleModels?.memory ?? { protocol: models.protocol, endpoint: models.endpoint.href,
+        model: models.model, ...(options.apiKey === undefined ? {} : { apiKey: options.apiKey }) }
+      const groups = coreRunnerGroups(options.dataDirectory, options.memoryCoreRunners)
+      const shared = options.memoryCoreRun === undefined || options.memoryCoreBuildRun === undefined ? groups.runnersFor(defaultMemory) : undefined
       const own = options.memoryCoreRun === undefined
-        ? new Map(Object.entries(roleModels).map(([id, role]) => [id, runnersFor(role.memory)])) : new Map<string, MemoryRunners>()
-      this.#closeCore = async () => { await Promise.all([...groups.values()].map(runners => runners.close?.())) }
+        ? new Map(Object.entries(options.roleModels?.characters ?? {}).map(([id, role]) => [id, groups.runnersFor(role.memory)]))
+        : new Map<string, MemoryRunners>()
+      this.#closeCore = groups.close
       this.#memoryCore = new CoreMemoryAdapter(options.dataDirectory, this.#address, options.memoryCoreRun ?? shared!.recall, options.memoryContextBudget ?? {triggerTokens:settings.memoryTriggerTokens,compactTokens:settings.memoryCompactTokens,minimumRecentTokens:settings.memoryRecentTokens},
         { ...options.memoryBuildConcurrency, run: options.memoryCoreBuildRun ?? shared!.build, runFor: actor => own.get(actor),
           worldVersion: this.#worldVersion, versionValid: () => !this.#closing }, {maxItems:settings.memoryMaxItems,maxJsonChars:settings.memoryMaxJsonChars})
-    }
-    this.#decideContinuation = async (request, signal, reserveFormatRetry) => {
-      if (this.#memoryCore) request = await this.#memoryCore.project(request, signal)
-      if (options.recentExecutionEvidence === true) request = { ...request, context: recentExecutionContext(request.context) }
-      const character = request.context.character as WorldJsonObject
-      const characterId=String(character.characterId)
-      if (this.#status) {
-        const store = new WorldStore(resolve(options.dataDirectory, 'world.sqlite'))
-        let updates
-        try { updates = store.readEventsRange(this.#address, 0, store.head(this.#address).headSeq, ['status.updated']) } finally { store.close() }
-        request = {...request, context: {...request.context,
-          knownStatus: this.#status.known(updates, characterId) as unknown as WorldJsonObject[], knownStatusNote: KNOWN_STATUS_NOTE}}
-      }
-      if (this.#knowledge) request = {...request, context: {...request.context, knowledge: this.#knowledge.select(request.context)}}
-      this.#roleCalls.delete(characterId)
-      const roleProvider=roleProviders.get(characterId)
-      if(!roleProvider)throw new TypeError('当前角色没有可调用的预设配置。')
-      const effectivePreset=effectivePresets.get(characterId)
-      const prepare = async (visible: CharacterTurnRequest) => {
-        try {
-          const projected = await presetContext(visible, effectivePreset!, String(this.#playerId), signal)
-          return presetCall(options.provider === 'local' && roleProtocols.get(characterId) !== 'google' ? gatewayTurnCall(projected) : characterTurnCall(projected),
-            effectivePreset!, projected, this.#playerName, {character:this.#names.get(characterId)??characterId,
-              scene:this.#locationNames.get(String((projected.context.scene as WorldJsonObject | undefined)?.locationId))??String((projected.context.scene as WorldJsonObject | undefined)?.locationId??'')})
-        } catch(error) { signal.throwIfAborted(); throw new CharacterPresetError('角色预设准备失败。', {cause:error}) }
-      }
-      const prepared = await prepare(request)
-      this.#memoryCore?.observeContext(request, prepared.messages.map(message => message.content).join('\n')
-        + JSON.stringify(prepared.schema)+(effectivePreset?.prompt??''))
-      const simulated = this.#activity?.simulate(request)
-      const callProvider = async (call: typeof prepared) => {
-        signal.throwIfAborted()
-        if (this.#modelCallBudget) {
-          if (this.#modelCallBudget.remaining <= 0) {
-            this.#modelCallBudget.exhausted = true
-            throw new Error('自主处理模型调用预算已耗尽')
-          }
-          this.#modelCallBudget.remaining--
-        }
-        return roleProvider.decide(call, signal)
-      }
-      const decide = async (call: typeof prepared) => presetOutput(simulated === undefined ? await callProvider(call) : simulated, effectivePreset!, signal,
-        request.context.expressionPolicy as WorldJsonObject | undefined, settings.publicationCharacters)
-      const raw = await decideWithFormatRetry(prepared, decide, signal, characterTurnCall(request).schema,
-        request.context.activity === undefined && simulated === undefined ? reserveFormatRetry ?? (() => false) : undefined)
-      if (this.#inspector.enabled) this.#records.trace('decision',characterId,request.decisionId ?? null,
-        {source:simulated === undefined ? 'model' : 'script',value:raw as WorldJsonObject})
-      this.#memoryCore?.recordDecision(request, raw)
-      signal.throwIfAborted()
-      if (this.#closing || this.#abortedWork) throw new Error('角色任务世界版本已失效。')
-      if (options.publicationAudit === undefined) return raw
-      const store = new WorldStore(resolve(options.dataDirectory, 'world.sqlite'))
-      let history
-      try { history = store.readEvents(this.#address) } finally { store.close() }
-      return auditBeforePublication({ request, raw, history, options: options.publicationAudit, signal,
-        decide: async revised => {
-          const call = await prepare(revised), replacement = this.#activity?.simulate(revised)
-          return presetOutput(replacement === undefined ? await callProvider(call) : replacement,
-            effectivePreset!, signal, revised.context.expressionPolicy as WorldJsonObject | undefined)
-        } })
     }
     this.#npcNames = characters.map(character => character.name)
     // The Host's interpretation profile is a contract with the world, and its deadline ceiling is part of
@@ -448,6 +317,68 @@ export class WorldHostCore implements HostRuntime {
       playerIntent: { profile: intentProfile,
         dispatch: async (request, profile, signal) => await provider.dispatch(request, profile, signal) },
     })
+  }
+
+  /** One character decision: authorized context projection, preset, model call, format retry and optional audit. */
+  async #decide(request: CharacterTurnRequest, signal: AbortSignal, reserveFormatRetry?: () => boolean): Promise<unknown> {
+    if (this.#memoryCore) request = await this.#memoryCore.project(request, signal)
+    if (this.#options.recentExecutionEvidence === true) request = { ...request, context: recentExecutionContext(request.context) }
+    const character = request.context.character as WorldJsonObject
+    const characterId=String(character.characterId)
+    if (this.#status) {
+      const store = new WorldStore(resolve(this.#options.dataDirectory, 'world.sqlite'))
+      let updates
+      try { updates = store.readEventsRange(this.#address, 0, store.head(this.#address).headSeq, ['status.updated']) } finally { store.close() }
+      request = {...request, context: {...request.context,
+        knownStatus: this.#status.known(updates, characterId) as unknown as WorldJsonObject[], knownStatusNote: KNOWN_STATUS_NOTE}}
+    }
+    if (this.#knowledge) request = {...request, context: {...request.context, knowledge: this.#knowledge.select(request.context)}}
+    this.#roleCalls.delete(characterId)
+    const roleProvider=this.#models.byCharacter.get(characterId)
+    if(!roleProvider)throw new TypeError('当前角色没有可调用的预设配置。')
+    const effectivePreset=this.#effectivePresets.get(characterId)
+    const prepare = async (visible: CharacterTurnRequest) => {
+      try {
+        const projected = await presetContext(visible, effectivePreset!, String(this.#playerId), signal)
+        return presetCall(this.#options.provider === 'local' && this.#models.protocols.get(characterId) !== 'google' ? gatewayTurnCall(projected) : characterTurnCall(projected),
+          effectivePreset!, projected, this.#playerName, {character:this.#names.get(characterId)??characterId,
+            scene:this.#locationNames.get(String((projected.context.scene as WorldJsonObject | undefined)?.locationId))??String((projected.context.scene as WorldJsonObject | undefined)?.locationId??'')})
+      } catch(error) { signal.throwIfAborted(); throw new CharacterPresetError('角色预设准备失败。', {cause:error}) }
+    }
+    const prepared = await prepare(request)
+    this.#memoryCore?.observeContext(request, prepared.messages.map(message => message.content).join('\n')
+      + JSON.stringify(prepared.schema)+(effectivePreset?.prompt??''))
+    const simulated = this.#activity?.simulate(request)
+    const callProvider = async (call: typeof prepared) => {
+      signal.throwIfAborted()
+      if (this.#modelCallBudget) {
+        if (this.#modelCallBudget.remaining <= 0) {
+          this.#modelCallBudget.exhausted = true
+          throw new Error('自主处理模型调用预算已耗尽')
+        }
+        this.#modelCallBudget.remaining--
+      }
+      return roleProvider.decide(call, signal)
+    }
+    const decide = async (call: typeof prepared) => presetOutput(simulated === undefined ? await callProvider(call) : simulated, effectivePreset!, signal,
+      request.context.expressionPolicy as WorldJsonObject | undefined, this.#playSettings.publicationCharacters)
+    const raw = await decideWithFormatRetry(prepared, decide, signal, characterTurnCall(request).schema,
+      request.context.activity === undefined && simulated === undefined ? reserveFormatRetry ?? (() => false) : undefined)
+    if (this.#inspector.enabled) this.#records.trace('decision',characterId,request.decisionId ?? null,
+      {source:simulated === undefined ? 'model' : 'script',value:raw as WorldJsonObject})
+    this.#memoryCore?.recordDecision(request, raw)
+    signal.throwIfAborted()
+    if (this.#closing || this.#abortedWork) throw new Error('角色任务世界版本已失效。')
+    if (this.#options.publicationAudit === undefined) return raw
+    const store = new WorldStore(resolve(this.#options.dataDirectory, 'world.sqlite'))
+    let history
+    try { history = store.readEvents(this.#address) } finally { store.close() }
+    return auditBeforePublication({ request, raw, history, options: this.#options.publicationAudit, signal,
+      decide: async revised => {
+        const call = await prepare(revised), replacement = this.#activity?.simulate(revised)
+        return presetOutput(replacement === undefined ? await callProvider(call) : replacement,
+          effectivePreset!, signal, revised.context.expressionPolicy as WorldJsonObject | undefined)
+      } })
   }
 
   static async create(options: WorldHostOptions): Promise<WorldHostCore> {
@@ -918,7 +849,7 @@ export class WorldHostCore implements HostRuntime {
         return new CharacterTurn({ publicationCharacters:this.#playSettings.publicationCharacters, activationTimeoutMs:this.#playSettings.activationTimeoutSeconds*1000, address: this.#address, store, leases, availability,
         ...(this.#memoryCore === undefined ? { memory: memory! } : {}),
         rulebooks: autonomous ? this.#autonomy!.rulebooks(base.resolve('builtin:speak-move', 2, 'autonomy', this.#address)) : base,
-        decide: this.#decideContinuation,
+        decide: (request, signal, reserveFormatRetry) => this.#decide(request, signal, reserveFormatRetry),
         onTrace:(kind,characterId,decisionId,data) => { if(this.#inspector.enabled)this.#records.trace(kind,characterId,decisionId,data) },
         continueAfterPublish: this.#options.continueAfterPublish===true
           && !this.#activity?.current()?.game.active && this.#options.publicationAudit===undefined,

@@ -2,6 +2,7 @@ interface PackInfo { readonly path: string; readonly id: string; readonly title:
 interface SaveInfo { readonly id: string; readonly name: string; readonly packPath: string; readonly createdAt: string }
 interface ModelChoice { readonly provider: 'local' | 'ollama' | 'deepseek'; readonly model: string; readonly endpoint: string }
 import type { RuntimeTuning } from './host/runtime-tuning.ts'
+import { PROVIDER_DEFAULTS } from './provider-defaults.ts'
 interface LaunchRequest extends ModelChoice { readonly packPath: string; readonly saveId?: string; readonly saveName?: string; readonly tuning: RuntimeTuning }
 interface LauncherState { readonly packs: readonly PackInfo[]; readonly saves: readonly SaveInfo[]; readonly model: ModelChoice; readonly tuning: RuntimeTuning; readonly error: string; readonly running: boolean }
 
@@ -60,9 +61,10 @@ let saves: readonly SaveInfo[] = []
 let running = false
 let changing = false
 const defaults: Record<ModelChoice['provider'], Pick<ModelChoice, 'model' | 'endpoint'>> = {
-  local: { model: 'gemini-3.7-flash', endpoint: 'http://127.0.0.1:8045/v1/chat/completions' },
-  ollama: { model: 'qwen3:4b', endpoint: 'http://127.0.0.1:11434/api/chat' },
-  deepseek: { model: 'deepseek-flash', endpoint: '' },
+  local: PROVIDER_DEFAULTS.local,
+  ollama: PROVIDER_DEFAULTS.ollama,
+  // DeepSeek's endpoint is fixed by the host, so the form leaves it blank.
+  deepseek: { model: PROVIDER_DEFAULTS.deepseek.model, endpoint: '' },
 }
 
 function option(value: string, label: string): HTMLOptionElement {

@@ -21,6 +21,7 @@ import { compileWorldPackSource, type CompiledWorldPackV5 } from '@harness-world
 import { interactionPackageDescription } from '@harness-world/contracts'
 import { createInstalledInteractionPackages } from '@harness-world/interactions-basic'
 import { defaultGameDirectory } from './player-transcript.ts'
+import { PROVIDER_DEFAULTS } from '../provider-defaults.ts'
 
 let hostPlugins: HostPlugins | undefined
 let startupRuntime: WorldHostRuntime | undefined
@@ -33,7 +34,7 @@ async function main(): Promise<void> {
     ?? (process.env.HCW_PLAYTEST_DATA_DIRECTORY?.trim() || defaultGameDirectory())
   const endpoint = provider === 'ollama' ? process.env.HCW_OLLAMA_ENDPOINT
     : provider === 'local' ? process.env.HCW_LOCAL_ENDPOINT : undefined
-  const model = provider === 'deepseek' ? (process.env.HCW_DEEPSEEK_MODEL?.trim() || 'deepseek-flash')
+  const model = provider === 'deepseek' ? (process.env.HCW_DEEPSEEK_MODEL?.trim() || PROVIDER_DEFAULTS.deepseek.model)
     : provider === 'ollama' ? process.env.HCW_OLLAMA_MODEL : process.env.HCW_LOCAL_MODEL
   const apiKey = provider === 'deepseek' ? process.env.DEEPSEEK_API_KEY
     : provider === 'local' ? process.env.HCW_LOCAL_API_KEY : undefined
@@ -142,7 +143,7 @@ async function main(): Promise<void> {
   }
   process.send?.({ type: 'ready', port, token, frontendMode:policy.mode })
   process.stdout.write(`\n本机试玩页已启动：\nhttp://127.0.0.1:${port}/#token=${token}\n\n`)
-  process.stdout.write(`世界数据：${dataDirectory}\nProvider：${provider}\n模型：${model?.trim() || (provider === 'local' ? 'gemini-3.7-flash' : provider === 'deepseek' ? 'deepseek-flash' : 'qwen3:4b')}\n按 Ctrl+C 安全关闭。\n`)
+  process.stdout.write(`世界数据：${dataDirectory}\nProvider：${provider}\n模型：${model?.trim() || PROVIDER_DEFAULTS[provider].model}\n按 Ctrl+C 安全关闭。\n`)
   if (launch.memoryCore) process.stdout.write('Core 记忆已开启；可在宿主页启动或取消后台整理，整理期间可以继续游玩。未整理时长期交付为空。\n')
   if (packPath !== undefined) process.stdout.write(`World Pack：${packPath}\n`)
 }
