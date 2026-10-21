@@ -31,8 +31,11 @@
 ## 按风险验证
 
 ```powershell
-# 默认轻量检查：类型、Lint、核心冒烟；不调用真实模型
+# 默认轻量检查：边界、类型、Lint、格式、默认回归；不调用真实模型
 corepack pnpm@11.7.0 check
+
+# 按 Prettier 配置格式化源码（世界包、文档、前端资产和 JSON 不参与）
+corepack pnpm@11.7.0 format
 
 # 仅默认冒烟
 corepack pnpm@11.7.0 test

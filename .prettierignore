@@ -1,0 +1,19 @@
+# Only source code is formatted. World packs, frontend assets, fixtures and documents carry
+# author-facing or hashed bytes and keep their own layout.
+node_modules/
+dist/
+dist-creator/
+coverage/
+.tmp/
+docs/
+examples/
+experiments/
+packages/frontend/assets/
+apps/launcher/src-tauri/
+apps/launcher/public/
+**/*.json
+**/*.md
+**/*.html
+**/*.css
+**/*.yaml
+**/*.yml

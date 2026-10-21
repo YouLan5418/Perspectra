@@ -6,7 +6,7 @@
 
 package.json 的 experience:web 指向 [web-entry.ts](../../../desktop/host/web-entry.ts)。它读取参数与包，创建 WorldHostRuntime 和本机 HTTP 服务。
 
-桌面路径为：Vue Launcher → Tauri 请求桥 → Node LauncherCore → 网页宿主子进程 → 系统浏览器游戏页。对应 [desktop.ts](../../../apps/launcher/src/services/desktop.ts)、[main.rs](../../../apps/launcher/src-tauri/src/main.rs)、[launcher-entry.ts](../../../desktop/launcher-entry.ts)、[launcher-core.ts](../../../desktop/launcher-core.ts)。Launcher 管理实例和进程，具体游戏仍由网页宿主运行。游戏运行时，同一个网页宿主还托管只读的创作者页面（/creator），由 Launcher 交给系统浏览器打开，见[创作者调试接口](../creator-debug-api.md)。旧 [Electron main](../../../desktop/main.ts)是另一个保留入口。
+桌面路径为：Vue Launcher → Tauri 请求桥 → Node LauncherCore → 网页宿主子进程 → 系统浏览器游戏页。对应 [desktop.ts](../../../apps/launcher/src/services/desktop.ts)、[main.rs](../../../apps/launcher/src-tauri/src/main.rs)、[launcher-entry.ts](../../../desktop/launcher-entry.ts)、[launcher-core.ts](../../../desktop/launcher-core.ts)。Launcher 管理实例和进程，具体游戏仍由网页宿主运行。游戏运行时，同一个网页宿主还托管只读的创作者页面（/creator），由 Launcher 交给系统浏览器打开，见[创作者调试接口](../creator-debug-api.md)。旧 Electron 入口已于 2026-10-21 删除。
 
 ## 2. 世界包如何成为可运行世界
 
