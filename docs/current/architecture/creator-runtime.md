@@ -59,7 +59,7 @@ World Pack 用于定义人物、地点、物品、认知、场景、叙事与 In
 
 当前主动 Activity 优先拥有参与者调度，自主调度跳过这些参与者；非参与者仍可因声明的玩家活动操作自主处理，不获得活动私有上下文。没有活动参与者排程或 `publicationAudit` 且未启用 `--serial-scheduling` 时（2026-10-19 起不再检查变量脚本），自主机会复用上述动态队列及其公平优先级；其他入口保留普通、自主、后续反应的分段处理。多角色预算不足时不保证全部轮到，场外任务仍逐个执行。独立测量控制 stagedAutonomy 可保留旧分段方式，未加入 Launcher 设置。源码与实测见[接入记录](../studies/autonomy-dynamic-dispatch-20261011.md)。尚不支持动态脚本触发、自动目标完成判定、墙钟自治或后台常驻。
 
-实现：[包声明与许可](../../../desktop/host/pack-autonomy.ts)、[宿主](../../../desktop/host/world-runtime.ts)、[启动器参数](../../../desktop/play-settings.ts)。自动回归见[自主调度测试](../../../tests/prototype/character-autonomy.test.ts)，真实模型情况见[实验记录](../studies/character-autonomy-20261011.md)。本分支源码能力不代表发行包已更新。
+实现：[包声明与许可](../../../desktop/host/pack-autonomy.ts)、[宿主](../../../desktop/host/world-runtime.ts)、[启动器参数](../../../desktop/play-settings.ts)。自动回归见[自主调度测试](../../../tests/scenarios/character-autonomy.test.ts)，真实模型情况见[实验记录](../studies/character-autonomy-20261011.md)。本分支源码能力不代表发行包已更新。
 
 Interaction 定义和绑定提供玩法可选行为，规则负责重要状态的资格与结果。角色与地点定义不等于运行中当前位置；运行时通过提交事件和当前 view 获得状态。创作者仅在当前玩法明确追踪的机制中增加状态约束，不必结构化所有叙事细节。
 

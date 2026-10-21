@@ -295,7 +295,7 @@ it('delivers explicit player feedback and pushes changes even while busy remains
 })
 const PLAYER='character:player',THIEF='character:companion'
 function theft(){
- const status=PackStatus.parse(readFileSync(resolve('tests/prototype/fixtures/status-market.js'),'utf8'),
+ const status=PackStatus.parse(readFileSync(resolve('tests/fixtures/status-market.js'),'utf8'),
   {content:{characters:[{characterId:PLAYER},{characterId:THIEF}]}} as unknown as CompiledWorldPackV5)
  // The thief takes 30 and only it learns the new balances; the player still holds the initial 100.
  const stolen={eventType:'status.updated',eventVersion:1,data:{source:{kind:'operation',operation:'steal',actorId:THIEF},

@@ -13,7 +13,7 @@
 | 长期记忆 | 超出当前上下文／启用已有 Core 整理后回访，核对已有记忆证据 | 角色召回授权经历，不从其他角色的私密记忆获取答案；不只依赖仍在上下文的原文 |
 | 有界反应 | 自由场景观察角色间回应及停止 | 沿现有串行观察驱动与有界反应，等待玩家输入或活动触发，不声称持续后台自治 |
 
-源码实验：`node --import tsx tests/experiments/official-demo.ts`。回归：`corepack pnpm@11.7.0 exec vitest run --config vitest.prototype.config.ts tests/prototype/official-demo.test.ts`。
+源码实验：`node --import tsx tests/experiments/official-demo.ts`。回归：`corepack pnpm@11.7.0 exec vitest run --config vitest.regression.config.ts tests/scenarios/official-demo.test.ts`。
 
 当 provider 不可用时，先完成固定序章和权限／状态测试，记录真实模型体验未验收。不要用模拟角色自由回应替代该验收。
 

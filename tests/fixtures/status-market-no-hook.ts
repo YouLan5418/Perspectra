@@ -3,7 +3,7 @@ import { resolve } from 'node:path'
 
 /** The shared status fixture without its round hook, so only `/status set-time` moves the public time. */
 export function statusMarketWithoutRoundHook(): string {
-  const market = readFileSync(resolve('tests/prototype/fixtures/status-market.js'), 'utf8')
+  const market = readFileSync(resolve('tests/fixtures/status-market.js'), 'utf8')
   const script = market.replace(/  onRoundEnd\(truth\) \{[\s\S]*?\r?\n  \},\r?\n/u, '')
   if (script === market) throw new Error('fixture variant did not apply')
   return script

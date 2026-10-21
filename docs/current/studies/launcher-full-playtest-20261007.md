@@ -114,7 +114,7 @@
 本轮运行四个相关测试文件：
 
 ```text
-corepack pnpm@11.7.0 test:related tests/prototype/pack-activity.test.ts tests/prototype/frontend-api.test.ts tests/prototype/frontend-trusted.test.ts tests/prototype/frontend-authorization.test.ts
+corepack pnpm@11.7.0 test:related tests/host/pack-activity.test.ts tests/host/frontend-api.test.ts tests/host/frontend-trusted.test.ts tests/desktop/frontend-authorization.test.ts
 结果：4 个文件、33 个测试通过。
 
 corepack pnpm@11.7.0 --filter @perspectra/launcher tauri build --debug --no-bundle

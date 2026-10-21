@@ -12,7 +12,7 @@
 在仓库根目录执行：
 
 ```powershell
-corepack pnpm@11.7.0 test:related tests/prototype/hidden-cure.test.ts tests/prototype/hidden-cure-next.test.ts tests/prototype/character-autonomy.test.ts tests/prototype/dynamic-scheduling.test.ts tests/prototype/character-visible-items.test.ts --fileParallelism=false
+corepack pnpm@11.7.0 test:related tests/scenarios/hidden-cure.test.ts tests/scenarios/hidden-cure-next.test.ts tests/scenarios/character-autonomy.test.ts tests/scenarios/dynamic-scheduling.test.ts tests/scenarios/character-visible-items.test.ts --fileParallelism=false
 node --import tsx tests/experiments/hidden-cure-next.ts
 node --import tsx tests/experiments/hidden-cure-next.ts
 node --import tsx tests/experiments/hidden-cure-next.ts --case=E

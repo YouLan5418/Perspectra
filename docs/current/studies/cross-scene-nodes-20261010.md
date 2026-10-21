@@ -14,7 +14,7 @@
 
 ## 自动验证
 
-[七项回归](../../../tests/prototype/cross-scene-story-nodes.test.ts)实际使用 SQLite 快照及既有分享文件，而非只调整 UI 指针：
+[七项回归](../../../tests/scenarios/cross-scene-story-nodes.test.ts)实际使用 SQLite 快照及既有分享文件，而非只调整 UI 指针：
 
 - 短信与接通电话分别回退，恢复全部事件到节点提交前缀，活动 ID、修订号、轮次一致，电话恢复为 connected。
 - 回退后可续信／续话；挂断后再次传话被拒绝；原故事线仍保留后来消息、挂断和游戏进度。

@@ -67,4 +67,4 @@ export default function speechPlugin(ctx) {
 
 本机还将游戏入口打包为 ESM，随附现有前端静态资源后，验证构建产物可装载外部 `.mjs` 插件、授予语音能力并在退出时清理；过程中未调用角色模型。该检查不代表完成 Tauri 或便携发行包构建。
 
-没有调用真实语音供应商或角色模型，没有验收浏览器 / Tauri 的音频播放、朗读节奏、Live2D 或 BGM，也没有重建发行包。相关实现测试见 [host-plugins](../../tests/prototype/host-plugins.test.ts)、[frontend-speech](../../tests/prototype/frontend-speech.test.ts)、[desktop-launch](../../tests/prototype/desktop-launch.test.ts) 与 [launcher-core](../../tests/prototype/launcher-core.test.ts)。
+没有调用真实语音供应商或角色模型，没有验收浏览器 / Tauri 的音频播放、朗读节奏、Live2D 或 BGM，也没有重建发行包。相关实现测试见 [host-plugins](../../tests/desktop/host-plugins.test.ts)、[frontend-speech](../../tests/host/frontend-speech.test.ts)、[desktop-launch](../../tests/desktop/desktop-launch.test.ts) 与 [launcher-core](../../tests/desktop/launcher-core.test.ts)。

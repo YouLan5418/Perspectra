@@ -67,7 +67,7 @@ async function fixture(provider: 'ollama' | 'local', script: keyof typeof script
   const packPath = join(root, 'pack'), data = join(root, 'data')
   cpSync(resolve('examples/world-packs/prototype-g1'), packPath, { recursive: true })
   mkdirSync(join(packPath, 'scripts'), { recursive: true })
-  const market = readFileSync(resolve('tests/prototype/fixtures/status-market.js'), 'utf8'), variant = scripts[script](market)
+  const market = readFileSync(resolve('tests/fixtures/status-market.js'), 'utf8'), variant = scripts[script](market)
   if (script !== 'market' && variant === market) throw new Error('fixture variant did not apply')
   writeFileSync(join(packPath, 'scripts/status.js'), variant)
   const source = JSON.parse(readFileSync(join(packPath, 'worldpack.source.json'), 'utf8'))
@@ -80,7 +80,7 @@ async function fixture(provider: 'ollama' | 'local', script: keyof typeof script
   }
   if (activity) {
     const activitySource = activity === 'quick'
-      ? readFileSync(resolve('tests/prototype/fixtures/status-duel.js'), 'utf8')
+      ? readFileSync(resolve('tests/fixtures/status-duel.js'), 'utf8')
         .replace("npcIds: ['character:companion']", 'npcIds: []')
         .replace("id: 'yield', label: '认输'", "id: 'yield', label: '认输', quick: true")
         .replace('private: { [playerId]: {}, [npcIds[0]]: {} }', 'private: { [playerId]: {} }')

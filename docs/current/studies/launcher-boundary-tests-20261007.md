@@ -23,7 +23,7 @@
 执行命令：
 
 ```powershell
-corepack pnpm@11.7.0 test:related tests/prototype/preset-library.test.ts tests/prototype/preset-content.test.ts tests/prototype/model-presets.test.ts tests/prototype/story-nodes.test.ts tests/prototype/storyline-crash.test.ts tests/prototype/frontend-api.test.ts tests/prototype/frontend-trusted.test.ts tests/prototype/frontend-authorization.test.ts tests/prototype/pack-activity.test.ts tests/prototype/launcher-core.test.ts
+corepack pnpm@11.7.0 test:related tests/desktop/preset-library.test.ts tests/scenarios/preset-content.test.ts tests/desktop/model-presets.test.ts tests/desktop/story-nodes.test.ts tests/host/storyline-crash.test.ts tests/host/frontend-api.test.ts tests/host/frontend-trusted.test.ts tests/desktop/frontend-authorization.test.ts tests/host/pack-activity.test.ts tests/desktop/launcher-core.test.ts
 ```
 
 结果：10 个测试文件、76 项通过。另执行 `.tmp/launcher-boundaries-20261007/probes.ts` 和 Playwright CLI 原生 WebView 交互脚本。原生验证使用临时开启调试端口的构建，结束后恢复普通构建。

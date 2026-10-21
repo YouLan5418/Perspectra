@@ -10,7 +10,7 @@ import { runCharacterActivations } from '../../packages/application/src/activati
 import { WorldHostRuntime } from '../../desktop/host/world-runtime.ts'
 import { readTailSelection } from '../../desktop/tail-storage.ts'
 import { FrontendActions, projectPlayerView } from '../../desktop/host/frontend-adapter.ts'
-import { statusMarketWithoutRoundHook } from './fixtures/status-market-no-hook.ts'
+import { statusMarketWithoutRoundHook } from '../fixtures/status-market-no-hook.ts'
 
 const roots:string[]=[], servers:Server[]=[], runtimes:WorldHostRuntime[]=[], releases:(()=>void)[]=[]
 afterEach(async()=>{

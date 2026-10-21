@@ -57,7 +57,7 @@
 ```powershell
 corepack pnpm@11.7.0 typecheck
 corepack pnpm@11.7.0 lint
-corepack pnpm@11.7.0 test tests/prototype/frontend-reading.test.ts tests/prototype/frontend-api.test.ts tests/prototype/frontend-authorization.test.ts tests/prototype/frontend-trusted.test.ts --maxWorkers=1
+corepack pnpm@11.7.0 test tests/host/frontend-reading.test.ts tests/host/frontend-api.test.ts tests/desktop/frontend-authorization.test.ts tests/host/frontend-trusted.test.ts --maxWorkers=1
 node scripts/docs/check-links.mjs
 ```
 

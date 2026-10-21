@@ -59,8 +59,8 @@ Launcher 只返回节点标题、来源、进度等公开元数据，不返回�
 | desktop/host/memory/core-memory.ts | 已授权身份种子、既有档案快照、恢复完整性检查及正常阈值整理 |
 | desktop/host/http-server.ts、host-page.ts | 鉴权后的 POST /api/story-save 与宿主页按钮；社区前端不获得节点目录能力 |
 | apps/launcher/src/ | 真实历史、线路切换和创建；新 UI 单独交付，不再通过保存 IPC 创建节点 |
-| tests/prototype/story-nodes.test.ts | 状态一致、未来隔离、失败重试及 Launcher 权限回归 |
-| tests/prototype/storyline-crash.test.ts | 实际子进程强制终止、索引原子选择、原线保护和档案恢复重试 |
+| tests/desktop/story-nodes.test.ts | 状态一致、未来隔离、失败重试及 Launcher 权限回归 |
+| tests/host/storyline-crash.test.ts | 实际子进程强制终止、索引原子选择、原线保护和档案恢复重试 |
 
 ## 5. 验证边界（以下为 10-07 旧重建流程记录）
 

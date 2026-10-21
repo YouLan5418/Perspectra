@@ -13,7 +13,7 @@ import type { CoreRunner } from '../../desktop/host/memory/python-worker.ts'
 import { readStoryNodes, restoreStoryNode, saveStoryNode } from '../../desktop/story-nodes.ts'
 import { exportStoryNode } from '../../desktop/story-share.ts'
 import { LauncherCore } from '../../desktop/launcher-core.ts'
-import { knownTime, statusMarketWithoutRoundHook } from './fixtures/status-market-no-hook.ts'
+import { knownTime, statusMarketWithoutRoundHook } from '../fixtures/status-market-no-hook.ts'
 
 const roots: string[] = [], servers: Server[] = [], runtimes: WorldHostRuntime[] = []
 afterEach(async () => {

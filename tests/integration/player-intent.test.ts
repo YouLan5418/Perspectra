@@ -5,7 +5,7 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { expect, it } from 'vitest'
-import { frozenIntentWorld, intentFixtureProfile, intentFixtureResponse } from './fixtures/player-intent-world.ts'
+import { frozenIntentWorld, intentFixtureProfile, intentFixtureResponse } from '../fixtures/player-intent-world.ts'
 it('takes an explicit command on a v10 world at the frozen version', async () => {
   // The explicit-command path states the action in the player's own text, so the version is not in the
   // text at all: the Host reads it from the affordance the command exercises. A v10 world's affordance is

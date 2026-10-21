@@ -62,7 +62,7 @@ iframe 在受信任模式允许脚本和自身来源，从而使用浏览器存�
 - desktop/frontend-authorization.ts：DPAPI 密钥、签名双记录、校验与撤销。
 - desktop/host/frontend-server.ts：复用的沙箱资源头与独立受信任静态服务。
 - apps/launcher/src/components/FrontendAuthorizationDialog.vue：明确确认与撤销。
-- tests/prototype/frontend-authorization.test.ts、frontend-trusted.test.ts：内容、签名、隔离与撤销回归。
+- tests/desktop/frontend-authorization.test.ts、frontend-trusted.test.ts：内容、签名、隔离与撤销回归。
 
 修改 Launcher Core、实例详情、store 和类型；修改包加载摘要、网页入口的来源生命周期、Host 握手/回退与公共初始化；同步相关测试和当前文档。
 

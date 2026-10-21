@@ -9,7 +9,7 @@
 在仓库根目录运行，先确保本机现有 OpenAI 兼容服务 `http://127.0.0.1:8045/v1/chat/completions` 提供 `gemini-3.8-flash`。服务配置与凭证不写入实验包。驱动不会自动切换模型、模拟 NPC 或重试其决策。
 
 ```powershell
-corepack pnpm@11.7.0 test:related tests/prototype/hidden-cure.test.ts tests/prototype/character-autonomy.test.ts tests/prototype/dynamic-scheduling.test.ts tests/prototype/character-visible-items.test.ts tests/p2.integration.test.ts packages/store-sqlite/src/character-view.test.ts --fileParallelism=false
+corepack pnpm@11.7.0 test:related tests/scenarios/hidden-cure.test.ts tests/scenarios/character-autonomy.test.ts tests/scenarios/dynamic-scheduling.test.ts tests/scenarios/character-visible-items.test.ts tests/integration/observation-session.test.ts packages/store-sqlite/src/character-view.test.ts --fileParallelism=false
 node --import tsx tests/experiments/hidden-cure.ts
 # 也可单独重跑一条预定玩家路径，每次都会创建新目录
 node --import tsx tests/experiments/hidden-cure.ts --case=B

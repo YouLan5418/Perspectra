@@ -9,7 +9,7 @@ import { compileWorldPackSource, type CompiledWorldPackV5 } from '@harness-world
 import { knownStatusView, PackStatus, type StatusEventData } from '../../desktop/host/pack-status.ts'
 
 const original = resolve('examples/world-packs/ai-girls-awaken-v10')
-const market = readFileSync(resolve('tests/prototype/fixtures/status-market.js'), 'utf8').replaceAll('\r\n', '\n')
+const market = readFileSync(resolve('tests/fixtures/status-market.js'), 'utf8').replaceAll('\r\n', '\n')
 const quests = readFileSync(resolve('examples/world-packs/status-market/scripts/status.js'), 'utf8')
 let root: string, packPath: string, pack: CompiledWorldPackV5, plain: CompiledWorldPackV5
 beforeAll(async () => {

@@ -47,7 +47,7 @@ Core 的决策 schema 使用严格分支；当前本机 Gemini 网关入口另�
 - `desktop/launcher-core.ts`：字体偏好持久化及读取校验。
 - `apps/launcher/src/core-types.ts`、`stores/launcher.ts`、`components/SettingsDialog.vue`：设置保存与快照恢复。
 
-回归：`tests/prototype/frontend-api.test.ts`、`pack-activity.test.ts`、`launcher-core.test.ts`。
+回归：`tests/host/frontend-api.test.ts`、`pack-activity.test.ts`、`launcher-core.test.ts`。
 
 现行文档：`docs/current/frontend-v1.md`、`architecture/creator-runtime.md`；原试玩报告补充本修复记录链接。工作区既有其他未提交改动保留。
 
@@ -60,7 +60,7 @@ corepack pnpm@11.7.0 check
 corepack pnpm@11.7.0 launcher:check
 Launcher 类型与 10 项测试通过。
 
-corepack pnpm@11.7.0 test:related tests/prototype/pack-activity.test.ts tests/prototype/frontend-api.test.ts tests/prototype/launcher-core.test.ts
+corepack pnpm@11.7.0 test:related tests/host/pack-activity.test.ts tests/host/frontend-api.test.ts tests/desktop/launcher-core.test.ts
 相关路径 36 项通过；随后完善 wire 断言的最终版本已包含在默认检查中。
 
 corepack pnpm@11.7.0 --filter @perspectra/launcher tauri build --debug --no-bundle

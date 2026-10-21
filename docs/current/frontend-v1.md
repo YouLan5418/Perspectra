@@ -30,7 +30,7 @@ examples/world-packs/ai-girls-awaken-v10/frontend/
   manifest.json / index.html / app.js / style.css
 tests/fixtures/frontend-adversarial/frontend/
   manifest.json / index.html / attack.js / assets/banner.svg
-tests/prototype/frontend-api.test.ts
+tests/host/frontend-api.test.ts
 ```
 
 默认与社区前端均通过 SDK → MessagePort → Host → 公共接口 → 既有 Core；没有模板直接操作数据库的路径。公共 API 是现有 HostRuntime 的小适配器，尚非独立发布的 SDK 包。

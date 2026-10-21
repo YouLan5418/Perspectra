@@ -91,7 +91,7 @@
 | 边界 | 状态 |
 | --- | --- |
 | 源码入口与启用条件 | 已接通；本页描述源码能力 |
-| 自动并发、失效和取消回归 | 7 文件／116 项通过，用时 105.55 秒，包含 8 个动态调度用例及 5 个 Windows 崩溃恢复场景；Frozen 定向复跑 11/11、动态调度 8/8、typecheck、lint 和 diff-check 均通过。详见 [dynamic-scheduling.test.ts](../../../tests/prototype/dynamic-scheduling.test.ts) |
+| 自动并发、失效和取消回归 | 7 文件／116 项通过，用时 105.55 秒，包含 8 个动态调度用例及 5 个 Windows 崩溃恢复场景；Frozen 定向复跑 11/11、动态调度 8/8、typecheck、lint 和 diff-check 均通过。详见 [dynamic-scheduling.test.ts](../../../tests/scenarios/dynamic-scheduling.test.ts) |
 | 受控假服务 A/B | 最终报告已完成：前台第二次模型调用启动提前约 75%，整轮完成缩短约 17%，首条可见回复仅差 6 ms；动态组在深度上限少调用一次，最终可见对白仍为 3 句；测量口径见上文 |
 | 真实模型下的可见延迟、接话质量和重算成本 | Gemini 3.8 Flash / 8045 正常完成与插话、重新生成短测通过，见上文；前台可见表达发生在后台完成前，新输入受理 482 ms。真实 stale 重算成本、长对话质量与未经人工延迟的性能分布尚未测量。较早的 Gemini 3.7 Flash 尝试因 HTTP 429 失败；旧 `live-qo5sv9` 中的 62133 ms 是无回应时的旧 fallback，不能作为回应时间 |
 | 浏览器界面 | 提权 Edge 在默认页面 DOM 上完成 7/7 项、官方前端页面 DOM 上完成 8/8 项合成验证，覆盖 busy 且 `canInterrupt` 时输入与发送、行动按钮保持禁用、处理中重复提交保护、旧 view 与旧请求竞态、失败重试及复用 `actionId`。本机临时报告位于 `output/dynamic-scheduling/browser-ui-timing.md` 和 `output/dynamic-scheduling/browser-official-timing.md`。这些使用合成玩家视图数据，不代表真实模型玩法或发行包验收 |

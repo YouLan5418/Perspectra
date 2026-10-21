@@ -69,9 +69,9 @@ node --import tsx tests/experiments/autonomy-scheduling.ts --live
 
 ## 回归与限制
 
-[自主测试](../../../tests/prototype/character-autonomy.test.ts)新增每回合推进与单回合多机会两例，验证无他人新观察的三步受控行动。初始知识不算本轮外部刺激。
+[自主测试](../../../tests/scenarios/character-autonomy.test.ts)新增每回合推进与单回合多机会两例，验证无他人新观察的三步受控行动。初始知识不算本轮外部刺激。
 
-[动态测试](../../../tests/prototype/dynamic-scheduling.test.ts)新增双向移动：先提交一人的移动，另一人旧决策 stale；读取已到来的角色重算后才提交第二次移动。中间两人在同一房间，最终交换，各只提交一次移动。该例使用受控模型，真实混合组没有制造移动冲突。
+[动态测试](../../../tests/scenarios/dynamic-scheduling.test.ts)新增双向移动：先提交一人的移动，另一人旧决策 stale；读取已到来的角色重算后才提交第二次移动。中间两人在同一房间，最终交换，各只提交一次移动。该例使用受控模型，真实混合组没有制造移动冲突。
 
 相关两文件共 24 项通过，类型检查、相关 Lint、本地文档链接检查通过。本轮没有改运行时、恢复或事务代码，未重跑全仓或重制发行包。
 

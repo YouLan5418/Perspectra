@@ -13,8 +13,10 @@
 | [tests/experiments](../../../tests/experiments) | 研究驱动和真实模型探针；生产代码与默认回归都不依赖此目录 | [受控调度对照](../../../tests/experiments/dynamic-scheduling.ts) |
 | [experiments](../../../experiments) | 历史工具、冻结证据、数据和报告；默认 Python Core 已迁出 | [实验索引](../../../experiments/README.md)、[历史 JEV 脚本](../../../experiments/jev-narrative-auditor/scripts/README.md) |
 | [examples/world-packs](../../../examples/world-packs) | 可运行世界包和创作样例 | [Launcher 示例](../../../examples/world-packs/launcher-demo/worldpack.source.json) |
-| [tests/prototype](../../../tests/prototype) | 当前原型回归测试 | [角色执行结果](../../../tests/prototype/character-execution-result.test.ts)、[原始经历交付](../../../tests/prototype/raw-history-delivery.test.ts) |
-| [tests/host](../../../tests/host) | 宿主 HTTP、启动参数、转录与 Python worker 回归；按路径显式运行 | [HTTP 服务](../../../tests/host/http-server.test.ts)、[Core worker](../../../tests/host/core-worker.test.ts) |
+| [tests/host](../../../tests/host) | 默认回归：游戏宿主的模块、HTTP 与前端接口、末端回合和崩溃恢复 | [宿主边界](../../../tests/host/boundaries.test.ts)、[末端回合](../../../tests/host/tail-round.test.ts) |
+| [tests/desktop](../../../tests/desktop) | 默认回归：Launcher 后端、模型连接、预设和故事节点 | [LauncherCore](../../../tests/desktop/launcher-core.test.ts) |
+| [tests/scenarios](../../../tests/scenarios) | 默认回归：跨包的玩法与角色行为 | [角色执行结果](../../../tests/scenarios/character-execution-result.test.ts)、[原始经历交付](../../../tests/scenarios/raw-history-delivery.test.ts) |
+| [tests/integration](../../../tests/integration) | 默认回归：世界包、交互路径与存储的跨包集成 | [交互路径](../../../tests/integration/interaction-path.test.ts) |
 | [scripts/release](../../../scripts/release) | 便携包构建、资产收集与发行检查 | [构建说明](../../../scripts/release/BUILD.md) |
 | [docs/current](..) | 当前说明、操作指南和研究结论 | [架构入口](README.md) |
 | [docs/archive](../../archive) | 历史方案与过程证据 | 需要解释旧设计时再读 |

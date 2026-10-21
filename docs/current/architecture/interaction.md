@@ -48,7 +48,7 @@ NPC 的发布范围可选 `scene_public`（公开）、`direct`（仅指定对�
 
 [物品投影](../../../packages/application/src/character-visible-items.ts)只给已有授权行补上作者定义的名称；[模型文本](../../../packages/provider-chat/src/character-context-text.ts)在副本中添加提示，不从玩家提及生成新的物品行或否定事实，不泄露未观察到的持有人，不把提示写成观察、记忆来源或权威事件。没有新状态机制、额外模型调用或语义审查阶段，规则与事件仍负责裁定保管变化。
 
-[物品边界回归](../../../tests/prototype/item-narrative-boundaries.test.ts)覆盖当前保管、交互后刷新、秘密转移、旧观察和错认保留，并检查渲染不修改原请求。自动化不能证明任意自然语言绝不越权；本次未重跑真实模型对照或重建发行包。此前的 [Narrative Guardian 影子实验已归档](../../archive/narrative-guardian-shadow-20261017.md)，当前宿主不再接入该审查器；物品提示独立工作。
+[物品边界回归](../../../tests/scenarios/item-narrative-boundaries.test.ts)覆盖当前保管、交互后刷新、秘密转移、旧观察和错认保留，并检查渲染不修改原请求。自动化不能证明任意自然语言绝不越权；本次未重跑真实模型对照或重建发行包。此前的 [Narrative Guardian 影子实验已归档](../../archive/narrative-guardian-shadow-20261017.md)，当前宿主不再接入该审查器；物品提示独立工作。
 
 ## 当前自由度与限制
 

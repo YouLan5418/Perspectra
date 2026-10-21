@@ -77,7 +77,7 @@ corepack pnpm@11.7.0 --filter @perspectra/launcher tauri build --debug --no-bund
 | [types.ts](../../apps/launcher/src/types.ts) | 增加真实 Core 状态，保留此前 Mock 展示类型 |
 | LauncherShell、GameList、GameDetail（2026-10-17 已由 HomeStage、PackRail、SessionDrawer 取代） | 真实状态与启停；首次空状态和重试；故事线/分享明确禁用 |
 | ImportDialog、ModelConfigDialog、SettingsDialog | v5 目录载入，实例模型，全局默认及会话密钥 |
-| [launcher-core.test.ts](../../tests/prototype/launcher-core.test.ts) | 5 项实例索引、配置损坏、无效包、权限及认证字段回归 |
+| [launcher-core.test.ts](../../tests/desktop/launcher-core.test.ts) | 5 项实例索引、配置损坏、无效包、权限及认证字段回归 |
 | [launcher.test.ts](../../apps/launcher/src/stores/launcher.test.ts) | 2 项原生初始化和跨接口密钥隔离回归 |
 
 没有修改 Core 的 Action、Rulebook、Event 提交、角色权限或记忆算法；继续调用现有 `desktop/host/web-entry.ts`。旧 Electron 桌面入口仍保留，但其存档和设置不迁移到新 Launcher。

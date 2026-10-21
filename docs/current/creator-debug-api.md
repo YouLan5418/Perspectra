@@ -139,7 +139,7 @@ request、decision、action、turn、recall 通过 decisionId 关联。格式重
 
 ## 验证与当前限制
 
-自动化覆盖宿主权限、Frontend API 拒绝访问、严格查询、跨页受众、物品转移／拒绝／随携带者移动、调用超过最近 4 条、预设快照、服务返回思考、重启、候选隔离与前缀继承、记录损坏和诊断写入失败；参见 [观测回归](../../tests/prototype/creator-observability.test.ts)、[候选回归](../../tests/prototype/tail-round.test.ts)、[请求回归](../../tests/prototype/request-inspector.test.ts)。既有 Core 来源校验与只读检查不触发 catch-up 的边界保持。
+自动化覆盖宿主权限、Frontend API 拒绝访问、严格查询、跨页受众、物品转移／拒绝／随携带者移动、调用超过最近 4 条、预设快照、服务返回思考、重启、候选隔离与前缀继承、记录损坏和诊断写入失败；参见 [观测回归](../../tests/host/creator-observability.test.ts)、[候选回归](../../tests/host/tail-round.test.ts)、[请求回归](../../tests/host/request-inspector.test.ts)。既有 Core 来源校验与只读检查不触发 catch-up 的边界保持。
 
 不推测未发生的处理机会、角色意图或不可见记忆；lastActivation 与最新传输状态可能来自不同处理时刻。状态的每次变更都是可在事件历史里查到的 `status.updated`。没有过去世界任意时刻完整状态预览、原生完整记忆档案、逐条清洗规则轨迹、未进入执行器的失败输入完整日志或自动诊断。历史检索扫描本地文件，尚未做长会话容量与延迟验收；不自动淘汰持久记录。
 

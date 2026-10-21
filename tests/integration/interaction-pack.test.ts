@@ -12,7 +12,7 @@ import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 
-const packDirectory = fileURLToPath(new URL('../examples/world-packs/hand-in-hand/', import.meta.url))
+const packDirectory = fileURLToPath(new URL('../../examples/world-packs/hand-in-hand/', import.meta.url))
 const packages = [interactionPackageDescription(createBasicInteractionPackage())]
 
 const runtimeOptions = () => ({

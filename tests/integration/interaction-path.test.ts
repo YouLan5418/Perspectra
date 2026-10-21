@@ -27,7 +27,7 @@ import {
   frozenGenesisEvents,
   frozenInteractionWorld,
   relationStarted,
-} from './fixtures/frozen-interaction-world.ts'
+} from '../fixtures/frozen-interaction-world.ts'
 
 const world = frozenInteractionWorld()
 const address = world.manifest.address

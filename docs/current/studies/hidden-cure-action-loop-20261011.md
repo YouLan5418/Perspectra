@@ -2,7 +2,7 @@
 
 **现有机制已经产生明确目标闭环和一段真实资源攻防，但稳定持续行动与叙事一致性的整体验收尚未通过。** D2 两次完成了取得摘要、带回旅馆及交付伊蕾；最后一次 E 中竞争者控制材料、玩家交涉、竞争者实际交付、女主自主拒绝独自决定。D3 仍有重复调查和无效承诺，E 还出现虚构玩家在场的叙事错误，不能据正面轨迹掩盖这些失败。
 
-本轮沿用 [A/B/C 报告](hidden-cure-20261011.md)和普通场景机制，没有修改 packages、模型协议、权限、调度或 Launcher。新增[内容包](../../../examples/world-packs/hidden-cure-next/README.md)、[真实驱动](../../../tests/experiments/hidden-cure-next.ts)、[内容生成与合法准备](../../../tests/support/hidden-cure-next-content.ts)、[离线核验](../../../tests/experiments/hidden-cure-next-audit.py)、[格式审计](../../../tests/experiments/hidden-cure-format-audit.ts)及[回归](../../../tests/prototype/hidden-cure-next.test.ts)。源码基线仍为 main `23c37beadfce339663b5e73f580b3e7fe7cae5dd`，此前尚未提交的 A/B/C 文件保留。
+本轮沿用 [A/B/C 报告](hidden-cure-20261011.md)和普通场景机制，没有修改 packages、模型协议、权限、调度或 Launcher。新增[内容包](../../../examples/world-packs/hidden-cure-next/README.md)、[真实驱动](../../../tests/experiments/hidden-cure-next.ts)、[内容生成与合法准备](../../../tests/support/hidden-cure-next-content.ts)、[离线核验](../../../tests/experiments/hidden-cure-next-audit.py)、[格式审计](../../../tests/experiments/hidden-cure-format-audit.ts)及[回归](../../../tests/scenarios/hidden-cure-next.test.ts)。源码基线仍为 main `23c37beadfce339663b5e73f580b3e7fe7cae5dd`，此前尚未提交的 A/B/C 文件保留。
 
 ## 为什么原实验说要移动却没移动
 

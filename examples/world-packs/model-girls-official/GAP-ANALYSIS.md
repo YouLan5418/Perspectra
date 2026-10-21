@@ -24,7 +24,7 @@
 - [普通与活动宿主](../../../tests/experiments/playtest-frozen-runtime.ts)、[末端回合包装](../../../tests/experiments/playtest-tail-runtime.ts)：序章结束后的处理、快照与版本验证。
 - [公共 SDK 投影](../../../packages/frontend/src/player-view.ts)、[宿主页面](../../../tests/experiments/playtest-host-page.ts)：公开字段、opaque 选项与 iframe 通道。
 - [授权可见物品](../../../packages/application/src/character-visible-items.ts)、[料理实现](../../../packages/interactions-basic/src/home.ts)：不从叙事或全局库存推断重要状态。
-- [回归](../../../tests/prototype/official-demo.test.ts)、[完整序章实验](../../../tests/experiments/official-demo.ts)：对应提交／权限／状态边界。
+- [回归](../../../tests/scenarios/official-demo.test.ts)、[完整序章实验](../../../tests/experiments/official-demo.ts)：对应提交／权限／状态边界。
 
 ## 后续真实验收
 

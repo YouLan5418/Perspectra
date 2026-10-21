@@ -36,8 +36,8 @@ async function fixture() {
   const packPath = join(root, 'pack'), data = join(root, 'data')
   cpSync(resolve('examples/world-packs/prototype-g1'), packPath, { recursive: true })
   mkdirSync(join(packPath, 'scripts/activities'), { recursive: true })
-  writeFileSync(join(packPath, 'scripts/status.js'), readFileSync(resolve('tests/prototype/fixtures/status-market.js'), 'utf8'))
-  writeFileSync(join(packPath, 'scripts/activities/duel.js'), readFileSync(resolve('tests/prototype/fixtures/status-duel.js'), 'utf8'))
+  writeFileSync(join(packPath, 'scripts/status.js'), readFileSync(resolve('tests/fixtures/status-market.js'), 'utf8'))
+  writeFileSync(join(packPath, 'scripts/activities/duel.js'), readFileSync(resolve('tests/fixtures/status-duel.js'), 'utf8'))
   const manifest = JSON.parse(readFileSync(join(packPath, 'worldpack.source.json'), 'utf8'))
   manifest.assetFiles = ['scripts/status.js', 'scripts/activities/duel.js']
   writeFileSync(join(packPath, 'worldpack.source.json'), JSON.stringify(manifest))

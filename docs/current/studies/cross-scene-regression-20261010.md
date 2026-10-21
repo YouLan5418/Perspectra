@@ -22,11 +22,11 @@
 
 运行 `corepack pnpm@11.7.0 check`：类型检查、Lint 通过。默认测试为 44 文件、385 项；42 文件通过，367 项通过，18 项失败。失败全部位于 storyline-crash 与 tail-round 的强制终止子进程用例，错误为 `taskkill failed`。没有将这些失败跳过或改写断言来得到绿色结果。
 
-通过范围包括原有官方玩法、多活动、场景判断、激活调节、叙事发表、玩家接口及授权、原生 Provider、记忆 Core 桥、角色视图、世界包编译、故事节点保存／切换／分享，以及电话与短信测试。详细范围由 vitest.prototype.config.ts 决定，默认检查不等于仓库全部历史测试。
+通过范围包括原有官方玩法、多活动、场景判断、激活调节、叙事发表、玩家接口及授权、原生 Provider、记忆 Core 桥、角色视图、世界包编译、故事节点保存／切换／分享，以及电话与短信测试。详细范围由 vitest.regression.config.ts 决定，默认检查不等于仓库全部历史测试。
 
 另运行 LocalMemoryStore 与 CognitiveMemory V2 两组测试：2 文件、22 项全部通过。
 
-在允许终止测试自身子进程的环境中重跑 `test:related tests/prototype/storyline-crash.test.ts tests/prototype/tail-round.test.ts`：2 文件、36 项全部通过，包括原先失败的 18 项。当前选中的 385 项均在本轮默认运行或针对性重跑中获得通过结果；初次沙箱内 check 本身仍以失败退出，未重新宣称该命令整体绿色。
+在允许终止测试自身子进程的环境中重跑 `test:related tests/host/storyline-crash.test.ts tests/host/tail-round.test.ts`：2 文件、36 项全部通过，包括原先失败的 18 项。当前选中的 385 项均在本轮默认运行或针对性重跑中获得通过结果；初次沙箱内 check 本身仍以失败退出，未重新宣称该命令整体绿色。
 
 ## 原有玩法真实模型检查
 

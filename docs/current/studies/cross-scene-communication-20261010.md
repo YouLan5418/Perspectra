@@ -32,7 +32,7 @@ node --import tsx tests/experiments/cross-scene-inspect.ts output/experiments/my
 
 ## 验证与实际结果
 
-[回归测试](../../../tests/prototype/cross-scene-communication.test.ts)覆盖远程往返与本地连锁、沉默不唤醒旁观者、普通远程 publish 拒绝、猜测联系人与物理接触拒绝、SQLite 触发器中断投递后的实际事务回滚、重启不自动重放激活，以及原生来源与 Core 桥的授权来源隔离。Core 使用确定性替身验证 Build/Recall 的来源边界，没有运行真实 Python 模型整理。
+[回归测试](../../../tests/scenarios/cross-scene-communication.test.ts)覆盖远程往返与本地连锁、沉默不唤醒旁观者、普通远程 publish 拒绝、猜测联系人与物理接触拒绝、SQLite 触发器中断投递后的实际事务回滚、重启不自动重放激活，以及原生来源与 Core 桥的授权来源隔离。Core 使用确定性替身验证 Build/Recall 的来源边界，没有运行真实 Python 模型整理。
 
 真实模型：8046 / gemini-3.8-flash。第一次成功的数据目录为 `output/experiments/sms-gemini38-20261010-01`。第一轮同行者回短信“我过去。”，随后在后室对留守者说“我等会儿去前室。”；留守者回应，同行者弃权，周期 quiescent。4 次模型调用。第二轮在同一数据目录重启后，同行者通过短信回复暗号“蓝色纸鹤。”，随后弃权；2 次调用。玩家转录只含短信。此前 8045 无服务；8046 / gemini-3.7-flash 调用失败，gemini-3-flash 返回停用通知，这些失败保留在各自实验目录中。
 

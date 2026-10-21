@@ -21,7 +21,7 @@
 
 猜数字与周末讨论采用作者固定名单；约会邀请使用 `participants: { mode: 'player-select', min: 1, max: 1 }`，可增加 candidates 限定可选角色。开始后的名单固定。活动状态和结果只交付参与者；旁观者仍可依据原有权限听见公开对白，私密交流只获知交流发生，定向交流不向其投递。活动不会自动调度旁观者插话。
 
-源码自动化验证见 [多活动测试](../../../tests/prototype/pack-activities.test.ts)。样例内容已编译校验；已有便携发行包不会自动包含新增能力。
+源码自动化验证见 [多活动测试](../../../tests/host/pack-activities.test.ts)。样例内容已编译校验；已有便携发行包不会自动包含新增能力。
 
 真实模型实验：`node --import tsx tests/experiments/multiple-activities-live.ts`，每次新建 `.tmp/multiple-activities-live-<时间戳>`，输出报告与公开转录。可通过 HCW_LOCAL_MODEL / HCW_LOCAL_ENDPOINT 指定本机配置。实验副本固定猜数字答案以核对进度；不改变本示例的随机玩法。
 

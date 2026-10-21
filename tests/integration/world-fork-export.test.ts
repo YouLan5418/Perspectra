@@ -9,7 +9,7 @@ import {
   BranchAdministration, ProjectionRebuilder, SnapshotStore,
   WorldArchiveService, WorldLogicalTransferService, WorldStore,
 } from '@harness-world/store-sqlite'
-import { frozenInteractionWorld } from './fixtures/frozen-interaction-world.ts'
+import { frozenInteractionWorld } from '../fixtures/frozen-interaction-world.ts'
 
 /**
  * A v10 world through the surfaces that are not the round itself: fork, logical transfer and the

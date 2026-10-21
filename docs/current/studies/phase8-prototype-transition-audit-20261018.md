@@ -168,7 +168,7 @@ Path P3：若进入实施，先在**不改变模型 Context、存档格式与玩
 
 没有注册旧参与者、并由外部单角色循环处理 NPC 的网页宿主，现在跳过这些对象及其 Context 连接。它仍会通过 PlayerIntentWorker 按需打开 context.sqlite，专门保存玩家输入解释的调用记录；同库也会创建现有表结构。因此不以该文件或旧表存在与否判断默认 NPC 管线是否在运行，也不迁移或清空已有数据库。
 
-Evidence E7：[player-only-assembly.test.ts](../../../tests/prototype/player-only-assembly.test.ts) 的最小回归在修改前失败：挂载玩家分支就创建了未使用的 context.sqlite。修改后该用例通过，且玩家发言能幂等提交、授权 Source 中出现新发言，没有创建耐久 Reaction Cycle。另两项验证显式 Round 参与者仍可收到请求并留下 Context Receipt 和已提交调用记录；仅注册 Reaction 消费者时原 Worker 仍能正常挂载并返回 idle。本步保留后两类旧消费者，供下一步迁移或归档，并未宣布它们已经退役完成。
+Evidence E7：[player-only-assembly.test.ts](../../../tests/scenarios/player-only-assembly.test.ts) 的最小回归在修改前失败：挂载玩家分支就创建了未使用的 context.sqlite。修改后该用例通过，且玩家发言能幂等提交、授权 Source 中出现新发言，没有创建耐久 Reaction Cycle。另两项验证显式 Round 参与者仍可收到请求并留下 Context Receipt 和已提交调用记录；仅注册 Reaction 消费者时原 Worker 仍能正常挂载并返回 idle。本步保留后两类旧消费者，供下一步迁移或归档，并未宣布它们已经退役完成。
 
 Finding F5（E7）：跳过的是没有消费者的旧 NPC 对象，不是共享的记忆捕获、玩家提交或现有旧接口；无需新增开关、协议、存储或兼容路径。
 
@@ -204,7 +204,7 @@ git show 7a141c0:tests/experiments/v10-provider-gate.ts
 
 该记录保留可恢复来源，不承诺旧脚本能在当前运行时启动。当前请求和执行诊断继续使用现有单角色入口与创作者调用记录。
 
-Evidence E8：[player-only-assembly.test.ts](../../../tests/prototype/player-only-assembly.test.ts)验证无旧 NPC 资源的玩家提交、授权来源、幂等、重开后历史读取，以及真实旧 Cycle 记录可读但未完成工作被拒绝；也验证维护前完成已受理玩家工作与交付、退出维护后继续提交，遇旧 Cycle 则拒绝进入维护。[interaction-package-turn.test.ts](../../../tests/prototype/interaction-package-turn.test.ts)将原旧 NPC 集成测试中的规则与绑定断言迁到当前角色：先提交玩家请求，再让 NPC 按实际授权选项拿取伞、裁定成功后发表、只发生一次物品归属变化，并对照裁定使用的 definitionSetHash。当前 NPC Authority 保持其已有最小形状，没有为了旧测试新添玩家 Authority v6 元数据。
+Evidence E8：[player-only-assembly.test.ts](../../../tests/scenarios/player-only-assembly.test.ts)验证无旧 NPC 资源的玩家提交、授权来源、幂等、重开后历史读取，以及真实旧 Cycle 记录可读但未完成工作被拒绝；也验证维护前完成已受理玩家工作与交付、退出维护后继续提交，遇旧 Cycle 则拒绝进入维护。[interaction-package-turn.test.ts](../../../tests/scenarios/interaction-package-turn.test.ts)将原旧 NPC 集成测试中的规则与绑定断言迁到当前角色：先提交玩家请求，再让 NPC 按实际授权选项拿取伞、裁定成功后发表、只发生一次物品归属变化，并对照裁定使用的 definitionSetHash。当前 NPC Authority 保持其已有最小形状，没有为了旧测试新添玩家 Authority v6 元数据。
 
 Evidence E9：传输适配测试改用现行 decide 调用，保留鉴权、错误、解析、超时／取消及本机格式边界；wire 测试直接检查目标枚举、交互绑定与参数限制。临时 before／after 对照对 10 组角色请求逐项比较消息、提示和工具 Schema，内容一致。旧专属协议测试删除，不再以旧 v7 校验器作为当前表达验收；叙事测试改查现行表达片段和权威规则边界。
 
@@ -218,7 +218,7 @@ Path P5：下一步单独调整七类初始心理材料在模型 Context 中的�
 
 - `corepack pnpm@11.7.0 typecheck`、`corepack pnpm@11.7.0 lint` 通过。
 - `corepack pnpm@11.7.0 test --maxWorkers=1`：69 个文件、586 项通过，包括原型玩法、记忆来源、故事节点、末端回合及强制中断恢复用例。这是当前原型默认套件，不是全部历史测试。
-- `corepack pnpm@11.7.0 test:related packages/application/src packages/agents/src packages/provider-chat/src packages/runtime-cordis/src tests/player-intent.integration.test.ts tests/interaction-pack.integration.test.ts --maxWorkers=1`：23 个文件、99 项通过，补充提交协调、玩家解释、传输、生命周期和交互扩展验证。
+- `corepack pnpm@11.7.0 test:related packages/application/src packages/agents/src packages/provider-chat/src packages/runtime-cordis/src tests/integration/player-intent.test.ts tests/integration/interaction-pack.test.ts --maxWorkers=1`：23 个文件、99 项通过，补充提交协调、玩家解释、传输、生命周期和交互扩展验证。
 - `player-only-assembly.test.ts` 单独复核 4 项通过，包含维护排空与旧未完成 Cycle 拒绝路径；`interaction-package-turn.test.ts` 已包含在默认套件中。
 - `node scripts/docs/check-links.mjs` 通过：12 页、373 个本地链接，模块地图完整；本报告另检查 26 个本地链接通过。
 - 10 组当前模型请求改前／改后对照一致；没有新增当前 NPC Context 字段或改变调用提示。

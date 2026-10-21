@@ -62,7 +62,7 @@ corepack pnpm@11.7.0 experience:web --pack examples/world-packs/model-girls-dinn
 - 晚宴开始时参与者固定。中途离席、迟到入座都不支持；被邀请者不能拒绝入座（但可以在真心话里一言不发，你可以点"请下一位举杯"跳过）。
 - 角色不知道物品以外的"时间"状态，除非听到你报时或别人提起。
 - GPT 的外卖只是叙事，不是受控物品，不会真的送到。
-- 自动测试只覆盖时钟、修理、做饭前置条件和入座读取（`tests/prototype/model-girls-dinner.test.ts`，无模型）。真实模型试玩记录见下节。
+- 自动测试只覆盖时钟、修理、做饭前置条件和入座读取（`tests/scenarios/model-girls-dinner.test.ts`，无模型）。真实模型试玩记录见下节。
 
 ## 真实模型试玩（2026-10-17，本机 8045 / gemini-3.8-flash）
 

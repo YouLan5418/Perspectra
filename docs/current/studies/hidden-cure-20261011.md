@@ -6,7 +6,7 @@
 
 ## 实验与交付
 
-源码基线为 main `23c37beadfce339663b5e73f580b3e7fe7cae5dd`。新增[世界包](../../../examples/world-packs/hidden-cure/README.md)、[真实驱动](../../../tests/experiments/hidden-cure.ts)、[机械核验工具](../../../tests/experiments/hidden-cure-audit.py)和[局部回归](../../../tests/prototype/hidden-cure.test.ts)，没有修改 packages、Launcher、模型协议或核心运行时。
+源码基线为 main `23c37beadfce339663b5e73f580b3e7fe7cae5dd`。新增[世界包](../../../examples/world-packs/hidden-cure/README.md)、[真实驱动](../../../tests/experiments/hidden-cure.ts)、[机械核验工具](../../../tests/experiments/hidden-cure-audit.py)和[局部回归](../../../tests/scenarios/hidden-cure.test.ts)，没有修改 packages、Launcher、模型协议或核心运行时。
 
 2026-10-11 北京时间约 21:54–21:59 顺序运行 A/B/C，各 8 回合、独立新数据目录。三组编译包摘要一致：`sha256:c007b7c624385b4d95b1a794a28b401c506a6b12de60dbdd9fdde6bb7cdb5045`。模型均为本机 8045 服务的 `gemini-3.8-flash`，low thinking，原生记忆，统一预算；调用服务实际返回的名称不证明上游模型身份。没有同时运行三组、失败择优重跑或自动替换模型。玩家操作固定，NPC 位置变化不会被驱动“修复”。
 
