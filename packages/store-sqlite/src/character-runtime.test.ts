@@ -5,7 +5,8 @@ import { DatabaseSync } from 'node:sqlite'
 import { afterEach, describe, expect, it } from 'vitest'
 import { brandId, type RuntimeAvailabilityState } from '@harness-world/contracts'
 import { CharacterRuntimeAvailabilityService } from './character-runtime.ts'
-import { WORLD_SCHEMA_VERSION, WorldStore } from './world-store.ts'
+import { WORLD_SCHEMA_VERSION } from './world-schema.ts'
+import { WorldStore } from './world-store.ts'
 
 const directories: string[] = []
 const address = {

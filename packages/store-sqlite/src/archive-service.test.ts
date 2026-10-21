@@ -9,7 +9,8 @@ import { WorldArchiveService } from './archive-service.ts'
 import { OperationalAuditLog } from './operational-audit.ts'
 import { SessionDeliveryAdapter } from './session-delivery.ts'
 import { SessionOutboxWorker, WorldOutbox } from './outbox-worker.ts'
-import { WORLD_SCHEMA_VERSION, WorldStore } from './world-store.ts'
+import { WORLD_SCHEMA_VERSION } from './world-schema.ts'
+import { WorldStore } from './world-store.ts'
 
 const directories: string[] = []
 

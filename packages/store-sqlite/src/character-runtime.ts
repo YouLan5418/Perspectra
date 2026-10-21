@@ -7,7 +7,7 @@ import {
   type RuntimeAvailabilityState,
   type WorldAddress,
 } from '@harness-world/contracts'
-import { openWorldDatabase } from './world-store.ts'
+import { openWorldDatabase } from './world-schema.ts'
 
 const STATES = new Set<RuntimeAvailabilityState>([
   'provisioning', 'ready', 'session_lag', 'model_unavailable', 'provider_output_invalid',

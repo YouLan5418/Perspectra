@@ -1,6 +1,6 @@
 import type { DatabaseSync } from 'node:sqlite'
 import { assertProtocolString, failWorld, worldAddressKey, type WorldAddress } from '@harness-world/contracts'
-import { openWorldDatabase } from './world-store.ts'
+import { openWorldDatabase } from './world-schema.ts'
 import { rollbackAndThrow } from './sqlite.ts'
 
 export interface WriterLease {

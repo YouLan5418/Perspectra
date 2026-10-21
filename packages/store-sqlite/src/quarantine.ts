@@ -14,7 +14,7 @@ import {
   type WorldJsonObject,
   type WorldJsonValue,
 } from '@harness-world/contracts'
-import { openWorldDatabase } from './world-store.ts'
+import { openWorldDatabase } from './world-schema.ts'
 import { parseWorldJson, rollbackAndThrow, worldJsonText } from './sqlite.ts'
 
 export interface QuarantineRequest {

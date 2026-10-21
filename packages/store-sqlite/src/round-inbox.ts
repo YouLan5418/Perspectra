@@ -13,7 +13,7 @@ import {
   type TransactionId,
   type InteractionRoundId,
 } from '@harness-world/contracts'
-import { openWorldDatabase } from './world-store.ts'
+import { openWorldDatabase } from './world-schema.ts'
 import { parseWorldJson, rollbackAndThrow, worldJsonText } from './sqlite.ts'
 import { PLAYER_INPUT_TRANSITIONS, readPlayerInputRow, type PlayerInputJob, type PlayerInputRow } from './player-input-jobs.ts'
 

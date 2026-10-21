@@ -9,7 +9,7 @@ import {
   type WorldJsonObject,
 } from '@harness-world/contracts'
 import { readPragmaInteger, rollbackAndThrow, WORLD_APPLICATION_ID } from './sqlite.ts'
-import { openWorldDatabase, WORLD_SCHEMA_VERSION } from './world-store.ts'
+import { openWorldDatabase, WORLD_SCHEMA_VERSION } from './world-schema.ts'
 import { OperationalAuditLog } from './operational-audit.ts'
 
 export interface WorldBackupArtifact extends WorldJsonObject {

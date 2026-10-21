@@ -18,7 +18,7 @@ import {
   worldAddressKey,
 } from '@harness-world/contracts'
 import { applyBranchQuarantine, type QuarantineResult } from './quarantine.ts'
-import { openWorldDatabase } from './world-store.ts'
+import { openWorldDatabase } from './world-schema.ts'
 import { parseWorldJson, rollbackAndThrow, worldJsonText } from './sqlite.ts'
 
 export interface ClaimedOutboxDelivery {
