@@ -64,7 +64,7 @@ function vocabulary(vocabularyId: string, termGroups: WorldJsonObject): Vocabula
   return Object.freeze({ vocabularyId, termGroups: Object.freeze({ ...termGroups }) })
 }
 
-export const PHASE8_VOCABULARIES = Object.freeze([
+export const BASIC_VOCABULARIES = Object.freeze([
   vocabulary('cognition-basic/v1', {
     awarenessLevels: AWARENESS_LEVELS,
     claimStances: CLAIM_STANCES,
@@ -92,14 +92,14 @@ export const PHASE8_VOCABULARIES = Object.freeze([
   }),
 ])
 
-export const PHASE8_VOCABULARY_LOCKS: readonly VocabularyLock[] = Object.freeze(
-  PHASE8_VOCABULARIES.map(entry => Object.freeze({
+export const BASIC_VOCABULARY_LOCKS: readonly VocabularyLock[] = Object.freeze(
+  BASIC_VOCABULARIES.map(entry => Object.freeze({
     vocabularyId: entry.vocabularyId,
     vocabularyHash: hashWorldJson('phase8-vocabulary/v1', entry),
   })),
 )
 
-export const PHASE8_VOCABULARY_REGISTRY_HASH = hashWorldJson(
+export const BASIC_VOCABULARY_REGISTRY_HASH = hashWorldJson(
   'phase8-vocabulary-registry/v1',
-  { locks: PHASE8_VOCABULARY_LOCKS },
+  { locks: BASIC_VOCABULARY_LOCKS },
 )

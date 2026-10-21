@@ -1,24 +1,24 @@
 import { hashWorldJson, type WorldHash, type WorldJsonObject, type WorldJsonValue } from './world-json.ts'
 
-export interface Phase8RegistryMember extends WorldJsonObject {
+export interface RuntimeRegistryMember extends WorldJsonObject {
   readonly id: string
   readonly version: string
   readonly contractHash: WorldHash
 }
 
-export interface Phase8RegistryManifest extends WorldJsonObject {
+export interface RuntimeRegistryManifest extends WorldJsonObject {
   readonly registryId: string
   readonly version: '1.0.0'
-  readonly members: readonly Phase8RegistryMember[]
+  readonly members: readonly RuntimeRegistryMember[]
 }
 
-export interface Phase8RegistryLock extends WorldJsonObject {
+export interface RuntimeRegistryLock extends WorldJsonObject {
   readonly registryId: string
   readonly version: '1.0.0'
   readonly registryHash: WorldHash
 }
 
-export interface Phase8ContextProfile extends WorldJsonObject {
+export interface ContextProfile extends WorldJsonObject {
   readonly profileId: 'compact' | 'standard' | 'deep'
   readonly maximumRequestBytes: number
   readonly recentInteractionBlocks: number
@@ -34,7 +34,7 @@ export interface Phase8ContextProfile extends WorldJsonObject {
   readonly openLoops: number
 }
 
-export interface Phase8ReflectionProfile extends WorldJsonObject {
+export interface ReflectionProfile extends WorldJsonObject {
   readonly profileId: 'standard'
   readonly maximumOperations: 4
   readonly maximumNewActivePerKind: 2
@@ -43,7 +43,7 @@ export interface Phase8ReflectionProfile extends WorldJsonObject {
   readonly maximumNarrativeBytesPerBatch: number
 }
 
-export interface Phase8ProviderQualityProfile extends WorldJsonObject {
+export interface ProviderQualityProfile extends WorldJsonObject {
   readonly schemaVersion: 'provider-quality/v1'
   readonly invalidReflectionThreshold: 3
   readonly reflectionPauseEligibleTicks: 4
@@ -51,13 +51,13 @@ export interface Phase8ProviderQualityProfile extends WorldJsonObject {
   readonly probeBackoffEligibleTicks: readonly [1, 2, 4, 8]
 }
 
-export interface Phase8SubmitActionsProfile extends WorldJsonObject {
+export interface SubmitActionsProfile extends WorldJsonObject {
   readonly schemaVersion: 'submit_actions/v2'
   readonly maximumExternalActions: 2
   readonly maximumReflectionOperations: 4
 }
 
-export const PHASE8_REFLECTION_PROFILE: Phase8ReflectionProfile = Object.freeze({
+export const REFLECTION_PROFILE: ReflectionProfile = Object.freeze({
   profileId: 'standard',
   maximumOperations: 4,
   maximumNewActivePerKind: 2,
@@ -66,7 +66,7 @@ export const PHASE8_REFLECTION_PROFILE: Phase8ReflectionProfile = Object.freeze(
   maximumNarrativeBytesPerBatch: 16 * 1024,
 })
 
-export const PHASE8_PROVIDER_QUALITY_PROFILE: Phase8ProviderQualityProfile = Object.freeze({
+export const PROVIDER_QUALITY_PROFILE: ProviderQualityProfile = Object.freeze({
   schemaVersion: 'provider-quality/v1',
   invalidReflectionThreshold: 3,
   reflectionPauseEligibleTicks: 4,
@@ -74,13 +74,13 @@ export const PHASE8_PROVIDER_QUALITY_PROFILE: Phase8ProviderQualityProfile = Obj
   probeBackoffEligibleTicks: Object.freeze([1, 2, 4, 8] as const),
 })
 
-export const PHASE8_SUBMIT_ACTIONS_PROFILE: Phase8SubmitActionsProfile = Object.freeze({
+export const SUBMIT_ACTIONS_PROFILE: SubmitActionsProfile = Object.freeze({
   schemaVersion: 'submit_actions/v2',
   maximumExternalActions: 2,
   maximumReflectionOperations: 4,
 })
 
-export const PHASE8_CONTEXT_PROFILES: readonly Phase8ContextProfile[] = Object.freeze([
+export const CONTEXT_PROFILES: readonly ContextProfile[] = Object.freeze([
   Object.freeze({
     profileId: 'compact', maximumRequestBytes: 32 * 1024, recentInteractionBlocks: 4, recallResults: 6,
     checkpointActiveCognition: 12, sceneVisibleSubjects: 16, activeClaims: 8, activeGoals: 4,
@@ -98,15 +98,15 @@ export const PHASE8_CONTEXT_PROFILES: readonly Phase8ContextProfile[] = Object.f
   }),
 ])
 
-function member(id: string, version: string, contract: WorldJsonValue): Phase8RegistryMember {
+function member(id: string, version: string, contract: WorldJsonValue): RuntimeRegistryMember {
   return Object.freeze({ id, version, contractHash: hashWorldJson('phase8-registry-member-contract/v1', contract) })
 }
 
-function registry(registryId: string, members: readonly Phase8RegistryMember[]): Phase8RegistryManifest {
+function registry(registryId: string, members: readonly RuntimeRegistryMember[]): RuntimeRegistryManifest {
   return Object.freeze({ registryId, version: '1.0.0', members: Object.freeze([...members]) })
 }
 
-export const PHASE8_REGISTRIES: readonly Phase8RegistryManifest[] = Object.freeze([
+export const RUNTIME_REGISTRIES: readonly RuntimeRegistryManifest[] = Object.freeze([
   registry('context-registry/v1', [
     member('character-controller', '2.0.0', { schemaVersion: 'character-controller/v2' }),
     member('director-planning', '1.0.0', { schemaVersion: 'director-planning/v1' }),
@@ -125,28 +125,28 @@ export const PHASE8_REGISTRIES: readonly Phase8RegistryManifest[] = Object.freez
   ]),
   registry('cognitive-policy-registry/v1', [
     member('cognitive-policy', '1.0.0', { schemaVersion: 'cognitive-policy/v1' }),
-    member('reflection-policy:standard', '1.0.0', PHASE8_REFLECTION_PROFILE),
-    member('provider-quality', '1.0.0', PHASE8_PROVIDER_QUALITY_PROFILE),
+    member('reflection-policy:standard', '1.0.0', REFLECTION_PROFILE),
+    member('provider-quality', '1.0.0', PROVIDER_QUALITY_PROFILE),
   ]),
   registry('renderer-registry/v1', [
     member('character-controller-cache', '1.0.0', { schemaVersion: 'character-controller-cache/v1' }),
     member('structured-prompt-renderer', '1.0.0', { schemaVersion: 'structured-prompt-renderer/v1' }),
   ]),
   registry('tool-schema-registry/v1', [
-    member('submit_actions', '2.0.0', PHASE8_SUBMIT_ACTIONS_PROFILE),
+    member('submit_actions', '2.0.0', SUBMIT_ACTIONS_PROFILE),
     member('submit_director_plan', '1.0.0', { schemaVersion: 'submit_director_plan/v1' }),
   ]),
-  registry('context-profile-registry/v1', PHASE8_CONTEXT_PROFILES.map(profile => (
+  registry('context-profile-registry/v1', CONTEXT_PROFILES.map(profile => (
     member(`context-profile:${profile.profileId}`, '1.0.0', profile)
   ))),
 ])
 
-export const PHASE8_REGISTRY_LOCKS: readonly Phase8RegistryLock[] = Object.freeze(
-  PHASE8_REGISTRIES.map(manifest => Object.freeze({
+export const RUNTIME_REGISTRY_LOCKS: readonly RuntimeRegistryLock[] = Object.freeze(
+  RUNTIME_REGISTRIES.map(manifest => Object.freeze({
     registryId: manifest.registryId,
     version: manifest.version,
     registryHash: hashWorldJson('phase8-registry/v1', manifest),
   })),
 )
 
-export const PHASE8_REGISTRY_SET_HASH = hashWorldJson('phase8-registry-set/v1', { locks: PHASE8_REGISTRY_LOCKS })
+export const RUNTIME_REGISTRY_SET_HASH = hashWorldJson('phase8-registry-set/v1', { locks: RUNTIME_REGISTRY_LOCKS })

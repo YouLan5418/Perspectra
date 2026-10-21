@@ -1,5 +1,5 @@
 import {
-  brandId, hashWorldJson, PHASE8_REGISTRY_LOCKS, PHASE8_VOCABULARY_LOCKS,
+  brandId, hashWorldJson, RUNTIME_REGISTRY_LOCKS, BASIC_VOCABULARY_LOCKS,
   type InteractionBindingV3, type InteractionCatalogV3,
   type InteractionPackageImplementation, type ReactionProfileId, type WorldAddress,
   type WorldEventDraft, type WorldJsonObject,
@@ -87,7 +87,7 @@ export function frozenInteractionWorld(profile?: ReactionProfileId): CompiledWor
       packHash: hashWorldJson('pack:interaction-fixture', null),
       compiler: { id: 'test-compiler', version: '1.0.0', contractVersion: 'worldpack/v2',
         canonicalJsonVersion: 'world-json/v1', limitsProfile: 'worldpack-limits/v2' },
-      pluginLocks: [], vocabularyLocks: PHASE8_VOCABULARY_LOCKS, registryLocks: PHASE8_REGISTRY_LOCKS,
+      pluginLocks: [], vocabularyLocks: BASIC_VOCABULARY_LOCKS, registryLocks: RUNTIME_REGISTRY_LOCKS,
       runtimeCapabilities: { publicSpeechObservationVersion: 1, cognitionProjectionVersion: 1,
         sceneDecisionVersion: 2, cognitiveMemoryVersion: 2, agentContextVersion: 2 },
       presentation: { schemaVersion: 'worldpack-presentation/v1', locale: 'en', style: 'plain' },

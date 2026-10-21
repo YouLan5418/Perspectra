@@ -9,7 +9,7 @@
  */
 import { basename, resolve } from 'node:path'
 import { rolePreset, type TextRule } from '../../packages/provider-chat/src/preset.ts'
-import { PHASE8_CONTEXT_PROFILES } from '../../packages/contracts/src/phase8-registries.ts'
+import { CONTEXT_PROFILES } from '@harness-world/contracts'
 import { readTavernCard } from './tavern-black-shores-slice.ts'
 
 const KIB = 1024
@@ -114,7 +114,7 @@ verdict(overKeywords.length === 0 && longKeywords.length === 0, '关键词形状
 verdict(constantCharacters <= MAXIMUM_DELIVERY, '常驻合计 vs 单次投递预算',
   `${constantCharacters} 字符，占满 ${((constantCharacters / MAXIMUM_DELIVERY) * 100).toFixed(1)}% 预算${constantCharacters > MAXIMUM_DELIVERY ? '，超出部分会被跳过；可用 when 条件把阶段性条目移出常驻' : ''}`)
 
-const profiles = PHASE8_CONTEXT_PROFILES.map(profile => `${profile.profileId}=${profile.recallResults}`).join(' / ')
+const profiles = CONTEXT_PROFILES.map(profile => `${profile.profileId}=${profile.recallResults}`).join(' / ')
 line('记忆召回上限', profiles)
 line('知识召回策略', '关键词子串匹配，任意条命中即投递；可选 when（JSON Schema）按接收者已知状态过滤')
 

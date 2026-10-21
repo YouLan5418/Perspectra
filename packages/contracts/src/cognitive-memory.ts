@@ -1,5 +1,5 @@
 import type { CharacterId } from './ids.ts'
-import type { ContextSourceRef } from './context-v2.ts'
+import type { ContextSourceRef } from './context-source.ts'
 import type { WorldAddress } from './protocol.ts'
 import type { WorldHash, WorldJsonObject, WorldJsonValue } from './world-json.ts'
 

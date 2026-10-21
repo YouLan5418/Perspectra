@@ -6,9 +6,9 @@ import {
   compareWorldText,
   deterministicId,
   hashWorldJson,
-  PHASE8_CONTEXT_PROFILES,
-  PHASE8_REGISTRY_LOCKS,
-  PHASE8_VOCABULARY_LOCKS,
+  CONTEXT_PROFILES,
+  RUNTIME_REGISTRY_LOCKS,
+  BASIC_VOCABULARY_LOCKS,
   type InteractionCatalogV3,
   type WorldHash,
   type WorldEventDraft,
@@ -263,7 +263,7 @@ function validateCognitionGraph(entry: WorldPackCharacterCognitionSourceV2, char
 }
 
 function validateCognitionCapacity(entry: WorldPackCharacterCognitionSourceV2, memory: WorldPackCharacterMemorySourceV2): void {
-  const profile = PHASE8_CONTEXT_PROFILES.find(value => value.profileId === memory.profile)!
+  const profile = CONTEXT_PROFILES.find(value => value.profileId === memory.profile)!
   const activeGoals = entry.goals.filter(value => value.status === 'active' || value.status === 'blocked').length
   const activeRelationships = entry.relationships.filter(value => value.status === 'active').length
   const activeAffects = entry.affects.filter(value => value.status === 'active').length
@@ -674,8 +674,8 @@ async function compileV5Source(sourceDirectory: string, options: WorldPackCompil
       packId: manifest.packId,
       packVersion: manifest.packVersion,
       pluginLocks: pluginLocks(PHASE8_CORE_PROFILES),
-      vocabularyLocks: PHASE8_VOCABULARY_LOCKS,
-      registryLocks: PHASE8_REGISTRY_LOCKS,
+      vocabularyLocks: BASIC_VOCABULARY_LOCKS,
+      registryLocks: RUNTIME_REGISTRY_LOCKS,
       content,
       assets,
       acceptanceAssertions,

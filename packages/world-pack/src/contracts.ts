@@ -15,7 +15,7 @@ import type {
   InteractionPackageDescription,
   OpenLoopKind,
   OpenLoopStatus,
-  Phase8RegistryLock,
+  RuntimeRegistryLock,
   RelationshipStatus,
   RelationshipType,
   SessionId,
@@ -515,7 +515,7 @@ export interface CompiledWorldPackV5 extends WorldJsonObject {
   readonly compiler: WorldPackCompilerIdentityV5
   readonly pluginLocks: readonly WorldPackPluginLock[]
   readonly vocabularyLocks: readonly VocabularyLock[]
-  readonly registryLocks: readonly Phase8RegistryLock[]
+  readonly registryLocks: readonly RuntimeRegistryLock[]
   readonly reaction: WorldPackReactionSource
   readonly manifestation: WorldPackManifestationSource
   readonly interactions: InteractionCatalogV3

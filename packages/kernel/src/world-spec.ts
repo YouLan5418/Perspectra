@@ -2,15 +2,15 @@ import {
   canonicalizeWorldJson,
   compareWorldText,
   hashWorldJson,
-  PHASE8_REGISTRY_LOCKS,
-  PHASE8_VOCABULARY_LOCKS,
+  RUNTIME_REGISTRY_LOCKS,
+  BASIC_VOCABULARY_LOCKS,
   type CharacterId,
   type InteractionBindingV3,
   type InteractionCatalogV3,
   type InteractionImplementationLock,
   type InteractionRef,
   type InteractionTargetRef,
-  type Phase8RegistryLock,
+  type RuntimeRegistryLock,
   type ReactionPolicyV1,
   type SessionId,
   type VocabularyLock,
@@ -104,7 +104,7 @@ export interface ContentPackManifestBindingV2 extends WorldJsonObject {
   readonly compiler: ContentPackCompilerIdentity
   readonly pluginLocks: readonly ContentPackPluginLock[]
   readonly vocabularyLocks: readonly VocabularyLock[]
-  readonly registryLocks: readonly Phase8RegistryLock[]
+  readonly registryLocks: readonly RuntimeRegistryLock[]
   readonly runtimeCapabilities: ContentPackRuntimeCapabilitiesV2
   readonly presentation: WorldJsonValue
   readonly initialFacts: readonly WorldJsonValue[]
@@ -243,8 +243,8 @@ export function runtimeManifestFromStored(value: WorldJsonValue): CompiledWorldM
       return textAt(fact.factId, `${path}.factId`)
     })
     unique(factIds, 'StoredWorldManifest.contentPack.initialFacts')
-    exactLockedArray(contentPack.vocabularyLocks, PHASE8_VOCABULARY_LOCKS, 'StoredWorldManifest.contentPack.vocabularyLocks')
-    exactLockedArray(contentPack.registryLocks, PHASE8_REGISTRY_LOCKS, 'StoredWorldManifest.contentPack.registryLocks')
+    exactLockedArray(contentPack.vocabularyLocks, BASIC_VOCABULARY_LOCKS, 'StoredWorldManifest.contentPack.vocabularyLocks')
+    exactLockedArray(contentPack.registryLocks, RUNTIME_REGISTRY_LOCKS, 'StoredWorldManifest.contentPack.registryLocks')
     arrayAt(contentPack.memory, 'StoredWorldManifest.contentPack.memory')
     arrayAt(contentPack.documents, 'StoredWorldManifest.contentPack.documents')
     arrayAt(contentPack.markdown, 'StoredWorldManifest.contentPack.markdown')

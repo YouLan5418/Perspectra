@@ -17,8 +17,8 @@ import {
   canonicalizeWorldJson,
   compareWorldText,
   hashWorldJson,
-  PHASE8_REGISTRY_LOCKS,
-  PHASE8_VOCABULARY_LOCKS,
+  RUNTIME_REGISTRY_LOCKS,
+  BASIC_VOCABULARY_LOCKS,
   RELATIONSHIP_STATUSES,
   RELATIONSHIP_TYPES,
   TENSION_POLE_TENDENCIES,
@@ -1490,8 +1490,8 @@ export function parseCompiledWorldPackV5(input: unknown, file = 'worldpack.json'
     .map((entry, index) => parseAssertion(entry, file, `/acceptanceAssertions/${index}`))
   unique(acceptanceAssertions.map(value => value.assertionId), file, '/acceptanceAssertions')
   const pluginLocks = pluginLocksAt(root.pluginLocks, file, '/pluginLocks', PHASE8_CORE_PROFILES, 'Phase 8')
-  exactPhase8LocksAt(root.vocabularyLocks, PHASE8_VOCABULARY_LOCKS, 'phase8-vocabulary-lock-set/v1', file, '/vocabularyLocks')
-  exactPhase8LocksAt(root.registryLocks, PHASE8_REGISTRY_LOCKS, 'phase8-registry-lock-set/v1', file, '/registryLocks')
+  exactPhase8LocksAt(root.vocabularyLocks, BASIC_VOCABULARY_LOCKS, 'phase8-vocabulary-lock-set/v1', file, '/vocabularyLocks')
+  exactPhase8LocksAt(root.registryLocks, RUNTIME_REGISTRY_LOCKS, 'phase8-registry-lock-set/v1', file, '/registryLocks')
   return {
     compiledSchemaVersion: WORLD_PACK_COMPILED_SCHEMA_VERSION_V5,
     packId: idAt(root.packId, file, '/packId', 'WorldPackId') as WorldPackId,
@@ -1502,7 +1502,7 @@ export function parseCompiledWorldPackV5(input: unknown, file = 'worldpack.json'
       contractVersion: WORLD_PACK_COMPILER_CONTRACT_VERSION_V5,
       canonicalJsonVersion: 'world-json/v1', limitsProfile: WORLD_PACK_LIMITS_PROFILE_V2,
     },
-    pluginLocks, vocabularyLocks: PHASE8_VOCABULARY_LOCKS, registryLocks: PHASE8_REGISTRY_LOCKS,
+    pluginLocks, vocabularyLocks: BASIC_VOCABULARY_LOCKS, registryLocks: RUNTIME_REGISTRY_LOCKS,
     reaction: parseWorldPackReactionSource(root.reaction, `${file}#/reaction`),
     manifestation: parseWorldPackManifestationSource(root.manifestation, `${file}#/manifestation`),
     interactions: parseInteractionCatalogV3(root.interactions, `${file}#/interactions`),

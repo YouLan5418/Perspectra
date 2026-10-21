@@ -13,7 +13,7 @@ export interface PlayerIntentCall {
   readonly responseHash: WorldHash | null
 }
 
-/** Purpose-specific ProviderCall identity: no invented Round, participant, or ContextReceipt. */
+/** Purpose-specific ProviderCall identity: no invented Round or participant. */
 export class PlayerIntentCallStore {
   readonly #db: DatabaseSync
   constructor(path: string) { this.#db = openContextDatabase(path) }
