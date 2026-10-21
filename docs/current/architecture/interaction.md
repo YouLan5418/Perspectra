@@ -30,6 +30,8 @@
 
 NPC 的发布范围可选 `scene_public`（公开）、`direct`（仅指定对象）、`private`（指定对象获得完整内容，旁观者仅观察交流发生）和 `self`（仅自己）。`direct/private` 必须指定当前可见的其他角色；`scene_public/self` 不指定接收对象。省略 scope 时，有接收对象默认 direct，否则默认 scene_public。标准和本地模型接口、执行结果后的续写、预设 output 转换及活动发布校验均支持这些字段；不新增事件协议或状态机制。self 不刺激其他角色，private 的发生观察仍可触发旁观者反应。活动表达许可继续生效。
 
+例如玩家悄悄对汤汤说“别声张”，汤汤若省略 scope 回应，这句回应会全场可闻。2026-10-20 试玩中她在叙述里写了“压低嗓子”，实际仍是公开发布，把秘密泄给了旁观者。为此，[角色回合](../../../packages/application/src/prototype-character-turn.ts)给 stimulus 中“`direct/private` 且收件人含本角色”的来话附加 `audienceHint`，提醒回应受众需要自己用 scope 选择、叙述不改变受众。它只是上下文提示，不替角色决定是否私下回应，也不改变默认值或 Rulebook。自动测试只覆盖标记出现的条件；真实模型是否因此改选受众尚未试玩验证。
+
 事件、授权观察、自观察、记忆 Source 与玩家公开视图保留片段顺序。记忆仍将其记为角色发表的内容，不证明叙述中的受控结果。预设 output/history/display 规则逐片段按 speech 或 narration 类型处理；显示规则只修改投影副本。
 
 活动仍可关闭对白或叙述；固定原文选项模式一次发布最多一个 speech 片段，可由许可的 narration 包围，避免把多个选项组合成一次新对白。普通场景没有这一限制。

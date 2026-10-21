@@ -109,7 +109,7 @@ describe('the web playtest on a frozen world', () => {
       const interim = await runtime.state()
       expect(interim.busy).toBe(true)
       expect(interim.world.currentScene?.presentNpcNames).not.toContain(movingName)
-      expect(interim.transcript.some(line => line.speaker === movingName && line.text.includes('移动'))).toBe(true)
+      expect(interim.transcript.some(line => line.speaker === movingName && /离开了|去了/u.test(line.text))).toBe(true)
       expect(JSON.stringify(interim)).not.toContain('另一个房间的私密回复')
       await runtime.pause(); release(); await pending
       expect(JSON.stringify(await runtime.state())).not.toContain('另一个房间的私密回复')

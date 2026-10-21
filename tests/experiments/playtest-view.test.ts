@@ -40,8 +40,8 @@ describe('player-facing playtest transcript', () => {
     expect(transcript).toEqual([
       { seq: 3, speaker: '玩家', speakerId: player, text: 'player speech', player: true },
       { seq: 4, speaker: 'Bob', speakerId: 'character:bob', text: '（避开玩家的视线，声音压得很低）\nvisible speech', player: false },
-      { seq: 7, speaker: 'Bob', speakerId: 'character:bob', text: '移动到了另一个地点。', player: false },
-      { seq: 8, speaker: 'Bob', speakerId: 'character:bob', text: '拿取了一个物品。', player: false },
+      { seq: 7, speaker: 'Bob', speakerId: 'character:bob', text: '（Bob离开了。）', player: false },
+      { seq: 8, speaker: 'Bob', speakerId: 'character:bob', text: '（Bob拿取了一个物品。）', player: false },
       { seq: 9, speaker: 'Bob', speakerId: 'character:bob', text: '（指尖蜷起，又慢慢松开。）', player: false },
     ])
     expect(JSON.stringify(transcript)).not.toMatch(/REJECTED_CANARY|PRIVATE_CLAIM_CANARY/)
@@ -87,7 +87,7 @@ describe('player-facing playtest transcript', () => {
     })
     expect(transcript).toEqual([
       { seq: 2, speaker: 'Bob', speakerId: 'character:bob', text: '黄铜钥匙 已交由Bob保管。', player: false },
-      { seq: 3, speaker: 'Bob', speakerId: 'character:bob', text: '移动到了后室。', player: false },
+      { seq: 3, speaker: 'Bob', speakerId: 'character:bob', text: '（Bob去了后室。）', player: false },
     ])
     expect(JSON.stringify(transcript)).not.toContain('entity:brass-key')
   })

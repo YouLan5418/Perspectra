@@ -148,3 +148,18 @@ it('returns no duplicate source when active recall repeats recent or automatic e
       .toMatchObject({ status: 'published', calls: 2 })
   }
 })
+
+it('marks speech addressed only to this character so the reply audience is chosen deliberately', async () => {
+  let stimulus: WorldJsonObject[] = []
+  const f = fixture(async request => {
+    stimulus = request.context.stimulus as WorldJsonObject[]
+    return { decision: 'abstain' }
+  })
+  const speech = (scope: string, addresseeIds: string[]) => ({ content: { actionType: 'speak', actorId: bob,
+    speech: { characterId: bob, scope, addresseeIds, text: '别声张。' } } })
+  await f.turn.run(npc, { maxCalls: 1, stimulus: [
+    speech('private', [npc]), speech('direct', [npc]), speech('scene_public', []), speech('private', ['character:other']),
+  ] })
+  expect(stimulus.map(item => typeof item.audienceHint === 'string')).toEqual([true, true, false, false])
+  expect(String(stimulus[0]!.audienceHint)).toContain('scope')
+})

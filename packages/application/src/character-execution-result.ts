@@ -56,6 +56,12 @@ export function characterExecutionResult(input: {
       return { status, description: `这个物品已经由${holder?.name ?? '你看到的保管人'}保管，你没有成功取得它的保管。` }
     }
   }
+  return { status, description: rejectionReasonText(reason)
+    ?? '这次请求没有执行成功；没有产生请求中的状态变化。目前没有可向你说明的进一步原因。' }
+}
+
+/** Plain-language text for a rejection code; undefined when the code has no reader-facing wording. */
+export function rejectionReasonText(reason: string | null): string | undefined {
   const descriptions: Record<string, string> = {
     SPEECH_RECIPIENT_UNREACHABLE: '指定对象中有人不在当前可交流范围，这次表达没有传达给任何收件人。你可以根据当前场景重新决定行动、表达或结束。',
     RAW_RICE_REQUIRED: '没有可用的生米与水材料，煮饭没有发生。',
@@ -76,6 +82,5 @@ export function characterExecutionResult(input: {
     INVALID_INTERACTION_ARGUMENTS: '这次互动缺少有效的必要信息，尚未执行。',
     PARTICIPANT_NOT_AUTHORIZED: '你面前找不到可供这次操作的目标，或当前无法接触它；这次互动没有发生。',
   }
-  return { status, description: descriptions[reason ?? '']
-    ?? '这次请求没有执行成功；没有产生请求中的状态变化。目前没有可向你说明的进一步原因。' }
+  return descriptions[reason ?? '']
 }

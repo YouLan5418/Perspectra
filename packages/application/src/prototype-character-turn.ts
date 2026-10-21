@@ -64,6 +64,21 @@ function object(value: unknown): WorldJsonObject {
   return value as WorldJsonObject
 }
 
+const privateAudienceHint = '这句话是只对你说的（不是公开发言）。若你决定回应，受众由你选择：想只让对方听到，publish 时设 scope 为 private 或 direct，并把对方放进 addresseeIds；省略 scope 且不填 addresseeIds 时，你的回应全场可闻。同一次 publish 的所有片段共用一个受众，叙述里写“压低声音”不会改变实际受众。'
+
+/** Marks speech addressed only to this character, so the reply audience is a conscious choice; never chooses it. */
+function withAudienceHints(stimulus: readonly WorldJsonObject[], characterId: CharacterId): WorldJsonObject[] {
+  const asObject = (value: WorldJsonValue | undefined): WorldJsonObject | undefined =>
+    value !== null && typeof value === 'object' && !Array.isArray(value) ? value as WorldJsonObject : undefined
+  return stimulus.map(item => {
+    const speech = asObject(asObject(item.content)?.speech)
+    if (speech === undefined) return item
+    const addressed = (speech.scope === 'private' || speech.scope === 'direct') && speech.characterId !== characterId
+      && Array.isArray(speech.addresseeIds) && speech.addresseeIds.includes(characterId)
+    return addressed ? { ...item, audienceHint: privateAudienceHint } : item
+  })
+}
+
 function recalledSourceIds(memories: readonly RecalledMemory[]): string[] {
   return memories.map(memory => {
     const source = object(object(memory.metadata).source)
@@ -272,7 +287,7 @@ export class PrototypeCharacterTurn {
         let context: WorldJsonObject = {
           publicationCharacters: this.options.publicationCharacters??2000,
           character: { ...character, locationId: view.locationId },
-          stimulus: options.stimulus ?? [],
+          stimulus: withAudienceHints(options.stimulus ?? [], characterId),
           ...(olderMemories === undefined ? {} : { memories: olderMemories }),
           cognition: new CognitionProjectionRebuilder(this.options.store).rebuildCharacterAt(this.options.address, characterId, head.headSeq),
           scene: { locationId: view.locationId,

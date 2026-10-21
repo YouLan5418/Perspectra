@@ -22,7 +22,7 @@ import { assertCoreEnvironment, createCoreWorker, coreRunner, type CoreRunner } 
 import { decideActivityFormat, type ActivityRequest } from './pack-activity.ts'
 import { PackActivities } from './pack-activities.ts'
 import { KNOWN_STATUS_NOTE, PackStatus } from './pack-status.ts'
-import { characterExecutionResult } from '../../packages/application/src/character-execution-result.ts'
+import { characterExecutionResult, rejectionReasonText } from '../../packages/application/src/character-execution-result.ts'
 import { PackKnowledge } from './pack-knowledge.ts'
 import { PackAutonomy, type AutonomousRole } from './pack-autonomy.ts'
 import { auditBeforePublication, type InterventionOptions } from './jev-publication-intervention.ts'
@@ -815,7 +815,9 @@ export class FrozenWorldRuntimeCore implements PlaytestRuntime {
       const details = failed.map(action => {
         const quote = validated.sourceSpans?.filter(span => span.actionId === action.actionId).map(span => span.text).join('')
         const reason = resolutions.get(action.actionId)?.reason
-        return `“${quote || action.actionType}”未执行${typeof reason === 'string' ? `（${reason}）` : ''}`
+        // Players read the shared plain-language wording; raw rejection codes stay out of the notice.
+        const explained = typeof reason === 'string' ? rejectionReasonText(reason)?.replace(/。$/u, '') : undefined
+        return `“${quote || action.actionType}”未执行${explained === undefined ? '' : `：${explained}`}`
       }).join('；')
       const lastEnd = Math.max(0, ...(validated.sourceSpans ?? []).map(span => span.endUtf16))
       const trailing = validated.sourceText?.slice(lastEnd).replace(/^[\s\p{P}]+|[\s\p{P}]+$/gu, '') ?? ''

@@ -74,9 +74,11 @@ export function playerTranscript(
       const movement = object(content.movement)
       const movedTo = typeof movement?.toLocationId === 'string'
         ? labels.locationNames?.get(movement.toLocationId) ?? movement.toLocationId : undefined
+      // Third-person stage text, so a committed action never reads as the character's own line.
+      const actor = names.get(content.actorId) ?? content.actorId
       const actionText = content.actionType === 'move'
-        ? movedTo === undefined ? '移动到了另一个地点。' : `移动到了${movedTo}。`
-        : '拿取了一个物品。'
+        ? movedTo === undefined ? `（${actor}离开了。）` : `（${actor}去了${movedTo}。）`
+        : `（${actor}拿取了一个物品。）`
       return [{
         seq: observation.sourceSeq,
         speaker: names.get(content.actorId) ?? content.actorId,
