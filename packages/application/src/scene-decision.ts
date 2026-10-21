@@ -32,7 +32,6 @@ export interface SceneDecision extends WorldJsonObject {
   readonly asOfSeq: number
   readonly schemaVersion: 'scene-decision/v2'
   readonly memberIds: readonly CharacterId[]
-  readonly directorEligible: boolean
   readonly decisionHash: WorldHash
 }
 
@@ -206,7 +205,6 @@ export class SceneDecisionService {
       observerIds,
       schedulableCharacterIds,
       visibleResultCharacterIds: observerIds,
-      directorEligible: scene !== undefined,
       asOfSeq,
     }
     return { ...semantic, decisionHash: hashWorldJson('scene-decision/v2', semantic) }

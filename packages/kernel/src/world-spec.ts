@@ -106,7 +106,7 @@ export interface CompiledWorldManifest extends WorldJsonObject {
   readonly timeMode: 'TURN_DRIVEN'
   readonly roundQueueLimit: number
   readonly runtimePolicy: RuntimePolicy
-  readonly rulebook: { readonly rulebookId: 'builtin:speak-move'; readonly version: 1 | 2 | 3 | 4 }
+  readonly rulebook: { readonly rulebookId: 'builtin:speak-move'; readonly version: 2 }
   readonly registries: ManifestRegistries
   readonly locations: readonly LocationSpec[]
   readonly entities: readonly EntitySpec[]
@@ -311,7 +311,7 @@ export function runtimeManifestFromStored(value: WorldJsonValue): CompiledWorldM
       capabilities.cognitiveMemoryVersion !== 2 ||
       capabilities.agentContextVersion !== 2
     ) {
-      throw new TypeError('stored Manifest Phase 8 runtime capability is unsupported')
+      throw new TypeError('stored Manifest runtime capability is unsupported')
     }
     const presentation = jsonObjectAt(contentPack.presentation, 'StoredWorldManifest.contentPack.presentation')
     jsonKeysAt(presentation, 'StoredWorldManifest.contentPack.presentation', ['schemaVersion', 'locale', 'style'])
@@ -517,7 +517,7 @@ export function runtimeManifestFromStoredRecord(
 function exactLockedArray(value: unknown, expected: WorldJsonValue, path: string): void {
   const actual = jsonArrayAt(value, path)
   if (!canonicalBytesEqual(actual as WorldJsonValue, expected))
-    throw new TypeError(`${path} does not match the installed Phase 8 registry`)
+    throw new TypeError(`${path} does not match the installed runtime registry`)
 }
 
 function canonicalBytesEqual(left: WorldJsonValue, right: WorldJsonValue): boolean {

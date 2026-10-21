@@ -14,7 +14,7 @@ export interface MountedBranch {
   readonly kernel: RoundCoordinator
   readonly store: BranchStoreComponent
   readonly agents: BranchAgentComponent
-  readonly director: BranchPresentationComponent
+  readonly presentation: BranchPresentationComponent
 }
 
 /**

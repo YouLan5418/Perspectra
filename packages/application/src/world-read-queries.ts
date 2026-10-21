@@ -181,7 +181,7 @@ export class WorldReadQueries {
       try {
         const event = branch.store.session.readEvent(sessionId, sessionEventSeq)
         if (event === undefined) throw new Error(`Session event ${sessionEventSeq} is missing`)
-        return branch.director.presenter.render(event.payload, presenterOptions)
+        return branch.presentation.presenter.render(event.payload, presenterOptions)
       } catch (error: unknown) {
         if (error instanceof WorldError || (error instanceof Error && error.message.includes(' is missing')))
           throw error

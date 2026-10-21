@@ -56,10 +56,10 @@ function componentFactory(
       const kernel = new TestComponent(ownerKey, 'kernel')
       const store = new CloseComponent()
       const agents = new TestComponent(ownerKey, 'agents')
-      const director = { ownerKey }
+      const presentation = { ownerKey }
       created.push(kernel, store, agents)
       scope.onEvent('phase6/probe', value => kernel.records.push(value))
-      return { kernel, store, agents, director }
+      return { kernel, store, agents, presentation }
     },
   }
 }

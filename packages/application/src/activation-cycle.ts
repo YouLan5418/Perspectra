@@ -159,7 +159,7 @@ async function runDynamicActivations(input: CharacterActivationInput): Promise<C
     : ordinarySignal
   const concurrency = input.maximumConcurrent ?? 2
   if (!Number.isSafeInteger(concurrency) || concurrency < 1 || concurrency > 2)
-    throw new RangeError('prototype concurrency must be 1 or 2')
+    throw new RangeError('activation concurrency must be 1 or 2')
   type Kind = 'ordinary' | 'autonomous' | 'autonomyReaction'
   type Continuation = NonNullable<NonNullable<Parameters<CharacterTurn['run']>[1]>['continuationOf']>
   type Pending = {

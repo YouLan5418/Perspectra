@@ -132,7 +132,7 @@ function assertManifestEvents(manifest: WorldJsonValue, events: readonly WorldEv
   }
 }
 
-/** Authoritative Phase 0 World Event, Head, Tick, and Outbox store. */
+/** Authoritative World Event, Head, Tick, and Outbox store. */
 export class WorldStore {
   readonly #db: DatabaseSync
   readonly #audit: OperationalAuditLog

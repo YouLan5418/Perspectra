@@ -112,7 +112,7 @@ export interface PreparedCognitiveStimulus {
   readonly recall?: AnyCognitiveRecallResult
 }
 
-/** Phase 8 worker boundary: callers supply only an exact namespace and required World watermark. */
+/** Worker boundary: callers supply only an exact namespace and required World watermark. */
 export class CognitiveMemoryWorker {
   constructor(
     private readonly memory: LocalMemoryStore,

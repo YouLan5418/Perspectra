@@ -173,7 +173,6 @@ describe('SceneDecisionService', () => {
       memberIds: [SCENE_IDS.bob, SCENE_IDS.detective, SCENE_IDS.player],
       observerIds: [SCENE_IDS.bob, SCENE_IDS.detective, SCENE_IDS.player],
       schedulableCharacterIds: [SCENE_IDS.bob, SCENE_IDS.detective],
-      directorEligible: true,
       asOfSeq: 5,
       decisionHash: expect.stringMatching(/^sha256:/),
     })
@@ -191,7 +190,6 @@ describe('SceneDecisionService', () => {
       memberIds: [],
       observerIds: [],
       schedulableCharacterIds: [],
-      directorEligible: false,
     })
     expect(service.decideFromEvents(compiled.manifest.address, bob, transferred, 10)).toMatchObject({
       sceneId: 'scene:station',

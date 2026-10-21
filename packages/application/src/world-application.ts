@@ -273,7 +273,7 @@ export class BranchAgentComponent {
   }
 }
 
-/** Deterministic presentation for the retained session-rendering API; no Director model. */
+/** Deterministic presentation for the session-rendering API. */
 export class BranchPresentationComponent {
   readonly presenter = new DeterministicPresenter()
 }
@@ -320,7 +320,7 @@ export class WorldBranchComponentFactory implements BranchComponentFactory {
             this.options.recallDictionary ?? false,
           )
       const agents = new BranchAgentComponent(cognitiveMemory)
-      const director = new BranchPresentationComponent()
+      const presentation = new BranchPresentationComponent()
       const players = new Set(manifest.playerBindings.map(value => value.characterId))
       store.availability.initialize(
         scope.address,
@@ -353,7 +353,7 @@ export class WorldBranchComponentFactory implements BranchComponentFactory {
         kernel.close()
         throw error
       }
-      return { kernel, store, agents, director }
+      return { kernel, store, agents, presentation }
     } catch (error: unknown) {
       cognitiveMemory?.close()
       store.close()
@@ -431,21 +431,6 @@ export class WorldApplication {
         `activate:${worldAddressKey(compiled.manifest.address)}`,
         compiled.manifest.address,
       )
-      if (
-        compiled.manifest.rulebook.rulebookId === 'builtin:speak-move' &&
-        compiled.manifest.rulebook.version === 3 &&
-        store.readManifest(compiled.manifest.address) === undefined
-      ) {
-        failWorld({
-          errorCode: 'INVALID_REQUEST',
-          category: 'admission',
-          message: 'Rulebook v3 is historical-only and cannot activate a new world',
-          retryable: false,
-          correlationId: `activate:${worldAddressKey(compiled.manifest.address)}`,
-          address: compiled.manifest.address,
-          details: { rulebookId: compiled.manifest.rulebook.rulebookId, version: 3 },
-        })
-      }
       validateApplicationManifest(
         compiled.manifest,
         compiled.manifest.address,
@@ -1064,7 +1049,7 @@ export class WorldApplication {
       !(components.kernel instanceof RoundCoordinator) ||
       !(components.store instanceof BranchStoreComponent) ||
       !(components.agents instanceof BranchAgentComponent) ||
-      !(components.director instanceof BranchPresentationComponent)
+      !(components.presentation instanceof BranchPresentationComponent)
     ) {
       await lease.dispose()
       throw new Error('Branch Component Factory returned an incompatible component set')
@@ -1074,7 +1059,7 @@ export class WorldApplication {
       kernel: components.kernel,
       store: components.store,
       agents: components.agents,
-      director: components.director,
+      presentation: components.presentation,
     }
   }
 

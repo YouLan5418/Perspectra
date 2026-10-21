@@ -62,15 +62,9 @@ describe('DeterministicPresenter', () => {
     ).toContain('"status":"unknown"')
   })
 
-  it('renders reaction-round speech and action templates with causal chain validation', () => {
+  it('renders observed speech and action templates', () => {
     const presenter = new DeterministicPresenter()
-    const base = {
-      observationType: 'reaction-round',
-      cycleId: 'cycle-1',
-      wave: 1,
-      roundId: 'round-1',
-      rootRoundId: 'root-round-1',
-    }
+    const base = { observationId: 'observation:alice-1' }
     const speechObservation = {
       ...base,
       value: {
@@ -86,7 +80,6 @@ describe('DeterministicPresenter', () => {
     }
     expect(presenter.render(speechObservation)).toMatchObject({
       text: 'alice says: "你好世界"',
-      reactionOrigin: { rootRoundId: 'root-round-1', cycleId: 'cycle-1', wave: 1, roundId: 'round-1' },
     })
     expect(presenter.render(speechObservation, { locale: 'zh-CN' }).text).toBe('角色 alice 说："你好世界"')
 
@@ -185,18 +178,8 @@ describe('DeterministicPresenter', () => {
     }
     expect(presenter.render(unrecognizedStatus).text).toContain('"status":"pending"')
 
-    const missingWave = {
-      observationType: 'reaction-round',
-      cycleId: 'cycle-1',
-      wave: 'not-a-number',
-      roundId: 'round-1',
-      rootRoundId: 'root-round-1',
-      value: { value: { actorId: 'x', actionType: 'y', status: 'accepted' } },
-    }
-    expect(presenter.render(missingWave).text).toContain('"observationType":"reaction-round"')
-
     const missingValue = { ...base, value: null }
-    expect(presenter.render(missingValue).text).toContain('"observationType":"reaction-round"')
+    expect(presenter.render(missingValue).text).toContain('"observationId":"observation:alice-1"')
 
     const innerMissingContent = { ...base, value: { observerId: 'character:player', actionId: 'action:no-content' } }
     expect(presenter.render(innerMissingContent).text).toContain('"actionId":"action:no-content"')

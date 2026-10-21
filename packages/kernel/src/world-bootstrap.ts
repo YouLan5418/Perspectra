@@ -1,4 +1,4 @@
-import { brandId, deterministicId, failWorld, worldAddressKey } from '@harness-world/contracts'
+import { brandId, deterministicId, failWorld } from '@harness-world/contracts'
 import { WorldStore, type ActivateBranchResult } from '@harness-world/store-sqlite'
 import type { FrozenInteractionRulebook } from './frozen-interactions.ts'
 import type { CompiledWorldSpec } from './world-spec.ts'
@@ -21,25 +21,6 @@ export class WorldBootstrap {
         correlationId,
         address: compiled.manifest.address,
         details: { schemaVersion: compiled.manifest.schemaVersion },
-      })
-    }
-    if (
-      compiled.manifest.rulebook.rulebookId === 'builtin:speak-move' &&
-      compiled.manifest.rulebook.version === 3 &&
-      this.store.readManifest(compiled.manifest.address) === undefined
-    ) {
-      failWorld({
-        errorCode: 'INVALID_REQUEST',
-        category: 'admission',
-        message: 'Rulebook builtin:speak-move@3 is historical-only and cannot activate a new world',
-        retryable: false,
-        correlationId,
-        address: compiled.manifest.address,
-        details: {
-          rulebookId: compiled.manifest.rulebook.rulebookId,
-          version: 3,
-          addressKey: worldAddressKey(compiled.manifest.address),
-        },
       })
     }
     // Registering the version is not the same as having a resolver for it, and a count of installed

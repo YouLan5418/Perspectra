@@ -785,11 +785,7 @@ export class RoundCoordinator {
           ...(manifestationResolution === undefined ? {} : { manifestationStatus: manifestationResolution.status }),
         },
       })
-      const publicSpeech =
-        this.#manifest.rulebook.version >= 4 ||
-        this.#manifest.contentPack?.runtimeCapabilities.publicSpeechObservationVersion === 1
-          ? resolution.events.find(event => event.eventType === 'character.speak')
-          : undefined
+      const publicSpeech = resolution.events.find(event => event.eventType === 'character.speak')
       const publicManifestation = resolvedEvents.find(event => event.eventType === 'character.manifested')
       const publicInteraction = resolution.events.find(event => event.eventType === 'entity.transferred')
       const relations = characterRelationObservations(actionPrefix, resolution.events)

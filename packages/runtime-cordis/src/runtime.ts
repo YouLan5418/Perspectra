@@ -14,7 +14,7 @@ declare module '@deepseek-ai/cordis' {
     worldKernel: BranchComponentService
     worldStore: BranchComponentService
     worldAgents: BranchComponentService
-    worldDirector: BranchComponentService
+    worldPresentation: BranchComponentService
   }
 }
 
@@ -32,7 +32,7 @@ export interface BranchRuntimeComponents {
   readonly kernel: BranchOwnedComponent
   readonly store: BranchOwnedComponent
   readonly agents: BranchOwnedComponent
-  readonly director: BranchOwnedComponent
+  readonly presentation: BranchOwnedComponent
 }
 
 export interface BranchExecutionLane {
@@ -51,7 +51,7 @@ export interface BranchComponentFactory {
 export class BranchComponentService extends Service {
   constructor(
     ctx: Context,
-    name: 'worldKernel' | 'worldStore' | 'worldAgents' | 'worldDirector',
+    name: 'worldKernel' | 'worldStore' | 'worldAgents' | 'worldPresentation',
     readonly ownerKey: string,
     readonly component: BranchOwnedComponent,
   ) {
@@ -100,7 +100,7 @@ export interface BranchServices {
   readonly kernel: BranchComponentService
   readonly store: BranchComponentService
   readonly agents: BranchComponentService
-  readonly director: BranchComponentService
+  readonly presentation: BranchComponentService
 }
 
 /** One isolated Cordis child context for an active world branch. */
@@ -138,7 +138,7 @@ export class BranchRuntimeSlot {
     const addressKey = worldAddressKey(address)
     const scopeLabel = Symbol(addressKey)
     let context = root
-    for (const service of ['worldKernel', 'worldStore', 'worldAgents', 'worldDirector'] as const) {
+    for (const service of ['worldKernel', 'worldStore', 'worldAgents', 'worldPresentation'] as const) {
       context = context.isolate(service)
     }
     context = context.extend({
@@ -154,11 +154,11 @@ export class BranchRuntimeSlot {
       const kernel = new BranchComponentService(ctx, 'worldKernel', addressKey, components.kernel)
       const store = new BranchComponentService(ctx, 'worldStore', addressKey, components.store)
       const agents = new BranchComponentService(ctx, 'worldAgents', addressKey, components.agents)
-      const director = new BranchComponentService(ctx, 'worldDirector', addressKey, components.director)
-      services = { kernel, store, agents, director }
+      const presentation = new BranchComponentService(ctx, 'worldPresentation', addressKey, components.presentation)
+      services = { kernel, store, agents, presentation }
       ctx.effect(
         () => async () => {
-          const allComponents = [components.kernel, components.director, components.agents, components.store]
+          const allComponents = [components.kernel, components.presentation, components.agents, components.store]
           for (const component of allComponents) {
             if (hasDisposer(component)) await component.dispose()
             else if (hasCloser(component)) await component.close()

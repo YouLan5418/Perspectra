@@ -228,7 +228,7 @@ function resolveSpeech(
     !validOptionalText(replyTo) ||
     !validOptionalText(declaredSpeechAct)
   ) {
-    return rejectRulebookResolution(characterId, 'speak', 'speak parameters are invalid for Manifest v4')
+    return rejectRulebookResolution(characterId, 'speak', 'speak parameters are invalid')
   }
   if (scope === 'direct' || scope === 'private') {
     const scene = currentSceneDecisionStates(events).find(

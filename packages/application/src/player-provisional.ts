@@ -93,7 +93,7 @@ export function verifyPlayerProvisional(
       retryable: false,
       address,
       correlationId: `player-provisional:${action.actionId}`,
-      message: 'player provisional resolution differs from final phase 0 authority',
+      message: 'player provisional resolution differs from the final authority',
       details: { expectedHash: provisional.hash, actualHash: final.hash },
     })
   }

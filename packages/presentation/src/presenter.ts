@@ -19,14 +19,6 @@ export interface PresentationResult extends WorldJsonObject {
   readonly text: string
   readonly observationContentHash: WorldHash
   readonly presentationHash: WorldHash
-  readonly reactionOrigin?: ReactionPresentationOrigin
-}
-
-export interface ReactionPresentationOrigin extends WorldJsonObject {
-  readonly rootRoundId: string
-  readonly cycleId: string
-  readonly wave: number
-  readonly roundId: string
 }
 
 function object(value: WorldJsonValue): WorldJsonObject | undefined {
@@ -42,27 +34,8 @@ export class DeterministicPresenter {
     if (locale !== 'en' && locale !== 'zh-CN') throw new TypeError('unsupported presenter locale')
     if (style !== 'plain') throw new TypeError('unsupported presenter style')
     const value = object(observation)
-    const reactionOrigin =
-      value?.observationType === 'reaction-round' &&
-      typeof value.cycleId === 'string' &&
-      typeof value.wave === 'number' &&
-      typeof value.roundId === 'string' &&
-      typeof value.rootRoundId === 'string' &&
-      typeof value.value === 'object' &&
-      value.value !== null
-        ? {
-            cycleId: value.cycleId,
-            wave: value.wave,
-            roundId: value.roundId,
-            rootRoundId: value.rootRoundId,
-          }
-        : undefined
     const observationPayload =
-      reactionOrigin !== undefined
-        ? value
-        : typeof value?.observationId === 'string' && object(value.value ?? null)?.content !== undefined
-          ? value
-          : undefined
+      typeof value?.observationId === 'string' && object(value.value ?? null)?.content !== undefined ? value : undefined
     const text =
       value?.observationType === 'player-action-result' &&
       typeof value.actionType === 'string' &&
@@ -83,7 +56,6 @@ export class DeterministicPresenter {
       style,
       text,
       observationContentHash,
-      ...(reactionOrigin === undefined ? {} : { reactionOrigin }),
     }
     return { ...base, presentationHash: hashWorldJson('deterministic-presentation', base) }
   }

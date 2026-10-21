@@ -226,7 +226,7 @@ export class LocalMemoryStore {
   }
 
   /**
-   * Rebuild, verify, capture, summarize, and receipt one Phase 8 character namespace at an exact World prefix.
+   * Rebuild, verify, capture, summarize, and receipt one character namespace at an exact World prefix.
    *
    * `keywordTokenizerId` is set only by a world that declared the versioned keyword strategy. A world that
    * did not keeps paying nothing for an index it never queries, and the index is built from the same

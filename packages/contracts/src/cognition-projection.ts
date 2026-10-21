@@ -68,13 +68,6 @@ export interface ReflectionBatch extends WorldJsonObject {
   readonly operations: readonly ReflectionOperation[]
 }
 
-export interface SubmitActionsV2 extends WorldJsonObject {
-  readonly schemaVersion: 2
-  readonly decision: 'act' | 'abstain'
-  readonly actions: readonly WorldJsonObject[]
-  readonly reflection?: ReflectionBatch
-}
-
 export type ManifestationChannel = 'facial' | 'gaze' | 'posture' | 'gesture' | 'voice' | 'appearance'
 
 export interface EventOnlyManifestationCue extends WorldJsonObject {
@@ -99,15 +92,6 @@ export type ManifestationCueProposal = EventOnlyManifestationCue | PersistentMan
 export interface ManifestationProposal extends WorldJsonObject {
   readonly description?: string
   readonly cues: readonly ManifestationCueProposal[]
-}
-
-/** ADR-0083 provider output; older submit_actions versions remain byte-for-byte closed. */
-export interface SubmitActionsV3 extends WorldJsonObject {
-  readonly schemaVersion: 3
-  readonly decision: 'act' | 'abstain'
-  readonly actions: readonly WorldJsonObject[]
-  readonly reflection?: ReflectionBatch
-  readonly manifestation?: ManifestationProposal
 }
 
 export interface CognitivePolicyReceipt extends WorldJsonObject {
