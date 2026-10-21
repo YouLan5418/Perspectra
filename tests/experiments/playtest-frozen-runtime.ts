@@ -236,6 +236,7 @@ export class FrozenWorldRuntimeCore implements PlaytestRuntime {
   #escaping: Promise<PlaytestState> | undefined
   #status: PackStatus | undefined
   #statusRoundError: string | undefined
+  #autoStartError: string | undefined
   #knowledge: PackKnowledge | undefined
   #activationCycle: Awaited<ReturnType<typeof runPrototypeActivations>> | undefined
   readonly #provider: 'local' | 'deepseek' | 'ollama'
@@ -555,6 +556,7 @@ export class FrozenWorldRuntimeCore implements PlaytestRuntime {
         playerInputMode: this.#intentEnabled ? 'command-controlled' : 'legacy-speech',
         lastProviderCall: this.#lastCall,
         ...(this.#statusRoundError === undefined ? {} : { statusRoundError: this.#statusRoundError }),
+        ...(this.#autoStartError === undefined ? {} : { autoStartError: this.#autoStartError }),
         ...(this.#status && Object.keys(this.#status.policyErrors).length ? { statusPolicyError: this.#status.policyErrors } : {}),
         ...(this.#shadow === undefined ? {} : { shadowAudit: this.#shadow.stats() }) },
     }
@@ -594,7 +596,7 @@ export class FrozenWorldRuntimeCore implements PlaytestRuntime {
         const committed = (await this.#application.head(this.#address)).headSeq > this.#rootBeforeSeq
         this.#notice = '操作已提交；单纯对白不消耗游戏行动回合。'
         await this.#activateCharacters(true)
-        if (committed) await this.#endStatusRound()
+        if (committed) await this.#endPlayerRound()
       } finally { try { await this.#refresh() } finally { this.#endWork() } }
       return this.state()
     }
@@ -611,7 +613,7 @@ export class FrozenWorldRuntimeCore implements PlaytestRuntime {
           match[1]!, parameters, idempotencyKey ?? randomUUID())
         // A retried request returns its original result; it starts no second round.
         this.#notice = changed ? '状态操作已提交。' : '已返回原提交结果，没有再次执行。'
-        if (changed) { await this.#refresh(); await this.#activateCharacters(); await this.#endStatusRound() }
+        if (changed) { await this.#refresh(); await this.#activateCharacters(); await this.#endPlayerRound() }
       } finally { try { await this.#refresh() } finally { this.#endWork() } }
       return this.state()
     }
@@ -647,7 +649,7 @@ export class FrozenWorldRuntimeCore implements PlaytestRuntime {
         const playerNotice = this.#playerResolutionNotice(key, result.result.headSeq)
         await this.#refresh()
         await this.#activateCharacters()
-        if (committed) await this.#endStatusRound()
+        if (committed) await this.#endPlayerRound()
         if (playerNotice !== undefined) this.#notice = [playerNotice, this.#notice].filter(Boolean).join(' ')
       }
     } catch (error: unknown) {
@@ -690,12 +692,32 @@ export class FrozenWorldRuntimeCore implements PlaytestRuntime {
       this.#notice = changed ? '游戏操作已提交。' : '已返回原提交结果，没有再次执行。'
       if (changed) {
         await this.#activateCharacters(true)
-        if (committed) await this.#endStatusRound()
+        if (committed) await this.#endPlayerRound()
       }
     } finally { try { await this.#refresh() } finally { this.#endWork() } }
     return this.state()
   }
-  /** The accepted player input's round is over: run the status hook once, recording (not retrying) a failure. */
+  /** The accepted player input's round is over: the status hook, then at most one author-conditioned activity start. */
+  async #endPlayerRound(): Promise<void> {
+    await this.#endStatusRound()
+    await this.#autoStartActivity()
+  }
+  /** Script and start-validation failures are recorded, not retried, and commit nothing; storage faults still throw. */
+  async #autoStartActivity(): Promise<void> {
+    if (!this.#activity || this.#escaping || this.#closing || this.#paused || this.#abortedWork) return
+    await this.#application.release(this.#address)
+    let started = false
+    try {
+      started = await this.#activity.autoStart()
+      this.#autoStartError = undefined
+    } catch (error: unknown) {
+      if (!(error instanceof TypeError) && !(error instanceof RangeError)) throw error
+      this.#autoStartError = error.message
+    }
+    // The participants get the same chance to react to the opening as after a manual start.
+    if (started) await this.#activateCharacters(true)
+  }
+  /** The status hook runs once per accepted player round, recording (not retrying) a failure. */
   async #endStatusRound(): Promise<void> {
     if (!this.#status || this.#escaping || this.#closing) return
     await this.#application.release(this.#address)

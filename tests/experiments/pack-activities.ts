@@ -21,6 +21,7 @@ export class PackActivities {
       const key=match?.[1]??'default'
       if(catalog.#entries.has(key))throw new TypeError('重复的活动标识：'+key)
       const activity=PackActivity.load(packPath,pack,worldPath,address,playerId,asset.path,key,status)!
+      activity.randomSource=()=>catalog.#nextRandom()
       catalog.#entries.set(key,activity)
     }
     if(!catalog.#entries.size)return undefined
@@ -55,8 +56,35 @@ export class PackActivities {
   }
   view(actorId:string){return this.#selected()?.view(actorId)}
   views(actorId:string):WorldJsonObject[]{return [...this.#entries.values()].map(entry=>entry.view(actorId))}
-  beginRoundRandom(values?:readonly number[]):void {for(const entry of this.#entries.values())entry.beginRoundRandom(values)}
-  roundRandom():number[]{return [...this.#entries.values()].flatMap(entry=>entry.roundRandom())}
+  // One recorded sequence per round, so regenerating replays both the tie-break and every initialize in order.
+  #randomValues:number[]=[]
+  #randomReplay:readonly number[]|undefined
+  #randomCursor=0
+  beginRoundRandom(values?:readonly number[]):void {this.#randomValues=[];this.#randomReplay=values;this.#randomCursor=0}
+  roundRandom():number[]{return [...this.#randomValues]}
+  #nextRandom():number {
+    const value=this.#randomReplay===undefined?Math.random():this.#randomReplay[this.#randomCursor]
+    if(value===undefined)throw new TypeError('活动随机记录不足。')
+    this.#randomCursor++;this.#randomValues.push(value);return value
+  }
+  /** After a player round: start at most one activity whose author conditions all hold. The most conditions
+   * win; a tie draws from the round random. Returns whether a start was committed. */
+  async autoStart():Promise<boolean> {
+    if(this.current()?.game.active)return false
+    const met=[...this.#entries].flatMap(([key,entry])=>{
+      const candidate=entry.autoStartCandidate()
+      return candidate?.met?[{key,entry,...candidate}]:[]
+    })
+    if(!met.length)return false
+    const most=Math.max(...met.map(candidate=>candidate.conditions)),tied=met.filter(candidate=>candidate.conditions===most)
+    const chosen=tied.length===1?tied[0]!:tied[Math.min(tied.length-1,Math.floor(this.#nextRandom()*tied.length))]!
+    const store=new WorldStore(this.worldPath)
+    let headSeq:number
+    try{headSeq=store.head(this.address).headSeq}finally{store.close()}
+    // Derived from the committed prefix, so a repeated check of the same round cannot start twice.
+    return chosen.entry.apply({activityKey:chosen.key,activityId:null,revision:0,operation:'start',parameters:chosen.parameters,
+      requestId:'auto-start:'+chosen.key+':'+headSeq},chosen.notice===undefined?{}:{notice:chosen.notice})
+  }
   async apply(request:ActivityRequest):Promise<boolean> {
     const entry=request.activityKey!==undefined?this.#entries.get(request.activityKey)
       :request.activityId!==null?[...this.#entries.values()].find(value=>value.current()?.id===request.activityId)

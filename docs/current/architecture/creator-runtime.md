@@ -63,7 +63,7 @@ Interaction 定义和绑定提供玩法可选行为，规则负责重要状态�
 
 ## 包内活动
 
-例如作者可以固定与同行者猜数字，也可以让玩家选择邀请留守者约会；被邀请者自己通过操作接受或拒绝。当前活动桥位于实验宿主。可信本地脚本声明 title、operations，以及固定 npcIds 或动态 participants（player-select、人数与可选候选白名单）；initialize 收到本次实际选定的 npcIds，policy 决定各主体表达／操作许可，resolve 同步裁定，schedule / onOutcome 返回 wait 或请求该场参与者处理。可选 simulate(request) 为该角色提供局部固定演出决策，null 表示调用真实模型；仅替换响应来源，不改变授权上下文、预设输出处理、格式校验、Rulebook、事务提交或观察分发。
+例如作者可以固定与同行者猜数字，也可以让玩家选择邀请留守者约会；被邀请者自己通过操作接受或拒绝。当前活动桥位于实验宿主。可信本地脚本声明 title、operations，以及固定 npcIds 或动态 participants（player-select、人数与可选候选白名单），可选 opening 作为玩家看到的开场文案（参与者仍收到固定开场行）；initialize 收到本次实际选定的 npcIds，policy 决定各主体表达／操作许可，resolve 同步裁定，schedule / onOutcome 返回 wait 或请求该场参与者处理。可选 simulate(request) 为该角色提供局部固定演出决策，null 表示调用真实模型；仅替换响应来源，不改变授权上下文、预设输出处理、格式校验、Rulebook、事务提交或观察分发。
 
 每场最多 8 个 NPC，玩家身份由宿主绑定，开始时参与者须存在且属于玩家当前授权场景；动态名单开始后固定，暂停与恢复保留同一名单。状态 public 只在参与者间共享，private 仅给对应角色，internal 不进入角色视图；脚本不能直接写世界或调用模型。活动结果按参与者或 self 投递，非参与者不获得活动视图、许可限制或活动调度资格，仍按普通交流和行动的观察权限知情。结果范围 self 只限制结果收件人，不能补救把秘密写进 public 的错误。接口例子和旁观者边界见[活动指南](../guides/activity-and-variables.md)。
 
@@ -82,6 +82,8 @@ Launcher 游戏库（2026-10-16）界面配色由全局设置的主题色决定�
 ### 多个独立玩法，一次运行一个（2026-10-10）
 
 例如玩家暂停猜数字、讨论周末计划、再回来继续猜：assetFiles 可登记 scripts/activities/guess.js 与 scripts/activities/weekend.js，每场各有状态、参与者和操作。它替代原先整个包只能使用一套活动的约束，没有新增并行调度。原 scripts/activity.js 作为 default 活动继续使用。
+
+2026-10-21：例如回报巡查后弭弗在场，就自动开始“名单”剧情。活动脚本可写可选的 `autoStart(truth, world, previous)`，返回 `when` 布尔数组（全真才满足，长度即条件数目）、可选 `npcIds` 与只给玩家的 `notice`（替换玩家看到的固定开场行，参与者仍收到固定行）。[宿主](../../../tests/experiments/playtest-frozen-runtime.ts)在被接受的玩家回合依次完成角色反应和 `onRoundEnd` 后检查一次；没有活动运行时，条件数目最多的候选开始，平局从本轮随机记录中抽取，重新生成按记录回放。开始复用玩家开始路径，事件带 `source: 'auto'`、action.resolved 为 `sourceRole: 'director'`，不计玩家回合；每轮至多一场，不连锁。脚本或开始校验失败不提交，记 `debug.autoStartError`。活动仍不能移动角色。作者接口见[活动指南](../guides/activity-and-variables.md#按条件自动开始2026-10-21当前源码)；自动测试已覆盖，另有一次 8 回合 DeepSeek 短试玩确认了触发时机、提示投递与轮次计数，发行包未重建。
 
 PackActivities 选择唯一正在运行的 PackActivity，只向该活动交付角色请求、许可和调度；没有 active 时使用普通规则。活动事件以 activityKey 区分，暂停保留进度并关闭 active，旧操作因身份／revision 或非 active 被拒绝。开始／继续在写入租约内检查没有另一 active；状态、玩家管理观察和世界 tick 同事务提交。继续使用当前授权 world 检查作者 resume 条件；没有 hook 时要求同场。暂停／恢复不改真实世界位置或物品，不续跑未提交计算。放弃暂停进度和前台逃生保留已提交经历，其他暂停活动不变。
 

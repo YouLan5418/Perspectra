@@ -143,7 +143,10 @@ export class PackActivity {
   #randomCursor = 0
   beginRoundRandom(values?: readonly number[]): void { this.#randomValues = []; this.#randomReplay = values; this.#randomCursor = 0 }
   roundRandom(): number[] { return [...this.#randomValues] }
+  /** Set by PackActivities so all scripts of one pack record into a single round sequence. */
+  randomSource: (() => number) | undefined
   #initialRandom(): number {
+    if (this.randomSource !== undefined) return this.randomSource()
     const value = this.#randomReplay === undefined ? Math.random() : this.#randomReplay[this.#randomCursor]
     if (value === undefined) throw new TypeError('活动初始化随机记录不足。')
     this.#randomCursor++; this.#randomValues.push(value); return value
@@ -152,16 +155,21 @@ export class PackActivity {
   readonly #operations: Operation[]
   readonly #validators = new Map<string, ReturnType<Ajv['compile']>>()
   readonly title: string
+  /** Optional player-facing opening line that replaces "<title>开始。" for the player. */
+  readonly opening: string | undefined
   readonly npcIds: string[]
   readonly participantSelection?: { min: number; max: number; candidates?: string[] }
   constructor(source: string, readonly worldPath: string, readonly address: WorldAddress, readonly playerId: string, readonly key='default',
     readonly status?: PackStatus) {
-    this.#script = new Script(source+'\nJSON.stringify(__method === "definition" ? activityScript.definition : __method === "hasResume" ? typeof activityScript.resume === "function" : (["simulate","onPublished","resume"].includes(__method) && activityScript[__method] === undefined) ? null : activityScript[__method](...JSON.parse(__args)))')
+    this.#script = new Script(source+'\nJSON.stringify(__method === "definition" ? activityScript.definition : __method === "hasResume" ? typeof activityScript.resume === "function" : (["simulate","onPublished","resume","autoStart"].includes(__method) && activityScript[__method] === undefined) ? null : activityScript[__method](...JSON.parse(__args)))')
     const definition=object(this.#call('definition',[]))
-    exact(definition,['title',Object.hasOwn(definition,'participants')?'participants':'npcIds','operations'])
+    exact(definition,['title',Object.hasOwn(definition,'participants')?'participants':'npcIds','operations',...(Object.hasOwn(definition,'opening')?['opening']:[])])
     if (typeof definition.title!=='string' || definition.title.length>80
       || !Array.isArray(definition.operations) || definition.operations.length>16) throw new TypeError('活动定义无效')
+    if (Object.hasOwn(definition,'opening') && (typeof definition.opening!=='string' || !definition.opening.trim() || definition.opening.length>500))
+      throw new TypeError('活动开场文案必须是 1–500 字符')
     this.title=definition.title
+    this.opening=typeof definition.opening==='string'?definition.opening:undefined
     if(Object.hasOwn(definition,'participants')){
       const selection=object(definition.participants)
       exact(selection,['mode','min','max',...(Object.hasOwn(selection,'candidates')?['candidates']:[])])
@@ -531,7 +539,32 @@ export class PackActivity {
         content:{status:'accepted',actionType:'interact',actorId:actor,resultDescription:description,
           resultMetadata:this.#resultMetadata(state,operation)}}}}))
   }
-  async apply(request:ActivityRequest):Promise<boolean> {
+  /** The author's start condition after a player round. Only reads truth and the player's authorized facts;
+   * undefined when this script declares no condition, already runs, or holds paused progress for the player. */
+  autoStartCandidate():{conditions:number;met:boolean;parameters:WorldJsonObject;notice?:string}|undefined {
+    const store=new WorldStore(this.worldPath)
+    let truth:unknown,world:WorldJsonObject,previous:WorldJsonObject|null
+    try{
+      const head=store.head(this.address),events=store.readEvents(this.address),current=this.state(events)
+      if(current?.game.active||current?.suspendedTurn!==undefined)return undefined
+      const manifest=store.readManifest(this.address)!.manifest as CompiledWorldManifest
+      truth=this.status?.truth(events)??null
+      world=this.#worldView(manifest,events,this.playerId,head.headSeq)
+      previous=current?this.scoped(current,this.playerId):null
+    }finally{store.close()}
+    const output=this.#call('autoStart',[truth,world,previous])
+    if(output===null)return undefined
+    const result=object(output)
+    exact(result,['when',...['npcIds','notice'].filter(key=>Object.hasOwn(result,key))])
+    if(!Array.isArray(result.when)||result.when.length===0||result.when.length>32||result.when.some(value=>typeof value!=='boolean'))
+      throw new TypeError('自动开始条件必须是 1–32 个布尔值')
+    if(Object.hasOwn(result,'npcIds')!==!!this.participantSelection)throw new TypeError(this.participantSelection?'玩家选人活动自动开始须指定 npcIds':'固定参与者活动自动开始不能指定 npcIds')
+    if(Object.hasOwn(result,'notice')&&(typeof result.notice!=='string'||!result.notice.trim()||result.notice.length>500))throw new TypeError('自动开始提示必须是 1–500 字符')
+    return {conditions:result.when.length,met:result.when.every(Boolean),
+      parameters:this.participantSelection?{npcIds:strings(result.npcIds)}:{},
+      ...(typeof result.notice==='string'?{notice:result.notice}:{})}
+  }
+  async apply(request:ActivityRequest,auto?:{notice?:string}):Promise<boolean> {
     if(request.activityId===null && this.#operations.some(op=>op.quick && op.id===request.operation)){
       // Two ordinary commits: a management start, then the counted operation. A retry reuses both request IDs.
       if(request.revision!==0 || Object.keys(request.parameters).length)throw new TypeError('快捷操作请求已失效')
@@ -624,9 +657,16 @@ export class PackActivity {
         drafts=[...resolution.events];state=object(drafts[0]!.data).state as ActivityState
         description=String(object(drafts[0]!.data).description)
       }
-      drafts[0]={...drafts[0]!,data:{...object(drafts[0]!.data),requestId:request.requestId,input}}
-      drafts.push(...this.#observations(state,description,this.playerId,actionId,observerIds,request.operation),
-        {eventType:'action.resolved',eventVersion:1,data:{actorId:this.playerId,actionId,actionType:'interact',accepted:true,sourceRole:'player'}},
+      if(auto&&request.operation!=='start')throw new TypeError('只有开始可以由宿主自动发出')
+      drafts[0]={...drafts[0]!,data:{...object(drafts[0]!.data),requestId:request.requestId,input,...(auto?{source:'auto'}:{})}}
+      // An author's opening (the automatic notice first, then the declared opening) replaces the fixed line for
+      // the player alone; it is written from the player's side, so participants keep the fixed line.
+      const notice=request.operation==='start'?auto?.notice??this.opening:undefined
+      drafts.push(...(notice===undefined?this.#observations(state,description,this.playerId,actionId,observerIds,request.operation)
+          :[...this.#observations(state,notice,this.playerId,actionId,[this.playerId],request.operation),
+            ...this.#observations(state,description,this.playerId,actionId,observerIds.filter(id=>id!==this.playerId),request.operation)]),
+        // A host-initiated start is direction, not a player action, so it never counts as a player round.
+        {eventType:'action.resolved',eventVersion:1,data:{actorId:this.playerId,actionId,actionType:'interact',accepted:true,sourceRole:auto?'director':'player'}},
         {eventType:'world.tick-advanced',eventVersion:1,data:{tick:head.tick+1}})
       await store.commitRound({address:this.address,transactionId:brandId(owner,'TransactionId'),roundId:brandId(owner,'InteractionRoundId'),
         expectedHeadSeq:head.headSeq,expectedTick:head.tick,nextTick:head.tick+1,events:drafts,outbox:[],
