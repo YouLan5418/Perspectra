@@ -7,7 +7,7 @@ import { createCoreRulebookRegistry } from '@harness-world/kernel'
 import { WorldStore, WriterLeaseService, CharacterRuntimeAvailabilityService } from '@harness-world/store-sqlite'
 import { CognitiveMemoryService } from '@harness-world/memory'
 import { createChatProvider } from '@harness-world/provider-chat'
-import { PrototypeCharacterTurn, type PrototypeTurnRequest } from '../../packages/application/src/prototype-character-turn.ts'
+import { CharacterTurn, type CharacterTurnRequest } from '../../packages/application/src/character-turn.ts'
 import { basicInteractionPackage } from '../fixtures/frozen-interaction-world.ts'
 import { gatewayTurnCall } from '../../desktop/host/gateway-turn-call.ts'
 
@@ -55,12 +55,12 @@ for (let repeat = 0; repeat < 3; repeat++) {
     const leases = new WriterLeaseService(join(dir, 'world.sqlite')), availability = new CharacterRuntimeAvailabilityService(join(dir, 'world.sqlite'))
     const before = store.head(address).headSeq
     try {
-      const turn = new PrototypeCharacterTurn({ address, store, memory, leases, availability,
+      const turn = new CharacterTurn({ address, store, memory, leases, availability,
         rulebooks: createCoreRulebookRegistry({ interactionPackages: [basicInteractionPackage] }),
         projectContext: context => ({ ...context, observations: [], selfObservations: [], memories: [] }),
         validateDecision: d => { if (d.decision === 'recall') throw new Error('initial choice disables further recall') },
         decide: async (request, signal) => {
-          const visible: PrototypeTurnRequest = { ...request, canRecall: false, context: { ...request.context, memories: variants[condition]! } }
+          const visible: CharacterTurnRequest = { ...request, canRecall: false, context: { ...request.context, memories: variants[condition]! } }
           const plain = JSON.stringify({ ...visible, context: { ...visible.context, memories: [] } })
           if (canonical !== undefined && canonical !== plain) throw new Error('nonmemory context changed')
           canonical = plain

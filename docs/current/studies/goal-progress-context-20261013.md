@@ -25,7 +25,7 @@
 
 同一个 actionId 的作者领域反馈和通用反馈去重，优先保留领域结果，避免通用“成功”覆盖有限查找未发现。内部保留 observationId/sourceSeq/actionId 供审计，[模型呈现](../../../packages/provider-chat/src/character-context-text.ts)复用原有证据清理规则去除 bookkeeping 字段。原始历史不删除，目标不重复复制到新字段，不新增事件、任务库或持久化策略。
 
-[普通宿主](../../../desktop/host/world-runtime.ts)增加 recentExecutionEvidence?: boolean，默认关闭。在现有 Core 交付完成之后、预设和 Provider 准备之前计算。没有条目时不添加字段或提示。非空时，[角色提示](../../../packages/provider-chat/src/prototype-turn.ts)增加简短原则：移动不等于搜索，成功不等于目标完成；可以继续、换办法、求助、等待或放弃，但没有进展不必然需要换策略，日常交流和休息仍合理。没有新的模型阶段或规划输出。
+[普通宿主](../../../desktop/host/world-runtime.ts)增加 recentExecutionEvidence?: boolean，默认关闭。在现有 Core 交付完成之后、预设和 Provider 准备之前计算。没有条目时不添加字段或提示。非空时，[角色提示](../../../packages/provider-chat/src/character-turn-call.ts)增加简短原则：移动不等于搜索，成功不等于目标完成；可以继续、换办法、求助、等待或放弃，但没有进展不必然需要换策略，日常交流和休息仍合理。没有新的模型阶段或规划输出。
 
 [末端候选环境](../../../desktop/host/tail-runtime.ts)仅在开关为 true 时记录它，关闭时不添加 false 键，从而保留旧环境对象。Launcher 与发行包未更新。新增回归位于 [纯投影测试](../../../packages/application/src/recent-execution-context.test.ts)和[宿主节点测试](../../../tests/prototype/recent-execution-context.test.ts)。
 

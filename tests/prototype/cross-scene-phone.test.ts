@@ -5,8 +5,8 @@ import { DatabaseSync } from 'node:sqlite'
 import { afterEach, expect, it } from 'vitest'
 import { resolutionAuthority } from '@harness-world/contracts'
 import type { WorldJsonObject } from '@harness-world/contracts'
-import { crossSceneRuntime } from '../experiments/cross-scene-runtime.ts'
-import { CrossScenePhone, phoneCalls } from '../experiments/cross-scene-phone.ts'
+import { crossSceneRuntime } from '../support/cross-scene-runtime.ts'
+import { CrossScenePhone, phoneCalls } from '../support/cross-scene-phone.ts'
 
 const roots: string[] = [], runtimes: Awaited<ReturnType<typeof crossSceneRuntime>>[] = []
 afterEach(async () => { for (const r of runtimes.splice(0)) await r.close(); for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true }) })

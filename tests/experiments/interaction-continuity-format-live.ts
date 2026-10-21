@@ -1,11 +1,11 @@
 // Explicit fault injection against a real provider, kept separate from natural playtest failures.
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { resolve, join } from 'node:path'
-import { createChatProvider, prototypeTurnCall } from '@harness-world/provider-chat'
+import { createChatProvider, characterTurnCall } from '@harness-world/provider-chat'
 import type { WorldJsonObject, WorldJsonValue } from '@harness-world/contracts'
 import { gatewayTurnCall } from '../../desktop/host/gateway-turn-call.ts'
 import { decideWithFormatRetry } from '../../desktop/host/decision-format.ts'
-import type { PrototypeTurnRequest } from '../../packages/application/src/prototype-character-turn.ts'
+import type { CharacterTurnRequest } from '../../packages/application/src/character-turn.ts'
 
 const directory=resolve(process.argv[2]??'output/interaction-continuity/format-live')
 mkdirSync(directory,{recursive:true})
@@ -34,14 +34,14 @@ const cases=[{
   invalid:{...take,parameters:{targetRef:take.parameters.targetRef,definitionRef:take.parameters.definitionRef,bindingId:take.parameters.bindingId}},
 }] as const
 for(const entry of cases) {
-  const request=entry.request as PrototypeTurnRequest
+  const request=entry.request as CharacterTurnRequest
   let invocations=0,repairs=0
   const started=performance.now(),signal=AbortSignal.timeout(60000)
   try {
     const output=await decideWithFormatRetry(gatewayTurnCall(request),async call=>{
       if(++invocations===1)return entry.invalid as unknown as WorldJsonValue
       return provider.decide(call,signal)
-    },signal,prototypeTurnCall(request).schema,()=>++repairs===1)
+    },signal,characterTurnCall(request).schema,()=>++repairs===1)
     results.push({name:entry.name,injectedFault:true,firstWasModelOutput:false,providerCalls:invocations-1,
       repairs,elapsedMs:Math.round(performance.now()-started),output,worldCommits:0})
   } catch(error) {

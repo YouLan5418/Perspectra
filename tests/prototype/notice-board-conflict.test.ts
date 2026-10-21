@@ -3,14 +3,14 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { expect, it } from 'vitest'
 import { type WorldJsonObject } from '@harness-world/contracts'
-import { PrototypeCharacterTurn } from '../../packages/application/src/prototype-character-turn.ts'
-import { npc, inspectDecision } from '../experiments/notice-board-fixture.ts'
-import { boardText, noticeBoardContext, noticeBoardResult } from '../experiments/notice-board-capability.ts'
-import { bringSecondBoard, openConflictingBoardWorld, secondBoardId, secondBoardText } from '../experiments/notice-board-conflict-fixture.ts'
+import { CharacterTurn } from '../../packages/application/src/character-turn.ts'
+import { npc, inspectDecision } from '../support/notice-board-fixture.ts'
+import { boardText, noticeBoardContext, noticeBoardResult } from '../support/notice-board-capability.ts'
+import { bringSecondBoard, openConflictingBoardWorld, secondBoardId, secondBoardText } from '../support/notice-board-conflict-fixture.ts'
 
 it('a newly reachable second sign creates separate evidence without changing the earlier inscription',async()=>{
   const directory=mkdtempSync(join(tmpdir(),'conflicting-signs-')),f=openConflictingBoardWorld(directory)
-  const inspect=async(target:string)=>new PrototypeCharacterTurn({address:f.address,store:f.store,memory:f.memory,
+  const inspect=async(target:string)=>new CharacterTurn({address:f.address,store:f.store,memory:f.memory,
     leases:f.leases,availability:f.availability,rulebooks:f.rules,projectContext:noticeBoardContext,
     executionResult:noticeBoardResult,decide:async r=>{
       if(r.continuation){expect(r.result?.description).toContain(target===secondBoardId?secondBoardText:boardText);return {decision:'abstain'}}

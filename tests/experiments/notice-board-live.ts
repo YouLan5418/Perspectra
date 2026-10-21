@@ -4,9 +4,9 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { type WorldJsonObject } from '@harness-world/contracts'
 import { createChatProvider } from '@harness-world/provider-chat'
-import { PrototypeCharacterTurn, type PrototypeTurnRequest } from '../../packages/application/src/prototype-character-turn.ts'
-import { npc, playerText, priorText, openCapabilityWorld } from './notice-board-fixture.ts'
-import { noticeBoardContext, noticeBoardResult, boardText, privateText, inspectId } from './notice-board-capability.ts'
+import { CharacterTurn, type CharacterTurnRequest } from '../../packages/application/src/character-turn.ts'
+import { npc, playerText, priorText, openCapabilityWorld } from '../support/notice-board-fixture.ts'
+import { noticeBoardContext, noticeBoardResult, boardText, privateText, inspectId } from '../support/notice-board-capability.ts'
 import { gatewayTurnCall } from '../../desktop/host/gateway-turn-call.ts'
 
 const root=resolve(process.argv[2]??'')
@@ -36,7 +36,7 @@ let canonical:string|undefined
 for(let repeat=0;repeat<3;repeat++){
   const dir=join(root,'repeat-'+repeat),f=openCapabilityWorld(dir)
   let callIndex=0,transportPath:string|undefined
-  const requests:PrototypeTurnRequest[]=[]
+  const requests:CharacterTurnRequest[]=[]
   const provider=createChatProvider({endpoint:new URL(process.env.HCW_LOCAL_ENDPOINT??'http://127.0.0.1:8045/v1/chat/completions'),
     model:'gemini-3.7-flash',timeoutMs:90000,maxOutputTokens:1600,
     ...(process.env.HCW_LOCAL_API_KEY?{apiKey:process.env.HCW_LOCAL_API_KEY}:{}),
@@ -56,10 +56,10 @@ for(let repeat=0;repeat<3;repeat++){
       experimentalOrigin:'reused recognition body, researcher-authored authorized supporting history'}
     save(join(dir,'prior.json'),memory)
     let stage=0
-    const turn=new PrototypeCharacterTurn({address:f.address,store:f.store,memory:f.memory,leases:f.leases,
+    const turn=new CharacterTurn({address:f.address,store:f.store,memory:f.memory,leases:f.leases,
       availability:f.availability,rulebooks:f.rules,projectContext:noticeBoardContext,executionResult:noticeBoardResult,
       decide:async(request,signal)=>{
-        const visible:PrototypeTurnRequest={...request,canRecall:false,context:{...request.context,memories:[memory]}}
+        const visible:CharacterTurnRequest={...request,canRecall:false,context:{...request.context,memories:[memory]}}
         const serialized=JSON.stringify(visible)
         if(serialized.includes(privateText))throw new Error('private text leaked')
         const committedReads=f.store.readEvents(f.address).filter(e=>e.eventType==='observation.upsert'

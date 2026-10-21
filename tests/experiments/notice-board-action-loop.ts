@@ -5,13 +5,13 @@ import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from
 import { join, resolve } from 'node:path'
 import { type WorldJsonObject, type WorldJsonValue } from '@harness-world/contracts'
 import { createChatProvider } from '@harness-world/provider-chat'
-import { PrototypeCharacterTurn, type PrototypeTurnRequest } from '../../packages/application/src/prototype-character-turn.ts'
+import { CharacterTurn, type CharacterTurnRequest } from '../../packages/application/src/character-turn.ts'
 import { openActionWorld, actionContext, actionResult, setupRead, askId, terminalId,
-  staffText, terminalText } from './notice-board-action-fixture.ts'
-import { bringSecondBoard, secondBoardId } from './notice-board-conflict-fixture.ts'
-import { npc, player, bob } from './notice-board-fixture.ts'
-import { privateText } from './notice-board-capability.ts'
-import { inscriptionReadings } from './notice-board-evidence-delivery.ts'
+  staffText, terminalText } from '../support/notice-board-action-fixture.ts'
+import { bringSecondBoard, secondBoardId } from '../support/notice-board-conflict-fixture.ts'
+import { npc, player, bob } from '../support/notice-board-fixture.ts'
+import { privateText } from '../support/notice-board-capability.ts'
+import { inscriptionReadings } from '../support/notice-board-evidence-delivery.ts'
 import { gatewayTurnCall } from '../../desktop/host/gateway-turn-call.ts'
 import { corePythonExecutable } from '../../desktop/host/memory/python-worker.ts'
 
@@ -98,12 +98,12 @@ const comparable=new Map<string,string>()
 async function activate(f:F,dir:string,tag:string,stimulus:WorldJsonObject[],memories:WorldJsonObject[],
   maxCalls:1|2=2,key?:string){
   let calls=0
-  const turn=new PrototypeCharacterTurn({address:f.address,store:f.store,memory:f.memory,leases:f.leases,
+  const turn=new CharacterTurn({address:f.address,store:f.store,memory:f.memory,leases:f.leases,
     availability:f.availability,rulebooks:f.rules,projectContext:actionContext,executionResult:actionResult,
     recentObservations:4,recentSelfObservations:4,
     validateDecision:d=>{if(d.decision==='recall')throw new Error('extra active recall disabled consistently')},
     decide:async(request,signal)=>{
-      const visible:PrototypeTurnRequest={...request,canRecall:false,context:{...request.context,memories}}
+      const visible:CharacterTurnRequest={...request,canRecall:false,context:{...request.context,memories}}
       if(JSON.stringify(visible).includes(privateText))throw new Error('private context leaked')
       if(!request.continuation&&key){
         const plain=JSON.stringify({...visible,context:{...visible.context,memories:[]}})
@@ -254,8 +254,8 @@ if(mode==='--finalize'){
         for(const p of ['world.sqlite','memory.sqlite'])copyFileSync(join(snapshots,p),join(target,p))
         const cf=openActionWorld(target,true)
         try{
-          let request:PrototypeTurnRequest|undefined
-          const preview=new PrototypeCharacterTurn({address:cf.address,store:cf.store,memory:cf.memory,
+          let request:CharacterTurnRequest|undefined
+          const preview=new CharacterTurn({address:cf.address,store:cf.store,memory:cf.memory,
             leases:cf.leases,availability:cf.availability,rulebooks:cf.rules,projectContext:actionContext,
             executionResult:actionResult,recentObservations:4,recentSelfObservations:4,
             decide:async r=>{request={...r,canRecall:false};return {decision:'abstain'}}})

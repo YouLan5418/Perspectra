@@ -2,11 +2,11 @@ import assert from 'node:assert/strict'
 import { appendFileSync, mkdirSync, writeFileSync } from 'node:fs'
 import { resolve, join } from 'node:path'
 import { brandId, type WorldJsonObject } from '@harness-world/contracts'
-import { createChatProvider, prototypeTurnCall, type ChatCall } from '@harness-world/provider-chat'
-import { runPrototypeActivations } from '../../packages/application/src/prototype-activation-cycle.ts'
+import { createChatProvider, characterTurnCall, type ChatCall } from '@harness-world/provider-chat'
+import { runCharacterActivations } from '../../packages/application/src/activation-cycle.ts'
 import { gatewayTurnCall } from '../../desktop/host/gateway-turn-call.ts'
-import { crossSceneRuntime } from './cross-scene-runtime.ts'
-import { CrossScenePhone, phoneCalls } from './cross-scene-phone.ts'
+import { crossSceneRuntime } from '../support/cross-scene-runtime.ts'
+import { CrossScenePhone, phoneCalls } from '../support/cross-scene-phone.ts'
 import { decideWithFormatRetry } from '../../desktop/host/decision-format.ts'
 
 const directory = process.argv[2], medium = process.argv[3]
@@ -31,7 +31,7 @@ const runtime = await crossSceneRuntime(root, async (request, signal) => {
   const prepared = gatewayTurnCall(projected)
   // Match the ordinary activity host's existing one-shot schema correction, without coercing values.
   return request.context.activity === undefined ? decide(prepared)
-    : decideWithFormatRetry(prepared, decide, signal, prototypeTurnCall(projected).schema)
+    : decideWithFormatRetry(prepared, decide, signal, characterTurnCall(projected).schema)
 }, { phone: medium === 'phone', activities: true, packPath: 'examples/world-packs/cross-scene-activity' })
 const results: unknown[] = []
 const run = async (actor: string) => {
@@ -44,7 +44,7 @@ try {
   const initial = structuredClone(runtime.activities!.current())!
   const before = runtime.store.head(runtime.address).headSeq
   await run('character:friend')
-  const cycle = await runPrototypeActivations({ store: runtime.store, address: runtime.address, turn: runtime.turn,
+  const cycle = await runCharacterActivations({ store: runtime.store, address: runtime.address, turn: runtime.turn,
     afterSeq: before, characterIds: [brandId('character:companion', 'CharacterId'), brandId('character:friend', 'CharacterId')],
     signal: new AbortController().signal, limits: { maximumWaves: 3, maximumNpcCalls: 12, maximumCallsPerCharacter: 2, reactionDeadlineSeconds: 120 } })
   results.push({ phase, cycle }); assert(!['failed', 'interrupted'].includes(cycle.terminalReason), JSON.stringify(cycle))

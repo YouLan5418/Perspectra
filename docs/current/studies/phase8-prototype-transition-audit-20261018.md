@@ -45,10 +45,10 @@
 - [宿主装配与激活](../../../desktop/host/world-runtime.ts)：WorldApplication 的选项、角色请求回调、#activateCharacters。
 - [WorldApplication](../../../packages/application/src/world-application.ts)：WorldBranchComponentFactory.create、externalCharacterActivations、分支组件和保留 API。
 - [RoundCoordinator](../../../packages/application/src/round-coordinator.ts)：processCognitiveJobs、participant 模型处理、Reflection 与提交。
-- [新角色循环](../../../packages/application/src/prototype-character-turn.ts)、[新调度](../../../packages/application/src/prototype-activation-cycle.ts)：实际 NPC 决策与结果提交。
+- [新角色循环](../../../packages/application/src/character-turn.ts)、[新调度](../../../packages/application/src/activation-cycle.ts)：实际 NPC 决策与结果提交。
 - 旧 `packages/application/src/context-pipeline.ts`、`reaction-scheduler.ts`（第二步已删除，见 Git 调查基点）。
 - [Core 桥](../../../desktop/host/memory/core-memory.ts)：#snapshot、授权 Source 查询与 catchUpReceipt。
-- [角色请求协议](../../../packages/provider-chat/src/prototype-turn.ts)、[认知初始事件编译](../../../packages/world-pack/src/compiler.ts)、旧 `packages/agents/src/reflection.ts`（第二步已删除）。
+- [角色请求协议](../../../packages/provider-chat/src/character-turn-call.ts)、[认知初始事件编译](../../../packages/world-pack/src/compiler.ts)、旧 `packages/agents/src/reflection.ts`（第二步已删除）。
 
 ## 用运行追踪验证“装配但没用”和“确实还在运行”
 

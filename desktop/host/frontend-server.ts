@@ -1,7 +1,6 @@
 import { createServer } from 'node:http'
 import type { IncomingMessage, ServerResponse } from 'node:http'
-import { FRONTEND_SDK } from '../../packages/frontend/src/client.ts'
-import { DEFAULT_PAGE, DEFAULT_STYLE, DEFAULT_SCRIPT } from '../../packages/frontend/src/default-template.ts'
+import { FRONTEND_SDK, DEFAULT_PAGE, DEFAULT_STYLE, DEFAULT_SCRIPT } from '@harness-world/frontend'
 import type { PackWeb } from './pack-frontend.ts'
 import { readFileSync } from 'node:fs'
 

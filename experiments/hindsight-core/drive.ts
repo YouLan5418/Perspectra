@@ -8,7 +8,7 @@ import { createCoreRulebookRegistry } from '@harness-world/kernel'
 import { WorldStore, WriterLeaseService, CharacterRuntimeAvailabilityService } from '@harness-world/store-sqlite'
 import { CognitiveMemoryService } from '@harness-world/memory'
 import { createChatProvider } from '@harness-world/provider-chat'
-import { PrototypeCharacterTurn, type PrototypeTurnRequest } from '../../packages/application/src/prototype-character-turn.ts'
+import { CharacterTurn, type CharacterTurnRequest } from '../../packages/application/src/character-turn.ts'
 import { gatewayTurnCall } from '../../desktop/host/gateway-turn-call.ts'
 import { frozenInteractionWorld, basicInteractionPackage } from '../../tests/fixtures/frozen-interaction-world.ts'
 
@@ -134,7 +134,7 @@ for (const mode of ['existing', 'core-recall', 'core-recall-observation'] as con
         }
       }
     }
-    const requests: PrototypeTurnRequest[] = [], decisions: unknown[] = []
+    const requests: CharacterTurnRequest[] = [], decisions: unknown[] = []
     const sourceTicks = new Map(history.map(e => [e.seq, e.tick]))
     const asMemories = (result: CoreResult) => (result.results ?? []).map(item => ({
       memoryId: item.id, text: item.text, sourceRefs: item.sourceRefs, kind: item.kind,
@@ -144,10 +144,10 @@ for (const mode of ['existing', 'core-recall', 'core-recall-observation'] as con
       note: '角色来源的非权威派生记忆；转述不证明所述事情已经发生。',
     }))
     const before = store.head(world.manifest.address).headSeq
-    const turn = new PrototypeCharacterTurn({ address: world.manifest.address, store, memory, leases, availability,
+    const turn = new CharacterTurn({ address: world.manifest.address, store, memory, leases, availability,
       rulebooks: createCoreRulebookRegistry({ interactionPackages: [basicInteractionPackage] }),
       decide: async (request, signal) => {
-        const visible: PrototypeTurnRequest = mode === 'existing' ? request : {
+        const visible: CharacterTurnRequest = mode === 'existing' ? request : {
           ...request,
           context: { ...request.context, memories: asMemories(selected) },
           ...(request.recallEvidence === undefined ? {} : { recallEvidence: {

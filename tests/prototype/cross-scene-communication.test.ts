@@ -5,7 +5,7 @@ import { DatabaseSync } from 'node:sqlite'
 import { afterEach, expect, it, vi } from 'vitest'
 import { brandId, resolutionAuthority, type WorldJsonObject } from '@harness-world/contracts'
 import { currentLocation } from '@harness-world/kernel'
-import { crossSceneRuntime } from '../experiments/cross-scene-runtime.ts'
+import { crossSceneRuntime } from '../support/cross-scene-runtime.ts'
 import { CoreMemoryAdapter } from '../../desktop/host/memory/core-memory.ts'
 import { gatewayTurnCall } from '../../desktop/host/gateway-turn-call.ts'
 

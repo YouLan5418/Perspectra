@@ -10,7 +10,7 @@ import { createCoreRulebookRegistry } from '@harness-world/kernel'
 import { WorldStore, WriterLeaseService, CharacterRuntimeAvailabilityService } from '@harness-world/store-sqlite'
 import { CognitiveMemoryService } from '@harness-world/memory'
 import { createChatProvider } from '@harness-world/provider-chat'
-import { PrototypeCharacterTurn, type PrototypeTurnRequest } from '../../packages/application/src/prototype-character-turn.ts'
+import { CharacterTurn, type CharacterTurnRequest } from '../../packages/application/src/character-turn.ts'
 import { frozenInteractionWorld, basicInteractionPackage } from '../fixtures/frozen-interaction-world.ts'
 import { gatewayTurnCall } from '../../desktop/host/gateway-turn-call.ts'
 import { corePythonExecutable } from '../../desktop/host/memory/python-worker.ts'
@@ -103,7 +103,7 @@ if (mode === '--prepare') {
     const s = new WorldStore(join(dir, 'world.sqlite')), m = new CognitiveMemoryService(join(dir, 'memory.sqlite'), s, undefined, 2, RECALL_KEYWORD_TOKENIZER_ID)
     const leases = new WriterLeaseService(join(dir, 'world.sqlite')), availability = new CharacterRuntimeAvailabilityService(join(dir, 'world.sqlite'))
     try {
-      const turn = new PrototypeCharacterTurn({ address, store: s, memory: m, leases, availability,
+      const turn = new CharacterTurn({ address, store: s, memory: m, leases, availability,
         rulebooks: createCoreRulebookRegistry({ interactionPackages: [basicInteractionPackage] }), projectContext: cold,
         decide: async request => {
           save(join(root, probe.id + '-request.json'), request)
@@ -154,12 +154,12 @@ if (mode === '--prepare') {
         const before = store.head(address).headSeq
         let calls = 0, returned = false
         try {
-          const turn = new PrototypeCharacterTurn({ address, store, memory, leases, availability,
+          const turn = new CharacterTurn({ address, store, memory, leases, availability,
             rulebooks: createCoreRulebookRegistry({ interactionPackages: [basicInteractionPackage] }), projectContext: cold,
             validateDecision: decision => { if (decision.decision === 'recall') throw new Error('one-choice experiment disables recall') },
             decide: async (request, signal) => {
               const memories = variants[condition] as WorldJsonObject[]
-              const visible: PrototypeTurnRequest = { ...request, canRecall: false, context: { ...request.context, memories } }
+              const visible: CharacterTurnRequest = { ...request, canRecall: false, context: { ...request.context, memories } }
               const comparison = JSON.stringify({ ...visible, context: { ...visible.context, memories: [] } })
               if (canonical.has(probe.id) && canonical.get(probe.id) !== comparison) throw new Error('nonmemory context changed')
               canonical.set(probe.id, comparison)

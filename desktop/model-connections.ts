@@ -1,5 +1,4 @@
-import { providerHeaders, providerProtocol, type ProviderProtocol } from '../packages/provider-chat/src/protocol.ts'
-import { thinkingLevel, thinkingRequest, type ThinkingLevel } from '../packages/provider-chat/src/thinking.ts'
+import { providerHeaders, providerProtocol, type ProviderProtocol, thinkingLevel, thinkingRequest, type ThinkingLevel } from '@harness-world/provider-chat'
 import { randomUUID } from 'node:crypto'
 
 /** One remembered provider address. Its key lives in the OS credential store, never here. */

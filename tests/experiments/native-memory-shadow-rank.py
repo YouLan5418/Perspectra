@@ -1,4 +1,4 @@
-"""Rank real PrototypeCharacterTurn recall observations without changing Character requests.
+"""Rank real CharacterTurn recall observations without changing Character requests.
 
 Usage: python native-memory-shadow-rank.py PLAYTEST_DATA_DIR MODEL_SNAPSHOT_DIR
 The playtest data directory contains memory-shadow.jsonl and memory.sqlite.

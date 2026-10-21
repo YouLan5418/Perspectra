@@ -61,7 +61,7 @@
 
 ## 6. 合适的接入范围与成本
 
-基于现有[角色预设](../model-presets.md)、[字段校验](../../../packages/provider-chat/src/preset.ts)、[Provider](../../../packages/provider-chat/src/provider.ts)与[输出契约](../../../packages/provider-chat/src/prototype-turn.ts)：
+基于现有[角色预设](../model-presets.md)、[字段校验](../../../packages/provider-chat/src/preset.ts)、[Provider](../../../packages/provider-chat/src/provider.ts)与[输出契约](../../../packages/provider-chat/src/character-turn-call.ts)：
 
 | 目标 | 量级 | 边界 |
 | --- | --- | --- |

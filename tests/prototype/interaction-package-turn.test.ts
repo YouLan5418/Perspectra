@@ -9,7 +9,7 @@ import { InteractionRegistry } from '@harness-world/interaction-runtime'
 import { createCoreRulebookRegistry, currentEntityState } from '@harness-world/kernel'
 import { CharacterRuntimeAvailabilityService, WorldStore, WriterLeaseService } from '@harness-world/store-sqlite'
 import { adaptCompiledWorldPack, compileWorldPackSource } from '@harness-world/world-pack'
-import { PrototypeCharacterTurn } from '../../packages/application/src/prototype-character-turn.ts'
+import { CharacterTurn } from '../../packages/application/src/character-turn.ts'
 
 it('executes the exact offered definition, then publishes freely from its committed result', async () => {
   const directory = mkdtempSync(join(tmpdir(), 'perspectra-package-turn-'))
@@ -31,7 +31,7 @@ it('executes the exact offered definition, then publishes freely from its commit
     const npc = brandId('character:companion', 'CharacterId')
     const rules = createCoreRulebookRegistry({ interactionPackages: [installed] })
     let calls = 0
-    const turn = new PrototypeCharacterTurn({ address: world.manifest.address, store, leases, availability,
+    const turn = new CharacterTurn({ address: world.manifest.address, store, leases, availability,
       rulebooks: rules, decide: async request => {
         calls++
         if (calls === 1) {

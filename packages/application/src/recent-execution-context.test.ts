@@ -2,7 +2,7 @@ import { expect, it } from 'vitest'
 import type { WorldJsonObject } from '@harness-world/contracts'
 import { recentExecutionContext, RECENT_EXECUTION_LIMITS } from './recent-execution-context.ts'
 import { characterRequestText } from '../../provider-chat/src/character-context-text.ts'
-import { prototypeTurnCall } from '../../provider-chat/src/prototype-turn.ts'
+import { characterTurnCall } from '../../provider-chat/src/character-turn-call.ts'
 
 const observation=(seq:number,content:WorldJsonObject,patch:WorldJsonObject={})=>({id:`o:${seq}`,sourceSeq:seq,
  value:{observerId:'character:a',actionId:`action:${seq}`,content},...patch})
@@ -39,8 +39,8 @@ it('retains a finite custom outcome and rejects neither the route nor the goal',
  const text=characterRequestText({context:result,canPerform:false})
  expect(text).not.toMatch(/sourceSeq|observationId|actionId/)
  expect(text).toContain('not_found')
- expect(prototypeTurnCall({context:result,continuation:false,canPerform:false}).messages[0]!.content).toContain('失败也不必然要求立即换方案')
- expect(prototypeTurnCall({context:input,continuation:false,canPerform:false}).messages[0]!.content).not.toContain('recentExecutionEvidence 是')
+ expect(characterTurnCall({context:result,continuation:false,canPerform:false}).messages[0]!.content).toContain('失败也不必然要求立即换方案')
+ expect(characterTurnCall({context:input,continuation:false,canPerform:false}).messages[0]!.content).not.toContain('recentExecutionEvidence 是')
 })
 
 it('records an observed transfer without attributing another actor to the reader',()=>{

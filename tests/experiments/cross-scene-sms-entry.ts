@@ -4,7 +4,7 @@ import { createInterface } from 'node:readline/promises'
 import { stdin, stdout } from 'node:process'
 import { createChatProvider } from '@harness-world/provider-chat'
 import { gatewayTurnCall } from '../../desktop/host/gateway-turn-call.ts'
-import { crossSceneRuntime, communicationContext } from './cross-scene-runtime.ts'
+import { crossSceneRuntime, communicationContext } from '../support/cross-scene-runtime.ts'
 
 const directory = process.argv[2]
 if (!directory) throw new TypeError('请显式指定新的实验数据目录：node --import tsx tests/experiments/cross-scene-sms-entry.ts <目录> [短信正文]')

@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { expect, it } from 'vitest'
 import { WorldHostRuntime } from '../../desktop/host/world-runtime.ts'
-import { command, object, packPath, settings, snapshot, takeRecord } from '../experiments/hidden-cure.ts'
+import { command, object, packPath, settings, snapshot, takeRecord } from '../support/hidden-cure-scenario.ts'
 
 it('compiles the experiment and preserves private knowledge and exclusive document custody', async () => {
   const directory = mkdtempSync(join(tmpdir(), 'hidden-cure-')), inputs: unknown[] = []

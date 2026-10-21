@@ -9,7 +9,7 @@ import { createInstalledInteractionPackages } from '@harness-world/interactions-
 import { compileWorldPackSource, type CompiledWorldPackV5 } from '@harness-world/world-pack'
 import { CharacterRuntimeAvailabilityService, WorldStore, WriterLeaseService } from '@harness-world/store-sqlite'
 import { createCoreRulebookRegistry, RulebookRegistry } from '@harness-world/kernel'
-import { PrototypeCharacterTurn, type PrototypeTurnResult } from '../../packages/application/src/prototype-character-turn.ts'
+import { CharacterTurn, type CharacterTurnResult } from '../../packages/application/src/character-turn.ts'
 import { characterExecutionResult } from '../../packages/application/src/character-execution-result.ts'
 import { WorldHostRuntime } from '../../desktop/host/world-runtime.ts'
 import { PackStatus, type KnownStatus } from '../../desktop/host/pack-status.ts'
@@ -144,10 +144,10 @@ it('interleaved private status operations keep each continuation bound to its ow
   rules.register('builtin:speak-move', 2, f.status.resolver(core, path, address, PLAYER))
   const continuations = new Map<string, WorldJsonObject>()
   let operation = 'check-purse'
-  let follower: Promise<PrototypeTurnResult> | undefined
+  let follower: Promise<CharacterTurnResult> | undefined
   let started!: () => void
   const followerStarted = new Promise<void>(done => { started = done })
-  const turn = new PrototypeCharacterTurn({ address, store, leases, availability, rulebooks: rules,
+  const turn = new CharacterTurn({ address, store, leases, availability, rulebooks: rules,
     allowUnrelatedCommits: true, executionResult: input => f.status.executionResult(input) ?? characterExecutionResult(input),
     decide: async request => {
       const id = String(object(request.context.character).characterId)

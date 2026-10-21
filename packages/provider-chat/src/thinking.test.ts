@@ -1,8 +1,8 @@
 import { expect, it } from 'vitest'
 import { thinkingLevel, thinkingRequest } from './thinking.ts'
 import { createChatProvider } from './provider.ts'
-import { prototypeTurnCall } from './prototype-turn.ts'
-const call = prototypeTurnCall({context:{},continuation:false})
+import { characterTurnCall } from './character-turn-call.ts'
+const call = characterTurnCall({context:{},continuation:false})
 it('maps only valid four-level settings to model-native parameters', () => {
  expect(()=>thinkingLevel('max')).toThrow()
  expect(thinkingRequest('openai','deepseek-flash','off')).toEqual({thinking:{type:'disabled'}})

@@ -4,12 +4,12 @@ import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 
 import { resolve } from 'node:path'
 import { Ajv } from 'ajv'
 import { createChatProvider } from '@harness-world/provider-chat'
-import type { PrototypeTurnRequest } from '../../packages/application/src/prototype-character-turn.ts'
+import type { CharacterTurnRequest } from '../../packages/application/src/character-turn.ts'
 import { gatewayTurnCall } from '../../desktop/host/gateway-turn-call.ts'
 
 type Mode = 'native' | 'old' | 'new'
 type Json = Record<string, unknown>
-type Comparison = { traceId: string; originalResponse: unknown; requests: Record<Mode, PrototypeTurnRequest> }
+type Comparison = { traceId: string; originalResponse: unknown; requests: Record<Mode, CharacterTurnRequest> }
 const arguments_ = process.argv.slice(2)
 const tracesArg = arguments_.find(value => value.startsWith('--traces='))
 const traceFilter = tracesArg?.slice('--traces='.length).split(',')
@@ -42,7 +42,7 @@ function hash(value: unknown) { return createHash('sha256').update(JSON.stringif
 function object(value: unknown): Json | undefined {
   return typeof value === 'object' && value !== null && !Array.isArray(value) ? value as Json : undefined
 }
-function validateDecision(response: unknown, request: PrototypeTurnRequest, schema: object) {
+function validateDecision(response: unknown, request: CharacterTurnRequest, schema: object) {
   const validator = ajv.compile(schema)
   const wireSchemaValid = validator(response)
   const value = object(response)

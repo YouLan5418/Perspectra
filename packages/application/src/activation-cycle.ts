@@ -1,11 +1,11 @@
 import { publicationSegments } from '@harness-world/contracts'
 import { brandId, type CharacterId, type WorldAddress, type WorldJsonObject, type WorldJsonValue } from '@harness-world/contracts'
 import type { WorldStore } from '@harness-world/store-sqlite'
-import type { PrototypeCharacterTurn, PrototypeTurnResult } from './prototype-character-turn.ts'
+import type { CharacterTurn, CharacterTurnResult } from './character-turn.ts'
 
 /** Only `run` is used, so a Host may observe which roles are being processed. */
-export type ActivationTurn = Pick<PrototypeCharacterTurn, 'run'>
-type Activation = { characterId: CharacterId; result: PrototypeTurnResult }
+export type ActivationTurn = Pick<CharacterTurn, 'run'>
+type Activation = { characterId: CharacterId; result: CharacterTurnResult }
 interface ActivationResult {
   calls: number; wave: number; terminalReason: string; activations: Activation[];
 }
@@ -13,14 +13,14 @@ interface ActivationLimits {
   readonly maximumWaves: number; readonly maximumNpcCalls: number;
   readonly maximumCallsPerCharacter: number; readonly reactionDeadlineSeconds?: number;
 }
-interface PrototypeActivationResult extends ActivationResult {
+interface CharacterActivationResult extends ActivationResult {
   autonomy?: {
     activations: Activation[]; autonomousCalls: number; reactionCalls: number;
     reactions: ActivationResult; terminalReason: string;
   };
 }
 /** Ephemeral, bounded scheduling; committed observations survive, unfinished activations need not. */
-export interface PrototypeActivationInput {
+export interface CharacterActivationInput {
   store: WorldStore; address: WorldAddress; turn: ActivationTurn; afterSeq: number;
   characterIds: readonly CharacterId[]; signal: AbortSignal;
   presentCharacterIds?: () => readonly CharacterId[];
@@ -39,11 +39,11 @@ export interface PrototypeActivationInput {
     reactionLimits: ActivationLimits;
   };
 }
-export async function runPrototypeActivations(input: PrototypeActivationInput): Promise<PrototypeActivationResult> {
+export async function runCharacterActivations(input: CharacterActivationInput): Promise<CharacterActivationResult> {
   if (input.locationId) return runDynamicActivations(input)
   const limits = input.limits ?? { maximumWaves: 3, maximumNpcCalls: 8, maximumCallsPerCharacter: 2 }
   const signal = AbortSignal.any([input.signal, AbortSignal.timeout((limits.reactionDeadlineSeconds ?? 30) * 1_000)])
-  const activations: { characterId: CharacterId; result: PrototypeTurnResult }[] = []
+  const activations: { characterId: CharacterId; result: CharacterTurnResult }[] = []
   const counts = new Map<CharacterId, number>(input.initialCounts)
   const inactive = new Set<CharacterId>()
   let calls = 0, wave = 0, hitCharacterLimit = false
@@ -106,7 +106,7 @@ export async function runPrototypeActivations(input: PrototypeActivationInput): 
 }
 
 /** Readiness follows committed observations rather than a barrier between whole waves. */
-async function runDynamicActivations(input: PrototypeActivationInput): Promise<PrototypeActivationResult> {
+async function runDynamicActivations(input: CharacterActivationInput): Promise<CharacterActivationResult> {
   const limits = input.limits ?? {maximumWaves:3,maximumNpcCalls:8,maximumCallsPerCharacter:2}
   const controller = new AbortController()
   const signal = AbortSignal.any([input.signal, controller.signal])
@@ -116,11 +116,11 @@ async function runDynamicActivations(input: PrototypeActivationInput): Promise<P
   const concurrency = input.maximumConcurrent ?? 2
   if (!Number.isSafeInteger(concurrency) || concurrency < 1 || concurrency > 2) throw new RangeError('prototype concurrency must be 1 or 2')
   type Kind = 'ordinary' | 'autonomous' | 'autonomyReaction'
-  type Continuation = NonNullable<NonNullable<Parameters<PrototypeCharacterTurn['run']>[1]>['continuationOf']>
+  type Continuation = NonNullable<NonNullable<Parameters<CharacterTurn['run']>[1]>['continuationOf']>
   type Pending = {observations:{seq:number;value:WorldJsonObject;kind:Kind;depth:number}[];depths:Partial<Record<Kind,number>>;
     continuationOf?:Continuation; continuationKind?:Kind}
   type Job = {observations:Pending['observations'];kind:Kind;depth:number;continuationOf?:Continuation}
-  type Completed = {id:CharacterId; result:PrototypeTurnResult} | {id:CharacterId; error:unknown}
+  type Completed = {id:CharacterId; result:CharacterTurnResult} | {id:CharacterId; error:unknown}
   const phase = (phaseLimits:ActivationLimits, phaseSignal:AbortSignal) => ({limits:phaseLimits,signal:phaseSignal,
     calls:0,reserved:0,wave:0,activations:[] as Activation[],characterLimit:false,waveLimit:false,failed:false,interrupted:false})
   // These replace the three sequential stages; concurrency and scene exclusion remain shared.

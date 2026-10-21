@@ -2,10 +2,10 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, expect, it } from 'vitest'
-import { PrototypeCharacterTurn } from '../../packages/application/src/prototype-character-turn.ts'
+import { CharacterTurn } from '../../packages/application/src/character-turn.ts'
 import { openActionWorld, actionContext, actionResult, evidenceDecision, askId, terminalId,
-  staffText, terminalText } from '../experiments/notice-board-action-fixture.ts'
-import { npc, player, bob } from '../experiments/notice-board-fixture.ts'
+  staffText, terminalText } from '../support/notice-board-action-fixture.ts'
+import { npc, player, bob } from '../support/notice-board-fixture.ts'
 import type { WorldJsonObject } from '@harness-world/contracts'
 const cleanup:(()=>void)[]=[]
 afterEach(()=>{for(const f of cleanup.splice(0).reverse())f()})
@@ -16,7 +16,7 @@ function setup(fault?:Parameters<typeof openActionWorld>[2]){
 }
 it('exposes both acquisition choices and both destinations without disclosing hidden response text',async()=>{
   const f=setup()
-  const turn=new PrototypeCharacterTurn({...f,projectContext:actionContext,executionResult:actionResult,
+  const turn=new CharacterTurn({...f,projectContext:actionContext,executionResult:actionResult,
     rulebooks:f.rules,decide:async request=>{
       expect(JSON.stringify(request)).not.toContain(staffText)
       expect(JSON.stringify(request)).not.toContain(terminalText)
@@ -32,7 +32,7 @@ it('exposes both acquisition choices and both destinations without disclosing hi
 it.each([[askId,'reported_speech',staffText],[terminalId,'direct_observation',terminalText]])(
   '%s produces an atomic attributed Source before expression, never a location truth',async(id,kind,text)=>{
     const f=setup();let calls=0
-    const turn=new PrototypeCharacterTurn({...f,rulebooks:f.rules,executionResult:actionResult,projectContext:actionContext,
+    const turn=new CharacterTurn({...f,rulebooks:f.rules,executionResult:actionResult,projectContext:actionContext,
       decide:async r=>{
         if(++calls===1)return evidenceDecision(id)
         expect(r.result?.status).toBe('accepted')
@@ -53,24 +53,24 @@ it.each([[askId,'reported_speech',staffText],[terminalId,'direct_observation',te
     expect(events.some(e=>e.eventType==='character.moved')).toBe(false)
 })
 it('speech promising to ask staff does not call the capability or produce its reply',async()=>{
-  const f=setup(),turn=new PrototypeCharacterTurn({...f,rulebooks:f.rules,
+  const f=setup(),turn=new CharacterTurn({...f,rulebooks:f.rules,
     decide:async()=>({ decision:'publish', segments: [{ type: 'speech', text: '我去问问工作人员。' }] })})
   await turn.run(npc)
   expect(f.sources().some(s=>String(s.text_value).includes(staffText))).toBe(false)
 })
 it('forged arguments produce no acquired evidence',async()=>{
   const f=setup(),d=evidenceDecision()
-  const turn=new PrototypeCharacterTurn({...f,rulebooks:f.rules,executionResult:actionResult,
+  const turn=new CharacterTurn({...f,rulebooks:f.rules,executionResult:actionResult,
     decide:async r=>r.continuation?{decision:'abstain'}:{...d,parameters:{...d.parameters,arguments:{text:'forged'}}}})
   expect((await turn.run(npc)).performResult?.status).toBe('rejected')
   expect(f.sources().some(s=>String(s.text_value).includes(staffText))).toBe(false)
 })
 it('a stale acquisition after moving is rejected without a Source',async()=>{
   const f=setup()
-  const turn=new PrototypeCharacterTurn({...f,rulebooks:f.rules,executionResult:actionResult,
+  const turn=new CharacterTurn({...f,rulebooks:f.rules,executionResult:actionResult,
     decide:async r=>r.continuation?{decision:'abstain'}:{decision:'perform',actionType:'move',parameters:{locationId:'location:105'}}})
   expect((await turn.run(npc)).performResult?.status).toBe('accepted')
-  const stale=new PrototypeCharacterTurn({...f,rulebooks:f.rules,executionResult:actionResult,
+  const stale=new CharacterTurn({...f,rulebooks:f.rules,executionResult:actionResult,
     decide:async r=>r.continuation?{decision:'abstain'}:evidenceDecision()})
   expect((await stale.run(npc)).performResult?.status).toBe('rejected')
   expect(f.sources().some(s=>String(s.text_value).includes(staffText))).toBe(false)
@@ -79,7 +79,7 @@ it('an interrupted commit rolls back the acquired Source with the accepted actio
   let armed=false
   const f=setup({hit:point=>{if(armed&&point==='store.before-commit')throw new Error('controlled commit failure')}})
   const before=f.store.head(f.address);armed=true
-  const turn=new PrototypeCharacterTurn({...f,rulebooks:f.rules,executionResult:actionResult,decide:async()=>evidenceDecision()})
+  const turn=new CharacterTurn({...f,rulebooks:f.rules,executionResult:actionResult,decide:async()=>evidenceDecision()})
   await expect(turn.run(npc)).rejects.toThrow('controlled commit failure')
   expect(f.store.head(f.address)).toEqual(before)
   expect(f.sources().some(s=>String(s.text_value).includes(staffText))).toBe(false)

@@ -10,10 +10,10 @@ import { SceneDecisionService } from './scene-decision.ts'
 import { characterExecutionResult, expressionAfterExecution } from './character-execution-result.ts'
 
 /** A returned payload failed format validation, rather than a transport failure. */
-export class PrototypeInvalidOutputError extends TypeError {}
-export class PrototypePresetError extends Error {}
+export class InvalidCharacterOutputError extends TypeError {}
+export class CharacterPresetError extends Error {}
 
-export interface PrototypeTurnRequest {
+export interface CharacterTurnRequest {
   /** Host diagnostic correlation only; not included in model-visible context. */
   readonly decisionId?: string
   readonly context: WorldJsonObject
@@ -28,7 +28,7 @@ export interface PrototypeTurnRequest {
 }
 
 /** Optional experiment observation; never becomes part of the Character request or World Event. */
-export interface PrototypeRecallShadowObservation {
+export interface RecallShadowObservation {
   readonly address: WorldAddress
   readonly characterId: CharacterId
   readonly asOfWorldSeq: number
@@ -38,7 +38,7 @@ export interface PrototypeRecallShadowObservation {
   readonly deliveredSourceIds: readonly string[]
   readonly excludedSourceSeqs: readonly number[]
 }
-export interface PrototypeTurnResult {
+export interface CharacterTurnResult {
   readonly status: 'published' | 'abstained' | 'budget_exhausted' | 'interrupted' | 'inactive' | 'stale' | 'failed'
   readonly calls: number
   /** Last prefix actually read by the model; scheduling must not consume later observations. */
@@ -94,7 +94,7 @@ function keys(value: WorldJsonObject, allowed: readonly string[]): void {
  * Uses the existing Rulebook, atomic WorldStore commit, scene audiences and character observations.
  * Intermediate model work is ephemeral; a committed operation is never rolled back for a failed reply.
  */
-export class PrototypeCharacterTurn {
+export class CharacterTurn {
   readonly #active = new Set<CharacterId>()
   readonly #manifest: CompiledWorldManifest
   readonly #manifestHash
@@ -108,13 +108,13 @@ export class PrototypeCharacterTurn {
     readonly leases: WriterLeaseService
     readonly availability: CharacterRuntimeAvailabilityService
     readonly rulebooks: RulebookRegistry
-    readonly decide: (request: PrototypeTurnRequest, signal: AbortSignal,
+    readonly decide: (request: CharacterTurnRequest, signal: AbortSignal,
       reserveFormatRetry?: () => boolean) => Promise<unknown>
     readonly projectContext?: (context: WorldJsonObject, canPerform: boolean) => WorldJsonObject
-    readonly validateDecision?: (decision: WorldJsonObject, request: PrototypeTurnRequest) => void
+    readonly validateDecision?: (decision: WorldJsonObject, request: CharacterTurnRequest) => void
     readonly executionResult?: (input: Parameters<typeof characterExecutionResult>[0]) =>
       ReturnType<typeof characterExecutionResult> & { readonly observationMetadata?: WorldJsonObject }
-    readonly onRecallShadow?: (observation: PrototypeRecallShadowObservation) => void
+    readonly onRecallShadow?: (observation: RecallShadowObservation) => void
     readonly onTrace?: (kind: 'action' | 'turn' | 'recall', characterId: string, decisionId: string | null, data: WorldJsonObject) => void
     /** Host projection runs after the complete action transaction, never on model output. */
     readonly onCommitted?: () => Promise<void>
@@ -164,7 +164,7 @@ export class PrototypeCharacterTurn {
     readonly onCommitted?: (asOfWorldSeq: number, headSeq: number) => void;
     readonly stimulus?: readonly WorldJsonObject[];
     readonly continuationOf?: { readonly actionId: string; readonly afterSeq?: number;
-      readonly action: { readonly actionType: string; readonly parameters: WorldJsonValue } } } = {}): Promise<PrototypeTurnResult> {
+      readonly action: { readonly actionType: string; readonly parameters: WorldJsonValue } } } = {}): Promise<CharacterTurnResult> {
     if (this.#active.has(characterId)) throw new Error('character turn is busy')
     if (this.options.store.activeReactionCycle(this.options.address) !== undefined) {
       throw new Error('finish the existing Reaction Cycle before using the isolated prototype')
@@ -174,7 +174,7 @@ export class PrototypeCharacterTurn {
       throw new TypeError('activation requires a declared NPC')
     }
     this.#active.add(characterId)
-    const ownerId = `prototype-turn:${randomUUID()}`
+    const ownerId = `character-turn:${randomUUID()}`
     const signal = options.signal === undefined ? AbortSignal.timeout(this.options.activationTimeoutMs??120_000)
       : AbortSignal.any([options.signal, AbortSignal.timeout(this.options.activationTimeoutMs??120_000)])
     let lease: ReturnType<WriterLeaseService['acquire']> | undefined
@@ -184,18 +184,18 @@ export class PrototypeCharacterTurn {
     let performResult: WorldJsonObject | undefined
     let publicationFailure: WorldJsonObject | undefined
     let retriedPublication = false
-    let modelFailure: PrototypeTurnResult['failure']
+    let modelFailure: CharacterTurnResult['failure']
     let asOfWorldSeq: number | undefined
     let performedAttempts = 0, afterPublication = false
     let attempt = 0
     let decisionId: string | null = null
-    const done = (status: PrototypeTurnResult['status']): PrototypeTurnResult => {
+    const done = (status: CharacterTurnResult['status']): CharacterTurnResult => {
       this.options.onTrace?.('turn',characterId,decisionId,{status,calls,...(status !== 'failed' || modelFailure === undefined ? {} : {failure:modelFailure})})
       return { status, calls,
       ...(asOfWorldSeq === undefined ? {} : { asOfWorldSeq }),
       ...(performResult === undefined ? {} : { performResult }) }
     }
-    const decide = (request: PrototypeTurnRequest) => {
+    const decide = (request: CharacterTurnRequest) => {
       decisionId = randomUUID()
       let repaired = false
       return this.options.decide({...request,decisionId}, signal, () => {
@@ -325,7 +325,7 @@ export class PrototypeCharacterTurn {
           action: object(latestResult.action) as { actionType: string; parameters: WorldJsonValue },
           status: String(latestResult.status), reason: typeof latestResult.reason === 'string' ? latestResult.reason : null })
         const canRecall = remaining >= 3 && this.options.memory !== undefined && !recalledThisActivation && performResult === undefined
-        const request: PrototypeTurnRequest = { context, continuation: step !== 0 || publicationFailure !== undefined, canPerform, canRecall,
+        const request: CharacterTurnRequest = { context, continuation: step !== 0 || publicationFailure !== undefined, canPerform, canRecall,
           canExpressBeforeAction: canPerform && this.options.beforeActionExpression===true && context.activity===undefined,
           ...(continuing ? {canContinueAfterPublish, ...(afterPublication ? {afterPublication:true} : {})} : {}),
           ...(visibleResult === undefined ? {} : { result: { ...visibleResult,
@@ -497,7 +497,7 @@ export class PrototypeCharacterTurn {
           events.push({ eventType: 'observation.upsert', eventVersion: 1, data: { id, value } })
           const player = this.#manifest.playerBindings.find(binding => binding.characterId === observerId)
           if (player !== undefined) outbox.push({ deliveryId: brandId(`${id}:delivery`, 'DeliveryId'),
-            sessionId: player.sessionId, payload: { observationType: 'prototype-character-turn', observationId: id, value }, critical: true })
+            sessionId: player.sessionId, payload: { observationType: 'character-turn', observationId: id, value }, critical: true })
         }
         events.push({ eventType: 'world.tick-advanced', eventVersion: 1, data: { tick: head.tick + 1, roundId } })
         await this.options.store.commitRound({ address: this.options.address,
@@ -554,8 +554,8 @@ export class PrototypeCharacterTurn {
       return done('budget_exhausted')
     } catch (error) {
       if (signal.aborted) return done('interrupted')
-      if (error instanceof PrototypeInvalidOutputError) modelFailure = 'invalid_output'
-      if (error instanceof PrototypePresetError) modelFailure = 'preset_failed'
+      if (error instanceof InvalidCharacterOutputError) modelFailure = 'invalid_output'
+      if (error instanceof CharacterPresetError) modelFailure = 'preset_failed'
       // Storage, lease, context and Rulebook faults remain visible to the caller.
       if (modelFailure === undefined) throw error
       return { ...done('failed'), failure: modelFailure }

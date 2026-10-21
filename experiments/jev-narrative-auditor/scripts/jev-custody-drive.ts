@@ -13,7 +13,7 @@ const directory = resolve(process.argv[2] ?? '')
 if (!process.argv[2] || existsSync(directory)) throw new Error('provide a new output directory')
 mkdirSync(directory, { recursive: true })
 const classify = createClaimClassifier(process.env.OPENROUTER_JEV_KEY ?? '')
-const sources = ['desktop/host/jev-shadow-claims-client.ts', 'packages/provider-chat/src/prototype-turn.ts',
+const sources = ['desktop/host/jev-shadow-claims-client.ts', 'packages/provider-chat/src/character-turn-call.ts',
   'packages/application/src/character-execution-result.ts', 'desktop/host/jev-shadow-window.ts']
 writeFileSync(resolve(directory, 'sources.json'), JSON.stringify(Object.fromEntries(sources.map(path => [path, readFileSync(path, 'utf8')])), null, 2))
 const address: WorldAddress = { tenantId: brandId('custody08', 'TenantId'), worldId: brandId('probe', 'WorldId'), branchId: brandId('main', 'BranchId') }

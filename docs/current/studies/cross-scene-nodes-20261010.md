@@ -4,7 +4,7 @@
 
 ## 接通范围
 
-[实验运行时](../../../tests/experiments/cross-scene-runtime.ts)增加显式 storyNodes 选项，采用现有网页存档的地址及 Session SQLite 布局，复用原有 saveStoryNode、restoreStoryNode、exportStoryNode 和 importStoryNode。没有修改桌面快照／分享实现、容器格式或 Manifest 版本。
+[实验运行时](../../../tests/support/cross-scene-runtime.ts)增加显式 storyNodes 选项，采用现有网页存档的地址及 Session SQLite 布局，复用原有 saveStoryNode、restoreStoryNode、exportStoryNode 和 importStoryNode。没有修改桌面快照／分享实现、容器格式或 Manifest 版本。
 
 保存时等待实验入口的行动和角色处理结束，将每个角色的原生记忆捕获到当前提交前缀，再保存完整数据库节点。模型激活期间拒绝保存；保存期间阻止入口继续行动。测试与脚本使用 activate 包装入口；直接调用内部 turn 或 activities 对象的调研代码仍须自行等待其操作完成，不是公开并发宿主接口。
 

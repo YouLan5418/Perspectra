@@ -1,7 +1,7 @@
 import { expect, it } from 'vitest'
 import type { WorldJsonObject } from '@harness-world/contracts'
 import { characterRequestText } from './character-context-text.ts'
-import { prototypeTurnCall } from './prototype-turn.ts'
+import { characterTurnCall } from './character-turn-call.ts'
 const source = {sourceKind:'reported_speech',sourceId:'event:private',sourceHash:'sha256:internal'}
 it('highlights only the newly authorized scene after a successful move',()=>{
  const context:WorldJsonObject={character:{characterId:'character:a',locationId:'church'},scene:{people:[{characterId:'character:a',name:'甲'}]},
@@ -27,7 +27,7 @@ it('removes host evidence metadata while preserving subjective provenance, origi
   affordances:[{actionType:'interact',interactions:[{targetRef:{id:'entity:cake',kind:'entity'},bindingId:'binding:give',definitionRef:{id:'base:give',version:1},arguments:{recipientId:'character:b'}}]}],
   activity:{id:'activity:game',revision:9,game:{turn:'character:a'}},knownStatus:[{key:'sourceHash',label:'来源',holderId:'character:a',value:'creator-authored-value',current:true}]}
  const request={context,continuation:true,result:{operationId:'operation:internal',eventRefs:[99],status:'accepted',description:'已经交付',action:{actionType:'interact',parameters:{targetRef:{id:'entity:cake',kind:'entity'}}}}}
- const before=JSON.stringify(request), rendered=JSON.parse(prototypeTurnCall(request).messages.at(-1)!.content)
+ const before=JSON.stringify(request), rendered=JSON.parse(characterTurnCall(request).messages.at(-1)!.content)
  for(const text of ['sha256:internal','sha256:bundle','world:internal','event:private','claim:internal','observation:internal','action:internal','operation:internal'])expect(JSON.stringify(rendered)).not.toContain(text)
  expect(rendered.context.cognition.claims[0].value).toMatchObject({stance:'suspected',confidencePermille:600,basisRefs:[{sourceKind:'reported_speech'}]})
  expect(rendered.context.history[0].content.content).toMatchObject({actorId:'character:b',speech:{scope:'private',addresseeIds:['character:a']},parameters:{operationId:'creator-operation',sourceHash:'creator-reference'},playerInput:{sourceText:'原始完整输入'}})

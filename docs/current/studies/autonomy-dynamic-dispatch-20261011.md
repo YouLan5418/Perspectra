@@ -14,7 +14,7 @@
 - 已提交行动与结果续写连续。续写过期时保留 `continuationOf` 和原预算归属，只补写真实结果，不重放操作；提交依旧串行、短租约、原子性，授权投影变化时不提交旧模型输出。
 - Activity 入口或仍有活动参与者排程、变量脚本、`publicationAudit`、`--serial-scheduling` 时继续分段处理。内部测量控制 `stagedAutonomy` 仅延后自主启动，普通处理保持动态，不加入 Launcher 参数。
 
-实现：[调度器](../../../packages/application/src/prototype-activation-cycle.ts)、[宿主](../../../desktop/host/world-runtime.ts)、[末端候选环境](../../../desktop/host/tail-runtime.ts)。原包声明和启动器设置未变，现有发行包尚未更新。
+实现：[调度器](../../../packages/application/src/activation-cycle.ts)、[宿主](../../../desktop/host/world-runtime.ts)、[末端候选环境](../../../desktop/host/tail-runtime.ts)。原包声明和启动器设置未变，现有发行包尚未更新。
 
 ## 对照方式
 

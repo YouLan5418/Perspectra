@@ -1,10 +1,10 @@
 import { readFileSync, writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import Ajv from 'ajv'
-import { prototypeTurnCall } from '@harness-world/provider-chat'
+import { characterTurnCall } from '@harness-world/provider-chat'
 import { gatewayTurnCall } from '../../desktop/host/gateway-turn-call.ts'
 import { decideWithFormatRetry } from '../../desktop/host/decision-format.ts'
-import type { PrototypeTurnRequest } from '../../packages/application/src/prototype-character-turn.ts'
+import type { CharacterTurnRequest } from '../../packages/application/src/character-turn.ts'
 import type { WorldJsonValue } from '@harness-world/contracts'
 
 // Offline replay of the recorded invalid output: not a new NPC decision or gameplay result.
@@ -14,8 +14,8 @@ const record=JSON.parse(readFileSync(resolve(directory,'B/record.json'),'utf8'))
 const failed=record.calls.find((call:{round:number;proposal?:{scope?:string;addresseeIds?:unknown}})=>
   call.round===6&&call.proposal?.scope==='direct'&&call.proposal.addresseeIds===undefined)
 if(!failed)throw new Error('No matching recorded B6 failure')
-const request=failed.input as PrototypeTurnRequest
-const local=gatewayTurnCall(request), generic=prototypeTurnCall(request)
+const request=failed.input as CharacterTurnRequest
+const local=gatewayTurnCall(request), generic=characterTurnCall(request)
 const ajv=new Ajv({strict:false,allErrors:true})
 let repairCalls=0
 await decideWithFormatRetry(local,async()=>{repairCalls++;return failed.proposal as WorldJsonValue},new AbortController().signal)

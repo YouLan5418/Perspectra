@@ -6,8 +6,8 @@ import { createInstalledInteractionPackages } from '@harness-world/interactions-
 import { WorldBootstrap, FrozenInteractionRulebook, createCoreRulebookRegistry } from '@harness-world/kernel'
 import { WorldStore, WriterLeaseService, CharacterRuntimeAvailabilityService, CharacterViewBuilder, SessionDeliveryAdapter } from '@harness-world/store-sqlite'
 import { CognitiveMemoryService } from '@harness-world/memory'
-import { PrototypeCharacterTurn, type PrototypeTurnRequest } from '../../packages/application/src/prototype-character-turn.ts'
-import { runPrototypeActivations } from '../../packages/application/src/prototype-activation-cycle.ts'
+import { CharacterTurn, type CharacterTurnRequest } from '../../packages/application/src/character-turn.ts'
+import { runCharacterActivations } from '../../packages/application/src/activation-cycle.ts'
 import { CrossSceneCommunication } from './cross-scene-communication.ts'
 import { CrossScenePhone, phoneCalls, type PhoneOperation } from './cross-scene-phone.ts'
 import { SceneDecisionService } from '../../packages/application/src/scene-decision.ts'
@@ -17,7 +17,7 @@ import { saveStoryNode } from '../../desktop/story-nodes.ts'
 import { CoreMemoryAdapter, type MemoryContextBudget } from '../../desktop/host/memory/core-memory.ts'
 import type { CoreRunner } from '../../desktop/host/memory/python-worker.ts'
 
-export async function crossSceneRuntime(dataDirectory: string, decide: (request: PrototypeTurnRequest, signal: AbortSignal) => Promise<unknown>, options: { phone?: boolean; packPath?: string; activities?: boolean; storyNodes?: boolean; memoryCoreRun?: CoreRunner; memoryCoreBuildRun?: CoreRunner; memoryContextBudget?: MemoryContextBudget } = {}) {
+export async function crossSceneRuntime(dataDirectory: string, decide: (request: CharacterTurnRequest, signal: AbortSignal) => Promise<unknown>, options: { phone?: boolean; packPath?: string; activities?: boolean; storyNodes?: boolean; memoryCoreRun?: CoreRunner; memoryCoreBuildRun?: CoreRunner; memoryContextBudget?: MemoryContextBudget } = {}) {
   mkdirSync(dataDirectory, { recursive: true })
   const packPath = resolve(options.packPath ?? `examples/world-packs/cross-scene-${options.phone ? 'phone' : 'sms'}`)
   const installed = createInstalledInteractionPackages()
@@ -81,7 +81,7 @@ export async function crossSceneRuntime(dataDirectory: string, decide: (request:
   // Activity is the outer rule boundary: its existing policy checks precede communication execution.
   const rulebooks = activities?.rulebooks(communication.resolver()) ?? communication.registry()
   const resolver = rulebooks.resolve('builtin:speak-move', 2, 'communication-experiment', address)
-  const turn = new PrototypeCharacterTurn({ address, store, leases, availability, ...(memoryCore ? {
+  const turn = new CharacterTurn({ address, store, leases, availability, ...(memoryCore ? {
     shortTermAfterSeq: (actor: typeof playerId) => memoryCore.shortTermAfterSeq(actor),
   } : { memory }), rulebooks,
     executionResult: input => String((input.action.parameters as WorldJsonObject).bindingId).startsWith('experiment:')
@@ -94,10 +94,10 @@ export async function crossSceneRuntime(dataDirectory: string, decide: (request:
     },
     projectContext: (context, canPerform) => ({ ...(activities?.projectContext(context, canPerform) ?? context),
       communicationInstruction: options.phone ? phoneInstruction : communicationInstruction }),
-    ...(activities ? { validateDecision: (decision: WorldJsonObject, request: PrototypeTurnRequest) => activities.validateDecision(decision, request) } : {}) })
+    ...(activities ? { validateDecision: (decision: WorldJsonObject, request: CharacterTurnRequest) => activities.validateDecision(decision, request) } : {}) })
   const view = (id: string) => new CharacterViewBuilder(store).rebuildAt(address, brandId(id, 'CharacterId'), store.head(address).headSeq)
   const react = async (sent: { afterSeq: number; status: string }, signal: AbortSignal) => {
-    const cycle = await runPrototypeActivations({ store, address, turn, afterSeq: sent.afterSeq, characterIds: npcIds, signal,
+    const cycle = await runCharacterActivations({ store, address, turn, afterSeq: sent.afterSeq, characterIds: npcIds, signal,
       presentCharacterIds: () => [], limits: { maximumWaves: 3, maximumNpcCalls: 12, maximumCallsPerCharacter: 2, reactionDeadlineSeconds: 120 } })
     const names = new Map(manifest.characters.map(c => [String(c.characterId), c.name]))
     return { sent, cycle, transcript: playerTranscript(view(playerId), names, playerId) }
@@ -113,7 +113,7 @@ export async function crossSceneRuntime(dataDirectory: string, decide: (request:
       if (!memoryCore) throw new Error('没有启用 Core 记忆实验')
       return work(() => memoryCore.refresh(characterIds, new AbortController().signal, () => {}))
     },
-    activate(id: string, input: Parameters<PrototypeCharacterTurn['run']>[1] = {}) { return work(() => turn.run(brandId(id, 'CharacterId'), input)) },
+    activate(id: string, input: Parameters<CharacterTurn['run']>[1] = {}) { return work(() => turn.run(brandId(id, 'CharacterId'), input)) },
     async saveNode(title: string) {
       if (!options.storyNodes) throw new Error('没有启用故事节点实验')
       if (activeWork || saving) throw new Error('等待当前行动完成后保存节点')
@@ -150,6 +150,6 @@ export async function crossSceneRuntime(dataDirectory: string, decide: (request:
 
 export const communicationInstruction = '这是跨场景通信实验。experiment:message 是一次远程投递；targetRef 是联系人，不表示在场。arguments.text 自主填写要发出的消息正文，不要复制空示例。远程回复必须 perform 此交互；publish 是本地表达，不能送到远端。短信只证明发送者这样说，不证明正文描述的事情发生。发送后可继续本地表达或 abstain。'
 export const phoneInstruction = '这是跨场景电话实验。phone-call 发出呼叫；收到呼叫后你自主选择 phone-accept 接听、phone-decline 拒接，也可 abstain 暂不处理。接通后 phone-say 的 arguments.text 自主填写你要在电话里说的话，本地旁观者可能听见你的这一端声音，但听不见远端声音；普通 publish 只在本地传播，不经过电话。phone-hangup 结束连接。复制可用操作的绑定、定义和 callId，不要复制空正文。接听只授权这次连接，不授予对方房间视野。话语是说话者的陈述，不证明受控事实发生。你自主决定内容与是否继续通话。'
-export function communicationContext(request: PrototypeTurnRequest): PrototypeTurnRequest {
+export function communicationContext(request: CharacterTurnRequest): CharacterTurnRequest {
   return { ...request, context: { ...request.context, communicationInstruction: request.context.communicationInstruction ?? communicationInstruction } as WorldJsonObject }
 }

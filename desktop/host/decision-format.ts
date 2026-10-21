@@ -1,7 +1,7 @@
 import Ajv from 'ajv'
 import type { ChatCall } from '@harness-world/provider-chat'
 import type { WorldJsonObject, WorldJsonValue } from '@harness-world/contracts'
-import { PrototypeInvalidOutputError } from '../../packages/application/src/prototype-character-turn.ts'
+import { InvalidCharacterOutputError } from '@harness-world/application'
 
 /** Shared schema-only retry; ordinary turns reserve its call, activities retain their existing handling.
  * Execution and permissions are still validated by the turn. */
@@ -12,7 +12,7 @@ export async function decideWithFormatRetry(call: ChatCall, decide: (call: ChatC
   const first = await decide(call)
   signal.throwIfAborted()
   if (validate(first)) return first
-  if (reserveRetry !== undefined && !reserveRetry()) throw new PrototypeInvalidOutputError('角色输出格式无效，剩余预算不足以修正；本次未执行操作。')
+  if (reserveRetry !== undefined && !reserveRetry()) throw new InvalidCharacterOutputError('角色输出格式无效，剩余预算不足以修正；本次未执行操作。')
   // No invalid dialogue is published or appended to the visible context. Only field diagnostics are returned.
   const issues = (validate.errors ?? []).map(e => ({ path: e.instancePath, keyword: e.keyword,
     ...(e.keyword === 'additionalProperties' ? { field: e.params.additionalProperty } : {}),
@@ -60,6 +60,6 @@ export async function decideWithFormatRetry(call: ChatCall, decide: (call: ChatC
     + '不改变上下文、可用操作或剩余预算，不预先声称执行成功。格式错误：' + JSON.stringify(issues) }] }
   const second = await decide(revised)
   signal.throwIfAborted()
-  if (!validate(second)) throw new PrototypeInvalidOutputError('角色输出格式修正后仍无效；本次未执行操作。')
+  if (!validate(second)) throw new InvalidCharacterOutputError('角色输出格式修正后仍无效；本次未执行操作。')
   return second
 }

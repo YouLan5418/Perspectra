@@ -1,7 +1,7 @@
 import { Context, Service, type Plugin } from '@deepseek-ai/cordis'
 import { pathToFileURL } from 'node:url'
 import { hostPluginSettings, type HostPluginSettings } from './host-plugin-settings.ts'
-import type { FrontendHostServices } from '../packages/frontend/src/speech.ts'
+import type { FrontendHostServices } from '@harness-world/frontend'
 
 type SpeechSynthesizer = NonNullable<FrontendHostServices['synthesizeSpeech']>
 

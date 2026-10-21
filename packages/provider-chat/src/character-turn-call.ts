@@ -17,7 +17,7 @@ export const characterDecisionPrinciples = '你并非负责回应玩家的聊天
   + '行动、表达和沉默都是正常选择，没有固定优先级。依据角色当下的意图作出选择，只使用自己的授权信息；具体选择仍受本次工具契约、预算和规则裁定约束。'
 
 /** Reuse the existing definition-derived parameter schemas; only the decision shape changes. */
-export function prototypeTurnCall(request: { readonly context: WorldJsonObject; readonly continuation: boolean;
+export function characterTurnCall(request: { readonly context: WorldJsonObject; readonly continuation: boolean;
   readonly canPerform?: boolean; readonly canRecall?: boolean; readonly recallEvidence?: WorldJsonObject; readonly result?: WorldJsonObject;
   readonly canContinueAfterPublish?: boolean; readonly afterPublication?: boolean; readonly canExpressBeforeAction?: boolean }): ChatCall {
   const maximum = Number(request.context.publicationCharacters??2000)

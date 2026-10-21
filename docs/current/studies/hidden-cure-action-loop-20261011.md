@@ -2,13 +2,13 @@
 
 **现有机制已经产生明确目标闭环和一段真实资源攻防，但稳定持续行动与叙事一致性的整体验收尚未通过。** D2 两次完成了取得摘要、带回旅馆及交付伊蕾；最后一次 E 中竞争者控制材料、玩家交涉、竞争者实际交付、女主自主拒绝独自决定。D3 仍有重复调查和无效承诺，E 还出现虚构玩家在场的叙事错误，不能据正面轨迹掩盖这些失败。
 
-本轮沿用 [A/B/C 报告](hidden-cure-20261011.md)和普通场景机制，没有修改 packages、模型协议、权限、调度或 Launcher。新增[内容包](../../../examples/world-packs/hidden-cure-next/README.md)、[真实驱动](../../../tests/experiments/hidden-cure-next.ts)、[内容生成与合法准备](../../../tests/experiments/hidden-cure-next-content.ts)、[离线核验](../../../tests/experiments/hidden-cure-next-audit.py)、[格式审计](../../../tests/experiments/hidden-cure-format-audit.ts)及[回归](../../../tests/prototype/hidden-cure-next.test.ts)。源码基线仍为 main `23c37beadfce339663b5e73f580b3e7fe7cae5dd`，此前尚未提交的 A/B/C 文件保留。
+本轮沿用 [A/B/C 报告](hidden-cure-20261011.md)和普通场景机制，没有修改 packages、模型协议、权限、调度或 Launcher。新增[内容包](../../../examples/world-packs/hidden-cure-next/README.md)、[真实驱动](../../../tests/experiments/hidden-cure-next.ts)、[内容生成与合法准备](../../../tests/support/hidden-cure-next-content.ts)、[离线核验](../../../tests/experiments/hidden-cure-next-audit.py)、[格式审计](../../../tests/experiments/hidden-cure-format-audit.ts)及[回归](../../../tests/prototype/hidden-cure-next.test.ts)。源码基线仍为 main `23c37beadfce339663b5e73f580b3e7fe7cae5dd`，此前尚未提交的 A/B/C 文件保留。
 
 ## 为什么原实验说要移动却没移动
 
 复核旧记录 `output/hidden-cure/live-vuTX5e/{A,B,C}/record.json`，三组第 6–8 回合共 18 次 NPC 根调用，全部 `continuation=false`、`canPerform=true`，都有合法的 move 目的地。16 次选择 publish、2 次 abstain，没有 perform。A/C 的目的地包含教会与档案室，B 包含旅馆与教会。正常回合均 quiescent，未耗尽配置的自主预算；B6 是格式失败。
 
-[Character Turn](../../../packages/application/src/prototype-character-turn.ts)的 publish 提交后会结束本次激活。结果续写通常没有 perform；不能期待模型先说“准备出发”，宿主随后把这句话转成移动。[动态调度](../../../packages/application/src/prototype-activation-cycle.ts)给予自主角色每个机会一次重要操作及其结果续写，下一机会再决定下一步。它没有在普通发言之后无限追加行动机会，这属于当前有界设计。
+[Character Turn](../../../packages/application/src/character-turn.ts)的 publish 提交后会结束本次激活。结果续写通常没有 perform；不能期待模型先说“准备出发”，宿主随后把这句话转成移动。[动态调度](../../../packages/application/src/activation-cycle.ts)给予自主角色每个机会一次重要操作及其结果续写，下一机会再决定下一步。它没有在普通发言之后无限追加行动机会，这属于当前有界设计。
 
 发送给模型的系统说明已经要求重要移动/交互使用 perform。原后期记录证明的是“有权限、有机会，却选择表达”，不是移动不可用或调用额度不足。它也不证明模型永远无法行动：D2 以及本轮材料拿取都实际执行了。角色等待玩家答复也可能合理；没有新目标且合理等待的 abstain 不能一律算无意义沉默。
 
@@ -80,7 +80,7 @@ r6 玩家驱动又问了一次已实际完成的交付。两位 NPC 都正确指
 
 ## 格式失败的独立结论
 
-重放原 B6：缺少 addresseeIds 的 direct 输出通过 local 和 generic Schema；现有 `decideActivityFormat` 只调用一次便返回，因为 AJV 判合法。普通场景默认也没有接入活动修正器。[发送端](../../../desktop/host/gateway-turn-call.ts)的字段大多可选，[通用 Schema](../../../packages/provider-chat/src/prototype-turn.ts)也没有 direct/private 对非空接收者的条件约束；宿主随后严格拒绝，保护了信息范围。
+重放原 B6：缺少 addresseeIds 的 direct 输出通过 local 和 generic Schema；现有 `decideActivityFormat` 只调用一次便返回，因为 AJV 判合法。普通场景默认也没有接入活动修正器。[发送端](../../../desktop/host/gateway-turn-call.ts)的字段大多可选，[通用 Schema](../../../packages/provider-chat/src/character-turn-call.ts)也没有 direct/private 对非空接收者的条件约束；宿主随后严格拒绝，保护了信息范围。
 
 本轮两次遗漏 arguments 被 Rulebook 拒绝；D3 第二次 r4 和 E 第二次 r4 则把 scene_public 与非空 addresseeIds 混用，被宿主拒绝。它们不是同一种失败：前者留下 rejected 行动及反馈，后者没有提交非法表达。模型错误有偶发性，Schema 的结构性宽松也有可复现证据，不能只归咎模型或只靠现有 AJV 修正器解决。
 

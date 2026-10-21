@@ -263,7 +263,7 @@ for(const phase of ['candidate-copy','switch-before','switch-after','select-befo
     const oldId=await tail(f.runtime),oldVersion=(await f.runtime.state()).tailRound!.worldVersion
     const candidateId=phase.startsWith('select-')?(await f.runtime.state()).tailRound!.candidateIds![0]:undefined
     await f.runtime.close()
-    const child=spawn(process.execPath,['--import','tsx','tests/experiments/tail-crash-worker.ts',JSON.stringify({
+    const child=spawn(process.execPath,['--import','tsx','tests/support/tail-crash-worker.ts',JSON.stringify({
       phase,dataDirectory:f.data,packPath:f.pack,endpoint:f.options.utilityEndpoint,tailId:oldId,candidateId,
     })],{cwd:resolve('.'),windowsHide:true,stdio:['ignore','pipe','pipe']})
     let output='',errors=''

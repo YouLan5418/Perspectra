@@ -157,7 +157,7 @@ def main(directory):
                 rows[-1]['preActionCommits']=pre_action_commits
     if build.get('decisionThinking') or build.get('intentClarity') or build.get('actionSemantics'):
         changed=[path for path, value in build['sources'].items() if value['baseline']!=value['experiment']]
-        expected_change='packages/provider-chat/src/character-context-text.ts' if build.get('actionSemantics') else 'packages/provider-chat/src/prototype-turn.ts'
+        expected_change='packages/provider-chat/src/character-context-text.ts' if build.get('actionSemantics') else 'packages/provider-chat/src/character-turn-call.ts'
         if changed!=[expected_change] or len({arm['bundleHash'] for arm in build['executions'] if arm['mode']!='baseline'})!=1:
             failures.append('thinking comparison changes more than the prompt or uses different improved executables')
     if build.get('publishLoop') or build.get('beforeAction'):

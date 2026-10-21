@@ -3,8 +3,8 @@ import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { afterEach, expect, it } from 'vitest'
 import { brandId, resolutionAuthority, type WorldJsonObject } from '@harness-world/contracts'
-import { crossSceneRuntime } from '../experiments/cross-scene-runtime.ts'
-import { CrossScenePhone } from '../experiments/cross-scene-phone.ts'
+import { crossSceneRuntime } from '../support/cross-scene-runtime.ts'
+import { CrossScenePhone } from '../support/cross-scene-phone.ts'
 
 const player = 'character:player', companion = 'character:companion', friend = 'character:friend'
 const roots: string[] = [], runtimes: Awaited<ReturnType<typeof crossSceneRuntime>>[] = []

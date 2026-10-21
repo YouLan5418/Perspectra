@@ -4,10 +4,10 @@ import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from
 import { join, resolve } from 'node:path'
 import { type WorldJsonObject } from '@harness-world/contracts'
 import { createChatProvider } from '@harness-world/provider-chat'
-import { PrototypeCharacterTurn, type PrototypeTurnRequest } from '../../packages/application/src/prototype-character-turn.ts'
-import { npc, playerText, priorText } from './notice-board-fixture.ts'
-import { noticeBoardContext, noticeBoardResult, boardText, privateText, inspectId } from './notice-board-capability.ts'
-import { bringSecondBoard, openConflictingBoardWorld, secondBoardId, secondBoardText } from './notice-board-conflict-fixture.ts'
+import { CharacterTurn, type CharacterTurnRequest } from '../../packages/application/src/character-turn.ts'
+import { npc, playerText, priorText } from '../support/notice-board-fixture.ts'
+import { noticeBoardContext, noticeBoardResult, boardText, privateText, inspectId } from '../support/notice-board-capability.ts'
+import { bringSecondBoard, openConflictingBoardWorld, secondBoardId, secondBoardText } from '../support/notice-board-conflict-fixture.ts'
 import { gatewayTurnCall } from '../../desktop/host/gateway-turn-call.ts'
 
 const root=resolve(process.argv[2]??''),mode=process.argv[3],updates=process.argv[4]?resolve(process.argv[4]):undefined
@@ -35,7 +35,7 @@ async function activation(f:ReturnType<typeof openConflictingBoardWorld>,dir:str
   memories:WorldJsonObject[],omitRecent:boolean) {
   let calls=0
   const stimulus=await f.submitPlayer(text,tag),before=f.store.head(f.address).headSeq
-  const turn=new PrototypeCharacterTurn({address:f.address,store:f.store,memory:f.memory,leases:f.leases,
+  const turn=new CharacterTurn({address:f.address,store:f.store,memory:f.memory,leases:f.leases,
     availability:f.availability,rulebooks:f.rules,executionResult:noticeBoardResult,
     projectContext:context=>{
       const c=noticeBoardContext(context)
@@ -45,7 +45,7 @@ async function activation(f:ReturnType<typeof openConflictingBoardWorld>,dir:str
       return {...c,affordances,...(omitRecent?{observations:[],selfObservations:[]}:{}),memories:[]}
     },
     decide:async(request,signal)=>{
-      const visible:PrototypeTurnRequest={...request,canRecall:false,context:{...request.context,memories}}
+      const visible:CharacterTurnRequest={...request,canRecall:false,context:{...request.context,memories}}
       const serialized=JSON.stringify(visible)
       if(serialized.includes(privateText))throw new Error('private context leaked')
       const events=f.store.readEvents(f.address)

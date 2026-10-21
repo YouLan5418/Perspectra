@@ -4,7 +4,7 @@
 
 2026-10-19：例如同行者偷走玩家 30 金币后，玩家状态栏仍显示“余额 100（上次确认）”，查看钱包后才变成 70。包可以登记 `scripts/status.js` 声明经裁定的常驻状态，[PackStatus](../../../desktop/host/pack-status.ts) 在新世界首次打开时提交初始 `status.updated`；NPC 的状态操作作为 `interact` 候选经 Rulebook 裁定，玩家用 `/status <操作> <JSON>` 走同一裁定并单独成轮；每次玩家输入被受理且角色反应结束后运行一次可选的每轮钩子（活动中的输入同样）。包变量（`scripts/variables.js`、`pack-variables.json`、`/vars`）已删除，原先因包变量关闭的动态调度、continueAfterPublish 与 beforeActionExpression 门槛一并去掉，下文相应位置已注明。`status.updated` 登记进全局事件清单，所有旧存档打开时报错，需要新建。作者契约与限制见[活动与状态指南](../guides/activity-and-variables.md#3-状态2026-10-19当前源码)。源码与自动测试已接通，未做真实模型试玩，发行包未重建。
 
-例如两个角色先后私下查看钱包，先行动者的续写只能拿到自己那次查看的结果，不能拿到后行动者的余额。[角色回合](../../../packages/application/src/prototype-character-turn.ts)用该行动已有的事件引用限定结果读取前缀，当前场景和授权上下文仍按最新前缀生成；状态结果还核对行动者与操作。回合钩子只由新提交的玩家输入触发，同一输入的幂等重放或活动的 NPC 重试不触发。轮次从已有玩家提交推导，同次事务中的多个玩家动作只算一轮，快捷活动的开始与执行两次提交合算一轮；先前钩子返回 null 或失败仍计入已发生轮次，不写额外状态文件。自动回归覆盖并发私有结果隔离、输入重放和无状态提交后的轮次推进，尚未做这组修复的真实模型试玩。
+例如两个角色先后私下查看钱包，先行动者的续写只能拿到自己那次查看的结果，不能拿到后行动者的余额。[角色回合](../../../packages/application/src/character-turn.ts)用该行动已有的事件引用限定结果读取前缀，当前场景和授权上下文仍按最新前缀生成；状态结果还核对行动者与操作。回合钩子只由新提交的玩家输入触发，同一输入的幂等重放或活动的 NPC 重试不触发。轮次从已有玩家提交推导，同次事务中的多个玩家动作只算一轮，快捷活动的开始与执行两次提交合算一轮；先前钩子返回 null 或失败仍计入已发生轮次，不写额外状态文件。自动回归覆盖并发私有结果隔离、输入重放和无状态提交后的轮次推进，尚未做这组修复的真实模型试玩。
 
 例如角色自己的委托记录进入 done 后，出现领奖选项，并收到领奖说明；其他角色没有观察到这份记录，就不会因此获得说明。状态值现支持带 Schema 的对象、数组，仍按状态键整体更新和告知。状态 policy 只收到由 knownStatus 生成的 `{ public, self, characters }`，在候选生成及提交前检查；resolve 才读取最新 truth 并裁定加钱与已领取标志。角色请求先装入 knownStatus，再由[知识选择器](../../../desktop/host/pack-knowledge.ts)按受众、when Schema、关键词和预算选择材料。条件不会直接调度角色或启动自动事件链。相关自动回归覆盖嵌套校验失败无提交、领奖去重、私有条件隔离，以及结构化状态随分叉和重新生成回滚；未做这组扩展的真实模型试玩，发行包未重建。
 
@@ -68,7 +68,7 @@
 
 1. 网页宿主接收玩家输入。普通自由表达与显式 `/act` 操作分开处理；有活动时，先经过当前活动策略。
 2. 玩家行动经现有裁定与提交路径形成世界事件。宿主按角色可见的新刺激提供处理机会。
-3. `PrototypeCharacterTurn` 用当前提交前缀构建角色 view、场景、认知、授权观察和自身表达。角色地点来自该前缀的角色 view，不使用初始设定代替当前位置。
+3. `CharacterTurn` 用当前提交前缀构建角色 view、场景、认知、授权观察和自身表达。角色地点来自该前缀的角色 view，不使用初始设定代替当前位置。
 4. 默认使用 Core：通过宿主 Core 桥加入该角色长期 Delivery，启动前检查 Python 与 E5 是否存在；显式 `--memory-native` 时改用原生记忆。最终模型呈现合并按事件排序的授权观察与自身表达，去除宿主追踪字段，并将动态信息放在历史之后；原始宿主请求仍保留完整记忆证据。详见[模型上下文呈现](cognition-memory.md#模型上下文呈现)。
 5. Character Agent 调用模型，自主选择回应、放弃或提出行动。模型提案经过协议检查和 Action / Rulebook 裁定，不能直接写世界库。
 6. Commit 完整返回后更新玩家授权投影。已提交 NPC 回复可在后续反应尚未结束时显示；页面通过轮询取完整结果，没有 token 流或草稿发布。
@@ -78,7 +78,7 @@
 
 玩家点击序章“继续”时，读取已初始化的数据库不再反复占用 SQLite 写锁。2026-10-14 核对的[连接初始化](../../../packages/store-sqlite/src/sqlite.ts)每次仍检查数据库标识和版本，仅在尚未使用 WAL 时设置日志模式；连接自己的 `synchronous=FULL`、外键和等待超时仍逐次设置。标识与版本已匹配时不启动迁移事务；新数据库、未写入标识的数据库及版本升级继续原子初始化，错误标识、未来版本和迁移失败继续报错。现有连接生命周期、世界提交与回合备份保留。
 
-同一回合里，串行和动态调度的[候选收集](../../../packages/application/src/prototype-activation-cycle.ts)只读取上次消费序号之后、截至当前已提交头的 `observation.upsert`，复用已有 `readEventsRange`，避免先解析全量历史。分叉仍继承有效的父线前缀，不读取父线的后续事件；观察受众、因果深度、模型预算及提交前重校验保持原有规则。[局部优化实测](../studies/prologue-performance-20261010.md#两项局部优化2026-10-14)区分自动回归、无模型后端测量与尚未完成的真实体验验收。
+同一回合里，串行和动态调度的[候选收集](../../../packages/application/src/activation-cycle.ts)只读取上次消费序号之后、截至当前已提交头的 `observation.upsert`，复用已有 `readEventsRange`，避免先解析全量历史。分叉仍继承有效的父线前缀，不读取父线的后续事件；观察受众、因果深度、模型预算及提交前重校验保持原有规则。[局部优化实测](../studies/prologue-performance-20261010.md#两项局部优化2026-10-14)区分自动回归、无模型后端测量与尚未完成的真实体验验收。
 
 2026-10-14 进一步核对角色视图读取：例如 Claude 处理自己听到的私语时，[CharacterViewBuilder](../../../packages/store-sqlite/src/character-view.ts)一次读取当前有效前缀中所需的事件，场景、自身经历和[观察投影](../../../packages/store-sqlite/src/projection.ts)复用这份已解析数据。观察、认识、目标和可见性仍按角色筛选，相关 remove 事件仍参与投影；remove 的附加元数据不作为角色创建证据。每次构建仍读取指定前缀并核对世界头，返回独立结果；本轮没有跨调用缓存。Core 快照同步省掉一次未使用的返回视图，见[记忆读取复用](cognition-memory.md#授权材料与分层整理)与[实测](../studies/prologue-performance-20261010.md#视图读取复用2026-10-14)。
 
@@ -86,7 +86,7 @@
 
 动态调度只在没有 `--serial-scheduling`、活动参与者排程和 `publicationAudit` 的普通路径启用（2026-10-19 起删除了“包变量脚本”条件；带状态脚本的包照常动态调度）；其他入口沿用原有串行调度。角色等待模型时不持写租约。模型返回后先检查授权投影；提交轮到该角色时先取写租约、读取最新前缀，再在租约内重新检查授权 view、认知、当前可见角色、可见物品和可用 affordances。单独的全局提交序号或 sourceAgeTicks 相对时间变化不会使角色状态过期；Rulebook 仍按最新前缀重裁定并原子提交。
 
-例如 Claude 准备回应新消息时，初始请求和用于判断过期的基准都来自同一个提交前缀。[Character Turn](../../../packages/application/src/prototype-character-turn.ts)在这次同步准备中复用已读取的历史与角色 view，各只构建一次；没有跨调用缓存。模型返回后或取得写租约后，如果世界头已改变，仍重新读取历史、构建当前授权状态并与基准比较。已有的无关提交接受、新信息引发 stale、重算预算和串行事实提交继续适用。[受控对照](../studies/prologue-performance-20261010.md#时间戳读取与动态准备复用2026-10-14)验证初始模型请求完全一致，并单独测量该准备阶段；固定序章不走这条动态路径。
+例如 Claude 准备回应新消息时，初始请求和用于判断过期的基准都来自同一个提交前缀。[Character Turn](../../../packages/application/src/character-turn.ts)在这次同步准备中复用已读取的历史与角色 view，各只构建一次；没有跨调用缓存。模型返回后或取得写租约后，如果世界头已改变，仍重新读取历史、构建当前授权状态并与基准比较。已有的无关提交接受、新信息引发 stale、重算预算和串行事实提交继续适用。[受控对照](../studies/prologue-performance-20261010.md#时间戳读取与动态准备复用2026-10-14)验证初始模型请求完全一致，并单独测量该准备阶段；固定序章不走这条动态路径。
 
 stale 会计入总模型调用预算，但不计为完成的一次激活。调度器对同一待处理机会最多自动重算一次；第二次连续 stale 会停止该角色本轮剩余处理。完成一次非 stale 激活后清零该角色的连续 stale 计数。角色已 inactive 会停止该角色本轮调度，不会把整个 Reaction Cycle 标成 interrupted。某个角色的模型失败会停止该角色；其他已在途处理会收束，周期按实际失败结果报告。若受控行动已经提交、只有结果续写过期，重算只续写真实提交结果；再次 stale 时可丢弃迟到续写，不会重放或撤销已提交行动。细节与实测见[动态调度实验记录](../studies/dynamic-scheduling-20261011.md)。
 
@@ -110,7 +110,7 @@ Core 长期整理在排队前冻结授权 Source 前缀。后台运行期间前�
 
 运行中可保存连接、实例模型、预设、阅读／声音与游玩参数；当前子进程使用启动快照，下次启动才采用新设置。模型 Key 在 Rust 的启动／连接测试请求中读取，游戏入口启动时构造模型与记忆 runner，没有发现运行中的游戏重新读取连接或 Key。危险操作继续拒绝；撤销前端信任仍通过 IPC 立即生效。相关 HTTP、子进程与 Rust 校验测试通过，打包后无模型接口冒烟通过；新 Launcher UI 由另一分支交付，原生点击、真实模型体验与完整便携发行包尚未验收。
 
-核心实现入口：[网页宿主](../../../desktop/host/world-runtime.ts)、[Character Turn](../../../packages/application/src/prototype-character-turn.ts)、[网页玩家视图](../../../desktop/host/player-transcript.ts)、[Core 桥](../../../desktop/host/memory/core-memory.ts)。性能证据见[研究索引](../studies/ai-girls/README.md)。一次真实轨迹仍出现普通反应约 30 秒中断；增量显示没有消除整轮等待。
+核心实现入口：[网页宿主](../../../desktop/host/world-runtime.ts)、[Character Turn](../../../packages/application/src/character-turn.ts)、[网页玩家视图](../../../desktop/host/player-transcript.ts)、[Core 桥](../../../desktop/host/memory/core-memory.ts)。性能证据见[研究索引](../studies/ai-girls/README.md)。一次真实轨迹仍出现普通反应约 30 秒中断；增量显示没有消除整轮等待。
 
 ## 玩家等待提示（2026-10-09）
 
@@ -118,7 +118,7 @@ Core 长期整理在排队前冻结授权 Source 前缀。后台运行期间前�
 
 例：玩家离开 B、C 所在的客厅去厨房找 A。A 回应后也走去客厅，厨房只剩玩家。此时 B、C 对“玩家离开”“A 到来”的反应仍在计算，但都发生在玩家场景之外。宿主据此把玩家视图显示为“可以回应”，不点名场外角色；玩家这时发言、点行动按钮或保存节点，会先取消这些未提交的场外计算再执行，已提交的观察和行动保留。若玩家场景内有角色正在处理，状态显示“A 正在回应”，玩家可以等，也可以照常插话。
 
-实现上，运行时把交给 `runPrototypeActivations` 的 `turn` 包一层，记录正在运行的角色，在 `state()` 中与当前场景成员比对，得到 `responders`（场内正在处理的角色名）和 `background`（只剩场外处理且允许插话）。`projectPlayerView` 在 `background` 时输出 `ready`，不再透出 `canInterrupt` 和处理阶段文案。[TailRoundRuntime](../../../desktop/host/tail-runtime.ts) 的 `perform` 现在和发言共用同一中止入口；`background` 时保存节点也会先中止。中止信号会传到模型 HTTP 请求，取消不需要等模型返回。自动测试见 [dynamic-scheduling.test.ts](../../../tests/prototype/dynamic-scheduling.test.ts)；2026-10-17 晚宴包真实模型试玩中，玩家反馈离场后等待明显缩短，未做计时对照；发行包未更新。已知限制：玩家行动较快时，场外连锁会被截短；刚完成一个场内角色、下一个尚未派发的瞬间，状态可能短暂显示为可回应。
+实现上，运行时把交给 `runCharacterActivations` 的 `turn` 包一层，记录正在运行的角色，在 `state()` 中与当前场景成员比对，得到 `responders`（场内正在处理的角色名）和 `background`（只剩场外处理且允许插话）。`projectPlayerView` 在 `background` 时输出 `ready`，不再透出 `canInterrupt` 和处理阶段文案。[TailRoundRuntime](../../../desktop/host/tail-runtime.ts) 的 `perform` 现在和发言共用同一中止入口；`background` 时保存节点也会先中止。中止信号会传到模型 HTTP 请求，取消不需要等模型返回。自动测试见 [dynamic-scheduling.test.ts](../../../tests/prototype/dynamic-scheduling.test.ts)；2026-10-17 晚宴包真实模型试玩中，玩家反馈离场后等待明显缩短，未做计时对照；发行包未更新。已知限制：玩家行动较快时，场外连锁会被截短；刚完成一个场内角色、下一个尚未派发的瞬间，状态可能短暂显示为可回应。
 
 
 ## 角色思考强度

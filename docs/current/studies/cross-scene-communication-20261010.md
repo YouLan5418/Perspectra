@@ -6,8 +6,8 @@
 
 ## 实验实现
 
-- [一次投递规则](../../../tests/experiments/cross-scene-communication.ts)复用 RulebookResolver/Registry，使用 `interact` 的现有参数形状；特殊实验绑定仅由此入口安装，不加入通用物理可达目标。
-- [实验运行时](../../../tests/experiments/cross-scene-runtime.ts)使用原有 PrototypeCharacterTurn、WorldStore 短事务、原生记忆与有界激活。没有加载活动，因此不能通过该入口验收活动期间的通信策略。
+- [一次投递规则](../../../tests/support/cross-scene-communication.ts)复用 RulebookResolver/Registry，使用 `interact` 的现有参数形状；特殊实验绑定仅由此入口安装，不加入通用物理可达目标。
+- [实验运行时](../../../tests/support/cross-scene-runtime.ts)使用原有 PrototypeCharacterTurn、WorldStore 短事务、原生记忆与有界激活。没有加载活动，因此不能通过该入口验收活动期间的通信策略。
 - [样例包](../../../examples/world-packs/cross-scene-sms/worldpack.source.json)和 [communication.json](../../../examples/world-packs/cross-scene-sms/communication.json)声明有向联系人与媒介名称。联系人不等于在场人员，也不授予位置、物品或对方私有认知。
 - 发送规则在同一事务产生 `character.speak` 与接收者专属 `observation.upsert`，规则结果为 self 范围；接收观察只含消息。接收者的本地 publish 仍使用场景受众规则。
 - 消息的 `medium` 与接收对象保留在自观察、通信记忆来源与 metadata 中，玩家转录标识媒介。没有 medium 的现有表达保持原呈现。收信刺激来自已提交观察，角色不必回应。

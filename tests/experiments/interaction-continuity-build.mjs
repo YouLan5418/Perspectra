@@ -17,9 +17,9 @@ const actionSemantics=process.argv.includes('--action-semantics')
 const beforeAction=process.argv.includes('--before-action')
 if([publishLoop,decisionThinking,intentClarity,actionSemantics,beforeAction].filter(Boolean).length>1)throw new Error('Compare one mechanism at a time')
 const changed = [
-  'packages/application/src/prototype-character-turn.ts',
+  'packages/application/src/character-turn.ts',
   'packages/provider-chat/src/character-context-text.ts',
-  'packages/provider-chat/src/prototype-turn.ts',
+  'packages/provider-chat/src/character-turn-call.ts',
   'desktop/host/gateway-turn-call.ts',
   'desktop/host/pack-activity.ts',
   'desktop/host/world-runtime.ts',
@@ -31,12 +31,12 @@ const sources = Object.fromEntries(changed.map(path=>{
   const baseline=actionSemantics ? path==='packages/provider-chat/src/character-context-text.ts'
     ? current.replace('const explanations = (request.canPerform ?? !request.continuation) ? characterActionExplanations(context) : []',
       'const explanations: WorldJsonObject[] = []').replace(' + characterActionExplanationsNote','') : current
-    : intentClarity ? path==='packages/provider-chat/src/prototype-turn.ts'
+    : intentClarity ? path==='packages/provider-chat/src/character-turn-call.ts'
     ? current.replace(/  \+ characterActionIntentPrinciples\r?\n/,'') : current
-    : decisionThinking ? path==='packages/provider-chat/src/prototype-turn.ts'
+    : decisionThinking ? path==='packages/provider-chat/src/character-turn-call.ts'
     ? current.replace('content: characterDecisionPrinciples + characterContextNote','content: characterContextNote') : current
     : publishLoop||beforeAction?current:git('show',`${revision}:${path}`)
-  if(intentClarity&&path==='packages/provider-chat/src/prototype-turn.ts'&&baseline===current)throw new Error('Intent paragraph not removed from baseline')
+  if(intentClarity&&path==='packages/provider-chat/src/character-turn-call.ts'&&baseline===current)throw new Error('Intent paragraph not removed from baseline')
   if(actionSemantics&&path==='packages/provider-chat/src/character-context-text.ts'&&baseline===current)throw new Error('Semantic rendering not disabled in baseline')
   return [path,{baseline,experiment:current}]
 }))

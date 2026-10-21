@@ -17,4 +17,4 @@
 
 JEV 不是默认必经机制。`--jev-shadow` 会向 OpenRouter 发送审计材料，启动时仍显示提示。受信任前端沿现有独立 origin 与权限策略服务。
 
-`tests/experiments` 保留研究驱动和历史测试；默认宿主不从中加载代码。历史 JEV、Core 探针与关系 spike 分别归入 `experiments` 对应研究目录。运行 `node scripts/check-host-boundaries.mjs` 检查生产代码是否重新依赖实验路径。
+宿主通过 `@harness-world/*` 包入口使用 packages，不直接引用包内文件。`tests/experiments` 保留研究驱动和真实模型探针；默认宿主和默认回归都不从中加载代码，共用场景放在 `tests/support`。历史 JEV、Core 探针与关系 spike 分别归入 `experiments` 对应研究目录。运行 `node scripts/check-host-boundaries.mjs` 检查生产代码是否重新依赖实验路径。

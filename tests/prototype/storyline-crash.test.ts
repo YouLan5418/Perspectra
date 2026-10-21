@@ -85,7 +85,7 @@ async function fixture() {
 }
 async function crash(config: { phase: string; root: string; pack: string; directory: string; instanceId: string; nodeId: string; lineId?: string; sharePath?: string }) {
   const { phase, root, pack, directory, instanceId, nodeId, lineId, sharePath } = config
-  const child = spawn(process.execPath, ['--import', 'tsx', 'tests/experiments/storyline-crash-worker.ts',
+  const child = spawn(process.execPath, ['--import', 'tsx', 'tests/support/storyline-crash-worker.ts',
     JSON.stringify({ phase, root, pack, directory, instanceId, nodeId, lineId, sharePath })],
     { cwd: resolve('.'), windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] })
   children.add(child)

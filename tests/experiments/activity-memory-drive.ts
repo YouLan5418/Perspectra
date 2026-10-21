@@ -11,7 +11,7 @@ import { CognitiveMemoryService } from '@harness-world/memory'
 import { createChatProvider } from '@harness-world/provider-chat'
 import { createCoreRulebookRegistry } from '@harness-world/kernel'
 import { createBasicInteractionPackage } from '@harness-world/interactions-basic'
-import { PrototypeCharacterTurn, type PrototypeTurnRequest } from '../../packages/application/src/prototype-character-turn.ts'
+import { CharacterTurn, type CharacterTurnRequest } from '../../packages/application/src/character-turn.ts'
 import { WorldHostRuntime } from '../../desktop/host/world-runtime.ts'
 import { gatewayTurnCall } from '../../desktop/host/gateway-turn-call.ts'
 
@@ -115,14 +115,14 @@ if(stage==='probe'){
   const stimulus=[{value:{observerId:actor,content:{actorId:'character:player',actionType:'speak',status:'accepted',speech:{characterId:'character:player',text:probe.text}}}}]
   let count=0
   try{
-   const turn=new PrototypeCharacterTurn({address,store,leases,availability,rulebooks:createCoreRulebookRegistry({interactionPackages:[createBasicInteractionPackage()]}),memory,
+   const turn=new CharacterTurn({address,store,leases,availability,rulebooks:createCoreRulebookRegistry({interactionPackages:[createBasicInteractionPackage()]}),memory,
     projectContext:context=>({...context,observations:[],selfObservations:[],memories:[]}),
     decide:async(request,signal)=>{
      let memories:unknown[]=[],retrieval:unknown=null
      const query=typeof request.recallEvidence?.query==='string'?request.recallEvidence.query:probe.text
      if(mode==='native')memories=memory.recall(address,brandId(actor,'CharacterId'),query,summary.head.headSeq).slice(0,3).map(m=>({...m,sourceAgeTicks:summary.head.tick-sourceTicks.get(m.sourceMaxSeq)!}))
      if(mode.startsWith('core-')){const result=py({operation:'recall',archive:load(actor.split(':')[1]+'-archive.json'),index:load(actor.split(':')[1]+'-index.json'),request,tick:summary.head.tick,observations:mode==='core-observation'});memories=result.delivery as unknown[];retrieval=result}
-     const visible:PrototypeTurnRequest={...request,context:{...request.context,memories:memories as WorldJsonObject[]},...(request.recallEvidence?{recallEvidence:{query,memories:memories as WorldJsonObject[]}}:{})}
+     const visible:CharacterTurnRequest={...request,context:{...request.context,memories:memories as WorldJsonObject[]},...(request.recallEvidence?{recallEvidence:{query,memories:memories as WorldJsonObject[]}}:{})}
      const record:{[key:string]:unknown}={id,mode,probe:probe.text,actor,sourceCutoff:summary.head.headSeq,recentGameContextRemoved:true,request:visible,retrieval,status:'pending'}
      const path=join(dir,'call-'+(++count)+'.json');writeFileSync(path,JSON.stringify(record,null,2))
      const output=await provider.decide(gatewayTurnCall(visible),signal);record.response=output;record.status='returned';writeFileSync(path,JSON.stringify(record,null,2));return output

@@ -6,7 +6,7 @@ import { WorldStore, WriterLeaseService, CharacterRuntimeAvailabilityService } f
 import { CognitiveMemoryService } from '@harness-world/memory'
 import { createChatProvider } from '@harness-world/provider-chat'
 import { gatewayTurnCall } from '../../desktop/host/gateway-turn-call.ts'
-import { PrototypeCharacterTurn, type PrototypeTurnRequest } from '../../packages/application/src/prototype-character-turn.ts'
+import { CharacterTurn, type CharacterTurnRequest } from '../../packages/application/src/character-turn.ts'
 import { frozenInteractionWorld, basicInteractionPackage } from '../fixtures/frozen-interaction-world.ts'
 
 const root = resolve(process.argv[2] ?? '')
@@ -102,11 +102,11 @@ for (const [index, prompt] of prompts.entries()) {
     memory = new CognitiveMemoryService(resolve(dir, 'memory.sqlite'), store, undefined, 2, RECALL_KEYWORD_TOKENIZER_ID)
     const requests: unknown[] = [], decisions: unknown[] = []
     const before = store.head(world.manifest.address).headSeq
-    const turn = new PrototypeCharacterTurn({ address: world.manifest.address, store, memory, leases, availability,
+    const turn = new CharacterTurn({ address: world.manifest.address, store, memory, leases, availability,
       rulebooks: createCoreRulebookRegistry({ interactionPackages: [basicInteractionPackage] }),
       decide: async (request, signal) => {
         const visibleRequest = hideSourceAge ? JSON.parse(JSON.stringify(request, (key, value) =>
-          key === 'sourceAgeTicks' ? undefined : value)) as PrototypeTurnRequest : request
+          key === 'sourceAgeTicks' ? undefined : value)) as CharacterTurnRequest : request
         requests.push(visibleRequest)
         const call = gatewayTurnCall(visibleRequest)
         if (hideSourceAge && !call.messages[0]?.content.includes(sourceAgeInstruction)) throw new Error('missing source age instruction')

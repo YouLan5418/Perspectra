@@ -1,8 +1,8 @@
 import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { randomUUID } from 'node:crypto'
-import { worldAddressKey, type WorldAddress, type WorldJsonObject } from '../../packages/contracts/src/index.ts'
-import type { InspectedRequest } from '../../packages/provider-chat/src/request-inspector.ts'
+import { worldAddressKey, type WorldAddress, type WorldJsonObject } from '@harness-world/contracts'
+import type { InspectedRequest } from '@harness-world/provider-chat'
 
 export interface CreatorScope { address: WorldAddress; worldVersion: string; branchId: string; runId: string }
 export interface CreatorRecord {

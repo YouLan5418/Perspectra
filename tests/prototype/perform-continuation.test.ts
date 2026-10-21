@@ -16,8 +16,8 @@ import { afterEach, expect, it, vi } from 'vitest'
 import { brandId, hashWorldJson, type WorldEventDraft, type WorldJsonObject } from '@harness-world/contracts'
 import { createCoreRulebookRegistry, currentEntityState, currentLocation } from '@harness-world/kernel'
 import { CharacterRuntimeAvailabilityService, WorldStore, WriterLeaseService } from '@harness-world/store-sqlite'
-import { prototypeTurnCall } from '@harness-world/provider-chat'
-import { PrototypeCharacterTurn, type PrototypeTurnRequest } from '../../packages/application/src/prototype-character-turn.ts'
+import { characterTurnCall } from '@harness-world/provider-chat'
+import { CharacterTurn, type CharacterTurnRequest } from '../../packages/application/src/character-turn.ts'
 import { frozenInteractionWorld, basicInteractionPackage } from '../fixtures/frozen-interaction-world.ts'
 import { decideWithFormatRetry } from '../../desktop/host/decision-format.ts'
 
@@ -77,20 +77,20 @@ it('keeps the first expression and discards a cancelled post-publication action'
 
 it('does not continue when formatting the first publication consumes its remaining action budget',async()=>{
  let requests=0
- const f=fixture(async(request,signal,reserve)=>decideWithFormatRetry(prototypeTurnCall(request),async()=>
-  ++requests===1?{...repairedSpeech,scope:'private'}:repairedSpeech,signal,prototypeTurnCall(request).schema,reserve),[],{continueAfterPublish:true})
+ const f=fixture(async(request,signal,reserve)=>decideWithFormatRetry(characterTurnCall(request),async()=>
+  ++requests===1?{...repairedSpeech,scope:'private'}:repairedSpeech,signal,characterTurnCall(request).schema,reserve),[],{continueAfterPublish:true})
  expect(await f.turn.run(npc,{maxModelCalls:3})).toMatchObject({status:'published',calls:2})
  expect(requests).toBe(2)
 })
 
 it('preserves publication and action when the third output is malformed and there is no repair margin',async()=>{
  let calls=0
- const f=fixture(async(request,signal,reserve)=>decideWithFormatRetry(prototypeTurnCall(request),async()=>{
+ const f=fixture(async(request,signal,reserve)=>decideWithFormatRetry(characterTurnCall(request),async()=>{
   calls++
   if(calls===1)return repairedSpeech
   if(calls===2)return take
   return {decision:'publish',segments:['speech:非法片段形状']}
- },signal,prototypeTurnCall(request).schema,reserve),[],{continueAfterPublish:true})
+ },signal,characterTurnCall(request).schema,reserve),[],{continueAfterPublish:true})
  expect(await f.turn.run(npc,{maxModelCalls:3})).toMatchObject({status:'failed',failure:'invalid_output',calls:3,performResult:{status:'accepted'}})
  expect(calls).toBe(3)
  expect(f.store.readEvents(f.address).filter(e=>e.eventType==='character.speak')).toHaveLength(1)
@@ -98,7 +98,7 @@ it('preserves publication and action when the third output is malformed and ther
  expect(currentEntityState(f.store.readEvents(f.address),'entity:cup')?.holderId).toBe(npc)
 })
 
-function fixture(decide: (request: PrototypeTurnRequest, signal: AbortSignal, reserveFormatRetry?: () => boolean) => Promise<unknown>, extra: WorldEventDraft[] = [], limits: {publicationCharacters?:number;activationTimeoutMs?:number;continueAfterPublish?:boolean;beforeActionExpression?:boolean;allowUnrelatedCommits?:boolean;onCommitted?:()=>Promise<void>} = {}) {
+function fixture(decide: (request: CharacterTurnRequest, signal: AbortSignal, reserveFormatRetry?: () => boolean) => Promise<unknown>, extra: WorldEventDraft[] = [], limits: {publicationCharacters?:number;activationTimeoutMs?:number;continueAfterPublish?:boolean;beforeActionExpression?:boolean;allowUnrelatedCommits?:boolean;onCommitted?:()=>Promise<void>} = {}) {
   const directory = mkdtempSync(join(tmpdir(), 'perform-prototype-'))
   cleanup.push(() => rmSync(directory, { recursive: true, force: true }))
   const path = join(directory, 'world.sqlite')
@@ -112,7 +112,7 @@ function fixture(decide: (request: PrototypeTurnRequest, signal: AbortSignal, re
   store.activateBranch({ ...world, genesisEvents, genesisHash: hashWorldJson('world-genesis-plan', genesisEvents),
     address, transactionId: brandId('transaction:genesis', 'TransactionId'),
     roundId: brandId('round:genesis', 'InteractionRoundId'), correlationId: 'test' })
-  const turn = new PrototypeCharacterTurn({ ...limits, address, store, leases, availability,
+  const turn = new CharacterTurn({ ...limits, address, store, leases, availability,
     rulebooks: createCoreRulebookRegistry({ interactionPackages: [basicInteractionPackage] }), decide })
   return { turn, store, address, directory, leases }
 }
@@ -198,11 +198,11 @@ it('stops a cancelled recovery and does not expand the implicit call budget', as
 
 it('explains an out-of-scene recipient during the existing schema repair without publishing the rejected words', async () => {
   let requests = 0
-  const f = fixture(async (request, signal, reserve) => decideWithFormatRetry(prototypeTurnCall(request), async call => {
+  const f = fixture(async (request, signal, reserve) => decideWithFormatRetry(characterTurnCall(request), async call => {
     if (++requests === 1) return unreachableSpeech
     expect(JSON.stringify(call.messages)).toContain('上一次表达没有发表，也没有传达给对方')
     return repairedSpeech
-  }, signal, prototypeTurnCall(request).schema, reserve), playerElsewhere)
+  }, signal, characterTurnCall(request).schema, reserve), playerElsewhere)
   expect(await f.turn.run(npc, { maxModelCalls: 2 })).toMatchObject({ status: 'published', calls: 2 })
   expect(f.store.readEvents(f.address).filter(event => event.eventType === 'character.speak').map(event => event.data))
     .toEqual([expect.objectContaining({ segments: repairedSpeech.segments })])
@@ -214,7 +214,7 @@ it('commits a private pre-action expression, one action and a result-based expre
  const f=fixture(async request=>{
   if(++calls===1) {
    expect(request.canExpressBeforeAction).toBe(true)
-   for(const call of [prototypeTurnCall(request),gatewayTurnCall(request)]) {
+   for(const call of [characterTurnCall(request),gatewayTurnCall(request)]) {
     expect(new Ajv({strict:false}).compile(call.schema)({...take,before})).toBe(true)
     expect(new Ajv({strict:false}).compile(call.schema)({...take,before:{...before,scope:'scene_public'}})).toBe(false)
    }
@@ -261,7 +261,7 @@ it('retains the pre-action expression and committed operation when result expres
 it('rejects a pre-generated post-action expression before any commit',async()=>{
  const decision={...take,before:{segments:[{type:'speech',text:'我试试看。'}]},after:{segments:[{type:'speech',text:'拿到了。'}]}}
  const f=fixture(async request=>{
-  for(const call of [prototypeTurnCall(request),gatewayTurnCall(request)])expect(new Ajv({strict:false}).compile(call.schema)(decision)).toBe(false)
+  for(const call of [characterTurnCall(request),gatewayTurnCall(request)])expect(new Ajv({strict:false}).compile(call.schema)(decision)).toBe(false)
   return decision
  },[],{beforeActionExpression:true})
  const head=f.store.head(f.address)
@@ -297,7 +297,7 @@ it('stops after the committed pre-action expression when interrupted before exec
  expect(events.filter(e=>e.eventType==='entity.transferred')).toHaveLength(0)
 })
 
-it.each([prototypeTurnCall, gatewayTurnCall])('rejects audience contradictions and missing interaction arguments before execution', async call => {
+it.each([characterTurnCall, gatewayTurnCall])('rejects audience contradictions and missing interaction arguments before execution', async call => {
   const f = fixture(async request => {
     const validate = new Ajv({strict:false}).compile(call(request).schema)
     for (const value of [
@@ -315,8 +315,8 @@ it.each([prototypeTurnCall, gatewayTurnCall])('rejects audience contradictions a
 
 it('repairs ordinary output once, counts the call and never publishes the invalid expression', async () => {
   let requests=0
-  const f=fixture(async (request,signal,reserve)=>decideWithFormatRetry(prototypeTurnCall(request),async()=>
-    ++requests===1?{...repairedSpeech,scope:'direct'}:repairedSpeech,signal,prototypeTurnCall(request).schema,reserve))
+  const f=fixture(async (request,signal,reserve)=>decideWithFormatRetry(characterTurnCall(request),async()=>
+    ++requests===1?{...repairedSpeech,scope:'direct'}:repairedSpeech,signal,characterTurnCall(request).schema,reserve))
   expect(await f.turn.run(npc,{maxModelCalls:2})).toMatchObject({status:'published',calls:2})
   expect(requests).toBe(2)
   expect(f.store.readEvents(f.address).filter(e=>e.eventType==='character.speak')).toHaveLength(1)
@@ -324,9 +324,9 @@ it('repairs ordinary output once, counts the call and never publishes the invali
 
 it('does not call a format repair beyond the activation budget', async () => {
   let requests=0
-  const f=fixture(async (request,signal,reserve)=>decideWithFormatRetry(prototypeTurnCall(request),async()=>{
+  const f=fixture(async (request,signal,reserve)=>decideWithFormatRetry(characterTurnCall(request),async()=>{
     requests++;return {...repairedSpeech,scope:'direct'}
-  },signal,prototypeTurnCall(request).schema,reserve))
+  },signal,characterTurnCall(request).schema,reserve))
   expect(await f.turn.run(npc,{maxModelCalls:1})).toMatchObject({status:'failed',failure:'invalid_output',calls:1})
   expect(requests).toBe(1)
   expect(f.store.readEvents(f.address).filter(e=>e.eventType==='character.speak')).toHaveLength(0)
@@ -335,11 +335,11 @@ it('does not call a format repair beyond the activation budget', async () => {
 it('reserves a result continuation after repairing an action, or leaves it uncommitted', async () => {
   for(const budget of [2,3]) {
     let requests=0
-    const f=fixture(async (request,signal,reserve)=>decideWithFormatRetry(prototypeTurnCall(request),async()=>{
+    const f=fixture(async (request,signal,reserve)=>decideWithFormatRetry(characterTurnCall(request),async()=>{
       requests++
       if(request.continuation)return repairedSpeech
       return requests===1?{...take,parameters:{...take.parameters,arguments:undefined} as unknown as WorldJsonObject}:take
-    },signal,prototypeTurnCall(request).schema,reserve))
+    },signal,characterTurnCall(request).schema,reserve))
     const result=await f.turn.run(npc,{maxModelCalls:budget})
     expect(result).toMatchObject({status:budget===2?'budget_exhausted':'published',calls:budget})
     expect(requests).toBe(budget)
@@ -349,9 +349,9 @@ it('reserves a result continuation after repairing an action, or leaves it uncom
 
 it('keeps a committed action when both continuation outputs have invalid audiences', async () => {
   let requests=0
-  const f=fixture(async (request,signal,reserve)=>decideWithFormatRetry(prototypeTurnCall(request),async()=>{
+  const f=fixture(async (request,signal,reserve)=>decideWithFormatRetry(characterTurnCall(request),async()=>{
     requests++;return request.continuation?{...repairedSpeech,scope:'direct'}:take
-  },signal,prototypeTurnCall(request).schema,reserve))
+  },signal,characterTurnCall(request).schema,reserve))
   expect(await f.turn.run(npc,{maxModelCalls:3})).toMatchObject({status:'failed',failure:'invalid_output',calls:3,performResult:{status:'accepted'}})
   expect(requests).toBe(3)
   expect(currentEntityState(f.store.readEvents(f.address),'entity:cup')?.holderId).toBe(npc)
@@ -366,7 +366,7 @@ it('commits perform before continuation, then publishes the result-aware express
     expect(request.result?.status).toBe('accepted')
     expect(currentEntityState(f.store.readEvents(f.address), 'entity:cup')?.holderId).toBe(npc)
     expect(f.store.readEvents(f.address).filter(event => event.eventType === 'character.speak')).toHaveLength(0)
-    expect(JSON.stringify(prototypeTurnCall(request).schema)).not.toContain('"const":"perform"')
+    expect(JSON.stringify(characterTurnCall(request).schema)).not.toContain('"const":"perform"')
     return { decision: 'publish', segments: [{ type: 'narration', text: '低头看了看手里的杯子。' }, { type: 'speech', text: '拿到了。' }] }
   })
   expect(await f.turn.run(npc)).toMatchObject({ status: 'published', calls: 2, performResult: { status: 'accepted' } })
@@ -388,13 +388,13 @@ it('can execute a second bounded operation after seeing the first result, then p
     if (calls === 2) {
       expect(request.result?.status).toBe('accepted')
       expect(request.canPerform).toBe(true)
-      expect(JSON.stringify(prototypeTurnCall(request).schema)).toContain('"const":"perform"')
+      expect(JSON.stringify(characterTurnCall(request).schema)).toContain('"const":"perform"')
       expect(currentEntityState(f.store.readEvents(f.address), 'entity:cup')?.holderId).toBe(npc)
       return drop
     }
     expect(request.result?.status).toBe('accepted')
     expect(request.canPerform).toBe(false)
-    expect(JSON.stringify(prototypeTurnCall(request).schema)).not.toContain('"const":"perform"')
+    expect(JSON.stringify(characterTurnCall(request).schema)).not.toContain('"const":"perform"')
     expect(currentEntityState(f.store.readEvents(f.address), 'entity:cup')?.holderId).toBeNull()
     return { decision: 'publish', segments: [{ type: 'speech', text: '拿起来看了看，又放回原处。' }] }
   })
@@ -454,7 +454,7 @@ it.each([false, true])('rechecks the authorized view after acquiring the writer 
   let injected = false
   let injectedCommit: Promise<unknown> | undefined
   f.leases.acquire = (address, ownerId, ttlMs) => {
-    if (!injected && ownerId.startsWith('prototype-turn:')) {
+    if (!injected && ownerId.startsWith('character-turn:')) {
       injected = true
       const external = acquire(address, 'external-writer-before-lease-check')
       const head = f.store.head(address)
@@ -529,13 +529,13 @@ it('does not accept a legacy performance payload inside perform parameters', asy
 
 it('refreshes character and scene locations after moving, including the next activation, and uses only the new audience', async () => {
   let calls = 0
-  const requests: PrototypeTurnRequest[] = []
+  const requests: CharacterTurnRequest[] = []
   const f = fixture(async request => {
     requests.push(request)
     if (++calls === 1) return { decision: 'perform', actionType: 'move', parameters: { locationId: 'location:next' } }
     expect(currentLocation(f.store.readEvents(f.address), npc)).toBe('location:next')
     expect((request.context.scene as WorldJsonObject).locationId).toBe('location:next')
-    const publish = (prototypeTurnCall(request).schema.oneOf as WorldJsonObject[]).find(value =>
+    const publish = (characterTurnCall(request).schema.oneOf as WorldJsonObject[]).find(value =>
       ((value.properties as WorldJsonObject).decision as WorldJsonObject).const === 'publish')!
     expect(publish.properties).not.toHaveProperty('addresseeIds')
     expect(((publish.properties as WorldJsonObject).scope as WorldJsonObject).enum).toEqual(['scene_public', 'self'])
@@ -612,7 +612,7 @@ it.each(['before-perform', 'after-perform'] as const)(
 it('publishes a directed continuation to a visible addressee after an executed operation', async () => {
   const f = fixture(async request => {
     if (!request.continuation) return take
-    const schema = prototypeTurnCall(request).schema as WorldJsonObject
+    const schema = characterTurnCall(request).schema as WorldJsonObject
     const publish = (schema.oneOf as WorldJsonObject[]).find(value =>
       (value.properties as WorldJsonObject).decision !== undefined
       && ((value.properties as WorldJsonObject).decision as WorldJsonObject).const === 'publish')!
@@ -662,7 +662,7 @@ it('preserves speech/narration alternation in one atomic publication, authorized
   const f = fixture(async request => {
     calls++
     const decision = { decision: 'publish', segments, addresseeIds: [player] }
-    for (const call of [prototypeTurnCall(request), gatewayTurnCall(request)]) {
+    for (const call of [characterTurnCall(request), gatewayTurnCall(request)]) {
       const validate = new Ajv({ strict: false }).compile(call.schema)
       expect(validate(decision)).toBe(true)
     }
@@ -779,7 +779,7 @@ it.each(['scene_public','direct','private','self'])('accepts NPC %s publication 
  const decision={decision:'publish',scope,addresseeIds,segments:[{type:'speech',text:'明确范围的对白'},{type:'narration',text:'轻轻点头'}]}
  const f=fixture(async request=>{
   if(!request.continuation)return take
-  for(const call of [prototypeTurnCall(request),gatewayTurnCall(request)]) {
+  for(const call of [characterTurnCall(request),gatewayTurnCall(request)]) {
    expect(new Ajv({strict:false}).compile(call.schema)(decision)).toBe(true)
    expect(JSON.stringify(call.schema)).toContain('private')
   }

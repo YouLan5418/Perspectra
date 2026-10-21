@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict'
 import { cpSync, existsSync, mkdirSync, writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
-import { createChatProvider, prototypeTurnCall, type ChatCall } from '@harness-world/provider-chat'
+import { createChatProvider, characterTurnCall, type ChatCall } from '@harness-world/provider-chat'
 import type { WorldJsonObject } from '@harness-world/contracts'
-import { crossSceneRuntime } from './cross-scene-runtime.ts'
+import { crossSceneRuntime } from '../support/cross-scene-runtime.ts'
 import { coreRunner, createCoreWorker } from '../../desktop/host/memory/python-worker.ts'
 import { gatewayTurnCall } from '../../desktop/host/gateway-turn-call.ts'
 import { decideWithFormatRetry } from '../../desktop/host/decision-format.ts'
@@ -24,7 +24,7 @@ const runtime = await crossSceneRuntime(data, async (request, signal) => {
   requests.push(request.context)
   const decide = async (call: ChatCall) => { const decision = await provider.decide(call, signal); decisions.push(decision); return decision }
   const call = gatewayTurnCall(request)
-  return request.context.activity === undefined ? decide(call) : decideWithFormatRetry(call, decide, signal, prototypeTurnCall(request).schema)
+  return request.context.activity === undefined ? decide(call) : decideWithFormatRetry(call, decide, signal, characterTurnCall(request).schema)
 }, { phone: medium === 'phone', packPath: resolve('examples/world-packs/cross-scene-activity'), activities: true, storyNodes: true,
   memoryCoreRun: worker.run, memoryCoreBuildRun: coreRunner(environment),
   memoryContextBudget: { triggerTokens: 170000, compactTokens: 120000, minimumRecentTokens: 0 } })

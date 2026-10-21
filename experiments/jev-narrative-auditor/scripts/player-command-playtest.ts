@@ -24,7 +24,7 @@ writeFileSync(resolve(directory, 'protocol.json'), JSON.stringify({ inputs, mode
   shadowOnly: true }, null, 2))
 writeFileSync(resolve(directory, 'sources.json'), JSON.stringify(Object.fromEntries([
   'packages/application/src/player-intent-preparation.ts', 'packages/application/src/player-input.ts',
-  'packages/application/src/prototype-character-turn.ts', 'desktop/host/world-runtime.ts',
+  'packages/application/src/character-turn.ts', 'desktop/host/world-runtime.ts',
 ].map(path => [path, readFileSync(path, 'utf8')])), null, 2))
 globalThis.fetch = async (url, init) => {
   const response = await nativeFetch(url, init)

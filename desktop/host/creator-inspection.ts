@@ -1,5 +1,5 @@
-import type { CharacterView, StoredWorldEvent, WorldAddress, WorldJsonObject } from '../../packages/contracts/src/index.ts'
-import type { InspectedRequest } from '../../packages/provider-chat/src/request-inspector.ts'
+import type { CharacterView, StoredWorldEvent, WorldAddress, WorldJsonObject } from '@harness-world/contracts'
+import type { InspectedRequest } from '@harness-world/provider-chat'
 
 /** Host-only read API. No paths, provider configuration or arbitrary commands accepted. */
 export interface CreatorInspectionQuery {

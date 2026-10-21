@@ -1,12 +1,12 @@
 import assert from 'node:assert/strict'
 import { appendFileSync, mkdirSync, writeFileSync, readFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
-import { createChatProvider, prototypeTurnCall, type ChatCall } from '@harness-world/provider-chat'
+import { createChatProvider, characterTurnCall, type ChatCall } from '@harness-world/provider-chat'
 import { type WorldJsonObject } from '@harness-world/contracts'
 import { restoreStoryNode } from '../../desktop/story-nodes.ts'
 import { exportStoryNode, importStoryNode } from '../../desktop/story-share.ts'
-import { crossSceneRuntime } from './cross-scene-runtime.ts'
-import { CrossScenePhone } from './cross-scene-phone.ts'
+import { crossSceneRuntime } from '../support/cross-scene-runtime.ts'
+import { CrossScenePhone } from '../support/cross-scene-phone.ts'
 import { gatewayTurnCall } from '../../desktop/host/gateway-turn-call.ts'
 import { decideWithFormatRetry } from '../../desktop/host/decision-format.ts'
 import { createCoreWorker, coreRunner } from '../../desktop/host/memory/python-worker.ts'
@@ -35,7 +35,7 @@ async function open(path: string, label: string) {
       return raw
     }
     const prepared = gatewayTurnCall(request)
-    return request.context.activity === undefined ? decide(prepared) : decideWithFormatRetry(prepared, decide, signal, prototypeTurnCall(request).schema)
+    return request.context.activity === undefined ? decide(prepared) : decideWithFormatRetry(prepared, decide, signal, characterTurnCall(request).schema)
   }, { phone: medium === 'phone', packPath, activities: true, storyNodes: true,
     ...(worker ? { memoryCoreRun: worker.run, memoryCoreBuildRun: coreRunner(environment),
       memoryContextBudget: { triggerTokens: 170000, compactTokens: 120000, minimumRecentTokens: 0 } } : {}) })

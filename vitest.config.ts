@@ -12,6 +12,7 @@ export default defineConfig({
       '@harness-world/agents': `${root}packages/agents/src/index.ts`,
       '@harness-world/application': `${root}packages/application/src/index.ts`,
       '@harness-world/contracts': `${root}packages/contracts/src/index.ts`,
+      '@harness-world/frontend': `${root}packages/frontend/src/index.ts`,
       '@harness-world/kernel': `${root}packages/kernel/src/index.ts`,
       '@harness-world/memory': `${root}packages/memory/src/index.ts`,
       '@harness-world/presentation': `${root}packages/presentation/src/index.ts`,

@@ -24,6 +24,9 @@
     "paths": {
       "@/*": [
         "./src/*"
+      ],
+      "@harness-world/*": [
+        "../../packages/*/src/index.ts"
       ]
     }
   },

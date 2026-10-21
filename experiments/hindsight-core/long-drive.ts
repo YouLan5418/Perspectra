@@ -158,7 +158,7 @@ async function checkpoint(address: WorldAddress, turn: number): Promise<void> {
 }
 let activeTurnText = ''
 let activeTurnNumber = 0
-function adaptRequest(request: import('../../packages/application/src/prototype-character-turn.ts').PrototypeTurnRequest) {
+function adaptRequest(request: import('../../packages/application/src/character-turn.ts').CharacterTurnRequest) {
   if (mode === 'existing' || shadow === undefined
     || (request.context.character as WorldJsonObject).characterId !== companion) return request
   const query = typeof request.recallEvidence?.query === 'string'

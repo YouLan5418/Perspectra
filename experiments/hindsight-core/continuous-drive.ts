@@ -17,7 +17,7 @@ import { gatewayTurnCall } from '../../desktop/host/gateway-turn-call.ts'
 import { ensureRoomScenes } from './continuous-scene.ts'
 import { identityEntry, restoreAliasHistory } from '../../desktop/host/memory/alias-history.ts'
 import { repeatedPlayerStimulus } from './play-warning.ts'
-import type { PrototypeTurnRequest } from '../../packages/application/src/prototype-character-turn.ts'
+import type { CharacterTurnRequest } from '../../packages/application/src/character-turn.ts'
 
 type Ref={sourceId:string;sourceHash:string;epistemicKind:string;worldSeq:number;characterId:string;worldAddress:WorldAddress}
 type Source=Ref & {text:string;knownTick:number}
@@ -114,7 +114,7 @@ let aliasHistory=new Map<string,WorldJsonObject[]>()
 
 let address:WorldAddress,turnNumber=progress.rounds.length,callNumber=0
 let roundTraces:string[]=[]
-const pendingTraces=new WeakMap<PrototypeTurnRequest,{path:string;record:Record<string,unknown>}>()
+const pendingTraces=new WeakMap<CharacterTurnRequest,{path:string;record:Record<string,unknown>}>()
 function queryText(value:unknown):string {
  if(value===null||typeof value!=='object')return typeof value==='string'?value:''
  const outer=value as WorldJsonObject,owned=outer.value!==null&&typeof outer.value==='object'?outer.value as WorldJsonObject:outer
@@ -128,7 +128,7 @@ function queryText(value:unknown):string {
   .filter(v=>typeof v==='string'&&v.length>0).join(' ')
 }
 
-async function adapt(request:PrototypeTurnRequest):Promise<PrototypeTurnRequest>{
+async function adapt(request:CharacterTurnRequest):Promise<CharacterTurnRequest>{
  const actor=String(object(request.context.character).characterId)
  const snapshot=snapshots.get(actor)
  if(snapshot===undefined)throw new Error('missing authorized memory snapshot for '+actor)
@@ -164,7 +164,7 @@ async function adapt(request:PrototypeTurnRequest):Promise<PrototypeTurnRequest>
   sourceAges:u.sourceRefs.map(r=>({sourceId:r.sourceId,knownTick:sourceMap.get(r.sourceId)!.knownTick,
    sourceAgeTicks:tick-sourceMap.get(r.sourceId)!.knownTick})),
   note:'本角色已授权来源的非权威记忆；归纳可能有误，转述、计划、承诺不证明已完成。'}))
- const visible:PrototypeTurnRequest={...request,context:{...request.context,memories},
+ const visible:CharacterTurnRequest={...request,context:{...request.context,memories},
   ...(request.recallEvidence===undefined?{}:{recallEvidence:{query,memories}})}
  const id=`turn-${String(turnNumber).padStart(4,'0')}-call-${String(++callNumber).padStart(3,'0')}-${actor.split(':')[1]}`
  const tracePath=resolve(root,'traces',id+'.json'),selectedIds=new Set(selected.results.map(u=>u.id))
@@ -193,7 +193,7 @@ async function adapt(request:PrototypeTurnRequest):Promise<PrototypeTurnRequest>
  json(tracePath,record);pendingTraces.set(request,{path:tracePath,record});roundTraces.push(id)
  return visible
 }
-function response(record:{request:PrototypeTurnRequest;visible:PrototypeTurnRequest;response:unknown}):void{
+function response(record:{request:CharacterTurnRequest;visible:CharacterTurnRequest;response:unknown}):void{
  const trace=pendingTraces.get(record.request)
  if(!trace)throw new Error('response without trace')
  Object.assign(trace.record,{modelResponse:record.response,status:'model_returned'})

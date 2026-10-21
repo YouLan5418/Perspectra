@@ -2,9 +2,9 @@ import { expect, it } from 'vitest'
 import { auditBeforePublication, type InterventionRecord } from '../../desktop/host/jev-publication-intervention.ts'
 import type { ClaimAnswer, ClaimQuestion, ClaimKind } from '../../desktop/host/jev-shadow-claims-client.ts'
 import type { StoredWorldEvent } from '@harness-world/contracts'
-import type { PrototypeTurnRequest } from '../../packages/application/src/prototype-character-turn.ts'
+import type { CharacterTurnRequest } from '../../packages/application/src/character-turn.ts'
 
-const request: PrototypeTurnRequest={continuation:false,context:{character:{characterId:'friend',privateAnchor:'PRIVATE'},
+const request: CharacterTurnRequest={continuation:false,context:{character:{characterId:'friend',privateAnchor:'PRIVATE'},
   cognition:{secret:'PRIVATE'},scene:{people:[{characterId:'friend',name:'留守者'},{characterId:'player',name:'玩家'}]},
   items:{current:[{entityId:'key',holderId:null,locationId:'room'}]}}}
 const draft={ decision:'publish', addresseeIds:['player'], segments: [{ type: 'narration', text: '留守者接过钥匙，翻看后还给玩家。' }, { type: 'speech', text: '看看吧。' }] }
@@ -12,7 +12,7 @@ const answer=(kind:ClaimKind):ClaimAnswer=>({placement:{kind:'NONE',probabilitie
   claims:[{characterId:'friend',kind,referenceSeq:null,probabilities:{[kind]:1},referenceProbabilities:{NONE:1},confidence:1}]})
 const history=[{seq:1,eventType:'entity.upsert',eventVersion:1,data:{entityId:'key',kind:'key',locationId:'room'},transactionId:'genesis'}] as unknown as StoredWorldEvent[]
 async function run(options: {kind?:ClaimKind;mode?:'baseline'|'correct';corrected?:unknown;fail?:boolean;visible?:boolean}={}) {
-  const records:InterventionRecord[]=[],questions:ClaimQuestion[]=[],revisions:PrototypeTurnRequest[]=[]
+  const records:InterventionRecord[]=[],questions:ClaimQuestion[]=[],revisions:CharacterTurnRequest[]=[]
   const before=JSON.stringify(history)
   const result=await auditBeforePublication({request:options.visible===false?{...request,context:{...request.context,items:{current:[]}}}:request,
     raw:draft,history,signal:new AbortController().signal,options:{mode:options.mode??'correct',items:[{entityId:'key',name:'钥匙'}],
@@ -52,7 +52,7 @@ it('Jev sees only the individually observed expression, even when another privat
 it('a ground-only conflict triggers one expression repair without granting a drop operation',async()=>{
   const events=[{seq:1,eventType:'character.created',data:{characterId:'friend',name:'留守者',locationId:'room'},eventVersion:1,transactionId:'g'},
     {...history[0],seq:2},{seq:3,eventType:'entity.transferred',eventVersion:1,transactionId:'t',data:{entityId:'key',fromHolderId:null,fromLocationId:'room',toHolderId:'friend',toLocationId:null,characterId:'friend',interactionId:'take'}}] as unknown as StoredWorldEvent[]
-  const records:InterventionRecord[]=[],revisions:PrototypeTurnRequest[]=[]
+  const records:InterventionRecord[]=[],revisions:CharacterTurnRequest[]=[]
   const result=await auditBeforePublication({request,raw:{...draft,segments:[{type:'narration',text:'留守者把钥匙放回桌上，手收了回来。'}]},history:events,
     signal:new AbortController().signal,options:{mode:'correct',items:[{entityId:'key',name:'钥匙'}],write:r=>records.push(r),classify:async()=>({...answer('NONE'),placement:{kind:'OBJECTIVE_RELEASE',probabilities:{OBJECTIVE_RELEASE:1},confidence:1}})},
     decide:async r=>{revisions.push(r);return {...draft,segments:[{type:'narration',text:'留守者仍握着钥匙。'}]}}})

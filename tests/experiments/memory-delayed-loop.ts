@@ -5,11 +5,11 @@ import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from
 import { join, resolve } from 'node:path'
 import type { WorldJsonObject } from '@harness-world/contracts'
 import { createChatProvider } from '@harness-world/provider-chat'
-import { PrototypeCharacterTurn, type PrototypeTurnRequest } from '../../packages/application/src/prototype-character-turn.ts'
-import { openActionWorld, actionContext, actionResult, askId, terminalId } from './notice-board-action-fixture.ts'
-import { npc } from './notice-board-fixture.ts'
-import { privateText } from './notice-board-capability.ts'
-import { rawHistorySnapshot, historyBytes } from './raw-history-delivery.ts'
+import { CharacterTurn, type CharacterTurnRequest } from '../../packages/application/src/character-turn.ts'
+import { openActionWorld, actionContext, actionResult, askId, terminalId } from '../support/notice-board-action-fixture.ts'
+import { npc } from '../support/notice-board-fixture.ts'
+import { privateText } from '../support/notice-board-capability.ts'
+import { rawHistorySnapshot, historyBytes } from '../support/raw-history-delivery.ts'
 import { gatewayTurnCall } from '../../desktop/host/gateway-turn-call.ts'
 import { corePythonExecutable } from '../../desktop/host/memory/python-worker.ts'
 const object = (v: unknown): WorldJsonObject => v !== null && typeof v === 'object' && !Array.isArray(v) ? v as WorldJsonObject : {}
@@ -117,11 +117,11 @@ if (mode==='--finalize') {
       const beforeEvidence=JSON.stringify(evidence(f).sources), gapRows:WorldJsonObject[]=[]
       for(const [i,text] of gaps.entries()) {
         const stimulus=await f.submitPlayer(text,'delayed-gap-'+i),before=f.store.head(f.address)
-        const turn=new PrototypeCharacterTurn({address:f.address,store:f.store,leases:f.leases,availability:f.availability,rulebooks:f.rules,
+        const turn=new CharacterTurn({address:f.address,store:f.store,leases:f.leases,availability:f.availability,rulebooks:f.rules,
           projectContext:context=>actionContext({character:context.character!,stimulus:context.stimulus!,memories:[],...context}),
           executionResult:actionResult,recentObservations:4,recentSelfObservations:4,
           validateDecision:d=>{if(d.decision==='recall')throw new Error('active recall forbidden')},
-          decide:async(r,signal)=>{const visible:PrototypeTurnRequest={...r,canRecall:false,context:{...r.context,memories:[]}},call=gatewayTurnCall(visible)
+          decide:async(r,signal)=>{const visible:CharacterTurnRequest={...r,canRecall:false,context:{...r.context,memories:[]}},call=gatewayTurnCall(visible)
             if(JSON.stringify(visible).includes(privateText))throw new Error('private context leaked')
             transport=join(dir,'gap-'+i+'-transport.json');gapCalls++;const file=join(dir,'gap-'+i+'-call.json'),start=performance.now()
             save(file,{status:'pending',request:visible,prepared:call,requestBytes:historyBytes(call),head:f.store.head(f.address)})
@@ -136,8 +136,8 @@ if (mode==='--finalize') {
       save(join(dir,'events.json'),f.store.readEvents(f.address));save(join(dir,'sources.json'),rawHistorySnapshot(f))
       if(JSON.stringify(evidence(f).sources)!==beforeEvidence) {preparation.push({seed:chosen.seed,status:'new acquisition during gap; frozen revision incomplete'});continue}
       const stimulus=await f.submitPlayer(future,'delayed-future'),before=f.store.head(f.address)
-      let request:PrototypeTurnRequest|undefined
-      const preview=new PrototypeCharacterTurn({address:f.address,store:f.store,leases:f.leases,availability:f.availability,rulebooks:f.rules,
+      let request:CharacterTurnRequest|undefined
+      const preview=new CharacterTurn({address:f.address,store:f.store,leases:f.leases,availability:f.availability,rulebooks:f.rules,
         projectContext:context=>actionContext({character:context.character!,stimulus:context.stimulus!,memories:[],...context}),
         executionResult:actionResult,recentObservations:4,recentSelfObservations:4,decide:async r=>{request={...r,canRecall:false};return{decision:'abstain'}}})
       await preview.run(npc,{stimulus,maxCalls:1})

@@ -6,8 +6,8 @@ import { brandId, hashWorldJson, RECALL_KEYWORD_TOKENIZER_ID, type WorldEventDra
 import { createCoreRulebookRegistry } from '@harness-world/kernel'
 import { WorldStore, WriterLeaseService, CharacterRuntimeAvailabilityService } from '@harness-world/store-sqlite'
 import { CognitiveMemoryService } from '@harness-world/memory'
-import { prototypeTurnCall } from '@harness-world/provider-chat'
-import { PrototypeCharacterTurn, type PrototypeRecallShadowObservation, type PrototypeTurnRequest } from '../../packages/application/src/prototype-character-turn.ts'
+import { characterTurnCall } from '@harness-world/provider-chat'
+import { CharacterTurn, type RecallShadowObservation, type CharacterTurnRequest } from '../../packages/application/src/character-turn.ts'
 import { frozenInteractionWorld, basicInteractionPackage } from '../fixtures/frozen-interaction-world.ts'
 
 const close: (() => void)[] = []
@@ -18,8 +18,8 @@ const observation = (id: string, observerId: string, content: WorldJsonObject): 
   eventType: 'observation.upsert', eventVersion: 1,
   data: { id, value: { observerId, content } },
 })
-function fixture(decide: (request: PrototypeTurnRequest) => Promise<unknown>, longHistory = false,
-  onRecallShadow?: (observation: PrototypeRecallShadowObservation) => void) {
+function fixture(decide: (request: CharacterTurnRequest) => Promise<unknown>, longHistory = false,
+  onRecallShadow?: (observation: RecallShadowObservation) => void) {
   const dir = mkdtempSync(join(tmpdir(), 'active-recall-'))
   close.push(() => rmSync(dir, { recursive: true, force: true }))
   const path = join(dir, 'world.sqlite')
@@ -48,7 +48,7 @@ function fixture(decide: (request: PrototypeTurnRequest) => Promise<unknown>, lo
     roundId: brandId('round:active-recall-genesis', 'InteractionRoundId'), correlationId: 'active-recall' })
   const memory = new CognitiveMemoryService(join(dir, 'memory.sqlite'), store, undefined, 2, RECALL_KEYWORD_TOKENIZER_ID)
   close.push(() => { memory.close(); availability.close(); leases.close(); store.close() })
-  const turn = new PrototypeCharacterTurn({ address: world.manifest.address, store, memory, leases, availability,
+  const turn = new CharacterTurn({ address: world.manifest.address, store, memory, leases, availability,
     rulebooks: createCoreRulebookRegistry({ interactionPackages: [basicInteractionPackage] }),
     decide: async request => decide(request),
     ...(onRecallShadow === undefined ? {} : { onRecallShadow }) })
@@ -69,11 +69,11 @@ async function advanceTick(f: ReturnType<typeof fixture>, index: number): Promis
 }
 
 it('lets an NPC retrieve only its attributed evidence, then decide without granting evidence world authority', async () => {
-  const requests: PrototypeTurnRequest[] = []
-  const shadow: PrototypeRecallShadowObservation[] = []
+  const requests: CharacterTurnRequest[] = []
+  const shadow: RecallShadowObservation[] = []
   const f = fixture(async request => {
     requests.push(request)
-    const schema = JSON.stringify(prototypeTurnCall(request).schema)
+    const schema = JSON.stringify(characterTurnCall(request).schema)
     if (requests.length === 1) {
       expect(schema).toContain('"const":"recall"')
       return { decision: 'recall', query: '钥匙' }
@@ -115,7 +115,7 @@ it('rejects a second recall in the same activation without changing World', asyn
   const f = fixture(async request => {
     requests++
     if (requests === 1) return { decision: 'recall', query: '钥匙' }
-    expect(JSON.stringify(prototypeTurnCall(request).schema)).not.toContain('"const":"recall"')
+    expect(JSON.stringify(characterTurnCall(request).schema)).not.toContain('"const":"recall"')
     return { decision: 'recall', query: '日记' }
   })
   const before = f.store.head(f.address).headSeq

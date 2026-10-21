@@ -4,7 +4,7 @@
 
 ## 实现与自动验证
 
-[实验入口](../../../tests/experiments/cross-scene-runtime.ts)显式接受既有 CoreRunner，复用 PlaytestMemoryCore 的授权来源、召回、短期边界、身份历史、归档保存与恢复。只为可调用 NPC 建立 Core 档案，与普通宿主一致。保存等待当前行动和整理结束；本地节点携带实际安装的档案；分享仍使用既有白名单排除 Core 缓存，接收方按授权历史重新整理。没有新增分享格式、记忆协议或默认配置。
+[实验入口](../../../tests/support/cross-scene-runtime.ts)显式接受既有 CoreRunner，复用 PlaytestMemoryCore 的授权来源、召回、短期边界、身份历史、归档保存与恢复。只为可调用 NPC 建立 Core 档案，与普通宿主一致。保存等待当前行动和整理结束；本地节点携带实际安装的档案；分享仍使用既有白名单排除 Core 缓存，接收方按授权历史重新整理。没有新增分享格式、记忆协议或默认配置。
 
 [组合回归](../../../tests/prototype/cross-scene-core-memory.test.ts)分别测试短信与电话：授权 Source 隔离，活动保持不变，节点回退恢复原归档，未来已整理记忆被排除，分享不携带 Core 缓存，接收方重新构建得到相同授权来源。桥使用确定性构建结果，只证明宿主接线与边界，不能证明 Python 检索质量。
 

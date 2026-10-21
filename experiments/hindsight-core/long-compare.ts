@@ -4,7 +4,7 @@ import { resolve } from 'node:path'
 import { brandId, type WorldAddress, type WorldJsonObject } from '@harness-world/contracts'
 import { WorldStore } from '@harness-world/store-sqlite'
 import { WorldHostRuntime } from '../../desktop/host/world-runtime.ts'
-import type { PrototypeTurnRequest } from '../../packages/application/src/prototype-character-turn.ts'
+import type { CharacterTurnRequest } from '../../packages/application/src/character-turn.ts'
 
 type Ref = { sourceId: string; sourceHash: string; epistemicKind: string;
   worldSeq: number; characterId: string; worldAddress: WorldAddress }
@@ -103,7 +103,7 @@ for (const probe of probes) {
         epistemicKinds:[...new Set(unit.sourceRefs.map(ref => ref.epistemicKind))],
         note:'角色来源的非权威派生记忆；转述和约定不证明相应行动已经发生。' }
     })
-    const requests: PrototypeTurnRequest[] = []
+    const requests: CharacterTurnRequest[] = []
     const runtime = await WorldHostRuntime.create({ dataDirectory:dir,
       packPath:resolve('examples/world-packs/hand-in-hand'), provider:'local', model,
       ...(endpoint === undefined ? {} : { utilityEndpoint:endpoint }),
@@ -111,7 +111,7 @@ for (const probe of probes) {
       experimentalCharacterRequest: request => {
         const id = (request.context.character as WorldJsonObject).characterId
         if (id !== companion || mode === 'existing') { requests.push(request); return request }
-        const visible: PrototypeTurnRequest = { ...request,
+        const visible: CharacterTurnRequest = { ...request,
           context:{...request.context,memories},
           ...(request.recallEvidence === undefined ? {} : { recallEvidence:{
             query:request.recallEvidence.query ?? '',memories,

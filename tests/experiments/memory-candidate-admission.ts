@@ -6,13 +6,13 @@ import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from
 import { join, resolve } from 'node:path'
 import type { WorldJsonObject } from '@harness-world/contracts'
 import { createChatProvider } from '@harness-world/provider-chat'
-import { PrototypeCharacterTurn, type PrototypeTurnRequest } from '../../packages/application/src/prototype-character-turn.ts'
-import { openActionWorld, actionContext, actionResult, askId, terminalId } from './notice-board-action-fixture.ts'
-import { npc } from './notice-board-fixture.ts'
-import { privateText } from './notice-board-capability.ts'
+import { CharacterTurn, type CharacterTurnRequest } from '../../packages/application/src/character-turn.ts'
+import { openActionWorld, actionContext, actionResult, askId, terminalId } from '../support/notice-board-action-fixture.ts'
+import { npc } from '../support/notice-board-fixture.ts'
+import { privateText } from '../support/notice-board-capability.ts'
 import { gatewayTurnCall } from '../../desktop/host/gateway-turn-call.ts'
 import { corePythonExecutable } from '../../desktop/host/memory/python-worker.ts'
-import { rawHistorySnapshot, historyBytes } from './raw-history-delivery.ts'
+import { rawHistorySnapshot, historyBytes } from '../support/raw-history-delivery.ts'
 const object = (v: unknown): WorldJsonObject => v !== null && typeof v === 'object' && !Array.isArray(v) ? v as WorldJsonObject : {}
 const load = (p: string) => JSON.parse(readFileSync(p, 'utf8')) as WorldJsonObject
 const save = (p: string, v: unknown) => writeFileSync(p, JSON.stringify(v, null, 2))
@@ -26,7 +26,7 @@ const seeds = trajectories.flatMap(trajectory => cases.map(topic => trajectory +
 const samples = Number(process.env.HCW_ADMISSION_SAMPLES ?? 2)
 if (!Number.isSafeInteger(samples) || samples < 1 || samples > 3) throw new Error('samples must be 1..3')
 const clone = (from: string, to: string) => { mkdirSync(to, { recursive: true }); for (const p of ['world.sqlite', 'memory.sqlite']) copyFileSync(join(from, p), join(to, p)) }
-const plain = (r: PrototypeTurnRequest) => JSON.stringify({ ...r, context: { ...r.context, memories: [] } })
+const plain = (r: CharacterTurnRequest) => JSON.stringify({ ...r, context: { ...r.context, memories: [] } })
 async function complexRecall(doc: WorldJsonObject, traceTag: string): Promise<WorldJsonObject> {
   return new Promise((yes, no) => {
     const child = execFile(corePythonExecutable(), [resolve('experiments/activity-memory/notice_board_action_loop.py')], {
@@ -64,13 +64,13 @@ if (mode === '--prepare') {
     const f = openActionWorld(dir, true)
     f.memory.prepareStimulus = () => { throw new Error('implicit native retrieval is forbidden in this experiment') }
     try {
-      const template = load(join(old, 'later-' + trajectory, 'current-cognition', 'retrieval-request.json')) as unknown as PrototypeTurnRequest
+      const template = load(join(old, 'later-' + trajectory, 'current-cognition', 'retrieval-request.json')) as unknown as CharacterTurnRequest
       const stimulus = topic === 'registration' ? template.context.stimulus as WorldJsonObject[]
         : await f.submitPlayer(topic === 'same-object-decoration'
           ? '只说大厅公告牌 entity:hall-board 的装饰边框。你觉得好看吗？'
           : '只说办事终端 entity:registration-terminal 的外观设计。你觉得好看吗？', 'candidate-' + topic)
-      let request: PrototypeTurnRequest | undefined
-      const preview = new PrototypeCharacterTurn({ address: f.address, store: f.store, leases: f.leases, availability: f.availability, rulebooks: f.rules,
+      let request: CharacterTurnRequest | undefined
+      const preview = new CharacterTurn({ address: f.address, store: f.store, leases: f.leases, availability: f.availability, rulebooks: f.rules,
         projectContext: context => actionContext({ character: context.character!, stimulus: context.stimulus!, memories: [], ...context }), executionResult: actionResult,
         recentObservations: 4, recentSelfObservations: 4, decide: async r => { request = { ...r, canRecall: false }; return { decision: 'abstain' } } })
       const before = f.store.head(f.address)
@@ -119,18 +119,18 @@ if (mode === '--prepare') {
     for (const path of order) {
       const dir = join(root, seed, 'sample-' + sample + '-' + path)
       clone(join(root, seed, 'prefix'), dir)
-      const expected = load(join(root, seed, 'request.json')) as unknown as PrototypeTurnRequest
+      const expected = load(join(root, seed, 'request.json')) as unknown as CharacterTurnRequest
       const delivery = load(join(root, seed, path + '.json'))
       const memories = object(delivery.delivery).memories as WorldJsonObject[]
       const f = openActionWorld(dir, true), before = f.store.head(f.address), started = performance.now()
       f.memory.prepareStimulus = () => { throw new Error('implicit native retrieval is forbidden in this experiment') }
       let callIndex = 0, firstRequest = ''
       try {
-        const turn = new PrototypeCharacterTurn({ address: f.address, store: f.store, leases: f.leases, availability: f.availability, rulebooks: f.rules, projectContext: context => actionContext({ character: context.character!, stimulus: context.stimulus!, memories: [], ...context }), executionResult: actionResult,
+        const turn = new CharacterTurn({ address: f.address, store: f.store, leases: f.leases, availability: f.availability, rulebooks: f.rules, projectContext: context => actionContext({ character: context.character!, stimulus: context.stimulus!, memories: [], ...context }), executionResult: actionResult,
           recentObservations: 4, recentSelfObservations: 4,
           validateDecision: d => { if (d.decision === 'recall') throw new Error('active recall disabled consistently') },
           decide: async (r, signal) => {
-            const visible: PrototypeTurnRequest = { ...r, canRecall: false, context: { ...r.context, memories } }
+            const visible: CharacterTurnRequest = { ...r, canRecall: false, context: { ...r.context, memories } }
             if (JSON.stringify(visible).includes(privateText)) throw new Error('private evidence leaked')
             if (!r.continuation) {
               if (plain(visible) !== plain(expected)) throw new Error('nonmemory context differs')

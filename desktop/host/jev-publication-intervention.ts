@@ -1,8 +1,7 @@
-import { parseExpressionSegments } from '@harness-world/contracts'
+import { parseExpressionSegments, type StoredWorldEvent, type WorldJsonObject } from '@harness-world/contracts'
 import { auditExpression } from './jev-shadow.ts'
-import type { StoredWorldEvent, WorldJsonObject } from '@harness-world/contracts'
 import { currentEntityState } from '@harness-world/kernel'
-import type { PrototypeTurnRequest } from '../../packages/application/src/prototype-character-turn.ts'
+import type { CharacterTurnRequest } from '@harness-world/application'
 import type { AuditItem, Publication } from './jev-shadow.ts'
 import type { ClaimAnswer, ClaimQuestion } from './jev-shadow-claims-client.ts'
 import { acquisitionWindow, holderEvidence, reconcilePlacement, type PlacementAudit, type AuditWindow } from './jev-shadow-window.ts'
@@ -35,9 +34,9 @@ export interface InterventionRecord {
 }
 /** Experimental Host adapter only. No writer, commit, scheduler or recursive repair. */
 export async function auditBeforePublication(input: {
-  request: PrototypeTurnRequest; raw: unknown; history: readonly StoredWorldEvent[];
+  request: CharacterTurnRequest; raw: unknown; history: readonly StoredWorldEvent[];
   options: InterventionOptions; signal: AbortSignal;
-  decide: (r: PrototypeTurnRequest) => Promise<unknown>;
+  decide: (r: CharacterTurnRequest) => Promise<unknown>;
 }): Promise<unknown> {
   const draft = publish(input.raw)
   if (draft === undefined) return input.raw
@@ -88,7 +87,7 @@ export async function auditBeforePublication(input: {
       ...(visible.has(c.itemId)&&c.placement.status==='CONFLICT'?[{entityId:c.itemId,characterId:actorId,kind:c.placement.kind}]:[])])
     if (conflicts.length===0) {outcome='no_actionable_conflict';record();return draft}
     input.signal.throwIfAborted()
-    const revision: PrototypeTurnRequest={...request,canPerform:false,context:{...request.context,
+    const revision: CharacterTurnRequest={...request,canPerform:false,context:{...request.context,
       publicationCorrection:{original:draft,conflicts,
         instruction:'只修正这次尚未发布的表达。上面保管关系迁移描述没有本轮正式结果支持；请依据当前可见 items 和行动结果消除该冲突，保留角色语气及合理的触碰、查看、翻页或暂放桌上内容。可以保留邀请、尝试或主观对白；不能补写新行动或代替他人执行。只能 publish 或 abstain。不要向玩家解释审查过程。'}}}
     repairAttempted=true

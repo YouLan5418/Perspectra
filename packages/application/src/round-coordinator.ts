@@ -136,7 +136,7 @@ export function parseClaimedPlayerSubmission(value: WorldJsonValue): ClaimedPlay
   }
 }
 
-/** Admits and atomically commits player actions; NPC decisions run in PrototypeCharacterTurn. */
+/** Admits and atomically commits player actions; NPC decisions run in CharacterTurn. */
 export class RoundCoordinator {
   readonly #manifest: CompiledWorldManifestV10
   readonly #address: WorldAddress

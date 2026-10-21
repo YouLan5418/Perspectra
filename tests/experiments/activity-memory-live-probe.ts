@@ -11,7 +11,7 @@ import { CognitiveMemoryService } from '@harness-world/memory'
 import { createCoreRulebookRegistry } from '@harness-world/kernel'
 import { createBasicInteractionPackage } from '@harness-world/interactions-basic'
 import { createChatProvider } from '@harness-world/provider-chat'
-import { PrototypeCharacterTurn } from '../../packages/application/src/prototype-character-turn.ts'
+import { CharacterTurn } from '../../packages/application/src/character-turn.ts'
 import { gatewayTurnCall } from '../../desktop/host/gateway-turn-call.ts'
 
 if(!process.argv[2]||!process.argv[3])throw new Error('provide completed live directory and fresh probe directory')
@@ -44,7 +44,7 @@ for(const mode of ['native','core-plain','core-expanded']){
  let count=0
  try {
   const stimulus=[{observerId:actor,content:{actorId:'character:player',actionType:'speak',status:'accepted',speech:{characterId:'character:player',text:question}}}]
-  const turn=new PrototypeCharacterTurn({address,store,leases,availability,memory,
+  const turn=new CharacterTurn({address,store,leases,availability,memory,
    rulebooks:createCoreRulebookRegistry({interactionPackages:[createBasicInteractionPackage()]}),
    projectContext:context=>({...context,observations:[],selfObservations:[],memories:[]}),
    decide:async(request,signal)=>{

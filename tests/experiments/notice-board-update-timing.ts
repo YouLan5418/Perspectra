@@ -6,11 +6,11 @@ import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from
 import { join, resolve } from 'node:path'
 import { type WorldJsonObject, type WorldJsonValue } from '@harness-world/contracts'
 import { createChatProvider } from '@harness-world/provider-chat'
-import { PrototypeCharacterTurn, type PrototypeTurnRequest } from '../../packages/application/src/prototype-character-turn.ts'
-import { npc, playerText, priorText } from './notice-board-fixture.ts'
-import { noticeBoardContext, noticeBoardResult, boardText, privateText } from './notice-board-capability.ts'
-import { bringSecondBoard, openConflictingBoardWorld, secondBoardId, secondBoardText } from './notice-board-conflict-fixture.ts'
-import { inscriptionReadings } from './notice-board-evidence-delivery.ts'
+import { CharacterTurn, type CharacterTurnRequest } from '../../packages/application/src/character-turn.ts'
+import { npc, playerText, priorText } from '../support/notice-board-fixture.ts'
+import { noticeBoardContext, noticeBoardResult, boardText, privateText } from '../support/notice-board-capability.ts'
+import { bringSecondBoard, openConflictingBoardWorld, secondBoardId, secondBoardText } from '../support/notice-board-conflict-fixture.ts'
+import { inscriptionReadings } from '../support/notice-board-evidence-delivery.ts'
 import { gatewayTurnCall } from '../../desktop/host/gateway-turn-call.ts'
 
 const root=resolve(process.argv[2]??''),mode=process.argv[3],updates=process.argv[4]?resolve(process.argv[4]):undefined
@@ -33,7 +33,7 @@ const comparable=new Map<number,string>(),trials:WorldJsonObject[]=[]
 function buildTurn(f:ReturnType<typeof openConflictingBoardWorld>,dir:string,tag:string,
   memories:WorldJsonObject[],seed?:number) {
   let calls=0
-  const turn=new PrototypeCharacterTurn({address:f.address,store:f.store,memory:f.memory,leases:f.leases,
+  const turn=new CharacterTurn({address:f.address,store:f.store,memory:f.memory,leases:f.leases,
     availability:f.availability,rulebooks:f.rules,executionResult:noticeBoardResult,
     projectContext:context=>{
       const c=noticeBoardContext(context)
@@ -42,7 +42,7 @@ function buildTurn(f:ReturnType<typeof openConflictingBoardWorld>,dir:string,tag
           (i.targetRef as WorldJsonObject).id===secondBoardId?{...i,label:'查看窗口指示牌'}:i)})}
     },
     decide:async(request,signal)=>{
-      const visible:PrototypeTurnRequest={...request,canRecall:false,context:{...request.context,memories}}
+      const visible:CharacterTurnRequest={...request,canRecall:false,context:{...request.context,memories}}
       const serialized=JSON.stringify(visible)
       if(serialized.includes(privateText))throw new Error('private context leaked')
       const history=f.store.readEvents(f.address)

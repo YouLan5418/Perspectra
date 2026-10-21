@@ -6,7 +6,7 @@ import { interactionPackageHash } from '@harness-world/interaction-runtime'
 import { createNoticeBoardPackage, noticeBoardContext, noticeBoardResult } from './notice-board-capability.ts'
 import { conflictingBoardWorld, secondBoardId } from './notice-board-conflict-fixture.ts'
 import { openCapabilityWorld, npc, inspectDecision } from './notice-board-fixture.ts'
-import { PrototypeCharacterTurn } from '../../packages/application/src/prototype-character-turn.ts'
+import { CharacterTurn } from '../../packages/application/src/character-turn.ts'
 
 export const askId='experiment:ask_staff',terminalId='experiment:inspect_terminal'
 export const staffId='character:staff',terminalTarget='entity:registration-terminal'
@@ -115,7 +115,7 @@ export function actionResult(input:Parameters<typeof noticeBoardResult>[0]):Worl
 }
 /** Scripted setup reads are not autonomous choices. */
 export async function setupRead(f:ReturnType<typeof openActionWorld>,target:string) {
-  const turn=new PrototypeCharacterTurn({address:f.address,store:f.store,memory:f.memory,leases:f.leases,
+  const turn=new CharacterTurn({address:f.address,store:f.store,memory:f.memory,leases:f.leases,
     availability:f.availability,rulebooks:f.rules,executionResult:actionResult,projectContext:actionContext,
     decide:async()=>inspectDecision(target)})
   const r=await turn.run(npc,{maxCalls:1})

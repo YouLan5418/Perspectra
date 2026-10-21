@@ -4,8 +4,8 @@ import { createInterface } from 'node:readline/promises'
 import { stdin, stdout } from 'node:process'
 import { createChatProvider } from '@harness-world/provider-chat'
 import { gatewayTurnCall } from '../../desktop/host/gateway-turn-call.ts'
-import { crossSceneRuntime, communicationContext } from './cross-scene-runtime.ts'
-import { CrossScenePhone } from './cross-scene-phone.ts'
+import { crossSceneRuntime, communicationContext } from '../support/cross-scene-runtime.ts'
+import { CrossScenePhone } from '../support/cross-scene-phone.ts'
 import { currentLocation } from '@harness-world/kernel'
 
 const directory = process.argv[2]

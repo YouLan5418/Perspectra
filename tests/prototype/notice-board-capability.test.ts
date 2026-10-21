@@ -4,9 +4,9 @@ import { join } from 'node:path'
 import { afterEach, expect, it } from 'vitest'
 import { brandId, resolutionAuthority, type WorldJsonObject } from '@harness-world/contracts'
 import { currentLocation } from '@harness-world/kernel'
-import { PrototypeCharacterTurn, type PrototypeTurnRequest } from '../../packages/application/src/prototype-character-turn.ts'
-import { openCapabilityWorld, inspectDecision, npc, player, bob, playerText } from '../experiments/notice-board-fixture.ts'
-import { boardText, privateText, noticeBoardContext, noticeBoardResult } from '../experiments/notice-board-capability.ts'
+import { CharacterTurn, type CharacterTurnRequest } from '../../packages/application/src/character-turn.ts'
+import { openCapabilityWorld, inspectDecision, npc, player, bob, playerText } from '../support/notice-board-fixture.ts'
+import { boardText, privateText, noticeBoardContext, noticeBoardResult } from '../support/notice-board-capability.ts'
 
 const cleanup: (()=>void)[]=[]
 afterEach(()=>{ for(const f of cleanup.splice(0).reverse())f() })
@@ -16,8 +16,8 @@ function setup() {
   const f=openCapabilityWorld(dir);cleanup.push(f.close)
   return f
 }
-function turn(f:ReturnType<typeof setup>,decide:(r:PrototypeTurnRequest)=>Promise<unknown>) {
-  return new PrototypeCharacterTurn({address:f.address,store:f.store,memory:f.memory,
+function turn(f:ReturnType<typeof setup>,decide:(r:CharacterTurnRequest)=>Promise<unknown>) {
+  return new CharacterTurn({address:f.address,store:f.store,memory:f.memory,
     leases:f.leases,availability:f.availability,rulebooks:f.rules,projectContext:noticeBoardContext,
     executionResult:noticeBoardResult,decide})
 }

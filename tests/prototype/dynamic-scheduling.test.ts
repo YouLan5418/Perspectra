@@ -6,7 +6,7 @@ import { afterEach, expect, it, vi } from 'vitest'
 import { currentLocation } from '@harness-world/kernel'
 import { WorldStore } from '@harness-world/store-sqlite'
 import type { WorldJsonObject } from '@harness-world/contracts'
-import { runPrototypeActivations } from '../../packages/application/src/prototype-activation-cycle.ts'
+import { runCharacterActivations } from '../../packages/application/src/activation-cycle.ts'
 import { WorldHostRuntime } from '../../desktop/host/world-runtime.ts'
 import { readTailSelection } from '../../desktop/tail-storage.ts'
 import { FrontendActions, projectPlayerView } from '../../desktop/host/frontend-adapter.ts'
@@ -267,7 +267,7 @@ it('bounds repeated stale replanning for one character',async()=>{
   const store={head:()=>({headSeq:1}),readEventsRange:(_address:unknown,after:number,head:number)=>[event].filter(event=>event.seq>after&&event.seq<=head)} as never
   let attempts=0
   const turn={run:async()=>{attempts++;return {status:'stale',calls:1,asOfWorldSeq:1}}} as never
-  const result=await runPrototypeActivations({store,address:{} as never,turn,afterSeq:0,characterIds:[actorId],
+  const result=await runCharacterActivations({store,address:{} as never,turn,afterSeq:0,characterIds:[actorId],
     signal:new AbortController().signal,locationId:()=> 'location:room',
     limits:{maximumWaves:3,maximumNpcCalls:8,maximumCallsPerCharacter:1,reactionDeadlineSeconds:5}})
   expect(attempts).toBe(2)
@@ -299,7 +299,7 @@ it('keeps the deepest causal depth when observations for one actor arrive at dif
   }} as never
   const locations=new Map([[deepRoot,'location:deep'],[middle,'location:middle'],
     [shallowRoot,'location:target'],[target,'location:target'],[tail,'location:tail']])
-  const result=await runPrototypeActivations({store,address:{} as never,turn,afterSeq:0,
+  const result=await runCharacterActivations({store,address:{} as never,turn,afterSeq:0,
     characterIds:[deepRoot,shallowRoot,middle,target,tail] as never,signal:new AbortController().signal,
     locationId:id=>locations.get(String(id))!,maximumConcurrent:2,
     limits:{maximumWaves:3,maximumNpcCalls:12,maximumCallsPerCharacter:1,reactionDeadlineSeconds:5}})
@@ -340,7 +340,7 @@ it('charges new autonomous observations to their reaction budget after older ord
     events.push(event(4,foreground));options.onCommitted(3,4);autonomousCommitted.resolve()
     return {status:'abstained',calls:1,asOfWorldSeq:3}
   }} as never
-  const result=await runPrototypeActivations({store,address:{} as never,turn,afterSeq:0,characterIds:[foreground,other] as never,
+  const result=await runCharacterActivations({store,address:{} as never,turn,afterSeq:0,characterIds:[foreground,other] as never,
     signal:new AbortController().signal,locationId:id=>String(id),
     limits:{maximumWaves:3,maximumNpcCalls:6,maximumCallsPerCharacter:2,reactionDeadlineSeconds:2},
     autonomy:{turn:autonomousTurn,roles:[{characterId:autonomous as never,opportunities:1}],maximumNpcCalls:2,deadlineSeconds:2,
@@ -363,7 +363,7 @@ it.each(['ordinary','autonomous'])('keeps the %s deadline separate from the othe
     return {status:'abstained',calls:1,asOfWorldSeq:1}
   }
   const controller=new AbortController()
-  const result=await runPrototypeActivations({store,address:{} as never,turn:{run:run('ordinary')} as never,
+  const result=await runCharacterActivations({store,address:{} as never,turn:{run:run('ordinary')} as never,
     afterSeq:0,characterIds:[foreground] as never,signal:controller.signal,locationId:id=>String(id),
     limits:{maximumWaves:1,maximumNpcCalls:2,maximumCallsPerCharacter:1,reactionDeadlineSeconds:expiring==='ordinary'?0.05:1},
     autonomy:{turn:{run:run('autonomous')} as never,roles:[{characterId:autonomous as never,opportunities:1}],

@@ -4,7 +4,7 @@ import { WorldStore } from '@harness-world/store-sqlite'
 import { createInstalledInteractionPackages } from '@harness-world/interactions-basic'
 import { createCoreRulebookRegistry, RulebookRegistry, type RulebookEvent, type RulebookResolver } from '@harness-world/kernel'
 import { PackActivity, activityProgress, type ActivityRequest } from './pack-activity.ts'
-import { characterExecutionResult } from '../../packages/application/src/character-execution-result.ts'
+import { characterExecutionResult } from '@harness-world/application'
 import type { PackStatus } from './pack-status.ts'
 
 /** One foreground activity, with independent progress in the existing world event log. */

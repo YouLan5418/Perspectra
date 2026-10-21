@@ -1,21 +1,16 @@
-import { parseExpressionSegments, checkExpressionPolicy } from '@harness-world/contracts'
 import Ajv from 'ajv'
-import type { WorldJsonValue } from '@harness-world/contracts'
 import { createHash, randomUUID } from 'node:crypto'
 import { lstatSync, readFileSync, realpathSync } from 'node:fs'
 import { relative, resolve, sep } from 'node:path'
 import { createContext, Script } from 'node:vm'
-import { brandId, canonicalizeWorldJson, resolutionAuthority, type WorldAddress,
-  type WorldJsonObject, type WorldEventDraft } from '@harness-world/contracts'
+import { brandId, canonicalizeWorldJson, checkExpressionPolicy, parseExpressionSegments, resolutionAuthority, type WorldAddress,
+  type WorldJsonObject, type WorldJsonValue, type WorldEventDraft } from '@harness-world/contracts'
 import { WorldStore, WriterLeaseService, CharacterRuntimeAvailabilityService } from '@harness-world/store-sqlite'
-import { SceneDecisionService } from '@harness-world/application'
-import { characterVisibleItems } from '../../packages/application/src/character-visible-items.ts'
+import { SceneDecisionService, characterExecutionResult, characterVisibleItems, type CharacterTurnRequest } from '@harness-world/application'
 import { createInstalledInteractionPackages } from '@harness-world/interactions-basic'
 import { currentLocation, createCoreRulebookRegistry, RulebookRegistry, type RulebookEvent, type RulebookResolver,
   type RulebookResolutionContext, type ActionAffordance, type CompiledWorldManifest } from '@harness-world/kernel'
 import type { CompiledWorldPackV5 } from '@harness-world/world-pack'
-import type { PrototypeTurnRequest } from '../../packages/application/src/prototype-character-turn.ts'
-import { characterExecutionResult } from '../../packages/application/src/character-execution-result.ts'
 import type { PackStatus } from './pack-status.ts'
 
 /** Actor-scoped facts from the same candidate prefix; never a global inventory.
@@ -283,7 +278,7 @@ export class PackActivity {
    * Includes the final continuation of an activity-ending operation, never later ordinary turns.
    * This does not execute or commit anything; the host retains all decision validation.
    */
-  simulate(request:PrototypeTurnRequest):WorldJsonValue|undefined {
+  simulate(request:CharacterTurnRequest):WorldJsonValue|undefined {
     const actor=String(object(request.context.character).characterId),state=this.current()
     if(!state || actor===this.playerId || !state.participants.includes(actor))return undefined
     const anchor=request.context.activity
@@ -307,7 +302,7 @@ export class PackActivity {
     const interactions=result.filter(a=>a.actionType==='interact').flatMap(a=>a.interactions??[])
     return [...result.filter(a=>a.actionType!=='interact'),...(interactions.length?[{actionType:'interact',actionVersion:2,interactions}]:[])]
   }
-  validateDecision(decision:WorldJsonObject,request:PrototypeTurnRequest):void {
+  validateDecision(decision:WorldJsonObject,request:CharacterTurnRequest):void {
     const anchor=request.context.activity
     if(anchor===undefined)return
     const actor=String(object(request.context.character).characterId),snapshot=object(anchor),state=this.current()

@@ -6,7 +6,7 @@ import { brandId, canonicalizeWorldJson, RECALL_KEYWORD_TOKENIZER_ID, worldAddre
   type WorldAddress, type WorldJsonObject, type WorldJsonValue } from '@harness-world/contracts'
 import { CognitiveMemoryService } from '@harness-world/memory'
 import { WorldStore } from '@harness-world/store-sqlite'
-import type { PrototypeTurnRequest } from '../../../packages/application/src/prototype-character-turn.ts'
+import type { CharacterTurnRequest } from '@harness-world/application'
 import { identityEntry } from './alias-history.ts'
 import type { CoreRunner } from './python-worker.ts'
 
@@ -187,7 +187,7 @@ export class CoreMemoryAdapter {
   get hasPendingCompaction(): boolean { return this.#pending.size > 0 }
 
   /** Count the rendered system/user context plus tool schema; queue only complete, chronological source groups. */
-  observeContext(request: PrototypeTurnRequest, promptText: string): void {
+  observeContext(request: CharacterTurnRequest, promptText: string): void {
     if (this.#closed) return
     const actor = String(object(request.context.character).characterId)
     const tokens = estimateContextTokens(promptText) + 512 // provider framing margin
@@ -224,7 +224,7 @@ export class CoreMemoryAdapter {
     this.startPending()
     await this.#waitJobs([...this.#jobs.values()], signal, progress)
   }
-  async project(request: PrototypeTurnRequest, signal: AbortSignal): Promise<PrototypeTurnRequest> {
+  async project(request: CharacterTurnRequest, signal: AbortSignal): Promise<CharacterTurnRequest> {
     const actor = String(object(request.context.character).characterId)
     const snapshot = this.#snapshot(actor), cached = this.#load(actor)
     if (cached) this.#validate(cached, snapshot)
@@ -268,7 +268,7 @@ export class CoreMemoryAdapter {
     return { ...request, context: { ...request.context, memories },
       ...(request.recallEvidence === undefined ? {} : { recallEvidence: { ...request.recallEvidence, memories } }) }
   }
-  recordDecision(request: PrototypeTurnRequest, response: unknown): void {
+  recordDecision(request: CharacterTurnRequest, response: unknown): void {
     appendFileSync(resolve(this.#directory, 'model-trace.jsonl'), JSON.stringify({ request, response, status: 'returned' }) + '\n')
   }
   startRefresh(actors: readonly string[], asOfWorldSeq?: number): void {

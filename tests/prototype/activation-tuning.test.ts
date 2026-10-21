@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { brandId, type WorldAddress, type WorldEventDraft, type WorldJsonObject } from '@harness-world/contracts'
 import { WorldStore } from '@harness-world/store-sqlite'
-import { runPrototypeActivations } from '../../packages/application/src/prototype-activation-cycle.ts'
+import { runCharacterActivations } from '../../packages/application/src/activation-cycle.ts'
 
 describe('prototype reaction tuning', () => {
   it('uses the configured call ceiling when offering an NPC activation', async () => {
@@ -25,7 +25,7 @@ describe('prototype reaction tuning', () => {
       offered.push(options.maxCalls)
       return { calls: 2, status: 'published' as const }
     } }
-    const result = await runPrototypeActivations({
+    const result = await runCharacterActivations({
       store: store as never, address, turn: turn as never, afterSeq: 1,
       characterIds: [characterId], signal: new AbortController().signal,
       limits: { maximumWaves: 1, maximumNpcCalls: 2, maximumCallsPerCharacter: 1, reactionDeadlineSeconds: 30 },
@@ -54,7 +54,7 @@ it('shuffles present observers before off-scene observers and refreshes groups e
     await Promise.resolve(); visited.push(id); headSeq++; active--
     return {calls: 1, status: 'published' as const}
   }}
-  const result = await runPrototypeActivations({store: store as never, address, turn: turn as never,
+  const result = await runCharacterActivations({store: store as never, address, turn: turn as never,
     afterSeq: 1, characterIds: ids, signal: new AbortController().signal,
     presentCharacterIds: () => ++wave === 1 ? [claude!, deepseek!] : [glm!, gpt!],
     limits: {maximumWaves: 2, maximumNpcCalls: 40, maximumCallsPerCharacter: 2}})
@@ -71,7 +71,7 @@ it('allows a later-listed observer to receive the first bounded activation', asy
   const store = {head: () => ({headSeq: 2}), readEventsRange: (_address: unknown, after: number, head: number) => ids.map(id => ({seq: 2, eventType: 'observation.upsert',
     data: {value: {observerId: id, content: {status: 'accepted', actorId: 'character:other'}}}})).filter(event => event.seq > after && event.seq <= head)}
   const turn = {run: async (id: string) => {visited.push(id); return {calls: 2, status: 'published' as const}}}
-  const result = await runPrototypeActivations({store: store as never, address, turn: turn as never,
+  const result = await runCharacterActivations({store: store as never, address, turn: turn as never,
     afterSeq: 1, characterIds: ids, signal: new AbortController().signal,
     limits: {maximumWaves: 1, maximumNpcCalls: 2, maximumCallsPerCharacter: 1}})
   expect(visited).toEqual([ids[1]])
@@ -109,7 +109,7 @@ it.each(['serial', 'dynamic'] as const)('collects only unconsumed branch observa
       received.push({ actor: id, markers: options.stimulus.map(value => (value.content as WorldJsonObject).marker) })
       return { calls: 1, status: 'abstained' as const, asOfWorldSeq: 5 }
     } }
-    const result = await runPrototypeActivations({ store, address: child, turn: turn as never, afterSeq: 1,
+    const result = await runCharacterActivations({ store, address: child, turn: turn as never, afterSeq: 1,
       characterIds: [actor, consumed, future], signal: new AbortController().signal,
       ...(mode === 'dynamic' ? { locationId: (id: string) => id } : {}),
       limits: { maximumWaves: 1, maximumNpcCalls: 6, maximumCallsPerCharacter: 1, reactionDeadlineSeconds: 5 } })

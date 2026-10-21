@@ -5,9 +5,9 @@ import { fileURLToPath } from 'node:url'
 import Ajv from 'ajv'
 import { currentEntityState, currentLocation } from '@harness-world/kernel'
 import { WorldStore } from '@harness-world/store-sqlite'
-import { prototypeTurnCall } from '@harness-world/provider-chat'
+import { characterTurnCall } from '@harness-world/provider-chat'
 import { recentExecutionContext } from '../../packages/application/src/recent-execution-context.ts'
-import type { PrototypeTurnRequest } from '../../packages/application/src/prototype-character-turn.ts'
+import type { CharacterTurnRequest } from '../../packages/application/src/character-turn.ts'
 import { WorldHostRuntime } from '../../desktop/host/world-runtime.ts'
 import { gatewayTurnCall } from '../../desktop/host/gateway-turn-call.ts'
 import { goalProgressPacks, goalProgressScenarios } from './goal-progress-content.ts'
@@ -35,9 +35,9 @@ function snapshot(runtime:WorldHostRuntime) {
 async function main() {
  const directory=resolve(process.argv[2]??'output/goal-progress/manual-run');mkdirSync(directory,{recursive:true})
  goalProgressPacks(join(directory,'packs'))
- const rawRequests=new Map<string,PrototypeTurnRequest>()
- ;(globalThis as unknown as {captureGoalRequest:(request:PrototypeTurnRequest)=>void}).captureGoalRequest=request=>rawRequests.set(String(object(request.context.character).characterId),structuredClone(request))
- let phase:'setup'|'capture'|'live'='setup',round=0,setupDecision:unknown,captured:PrototypeTurnRequest|undefined
+ const rawRequests=new Map<string,CharacterTurnRequest>()
+ ;(globalThis as unknown as {captureGoalRequest:(request:CharacterTurnRequest)=>void}).captureGoalRequest=request=>rawRequests.set(String(object(request.context.character).characterId),structuredClone(request))
+ let phase:'setup'|'capture'|'live'='setup',round=0,setupDecision:unknown,captured:CharacterTurnRequest|undefined
  let calls:Record<string,unknown>[]=[]
  const server=createServer((request,response)=>{
   if(request.method!=='POST'){response.writeHead(404);response.end();return}
@@ -72,7 +72,7 @@ async function main() {
  const create=(packPath:string,dataDirectory:string,enabled=false)=>WorldHostRuntime.create({packPath,dataDirectory,provider:'local',model,
   utilityEndpoint:`http://127.0.0.1:${port}/v1/chat/completions`,thinkingLevel:'low',preset:{maxOutputTokens:32768},timeoutMs:60000,
   playSettings:settings,recentExecutionEvidence:enabled,continueAfterPublish:false,beforeActionExpression:false})
- const frozen:Record<string,{request:PrototypeTurnRequest;packPath:string;dataDirectory:string;initial:ReturnType<typeof snapshot>}>= {}
+ const frozen:Record<string,{request:CharacterTurnRequest;packPath:string;dataDirectory:string;initial:ReturnType<typeof snapshot>}>= {}
  try {
   for(const scenario of goalProgressScenarios) {
    phase='setup';captured=undefined
@@ -93,7 +93,7 @@ async function main() {
   for(const [index,scenario] of goalProgressScenarios.entries())for(let repetition=1;repetition<=3;repetition++) {
    for(const mode of (index+repetition)%2?['A','B']:['B','A']) {
     const original=frozen[scenario]!.request,request=mode==='B'?{...original,context:recentExecutionContext(original.context)}:original
-    const call=gatewayTurnCall(request),validate=new Ajv({strict:false}).compile(prototypeTurnCall(request).schema)
+    const call=gatewayTurnCall(request),validate=new Ajv({strict:false}).compile(characterTurnCall(request).schema)
     const row:Record<string,unknown>={scenario,repetition,mode,input:JSON.parse(call.messages.at(-1)!.content),hostRequest:request,schema:call.schema,
      estimatedEvidenceTokens:estimateContextTokens(JSON.stringify((request.context.recentExecutionEvidence??{})))}
     replays.push(row);const start=performance.now()

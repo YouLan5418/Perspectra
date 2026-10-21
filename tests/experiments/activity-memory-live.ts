@@ -9,7 +9,7 @@ import { DatabaseSync } from 'node:sqlite'
 import { brandId, worldAddressKey, RECALL_KEYWORD_TOKENIZER_ID, type WorldJsonObject } from '@harness-world/contracts'
 import { WorldStore } from '@harness-world/store-sqlite'
 import { CognitiveMemoryService } from '@harness-world/memory'
-import type { PrototypeTurnRequest } from '../../packages/application/src/prototype-character-turn.ts'
+import type { CharacterTurnRequest } from '../../packages/application/src/character-turn.ts'
 import { WorldHostRuntime } from '../../desktop/host/world-runtime.ts'
 import type { HostState } from '../../desktop/host/http-server.ts'
 import { DEFAULT_RUNTIME_TUNING } from '../../desktop/host/runtime-tuning.ts'
@@ -70,7 +70,7 @@ const proxy=createServer((req,res)=>{let body='';req.on('data',chunk=>body+=chun
  const id=++calls,path='character-call-'+id+'.json'
  try{
   const wire=JSON.parse(body)
-  let request=JSON.parse(wire.messages.at(-1).content) as PrototypeTurnRequest
+  let request=JSON.parse(wire.messages.at(-1).content) as CharacterTurnRequest
   const actor=String(object(request.context.character).characterId),cached=caches.get(actor)
   people.set(actor,object(request.context.scene).people)
   const store=new WorldStore(join(base,'world.sqlite'));let head

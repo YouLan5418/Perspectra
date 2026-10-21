@@ -7,7 +7,7 @@ import { createCoreRulebookRegistry, currentLocation, type CompiledWorldManifest
 import { WorldStore, WriterLeaseService, CharacterRuntimeAvailabilityService } from '@harness-world/store-sqlite'
 import { CognitiveMemoryService } from '@harness-world/memory'
 import { createChatProvider } from '@harness-world/provider-chat'
-import { PrototypeCharacterTurn, type PrototypeTurnRequest } from '../../packages/application/src/prototype-character-turn.ts'
+import { CharacterTurn, type CharacterTurnRequest } from '../../packages/application/src/character-turn.ts'
 import { SceneDecisionService } from '../../packages/application/src/scene-decision.ts'
 import { basicInteractionPackage } from '../fixtures/frozen-interaction-world.ts'
 import { gatewayTurnCall } from '../../desktop/host/gateway-turn-call.ts'
@@ -27,7 +27,7 @@ const replies=[
 const finalText='我先把要交的表整理一下。你接下来想做什么？'
 
 async function episode(dir:string,protocol:WorldJsonObject,reply:typeof replies[number],repeat:number,condition:string,dry:boolean,
-    compareInitial:(request:PrototypeTurnRequest)=>void) {
+    compareInitial:(request:CharacterTurnRequest)=>void) {
  const address=protocol.address as unknown as WorldAddress
  mkdirSync(dir)
  for(const file of ['world.sqlite','memory.sqlite'])copyFileSync(join(root,'history',file),join(dir,file))
@@ -94,7 +94,7 @@ async function episode(dir:string,protocol:WorldJsonObject,reply:typeof replies[
  }
  const records:WorldJsonObject[]=[]
  try {
-   const turn=new PrototypeCharacterTurn({address,store,memory,leases,availability,rulebooks:rules,
+   const turn=new CharacterTurn({address,store,memory,leases,availability,rulebooks:rules,
      projectContext:context=>({...context,memories:[],
        observations:(context.observations as WorldJsonObject[]).filter(r=>Number(r.sourceSeq)>prefix),
        selfObservations:(context.selfObservations as WorldJsonObject[]).filter(r=>Number(r.sourceSeq)>prefix)}),
@@ -102,7 +102,7 @@ async function episode(dir:string,protocol:WorldJsonObject,reply:typeof replies[
      decide:async(request,signal)=>{
        const head=store.head(address)
        const memories=stage===2?[]:selected.map(m=>({...m,sourceAgeTicks:Number(m.sourceAgeTicks)+head.tick-Number(protocol.tick)}))
-       const visible:PrototypeTurnRequest={...request,canRecall:false,context:{...request.context,memories}}
+       const visible:CharacterTurnRequest={...request,canRecall:false,context:{...request.context,memories}}
        if(stage===0&&!request.continuation)compareInitial(visible)
        if(JSON.stringify(visible).includes('雪青密码'))throw new Error('private canary leaked')
        const index=callIndex++,path=join(dir,'call-'+index+'.json')
@@ -188,7 +188,7 @@ if(mode==='--prepare'){
  const unchanged=()=>Object.entries(frozen).every(([p,h])=>hash(p)===h)
  if(!unchanged())throw new Error('original changed')
  let canonical:string|undefined
- const compare=(request:PrototypeTurnRequest)=>{
+ const compare=(request:CharacterTurnRequest)=>{
    const plain=JSON.stringify({...request,context:{...request.context,memories:[]}})
    if(canonical!==undefined&&canonical!==plain)throw new Error('initial nonmemory context differs')
    canonical=plain

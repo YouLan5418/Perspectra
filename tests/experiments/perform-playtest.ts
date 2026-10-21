@@ -3,8 +3,8 @@ import { resolve } from 'node:path'
 import { brandId, hashWorldJson, type WorldEventDraft, type WorldJsonObject } from '@harness-world/contracts'
 import { createCoreRulebookRegistry, currentEntityState } from '@harness-world/kernel'
 import { CharacterRuntimeAvailabilityService, WorldStore, WriterLeaseService } from '@harness-world/store-sqlite'
-import { createChatProvider, prototypeTurnCall } from '@harness-world/provider-chat'
-import { PrototypeCharacterTurn } from '../../packages/application/src/prototype-character-turn.ts'
+import { createChatProvider, characterTurnCall } from '@harness-world/provider-chat'
+import { CharacterTurn } from '../../packages/application/src/character-turn.ts'
 import { frozenInteractionWorld, basicInteractionPackage } from '../fixtures/frozen-interaction-world.ts'
 
 // Small isolated experiment. Does not open the frozen group-playtest databases or drive their scheduler.
@@ -55,11 +55,11 @@ for (const scenario of ['success', 'rejected'] as const) {
       transactionId: brandId('transaction:genesis', 'TransactionId'), roundId: brandId('round:genesis', 'InteractionRoundId'),
       correlationId: 'perform-playtest' })
     let calls = 0
-    const turn = new PrototypeCharacterTurn({ address, store, leases, availability,
+    const turn = new CharacterTurn({ address, store, leases, availability,
       rulebooks: createCoreRulebookRegistry({ interactionPackages: [basicInteractionPackage] }),
       decide: async (request, signal) => {
         calls += 1
-        const prepared = prototypeTurnCall(request)
+        const prepared = characterTurnCall(request)
         // The refusal case deliberately submits an unavailable take. This is a scripted proposal,
         // followed by the real Rulebook rejection and a real model continuation, not a fabricated result.
         const scripted = scenario === 'rejected' && !request.continuation

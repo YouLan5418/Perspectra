@@ -3,8 +3,12 @@ export { ChatTransportError, createChatProvider,
   type ChatCallObservation, type ChatCallProfile, type ChatProvider, type ChatProviderOptions,
   type ChatStyle } from './provider.ts'
 export { objectValue, textValue } from './value.ts'
-export { prototypeTurnCall } from './prototype-turn.ts'
+export { characterTurnCall } from './character-turn-call.ts'
 
 export { providerProtocol, providerEndpoint, providerHeaders, nativeMessages, nativePayload, type ProviderProtocol } from './protocol.ts'
 
 export { thinkingLevel, thinkingRequest, type ThinkingLevel } from './thinking.ts'
+export * from './preset.ts'
+export * from './preset-library.ts'
+export * from './preset-runtime.ts'
+export * from './request-inspector.ts'

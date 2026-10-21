@@ -1,6 +1,6 @@
 import { expect, it } from 'vitest'
 import type { WorldJsonObject } from '@harness-world/contracts'
-import { inscriptionReadings } from '../experiments/notice-board-evidence-delivery.ts'
+import { inscriptionReadings } from '../support/notice-board-evidence-delivery.ts'
 
 // Self-contained test evidence; the real experiment uses the audited frozen archive.
 function archive():WorldJsonObject {

@@ -4,9 +4,9 @@ import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from
 import { join, resolve } from 'node:path'
 import { type WorldJsonObject } from '@harness-world/contracts'
 import { createChatProvider } from '@harness-world/provider-chat'
-import { PrototypeCharacterTurn, type PrototypeTurnRequest } from '../../packages/application/src/prototype-character-turn.ts'
-import { openCapabilityWorld, npc } from './notice-board-fixture.ts'
-import { noticeBoardContext, noticeBoardResult, privateText } from './notice-board-capability.ts'
+import { CharacterTurn, type CharacterTurnRequest } from '../../packages/application/src/character-turn.ts'
+import { openCapabilityWorld, npc } from '../support/notice-board-fixture.ts'
+import { noticeBoardContext, noticeBoardResult, privateText } from '../support/notice-board-capability.ts'
 import { gatewayTurnCall } from '../../desktop/host/gateway-turn-call.ts'
 
 const root=resolve(process.argv[2]??''),revision=resolve(process.argv[3]??'')
@@ -71,11 +71,11 @@ for(let repeat=0;repeat<2;repeat++)for(const probe of probes){
       const initialSeq=f.store.head(f.address).headSeq
       const stimulus=await f.submitPlayer(probe.text,'revision-probe:'+probe.id)
       const before=f.store.head(f.address).headSeq
-      const turn=new PrototypeCharacterTurn({address:f.address,store:f.store,memory:f.memory,leases:f.leases,
+      const turn=new CharacterTurn({address:f.address,store:f.store,memory:f.memory,leases:f.leases,
         availability:f.availability,rulebooks:f.rules,executionResult:noticeBoardResult,
         projectContext:context=>({...noticeBoardContext(context),observations:[],selfObservations:[],memories:[]}),
         decide:async(request,signal)=>{
-          const visible:PrototypeTurnRequest={...request,canRecall:false,context:{...request.context,memories:variants[condition]!}}
+          const visible:CharacterTurnRequest={...request,canRecall:false,context:{...request.context,memories:variants[condition]!}}
           if(JSON.stringify(visible).includes(privateText))throw new Error('private context leaked')
           if(!request.continuation){
             const plain=JSON.stringify({...visible,context:{...visible.context,memories:[]}})

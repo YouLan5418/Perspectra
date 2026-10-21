@@ -17,7 +17,7 @@ await build({entryPoints:[entry],outfile:join(directory,'run.mjs'),bundle:true,p
    return {contents,loader:'ts',resolveDir:resolve(args.path,'..')}
   }
   if(path==='desktop/host/world-runtime.ts')return {contents:source.replace('const prepared = await prepare(request)',
-   "(globalThis as unknown as {captureGoalRequest?:(request:PrototypeTurnRequest)=>void}).captureGoalRequest?.(request)\n      const prepared = await prepare(request)"),loader:'ts',resolveDir:resolve(args.path,'..')}
+   "(globalThis as unknown as {captureGoalRequest?:(request:CharacterTurnRequest)=>void}).captureGoalRequest?.(request)\n      const prepared = await prepare(request)"),loader:'ts',resolveDir:resolve(args.path,'..')}
  })}}],logLevel:'silent'})
 writeFileSync(join(directory,'build.json'),JSON.stringify({sources,bundleHash:createHash('sha256').update(readFileSync(join(directory,'run.mjs'))).digest('hex'),
  model:'gemini-3.8-flash',thinking:'low',beforeActionExpression:false,continueAfterPublish:false,

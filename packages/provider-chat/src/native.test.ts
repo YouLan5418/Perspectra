@@ -1,9 +1,9 @@
 import { afterEach, expect, it, vi } from 'vitest'
 import { createChatProvider } from './provider.ts'
-import { prototypeTurnCall } from './prototype-turn.ts'
+import { characterTurnCall } from './character-turn-call.ts'
 import { nativePayload, providerEndpoint, providerProtocol } from './protocol.ts'
 import { RequestInspector } from './request-inspector.ts'
-const call = { ...prototypeTurnCall({context:{},continuation:false}),
+const call = { ...characterTurnCall({context:{},continuation:false}),
   inspection:{characterId:'npc:a',continuation:false,sources:[{source:'core',name:'契约'},{source:'context',name:'授权上下文'}]} }
 afterEach(() => vi.unstubAllGlobals())
 for (const protocol of ['anthropic','google'] as const) {

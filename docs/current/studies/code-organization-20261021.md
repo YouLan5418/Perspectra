@@ -78,3 +78,19 @@ node scripts/docs/check-links.mjs
 本轮最终默认回归 **79 个文件、697 项全部通过，退出码 0，422.33 秒**，包括宿主原有 44 项与两项新增回归；日志位于本机 `.tmp/prototype-followup-final.log`。三种原生记忆入口布局的就绪与鉴权状态接口均已验证，Python 三组离线回归 38 项通过；两份历史探针只执行导入前缀，均解析到当前 Python 桥，未执行模型探测正文。类型、Lint、桌面构建通过。
 
 生产边界检查通过（261 个文件）；文档检查通过（91 页、1005 个本地链接），覆盖全部 `docs/current`。33 个缺失的 `.tmp`／`output` 私有实验产物仅报告数量，不作为源码导航失败。完整便携包、Electron 界面和真实角色体验仍沿用上文的未验收限制。
+
+## 第三轮：命名、包入口与回归依赖（2026-10-21）
+
+复核基点为 `f7070f0`。前两轮已让生产代码离开实验目录，这一轮处理复核时仍能看到的三类问题，不改变角色协议、提示内容、调度、规则裁定或存储格式。
+
+| 问题与证据 | 处理 |
+| --- | --- |
+| 角色回合主路径叫 `prototype-character-turn.ts`、`PrototypeCharacterTurn`、`runPrototypeActivations`，provider-chat 的请求构造叫 `prototypeTurnCall` | 改为 [character-turn.ts](../../../packages/application/src/character-turn.ts)、[activation-cycle.ts](../../../packages/application/src/activation-cycle.ts)、[character-turn-call.ts](../../../packages/provider-chat/src/character-turn-call.ts)；符号同步去掉 `Prototype` 前缀，写入租约的临时 owner 前缀改为 `character-turn:`。带日期的证据目录、历史报告和 archive 保持原名 |
+| 宿主有 62 处 `../../packages/x/src/...` 深路径，其中 17 个包内文件未从入口导出；`packages/frontend` 没有 package.json | application 与 provider-chat 入口导出宿主实际使用的模块；frontend 成为 `@harness-world/frontend` 包；`desktop` 全部改用包名。launcher 的 tsconfig 只为类型检查增加同一映射，其运行时代码仍只直接引用浏览器安全的 preset 模块 |
+| 默认回归经 14 个文件依赖 `tests/experiments`，删除实验驱动会打破回归 | 共用场景、夹具与崩溃子进程移入 [tests/support](../../../tests/support/README.md)；`hidden-cure` 两个驱动拆出共享场景与玩家策略，真实模型 CLI 留在原处 |
+
+[边界检查](../../../scripts/check-host-boundaries.mjs)新增两条规则：TypeScript 源码不得用相对路径进入其他包的 `src/`（launcher 与 `.mjs` 发布脚本仅允许类型导入和明确列出的浏览器安全模块）；`tests/` 中除研究驱动外不得 import `tests/experiments`。在 `f7070f0` 的源码上运行，新规则分别报告 desktop 的深路径与 29 处回归依赖；[宿主测试](../../../tests/host/boundaries.test.ts)补了对应的失败与放行夹具。
+
+运行时身份覆盖 packages 与宿主文件路径，改名会再次改变身份；与前两轮相同，不为旧末端回合增加迁移。
+
+验证：默认回归 **79 个文件、697 项全部通过**（串行，427.83 秒）；typecheck、lint、边界检查、文档链接检查通过；`launcher:check`（类型检查与 44 项测试）、`launcher:build`、`desktop:build` 通过，打包产物中没有残留未解析的包名导入。未运行真实模型试玩、Python Core 离线回归、Rust 检查或便携包构建；本轮没有改动这些路径的源码。

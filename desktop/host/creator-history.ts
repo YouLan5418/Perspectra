@@ -1,7 +1,7 @@
-import type { StoredWorldEvent, WorldAddress, WorldJsonObject } from '../../packages/contracts/src/index.ts'
+import type { StoredWorldEvent, WorldAddress, WorldJsonObject } from '@harness-world/contracts'
 import type { CreatorScope } from './creator-records.ts'
-import { currentEntityState, type EntityState } from '../../packages/kernel/src/rulebook.ts'
-import type { WorldStore } from '../../packages/store-sqlite/src/index.ts'
+import { currentEntityState, type EntityState } from '@harness-world/kernel'
+import type { WorldStore } from '@harness-world/store-sqlite'
 
 export interface CreatorHistoryQuery {
   afterSeq?: number

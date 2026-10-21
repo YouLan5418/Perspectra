@@ -1,12 +1,12 @@
 // JSON Schema conditionals use a data property named `then`, not a Promise method.
 /* oxlint-disable unicorn/no-thenable */
 import type { WorldJsonObject } from '@harness-world/contracts'
-import { prototypeTurnCall } from '@harness-world/provider-chat'
-import type { PrototypeTurnRequest } from '../../packages/application/src/prototype-character-turn.ts'
+import { characterTurnCall } from '@harness-world/provider-chat'
+import type { CharacterTurnRequest } from '@harness-world/application'
 
 /** Local OpenAI/Anthropic gateways can treat a root oneOf as only its first choice. Host validation stays strict. */
-export function gatewayTurnCall(request: PrototypeTurnRequest) {
-  const prepared = prototypeTurnCall(request)
+export function gatewayTurnCall(request: CharacterTurnRequest) {
+  const prepared = characterTurnCall(request)
   const beforeSchema=(prepared.schema.oneOf as WorldJsonObject[]).map(branch=>(branch.properties as WorldJsonObject).before).find(value=>value!==undefined)
   const maximum=Number(request.context.publicationCharacters??2000)
   const expression = request.context.expressionPolicy as WorldJsonObject | undefined

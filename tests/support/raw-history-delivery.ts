@@ -1,7 +1,7 @@
 import { publicationSourceText } from '@harness-world/contracts'
 /** Deterministic authorized Source delivery for the simplification experiment. */
 import { canonicalizeWorldJson, type WorldJsonObject, type WorldJsonValue } from '@harness-world/contracts'
-import type { PrototypeTurnRequest } from '../../packages/application/src/prototype-character-turn.ts'
+import type { CharacterTurnRequest } from '../../packages/application/src/character-turn.ts'
 import type { openActionWorld } from './notice-board-action-fixture.ts'
 const object = (v: unknown): WorldJsonObject => v !== null && typeof v === 'object' && !Array.isArray(v) ? v as WorldJsonObject : {}
 const list = (v: unknown): WorldJsonObject[] => Array.isArray(v) ? v.map(object) : []
@@ -34,7 +34,7 @@ export function rawHistorySnapshot(f: ReturnType<typeof openActionWorld>) {
 
 /** Input is a host snapshot, never another character's archive or a global search result. */
 export function deliverRawHistory(snapshot: { scope: WorldJsonObject; tick: number; sources: WorldJsonObject[] },
-  request: PrototypeTurnRequest, maxBytes: number) {
+  request: CharacterTurnRequest, maxBytes: number) {
   if (!Number.isSafeInteger(maxBytes) || maxBytes < 2) throw new Error('invalid history byte budget')
   const { scope, sources, tick } = snapshot, owner = scope.characterId
   if (object(request.context.character).characterId !== owner) throw new Error('foreign Character request')

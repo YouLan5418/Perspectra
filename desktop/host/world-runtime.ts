@@ -1,48 +1,40 @@
-import type { ThinkingLevel } from '../../packages/provider-chat/src/thinking.ts'
+import { characterPreset, characterTurnCall, createChatProvider, presetCall, presetContext, presetDisplay, presetOutput,
+  providerProtocol, RequestInspector, rolePresetMapping, type ChatCallObservation, type PresetBaseSource,
+  type ProviderProtocol, type RolePreset, type RolePresetMapping, type ThinkingLevel } from '@harness-world/provider-chat'
 import { CreatorRecords, type CreatorRecordsQuery } from './creator-records.ts'
 import { creatorHistory, creatorHistoryQuery, type CreatorHistoryQuery } from './creator-history.ts'
 import { creatorInspectionQuery, type CreatorInspectionQuery, type CreatorInspectionSnapshot } from './creator-inspection.ts'
-import { currentEntityState, currentCharacterLifecycle } from '../../packages/kernel/src/rulebook.ts'
-import { currentSceneStates } from '../../packages/kernel/src/interactions.ts'
+import { createCoreRulebookRegistry, currentCharacterLifecycle, currentEntityState, currentLocation, currentSceneStates,
+  RulebookRegistry } from '@harness-world/kernel'
 import { playSettings, DEFAULT_READING, DEFAULT_AUDIO, type PlaySettings, type ReadingPreferences, type AudioPreferences, type Palette } from '../play-settings.ts'
-import { providerProtocol, type ProviderProtocol } from '../../packages/provider-chat/src/protocol.ts'
 import type { RuntimeModel, RuntimeRoleModels } from '../model-connections.ts'
 import { TailRoundRuntime } from './tail-runtime.ts'
 import { assertSettled, snapshotTail } from '../tail-storage.ts'
-import { PrototypePresetError } from '../../packages/application/src/prototype-character-turn.ts'
+import { CharacterPresetError, CharacterTurn, characterExecutionResult, recentExecutionContext, rejectionReasonText,
+  runCharacterActivations, SceneDecisionService, WorldApplication, type ActivationTurn, type CharacterTurnRequest,
+  type RecallShadowObservation } from '@harness-world/application'
 import { saveStoryNode, readStoryNodes } from '../story-nodes.ts'
 import { existsSync, unlinkSync } from 'node:fs'
-import { RequestInspector } from '../../packages/provider-chat/src/request-inspector.ts'
-import type { PresetBaseSource } from '../../packages/provider-chat/src/request-inspector.ts'
-import { presetCall, presetContext, presetOutput, presetDisplay } from '../../packages/provider-chat/src/preset-runtime.ts'
-import { rolePresetMapping, characterPreset, type RolePreset, type RolePresetMapping } from '../../packages/provider-chat/src/preset.ts'
 import { CoreMemoryAdapter, type MemoryContextBudget, type MemoryBuildOptions } from './memory/core-memory.ts'
-import { recentExecutionContext } from '../../packages/application/src/recent-execution-context.ts'
 import { assertCoreEnvironment, createCoreWorker, coreRunner, type CoreRunner } from './memory/python-worker.ts'
 import { type ActivityRequest } from './pack-activity.ts'
 import { decideWithFormatRetry } from './decision-format.ts'
 import { PackActivities } from './pack-activities.ts'
 import { KNOWN_STATUS_NOTE, PackStatus } from './pack-status.ts'
-import { characterExecutionResult, rejectionReasonText } from '../../packages/application/src/character-execution-result.ts'
 import { PackKnowledge } from './pack-knowledge.ts'
 import { PackAutonomy, type AutonomousRole } from './pack-autonomy.ts'
 import { auditBeforePublication, type InterventionOptions } from './jev-publication-intervention.ts'
 import { JevShadow, type ShadowOptions } from './jev-shadow.ts'
-import { runPrototypeActivations, type ActivationTurn } from '../../packages/application/src/prototype-activation-cycle.ts'
 import { appendFileSync, mkdirSync, readFileSync } from 'node:fs'
 import { randomUUID } from 'node:crypto'
 import { resolve, relative, basename } from 'node:path'
-import { SceneDecisionService, WorldApplication } from '@harness-world/application'
 import { brandId, interactionPackageDescription, RECALL_KEYWORD_TOKENIZER_ID,
   type CharacterId, type WorldJsonObject,
   type WorldAddress } from '@harness-world/contracts'
 import { createInstalledInteractionPackages } from '@harness-world/interactions-basic'
-import { createChatProvider, prototypeTurnCall, type ChatCallObservation } from '@harness-world/provider-chat'
 import { gatewayTurnCall } from './gateway-turn-call.ts'
 import { CharacterViewBuilder, CharacterRuntimeAvailabilityService, PlayerInputJobs, WorldStore, WriterLeaseService } from '@harness-world/store-sqlite'
-import { createCoreRulebookRegistry, currentLocation, RulebookRegistry } from '@harness-world/kernel'
 import { CognitiveMemoryService } from '@harness-world/memory'
-import { PrototypeCharacterTurn, type PrototypeRecallShadowObservation, type PrototypeTurnRequest } from '../../packages/application/src/prototype-character-turn.ts'
 import { adaptCompiledWorldPack, compileWorldPackSource, type CompiledWorldPackV5 } from '@harness-world/world-pack'
 import { HostBusyError, type HostAction, type HostRuntime, type HostState } from './http-server.ts'
 import { modelCharacters, playerTranscript } from './player-transcript.ts'
@@ -239,7 +231,7 @@ export class WorldHostCore implements HostRuntime {
   #statusRoundError: string | undefined
   #autoStartError: string | undefined
   #knowledge: PackKnowledge | undefined
-  #activationCycle: Awaited<ReturnType<typeof runPrototypeActivations>> | undefined
+  #activationCycle: Awaited<ReturnType<typeof runCharacterActivations>> | undefined
   readonly #provider: 'local' | 'deepseek' | 'ollama'
   readonly #manifestVersion: number
   readonly #intentEnabled: boolean
@@ -273,7 +265,7 @@ export class WorldHostCore implements HostRuntime {
   #lastPlayerIntent: string | null = null
   #rootBeforeSeq = 0
   #continuationController: AbortController | undefined
-  readonly #decideContinuation: (request: PrototypeTurnRequest, signal: AbortSignal, reserveFormatRetry?: () => boolean) => Promise<unknown>
+  readonly #decideContinuation: (request: CharacterTurnRequest, signal: AbortSignal, reserveFormatRetry?: () => boolean) => Promise<unknown>
 
   private constructor(options: WorldHostOptions, compiled: ReturnType<typeof adaptCompiledWorldPack>,
     intentEnabled: boolean) {
@@ -393,13 +385,13 @@ export class WorldHostCore implements HostRuntime {
       const roleProvider=roleProviders.get(characterId)
       if(!roleProvider)throw new TypeError('当前角色没有可调用的预设配置。')
       const effectivePreset=effectivePresets.get(characterId)
-      const prepare = async (visible: PrototypeTurnRequest) => {
+      const prepare = async (visible: CharacterTurnRequest) => {
         try {
           const projected = await presetContext(visible, effectivePreset!, String(this.#playerId), signal)
-          return presetCall(options.provider === 'local' && roleProtocols.get(characterId) !== 'google' ? gatewayTurnCall(projected) : prototypeTurnCall(projected),
+          return presetCall(options.provider === 'local' && roleProtocols.get(characterId) !== 'google' ? gatewayTurnCall(projected) : characterTurnCall(projected),
             effectivePreset!, projected, this.#playerName, {character:this.#names.get(characterId)??characterId,
               scene:this.#locationNames.get(String((projected.context.scene as WorldJsonObject | undefined)?.locationId))??String((projected.context.scene as WorldJsonObject | undefined)?.locationId??'')})
-        } catch(error) { signal.throwIfAborted(); throw new PrototypePresetError('角色预设准备失败。', {cause:error}) }
+        } catch(error) { signal.throwIfAborted(); throw new CharacterPresetError('角色预设准备失败。', {cause:error}) }
       }
       const prepared = await prepare(request)
       this.#memoryCore?.observeContext(request, prepared.messages.map(message => message.content).join('\n')
@@ -418,7 +410,7 @@ export class WorldHostCore implements HostRuntime {
       }
       const decide = async (call: typeof prepared) => presetOutput(simulated === undefined ? await callProvider(call) : simulated, effectivePreset!, signal,
         request.context.expressionPolicy as WorldJsonObject | undefined, settings.publicationCharacters)
-      const raw = await decideWithFormatRetry(prepared, decide, signal, prototypeTurnCall(request).schema,
+      const raw = await decideWithFormatRetry(prepared, decide, signal, characterTurnCall(request).schema,
         request.context.activity === undefined && simulated === undefined ? reserveFormatRetry ?? (() => false) : undefined)
       if (this.#inspector.enabled) this.#records.trace('decision',characterId,request.decisionId ?? null,
         {source:simulated === undefined ? 'model' : 'script',value:raw as WorldJsonObject})
@@ -923,7 +915,7 @@ export class WorldHostCore implements HostRuntime {
       const shadowFile = this.#memoryShadowFile
       const createTurn = (autonomous = false) => {
         const base = this.#rulebooks(path)
-        return new PrototypeCharacterTurn({ publicationCharacters:this.#playSettings.publicationCharacters, activationTimeoutMs:this.#playSettings.activationTimeoutSeconds*1000, address: this.#address, store, leases, availability,
+        return new CharacterTurn({ publicationCharacters:this.#playSettings.publicationCharacters, activationTimeoutMs:this.#playSettings.activationTimeoutSeconds*1000, address: this.#address, store, leases, availability,
         ...(this.#memoryCore === undefined ? { memory: memory! } : {}),
         rulebooks: autonomous ? this.#autonomy!.rulebooks(base.resolve('builtin:speak-move', 2, 'autonomy', this.#address)) : base,
         decide: this.#decideContinuation,
@@ -942,7 +934,7 @@ export class WorldHostCore implements HostRuntime {
           }} : projected
         },
         ...(this.#activity === undefined ? {} : {
-          validateDecision: (decision: WorldJsonObject, request: PrototypeTurnRequest) => this.#activity!.validateDecision(decision, request),
+          validateDecision: (decision: WorldJsonObject, request: CharacterTurnRequest) => this.#activity!.validateDecision(decision, request),
         }),
         ...(this.#activity === undefined && this.#status === undefined ? {} : {
           executionResult: (input: Parameters<typeof characterExecutionResult>[0]) => this.#status?.executionResult(input)
@@ -951,7 +943,7 @@ export class WorldHostCore implements HostRuntime {
         ...(this.#memoryCore === undefined ? {} : { shortTermAfterSeq: (actor: CharacterId) => this.#memoryCore!.shortTermAfterSeq(actor) }),
         recentObservations: this.#tuning.recentObservations,
         recentSelfObservations: this.#tuning.recentSelfObservations,
-        ...(shadowFile === undefined ? {} : { onRecallShadow: (observation: PrototypeRecallShadowObservation) =>
+        ...(shadowFile === undefined ? {} : { onRecallShadow: (observation: RecallShadowObservation) =>
           appendFileSync(shadowFile, JSON.stringify(observation) + '\n') }), })
       }
       const turn = createTurn()
@@ -992,7 +984,7 @@ export class WorldHostCore implements HostRuntime {
       const dynamic = !this.#options.serialScheduling
         && !this.#activity?.current()?.game.active && this.#options.publicationAudit===undefined
       const integratedAutonomy = dynamic && !this.#options.stagedAutonomy && due.length>0
-      const {autonomy, ...cycle} = await runPrototypeActivations({ store, address: this.#address, turn: this.#track(turn),
+      const {autonomy, ...cycle} = await runCharacterActivations({ store, address: this.#address, turn: this.#track(turn),
         afterSeq: this.#rootBeforeSeq, characterIds: this.#characterIds.filter(id => !due.some(role => role.characterId === id)
           && (!active?.game.active || !active.participants.includes(id))), signal: this.#continuationController.signal,
         presentCharacterIds: () => (this.#currentScene?.recipients ?? []).map(person => brandId(person.id, 'CharacterId')),
@@ -1043,13 +1035,13 @@ export class WorldHostCore implements HostRuntime {
     }
   }
 
-  async #activateAutonomous(store: WorldStore, createTurn: (autonomous?: boolean) => PrototypeCharacterTurn,
+  async #activateAutonomous(store: WorldStore, createTurn: (autonomous?: boolean) => CharacterTurn,
     due: AutonomousRole[], counts: Map<CharacterId, number>): Promise<void> {
     if (!due.length || this.#paused || this.#abortedWork || !this.#continuationController) return
     const settings = this.#playSettings
     const signal = AbortSignal.any([this.#continuationController.signal, AbortSignal.timeout(settings.autonomyDeadlineSeconds * 1000)])
     const before = store.head(this.#address).headSeq
-    const activations: {characterId: CharacterId; result: Awaited<ReturnType<PrototypeCharacterTurn['run']>>}[] = []
+    const activations: {characterId: CharacterId; result: Awaited<ReturnType<CharacterTurn['run']>>}[] = []
     this.#modelCallBudget = {remaining: settings.autonomyNpcCalls, exhausted: false}
     let calls = 0, reason = 'quiescent'
     const turn = this.#track(createTurn(true))
@@ -1072,11 +1064,11 @@ export class WorldHostCore implements HostRuntime {
       }
     }
     const autonomousCalls = settings.autonomyNpcCalls - this.#modelCallBudget.remaining
-    let reactions: Awaited<ReturnType<typeof runPrototypeActivations>> | undefined
+    let reactions: Awaited<ReturnType<typeof runCharacterActivations>> | undefined
     if (!signal.aborted && !this.#paused && reason !== 'failed' && reason !== 'interrupted' && settings.autonomyReactionWaves > 0) {
       this.#modelCallBudget = {remaining: settings.autonomyReactionCalls, exhausted: false}
       const active = this.#activity?.current()
-      reactions = await runPrototypeActivations({store, address: this.#address, turn: this.#track(createTurn()), afterSeq: before, signal,
+      reactions = await runCharacterActivations({store, address: this.#address, turn: this.#track(createTurn()), afterSeq: before, signal,
         characterIds: this.#characterIds.filter(id => !due.some(role => role.characterId === id)
           && (!active?.game.active || !active.participants.includes(id))),
         presentCharacterIds: () => (this.#currentScene?.recipients ?? []).map(p => brandId(p.id, 'CharacterId')),

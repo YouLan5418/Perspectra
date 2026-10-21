@@ -6,8 +6,8 @@
 
 ## 已接通的实现
 
-- [电话规则](../../../tests/experiments/cross-scene-phone.ts)沿用现有 `interact`、Rulebook 与观察投递，提供 call、accept、decline、say、hangup。联系人许可用于发起呼叫；接听授权当前连接内双方说话，不扩大物理可达范围。
-- 唯一新增的权威事实是 `communication.call-updated`，记录呼叫双方与 ringing、connected、ended 状态。[独立实验运行时](../../../tests/experiments/cross-scene-runtime.ts)在激活前把该事件加入本实验 Manifest，按既有算法重新计算事件注册表、Manifest 和 Genesis 的哈希；默认编译器的事件集合没有改变。状态从已提交事件重建，没有第二份通话数据库或后台任务。
+- [电话规则](../../../tests/support/cross-scene-phone.ts)沿用现有 `interact`、Rulebook 与观察投递，提供 call、accept、decline、say、hangup。联系人许可用于发起呼叫；接听授权当前连接内双方说话，不扩大物理可达范围。
+- 唯一新增的权威事实是 `communication.call-updated`，记录呼叫双方与 ringing、connected、ended 状态。[独立实验运行时](../../../tests/support/cross-scene-runtime.ts)在激活前把该事件加入本实验 Manifest，按既有算法重新计算事件注册表、Manifest 和 Genesis 的哈希；默认编译器的事件集合没有改变。状态从已提交事件重建，没有第二份通话数据库或后台任务。
 - 未接听不能传话；只有被叫方可以接听或拒接；双方均可挂断；挂断后声音不再投递。每名角色同时仅有一通未结束电话，忙线拒绝新的呼叫。
 - 控制操作只给通话双方投递观察。通话正文给对端投递，同时给说话者当前场景内的授权观察者投递本端声音。旁观者的观察不含远端正文、callId 或 peerId。当前沿用场景观察者作为可听受众，没有单独建立距离、音量或耳语模型。
 - 普通 publish 继续按原本场景传播。电话不会传输整个场景上下文、姿态或本地对白。正文仍是说话者陈述，不证明移动、物品转移等事实。

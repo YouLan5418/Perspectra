@@ -1,8 +1,7 @@
-import { namedPreset, type LibraryPreset, type NamedPreset } from '../packages/provider-chat/src/preset-library.ts'
+import { namedPreset, type LibraryPreset, type NamedPreset, rolePreset, rolePresetMapping, characterPreset, type RolePreset, type RolePresetMapping } from '@harness-world/provider-chat'
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
 import { randomUUID } from 'node:crypto'
 import { join } from 'node:path'
-import { rolePreset, rolePresetMapping, characterPreset, type RolePreset, type RolePresetMapping } from '../packages/provider-chat/src/preset.ts'
 export interface PresetChoice extends RolePresetMapping { mode:'auto'|'global'|'custom'; override:RolePreset }
 export const presetChoice=(value:unknown,checkMacros=true):PresetChoice=>{
  if(!value||typeof value!=='object'||Array.isArray(value))throw new Error('实例预设无效。')

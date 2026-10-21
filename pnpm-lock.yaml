@@ -145,6 +145,12 @@ importers:
 
   packages/contracts: {}
 
+  packages/frontend:
+    dependencies:
+      '@harness-world/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+
   packages/interaction-runtime:
     dependencies:
       '@harness-world/contracts':

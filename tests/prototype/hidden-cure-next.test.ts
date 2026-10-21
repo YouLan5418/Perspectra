@@ -7,9 +7,9 @@ import { currentEntityState } from '@harness-world/kernel'
 import { brandId, interactionPackageDescription } from '@harness-world/contracts'
 import { createInstalledInteractionPackages } from '@harness-world/interactions-basic'
 import { compileWorldPackSource } from '@harness-world/world-pack'
-import { goals, nextRoot, prepareTakenRecord } from '../experiments/hidden-cure-next-content.ts'
-import { createEPolicy } from '../experiments/hidden-cure-next.ts'
-import { object } from '../experiments/hidden-cure.ts'
+import { goals, nextRoot, prepareTakenRecord } from '../support/hidden-cure-next-content.ts'
+import { createEPolicy } from '../support/hidden-cure-next-policy.ts'
+import { object } from '../support/hidden-cure-scenario.ts'
 import type { PlayerView } from '../../packages/frontend/src/player-view.ts'
 
 it('establishes the blocked condition through accepted player actions before NPC scheduling',async()=>{

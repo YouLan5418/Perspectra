@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto'
 import { canonicalizeWorldJson, type WorldJsonObject } from '@harness-world/contracts'
-import type { PlayerView, FrontendActionRequest } from '../../packages/frontend/src/player-view.ts'
+import type { PlayerView, FrontendActionRequest } from '@harness-world/frontend'
 import type { HostState, HostAction, HostRuntime } from './http-server.ts'
 
 export function projectPlayerView(state: HostState): PlayerView {

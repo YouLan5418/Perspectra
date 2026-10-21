@@ -36,7 +36,7 @@
 
 ## 两项局部优化（2026-10-14）
 
-玩家点击序章“继续”时，当前源码仍有重复数据库初始化和全量历史解析。本轮只修改[SQLite 初始化](../../../packages/store-sqlite/src/sqlite.ts)和[调度候选读取](../../../packages/application/src/prototype-activation-cycle.ts)：标识与版本匹配时跳过迁移事务，WAL 已启用时不重复设置；串行与动态调度直接按消费序号和已提交头读取新增观察。FULL、外键、等待超时、实际写事务和回合备份保留，没有增加缓存、连接池或持久化协议，也没有调整角色处理预算或行为。
+玩家点击序章“继续”时，当前源码仍有重复数据库初始化和全量历史解析。本轮只修改[SQLite 初始化](../../../packages/store-sqlite/src/sqlite.ts)和[调度候选读取](../../../packages/application/src/activation-cycle.ts)：标识与版本匹配时跳过迁移事务，WAL 已启用时不重复设置；串行与动态调度直接按消费序号和已提交头读取新增观察。FULL、外键、等待超时、实际写事务和回合备份保留，没有增加缓存、连接池或持久化协议，也没有调整角色处理预算或行为。
 
 | 证据 | 发现 | 修改路径 |
 | --- | --- | --- |
@@ -89,7 +89,7 @@ Store 与调度基础回归 49 项、宿主等集成回归 156 项通过，覆�
 Claude 的 Core 快照已完成授权来源捕获后，原来为了补充每条来源的知晓时间，再读取并解析一次全部事件正文。普通动态角色准备同一份初始请求时，也重复读取完整历史、重建角色视图，分别供请求与 stale 基准使用。这轮只调整这两个重复读取点：
 
 - [WorldStore](../../../packages/store-sqlite/src/world-store.ts)增加 `readEventTicks(address, asOfSeq)`，只查询 `seq`／`tick`；完整事件和时间戳查询共用原来的分叉范围规则。[Core 快照](../../../desktop/host/memory/core-memory.ts)仍完整捕获、验证授权 Source，缺少时间戳继续报错；时间戳查询本身不读取或验证正文。
-- [Character Turn](../../../packages/application/src/prototype-character-turn.ts)的初始 stale 基准复用当前步骤已读取的历史与 view。模型返回后和取得写租约后的状态检查仍读取新前缀，没有跨调用缓存；规则裁定、提交顺序和角色协议不变。
+- [Character Turn](../../../packages/application/src/character-turn.ts)的初始 stale 基准复用当前步骤已读取的历史与 view。模型返回后和取得写租约后的状态检查仍读取新前缀，没有跨调用缓存；规则裁定、提交顺序和角色协议不变。
 
 修改前三个源文件、相同 esbuild 配置的前后 bundle 与三个对照脚本保存在 `.tmp/timestamp-preparation-20261014/`。Node 24.14.1，网络及真实模型调用为零；所有计时只代表本机相应范围。
 

@@ -3,7 +3,7 @@ import { readFileSync, writeFileSync, mkdirSync, mkdtempSync } from 'node:fs'
 import { resolve, join } from 'node:path'
 import Ajv from 'ajv'
 import { gatewayTurnCall } from '../../desktop/host/gateway-turn-call.ts'
-import { characterActionIntentPrinciples, prototypeTurnCall } from '../../packages/provider-chat/src/prototype-turn.ts'
+import { characterActionIntentPrinciples, characterTurnCall } from '../../packages/provider-chat/src/character-turn-call.ts'
 import { characterActionExplanations, characterActionExplanationsNote } from '../../packages/provider-chat/src/character-action-explanations.ts'
 
 const base=resolve('output/interaction-continuity')
@@ -33,7 +33,7 @@ for(const [index,target] of selected.entries()) {
   const call=gatewayTurnCall(captured.input)
   if(!call.messages[0].content.includes(addedPrompt))throw new Error('Missing new prompt')
   if(!captured.schema.properties.decision.enum.includes('perform')||captured.input.canPerform!==true)throw new Error('Replay must offer perform')
-  const validate=new Ajv({strict:false,allErrors:true}).compile(prototypeTurnCall(captured.input).schema)
+  const validate=new Ajv({strict:false,allErrors:true}).compile(characterTurnCall(captured.input).schema)
   for(const mode of index%2===0?['previous','improved']:['improved','previous']) {
     const completed=results.find(row=>row.target.record===target.record&&row.target.callIndex===target.callIndex&&row.mode===mode)
     if(completed) {

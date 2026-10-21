@@ -8,7 +8,7 @@ import { rejectRulebookResolution, type ActionAffordance, type CompiledWorldMani
   type RulebookResolver } from '@harness-world/kernel'
 import { WorldStore, WriterLeaseService } from '@harness-world/store-sqlite'
 import type { CompiledWorldPackV5 } from '@harness-world/world-pack'
-import { characterExecutionResult } from '../../packages/application/src/character-execution-result.ts'
+import { characterExecutionResult } from '@harness-world/application'
 import { activityProgress, actorWorldView } from './pack-activity.ts'
 
 export type StatusValue = WorldJsonValue

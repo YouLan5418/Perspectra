@@ -18,8 +18,8 @@ const key = process.env.DEEPSEEK_API_KEY
 if (!key) throw new Error('DEEPSEEK_API_KEY missing')
 mkdirSync(directory, { recursive: true })
 const packPath = resolve('experiments/jev-narrative-auditor/holdout-2026-09-27/live-pack')
-const files = ['packages/application/src/player-intent-preparation.ts', 'packages/provider-chat/src/prototype-turn.ts',
-  'packages/application/src/prototype-character-turn.ts', 'packages/contracts/src/player-submission.ts',
+const files = ['packages/application/src/player-intent-preparation.ts', 'packages/provider-chat/src/character-turn-call.ts',
+  'packages/application/src/character-turn.ts', 'packages/contracts/src/player-submission.ts',
   'packages/application/src/round-coordinator.ts', 'packages/memory/src/local-memory.ts', 'desktop/host/jev-shadow-window.ts']
 writeFileSync(resolve(directory, 'sources.json'), JSON.stringify(Object.fromEntries(files.map(path => [path, readFileSync(path, 'utf8')])), null, 2))
 const log = (file: string, value: unknown) => appendFileSync(resolve(directory, file), JSON.stringify(value) + '\n')

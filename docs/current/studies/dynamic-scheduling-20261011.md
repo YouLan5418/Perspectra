@@ -35,8 +35,8 @@
 
 ## 实现入口
 
-- 动态角色候选、优先级、预算预留、因果深度和任务收束：[prototype-activation-cycle.ts](../../../packages/application/src/prototype-activation-cycle.ts)
-- 角色视图比较、模型调用、串行提交队列和写租约：[prototype-character-turn.ts](../../../packages/application/src/prototype-character-turn.ts)
+- 动态角色候选、优先级、预算预留、因果深度和任务收束：[prototype-activation-cycle.ts](../../../packages/application/src/activation-cycle.ts)
+- 角色视图比较、模型调用、串行提交队列和写租约：[prototype-character-turn.ts](../../../packages/application/src/character-turn.ts)
 - 普通入口启用条件、活动与自主阶段：[playtest-frozen-runtime.ts](../../../desktop/host/world-runtime.ts)
 - 插话中止、等待末端回合收束：[playtest-tail-runtime.ts](../../../desktop/host/tail-runtime.ts)
 - 命令行对照开关：[playtest-launch.ts](../../../desktop/host/launch-arguments.ts)

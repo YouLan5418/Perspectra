@@ -4,11 +4,11 @@ import { execFile } from 'node:child_process'
 import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import type { WorldJsonObject } from '@harness-world/contracts'
-import { PrototypeCharacterTurn, type PrototypeTurnRequest } from '../../packages/application/src/prototype-character-turn.ts'
-import { openActionWorld, actionContext, actionResult } from './notice-board-action-fixture.ts'
-import { npc } from './notice-board-fixture.ts'
-import { inscriptionReadings } from './notice-board-evidence-delivery.ts'
-import { rawHistorySnapshot, historyBytes } from './raw-history-delivery.ts'
+import { CharacterTurn, type CharacterTurnRequest } from '../../packages/application/src/character-turn.ts'
+import { openActionWorld, actionContext, actionResult } from '../support/notice-board-action-fixture.ts'
+import { npc } from '../support/notice-board-fixture.ts'
+import { inscriptionReadings } from '../support/notice-board-evidence-delivery.ts'
+import { rawHistorySnapshot, historyBytes } from '../support/raw-history-delivery.ts'
 import { corePythonExecutable } from '../../desktop/host/memory/python-worker.ts'
 const root = resolve(process.argv[2] ?? '')
 const previous = resolve('.tmp/notice-board-action-loop-20261005-v1')
@@ -51,8 +51,8 @@ for (const [i,seed] of seeds.entries()) {
   try {
     const stimulus = await f.submitPlayer('那我们接下来怎么办？', 'immediate-choice')
     const before = f.store.head(f.address)
-    let request: PrototypeTurnRequest | undefined
-    const preview = new PrototypeCharacterTurn({ address: f.address, store: f.store, leases: f.leases,
+    let request: CharacterTurnRequest | undefined
+    const preview = new CharacterTurn({ address: f.address, store: f.store, leases: f.leases,
       availability: f.availability, rulebooks: f.rules,
       projectContext: context => actionContext({ character: context.character!, stimulus: context.stimulus!, memories: [], ...context }),
       executionResult: actionResult, recentObservations: 4, recentSelfObservations: 4,

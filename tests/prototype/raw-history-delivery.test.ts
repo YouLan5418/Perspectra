@@ -3,12 +3,12 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, expect, it } from 'vitest'
 import type { WorldJsonObject, WorldJsonValue } from '@harness-world/contracts'
-import { PrototypeCharacterTurn, type PrototypeTurnRequest } from '../../packages/application/src/prototype-character-turn.ts'
-import { openActionWorld, setupRead, actionContext, actionResult, evidenceDecision, staffText } from '../experiments/notice-board-action-fixture.ts'
-import { bringSecondBoard, secondBoardId } from '../experiments/notice-board-conflict-fixture.ts'
-import { npc } from '../experiments/notice-board-fixture.ts'
-import { privateText } from '../experiments/notice-board-capability.ts'
-import { rawHistorySnapshot, deliverRawHistory, historyBytes } from '../experiments/raw-history-delivery.ts'
+import { CharacterTurn, type CharacterTurnRequest } from '../../packages/application/src/character-turn.ts'
+import { openActionWorld, setupRead, actionContext, actionResult, evidenceDecision, staffText } from '../support/notice-board-action-fixture.ts'
+import { bringSecondBoard, secondBoardId } from '../support/notice-board-conflict-fixture.ts'
+import { npc } from '../support/notice-board-fixture.ts'
+import { privateText } from '../support/notice-board-capability.ts'
+import { rawHistorySnapshot, deliverRawHistory, historyBytes } from '../support/raw-history-delivery.ts'
 const clean: (() => void)[] = []
 afterEach(() => { for (const close of clean.splice(0).reverse()) close() })
 async function fixture() {
@@ -16,11 +16,11 @@ async function fixture() {
   clean.push(() => rmSync(dir, { recursive: true, force: true }))
   const f = openActionWorld(dir); clean.push(f.close)
   await setupRead(f, 'entity:hall-board'); await bringSecondBoard(f); await setupRead(f, secondBoardId)
-  await new PrototypeCharacterTurn({ ...f, rulebooks: f.rules, projectContext: actionContext, executionResult: actionResult,
+  await new CharacterTurn({ ...f, rulebooks: f.rules, projectContext: actionContext, executionResult: actionResult,
     decide: async () => evidenceDecision() }).run(npc, { maxCalls: 1 })
   for (let i = 0; i < 6; i++) await f.submitPlayer('聊聊电影。', 'gap-' + i)
-  let request: PrototypeTurnRequest | undefined
-  await new PrototypeCharacterTurn({ ...f, rulebooks: f.rules, projectContext: actionContext, executionResult: actionResult,
+  let request: CharacterTurnRequest | undefined
+  await new CharacterTurn({ ...f, rulebooks: f.rules, projectContext: actionContext, executionResult: actionResult,
     recentObservations: 4, recentSelfObservations: 4, decide: async r => { request = r; return { decision: 'abstain' } } }).run(npc, { maxCalls: 1 })
   return { f, request: request!, snapshot: rawHistorySnapshot(f) }
 }

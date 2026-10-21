@@ -8,7 +8,7 @@
 >
 > 区分“我想做”“我准备做”和“我正在实际执行”。只有经过系统裁定的受控行动才会改变权威世界状态。
 
-实现位于 [prototype-turn.ts](../../../packages/provider-chat/src/prototype-turn.ts) 的 characterActionIntentPrinciples，嵌入原有 characterDecisionPrinciples。没有修改调用预算、调度、动作 Schema、publish 结束机制或世界裁定，不从对白自动生成动作。表达后继续决策开关保持关闭；发行包未重建。
+实现位于 [prototype-turn.ts](../../../packages/provider-chat/src/character-turn-call.ts) 的 characterActionIntentPrinciples，嵌入原有 characterDecisionPrinciples。没有修改调用预算、调度、动作 Schema、publish 结束机制或世界裁定，不从对白自动生成动作。表达后继续决策开关保持关闭；发行包未重建。
 
 ## 对照方法
 

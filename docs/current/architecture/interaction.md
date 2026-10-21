@@ -30,7 +30,7 @@
 
 NPC 的发布范围可选 `scene_public`（公开）、`direct`（仅指定对象）、`private`（指定对象获得完整内容，旁观者仅观察交流发生）和 `self`（仅自己）。`direct/private` 必须指定当前可见的其他角色；`scene_public/self` 不指定接收对象。省略 scope 时，有接收对象默认 direct，否则默认 scene_public。标准和本地模型接口、执行结果后的续写、预设 output 转换及活动发布校验均支持这些字段；不新增事件协议或状态机制。self 不刺激其他角色，private 的发生观察仍可触发旁观者反应。活动表达许可继续生效。
 
-例如玩家悄悄对汤汤说“别声张”，汤汤若省略 scope 回应，这句回应会全场可闻。2026-10-20 试玩中她在叙述里写了“压低嗓子”，实际仍是公开发布，把秘密泄给了旁观者。为此，[角色回合](../../../packages/application/src/prototype-character-turn.ts)给 stimulus 中“`direct/private` 且收件人含本角色”的来话附加 `audienceHint`，提醒回应受众需要自己用 scope 选择、叙述不改变受众。它只是上下文提示，不替角色决定是否私下回应，也不改变默认值或 Rulebook。自动测试只覆盖标记出现的条件；真实模型是否因此改选受众尚未试玩验证。
+例如玩家悄悄对汤汤说“别声张”，汤汤若省略 scope 回应，这句回应会全场可闻。2026-10-20 试玩中她在叙述里写了“压低嗓子”，实际仍是公开发布，把秘密泄给了旁观者。为此，[角色回合](../../../packages/application/src/character-turn.ts)给 stimulus 中“`direct/private` 且收件人含本角色”的来话附加 `audienceHint`，提醒回应受众需要自己用 scope 选择、叙述不改变受众。它只是上下文提示，不替角色决定是否私下回应，也不改变默认值或 Rulebook。自动测试只覆盖标记出现的条件；真实模型是否因此改选受众尚未试玩验证。
 
 事件、授权观察、自观察、记忆 Source 与玩家公开视图保留片段顺序。记忆仍将其记为角色发表的内容，不证明叙述中的受控结果。预设 output/history/display 规则逐片段按 speech 或 narration 类型处理；显示规则只修改投影副本。
 
@@ -96,7 +96,7 @@ NPC 的模型 Schema 继续只列当前可见收件人；选错时沿用已有�
 
 本次自动回归覆盖两种 scope 的同场接受、场外／离场／不可见／不可用拒绝、混合收件人整次拒绝、玩家真实提交和后续同场新发话、观察隔离与记忆来源、NPC 失败反馈／自主重新选择／预算及重试上限，以及原有通信实验。本机 8045 / gemini-3.8-flash 在新目录 `.tmp/speech-delivery-live-1792167062418/` 完成两次故障注入：执行拒绝后的真实决策为 abstain，Schema 修正后的真实决策为向同场 Bob 公开问候；两次均未传播注入的场外私语。错误提案为人工注入，不能计作模型自然出错率，也未验证长期互动或自主移动后的交流体验。证据为该目录 `result.json` 与两个子目录的 `world.sqlite`；本次未重建发行包。2026-10-16 原探针未按本次提交的事务筛选发生观察，不能作为 direct 会产生 occurrence_only 的依据。
 
-依据：[现行原型契约](../prototype-contract.md)、[World Pack 手册](../guides/world-pack-authoring.md)、[G1/G2 验收](../../archive/prototype-g1-g4/PROTOTYPE-G1-G2-ACCEPTANCE.md)、[Gemini 试玩](../../archive/prototype-g1-g4/PROTOTYPE-GEMINI-PLAYTEST-2026-09-28.md)。代码：[交互执行包](../../../packages/interaction-runtime)、[基础交互](../../../packages/interactions-basic)、[Character Turn](../../../packages/application/src/prototype-character-turn.ts)。
+依据：[现行原型契约](../prototype-contract.md)、[World Pack 手册](../guides/world-pack-authoring.md)、[G1/G2 验收](../../archive/prototype-g1-g4/PROTOTYPE-G1-G2-ACCEPTANCE.md)、[Gemini 试玩](../../archive/prototype-g1-g4/PROTOTYPE-GEMINI-PLAYTEST-2026-09-28.md)。代码：[交互执行包](../../../packages/interaction-runtime)、[基础交互](../../../packages/interactions-basic)、[Character Turn](../../../packages/application/src/character-turn.ts)。
 
 ### 2026-10-09：官方同居包的 Gemini 料理验证
 

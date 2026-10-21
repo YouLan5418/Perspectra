@@ -8,7 +8,7 @@ import { createCoreRulebookRegistry, type CompiledWorldSpec } from '@harness-wor
 import { WorldStore, WriterLeaseService, CharacterRuntimeAvailabilityService, CharacterViewBuilder } from '@harness-world/store-sqlite'
 import { CognitiveMemoryService } from '@harness-world/memory'
 import { createChatProvider } from '@harness-world/provider-chat'
-import { PrototypeCharacterTurn, type PrototypeTurnRequest } from '../../packages/application/src/prototype-character-turn.ts'
+import { CharacterTurn, type CharacterTurnRequest } from '../../packages/application/src/character-turn.ts'
 import { gatewayTurnCall } from '../../desktop/host/gateway-turn-call.ts'
 import { frozenInteractionWorld, basicInteractionPackage } from '../../tests/fixtures/frozen-interaction-world.ts'
 import { behaviorCases, roundContent, type BehaviorCase } from './behavior-cases.ts'
@@ -245,14 +245,14 @@ for(const test of selectedCases) {
           const memory=new CognitiveMemoryService(resolve(dir,'memory.sqlite'),store,undefined,2,RECALL_KEYWORD_TOKENIZER_ID)
           const address=data.scope.worldAddress as WorldAddress
           const head=store.head(address)
-          const requests:PrototypeTurnRequest[]=[],decisions:unknown[]=[],selections:Recall[]=[]
+          const requests:CharacterTurnRequest[]=[],decisions:unknown[]=[],selections:Recall[]=[]
           try {
             await store.commitRound({address,expectedHeadSeq:head.headSeq,expectedTick:head.tick,nextTick:head.tick+1,
               transactionId:brandId('transaction:stimulus:'+id,'TransactionId'),roundId:brandId('round:stimulus:'+id,'InteractionRoundId'),
               events:[observation('observation:current-stimulus',npc,{actorId:'character:player',actionType:'speak',
                 speech:{characterId:'character:player',text:probe.stimulus}})],outbox:[],correlationId:'behavior-stimulus'})
             const before=store.head(address).headSeq
-            const turn=new PrototypeCharacterTurn({address,store,memory,leases,availability,
+            const turn=new CharacterTurn({address,store,memory,leases,availability,
               rulebooks:createCoreRulebookRegistry({interactionPackages:[basicInteractionPackage]}),
               decide:async(request,signal)=>{
                 const query=typeof request.recallEvidence?.query==='string'?request.recallEvidence.query:probe.stimulus
