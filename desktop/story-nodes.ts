@@ -42,9 +42,8 @@ export async function saveStoryNode(directory: string, address: WorldAddress, pa
     const key = worldAddressKey(address)
     const unfinished = world.prepare(`SELECT 1 FROM round_inbox WHERE address_key=? AND status IN ('pending','claimed')
       UNION ALL SELECT 1 FROM player_input_jobs WHERE address_key=? AND status IN ('received','prepared','dispatch_started','response_received','validated','round_enqueued')
-      UNION ALL SELECT 1 FROM world_reaction_cycles WHERE address_key=? AND status <> 'terminal'
       UNION ALL SELECT 1 FROM outbox WHERE address_key=? AND critical=1 AND delivery_status <> 'delivered'
-      UNION ALL SELECT 1 FROM writer_leases WHERE address_key=? AND expires_at_ms>? LIMIT 1`).get(key, key, key, key, key, Date.now())
+      UNION ALL SELECT 1 FROM writer_leases WHERE address_key=? AND expires_at_ms>? LIMIT 1`).get(key, key, key, key, Date.now())
     if (unfinished) throw new Error('世界尚未静止，请完成当前输入与角色反应后保存。')
     const head = world.prepare('SELECT head_seq,tick FROM heads WHERE address_key=?').get(key) as {head_seq:number;tick:number} | undefined
     if (!head) throw new Error('世界不存在。')

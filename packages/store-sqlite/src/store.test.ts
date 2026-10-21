@@ -99,39 +99,6 @@ function worldSchemaRows(db: DatabaseSync): WorldJsonValue {
     .sort((left, right) => left.name < right.name ? -1 : left.name > right.name ? 1 : 0)
 }
 
-function insertReactionCycle(
-  db: DatabaseSync,
-  input: {
-    readonly cycleId: string
-    readonly addressKey: string
-    readonly rootRoundId: string
-    readonly rootTransactionId: string
-    readonly status?: 'active' | 'stop_requested' | 'terminal'
-    readonly stopReason?: string | null
-    readonly terminalReason?: string | null
-    readonly terminalAtSeq?: number | null
-  },
-): void {
-  db.prepare(`
-    INSERT INTO world_reaction_cycles(
-      cycle_id, address_key, root_round_id, root_transaction_id, created_at_seq,
-      policy_version, profile_id, max_waves, max_npc_calls, max_calls_per_character,
-      max_actions_per_call, allowed_action_types_json, initial_token_budget, deadline_at_ms,
-      budget_hash, status, stop_reason, terminal_reason, terminal_at_seq, cycle_hash, state_hash
-    ) VALUES (?, ?, ?, ?, 1, 'reaction-policy/v1', 'responsive/v1', 3, 8, 2, 1,
-      '["speak@1"]', 4096, 1000, 'sha256:budget', ?, ?, ?, ?, 'sha256:cycle', 'sha256:state')
-  `).run(
-    input.cycleId,
-    input.addressKey,
-    input.rootRoundId,
-    input.rootTransactionId,
-    input.status ?? 'active',
-    input.stopReason ?? null,
-    input.terminalReason ?? null,
-    input.terminalAtSeq ?? null,
-  )
-}
-
 afterEach(() => {
   for (const directory of directories.splice(0)) rmSync(directory, { recursive: true, force: true })
 })
@@ -232,66 +199,21 @@ describe('SQLite ownership helpers', () => {
 })
 
 describe('World schema v18', () => {
-  it('freezes the formal four-table Reaction schema, constraints, indexes, and Golden hash', async () => {
-    const path = database('world-v16.sqlite')
-    const firstAddress = fixtureAddress('reaction-schema-a')
-    const secondAddress = fixtureAddress('reaction-schema-b')
+  it('keeps the event type index and no retired Reaction tables', async () => {
+    const path = database('world-current.sqlite')
+    const address = fixtureAddress('current-schema')
     const store = new WorldStore(path)
-    store.createBranch(firstAddress)
-    store.createBranch(secondAddress)
-    const firstRequest = { ...fixtureCommitRequest(firstAddress), transactionId: brandId('transaction:reaction-schema-a', 'TransactionId'), roundId: brandId('round:reaction-schema-a', 'InteractionRoundId'), outbox: [] }
-    const secondRequest = { ...fixtureCommitRequest(secondAddress), transactionId: brandId('transaction:reaction-schema-b', 'TransactionId'), roundId: brandId('round:reaction-schema-b', 'InteractionRoundId'), outbox: [] }
-    await store.commitRound(firstRequest)
-    await store.commitRound(secondRequest)
+    store.createBranch(address)
+    await store.commitRound({ ...fixtureCommitRequest(address), outbox: [] })
     store.close()
 
     const raw = new DatabaseSync(path)
-    raw.exec('PRAGMA foreign_keys = ON')
     expect(readPragmaInteger(raw, 'user_version')).toBe(WORLD_SCHEMA_VERSION)
     const names = (worldSchemaRows(raw) as Array<{ readonly name: string }>).map(row => row.name)
-    expect(names).toEqual(expect.arrayContaining([
-      'events_type_range',
-      'world_reaction_cycles',
-      'world_reaction_cycles_one_open',
-      'world_reaction_job_stimuli',
-      'world_reaction_jobs',
-      'world_reaction_jobs_claim_order',
-      'world_reaction_jobs_cycle_wave_status',
-      'world_reaction_jobs_provider_call',
-      'world_reaction_waves',
-      'world_reaction_waves_reaction_round',
-      'world_reaction_waves_result_transaction',
-    ]))
-    expect(hashWorldJson('world-sqlite-schema/v18', (worldSchemaRows(raw) as { name: string }[]).filter(row => row.name !== 'player_input_jobs')))
-      .toBe('sha256:fca11e7158047f7bdfe074fa0c7e7d13fd80fe977863521bbfb0e9d49b8553af')
-
-    insertReactionCycle(raw, {
-      cycleId: 'cycle:valid',
-      addressKey: worldAddressKey(firstAddress),
-      rootRoundId: firstRequest.roundId,
-      rootTransactionId: firstRequest.transactionId,
-    })
-    expect(() => insertReactionCycle(raw, {
-      cycleId: 'cycle:duplicate-open',
-      addressKey: worldAddressKey(firstAddress),
-      rootRoundId: 'round:duplicate-open',
-      rootTransactionId: secondRequest.transactionId,
-    })).toThrow()
-    expect(() => insertReactionCycle(raw, {
-      cycleId: 'cycle:invalid-state',
-      addressKey: worldAddressKey(secondAddress),
-      rootRoundId: secondRequest.roundId,
-      rootTransactionId: secondRequest.transactionId,
-      status: 'active',
-      stopReason: 'player_preempted',
-    })).toThrow()
-    expect(() => insertReactionCycle(raw, {
-      cycleId: 'cycle:missing-branch',
-      addressKey: 'missing-address',
-      rootRoundId: 'round:missing',
-      rootTransactionId: secondRequest.transactionId,
-    })).toThrow()
-    expect(raw.prepare('PRAGMA foreign_key_check').all()).toEqual([])
+    expect(names).toContain('events_type_range')
+    expect(names.filter(name => name.startsWith('world_reaction_'))).toEqual([])
+    expect(hashWorldJson('world-sqlite-schema/v20', worldSchemaRows(raw)))
+      .toBe('sha256:cd525643e7bbcf07502085c3e4c53b3cfc08ac397de792cf92735c4705f3df00')
     raw.close()
   })
 
@@ -325,7 +247,7 @@ describe('World schema v18', () => {
       .run(key, 'observation.upsert', 'transaction:legacy')
     const before = {
       branches: legacy.prepare('SELECT * FROM branches').all(),
-      rounds: legacy.prepare('SELECT * FROM round_commits').all(),
+      rounds: legacy.prepare('SELECT * FROM round_commits').all().map(row => ({ ...row, legacy_reaction_link: 0 })),
       events: legacy.prepare('SELECT * FROM events').all(),
     }
     legacy.close()
@@ -337,9 +259,7 @@ describe('World schema v18', () => {
       rounds: migrated.prepare('SELECT * FROM round_commits').all(),
       events: migrated.prepare('SELECT * FROM events').all(),
     }).toEqual(before)
-    for (const table of [
-      'world_reaction_cycles', 'world_reaction_waves', 'world_reaction_jobs', 'world_reaction_job_stimuli',
-    ]) expect((migrated.prepare(`SELECT COUNT(*) AS count FROM ${table}`).get() as { count: number }).count).toBe(0)
+    expect(migrated.prepare(`SELECT name FROM sqlite_schema WHERE name LIKE 'world_reaction_%'`).all()).toEqual([])
     expect(migrated.prepare(`SELECT name FROM sqlite_schema WHERE name = 'events_type_range'`).get()).toBeDefined()
     migrated.close()
   })

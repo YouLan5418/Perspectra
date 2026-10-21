@@ -72,7 +72,6 @@ it('executes the exact offered definition, then publishes freely from its commit
       definitions: pack.interactions.definitions, bindings: pack.interactions.bindings })
     expect(trace.definitionSetHash).toBe(frozen.definitionSetHash)
     for (const value of Object.values(trace)) expect(value).toMatch(/^sha256:[0-9a-f]{64}$/u)
-    expect(store.listReactionCycles(world.manifest.address)).toEqual([])
   } finally {
     availability?.close(); leases?.close(); store?.close(); await app.close()
     rmSync(directory, { recursive: true, force: true })

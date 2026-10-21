@@ -269,13 +269,6 @@ export class RoundCoordinator {
     return this.options.runtimeLane.enqueueRound(async () => {
       let drained = 0
       while (true) {
-        if (this.options.store.openReactionCycleId(this.#address) !== undefined) {
-          failWorld({
-            errorCode: 'BRANCH_DRAINING', category: 'admin',
-            message: 'accepted Round drain must wait for the open Reaction Cycle', retryable: true,
-            correlationId, address: this.#address,
-          })
-        }
         this.#refreshLease()
         const claimed = this.options.inbox.claimNext(this.#address, this.options.ownerId, this.#lease.fencingToken)
         if (claimed === undefined) return drained
@@ -387,11 +380,6 @@ export class RoundCoordinator {
         transactionId,
         result: this.#committedPlayerResult(committed, roundId, playerAction),
       }
-    }
-    if (this.options.store.openReactionCycleId(this.#address) !== undefined) {
-      failWorld({ errorCode: 'MANIFEST_RUNTIME_UNAVAILABLE', category: 'runtime', retryable: false,
-        message: 'unfinished legacy NPC Reaction Cycles cannot be resumed by this runtime',
-        correlationId, address: this.#address })
     }
     const head = this.options.store.head(this.#address)
     const history = this.options.store.readEvents(this.#address, head.headSeq)

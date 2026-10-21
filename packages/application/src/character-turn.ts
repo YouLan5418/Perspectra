@@ -90,7 +90,7 @@ function keys(value: WorldJsonObject, allowed: readonly string[]): void {
   if (Object.keys(value).some(key => !allowed.includes(key))) throw new TypeError('unexpected decision field')
 }
 
-/** One isolated activation, not a scheduler. Call only on a branch with no unfinished Reaction Cycle.
+/** One isolated activation, not a scheduler.
  * Uses the existing Rulebook, atomic WorldStore commit, scene audiences and character observations.
  * Intermediate model work is ephemeral; a committed operation is never rolled back for a failed reply.
  */
@@ -166,9 +166,6 @@ export class CharacterTurn {
     readonly continuationOf?: { readonly actionId: string; readonly afterSeq?: number;
       readonly action: { readonly actionType: string; readonly parameters: WorldJsonValue } } } = {}): Promise<CharacterTurnResult> {
     if (this.#active.has(characterId)) throw new Error('character turn is busy')
-    if (this.options.store.activeReactionCycle(this.options.address) !== undefined) {
-      throw new Error('finish the existing Reaction Cycle before using the isolated prototype')
-    }
     if (!this.#manifest.characters.some(character => character.characterId === characterId)
       || this.#manifest.playerBindings.some(binding => binding.characterId === characterId)) {
       throw new TypeError('activation requires a declared NPC')

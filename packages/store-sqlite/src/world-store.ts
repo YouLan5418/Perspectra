@@ -10,13 +10,7 @@ import {
   type CommitRoundRequest,
   type CommitRoundResult,
   type CognitiveJobDraft,
-  type ClaimedReactionJob,
   type FaultInjector,
-  type ReactionCycleId,
-  type ReactionCycleView,
-  type ReactionJobId,
-  type ReactionJobProviderBinding,
-  type StoredReactionCycleBundle,
   type StoredOutboxItem,
   type StoredCognitiveJob,
   type StoredRoundAuthority,
@@ -36,26 +30,6 @@ import {
   worldJsonText,
 } from './sqlite.ts'
 import { OperationalAuditLog } from './operational-audit.ts'
-import {
-  applyPreparedReactionWaveSettlement,
-  bindReactionJobProvider,
-  cancelReactionCycle,
-  insertInitialReactionCycle,
-  listReactionCycles,
-  claimNextReactionJob,
-  normalizeReactionWaveSettlement,
-  openReactionCycleId,
-  prepareInitialReactionCycle,
-  prepareReactionWaveSettlement,
-  readActiveReactionCycle,
-  readReactionCycleById,
-  readReactionCycleByRootTransaction,
-  readReactionWaveSettlementHashByTransaction,
-  reactionCycleView as buildReactionCycleView,
-  renewReactionJobClaim,
-  requestReactionCycleAdministrativeStop,
-  type ReactionSourceEvent,
-} from './reaction-cycle.ts'
 
 export const WORLD_SCHEMA = `
 CREATE TABLE IF NOT EXISTS branches (
@@ -389,6 +363,7 @@ FROM character_runtime_availability_v14;
 DROP TABLE character_runtime_availability_v14;
 `
 
+/** Migration history only: v20 drops these tables (see WORLD_RETIRE_REACTION_SCHEMA). */
 const WORLD_REACTION_SCHEMA = `
 CREATE TABLE world_reaction_cycles (
   cycle_id TEXT PRIMARY KEY,
@@ -555,7 +530,23 @@ export const WORLD_REACTION_EVIDENCE_SCHEMA = `
 ALTER TABLE world_reaction_job_stimuli ADD COLUMN evidence_json TEXT;
 `
 
-export const WORLD_SCHEMA_VERSION = 19
+/**
+ * NPC Reaction Cycles are retired and their tables dropped. A Round that opened or settled a Cycle kept a
+ * bundle hash covering those rows, so it is flagged: integrity checks still verify its events, outbox and
+ * authority, but can no longer re-derive the dropped part of its bundle hash.
+ */
+export const WORLD_RETIRE_REACTION_SCHEMA = `
+ALTER TABLE round_commits ADD COLUMN legacy_reaction_link INTEGER NOT NULL DEFAULT 0 CHECK(legacy_reaction_link IN (0, 1));
+UPDATE round_commits SET legacy_reaction_link = 1
+WHERE transaction_id IN (SELECT root_transaction_id FROM world_reaction_cycles)
+  OR transaction_id IN (SELECT result_transaction_id FROM world_reaction_waves WHERE result_transaction_id IS NOT NULL);
+DROP TABLE world_reaction_job_stimuli;
+DROP TABLE world_reaction_jobs;
+DROP TABLE world_reaction_waves;
+DROP TABLE world_reaction_cycles;
+`
+
+export const WORLD_SCHEMA_VERSION = 20
 
 export function openWorldDatabase(path: string): DatabaseSync {
   return openMigratedDatabase(path, WORLD_APPLICATION_ID, [
@@ -577,7 +568,8 @@ export function openWorldDatabase(path: string): DatabaseSync {
     { version: 16, sql: WORLD_REACTION_SCHEMA },
     { version: 17, sql: 'ALTER TABLE world_reaction_cycles ADD COLUMN action_group_max_actions INTEGER CHECK(action_group_max_actions = 2);' },
     { version: 18, sql: PLAYER_INPUT_SCHEMA },
-    { version: WORLD_SCHEMA_VERSION, sql: WORLD_REACTION_EVIDENCE_SCHEMA },
+    { version: 19, sql: WORLD_REACTION_EVIDENCE_SCHEMA },
+    { version: WORLD_SCHEMA_VERSION, sql: WORLD_RETIRE_REACTION_SCHEMA },
   ])
 }
 
@@ -945,13 +937,6 @@ export class WorldStore {
           correlationId: `fork:${child.branchId}`, address: parent,
         })
       }
-      if (openReactionCycleId(this.#db, parent) !== undefined) {
-        failWorld({
-          errorCode: 'BRANCH_DRAINING', category: 'admin',
-          message: 'branch fork requires no active or stop-requested Reaction Cycle', retryable: true,
-          correlationId: `fork:${child.branchId}`, address: parent,
-        })
-      }
       const parentHead = this.#headRow(parentKey)
       if (!Number.isSafeInteger(forkSeq) || forkSeq < 0 || forkSeq > parentHead.head_seq) {
         throw new RangeError(`forkSeq ${forkSeq} is outside parent head ${parentHead.head_seq}`)
@@ -991,36 +976,13 @@ export class WorldStore {
   async commitRound(request: CommitRoundRequest): Promise<CommitRoundResult> {
     if (request.events.length === 0) throw new TypeError('a committed round requires at least one event')
     if (request.nextTick !== request.expectedTick + 1) throw new TypeError('a committed round advances exactly one tick')
-    if (request.reactionCycle !== undefined && request.reactionSettlement !== undefined) {
-      throw new TypeError('one Round cannot create and settle a Reaction Cycle')
-    }
     const addressKey = worldAddressKey(request.address)
     const cognitiveJobs = [...(request.cognitiveJobs ?? [])].sort((left, right) => compareWorldText(left.characterId, right.characterId))
-    const normalizedReactionSettlement = request.reactionSettlement === undefined
-      ? undefined
-      : normalizeReactionWaveSettlement(request.reactionSettlement)
     if (new Set(cognitiveJobs.map(job => job.characterId)).size !== cognitiveJobs.length) {
       throw new TypeError('cognitive job characterId values must be unique within one Round')
     }
     const activeManifest = this.#readManifestByKey(addressKey)
     if (activeManifest !== undefined) assertManifestEvents(activeManifest.manifest, request.events)
-    if (request.reactionCycle !== undefined) {
-      if (activeManifest === undefined) {
-        // The Store's low-level single-action ledger can be exercised before a world is activated.
-        // A two-action Cycle needs a Manifest that declares its interaction capability.
-        if (request.reactionCycle.maxActionsPerCall === 2) {
-          throw new TypeError('two-action Reaction Cycle requires Manifest v10')
-        }
-      } else {
-        if ((activeManifest.manifest as WorldJsonObject).schemaVersion !== 10) {
-          throw new TypeError('Reaction Cycle requires Manifest v10')
-        }
-        // The frozen request names a binding and definition lock, so its exact capability is interact@2.
-        const declared = (request.reactionCycle.allowedActionTypes as readonly string[])
-          .find(entry => entry.startsWith('interact@')) ?? null
-        if (declared !== 'interact@2') throw new TypeError('Reaction Cycle interaction capability does not match Manifest')
-      }
-    }
     const authorityHash = request.authority === undefined ? null : hashWorldJson('world-round-authority', request.authority)
     const requestHash = hashWorldJson('world-round-commit-request', {
       address: request.address,
@@ -1032,8 +994,6 @@ export class WorldStore {
       events: request.events,
       outbox: request.outbox,
       ...(cognitiveJobs.length === 0 ? {} : { cognitiveJobs }),
-      ...(request.reactionCycle === undefined ? {} : { reactionCycle: request.reactionCycle }),
-      ...(normalizedReactionSettlement === undefined ? {} : { reactionSettlement: normalizedReactionSettlement }),
       ...(authorityHash === null ? {} : { authorityHash }),
     })
 
@@ -1079,7 +1039,6 @@ export class WorldStore {
 
       let previousHash = head.event_hash
       const eventHashes: WorldHash[] = []
-      const reactionSourceEvents: ReactionSourceEvent[] = []
       for (const [eventOrdinal, draft] of request.events.entries()) {
         const seq = head.head_seq + eventOrdinal + 1
         const eventHash = hashWorldJson('world-event-envelope', {
@@ -1110,21 +1069,10 @@ export class WorldStore {
         )
         previousHash = eventHash
         eventHashes.push(eventHash)
-        reactionSourceEvents.push({ draft, eventOrdinal, seq, eventHash })
       }
       this.faultInjector?.hit('store.after-event-insert')
 
       const finalHeadSeq = head.head_seq + request.events.length
-      const finalHeadHash = previousHash as WorldHash
-      const reactionCycle = request.reactionCycle === undefined ? undefined : prepareInitialReactionCycle({
-        address: request.address,
-        rootRoundId: request.roundId,
-        rootTransactionId: request.transactionId,
-        finalHeadSeq,
-        finalHeadHash,
-        draft: request.reactionCycle,
-        events: reactionSourceEvents,
-      })
       const outboxHashes = request.outbox.map((item) => {
         const payloadHash = hashWorldJson('world-outbox-payload', item.payload)
         this.#db.prepare(`
@@ -1142,20 +1090,6 @@ export class WorldStore {
         )
         return payloadHash
       })
-      const reactionSettlement = normalizedReactionSettlement === undefined ? undefined : prepareReactionWaveSettlement(
-        this.#db,
-        request.address,
-        normalizedReactionSettlement,
-        request.roundId,
-        request.transactionId,
-        authorityHash,
-        request.expectedHeadSeq,
-        head.event_hash,
-        finalHeadSeq,
-        finalHeadHash,
-        reactionSourceEvents,
-        this.operationalNow(),
-      )
       const bundleHash = hashWorldJson('world-round-bundle', {
         address: request.address,
         roundId: request.roundId,
@@ -1163,8 +1097,6 @@ export class WorldStore {
         eventHashes,
         outboxHashes,
         ...(authorityHash === null ? {} : { authorityHash }),
-        ...(reactionCycle === undefined ? {} : { reactionCycleHash: reactionCycle.authorityHash }),
-        ...(reactionSettlement === undefined ? {} : { reactionSettlementHash: reactionSettlement.settlementHash }),
       })
       if (authorityHash !== null) {
         this.#db.prepare(`
@@ -1187,11 +1119,6 @@ export class WorldStore {
         bundleHash,
         authorityHash,
       )
-      if (reactionCycle !== undefined) insertInitialReactionCycle(this.#db, reactionCycle)
-      if (reactionSettlement !== undefined) {
-        applyPreparedReactionWaveSettlement(this.#db, request.address, reactionSettlement)
-        this.faultInjector?.hit('reaction.after-wave-settle')
-      }
       for (const job of cognitiveJobs) {
         const identity = {
           address: request.address,
@@ -1255,129 +1182,6 @@ export class WorldStore {
       this.#db.prepare(`
         SELECT seq, tick FROM events WHERE address_key = ? AND seq > ? AND seq <= ? ORDER BY seq
       `).all(range.addressKey, range.afterSeq, range.asOfSeq) as Pick<StoredWorldEvent, 'seq' | 'tick'>[])
-  }
-
-  /** Read and verify one durable Reaction Cycle without opening another SQLite connection. */
-  readReactionCycle(address: WorldAddress, cycleId: ReactionCycleId): StoredReactionCycleBundle | undefined {
-    return readReactionCycleById(this.#db, address, cycleId)
-  }
-
-  /** Resolve the Cycle opened by one committed Root Round transaction, if that Round opened one. */
-  reactionCycleIdByRootTransaction(address: WorldAddress, transactionId: TransactionId): ReactionCycleId | undefined {
-    const row = this.#db.prepare(`
-      SELECT cycle_id FROM world_reaction_cycles WHERE address_key = ? AND root_transaction_id = ?
-    `).get(worldAddressKey(address), transactionId) as { cycle_id: string } | undefined
-    return row === undefined ? undefined : brandId(row.cycle_id, 'ReactionCycleId')
-  }
-
-  /** Read one privacy-safe Cycle view. */
-  reactionCycleView(address: WorldAddress, cycleId: ReactionCycleId): ReactionCycleView | undefined {
-    const bundle = readReactionCycleById(this.#db, address, cycleId)
-    return bundle === undefined ? undefined : buildReactionCycleView(bundle)
-  }
-
-  /** Read the branch's only non-terminal Reaction Cycle, if one exists. */
-  activeReactionCycle(address: WorldAddress): StoredReactionCycleBundle | undefined {
-    return readActiveReactionCycle(this.#db, address)
-  }
-
-  /** Lean open-Cycle lookup for administrative barriers (ADR-0079). */
-  openReactionCycleId(address: WorldAddress): ReactionCycleId | undefined {
-    return openReactionCycleId(this.#db, address)
-  }
-
-  /** Idempotently request administrative_stop; the frozen Wave still settles before termination. */
-  requestReactionCycleAdministrativeStop(address: WorldAddress): ReactionCycleId | undefined {
-    return requestReactionCycleAdministrativeStop(this.#db, address)
-  }
-
-  /** List privacy-safe Cycle views in newest-root-first deterministic order. */
-  listReactionCycles(address: WorldAddress): ReactionCycleView[] {
-    return listReactionCycles(this.#db, address).map(buildReactionCycleView)
-  }
-
-  /** List branch addresses that have an active or stop_requested Reaction Cycle. */
-  activeReactionCycleAddresses(): WorldAddress[] {
-    const addresses = (this.#db.prepare(`
-      SELECT DISTINCT b.tenant_id, b.world_id, b.branch_id
-      FROM world_reaction_cycles r
-      JOIN branches b ON b.address_key = r.address_key
-      JOIN branch_controls c ON c.address_key = r.address_key
-      WHERE r.status IN ('active', 'stop_requested') AND c.runtime_phase = 'active'
-    `).all() as Array<{ tenant_id: string; world_id: string; branch_id: string }>).map(row => ({
-      tenantId: brandId(row.tenant_id, 'TenantId'),
-      worldId: brandId(row.world_id, 'WorldId'),
-      branchId: brandId(row.branch_id, 'BranchId'),
-    }))
-    return addresses.sort((left, right) => compareWorldText(worldAddressKey(left), worldAddressKey(right)))
-  }
-
-  /** Idempotently request user cancellation while allowing the frozen Wave to settle. */
-  cancelReactionCycle(address: WorldAddress, cycleId: ReactionCycleId): ReactionCycleView | undefined {
-    const bundle = cancelReactionCycle(this.#db, address, cycleId, this.faultInjector)
-    return bundle === undefined ? undefined : buildReactionCycleView(bundle)
-  }
-
-  /** Claim the next stable Reaction Job while proving ownership of the branch Writer lease. */
-  claimNextReactionJob(
-    address: WorldAddress,
-    ownerId: string,
-    writerFencingToken: number,
-    claimTtlMs = 30_000,
-    includeStopRequested = false,
-  ): ClaimedReactionJob | undefined {
-    return claimNextReactionJob(
-      this.#db,
-      address,
-      ownerId,
-      writerFencingToken,
-      this.operationalNow(),
-      claimTtlMs,
-      includeStopRequested,
-      this.faultInjector,
-    )
-  }
-
-  /** Renew a live Reaction Job claim without changing its Job fence. */
-  renewReactionJobClaim(
-    address: WorldAddress,
-    jobId: ReactionJobId,
-    ownerId: string,
-    writerFencingToken: number,
-    jobFencingToken: number,
-    claimTtlMs = 30_000,
-  ): ClaimedReactionJob {
-    return renewReactionJobClaim(
-      this.#db,
-      address,
-      jobId,
-      ownerId,
-      writerFencingToken,
-      jobFencingToken,
-      this.operationalNow(),
-      claimTtlMs,
-    )
-  }
-
-  /** Attach exact Context and ProviderCall identities to a live Job before external dispatch. */
-  bindReactionJobProvider(
-    address: WorldAddress,
-    jobId: ReactionJobId,
-    ownerId: string,
-    writerFencingToken: number,
-    jobFencingToken: number,
-    binding: ReactionJobProviderBinding,
-  ): ClaimedReactionJob {
-    return bindReactionJobProvider(
-      this.#db,
-      address,
-      jobId,
-      ownerId,
-      writerFencingToken,
-      jobFencingToken,
-      this.operationalNow(),
-      binding,
-    )
   }
 
   /** Read only one effective Event range; callers may additionally restrict the stable event vocabulary. */
@@ -1639,7 +1443,7 @@ export class WorldStore {
   committedRound(address: WorldAddress, transactionId: TransactionId): CommittedRoundRecord | undefined {
     const addressKey = worldAddressKey(address)
     const row = this.#db.prepare(`
-      SELECT round_id, base_head_seq, base_tick, head_seq, tick, bundle_hash, authority_hash
+      SELECT round_id, base_head_seq, base_tick, head_seq, tick, bundle_hash, authority_hash, legacy_reaction_link
       FROM round_commits WHERE transaction_id = ? AND address_key = ?
     `).get(transactionId, addressKey) as {
       round_id: CommitRoundRequest['roundId']
@@ -1649,6 +1453,7 @@ export class WorldStore {
       tick: number
       bundle_hash: WorldHash
       authority_hash: WorldHash | null
+      legacy_reaction_link: 0 | 1
     } | undefined
     if (row === undefined) return undefined
     const events = this.#db.prepare(`
@@ -1695,14 +1500,6 @@ export class WorldStore {
       || (authority !== undefined && (authority.authorityHash !== row.authority_hash || authority.roundId !== row.round_id))) {
       this.#invalidCommittedRound(address, transactionId, 'committed Round authority binding is divergent')
     }
-    const reactionCycle = readReactionCycleByRootTransaction(this.#db, address, transactionId)
-    const reactionSettlementHash = readReactionWaveSettlementHashByTransaction(
-      this.#db,
-      address,
-      transactionId,
-      row.authority_hash,
-      row.head_seq,
-    )
     const bundleHash = hashWorldJson('world-round-bundle', {
       address,
       roundId: row.round_id,
@@ -1710,10 +1507,8 @@ export class WorldStore {
       eventHashes,
       outboxHashes: outbox.map(item => item.payload_hash),
       ...(row.authority_hash === null ? {} : { authorityHash: row.authority_hash }),
-      ...(reactionCycle === undefined ? {} : { reactionCycleHash: reactionCycle.authorityHash }),
-      ...(reactionSettlementHash === undefined ? {} : { reactionSettlementHash }),
     })
-    if (bundleHash !== row.bundle_hash) {
+    if (row.legacy_reaction_link === 0 && bundleHash !== row.bundle_hash) {
       this.#invalidCommittedRound(address, transactionId, 'committed Round bundle hash is divergent')
     }
     return {
@@ -1978,11 +1773,6 @@ export class WorldStore {
         address: request.address,
         roundId: request.roundId,
       })
-    }
-    if (row.lifecycle_state === 'active' && request.reactionSettlement !== undefined) {
-      // Settling an already frozen Wave finishes work admitted before the draining barrier. It carries no
-      // admission proof by design, cannot admit player input, and cannot open a Cycle in the same commit.
-      return
     }
     if (row.lifecycle_state !== 'active' || proof === undefined || admitted?.input_hash !== proof.inputHash) {
       failWorld({

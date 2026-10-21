@@ -14,7 +14,6 @@ import {
   type InteractionRoundId,
 } from '@harness-world/contracts'
 import { openWorldDatabase } from './world-store.ts'
-import { requestReactionCycleStopInTransaction } from './reaction-cycle.ts'
 import { parseWorldJson, rollbackAndThrow, worldJsonText } from './sqlite.ts'
 import { PLAYER_INPUT_TRANSITIONS, readPlayerInputRow, type PlayerInputJob, type PlayerInputRow } from './player-input-jobs.ts'
 
@@ -180,9 +179,6 @@ export class RoundInbox {
         INSERT INTO round_inbox(address_key, inbox_seq, idempotency_key, input_hash, principal_id, input_json, status)
         VALUES (?, ?, ?, ?, ?, ?, 'pending')
       `).run(key, inboxSeq, request.idempotencyKey, inputHash, request.principalId, worldJsonText(request.input))
-      this.faultInjector?.hit('reaction.after-player-enqueue')
-      requestReactionCycleStopInTransaction(this.#db, request.address, 'player_preempted')
-      this.faultInjector?.hit('reaction.after-player-preempt')
       this.#db.exec('COMMIT')
       return {
         status: 'enqueued', inboxSeq, inputHash,

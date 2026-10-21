@@ -5,14 +5,11 @@ import { join } from 'node:path'
 import { DatabaseSync, type SQLInputValue } from 'node:sqlite'
 import { afterEach, describe, expect, it } from 'vitest'
 import { openContextDatabase } from '@harness-world/agents'
-import { planStableCallBudget } from '@harness-world/application'
-import { brandId, worldAddressKey, type WorldAddress, type WorldHash } from '@harness-world/contracts'
+import { brandId, worldAddressKey, type WorldAddress } from '@harness-world/contracts'
 import { WorldStore } from '@harness-world/store-sqlite'
 
 const HISTORY_ROWS = 10_000
 const MAX_EVENT_WINDOW = 128
-const MAX_ACTIVE_JOB_CANDIDATES = 256
-const MAX_REACTION_CALLS = 8
 const MAX_QUERY_MS = 2_000
 const directories: string[] = []
 
@@ -120,67 +117,6 @@ describe('Phase 8.3 fixed-data performance gates', () => {
     const elapsedMs = performance.now() - startedAt
     db.close()
     expect(latest).toEqual({ checkpoint_id: `checkpoint:${HISTORY_ROWS}` })
-    expect(elapsedMs).toBeLessThan(MAX_QUERY_MS)
-  })
-
-  it('selects a bounded active Job set before UTF-16 budget ordering and call truncation', () => {
-    const db = new DatabaseSync(':memory:')
-    db.exec(`
-      CREATE TABLE reaction_job_candidates(
-        address_key TEXT NOT NULL,
-        wave INTEGER NOT NULL,
-        character_id TEXT NOT NULL,
-        stimulus_hash TEXT NOT NULL,
-        job_id TEXT NOT NULL,
-        status TEXT NOT NULL,
-        PRIMARY KEY(address_key, job_id)
-      ) STRICT;
-      CREATE INDEX reaction_job_candidates_active
-        ON reaction_job_candidates(address_key, status, wave, character_id, stimulus_hash, job_id);
-      BEGIN IMMEDIATE;
-    `)
-    const insert = db.prepare(`
-      INSERT INTO reaction_job_candidates(address_key, wave, character_id, stimulus_hash, job_id, status)
-      VALUES ('world:p8-performance', 1, ?, ?, ?, ?)
-    `)
-    for (let index = 0; index < HISTORY_ROWS; index += 1) {
-      const active = index >= HISTORY_ROWS - MAX_ACTIVE_JOB_CANDIDATES
-      insert.run(
-        `character:${String(index).padStart(5, '0')}`,
-        `sha256:${String(HISTORY_ROWS - index).padStart(64, '0')}`,
-        `job:${String(index).padStart(5, '0')}`,
-        active ? 'pending' : 'settled',
-      )
-    }
-    db.exec('COMMIT')
-    const sql = `
-      SELECT character_id, stimulus_hash, job_id FROM reaction_job_candidates
-      WHERE address_key = ? AND status = 'pending' AND wave = ?
-    `
-    expectIndexed(planDetails(db, sql, 'world:p8-performance', 1))
-    const startedAt = performance.now()
-    const candidates = db.prepare(sql).all('world:p8-performance', 1) as Array<{
-      character_id: string
-      stimulus_hash: string
-      job_id: string
-    }>
-    const plan = planStableCallBudget(candidates.map(value => ({
-      wave: 1,
-      characterId: brandId(value.character_id, 'CharacterId'),
-      stimulusHash: value.stimulus_hash as WorldHash,
-      jobId: value.job_id,
-      estimatedTokens: 1,
-    })), {
-      remainingCalls: MAX_REACTION_CALLS,
-      remainingTokens: MAX_REACTION_CALLS,
-      maxCallsPerCharacter: 2,
-      usedCallsByCharacter: [],
-    })
-    const elapsedMs = performance.now() - startedAt
-    db.close()
-    expect(candidates).toHaveLength(MAX_ACTIVE_JOB_CANDIDATES)
-    expect(plan.reservedJobIds).toHaveLength(MAX_REACTION_CALLS)
-    expect(plan.reservedJobIds[0]).toBe(`job:${String(HISTORY_ROWS - MAX_ACTIVE_JOB_CANDIDATES).padStart(5, '0')}`)
     expect(elapsedMs).toBeLessThan(MAX_QUERY_MS)
   })
 })

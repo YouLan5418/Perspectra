@@ -13,10 +13,6 @@ import {
   type FaultInjector,
   type InteractionPackageImplementation,
   type InteractionRoundId,
-  type ReactionCycleId,
-  type ReactionCycleStatus,
-  type ReactionCycleView,
-  type ReactionListQuery,
   type RecallTokenizerId,
   type RuntimeAvailabilityState,
   type SessionId,
@@ -69,7 +65,6 @@ import {
   SessionOutboxWorker,
   SnapshotStore,
   WorldArchiveService,
-  WorldLogicalTransferService,
   WorldOutbox,
   WorldStore,
   WriterLeaseService,
@@ -779,59 +774,6 @@ export class WorldApplication {
     })
   }
 
-  async reactionCycle(address: WorldAddress, cycleId: ReactionCycleId): Promise<ReactionCycleView | undefined> {
-    return this.#durableReadGuard(address, 'reaction.get', () => {
-      const store = new WorldStore(this.options.worldPath)
-      try {
-        return store.reactionCycleView(address, cycleId)
-      } finally {
-        store.close()
-      }
-    })
-  }
-
-  async listReactionCycles(address: WorldAddress, query: ReactionListQuery = {}): Promise<ReactionCycleView[]> {
-    return this.#durableReadGuard(address, 'reaction.list', () => {
-      const status = query.status
-      if (status !== undefined && !(['active', 'stop_requested', 'terminal'] as ReactionCycleStatus[]).includes(status)) {
-        throw new TypeError('reaction.list status is invalid')
-      }
-      const limit = query.limit ?? 100
-      if (!Number.isSafeInteger(limit) || limit < 1 || limit > 100) {
-        throw new RangeError('reaction.list limit must be a safe integer from 1 through 100')
-      }
-      const store = new WorldStore(this.options.worldPath)
-      try {
-        return store.listReactionCycles(address)
-          .filter(view => status === undefined || view.status === status).slice(0, limit)
-      } finally {
-        store.close()
-      }
-    })
-  }
-
-  async cancelReactionCycle(
-    address: WorldAddress,
-    cycleId: ReactionCycleId,
-    correlationId: string,
-  ): Promise<ReactionCycleView> {
-    return this.#integrityGuard(address, 'reaction.cancel', branch => {
-      const view = branch.store.store.cancelReactionCycle(address, cycleId)
-      if (view === undefined) {
-        failWorld({
-          errorCode: 'INVALID_REQUEST',
-          category: 'admission',
-          message: 'Reaction Cycle does not exist in this branch',
-          retryable: false,
-          correlationId,
-          address,
-          details: { cycleId },
-        })
-      }
-      return view
-    })
-  }
-
   async head(address: WorldAddress) {
     return this.#integrityGuard(address, 'world.head', branch => branch.store.store.head(address))
   }
@@ -1070,16 +1012,6 @@ export class WorldApplication {
     return new WorldArchiveService(this.options.worldPath).importPortable(exportPath, targetPath, correlationId)
   }
 
-  exportAuthority(targetPath: string, correlationId: string) {
-    this.#assertOpen()
-    return new WorldLogicalTransferService(this.options.worldPath).exportAuthority(targetPath, correlationId)
-  }
-
-  importAuthority(exportPath: string, targetPath: string, correlationId: string) {
-    this.#assertOpen()
-    return new WorldLogicalTransferService(this.options.worldPath).importAuthority(exportPath, targetPath, correlationId)
-  }
-
   async forkAtHead(
     parent: WorldAddress,
     child: WorldAddress,
@@ -1097,8 +1029,7 @@ export class WorldApplication {
       return await new BranchOperationCoordinator(branch.store.store, branch.store.administration, branch.kernel, branch.store)
         .archive({ address, reason, correlationId })
     } finally {
-      // A retryable Cycle barrier must not dispose the writer used by an in-flight Wave.
-      if (branch.store.store.openReactionCycleId(address) === undefined) await this.release(address)
+      await this.release(address)
     }
   }
 
@@ -1124,10 +1055,6 @@ export class WorldApplication {
 
   async enterMaintenance(address: WorldAddress, reason: string, correlationId: string) {
     const branch = await this.#branch(address)
-    if (branch.store.store.openReactionCycleId(address) !== undefined) {
-      failWorld({ errorCode: 'MANIFEST_RUNTIME_UNAVAILABLE', category: 'runtime', retryable: false,
-        message: 'unfinished legacy NPC Reaction Cycles cannot be resumed by this runtime', correlationId, address })
-    }
     branch.store.administration.setAdmission(address, 'draining', reason, `${correlationId}:drain`)
     const drainedRounds = await branch.kernel.drainAccepted(`${correlationId}:rounds`)
     await branch.store.drainCritical(`${correlationId}:outbox`)

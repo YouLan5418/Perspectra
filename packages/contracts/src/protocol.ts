@@ -9,7 +9,6 @@ import type {
   WorldId,
 } from './ids.ts'
 import type { WorldHash, WorldJsonObject, WorldJsonValue } from './world-json.ts'
-import type { ReactionCycleDraft, ReactionWaveSettlementDraft } from './reaction-cycle.ts'
 
 export interface WorldAddress extends WorldJsonObject {
   readonly tenantId: TenantId
@@ -49,11 +48,6 @@ export type FaultPoint =
   | 'provider.after-dispatch'
   | 'provider.after-response'
   | 'provider.before-world-commit'
-  | 'reaction.after-player-enqueue'
-  | 'reaction.after-player-preempt'
-  | 'reaction.after-cancel-request'
-  | 'reaction.after-job-claim'
-  | 'reaction.after-wave-settle'
   | 'deployment-backup.after-file-copy'
   | 'deployment-backup.before-ready'
   | 'deployment-restore.after-file-copy'
@@ -124,10 +118,6 @@ export interface CommitRoundRequest {
   readonly outbox: readonly OutboxDraft[]
   /** Non-authoritative derived-state work inserted in the same World transaction. */
   readonly cognitiveJobs?: readonly CognitiveJobDraft[]
-  /** Durable, bounded NPC Reaction work created atomically with the Root Round. */
-  readonly reactionCycle?: ReactionCycleDraft
-  /** Exact claimed Reaction Jobs settled atomically with one NPC-only Round. */
-  readonly reactionSettlement?: ReactionWaveSettlementDraft
   readonly correlationId: string
   /** Versioned participant/proposal/action/resolution authority committed with this Round. */
   readonly authority?: WorldJsonObject

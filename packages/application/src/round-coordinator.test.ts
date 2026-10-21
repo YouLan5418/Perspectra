@@ -7,7 +7,7 @@ import { expect, it } from 'vitest'
 import { basicInteractionPackage, frozenInteractionWorld } from '../../../tests/fixtures/frozen-interaction-world.ts'
 import { RoundCoordinator, parsePlayerRoundResult, type RoundExecutionLane } from './round-coordinator.ts'
 
-it('commits player actions without synthesizing a legacy Cycle', async () => {
+it('commits a player action in a world with no NPC bindings', async () => {
   const directory = mkdtempSync(join(tmpdir(), 'hcw-responsive-no-bindings-'))
   const path = join(directory, 'world.sqlite')
   const world = frozenInteractionWorld('responsive/v1')
@@ -37,7 +37,6 @@ it('commits player actions without synthesizing a legacy Cycle', async () => {
       action: { actionType: 'speak', parameters: { text: 'no bindings' } },
       correlationId: 'responsive:no-bindings',
     })).resolves.toMatchObject({ status: 'accepted' })
-    expect(store.activeReactionCycle(world.manifest.address)).toBeUndefined()
   } finally {
     coordinator?.close()
     availability.close()

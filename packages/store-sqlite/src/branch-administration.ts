@@ -8,7 +8,6 @@ import {
   type WorldJsonValue,
 } from '@harness-world/contracts'
 import { openWorldDatabase } from './world-store.ts'
-import { openReactionCycleId } from './reaction-cycle.ts'
 import { parseWorldJson, rollbackAndThrow, worldJsonText } from './sqlite.ts'
 
 export interface BranchControlState extends WorldJsonObject {
@@ -89,16 +88,15 @@ export class BranchAdministration {
         UNION ALL SELECT 1 FROM player_input_jobs WHERE address_key = ?
           AND status IN ('received','prepared','dispatch_started','response_received','validated','round_enqueued') LIMIT 1
       `).get(key, key)
-      const openCycle = openReactionCycleId(this.#db, address)
       const criticalInflight = this.#db.prepare(`
         SELECT 1 FROM outbox WHERE address_key = ? AND critical = 1 AND delivery_status = 'inflight' LIMIT 1
       `).get(key)
       if (current.runtimePhase !== 'active' || current.lifecycleState !== 'active'
         || current.admissionState !== 'draining' || activeLease !== undefined || unfinishedRound !== undefined
-        || openCycle !== undefined || criticalInflight !== undefined) {
+        || criticalInflight !== undefined) {
         failWorld({
           errorCode: 'BRANCH_DRAINING', category: 'admin',
-          message: 'maintenance requires a drained active branch with no active writer, unfinished Round, Reaction Cycle, or critical inflight delivery',
+          message: 'maintenance requires a drained active branch with no active writer, unfinished Round, or critical inflight delivery',
           retryable: true, correlationId, address,
         })
       }
@@ -238,18 +236,16 @@ export class BranchAdministration {
       SELECT 1 AS present FROM outbox
       WHERE address_key = ? AND critical = 1 AND delivery_status <> 'delivered' LIMIT 1
     `).get(addressKey)
-    const openCycle = openReactionCycleId(this.#db, address)
     if (
       current.admissionState !== 'draining'
       || current.runtimePhase !== 'active'
       || activeLease !== undefined
       || unfinishedRound !== undefined
       || unresolvedCriticalDelivery !== undefined
-      || openCycle !== undefined
     ) {
       failWorld({
         errorCode: 'BRANCH_DRAINING', category: 'admin',
-        message: 'branch archive requires a drained admission barrier with no active writer, unfinished Round, critical delivery, or Reaction Cycle',
+        message: 'branch archive requires a drained admission barrier with no active writer, unfinished Round, or critical delivery',
         retryable: true, correlationId, address,
       })
     }

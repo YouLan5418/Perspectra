@@ -35,7 +35,7 @@
 | 身份称呼历史 | 从已有角色授权视图提取的名称记录，只保存节点之前的范围 |
 | 节点元数据 | 本地 UUID、名称、创建时间、事件位置、tick、现有 packHash、父节点与文件清单 |
 
-保存期间禁止输入、活动操作、逃生操作与新记忆构建；检查无 pending/claimed Round、未终结 Player Input、非 terminal Reaction Cycle、未投递关键 Outbox 和活动 writer lease。SQLite 使用一致 backup，包含 WAL 已提交数据，不拷贝运行中的主文件充当快照。
+保存期间禁止输入、活动操作、逃生操作与新记忆构建；检查无 pending/claimed Round、未终结 Player Input、未投递关键 Outbox 和活动 writer lease。SQLite 使用一致 backup，包含 WAL 已提交数据，不拷贝运行中的主文件充当快照。
 
 所有文件先写入不可选择的临时节点目录，最后原子 rename 公布节点。不建立跨库事务或新增事实协议。失败的临时目录可能留在磁盘，但不出现在历史列表。文件清单缺失时拒绝恢复，不静默初始化丢失的变量。
 

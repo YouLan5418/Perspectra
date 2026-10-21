@@ -7,12 +7,12 @@ import { brandId } from '@harness-world/contracts'
 import { currentCharacterRelations } from '@harness-world/kernel'
 import {
   BranchAdministration, ProjectionRebuilder, SnapshotStore,
-  WorldArchiveService, WorldLogicalTransferService, WorldStore,
+  WorldArchiveService, WorldStore,
 } from '@harness-world/store-sqlite'
 import { frozenInteractionWorld } from '../fixtures/frozen-interaction-world.ts'
 
 /**
- * A v10 world through the surfaces that are not the round itself: fork, logical transfer and the
+ * A v10 world through the surfaces that are not the round itself: fork and the
  * backup/restore pair. The frozen selection is part of the stored Manifest, so every one of them has to
  * carry it - and the way to know is to open the result and act in it, not to compare a manifest hash.
  */
@@ -59,49 +59,6 @@ describe('a v10 world outside its own round', () => {
       expect((authority.resolutions as readonly Record<string, unknown>[])
         .some(entry => entry.interaction !== undefined)).toBe(true)
       expect(events.filter(event => event.eventType === 'character.relation-started')).toHaveLength(1)
-    } finally { rmSync(root, { recursive: true, force: true }) }
-  }, 60_000)
-
-  it('exports and imports a world that still holds hands afterwards', async () => {
-    const root = mkdtempSync(join(tmpdir(), 'frozen-transfer-'))
-    const worldPath = join(root, 'world.sqlite')
-    const importedPath = join(root, 'imported.sqlite')
-    const file = join(root, 'world.dshworld')
-    let eventHash = ''
-    try {
-      const seed = app(worldPath, root)
-      try {
-        seed.activate(compiled)
-        await submit(seed, 'seed-hold')
-      } finally { await seed.close() }
-      const read = new WorldStore(worldPath)
-      const events = read.readEvents(address)
-      read.close()
-      eventHash = events.at(-1)!.eventHash
-      const transfer = new WorldLogicalTransferService(worldPath)
-      transfer.exportAuthority(file, 'frozen:export')
-      transfer.importAuthority(file, importedPath, 'frozen:import')
-      const imported = new WorldStore(importedPath)
-      try {
-        expect(imported.readEvents(address).map(event => event.eventHash)).toEqual(
-          events.map(event => event.eventHash))
-      } finally { imported.close() }
-      // The imported world is a world, not a copy of a log: it opens, takes a round of its own, and the
-      // frozen fold ends the contact a move ends - which it can only do if the selection came with it.
-      const replayed = app(importedPath, root)
-      try {
-        replayed.activate(compiled)
-        await replayed.submit(address, { idempotencyKey: 'imported-move', principalId: 'principal:player',
-          correlationId: 'frozen-deploy:imported-move', action: { actionType: 'move', parameters: { locationId: 'location:next' } } })
-      } finally { await replayed.close() }
-      const after = new WorldStore(importedPath)
-      const events2 = after.readEvents(address)
-      after.close()
-      expect(events2.at(-1)!.eventHash).not.toBe(eventHash)
-      expect(events2.filter(event => event.eventType === 'character.relation-ended').map(event => event.data))
-        .toEqual([{ relationId: currentCharacterRelations(events2)[0]!.relationId,
-          endedByCharacterId: 'character:player', reason: 'participant_moved' }])
-      expect(currentCharacterRelations(events2).filter(relation => relation.active)).toEqual([])
     } finally { rmSync(root, { recursive: true, force: true }) }
   }, 60_000)
 

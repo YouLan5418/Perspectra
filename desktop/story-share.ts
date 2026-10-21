@@ -101,7 +101,6 @@ async function validate(directory: string, node: StoryNode, packPath: string): P
     if (db.prepare(`SELECT 1 FROM writer_leases WHERE expires_at_ms>? UNION ALL
       SELECT 1 FROM round_inbox WHERE status IN ('pending','claimed') UNION ALL
       SELECT 1 FROM player_input_jobs WHERE status IN ('received','prepared','dispatch_started','response_received','validated','round_enqueued') UNION ALL
-      SELECT 1 FROM world_reaction_cycles WHERE status<>'terminal' UNION ALL
       SELECT 1 FROM outbox WHERE critical=1 AND delivery_status<>'delivered' LIMIT 1`).get(Date.now())) throw new Error('分享文件不是完整静止节点。')
   } finally { db.close() }
   const pack = await compileWorldPackSource(packPath, createInstalledInteractionPackages().map(interactionPackageDescription)) as CompiledWorldPackV5

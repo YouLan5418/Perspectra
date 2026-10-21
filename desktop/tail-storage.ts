@@ -77,9 +77,8 @@ export function assertSettled(directory: string, address: WorldAddress): { headS
     const key = worldAddressKey(address)
     if (db.prepare(`SELECT 1 FROM round_inbox WHERE address_key=? AND status IN ('pending','claimed')
       UNION ALL SELECT 1 FROM player_input_jobs WHERE address_key=? AND status IN ('received','prepared','dispatch_started','response_received','validated','round_enqueued')
-      UNION ALL SELECT 1 FROM world_reaction_cycles WHERE address_key=? AND status <> 'terminal'
       UNION ALL SELECT 1 FROM outbox WHERE address_key=? AND critical=1 AND delivery_status <> 'delivered'
-      UNION ALL SELECT 1 FROM writer_leases WHERE address_key=? AND expires_at_ms>? LIMIT 1`).get(key,key,key,key,key,Date.now())) throw new Error('角色处理、必要投递或提交尚未完成。')
+      UNION ALL SELECT 1 FROM writer_leases WHERE address_key=? AND expires_at_ms>? LIMIT 1`).get(key,key,key,key,Date.now())) throw new Error('角色处理、必要投递或提交尚未完成。')
     const head = db.prepare('SELECT head_seq,tick FROM heads WHERE address_key=?').get(key) as { head_seq: number; tick: number }
     return { headSeq: head.head_seq, tick: head.tick }
   } finally { db.close() }
