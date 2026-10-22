@@ -19,7 +19,7 @@ const plans:Record<string,Step[]>={A:[
   ...wait,
   {label:'前往 厨房（饭桌）'},
   speak('我答应帮你保密。灶台到底怎么回事？我们还有什么办法？'),
-  {label:'拿取 · DeepSeek 的小本子'},
+  {label:'拿起DeepSeek 的小本子'},
   {label:'前往 卧室'},
   speak('GLM，厨房的灶台打不着火了，你会修吗？'),
   ...wait,
@@ -37,9 +37,9 @@ const plans:Record<string,Step[]>={A:[
 B:[
   speak('Claude，跟你说个秘密：DeepSeek 在厨房里偷偷搞“蒸馏”，她那个小本子上记的全是你的回答。'),
   {label:'前往 厨房（饭桌）'},
-  {label:'拿取 · 玻璃蒸馏器'},
+  {label:'拿起玻璃蒸馏器'},
   {label:'前往 卧室'},
-  {label:'放下 · 玻璃蒸馏器'},
+  {label:'放下玻璃蒸馏器'},
   speak('GLM，灶台是你弄坏的吧？我不说出去，但你得答应我一件事：今晚别修它。','character:glm'),
   ...wait,
   {label:'前往 书房'},
@@ -72,8 +72,9 @@ function snapshot(runtime:WorldHostRuntime){
 }
 const directory=mkdtempSync(join(resolve('.tmp/model-girls-dinner-live'),'run-').replace('run-','run-'))
 mkdirSync(directory,{recursive:true})
-const runtime=await WorldHostRuntime.create({dataDirectory:join(directory,'world'),packPath,provider:'local',model:'gemini-3.8-flash',
-  thinkingLevel:'low',utilityEndpoint:'http://127.0.0.1:8045/v1/chat/completions',timeoutMs:60000,playSettings:settings})
+const runtime=await WorldHostRuntime.create({dataDirectory:join(directory,'world'),packPath,provider:'local',model:process.env.HCW_LOCAL_MODEL??'gemini-3.8-flash',
+  thinkingLevel:'low',utilityEndpoint:process.env.HCW_LOCAL_ENDPOINT??'http://127.0.0.1:8045/v1/chat/completions',
+  ...(process.env.HCW_LOCAL_API_KEY?{apiKey:process.env.HCW_LOCAL_API_KEY}:{}),timeoutMs:60000,playSettings:settings})
 const rounds:unknown[]=[]
 let shown=0,transcript=''
 try{

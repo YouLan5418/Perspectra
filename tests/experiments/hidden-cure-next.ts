@@ -22,7 +22,10 @@ async function run() {
     throw new TypeError('用法：node --import tsx tests/experiments/hidden-cure-next.ts [--case=D1|D2|D3|E]；只调用真实模型')
   const root = resolve('output/hidden-cure-next'); mkdirSync(root, {recursive: true})
   const directory = mkdtempSync(join(root, 'live-'))
-  const model = 'gemini-3.8-flash', endpoint = 'http://127.0.0.1:8045/v1/chat/completions'
+  // The local model by default; HCW_LOCAL_* points the proxy elsewhere. The key goes only into the upstream header.
+  const model = process.env.HCW_LOCAL_MODEL ?? 'gemini-3.8-flash',
+    endpoint = process.env.HCW_LOCAL_ENDPOINT ?? 'http://127.0.0.1:8045/v1/chat/completions',
+    key = process.env.HCW_LOCAL_API_KEY
   const results: Record<string, unknown>[] = []
   for (const name of (selected ? [selected] : ['D1','D2','D3']) as (keyof typeof goals)[]) {
     const packPath=join(nextRoot,name)
@@ -41,7 +44,7 @@ async function run() {
           input, schema:object(object(array(wire.tools)[0]).function).parameters, generation:{temperature:wire.temperature,max_tokens:wire.max_tokens,reasoning_effort:wire.reasoning_effort}, startedAt: new Date().toISOString()}
         calls.push(call)
         try {
-          const upstream = await fetch(endpoint, {method: 'POST', headers: {'content-type': 'application/json'}, body, signal: cancellation.signal})
+          const upstream = await fetch(endpoint, {method: 'POST', headers: {'content-type': 'application/json', ...(key ? {authorization: 'Bearer ' + key} : {})}, body, signal: cancellation.signal})
           const text = await upstream.text(); call.httpStatus = upstream.status
           try {
             const parsed = object(JSON.parse(text)); call.usage = parsed.usage ?? parsed.usageMetadata
