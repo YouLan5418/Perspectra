@@ -28,7 +28,6 @@ export interface PlayerView {
     inputCharacters: number
     reading: { fontSize: number; lineHeight: number; autoFollow: boolean }
     audio?: { volume: number; muted: boolean; voiceEnabled: boolean }
-    palette?: 'sakura' | 'lamp' | 'moon' | 'forest'
   }
   tailRound?: {
     candidateIds?: readonly string[]

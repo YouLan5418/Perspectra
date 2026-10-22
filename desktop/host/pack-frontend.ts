@@ -26,7 +26,10 @@ export interface PackWebAsset {
   readonly contentType: string
 }
 export interface PackWeb {
-  readonly page: Buffer
+  /** The pack's own page; absent when the pack only restyles the default stage with theme.css. */
+  readonly page?: Buffer
+  /** Load frontend/theme.css after the default stage's own styles. */
+  readonly theme: boolean
   readonly assets: ReadonlyMap<string, PackWebAsset>
   readonly manifest: FrontendManifest
   readonly digest: string
@@ -89,7 +92,18 @@ export async function loadPackWeb(packPath: string): Promise<PackWeb | undefined
   await visit(root)
   const entry = assets.get('/frontend/custom/index.html'),
     source = assets.get('/frontend/custom/manifest.json')
-  if (!entry || !source) throw new Error('frontend/ 必须包含 index.html 与 manifest.json。')
+  const digestHash = createHash('sha256')
+  for (const path of [...assets.keys()].sort()) {
+    const asset = assets.get(path)!
+    digestHash.update(JSON.stringify([path, asset.bytes.length]))
+    digestHash.update(asset.bytes)
+  }
+  const digest = digestHash.digest('hex')
+  // Only a stylesheet: the default stage stays, restyled. It needs no manifest, as it asks for no capability.
+  if (!entry && assets.has('/frontend/custom/theme.css'))
+    return { theme: true, assets, digest, manifest: { apiVersion: 1, capabilities: [] } }
+  if (!entry || !source)
+    throw new Error('frontend/ 必须包含 index.html 与 manifest.json；只改默认舞台的样式时只放 theme.css。')
   const data = JSON.parse(source.bytes.toString('utf8')) as Record<string, unknown>
   if (
     !data ||
@@ -103,12 +117,11 @@ export async function loadPackWeb(packPath: string): Promise<PackWeb | undefined
     (c): c is string =>
       typeof c === 'string' && FRONTEND_CAPABILITIES.includes(c as (typeof FRONTEND_CAPABILITIES)[number]),
   )
-  const digestHash = createHash('sha256')
-  for (const path of [...assets.keys()].sort()) {
-    const asset = assets.get(path)!
-    digestHash.update(JSON.stringify([path, asset.bytes.length]))
-    digestHash.update(asset.bytes)
+  return {
+    page: entry.bytes,
+    theme: false,
+    assets,
+    digest,
+    manifest: { apiVersion: 1, capabilities: [...new Set(capabilities)] },
   }
-  const digest = digestHash.digest('hex')
-  return { page: entry.bytes, assets, digest, manifest: { apiVersion: 1, capabilities: [...new Set(capabilities)] } }
 }

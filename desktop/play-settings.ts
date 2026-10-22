@@ -124,15 +124,6 @@ export function readingPreferences(value: unknown): ReadingPreferences {
   return { fontSize: v.fontSize, lineHeight: v.lineHeight, autoFollow: v.autoFollow }
 }
 
-/** 界面主题色；只改变启动器、官方舞台与控制台的配色，不影响游戏内容。 */
-export const PALETTES = ['sakura', 'lamp', 'moon', 'forest'] as const
-export type Palette = (typeof PALETTES)[number]
-export const DEFAULT_PALETTE: Palette = 'sakura'
-export function palettePreference(value: unknown): Palette {
-  if (typeof value !== 'string' || !(PALETTES as readonly string[]).includes(value)) throw new TypeError('主题色无效。')
-  return value as Palette
-}
-
 /** Presentation preferences only. Templates decide whether to provide audio playback. */
 export interface AudioPreferences {
   volume: number

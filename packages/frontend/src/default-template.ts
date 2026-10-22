@@ -6,12 +6,13 @@ export const DEFAULT_PAGE = String.raw`<!doctype html>
 <title>Perspectra 对话</title><link rel="stylesheet" href="/frontend/default.css"></head>
 <body><main>
   <div class="backdrop" aria-hidden="true"></div>
-  <header class="world-header"><div class="scene-heading"><div><h2 id="scene">正在进入情景</h2><h1 id="title">正在进入世界</h1><div id="status-bar" class="status-bar" role="group" aria-label="你知道的状态" hidden></div></div></div><nav class="stage-tools" aria-label="舞台工具"><span id="status" class="status" role="status">正在连接</span><button id="history-toggle" type="button" aria-expanded="false">文字记录</button><button id="actions-toggle" type="button" aria-expanded="false">行动 <span id="action-count">0</span></button></nav></header>
+  <header class="world-header"><div class="scene-heading"><div><h2 id="scene">正在进入情景</h2><h1 id="title">正在进入世界</h1><div id="status-bar" class="status-bar" role="group" aria-label="你知道的状态" hidden></div></div></div><nav class="stage-tools" aria-label="舞台工具"><span id="status" class="status" role="status">正在连接</span><button id="history-toggle" type="button" aria-expanded="false">记录</button><button id="actions-toggle" type="button" aria-expanded="false">行动 <span id="action-count">0</span></button><button id="status-toggle" type="button" aria-expanded="false">状态</button></nav></header>
   <div id="characters" aria-label="当前可见角色"></div><div id="character-menu" class="character-menu" role="menu" hidden></div>
   <p id="movement-toast" class="movement-toast" role="status" hidden></p>
   <section class="stage-bottom" aria-label="故事与对话">
     <div class="dialogue-wrap" id="dialogue-wrap"><div class="dialogue-meta"><strong id="speaker" class="speaker-label">序幕</strong><span id="reading-count" class="reading-count"></span></div><button id="dialogue" class="dialogue" type="button" aria-label="阅读下一段">世界正在醒来……</button><div id="auto-progress" class="auto-progress" hidden><div id="auto-progress-bar" class="auto-progress-bar"></div></div><div class="dialogue-footer"><span id="continue-hint">点击继续</span><button id="auto-read" type="button" aria-pressed="false">自动</button><button id="skip-read" type="button" title="跳到已经发生的最新内容">跳过</button>      <div id="round-tools" class="round-tools" role="group" aria-label="末端回合候选" hidden><button id="candidate-prev" type="button" aria-label="上一个候选" title="上一个候选">‹</button><span id="candidate-count" aria-live="polite"></span><button id="candidate-next" type="button" aria-label="下一个候选" title="下一个候选">›</button><button id="regenerate-round" type="button" aria-label="重新生成" title="重新生成此回合"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M20 7v5h-5M4 17v-5h5"/><path d="M6 6a8 8 0 0 1 13 3l1 3M4 12l1 3a8 8 0 0 0 13 3"/></svg></button><button id="cancel-round" type="button" aria-label="取消重新生成" title="取消重新生成" hidden>停止</button></div>
 </div></div>
+<div id="reply-bar" class="reply-bar" hidden><button id="reply-open" type="button">说点什么…</button><button id="reply-wait" type="button" hidden title="不说也不做，让这一轮过去">静观</button></div>
 <div class="feedback"><p id="notice" role="status"></p><button id="retry" class="secondary" type="button" hidden>重试同一操作</button></div>      <div class="composer" id="composer" hidden><div class="reply-context" id="reply-context" role="button" tabindex="0" title="点击返回对白"><span id="reply-speaker"></span><p id="reply-summary"></p></div>
         <div class="composer-body"><div class="composer-main">
         <div id="expression-choices" class="expression-choices"></div><label class="visually-hidden" for="input">写下你的回应</label><textarea id="input" maxlength="2000" placeholder="说出你想对角色说的话……" rows="2"></textarea>
@@ -36,6 +37,7 @@ export const DEFAULT_PAGE = String.raw`<!doctype html>
   </section>
   <section id="history-panel" class="panel history-panel" aria-label="文字记录" hidden><div class="panel-header"><span>文字记录 · <span id="player"></span></span><button id="history-close" type="button" aria-label="关闭文字记录">×</button></div><section id="history" aria-label="玩家可见对话记录"></section><button id="latest" class="latest secondary" type="button" hidden>回到最新对话 ↓</button></section>
   <section id="action-panel" class="panel action-panel" aria-label="可用行动" hidden><div class="panel-header"><span>当前可用行动</span><button id="actions-close" type="button" aria-label="关闭行动">×</button></div><div id="actions"></div></section>
+  <section id="status-panel" class="panel status-panel" aria-label="状态" hidden><div class="panel-header"><span>状态</span><button id="status-close" type="button" aria-label="关闭状态">×</button></div><div id="status-list" class="panel-body"></div></section>
 </main><script src="/frontend/sdk.js"></script><script src="/frontend/default.js"></script></body></html>`
 
 export const DEFAULT_STYLE = STAGE_STYLE
@@ -108,8 +110,6 @@ export const DEFAULT_SCRIPT = String.raw`(() => {
  const roundTools=node('round-tools');
  const history=node('history');
  const QUOTE=/([“”"「『][^“”"」』\n]*[“”"」』])/;
- const HUES=[18,42,96,166,208,262,326];
- function hueOf(name){let h=0;for(const ch of String(name))h=(h*31+ch.codePointAt(0))>>>0;return HUES[h%HUES.length]}
  function fillText(el,text){
    const parts=text.split(QUOTE);
    if(parts.length===1){el.textContent=text;return}
@@ -152,6 +152,7 @@ export const DEFAULT_SCRIPT = String.raw`(() => {
    document.querySelector('main').dataset.hasActivity=String(!!(latest?.activity||latest?.activities?.length));
    if(connected&&latest?.status==='ready')node('status').textContent=mode==='response'?'等待你的回应':mode==='activity'?'可以操作':readingBlocked?'阅读中':'已读完';
    node('composer').hidden=mode!=='response';node('dialogue-wrap').hidden=mode==='response';
+   node('reply-bar').hidden=mode!=='reading'||readingBlocked||!canReply;node('reply-wait').hidden=!waitOption;node('reply-wait').disabled=actionDisabled;
    const unit=playback.current();node('reply-speaker').textContent=unit?.speaker||'当前情景';node('reply-summary').textContent=unit?.text||'故事从你的回应开始。';
    node('actions-toggle').disabled=actionDisabled;
    if(actionDisabled)node('action-panel').hidden=true;
@@ -189,7 +190,6 @@ export const DEFAULT_SCRIPT = String.raw`(() => {
    latest=view;renderRecipients(view);const hadPending=playback.pending();playback.update(view.history);if(!hadPending&&playback.pending())composerExpanded=false;renderStage();
    const expression=view.expression||{speech:'free',speechChoices:[],narration:true};
    if(JSON.stringify(expression)!==expressionKey){expressionKey=JSON.stringify(expression);node('expression-choices').replaceChildren();if(expression.speech==='choices')for(const text of expression.speechChoices){const button=document.createElement('button');button.type='button';button.textContent=text;button.onclick=()=>send('speak',{text,scope:speechScope(),addresseeIds:['direct','private'].includes(speechScope())?[node('speech-recipient').value]:[]});node('expression-choices').append(button)}}
-   document.documentElement.dataset.palette=['sakura','lamp','moon','forest'].includes(view.settings?.palette)?view.settings.palette:'sakura';
    const reading=view.settings?.reading||{fontSize:17,lineHeight:1.9,autoFollow:true};
    document.documentElement.style.setProperty('--fs-story',reading.fontSize+'px');document.documentElement.style.setProperty('--story-line-height',String(reading.lineHeight));
    node('input').maxLength=node('narration').maxLength=view.settings?.inputCharacters||2000;
@@ -199,7 +199,12 @@ export const DEFAULT_SCRIPT = String.raw`(() => {
      for(const group of rows){const section=document.createElement('span');section.className='status-group';const holder=document.createElement('small');holder.textContent=group.holder;section.append(holder);
        for(const item of group.items){const entry=document.createElement('span');entry.className='status-item';entry.append(item.label+' ');const value=document.createElement('strong');value.textContent=item.value;entry.append(value);
          if(item.note){const note=document.createElement('span');note.className='hint';note.textContent=item.note;entry.append(' ',note)}section.append(entry)}
-       bar.append(section)}}
+       bar.append(section)}
+     const list=node('status-list');list.replaceChildren();
+     if(!rows.length){const empty=document.createElement('p');empty.className='empty-status';empty.textContent='你还不知道任何状态。';list.append(empty)}
+     for(const group of rows){const section=document.createElement('section');section.className='status-section';const heading=document.createElement('h3');heading.textContent=group.holder;const table=document.createElement('dl');
+       for(const item of group.items){const term=document.createElement('dt');term.textContent=item.label;const value=document.createElement('dd');value.textContent=item.value+(item.note?'（'+item.note+'）':'');table.append(term,value)}
+       section.append(heading,table);list.append(section)}}
    node('status').textContent=({ready:playback.pending()?'阅读中':'可以回应',busy:view.responders?.length?view.responders.join('、')+' 正在回应':view.canInterrupt?'可以接着说':view.tailRound?.regenerating?'正在处理回合':'角色正在回应',paused:'已暂停',error:'处理未完成'})[view.status];
    node('status').dataset.state=view.status;
    node('status').title=view.feedback?.phase||'';
@@ -211,7 +216,7 @@ export const DEFAULT_SCRIPT = String.raw`(() => {
      historyKey=nextHistory;history.replaceChildren();
      if(!view.history.length){const empty=document.createElement('div');empty.className='empty-history';const title=document.createElement('strong');title.textContent='故事从你的第一句话开始';empty.append(title,document.createTextNode('看看眼前的世界，向角色打个招呼吧。'));history.append(empty)}
      for(const line of view.history){
-       const article=document.createElement('article');article.className='line'+(line.player?' player':'');if(!line.player)article.style.setProperty('--hue',String(hueOf(line.speaker)));
+       const article=document.createElement('article');article.className='line'+(line.player?' player':'');
        const avatar=document.createElement('span');avatar.className='avatar';avatar.setAttribute('aria-hidden','true');avatar.textContent=Array.from(line.speaker)[0]||'·';
        const message=document.createElement('div');message.className='message';
        const speaker=document.createElement('strong');speaker.className='speaker';speaker.textContent=line.speaker;
@@ -275,7 +280,7 @@ export const DEFAULT_SCRIPT = String.raw`(() => {
      const title=document.createElement('p');title.textContent=QUICK_GROUPS[group]+' · '+entries.length+' 项';menu.append(title);
      for(const {option,score} of entries){const item=document.createElement('button');item.type='button';item.dataset.option=option.id;item.textContent=option.label;
        if(score>0){item.classList.add('related');item.title='与刚才说话的角色有关'}
-       if(option.participantSelection||option.argumentSchema){item.classList.add('needs-choice');item.title=option.participantSelection?'需要选择参与角色':'需要填写内容';item.onclick=()=>{quickMenu(null);node('action-panel').hidden=false;controls()}}
+       if(option.participantSelection||option.argumentSchema){item.classList.add('needs-choice');item.title=option.participantSelection?'需要选择参与角色':'需要填写内容';item.onclick=()=>{quickMenu(null);drawer('action-panel');controls()}}
        else item.onclick=()=>{quickMenu(null);act(option)};
        menu.append(item)}
      wrap.append(button,menu);box.append(wrap)}
@@ -350,7 +355,8 @@ export const DEFAULT_SCRIPT = String.raw`(() => {
      label.append(input);form.append(label);fields.push({key,caption:caption.textContent,read,required:required.has(key)})}
    form.read=()=>{const values={};for(const field of fields){const value=field.read();if(value===undefined){if(field.required)throw new Error('请填写 '+field.caption);continue}values[field.key]=value}return values};
    return form}
- node('wait').onclick=()=>{if(waitOption)send('perform',{optionId:waitOption.id})};
+ node('wait').onclick=node('reply-wait').onclick=()=>{if(waitOption)send('perform',{optionId:waitOption.id})};
+ node('reply-open').onclick=()=>{composerExpanded=true;activityOpen=false;controls();node('input').focus()};
  node('send').onclick=()=>{const text=latest?.expression&&latest.expression.speech!=='free'?'':node('input').value.trim(),narration=latest?.expression?.narration===false?'':node('narration').value.trim();if(!text&&!narration&&!attached)return;const maximum=latest?.settings?.inputCharacters||2000;if(text.length+narration.length>maximum){node('notice').textContent='发言与描写合计不能超过 '+maximum+' 个字符';return}const scope=speechScope(),addresseeIds=scope==='direct'||scope==='private'?[node('speech-recipient').value]:[];if((text||narration)&&(scope==='direct'||scope==='private')&&!addresseeIds[0])return;
    if(attached){const payload={optionId:attached.option.id,...(attached.args?{arguments:attached.args}:{})};if(text||narration)Object.assign(payload,{say:{text,narration,scope,addresseeIds},order:node('attached-order').value});send('perform',payload);return}
    send('speak',{text,narration,scope,addresseeIds})};
@@ -384,9 +390,8 @@ export const DEFAULT_SCRIPT = String.raw`(() => {
    if(key!==sceneKey){
      if(sceneKey&&scene?.locationName){node('movement-toast').textContent='当前情景 · '+scene.locationName;node('movement-toast').hidden=false;clearTimeout(toastTimer);toastTimer=setTimeout(()=>node('movement-toast').hidden=true,3500)}
     sceneKey=key;node('scene').textContent=scene?.locationName||'情景尚未开始';
-    if(scene?.locationName){let hue=0;for(const ch of scene.locationName)hue=(hue*31+ch.codePointAt(0))>>>0;document.documentElement.style.setProperty('--scene-hue',String(hue%360))}
     node('characters').replaceChildren();node('character-menu').hidden=true;
-    for(const {id,name} of scene?.recipients||[]){const portrait=document.createElement('div');portrait.className='portrait';portrait.dataset.characterId=id;portrait.style.setProperty('--hue',String(hueOf(name)));
+    for(const {id,name} of scene?.recipients||[]){const portrait=document.createElement('div');portrait.className='portrait';portrait.dataset.characterId=id;
       const badge=document.createElement('div');badge.className='portrait-badge';badge.hidden=true;badge.textContent=Array.from(name)[0]||'◇';
       const slug=String(name).toLowerCase().split(/[\s（(·]/)[0];
       const img=document.createElement('img');img.src='/frontend/assets/'+encodeURIComponent(slug)+'.png';img.alt=name+'的立绘';img.onerror=()=>{img.remove();badge.hidden=false};portrait.append(img,badge);
@@ -429,14 +434,17 @@ export const DEFAULT_SCRIPT = String.raw`(() => {
      node('input').focus();
    }
  }
- function historyPanel(open){node('history-panel').hidden=!open;node('history-toggle').setAttribute('aria-expanded',String(open));if(open){clearTimeout(autoTimer);autoTimer=null;updateAutoProgress(0);node('history-close').focus();bottom()}else{node('history-toggle').focus();scheduleAuto()}controls()}
+ /* 记录、行动、状态三个抽屉同一时间只开一个。 */
+ function drawer(name){for(const [id,toggle] of [['history-panel','history-toggle'],['action-panel','actions-toggle'],['status-panel','status-toggle']]){node(id).hidden=id!==name;node(toggle).setAttribute('aria-expanded',String(id===name))}}
+ function historyPanel(open){if(open)drawer('history-panel');else node('history-panel').hidden=true;node('history-toggle').setAttribute('aria-expanded',String(open));if(open){clearTimeout(autoTimer);autoTimer=null;updateAutoProgress(0);node('history-close').focus();bottom()}else{node('history-toggle').focus();scheduleAuto()}controls()}
  node('dialogue').onclick=advance;
  node('skip-read').onclick=()=>{updateAutoProgress(0);playback.skip();renderStage();if(canReplyNow())composerExpanded=true;controls();if(canReplyNow())node('input').focus()};
  node('auto-read').onclick=()=>{auto=!auto;node('auto-read').setAttribute('aria-pressed',String(auto));node('auto-read').classList.toggle('active',auto);scheduleAuto()};
  node('history-toggle').onclick=()=>historyPanel(node('history-panel').hidden);node('history-close').onclick=()=>historyPanel(false);
- node('actions-toggle').onclick=()=>{node('action-panel').hidden=!node('action-panel').hidden;controls()};node('actions-close').onclick=()=>{node('action-panel').hidden=true;controls()};
+ node('actions-toggle').onclick=()=>{drawer(node('action-panel').hidden?'action-panel':null);controls()};node('actions-close').onclick=()=>{drawer(null);controls()};
+ node('status-toggle').onclick=()=>{drawer(node('status-panel').hidden?'status-panel':null);controls()};node('status-close').onclick=()=>{drawer(null);controls()};
  node('reply-context').onclick=()=>{composerExpanded=false;controls()};
- document.addEventListener('keydown',event=>{if(event.key==='Escape'){if(!node('character-menu').hidden){node('character-menu').hidden=true;return}if(!node('audience-menu').hidden){audienceMenu(false);node('audience-button').focus();return}if(quickOpen){const group=quickOpen;quickMenu(null);node('quick-actions').querySelector('[data-group="'+group+'"] .group-button')?.focus();return}historyPanel(false);node('action-panel').hidden=true;composerExpanded=false;controls();return}if((event.key===' '||event.key==='Enter')&&!['INPUT','TEXTAREA','SELECT','BUTTON','SUMMARY'].includes(document.activeElement?.tagName)){event.preventDefault();advance()}});
+ document.addEventListener('keydown',event=>{if(event.key==='Escape'){if(!node('character-menu').hidden){node('character-menu').hidden=true;return}if(!node('audience-menu').hidden){audienceMenu(false);node('audience-button').focus();return}if(quickOpen){const group=quickOpen;quickMenu(null);node('quick-actions').querySelector('[data-group="'+group+'"] .group-button')?.focus();return}historyPanel(false);drawer(null);composerExpanded=false;controls();return}if((event.key===' '||event.key==='Enter')&&!['INPUT','TEXTAREA','SELECT','BUTTON','SUMMARY'].includes(document.activeElement?.tagName)){event.preventDefault();advance()}});
  let lastWheel=0;
  document.addEventListener('wheel',event=>{
    if(['INPUT','TEXTAREA','SELECT'].includes(document.activeElement?.tagName))return;

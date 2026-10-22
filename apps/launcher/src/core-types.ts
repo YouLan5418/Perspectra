@@ -1,4 +1,4 @@
-import type { PlaySettings, ReadingPreferences, AudioPreferences, Palette } from '../../../desktop/play-settings.ts'
+import type { PlaySettings, ReadingPreferences, AudioPreferences } from '../../../desktop/play-settings.ts'
 import type { HostPluginSettings } from '../../../desktop/host-plugin-settings.ts'
 import type { RolePreset, RolePresetMapping } from '@harness-world/provider-chat/preset'
 export type { RolePreset, RolePresetMapping }
@@ -49,7 +49,6 @@ export interface CoreSnapshot {
   preferences?: {
     largeText: boolean
     theme?: 'system' | 'light' | 'dark'
-    palette?: Palette
     reading?: ReadingPreferences
     audio?: AudioPreferences
     hostPlugins?: HostPluginSettings[]

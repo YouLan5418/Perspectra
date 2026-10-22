@@ -262,7 +262,6 @@ export function projectPlayerView(state: HostState): PlayerView {
                   },
                 }
               : {}),
-            ...(state.playerSettings.palette ? { palette: state.playerSettings.palette } : {}),
           },
         }
       : {}),

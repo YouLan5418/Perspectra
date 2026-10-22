@@ -4,13 +4,11 @@ export const HOST_ACTIVITY_PAGE = String.raw`<!doctype html>
 <title>Perspectra 试玩</title>
 <style>
 /* 宿主外壳：与舞台、启动器同一套主题色；只保留一层很薄的顶栏。 */
-/* 主题色：由启动器全局设置经 settings.palette 传入；默认樱色。舞台始终是夜色。 */
-:root,:root[data-palette="sakura"]{--ink:#120e10;--ink-0:#0b0809;--ink-2:#1a1418;--ink-3:#241c21;--lamp:#f0a0b8;--lamp-strong:#f7bccd;--lamp-deep:#d77a97;--lamp-ink:#2a1119;--text:#f3e8ec;--muted:#c9b5bd;--faint:#927e87;--say:#fdf0f4;--act:#b9a5ad;--narr:#d6c3cb}
-:root[data-palette="lamp"]{--ink:#100e0c;--ink-0:#0a0908;--ink-2:#171411;--ink-3:#211d19;--lamp:#e6ad5c;--lamp-strong:#f0bf72;--lamp-deep:#cf8f3f;--lamp-ink:#22170a;--text:#f1ebe1;--muted:#c4baab;--faint:#8e8576;--say:#fbf2e2;--act:#b3a896;--narr:#cfc5b4}
-:root[data-palette="moon"]{--ink:#0d1015;--ink-0:#08090c;--ink-2:#13171e;--ink-3:#1c222b;--lamp:#9ab8e8;--lamp-strong:#b6cdf2;--lamp-deep:#6f93cf;--lamp-ink:#0e1626;--text:#e7ecf3;--muted:#b3bccb;--faint:#7d8798;--say:#f2f6fc;--act:#a3adbd;--narr:#c6cfdc}
-:root[data-palette="forest"]{--ink:#0e120f;--ink-0:#080a09;--ink-2:#141a16;--ink-3:#1d251f;--lamp:#8fcfa6;--lamp-strong:#a9dcbb;--lamp-deep:#5fae80;--lamp-ink:#0d1f15;--text:#e7efe9;--muted:#b5c4ba;--faint:#7f9086;--say:#f1f8f3;--act:#a6b7ab;--narr:#c7d6cc}
+/* 黑白两色，跟随系统浅色／深色；变量名沿用舞台的旧名字，外壳其余规则不变。 */
+:root{--ink:#f7f7f7;--ink-0:#ffffff;--ink-2:#efefef;--ink-3:#ffffff;--lamp:#111111;--lamp-strong:#000000;--lamp-deep:#333333;--lamp-ink:#ffffff;--text:#111111;--muted:#555555;--faint:#8c8c8c;--say:#111111;--act:#5a5a5a;--narr:#333333}
+@media(prefers-color-scheme:dark){:root{--ink:#0d0d0d;--ink-0:#080808;--ink-2:#171717;--ink-3:#222222;--lamp:#f2f2f2;--lamp-strong:#ffffff;--lamp-deep:#cccccc;--lamp-ink:#111111;--text:#f2f2f2;--muted:#b3b3b3;--faint:#7c7c7c;--say:#f5f5f5;--act:#a6a6a6;--narr:#d0d0d0}}
 :root{
-  color-scheme:dark;font:13px/1.6 "Segoe UI Variable Text","Segoe UI","PingFang SC","Microsoft YaHei UI","Microsoft YaHei",sans-serif;
+  color-scheme:light dark;font:13px/1.6 "Segoe UI Variable Text","Segoe UI","PingFang SC","Microsoft YaHei UI","Microsoft YaHei",sans-serif;
   background:var(--ink);color:var(--text);
   --gold:var(--lamp);--gold-hover:var(--lamp-strong);--gold-line:color-mix(in srgb,var(--lamp) 38%,transparent);
   --danger:#f08a7e;
@@ -101,7 +99,7 @@ iframe{
   background:color-mix(in srgb,var(--lamp) 6.0%,transparent);border-radius:0 8px 8px 0;padding:8px 10px 8px 14px;
 }
 #activity-state{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:8px 0 14px}
-#activity-state div{padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:rgba(0,0,0,.25);min-width:0}
+#activity-state div{padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:var(--ink-2);min-width:0}
 #activity-state dt{font-size:11px;color:var(--faint);letter-spacing:.06em}
 #activity-state dd{margin:4px 0 0;font:700 20px/1.2 var(--font-story);color:var(--gold-hover);overflow-wrap:anywhere}
 #options,#management{display:flex;flex-direction:column;gap:8px}
@@ -109,7 +107,7 @@ iframe{
 .operation label{display:flex;flex-direction:column;gap:6px;font-size:12px;color:var(--muted)}
 .operation input,.operation select,#options>label select{
   padding:9px 12px;border:1px solid var(--line-strong);border-radius:10px;
-  background:rgba(0,0,0,.3);color:var(--text);min-width:0;width:100%;
+  background:var(--ink-0);color:var(--text);min-width:0;width:100%;
   transition:border-color .2s var(--ease-out),box-shadow .2s var(--ease-out);
 }
 .operation input:focus,.operation select:focus,#options>label select:focus{border-color:var(--gold-line);box-shadow:0 0 0 3px color-mix(in srgb,var(--lamp) 12.0%,transparent);outline:none}
@@ -174,10 +172,8 @@ iframe{
     const value=await response.json();if(!response.ok){const error=new Error(value.error||'公开接口请求失败');error.status=response.status;throw error}return value;
   }
   function post(value){if(port)port.postMessage(value)}
-  /* 主题色只影响外壳配色，来自玩家视图的 settings.palette */
-  function paint(view){const palette=view?.settings?.palette;document.documentElement.dataset.palette=['sakura','lamp','moon','forest'].includes(palette)?palette:'sakura'}
   function applyView(next,notify=true){
-    if(!playerView){playerView=next;paint(next);return}
+    if(!playerView){playerView=next;return}
     const changes={};
     const selected=tail=>tail?.candidateIds?.[(tail.candidateIndex||1)-1]||null;
     const candidateChanged=playerView.tailRound?.id&&playerView.tailRound.id===next.tailRound?.id&&selected(playerView.tailRound)!==selected(next.tailRound);
@@ -189,7 +185,7 @@ iframe{
       if(prefix)changes.historyAppend=next.history.slice(playerView.history.length);else changes.history=next.history;
     }
     if(init?.frontend==='default'&&JSON.stringify(playerView.history)!==JSON.stringify(next.history)){readingPending=true;if(!changes.historyAppend)shownActivity=next.activity?{title:next.activity.title,game:{active:next.activity.active,phase:next.activity.phase,public:next.activity.public}}:null;node('game').open=false;panelPresentation()}
-    playerView=next;paint(next);if(notify&&Object.keys(changes).length)post({type:'view-patch',changes});
+    playerView=next;if(notify&&Object.keys(changes).length)post({type:'view-patch',changes});
   }
   async function connect(){
     if(connected||!frameLoaded||!frontendReady||!init)return;
@@ -244,9 +240,9 @@ iframe{
     revoke();useDefault=fallback;
     init=await publicApi('init'+(fallback?'?template=default':''));
     readingPending=init.frontend==='default';historyOpen=false;signature='';if(latest)render(latest);
-    playerView=init.view;paint(init.view);
+    playerView=init.view;
     frame.setAttribute('sandbox',init.frontendMode==='trusted'?'allow-scripts allow-same-origin':'allow-scripts');
-    frame.src=init.frontend==='custom'&&!fallback?(init.frontendOrigin||'')+'/frontend/custom/index.html':'/frontend/default.html';
+    frame.src=init.frontend==='custom'&&!fallback?(init.frontendOrigin||'')+'/frontend/custom/index.html':'/frontend/default.html'+(init.theme&&!fallback?'?theme=1':'');
     setTimeout(()=>{if(!connected)node('frontend-status').textContent='前端未连接；可重新加载或切换默认模板'},5000);
   }
   async function events(){

@@ -2,14 +2,11 @@ import {
   DEFAULT_PLAY_SETTINGS,
   DEFAULT_READING,
   DEFAULT_AUDIO,
-  DEFAULT_PALETTE,
   readingPreferences,
   audioPreferences,
-  palettePreference,
   type PlaySettings,
   type ReadingPreferences,
   type AudioPreferences,
-  type Palette,
 } from '../../../../desktop/play-settings.ts'
 import { hostPluginSettings, type HostPluginSettings } from '../../../../desktop/host-plugin-settings.ts'
 import { isTauri } from '@tauri-apps/api/core'
@@ -78,7 +75,6 @@ export const useLauncherStore = defineStore('launcher', () => {
     () => packagePlaySettings.value[selectedPackageId.value] ?? DEFAULT_PLAY_SETTINGS,
   )
   const theme = ref<'system' | 'light' | 'dark'>('system')
-  const palette = ref<Palette>(DEFAULT_PALETTE)
   const notice = ref('')
   const selectedPackage = computed(() => packages.value.find(pack => pack.id === selectedPackageId.value))
   const currentInstance = computed(() => instances.value.find(instance => instance.id === selectedInstanceId.value))
@@ -380,7 +376,6 @@ export const useLauncherStore = defineStore('launcher', () => {
     lastModels.value = snapshot.lastModels
     largeText.value = snapshot.preferences?.largeText ?? false
     theme.value = snapshot.preferences?.theme ?? 'system'
-    palette.value = snapshot.preferences?.palette ?? DEFAULT_PALETTE
     reading.value = snapshot.preferences?.reading ?? { ...DEFAULT_READING }
     audio.value = snapshot.preferences?.audio ?? { ...DEFAULT_AUDIO }
     hostPlugins.value = snapshot.preferences?.hostPlugins ?? []
@@ -567,7 +562,6 @@ export const useLauncherStore = defineStore('launcher', () => {
     nextLargeText: boolean,
     nextReading?: ReadingPreferences,
     nextAudio?: AudioPreferences,
-    nextPalette: Palette = palette.value,
     nextPlugins?: HostPluginSettings[],
   ) {
     const plugins = nextPlugins === undefined ? undefined : hostPluginSettings(nextPlugins)
@@ -576,7 +570,6 @@ export const useLauncherStore = defineStore('launcher', () => {
       !(await action('preferences', {
         theme: nextTheme,
         largeText: nextLargeText,
-        palette: nextPalette,
         ...(nextReading === undefined ? {} : { reading: nextReading }),
         ...(nextAudio === undefined ? {} : { audio: nextAudio }),
         ...(plugins === undefined ? {} : { hostPlugins: plugins }),
@@ -585,7 +578,6 @@ export const useLauncherStore = defineStore('launcher', () => {
       return false
     theme.value = nextTheme
     largeText.value = nextLargeText
-    palette.value = nextPalette
     if (nextReading) reading.value = { ...nextReading }
     if (nextAudio) audio.value = { ...nextAudio }
     if (plugins) hostPlugins.value = plugins
@@ -595,7 +587,6 @@ export const useLauncherStore = defineStore('launcher', () => {
   /** 设置窗口的草稿；“应用 / 保存”提交，“取消”回到最近一次应用的值。 */
   const appliedPreferences = () => ({
     theme: theme.value,
-    palette: palette.value,
     largeText: largeText.value,
     reading: { ...reading.value },
     audio: { ...audio.value },
@@ -616,7 +607,6 @@ export const useLauncherStore = defineStore('launcher', () => {
         draft.largeText,
         readingPreferences(draft.reading),
         audioPreferences(draft.audio),
-        palettePreference(draft.palette),
         draft.hostPlugins,
       ))
     )
@@ -762,7 +752,6 @@ export const useLauncherStore = defineStore('launcher', () => {
     dataDirectory,
     largeText,
     theme,
-    palette,
     reading,
     audio,
     hostPlugins,

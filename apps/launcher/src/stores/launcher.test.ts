@@ -282,17 +282,9 @@ it('applies appearance without changing the running instance', async () => {
     core: { state: 'running', mode: 'real', instanceId: 'instance-1' },
   })
   expect(await store.savePreferences('dark', true)).toBe(true)
-  expect(bridge.request).toHaveBeenLastCalledWith('preferences', { theme: 'dark', largeText: true, palette: 'sakura' })
+  expect(bridge.request).toHaveBeenLastCalledWith('preferences', { theme: 'dark', largeText: true })
   expect(store.theme).toBe('dark')
   expect(store.largeText).toBe(true)
-  bridge.request.mockResolvedValue({
-    ...snapshot(),
-    preferences: { theme: 'dark', largeText: true, palette: 'moon' },
-    core: { state: 'running', mode: 'real', instanceId: 'instance-1' },
-  })
-  expect(await store.savePreferences('dark', true, undefined, undefined, 'moon')).toBe(true)
-  expect(bridge.request).toHaveBeenLastCalledWith('preferences', { theme: 'dark', largeText: true, palette: 'moon' })
-  expect(store.palette).toBe('moon')
   expect(store.core.state).toBe('running')
 })
 
@@ -353,7 +345,6 @@ it('restores and saves audio preferences through the existing preferences operat
   expect(bridge.request).toHaveBeenLastCalledWith('preferences', {
     theme: 'dark',
     largeText: false,
-    palette: 'sakura',
     audio: { ...audio, volume: 60 },
   })
   expect(store.audio.volume).toBe(60)

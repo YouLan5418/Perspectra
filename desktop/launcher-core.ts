@@ -4,12 +4,9 @@ import {
   DEFAULT_READING,
   audioPreferences,
   DEFAULT_AUDIO,
-  palettePreference,
-  DEFAULT_PALETTE,
   type PlaySettings,
   type ReadingPreferences,
   type AudioPreferences,
-  type Palette,
 } from './play-settings.ts'
 import { hostPluginSettings, type HostPluginSettings } from './host-plugin-settings.ts'
 import {
@@ -81,7 +78,6 @@ interface Index {
   preferences: {
     largeText: boolean
     theme?: 'system' | 'light' | 'dark'
-    palette?: Palette
     reading?: ReadingPreferences
     audio?: AudioPreferences
     hostPlugins?: HostPluginSettings[]
@@ -340,7 +336,6 @@ export class LauncherCore {
         preferences: {
           largeText: preferences.largeText,
           ...(preferences.theme === undefined ? {} : { theme: preferences.theme as 'system' | 'light' | 'dark' }),
-          ...(preferences.palette === undefined ? {} : { palette: palettePreference(preferences.palette) }),
           ...(preferences.reading === undefined ? {} : { reading: readingPreferences(preferences.reading) }),
           ...(preferences.audio === undefined ? {} : { audio: audioPreferences(preferences.audio) }),
           ...(preferences.hostPlugins === undefined
@@ -828,7 +823,6 @@ export class LauncherCore {
             ...this.#index.preferences,
             theme: request.theme as 'system' | 'light' | 'dark',
             largeText: request.largeText,
-            ...(request.palette === undefined ? {} : { palette: palettePreference(request.palette) }),
             ...(request.reading === undefined ? {} : { reading: readingPreferences(request.reading) }),
             ...(request.audio === undefined ? {} : { audio: audioPreferences(request.audio) }),
             ...(request.hostPlugins === undefined ? {} : { hostPlugins: hostPluginSettings(request.hostPlugins) }),
@@ -929,7 +923,6 @@ export class LauncherCore {
               PERSPECTRA_READING: JSON.stringify(this.#index.preferences.reading ?? DEFAULT_READING),
               PERSPECTRA_AUDIO: JSON.stringify(this.#index.preferences.audio ?? DEFAULT_AUDIO),
               PERSPECTRA_HOST_PLUGINS: JSON.stringify(this.#index.preferences.hostPlugins ?? []),
-              PERSPECTRA_PALETTE: this.#index.preferences.palette ?? DEFAULT_PALETTE,
               PERSPECTRA_PRESET_ROOT: this.root,
               PERSPECTRA_PRESET_INSTANCE: instance.id,
               PERSPECTRA_ROLE_PRESET: undefined,

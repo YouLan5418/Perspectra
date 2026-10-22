@@ -718,17 +718,17 @@ it('persists appearance separately from models and rejects invalid theme without
   expect(await readFile(join(core.root, 'launcher.json'), 'utf8')).toBe(before)
 })
 
-it('persists the interface palette and rejects unknown palettes without overwriting settings', async () => {
+it('reads settings saved with the removed colour palette and drops it on the next save', async () => {
   const core = await service()
-  await core.handle({ operation: 'preferences', theme: 'system', largeText: false, palette: 'moon' })
+  await core.handle({ operation: 'preferences', theme: 'system', largeText: false })
+  const file = join(core.root, 'launcher.json')
+  const saved = JSON.parse(await readFile(file, 'utf8'))
+  await writeFile(file, JSON.stringify({ ...saved, preferences: { ...saved.preferences, palette: 'moon' } }))
   const restored = new LauncherCore(resolve('.'), core.root)
   await restored.initialize()
-  expect(restored.snapshot().preferences).toEqual({ theme: 'system', largeText: false, palette: 'moon' })
-  const before = await readFile(join(core.root, 'launcher.json'), 'utf8')
-  await expect(
-    core.handle({ operation: 'preferences', theme: 'system', largeText: false, palette: 'neon' }),
-  ).rejects.toThrow('主题色无效')
-  expect(await readFile(join(core.root, 'launcher.json'), 'utf8')).toBe(before)
+  expect(restored.snapshot().preferences).toEqual({ theme: 'system', largeText: false })
+  await restored.handle({ operation: 'preferences', theme: 'dark', largeText: false })
+  expect(JSON.parse(await readFile(file, 'utf8')).preferences).toEqual({ theme: 'dark', largeText: false })
 })
 
 it('keeps package play settings separate, restores them and preserves model connections and instances', async () => {

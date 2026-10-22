@@ -1,7 +1,7 @@
 import { thinkingLevel, providerProtocol, rolePreset, rolePresetMapping } from '@harness-world/provider-chat'
 import { loadHostPlugins, type HostPlugins } from '../host-plugins.ts'
 import { hostPluginSettings } from '../host-plugin-settings.ts'
-import { readingPreferences, audioPreferences, palettePreference } from '../play-settings.ts'
+import { readingPreferences, audioPreferences } from '../play-settings.ts'
 import { runtimeRoleModels } from '../model-connections.ts'
 import { ModelPresets, packPreset } from '../model-presets.ts'
 import { createTrustedFrontendServer, type FrontendPolicy } from './frontend-server.ts'
@@ -121,9 +121,6 @@ async function main(): Promise<void> {
     ...(process.env.PERSPECTRA_AUDIO === undefined
       ? {}
       : { audio: audioPreferences(JSON.parse(process.env.PERSPECTRA_AUDIO)) }),
-    ...(process.env.PERSPECTRA_PALETTE === undefined || process.env.PERSPECTRA_PALETTE === ''
-      ? {}
-      : { palette: palettePreference(process.env.PERSPECTRA_PALETTE) }),
     ...(process.env.PERSPECTRA_STORY_PARENT_NODE
       ? { storyParentNodeId: process.env.PERSPECTRA_STORY_PARENT_NODE }
       : {}),

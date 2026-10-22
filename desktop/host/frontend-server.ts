@@ -4,6 +4,7 @@ import { FRONTEND_SDK, DEFAULT_PAGE, DEFAULT_STYLE, DEFAULT_SCRIPT } from '@harn
 import type { PackWeb } from './pack-frontend.ts'
 import { readFileSync } from 'node:fs'
 
+const DEFAULT_STYLESHEET = '<link rel="stylesheet" href="/frontend/default.css">'
 // Fixed public asset only; never expose pic/ or a caller-selected filesystem path.
 const defaultPortrait = readFileSync(
   import.meta.url.endsWith('.mjs')
@@ -28,7 +29,17 @@ export function frontendAsset(
   const builtins: Record<string, { contentType: string; bytes: string | Buffer }> = {
     '/frontend/assets/gpt-6.png': { contentType: 'image/png', bytes: defaultPortrait },
     '/frontend/sdk.js': { contentType: 'text/javascript; charset=utf-8', bytes: FRONTEND_SDK },
-    '/frontend/default.html': { contentType: 'text/html; charset=utf-8', bytes: DEFAULT_PAGE },
+    // A pack that only restyles the stage adds its theme.css after the stage's own styles.
+    '/frontend/default.html': {
+      contentType: 'text/html; charset=utf-8',
+      bytes:
+        pack?.theme && url.searchParams.get('theme') === '1'
+          ? DEFAULT_PAGE.replace(
+              DEFAULT_STYLESHEET,
+              DEFAULT_STYLESHEET + '<link rel="stylesheet" href="/frontend/custom/theme.css">',
+            )
+          : DEFAULT_PAGE,
+    },
     '/frontend/default.css': { contentType: 'text/css; charset=utf-8', bytes: DEFAULT_STYLE },
     '/frontend/default.js': { contentType: 'text/javascript; charset=utf-8', bytes: DEFAULT_SCRIPT },
   }

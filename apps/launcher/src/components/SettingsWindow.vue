@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { onMounted, provide, ref } from 'vue'
 import { X } from '@lucide/vue'
-import type { Palette } from '../../../../desktop/play-settings.ts'
 import { useLauncherStore } from '../stores/launcher.ts'
 import { chooseDataDirectory, dataLocation, type DataLocation } from '../services/desktop.ts'
 import { Button } from './ui/button/index.ts'
@@ -20,12 +19,6 @@ const categories: { id: Category; label: string }[] = [
   { id: 'about', label: '关于' },
 ]
 const category = ref<Category>('connections')
-const paletteChoices: { value: Palette; name: string; hint: string }[] = [
-  { value: 'sakura', name: '樱色', hint: '恋爱 · 日常' },
-  { value: 'lamp', name: '灯火', hint: '温暖 · 悬疑' },
-  { value: 'moon', name: '月夜', hint: '科幻 · 冷峻' },
-  { value: 'forest', name: '森林', hint: '奇幻 · 冒险' },
-]
 const location = ref<DataLocation | null>(null)
 const error = ref(''),
   saving = ref(false)
@@ -112,25 +105,6 @@ function addPlugin() {
                 <option value="dark">深色</option>
               </select>
             </div>
-            <fieldset class="palette-picker">
-              <legend>主题色</legend>
-              <label
-                v-for="choice in paletteChoices"
-                :key="choice.value"
-                class="palette-choice"
-                :class="{ active: store.preferencesDraft.palette === choice.value }"
-                :data-swatch="choice.value"
-              >
-                <input
-                  v-model="store.preferencesDraft.palette"
-                  type="radio"
-                  name="palette"
-                  :value="choice.value"
-                /><span class="swatch" aria-hidden="true"></span><strong>{{ choice.name }}</strong
-                ><small>{{ choice.hint }}</small>
-              </label>
-              <p class="muted">作用于启动器与官方游戏舞台；游戏舞台在下次启动时生效。</p>
-            </fieldset>
             <label class="checkbox-row"
               ><input v-model="store.preferencesDraft.largeText" type="checkbox" />使用较大文字</label
             >

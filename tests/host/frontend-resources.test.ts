@@ -2,7 +2,9 @@ import { mkdtemp, mkdir, writeFile, open, rm } from 'node:fs/promises'
 import { join, resolve, sep } from 'node:path'
 import { tmpdir } from 'node:os'
 import { afterEach, expect, it } from 'vitest'
+import type { IncomingMessage, ServerResponse } from 'node:http'
 import { FRONTEND_RESOURCE_LIMITS, loadPackWeb } from '../../desktop/host/pack-frontend.ts'
+import { frontendAsset } from '../../desktop/host/frontend-server.ts'
 
 const roots: string[] = []
 afterEach(async () => {
@@ -47,4 +49,37 @@ it('still rejects oversized individual assets and excessive file counts', async 
       ),
     )
   await expect(loadPackWeb(many.root)).rejects.toThrow('2048')
+})
+it('restyles the default stage when the pack brings only a theme.css', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'frontend-resources-'))
+  roots.push(root)
+  await mkdir(join(root, 'frontend'))
+  await writeFile(join(root, 'frontend', 'theme.css'), ':root{--accent:#7a1f1f}')
+  const pack = (await loadPackWeb(root))!
+  expect(pack.page).toBeUndefined()
+  expect(pack.theme).toBe(true)
+  const page = async (query: string) => {
+    let body = ''
+    const response = {
+      statusCode: 200,
+      setHeader: () => {},
+      end: (bytes: string | Buffer) => (body = String(bytes)),
+    } as unknown as ServerResponse
+    frontendAsset(
+      { method: 'GET', url: '/frontend/default.html' + query, headers: { host: '127.0.0.1:1' } } as IncomingMessage,
+      response,
+      pack,
+      'http://127.0.0.1:1',
+      'sandbox',
+    )
+    return body
+  }
+  // The theme loads after the stage's own styles, and only when the host asks for it.
+  expect(await page('?theme=1')).toContain(
+    '<link rel="stylesheet" href="/frontend/default.css"><link rel="stylesheet" href="/frontend/custom/theme.css">',
+  )
+  expect(await page('')).not.toContain('theme.css')
+  // A pack with a page of its own still needs its manifest.
+  await writeFile(join(root, 'frontend', 'index.html'), '<p>own</p>')
+  await expect(loadPackWeb(root)).rejects.toThrow('manifest.json')
 })

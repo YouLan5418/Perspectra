@@ -10,6 +10,8 @@
 
 > 2026-10-19：PlayerView 新增可选 `statusBar`，每项 `{ key, label, holderId, holderName?, value, current, self? }`，只含玩家已知的状态值，不含真实值；`current: false` 表示上次确认，`self: true` 按 holderId 标出玩家自己的状态。默认舞台在世界标题下按归属者分组显示，过期值标“上次确认”；SDK 快照和补丁直接保留该字段。没有参数的状态操作进入 view.actions。作者在状态声明里写 `playerTruth: true` 后，另有可选 `statusTruth`（`{ key, label, holderId, holderName?, value, self? }`），给出这些状态所有归属者的真实值，是否显示由前端决定；默认舞台不使用。见[活动与状态指南](guides/activity-and-variables.md#3-状态2026-10-19当前源码)。
 
+> 2026-10-22：`settings.palette` 已删除，下面这条只是历史记录。
+>
 > 2026-10-16：`settings.palette` 提供玩家在启动器全局设置中选择的界面主题色，取值为 `sakura`（樱色，默认）、`lamp`（灯火）、`moon`（月夜）或 `forest`（森林）。官方舞台和宿主外壳据此换色；社区前端可自行决定是否采用。它只是表现偏好，不进入世界事实或存档。
 
 实现范围按设计方案第 26 节及用户确认：公共玩家接口、官方默认前端、iframe 社区前端和恶意用例。授权身份、签名、完整能力授权流程和预设后续再做。本实验复用既有网页 Core，没有增加世界事件协议、数据库或模型防护阶段。

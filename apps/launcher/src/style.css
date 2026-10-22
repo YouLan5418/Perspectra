@@ -24,35 +24,14 @@
   --radius-xl: 16px;
 }
 
-/* Launcher visual system: 游戏库 · 宋体标题。主题色（樱色 / 灯火 / 月夜 / 森林）只提供原始色值，
+/* Launcher visual system: 游戏库 · 宋体标题。这里只提供原始色值，
    深浅两套 token 从这里取值；创作者控制台也读取同一组 --pal-* 变量。 */
-:root, :root[data-palette="sakura"] {
+:root {
   --pal-accent: #f0a0b8; --pal-accent-strong: #f7bccd; --pal-accent-deep: #d77a97; --pal-accent-ink: #2a1119; --pal-accent-light: #b8466b;
   --pal-d-bg: #151114; --pal-d-sidebar: #0f0c0e; --pal-d-secondary: #251e23; --pal-d-muted: #1c171a;
   --pal-d-text: #f1e6ea; --pal-d-mfg: #b0a0a7; --pal-d-faint: #7f6f77; --pal-d-stage: #120e10;
   --pal-l-bg: #f8f0f2; --pal-l-sidebar: #f0e4e8; --pal-l-secondary: #ead9df; --pal-l-muted: #f2e7eb; --pal-l-card: #fdf9fa;
   --pal-l-text: #2d2226; --pal-l-mfg: #74636a; --pal-l-faint: #a3929a; --pal-l-border: #e8d7dd; --pal-l-border-strong: #d6bfc8;
-}
-:root[data-palette="lamp"] {
-  --pal-accent: #e6ad5c; --pal-accent-strong: #f0bf72; --pal-accent-deep: #cf8f3f; --pal-accent-ink: #22170a; --pal-accent-light: #9a5b1c;
-  --pal-d-bg: #131110; --pal-d-sidebar: #0d0c0b; --pal-d-secondary: #221f1c; --pal-d-muted: #1a1816;
-  --pal-d-text: #ede6db; --pal-d-mfg: #a69d90; --pal-d-faint: #756d62; --pal-d-stage: #100e0c;
-  --pal-l-bg: #f4efe6; --pal-l-sidebar: #ebe4d7; --pal-l-secondary: #e4dbcc; --pal-l-muted: #ece5d8; --pal-l-card: #fbf8f2;
-  --pal-l-text: #2a241d; --pal-l-mfg: #6d6457; --pal-l-faint: #998f80; --pal-l-border: #ddd3c3; --pal-l-border-strong: #c9bca8;
-}
-:root[data-palette="moon"] {
-  --pal-accent: #9ab8e8; --pal-accent-strong: #b6cdf2; --pal-accent-deep: #6f93cf; --pal-accent-ink: #0e1626; --pal-accent-light: #3b63a8;
-  --pal-d-bg: #10131a; --pal-d-sidebar: #0b0d12; --pal-d-secondary: #1d222b; --pal-d-muted: #161a21;
-  --pal-d-text: #e4e9f1; --pal-d-mfg: #9aa4b4; --pal-d-faint: #6a7383; --pal-d-stage: #0d1015;
-  --pal-l-bg: #eef2f7; --pal-l-sidebar: #e3e9f1; --pal-l-secondary: #d9e1ec; --pal-l-muted: #e7edf4; --pal-l-card: #f8fafc;
-  --pal-l-text: #1f2733; --pal-l-mfg: #5d6878; --pal-l-faint: #8b95a4; --pal-l-border: #d5dde8; --pal-l-border-strong: #bcc8d8;
-}
-:root[data-palette="forest"] {
-  --pal-accent: #8fcfa6; --pal-accent-strong: #a9dcbb; --pal-accent-deep: #5fae80; --pal-accent-ink: #0d1f15; --pal-accent-light: #2f7a51;
-  --pal-d-bg: #111512; --pal-d-sidebar: #0b0e0c; --pal-d-secondary: #1e2420; --pal-d-muted: #171c18;
-  --pal-d-text: #e5ede7; --pal-d-mfg: #9caaa0; --pal-d-faint: #6b786f; --pal-d-stage: #0e120f;
-  --pal-l-bg: #eff4f0; --pal-l-sidebar: #e4ece6; --pal-l-secondary: #d8e3db; --pal-l-muted: #e8efea; --pal-l-card: #f8fbf9;
-  --pal-l-text: #1f2a23; --pal-l-mfg: #5d6b62; --pal-l-faint: #8a988f; --pal-l-border: #d3dfd6; --pal-l-border-strong: #b9cbbf;
 }
 
 :root {
@@ -315,26 +294,6 @@ input[type="checkbox"], input[type="radio"] { accent-color: var(--primary); }
 .notice-fade-leave-active { transition: opacity 0.2s ease-in, transform 0.2s ease-in; }
 .notice-fade-enter-from { opacity: 0; transform: translate(-50%, -12px) scale(0.96); }
 .notice-fade-leave-to { opacity: 0; transform: translate(-50%, -8px) scale(0.96); }
-
-/* 主题色选择 */
-.palette-picker { border: 0; padding: 0; margin: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
-.palette-picker legend { font-size: 13px; font-weight: 600; margin-bottom: 8px; padding: 0; }
-.palette-picker .muted { grid-column: 1 / -1; font-size: 12px; margin: 2px 0 0; }
-.palette-choice {
-  position: relative; display: grid; grid-template-columns: auto 1fr; column-gap: 10px; align-items: center;
-  padding: 10px 12px; border: 1px solid var(--border-strong); border-radius: 12px; cursor: pointer; background: var(--card-bg);
-}
-.palette-choice:hover { border-color: var(--selected-border); }
-.palette-choice.active { border-color: var(--primary); box-shadow: inset 0 0 0 1px var(--primary); background: var(--selected); }
-.palette-choice input { position: absolute; opacity: 0; pointer-events: none; }
-.palette-choice:has(input:focus-visible) { outline: 2px solid var(--primary); outline-offset: 2px; }
-.palette-choice .swatch { grid-row: 1 / 3; width: 28px; height: 28px; border-radius: 50%; box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.15); }
-.palette-choice strong { font-size: 13px; }
-.palette-choice small { grid-column: 2; font-size: 11.5px; color: var(--muted-foreground); }
-.palette-choice[data-swatch="sakura"] .swatch { background: linear-gradient(135deg, #f7bccd 0 50%, #151114 50%); }
-.palette-choice[data-swatch="lamp"] .swatch { background: linear-gradient(135deg, #f0bf72 0 50%, #131110 50%); }
-.palette-choice[data-swatch="moon"] .swatch { background: linear-gradient(135deg, #b6cdf2 0 50%, #10131a 50%); }
-.palette-choice[data-swatch="forest"] .swatch { background: linear-gradient(135deg, #a9dcbb 0 50%, #111512 50%); }
 
 /* Dialog Styling */
 .launcher-dialog {

@@ -17,13 +17,6 @@ watch(
   },
   { immediate: true },
 )
-watch(
-  () => store.palette,
-  palette => {
-    document.documentElement.dataset.palette = palette
-  },
-  { immediate: true },
-)
 
 let noticeTimer: ReturnType<typeof setTimeout> | undefined
 watch(

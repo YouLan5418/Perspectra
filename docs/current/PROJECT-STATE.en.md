@@ -25,7 +25,7 @@ When a document says "current source", assume the feature is not in test3.
 
 **Creator page.** While a game runs, the launcher can open a read-only browser page showing the conversation, action trace, actual model requests, item custody and character memory. It never changes the world. See [creator debug API](creator-debug-api.md) (Chinese).
 
-**Game page.** The default stage uses a scenic layout with four colour palettes, and its toolbar can "save progress" as a story node directly. See [default stage](frontend-stage.md) (Chinese).
+**Game page.** The default stage uses a scenic layout, black and white following the system light or dark mode since 2026-10-22 (the colour palettes are gone), with the log, actions and status each in a side drawer, and its toolbar can "save progress" as a story node directly. See [default stage](frontend-stage.md) (Chinese).
 
 **Character behaviour fixes.**
 - Speaking to someone who cannot hear is rejected; the character gets at most one more decision (walk over, rephrase or drop it) instead of pretending the line was heard.

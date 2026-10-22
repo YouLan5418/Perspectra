@@ -30,7 +30,6 @@ import {
   type PlaySettings,
   type ReadingPreferences,
   type AudioPreferences,
-  type Palette,
 } from '../play-settings.ts'
 import type { RuntimeModel } from '../model-connections.ts'
 import { createRoleProviders, type ModelOptions, type RoleProviders } from './role-providers.ts'
@@ -94,7 +93,6 @@ export interface WorldHostOptions extends ModelOptions {
   readonly packPath: string
   readonly reading?: ReadingPreferences
   readonly audio?: AudioPreferences
-  readonly palette?: Palette
   readonly tuning?: RuntimeTuning
   readonly shadowAudit?: ShadowOptions
   readonly memoryShadow?: boolean
@@ -795,7 +793,6 @@ export class WorldHostCore implements HostRuntime {
         inputCharacters: this.#playSettings.playerInputCharacters,
         reading: this.#options.reading ?? DEFAULT_READING,
         audio: { ...(this.#options.audio ?? DEFAULT_AUDIO) },
-        ...(this.#options.palette ? { palette: this.#options.palette } : {}),
       },
       availableActions: this.#availableActions,
       actionLabels: this.#actionLabels,

@@ -88,7 +88,6 @@ export interface HostState {
     inputCharacters: number
     reading: import('../play-settings.ts').ReadingPreferences
     audio?: import('../play-settings.ts').AudioPreferences
-    palette?: import('../play-settings.ts').Palette
   }
   readonly debug: Record<string, unknown>
 }
@@ -286,7 +285,8 @@ export function createHostServer(
           return
         }
         if (request.method === 'GET' && url.pathname === '/frontend-api/v1/init') {
-          const useDefault = url.searchParams.get('template') === 'default' || !packWeb
+          const plain = url.searchParams.get('template') === 'default'
+          const useDefault = plain || !packWeb?.page
           const capabilities = useDefault ? [...FRONTEND_CAPABILITIES] : [...packWeb!.manifest.capabilities]
           if (!useDefault && policy.mode === 'trusted') capabilities.push('external-network', 'browser-storage')
           if (!runtime.regenerate && capabilities.includes('regenerate'))
@@ -300,6 +300,7 @@ export function createHostServer(
             frontend: useDefault ? 'default' : 'custom',
             frontendMode: useDefault ? 'sandbox' : policy.mode,
             frontendOrigin: useDefault || policy.mode !== 'trusted' ? '' : policy.origin,
+            ...(packWeb?.theme && !plain ? { theme: true } : {}),
             capabilities,
             view: projectPlayerView(await runtime.state()),
           })

@@ -1,7 +1,6 @@
 /** Sanitized, model-free preview. Never opens a save or calls a model provider. */
 import { createHostServer, type HostState, type HostRuntime } from '../../desktop/host/http-server.ts'
 import { brandId } from '@harness-world/contracts'
-import { DEFAULT_READING, palettePreference } from '../../desktop/play-settings.ts'
 const token = 'f'.repeat(64)
 let seq = 2, submissions = 0
 let state: HostState = {
@@ -68,10 +67,7 @@ if (process.argv.includes('--many')) {
         ...items.slice(4).map(([id]) => ({ targetRef: { kind: 'entity', id: 'entity:' + id }, definitionRef: { id: 'base:drop', version: 1 }, bindingId: 'drop-' + id, arguments: {} })),
       ] }] }
 }
-/** --palette <sakura|lamp|moon|forest>：检查主题色。 */
-const paletteArg = process.argv[process.argv.indexOf('--palette') + 1] ?? ''
-if (process.argv.includes('--palette')) state = { ...state, playerSettings: { inputCharacters: 2000, reading: DEFAULT_READING, palette: palettePreference(paletteArg) } }
 const server = createHostServer(runtime, token)
-const port = process.argv.includes('--palette') ? 8071 + ['sakura', 'lamp', 'moon', 'forest'].indexOf(paletteArg) : process.argv.includes('--many') ? 8070 : process.argv.includes('--multi') ? 8069 : process.argv.includes('--activity') ? 8068 : 8067
+const port = process.argv.includes('--many') ? 8070 : process.argv.includes('--multi') ? 8069 : process.argv.includes('--activity') ? 8068 : 8067
 server.listen(port, '127.0.0.1', () => console.log('Preview: http://127.0.0.1:' + port + '/#token=' + token))
 process.on('SIGINT', () => { console.log('Preview submissions:', submissions); server.closeAllConnections(); server.close() })

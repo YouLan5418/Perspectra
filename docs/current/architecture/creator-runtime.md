@@ -81,7 +81,7 @@ Interaction 定义和绑定提供玩法可选行为，规则负责重要状态�
 
 先看[字段手册](../guides/world-pack-authoring.md)、[试玩步骤](../guides/creator-playtest.md)和[自定义网页](../guides/web-ui.md)。`frontend/` 使用显式 manifest 和 iframe 公共玩家接口，只改展示，不改变世界包编译身份；未提供时使用官方默认模板。新实验使用独立数据目录。
 
-Launcher 游戏库（2026-10-16）界面配色由全局设置的主题色决定（樱色默认，另有灯火、月夜、森林；保存在 launcher.json 的 preferences.palette，经 PERSPECTRA_PALETTE 传给游戏进程），以世界包封面作为首屏：在包根目录放 `cover.webp`、`cover.png` 或 `cover.jpg`（≤4 MB，建议 16:9 横图、主体偏右，左下留给标题），[launcher-core](../../../desktop/launcher-core.ts) 载入或启动时读取，经单独的 `pack-cover` 请求交给页面，不随 2.5 秒快照轮询重复传输；简介取 `world.json` 的 `description`。封面不进入编译产物，也不改变包 Hash。缺少封面时启动器按标题首字生成排版封面。（2026-10-17 改版后封面铺满整个窗口，“游玩准备”与折叠的“引擎与创作者工具”已由本局抽屉取代，见[首轮真实 Core 接入](../launcher-core-integration.md)顶部说明。）已用浏览器 Mock 与 `launcher-core` 测试核对；Tauri 真机窗口与发行包未验收。
+Launcher 游戏库（2026-10-16）界面配色由全局设置的主题色决定（樱色默认，另有灯火、月夜、森林；保存在 launcher.json 的 preferences.palette，经 PERSPECTRA_PALETTE 传给游戏进程）（2026-10-22 起主题色设置已删除：官方舞台和宿主外壳改为黑白、跟随系统；启动器保留原默认配色；旧 launcher.json 里的 palette 读取时忽略、下次保存时去掉。），以世界包封面作为首屏：在包根目录放 `cover.webp`、`cover.png` 或 `cover.jpg`（≤4 MB，建议 16:9 横图、主体偏右，左下留给标题），[launcher-core](../../../desktop/launcher-core.ts) 载入或启动时读取，经单独的 `pack-cover` 请求交给页面，不随 2.5 秒快照轮询重复传输；简介取 `world.json` 的 `description`。封面不进入编译产物，也不改变包 Hash。缺少封面时启动器按标题首字生成排版封面。（2026-10-17 改版后封面铺满整个窗口，“游玩准备”与折叠的“引擎与创作者工具”已由本局抽屉取代，见[首轮真实 Core 接入](../launcher-core-integration.md)顶部说明。）已用浏览器 Mock 与 `launcher-core` 测试核对；Tauri 真机窗口与发行包未验收。
 
 实现：[活动桥](../../../desktop/host/pack-activity.ts)、[活动选择](../../../desktop/host/pack-activities.ts)、[World Pack 工具](../../../packages/world-pack)、[主持示例](../../../examples/world-packs/ai-girls-hosted-guess)。当前不承诺任意玩法零宿主改动、多活动并行或不可信脚本沙箱。短冒烟不等于长试玩验收。
 
