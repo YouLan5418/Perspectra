@@ -75,9 +75,6 @@ export function rejectionReasonText(reason: string | null): string | undefined {
   const descriptions: Record<string, string> = {
     SPEECH_RECIPIENT_UNREACHABLE:
       '指定对象中有人不在当前可交流范围，这次表达没有传达给任何收件人。你可以根据当前场景重新决定行动、表达或结束。',
-    RAW_RICE_REQUIRED: '没有可用的生米与水材料，煮饭没有发生。',
-    COOKED_RICE_REQUIRED: '没有可食用的熟米饭，这次没有吃到饭。',
-    COOKER_REQUIRED: '没有可用的电饭锅，煮饭没有发生。',
     NOT_CO_LOCATED: '你和目标不在同一个地方，这次没有接触到目标。',
     NO_SHARED_SCENE: '你现在无法与目标直接互动，这次行动没有完成。',
     SCENE_UNAVAILABLE: '你目前没有能够进行这次互动的场景条件，互动没有发生。',

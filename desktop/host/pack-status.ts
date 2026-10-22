@@ -950,7 +950,21 @@ export class PackStatus {
     if (typeof id !== 'string' || !id.startsWith(PREFIX)) return undefined
     if (input.status !== 'accepted') {
       const reason = this.rejectionReason(input.events, input.actorId, input.reason)
-      return reason !== undefined ? { status: input.status, description: reason } : characterExecutionResult(input)
+      if (reason === undefined) return characterExecutionResult(input)
+      // The author says why; the host adds where the item still is, so a refused handover is not narrated as done.
+      // Only what the actor sees anyway: in its own hands or where it stands.
+      const target = record(record(input.action.parameters)?.targetRef)
+      const item = target?.kind === 'entity' ? currentEntityState(input.events, String(target.id)) : undefined
+      const name = item && (input.manifest.entities.find(e => e.entityId === item.entityId)?.name ?? item.entityId)
+      const still =
+        item?.holderId === input.actorId
+          ? `${name}仍在你手里。`
+          : item?.holderId === null && item.locationId === currentLocation(input.events, input.actorId)
+            ? `${name}仍在原处。`
+            : undefined
+      if (still === undefined) return { status: input.status, description: reason }
+      const sentence = /[。！？.!?]$/u.test(reason) ? reason : reason + '。'
+      return { status: input.status, description: `${sentence}这次没有执行，${still}` }
     }
     const latest = input.events.findLast(e => {
       if (e.eventType !== 'status.updated') return false

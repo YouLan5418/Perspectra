@@ -2,12 +2,15 @@ import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
 import { isAbsolute, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import type { WorldJsonObject } from '@harness-world/contracts'
+import { currentEntityState } from '@harness-world/kernel'
+import { WorldStore } from '@harness-world/store-sqlite'
 import { WorldHostRuntime } from '../../desktop/host/world-runtime.ts'
 import { projectPlayerView } from '../../desktop/host/frontend-adapter.ts'
 import type { HostState, PlayerLine } from '../../desktop/host/http-server.ts'
 
 type Option = ReturnType<typeof projectPlayerView>['actions'][number]
-const COMPANION = 'character:companion'
+const COMPANION = 'character:companion',
+  PLAYER = 'character:player'
 const definition = (option: Option) => String((option.action.parameters.definitionRef as WorldJsonObject | undefined)?.id)
 const say = (text: string, order: PlayerLine['order'] = 'before'): PlayerLine => ({
   speech: { text, scope: 'scene_public', addresseeIds: [] },
@@ -48,6 +51,9 @@ const steps: { label: string; run: (r: WorldHostRuntime, find: (m: (o: Option) =
     label: '先做后说：查看钱包',
     run: async (r, find) => r.perform((await find(o => definition(o) === 'status:check-purse')).action, say('还剩不少，够我们再逛一阵。', 'after')),
   },
+  // Openings for the characters to hand something over or buy something themselves.
+  { label: '对白：请同行者还杯子', run: r => r.submit('保温杯能先还给我吗？我想倒点热水。') },
+  { label: '对白：问他们买不买', run: r => r.submit('你们俩不买点什么吗？这家的桂花糖挺好。') },
   {
     label: '先说后做：去后间',
     run: async (r, find) => r.perform((await find(o => o.kind === 'move')).action, say('我去后面看看，马上回来。')),
@@ -57,11 +63,17 @@ const steps: { label: string; run: (r: WorldHostRuntime, find: (m: (o: Option) =
     label: '先做后说：回前厅',
     run: async (r, find) => r.perform((await find(o => o.kind === 'move')).action, say('我回来了，后面没什么好看的。', 'after')),
   },
-  { label: '对白', run: r => r.submit('刚才递给你的保温杯还热吗？') },
+  // Who the characters say holds the thermos, against who does.
+  { label: '对白：保温杯在谁手里', run: r => r.submit('对了，保温杯现在在谁手里？') },
   { label: '对白', run: r => r.submit('今天就到这儿吧，大家都还好吗？') },
 ]
 
-export async function playCombinedTurns(output: string, model: string) {
+export async function playCombinedTurns(
+  output: string,
+  model: string,
+  beforeAction = false,
+  pack = 'examples/world-packs/status-market',
+) {
   const dataDirectory = resolve(output),
     local = relative(resolve('.tmp'), dataDirectory)
   if (!local || local.startsWith('..') || isAbsolute(local) || existsSync(dataDirectory))
@@ -69,7 +81,7 @@ export async function playCombinedTurns(output: string, model: string) {
   if (!process.env.DEEPSEEK_API_KEY) throw new TypeError('缺少 DEEPSEEK_API_KEY')
   mkdirSync(dataDirectory, { recursive: true })
   const runtime = await WorldHostRuntime.create({
-    packPath: resolve('examples/world-packs/status-market'),
+    packPath: resolve(pack),
     dataDirectory,
     // Core memory runs only behind the local (OpenAI-compatible) entry; the official API speaks that protocol.
     provider: 'local',
@@ -78,8 +90,37 @@ export async function playCombinedTurns(output: string, model: string) {
     apiKey: process.env.DEEPSEEK_API_KEY,
     memoryCore: true,
     timeoutMs: 90000,
+    beforeActionExpression: beforeAction,
   })
   const turns: WorldJsonObject[] = []
+  // What the characters said and did this turn, in commit order, so a line about an unexecuted handover shows.
+  const committed = (afterSeq: number) => {
+    const store = new WorldStore(resolve(dataDirectory, 'world.sqlite'))
+    try {
+      const events = store.readEvents(runtime.address)
+      const rows = events.flatMap((event): WorldJsonObject[] => {
+        const data = event.data as WorldJsonObject
+        if (event.seq <= afterSeq) return []
+        const source = data.source as WorldJsonObject | undefined
+        if (event.eventType === 'character.speak' && data.characterId !== PLAYER) {
+          const segments = (data.segments as WorldJsonObject[] | undefined) ?? []
+          const text = segments.length ? segments.map(s => (s.type === 'narration' ? '（' + s.text + '）' : s.text)).join('') : data.text
+          return [{ seq: event.seq, actor: data.characterId!, said: text ?? null }]
+        }
+        if (event.eventType === 'action.resolved' && data.actorId !== PLAYER)
+          return [{ seq: event.seq, actor: data.actorId!, action: data.actionType!, accepted: data.accepted!, reason: data.reason ?? null }]
+        if (event.eventType === 'entity.transferred')
+          return [{ seq: event.seq, transfer: data.entityId!, to: data.toHolderId ?? null, by: data.interactionId ?? null }]
+        if (event.eventType === 'status.updated' && source?.kind === 'operation' && source.actorId !== PLAYER)
+          return [{ seq: event.seq, actor: source.actorId!, operation: source.operation! }]
+        return []
+      })
+      return { rows, thermos: currentEntityState(events, 'entity:thermos')?.holderId ?? null, headSeq: events.at(-1)?.seq ?? 0 }
+    } finally {
+      store.close()
+    }
+  }
+  let headSeq = committed(0).headSeq
   const find = async (match: (o: Option) => boolean) => {
     const option = projectPlayerView(await runtime.state()).actions.find(match)
     if (!option) throw new TypeError('当前没有这个行动选项')
@@ -107,6 +148,11 @@ export async function playCombinedTurns(output: string, model: string) {
         calls: Number(result.debug.providerCalls ?? 0) - Number(before.debug.providerCalls ?? 0),
         location: result.world.currentScene?.locationName ?? null,
         statusBar: structuredClone(result.statusBar ?? []) as unknown as WorldJsonObject[],
+        ...(() => {
+          const turn = committed(headSeq)
+          headSeq = turn.headSeq
+          return { npc: turn.rows, thermosHolder: turn.thermos }
+        })(),
         newLines: result.transcript
           .filter(line => line.seq > (before.transcript.at(-1)?.seq ?? 0))
           .map(line => ({ speaker: line.speaker, text: line.text })),
@@ -122,6 +168,8 @@ export async function playCombinedTurns(output: string, model: string) {
       JSON.stringify(
         {
           model,
+          beforeActionExpression: beforeAction,
+          pack,
           memoryMode: final.debug.memoryMode,
           turns: turns.length,
           totalCalls: final.debug.providerCalls,
@@ -138,6 +186,8 @@ export async function playCombinedTurns(output: string, model: string) {
   }
 }
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  if (!process.argv[2]) throw new TypeError('用法：combined-turn-playtest.ts <.tmp/新数据目录> [模型]')
-  await playCombinedTurns(process.argv[2], process.argv[3] ?? 'deepseek-flash')
+  if (!process.argv[2]) throw new TypeError('用法：combined-turn-playtest.ts <.tmp/新数据目录> [模型] [--before-action] [--pack <样例目录>]')
+  await playCombinedTurns(process.argv[2], process.argv[3] ?? 'deepseek-flash', process.argv.includes('--before-action'),
+    process.argv.includes('--pack') ? process.argv[process.argv.indexOf('--pack') + 1] : undefined,
+  )
 }

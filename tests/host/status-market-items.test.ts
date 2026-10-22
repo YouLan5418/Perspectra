@@ -2,11 +2,14 @@ import { afterEach, expect, it } from 'vitest'
 import { cpSync, mkdtempSync, rmSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { tmpdir } from 'node:os'
-import type { WorldJsonObject } from '@harness-world/contracts'
+import { brandId, interactionPackageDescription, type WorldJsonObject } from '@harness-world/contracts'
+import { createInstalledInteractionPackages } from '@harness-world/interactions-basic'
+import { adaptCompiledWorldPack, compileWorldPackSource, type CompiledWorldPackV5 } from '@harness-world/world-pack'
 import { currentEntityState } from '@harness-world/kernel'
 import { WorldStore } from '@harness-world/store-sqlite'
 import { WorldHostCore } from '../../desktop/host/world-runtime.ts'
 import { projectPlayerView } from '../../desktop/host/frontend-adapter.ts'
+import { PackStatus } from '../../desktop/host/pack-status.ts'
 
 // The market sample takes, drops and hands over its thermos with the author's script template only: the pack
 // binds none of the built-in item rules.
@@ -46,7 +49,7 @@ async function fixture() {
       .actions.filter(a => a.target?.kind === 'item')
       .map(a => a.label)
   const option = async (label: string) => projectPlayerView(await runtime.state()).actions.find(a => a.label === label)!
-  return { runtime, events, labels, option }
+  return { runtime, events, labels, option, packPath: pack }
 }
 
 it('offers only the item actions that can succeed, and moves the thermos by the author rules alone', async () => {
@@ -83,4 +86,45 @@ it('refuses an item action the policy did not offer, without changing the world'
   // Dropping a thermos nobody holds was never offered; a forged request is refused before the author runs.
   await expect(f.runtime.submit('/status drop@entity:thermos {}')).rejects.toThrow('当前已知条件不允许')
   expect(f.events()).toHaveLength(before)
+})
+
+it('tells an actor whose item operation the author refused where the item still is, if it can see it', async () => {
+  const f = await fixture()
+  const pack = (await compileWorldPackSource(
+    f.packPath,
+    createInstalledInteractionPackages().map(interactionPackageDescription),
+  )) as CompiledWorldPackV5
+  const status = PackStatus.load(f.packPath, pack)!
+  const refused = (actorId: string, operation: string) =>
+    status.executionResult({
+      manifest: adaptCompiledWorldPack(pack, {
+        address: f.runtime.address,
+        principalId: 'principal:test',
+        sessionId: brandId('session:test', 'SessionId'),
+      }).manifest,
+      // The author's refusal as the rulebook records it for the actor.
+      events: [
+        ...f.events(),
+        {
+          eventType: 'action.rejected',
+          data: { characterId: actorId, reason: 'STATUS_OPERATION_REJECTED', description: '杯盖没拧紧' },
+        },
+      ],
+      actorId: brandId(actorId, 'CharacterId'),
+      action: {
+        actionType: 'interact',
+        parameters: {
+          targetRef: { kind: 'entity', id: 'entity:thermos' },
+          definitionRef: { id: 'status:' + operation },
+        },
+      },
+      status: 'rejected',
+      reason: 'STATUS_OPERATION_REJECTED',
+    })?.description
+  // On the floor where the friend stands.
+  expect(refused('character:friend', 'take')).toBe('杯盖没拧紧。这次没有执行，保温杯仍在原处。')
+  await f.runtime.perform((await f.option('拿起保温杯')).action)
+  expect(refused('character:player', 'give')).toBe('杯盖没拧紧。这次没有执行，保温杯仍在你手里。')
+  // In someone else's hands: the author's reason only, nothing about who holds it.
+  expect(refused('character:friend', 'take')).toBe('杯盖没拧紧')
 })
