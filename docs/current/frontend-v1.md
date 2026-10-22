@@ -8,6 +8,8 @@
 
 > 2026-10-18：可选语音服务可以通过 [Cordis 宿主插件](host-plugins.md)注册，Launcher 增加独立的插件加载开关与本地模块路径。前端仍复用原有语音 API 与授权检查；未添加默认播放器或 Live2D / BGM 前端扩展入口，未重建发行包。
 
+> 2026-10-22：PlayerView 新增 `items`，列出玩家此刻看得见的物品，每项 `{ id, name, kind, where, holderId?, holderName? }`，`where` 为 `held`（在玩家手里）、`here`（在玩家所在位置）或 `with`（在场某人手里，且玩家目击过交到他手里）。范围与角色上下文里的“当前物品”相同：别人手里、玩家没看到交接的物品不列出，所以它不是全局物品表。`kind` 是作者写的当前外观，默认舞台的“状态”抽屉不显示它。`statusBar` 每项多一个可选 `pinned: true`，表示作者把它钉在状态栏（状态声明 `bar: true`）。
+>
 > 2026-10-19：PlayerView 新增可选 `statusBar`，每项 `{ key, label, holderId, holderName?, value, current, self? }`，只含玩家已知的状态值，不含真实值；`current: false` 表示上次确认，`self: true` 按 holderId 标出玩家自己的状态。默认舞台在世界标题下按归属者分组显示，过期值标“上次确认”；SDK 快照和补丁直接保留该字段。没有参数的状态操作进入 view.actions。作者在状态声明里写 `playerTruth: true` 后，另有可选 `statusTruth`（`{ key, label, holderId, holderName?, value, self? }`），给出这些状态所有归属者的真实值，是否显示由前端决定；默认舞台不使用。见[活动与状态指南](guides/activity-and-variables.md#3-状态2026-10-19当前源码)。
 
 > 2026-10-22：`settings.palette` 已删除，下面这条只是历史记录。

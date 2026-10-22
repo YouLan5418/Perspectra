@@ -59,6 +59,16 @@ export interface PlayerView {
     self?: boolean
     value: import('@harness-world/contracts').WorldJsonValue
   }[]
+  /** Items the player can see now: `held` by the player, lying `here`, or `with` someone present (since a
+   * handover the player saw). `kind` is the item's current look as the author wrote it. */
+  items?: {
+    id: string
+    name: string
+    kind: string
+    where: 'held' | 'here' | 'with'
+    holderId?: string
+    holderName?: string
+  }[]
   history: {
     seq: number
     speaker: string

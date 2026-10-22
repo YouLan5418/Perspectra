@@ -39,6 +39,7 @@ import {
   CharacterPresetError,
   CharacterTurn,
   characterExecutionResult,
+  characterVisibleItems,
   recentExecutionContext,
   rejectionReasonText,
   runCharacterActivations,
@@ -332,6 +333,8 @@ export class WorldHostCore implements HostRuntime {
   readonly #names: ReadonlyMap<string, string>
   /** Author-declared Entity labels. Entities without `name` are absent and fall back to entityId at the projection. */
   readonly #entityNames: ReadonlyMap<string, string>
+  readonly #entities: ReturnType<typeof adaptCompiledWorldPack>['manifest']
+  #items: NonNullable<HostState['items']> = []
   #actionLabels: Readonly<Record<string, string>> = {}
   readonly #title: string
   readonly #playerName: string
@@ -438,6 +441,7 @@ export class WorldHostCore implements HostRuntime {
       ),
     )
     this.#title = compiled.manifest.metadata.title
+    this.#entities = compiled.manifest
     this.#playerName = this.#names.get(this.#playerId) ?? this.#playerId
     this.#provider = options.provider
     const characters = modelCharacters(compiled.manifest, this.#playerId)
@@ -788,6 +792,7 @@ export class WorldHostCore implements HostRuntime {
       notice: this.#notice,
       error: this.#error,
       transcript: this.#transcript,
+      items: this.#items,
       ...(this.#waitable ? { canWait: true } : {}),
       playerSettings: {
         inputCharacters: this.#playSettings.playerInputCharacters,
@@ -1754,6 +1759,31 @@ export class WorldHostCore implements HostRuntime {
     }
   }
 
+  /** What the player can see of the items now, as a character would: in hand, on the ground here, or in the
+   * hands of someone present since a handover the player saw. Never who holds something the player cannot see. */
+  #visibleItems(
+    events: readonly StoredWorldEvent[],
+    observerIds: readonly CharacterId[],
+  ): NonNullable<HostState['items']> {
+    const { current } = characterVisibleItems(this.#entities, events, this.#playerId, observerIds) as {
+      current: WorldJsonObject[]
+    }
+    return current.map(item => {
+      const id = String(item.entityId),
+        holderId = item.holderId as string | null
+      return {
+        id,
+        name: this.#entityNames.get(id) ?? id,
+        kind: String(item.kind),
+        where:
+          holderId === this.#playerId ? ('held' as const) : holderId === null ? ('here' as const) : ('with' as const),
+        ...(holderId === null || holderId === this.#playerId
+          ? {}
+          : { holderId, holderName: this.#names.get(holderId) ?? holderId }),
+      }
+    })
+  }
+
   /** The player's own waits, in order, as empty entries a frontend may show however it likes. */
   #withPauses(transcript: HostState['transcript'], events: readonly StoredWorldEvent[]): HostState['transcript'] {
     const pauses = this.#status ? pauseRounds(events) : []
@@ -1792,6 +1822,7 @@ export class WorldHostCore implements HostRuntime {
         }),
         events,
       )
+      this.#items = this.#visibleItems(events, scene.observerIds)
       this.#currentScene = {
         locationName:
           view.locationId === null ? '未知地点' : (this.#locationNames.get(view.locationId) ?? view.locationId),
@@ -1869,6 +1900,7 @@ export class WorldHostCore implements HostRuntime {
           // Author opt-in only: these never enter any character's context.
           this.#statusTruth = this.#status.playerTruth(events).map(named)
         }
+        this.#items = this.#visibleItems(events, scene.observerIds)
         this.#currentScene = {
           locationName:
             view.locationId === null ? '未知地点' : (this.#locationNames.get(view.locationId) ?? view.locationId),

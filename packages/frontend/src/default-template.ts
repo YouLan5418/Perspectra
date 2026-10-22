@@ -194,16 +194,19 @@ export const DEFAULT_SCRIPT = String.raw`(() => {
    document.documentElement.style.setProperty('--fs-story',reading.fontSize+'px');document.documentElement.style.setProperty('--story-line-height',String(reading.lineHeight));
    node('input').maxLength=node('narration').maxLength=view.settings?.inputCharacters||2000;
    node('title').textContent=view.game.title;node('player').textContent='你 · '+view.player.name;
-   const nextStatus=JSON.stringify(view.statusBar||[]);
+   const nextStatus=JSON.stringify([view.statusBar||[],view.items||[]]);
    if(nextStatus!==statusKey){statusKey=nextStatus;const bar=node('status-bar'),rows=statusRows(view),pinned=statusRows({statusBar:(view.statusBar||[]).filter(entry=>entry.pinned)});bar.replaceChildren();bar.hidden=!pinned.length;
      for(const group of pinned){const section=document.createElement('span');section.className='status-group';const holder=document.createElement('small');holder.textContent=group.holder;section.append(holder);
        for(const item of group.items){const entry=document.createElement('span');entry.className='status-item';entry.append(item.label+' ');const value=document.createElement('strong');value.textContent=item.value;entry.append(value);
          if(item.note){const note=document.createElement('span');note.className='hint';note.textContent=item.note;entry.append(' ',note)}section.append(entry)}
        bar.append(section)}
      const list=node('status-list');list.replaceChildren();
-     if(!rows.length){const empty=document.createElement('p');empty.className='empty-status';empty.textContent='你还不知道任何状态。';list.append(empty)}
+     if(!rows.length&&!(view.items||[]).length){const empty=document.createElement('p');empty.className='empty-status';empty.textContent='你还不知道任何状态，手边也没有物品。';list.append(empty)}
      for(const group of rows){const section=document.createElement('section');section.className='status-section';const heading=document.createElement('h3');heading.textContent=group.holder;const table=document.createElement('dl');
        for(const item of group.items){const term=document.createElement('dt');term.textContent=item.label;const value=document.createElement('dd');value.textContent=item.value+(item.note?'（'+item.note+'）':'');table.append(term,value)}
+       section.append(heading,table);list.append(section)}
+     const items=view.items||[];if(items.length){const section=document.createElement('section');section.className='status-section';const heading=document.createElement('h3');heading.textContent='物品';const table=document.createElement('dl');
+       for(const item of items){const term=document.createElement('dt');term.textContent=item.name;const value=document.createElement('dd');value.textContent=({held:'在你手里',here:'在这里',with:'在'+(item.holderName||'别人')+'手里'})[item.where];table.append(term,value)}
        section.append(heading,table);list.append(section)}}
    node('status').textContent=({ready:playback.pending()?'阅读中':'可以回应',busy:view.responders?.length?view.responders.join('、')+' 正在回应':view.canInterrupt?'可以接着说':view.tailRound?.regenerating?'正在处理回合':'角色正在回应',paused:'已暂停',error:'处理未完成'})[view.status];
    node('status').dataset.state=view.status;

@@ -292,6 +292,7 @@ export function projectPlayerView(state: HostState): PlayerView {
           })),
         }
       : {}),
+    items: (state.items ?? []).map(item => ({ ...item })),
     history: state.transcript.map(line => ({
       seq: line.seq,
       speaker: line.speaker,

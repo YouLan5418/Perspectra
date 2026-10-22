@@ -135,3 +135,24 @@ it('marks the statuses the author pinned to the bar and leaves the rest to the s
   expect(bar.filter(entry => entry.pinned).map(entry => entry.key)).toEqual(['money', 'time'])
   expect(bar.filter(entry => !entry.pinned).map(entry => entry.key)).toContain('quests')
 })
+
+it('lists the items the player can see: on the ground here, in hand, then with whoever it was handed to', async () => {
+  const f = await fixture()
+  const items = async () =>
+    (projectPlayerView(await f.runtime.state()).items ?? []).map(({ id, name, where, holderName }) => ({
+      id,
+      name,
+      where,
+      ...(holderName === undefined ? {} : { holderName }),
+    }))
+  expect(await items()).toEqual([{ id: 'entity:thermos', name: '保温杯', where: 'here' }])
+  await f.runtime.perform((await f.option('拿起保温杯')).action)
+  expect(await items()).toEqual([{ id: 'entity:thermos', name: '保温杯', where: 'held' }])
+  const give = await f.option('把保温杯交给')
+  await f.runtime.perform({
+    ...give.action,
+    parameters: { ...give.action.parameters, arguments: { recipientId: 'character:companion' } },
+  })
+  // The player saw the handover, so it knows who holds the thermos now.
+  expect(await items()).toEqual([{ id: 'entity:thermos', name: '保温杯', where: 'with', holderName: '同行者' }])
+})

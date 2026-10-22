@@ -49,6 +49,15 @@ export interface HostState {
     /** A round the player let pass; the text is empty and a frontend shows what it likes, or nothing. */
     readonly pause?: true
   }[]
+  /** Items the player can see: held, here, or with someone present. */
+  readonly items?: readonly {
+    readonly id: string
+    readonly name: string
+    readonly kind: string
+    readonly where: 'held' | 'here' | 'with'
+    readonly holderId?: string
+    readonly holderName?: string
+  }[]
   /** The player may let a round pass now (`host:wait`). */
   readonly canWait?: boolean
   readonly world: {
