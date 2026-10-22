@@ -128,3 +128,10 @@ it('tells an actor whose item operation the author refused where the item still 
   // In someone else's hands: the author's reason only, nothing about who holds it.
   expect(refused('character:friend', 'take')).toBe('杯盖没拧紧')
 })
+
+it('marks the statuses the author pinned to the bar and leaves the rest to the status drawer', async () => {
+  const f = await fixture()
+  const bar = projectPlayerView(await f.runtime.state()).statusBar ?? []
+  expect(bar.filter(entry => entry.pinned).map(entry => entry.key)).toEqual(['money', 'time'])
+  expect(bar.filter(entry => !entry.pinned).map(entry => entry.key)).toContain('quests')
+})

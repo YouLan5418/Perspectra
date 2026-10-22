@@ -47,6 +47,8 @@ export interface PlayerView {
     self?: boolean
     value: import('@harness-world/contracts').WorldJsonValue
     current: boolean
+    /** The author pinned this status to the status bar (`bar: true`); the rest belong in a status panel. */
+    pinned?: true
   }[]
   /** True values of statuses the author declared `playerTruth`; absent otherwise. Showing them is the frontend's choice. */
   statusTruth?: {

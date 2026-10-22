@@ -195,8 +195,8 @@ export const DEFAULT_SCRIPT = String.raw`(() => {
    node('input').maxLength=node('narration').maxLength=view.settings?.inputCharacters||2000;
    node('title').textContent=view.game.title;node('player').textContent='你 · '+view.player.name;
    const nextStatus=JSON.stringify(view.statusBar||[]);
-   if(nextStatus!==statusKey){statusKey=nextStatus;const bar=node('status-bar'),rows=statusRows(view);bar.replaceChildren();bar.hidden=!rows.length;
-     for(const group of rows){const section=document.createElement('span');section.className='status-group';const holder=document.createElement('small');holder.textContent=group.holder;section.append(holder);
+   if(nextStatus!==statusKey){statusKey=nextStatus;const bar=node('status-bar'),rows=statusRows(view),pinned=statusRows({statusBar:(view.statusBar||[]).filter(entry=>entry.pinned)});bar.replaceChildren();bar.hidden=!pinned.length;
+     for(const group of pinned){const section=document.createElement('span');section.className='status-group';const holder=document.createElement('small');holder.textContent=group.holder;section.append(holder);
        for(const item of group.items){const entry=document.createElement('span');entry.className='status-item';entry.append(item.label+' ');const value=document.createElement('strong');value.textContent=item.value;entry.append(value);
          if(item.note){const note=document.createElement('span');note.className='hint';note.textContent=item.note;entry.append(' ',note)}section.append(entry)}
        bar.append(section)}

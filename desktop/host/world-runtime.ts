@@ -1860,7 +1860,12 @@ export class WorldHostCore implements HostRuntime {
                   ...(entry.holderId === this.#playerId ? { self: true } : {}),
                 }
           this.#transcript = this.#withPauses(this.#transcript, events)
-          this.#statusBar = this.#status.known(events, this.#playerId).map(named)
+          // The bar shows what the author pinned; the stage lists the rest in its status drawer.
+          const pinned = new Set(this.#status.statuses.filter(s => s.bar).map(s => s.key))
+          this.#statusBar = this.#status
+            .known(events, this.#playerId)
+            .map(named)
+            .map(entry => (pinned.has(entry.key) ? { ...entry, pinned: true as const } : entry))
           // Author opt-in only: these never enter any character's context.
           this.#statusTruth = this.#status.playerTruth(events).map(named)
         }

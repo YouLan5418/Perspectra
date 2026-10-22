@@ -80,6 +80,8 @@ export interface StatusDefinition {
   readonly activities?: readonly string[]
   /** Author opt-in: the true value is delivered to the player's frontend, which decides whether to show it. */
   readonly playerTruth: boolean
+  /** Author opt-in: pinned to the player's status bar; every known status is in the status drawer anyway. */
+  readonly bar: boolean
 }
 export interface StatusOperation {
   readonly id: string
@@ -215,7 +217,7 @@ export class PackStatus {
     const ajv = new Ajv({ strict: true, allErrors: false })
     this.statuses = definition.statuses.map(value => {
       const s = object(value, '状态声明')
-      exact(s, ['key', 'label', 'type', 'owner'], ['alwaysKnown', 'activities', 'schema', 'playerTruth'])
+      exact(s, ['key', 'label', 'type', 'owner'], ['alwaysKnown', 'activities', 'schema', 'playerTruth', 'bar'])
       if (typeof s.key !== 'string' || !NAME.test(s.key)) throw new TypeError('状态键无效')
       if (!['number', 'string', 'boolean', 'object', 'array', 'null'].includes(String(s.type)))
         throw new TypeError('状态值类型无效：' + s.key)
@@ -231,6 +233,7 @@ export class PackStatus {
         throw new TypeError('alwaysKnown 必须是布尔值')
       if (Object.hasOwn(s, 'playerTruth') && typeof s.playerTruth !== 'boolean')
         throw new TypeError('playerTruth 必须是布尔值')
+      if (Object.hasOwn(s, 'bar') && typeof s.bar !== 'boolean') throw new TypeError('bar 必须是布尔值')
       return {
         key: s.key,
         label: label(s.label),
@@ -239,6 +242,7 @@ export class PackStatus {
         owner: s.owner as StatusDefinition['owner'],
         alwaysKnown: s.alwaysKnown === true,
         playerTruth: s.playerTruth === true,
+        bar: s.bar === true,
         ...(Object.hasOwn(s, 'activities') ? { activities: strings(s.activities, '状态适用活动') } : {}),
       }
     })

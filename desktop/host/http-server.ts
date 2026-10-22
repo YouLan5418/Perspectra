@@ -70,7 +70,11 @@ export interface HostState {
   readonly availableActions?: readonly ActionAffordance[]
   /** Only the player's own known status values, never the true ones; holderName is the holder's display name and
    * `self` marks the player's own statuses by ID. */
-  readonly statusBar?: readonly (KnownStatus & { readonly holderName?: string; readonly self?: boolean })[]
+  readonly statusBar?: readonly (KnownStatus & {
+    readonly holderName?: string
+    readonly self?: boolean
+    readonly pinned?: true
+  })[]
   /** True values only for statuses the author declared `playerTruth`; the frontend decides whether to show them. */
   readonly statusTruth?: readonly (PlayerTruthStatus & { readonly holderName?: string; readonly self?: boolean })[]
   readonly memoryMaintenance?: WorldJsonObject

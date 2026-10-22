@@ -140,7 +140,7 @@ Activity 收紧局部玩法许可；默认由模型决定扮演内容，作者�
 
 | 部分 | 职责 |
 | --- | --- |
-| definition.statuses | 每项 `{ key, label, type, owner, schema?, alwaysKnown?, activities?, playerTruth? }`。type 为 `number`／`string`／`boolean`／`object`／`array`／`null`；对象、数组必须声明同类型 JSON Schema，其他类型可选；owner 为 `public`（全世界一份）或 `character`（包里每个角色各一份，包括玩家和尚未登场的角色）；`alwaysKnown: true` 表示所有人始终知道真实值；`playerTruth: true` 表示把这个状态所有归属者的真实值交给玩家前端（见下文“显示”），不影响任何角色知道什么 |
+| definition.statuses | 每项 `{ key, label, type, owner, schema?, alwaysKnown?, activities?, playerTruth?, bar? }`。type 为 `number`／`string`／`boolean`／`object`／`array`／`null`；对象、数组必须声明同类型 JSON Schema，其他类型可选；owner 为 `public`（全世界一份）或 `character`（包里每个角色各一份，包括玩家和尚未登场的角色）；`alwaysKnown: true` 表示所有人始终知道真实值；`playerTruth: true` 表示把这个状态所有归属者的真实值交给玩家前端（见下文“显示”），不影响任何角色知道什么；`bar: true` 表示钉在玩家的状态栏（建议 2–4 项，例如时间、余额），没钉的已知状态仍在默认舞台的“状态”抽屉里，PlayerView 的 `statusBar` 每项多一个 `pinned: true` 标记，只影响显示 |
 | definition.operations | 每项 `{ id, label, schema, targets?, characterParameters?, actors?, activities? }`。schema 必须是封闭对象；`targets` 列出作用的物品，label 可写 `{item}`；`characterParameters` 列出指向角色的字符串参数，宿主在调用 resolve 前检查该角色存在且在行动者当前授权场景内；`actors` 为 `player`／`npc`／`any`（默认） |
 | initialize(characterIds) | 返回 `{ public, characters, reveals? }`，必须恰好包含声明的状态。新世界首次打开时提交为初始事件；角色私有状态默认告知归属者，公共状态除非 alwaysKnown 否则不告知任何人 |
 | resolve(truth, actorId, operationId, parameters, world, targetId) | 裁定一次操作。truth 是真实值，只在宿主内使用，不进入任何角色视图；world 与活动 resolve 的第五参数相同；第六参数为目标物品 ID，无物品目标时为 null |

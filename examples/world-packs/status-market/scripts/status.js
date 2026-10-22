@@ -58,8 +58,8 @@ function resolveItem(actorId, operationId, parameters, world, targetId) {
 globalThis.statusScript = {
   definition: {
     statuses: [
-      { key: 'money', label: '余额', type: 'number', owner: 'character' },
-      { key: 'time', label: '时间', type: 'number', owner: 'public', alwaysKnown: true },
+      { key: 'money', label: '余额', type: 'number', owner: 'character', bar: true },
+      { key: 'time', label: '时间', type: 'number', owner: 'public', alwaysKnown: true, bar: true },
       { key: 'quests', label: '委托记录', type: 'object', owner: 'character', schema: {
         type: 'object', maxProperties: 32, additionalProperties: {
           type: 'object', additionalProperties: false, required: ['stage', 'notes'], properties: {
