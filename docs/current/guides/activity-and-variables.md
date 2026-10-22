@@ -1,5 +1,7 @@
 # 创作者：活动与状态
 
+2026-10-22 核对：例如角色拿起保温杯后把它交给同伴，拿／放／给由包内作者脚本定义；本节更新了目标物品、候选筛选、物品结果和调试入口。旧日期的活动与状态验收保留当时范围，不代表当前物品模板已重验。
+
 当前玩法桥由实验宿主加载可信本地脚本。先复制 [launcher-demo](../../../examples/world-packs/launcher-demo) 或 [主持猜数字示例](../../../examples/world-packs/ai-girls-hosted-guess)，逐步修改并真实试玩。完整运行时边界见 [创作者运行时](../architecture/creator-runtime.md)。
 
 ## 1. 文件和信任范围
@@ -139,16 +141,16 @@ Activity 收紧局部玩法许可；默认由模型决定扮演内容，作者�
 | 部分 | 职责 |
 | --- | --- |
 | definition.statuses | 每项 `{ key, label, type, owner, schema?, alwaysKnown?, activities?, playerTruth? }`。type 为 `number`／`string`／`boolean`／`object`／`array`／`null`；对象、数组必须声明同类型 JSON Schema，其他类型可选；owner 为 `public`（全世界一份）或 `character`（包里每个角色各一份，包括玩家和尚未登场的角色）；`alwaysKnown: true` 表示所有人始终知道真实值；`playerTruth: true` 表示把这个状态所有归属者的真实值交给玩家前端（见下文“显示”），不影响任何角色知道什么 |
-| definition.operations | 每项 `{ id, label, schema, characterParameters?, actors?, activities? }`。schema 必须是封闭对象；`characterParameters` 列出指向角色的字符串参数，宿主在调用 resolve 前检查该角色存在且在行动者当前授权场景内；`actors` 为 `player`／`npc`／`any`（默认） |
+| definition.operations | 每项 `{ id, label, schema, targets?, characterParameters?, actors?, activities? }`。schema 必须是封闭对象；`targets` 列出作用的物品，label 可写 `{item}`；`characterParameters` 列出指向角色的字符串参数，宿主在调用 resolve 前检查该角色存在且在行动者当前授权场景内；`actors` 为 `player`／`npc`／`any`（默认） |
 | initialize(characterIds) | 返回 `{ public, characters, reveals? }`，必须恰好包含声明的状态。新世界首次打开时提交为初始事件；角色私有状态默认告知归属者，公共状态除非 alwaysKnown 否则不告知任何人 |
-| resolve(truth, actorId, operationId, parameters, world) | 裁定一次操作。truth 是真实值，只在宿主内使用，不进入任何角色视图；world 与活动 resolve 的第五参数相同 |
-| policy(known, actorId)（可选） | 返回 `{ operations: ['操作ID', ...] }`，根据该角色已知状态筛选操作；省略或返回 null 表示不额外筛选。只读，不提交效果 |
+| resolve(truth, actorId, operationId, parameters, world, targetId) | 裁定一次操作。truth 是真实值，只在宿主内使用，不进入任何角色视图；world 与活动 resolve 的第五参数相同；第六参数为目标物品 ID，无物品目标时为 null |
+| policy(known, actorId, place)（可选） | 返回 `{ operations: ['操作ID', ...], targets?: { 操作ID: [物品ID, ...] } }`，根据已知状态筛选操作，并可用行动者手里／脚下的物品收窄目标；省略或返回 null 表示不额外筛选。只读，不提交效果 |
 | onRoundEnd(truth, round)（可选） | 每次玩家输入被受理、本轮角色反应结束后调用一次，返回 `null` 或 `{ changes, reveals }` |
 
 resolve 返回两种结果之一：
 
 - `{ rejectReason }`：操作根本不成立（参数不对、目标不对）。什么都不提交，也不告知任何值。
-- `{ changes, reveals, description, audience }`：被接受的结果。changes 是 `{ holderId, key, value }`（公共状态 holderId 为 null）；description 是结果文字；audience 为 `'self'`、`'scene'` 或 `{ characters: [...] }`。
+- `{ changes, reveals, description, audience, items? }`：被接受的结果。changes 是 `{ holderId, key, value }`（公共状态 holderId 为 null）；description 是结果文字；audience 为 `'self'`、`'scene'` 或 `{ characters: [...] }`；可选 items 是物品外观／去向结果，见下文。
 
 **失败不等于拒绝。** 余额不足、偷窃被发现这类玩法失败，应作为被接受的结果返回：changes 为空或只含部分变化，照常带上 reveals 和 description，角色才能通过失败得知真实值。
 
@@ -185,10 +187,42 @@ policy(known) {
 
 状态本身只做条件筛选：领奖等变化仍由显式操作／活动裁定或每轮钩子提交，不自动决定 NPC 是否行动。唯一的自动衔接是玩家回合结束后按条件开始一场活动（[按条件自动开始](#按条件自动开始2026-10-21当前源码)），每轮至多一步，不形成递归事件链。知识条目可用 `when` JSON Schema 按同一份已知状态筛选，见[世界设定指南](world-knowledge.md#按已知状态筛选)。完整的领取、完成、领奖和条件知识样例见[集市脚本](../../../examples/world-packs/status-market/scripts/status.js)。
 
+### 对物品做的操作（2026-10-22，当前源码）
+
+例如角色想拿起钥匙，再交给同伴：作者使用[物品规则模板](../../../examples/templates/item-rules.js)，在自己包的 `scripts/status.js` 顶部用 `ITEM_RULES` 列出可拿、可放、可给的物品。模板中的 `itemOperations` 并入 definition.operations，`itemTargets` 并入 policy 的目标筛选，resolve 对 take／drop／give 调用 `resolveItem`；完整接法可看[官方包脚本](../../../examples/world-packs/model-girls-official/scripts/status.js)。所有 v5 示例包已采用这一写法，宿主不再内置拿／放／给规则。
+
+料理也用同一接口。例如厨房有生米和电饭煲，作者可以声明“煮饭”，成功后把同一物品改为熟饭。以下为脚本中的操作与 resolve 结果片段，不是一次真实模型验收记录：
+
+```js
+// definition.operations 中的一项。
+{ id: 'cook-rice', label: '用电饭煲煮一锅白米饭', targets: ['entity:rice-batch'],
+  schema: { type: 'object', additionalProperties: false, properties: {} } }
+// resolve(truth, actorId, operationId, parameters, world, targetId) 内，条件检查通过后：
+return { changes: [], reveals: [], items: [{ entityId: targetId, kind: 'cooked-rice' }],
+  description: '这一份米与水已煮成一锅白米饭；原食材不再可用。', audience: 'scene' }
+```
+
+- `targets` 列出操作作用于哪些已登记物品。每件行动者自己拿着、或放在所在位置地上的物品各给一个选项（别人手里的物品不提供，免得泄露谁拿着什么）；选项名里写 `{item}` 会替换成物品名，例如 `拿起{item}` 显示为“拿起保温杯”，不写时列了多件物品才在后面加“· 物品名”；`resolve` 第六个参数是这件物品的 ID。不写 `targets` 的操作仍作用于行动者本人，第六个参数为 null。
+- 结果可多写 `items`，至多 8 项 `{ entityId, kind?, to? }`：`kind` 是物品新的外观（1–500 字），只改 kind 时留在原处或原持有者手里；`to` 是 `{ holderId }`（行动者或同场角色）或 `{ locationId }`（只能是行动者所在位置），整次结果至多移动一件物品。物品必须够得着。宿主写成 `entity.upsert` 与 `entity.transferred`，和本次行动的对白、状态变化及观察原子提交；授权目击者记下新的持有者。任何一项不合法就整次结果都不提交，按作者错误处理。玩家同回合附带表达的先后提交仍见[Interaction](../architecture/interaction.md)，不因此变为一个事务。
+- 物品外观对看得见它的人可见：拿着的、在你所在位置的物品，你看到当前样子；后进房间的人也能看到。“有人知道、有人不知道”的事实仍用状态和告知。
+- 条件判断用第五个参数 `world.items.current`（行动者当前能确认的物品，含 kind、holderId、locationId）。条件不满足时返回 `rejectReason`。
+- 只给满足已声明条件的目标：`policy(known, actorId, place)` 的第三个参数是 `{ locationId, items }`，`items` 给出行动者拿着或脚下的物品现状（entityId、kind、holderId、locationId），也包括未列为操作目标的工具，例如电饭煲；不含别人手里的物品。返回值可多写 `targets: { 操作ID: [物品ID] }`，只能收窄该操作已声明的目标；空数组隐藏该操作的全部物品选项。执行时宿主用最新输入再检查，伪造或失效请求不能绕过。模板据此只对地上物品提供拿起，只对自己持有的物品提供放下／交给；官方包和晚宴包还筛选料理／修理条件。policy 没有检查的条件仍须在 resolve 中检查，不能把“出现选项”当成成功保证。
+- 模板的“交给”每件物品只提供一个选项，以 `characterParameters: ['recipientId']` 和参数 schema 声明“交给谁”，不按接收者展开选项。宿主要求接收者在当前授权场景中，模板再拒绝交给自己。
+- 玩家调试命令写作 `/status <操作>@<物品ID> <JSON 参数>`，例如 `/status take@entity:brass-key {}`、`/status drop@entity:brass-key {}`、`/status give@entity:brass-key {"recipientId":"character:companion"}`。须以包内实际物品和角色 ID 为准；`/take`、`/give`、`/drop` 已删除。活动 policy 与 `autonomy.json` 用 `status:take`／`status:drop`／`status:give` 等定义 ID 引用操作。
+- 这取代了内置拿／放／给，以及核心里的煮饭、吃饭、修理、三种做菜；`home.ts`、`dinner.ts` 已删除。宿主基础规则只保留牵手／松手。见[晚宴规则](../../../examples/world-packs/model-girls-dinner-v2/scripts/status.js)与[分阶段设计记录](../../superpowers/specs/2026-10-22-author-item-rules-design.md)。旧版物品规则只在[测试夹具](../../../tests/fixtures/item-custody-package.ts)中保留，宿主不安装它，不能作为作者继续使用旧定义的入口。
+
+### 作者物品规则的验证范围
+
+以下真实模型结果沿用本次提供的验收记录；本次文档同步只核对源码和测试场景，没有运行测试或调用模型。
+
+- **源码已接通：** 目标选项、policy 筛选、执行复查、作者 resolve、物品事件和授权观察。所有 v5 示例包的物品规则都来自各自脚本；没有据此确认发行包已重建。
+- **自动测试：** 已核对[模板测试](../../../tests/host/status-market-items.test.ts)包含候选切换、参数化交给、目击者获知新持有人和伪造未提供目标被拒绝；[宿主测试](../../../tests/host/pack-status-runtime.test.ts)包含改外观时保留持有人、NPC 执行、够不着时拒绝和非法移动整次不提交。本次文档同步未运行这些测试，不报告新的通过数量。
+- **此次真实模型验收：** DeepSeek 跑过《赔罪晚宴》A 路线，出现 NPC 自选做菜、修灶台被作者理由拒绝；hidden-cure-next D2 中竞争者用作者模板拿取并交出摘要，但交给的是玩家而非伊蕾，仅一次样本。这不证明接收对象选择、官方同居包新版煮饭、玩家“说加做”或长期玩法体验已验收。
+
 ### 谁怎样提出操作
 
 - NPC：已声明且允许其执行的操作作为 `interact` 候选出现在角色 affordances 中，模型通过 perform 提出（bindingId `status`，definitionRef `status:<操作ID>`），经 Rulebook 裁定后与其他事件一起提交。被拒绝时只有该 NPC 收到带拒绝原因的执行结果，不告知任何值。叙事文本不改变任何状态。
-- 玩家：输入 `/status <操作ID> <JSON 参数>`，例如 `/status buy {"price":20}`、`/status check-purse {}`。宿主按与 NPC 相同的规则裁定，被拒绝时提示原因且不提交。没有参数的操作也作为一键选项出现在默认舞台和 SDK 的 view.actions 中；有参数的操作不在行动菜单里，只能用 `/status`。
+- 玩家：每个允许的操作都出现在默认舞台和 SDK 的 view.actions 中（`kind: interact`；无物品目标时 `target.kind: self`，有物品目标时为 `item`）。有参数的操作带 `argumentSchema`，默认舞台据此生成表单：`characterParameters` 列出的参数以 `characterArguments` 进入视图，是当前场景角色下拉框，数字、布尔、枚举和字符串各有输入框；schema 里写 `title` 可替换字段名显示。例如“购买”填 20 后提交，或在“把钥匙交给”的表单中选择接收者；输入框里已有一句话时，它会和操作作为同一回合提交（见[当前 Interaction](../architecture/interaction.md)）。宿主按与 NPC 相同的规则裁定，被拒绝时提示原因且不提交。无物品目标时 `/status <操作ID> <JSON 参数>` 仍可用于创作者调试，物品目标须加 `@<物品ID>`。
 - 角色上下文新增 `knownStatus`（该角色已知的值）和 `knownStatusNote` 提示。只要真实值在观察者上次确认之后被任何事件改过，这一项就立刻变成 `current: false`：观察者知道“有变化”，但不知道新值，也不知道是谁、因为什么改的。从未被告知的状态完全不出现，而不是显示为空。
 
 ### 与活动的配合
@@ -199,7 +233,7 @@ policy(known) {
 
 ### 每轮钩子
 
-onRoundEnd 拿到真实值和轮次，拿不到角色上下文或模型输出；结果作为本轮最后一个 `status.updated` 提交。轮次从 1 开始，按已提交的玩家回合计算：钩子返回 null 或失败不阻止下一轮递增；同一输入的幂等重放和活动的 NPC 重试不新增轮次；快捷活动的开始与执行合算一轮。它没有行动者和场景，所以 reveals 只能告知被改状态的归属者本人；alwaysKnown 的状态（如游戏时间）不需要告知。不产生对白，不额外调度角色。钩子失败或超时时，本轮已提交内容保留、状态不变，错误记在宿主调试信息的 `debug.statusRoundError`，不重试。末端重新生成会连同这一轮一起重演。
+onRoundEnd 拿到真实值和轮次，拿不到角色上下文或模型输出；结果作为本轮最后一个 `status.updated` 提交。轮次从 1 开始，按已提交的玩家回合计算：钩子返回 null 或失败不阻止下一轮递增；同一输入的幂等重放和活动的 NPC 重试不新增轮次；快捷活动的开始与执行合算一轮；一句话连同一个行动的回合（两次提交）也只算一轮，为了之后仍能这样计数，这类回合即使钩子返回 null 或失败，也会提交一条不含任何变化的 `status.updated` 轮次记录（`source: { kind: "round", round }`），状态值不变。它没有行动者和场景，所以 reveals 只能告知被改状态的归属者本人；alwaysKnown 的状态（如游戏时间）不需要告知。不产生对白，不额外调度角色。钩子失败或超时时，本轮已提交内容保留、状态不变，错误记在宿主调试信息的 `debug.statusRoundError`，不重试。末端重新生成会连同这一轮一起重演。
 
 ### 显示、存档与上限
 
@@ -216,12 +250,12 @@ onRoundEnd 拿到真实值和轮次，拿不到角色上下文或模型输出；
 有意接受的限制：
 
 1. 角色的 knownStatus 不在过期重算（stale）的比较内容里。角色思考期间另一角色改了状态，它的台词可能提到刚变的旧值；权威事实仍一致，操作总在最新前缀上重新裁定。
-2. 带参数的状态操作不是舞台上的行动选项，玩家需输入 `/status`。
+2. 默认舞台的表单只覆盖常见 schema（角色、数字、布尔、枚举、字符串）；嵌套对象或数组退回为 JSON 文本框。
 3. 活动运行中 `/status` 被状态规则拒绝时显示该拒绝原因；被活动 policy 或其他规则拒绝时仍只显示对应的通用提示。
 4. 不支持跨场景告知（短信、银行通知等）。
 5. `status.updated` 登记进全局事件清单，改变了所有世界的 manifest，**所有旧存档**打开时都会报错，需要新建存档；不提供迁移。
 6. `current:false` 是确定性信号：真实值一变，归属者马上看到“上次确认”。对“暗中偷窃”这类玩法，目前会让失主察觉到“有变化”（不含金额和来源）；想完全隐藏就要等后续设计，现在无法由作者关闭。
-7. 常驻状态条件可用 policy 筛选操作；位置、物品等实时执行条件仍在 resolve 中检查并返回 rejectReason。状态变化不会自动引出下一次变化；唯一的自动衔接是每轮至多一次的活动自动开始。也不从叙事解析状态变化。
+7. policy 可按已知状态筛选操作，并按行动者手里／脚下物品筛选目标；当前仍不能提供“从别人手里拿走指定物品”的候选。resolve 仍须检查本次真实条件，不满足时返回 rejectReason。状态变化不会自动引出下一次变化；唯一的自动衔接是每轮至多一次的活动自动开始。也不从叙事解析状态变化。
 
 ## 4. 试玩要求
 

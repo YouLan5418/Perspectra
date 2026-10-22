@@ -1,6 +1,8 @@
 # 目录与模块地图
 
-核对日期：2026-10-21。本次核对宿主迁移、Core 资源和前端适配归属；其他机制的验证限制仍见对应章节。目录位置是导航线索，不代表其中的全部代码都由当前入口运行。从入口沿 import 和调用向下查；导出清单不等于调用清单。
+核对日期：2026-10-22。本次追加核对物品规则移至作者脚本后的职责与入口；此前宿主迁移、Core 资源和前端适配核对保留，其他机制的验证限制仍见对应章节。目录位置是导航线索，不代表其中的全部代码都由当前入口运行。从入口沿 import 和调用向下查；导出清单不等于调用清单。
+
+例如角色拿起工具箱、修好灶台，先由包内 `scripts/status.js` 提出物品结果，再由宿主检查并提交；这些玩法不在基础交互包里。脚本接口见[受控交互](controlled-interaction.md)，标准拿／放／给写法见[作者模板](../../../examples/templates/item-rules.js)。
 
 ## 1. 先看这些目录
 
@@ -35,7 +37,7 @@
 | [provider-chat](../../../packages/provider-chat) | 模型协议、角色决策请求、预设和请求检查 | [角色协议](../../../packages/provider-chat/src/character-turn-call.ts)、[接口适配](../../../packages/provider-chat/src/protocol.ts)、[上下文文本](../../../packages/provider-chat/src/character-context-text.ts) |
 | [world-pack](../../../packages/world-pack) | 检查和编译作者的世界包 | [编译器](../../../packages/world-pack/src/compiler.ts)、[命令入口](../../../packages/world-pack/process/cli-entry.ts)；源包与 Manifest 版本不是同一个数字 |
 | [interaction-runtime](../../../packages/interaction-runtime) | 注册交互能力、校验定义与结果 | [注册](../../../packages/interaction-runtime/src/registry.ts)、[校验](../../../packages/interaction-runtime/src/validation.ts) |
-| [interactions-basic](../../../packages/interactions-basic) | 拿取、交接及独立小料理交互实现 | [基础定义](../../../packages/interactions-basic/src/basic.ts)、[料理扩展](../../../packages/interactions-basic/src/home.ts)、[晚宴物品状态转换](../../../packages/interactions-basic/src/dinner.ts)；宿主安装三者，世界包仍须显式绑定入口 |
+| [interactions-basic](../../../packages/interactions-basic) | 牵手与松手的内置规则 | [基础定义](../../../packages/interactions-basic/src/basic.ts)仅有 `base:hold-hand`、`base:end-contact`，须由世界包显式绑定。拿／放／给与料理／修理由各包 `scripts/status.js` 定义，经[状态桥](../../../desktop/host/pack-status.ts)裁定；旧物品规则与 home.ts、dinner.ts 已删除（2026-10-22） |
 | [frontend](../../../packages/frontend) | 公共玩家视图、客户端接口、默认情景舞台、本地阅读进度与可选语音服务契约 | [公共数据](../../../packages/frontend/src/player-view.ts)、[客户端](../../../packages/frontend/src/client.ts)、[默认模板](../../../packages/frontend/src/default-template.ts)、[阅读游标](../../../packages/frontend/src/reading-playback.ts)、[语音接口](../../../packages/frontend/src/speech.ts) |
 | [agents](../../../packages/agents) | 玩家意图调用记录、共用库连接与历史玩家输入解析 | [导出入口](../../../packages/agents/src/index.ts)、[玩家调用记录](../../../packages/agents/src/player-intent-call.ts)、[连接](../../../packages/agents/src/context-database.ts)；旧 NPC Context、Reflection 和调用服务已移除，NPC 主循环在 application |
 | [presentation](../../../packages/presentation) | 把授权观察转成确定性的展示文本 | [Presenter](../../../packages/presentation/src/presenter.ts)；不是 Vue 界面或 NPC 决策器 |

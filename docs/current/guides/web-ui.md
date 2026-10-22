@@ -53,7 +53,7 @@ const { url } = await api.resource("assets/banner.svg");
 | ready / getView | 游戏标题、玩家名、当前可见场景、状态、公开转录、当前操作 |
 | getHistory | 同一公开转录，不含角色私有 Context |
 | speak | 玩家发言或已有显式命令；仍走既有 Core 输入边界 |
-| perform | 引用当前 optionId；宿主提供参数并裁定。动态活动开始选项可额外传 npcIds，从当前授权候选中选人；其他操作不接受该字段，也不接受任意参数 |
+| perform | `perform(optionId, actionId, npcIds?, extra?)`。引用当前 optionId；宿主提供固定参数并裁定。动态活动开始选项可传 npcIds 选人；带 `argumentSchema` 的选项用 `extra.arguments` 填写开放字段（不能覆盖固定字段）；`extra.say`（与 speak 相同的 text、narration、scope、addresseeIds）加 `extra.order`（`before` 默认／`after`）让一句话和这个行动成为同一回合。活动管理选项不接受 say |
 | subscribe | 公共视图变化，含 historyAppend；断连后重新获取快照 |
 | resource | 当前包内已加载前端素材 URL |
 
@@ -66,6 +66,8 @@ const { url } = await api.resource("assets/banner.svg");
 复制 [launcher-demo 的 frontend 目录](../../../examples/world-packs/launcher-demo/frontend)，保留 manifest、SDK 加载和宿主通信方式，再修改布局与展示。该目录随 v5 源包一起加载；不要用双击 index.html 的结果替代真实宿主验收，SDK 的 ready 需要宿主建立通道。
 
 先在默认沙箱完成发言、历史刷新和当前选项操作，再测试受信任模式与撤销。异步动作期间禁用重复提交，处理 paused/error 状态；社区界面失去响应时玩家仍可通过宿主进入官方界面。活动管理、预设编辑、故事线与私有请求检查不属于当前公共 SDK。
+
+每个选项带 `kind`（`move`、`interact`、`activity`、`manage`）与 `target`（`{ kind, id, name }`，kind 为 location、item、character、self 或 activity），供前端按“对谁、做什么”组织菜单；`manage` 是暂停、继续、放弃、重试这类游戏外管理，建议不要和故事内行动并列。
 
 `view.actions[].id` 是当前 Core 生成的机器身份，按不透明值使用，不解析、不自行哈希或拼接参数；按钮可读性使用 label。动作失效后重新 getView 获取当前选项。超时先刷新公开历史与状态；如需重试同一未确认请求，复用相同 actionId 和参数，不把换 ID 当成无限重试机制。
 
@@ -80,6 +82,8 @@ const { url } = await api.resource("assets/banner.svg");
 模板颜色、字号、字体和圆角集中在 `packages/frontend/src/default-template.ts` 的 `DEFAULT_STYLE` 变量中；深色值在 `prefers-color-scheme: dark` 下覆盖。宿主工具栏和活动面板也跟随系统主题。
 
 宿主顶部“工具”菜单包含重新加载、切换官方默认界面及 Core 后台记忆整理；“中止活动”（逃生）始终保留在外层顶栏。活动以可折叠面板放在游戏界面下方，不覆盖包内继续按钮或输入框；点击展开即可开始，开始后展开操作区。社区模板不需要复制这些宿主控制，也不会因此获得私有能力。
+
+行动按 kind 分组，活动管理单独放在面板最后，不进入回应栏的快捷行动。需要填写的行动在面板里显示小表单。输入框里已有内容时，点选行动不会立即执行，而是在发送按钮旁显示“连同行动：……”，可选先说后做或先做后说，按 × 取消；发送后一句话和这个行动作为同一回合提交。输入框为空时点选行动直接执行。
 
 默认界面提供发言和可折叠的细节描写两个输入框，统一发送；任一项可留空，合计最多 2000 字符。描写属于外显表现，不是私密心理，也不能直接修改受控世界状态。公共 `speak` 请求可传 `{ text, narration }`，宿主复用一次现有 speak 动作提交；仅传 `{ text }` 时仍支持原有显式命令。失败重试复用两个字段及 actionId。
 

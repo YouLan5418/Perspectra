@@ -36,6 +36,21 @@ corepack pnpm@11.7.0 experience:web --pack examples/world-packs/launcher-demo --
 
 源码网页默认使用 Core 记忆，与 Launcher 一致；先按 [记忆实验说明](../../../experiments/activity-memory/README.md) 准备 Python/E5，缺少时启动直接报错。Core 用于 local 配置入口，`--ollama` / `--deepseek` 必须同时加 `--memory-native`。原生记忆只取最近 16 条观察的滑动窗口，结果不代表玩家体验，不把不同模型和记忆路径混为同一验收结果。
 
+### 物品规则调试（2026-10-22，当前源码）
+
+例如在有钥匙和同伴的包里，先拿起钥匙，再选“把钥匙交给”，通过“交给谁”填写接收者；创作者页面应看到对应转移，授权目击者也应知道新持有人。拿／放／给使用各包 `scripts/status.js` 中的[作者模板](../../../examples/templates/item-rules.js)，不再是宿主内置规则。复制样例后先核对顶部 `ITEM_RULES`、操作的 targets、policy 和 resolve，以及活动／自主许可是否引用 `status:take`／`status:drop`／`status:give`。
+
+`/take`、`/give`、`/drop` 已删除。通过源码宿主的调试提交入口，可用以下命令核对同一套作者规则；物品 ID、接收者 ID 和操作名须在当前包里存在，参数和实时条件照常校验：
+
+```text
+/status take@entity:brass-key {}
+/status give@entity:brass-key {"recipientId":"character:companion"}
+```
+
+放下也使用 `/status drop@entity:brass-key {}`，应在行动者仍持有该物品时单独测试。默认舞台玩家使用选项和表单，无须输入命令。规则详细接口见[活动与状态](activity-and-variables.md#对物品做的操作2026-10-22当前源码)。
+
+分别检查“条件不满足时隐藏目标”和“已失效／伪造请求执行时被拒绝”，再检查物品去向、目击者观察和台词是否一致。已有自动测试场景与此次 DeepSeek 两个真实样本见[验证范围](activity-and-variables.md#作者物品规则的验证范围)；本次文档同步未重跑测试或模型。《赔罪晚宴》A 路线只提供自选做菜、作者理由拒绝修理的样本；hidden-cure-next D2 竞争者交出摘要时选了玩家而非伊蕾，不能据此判定接收对象选择已通过。
+
 ## 4. 最小真实验收清单
 
 | 模块 | 观察重点 |

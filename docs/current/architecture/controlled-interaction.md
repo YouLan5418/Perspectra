@@ -1,5 +1,7 @@
 # 当前受控交互
 
+2026-10-22 核对：例如角色拿起工具箱，再试着修灶台，能否拿取、需要什么工具、修好后是什么外观，都由这个世界包的作者脚本声明；说“修好了”不能替代规则结果。宿主检查权限与物品去向，再提交事实和授权观察。
+
 普通日常场景默认尽可能保持角色自由表达。创作者定义小游戏或关键机制时，可以在明确参与范围和生命周期内收紧能力；自由叙事与受控行为按场景共存。
 
 当前活动 policy 可约束玩家及指定参与 NPC 的对白（自由、固定原文选项或关闭）、自由 narration、移动、普通交互白名单和游戏操作。它收窄已有能力或提供已注册包内操作，不能凭工具名获得宿主未安装的执行能力。未参与角色不自动继承限制。
@@ -16,8 +18,10 @@
 
 ## 一锅白米饭
 
-玩家或 NPC 在厨房对现有材料执行 `home:cook-rice`，规则检查材料仍为 raw-rice-kit、绑定电饭锅存在且同处可达；成功后同一 entity 变成 cooked-rice。`home:eat-rice` 只接受熟饭，成功变成 empty-meal-container，不能再次煮或吃。对白说“饭好了”不能使这些变化成立。
+玩家或 NPC 在厨房对那锅米选择“用电饭煲煮一锅白米饭”：作者在官方包 [status.js](../../../examples/world-packs/model-girls-official/scripts/status.js) 里检查米仍是 raw-rice-kit、电饭煲就放在这里，成功后同一物品的外观变成 cooked-rice；“把这锅饭吃完”只接受熟饭，变成 empty-meal-container。对白说“饭好了”不能使这些变化成立。
 
-实现是 interactions-basic 包目录中的独立可信 `package:home-meal@1`（[源码](../../../packages/interactions-basic/src/home.ts)），依赖现有 basic 规则，通过已支持的 InteractionDefinition / effectBuilder 和 entity.upsert 提交；原 basic 包内容身份不变。网页、桌面编译、存档预检与 CLI 都安装同一组实现。仅为当前试玩的一批米与水、一锅饭；不模拟饥饿、火候、份额和冰箱容器层级。角色可见物品中的 kind 来自授权可见的已提交状态，不从叙事推断。
+2026-10-22 起，料理、修理和拿起／放下／交给都由各包的 `scripts/status.js` 定义。原 `package:home-meal`、`package:dinner-party` 及内置 `base:take`、`base:drop`、`base:give` 已移除；[基础交互包](../../../packages/interactions-basic/src/basic.ts)只保留牵手与松手。所有 v5 示例包已改用[物品规则模板](../../../examples/templates/item-rules.js)，在各自脚本顶部的 `ITEM_RULES` 列出可拿、可放、可给的物品。引用已删除定义的旧包需先修改，不能按旧规则继续编译。
 
-2026-10-17 增加同目录的 `package:dinner-party@1`（[源码](../../../packages/interactions-basic/src/dinner.ts)），供[《赔罪晚宴》试玩包](../../../examples/world-packs/model-girls-dinner/README.md)使用。它只做一件事：把一个已声明物品从作者写定的 kind 换成另一个 kind，保留实体 ID。修理需要绑定配置指定的工具在场，家常菜需要指定灶台处于可用 kind，大餐另需蒸馏器在场；接受与产生的 kind 全部写在世界包的绑定配置里，交互定义本身不含菜谱或故障模拟。前置条件不满足时按钮不出现。
+作者用操作的 `targets` 指定物品，`resolve` 第六参数接收目标物品 ID，返回 `items` 改外观或交接。宿主检查够得着、单一持有者、交给同场角色或放在行动者脚下等边界；通过后与本次行动的对白、状态变化和授权观察原子提交。`policy(known, actorId, place)` 可按手里和脚下的物品收窄目标，生成候选和执行前都会检查。官方包和晚宴包也用它筛选料理／修理条件；未被 policy 收窄的条件仍须在 resolve 中检查并返回作者拒绝理由。完整接口见[对物品做的操作](../guides/activity-and-variables.md#对物品做的操作2026-10-22当前源码)，分阶段设计记录见[作者定义物品规则](../../superpowers/specs/2026-10-22-author-item-rules-design.md)。
+
+源码链路与相关自动测试场景已核对，本次文档同步未重跑测试。此次真实模型证据仅有 DeepSeek 的《赔罪晚宴》A 路线和 hidden-cure-next D2 单次样本；前者出现 NPC 自选做菜和修灶台被作者理由拒绝，后者用模板拿取并把摘要交给了玩家，未交给伊蕾。它们不证明全部玩法或接收对象选择已验收，详见[项目状态](../PROJECT-STATE.md#验证到了哪一步)；发行包包含情况未核对。

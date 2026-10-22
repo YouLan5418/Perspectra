@@ -1,5 +1,9 @@
 # 当前运行时
 
+2026-10-22 核对物品链路：例如角色选择拿起摘要，再把它交给在场角色，[状态桥](../../../desktop/host/pack-status.ts)先用包内 `policy(known, actorId, place)` 筛选目标，执行时重查许可与可达性，再调用 `resolve(truth, actorId, operationId, parameters, world, targetId)`。作者返回 `items` 改外观或去向；宿主校验后生成 `entity.upsert`／`entity.transferred`，与本次行动的对白、状态结果和授权观察原子提交。玩家附带的一句话仍按[同回合表达与行动](interaction.md)的先后顺序分别提交，不因此合并成一个事务。
+
+拿起／放下／交给由各 v5 示例包的 `scripts/status.js` 提供，标准写法在[作者模板](../../../examples/templates/item-rules.js)；宿主基础交互只保留牵手与松手，旧料理／修理模块也已删除。活动与自主许可引用 `status:take` 等 ID。相关自动测试场景已核对，本次未重跑；本次真实模型证据仅限《赔罪晚宴》A 路线和 hidden-cure-next D2，后者交给了玩家而非伊蕾，见[项目状态](../PROJECT-STATE.md#验证到了哪一步)。下列旧日期实验保留当时结论，不能视为作者模板已重验。
+
 2026-10-19 知识筛选扩展：每次角色请求装入已有授权活动与已知状态后，知识 when 除状态值外，还可检查接收者、当前位置、场景人物、当前／旧物品、本次激活刺激、本人活动与状态 current。活动视图增加稳定 activityKey；仍在 Core／原生记忆交付后、预设准备前选择材料，不新增模型阶段、世界读取或调度机会。[Core／DeepSeek 短试玩](../studies/knowledge-conditions-deepseek-playtest-20261019.md)的 39 次请求全部成功且交付符合预期；源码模式验证不代表 Launcher 人工操作或发行包已验收。字段、自动回归与未验收范围见[世界设定指南](../guides/world-knowledge.md)。
 
 2026-10-19：例如同行者偷走玩家 30 金币后，玩家状态栏仍显示“余额 100（上次确认）”，查看钱包后才变成 70。包可以登记 `scripts/status.js` 声明经裁定的常驻状态，[PackStatus](../../../desktop/host/pack-status.ts) 在新世界首次打开时提交初始 `status.updated`；NPC 的状态操作作为 `interact` 候选经 Rulebook 裁定，玩家用 `/status <操作> <JSON>` 走同一裁定并单独成轮；每次玩家输入被受理且角色反应结束后运行一次可选的每轮钩子（活动中的输入同样）。包变量（`scripts/variables.js`、`pack-variables.json`、`/vars`）已删除，原先因包变量关闭的动态调度、continueAfterPublish 与 beforeActionExpression 门槛一并去掉，下文相应位置已注明。`status.updated` 登记进全局事件清单，所有旧存档打开时报错，需要新建。作者契约与限制见[活动与状态指南](../guides/activity-and-variables.md#3-状态2026-10-19当前源码)。源码与自动测试已接通，未做真实模型试玩，发行包未重建。

@@ -1,5 +1,7 @@
 # 当前创作者运行时
 
+2026-10-22 核对：例如留守者自主去拿钥匙，包内 `scripts/status.js` 的作者模板提供 `status:take`，`autonomy.json` 再允许它在本次机会使用这一操作。活动 policy 同样用 `status:take`／`status:drop`／`status:give` 引用拿、放、给；这些操作不再由基础交互包安装。模板、目标筛选和执行复查见[物品操作](../guides/activity-and-variables.md#对物品做的操作2026-10-22当前源码)。下方示例已按现行 ID 更新，带日期的旧试玩结果不等于新模板已完成同样验收。
+
 2026-10-21 宿主整理：当前实现位于 `desktop/host`。例如创作者查看角色体力时，检查响应的 `statusTruth` 返回已提交状态真值，控制台“状态”页读取同一字段；旧 `variables` 字段已移除。它是宿主认证后的只读能力，玩家公开接口仍按既有权限过滤，不因更名扩大可读范围。活动自己的 public/private/internal 变量保持原含义。模型请求、Context、调度与状态裁定规则没有因目录整理改写；源码和构建验证不代表新的真实模型体验验收。
 
 2026-10-19 知识条件扩展：例如同行者在前室、眼前能确认钥匙且本次刺激来自玩家时，才交付钥匙背景。`when` 继续使用 JSON Schema，保留 public／self／characters 的已知值条件，另可检查接收者、当前位置、授权场景、当前／旧物品、本人活动、刺激与 knownStatus 的 current。活动授权视图增加稳定 activityKey；不读取隐藏世界真值，也不新增状态副本或自动事件链。字段与示例见[世界设定指南](../guides/world-knowledge.md#按场景物品活动与本次刺激筛选)。[Core／DeepSeek 真实试玩](../studies/knowledge-conditions-deepseek-playtest-20261019.md)的 39 次请求交付均符合预期，角色查看钱包前后分别使用过时／有效材料；这是短样本，来源表达仍有扩写，发行包未重建。
@@ -28,10 +30,10 @@ World Pack 用于定义人物、地点、物品、认知、场景、叙事与 In
 {
   "characters": [{
     "characterId": "character:friend",
-    "triggers": [{"actionType": "move"}, {"actionType": "interact", "definitionId": "base:take"}],
+    "triggers": [{"actionType": "move"}, {"actionType": "interact", "definitionId": "status:take"}],
     "everyPlayerTurns": 2,
     "opportunities": 1,
-    "interactions": ["base:take"],
+    "interactions": ["status:take"],
     "locationIds": ["location:front-room", "location:back-room"],
     "targetIds": ["entity:brass-key"]
   }]
@@ -51,7 +53,7 @@ World Pack 用于定义人物、地点、物品、认知、场景、叙事与 In
 
 同一玩家事务即使匹配多个条件也只计一次。宿主从完整已提交事件及现有行动记录推导次数，不使用世界 tick，不另存计数器；节点、分叉与末端候选随同一事件前缀恢复。取消、沉默、预算未覆盖的机会不补发、不积攒，不恢复未提交队列。
 
-默认每个自主机会最多一次受控操作及结果续写；有调用余量时可主动召回补问。作者交互和区域限制同时过滤 affordances 并在 Rulebook 裁定时检查，不能靠直接模型参数绕过；声明也不能赋予宿主未安装的交互能力。自定义交互中的所有业务语义仍由其实现负责，运行时不解析自由文字来证明目标已完成。
+默认每个自主机会最多一次受控操作及结果续写；有调用余量时可主动召回补问。作者交互和区域限制同时过滤 affordances 并在 Rulebook 裁定时检查，不能靠直接模型参数绕过；声明也不能凭空提供未注册的交互或包内操作。自定义交互中的所有业务语义仍由其实现负责，运行时不解析自由文字来证明目标已完成。
 
 启动器按游戏包保存独立资源上限，下次启动生效：每角色 1 次自主机会、全部自主角色 3 次模型调用、后续反应 1 波/4 次调用，自主及后续共用 60 秒。机会设 0 关闭自主唤醒，反应波次设 0 关闭后续连锁；模型请求与单角色时限继续复用既有设置。召回、格式修正、stale 重算和结果续写都占用所属调用预算，Core 记忆 Utility 沿用自身预算。
 

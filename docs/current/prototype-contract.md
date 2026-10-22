@@ -2,6 +2,8 @@
 
 > **现状说明（2026-10-18）：** 本文保留最初方案与各轮验收记录。下表的“尚未实现”及文末阶段状态属于起草时点，不是当前总进度；实际实现和验收范围见[当前架构](architecture/README.md)。[遗留处理记录](studies/phase8-prototype-transition-audit-20261018.md)已退役旧 NPC Round／Reaction、Context／Checkpoint、Reflection 和旧模型调用服务，保留玩家提交、权限裁定与授权记忆来源。下文引用这些旧源码的位置仅作历史复用依据，不要求恢复旧路径。初始心理材料的呈现调整曾实现，但对照出现行动选择退化迹象后已撤回，不作为本轮已交付能力，也不恢复通用心理写回。
 
+> **物品规则现状（2026-10-22 核对）：** 例如角色拿起钥匙后交给同伴，由世界包的 `scripts/status.js` 声明目标与参数、裁定结果，宿主检查并提交物品变化和授权观察。拿／放／给已由[作者模板](../../examples/templates/item-rules.js)取代，使用 `status:take`／`status:drop`／`status:give`；旧 `base:take`／`base:drop`／`base:give` 及核心 home.ts、dinner.ts 已删除，基础交互只保留牵手与松手。玩家使用当前选项，交给是一个选项加接收者参数；旧 `/take`、`/give`、`/drop` 已删除，调试改用 `/status take@entity:xxx {}` 等。源码、自动测试场景和此次两个真实样本的边界见[物品指南](guides/activity-and-variables.md#作者物品规则的验证范围)。下文旧验收的 take／give／drop 指当时实现，不作为现行内置能力或新模板已重验的证明。
+
 | 属性 | 内容 |
 | --- | --- |
 | 文档版本 | 0.1 |
@@ -31,6 +33,7 @@
 > [G3 第一组连续试玩](../archive/prototype-g1-g4/PROTOTYPE-G3-PLAYTEST-01.md) 已完成 20 句真实模型输入。握手释放叙述与权威关系分叉、一次输入解释格式失败，以及后段无人回应的互动断层表明 G3 尚未通过；这些体验证据不推翻 G1 的机械不变量结论。
 
 > [保管关系实验 08](../archive/prototype-g1-g4/PROTOTYPE-CUSTODY-EXPERIMENT-08.md)（2026-09-27，实验分支）：将物品 `holderId` 明确为保管/携带关系，临时托起、翻页和暂放桌上不自动迁移该关系。原有 take / give / drop 分别取得、转交和解除保管；继续复用正式事件和权限裁定。物理姿态一致性不作为本轮受控指标，跨房间保管、自由玩家输入及错误历史回忆尚未验收。
+> 2026-10-22 起这些内置物品规则已由作者脚本取代；本段只保留该次实验的语义与验收范围。
 
 ## 1. 要重新回答的产品问题
 

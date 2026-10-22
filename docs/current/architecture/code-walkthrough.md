@@ -1,6 +1,6 @@
 # 一次输入的代码路线
 
-核对日期：2026-10-21。本次核对入口与宿主装配迁移，其他体验验证范围沿用各节记录。建议先读[入门说明](getting-started.md)。下面是关键控制点，省略底层辅助调用；看具体分支时再顺着源码展开。
+核对日期：2026-10-22。本次补充物品操作的包内脚本装配；此前入口与宿主迁移核对保留，其他体验验证范围沿用各节记录。建议先读[入门说明](getting-started.md)。下面是关键控制点，省略底层辅助调用；看具体分支时再顺着源码展开。
 
 ## 1. 从哪里启动
 
@@ -11,6 +11,8 @@ package.json 的 experience:web 指向 [web-entry.ts](../../../desktop/host/web-
 ## 2. 世界包如何成为可运行世界
 
 [宿主](../../../desktop/host/world-runtime.ts)检查源目录为 worldpack-source/v5，调用 [compileWorldPackSource](../../../packages/world-pack/src/compiler.ts)，用已安装的基础交互能力编译并适配世界。角色处理代码检查激活后的运行时 Manifest 为 v10。源包 v5 和 Manifest v10 描述不同层次，不是版本冲突。
+
+例如角色要把钥匙交给同伴，拿取与交给来自这个包已登记的 `scripts/status.js`，不在基础交互定义里。宿主加载[状态桥](../../../desktop/host/pack-status.ts)，按作者操作与 policy 提供 `status:take`／`status:give` 等候选，执行时重查并裁定物品结果；基础包只剩牵手与松手。完整调用和验证边界见[运行时](runtime.md)与[物品指南](../guides/activity-and-variables.md#作者物品规则的验证范围)。
 
 宿主组合 WorldApplication、模型适配、预设及可选 Core 桥。设定里的初始位置用于启动；之后的位置从当前事件前缀的视图读取。“前缀”就是截至某条已提交事件的世界记录，避免混用不同时间的状态。
 
