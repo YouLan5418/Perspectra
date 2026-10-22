@@ -56,7 +56,7 @@ import { assertCoreEnvironment, coreRunnerGroups, type CoreRunner, type MemoryRu
 import { type ActivityRequest } from './pack-activity.ts'
 import { decideWithFormatRetry } from './decision-format.ts'
 import { PackActivities } from './pack-activities.ts'
-import { KNOWN_STATUS_NOTE, PackStatus } from './pack-status.ts'
+import { KNOWN_STATUS_NOTE, PackStatus, pauseRounds } from './pack-status.ts'
 import { PackKnowledge } from './pack-knowledge.ts'
 import { PackAutonomy, type AutonomousRole } from './pack-autonomy.ts'
 import { auditBeforePublication, type InterventionOptions } from './jev-publication-intervention.ts'
@@ -69,6 +69,7 @@ import {
   interactionPackageDescription,
   RECALL_KEYWORD_TOKENIZER_ID,
   type CharacterId,
+  type StoredWorldEvent,
   type WorldJsonObject,
   type WorldAddress,
 } from '@harness-world/contracts'
@@ -83,7 +84,7 @@ import {
 } from '@harness-world/store-sqlite'
 import { CognitiveMemoryService } from '@harness-world/memory'
 import { adaptCompiledWorldPack, compileWorldPackSource, type CompiledWorldPackV5 } from '@harness-world/world-pack'
-import { actionText, HostBusyError, type HostAction, type HostRuntime, type HostState } from './http-server.ts'
+import { actionText, HostBusyError, isWait, type HostAction, type HostRuntime, type HostState } from './http-server.ts'
 import { modelCharacters, playerTranscript } from './player-transcript.ts'
 import { DEFAULT_RUNTIME_TUNING, type RuntimeTuning } from './runtime-tuning.ts'
 
@@ -350,6 +351,8 @@ export class WorldHostCore implements HostRuntime {
   #modelCallBudget: { remaining: number; exhausted: boolean } | undefined
   #activityView: WorldJsonObject | undefined
   #activityViews: WorldJsonObject[] | undefined
+  /** Whether the last refresh allowed a wait; polling must not reopen the store to ask. */
+  #waitable = false
   #workDone: Promise<void> = Promise.resolve()
   #finishWork: (() => void) | undefined
   #escaping: Promise<HostState> | undefined
@@ -787,6 +790,7 @@ export class WorldHostCore implements HostRuntime {
       notice: this.#notice,
       error: this.#error,
       transcript: this.#transcript,
+      ...(this.#waitable ? { canWait: true } : {}),
       playerSettings: {
         inputCharacters: this.#playSettings.playerInputCharacters,
         reading: this.#options.reading ?? DEFAULT_READING,
@@ -861,7 +865,8 @@ export class WorldHostCore implements HostRuntime {
    * One player turn of several inputs, such as a line and an action. Each input is adjudicated and committed
    * on its own path; the characters react once, to all of them. An input that is not accepted drops the
    * inputs after it, so a line meant to follow a refused action is never said; what the earlier inputs
-   * committed still gets its reactions.
+   * committed still gets its reactions. No inputs is waiting: the round passes, then those who act on their
+   * own get their turn.
    */
   async turn(inputs: readonly string[], idempotencyKey?: string): Promise<HostState> {
     if (this.#busy || this.#escaping || this.#closing) throw new HostBusyError('请等待当前行动完成。')
@@ -870,6 +875,7 @@ export class WorldHostCore implements HostRuntime {
       return this.state()
     }
     const inActivity = this.#activity?.current()?.game.active === true
+    if (!inputs.length && !this.#canWait()) throw new TypeError('现在不能静观。')
     for (const text of inputs) {
       if (inActivity && text.startsWith('/') && !text.startsWith('/act ') && !text.startsWith('/status '))
         throw new TypeError('活动期间禁止变量调试与未声明命令。')
@@ -883,7 +889,8 @@ export class WorldHostCore implements HostRuntime {
     let failed = false
     try {
       this.#rootBeforeSeq = (await this.#application.head(this.#address)).headSeq
-      let react = false
+      if (!inputs.length) await this.#endStatusRound(true)
+      let react = !inputs.length
       const notices: string[] = []
       for (const [index, text] of inputs.entries()) {
         let outcome: InputOutcome
@@ -904,7 +911,7 @@ export class WorldHostCore implements HostRuntime {
         await this.#refresh()
         await this.#activateCharacters(inActivity)
       }
-      if (committed) await this.#endPlayerRound()
+      if (committed) await (inputs.length ? this.#endPlayerRound() : this.#autoStartActivity())
       if (notices.length) this.#notice = [...notices, this.#notice].filter(Boolean).join(' ')
     } catch (error: unknown) {
       failed = true
@@ -1073,15 +1080,20 @@ export class WorldHostCore implements HostRuntime {
     if (started) await this.#activateCharacters(true)
   }
   /** The status hook runs once per accepted player round, recording (not retrying) a failure. */
-  async #endStatusRound(): Promise<void> {
+  async #endStatusRound(pause = false): Promise<void> {
     if (!this.#status || this.#escaping || this.#closing) return
     await this.#application.release(this.#address)
     const result = await this.#status.endRound(
       resolve(this.#dataDirectory, 'world.sqlite'),
       this.#address,
       this.#rootBeforeSeq,
+      pause,
     )
     this.#statusRoundError = result.ok ? undefined : result.error
+  }
+  /** Rounds are kept by the status script, and a running activity has its own turns. */
+  #canWait(): boolean {
+    return this.#status !== undefined && this.#activity?.current()?.game.active !== true
   }
   async saveNode(title: string) {
     if (this.#busy || this.#escaping || this.#closing || this.#paused)
@@ -1191,6 +1203,7 @@ export class WorldHostCore implements HostRuntime {
 
   /** Structured UI choices remain proposals and follow the same Rulebook path as /act. */
   async perform(action: HostAction): Promise<HostState> {
+    if (isWait(action)) return this.turn([])
     if (
       action.actionType === 'interact' &&
       (action.parameters.definitionRef as WorldJsonObject | undefined)?.id === 'host:activity-quick'
@@ -1744,23 +1757,43 @@ export class WorldHostCore implements HostRuntime {
     }
   }
 
+  /** The player's own waits, in order, as empty entries a frontend may show however it likes. */
+  #withPauses(transcript: HostState['transcript'], events: readonly StoredWorldEvent[]): HostState['transcript'] {
+    const pauses = this.#status ? pauseRounds(events) : []
+    if (!pauses.length) return transcript
+    const name = this.#names.get(this.#playerId) ?? this.#playerId
+    return [
+      ...transcript,
+      ...pauses.map(({ seq }) => ({
+        seq,
+        speaker: name,
+        speakerId: this.#playerId,
+        text: '',
+        player: true,
+        pause: true as const,
+      })),
+    ].sort((left, right) => left.seq - right.seq)
+  }
+
   /** The active NPC owns the writer lease. Project its committed prefix without remounting the app. */
   async #projectCommitted(store: WorldStore): Promise<void> {
     const head = store.head(this.#address)
     const view = new CharacterViewBuilder(store).rebuildAt(this.#address, this.#playerId, head.headSeq)
     const availability = new CharacterRuntimeAvailabilityService(resolve(this.#dataDirectory, 'world.sqlite'))
     try {
+      const events = store.readEvents(this.#address, head.headSeq)
       const scene = new SceneDecisionService(store, availability).decideFromEvents(
         this.#address,
         this.#playerId,
-        store.readEvents(this.#address, head.headSeq),
+        events,
         head.headSeq,
       )
-      this.#transcript = playerTranscript(
-        await presetDisplay(view, this.#effectivePresets),
-        this.#names,
-        this.#playerId,
-        { entityNames: this.#entityNames, locationNames: this.#locationNames },
+      this.#transcript = this.#withPauses(
+        playerTranscript(await presetDisplay(view, this.#effectivePresets), this.#names, this.#playerId, {
+          entityNames: this.#entityNames,
+          locationNames: this.#locationNames,
+        }),
+        events,
       )
       this.#currentScene = {
         locationName:
@@ -1829,6 +1862,7 @@ export class WorldHostCore implements HostRuntime {
                   holderName: this.#names.get(entry.holderId) ?? entry.holderId,
                   ...(entry.holderId === this.#playerId ? { self: true } : {}),
                 }
+          this.#transcript = this.#withPauses(this.#transcript, events)
           this.#statusBar = this.#status.known(events, this.#playerId).map(named)
           // Author opt-in only: these never enter any character's context.
           this.#statusTruth = this.#status.playerTruth(events).map(named)
@@ -1852,6 +1886,7 @@ export class WorldHostCore implements HostRuntime {
     this.#activityView = this.#activity?.view(this.#playerId)
     this.#activityViews = this.#activity?.views(this.#playerId)
     const activityState = this.#activity?.current()
+    this.#waitable = this.#status !== undefined && activityState?.game.active !== true
     if (activityState?.game.active && activityState.participants.includes(this.#playerId)) {
       this.#availableActions = this.#activity!.filterAffordances(this.#availableActions, activityState, this.#playerId)
     }

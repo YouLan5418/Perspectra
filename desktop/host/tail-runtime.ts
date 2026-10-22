@@ -15,7 +15,7 @@ import {
 import { interactionPackageDescription, type WorldJsonObject } from '@harness-world/contracts'
 import { createInstalledInteractionPackages } from '@harness-world/interactions-basic'
 import { compileWorldPackSource } from '@harness-world/world-pack'
-import { actionText, HostBusyError, type HostAction, type HostState, type PlayerLine } from './http-server.ts'
+import { actionText, HostBusyError, isWait, type HostAction, type HostState, type PlayerLine } from './http-server.ts'
 import type { WorldHostOptions, WorldHostCore } from './world-runtime.ts'
 import type { ActivityRequest } from './pack-activity.ts'
 
@@ -281,6 +281,11 @@ export class TailRoundRuntime {
       return this.state()
     }
     if (this.#busy || this.#interrupting) await this.#interruptIfBusy()
+    // Waiting is a turn without input, recorded and regenerated like any other.
+    if (isWait(action)) {
+      await this.#run({ texts: [] })
+      return this.state()
+    }
     if (
       action.actionType === 'interact' &&
       (action.parameters.definitionRef as WorldJsonObject | undefined)?.id === 'host:activity-quick'

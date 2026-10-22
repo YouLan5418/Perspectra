@@ -18,6 +18,8 @@ import { interactionPackageDescription } from '@harness-world/contracts'
 import { playSettings } from '../../desktop/play-settings.ts'
 import { PackAutonomy } from '../../desktop/host/pack-autonomy.ts'
 import { WorldHostRuntime, type WorldHostOptions } from '../../desktop/host/world-runtime.ts'
+import { projectPlayerView } from '../../desktop/host/frontend-adapter.ts'
+import { WAIT_ACTION } from '../../desktop/host/http-server.ts'
 import type { PlaySettings } from '../../desktop/play-settings.ts'
 
 const roots: string[] = [],
@@ -266,6 +268,45 @@ it('matches specific committed interactions and leaves ordinary speech uncounted
   await f.runtime.submit('/status take@entity:brass-key {}')
   expect(autonomous(f.requests)).toHaveLength(1)
   expect(currentEntityState(f.events(), 'entity:brass-key')?.holderId).toBe('character:player')
+}, 60_000)
+
+it('lets a round pass on wait: the round is recorded, every autonomous role gets its turn, nothing is said', async () => {
+  const f = await fixture(role => {
+    // Waiting is the player's turn whatever the triggers say.
+    role.triggers = [{ actionType: 'interact', definitionId: 'status:take' }]
+  })
+  f.setDecision(input => (context(input).autonomy ? publish('我先去后屋看看。') : { decision: 'abstain' }))
+  const before = await f.runtime.state()
+  expect(before.canWait).toBe(true)
+  expect(projectPlayerView(before).actions.find(option => option.id === 'wait')?.action).toEqual(WAIT_ACTION)
+  const state = await f.runtime.perform(WAIT_ACTION)
+  expect(state.error).toBe(false)
+  const calls = autonomous(f.requests)
+  expect(calls).toHaveLength(1)
+  expect(context(calls[0]!).stimulus).toEqual([])
+  const rounds = f
+    .events()
+    .filter(e => e.eventType === 'status.updated' && object(object(e.data).source).kind === 'round')
+  expect(rounds.map(e => object(e.data).source)).toEqual([{ kind: 'round', round: 1, pause: true }])
+  // No line from the player, only a marked empty entry a frontend may show or skip.
+  expect(
+    f.events().some(e => e.eventType === 'character.speak' && object(e.data).characterId === 'character:player'),
+  ).toBe(false)
+  const pause = state.transcript.filter(line => line.pause)
+  expect(pause).toEqual([expect.objectContaining({ seq: rounds[0]!.seq, text: '', player: true, pause: true })])
+  expect(projectPlayerView(state).history.find(line => line.pause)).toMatchObject({ pause: true, text: '' })
+  // The next spoken round counts after the wait, and regenerating the wait replays it as a wait.
+  f.requests.length = 0
+  await f.runtime.regenerate(state.tailRound!.id!, randomUUID())
+  expect(autonomous(f.requests)).toHaveLength(1)
+  const next = await f.runtime.submit('随便聊聊')
+  expect(next.error).toBe(false)
+  expect(
+    f
+      .events()
+      .filter(e => e.eventType === 'status.updated' && object(object(e.data).source).kind === 'round')
+      .map(e => object(object(e.data).source).round),
+  ).toEqual([1])
 }, 60_000)
 
 it('merges a present role ordinary response into its autonomous opportunity and caps author requests', async () => {

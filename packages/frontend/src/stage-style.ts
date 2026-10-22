@@ -391,6 +391,8 @@ h1{font-size:12.5px;font-weight:400;color:var(--muted);margin:4px 0 0;letter-spa
   color:var(--lamp-ink);border:0;min-width:96px;font-weight:700;letter-spacing:.08em;
   border-radius:10px;padding:8px 18px;box-shadow:0 6px 18px color-mix(in srgb,var(--lamp) 25.0%,transparent);
 }
+.composer-submit{display:flex;gap:8px}
+#wait{border-radius:10px;padding:8px 14px;letter-spacing:.08em}
 #send:hover:not(:disabled){filter:brightness(1.06);background:linear-gradient(160deg,var(--lamp-strong),var(--lamp) 60%,var(--lamp-deep))}
 .feedback{font-size:12.5px;color:var(--lamp-strong)}
 .feedback:has(#notice:not(:empty)){
@@ -511,7 +513,7 @@ main[data-mode="activity"] .dialogue{font-size:16px;max-height:100px;min-height:
   .composer-keys{display:none}
   .composer-footer{flex-wrap:wrap}
   .narration-composer[open]{order:5;flex-basis:100%}
-  #send{margin-left:auto}
+  .composer-submit{margin-left:auto}
   .audience-options label:after{left:8px;right:8px;top:auto;bottom:calc(100% + 6px);width:auto;transform:none}
   .audience-options label:hover:after{transform:none}
   .reply-context p{max-height:55px}

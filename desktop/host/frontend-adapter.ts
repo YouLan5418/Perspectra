@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto'
 import { canonicalizeWorldJson, type WorldJsonObject } from '@harness-world/contracts'
 import type { PlayerView, FrontendActionRequest } from '@harness-world/frontend'
-import type { HostState, HostAction, HostRuntime } from './http-server.ts'
+import { WAIT_ACTION, type HostState, type HostAction, type HostRuntime } from './http-server.ts'
 
 const optionId = (action: HostAction) =>
   'opt:' +
@@ -168,6 +168,8 @@ export function projectPlayerView(state: HostState): PlayerView {
       })
     }
   }
+  // Letting a round pass: no target, and a fixed id so a frontend can give it a place of its own.
+  if (state.canWait) actions.push({ id: 'wait', label: '静观', action: WAIT_ACTION, kind: 'interact' })
   const background = state.busy && state.background === true
   const activityGame = state.activity?.game as WorldJsonObject | undefined
   const expressionPolicy = activityGame?.active ? (state.activity?.policy as WorldJsonObject | undefined) : undefined
@@ -297,6 +299,7 @@ export function projectPlayerView(state: HostState): PlayerView {
       text: line.text,
       player: line.player,
       ...(line.segments === undefined ? {} : { segments: line.segments }),
+      ...(line.pause ? { pause: true as const } : {}),
     })),
     actions,
   }

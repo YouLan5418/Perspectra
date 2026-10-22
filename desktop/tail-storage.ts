@@ -32,7 +32,7 @@ export interface TailCandidate {
 export interface TailRecord {
   id: string
   base: string
-  /** `texts` is one turn of several inputs, such as a line said with an action. */
+  /** `texts` is one turn of several inputs, such as a line said with an action; none is a wait. */
   input: { text: string } | { texts: string[] } | { activity: unknown }
   environment: string
   headSeq: number
@@ -64,7 +64,6 @@ export function readTailSelection(root: string): TailSelection | undefined {
           ('text' in value.tail.input && typeof value.tail.input.text === 'string') ||
           ('texts' in value.tail.input &&
             Array.isArray(value.tail.input.texts) &&
-            value.tail.input.texts.length > 0 &&
             value.tail.input.texts.every(text => typeof text === 'string')) ||
           'activity' in value.tail.input
         )))

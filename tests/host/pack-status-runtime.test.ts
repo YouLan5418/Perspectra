@@ -16,6 +16,7 @@ import { PackStatus, type KnownStatus } from '../../desktop/host/pack-status.ts'
 import type { CoreRunner } from '../../desktop/host/memory/python-worker.ts'
 import { restoreStoryNode } from '../../desktop/story-nodes.ts'
 import { projectPlayerView } from '../../desktop/host/frontend-adapter.ts'
+import { WAIT_ACTION } from '../../desktop/host/http-server.ts'
 import { withItemRules } from '../support/item-rules.ts'
 
 const roots: string[] = [],
@@ -1129,4 +1130,25 @@ it('an author result that moves an item out of reach commits nothing', async () 
   await expect(f.runtime.submit('/status fling@entity:thermos {}')).rejects.toThrow('所在的位置')
   expect(f.events()).toHaveLength(before)
   expect(currentEntityState(f.events() as never, 'entity:thermos')!.kind).toBe('thermos')
+}, 60_000)
+
+it('a wait runs the round hook as its own marked round, and later rounds count on from it', async () => {
+  const f = await fixture('local')
+  f.setDecision(() => ({ decision: 'abstain' }))
+  await f.runtime.perform(WAIT_ACTION)
+  await f.runtime.submit('/act speak {"text":"时间过得真快。","scope":"scene_public"}')
+  await f.runtime.perform(WAIT_ACTION)
+  const rounds = f.statusEvents().filter(event => object(object(event.data).source).kind === 'round')
+  expect(rounds.map(event => object(event.data).source)).toEqual([
+    { kind: 'round', round: 1, pause: true },
+    { kind: 'round', round: 2 },
+    { kind: 'round', round: 3, pause: true },
+  ])
+  expect(rounds.map(event => object(event.data).changes)).toEqual(
+    [1, 2, 3].map(n => [{ holderId: null, key: 'time', value: n * 10 }]),
+  )
+  // Only the waits are marked in the player's history; the spoken line stays an ordinary entry.
+  const history = projectPlayerView(await f.runtime.state()).history
+  expect(history.filter(line => line.pause).map(line => line.seq)).toEqual([rounds[0]!.seq, rounds[2]!.seq])
+  expect(history.find(line => line.text === '时间过得真快。')?.pause).toBeUndefined()
 }, 60_000)

@@ -42,7 +42,8 @@ export type StatusSource =
   | { kind: 'initial' }
   | { kind: 'operation'; operation: string; actorId: string; activityKey?: string }
   | { kind: 'activity'; activityKey: string; actorId: string }
-  | { kind: 'round'; round: number }
+  /** `pause` marks a round the player let pass without saying or doing anything. */
+  | { kind: 'round'; round: number; pause?: true }
 /** `description` is the author's result text for an operation; round and initial events have none. */
 export interface StatusEventData {
   source: StatusSource
@@ -154,6 +155,14 @@ function statusData(event: RulebookEvent): StatusEventData {
   const data = object(event.data)
   if (!Array.isArray(data.changes) || !Array.isArray(data.reveals)) throw new TypeError('状态事件损坏')
   return data as unknown as StatusEventData
+}
+/** The rounds the player let pass, by the seq of their round record. They carry no secret: only that time passed. */
+export function pauseRounds(events: readonly (RulebookEvent & { seq: number })[]): { seq: number; round: number }[] {
+  return events.flatMap(event => {
+    if (event.eventType !== 'status.updated') return []
+    const source = statusData(event).source
+    return source.kind === 'round' && source.pause === true ? [{ seq: event.seq, round: source.round }] : []
+  })
 }
 
 /** Both author policy and knowledge conditions read this observer's known values, never global truth.
@@ -476,8 +485,10 @@ export class PackStatus {
     if (source.kind === 'initial') exact(source, ['kind'])
     else if (source.kind === 'operation') exact(source, ['kind', 'operation', 'actorId'], ['activityKey'])
     else if (source.kind === 'activity') exact(source, ['kind', 'activityKey', 'actorId'])
-    else if (source.kind === 'round') exact(source, ['kind', 'round'])
-    else throw new TypeError('状态来源无效')
+    else if (source.kind === 'round') {
+      exact(source, ['kind', 'round'], ['pause'])
+      if (Object.hasOwn(source, 'pause') && source.pause !== true) throw new TypeError('状态来源无效')
+    } else throw new TypeError('状态来源无效')
     // The initial event carries every value of every character, so only results are bounded.
     if (
       !Array.isArray(data.changes) ||
@@ -1079,11 +1090,13 @@ export class PackStatus {
   }
 
   /** Runs the optional `onRoundEnd` hook once after an accepted player input and commits its result as the
-   * round's last status event. A failing hook commits nothing and is not retried; storage faults still throw. */
+   * round's last status event. A failing hook commits nothing and is not retried; storage faults still throw.
+   * A `pause` round has no input: it always records itself, marked, so it counts as the player's turn. */
   async endRound(
     worldPath: string,
     address: WorldAddress,
     turnStartSeq: number,
+    pause = false,
   ): Promise<{ ok: boolean; error?: string }> {
     let error: string | undefined
     await this.#commitRound(worldPath, address, 'status-round:' + randomUUID(), store => {
@@ -1116,7 +1129,7 @@ export class PackStatus {
           }
         }
       }
-      const round = recorded + playerRounds.size + Math.min(thisTurn.size, 1)
+      const round = recorded + playerRounds.size + (pause ? 1 : Math.min(thisTurn.size, 1))
       // Folding stored events stays outside the catch: corrupt history must surface, not read as a hook failure.
       const truth = this.truth(events)
       let data: StatusEventData | undefined
@@ -1128,6 +1141,7 @@ export class PackStatus {
       // A turn whose commits cannot be told apart later, such as a line said with an action, always records
       // its round (without changes when the hook gave none), so later counts start after it.
       if (data === undefined && thisTurn.size > 1) data = { source: { kind: 'round', round }, changes: [], reveals: [] }
+      if (pause) data = { ...(data ?? { changes: [], reveals: [] }), source: { kind: 'round', round, pause: true } }
       return (
         data && {
           events: [{ eventType: 'status.updated', eventVersion: 1, data: data as unknown as WorldJsonObject }],

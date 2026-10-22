@@ -29,7 +29,7 @@ export const DEFAULT_PAGE = String.raw`<!doctype html>
         <div id="recipient-panel" hidden><label for="speech-recipient">对</label><select id="speech-recipient"></select><p id="recipient-hint" class="hint" hidden>当前没有可接收发言的角色。</p></div>
 <details class="narration-composer" id="narration-panel"><summary title="描写你的动作、神态或语气（可选），与发言一起发送">描写</summary><label class="visually-hidden" for="narration">细节描写</label><textarea id="narration" maxlength="2000" placeholder="动作、神态或语气（可选）" rows="1" title="不会直接改变位置或物品归属"></textarea></details>
         <span id="attached-action" class="attached-action" hidden><span id="attached-label"></span><select id="attached-order" aria-label="说和做的顺序"><option value="before">先说后做</option><option value="after">先做后说</option></select><button id="attached-clear" type="button" aria-label="取消这个行动">×</button></span>
-        <span class="composer-keys">Enter 发送 · Shift+Enter 换行</span><button id="send" type="button">发送 <span aria-hidden="true">↑</span></button></div>
+        <span class="composer-keys">Enter 发送 · Shift+Enter 换行</span><span class="composer-submit"><button id="wait" type="button" hidden title="不说也不做，让这一轮过去">静观</button><button id="send" type="button">发送 <span aria-hidden="true">↑</span></button></span></div>
         <p id="audience-preview" class="visually-hidden" aria-live="polite"></p>
         </div><div id="quick-actions" class="quick-actions" role="group" aria-label="可以尝试的行动" hidden></div></div>
       </div>
@@ -101,7 +101,7 @@ function quickActionGroup(option: {
 export const DEFAULT_SCRIPT = String.raw`(() => {
  const playback=(${createReadingPlayback.toString()})();
  const api=window.Perspectra,node=id=>document.getElementById(id);
- let latest,posting=false,pending,attached=null,connected=false,historyKey='',actionsKey='',statusKey='',canRegenerate=false,requestVersion=0,submittedPlayers=0;
+ let latest,posting=false,pending,attached=null,connected=false,historyKey='',actionsKey='',waitOption=null,statusKey='',canRegenerate=false,requestVersion=0,submittedPlayers=0;
  // Keep statusRows, actionGroup and roundTools adjacent and in this order: frontend-reading tests extract the helpers by these markers.
  const statusRows=(${statusBarRows.toString()});
  const actionGroup=(${quickActionGroup.toString()});
@@ -140,6 +140,7 @@ export const DEFAULT_SCRIPT = String.raw`(() => {
    const hasLine=!!((policy.speech==='free'&&node('input').value.trim())||(policy.narration&&node('narration').value.trim()));
    node('send').disabled=(attached?actionDisabled:disabled)||(!hasLine&&!attached)||(hasLine&&(speechScope()==='direct'||speechScope()==='private')&&!node('speech-recipient').value);
    node('attached-order').disabled=actionDisabled||!hasLine;
+   node('wait').hidden=!waitOption;node('wait').disabled=actionDisabled||hasLine||!!attached;
    for(const radio of document.querySelectorAll('input[name="speech-scope"]'))radio.disabled=disabled;
    node('audience-button').disabled=disabled;if(disabled)audienceMenu(false);
    node('speech-recipient').disabled=disabled||!latest?.scene?.recipients?.length;
@@ -176,6 +177,8 @@ export const DEFAULT_SCRIPT = String.raw`(() => {
  history.onscroll=()=>{node('latest').hidden=history.scrollHeight-history.scrollTop-history.clientHeight<70};
  node('latest').onclick=bottom;
  function render(view){
+   waitOption=view.actions.find(option=>option.id==='wait');
+   view={...view,history:view.history.filter(line=>!line.pause),actions:view.actions.filter(option=>option!==waitOption)};
    if(posting&&pending?.method==='speak'&&view.canInterrupt&&view.history.filter(line=>line.player).length>submittedPlayers){
      if(node('input').value.trim()===pending.payload.text)node('input').value='';
      if(node('narration').value.trim()===(pending.payload.narration||''))node('narration').value='';
@@ -347,6 +350,7 @@ export const DEFAULT_SCRIPT = String.raw`(() => {
      label.append(input);form.append(label);fields.push({key,caption:caption.textContent,read,required:required.has(key)})}
    form.read=()=>{const values={};for(const field of fields){const value=field.read();if(value===undefined){if(field.required)throw new Error('请填写 '+field.caption);continue}values[field.key]=value}return values};
    return form}
+ node('wait').onclick=()=>{if(waitOption)send('perform',{optionId:waitOption.id})};
  node('send').onclick=()=>{const text=latest?.expression&&latest.expression.speech!=='free'?'':node('input').value.trim(),narration=latest?.expression?.narration===false?'':node('narration').value.trim();if(!text&&!narration&&!attached)return;const maximum=latest?.settings?.inputCharacters||2000;if(text.length+narration.length>maximum){node('notice').textContent='发言与描写合计不能超过 '+maximum+' 个字符';return}const scope=speechScope(),addresseeIds=scope==='direct'||scope==='private'?[node('speech-recipient').value]:[];if((text||narration)&&(scope==='direct'||scope==='private')&&!addresseeIds[0])return;
    if(attached){const payload={optionId:attached.option.id,...(attached.args?{arguments:attached.args}:{})};if(text||narration)Object.assign(payload,{say:{text,narration,scope,addresseeIds},order:node('attached-order').value});send('perform',payload);return}
    send('speak',{text,narration,scope,addresseeIds})};

@@ -46,7 +46,11 @@ export interface HostState {
     readonly text: string
     readonly player: boolean
     readonly segments?: readonly import('@harness-world/contracts').ExpressionSegment[]
+    /** A round the player let pass; the text is empty and a frontend shows what it likes, or nothing. */
+    readonly pause?: true
   }[]
+  /** The player may let a round pass now (`host:wait`). */
+  readonly canWait?: boolean
   readonly world: {
     readonly title: string
     readonly playerName: string
@@ -110,6 +114,15 @@ export function actionText(action: HostAction): string {
   }
   return '/act ' + action.actionType + ' ' + JSON.stringify(action.parameters)
 }
+
+/** The player's option to let a round pass without saying or doing anything. */
+export const WAIT_ACTION: HostAction = {
+  actionType: 'interact',
+  parameters: { definitionRef: { id: 'host:wait', version: 1 } },
+}
+export const isWait = (action: HostAction): boolean =>
+  action.actionType === 'interact' &&
+  (action.parameters.definitionRef as WorldJsonObject | undefined)?.id === 'host:wait'
 
 export interface HostRuntime {
   creatorMeta?(): { title: string; storyline: string; characters: { id: string; name: string }[] }

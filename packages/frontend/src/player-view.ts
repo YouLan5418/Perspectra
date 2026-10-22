@@ -65,6 +65,8 @@ export interface PlayerView {
     text: string
     player: boolean
     segments?: readonly import('@harness-world/contracts').ExpressionSegment[]
+    /** The player let this round pass (the `wait` action). `text` is empty; show what you like, or nothing. */
+    pause?: true
   }[]
   /**
    * Every choice the player can take now, whichever script offers it. `kind` separates moving, acting in the

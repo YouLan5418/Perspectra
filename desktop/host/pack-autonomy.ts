@@ -161,12 +161,18 @@ export class PackAutonomy {
     beforeSeq: number,
   ): AutonomousRole[] {
     const events = store.readEvents(address, beforeSeq)
+    // A round the player let pass is their turn too, whatever the role's triggers: it is how they yield time.
+    const pause = (e: StoredWorldEvent) =>
+      e.eventType === 'status.updated' &&
+      object(object(e.data).source).kind === 'round' &&
+      object(object(e.data).source).pause === true
     const actions = events.filter(
       e =>
-        e.eventType === 'action.resolved' &&
-        object(e.data).sourceRole === 'player' &&
-        object(e.data).actorId === playerId &&
-        object(e.data).accepted === true,
+        pause(e) ||
+        (e.eventType === 'action.resolved' &&
+          object(e.data).sourceRole === 'player' &&
+          object(e.data).actorId === playerId &&
+          object(e.data).accepted === true),
     )
     const activity = new Map(
       events
@@ -200,6 +206,10 @@ export class PackAutonomy {
     return this.roles.filter(role => {
       const matched = new Map<string, number>()
       for (const event of actions) {
+        if (pause(event)) {
+          matched.set(event.transactionId, event.seq)
+          continue
+        }
         if (managementTransactions.has(event.transactionId)) continue
         const data = object(event.data),
           update = activity.get(String(data.actionId))
