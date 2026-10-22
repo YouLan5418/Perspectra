@@ -104,13 +104,13 @@ h1{font-size:12.5px;font-weight:400;color:var(--muted);margin:2px 0 0}
 }
 .portrait.speaking .character-name{color:var(--accent-ink);background:var(--accent);border-color:var(--accent)}
 .alone{align-self:center;color:var(--faint);letter-spacing:.5em;font:16px var(--font-story)}
-.character-menu,.audience-menu,.quick-menu{
+.character-menu,.audience-menu{
   background:var(--surface);border:1px solid var(--line-strong);border-radius:12px;box-shadow:var(--shadow);padding:6px;
 }
 .character-menu{position:fixed;z-index:30;width:220px;max-height:min(360px,60dvh);overflow:auto;display:flex;flex-direction:column;gap:2px}
-.character-menu p,.quick-menu p{padding:6px 10px;font-size:11px;color:var(--faint);letter-spacing:.06em}
-.character-menu button,.quick-menu button{width:100%;text-align:left;padding:8px 10px;border:0;border-radius:8px;background:transparent;font-size:13px}
-.character-menu button:hover:not(:disabled),.character-menu button:focus-visible,.quick-menu button:hover:not(:disabled),.quick-menu button:focus-visible{background:var(--surface-2)}
+.character-menu p{padding:6px 10px;font-size:11px;color:var(--faint);letter-spacing:.06em}
+.character-menu button{width:100%;text-align:left;padding:8px 10px;border:0;border-radius:8px;background:transparent;font-size:13px}
+.character-menu button:hover:not(:disabled),.character-menu button:focus-visible{background:var(--surface-2)}
 
 /* —— 对话框：画面焦点。名牌反色，正文用宋体 —— */
 .stage-bottom{
@@ -160,10 +160,11 @@ h1{font-size:12.5px;font-weight:400;color:var(--muted);margin:2px 0 0}
 .reply-context span{font:600 12px var(--font-story);color:var(--text);letter-spacing:.1em}
 .reply-context p{font:14px/1.7 var(--font-story);white-space:pre-wrap;overflow-wrap:anywhere;max-height:48px;overflow:auto;margin:4px 0 0}
 .composer-body{display:grid;grid-template-columns:minmax(0,1fr);gap:16px}
-.composer-body:has(.quick-actions:not([hidden])){grid-template-columns:minmax(0,1fr) 200px}
 .composer-main{min-width:0;display:flex;flex-direction:column}
 .composer-main textarea#input{min-height:64px;flex:1;max-height:none}
-.composer-footer{display:flex;align-items:center;gap:8px;margin-top:10px;font-size:11.5px;color:var(--faint)}
+.composer-footer{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:10px;font-size:11.5px;color:var(--faint)}
+.composer-footer button,.composer-footer summary{white-space:nowrap}
+main:has(.panel:not([hidden])) .composer-keys{display:none}
 .composer-keys{margin-left:auto}
 .composer-submit{display:flex;gap:8px}
 #send{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);min-width:88px;font-weight:600}
@@ -215,20 +216,9 @@ h1{font-size:12.5px;font-weight:400;color:var(--muted);margin:2px 0 0}
 .feedback:has(#notice:not(:empty)){display:flex;align-items:center;gap:10px;padding:8px 16px;background:var(--surface);border:1px solid var(--line-strong);border-radius:var(--radius)}
 #retry{font-size:12px;padding:4px 12px;margin-left:auto}
 
-/* —— 常用行动：输入框右栏，每类一个按钮，点开是这类的选项 —— */
-.quick-actions{display:flex;flex-direction:column;gap:5px;padding-left:16px;border-left:1px solid var(--line);min-width:0}
-.quick-actions small{font-size:11px;letter-spacing:.1em;color:var(--faint)}
-.quick-group{position:relative}
-.quick-actions .group-button{display:flex;align-items:center;gap:8px;width:100%;text-align:left;font-size:13px;padding:6px 12px}
-.group-button .count{margin-left:auto;font-size:11px;color:var(--faint)}
-.group-button.related{border-color:var(--accent)}
-.group-button[aria-expanded="true"]{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
-.group-button[aria-expanded="true"] .count{color:var(--accent-ink)}
-.quick-menu{position:absolute;right:calc(100% + 10px);bottom:0;z-index:20;width:250px;max-height:min(340px,48dvh);overflow:auto;display:flex;flex-direction:column;gap:2px}
-.quick-menu button.needs-choice:after{content:" ⋯";color:var(--faint)}
-.quick-menu button.related{font-weight:600}
 
-/* —— 抽屉：记录、行动、状态都从右侧滑出，同一时间只开一个 —— */
+/* —— 抽屉：记录、行动、状态都从右侧滑出，同一时间只开一个；打开时对话区让出抽屉的宽度 —— */
+main:has(.panel:not([hidden])) .stage-bottom{left:calc((100% - 424px) / 2);width:min(1000px,calc(100% - 480px))}
 .panel{
   position:absolute;z-index:7;top:68px;right:12px;bottom:12px;width:min(400px,calc(100% - 24px));display:flex;flex-direction:column;
   background:var(--surface);border:1px solid var(--line-strong);border-radius:var(--radius-lg);box-shadow:var(--shadow);animation:slide .22s var(--ease-out);
@@ -311,12 +301,6 @@ main[data-activity="true"] #characters{left:340px}
   .dialogue-footer{padding:2px 10px 10px 16px;flex-wrap:wrap}
   .dialogue-footer>span{width:100%}
   .composer{padding:12px}
-  .composer-body:has(.quick-actions:not([hidden])){grid-template-columns:minmax(0,1fr)}
-  .quick-actions{flex-direction:row;flex-wrap:wrap;padding:10px 0 0;border-left:0;border-top:1px solid var(--line);position:relative}
-  .quick-actions small{width:100%}
-  .quick-group{position:static}
-  .quick-actions .group-button{width:auto}
-  .quick-menu{right:0;left:0;bottom:calc(100% + 8px);width:auto}
   .composer-keys{display:none}
   .composer-footer{flex-wrap:wrap}
   .narration-composer[open]{order:5;flex-basis:100%}

@@ -233,7 +233,7 @@ const embedded = (name: string, next: string) =>
     ),
   )
 it('renders the status panel with labels and values and marks stale ones as last confirmed', () => {
-  const statusRows = embedded('statusRows', 'actionGroup') as (
+  const statusRows = embedded('statusRows', 'roundTools') as (
     view: unknown,
   ) => { holder: string; items: { label: string; value: string; note: string }[] }[]
   const rows = statusRows({
@@ -279,7 +279,7 @@ it('renders the status panel with labels and values and marks stale ones as last
   expect(DEFAULT_SCRIPT).toContain("node('status-bar')")
 })
 it('keeps an NPC that shares the player name apart from the player in the status panel', () => {
-  const statusRows = embedded('statusRows', 'actionGroup') as (
+  const statusRows = embedded('statusRows', 'roundTools') as (
     view: unknown,
   ) => { holder: string; items: { label: string; value: string; note: string }[] }[]
   expect(
@@ -302,22 +302,4 @@ it('keeps an NPC that shares the player name apart from the player in the status
     { holder: '小明', items: [{ label: '余额', value: '5', note: '' }] },
     { holder: '你', items: [{ label: '余额', value: '100', note: '' }] },
   ])
-})
-it('groups quick actions by the kind and target the view gives them', () => {
-  const actionGroup = embedded('actionGroup', 'roundTools') as (option: unknown) => string
-  const status = { kind: 'interact', target: { kind: 'self', id: 'character:player', name: '玩家' } }
-  expect(actionGroup(status)).toBe('self')
-  expect(
-    actionGroup({
-      kind: 'interact',
-      target: { kind: 'item', id: 'item:key', name: '钥匙' },
-      action: { actionType: 'interact', parameters: { arguments: { recipientId: 'character:a' } } },
-    }),
-  ).toBe('people')
-  expect(actionGroup({ kind: 'interact', target: { kind: 'item', id: 'item:key', name: '钥匙' } })).toBe('items')
-  expect(actionGroup({ kind: 'interact', target: { kind: 'character', id: 'character:a', name: 'A' } })).toBe('people')
-  expect(actionGroup({ kind: 'move', target: { kind: 'location', id: 'room', name: '房间' } })).toBe('move')
-  expect(actionGroup({ kind: 'activity' })).toBe('activity')
-  // Pausing, resuming and retrying are kept out of the in-story quick actions by their own group.
-  expect(actionGroup({ kind: 'manage' })).toBe('manage')
 })
