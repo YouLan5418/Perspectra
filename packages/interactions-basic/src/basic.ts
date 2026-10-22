@@ -18,8 +18,6 @@ import {
   type InteractionRuleImplementation,
   type WorldEventDraft,
   type WorldJsonObject,
-  ACTION_GROUP_CUES,
-  type ActionGroupCue,
 } from '@harness-world/contracts'
 import { interactionPackageHash } from '@harness-world/interaction-runtime'
 
@@ -56,17 +54,6 @@ const rules: readonly InteractionRuleImplementation[] = [
     context.host.authority.sourceRole !== 'director' && state(context, 'actor').lifecycle === 'active'
       ? null
       : 'ACTOR_CANNOT_ACT',
-  ),
-  rule('base:item-unheld', context =>
-    state(context, 'item').holderId === null && typeof state(context, 'item').locationId === 'string'
-      ? null
-      : 'ITEM_NOT_AVAILABLE',
-  ),
-  rule('base:item-held', context =>
-    state(context, 'item').holderId === context.roles.actor!.id ? null : 'ITEM_NOT_HELD',
-  ),
-  rule('base:recipient-active', context =>
-    state(context, 'recipient').lifecycle === 'active' ? null : 'RECIPIENT_NOT_AVAILABLE',
   ),
   rule('space:co-location', context => {
     const location = state(context, 'actor').locationId
@@ -120,61 +107,6 @@ const rules: readonly InteractionRuleImplementation[] = [
     return null
   }),
 ]
-
-type Destination = { readonly holderId: string | null; readonly locationId: string | null }
-function transfer(context: InteractionExecutionContext, destination: Destination): WorldEventDraft {
-  const item = state(context, 'item')
-  return {
-    eventType: 'entity.transferred',
-    eventVersion: 1,
-    data: {
-      entityId: context.roles.item!.id,
-      characterId: context.roles.actor!.id,
-      interactionId: context.definition.id,
-      fromHolderId: item.holderId!,
-      fromLocationId: item.locationId!,
-      toHolderId: destination.holderId,
-      toLocationId: destination.locationId,
-    },
-  }
-}
-
-function effect(
-  id: string,
-  destination: (context: InteractionExecutionContext) => Destination,
-): InteractionEffectImplementation {
-  return {
-    lock: implementation(id),
-    eventTypes: [ref('entity.transferred')],
-    build: context => [transfer(context, destination(context))],
-    validate: (context, events) => {
-      if (events.length !== 1) throw new TypeError('transfer requires one event')
-      const event = events[0]!
-      const data = event.data as WorldJsonObject
-      const expected = destination(context)
-      const item = state(context, 'item')
-      if (
-        event.eventType !== 'entity.transferred' ||
-        event.eventVersion !== 1 ||
-        data === null ||
-        typeof data !== 'object' ||
-        Object.keys(data).sort().join(',') !==
-          'characterId,entityId,fromHolderId,fromLocationId,interactionId,toHolderId,toLocationId' ||
-        data.entityId !== context.roles.item!.id ||
-        data.characterId !== context.roles.actor!.id ||
-        data.interactionId !== context.definition.id ||
-        data.fromHolderId !== item.holderId ||
-        data.fromLocationId !== item.locationId ||
-        data.toHolderId !== expected.holderId ||
-        data.toLocationId !== expected.locationId ||
-        (data.toHolderId === null) === (data.toLocationId === null) ||
-        (data.toHolderId !== null && typeof data.toHolderId !== 'string') ||
-        (data.toLocationId !== null && typeof data.toLocationId !== 'string')
-      )
-        throw new TypeError('transfer prefix or destination invariant failed')
-    },
-  }
-}
 
 /**
  * Relation identity is derived from the World, the source Action, the definition lock and the pair,
@@ -327,22 +259,11 @@ const endOnMove: InteractionLifecycleHandlerImplementation = {
 const lifecycle: readonly InteractionLifecycleHandlerImplementation[] = [endOnMove]
 
 const effects: readonly InteractionEffectImplementation[] = [
-  effect('base:take-effect', context => ({ holderId: context.roles.actor!.id, locationId: null })),
-  effect('base:drop-effect', context => ({ holderId: null, locationId: state(context, 'actor').locationId as string })),
-  effect('base:give-effect', context => ({ holderId: context.roles.recipient!.id, locationId: null })),
   contactEffect('contact:start-effect', 'started'),
   contactEffect('contact:end-effect', 'ended'),
 ]
 
 const actor: InteractionRole = { name: 'actor', kind: 'character', source: { kind: 'hostActor' }, distinctFrom: [] }
-const item: InteractionRole = { name: 'item', kind: 'entity', source: { kind: 'primaryTarget' }, distinctFrom: [] }
-const recipient: InteractionRole = {
-  name: 'recipient',
-  kind: 'character',
-  source: { kind: 'argument', field: 'recipientId' },
-  distinctFrom: ['actor'],
-}
-
 /**
  * Most of the first batch declares no manifestation at all. take and drop are state transfers nobody
  * else is part of, and a contact is its own expression, so a cue attached to them would claim a
@@ -352,25 +273,6 @@ const recipient: InteractionRole = {
 const noPerformance: InteractionPerformanceImplementation = {
   lock: implementation('base:no-performance'),
   policy: { version: 'interaction-performance/v1', accepted: [] },
-}
-
-/**
- * What a hand-over may be accompanied by. The closed vocabulary minus the voice and gait cues: those
- * name an action of their own - a way of speaking or walking - so an interaction step is never their
- * step. `both` means the cue may be stated as playing whatever the outcome, or only when the hand-over
- * succeeds; which of the two an author picks is part of the proposal.
- */
-const expressiveCues = (
-  Object.entries(ACTION_GROUP_CUES) as readonly [ActionGroupCue, { readonly actionType: string | null }][]
-)
-  .filter(([, cue]) => cue.actionType === null)
-  .map(([code]) => code)
-const expressive: InteractionPerformanceImplementation = {
-  lock: implementation('base:expressive'),
-  policy: {
-    version: 'interaction-performance/v1',
-    accepted: expressiveCues.map(cue => ({ cue, placement: 'both' as const, requiresRole: null })),
-  },
 }
 
 /**
@@ -398,44 +300,10 @@ const observation = (
   policy: { version: 'interaction-observation-policy/v1', onAccepted, onRejected },
 })
 
-const publicOutcome = observation('base:public-outcome', 'scene_public', 'scene_public')
 const privateRefusal = observation('base:private-refusal', 'scene_public', 'self')
 
-const noDirect = evidence('base:no-direct', [])
-const directRecipient = evidence('base:direct-recipient', ['recipient'])
 const directTarget = evidence('base:direct-target', ['target'])
 const directParticipants = evidence('base:direct-participants', ['initiator', 'target'])
-
-function definition(
-  id: string,
-  preconditions: readonly string[],
-  effectId: string,
-  recipientRole: boolean,
-  performanceRef = 'base:no-performance',
-): InteractionDefinitionImplementation {
-  const spec: InteractionDefinitionSpec = {
-    versionTag: 'interaction-definition/v1',
-    id,
-    version: 1,
-    participantRoles: recipientRole ? [actor, item, recipient] : [actor, item],
-    argumentSchema: {
-      fields: recipientRole ? [{ name: 'recipientId', type: 'string', maxBytes: 1024, values: [] }] : [],
-    },
-    bindingConfigSchema: { fields: [] },
-    authorityPolicyRef: ref('base:actor-active'),
-    preconditions: preconditions.map(ref),
-    spatialRequirementRefs: [ref('space:co-location'), ref('space:scene-intersection')],
-    effectBuilderRef: ref(effectId),
-    effectCapabilityRefs: [ref(effectId)],
-    dependencyRefs: [],
-    performancePolicyRef: ref(performanceRef),
-    reactionEvidencePolicyRef: recipientRole ? ref('base:direct-recipient') : ref('base:no-direct'),
-    observationPolicyRef: ref('base:public-outcome'),
-    lifecycleRefs: [],
-    limits: { maximumEvents: 1 },
-  }
-  return { spec, implementationHash: implementation(id).implementationHash }
-}
 
 const targetRole: InteractionRole = {
   name: 'target',
@@ -501,20 +369,17 @@ function contactDefinition(
   return { spec, implementationHash: implementation(id).implementationHash }
 }
 
-/** I1 object slice plus the I3 contact slice, through the same contract. */
+/** The contact slice: holding hands and letting go. Item rules are author scripts in each pack. */
 export function createBasicInteractionPackage(): InteractionPackageImplementation {
   const contents = {
     rules,
     effects,
     resolvers,
     lifecycle,
-    performances: [noPerformance, expressive],
-    reactionEvidence: [noDirect, directRecipient, directTarget, directParticipants],
-    observation: [publicOutcome, privateRefusal],
+    performances: [noPerformance],
+    reactionEvidence: [directTarget, directParticipants],
+    observation: [privateRefusal],
     definitions: [
-      definition('base:take', ['base:item-unheld'], 'base:take-effect', false),
-      definition('base:drop', ['base:item-held'], 'base:drop-effect', false),
-      definition('base:give', ['base:item-held', 'base:recipient-active'], 'base:give-effect', true, 'base:expressive'),
       contactDefinition(
         'base:hold-hand',
         [actor, targetRole],

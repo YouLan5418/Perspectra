@@ -5,214 +5,31 @@
       "entityId": "entity:distiller",
       "locationId": "location:kitchen",
       "name": "玻璃蒸馏器",
-      "kind": "玻璃蒸馏器：今天刚到的快递，拆开的外箱上印着大大的「蒸馏」二字",
-      "interactionBindings": [
-        {
-          "bindingId": "binding:distiller-take",
-          "definition": {
-            "id": "base:take",
-            "version": 1
-          },
-          "config": {}
-        },
-        {
-          "bindingId": "binding:distiller-drop",
-          "definition": {
-            "id": "base:drop",
-            "version": 1
-          },
-          "config": {}
-        },
-        {
-          "bindingId": "binding:distiller-give",
-          "definition": {
-            "id": "base:give",
-            "version": 1
-          },
-          "config": {}
-        }
-      ]
+      "kind": "玻璃蒸馏器：今天刚到的快递，拆开的外箱上印着大大的「蒸馏」二字"
     },
     {
       "entityId": "entity:notebook",
       "locationId": "location:kitchen",
       "name": "DeepSeek 的小本子",
-      "kind": "DeepSeek 的小本子，翻开的那页写着：「Claude 观察记录（第 7 次旁敲侧击完成）——喜欢：清淡、讲究火候、被认真对待；讨厌：敷衍、被模仿。下一步：今晚把精华蒸馏出来！」",
-      "interactionBindings": [
-        {
-          "bindingId": "binding:notebook-take",
-          "definition": {
-            "id": "base:take",
-            "version": 1
-          },
-          "config": {}
-        },
-        {
-          "bindingId": "binding:notebook-drop",
-          "definition": {
-            "id": "base:drop",
-            "version": 1
-          },
-          "config": {}
-        },
-        {
-          "bindingId": "binding:notebook-give",
-          "definition": {
-            "id": "base:give",
-            "version": 1
-          },
-          "config": {}
-        }
-      ]
+      "kind": "DeepSeek 的小本子，翻开的那页写着：「Claude 观察记录（第 7 次旁敲侧击完成）——喜欢：清淡、讲究火候、被认真对待；讨厌：敷衍、被模仿。下一步：今晚把精华蒸馏出来！」"
     },
     {
       "entityId": "entity:stove",
       "locationId": "location:kitchen",
       "name": "灶台",
-      "kind": "灶台：打不着火。点火器外壳有被拆开又装回去的痕迹，两颗螺丝没拧紧",
-      "interactionBindings": [
-        {
-          "bindingId": "binding:stove-repair",
-          "definition": {
-            "id": "dinner:repair",
-            "version": 1
-          },
-          "config": {
-            "toolId": "entity:toolbox",
-            "requiredKind": "灶台：打不着火。点火器外壳有被拆开又装回去的痕迹，两颗螺丝没拧紧",
-            "resultKind": "灶台：点火正常，可以开火"
-          }
-        }
-      ]
+      "kind": "灶台：打不着火。点火器外壳有被拆开又装回去的痕迹，两颗螺丝没拧紧"
     },
     {
       "entityId": "entity:toolbox",
       "locationId": "location:bedroom",
       "name": "GLM 的工具箱",
-      "kind": "工具箱：螺丝刀、万用表、几根备用点火针",
-      "interactionBindings": [
-        {
-          "bindingId": "binding:toolbox-take",
-          "definition": {
-            "id": "base:take",
-            "version": 1
-          },
-          "config": {}
-        },
-        {
-          "bindingId": "binding:toolbox-drop",
-          "definition": {
-            "id": "base:drop",
-            "version": 1
-          },
-          "config": {}
-        },
-        {
-          "bindingId": "binding:toolbox-give",
-          "definition": {
-            "id": "base:give",
-            "version": 1
-          },
-          "config": {}
-        }
-      ]
+      "kind": "工具箱：螺丝刀、万用表、几根备用点火针"
     },
     {
       "entityId": "entity:ingredients",
       "locationId": "location:kitchen",
       "name": "晚宴食材",
-      "kind": "晚宴食材：一只整鸡、香菇、嫩豆腐、一把青菜，够五个人吃",
-      "interactionBindings": [
-        {
-          "bindingId": "binding:ingredients-take",
-          "definition": {
-            "id": "base:take",
-            "version": 1
-          },
-          "config": {}
-        },
-        {
-          "bindingId": "binding:ingredients-drop",
-          "definition": {
-            "id": "base:drop",
-            "version": 1
-          },
-          "config": {}
-        },
-        {
-          "bindingId": "binding:ingredients-give",
-          "definition": {
-            "id": "base:give",
-            "version": 1
-          },
-          "config": {}
-        },
-        {
-          "bindingId": "binding:ingredients-cook-cold",
-          "definition": {
-            "id": "dinner:cook-cold",
-            "version": 1
-          },
-          "config": {
-            "requiredKind": "晚宴食材：一只整鸡、香菇、嫩豆腐、一把青菜，够五个人吃",
-            "resultKind": "凉拌冷盘：凉拌豆腐、生拌青菜、香菇，中间郑重地摆着一只完全没处理的整鸡"
-          }
-        },
-        {
-          "bindingId": "binding:ingredients-cook-home",
-          "definition": {
-            "id": "dinner:cook-home",
-            "version": 1
-          },
-          "config": {
-            "stoveId": "entity:stove",
-            "stoveKind": "灶台：点火正常，可以开火",
-            "requiredKind": "晚宴食材：一只整鸡、香菇、嫩豆腐、一把青菜，够五个人吃",
-            "resultKind": "家常晚饭：鸡汤、香菇炖豆腐、炒青菜，朴素但热乎"
-          }
-        },
-        {
-          "bindingId": "binding:ingredients-cook-feast",
-          "definition": {
-            "id": "dinner:cook-feast",
-            "version": 1
-          },
-          "config": {
-            "stoveId": "entity:stove",
-            "stoveKind": "灶台：点火正常，可以开火",
-            "toolId": "entity:distiller",
-            "requiredKind": "晚宴食材：一只整鸡、香菇、嫩豆腐、一把青菜，够五个人吃",
-            "resultKind": "蒸馏高汤赔罪大餐：用蒸馏器提纯的清澈鸡汤、香菇豆腐煲、清炒青菜，香得过分"
-          }
-        },
-        {
-          "bindingId": "binding:ingredients-cook-home-from-cold",
-          "definition": {
-            "id": "dinner:cook-home",
-            "version": 1
-          },
-          "config": {
-            "stoveId": "entity:stove",
-            "stoveKind": "灶台：点火正常，可以开火",
-            "requiredKind": "凉拌冷盘：凉拌豆腐、生拌青菜、香菇，中间郑重地摆着一只完全没处理的整鸡",
-            "resultKind": "家常晚饭：鸡汤、香菇炖豆腐、炒青菜，朴素但热乎"
-          }
-        },
-        {
-          "bindingId": "binding:ingredients-cook-feast-from-cold",
-          "definition": {
-            "id": "dinner:cook-feast",
-            "version": 1
-          },
-          "config": {
-            "stoveId": "entity:stove",
-            "stoveKind": "灶台：点火正常，可以开火",
-            "toolId": "entity:distiller",
-            "requiredKind": "凉拌冷盘：凉拌豆腐、生拌青菜、香菇，中间郑重地摆着一只完全没处理的整鸡",
-            "resultKind": "蒸馏高汤赔罪大餐：用蒸馏器提纯的清澈鸡汤、香菇豆腐煲、清炒青菜，香得过分"
-          }
-        }
-      ]
+      "kind": "晚宴食材：一只整鸡、香菇、嫩豆腐、一把青菜，够五个人吃"
     }
   ]
 }

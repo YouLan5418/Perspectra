@@ -44,8 +44,8 @@ const take = () => ({
   actionType: 'interact',
   parameters: {
     targetRef: { kind: 'entity', id: 'entity:brass-key' },
-    bindingId: 'binding:key-take',
-    definitionRef: { id: 'base:take', version: 1 },
+    bindingId: 'status',
+    definitionRef: { id: 'status:take', version: 1 },
     arguments: {},
   },
 })
@@ -199,7 +199,7 @@ it.each([
     const f = await fixture(
       (role, pack) => {
         role.opportunities = 4
-        role.interactions = ['base:take', 'base:drop']
+        role.interactions = ['status:take', 'status:drop']
         role.targetIds = ['entity:brass-key']
         const entities = JSON.parse(readFileSync(join(pack, 'entities.json'), 'utf8'))
         entities.entities[0].locationId = 'location:back-room'
@@ -222,8 +222,8 @@ it.each([
         actionType: 'interact',
         parameters: {
           targetRef: { kind: 'entity', id: 'entity:brass-key' },
-          bindingId: 'binding:key-drop',
-          definitionRef: { id: 'base:drop', version: 1 },
+          bindingId: 'status',
+          definitionRef: { id: 'status:drop', version: 1 },
           arguments: {},
         },
       }
@@ -259,11 +259,11 @@ it.each([
 
 it('matches specific committed interactions and leaves ordinary speech uncounted', async () => {
   const f = await fixture(role => {
-    role.triggers = [{ actionType: 'interact', definitionId: 'base:take' }]
+    role.triggers = [{ actionType: 'interact', definitionId: 'status:take' }]
   })
   await f.runtime.submit('随便聊聊')
   expect(autonomous(f.requests)).toHaveLength(0)
-  await f.runtime.submit('/act interact ' + JSON.stringify(take().parameters))
+  await f.runtime.submit('/status take@entity:brass-key {}')
   expect(autonomous(f.requests)).toHaveLength(1)
   expect(currentEntityState(f.events(), 'entity:brass-key')?.holderId).toBe('character:player')
 }, 60_000)
@@ -289,7 +289,7 @@ it.each(['location', 'interaction', 'target'])(
     const f = await fixture(role => {
       if (restriction === 'location') role.locationIds = ['location:back-room']
       if (restriction === 'target') {
-        role.interactions = ['base:take']
+        role.interactions = ['status:take']
         role.targetIds = ['character:companion']
       }
     })
@@ -344,7 +344,7 @@ it.each(['location', 'interaction', 'target'])(
     expect(currentLocation(f.events(), 'character:friend')).toBe('location:back-room')
     expect(currentEntityState(f.events(), 'entity:brass-key')?.holderId).toBe(null)
     expect(JSON.stringify(context(autonomous(f.requests)[0]!).affordances)).not.toContain(
-      restriction === 'location' ? 'location:front-room' : 'binding:key-take',
+      restriction === 'location' ? 'location:front-room' : 'status',
     )
   },
   60_000,
@@ -389,7 +389,7 @@ it('counts declared activity operations across starts without waking the role on
   const f = await fixture((role, pack) => {
     role.triggers = [{ activityKey: 'default', operation: 'quit' }]
     role.everyPlayerTurns = 2
-    mkdirSync(join(pack, 'scripts'))
+    mkdirSync(join(pack, 'scripts'), { recursive: true })
     writeFileSync(
       join(pack, 'scripts/activity.js'),
       readFileSync(resolve('examples/world-packs/ai-girls-awaken-v10/scripts/activity.js'), 'utf8').replaceAll(
@@ -444,7 +444,7 @@ it('keeps autonomous opportunity independent when an ordinary observer provider 
 it('shares dynamic slots with a foreground response, isolates private stimuli, and charges recall/perform/continuation only to autonomy', async () => {
   const f = await fixture(
     (role, pack) => {
-      role.interactions = ['base:take']
+      role.interactions = ['status:take']
       role.targetIds = ['entity:brass-key']
       const entities = JSON.parse(readFileSync(join(pack, 'entities.json'), 'utf8'))
       entities.entities[0].locationId = 'location:back-room'
@@ -582,7 +582,7 @@ it('replans an autonomous move after an ordinary actor arrives, without duplicat
 it('cancels both in-flight modes on player interruption and keeps the committed autonomous action', async () => {
   const f = await fixture(
     (role, pack) => {
-      role.interactions = ['base:take']
+      role.interactions = ['status:take']
       role.targetIds = ['entity:brass-key']
       const entities = JSON.parse(readFileSync(join(pack, 'entities.json'), 'utf8'))
       entities.entities[0].locationId = 'location:back-room'

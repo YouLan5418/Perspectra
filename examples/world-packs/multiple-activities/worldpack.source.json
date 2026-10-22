@@ -32,7 +32,8 @@
   "assetFiles": [
     "scripts/activities/guess.js",
     "scripts/activities/weekend.js",
-    "scripts/activities/invite.js"
+    "scripts/activities/invite.js",
+    "scripts/status.js"
   ],
   "assertionFiles": [
     "assertions.json"

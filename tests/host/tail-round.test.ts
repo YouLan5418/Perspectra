@@ -17,6 +17,7 @@ import { readStoryNodes } from '../../desktop/story-nodes.ts'
 import { preflightSave } from '../../desktop/save-preflight.ts'
 import { frontendActionRequest, playerViewPatch } from '../../packages/frontend/src/player-view.ts'
 import { FrontendActions, projectPlayerView } from '../../desktop/host/frontend-adapter.ts'
+import { itemDecision, withItemRules } from '../support/item-rules.ts'
 
 const roots: string[] = [],
   servers: Server[] = [],
@@ -41,8 +42,8 @@ async function fixture(core = false, build?: CoreRunner) {
   const pack = join(root, 'pack'),
     data = join(root, 'data')
   cpSync(resolve('examples/world-packs/prototype-g1'), pack, { recursive: true })
-  mkdirSync(join(pack, 'scripts'))
-  writeFileSync(join(pack, 'scripts/status.js'), statusMarketWithoutRoundHook())
+  mkdirSync(join(pack, 'scripts'), { recursive: true })
+  writeFileSync(join(pack, 'scripts/status.js'), withItemRules(statusMarketWithoutRoundHook()))
   writeFileSync(
     join(pack, 'scripts/activity.js'),
     readFileSync(resolve('examples/world-packs/ai-girls-awaken-v10/scripts/activity.js'), 'utf8').replaceAll(
@@ -127,18 +128,7 @@ async function fixture(core = false, build?: CoreRunner) {
     },
   }
 }
-function take() {
-  return {
-    decision: 'perform',
-    actionType: 'interact',
-    parameters: {
-      targetRef: { kind: 'entity', id: 'entity:brass-key' },
-      bindingId: 'binding:key-take',
-      definitionRef: { id: 'base:take', version: 1 },
-      arguments: {},
-    },
-  }
-}
+const take = () => itemDecision('take', 'entity:brass-key')
 const actor = (input: WorldJsonObject) => String(object(object(input.context).character).characterId)
 const tail = async (runtime: WorldHostRuntime) => (await runtime.state()).tailRound!.id!
 const regenerate = async (runtime: WorldHostRuntime) => runtime.regenerate(await tail(runtime), randomUUID())

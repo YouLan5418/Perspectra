@@ -5,16 +5,7 @@
       "entityId": "entity:thermos",
       "locationId": "location:front-room",
       "kind": "thermos",
-      "interactionBindings": [
-        {
-          "bindingId": "binding:thermos-take",
-          "definition": {
-            "id": "base:take",
-            "version": 1
-          },
-          "config": {}
-        }
-      ]
+      "name": "保温杯"
     }
   ]
 }

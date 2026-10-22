@@ -68,7 +68,8 @@ export class PackAutonomy {
     const locations = new Set(pack.content.locations.map(l => l.locationId))
     const targets = new Set([...characters, ...pack.content.entities.map(e => e.entityId as string)])
     const definitions = new Set(pack.interactions.definitions.map(d => d.ref.id))
-    const knownDefinition = (id: string) => definitions.has(id) || /^activity:[a-z][a-z0-9-]*$/u.test(id)
+    // Activity and author status operations are named by their own scripts, not by the interaction catalog.
+    const knownDefinition = (id: string) => definitions.has(id) || /^(activity|status):[a-z][a-z0-9-]*$/u.test(id)
     const roles = root.characters.map(entry => {
       const row = object(entry)
       exact(
@@ -190,6 +191,10 @@ export class PackAutonomy {
         if (!action) throw new Error('自主计数找不到玩家行动')
         return object(action.parameters)
       }
+      // A player's status operation records its operation name, the definition being status:<operation>.
+      const request = object(record.request)
+      if (record.action === undefined && typeof request.operation === 'string')
+        return { definitionRef: { id: 'status:' + request.operation } }
       return record.action === undefined ? {} : object(object(record.action).parameters)
     }
     return this.roles.filter(role => {

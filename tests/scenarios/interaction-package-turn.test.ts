@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from 'node:fs'
+import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { expect, it } from 'vitest'
@@ -9,7 +9,7 @@ import {
   resolutionAuthority,
   type WorldJsonObject,
 } from '@harness-world/contracts'
-import { createBasicInteractionPackage } from '@harness-world/interactions-basic'
+import { createItemCustodyTestPackage } from '../fixtures/item-custody-package.ts'
 import { InteractionRegistry } from '@harness-world/interaction-runtime'
 import { createCoreRulebookRegistry, currentEntityState } from '@harness-world/kernel'
 import { CharacterRuntimeAvailabilityService, WorldStore, WriterLeaseService } from '@harness-world/store-sqlite'
@@ -18,10 +18,22 @@ import { CharacterTurn } from '../../packages/application/src/character-turn.ts'
 
 it('executes the exact offered definition, then publishes freely from its committed result', async () => {
   const directory = mkdtempSync(join(tmpdir(), 'perspectra-package-turn-'))
-  const installed = createBasicInteractionPackage()
-  const pack = await compileWorldPackSource(resolve('examples/world-packs/hand-in-hand'), [
-    interactionPackageDescription(installed),
-  ])
+  const installed = createItemCustodyTestPackage()
+  // A copy of the hand-in-hand pack whose umbrella binds the test-only take: the path under test is any
+  // installed definition, not the pack's own item script.
+  const packPath = join(directory, 'pack')
+  cpSync(resolve('examples/world-packs/hand-in-hand'), packPath, { recursive: true })
+  const entities = JSON.parse(readFileSync(join(packPath, 'entities.json'), 'utf8'))
+  entities.entities.find(
+    (entity: { entityId: string }) => entity.entityId === 'entity:shared-umbrella',
+  ).interactionBindings = [
+    { bindingId: 'binding:umbrella-take', definition: { id: 'base:take', version: 1 }, config: {} },
+  ]
+  writeFileSync(join(packPath, 'entities.json'), JSON.stringify(entities))
+  const selection = JSON.parse(readFileSync(join(packPath, 'interactions.json'), 'utf8'))
+  selection.definitions.push({ id: 'base:take', version: 1 })
+  writeFileSync(join(packPath, 'interactions.json'), JSON.stringify(selection))
+  const pack = await compileWorldPackSource(packPath, [interactionPackageDescription(installed)])
   const world = adaptCompiledWorldPack(pack, {
     address: {
       tenantId: brandId('tenant:turn', 'TenantId'),

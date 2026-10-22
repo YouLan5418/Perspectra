@@ -179,7 +179,7 @@ export function characterTurnCall(request: {
             ? '有意义的沉默、微笑、注视属于表达，可以 publish narration 片段；对白用 speech 片段，按先后顺序放入 segments。'
             : '当前禁止 narration 片段。对白仅在当前契约允许 speech 时使用。') +
           '物品 holderId 表示当前保管、携带和转交关系，不表示手是否碰到物品，也不表示所有权。null 表示尚未由个人保管、留在 locationId 所示场所。' +
-          'base:take 是纳入自己保管，base:give 是转交保管，base:drop 是解除个人保管并留在当前场所。这些迁移须 perform。' +
+          '拿起、放下、交给等改变保管关系的动作须 perform 对应选项，成功后才算发生。' +
           '翻页、触碰、挪动、临时托起查看再放回可以自由表达；把自己保管的物品暂放桌上不自动解除保管。收进随身口袋带走则改变保管关系。' +
           '涉及已声明的重要交互或移动时选择 perform，不能用叙述代替执行，也不要提前描写成功后的情节。' +
           (request.canContinueAfterPublish

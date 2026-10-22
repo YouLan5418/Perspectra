@@ -11,7 +11,7 @@ import {
   type InteractionPackageDescription,
   type WorldJsonValue,
 } from '@harness-world/contracts'
-import { createBasicInteractionPackage } from '@harness-world/interactions-basic'
+import { createItemCustodyTestPackage } from '../../../tests/fixtures/item-custody-package.ts'
 import {
   SpeakMoveRulebook,
   characterInteractionManifestRegistries,
@@ -39,7 +39,7 @@ afterEach(async () => {
   await Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true })))
 })
 
-const packages = [interactionPackageDescription(createBasicInteractionPackage())]
+const packages = [interactionPackageDescription(createItemCustodyTestPackage())]
 const address = {
   tenantId: brandId('tenant:worldpack-v5', 'TenantId'),
   worldId: brandId('world:worldpack-v5', 'WorldId'),
@@ -293,7 +293,7 @@ describe('WorldPackCompilerV5', () => {
   it('produces a catalog the runtime accepts, so compile and activation agree', async () => {
     const pack = await compile()
     const registry = new InteractionRegistry()
-    registry.install(createBasicInteractionPackage())
+    registry.install(createItemCustodyTestPackage())
     const frozen = registry.freeze({
       address,
       packages: pack.interactions.packages,
@@ -869,7 +869,7 @@ describe('Manifest v10 binding for a compiled worldpack/v5', () => {
     // Compilation is only worth anything if the runtime accepts the same bytes, so the strong check is
     // that freeze() addresses an instance through the class the author named - and only that class.
     const registry = new InteractionRegistry()
-    registry.install(createBasicInteractionPackage())
+    registry.install(createItemCustodyTestPackage())
     const frozen = registry.freeze({
       address,
       packages: pack.interactions.packages,

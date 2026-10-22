@@ -1,6 +1,60 @@
 // 集市状态脚本：每个角色有自己的余额，时间公开可见并在每轮结束时推进 10 分钟。
 // 真实值只记录在世界事件里；每个角色只知道告知给自己的值（之后可能过期）。
 const object = { type: 'object', additionalProperties: false }
+
+// ---- 物品规则模板：拿起、放下、交给 ----
+// 这些规则由作者定义，可以整段修改或删除。宿主只裁定结果：物品够得着、同一时间只有一个持有者、
+// 交给的人在场、放下只能放在脚下；与对白和观察一起提交，目击者会记下谁拿着什么。
+// ITEM_RULES 列出每种动作可用于哪些已登记物品。
+const ITEM_RULES = { take: ['entity:thermos'], drop: ['entity:thermos'], give: ['entity:thermos'] }
+const noItemInput = { type: 'object', additionalProperties: false, properties: {} }
+const itemOperations = [
+  { id: 'take', label: '拿起{item}', targets: ITEM_RULES.take, schema: noItemInput },
+  { id: 'drop', label: '放下{item}', targets: ITEM_RULES.drop, schema: noItemInput },
+  {
+    id: 'give',
+    label: '把{item}交给',
+    targets: ITEM_RULES.give,
+    characterParameters: ['recipientId'],
+    schema: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['recipientId'],
+      properties: { recipientId: { type: 'string', title: '交给谁' } },
+    },
+  },
+].filter(op => op.targets.length)
+// 只给能成的选项：地上的才能拿，自己拿着的才能放下或交出去。
+function itemTargets(actorId, place) {
+  const where = (ids, held) =>
+    place.items
+      .filter(item => ids.includes(item.entityId) && (held ? item.holderId === actorId : item.holderId === null))
+      .map(item => item.entityId)
+  const targets = { take: where(ITEM_RULES.take, false), drop: where(ITEM_RULES.drop, true), give: where(ITEM_RULES.give, true) }
+  return Object.fromEntries(itemOperations.map(op => [op.id, targets[op.id]]))
+}
+function resolveItem(actorId, operationId, parameters, world, targetId) {
+  const item = world.items.current.find(entry => entry.entityId === targetId)
+  if (!item) return { rejectReason: '看不到这件东西。' }
+  const name = item.name ?? item.kind
+  const done = (to, description) => ({
+    changes: [],
+    reveals: [],
+    items: [{ entityId: targetId, to }],
+    description,
+    audience: 'scene',
+  })
+  if (operationId === 'take') {
+    if (item.holderId !== null) return { rejectReason: '已经有人拿着了。' }
+    return done({ holderId: actorId }, '拿起了' + name + '。')
+  }
+  if (item.holderId !== actorId) return { rejectReason: '你手里没有这件东西。' }
+  if (operationId === 'drop') return done({ locationId: world.locationId }, '把' + name + '放在了这里。')
+  if (parameters.recipientId === actorId) return { rejectReason: '不能交给自己。' }
+  return done({ holderId: parameters.recipientId }, '把' + name + '交了过去。')
+}
+// ---- 模板结束 ----
+
 globalThis.statusScript = {
   definition: {
     statuses: [
@@ -29,19 +83,22 @@ globalThis.statusScript = {
       { id: 'accept-task', label: '领取演示委托', schema: { ...object, properties: {} } },
       { id: 'finish-task', label: '完成演示委托', schema: { ...object, properties: {} } },
       { id: 'claim-reward', label: '领取委托报酬', schema: { ...object, properties: {} } },
+      ...itemOperations,
     ],
   },
   initialize(characterIds) {
     return { public: { time: 0 },
       characters: Object.fromEntries(characterIds.map(id => [id, { money: 100, quests: {} }])) }
   },
-  // Only known values decide which options appear. The host applies this again when executing.
-  policy(known) {
+  // Only known values and what is within reach decide which options appear. The host applies this again when executing.
+  policy(known, actorId, place) {
     const stage = known.self.quests?.market?.stage
-    return { operations: ['buy', 'steal', 'slip-money', 'check-purse',
-      ...(!stage ? ['accept-task'] : stage === 'active' ? ['finish-task'] : stage === 'done' ? ['claim-reward'] : [])] }
+    return { operations: ['buy', 'steal', 'slip-money', 'check-purse', 'take', 'drop', 'give',
+      ...(!stage ? ['accept-task'] : stage === 'active' ? ['finish-task'] : stage === 'done' ? ['claim-reward'] : [])],
+    targets: itemTargets(actorId, place) }
   },
-  resolve(truth, actorId, operationId, parameters) {
+  resolve(truth, actorId, operationId, parameters, world, targetId) {
+    if (['take', 'drop', 'give'].includes(operationId)) return resolveItem(actorId, operationId, parameters, world, targetId)
     const own = truth.characters[actorId]
     // 告知只写“告诉谁、谁的哪个状态”，值由宿主按本次结果填入。
     const purse = { observerId: actorId, holderId: actorId, key: 'money' }

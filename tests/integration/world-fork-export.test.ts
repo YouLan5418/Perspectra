@@ -1,3 +1,4 @@
+import { basicInteractionPackage } from '../fixtures/frozen-interaction-world.ts'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -33,6 +34,7 @@ const holdHand = {
 
 const app = (worldPath: string, root: string) =>
   new WorldApplication({
+    interactionPackages: [basicInteractionPackage],
     worldPath,
     sessionPath: join(root, 'session.sqlite'),
     memoryPath: join(root, 'memory.sqlite'),

@@ -30,7 +30,8 @@
   "documentFiles": [],
   "markdownFiles": [],
   "assetFiles": [
-    "communication.json"
+    "communication.json",
+    "scripts/status.js"
   ],
   "assertionFiles": [
     "assertions.json"

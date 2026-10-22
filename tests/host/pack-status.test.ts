@@ -10,7 +10,16 @@ import { knownStatusView, PackStatus, type StatusEventData } from '../../desktop
 
 const original = resolve('examples/world-packs/ai-girls-awaken-v10')
 const market = readFileSync(resolve('tests/fixtures/status-market.js'), 'utf8').replaceAll('\r\n', '\n')
-const quests = readFileSync(resolve('examples/world-packs/status-market/scripts/status.js'), 'utf8')
+// The market's status part only: this pack has no thermos, so the item rules template is taken out.
+const quests = ((source: string) => {
+  const stripped = source
+    .replace('      ...itemOperations,\n', '')
+    .replace(" 'take', 'drop', 'give',", '')
+    .replace(',\n    targets: itemTargets(actorId, place) }', ' }')
+  if (/\.\.\.itemOperations|'check-purse', 'take'|targets: itemTargets/u.test(stripped))
+    throw new Error('market item template was not removed')
+  return stripped
+})(readFileSync(resolve('examples/world-packs/status-market/scripts/status.js'), 'utf8').replace(/\r\n/gu, '\n'))
 let root: string, packPath: string, pack: CompiledWorldPackV5, plain: CompiledWorldPackV5
 beforeAll(async () => {
   root = mkdtempSync(join(tmpdir(), 'pack-status-'))

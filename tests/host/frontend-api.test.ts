@@ -367,7 +367,7 @@ it('canonicalizes full options, distinguishes recipients and executes the select
   const options = projectPlayerView(state).actions
   expect(options[0]!.id).toMatch(/^opt:[a-f0-9]{64}$/u)
   expect(options[0]!.id).not.toBe(options[1]!.id)
-  expect(options.map(a => a.label)).toEqual(['把 黄铜钥匙 交给 艾莉', '把 黄铜钥匙 交给 莉娜'])
+  expect(options.map(a => a.label)).toEqual(['与 黄铜钥匙 互动（给 艾莉）', '与 黄铜钥匙 互动（给 莉娜）'])
   const equivalent = {
     ...state,
     availableActions: [
@@ -637,40 +637,155 @@ it('statusBar changes appear in playerViewPatch', () => {
   expect(playerViewPatch(before, after)).toEqual({ statusBar: after.statusBar })
   expect(playerViewPatch(after, projectPlayerView({ ...privateState(), statusBar: known }))).toBeNull()
 })
-it('offers parameterless status operations as performable actions and leaves parameterised ones out', () => {
-  const option = (id: string, properties: WorldJsonObject) => ({
-    label: id === 'check-purse' ? '查看钱包' : '购买',
-    targetRef: { kind: 'character', id: PLAYER },
-    bindingId: 'status',
-    definitionRef: { id: 'status:' + id, version: 1 },
-    arguments: {},
-    argumentSchema: { type: 'object', additionalProperties: false, properties },
+const statusOption = (id: string, properties: WorldJsonObject) => ({
+  label: id === 'check-purse' ? '查看钱包' : id === 'steal' ? '偷窃' : '购买',
+  targetRef: { kind: 'character', id: PLAYER },
+  bindingId: 'status',
+  definitionRef: { id: 'status:' + id, version: 1 },
+  arguments: {},
+  argumentSchema: { type: 'object', additionalProperties: false, required: Object.keys(properties), properties },
+})
+const statusState = (): HostState => ({
+  ...privateState(),
+  world: {
+    ...privateState().world,
+    currentScene: {
+      locationName: '前室',
+      presentNpcNames: ['visible'],
+      recipients: [{ id: 'character:visible', name: 'visible' }],
+    },
+  },
+  characterArguments: { 'status:steal': ['targetId'] },
+  availableActions: [
+    {
+      actionType: 'interact',
+      actionVersion: 2,
+      interactions: [
+        statusOption('check-purse', {}),
+        statusOption('buy', { price: { type: 'integer' } }),
+        statusOption('steal', { targetId: { type: 'string' } }),
+      ],
+    },
+  ],
+})
+it('offers every status operation as the player acting on themself, with the inputs the player fills in', () => {
+  const status = projectPlayerView(statusState()).actions.filter(action =>
+    String((action.action.parameters.definitionRef as { id?: string }).id).startsWith('status:'),
+  )
+  expect(status.map(action => action.label)).toEqual(['查看钱包', '购买', '偷窃'])
+  for (const action of status) {
+    expect(action.kind).toBe('interact')
+    expect(action.target).toEqual({ kind: 'self', id: PLAYER, name: '玩家' })
+  }
+  expect(status[0]).not.toHaveProperty('argumentSchema')
+  expect(status[1]!.argumentSchema).toEqual({
+    type: 'object',
+    additionalProperties: false,
+    properties: { price: { type: 'integer' } },
+    required: ['price'],
   })
-  const view = projectPlayerView({
+  expect(status[1]).not.toHaveProperty('characterArguments')
+  expect(status[2]!.characterArguments).toEqual(['targetId'])
+})
+it('keeps an offer’s fixed inputs out of the form and lets them win over what the player sends', async () => {
+  const { send, runtime, setState } = await fixture()
+  const state: HostState = {
     ...privateState(),
+    activity: { title: '猜数字', id: 'activity:1', revision: 3, game: { active: true }, participants: [PLAYER] },
     availableActions: [
       {
         actionType: 'interact',
         actionVersion: 2,
-        interactions: [option('check-purse', {}), option('buy', { price: { type: 'integer' } })],
+        interactions: [
+          {
+            label: '猜',
+            targetRef: { kind: 'character', id: PLAYER },
+            bindingId: 'activity:1',
+            definitionRef: { id: 'activity:guess', version: 1 },
+            arguments: { activityId: 'activity:1', revision: 3 },
+            argumentSchema: {
+              type: 'object',
+              required: ['activityId', 'revision', 'number'],
+              properties: {
+                activityId: { const: 'activity:1', type: 'string' },
+                revision: { const: 3, type: 'integer' },
+                number: { type: 'integer' },
+              },
+            },
+          },
+        ],
+      },
+    ],
+  }
+  setState(state)
+  const guess = projectPlayerView(state).actions.find(action => action.label === '猜')!
+  expect(guess.kind).toBe('activity')
+  expect(guess.target).toEqual({ kind: 'activity', id: 'activity:1', name: '猜数字' })
+  expect(Object.keys(guess.argumentSchema!.properties as WorldJsonObject)).toEqual(['number'])
+  expect((await send('perform', { optionId: guess.id, arguments: { revision: 9 } }, 'fixed')).status).toBe(400)
+  expect((await send('perform', { optionId: 'move:room-2', arguments: { number: 1 } }, 'no-inputs')).status).toBe(400)
+  expect(runtime.perform).not.toHaveBeenCalled()
+  expect((await send('perform', { optionId: guess.id, arguments: { number: 7 } }, 'guess')).status).toBe(200)
+  expect(runtime.perform).toHaveBeenCalledWith({
+    ...guess.action,
+    parameters: { ...guess.action.parameters, arguments: { number: 7, activityId: 'activity:1', revision: 3 } },
+  })
+})
+it('sends a line with an action as one turn and checks its audience and character inputs against the scene', async () => {
+  const { send, runtime, setState } = await fixture()
+  setState(statusState())
+  const steal = projectPlayerView(statusState()).actions.find(action => action.label === '偷窃')!
+  const line = { text: '借我看看。', scope: 'direct', addresseeIds: ['character:visible'] }
+  for (const [id, payload] of [
+    ['hidden-target', { optionId: steal.id, arguments: { targetId: 'character:hidden' } }],
+    [
+      'hidden-audience',
+      {
+        optionId: steal.id,
+        arguments: { targetId: 'character:visible' },
+        say: { ...line, addresseeIds: ['character:hidden'] },
+      },
+    ],
+    ['bad-order', { optionId: steal.id, arguments: { targetId: 'character:visible' }, say: line, order: 'during' }],
+    ['order-alone', { optionId: steal.id, arguments: { targetId: 'character:visible' }, order: 'after' }],
+    ['empty-line', { optionId: steal.id, arguments: { targetId: 'character:visible' }, say: { text: '  ' } }],
+  ] as const)
+    expect((await send('perform', payload, id)).status, id).toBe(400)
+  expect(runtime.perform).not.toHaveBeenCalled()
+  const payload = { optionId: steal.id, arguments: { targetId: 'character:visible' }, say: line, order: 'after' }
+  expect((await send('perform', payload, 'turn')).status).toBe(200)
+  expect(runtime.perform).toHaveBeenCalledWith(
+    { ...steal.action, parameters: { ...steal.action.parameters, arguments: { targetId: 'character:visible' } } },
+    { speech: line, order: 'after' },
+  )
+  expect(runtime.submit).not.toHaveBeenCalled()
+})
+it('names actions by their author, with plain fallbacks that never show a definition ID', () => {
+  const option = (bindingId: string, id: string, target: string, args: WorldJsonObject = {}) => ({
+    targetRef: { kind: target.startsWith('character:') ? 'character' : 'entity', id: target },
+    bindingId,
+    definitionRef: { id, version: 1 },
+    arguments: args,
+  })
+  const view = projectPlayerView({
+    ...privateState(),
+    actionNames: { 'entity:pot': '一锅米', 'character:a': '汤汤' },
+    actionLabels: { 'binding:cook': '用电饭煲煮一锅白米饭', 'binding:pass': '递过去' },
+    availableActions: [
+      {
+        actionType: 'interact',
+        actionVersion: 2,
+        interactions: [
+          option('binding:cook', 'pack:cook', 'entity:pot'),
+          option('binding:pass', 'base:give', 'entity:pot', { recipientId: 'character:a' }),
+          option('binding:odd', 'pack:polish', 'entity:pot'),
+        ],
       },
     ],
   })
-  const status = view.actions.filter(action =>
-    String((action.action.parameters.definitionRef as { id?: string }).id).startsWith('status:'),
-  )
-  expect(status).toEqual([
-    expect.objectContaining({
-      label: '查看钱包',
-      action: {
-        actionType: 'interact',
-        parameters: {
-          targetRef: { kind: 'character', id: PLAYER },
-          definitionRef: { id: 'status:check-purse', version: 1 },
-          bindingId: 'status',
-          arguments: {},
-        },
-      },
-    }),
+  expect(view.actions.filter(action => action.kind === 'interact').map(action => action.label)).toEqual([
+    '用电饭煲煮一锅白米饭',
+    '递过去（给 汤汤）',
+    '与 一锅米 互动',
   ])
 })

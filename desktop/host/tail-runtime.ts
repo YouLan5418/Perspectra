@@ -15,11 +15,12 @@ import {
 import { interactionPackageDescription, type WorldJsonObject } from '@harness-world/contracts'
 import { createInstalledInteractionPackages } from '@harness-world/interactions-basic'
 import { compileWorldPackSource } from '@harness-world/world-pack'
-import { HostBusyError, type HostAction, type HostState } from './http-server.ts'
+import { actionText, HostBusyError, type HostAction, type HostState, type PlayerLine } from './http-server.ts'
 import type { WorldHostOptions, WorldHostCore } from './world-runtime.ts'
 import type { ActivityRequest } from './pack-activity.ts'
 
 type Factory = (options: WorldHostOptions) => Promise<WorldHostCore>
+
 // Bump when executable rules/context interpretation change incompatibly. Pack lock already covers declared script bytes.
 const runtimeRevision = 'tail-round-2026-10-08/v1'
 const loadedRuntimeIdentity = tailRuntimeIdentity()
@@ -223,7 +224,9 @@ export class TailRoundRuntime {
       const result =
         'text' in input
           ? await this.#runtime.submit(input.text, idempotencyKey)
-          : await this.#runtime.activityAction(input.activity as ActivityRequest)
+          : 'texts' in input
+            ? await this.#runtime.turn(input.texts, idempotencyKey)
+            : await this.#runtime.activityAction(input.activity as ActivityRequest)
       if (result.paused || this.#escaping) return result
       const head = await this.#runtime.settleRound()
       if (head.headSeq > before.headSeq || 'activity' in input)
@@ -266,7 +269,17 @@ export class TailRoundRuntime {
     await this.#run({ text }, idempotencyKey)
     return this.state()
   }
-  async perform(action: HostAction): Promise<HostState> {
+  /** A `line` said with an in-world action makes one turn with it, recorded and regenerated as one round. */
+  async perform(action: HostAction, line?: PlayerLine): Promise<HostState> {
+    if (line !== undefined) {
+      const id = String((action.parameters.definitionRef as WorldJsonObject | undefined)?.id ?? '')
+      if (id.startsWith('host:')) throw new TypeError('活动管理操作不能附带发言')
+      if (this.#busy || this.#interrupting) await this.#interruptIfBusy()
+      const say = '/act speak ' + JSON.stringify(line.speech),
+        act = actionText(action)
+      await this.#run({ texts: line.order === 'after' ? [act, say] : [say, act] })
+      return this.state()
+    }
     if (this.#busy || this.#interrupting) await this.#interruptIfBusy()
     if (
       action.actionType === 'interact' &&
@@ -324,13 +337,7 @@ export class TailRoundRuntime {
         requestId: randomUUID(),
       })
     }
-    const id = (action.parameters.definitionRef as WorldJsonObject | undefined)?.id
-    // Recorded as text input, so regenerating the round replays the same status operation.
-    if (action.actionType === 'interact' && typeof id === 'string' && id.startsWith('status:'))
-      return this.submit(
-        '/status ' + id.slice('status:'.length) + ' ' + JSON.stringify(action.parameters.arguments ?? {}),
-      )
-    return this.submit('/act ' + action.actionType + ' ' + JSON.stringify(action.parameters))
+    return this.submit(actionText(action))
   }
   async activityAction(activity: ActivityRequest): Promise<HostState> {
     await this.#run({ activity: structuredClone(activity) })
@@ -388,7 +395,9 @@ export class TailRoundRuntime {
       const result =
         'text' in tail.input
           ? await this.#candidate.submit(tail.input.text)
-          : await this.#candidate.activityAction(tail.input.activity as ActivityRequest)
+          : 'texts' in tail.input
+            ? await this.#candidate.turn(tail.input.texts)
+            : await this.#candidate.activityAction(tail.input.activity as ActivityRequest)
       if (this.#cancelled || this.#closed) throw new TypeError('重新生成已取消，原结果保留。')
       if (result.error) throw new TypeError('候选角色处理未完成，原结果保留。')
       const end = await this.#candidate.settleRound()

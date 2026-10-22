@@ -32,7 +32,8 @@
   "assetFiles": [
     "scripts/activities/evening.js",
     "scripts/activities/dinner.js",
-    "autonomy.json"
+    "autonomy.json",
+    "scripts/status.js"
   ],
   "assertionFiles": [
     "assertions.json"

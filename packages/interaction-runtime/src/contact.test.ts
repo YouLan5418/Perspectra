@@ -12,7 +12,7 @@ import {
   type WorldAddress,
   type WorldJsonObject,
 } from '@harness-world/contracts'
-import { createBasicInteractionPackage } from '@harness-world/interactions-basic'
+import { createItemCustodyTestPackage } from '../../../tests/fixtures/item-custody-package.ts'
 import { InteractionRegistry, interactionPackageHash, type FrozenInteractionWorld } from './registry.ts'
 
 const address: WorldAddress = {
@@ -42,7 +42,7 @@ const agentStandard: RulebookResolutionAuthorityV1 = {
   adjudicationMode: 'standard',
 }
 
-const pack = createBasicInteractionPackage()
+const pack = createItemCustodyTestPackage()
 
 function selection(lock: InteractionImplementationLock = pack.lock): InteractionWorldSelection {
   const bindings: InteractionBindingV3[] = [

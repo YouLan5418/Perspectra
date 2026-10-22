@@ -20,47 +20,17 @@ export function characterExecutionResult(input: {
   const parameters = object(input.action.parameters)
   const target = object(parameters?.targetRef)
   if (status === 'accepted') {
-    const definitionId = object(parameters?.definitionRef)?.id
-    if (definitionId === 'home:cook-rice' || definitionId === 'home:eat-rice')
-      return {
-        status,
-        description:
-          definitionId === 'home:cook-rice'
-            ? '这一份米与水已煮成一锅白米饭，放在当前房间；原食材不再可用。'
-            : '这一锅白米饭已经吃完，剩下空容器；不能再次食用或当作生米煮饭。',
-      }
-    const definition = object(parameters?.definitionRef)?.id
-    const verb =
-      definition === 'base:take'
-        ? '取得保管'
-        : definition === 'base:give'
-          ? '转交保管'
-          : definition === 'base:drop'
-            ? '解除个人保管并留在当前场所'
-            : '执行交互'
     // The character reads a label when the author declared one; entityId stays the fallback for unnamed targets.
     const entityId = target?.kind === 'entity' && typeof target.id === 'string' ? target.id : undefined
     const entityLabel =
       entityId === undefined
         ? undefined
         : (input.manifest.entities.find(entity => entity.entityId === entityId)?.name ?? entityId)
-    const actual = entityLabel === undefined ? '这次行动已经成功执行。' : `你刚刚成功${verb}（物品：${entityLabel}）。`
-    const state =
-      target?.kind === 'entity' && typeof target.id === 'string'
-        ? currentEntityState(input.events, target.id)
-        : undefined
-    // A pack-defined state change reports the author-written result kind, without second-person wording,
-    // so the transcript line reads the same for the actor and for observers.
-    if (state !== undefined && typeof definition === 'string' && !definition.startsWith('base:'))
-      return { status, description: `${entityLabel}现在是：${state.kind}。` }
-    return {
-      status,
-      description:
-        actual +
-        (state?.holderId === input.actorId
-          ? '该物品目前仍由你保管；不要求一直握在手里。'
-          : '当前状态请以本次可见场景为准。'),
-    }
+    const state = entityId === undefined ? undefined : currentEntityState(input.events, entityId)
+    // An item interaction reports the item's current look, without second-person wording, so the transcript
+    // line reads the same for the actor and for observers. Author operations replace this with their own text.
+    if (state !== undefined) return { status, description: `${entityLabel}现在是：${state.kind}。` }
+    return { status, description: '这次行动已经成功执行。当前状态请以本次可见场景为准。' }
   }
   if (target?.kind === 'entity' && typeof target.id === 'string') {
     const state = currentEntityState(input.events, target.id)

@@ -29,7 +29,9 @@
   ],
   "documentFiles": [],
   "markdownFiles": [],
-  "assetFiles": [],
+  "assetFiles": [
+    "scripts/status.js"
+  ],
   "assertionFiles": [
     "assertions.json"
   ],

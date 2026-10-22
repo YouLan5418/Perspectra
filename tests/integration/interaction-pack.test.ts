@@ -1,6 +1,7 @@
+import { createBasicInteractionPackage } from '@harness-world/interactions-basic'
 import { WorldApplication } from '@harness-world/application'
 import { interactionPackageDescription, type WorldJsonObject } from '@harness-world/contracts'
-import { createBasicInteractionPackage } from '@harness-world/interactions-basic'
+import { createItemCustodyTestPackage } from '../fixtures/item-custody-package.ts'
 import { currentCharacterRelations } from '@harness-world/kernel'
 import { WorldStore } from '@harness-world/store-sqlite'
 import type { CompiledWorldPackV5 } from '@harness-world/world-pack'
@@ -13,7 +14,10 @@ import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 
 const packDirectory = fileURLToPath(new URL('../../examples/world-packs/hand-in-hand/', import.meta.url))
+// The host's contact rules. Item custody is the pack's own script; the content-only test below adds bindings
+// that the test-only custody package defines.
 const packages = [interactionPackageDescription(createBasicInteractionPackage())]
+const custodyPackages = [interactionPackageDescription(createItemCustodyTestPackage())]
 
 const runtimeOptions = () => ({
   address: {
@@ -68,17 +72,6 @@ describe('an independent pack on the interaction path', () => {
           correlationId: `hand-in-hand:${idempotencyKey}`,
           action,
         })
-      // The bundle of the world's own content: taking it, then handing it to the companion.
-      await submit(
-        'take',
-        interact('binding:umbrella-take', { kind: 'entity', id: 'entity:shared-umbrella' }, 'base:take'),
-      )
-      await submit(
-        'give',
-        interact('binding:umbrella-give', { kind: 'entity', id: 'entity:shared-umbrella' }, 'base:give', {
-          recipientId: 'character:companion',
-        }),
-      )
       // Holding a hand, which is the one interaction here that leaves a durable relation behind.
       await submit(
         'hold',
@@ -102,12 +95,6 @@ describe('an independent pack on the interaction path', () => {
       const store = new WorldStore(worldPath)
       const events = store.readEvents(compiled.manifest.address)
       store.close()
-      // The transfer landed on the companion, not on the location.
-      const transferred = events.filter(event => event.eventType === 'entity.transferred')
-      expect(transferred.at(-1)!.data).toMatchObject({
-        characterId: 'character:player',
-        toHolderId: 'character:companion',
-      })
       // Exactly one ending, from the fold, with the reason a move is expected to give.
       const endings = events.filter(event => event.eventType === 'character.relation-ended')
       expect(endings).toHaveLength(1)
@@ -123,7 +110,7 @@ describe('an independent pack on the interaction path', () => {
   }, 60_000)
 
   it('takes a new interaction from the content file alone, with no code change', async () => {
-    const before = (await compileWorldPackSource(packDirectory, packages)) as CompiledWorldPackV5
+    const before = (await compileWorldPackSource(packDirectory, custodyPackages)) as CompiledWorldPackV5
     // A copy of the same pack whose entity file declares one more binding. Nothing else differs, so a
     // catalog that moves can only have moved because the author said so.
     const scratch = await mkdtemp(join(tmpdir(), 'hand-in-hand-content-'))
@@ -132,17 +119,20 @@ describe('an independent pack on the interaction path', () => {
       const original = JSON.parse(
         await (await import('node:fs/promises')).readFile(join(scratch, 'entities.json'), 'utf8'),
       )
-      original.entities[1].interactionBindings.push(
+      original.entities[1].interactionBindings = [
         { bindingId: 'binding:thermos-drop', definition: { id: 'base:drop', version: 1 }, config: {} },
         { bindingId: 'binding:thermos-give', definition: { id: 'base:give', version: 1 }, config: {} },
-      )
-      const { writeFile } = await import('node:fs/promises')
+      ]
+      const { readFile, writeFile } = await import('node:fs/promises')
       await writeFile(join(scratch, 'entities.json'), JSON.stringify(original, null, 2))
-      const after = (await compileWorldPackSource(scratch, packages)) as CompiledWorldPackV5
+      const selection = JSON.parse(await readFile(join(scratch, 'interactions.json'), 'utf8'))
+      selection.definitions.push({ id: 'base:drop', version: 1 }, { id: 'base:give', version: 1 })
+      await writeFile(join(scratch, 'interactions.json'), JSON.stringify(selection, null, 2))
+      const after = (await compileWorldPackSource(scratch, custodyPackages)) as CompiledWorldPackV5
       expect(before.interactions.bindings.map(entry => entry.bindingId)).not.toEqual(
         after.interactions.bindings.map(entry => entry.bindingId),
       )
-      expect(after.interactions.bindings.filter(entry => entry.targetRef.id === 'entity:thermos')).toHaveLength(3)
+      expect(after.interactions.bindings.filter(entry => entry.targetRef.id === 'entity:thermos')).toHaveLength(2)
       // Both are still v10 worlds: adding a content binding did not need a new protocol or a new verb.
       expect(adaptCompiledWorldPack(after, runtimeOptions()).manifest.schemaVersion).toBe(10)
     } finally {

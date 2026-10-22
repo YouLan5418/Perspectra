@@ -108,10 +108,17 @@ export function currentEntityState(events: readonly RulebookEvent[], entityId: s
     const data = worldJsonObject(event.data)
     if (data?.entityId !== entityId) continue
     if (event.eventType === 'entity.upsert') {
-      if (typeof data.locationId !== 'string' || typeof data.kind !== 'string') {
+      // A held item keeps its holder when its kind changes: then the upsert names the holder and no location.
+      const held = typeof data.holderId === 'string'
+      if (typeof data.kind !== 'string' || (held ? data.locationId !== null : typeof data.locationId !== 'string')) {
         throw new TypeError(`entity.upsert for ${entityId} is malformed`)
       }
-      state = { entityId, locationId: data.locationId, holderId: null, kind: data.kind }
+      state = {
+        entityId,
+        locationId: held ? null : (data.locationId as string),
+        holderId: held ? (data.holderId as string) : null,
+        kind: data.kind,
+      }
     }
     if (event.eventType === 'entity.transferred') {
       if (

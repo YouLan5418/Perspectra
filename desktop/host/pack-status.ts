@@ -12,6 +12,8 @@ import {
   type WorldJsonValue,
 } from '@harness-world/contracts'
 import {
+  currentEntityState,
+  currentLocation,
   rejectRulebookResolution,
   type ActionAffordance,
   type CompiledWorldManifest,
@@ -85,6 +87,14 @@ export interface StatusOperation {
   readonly characterParameters: readonly string[]
   readonly actors: 'player' | 'npc' | 'any'
   readonly activities?: readonly string[]
+  /** The items this operation is done to; each one within reach is its own choice. Absent: the actor itself. */
+  readonly targets?: readonly string[]
+}
+
+/** The author's policy result: the operations an actor may perform, some narrowed to listed items. */
+interface Offers {
+  readonly operations: readonly string[]
+  readonly targets?: Readonly<Record<string, readonly string[]>>
 }
 
 /** One status operation's outcome. A rejection names the actor's own mistake or the author's
@@ -93,7 +103,8 @@ export type Adjudication =
   | { status: 'rejected'; reason: string }
   | {
       status: 'accepted'
-      event: WorldEventDraft
+      /** The status event first, then any item changes the author asked for, in order. */
+      events: WorldEventDraft[]
       description: string
       observationScope: NonNullable<RulebookResolution['observationScope']>
       /** The actor and the characters in its authorized scene: who a `scene` audience reaches. */
@@ -164,6 +175,7 @@ export function knownStatusView(
 export class PackStatus {
   readonly #script: Script
   readonly #characterIds: readonly string[]
+  readonly #entityNames: ReadonlyMap<string, string>
   readonly #validators = new Map<string, ValidateFunction>()
   readonly #valueValidators = new Map<string, ValidateFunction>()
   readonly #policyErrors = new Map<string, string>()
@@ -181,6 +193,7 @@ export class PackStatus {
       { filename: ENTRY },
     )
     this.#characterIds = pack.content.characters.map(c => c.characterId)
+    this.#entityNames = new Map((pack.content.entities ?? []).map(e => [e.entityId, e.name ?? e.entityId]))
     const definition = object(this.#call('definition', []), '状态定义')
     exact(definition, ['statuses', 'operations'])
     if (
@@ -223,7 +236,7 @@ export class PackStatus {
     if (new Set(this.statuses.map(s => s.key)).size !== this.statuses.length) throw new TypeError('重复的状态键')
     this.operations = definition.operations.map(value => {
       const op = object(value, '操作声明')
-      exact(op, ['id', 'label', 'schema'], ['characterParameters', 'actors', 'activities'])
+      exact(op, ['id', 'label', 'schema'], ['characterParameters', 'actors', 'activities', 'targets'])
       if (typeof op.id !== 'string' || !NAME.test(op.id)) throw new TypeError('操作 ID 无效')
       if (RESERVED.includes(op.id)) throw new TypeError('操作 ID 与宿主活动控制冲突：' + op.id)
       const schema = object(op.schema, '操作参数')
@@ -238,6 +251,9 @@ export class PackStatus {
       }
       const actors = op.actors ?? 'any'
       if (!['player', 'npc', 'any'].includes(String(actors))) throw new TypeError('操作执行者无效')
+      const targets = Object.hasOwn(op, 'targets') ? strings(op.targets, '操作物品') : undefined
+      if (targets !== undefined && (!targets.length || targets.some(id => !this.#entityNames.has(id))))
+        throw new TypeError('操作物品必须是包里登记的物品：' + op.id)
       this.#validators.set(op.id, ajv.compile(schema))
       return {
         id: op.id,
@@ -246,6 +262,7 @@ export class PackStatus {
         characterParameters,
         actors: actors as StatusOperation['actors'],
         ...(Object.hasOwn(op, 'activities') ? { activities: strings(op.activities, '操作适用活动') } : {}),
+        ...(targets === undefined ? {} : { targets }),
       }
     })
     if (new Set(this.operations.map(o => o.id)).size !== this.operations.length) throw new TypeError('重复的操作 ID')
@@ -527,19 +544,46 @@ export class PackStatus {
     return undefined
   }
 
-  #allowedOperations(events: readonly RulebookEvent[], actorId: string): readonly string[] {
-    return this.#policy(knownStatusView(this.known(events, actorId), actorId), actorId)
+  #allowedOperations(events: readonly RulebookEvent[], actorId: string): Offers {
+    return this.#policy(knownStatusView(this.known(events, actorId), actorId), actorId, this.#place(events, actorId))
   }
 
-  #policy(view: ReturnType<typeof knownStatusView>, actorId: string): readonly string[] {
-    const result = this.#call('policy', [view, actorId])
-    if (result === null) return this.operations.map(op => op.id)
+  /** What the actor can see and lay hands on: its location, and every item it holds or that lies there, such as
+   * a cooker a recipe needs. Never an item someone else holds, which the actor may not know about. */
+  #place(events: readonly RulebookEvent[], actorId: string): WorldJsonObject {
+    const locationId = currentLocation(events, actorId) ?? null
+    const ids = [...this.#entityNames.keys()]
+    return {
+      locationId,
+      items: ids.flatMap(id => {
+        const item = currentEntityState(events, id)
+        return item !== undefined && this.#reachable(events, actorId, id, [])
+          ? [{ entityId: id, kind: item.kind, holderId: item.holderId, locationId: item.locationId }]
+          : []
+      }),
+    }
+  }
+
+  #policy(view: ReturnType<typeof knownStatusView>, actorId: string, place: WorldJsonObject): Offers {
+    const result = this.#call('policy', [view, actorId, place])
+    if (result === null) return { operations: this.operations.map(op => op.id) }
     const policy = object(result, '状态操作许可')
-    exact(policy, ['operations'])
+    exact(policy, ['operations'], ['targets'])
     const operations = strings(policy.operations, '状态操作许可')
     if (operations.some(id => !this.operations.some(op => op.id === id)))
       throw new TypeError('状态许可包含未声明的操作')
-    return operations
+    if (policy.targets === undefined) return { operations }
+    const narrowed = object(policy.targets, '状态许可物品')
+    const targets: Record<string, readonly string[]> = {}
+    for (const [id, value] of Object.entries(narrowed)) {
+      const op = this.operations.find(o => o.id === id)
+      if (op?.targets === undefined) throw new TypeError('只能为作用于物品的操作列出物品：' + id)
+      const ids = strings(value, '状态许可物品')
+      if (ids.some(entity => !op.targets!.includes(entity)))
+        throw new TypeError('状态许可列出了操作没有声明的物品：' + id)
+      targets[id] = ids
+    }
+    return { operations, targets }
   }
 
   /** Author reveals name what to tell, never a value; the host fills the value as of this event. The actor
@@ -602,10 +646,16 @@ export class PackStatus {
     readonly actorId: string
     readonly operationId: string
     readonly parameters: unknown
+    readonly targetId?: string
   }): Adjudication {
     const { events, actorId } = input
     const op = this.operations.find(o => o.id === input.operationId)
     if (!op) return { status: 'rejected', reason: '没有这个状态操作，什么都没有发生。' }
+    if (
+      (op.targets === undefined) !== (input.targetId === undefined) ||
+      (input.targetId !== undefined && !op.targets!.includes(input.targetId))
+    )
+      return { status: 'rejected', reason: '这个操作不能对这件物品进行，什么都没有发生。' }
     const activityKey = op.activities ? this.#activityKey(events, actorId) : undefined
     if (op.activities && (activityKey === undefined || !op.activities.includes(activityKey))) {
       return { status: 'rejected', reason: '这个操作只能在指定活动中进行，什么都没有发生。' }
@@ -616,7 +666,13 @@ export class PackStatus {
     if (op.actors === 'player' ? actorId !== input.playerId : op.actors === 'npc' && actorId === input.playerId) {
       return { status: 'rejected', reason: '你不能进行这个操作，什么都没有发生。' }
     }
-    if (!this.#allowedOperations(events, actorId).includes(op.id)) {
+    const offers = this.#allowedOperations(events, actorId)
+    if (
+      !offers.operations.includes(op.id) ||
+      (input.targetId !== undefined &&
+        offers.targets?.[op.id] !== undefined &&
+        !offers.targets[op.id]!.includes(input.targetId))
+    ) {
       return { status: 'rejected', reason: '当前已知条件不允许这个操作，什么都没有发生。' }
     }
     const world = actorWorldView(input.worldPath, input.address, input.manifest, events, actorId, input.asOfWorldSeq)
@@ -629,15 +685,17 @@ export class PackStatus {
       if (!sceneIds.includes(id))
         return { status: 'rejected', reason: '操作指定的角色不在你当前的场景里，什么都没有发生。' }
     }
+    if (input.targetId !== undefined && !this.#reachable(events, actorId, input.targetId, sceneIds))
+      return { status: 'rejected', reason: '这件物品不在你够得着的地方，什么都没有发生。' }
     const result = object(
-      this.#call('resolve', [this.truth(events), actorId, op.id, parameters, world]),
+      this.#call('resolve', [this.truth(events), actorId, op.id, parameters, world, input.targetId ?? null]),
       '状态操作结果',
     )
     if (Object.hasOwn(result, 'rejectReason')) {
       exact(result, ['rejectReason'])
       return { status: 'rejected', reason: text(result.rejectReason, '状态操作拒绝说明') }
     }
-    exact(result, ['changes', 'reveals', 'description', 'audience'])
+    exact(result, ['changes', 'reveals', 'description', 'audience'], ['items'])
     if (typeof result.description !== 'string' || result.description.length > 2000)
       throw new TypeError('状态操作结果描述无效')
     if (!Array.isArray(result.changes) || !Array.isArray(result.reveals))
@@ -660,13 +718,90 @@ export class PackStatus {
       if (recipientIds.some(id => !sceneIds.includes(id))) throw new TypeError('结果接收者不在当前场景')
       observationScope = { scope: 'direct', recipientIds }
     }
+    const items = Object.hasOwn(result, 'items') ? this.#itemEvents(events, actorId, op.id, sceneIds, result.items) : []
     return {
       status: 'accepted',
-      event: { eventType: 'status.updated', eventVersion: 1, data: data as unknown as WorldJsonObject },
+      events: [{ eventType: 'status.updated', eventVersion: 1, data: data as unknown as WorldJsonObject }, ...items],
       description: result.description,
       observationScope,
       sceneIds,
     }
+  }
+
+  /** An item is within reach when the actor holds it, it lies where the actor is, or someone in `present` holds it. */
+  #reachable(events: readonly RulebookEvent[], actorId: string, entityId: string, present: readonly string[]): boolean {
+    const item = currentEntityState(events, entityId)
+    if (item === undefined) return false
+    if (item.holderId !== null) return item.holderId === actorId || present.includes(item.holderId)
+    return item.locationId !== null && item.locationId === currentLocation(events, actorId)
+  }
+
+  /** The author's item changes as world events: a new kind keeps the item where it is, and at most one move
+   * goes to the actor or someone in its scene, or onto the floor where the actor stands. Any invalid entry
+   * is the author's fault and throws, so nothing of the result commits. */
+  #itemEvents(
+    events: readonly RulebookEvent[],
+    actorId: string,
+    operationId: string,
+    sceneIds: readonly string[],
+    value: unknown,
+  ): WorldEventDraft[] {
+    if (!Array.isArray(value) || value.length > 8) throw new TypeError('物品变化必须是至多 8 项的列表')
+    const drafts: WorldEventDraft[] = []
+    let moved = false
+    for (const entry of value) {
+      const change = object(entry, '物品变化')
+      exact(change, ['entityId'], ['kind', 'to'])
+      const entityId = text(change.entityId, '物品')
+      if (!this.#entityNames.has(entityId)) throw new TypeError('物品不存在：' + entityId)
+      if (!this.#reachable([...events, ...drafts] as RulebookEvent[], actorId, entityId, sceneIds))
+        throw new TypeError('物品不在行动者够得着的地方：' + entityId)
+      const before = currentEntityState([...events, ...drafts] as RulebookEvent[], entityId)!
+      if (Object.hasOwn(change, 'kind')) {
+        if (typeof change.kind !== 'string' || change.kind.trim() === '' || change.kind.length > 500)
+          throw new TypeError('物品外观必须是 1–500 字')
+        drafts.push({
+          eventType: 'entity.upsert',
+          eventVersion: 1,
+          data:
+            before.holderId === null
+              ? { entityId, locationId: before.locationId, kind: change.kind }
+              : { entityId, locationId: null, holderId: before.holderId, kind: change.kind },
+        })
+      }
+      if (Object.hasOwn(change, 'to')) {
+        if (moved) throw new TypeError('一次结果至多移动一件物品')
+        moved = true
+        const to = object(change.to, '物品去向')
+        let destination: { holderId: string | null; locationId: string | null }
+        if (Object.hasOwn(to, 'holderId')) {
+          exact(to, ['holderId'])
+          if (typeof to.holderId !== 'string' || !sceneIds.includes(to.holderId))
+            throw new TypeError('物品只能交给行动者或同场角色')
+          destination = { holderId: to.holderId, locationId: null }
+        } else {
+          exact(to, ['locationId'])
+          if (to.locationId !== currentLocation(events, actorId)) throw new TypeError('物品只能放在行动者所在的位置')
+          destination = { holderId: null, locationId: to.locationId as string }
+        }
+        if (destination.holderId === before.holderId && destination.locationId === before.locationId)
+          throw new TypeError('物品已经在那里')
+        drafts.push({
+          eventType: 'entity.transferred',
+          eventVersion: 1,
+          data: {
+            entityId,
+            characterId: actorId,
+            interactionId: PREFIX + operationId,
+            fromHolderId: before.holderId,
+            fromLocationId: before.locationId,
+            toHolderId: destination.holderId,
+            toLocationId: destination.locationId,
+          },
+        })
+      }
+    }
+    return drafts
   }
 
   /** Adds the status operations this actor may currently perform to its affordances: the actors rule and
@@ -680,10 +815,10 @@ export class PackStatus {
     const activityKey = this.#activityKey(events, actor)
     // Folding stored events stays outside the catch: corrupt history must surface, not read as a policy failure.
     const view = knownStatusView(this.known(events, actor), actor)
-    let allowed: readonly string[]
+    let allowed: Offers
     // A failing author policy only hides this actor's status operations; executing one still throws.
     try {
-      allowed = this.#policy(view, actor)
+      allowed = this.#policy(view, actor, this.#place(events, actor))
       this.#policyErrors.delete(actor)
     } catch (cause) {
       this.#policyErrors.set(actor, cause instanceof Error ? cause.message : String(cause))
@@ -692,18 +827,34 @@ export class PackStatus {
     const choices: WorldJsonObject[] = this.operations
       .filter(
         op =>
-          allowed.includes(op.id) &&
+          allowed.operations.includes(op.id) &&
           (!op.activities || (activityKey !== undefined && op.activities.includes(activityKey))) &&
           (op.actors === 'any' || (op.actors === 'player') === (actor === playerId)),
       )
-      .map(op => ({
-        label: op.label,
-        targetRef: { kind: 'character', id: actor },
-        bindingId: 'status',
-        definitionRef: { id: PREFIX + op.id, version: 1 },
-        arguments: {},
-        argumentSchema: op.schema,
-      }))
+      .flatMap(op => {
+        const offer = (targetRef: WorldJsonObject, name?: string) => ({
+          // "{item}" in the author's label names the item; otherwise several items are told apart by a suffix.
+          label:
+            name === undefined
+              ? op.label
+              : op.label.includes('{item}')
+                ? op.label.replaceAll('{item}', name)
+                : op.targets!.length > 1
+                  ? op.label + ' · ' + name
+                  : op.label,
+          targetRef,
+          bindingId: 'status',
+          definitionRef: { id: PREFIX + op.id, version: 1 },
+          arguments: {},
+          argumentSchema: op.schema,
+        })
+        if (op.targets === undefined) return [offer({ kind: 'character', id: actor })]
+        // Offered only for what the actor holds or what lies where it is, narrowed by the author's policy.
+        const narrowed = allowed.targets?.[op.id]
+        return op.targets
+          .filter(id => this.#reachable(events, actor, id, []) && (narrowed === undefined || narrowed.includes(id)))
+          .map(id => offer({ kind: 'entity', id }, this.#entityNames.get(id)))
+      })
     if (!choices.length) return [...values]
     // One interact entry: wire builders select a single affordance per action type.
     const interact = values.find(a => a.actionType === 'interact')
@@ -731,9 +882,10 @@ export class PackStatus {
         exact(target, ['kind', 'id'])
         if (
           p.bindingId !== 'status' ||
-          target.kind !== 'character' ||
-          target.id !== actorId ||
-          definition.version !== 1
+          definition.version !== 1 ||
+          !(target.kind === 'entity'
+            ? typeof target.id === 'string'
+            : target.kind === 'character' && target.id === actorId)
         ) {
           throw new TypeError('状态操作绑定无效')
         }
@@ -747,9 +899,10 @@ export class PackStatus {
           actorId,
           operationId: definition.id.slice(PREFIX.length),
           parameters: p.arguments,
+          ...(target.kind === 'entity' ? { targetId: target.id as string } : {}),
         })
         if (result.status === 'accepted')
-          return { status: 'accepted', events: [result.event], observationScope: result.observationScope }
+          return { status: 'accepted', events: result.events, observationScope: result.observationScope }
         // The actor's own attempt failed: it learns why, and nothing about any status value.
         const rejected = rejectRulebookResolution(actorId, 'interact', REJECTED)
         return {
@@ -861,10 +1014,11 @@ export class PackStatus {
     operation: string,
     parameters: WorldJsonObject,
     requestId: string,
+    targetId?: string,
   ): Promise<boolean> {
     const owner = 'status:' + requestId,
       actionId = owner + ':action',
-      request = { operation, parameters }
+      request = { operation, parameters, ...(targetId === undefined ? {} : { targetId }) }
     return this.#commitRound(worldPath, address, owner, (store, head) => {
       const prior = store.readRoundAuthority(address, brandId(owner, 'TransactionId'))
       if (prior) {
@@ -884,14 +1038,17 @@ export class PackStatus {
         actorId: playerId,
         operationId: operation,
         parameters,
+        ...(targetId === undefined ? {} : { targetId }),
       })
       if (result.status === 'rejected') throw new TypeError(result.reason)
+      // Witnesses of a move keep track of who holds the item, as with the built-in rules.
+      const transfer = result.events.find(event => event.eventType === 'entity.transferred')
       const scope = result.observationScope
       const observerIds = scope.scope === 'direct' ? (scope.recipientIds ?? []).map(String) : result.sceneIds
       return {
         authority: { actorId: playerId, request, status: 'accepted' },
         events: [
-          result.event,
+          ...result.events,
           ...observerIds.map(observerId => ({
             eventType: 'observation.upsert',
             eventVersion: 1,
@@ -906,6 +1063,7 @@ export class PackStatus {
                   actionType: 'interact',
                   actorId: playerId,
                   resultDescription: result.description,
+                  ...(transfer === undefined ? {} : { interaction: transfer.data }),
                 },
               },
             },
@@ -922,31 +1080,43 @@ export class PackStatus {
 
   /** Runs the optional `onRoundEnd` hook once after an accepted player input and commits its result as the
    * round's last status event. A failing hook commits nothing and is not retried; storage faults still throw. */
-  async endRound(worldPath: string, address: WorldAddress): Promise<{ ok: boolean; error?: string }> {
+  async endRound(
+    worldPath: string,
+    address: WorldAddress,
+    turnStartSeq: number,
+  ): Promise<{ ok: boolean; error?: string }> {
     let error: string | undefined
     await this.#commitRound(worldPath, address, 'status-round:' + randomUUID(), store => {
       const events = store.readEvents(address)
+      // Counting starts from the latest recorded round, so a turn of several commits counted there stays one.
+      const base = events.findLast(e => e.eventType === 'status.updated' && statusData(e).source.kind === 'round')
+      const since = base === undefined ? 0 : base.seq,
+        baseSource = base === undefined ? undefined : statusData(base).source
+      const recorded = baseSource?.kind === 'round' ? baseSource.round : 0
       // Count submitted player rounds even when a previous hook returned null or failed. Multiple
       // player actions in one transaction are one input; NPC actions and hook commits do not count.
-      const playerRounds = new Set(
-        events
-          .filter(e => e.eventType === 'action.resolved' && record(e.data)?.sourceRole === 'player')
-          .map(e => e.transactionId),
+      const player = events.filter(
+        e => e.seq > since && e.eventType === 'action.resolved' && record(e.data)?.sourceRole === 'player',
       )
+      const playerRounds = new Set(player.filter(e => e.seq <= turnStartSeq).map(e => e.transactionId))
+      // This turn is one round however many commits it took, such as a line said with an action.
+      const thisTurn = new Set(player.filter(e => e.seq > turnStartSeq).map(e => e.transactionId))
       // A quick activity action starts and executes in two host commits for one player request.
       const starts = new Map<string, (typeof events)[number]>()
       for (const event of events) {
-        if (event.eventType !== 'activity.updated') continue
+        if (event.seq <= since || event.eventType !== 'activity.updated') continue
         const data = object(event.data)
         if (typeof data.requestId !== 'string') continue
         if (data.operation === 'start') starts.set(data.requestId, event)
         else {
           const start = starts.get(data.requestId + ':start')
-          if (start && object(object(start.data).state).id === object(data.state).id)
+          if (start && object(object(start.data).state).id === object(data.state).id) {
             playerRounds.delete(start.transactionId)
+            thisTurn.delete(start.transactionId)
+          }
         }
       }
-      const round = playerRounds.size
+      const round = recorded + playerRounds.size + Math.min(thisTurn.size, 1)
       // Folding stored events stays outside the catch: corrupt history must surface, not read as a hook failure.
       const truth = this.truth(events)
       let data: StatusEventData | undefined
@@ -954,8 +1124,10 @@ export class PackStatus {
         data = this.#roundResult(events, truth, round)
       } catch (cause) {
         error = cause instanceof Error ? cause.message : String(cause)
-        return undefined
       }
+      // A turn whose commits cannot be told apart later, such as a line said with an action, always records
+      // its round (without changes when the hook gave none), so later counts start after it.
+      if (data === undefined && thisTurn.size > 1) data = { source: { kind: 'round', round }, changes: [], reveals: [] }
       return (
         data && {
           events: [{ eventType: 'status.updated', eventVersion: 1, data: data as unknown as WorldJsonObject }],

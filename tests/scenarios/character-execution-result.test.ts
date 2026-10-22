@@ -74,22 +74,6 @@ it('describes an absent target without claiming omniscient knowledge of hidden l
   ).toContain('你面前找不到')
 })
 
-it('describes the actual completed take and remaining own possession', () => {
-  const ownTake = { ...transfer, data: { ...transfer.data, toHolderId: actorId, characterId: actorId } }
-  expect(
-    characterExecutionResult({
-      ...input,
-      events: [...input.events, ownTake],
-      status: 'accepted',
-      reason: null,
-      action: {
-        actionType: 'interact',
-        parameters: { targetRef: { kind: 'entity', id: 'entity:cup' }, definitionRef: { id: 'base:take', version: 1 } },
-      },
-    }).description,
-  ).toBe('你刚刚成功取得保管（物品：entity:cup）。该物品目前仍由你保管；不要求一直握在手里。')
-})
-
 it('uses the author-declared Entity label instead of the runtime identity when one exists', () => {
   const named = {
     ...world.manifest,
@@ -104,10 +88,10 @@ it('uses the author-declared Entity label instead of the runtime identity when o
     reason: null,
     action: {
       actionType: 'interact',
-      parameters: { targetRef: { kind: 'entity', id: 'entity:cup' }, definitionRef: { id: 'base:take', version: 1 } },
+      parameters: { targetRef: { kind: 'entity', id: 'entity:cup' }, definitionRef: { id: 'pack:use', version: 1 } },
     },
   }).description
-  expect(description).toContain('（物品：茶杯）')
+  expect(description).toBe('茶杯现在是：cup。')
   expect(description).not.toContain('entity:cup')
 })
 
@@ -126,7 +110,7 @@ it('reports a pack-defined state change by its new kind, in wording that also re
       actionType: 'interact',
       parameters: {
         targetRef: { kind: 'entity', id: 'entity:cup' },
-        definitionRef: { id: 'dinner:cook-home', version: 1 },
+        definitionRef: { id: 'pack:cook', version: 1 },
       },
     },
   })

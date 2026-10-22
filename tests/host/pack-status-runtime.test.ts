@@ -8,7 +8,7 @@ import { brandId, interactionPackageDescription, type WorldJsonObject } from '@h
 import { createInstalledInteractionPackages } from '@harness-world/interactions-basic'
 import { compileWorldPackSource, type CompiledWorldPackV5 } from '@harness-world/world-pack'
 import { CharacterRuntimeAvailabilityService, WorldStore, WriterLeaseService } from '@harness-world/store-sqlite'
-import { createCoreRulebookRegistry, RulebookRegistry } from '@harness-world/kernel'
+import { createCoreRulebookRegistry, currentEntityState, RulebookRegistry } from '@harness-world/kernel'
 import { CharacterTurn, type CharacterTurnResult } from '../../packages/application/src/character-turn.ts'
 import { characterExecutionResult } from '../../packages/application/src/character-execution-result.ts'
 import { WorldHostRuntime } from '../../desktop/host/world-runtime.ts'
@@ -16,6 +16,7 @@ import { PackStatus, type KnownStatus } from '../../desktop/host/pack-status.ts'
 import type { CoreRunner } from '../../desktop/host/memory/python-worker.ts'
 import { restoreStoryNode } from '../../desktop/story-nodes.ts'
 import { projectPlayerView } from '../../desktop/host/frontend-adapter.ts'
+import { withItemRules } from '../support/item-rules.ts'
 
 const roots: string[] = [],
   runtimes: WorldHostRuntime[] = [],
@@ -84,8 +85,8 @@ const scripts = {
   // The sample with every operation offered, so only resolve's check against the truth can stop a second claim.
   openQuests: () =>
     readFileSync(resolve('examples/world-packs/status-market/scripts/status.js'), 'utf8').replace(
-      '  policy(known) {',
-      '  policy() { return null },\n  samplePolicy(known) {',
+      '  policy(known, actorId, place) {',
+      '  policy() { return null },\n  samplePolicy(known, actorId, place) {',
     ),
   // The author hands true balances to the player's frontend; characters still get only known values.
   playerTruth: (s: string) =>
@@ -105,6 +106,26 @@ const scripts = {
         ' value: truth.characters["character:player"].money - 1 }],' +
         ' reveals: [{ observerId: "character:companion", holderId: "character:player", key: "money" }] } },\n',
     ),
+  // Author operations done to the thermos: a new look, a hand-over, and a move the host must refuse.
+  items: (s: string) =>
+    s
+      .replace(
+        'operations: [',
+        "operations: [ { id: 'brew', label: '泡一壶热茶', targets: ['entity:thermos'], schema: { ...object, properties: {} } }," +
+          " { id: 'hand-over', label: '塞到对方手里', targets: ['entity:thermos'], characterParameters: ['targetId']," +
+          " schema: { ...object, required: ['targetId'], properties: { targetId: { type: 'string' } } } }," +
+          " { id: 'fling', label: '扔到后屋', targets: ['entity:thermos'], schema: { ...object, properties: {} } },",
+      )
+      .replace(
+        '  resolve(truth, actorId, operationId, parameters) {',
+        [
+          '  resolve(truth, actorId, operationId, parameters, world, targetId) {',
+          "    if (operationId === 'brew') return { changes: [], reveals: [], items: [{ entityId: targetId, kind: '装满热茶的保温杯' }], description: '泡好了热茶', audience: 'scene' }",
+          "    if (operationId === 'hand-over') return { changes: [], reveals: [], items: [{ entityId: targetId, to: { holderId: parameters.targetId } }], description: '把保温杯塞了过去', audience: 'scene' }",
+          "    if (operationId === 'fling') return { changes: [], reveals: [], items: [{ entityId: targetId, kind: '摔扁的保温杯' }, { entityId: targetId, to: { locationId: 'location:back-room' } }], description: '扔走了', audience: 'self' }",
+          '',
+        ].join('\n'),
+      ),
   ownerHook: (s: string) =>
     s.replace(
       HOOK,
@@ -128,7 +149,8 @@ async function fixture(
   const market = readFileSync(resolve('tests/fixtures/status-market.js'), 'utf8'),
     variant = scripts[script](market)
   if (script !== 'market' && variant === market) throw new Error('fixture variant did not apply')
-  writeFileSync(join(packPath, 'scripts/status.js'), variant)
+  // The items variant keeps the pack's own take, drop and give beside the market's operations.
+  writeFileSync(join(packPath, 'scripts/status.js'), script === 'items' ? withItemRules(variant) : variant)
   const source = JSON.parse(readFileSync(join(packPath, 'worldpack.source.json'), 'utf8'))
   source.assetFiles = ['scripts/status.js']
   if (script === 'quests' || script === 'invalidQuests' || script === 'openQuests') {
@@ -949,4 +971,162 @@ it('speech during a running activity is an accepted input and ends one status ro
   await f.runtime.submit('活动中说一句。')
   expect(JSON.stringify(f.events())).toContain('活动中说一句。')
   expect(time()).toBe(before + 10)
+}, 60_000)
+
+const buy = (price: unknown) => ({
+  actionType: 'interact' as const,
+  parameters: {
+    targetRef: { kind: 'character', id: PLAYER },
+    bindingId: 'status',
+    definitionRef: { id: 'status:buy', version: 1 },
+    arguments: { price } as WorldJsonObject,
+  },
+})
+it('a line said with an action is one player turn: both commit in order and everyone reacts once', async () => {
+  const f = await fixture('ollama')
+  const time = () => f.status.truth(f.statusEvents()).public.time
+  const state = await f.runtime.perform(buy(20), {
+    speech: { text: '这个我要了。', scope: 'scene_public', addresseeIds: [] },
+    order: 'before',
+  })
+  expect(state.error, JSON.stringify(state.debug)).toBe(false)
+  const events = f.events()
+  const said = events.find(e => e.eventType === 'character.speak' && JSON.stringify(e.data).includes('这个我要了。'))!
+  const bought = f.statusEvents().find(e => source(e).operation === 'buy')!
+  expect(said.seq).toBeLessThan(bought.seq)
+  // One reaction pass: no character is asked twice, and the one that is asked sees both the line and the purchase.
+  const asked = f.requests.map(actor)
+  expect(new Set(asked).size).toBe(asked.length)
+  const thief = JSON.stringify(f.requests.find(input => actor(input) === THIEF))
+  expect(thief).toContain('这个我要了。')
+  expect(thief).toContain('购买成功')
+  // One player round, so the round hook ran once.
+  expect(time()).toBe(10)
+}, 60_000)
+
+it('a line meant to follow a refused action is not said, and nothing of the turn is committed', async () => {
+  const f = await fixture('ollama')
+  const head = f.events().length
+  await expect(
+    f.runtime.perform(buy('x'), {
+      speech: { text: '买好了。', scope: 'scene_public', addresseeIds: [] },
+      order: 'after',
+    }),
+  ).rejects.toThrow('操作缺少有效的必要信息')
+  expect(f.events()).toHaveLength(head)
+  expect(f.requests).toHaveLength(0)
+}, 60_000)
+
+it('a line said before a refused action stands, gets its reactions and ends one round', async () => {
+  const f = await fixture('ollama')
+  const state = await f.runtime.perform(buy('x'), {
+    speech: { text: '我想买这个。', scope: 'scene_public', addresseeIds: [] },
+    order: 'before',
+  })
+  expect(state.error).toBe(false)
+  expect(state.notice).toContain('操作缺少有效的必要信息')
+  expect(JSON.stringify(f.events())).toContain('我想买这个。')
+  expect(f.statusEvents().some(e => source(e).operation === 'buy')).toBe(false)
+  expect(JSON.stringify(f.requests.find(input => actor(input) === THIEF))).toContain('我想买这个。')
+  expect(f.status.truth(f.statusEvents()).public.time).toBe(10)
+}, 60_000)
+
+it('regenerating a line-and-action turn replays both inputs once, from the round base', async () => {
+  const f = await fixture('ollama')
+  const truth = () => f.status.truth(f.statusEvents())
+  await f.runtime.perform(buy(20), {
+    speech: { text: '这个我要了。', scope: 'scene_public', addresseeIds: [] },
+    order: 'before',
+  })
+  const original = (await f.runtime.state()).tailRound!
+  expect(original.canRegenerate).toBe(true)
+  const next = await f.runtime.regenerate(original.id!, randomUUID())
+  expect(next.tailRound!.candidateIds).toHaveLength(2)
+  const lines = f
+    .events()
+    .filter(e => e.eventType === 'character.speak' && JSON.stringify(e.data).includes('这个我要了。'))
+  expect(lines).toHaveLength(1)
+  expect(f.statusEvents().filter(e => source(e).operation === 'buy')).toHaveLength(1)
+  expect(truth().characters[PLAYER]!.money).toBe(80)
+  expect(truth().public.time).toBe(10)
+}, 90_000)
+
+it('a line-and-action turn counts as one round for the round hook, also when the hook gives nothing', async () => {
+  const line = { speech: { text: '这个我要了。', scope: 'scene_public', addresseeIds: [] }, order: 'before' as const }
+  const rounds = (f: Awaited<ReturnType<typeof fixture>>) =>
+    f
+      .statusEvents()
+      .filter(e => source(e).kind === 'round')
+      .map(e => [source(e).round, object(e.data).changes] as const)
+  const market = await fixture('ollama')
+  await market.runtime.perform(buy(20), line)
+  await market.runtime.submit(speak('再逛逛。'))
+  expect(rounds(market).map(([round]) => round)).toEqual([1, 2])
+  // The hook gives nothing in round 1: the two-commit turn still records its round, without changes.
+  const conditional = await fixture('ollama', 'conditionalHook')
+  await conditional.runtime.perform(buy(20), line)
+  await conditional.runtime.submit(speak('再逛逛。'))
+  expect(rounds(conditional)).toEqual([
+    [1, []],
+    [2, [{ holderId: null, key: 'time', value: 2 }]],
+  ])
+}, 90_000)
+
+it('author operations change how an item looks and who holds it, through the same adjudicated commit', async () => {
+  const f = await fixture('ollama', 'items')
+  const thermos = () => currentEntityState(f.events() as never, 'entity:thermos')!
+  const offered = projectPlayerView(await f.runtime.state()).actions.find(a => a.label === '泡一壶热茶')!
+  expect(offered.target).toMatchObject({ kind: 'item', id: 'entity:thermos' })
+  await f.runtime.perform(offered.action)
+  expect(thermos()).toMatchObject({ kind: '装满热茶的保温杯', holderId: null, locationId: 'location:front-room' })
+  // A held item keeps its holder when its look changes.
+  await f.runtime.submit('/status take@entity:thermos {}')
+  expect(thermos().holderId).toBe(PLAYER)
+  await f.runtime.submit('/status brew@entity:thermos {}')
+  expect(thermos()).toMatchObject({ holderId: PLAYER, locationId: null })
+  // A hand-over is a transfer the witnesses observe, like the built-in give.
+  await f.runtime.submit('/status hand-over@entity:thermos ' + JSON.stringify({ targetId: THIEF }))
+  expect(thermos().holderId).toBe(THIEF)
+  const transfer = f.events().findLast(e => e.eventType === 'entity.transferred')!
+  expect(object(transfer.data)).toMatchObject({
+    characterId: PLAYER,
+    interactionId: 'status:hand-over',
+    toHolderId: THIEF,
+  })
+  const seen = f
+    .events()
+    .filter(e => e.eventType === 'observation.upsert' && object(object(object(e.data).value).content).interaction)
+  expect(seen.map(e => object(object(e.data).value).observerId)).toContain(BYSTANDER)
+}, 60_000)
+
+it('an item operation offered to a character is adjudicated on its turn, and an unreachable item is refused', async () => {
+  const f = await fixture('ollama', 'items')
+  let done = false
+  f.setDecision(input => {
+    if (actor(input) !== THIEF || done || input.continuation) return { decision: 'abstain' }
+    done = true
+    return {
+      decision: 'perform',
+      actionType: 'interact',
+      parameters: {
+        targetRef: { kind: 'entity', id: 'entity:thermos' },
+        bindingId: 'status',
+        definitionRef: { id: 'status:brew', version: 1 },
+        arguments: {},
+      },
+    }
+  })
+  await f.runtime.submit(speak('有人想喝点热的吗？'))
+  expect(currentEntityState(f.events() as never, 'entity:thermos')!.kind).toBe('装满热茶的保温杯')
+  // The player in the back room cannot reach the thermos in the front room.
+  await f.runtime.perform(projectPlayerView(await f.runtime.state()).actions.find(a => a.kind === 'move')!.action)
+  await expect(f.runtime.submit('/status brew@entity:thermos {}')).rejects.toThrow('够得着')
+}, 60_000)
+
+it('an author result that moves an item out of reach commits nothing', async () => {
+  const f = await fixture('ollama', 'items')
+  const before = f.events().length
+  await expect(f.runtime.submit('/status fling@entity:thermos {}')).rejects.toThrow('所在的位置')
+  expect(f.events()).toHaveLength(before)
+  expect(currentEntityState(f.events() as never, 'entity:thermos')!.kind).toBe('thermos')
 }, 60_000)

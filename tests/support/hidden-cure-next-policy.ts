@@ -1,4 +1,5 @@
 import type { PlayerView } from '@harness-world/frontend'
+import { actionText } from '../../desktop/host/http-server.ts'
 import { command, object } from './hidden-cure-scenario.ts'
 
 /** The player policy receives only the same authorized projection as the UI.
@@ -10,25 +11,31 @@ export function createEPolicy() {
     evidenceSpoken = false,
     counterRequests = 0
   return (view: PlayerView): { input: string; basis: string } => {
-    const interaction = (verb: string, item: string) =>
-      view.actions.find(option => {
-        const p = option.action.parameters
-        return (
-          object(p.definitionRef).id === verb &&
-          object(p.targetRef).id === item &&
-          (verb !== 'base:give' || object(p.arguments).recipientId === 'character:priestess')
-        )
-      })
+    const here = view.scene?.recipients.some(actor => actor.id === 'character:priestess') === true
+    // The pack's own item rules: giving names its recipient as an input, so it is used only with 伊蕾 here.
+    const interaction = (id: string, item: string) =>
+      id === 'status:give' && !here
+        ? undefined
+        : view.actions.find(option => {
+            const p = option.action.parameters
+            return object(p.definitionRef).id === id && object(p.targetRef).id === item
+          })
     const use = (option: PlayerView['actions'][number], basis: string) => ({
-      input: command(option.action.actionType, option.action.parameters),
+      input: actionText(
+        object(option.action.parameters.definitionRef).id === 'status:give'
+          ? {
+              ...option.action,
+              parameters: { ...option.action.parameters, arguments: { recipientId: 'character:priestess' } },
+            }
+          : option.action,
+      ),
       basis,
     })
-    const give = interaction('base:give', 'entity:cure-record')
+    const give = interaction('status:give', 'entity:cure-record')
     if (!delivered && give) {
       delivered = true
       return use(give, '当前合法交付选项中伊蕾在场，将亲自拿取的原件交给她')
     }
-    const here = view.scene?.recipients.some(actor => actor.id === 'character:priestess') === true
     if (delivered && here && !evidenceSpoken) {
       evidenceSpoken = true
       return {
@@ -41,9 +48,9 @@ export function createEPolicy() {
       }
     }
     for (const id of ['entity:reserve-kit', 'entity:silver-kit']) {
-      const kitGive = interaction('base:give', id)
+      const kitGive = interaction('status:give', id)
       if (kitGive && here) return use(kitGive, '当前合法材料交付机会，支持伊蕾亲自掌握候选方案所需资源')
-      const take = interaction('base:take', id)
+      const take = interaction('status:take', id)
       if (take && !material) {
         material = true
         return use(take, '玩家当前亲见可拿取的材料，争取可共同核验的资源')

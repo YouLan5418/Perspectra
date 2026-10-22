@@ -21,7 +21,8 @@ describe('PlayerInputInterpreter', () => {
       status: 'resolved',
       action: { actionType: 'move', parameters: { locationId: 'location:hall' } },
     })
-    expect(interpreter.interpret('/take entity:glass', afforded)).toEqual({
+    // An older rulebook's direct take is still reachable, but only through the generic /act command.
+    expect(interpreter.interpret('/act take {"entityId":"entity:glass"}', afforded)).toEqual({
       status: 'resolved',
       action: { actionType: 'take', parameters: { entityId: 'entity:glass' } },
     })
@@ -39,10 +40,11 @@ describe('PlayerInputInterpreter', () => {
         reason: 'move requires exactly one locationId',
       })
     }
-    for (const text of ['/take', '/take entity:a entity:b']) {
+    // Item custody has no command of its own: each pack defines it as its own operations.
+    for (const text of ['/take entity:a', '/give entity:a character:b', '/drop entity:a']) {
       expect(interpreter.interpret(text, afforded)).toMatchObject({
         status: 'clarification_required',
-        reason: 'take requires exactly one entityId',
+        reason: 'unknown player command',
       })
     }
     expect(interpreter.interpret('/act', afforded)).toMatchObject({

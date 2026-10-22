@@ -59,7 +59,7 @@ async function fixture() {
   const pack = join(temporary, 'pack'),
     root = join(temporary, 'launcher')
   cpSync(resolve('examples/world-packs/prototype-g1'), pack, { recursive: true })
-  mkdirSync(join(pack, 'scripts'))
+  mkdirSync(join(pack, 'scripts'), { recursive: true })
   writeFileSync(join(pack, 'scripts/status.js'), statusMarketWithoutRoundHook())
   const source = JSON.parse(readFileSync(join(pack, 'worldpack.source.json'), 'utf8'))
   source.assetFiles = ['scripts/status.js']

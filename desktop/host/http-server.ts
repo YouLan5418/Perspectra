@@ -59,6 +59,10 @@ export interface HostState {
   }
   /** Names only for references already exposed in current player options. */
   readonly actionNames?: Readonly<Record<string, string>>
+  /** Per interaction binding ID, the action name its author gave in the pack. */
+  readonly actionLabels?: Readonly<Record<string, string>>
+  /** Per interaction definition ID, the inputs that name a character in the actor's scene. */
+  readonly characterArguments?: Readonly<Record<string, readonly string[]>>
   readonly availableActions?: readonly ActionAffordance[]
   /** Only the player's own known status values, never the true ones; holderName is the holder's display name and
    * `self` marks the player's own statuses by ID. */
@@ -90,6 +94,23 @@ export interface HostAction {
   readonly parameters: WorldJsonObject
 }
 
+/** A line said in the same turn as an action: the speak parameters, and whether it comes before or after. */
+export interface PlayerLine {
+  readonly speech: WorldJsonObject
+  readonly order: 'before' | 'after'
+}
+
+/** A world action as the text input a round records, so regenerating it replays the same operation. */
+export function actionText(action: HostAction): string {
+  const id = (action.parameters.definitionRef as WorldJsonObject | undefined)?.id
+  if (action.actionType === 'interact' && typeof id === 'string' && id.startsWith('status:')) {
+    const target = action.parameters.targetRef as WorldJsonObject | undefined
+    const item = target?.kind === 'entity' ? '@' + String(target.id) : ''
+    return '/status ' + id.slice('status:'.length) + item + ' ' + JSON.stringify(action.parameters.arguments ?? {})
+  }
+  return '/act ' + action.actionType + ' ' + JSON.stringify(action.parameters)
+}
+
 export interface HostRuntime {
   creatorMeta?(): { title: string; storyline: string; characters: { id: string; name: string }[] }
   saveNode?(title: string): Promise<{ id: string; title: string }>
@@ -102,7 +123,7 @@ export interface HostRuntime {
   creatorHistory?(query?: CreatorHistoryQuery): CreatorHistorySnapshot
   state(): Promise<HostState>
   submit(text: string): Promise<HostState>
-  perform?(action: HostAction): Promise<HostState>
+  perform?(action: HostAction, line?: PlayerLine): Promise<HostState>
   activityAction?(request: ActivityRequest): Promise<HostState>
   escape?(): Promise<HostState>
   refreshMemory?(): Promise<HostState>

@@ -4,41 +4,8 @@
     {
       "id": "package:interactions-basic",
       "version": 1
-    },
-    {
-      "id": "package:dinner-party",
-      "version": 1
     }
   ],
-  "definitions": [
-    {
-      "id": "base:take",
-      "version": 1
-    },
-    {
-      "id": "base:drop",
-      "version": 1
-    },
-    {
-      "id": "base:give",
-      "version": 1
-    },
-    {
-      "id": "dinner:repair",
-      "version": 1
-    },
-    {
-      "id": "dinner:cook-cold",
-      "version": 1
-    },
-    {
-      "id": "dinner:cook-home",
-      "version": 1
-    },
-    {
-      "id": "dinner:cook-feast",
-      "version": 1
-    }
-  ],
+  "definitions": [],
   "relationBindings": []
 }

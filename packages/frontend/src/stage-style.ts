@@ -431,6 +431,16 @@ main[data-has-activity="true"] .action-panel,main[data-mode="activity"] .action-
 }
 .action-group button span:last-child{color:var(--lamp)}
 .action-group select{width:100%}
+.action-form{display:flex;flex-direction:column;gap:6px;margin:6px 0;padding:8px 10px;border:1px solid var(--line);border-radius:10px}
+.action-form button{margin:2px 0 0}
+.action-form label{display:flex;flex-direction:column;gap:3px;font-size:12px;color:var(--muted)}
+.action-form label:has(input[type="checkbox"]){flex-direction:row;align-items:center;gap:8px}
+.action-form input:not([type="checkbox"]),.action-form textarea{width:100%}
+.attached-action{display:inline-flex;align-items:center;gap:6px;padding:3px 4px 3px 10px;border-radius:999px;background:var(--lamp-soft);color:var(--lamp-strong);font-size:12px;min-width:0}
+.attached-action[hidden]{display:none}
+.attached-action #attached-label{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:180px}
+.attached-action select{padding:2px 6px;border-radius:999px;font-size:11.5px}
+.attached-action button{padding:0 7px;border-radius:999px;line-height:1.6}
 .no-actions{padding:20px;color:var(--muted)}
 .hint{font-size:11.5px;color:var(--faint)}
 #latest{align-self:center;margin-bottom:12px;font-size:12px;border-radius:999px}

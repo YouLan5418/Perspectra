@@ -25,7 +25,7 @@ import {
   type WorldEventDraft,
   type WorldJsonObject,
 } from '@harness-world/contracts'
-import { createBasicInteractionPackage } from '@harness-world/interactions-basic'
+import { createItemCustodyTestPackage } from '../../../tests/fixtures/item-custody-package.ts'
 import { InteractionRegistry, interactionPackageHash, type FrozenInteractionWorld } from './registry.ts'
 import { parameters } from './validation.ts'
 
@@ -585,7 +585,7 @@ describe('interaction performance contract', () => {
   })
 
   it('binds the policy into the package lock and refuses an unknown policy version', () => {
-    const base = createBasicInteractionPackage()
+    const base = createItemCustodyTestPackage()
     const declared = [{ cue: 'smile' as const, placement: 'both' as const, requiresRole: null }]
     const altered = {
       ...base,
@@ -764,7 +764,7 @@ describe('interaction performance contract', () => {
       ),
     ).toThrow(/reaction evidence policy missing/u)
     // The component is part of the published lock, by identity order rather than by array position.
-    const base = createBasicInteractionPackage()
+    const base = createItemCustodyTestPackage()
     const altered = { ...base, reactionEvidence: [...base.reactionEvidence].reverse() }
     expect(interactionPackageHash(altered)).toBe(base.lock.implementationHash)
     expect(() =>
@@ -813,7 +813,7 @@ describe('interaction performance contract', () => {
       ),
     ).toThrow(/observation policy missing/u)
     // The component is part of the published lock, by identity order rather than by array position.
-    const base = createBasicInteractionPackage()
+    const base = createItemCustodyTestPackage()
     expect(interactionPackageHash({ ...base, observation: [...base.observation].reverse() })).toBe(
       base.lock.implementationHash,
     )
@@ -851,7 +851,7 @@ describe('interaction performance contract', () => {
   })
 
   it('refuses to enable a definition whose performance policy is not selected', () => {
-    const base = createBasicInteractionPackage()
+    const base = createItemCustodyTestPackage()
     const orphan: InteractionDefinitionSpec = {
       ...base.definitions[0]!.spec,
       id: 'fixture:orphan',

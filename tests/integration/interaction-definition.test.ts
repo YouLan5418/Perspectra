@@ -8,7 +8,7 @@ import {
   type InteractionWorldSelection,
 } from '@harness-world/contracts'
 import { InteractionRegistry, interactionPackageHash } from '@harness-world/interaction-runtime'
-import { createBasicInteractionPackage } from '@harness-world/interactions-basic'
+import { createItemCustodyTestPackage } from '../fixtures/item-custody-package.ts'
 import { currentEntityState, type RulebookEvent } from '@harness-world/kernel'
 import {
   immutable,
@@ -55,7 +55,7 @@ function host(): InteractionHostContext {
     authorizedTargets: [entity, character('character:player')],
   }
 }
-function selection(pack = createBasicInteractionPackage()): InteractionWorldSelection {
+function selection(pack = createItemCustodyTestPackage()): InteractionWorldSelection {
   return {
     address,
     packages: [pack.lock],
@@ -80,7 +80,7 @@ function selection(pack = createBasicInteractionPackage()): InteractionWorldSele
 function request(id = 'base:take', args = {}) {
   return { targetRef: entity, bindingId: `binding:${id}`, definitionRef: ref(id), arguments: args }
 }
-function setup(pack = createBasicInteractionPackage(), selected = selection(pack)) {
+function setup(pack = createItemCustodyTestPackage(), selected = selection(pack)) {
   const registry = new InteractionRegistry()
   registry.install(pack)
   return registry.freeze(selected)
@@ -190,7 +190,7 @@ it('requires every participant, immutable inputs and current prefix, while disab
     { ...request(), arguments: { actorId: 'other' } },
   ])
     expect(() => runtime.resolve(host(), value)).toThrow()
-  const p = createBasicInteractionPackage()
+  const p = createItemCustodyTestPackage()
   const s = selection(p)
   expect(
     setup(p, { ...s, definitions: [...s.definitions].reverse(), bindings: [...s.bindings].reverse() })
@@ -217,7 +217,7 @@ it('requires every participant, immutable inputs and current prefix, while disab
 })
 
 it('runs an independently registered state-domain fixture only when its package and definition are selected', () => {
-  const base = createBasicInteractionPackage()
+  const base = createItemCustodyTestPackage()
   const effectRef = ref('fixture:mark-effect')
   const definition = {
     ...base.definitions[0]!,
@@ -267,7 +267,7 @@ it('runs an independently registered state-domain fixture only when its package 
 })
 
 it('rejects unregistered, duplicate, drifted and cyclic dependencies before execution', () => {
-  const pack = createBasicInteractionPackage()
+  const pack = createItemCustodyTestPackage()
   const selected = selection(pack)
   const registry = new InteractionRegistry()
   registry.install(pack)
@@ -308,7 +308,7 @@ it('rejects unregistered, duplicate, drifted and cyclic dependencies before exec
 })
 
 it('validates closed definition metadata and installs atomically after a rejected package', () => {
-  const base = createBasicInteractionPackage()
+  const base = createItemCustodyTestPackage()
   const first = base.definitions[0]!
   const primary = first.spec.participantRoles[1]!
   const invalidSpecs = [
@@ -348,7 +348,7 @@ it('validates closed definition metadata and installs atomically after a rejecte
 })
 
 it('enforces effect closure, budget and pure input contracts without partial events', () => {
-  const pack = createBasicInteractionPackage()
+  const pack = createItemCustodyTestPackage()
   const effect = pack.effects[0]!
   for (const build of [
     () => [],

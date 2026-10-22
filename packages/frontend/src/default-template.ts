@@ -28,6 +28,7 @@ export const DEFAULT_PAGE = String.raw`<!doctype html>
         </div>
         <div id="recipient-panel" hidden><label for="speech-recipient">对</label><select id="speech-recipient"></select><p id="recipient-hint" class="hint" hidden>当前没有可接收发言的角色。</p></div>
 <details class="narration-composer" id="narration-panel"><summary title="描写你的动作、神态或语气（可选），与发言一起发送">描写</summary><label class="visually-hidden" for="narration">细节描写</label><textarea id="narration" maxlength="2000" placeholder="动作、神态或语气（可选）" rows="1" title="不会直接改变位置或物品归属"></textarea></details>
+        <span id="attached-action" class="attached-action" hidden><span id="attached-label"></span><select id="attached-order" aria-label="说和做的顺序"><option value="before">先说后做</option><option value="after">先做后说</option></select><button id="attached-clear" type="button" aria-label="取消这个行动">×</button></span>
         <span class="composer-keys">Enter 发送 · Shift+Enter 换行</span><button id="send" type="button">发送 <span aria-hidden="true">↑</span></button></div>
         <p id="audience-preview" class="visually-hidden" aria-live="polite"></p>
         </div><div id="quick-actions" class="quick-actions" role="group" aria-label="可以尝试的行动" hidden></div></div>
@@ -83,31 +84,24 @@ function statusBarRows(view: {
   }
   return groups.map(({ holder, items }) => ({ holder, items }))
 }
-/** Quick-action group of one option; status operations belong with items and interactions. */
+/** Quick-action group of one option, from the kind and target the view gives it. Handing an item to someone
+ * belongs with that person. */
 function quickActionGroup(option: {
-  action?: {
-    actionType?: string
-    parameters?: {
-      definitionRef?: { id?: unknown }
-      targetRef?: { kind?: unknown }
-      arguments?: { recipientId?: unknown }
-    }
-  }
+  kind?: string
+  target?: { kind?: string }
+  action?: { parameters?: { arguments?: { recipientId?: unknown } } }
 }) {
-  const action = option.action || {},
-    p = action.parameters || {},
-    definition = String(p.definitionRef?.id || '')
-  if (action.actionType === 'move') return 'move'
-  if (definition.startsWith('host:activity') || definition.startsWith('activity:')) return 'activity'
-  if (definition.startsWith('status:')) return 'items'
-  if (p.targetRef?.kind === 'character' || typeof p.arguments?.recipientId === 'string') return 'people'
+  if (option.kind === 'move' || option.kind === 'activity' || option.kind === 'manage') return option.kind
+  if (option.target?.kind === 'self') return 'self'
+  if (option.target?.kind === 'character' || typeof option.action?.parameters?.arguments?.recipientId === 'string')
+    return 'people'
   return 'items'
 }
 
 export const DEFAULT_SCRIPT = String.raw`(() => {
  const playback=(${createReadingPlayback.toString()})();
  const api=window.Perspectra,node=id=>document.getElementById(id);
- let latest,posting=false,pending,connected=false,historyKey='',actionsKey='',statusKey='',canRegenerate=false,requestVersion=0,submittedPlayers=0;
+ let latest,posting=false,pending,attached=null,connected=false,historyKey='',actionsKey='',statusKey='',canRegenerate=false,requestVersion=0,submittedPlayers=0;
  // Keep statusRows, actionGroup and roundTools adjacent and in this order: frontend-reading tests extract the helpers by these markers.
  const statusRows=(${statusBarRows.toString()});
  const actionGroup=(${quickActionGroup.toString()});
@@ -143,7 +137,9 @@ export const DEFAULT_SCRIPT = String.raw`(() => {
    const readingBlocked=playback.pending();
    const disabled=readingBlocked||posting||!connected||(!['ready','error'].includes(latest?.status)&&!latest?.canInterrupt);
    const actionDisabled=readingBlocked||posting||!connected||!['ready','error'].includes(latest?.status);
-   node('send').disabled=disabled||(policy.speech!=='free'&&!policy.narration)||!((policy.speech==='free'&&node('input').value.trim())||(policy.narration&&node('narration').value.trim()))||((speechScope()==='direct'||speechScope()==='private')&&!node('speech-recipient').value);
+   const hasLine=!!((policy.speech==='free'&&node('input').value.trim())||(policy.narration&&node('narration').value.trim()));
+   node('send').disabled=(attached?actionDisabled:disabled)||(!hasLine&&!attached)||(hasLine&&(speechScope()==='direct'||speechScope()==='private')&&!node('speech-recipient').value);
+   node('attached-order').disabled=actionDisabled||!hasLine;
    for(const radio of document.querySelectorAll('input[name="speech-scope"]'))radio.disabled=disabled;
    node('audience-button').disabled=disabled;if(disabled)audienceMenu(false);
    node('speech-recipient').disabled=disabled||!latest?.scene?.recipients?.length;
@@ -161,7 +157,7 @@ export const DEFAULT_SCRIPT = String.raw`(() => {
    node('actions-toggle').setAttribute('aria-expanded',String(!node('action-panel').hidden));
    node('continue-hint').textContent=readingBlocked?'点击或按空格继续 · 上滚查看记录':latest?.status==='busy'?'角色还在回应，新内容到达后继续':canReply?'轮到你了 · 点击这里回应':'已读完 · 可以选择行动';
    for(const button of node('actions').querySelectorAll('button'))button.disabled=actionDisabled||button.dataset.unavailable==='true';
-   for(const picker of node('actions').querySelectorAll('select'))picker.disabled=actionDisabled;
+   for(const picker of node('actions').querySelectorAll('select,input,textarea'))picker.disabled=actionDisabled;
    for(const button of node('quick-actions').querySelectorAll('button[data-option]'))button.disabled=actionDisabled;
   const retryAllowed=['ready','error'].includes(latest?.status)||(pending?.method==='speak'&&latest?.canInterrupt===true);
   node('retry').hidden=!pending;node('retry').disabled=posting||!connected||!retryAllowed;
@@ -225,8 +221,9 @@ export const DEFAULT_SCRIPT = String.raw`(() => {
    const nextActions=JSON.stringify(view.actions);
    if(nextActions!==actionsKey){
      actionsKey=nextActions;node('actions').replaceChildren();node('action-count').textContent=String(view.actions.length);
-     for(const [type,title] of [['move','移动'],['interact','物品与互动']]){
-       const options=view.actions.filter(option=>option.action.actionType===type);if(!options.length)continue;
+     if(attached&&!view.actions.some(option=>option.id===attached.option.id)){detach();node('notice').textContent='附带的行动已经不可用，请重新选择。'}
+     for(const [kind,title] of [['move','移动'],['interact','物品与互动'],['activity','活动'],['manage','活动管理']]){
+       const options=view.actions.filter(option=>option.kind===kind);if(!options.length)continue;
        const group=document.createElement('section');group.className='action-group';
        const heading=document.createElement('h3');heading.textContent=title;group.append(heading);
        for(const option of options){const button=document.createElement('button');button.type='button';
@@ -239,7 +236,9 @@ export const DEFAULT_SCRIPT = String.raw`(() => {
              if(npcIds.length<selection.min||npcIds.length>selection.max){node('notice').textContent='请选择 '+selection.min+' 至 '+selection.max+' 名参与角色';return}
              send('perform',{optionId:option.id,npcIds})};group.append(picker);
            if(selection.candidates.length<selection.min)button.dataset.unavailable='true';
-         }else button.onclick=()=>send('perform',{optionId:option.id});group.append(button)}
+         }else if(option.argumentSchema){const form=argumentForm(option);group.append(form);form.append(button);
+           button.onclick=()=>{let args;try{args=form.read()}catch(error){node('notice').textContent=error.message;return}act(option,args)};
+         }else button.onclick=()=>act(option);if(!button.parentNode)group.append(button)}
        node('actions').append(group);
      }
      if(!view.actions.length){const empty=document.createElement('p');empty.className='no-actions';empty.textContent='暂时没有可用行动，仍可通过对话表达。';node('actions').append(empty)}
@@ -248,7 +247,7 @@ export const DEFAULT_SCRIPT = String.raw`(() => {
    controls();
  }
  /* 回应时的右栏行动：每类一个按钮，按下后弹出该类可选行动（与发言受众相同的交互）；与当前说话者相关的排在前面。需要选人的行动打开「行动」面板完成。 */
- const QUICK_GROUPS={activity:'活动',people:'与角色',items:'物品与互动',move:'移动'};
+ const QUICK_GROUPS={activity:'活动',people:'与角色',self:'自己',items:'物品与互动',move:'移动'};
  let quickOpen=null;
  function relevance(option){const unit=playback.current(),p=option.action?.parameters||{};let score=0;
    if(unit?.speakerId&&(p.targetRef?.id===unit.speakerId||p.arguments?.recipientId===unit.speakerId))score+=3;
@@ -256,10 +255,10 @@ export const DEFAULT_SCRIPT = String.raw`(() => {
  function quickMenu(group){quickOpen=group;for(const wrap of node('quick-actions').querySelectorAll('.quick-group')){const open=wrap.dataset.group===group;
    wrap.querySelector('.quick-menu').hidden=!open;wrap.querySelector('.group-button').setAttribute('aria-expanded',String(open))}}
  function renderQuickActions(actions){
-   const box=node('quick-actions');box.replaceChildren();box.hidden=!actions.length;if(!actions.length){quickOpen=null;return}
+   const box=node('quick-actions');box.replaceChildren();const shown=actions.filter(option=>QUICK_GROUPS[actionGroup(option)]);box.hidden=!shown.length;if(!shown.length){quickOpen=null;return}
    const groups=new Map(),order=Object.keys(QUICK_GROUPS);
    actions.map((option,index)=>({option,index,score:relevance(option)})).sort((a,b)=>b.score-a.score||a.index-b.index)
-     .forEach(entry=>{const group=actionGroup(entry.option);if(!groups.has(group))groups.set(group,[]);groups.get(group).push(entry)});
+     .forEach(entry=>{const group=actionGroup(entry.option);if(!QUICK_GROUPS[group])return;if(!groups.has(group))groups.set(group,[]);groups.get(group).push(entry)});
    const best=group=>Math.max(...groups.get(group).map(entry=>entry.score));
    if(quickOpen&&!groups.has(quickOpen))quickOpen=null;
    const caption=document.createElement('small');caption.textContent='可以尝试';box.append(caption);
@@ -273,8 +272,8 @@ export const DEFAULT_SCRIPT = String.raw`(() => {
      const title=document.createElement('p');title.textContent=QUICK_GROUPS[group]+' · '+entries.length+' 项';menu.append(title);
      for(const {option,score} of entries){const item=document.createElement('button');item.type='button';item.dataset.option=option.id;item.textContent=option.label;
        if(score>0){item.classList.add('related');item.title='与刚才说话的角色有关'}
-       if(option.participantSelection){item.classList.add('needs-choice');item.title='需要选择参与角色';item.onclick=()=>{quickMenu(null);node('action-panel').hidden=false;controls()}}
-       else item.onclick=()=>{quickMenu(null);send('perform',{optionId:option.id})};
+       if(option.participantSelection||option.argumentSchema){item.classList.add('needs-choice');item.title=option.participantSelection?'需要选择参与角色':'需要填写内容';item.onclick=()=>{quickMenu(null);node('action-panel').hidden=false;controls()}}
+       else item.onclick=()=>{quickMenu(null);act(option)};
        menu.append(item)}
      wrap.append(button,menu);box.append(wrap)}
  }
@@ -285,7 +284,9 @@ export const DEFAULT_SCRIPT = String.raw`(() => {
    posting=true;controls();node('notice').textContent='正在提交……';
    try{await api.request(request.method,request.payload,request.actionId);if(version!==requestVersion)return;
      const view=await api.getView();if(version!==requestVersion)return;
-     if(request.method==='speak'){if(node('input').value.trim()===request.payload.text)node('input').value='';if(node('narration').value.trim()===(request.payload.narration||''))node('narration').value=''}pending=null;node('notice').textContent='';render(view)}
+     const line=request.method==='speak'?request.payload:request.payload.say;
+     if(line){if(node('input').value.trim()===line.text)node('input').value='';if(node('narration').value.trim()===(line.narration||''))node('narration').value=''}
+     if(request.method==='perform'&&attached?.option.id===request.payload.optionId)detach();pending=null;node('notice').textContent='';render(view)}
    catch(error){if(version!==requestVersion)return;if((request.method==='regenerate'||request.method==='selectCandidate')&&error.retryable===false)pending=null;node('notice').textContent=error.message+(pending?'；可重试查询同一操作结果。':'')}
    finally{if(version===requestVersion){await refresh(version);if(version===requestVersion){posting=false;controls()}}}
  }
@@ -299,7 +300,30 @@ export const DEFAULT_SCRIPT = String.raw`(() => {
  node('candidate-prev').onclick=()=>choose(-1);node('candidate-next').onclick=()=>choose(1);
  node('cancel-round').onclick=async()=>{try{await api.cancelRegeneration()}catch(error){node('notice').textContent=error.message}};
  node('retry').onclick=()=>{if(!posting&&connected&&pending)submit(pending)};
- node('send').onclick=()=>{const text=latest?.expression&&latest.expression.speech!=='free'?'':node('input').value.trim(),narration=latest?.expression?.narration===false?'':node('narration').value.trim();if(text||narration){const maximum=latest?.settings?.inputCharacters||2000;if(text.length+narration.length>maximum){node('notice').textContent='发言与描写合计不能超过 '+maximum+' 个字符';return}const scope=speechScope(),addresseeIds=scope==='direct'||scope==='private'?[node('speech-recipient').value]:[];if((scope==='direct'||scope==='private')&&!addresseeIds[0])return;send('speak',{text,narration,scope,addresseeIds})}};
+ /* 一个回合 = 一次表达 + 至多一个行动。输入框里有话时，点选的行动先附在发送按钮旁，和这句话一起提交；没有话时直接执行。 */
+ function composerLine(){return (latest?.expression&&latest.expression.speech!=='free'?'':node('input').value.trim())||(latest?.expression?.narration===false?'':node('narration').value.trim())}
+ function attach(option,args){attached={option,args};node('attached-label').textContent='连同行动：'+option.label;node('attached-action').hidden=false;node('action-panel').hidden=true;quickMenu(null);controls();node('input').focus()}
+ function detach(){attached=null;node('attached-action').hidden=true;controls()}
+ function act(option,args){if(composerLine()){attach(option,args);return}send('perform',{optionId:option.id,...(args?{arguments:args}:{})})}
+ node('attached-clear').onclick=detach;
+ /** A small form for an action's player inputs: characters come from the scene, other fields follow the schema. */
+ function argumentForm(option){
+   const form=document.createElement('div');form.className='action-form';const fields=[],schema=option.argumentSchema,required=new Set(schema.required||[]);
+   for(const [key,spec] of Object.entries(schema.properties||{})){
+     const label=document.createElement('label'),caption=document.createElement('span');caption.textContent=(spec.title||spec.description||key)+(required.has(key)?'':'（可选）');label.append(caption);
+     let input,read;
+     if((option.characterArguments||[]).includes(key)){input=document.createElement('select');const blank=document.createElement('option');blank.value='';blank.textContent='选择角色';input.append(blank);for(const person of latest?.scene?.recipients||[]){const item=document.createElement('option');item.value=person.id;item.textContent=person.name;input.append(item)}read=()=>input.value||undefined}
+     else if(Array.isArray(spec.enum)){input=document.createElement('select');for(const value of spec.enum){const item=document.createElement('option');item.value=JSON.stringify(value);item.textContent=String(value);input.append(item)}read=()=>JSON.parse(input.value)}
+     else if(spec.type==='boolean'){input=document.createElement('input');input.type='checkbox';read=()=>input.checked}
+     else if(spec.type==='integer'||spec.type==='number'){input=document.createElement('input');input.type='number';if(spec.type==='integer')input.step='1';if(typeof spec.minimum==='number')input.min=String(spec.minimum);if(typeof spec.maximum==='number')input.max=String(spec.maximum);read=()=>input.value===''?undefined:Number(input.value)}
+     else if(spec.type==='string'){input=document.createElement('input');input.type='text';if(typeof spec.maxLength==='number')input.maxLength=spec.maxLength;read=()=>input.value===''?undefined:input.value}
+     else{input=document.createElement('textarea');input.placeholder='JSON';read=()=>{if(!input.value.trim())return undefined;try{return JSON.parse(input.value)}catch{throw new Error(caption.textContent+' 不是有效的 JSON')}}}
+     label.append(input);form.append(label);fields.push({key,caption:caption.textContent,read,required:required.has(key)})}
+   form.read=()=>{const values={};for(const field of fields){const value=field.read();if(value===undefined){if(field.required)throw new Error('请填写 '+field.caption);continue}values[field.key]=value}return values};
+   return form}
+ node('send').onclick=()=>{const text=latest?.expression&&latest.expression.speech!=='free'?'':node('input').value.trim(),narration=latest?.expression?.narration===false?'':node('narration').value.trim();if(!text&&!narration&&!attached)return;const maximum=latest?.settings?.inputCharacters||2000;if(text.length+narration.length>maximum){node('notice').textContent='发言与描写合计不能超过 '+maximum+' 个字符';return}const scope=speechScope(),addresseeIds=scope==='direct'||scope==='private'?[node('speech-recipient').value]:[];if((text||narration)&&(scope==='direct'||scope==='private')&&!addresseeIds[0])return;
+   if(attached){const payload={optionId:attached.option.id,...(attached.args?{arguments:attached.args}:{})};if(text||narration)Object.assign(payload,{say:{text,narration,scope,addresseeIds},order:node('attached-order').value});send('perform',payload);return}
+   send('speak',{text,narration,scope,addresseeIds})};
  for(const radio of document.querySelectorAll('input[name="speech-scope"]'))radio.onchange=()=>{audience();audienceMenu(false);controls();if(['direct','private'].includes(speechScope()))node('speech-recipient').focus()};
  function audienceMenu(open){node('audience-menu').hidden=!open;node('audience-button').setAttribute('aria-expanded',String(open))}
  node('audience-button').onclick=()=>audienceMenu(node('audience-menu').hidden);

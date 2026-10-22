@@ -190,6 +190,14 @@ function textAt(value: unknown, file: string, at: string): string {
   return jsonTextAt(value, at, packFail(file))
 }
 
+/** A short player-facing name: display only, so it is bounded and never empty. */
+function labelAt(value: unknown, file: string, at: string): string {
+  const text = textAt(value, file, at)
+  if (text.trim() === '' || text.length > 60)
+    failWorldPackContract('PACK_SOURCE_INVALID', file, at, 'must be 1-60 characters')
+  return text
+}
+
 function textOrEmptyAt(value: unknown, file: string, at: string): string {
   if (value === '') return ''
   return textAt(value, file, at)
@@ -1076,7 +1084,7 @@ function parseInteractionBindings(
   const bindings = arrayAt(value, file, at).map((entry, index): WorldPackInteractionBindingSource => {
     const slot = `${at}/${index}`
     const binding = objectAt(entry, file, slot)
-    exactKeys(binding, ['bindingId', 'definition', 'config'], [], file, slot)
+    exactKeys(binding, ['bindingId', 'definition', 'config'], ['label'], file, slot)
     const definition = objectAt(binding.definition, file, `${slot}/definition`)
     exactKeys(definition, ['id', 'version'], [], file, `${slot}/definition`)
     const config = objectAt(binding.config, file, `${slot}/config`)
@@ -1088,6 +1096,7 @@ function parseInteractionBindings(
         version: integerAt(definition.version, file, `${slot}/definition/version`, 1, Number.MAX_SAFE_INTEGER),
       },
       config: config as WorldJsonObject,
+      ...(binding.label === undefined ? {} : { label: labelAt(binding.label, file, `${slot}/label`) }),
     }
   })
   unique(

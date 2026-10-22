@@ -1,3 +1,4 @@
+import { basicInteractionPackage } from '../fixtures/frozen-interaction-world.ts'
 import { WorldApplication } from '@harness-world/application'
 import { type WorldJsonObject } from '@harness-world/contracts'
 import { WorldStore } from '@harness-world/store-sqlite'
@@ -21,6 +22,7 @@ it('takes an explicit command on a v10 world at the frozen version', async () =>
   })}`
   let interpreted = 0
   const app = new WorldApplication({
+    interactionPackages: [basicInteractionPackage],
     worldPath: path,
     sessionPath: join(root, 'session.sqlite'),
     memoryPath: join(root, 'memory.sqlite'),
@@ -102,6 +104,7 @@ it('submits all boundary phrases as intact speech without any intent call or con
   ]
   let calls = 0
   const app = new WorldApplication({
+    interactionPackages: [basicInteractionPackage],
     worldPath: path,
     sessionPath: join(root, 'session.sqlite'),
     memoryPath: join(root, 'memory.sqlite'),
@@ -146,11 +149,12 @@ it('submits all boundary phrases as intact speech without any intent call or con
   }
 })
 
-it('executes exact custody commands, rejects unavailable targets, and keeps narration free of state effects', async () => {
+it('keeps narration free of state effects; item custody is no longer a player command', async () => {
   const root = mkdtempSync(join(tmpdir(), 'player-custody-commands-'))
   const world = frozenIntentWorld()
   const path = join(root, 'world.sqlite')
   const app = new WorldApplication({
+    interactionPackages: [basicInteractionPackage],
     worldPath: path,
     sessionPath: join(root, 'session.sqlite'),
     memoryPath: join(root, 'memory.sqlite'),
@@ -165,35 +169,20 @@ it('executes exact custody commands, rejects unavailable targets, and keeps narr
     })
   try {
     app.activate(world)
-    expect(await submit('/take entity:other')).toMatchObject({
-      status: 'submitted',
-      action: { actionType: 'interact' },
-    })
     expect(await submit('/narrate 我把杯子暂放桌上。')).toMatchObject({
       status: 'submitted',
       action: { actionType: 'speak', parameters: { text: '', narration: '我把杯子暂放桌上。' } },
     })
-    expect(await submit('/give entity:other character:npc')).toMatchObject({
-      status: 'submitted',
-      action: { actionType: 'interact' },
-    })
-    expect(await submit('/drop entity:other')).toMatchObject({ status: 'clarification_required' })
-    expect(await submit('/take entity:missing')).toMatchObject({ status: 'clarification_required' })
-    expect(await submit('/give entity:cup')).toMatchObject({ status: 'clarification_required' })
-    expect(await submit('/take entity:cup')).toMatchObject({ status: 'submitted', action: { actionType: 'interact' } })
-    expect(await submit('/drop entity:cup')).toMatchObject({ status: 'submitted', action: { actionType: 'interact' } })
+    // Taking, dropping and giving are each pack's own operations, reached through the host's /status.
+    for (const command of ['/take entity:cup', '/give entity:other character:npc', '/drop entity:other'])
+      expect(await submit(command)).toMatchObject({ status: 'clarification_required' })
   } finally {
     await app.close()
   }
   const store = new WorldStore(path)
   try {
     const events = store.readEvents(world.manifest.address)
-    expect(events.filter(e => e.eventType === 'entity.transferred').map(e => e.data)).toMatchObject([
-      { entityId: 'entity:other', toHolderId: 'character:player' },
-      { entityId: 'entity:other', toHolderId: 'character:npc' },
-      { entityId: 'entity:cup', toHolderId: 'character:player' },
-      { entityId: 'entity:cup', toHolderId: null },
-    ])
+    expect(events.filter(e => e.eventType === 'entity.transferred')).toEqual([])
   } finally {
     store.close()
     rmSync(root, { recursive: true, force: true })

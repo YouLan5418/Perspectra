@@ -2,7 +2,7 @@ import { resolve } from 'node:path'
 import { expect, it } from 'vitest'
 import { SpeakMoveRulebook, currentLocation, currentEntityState } from '../../packages/kernel/src/rulebook.ts'
 import { brandId, interactionPackageDescription, parseExpressionSegments } from '@harness-world/contracts'
-import { createBasicInteractionPackage } from '@harness-world/interactions-basic'
+import { createItemCustodyTestPackage } from '../fixtures/item-custody-package.ts'
 import { adaptCompiledWorldPack, compileWorldPackSource } from '@harness-world/world-pack'
 import { frozenInteractionWorld } from '../fixtures/frozen-interaction-world.ts'
 import type { WorldEventDraft } from '@harness-world/contracts'
@@ -63,7 +63,7 @@ it.each(['direct', 'private'])('rejects every recipient of %s speech when any ta
 
 it('publishes silent expression without granting movement, possession, or a new observation scope', async () => {
   const pack = await compileWorldPackSource(resolve('examples/world-packs/prototype-g1'), [
-    interactionPackageDescription(createBasicInteractionPackage()),
+    interactionPackageDescription(createItemCustodyTestPackage()),
   ])
   const world = adaptCompiledWorldPack(pack, {
     address: {

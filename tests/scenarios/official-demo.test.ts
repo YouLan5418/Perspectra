@@ -202,7 +202,7 @@ it('cooks exactly one existing batch, cannot cook it twice, then consumes it wit
   const cook = projectPlayerView(await f.runtime.state()).actions.find(
     a =>
       a.action.parameters.definitionRef &&
-      (a.action.parameters.definitionRef as WorldJsonObject).id === 'home:cook-rice',
+      (a.action.parameters.definitionRef as WorldJsonObject).id === 'status:cook-rice',
   )!
   expect(cook).toBeDefined()
   await f.runtime.perform(cook.action)
@@ -211,22 +211,23 @@ it('cooks exactly one existing batch, cannot cook it twice, then consumes it wit
     holderId: null,
     locationId: 'location:kitchen',
   })
-  await expect(f.runtime.perform(cook.action)).rejects.toThrow('未被规则接受')
+  // No longer offered; a stale request is refused before the author runs.
+  await expect(f.runtime.perform(cook.action)).rejects.toThrow('当前已知条件不允许')
   const eat = projectPlayerView(await f.runtime.state()).actions.find(
-    a => (a.action.parameters.definitionRef as WorldJsonObject)?.id === 'home:eat-rice',
+    a => (a.action.parameters.definitionRef as WorldJsonObject)?.id === 'status:eat-rice',
   )!
   expect(eat).toBeDefined()
   await f.runtime.perform(eat.action)
   expect(currentEntityState(f.events(), 'entity:rice-batch')?.kind).toBe('empty-meal-container')
-  await expect(f.runtime.perform(eat.action)).rejects.toThrow('未被规则接受')
+  await expect(f.runtime.perform(eat.action)).rejects.toThrow('当前已知条件不允许')
   expect(f.events().filter(e => e.eventType === 'entity.upsert')).toHaveLength(before + 2)
 })
-it('offers no cooking when the declared cooker is out of reach; leaves ingredients unchanged', async () => {
+it('offers no cooking when the cooker is out of reach, leaving the rice unchanged', async () => {
   const f = await fixture(true, true, true)
   await f.activate()
   expect(
     projectPlayerView(await f.runtime.state()).actions.some(
-      a => (a.action.parameters.definitionRef as WorldJsonObject)?.id === 'home:cook-rice',
+      a => (a.action.parameters.definitionRef as WorldJsonObject)?.id === 'status:cook-rice',
     ),
   ).toBe(false)
   expect(currentEntityState(f.events(), 'entity:rice-batch')?.kind).toBe('raw-rice-kit')
@@ -250,7 +251,7 @@ it('offers dinner after autonomous cooking without replaying cooking or changing
   const f = await fixture(true, true)
   await f.activate()
   const cook = projectPlayerView(await f.runtime.state()).actions.find(
-    a => (a.action.parameters.definitionRef as WorldJsonObject)?.id === 'home:cook-rice',
+    a => (a.action.parameters.definitionRef as WorldJsonObject)?.id === 'status:cook-rice',
   )!
   await f.runtime.perform(cook.action)
   const before = f.events().filter(e => e.eventType === 'entity.upsert').length
@@ -274,9 +275,9 @@ it('requires an authorized cake transfer before asking, and does not guess an un
         (a.action.parameters.targetRef as WorldJsonObject)?.id === 'entity:strawberry-cake',
     )!
   let awaitState = await f.runtime.state()
-  await f.runtime.perform(find('base:take').action)
+  await f.runtime.perform(find('status:take').action)
   awaitState = await f.runtime.state()
-  await f.runtime.perform(find('base:drop').action)
+  await f.runtime.perform(find('status:drop').action)
   const move = projectPlayerView(await f.runtime.state()).actions.find(
     a => a.action.actionType === 'move' && a.action.parameters.locationId === 'location:living-room',
   )!

@@ -692,7 +692,7 @@ globalThis.activityScript={
     const scriptedPlayer=player&&view.game.phase==='prologue'&&beat?.actorId===actorId;
     return {speech:view.game.phase==='prologue'?(scriptedPlayer?'choices':player?'none':'free'):'free',
       speechChoices:scriptedPlayer?[beat.text]:[],narration:view.game.phase!=='prologue',move:view.game.phase!=='prologue',
-      interactions:view.game.phase==='prologue'?[]:['base:take','base:drop','base:give','home:cook-rice','home:eat-rice'],
+      interactions:view.game.phase==='prologue'?[]:['status:take','status:drop','status:give','status:cook-rice','status:eat-rice'],
       operations:player?(view.game.phase==='prologue'?['next']:view.game.phase==='menu'?['dinner','cake','tomorrow','quit']:[]):[]};
   },
   resolve(state,actorId,operation,parameters,world){

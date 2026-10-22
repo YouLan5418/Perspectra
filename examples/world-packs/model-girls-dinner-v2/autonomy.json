@@ -19,12 +19,12 @@
       "everyPlayerTurns": 1,
       "opportunities": 1,
       "interactions": [
-        "base:take",
-        "base:drop",
-        "base:give",
-        "dinner:cook-cold",
-        "dinner:cook-home",
-        "dinner:cook-feast"
+        "status:take",
+        "status:drop",
+        "status:give",
+        "status:cook-cold",
+        "status:cook-home",
+        "status:cook-feast"
       ],
       "locationIds": [
         "location:living-room",
@@ -52,9 +52,9 @@
       "everyPlayerTurns": 1,
       "opportunities": 1,
       "interactions": [
-        "base:take",
-        "base:drop",
-        "base:give"
+        "status:take",
+        "status:drop",
+        "status:give"
       ],
       "locationIds": [
         "location:living-room",
@@ -82,10 +82,10 @@
       "everyPlayerTurns": 1,
       "opportunities": 1,
       "interactions": [
-        "base:take",
-        "base:drop",
-        "base:give",
-        "dinner:repair"
+        "status:take",
+        "status:drop",
+        "status:give",
+        "status:repair"
       ],
       "locationIds": [
         "location:living-room",
@@ -113,9 +113,9 @@
       "everyPlayerTurns": 1,
       "opportunities": 1,
       "interactions": [
-        "base:take",
-        "base:drop",
-        "base:give"
+        "status:take",
+        "status:drop",
+        "status:give"
       ],
       "locationIds": [
         "location:living-room",

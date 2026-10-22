@@ -24,6 +24,7 @@ import { readStoryNodes, restoreStoryNode, saveStoryNode } from '../../desktop/s
 import { exportStoryNode } from '../../desktop/story-share.ts'
 import { LauncherCore } from '../../desktop/launcher-core.ts'
 import { knownTime, statusMarketWithoutRoundHook } from '../fixtures/status-market-no-hook.ts'
+import { withItemRules } from '../support/item-rules.ts'
 
 const roots: string[] = [],
   servers: Server[] = [],
@@ -44,8 +45,8 @@ async function fixture() {
   const pack = join(root, 'pack'),
     data = join(root, 'data')
   cpSync(resolve('examples/world-packs/prototype-g1'), pack, { recursive: true })
-  mkdirSync(join(pack, 'scripts'))
-  writeFileSync(join(pack, 'scripts/status.js'), statusMarketWithoutRoundHook())
+  mkdirSync(join(pack, 'scripts'), { recursive: true })
+  writeFileSync(join(pack, 'scripts/status.js'), withItemRules(statusMarketWithoutRoundHook()))
   const activity = readFileSync(
     resolve('examples/world-packs/ai-girls-awaken-v10/scripts/activity.js'),
     'utf8',
@@ -153,9 +154,7 @@ const activityRequest = (state: { activity?: WorldJsonObject }, operation: strin
 it('restores one complete instant: location, custody, active game, status and role-authorized memory; keeps the original future', async () => {
   const f = await fixture()
   await f.runtime.submit('/status set-time {"value":5}')
-  await f.runtime.submit(
-    '/act interact {"targetRef":{"kind":"entity","id":"entity:brass-key"},"bindingId":"binding:key-take","definitionRef":{"id":"base:take","version":1},"arguments":{}}',
-  )
+  await f.runtime.submit('/status take@entity:brass-key {}')
   f.setFollow()
   await f.runtime.submit('/act move {"locationId":"location:back-room"}')
   await f.runtime.submit('/act speak {"text":"后室暗号：青松七号。"}')
@@ -164,9 +163,7 @@ it('restores one complete instant: location, custody, active game, status and ro
   const node = await f.runtime.saveNode('另一个未来的起点')
   const nodeEvents = f.events()
   await f.runtime.activityAction(activityRequest(await f.runtime.state(), 'quit'))
-  await f.runtime.submit(
-    '/act interact {"targetRef":{"kind":"entity","id":"entity:brass-key"},"bindingId":"binding:key-drop","definitionRef":{"id":"base:drop","version":1},"arguments":{}}',
-  )
+  await f.runtime.submit('/status drop@entity:brass-key {}')
   await f.runtime.submit('/act move {"locationId":"location:front-room"}')
   await f.runtime.submit('/status set-time {"value":9}')
   await f.runtime.submit('/act speak {"text":"未来秘密：红杉九号。"}')
@@ -340,9 +337,7 @@ it('publishes no partial node on save failure and refuses a node whose recorded 
 it('shares one historical node across independent launchers, preserves installed memories and excludes future and caches', async () => {
   const f = await fixture()
   await f.runtime.submit('/status set-time {"value":5}')
-  await f.runtime.submit(
-    '/act interact {"targetRef":{"kind":"entity","id":"entity:brass-key"},"bindingId":"binding:key-take","definitionRef":{"id":"base:take","version":1},"arguments":{}}',
-  )
+  await f.runtime.submit('/status take@entity:brass-key {}')
   f.setFollow()
   await f.runtime.submit('/act move {"locationId":"location:back-room"}')
   await f.runtime.submit('/act speak {"text":"只有后室的人知道：分享暗号青松七号。"}')

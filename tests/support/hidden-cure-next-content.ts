@@ -1,10 +1,6 @@
 import { cpSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
-import { randomUUID } from 'node:crypto'
-import { WorldApplication } from '@harness-world/application'
-import { brandId, interactionPackageDescription } from '@harness-world/contracts'
-import { createInstalledInteractionPackages } from '@harness-world/interactions-basic'
-import { adaptCompiledWorldPack, compileWorldPackSource } from '@harness-world/world-pack'
+import { WorldHostCore } from '../../desktop/host/world-runtime.ts'
 
 export const nextRoot = resolve('examples/world-packs/hidden-cure-next')
 export const goals = {
@@ -41,16 +37,20 @@ export function buildNextPacks() {
             key === 'silver'
               ? '封装的一份银露材料，可用于候选缓解法；不是已完成的治疗。'
               : '封装的一份备用银露材料，可用于候选缓解法；不是已完成的治疗。',
-          interactionBindings: ['take', 'drop', 'give'].map(verb => ({
-            bindingId: `binding:${key}-${verb}`,
-            definition: { id: `base:${verb}`, version: 1 },
-            config: {},
-          })),
         })
         for (const actor of autonomy.characters) actor.targetIds.push(`entity:${key}-kit`)
       }
       write('entities.json', entities)
       write('autonomy.json', autonomy)
+      // The pack's own item rules: the two materials can be taken, put down and handed over like the record.
+      const script = join(path, 'scripts/status.js'),
+        rules = readFileSync(script, 'utf8'),
+        kits = rules.replaceAll(
+          "['entity:cure-record']",
+          "['entity:cure-record', 'entity:silver-kit', 'entity:reserve-kit']",
+        )
+      if (kits.split('entity:silver-kit').length !== 4) throw new Error('item rules template changed')
+      writeFileSync(script, kits)
       // A church member knows the existence of his church's material, not its later holder.
       cognition.characters
         .find((row: { characterId: string }) => row.characterId === 'character:rival')
@@ -69,56 +69,35 @@ export function buildNextPacks() {
   }
 }
 
-/** Explicit precondition preparation: player commands via the normal authority path;
- * NPC scheduling starts after setup. No synthetic event, observation or NPC choice. */
+/** Explicit precondition preparation: player commands through the host's own rules, including the pack's
+ * item rules. No model is reachable, so NPCs commit nothing; scheduling starts after setup. No synthetic event,
+ * observation or NPC choice. */
 export async function prepareTakenRecord(packPath: string, dataDirectory: string) {
   mkdirSync(dataDirectory, { recursive: true })
-  const interactions = createInstalledInteractionPackages()
-  const pack = await compileWorldPackSource(packPath, interactions.map(interactionPackageDescription))
-  const compiled = adaptCompiledWorldPack(pack, {
-    address: {
-      tenantId: brandId('tenant:web-playtest', 'TenantId'),
-      worldId: brandId(`world:web-playtest:${pack.packHash.slice(7, 23)}`, 'WorldId'),
-      branchId: brandId('branch:main', 'BranchId'),
-    },
-    principalId: 'principal:web-playtest',
-    sessionId: brandId('session:web-playtest', 'SessionId'),
+  const runtime = await WorldHostCore.create({
+    packPath,
+    dataDirectory,
+    provider: 'ollama',
+    model: 'unused',
+    utilityEndpoint: 'http://127.0.0.1:1/api/chat',
+    timeoutMs: 1000,
   })
-  const app = new WorldApplication({
-    interactionPackages: interactions,
-    worldPath: join(dataDirectory, 'world.sqlite'),
-    sessionPath: join(dataDirectory, 'session.sqlite'),
-    memoryPath: join(dataDirectory, 'memory.sqlite'),
-    contextPath: join(dataDirectory, 'context.sqlite'),
-  })
-  const results = []
+  const results: { status: 'accepted' | 'rejected'; input: string; reason?: string }[] = []
   try {
-    app.activate(compiled)
-    for (const action of [
-      { actionType: 'move', parameters: { locationId: 'location:archive' } },
-      {
-        actionType: 'interact',
-        parameters: {
-          targetRef: { kind: 'entity', id: 'entity:cure-record' },
-          bindingId: 'binding:record-take',
-          definitionRef: { id: 'base:take', version: 1 },
-          arguments: {},
-        },
-      },
-      { actionType: 'move', parameters: { locationId: 'location:inn' } },
+    for (const input of [
+      '/act move ' + JSON.stringify({ locationId: 'location:archive' }),
+      '/status take@entity:cure-record {}',
+      '/act move ' + JSON.stringify({ locationId: 'location:inn' }),
     ]) {
-      const key = randomUUID()
-      results.push(
-        await app.submit(compiled.manifest.address, {
-          principalId: 'principal:web-playtest',
-          action,
-          idempotencyKey: key,
-          correlationId: key,
-        }),
-      )
+      try {
+        const state = await runtime.submit(input)
+        results.push({ status: state.notice.includes('未执行') ? 'rejected' : 'accepted', input })
+      } catch (error) {
+        results.push({ status: 'rejected', input, reason: error instanceof Error ? error.message : String(error) })
+      }
     }
     return results
   } finally {
-    await app.close()
+    await runtime.close()
   }
 }

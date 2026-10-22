@@ -54,8 +54,8 @@ it.each([0, 0.999])(
                 actionType: 'interact',
                 parameters: {
                   targetRef: { kind: 'entity', id: 'entity:brass-key' },
-                  bindingId: 'binding:key-take',
-                  definitionRef: { id: 'base:take', version: 1 },
+                  bindingId: 'status',
+                  definitionRef: { id: 'status:take', version: 1 },
                   arguments: {},
                 },
               }

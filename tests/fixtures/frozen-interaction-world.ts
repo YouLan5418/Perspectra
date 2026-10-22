@@ -16,10 +16,10 @@ import {
   type CompiledWorldManifestV10,
   type CompiledWorldSpec,
 } from '@harness-world/kernel'
-import { createBasicInteractionPackage } from '@harness-world/interactions-basic'
+import { createItemCustodyTestPackage } from './item-custody-package.ts'
 
 /** The trusted package the Host installs. A world selects from it; it can never add to it. */
-export const basicInteractionPackage: InteractionPackageImplementation = createBasicInteractionPackage()
+export const basicInteractionPackage: InteractionPackageImplementation = createItemCustodyTestPackage()
 
 const ref = (id: string): { readonly id: string; readonly version: number } => ({ id, version: 1 })
 

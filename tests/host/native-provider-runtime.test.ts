@@ -33,8 +33,8 @@ for (const protocol of ['anthropic', 'google'] as const) {
               actionType: 'interact',
               parameters: {
                 targetRef: { kind: 'entity', id: 'entity:brass-key' },
-                bindingId: 'binding:key-' + operation,
-                definitionRef: { id: 'base:' + operation, version: 1 },
+                bindingId: 'status',
+                definitionRef: { id: 'status:' + operation, version: 1 },
                 arguments: {},
               },
             }

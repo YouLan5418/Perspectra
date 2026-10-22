@@ -120,12 +120,15 @@ it('links custody changes, rejected attempts and holder movement without making 
   const { runtime } = await fixture()
   const parameters = {
     targetRef: { kind: 'entity', id: 'entity:brass-key' },
-    bindingId: 'binding:key-take',
-    definitionRef: { id: 'base:take', version: 1 },
+    bindingId: 'status',
+    definitionRef: { id: 'status:take', version: 1 },
     arguments: {},
   }
   await runtime.perform({ actionType: 'interact', parameters })
-  await runtime.perform({ actionType: 'interact', parameters })
+  // Taking it again is not offered; the pack's rules refuse the repeat before anything is committed.
+  const committed = runtime.creatorHistory({ entityId: 'entity:brass-key', limit: 100 }).items.length
+  await expect(runtime.perform({ actionType: 'interact', parameters })).rejects.toThrow('当前已知条件不允许')
+  expect(runtime.creatorHistory({ entityId: 'entity:brass-key', limit: 100 }).items).toHaveLength(committed)
   await runtime.submit('我说我把钥匙交给同行者了。')
   const destination = (await runtime.state()).availableActions!.find(action => action.actionType === 'move')!
     .destinations![0]!
@@ -137,11 +140,12 @@ it('links custody changes, rejected attempts and holder movement without making 
     after: { holderId: 'character:player' },
     followsHolder: false,
   })
-  const rejected = history.items.find(
-    item => item.event.eventType === 'action.resolved' && (item.event.data as { accepted: boolean }).accepted === false,
-  )!
-  expect(rejected.action).toMatchObject({ parameters })
-  expect(rejected.entityChange).toBeNull()
+  expect(
+    history.items.some(
+      item =>
+        item.event.eventType === 'action.resolved' && (item.event.data as { accepted: boolean }).accepted === false,
+    ),
+  ).toBe(false)
   const movement = history.items.find(item => item.entityChange?.followsHolder)!
   expect(movement.event.eventType).toBe('character.moved')
   expect(runtime.creatorInspection().entities.find(item => item.id === 'entity:brass-key')?.state.holderId).toBe(

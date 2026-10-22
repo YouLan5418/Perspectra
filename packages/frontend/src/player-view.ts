@@ -1,4 +1,4 @@
-import type { CharacterId, WorldJsonObject } from '@harness-world/contracts'
+import { canonicalizeWorldJson, type CharacterId, type WorldJsonObject } from '@harness-world/contracts'
 
 export interface PlayerAction {
   readonly actionType: 'move' | 'interact'
@@ -66,10 +66,21 @@ export interface PlayerView {
     player: boolean
     segments?: readonly import('@harness-world/contracts').ExpressionSegment[]
   }[]
+  /**
+   * Every choice the player can take now, whichever script offers it. `kind` separates moving, acting in the
+   * world, an activity's own moves and managing an activity from outside the story; `target` is what the
+   * choice is about, so a frontend can list it under that character, item or place.
+   */
   actions: {
     id: string
     label: string
     action: PlayerAction
+    kind: 'move' | 'interact' | 'activity' | 'manage'
+    target?: { kind: 'location' | 'item' | 'character' | 'self' | 'activity'; id: string; name: string }
+    /** Inputs the player fills in; perform then carries them as `arguments`. Never includes fixed inputs. */
+    argumentSchema?: WorldJsonObject
+    /** Inputs among `argumentSchema` that name a character in the player's scene. */
+    characterArguments?: string[]
     participantSelection?: { min: number; max: number; candidates: { id: string; name: string }[] }
   }[]
 }
@@ -125,43 +136,13 @@ export function frontendActionRequest(value: unknown, maximumCharacters = 2000):
   )
     throw new TypeError('前端请求字段无效')
   const payload = r.payload as Record<string, unknown>
-  if (r.operation === 'speak') {
-    if (
-      Object.keys(payload).some(key => !['text', 'narration', 'scope', 'addresseeIds'].includes(key)) ||
-      typeof payload.text !== 'string' ||
-      (Object.hasOwn(payload, 'narration') && typeof payload.narration !== 'string')
-    )
-      throw new TypeError('发言字段无效')
-    const scope = payload.scope ?? 'scene_public'
-    const recipients = payload.addresseeIds ?? []
-    if (
-      typeof scope !== 'string' ||
-      !['scene_public', 'direct', 'private', 'self'].includes(scope) ||
-      !Array.isArray(recipients) ||
-      recipients.some(id => typeof id !== 'string' || !id || id.length > 200) ||
-      recipients.length > 64 ||
-      new Set(recipients).size !== recipients.length ||
-      (scope === 'direct' || scope === 'private' ? recipients.length === 0 : recipients.length !== 0)
-    )
-      throw new TypeError('发言范围与接收对象不匹配')
-    const text = payload.text.replace(/\r\n?/gu, '\n').trim()
-    const narration =
-      typeof payload.narration === 'string' ? payload.narration.replace(/\r\n?/gu, '\n').trim() : undefined
-    if (!(text || narration) || text.length + (narration?.length ?? 0) > maximumCharacters)
-      throw new RangeError(`发言与描写合计需为 1 至 ${maximumCharacters} 个字符`)
+  if (r.operation === 'speak')
     return {
       requestId: r.requestId,
       actionId: r.actionId,
       operation: 'speak',
-      payload: {
-        text,
-        ...(narration === undefined ? {} : { narration }),
-        ...(Object.hasOwn(payload, 'scope') || Object.hasOwn(payload, 'addresseeIds')
-          ? { scope, addresseeIds: recipients }
-          : {}),
-      },
+      payload: speech(payload, maximumCharacters),
     }
-  }
   if (r.operation === 'cancelRegeneration') {
     if (Object.keys(payload).length) throw new TypeError('取消不接受额外参数')
     return { requestId: r.requestId, actionId: r.actionId, operation: 'cancelRegeneration', payload: {} }
@@ -194,7 +175,7 @@ export function frontendActionRequest(value: unknown, maximumCharacters = 2000):
     }
   }
   if (
-    Object.keys(payload).some(key => !['optionId', 'npcIds'].includes(key)) ||
+    Object.keys(payload).some(key => !['optionId', 'npcIds', 'arguments', 'say', 'order'].includes(key)) ||
     typeof payload.optionId !== 'string' ||
     payload.optionId.length > 512
   )
@@ -207,10 +188,67 @@ export function frontendActionRequest(value: unknown, maximumCharacters = 2000):
       new Set(payload.npcIds).size !== payload.npcIds.length)
   )
     throw new TypeError('活动参与者选择无效')
+  const args = payload.arguments
+  if (args !== undefined) {
+    if (!args || typeof args !== 'object' || Array.isArray(args)) throw new TypeError('行动参数必须是对象')
+    canonicalizeWorldJson(args as WorldJsonObject)
+    if (JSON.stringify(args).length > 16384) throw new RangeError('行动参数过长')
+  }
+  if (Object.hasOwn(payload, 'order') && !Object.hasOwn(payload, 'say')) throw new TypeError('没有发言时不能指定顺序')
+  if (payload.order !== undefined && payload.order !== 'before' && payload.order !== 'after')
+    throw new TypeError('发言顺序只能是 before 或 after')
+  const say =
+    payload.say === undefined
+      ? undefined
+      : speech(
+          !payload.say || typeof payload.say !== 'object' || Array.isArray(payload.say)
+            ? {}
+            : (payload.say as Record<string, unknown>),
+          maximumCharacters,
+        )
   return {
     requestId: r.requestId,
     actionId: r.actionId,
     operation: 'perform',
-    payload: { optionId: payload.optionId, ...(Object.hasOwn(payload, 'npcIds') ? { npcIds: payload.npcIds } : {}) },
+    payload: {
+      optionId: payload.optionId,
+      ...(Object.hasOwn(payload, 'npcIds') ? { npcIds: payload.npcIds } : {}),
+      ...(args === undefined ? {} : { arguments: args }),
+      ...(say === undefined ? {} : { say, order: payload.order ?? 'before' }),
+    },
+  }
+}
+
+/** A player line: speech, optional narration and its audience, normalized the same for speak and perform. */
+function speech(payload: Record<string, unknown>, maximumCharacters: number): Record<string, unknown> {
+  if (
+    Object.keys(payload).some(key => !['text', 'narration', 'scope', 'addresseeIds'].includes(key)) ||
+    typeof payload.text !== 'string' ||
+    (Object.hasOwn(payload, 'narration') && typeof payload.narration !== 'string')
+  )
+    throw new TypeError('发言字段无效')
+  const scope = payload.scope ?? 'scene_public'
+  const recipients = payload.addresseeIds ?? []
+  if (
+    typeof scope !== 'string' ||
+    !['scene_public', 'direct', 'private', 'self'].includes(scope) ||
+    !Array.isArray(recipients) ||
+    recipients.some(id => typeof id !== 'string' || !id || id.length > 200) ||
+    recipients.length > 64 ||
+    new Set(recipients).size !== recipients.length ||
+    (scope === 'direct' || scope === 'private' ? recipients.length === 0 : recipients.length !== 0)
+  )
+    throw new TypeError('发言范围与接收对象不匹配')
+  const text = payload.text.replace(/\r\n?/gu, '\n').trim()
+  const narration =
+    typeof payload.narration === 'string' ? payload.narration.replace(/\r\n?/gu, '\n').trim() : undefined
+  if (!(text || narration) || text.length + (narration?.length ?? 0) > maximumCharacters)
+    throw new RangeError(`发言与描写合计需为 1 至 ${maximumCharacters} 个字符`)
+  return {
+    text,
+    ...(narration === undefined ? {} : { narration }),
+    ...(Object.hasOwn(payload, 'scope') || Object.hasOwn(payload, 'addresseeIds')
+      ? { scope, addresseeIds: recipients }
+      : {}),
   }
 }

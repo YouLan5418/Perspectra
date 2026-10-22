@@ -31,7 +31,8 @@
   "markdownFiles": [],
   "assetFiles": [
     "communication.json",
-    "scripts/activities/guess.js"
+    "scripts/activities/guess.js",
+    "scripts/status.js"
   ],
   "assertionFiles": [
     "assertions.json"

@@ -59,6 +59,7 @@ it('searches only authorized map options and never sends off-scene direct speech
     id: 'move:location:archive',
     label: '档案室',
     action: { actionType: 'move', parameters: { locationId: 'location:archive' } },
+    kind: 'move',
   })
   const input = policy(view).input
   expect(input).toBe('/act move {"locationId":"location:archive"}')

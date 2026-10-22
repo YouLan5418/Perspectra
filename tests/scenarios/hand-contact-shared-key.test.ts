@@ -3,7 +3,9 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { expect, it } from 'vitest'
-import { brandId, resolutionAuthority } from '@harness-world/contracts'
+import { brandId, interactionPackageDescription, resolutionAuthority } from '@harness-world/contracts'
+import { compileWorldPackSource, type CompiledWorldPackV5 } from '@harness-world/world-pack'
+import { PackStatus } from '../../desktop/host/pack-status.ts'
 import {
   createCoreRulebookRegistry,
   currentCharacterRelations,
@@ -20,8 +22,8 @@ const keyAction = {
   actionType: 'interact',
   parameters: {
     targetRef: { kind: 'entity', id: 'entity:brass-key' },
-    bindingId: 'binding:key-take',
-    definitionRef: { id: 'base:take', version: 1 },
+    bindingId: 'status',
+    definitionRef: { id: 'status:take', version: 1 },
     arguments: {},
   },
 }
@@ -189,14 +191,26 @@ it('closes the frozen G1 combination: hand contact, shared key, two NPCs and two
           (event.data as Record<string, unknown>).actionType === 'interact',
       ),
     ).toBe(false)
-    // A forged request must still fail execution authority if it bypasses model-side visibility.
+    // A forged request must still fail if it bypasses model-side visibility: the pack's own item rules, under
+    // the host's status adjudication, do not let the friend take a key the companion holds.
     const store = new WorldStore(resolve(root, 'world.sqlite'))
     try {
-      const rules = createCoreRulebookRegistry({ interactionPackages: createInstalledInteractionPackages() }).resolve(
+      const packPath = resolve('examples/world-packs/prototype-g1')
+      const pack = (await compileWorldPackSource(
+        packPath,
+        createInstalledInteractionPackages().map(interactionPackageDescription),
+      )) as CompiledWorldPackV5
+      const core = createCoreRulebookRegistry({ interactionPackages: createInstalledInteractionPackages() }).resolve(
         'builtin:speak-move',
         2,
         'test',
         runtime.address,
+      )
+      const rules = PackStatus.load(packPath, pack)!.resolver(
+        core,
+        resolve(root, 'world.sqlite'),
+        runtime.address,
+        'character:player',
       )
       const locked = store.readManifest(runtime.address)!
       expect(
@@ -212,7 +226,7 @@ it('closes the frozen G1 combination: hand contact, shared key, two NPCs and two
         }),
       ).toMatchObject({
         status: 'rejected',
-        reason: 'PARTICIPANT_NOT_AUTHORIZED',
+        reason: 'STATUS_OPERATION_REJECTED',
         events: [{ eventType: 'action.rejected' }],
       })
     } finally {

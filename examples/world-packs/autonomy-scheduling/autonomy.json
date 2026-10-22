@@ -13,8 +13,8 @@
       "everyPlayerTurns": 1,
       "opportunities": 6,
       "interactions": [
-        "base:take",
-        "base:drop"
+        "status:take",
+        "status:drop"
       ],
       "locationIds": [
         "location:work-room",

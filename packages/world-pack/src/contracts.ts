@@ -48,6 +48,8 @@ export interface WorldPackInteractionBindingSource extends WorldJsonObject {
   readonly bindingId: string
   readonly definition: { readonly id: string; readonly version: number }
   readonly config: WorldJsonObject
+  /** The author's player-facing name for this action, such as "倒一杯热茶". Display only; never in the catalog. */
+  readonly label?: string
 }
 
 export interface WorldPackEntitySourceV2 extends WorldJsonObject {

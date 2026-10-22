@@ -1,5 +1,6 @@
 import { createServer, type Server } from 'node:http'
-import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { itemRulesScript } from '../support/item-rules.ts'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -46,7 +47,15 @@ function interactionFixture(): string {
   const root = mkdtempSync(join(tmpdir(), 'frozen-interaction-fixture-'))
   roots.push(root)
   cpSync(resolve('examples/world-packs/ai-girls-awaken-v10'), root, { recursive: true })
-  const definitions = ['take', 'drop'].map(id => ({ id: 'base:' + id, version: 1 }))
+  // The phone is taken and put down by the pack's own item rules.
+  mkdirSync(join(root, 'scripts'), { recursive: true })
+  writeFileSync(
+    join(root, 'scripts/status.js'),
+    itemRulesScript({ take: ['entity:phone'], drop: ['entity:phone'], give: [] }),
+  )
+  const source = JSON.parse(readFileSync(join(root, 'worldpack.source.json'), 'utf8'))
+  source.assetFiles = [...(source.assetFiles ?? []), 'scripts/status.js']
+  writeFileSync(join(root, 'worldpack.source.json'), JSON.stringify(source))
   writeFileSync(
     join(root, 'entities.json'),
     JSON.stringify({
@@ -56,11 +65,6 @@ function interactionFixture(): string {
           entityId: 'entity:phone',
           locationId: 'location:bedroom',
           kind: 'phone',
-          interactionBindings: definitions.map(d => ({
-            bindingId: 'binding:phone-' + d.id.slice(5),
-            definition: d,
-            config: {},
-          })),
         },
       ],
     }),
@@ -70,7 +74,7 @@ function interactionFixture(): string {
     JSON.stringify({
       schemaVersion: 'worldpack-interactions/v1',
       packages: [{ id: 'package:interactions-basic', version: 1 }],
-      definitions,
+      definitions: [],
       relationBindings: [],
     }),
   )
@@ -385,8 +389,8 @@ describe('the web playtest on a frozen world', () => {
               actionType: 'interact',
               parameters: {
                 targetRef: { kind: 'entity', id: 'entity:phone' },
-                bindingId: `binding:phone-${definition}`,
-                definitionRef: { id: `base:${definition}`, version: 1 },
+                bindingId: 'status',
+                definitionRef: { id: `status:${definition}`, version: 1 },
                 arguments: {},
               },
             }
@@ -449,8 +453,8 @@ describe('the web playtest on a frozen world', () => {
               actionType: 'interact',
               parameters: {
                 targetRef: { kind: 'entity', id: 'entity:phone' },
-                bindingId: 'binding:phone-take',
-                definitionRef: { id: 'base:take', version: 1 },
+                bindingId: 'status',
+                definitionRef: { id: 'status:take', version: 1 },
                 arguments: {},
               },
             }),
@@ -501,8 +505,8 @@ describe('the web playtest on a frozen world', () => {
               actionType: 'interact',
               parameters: {
                 targetRef: { kind: 'entity', id: 'entity:phone' },
-                bindingId: 'binding:phone-take',
-                definitionRef: { id: 'base:take', version: 1 },
+                bindingId: 'status',
+                definitionRef: { id: 'status:take', version: 1 },
                 arguments: {},
               },
             }
@@ -604,8 +608,8 @@ describe('the web playtest on a frozen world', () => {
               actionType: 'interact',
               parameters: {
                 targetRef: { kind: 'entity', id: 'entity:phone' },
-                bindingId: 'binding:phone-take',
-                definitionRef: { id: 'base:take', version: 1 },
+                bindingId: 'status',
+                definitionRef: { id: 'status:take', version: 1 },
                 arguments: {},
               },
             }

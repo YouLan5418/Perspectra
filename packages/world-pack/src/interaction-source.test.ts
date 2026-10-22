@@ -5,7 +5,7 @@ import {
   interactionPackageDescription,
   type InteractionPackageDescription,
 } from '@harness-world/contracts'
-import { createBasicInteractionPackage } from '@harness-world/interactions-basic'
+import { createItemCustodyTestPackage } from '../../../tests/fixtures/item-custody-package.ts'
 import { describe, expect, it } from 'vitest'
 import { compileWorldPackSource } from './tooling.ts'
 import {
@@ -136,6 +136,26 @@ describe('interaction source rejection', () => {
         })),
       }),
     ).toThrow(/at most 256 characters/u)
+  })
+
+  it('keeps an author action name on a binding and rejects an empty or overlong one', () => {
+    const named = (label: unknown) => ({
+      schemaVersion: 'worldpack-entities/v2',
+      entities: [
+        {
+          ...entity(),
+          interactionBindings: [
+            { bindingId: 'binding:pour', definition: { id: 'fixture:use', version: 1 }, config: {}, label },
+          ],
+        },
+      ],
+    })
+    expect(parseWorldPackEntitiesSourceV2(named('倒一杯热茶')).entities[0]!.interactionBindings![0]!.label).toBe(
+      '倒一杯热茶',
+    )
+    expect(() => parseWorldPackEntitiesSourceV2(named('  '))).toThrow(/\/label/u)
+    expect(() => parseWorldPackEntitiesSourceV2(named('长'.repeat(61)))).toThrow(/1-60 characters/u)
+    expect(() => parseWorldPackEntitiesSourceV2(named(3))).toThrow()
   })
 
   it('rejects a duplicated binding id on one target and an unknown field', () => {
@@ -342,7 +362,7 @@ describe('interaction source rejection', () => {
   it('rejects a compiled envelope that is not a v5 envelope', async () => {
     const pack = await compileWorldPackSource(
       fileURLToPath(new URL('../../../examples/world-packs/prototype-g1/', import.meta.url)),
-      [interactionPackageDescription(createBasicInteractionPackage())],
+      [interactionPackageDescription(createItemCustodyTestPackage())],
     )
     expect(() => parseCompiledWorldPackV5(pack)).not.toThrow()
     expect(() => parseCompiledWorldPackV5({ ...pack, compiledSchemaVersion: 'worldpack/v4' })).toThrow(

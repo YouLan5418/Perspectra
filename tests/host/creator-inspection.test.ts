@@ -48,7 +48,7 @@ it('reports committed custody and movement, actual request context and observati
   const state = await runtime.state()
   const take = state
     .availableActions!.flatMap(action => action.interactions ?? [])
-    .find(option => (option.definitionRef as { id: string }).id === 'base:take')!
+    .find(option => (option.definitionRef as { id: string }).id === 'status:take')!
   await runtime.perform({
     actionType: 'interact',
     parameters: {

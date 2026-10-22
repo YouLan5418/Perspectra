@@ -38,10 +38,11 @@ it('compiles the experiment and preserves private knowledge and exclusive docume
     expect(JSON.stringify(initial.views['character:priestess'])).not.toContain('灰钟梦兆')
     expect(JSON.stringify(initial.views['character:priestess'])).not.toContain('独占议程')
     expect(JSON.stringify(initial.views['character:rival'])).not.toContain('灰钟梦兆')
-    const rejected = await runtime.submit(takeRecord)
-    expect(rejected.error).toBe(false)
+    // Out of reach, the take is not offered; a forged one is refused before the author runs and commits nothing.
+    const before = snapshot(runtime).actions.length
+    await expect(runtime.submit(takeRecord)).rejects.toThrow('当前已知条件不允许')
     expect(snapshot(runtime).record).toEqual(initial.record)
-    expect(snapshot(runtime).actions.at(-1)).toMatchObject({ actorId: 'character:player', accepted: false })
+    expect(snapshot(runtime).actions).toHaveLength(before)
     await runtime.submit(
       command('speak', {
         text: '银杏灯约定：请先核实治疗风险。',

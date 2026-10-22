@@ -7,7 +7,6 @@ const object = (value: WorldJsonValue | undefined): WorldJsonObject =>
 export function characterActionExplanations(context: WorldJsonObject): WorldJsonObject[] {
   const scene = object(context.scene),
     current = typeof scene.name === 'string' ? scene.name : '当前位置'
-  const people = Array.isArray(scene.people) ? scene.people.map(object) : []
   const items = object(context.items)
   const visible = Array.isArray(items.current) ? items.current.map(object) : []
   const options: WorldJsonObject[] = []
@@ -28,32 +27,18 @@ export function characterActionExplanations(context: WorldJsonObject): WorldJson
       for (const value of Array.isArray(offer.interactions) ? offer.interactions : []) {
         const option = object(value),
           target = object(option.targetRef),
-          definition = object(option.definitionRef),
-          args = object(option.arguments)
+          definition = object(option.definitionRef)
         if (typeof definition.id !== 'string' || typeof target.id !== 'string' || typeof option.bindingId !== 'string')
           continue
         const item = visible.find(row => row.entityId === target.id)
         const label = typeof item?.kind === 'string' ? item.kind : target.id
-        const person = people.find(row => row.characterId === args.recipientId)
-        const recipient = typeof person?.name === 'string' ? person.name : String(args.recipientId ?? '指定接收者')
-        // These version-1 meanings are the existing base item definitions, not arbitrary ID inference.
-        const basic = definition.version === 1 && target.kind === 'entity'
+        // The author's name for the action, with the item it is done to; an unnamed one shows its definition.
         const meaning =
-          basic && definition.id === 'base:take'
-            ? `取得保管：${label}`
-            : basic && definition.id === 'base:give'
-              ? `转交保管给${recipient}：${label}`
-              : basic && definition.id === 'base:drop'
-                ? `解除保管并留在${current}：${label}`
-                : `请求交互 ${definition.id}（${target.id}）`
+          typeof option.label === 'string'
+            ? option.label + (target.kind === 'entity' && !option.label.includes(label) ? `：${label}` : '')
+            : `请求交互 ${definition.id}（${target.id}）`
         const description =
-          basic && definition.id === 'base:take'
-            ? '请求将该物品实际纳入你保管；成功后，它由你携带和保管，不表示治疗、使用或取得所有权。'
-            : basic && definition.id === 'base:give'
-              ? `请求将该物品实际交由${recipient}保管；成功后保管人改变，不只是展示，也不表示对方接受了其他提议。`
-              : basic && definition.id === 'base:drop'
-                ? `请求解除你对该物品的个人保管，并将它留在${current}；成功后不再由你携带，不只是暂放桌上。`
-                : '请求已有定义所声明的交互，具体效果以该定义与随后返回的裁定结果为准；如有参数契约，仍须填写其要求的内容。'
+          '请求已有定义所声明的交互，具体效果以该定义与随后返回的裁定结果为准；如有参数契约，仍须填写其要求的内容。'
         options.push({
           meaning,
           description,

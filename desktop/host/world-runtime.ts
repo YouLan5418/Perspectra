@@ -83,7 +83,7 @@ import {
 } from '@harness-world/store-sqlite'
 import { CognitiveMemoryService } from '@harness-world/memory'
 import { adaptCompiledWorldPack, compileWorldPackSource, type CompiledWorldPackV5 } from '@harness-world/world-pack'
-import { HostBusyError, type HostAction, type HostRuntime, type HostState } from './http-server.ts'
+import { actionText, HostBusyError, type HostAction, type HostRuntime, type HostState } from './http-server.ts'
 import { modelCharacters, playerTranscript } from './player-transcript.ts'
 import { DEFAULT_RUNTIME_TUNING, type RuntimeTuning } from './runtime-tuning.ts'
 
@@ -149,6 +149,24 @@ export function providerFailureNotice(httpStatus: number | undefined): string {
 }
 
 /** Player submission commits first; ordinary NPC work then uses bounded dynamic dispatch. */
+/** `/status <operation>[@<item>] <json>`: a status operation, done to an item when one is named. */
+function statusCommand(text: string): { operation: string; targetId?: string; parameters: WorldJsonObject } {
+  const match = /^\/status ([a-z][a-z0-9-]*)(?:@(\S+))? (.+)$/su.exec(text)
+  if (match === null) throw new TypeError('状态命令格式无效')
+  return {
+    operation: match[1]!,
+    ...(match[2] === undefined ? {} : { targetId: match[2] }),
+    parameters: JSON.parse(match[3]!) as WorldJsonObject,
+  }
+}
+
+/** What one committed player input means for its turn: whether to go on, and whether anyone reacts. */
+interface InputOutcome {
+  readonly accepted: boolean
+  readonly react: boolean
+  readonly notice?: string
+}
+
 export class WorldHostCore implements HostRuntime {
   readonly #worldVersion: string
   readonly #options: WorldHostOptions
@@ -315,6 +333,7 @@ export class WorldHostCore implements HostRuntime {
   readonly #names: ReadonlyMap<string, string>
   /** Author-declared Entity labels. Entities without `name` are absent and fall back to entityId at the projection. */
   readonly #entityNames: ReadonlyMap<string, string>
+  #actionLabels: Readonly<Record<string, string>> = {}
   readonly #title: string
   readonly #playerName: string
   readonly #npcNames: readonly string[]
@@ -660,6 +679,13 @@ export class WorldHostCore implements HostRuntime {
     const runtime = new WorldHostCore(options, compiled, intentEnabled)
     try {
       runtime.#packHash = pack.packHash
+      runtime.#actionLabels = Object.fromEntries(
+        [...pack.content.entities, ...pack.content.characters].flatMap(target =>
+          (target.interactionBindings ?? []).flatMap(binding =>
+            binding.label === undefined ? [] : [[binding.bindingId, binding.label]],
+          ),
+        ),
+      )
       runtime.#storyParentNodeId = options.storyParentNodeId ?? null
       runtime.#autonomy = PackAutonomy.load(options.packPath, pack, runtime.#playerId)
       runtime.#application.activate(compiled)
@@ -768,6 +794,7 @@ export class WorldHostCore implements HostRuntime {
         ...(this.#options.palette ? { palette: this.#options.palette } : {}),
       },
       availableActions: this.#availableActions,
+      actionLabels: this.#actionLabels,
       actionNames: Object.fromEntries(
         this.#availableActions.flatMap(a =>
           (a.interactions ?? []).flatMap(option => {
@@ -781,6 +808,15 @@ export class WorldHostCore implements HostRuntime {
           }),
         ),
       ),
+      ...(this.#status
+        ? {
+            characterArguments: Object.fromEntries(
+              this.#status.operations
+                .filter(op => op.characterParameters.length)
+                .map(op => ['status:' + op.id, [...op.characterParameters]]),
+            ),
+          }
+        : {}),
       ...(this.#memoryCore ? { memoryMaintenance: this.#memoryCore.backgroundState() } : {}),
       ...(this.#activityView ? { activity: structuredClone(this.#activityView) } : {}),
       ...(this.#activityViews ? { activities: structuredClone(this.#activityViews) } : {}),
@@ -818,99 +854,121 @@ export class WorldHostCore implements HostRuntime {
    * key: the store is idempotent by key, so the retry completes the queued input instead of adding another.
    */
   async submit(text: string, idempotencyKey?: string): Promise<HostState> {
+    return this.turn([text], idempotencyKey)
+  }
+
+  /**
+   * One player turn of several inputs, such as a line and an action. Each input is adjudicated and committed
+   * on its own path; the characters react once, to all of them. An input that is not accepted drops the
+   * inputs after it, so a line meant to follow a refused action is never said; what the earlier inputs
+   * committed still gets its reactions.
+   */
+  async turn(inputs: readonly string[], idempotencyKey?: string): Promise<HostState> {
     if (this.#busy || this.#escaping || this.#closing) throw new HostBusyError('请等待当前行动完成。')
     if (this.#paused) {
       this.#notice = 'NPC 已暂停：这次输入没有提交。恢复后再试。'
       return this.state()
     }
-    if (this.#activity?.current()?.game.active) {
-      if (text.startsWith('/') && !text.startsWith('/act ') && !text.startsWith('/status '))
+    const inActivity = this.#activity?.current()?.game.active === true
+    for (const text of inputs) {
+      if (inActivity && text.startsWith('/') && !text.startsWith('/act ') && !text.startsWith('/status '))
         throw new TypeError('活动期间禁止变量调试与未声明命令。')
       if (text.startsWith('/status ') && !this.#status) throw new TypeError('本包没有状态脚本')
-      this.#beginWork()
-      try {
-        this.#rootBeforeSeq = (await this.#application.head(this.#address)).headSeq
-        await this.#application.release(this.#address)
-        if (text.startsWith('/act ')) {
-          const match = /^\/act (speak|move|interact) (.+)$/u.exec(text)
-          if (match === null) throw new TypeError('动作命令格式无效')
-          const parameters = JSON.parse(match[2]!) as WorldJsonObject
-          await this.#activity.worldAction({ actionType: match[1]!, parameters }, idempotencyKey ?? randomUUID())
-        } else if (text.startsWith('/status ')) {
-          // During an activity a status operation is an ordinary interaction under the activity's policy.
-          const match = /^\/status ([a-z][a-z0-9-]*) (.+)$/su.exec(text)
-          if (match === null) throw new TypeError('状态命令格式无效')
-          await this.#activity.worldAction(
-            {
-              actionType: 'interact',
-              parameters: {
-                targetRef: { kind: 'character', id: this.#playerId },
-                bindingId: 'status',
-                definitionRef: { id: 'status:' + match[1]!, version: 1 },
-                arguments: JSON.parse(match[2]!) as WorldJsonObject,
-              },
-            },
-            idempotencyKey ?? randomUUID(),
-          )
-        } else await this.#activity.speak(text, idempotencyKey ?? randomUUID())
-        // A retried key commits nothing; only a newly committed input ends a status round.
-        const committed = (await this.#application.head(this.#address)).headSeq > this.#rootBeforeSeq
-        this.#notice = '操作已提交；单纯对白不消耗游戏行动回合。'
-        await this.#activateCharacters(true)
-        if (committed) await this.#endPlayerRound()
-      } finally {
-        try {
-          await this.#refresh()
-        } finally {
-          this.#endWork()
-        }
-      }
-      return this.state()
-    }
-    if (text.startsWith('/status ')) {
-      if (!this.#status) throw new TypeError('本包没有状态脚本')
-      const match = /^\/status ([a-z][a-z0-9-]*) (.+)$/su.exec(text)
-      if (match === null) throw new TypeError('状态命令格式无效')
-      const parameters = JSON.parse(match[2]!) as WorldJsonObject
-      this.#beginWork()
-      this.#error = false
-      this.#notice = ''
-      try {
-        this.#rootBeforeSeq = (await this.#application.head(this.#address)).headSeq
-        await this.#application.release(this.#address)
-        const changed = await this.#status.apply(
-          resolve(this.#dataDirectory, 'world.sqlite'),
-          this.#address,
-          this.#playerId,
-          match[1]!,
-          parameters,
-          idempotencyKey ?? randomUUID(),
-        )
-        // A retried request returns its original result; it starts no second round.
-        this.#notice = changed ? '状态操作已提交。' : '已返回原提交结果，没有再次执行。'
-        if (changed) {
-          await this.#refresh()
-          await this.#activateCharacters()
-          await this.#endPlayerRound()
-        }
-      } finally {
-        try {
-          await this.#refresh()
-        } finally {
-          this.#endWork()
-        }
-      }
-      return this.state()
     }
     this.#beginWork()
     this.#error = false
     this.#notice = ''
-    this.#phaseLabel = text.startsWith('/') ? '正在执行命令' : '正在提交发言'
-    const key = idempotencyKey ?? `web-playtest:${randomUUID()}`
+    this.#activationCycle = undefined
+    const base = idempotencyKey ?? (inActivity ? randomUUID() : `web-playtest:${randomUUID()}`)
+    let failed = false
     try {
-      this.#activationCycle = undefined
       this.#rootBeforeSeq = (await this.#application.head(this.#address)).headSeq
-      this.#lastPlayerIntent = text.startsWith('/') ? 'command' : 'natural-language'
+      let react = false
+      const notices: string[] = []
+      for (const [index, text] of inputs.entries()) {
+        let outcome: InputOutcome
+        try {
+          outcome = await this.#commitInput(text, inputs.length === 1 ? base : `${base}:${index}`, inActivity)
+        } catch (error: unknown) {
+          // A rule refusing a later input ends the turn here; the first input's refusal stays an error.
+          if (index === 0 || !(error instanceof TypeError || error instanceof RangeError)) throw error
+          notices.push(error.message)
+          break
+        }
+        react ||= outcome.react
+        if (outcome.notice !== undefined) notices.push(outcome.notice)
+        if (!outcome.accepted) break
+      }
+      const committed = (await this.#application.head(this.#address)).headSeq > this.#rootBeforeSeq
+      if (react) {
+        await this.#refresh()
+        await this.#activateCharacters(inActivity)
+      }
+      if (committed) await this.#endPlayerRound()
+      if (notices.length) this.#notice = [...notices, this.#notice].filter(Boolean).join(' ')
+    } catch (error: unknown) {
+      failed = true
+      throw error
+    } finally {
+      try {
+        await (failed ? this.#refresh().catch(() => {}) : this.#refresh())
+      } finally {
+        this.#endWork()
+      }
+    }
+    return this.state()
+  }
+
+  /** Commits one input without letting anyone react. `accepted` is false when the world refused or never took it. */
+  async #commitInput(text: string, key: string, inActivity: boolean): Promise<InputOutcome> {
+    await this.#application.release(this.#address)
+    if (inActivity) {
+      // A refusal throws: an activity commits nothing for a rejected player action.
+      if (text.startsWith('/act ')) {
+        const match = /^\/act (speak|move|interact) (.+)$/u.exec(text)
+        if (match === null) throw new TypeError('动作命令格式无效')
+        const parameters = JSON.parse(match[2]!) as WorldJsonObject
+        await this.#activity!.worldAction({ actionType: match[1]!, parameters }, key)
+      } else if (text.startsWith('/status ')) {
+        // During an activity a status operation is an ordinary interaction under the activity's policy.
+        const command = statusCommand(text)
+        await this.#activity!.worldAction(
+          {
+            actionType: 'interact',
+            parameters: {
+              targetRef:
+                command.targetId === undefined
+                  ? { kind: 'character', id: this.#playerId }
+                  : { kind: 'entity', id: command.targetId },
+              bindingId: 'status',
+              definitionRef: { id: 'status:' + command.operation, version: 1 },
+              arguments: command.parameters,
+            },
+          },
+          key,
+        )
+      } else await this.#activity!.speak(text, key)
+      this.#notice = '操作已提交；单纯对白不消耗游戏行动回合。'
+      return { accepted: true, react: true }
+    }
+    if (text.startsWith('/status ')) {
+      const command = statusCommand(text)
+      // A rejection throws with the reason; a retried request returns its original result and starts no round.
+      const changed = await this.#status!.apply(
+        resolve(this.#dataDirectory, 'world.sqlite'),
+        this.#address,
+        this.#playerId,
+        command.operation,
+        command.parameters,
+        key,
+        command.targetId,
+      )
+      this.#notice = changed ? '状态操作已提交。' : '已返回原提交结果，没有再次执行。'
+      return { accepted: true, react: changed }
+    }
+    this.#phaseLabel = text.startsWith('/') ? '正在执行命令' : '正在提交发言'
+    this.#lastPlayerIntent = text.startsWith('/') ? 'command' : 'natural-language'
+    try {
       const result = await this.#application.submitText(this.#address, {
         text,
         idempotencyKey: key,
@@ -931,28 +989,25 @@ export class WorldHostCore implements HostRuntime {
           this.#notice = '模型服务暂时无法完成请求，这次输入没有提交。请检查服务可用性后重试；无需改写输入。'
           this.#lastPlayerIntent = 'service-failed'
         }
-      } else if (result.status === 'clarification_required') {
+        return { accepted: false, react: false }
+      }
+      if (result.status === 'clarification_required') {
         this.#notice = `${result.reason}（这次命令没有提交；请检查命令参数，或用 /act 指定完整交互。）`
         this.#lastPlayerIntent = 'clarification'
-      } else {
-        const committed = result.result.headSeq > this.#rootBeforeSeq
-        const playerNotice = this.#playerResolutionNotice(key, result.result.headSeq)
-        await this.#refresh()
-        await this.#activateCharacters()
-        if (committed) await this.#endPlayerRound()
-        if (playerNotice !== undefined) this.#notice = [playerNotice, this.#notice].filter(Boolean).join(' ')
+        return { accepted: false, react: false }
+      }
+      const notice = this.#playerResolutionNotice(key, result.result.headSeq)
+      return {
+        accepted: result.result.status === 'accepted',
+        react: true,
+        ...(notice === undefined ? {} : { notice }),
       }
     } catch (error: unknown) {
       this.#error = true
       this.#notice = await this.#whatBecameOf(key)
       console.error('Game host turn failed:', error instanceof Error ? error.message : 'unknown error')
       throw error
-    } finally {
-      this.#endWork()
-      this.#phaseLabel = this.#paused ? 'NPC 已暂停' : '可以输入'
-      await this.#refresh().catch(() => {})
     }
-    return this.state()
   }
 
   #beginWork(): void {
@@ -1021,7 +1076,11 @@ export class WorldHostCore implements HostRuntime {
   async #endStatusRound(): Promise<void> {
     if (!this.#status || this.#escaping || this.#closing) return
     await this.#application.release(this.#address)
-    const result = await this.#status.endRound(resolve(this.#dataDirectory, 'world.sqlite'), this.#address)
+    const result = await this.#status.endRound(
+      resolve(this.#dataDirectory, 'world.sqlite'),
+      this.#address,
+      this.#rootBeforeSeq,
+    )
     this.#statusRoundError = result.ok ? undefined : result.error
   }
   async saveNode(title: string) {
@@ -1189,7 +1248,7 @@ export class WorldHostCore implements HostRuntime {
         requestId: randomUUID(),
       })
     }
-    return this.submit(`/act ${action.actionType} ${JSON.stringify(action.parameters)}`)
+    return this.submit(actionText(action))
   }
   /** The round result names only its first action; report any later player action rejected in the same commit. */
   #playerResolutionNotice(idempotencyKey: string, headSeq: number): string | undefined {

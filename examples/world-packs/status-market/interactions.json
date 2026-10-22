@@ -8,18 +8,6 @@
   ],
   "definitions": [
     {
-      "id": "base:take",
-      "version": 1
-    },
-    {
-      "id": "base:drop",
-      "version": 1
-    },
-    {
-      "id": "base:give",
-      "version": 1
-    },
-    {
       "id": "base:hold-hand",
       "version": 1
     },

@@ -303,32 +303,21 @@ it('keeps an NPC that shares the player name apart from the player in the status
     { holder: '你', items: [{ label: '余额', value: '100', note: '' }] },
   ])
 })
-it('groups status operations with items and interactions in the quick actions', () => {
+it('groups quick actions by the kind and target the view gives them', () => {
   const actionGroup = embedded('actionGroup', 'roundTools') as (option: unknown) => string
+  const status = { kind: 'interact', target: { kind: 'self', id: 'character:player', name: '玩家' } }
+  expect(actionGroup(status)).toBe('self')
   expect(
     actionGroup({
-      action: {
-        actionType: 'interact',
-        parameters: {
-          targetRef: { kind: 'character', id: 'character:player' },
-          bindingId: 'status',
-          definitionRef: { id: 'status:check-purse', version: 1 },
-          arguments: {},
-        },
-      },
-    }),
-  ).toBe('items')
-  expect(
-    actionGroup({
-      action: {
-        actionType: 'interact',
-        parameters: {
-          targetRef: { kind: 'character', id: 'character:a' },
-          definitionRef: { id: 'base:give', version: 1 },
-          arguments: {},
-        },
-      },
+      kind: 'interact',
+      target: { kind: 'item', id: 'item:key', name: '钥匙' },
+      action: { actionType: 'interact', parameters: { arguments: { recipientId: 'character:a' } } },
     }),
   ).toBe('people')
-  expect(actionGroup({ action: { actionType: 'move', parameters: {} } })).toBe('move')
+  expect(actionGroup({ kind: 'interact', target: { kind: 'item', id: 'item:key', name: '钥匙' } })).toBe('items')
+  expect(actionGroup({ kind: 'interact', target: { kind: 'character', id: 'character:a', name: 'A' } })).toBe('people')
+  expect(actionGroup({ kind: 'move', target: { kind: 'location', id: 'room', name: '房间' } })).toBe('move')
+  expect(actionGroup({ kind: 'activity' })).toBe('activity')
+  // Pausing, resuming and retrying are kept out of the in-story quick actions by their own group.
+  expect(actionGroup({ kind: 'manage' })).toBe('manage')
 })

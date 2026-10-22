@@ -3,8 +3,36 @@ import { canonicalizeWorldJson, type WorldJsonObject } from '@harness-world/cont
 import type { PlayerView, FrontendActionRequest } from '@harness-world/frontend'
 import type { HostState, HostAction, HostRuntime } from './http-server.ts'
 
+const optionId = (action: HostAction) =>
+  'opt:' +
+  createHash('sha256')
+    .update(canonicalizeWorldJson(action as unknown as WorldJsonObject))
+    .digest('hex')
+
+/** What the player fills in: the schema's properties the offer does not already fix, such as an activity's revision. */
+function playerInputs(option: WorldJsonObject): WorldJsonObject | undefined {
+  const schema = option.argumentSchema as WorldJsonObject | undefined
+  const properties = (schema?.properties ?? {}) as WorldJsonObject
+  const fixed = (option.arguments ?? {}) as WorldJsonObject
+  const free = Object.keys(properties).filter(key => !Object.hasOwn(fixed, key))
+  if (!free.length) return undefined
+  return {
+    type: 'object',
+    additionalProperties: false,
+    properties: Object.fromEntries(free.map(key => [key, structuredClone(properties[key]!)])),
+    required: ((schema!.required as string[] | undefined) ?? []).filter(key => free.includes(key)),
+  }
+}
+
 export function projectPlayerView(state: HostState): PlayerView {
   const actions: PlayerView['actions'] = []
+  const name = (id: string) => state.actionNames?.[id] ?? id
+  const running = (state.activity?.game as WorldJsonObject | undefined)?.active === true ? state.activity : undefined
+  const activityTarget = (activity: NonNullable<HostState['activity']>) => ({
+    kind: 'activity' as const,
+    id: String(activity.activityKey ?? activity.id ?? 'default'),
+    name: String(activity.title),
+  })
   for (const affordance of state.availableActions ?? []) {
     if (affordance.actionType === 'move')
       for (const destination of affordance.destinations ?? []) {
@@ -12,6 +40,8 @@ export function projectPlayerView(state: HostState): PlayerView {
           id: 'move:' + destination.locationId,
           label: '前往 ' + destination.name,
           action: { actionType: 'move', parameters: { locationId: destination.locationId } },
+          kind: 'move',
+          target: { kind: 'location', id: destination.locationId, name: destination.name },
         })
       }
     if (affordance.actionType === 'interact')
@@ -19,18 +49,7 @@ export function projectPlayerView(state: HostState): PlayerView {
         if (!option.targetRef || !option.definitionRef || typeof option.bindingId !== 'string') continue
         const definition = option.definitionRef as WorldJsonObject
         if (typeof definition.id !== 'string') continue
-        if (definition.id.startsWith('activity:')) {
-          const schema = option.argumentSchema as WorldJsonObject | undefined
-          const properties = schema?.properties as WorldJsonObject | undefined
-          if (!properties || Object.keys(properties).some(key => key !== 'activityId' && key !== 'revision')) continue
-        }
-        // Like activity operations, a status operation that needs player-supplied arguments is not a one-click option.
-        if (definition.id.startsWith('status:')) {
-          const properties = (option.argumentSchema as WorldJsonObject | undefined)?.properties as
-            | WorldJsonObject
-            | undefined
-          if (properties && Object.keys(properties).length) continue
-        }
+        const inputs = playerInputs(option as WorldJsonObject)
         const target = option.targetRef as WorldJsonObject
         const action: HostAction = {
           actionType: 'interact',
@@ -45,30 +64,37 @@ export function projectPlayerView(state: HostState): PlayerView {
         const targetName = state.actionNames?.[String(target.id)] ?? String(target.id)
         const recipient =
           typeof args.recipientId === 'string' ? (state.actionNames?.[args.recipientId] ?? args.recipientId) : undefined
-        const verbs: Record<string, string> = {
-          'base:take': '拿取',
-          'base:drop': '放下',
-          'home:cook-rice': '煮白米饭',
-          'home:eat-rice': '吃完这锅饭',
-          'dinner:repair': '修理',
-          'dinner:cook-cold': '做一桌凉拌冷盘',
-          'dinner:cook-home': '开火做家常菜',
-          'dinner:cook-feast': '用蒸馏器熬高汤做大餐',
-        }
+        // The author names an action on its binding; the contact rules have a plain fallback, and any other
+        // unnamed action reads as an interaction with its target rather than showing a definition ID. A
+        // recipient is always named, so the same action for different people stays apart.
+        const authored = state.actionLabels?.[option.bindingId]
         const label =
           definition.id.startsWith('activity:') || definition.id.startsWith('status:')
             ? String(option.label ?? definition.id)
-            : definition.id === 'base:give' && recipient !== undefined
-              ? '把 ' + targetName + ' 交给 ' + recipient
-              : (verbs[String(definition.id)] ?? String(definition.id)) + ' · ' + targetName
+            : (authored ??
+                {
+                  'base:hold-hand': '牵起 ' + targetName + ' 的手',
+                  'base:end-contact': '松开 ' + targetName,
+                }[definition.id] ??
+                '与 ' + targetName + ' 互动') + (recipient === undefined ? '' : '（给 ' + recipient + '）')
+        const targetId = String(target.id)
+        const characterArguments = (state.characterArguments?.[definition.id] ?? []).filter(key =>
+          Object.hasOwn((inputs?.properties ?? {}) as WorldJsonObject, key),
+        )
         actions.push({
-          id:
-            'opt:' +
-            createHash('sha256')
-              .update(canonicalizeWorldJson(action as unknown as WorldJsonObject))
-              .digest('hex'),
+          id: optionId(action),
           label,
           action,
+          kind: definition.id.startsWith('activity:') ? 'activity' : 'interact',
+          // A status operation acts as the player; whom it touches, if anyone, is one of its inputs.
+          target:
+            definition.id.startsWith('activity:') && running
+              ? activityTarget(running)
+              : definition.id.startsWith('status:') && target.kind !== 'entity'
+                ? { kind: 'self', id: targetId, name: state.world.playerName }
+                : { kind: target.kind === 'character' ? 'character' : 'item', id: targetId, name: name(targetId) },
+          ...(inputs ? { argumentSchema: inputs } : {}),
+          ...(characterArguments.length ? { characterArguments } : {}),
         })
       }
   }
@@ -93,13 +119,11 @@ export function projectPlayerView(state: HostState): PlayerView {
           },
         }
         actions.push({
-          id:
-            'opt:' +
-            createHash('sha256')
-              .update(canonicalizeWorldJson(action as unknown as WorldJsonObject))
-              .digest('hex'),
+          id: optionId(action),
           label: String(option.label),
           action,
+          kind: 'activity',
+          target: activityTarget(activity),
         })
       }
       continue
@@ -116,13 +140,12 @@ export function projectPlayerView(state: HostState): PlayerView {
     }
     const selection = operation === 'start' ? (activity.participantSelection as WorldJsonObject | undefined) : undefined
     actions.push({
-      id:
-        'opt:' +
-        createHash('sha256')
-          .update(canonicalizeWorldJson(action as unknown as WorldJsonObject))
-          .digest('hex'),
+      id: optionId(action),
       label: { suspend: '暂停 ', resume: '继续 ', start: '开始 ' }[operation] + activity.title,
       action,
+      // Starting one is an invitation inside the story; pausing and resuming manage it from outside.
+      kind: operation === 'start' ? 'activity' : 'manage',
+      target: activityTarget(activity),
       ...(selection
         ? {
             participantSelection: structuredClone(selection) as unknown as NonNullable<
@@ -137,13 +160,11 @@ export function projectPlayerView(state: HostState): PlayerView {
         parameters: { ...action.parameters, definitionRef: { id: 'host:activity-abandon', version: 1 } },
       }
       actions.push({
-        id:
-          'opt:' +
-          createHash('sha256')
-            .update(canonicalizeWorldJson(abandon as unknown as WorldJsonObject))
-            .digest('hex'),
+        id: optionId(abandon),
         label: '放弃 ' + activity.title,
         action: abandon,
+        kind: 'manage',
+        target: activityTarget(activity),
       })
     }
   }
@@ -160,13 +181,11 @@ export function projectPlayerView(state: HostState): PlayerView {
       },
     }
     actions.push({
-      id:
-        'opt:' +
-        createHash('sha256')
-          .update(canonicalizeWorldJson(action as unknown as WorldJsonObject))
-          .digest('hex'),
+      id: optionId(action),
       label: '再次请求角色处理',
       action,
+      kind: 'manage',
+      target: activityTarget(state.activity!),
     })
   }
   return {
@@ -315,13 +334,15 @@ export class FrontendActions {
         if (!this.runtime.regenerate) throw new TypeError('重新生成不可用')
         return projectPlayerView(await this.runtime.regenerate(request.payload.tailId as string, request.actionId))
       }
+      const visible = async () => projectPlayerView(await this.runtime.state()).scene?.recipients ?? []
+      const checkRecipients = async (recipients: readonly unknown[] | undefined) => {
+        if (!recipients?.length) return
+        const present = await visible()
+        if (recipients.some(id => !present.some(character => character.id === id)))
+          throw new TypeError('接收对象已不在当前可见场景，请重新选择')
+      }
       if (request.operation === 'speak') {
-        const recipients = request.payload.addresseeIds as string[] | undefined
-        if (recipients?.length) {
-          const visible = projectPlayerView(await this.runtime.state()).scene?.recipients ?? []
-          if (recipients.some(id => !visible.some(character => character.id === id)))
-            throw new TypeError('接收对象已不在当前可见场景，请重新选择')
-        }
+        await checkRecipients(request.payload.addresseeIds as string[] | undefined)
         const text =
           Object.hasOwn(request.payload, 'narration') || Object.hasOwn(request.payload, 'scope')
             ? '/act speak ' + JSON.stringify(request.payload)
@@ -342,10 +363,25 @@ export class FrontendActions {
         )
           throw new TypeError('请选择当前可用的活动参与者')
       } else if (selected !== undefined) throw new TypeError('此操作不接受参与者选择')
-      const action = selection
+      let action: HostAction = selection
         ? { ...option.action, parameters: { ...option.action.parameters, startParameters: { npcIds: selected! } } }
         : option.action
-      return projectPlayerView(await this.runtime.perform(action))
+      // Player inputs fill only the offer's open fields; the rules still check them against the full schema.
+      const supplied = request.payload.arguments as WorldJsonObject | undefined
+      if (supplied !== undefined) {
+        const open = option.argumentSchema?.properties as WorldJsonObject | undefined
+        if (!open) throw new TypeError('此操作不接受参数')
+        if (Object.keys(supplied).some(key => !Object.hasOwn(open, key)))
+          throw new TypeError('行动参数不在可填写范围内')
+        await checkRecipients(option.characterArguments?.map(key => supplied[key]).filter(id => id !== undefined))
+        const fixed = action.parameters.arguments as WorldJsonObject
+        action = { ...action, parameters: { ...action.parameters, arguments: { ...supplied, ...fixed } } }
+      }
+      const say = request.payload.say as WorldJsonObject | undefined
+      if (say !== undefined) await checkRecipients(say.addresseeIds as string[] | undefined)
+      if (say === undefined) return projectPlayerView(await this.runtime.perform(action))
+      const order = request.payload.order === 'after' ? 'after' : 'before'
+      return projectPlayerView(await this.runtime.perform(action, { speech: say, order }))
     })
     this.#requests.set(request.actionId, { fingerprint, result })
     return result

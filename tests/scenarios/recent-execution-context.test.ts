@@ -38,8 +38,8 @@ it('keeps disabled requests unchanged and isolates private evidence across a rea
                 actionType: 'interact',
                 parameters: {
                   targetRef: { kind: 'entity', id: 'entity:brass-key' },
-                  bindingId: 'binding:key-take',
-                  definitionRef: { id: 'base:take', version: 1 },
+                  bindingId: 'status',
+                  definitionRef: { id: 'status:take', version: 1 },
                   arguments: {},
                 },
               }
@@ -54,7 +54,7 @@ it('keeps disabled requests unchanged and isolates private evidence across a rea
   const packPath = join(root, 'pack')
   cpSync(resolve('examples/world-packs/character-autonomy'), packPath, { recursive: true })
   const autonomy = JSON.parse(readFileSync(join(packPath, 'autonomy.json'), 'utf8'))
-  autonomy.characters[0].interactions = ['base:take']
+  autonomy.characters[0].interactions = ['status:take']
   writeFileSync(join(packPath, 'autonomy.json'), JSON.stringify(autonomy))
   const data = join(root, 'world'),
     settings = playSettings({ autonomyNpcCalls: 8, autonomyReactionCalls: 8 })
@@ -113,7 +113,7 @@ it('keeps disabled requests unchanged and isolates private evidence across a rea
         r.input.context.recentExecutionEvidence?.items.some((e: { actionType: string }) => e.actionType === 'move'),
       ),
     ).toBe(true)
-    expect(JSON.stringify(friend.map(r => r.input.context.recentExecutionEvidence))).not.toContain('base:take')
+    expect(JSON.stringify(friend.map(r => r.input.context.recentExecutionEvidence))).not.toContain('status:take')
     const childStore = new WorldStore(join(child, 'world.sqlite'))
     expect(currentEntityState(childStore.readEvents(runtime.address), 'entity:brass-key')?.holderId).toBeNull()
     expect(childStore.verifyBranchIntegrity(runtime.address).headSeq).toBeGreaterThan(prefix)

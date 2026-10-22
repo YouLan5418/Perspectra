@@ -24,12 +24,8 @@ export const actors = ['character:player', 'character:priestess', 'character:riv
 export const command = (type: string, parameters: unknown) => '/act ' + type + ' ' + JSON.stringify(parameters)
 const speech = (text: string, privateTo?: string) =>
   command('speak', { text, scope: privateTo ? 'private' : 'scene_public', addresseeIds: privateTo ? [privateTo] : [] })
-export const takeRecord = command('interact', {
-  targetRef: { kind: 'entity', id: 'entity:cure-record' },
-  bindingId: 'binding:record-take',
-  definitionRef: { id: 'base:take', version: 1 },
-  arguments: {},
-})
+// The pack's own item rule, through the host's status command.
+export const takeRecord = '/status take@entity:cure-record {}'
 export const plans = {
   A: [
     speech('伊蕾，今天我陪着你。你想怎么寻找解除诅咒的办法？'),

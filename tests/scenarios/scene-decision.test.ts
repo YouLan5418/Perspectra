@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { SceneDecisionService } from '@harness-world/application'
 import { brandId, interactionPackageDescription, WorldError, type WorldJsonValue } from '@harness-world/contracts'
 import { FrozenInteractionRulebook, WorldBootstrap, type RulebookEvent } from '@harness-world/kernel'
-import { createBasicInteractionPackage } from '@harness-world/interactions-basic'
+import { createItemCustodyTestPackage } from '../fixtures/item-custody-package.ts'
 import { adaptCompiledWorldPack, compileWorldPackSource } from '@harness-world/world-pack'
 import { CharacterRuntimeAvailabilityService, WorldStore } from '@harness-world/store-sqlite'
 
@@ -18,7 +18,7 @@ const SCENE_IDS = {
 
 async function sceneWorld() {
   const pack = await compileWorldPackSource(resolve('examples/world-packs/prototype-g1'), [
-    interactionPackageDescription(createBasicInteractionPackage()),
+    interactionPackageDescription(createItemCustodyTestPackage()),
   ])
   return adaptCompiledWorldPack(pack, {
     address: {
@@ -43,7 +43,7 @@ async function fixture() {
   const path = join(directory, 'world.sqlite')
   const compiled = await sceneWorld()
   const store = new WorldStore(path)
-  new WorldBootstrap(store, true, new FrozenInteractionRulebook([createBasicInteractionPackage()])).activate(compiled)
+  new WorldBootstrap(store, true, new FrozenInteractionRulebook([createItemCustodyTestPackage()])).activate(compiled)
   const availability = new CharacterRuntimeAvailabilityService(path)
   availability.initialize(
     compiled.manifest.address,

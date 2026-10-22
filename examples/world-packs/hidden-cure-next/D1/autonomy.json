@@ -16,9 +16,9 @@
       "everyPlayerTurns": 1,
       "opportunities": 1,
       "interactions": [
-        "base:take",
-        "base:drop",
-        "base:give"
+        "status:take",
+        "status:drop",
+        "status:give"
       ],
       "locationIds": [
         "location:inn",
@@ -48,9 +48,9 @@
       "everyPlayerTurns": 1,
       "opportunities": 1,
       "interactions": [
-        "base:take",
-        "base:drop",
-        "base:give"
+        "status:take",
+        "status:drop",
+        "status:give"
       ],
       "locationIds": [
         "location:inn",

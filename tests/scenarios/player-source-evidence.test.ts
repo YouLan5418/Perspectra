@@ -1,3 +1,4 @@
+import { basicInteractionPackage } from '../fixtures/frozen-interaction-world.ts'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -18,6 +19,7 @@ async function run(
   const root = mkdtempSync(join(tmpdir(), 'player-source-'))
   const world = frozenIntentWorld()
   const app = new WorldApplication({
+    interactionPackages: [basicInteractionPackage],
     worldPath: join(root, 'world.sqlite'),
     sessionPath: join(root, 'session.sqlite'),
     memoryPath: join(root, 'memory.sqlite'),

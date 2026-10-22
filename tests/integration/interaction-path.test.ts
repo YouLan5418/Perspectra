@@ -797,6 +797,7 @@ describe('a v10 world through the production entry point', () => {
     const worldPath = join(root, 'world.sqlite')
     const compiled = frozenInteractionWorld()
     const app = new WorldApplication({
+      interactionPackages: [basicInteractionPackage],
       worldPath,
       sessionPath: join(root, 'session.sqlite'),
       memoryPath: join(root, 'memory.sqlite'),
@@ -871,6 +872,7 @@ describe('a v10 world through the production entry point', () => {
     const run = async (performance?: WorldJsonObject): Promise<readonly StoredWorldEvent[]> => {
       const root = mkdtempSync(join(tmpdir(), 'frozen-performance-'))
       const app = new WorldApplication({
+        interactionPackages: [basicInteractionPackage],
         worldPath: join(root, 'world.sqlite'),
         sessionPath: join(root, 'session.sqlite'),
         memoryPath: join(root, 'memory.sqlite'),
@@ -992,6 +994,7 @@ describe('a v10 world through the production entry point', () => {
     const worldPath = join(root, 'world.sqlite')
     const compiled = frozenInteractionWorld()
     const app = new WorldApplication({
+      interactionPackages: [basicInteractionPackage],
       worldPath,
       sessionPath: join(root, 'session.sqlite'),
       memoryPath: join(root, 'memory.sqlite'),

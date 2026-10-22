@@ -11,7 +11,7 @@
         },
         {
           "actionType": "interact",
-          "definitionId": "base:take"
+          "definitionId": "status:take"
         }
       ],
       "everyPlayerTurns": 1,
