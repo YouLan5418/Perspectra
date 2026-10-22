@@ -7,7 +7,7 @@ export const DEFAULT_PAGE = String.raw`<!doctype html>
 <body><main>
   <div class="backdrop" aria-hidden="true"></div>
   <header class="world-header"><div class="scene-heading"><div><h2 id="scene">正在进入情景</h2><h1 id="title">正在进入世界</h1><div id="status-bar" class="status-bar" role="group" aria-label="你知道的状态" hidden></div></div></div><nav class="stage-tools" aria-label="舞台工具"><span id="status" class="status" role="status">正在连接</span><button id="history-toggle" type="button" aria-expanded="false">文字记录</button><button id="actions-toggle" type="button" aria-expanded="false">行动 <span id="action-count">0</span></button></nav></header>
-  <div id="characters" aria-label="当前可见角色"></div>
+  <div id="characters" aria-label="当前可见角色"></div><div id="character-menu" class="character-menu" role="menu" hidden></div>
   <p id="movement-toast" class="movement-toast" role="status" hidden></p>
   <section class="stage-bottom" aria-label="故事与对话">
     <div class="dialogue-wrap" id="dialogue-wrap"><div class="dialogue-meta"><strong id="speaker" class="speaker-label">序幕</strong><span id="reading-count" class="reading-count"></span></div><button id="dialogue" class="dialogue" type="button" aria-label="阅读下一段">世界正在醒来……</button><div id="auto-progress" class="auto-progress" hidden><div id="auto-progress-bar" class="auto-progress-bar"></div></div><div class="dialogue-footer"><span id="continue-hint">点击继续</span><button id="auto-read" type="button" aria-pressed="false">自动</button><button id="skip-read" type="button" title="跳到已经发生的最新内容">跳过</button>      <div id="round-tools" class="round-tools" role="group" aria-label="末端回合候选" hidden><button id="candidate-prev" type="button" aria-label="上一个候选" title="上一个候选">‹</button><span id="candidate-count" aria-live="polite"></span><button id="candidate-next" type="button" aria-label="下一个候选" title="下一个候选">›</button><button id="regenerate-round" type="button" aria-label="重新生成" title="重新生成此回合"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M20 7v5h-5M4 17v-5h5"/><path d="M6 6a8 8 0 0 1 13 3l1 3M4 12l1 3a8 8 0 0 0 13 3"/></svg></button><button id="cancel-round" type="button" aria-label="取消重新生成" title="取消重新生成" hidden>停止</button></div>
@@ -306,6 +306,32 @@ export const DEFAULT_SCRIPT = String.raw`(() => {
  function detach(){attached=null;node('attached-action').hidden=true;controls()}
  function act(option,args){if(composerLine()){attach(option,args);return}send('perform',{optionId:option.id,...(args?{arguments:args}:{})})}
  node('attached-clear').onclick=detach;
+ /** What the player can do with one character, from the current view only: speak to them, act on them, give
+  * them something that names a character as its one input, or invite them to an activity. */
+ function characterMenu(id,anchor){
+   const menu=node('character-menu'),person=(latest?.scene?.recipients||[]).find(entry=>entry.id===id);
+   if(!person||!connected){menu.hidden=true;return}
+   menu.replaceChildren();
+   const title=document.createElement('p');title.textContent=person.name;menu.append(title);
+   const busy=playback.pending()||posting||!['ready','error'].includes(latest?.status);
+   const entry=(text,run,disabled)=>{const button=document.createElement('button');button.type='button';button.setAttribute('role','menuitem');button.textContent=text;button.disabled=!!disabled;button.onclick=()=>{menu.hidden=true;run()};menu.append(button)};
+   const speakTo=scope=>{const radio=document.querySelector('input[name="speech-scope"][value="'+scope+'"]');radio.checked=true;node('speech-recipient').value=id;audience();composerExpanded=true;activityOpen=false;controls();node('input').focus()};
+   const speakBusy=playback.pending()||posting||(!['ready','error'].includes(latest?.status)&&!latest?.canInterrupt);
+   entry('对 '+person.name+' 说',()=>speakTo('direct'),speakBusy);
+   entry('悄悄对 '+person.name+' 说',()=>speakTo('private'),speakBusy);
+   for(const option of latest.actions||[]){
+     if(option.kind==='manage')continue;
+     const inputs=Object.keys(option.argumentSchema?.properties||{}),named=option.characterArguments||[],selection=option.participantSelection;
+     if(selection){if(selection.min<=1&&selection.max>=1&&selection.candidates.some(candidate=>candidate.id===id))entry('邀请 '+person.name+'：'+String(option.label).replace(/^开始 /,''),()=>send('perform',{optionId:option.id,npcIds:[id]}),busy);continue}
+     if(option.target?.kind==='character'&&option.target.id===id&&!inputs.length)entry(option.label,()=>act(option),busy);
+     else if(named.length===1&&inputs.length===1&&inputs[0]===named[0])entry(option.label+' '+person.name,()=>act(option,{[named[0]]:id}),busy);
+   }
+   const box=anchor.getBoundingClientRect(),width=220;
+   menu.style.left=Math.min(window.innerWidth-width-8,Math.max(8,box.left+box.width/2-width/2))+'px';
+   menu.style.top=Math.min(window.innerHeight-60,Math.max(8,box.top+box.height*0.3))+'px';
+   menu.hidden=false;menu.querySelector('button:not(:disabled)')?.focus();
+ }
+ document.addEventListener('click',event=>{if(!node('character-menu').hidden&&!node('character-menu').contains(event.target))node('character-menu').hidden=true});
  /** A small form for an action's player inputs: characters come from the scene, other fields follow the schema. */
  function argumentForm(option){
    const form=document.createElement('div');form.className='action-form';const fields=[],schema=option.argumentSchema,required=new Set(schema.required||[]);
@@ -355,12 +381,16 @@ export const DEFAULT_SCRIPT = String.raw`(() => {
      if(sceneKey&&scene?.locationName){node('movement-toast').textContent='当前情景 · '+scene.locationName;node('movement-toast').hidden=false;clearTimeout(toastTimer);toastTimer=setTimeout(()=>node('movement-toast').hidden=true,3500)}
     sceneKey=key;node('scene').textContent=scene?.locationName||'情景尚未开始';
     if(scene?.locationName){let hue=0;for(const ch of scene.locationName)hue=(hue*31+ch.codePointAt(0))>>>0;document.documentElement.style.setProperty('--scene-hue',String(hue%360))}
-    node('characters').replaceChildren();
+    node('characters').replaceChildren();node('character-menu').hidden=true;
     for(const {id,name} of scene?.recipients||[]){const portrait=document.createElement('div');portrait.className='portrait';portrait.dataset.characterId=id;portrait.style.setProperty('--hue',String(hueOf(name)));
       const badge=document.createElement('div');badge.className='portrait-badge';badge.hidden=true;badge.textContent=Array.from(name)[0]||'◇';
       const slug=String(name).toLowerCase().split(/[\s（(·]/)[0];
       const img=document.createElement('img');img.src='/frontend/assets/'+encodeURIComponent(slug)+'.png';img.alt=name+'的立绘';img.onerror=()=>{img.remove();badge.hidden=false};portrait.append(img,badge);
-      const label=document.createElement('span');label.className='character-name';label.textContent=name;portrait.append(label);node('characters').append(portrait)}
+      const label=document.createElement('span');label.className='character-name';label.textContent=name;portrait.append(label);
+      portrait.tabIndex=0;portrait.setAttribute('role','button');portrait.setAttribute('aria-haspopup','menu');portrait.title='和'+name+'说话或做些什么';
+      portrait.onclick=event=>{event.stopPropagation();characterMenu(id,portrait)};
+      portrait.onkeydown=event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();characterMenu(id,portrait)}};
+      node('characters').append(portrait)}
      if(!scene?.recipients.length){const empty=document.createElement('span');empty.className='alone';empty.textContent='片刻的宁静';node('characters').append(empty)}
    }
    if(latest)renderQuickActions(latest.actions||[]);
@@ -402,7 +432,7 @@ export const DEFAULT_SCRIPT = String.raw`(() => {
  node('history-toggle').onclick=()=>historyPanel(node('history-panel').hidden);node('history-close').onclick=()=>historyPanel(false);
  node('actions-toggle').onclick=()=>{node('action-panel').hidden=!node('action-panel').hidden;controls()};node('actions-close').onclick=()=>{node('action-panel').hidden=true;controls()};
  node('reply-context').onclick=()=>{composerExpanded=false;controls()};
- document.addEventListener('keydown',event=>{if(event.key==='Escape'){if(!node('audience-menu').hidden){audienceMenu(false);node('audience-button').focus();return}if(quickOpen){const group=quickOpen;quickMenu(null);node('quick-actions').querySelector('[data-group="'+group+'"] .group-button')?.focus();return}historyPanel(false);node('action-panel').hidden=true;composerExpanded=false;controls();return}if((event.key===' '||event.key==='Enter')&&!['INPUT','TEXTAREA','SELECT','BUTTON','SUMMARY'].includes(document.activeElement?.tagName)){event.preventDefault();advance()}});
+ document.addEventListener('keydown',event=>{if(event.key==='Escape'){if(!node('character-menu').hidden){node('character-menu').hidden=true;return}if(!node('audience-menu').hidden){audienceMenu(false);node('audience-button').focus();return}if(quickOpen){const group=quickOpen;quickMenu(null);node('quick-actions').querySelector('[data-group="'+group+'"] .group-button')?.focus();return}historyPanel(false);node('action-panel').hidden=true;composerExpanded=false;controls();return}if((event.key===' '||event.key==='Enter')&&!['INPUT','TEXTAREA','SELECT','BUTTON','SUMMARY'].includes(document.activeElement?.tagName)){event.preventDefault();advance()}});
  let lastWheel=0;
  document.addEventListener('wheel',event=>{
    if(['INPUT','TEXTAREA','SELECT'].includes(document.activeElement?.tagName))return;

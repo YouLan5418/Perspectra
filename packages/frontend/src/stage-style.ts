@@ -134,6 +134,23 @@ h1{font-size:12.5px;font-weight:400;color:var(--muted);margin:4px 0 0;letter-spa
   transition:filter .45s var(--ease-out),transform .45s var(--ease-out);
 }
 .portrait.speaking{filter:none;transform:none;z-index:2}
+/* 立绘可以点：对这个人说话，或对 ta 做些什么 */
+#characters .portrait{pointer-events:auto;cursor:pointer}
+#characters .portrait:hover,#characters .portrait:focus-visible{filter:brightness(.8) saturate(.9);outline:none}
+#characters .portrait.speaking:hover{filter:none}
+.character-menu{
+  position:fixed;z-index:30;width:220px;max-height:min(360px,60dvh);overflow:auto;
+  display:flex;flex-direction:column;gap:2px;padding:6px;
+  background:color-mix(in srgb,var(--ink-3) 98.0%,transparent);border:1px solid var(--line-strong);border-radius:14px;
+  box-shadow:0 18px 50px rgba(0,0,0,.6);
+}
+.character-menu[hidden]{display:none}
+.character-menu p{padding:6px 10px;font-size:11px;color:var(--faint);letter-spacing:.08em}
+.character-menu button{
+  width:100%;text-align:left;padding:8px 10px;border:0;border-radius:10px;background:transparent;font-size:13px;color:var(--text);
+}
+.character-menu button:hover:not(:disabled),.character-menu button:focus-visible{background:color-mix(in srgb,var(--text) 7.0%,transparent)}
+.character-menu button:disabled{color:var(--faint)}
 .portrait.speaking:after{
   content:"";position:absolute;inset:-10% -25% 0;z-index:-1;
   background:radial-gradient(ellipse 55% 48% at 50% 30%,color-mix(in srgb,var(--lamp-strong) 20.0%,transparent),transparent 72%);
