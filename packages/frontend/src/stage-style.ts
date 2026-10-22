@@ -58,8 +58,6 @@ main{height:100dvh;min-height:540px;overflow:hidden;position:relative;isolation:
   position:absolute;top:0;left:0;right:0;z-index:3;
   display:flex;align-items:flex-start;justify-content:space-between;gap:18px;padding:20px 28px;
 }
-main[data-has-activity="true"] .world-header{padding-right:380px}
-main[data-mode="activity"] .world-header{padding-right:400px}
 .scene-heading{display:flex;gap:12px}
 .scene-heading:before{content:"";width:2px;align-self:stretch;background:var(--accent)}
 h2{font:600 22px/1.3 var(--font-story);margin:0;letter-spacing:.06em}
@@ -266,20 +264,41 @@ h1{font-size:12.5px;font-weight:400;color:var(--muted);margin:2px 0 0}
 .status-section dd{margin:0;overflow-wrap:anywhere}
 .hint{font-size:11.5px;color:var(--faint)}
 
+/* —— 进行中的活动：舞台左侧的卡片，可折叠 —— */
+.activity-card{
+  position:absolute;z-index:4;top:120px;left:28px;width:300px;max-height:max(150px,calc(100% - 460px));overflow:auto;padding:14px 16px;
+  background:var(--surface);border:1px solid var(--line-strong);border-radius:var(--radius-lg);box-shadow:var(--shadow);
+}
+main[data-activity="true"] #characters{left:340px}
+.activity-heading{display:grid;grid-template-columns:1fr auto;gap:2px 8px;width:100%;padding:0;border:0;background:transparent!important;text-align:left}
+.activity-heading small{font-size:11px;letter-spacing:.1em;color:var(--faint)}
+.activity-heading strong{grid-column:1;font:600 16px/1.4 var(--font-story);overflow-wrap:anywhere}
+.activity-heading span{grid-column:2;grid-row:1/3;align-self:center;font-size:12px;color:var(--muted)}
+#activity-body{margin-top:10px;display:flex;flex-direction:column;gap:10px}
+#activity-objective{font:14px/1.7 var(--font-story);color:var(--muted)}
+#activity-state{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;margin:0}
+#activity-state div{padding:6px 10px;border:1px solid var(--line);border-radius:var(--radius)}
+#activity-state dt{font-size:11px;color:var(--faint)}
+#activity-state dd{margin:0;font-weight:600;overflow-wrap:anywhere}
+#activity-options{display:flex;flex-direction:column;gap:6px}
+#activity-options>button,#activity-options .action-form button{width:100%;text-align:left}
+.activity-manage{display:flex;flex-wrap:wrap;gap:6px}
+.activity-manage:empty{display:none}
+.activity-manage button{font-size:12px;padding:4px 10px;color:var(--muted)}
+
 /* —— 其余 —— */
 .movement-toast{
   position:absolute;top:90px;left:50%;transform:translateX(-50%);z-index:5;padding:8px 22px;max-width:80%;text-align:center;
   background:var(--surface);border:1px solid var(--line-strong);border-radius:999px;font:15px var(--font-story);letter-spacing:.14em;box-shadow:var(--shadow);
 }
 .visually-hidden{position:absolute;clip:rect(0,0,0,0);width:1px;height:1px;overflow:hidden}
-main[data-mode="activity"] .stage-bottom{left:calc((100% - 350px) / 2);width:min(840px,calc(100% - 400px))}
-main[data-mode="activity"] #characters{right:350px}
-main[data-mode="activity"] .dialogue{font-size:16px;max-height:100px;min-height:0}
 @keyframes appear{from{opacity:0}}
 @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 @media(min-width:1500px){.stage-bottom{bottom:32px}.portrait{flex-basis:420px}}
 @media(max-width:640px){
   main{min-height:480px}
+  .activity-card{top:96px;left:12px;right:12px;width:auto;max-height:40dvh}
+  main[data-activity="true"] #characters{left:0}
   .world-header{padding:14px}
   h2{font-size:18px}h1{font-size:11px;max-width:170px}
   .stage-tools{flex-wrap:wrap;justify-content:flex-end;max-width:210px}
@@ -305,8 +324,5 @@ main[data-mode="activity"] .dialogue{font-size:16px;max-height:100px;min-height:
   .audience-options label:after{left:8px;right:8px;top:auto;bottom:calc(100% + 6px);width:auto;transform:none}
   .panel{top:auto;right:0;bottom:0;height:min(78dvh,640px);width:100%;border-width:1px 0 0;border-radius:var(--radius-lg) var(--radius-lg) 0 0}
   @keyframes slide{from{transform:translateY(24px);opacity:0}to{transform:none;opacity:1}}
-  main[data-has-activity="true"] .world-header,main[data-mode="activity"] .world-header{padding-right:14px}
-  main[data-mode="activity"] .stage-bottom{left:50%;width:calc(100% - 24px)}
-  main[data-mode="activity"] #characters{right:0}
 }
 `

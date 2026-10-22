@@ -9,6 +9,7 @@ export const DEFAULT_PAGE = String.raw`<!doctype html>
   <header class="world-header"><div class="scene-heading"><div><h2 id="scene">正在进入情景</h2><h1 id="title">正在进入世界</h1><div id="status-bar" class="status-bar" role="group" aria-label="你知道的状态" hidden></div></div></div><nav class="stage-tools" aria-label="舞台工具"><span id="status" class="status" role="status">正在连接</span><button id="history-toggle" type="button" aria-expanded="false">记录</button><button id="actions-toggle" type="button" aria-expanded="false">行动 <span id="action-count">0</span></button><button id="status-toggle" type="button" aria-expanded="false">状态</button></nav></header>
   <div id="characters" aria-label="当前可见角色"></div><div id="character-menu" class="character-menu" role="menu" hidden></div>
   <p id="movement-toast" class="movement-toast" role="status" hidden></p>
+  <section id="activity-card" class="activity-card" aria-label="当前活动" hidden><button id="activity-heading" class="activity-heading" type="button" aria-expanded="true"><small>当前活动</small><strong id="activity-title"></strong><span id="activity-phase"></span></button><div id="activity-body"><p id="activity-objective"></p><dl id="activity-state"></dl><div id="activity-options"></div><p id="activity-result" class="hint" role="status"></p><div id="activity-manage" class="activity-manage"></div></div></section>
   <section class="stage-bottom" aria-label="故事与对话">
     <div class="dialogue-wrap" id="dialogue-wrap"><div class="dialogue-meta"><strong id="speaker" class="speaker-label">序幕</strong><span id="reading-count" class="reading-count"></span></div><button id="dialogue" class="dialogue" type="button" aria-label="阅读下一段">世界正在醒来……</button><div id="auto-progress" class="auto-progress" hidden><div id="auto-progress-bar" class="auto-progress-bar"></div></div><div class="dialogue-footer"><span id="continue-hint">点击继续</span><button id="auto-read" type="button" aria-pressed="false">自动</button><button id="skip-read" type="button" title="跳到已经发生的最新内容">跳过</button>      <div id="round-tools" class="round-tools" role="group" aria-label="末端回合候选" hidden><button id="candidate-prev" type="button" aria-label="上一个候选" title="上一个候选">‹</button><span id="candidate-count" aria-live="polite"></span><button id="candidate-next" type="button" aria-label="下一个候选" title="下一个候选">›</button><button id="regenerate-round" type="button" aria-label="重新生成" title="重新生成此回合"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M20 7v5h-5M4 17v-5h5"/><path d="M6 6a8 8 0 0 1 13 3l1 3M4 12l1 3a8 8 0 0 0 13 3"/></svg></button><button id="cancel-round" type="button" aria-label="取消重新生成" title="取消重新生成" hidden>停止</button></div>
 </div></div>
@@ -161,6 +162,7 @@ export const DEFAULT_SCRIPT = String.raw`(() => {
    for(const button of node('actions').querySelectorAll('button'))button.disabled=actionDisabled||button.dataset.unavailable==='true';
    for(const picker of node('actions').querySelectorAll('select,input,textarea'))picker.disabled=actionDisabled;
    for(const button of node('quick-actions').querySelectorAll('button[data-option]'))button.disabled=actionDisabled;
+   for(const control of node('activity-card').querySelectorAll('#activity-options button,#activity-options select,#activity-options input,#activity-options textarea,#activity-manage button'))control.disabled=actionDisabled;
   const retryAllowed=['ready','error'].includes(latest?.status)||(pending?.method==='speak'&&latest?.canInterrupt===true);
   node('retry').hidden=!pending;node('retry').disabled=posting||!connected||!retryAllowed;
    parent.postMessage({type:'frontend-reading',pending:readingBlocked,historyOpen:!node('history-panel').hidden,mode,historySignature:JSON.stringify((latest?.history||[]).map(line=>[line.seq,line.speaker,line.text,line.segments]))},'*');
@@ -255,8 +257,38 @@ export const DEFAULT_SCRIPT = String.raw`(() => {
      if(!view.actions.length){const empty=document.createElement('p');empty.className='no-actions';empty.textContent='暂时没有可用行动，仍可通过对话表达。';node('actions').append(empty)}
      renderQuickActions(view.actions);
    }
+   renderActivity(view);
    controls();
  }
+ /* 进行中的活动：舞台左侧一张卡片，显示标题、阶段、目标和公开状态，以及这场活动此刻允许的操作。
+    操作和暂停都来自玩家视图的 actions，提交走同一个 perform；读完当前演出前与其他行动一样置灰。 */
+ const PHASES={playing:'进行中',investigation:'调查',prologue:'序章',finished:'已结束','host-aborted':'已中止'};
+ const HIDDEN_PUBLIC=['statusText','lastResult','objective','instructions','description','phaseLabel'];
+ const PUBLIC_LABELS={round:'回合',clues:'线索',funds:'资金',stock:'库存',score:'得分',attempts:'次数',health:'生命',phase:'阶段'};
+ let activityKey='';
+ function renderActivity(view){
+   const running=(view.activities||[]).find(entry=>entry.active)||(view.activity?.active?view.activity:null),card=node('activity-card');
+   document.querySelector('main').dataset.activity=String(!!running);
+   card.hidden=!running;if(!running){activityKey='';return}
+   const options=view.actions.filter(option=>option.kind==='activity'&&option.target?.kind==='activity'),manage=view.actions.filter(option=>option.kind==='manage');
+   const key=JSON.stringify([running,options,manage]);if(key===activityKey)return;activityKey=key;
+   const shown=running.public||{};
+   node('activity-title').textContent=running.title;
+   node('activity-phase').textContent=shown.statusText||shown.phaseLabel||PHASES[running.phase]||running.phase;
+   node('activity-objective').textContent=shown.objective||shown.instructions||shown.description||'选择这场活动允许的操作；角色会在情景里回应。';
+   const state=node('activity-state');state.replaceChildren();
+   for(const [name,value] of Object.entries(shown)){if(HIDDEN_PUBLIC.includes(name)||value===null||typeof value==='object')continue;const block=document.createElement('div'),label=document.createElement('dt'),content=document.createElement('dd');label.textContent=PUBLIC_LABELS[name]||name;content.textContent=String(value);block.append(label,content);state.append(block)}
+   state.hidden=!state.children.length;
+   node('activity-result').textContent=typeof shown.lastResult==='string'?shown.lastResult:'';
+   const box=node('activity-options');box.replaceChildren();
+   for(const option of options){const button=document.createElement('button');button.type='button';button.textContent=option.label;
+     if(option.argumentSchema){const form=argumentForm(option);form.append(button);box.append(form);button.onclick=()=>{let args;try{args=form.read()}catch(error){node('notice').textContent=error.message;return}send('perform',{optionId:option.id,arguments:args})}}
+     else{button.onclick=()=>send('perform',{optionId:option.id});box.append(button)}}
+   if(!options.length){const empty=document.createElement('p');empty.className='hint';empty.textContent='现在没有可执行的操作，等角色回应。';box.append(empty)}
+   const tools=node('activity-manage');tools.replaceChildren();
+   for(const option of manage){const button=document.createElement('button');button.type='button';button.textContent=option.label;button.onclick=()=>send('perform',{optionId:option.id});tools.append(button)}
+ }
+ node('activity-heading').onclick=()=>{const open=node('activity-heading').getAttribute('aria-expanded')!=='true';node('activity-heading').setAttribute('aria-expanded',String(open));node('activity-body').hidden=!open};
  /* 回应时的右栏行动：每类一个按钮，按下后弹出该类可选行动（与发言受众相同的交互）；与当前说话者相关的排在前面。需要选人的行动打开「行动」面板完成。 */
  const QUICK_GROUPS={activity:'活动',people:'与角色',self:'自己',items:'物品与互动',move:'移动'};
  let quickOpen=null;

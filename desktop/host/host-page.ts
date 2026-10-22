@@ -324,7 +324,7 @@ iframe{
     const blocked=init?.frontend==='default'&&(readingPending||rawHistory!==readHistorySignature||selected(state.tailRound)!==selected(playerView?.tailRound));
     if(shownActivity===undefined||!blocked)shownActivity=a?structuredClone(a):null;
     const shown=shownActivity;
-    node('game').hidden=!shown||historyOpen;
+    node('game').hidden=!shown||historyOpen||init?.frontend==='default';
     panelPresentation();
     if(blocked)node('activity-feedback').textContent='阅读当前演出后继续操作。';
     else if(!currentNotice&&shown?.game?.public?.lastResult)node('activity-feedback').textContent=shown.game.public.lastResult;
