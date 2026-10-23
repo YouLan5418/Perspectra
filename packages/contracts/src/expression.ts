@@ -4,7 +4,10 @@ import type { WorldJsonObject } from './world-json.ts'
 export interface ExpressionSegment extends WorldJsonObject {
   readonly type: 'speech' | 'narration'
   readonly text: string
+  /** The speaker's expression while saying this, one of the names the pack's stage declares. Presentation only. */
+  readonly expression?: string
 }
+const EXPRESSION_NAME = /^[a-z0-9][a-z0-9_-]{0,39}$/u
 
 export function parseExpressionSegments(value: unknown, maximumCharacters = 2000): ExpressionSegment[] {
   if (!Number.isSafeInteger(maximumCharacters) || maximumCharacters < 1 || maximumCharacters > 16000)
@@ -16,16 +19,21 @@ export function parseExpressionSegments(value: unknown, maximumCharacters = 2000
       item === null ||
       typeof item !== 'object' ||
       Array.isArray(item) ||
-      Object.keys(item).sort().join(',') !== 'text,type' ||
+      !['text,type', 'expression,text,type'].includes(Object.keys(item).sort().join(',')) ||
       !['speech', 'narration'].includes(item.type) ||
       typeof item.text !== 'string' ||
-      !item.text.trim()
+      !item.text.trim() ||
+      (item.expression !== undefined && (typeof item.expression !== 'string' || !EXPRESSION_NAME.test(item.expression)))
     )
       throw new TypeError('invalid expression segment')
     length += item.text.length
     if (length > maximumCharacters)
       throw new TypeError(`expression segments exceed ${maximumCharacters} characters in total`)
-    return { type: item.type, text: item.text }
+    return {
+      type: item.type,
+      text: item.text,
+      ...(item.expression === undefined ? {} : { expression: item.expression }),
+    }
   })
 }
 
@@ -44,7 +52,11 @@ export function publicationSegments(publication: WorldJsonObject): ExpressionSeg
         throw new TypeError('invalid publication segment')
       }
       // Authorized display/context copies may contain text removed by preset rules.
-      return { type: value.type, text: value.text }
+      return {
+        type: value.type,
+        text: value.text,
+        ...(typeof value.expression === 'string' ? { expression: value.expression } : {}),
+      }
     })
   }
   if (

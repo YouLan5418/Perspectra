@@ -94,6 +94,8 @@ export interface WorldHostOptions extends ModelOptions {
   readonly packPath: string
   readonly reading?: ReadingPreferences
   readonly appearance?: 'system' | 'light' | 'dark'
+  /** Expression names each character may pick per segment, from the pack's stage.json. */
+  readonly stageExpressions?: Readonly<Record<string, readonly string[]>>
   readonly audio?: AudioPreferences
   readonly tuning?: RuntimeTuning
   readonly shadowAudit?: ShadowOptions
@@ -567,6 +569,8 @@ export class WorldHostCore implements HostRuntime {
     }
     if (this.#knowledge)
       request = { ...request, context: { ...request.context, knowledge: this.#knowledge.select(request.context) } }
+    const expressions = this.#options.stageExpressions?.[characterId]
+    if (expressions?.length) request = { ...request, context: { ...request.context, expressions: [...expressions] } }
     this.#roleCalls.delete(characterId)
     const roleProvider = this.#models.byCharacter.get(characterId)
     if (!roleProvider) throw new TypeError('当前角色没有可调用的预设配置。')

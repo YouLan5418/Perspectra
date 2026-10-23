@@ -12,6 +12,7 @@ export function createReadingPlayback() {
     text: string
     type: string
     player: boolean
+    expression?: string
   }
   let lines: Line[] = [],
     units: Unit[] = [],
@@ -35,6 +36,9 @@ export function createReadingPlayback() {
                     text: segment.text,
                     type: segment.type,
                     player: line.player,
+                    ...('expression' in segment && typeof segment.expression === 'string'
+                      ? { expression: segment.expression }
+                      : {}),
                   },
                 ]
               : [],

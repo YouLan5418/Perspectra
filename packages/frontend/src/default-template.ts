@@ -424,6 +424,8 @@ export const DEFAULT_SCRIPT = String.raw`(() => {
  function dress(portrait,expression,pose){
    const figure=portrait.querySelector('.figure'),own=stageConfig?.characters?.[portrait.dataset.characterId];if(!figure||!own)return;
    if((portrait.dataset.expression||'')===(expression||'')&&(portrait.dataset.pose||'')===(pose||''))return;
+   // A name the pack never declared changes nothing.
+   if(expression&&!own.expressions?.[expression])return;
    portrait.dataset.expression=expression||'';portrait.dataset.pose=pose||'';
    const url=path=>'/frontend/custom/'+path.split('/').map(encodeURIComponent).join('/');
    const base=figure.querySelector('.base'),posed=pose&&own.poses?.[pose];
@@ -540,6 +542,7 @@ export const DEFAULT_SCRIPT = String.raw`(() => {
     for(const {id,name} of present)box.append(kept.get(id)||createPortrait(id,name));
     if(!present.length){const empty=document.createElement('span');empty.className='alone';empty.textContent='片刻的宁静';box.append(empty)}
    }
+   if(unit?.speakerId&&unit.expression){const speaker=[...node('characters').querySelectorAll('.portrait:not(.leaving)')].find(p=>p.dataset.characterId===unit.speakerId);if(speaker)dress(speaker,unit.expression,speaker.dataset.pose||null)}
    for(const portrait of node('characters').querySelectorAll('.portrait'))portrait.classList.toggle('speaking',!!unit?.speakerId&&unit.speakerId===portrait.dataset.characterId);
    playVoice();scheduleAuto();
  }

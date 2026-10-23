@@ -121,6 +121,11 @@ async function main(): Promise<void> {
     ...(process.env.PERSPECTRA_AUDIO === undefined
       ? {}
       : { audio: audioPreferences(JSON.parse(process.env.PERSPECTRA_AUDIO)) }),
+    stageExpressions: Object.fromEntries(
+      Object.entries(packWeb?.stage?.characters ?? {}).flatMap(([id, character]) =>
+        character.expressions ? [[id, Object.keys(character.expressions)]] : [],
+      ),
+    ),
     ...(['system', 'light', 'dark'].includes(process.env.PERSPECTRA_APPEARANCE ?? '')
       ? { appearance: process.env.PERSPECTRA_APPEARANCE as 'system' | 'light' | 'dark' }
       : {}),

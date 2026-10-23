@@ -66,7 +66,7 @@ async function fixture(
     config: { characters: WorldJsonObject[] },
   ) => void,
   settings: Partial<PlaySettings> = {},
-  controls: Pick<WorldHostOptions, 'stagedAutonomy' | 'serialScheduling'> = {},
+  controls: Pick<WorldHostOptions, 'stagedAutonomy' | 'serialScheduling' | 'stageExpressions'> = {},
 ) {
   const root = mkdtempSync(join(tmpdir(), 'character-autonomy-'))
   roots.push(root)
@@ -308,6 +308,26 @@ it('lets a round pass on wait: the round is recorded, every autonomous role gets
       .map(e => object(object(e.data).source).round),
   ).toEqual([1])
 }, 60_000)
+
+it('gives the declared expressions to that character alone and carries its pick to the transcript', async () => {
+  const f = await fixture(undefined, {}, { stageExpressions: { 'character:companion': ['smile', 'shy'] } })
+  f.setDecision(input =>
+    actor(input) === 'character:companion'
+      ? { decision: 'publish', segments: [{ type: 'speech', text: '早上好。', expression: 'shy' }] }
+      : { decision: 'abstain' },
+  )
+  const state = await f.runtime.submit('早上好。')
+  const companion = f.requests.find(input => actor(input) === 'character:companion')!
+  expect(context(companion).expressions).toEqual(['smile', 'shy'])
+  expect(
+    f.requests
+      .filter(input => actor(input) !== 'character:companion')
+      .every(input => context(input).expressions === undefined),
+  ).toBe(true)
+  expect(state.transcript.find(line => line.text === '早上好。' && !line.player)?.segments).toEqual([
+    { type: 'speech', text: '早上好。', expression: 'shy' },
+  ])
+})
 
 it('merges a present role ordinary response into its autonomous opportunity and caps author requests', async () => {
   const f = await fixture(role => {

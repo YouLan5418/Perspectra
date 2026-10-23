@@ -191,6 +191,9 @@ export function gatewayTurnCall(request: CharacterTurnRequest) {
                       enum: [...(speechAllowed ? ['speech'] : []), ...(narrationAllowed ? ['narration'] : [])],
                     },
                     text: { type: 'string', minLength: 1, maxLength: maximum },
+                    ...(Array.isArray(request.context.expressions) && request.context.expressions.length
+                      ? { expression: { type: 'string', enum: request.context.expressions } }
+                      : {}),
                   },
                 },
               },

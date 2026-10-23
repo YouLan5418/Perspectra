@@ -36,6 +36,11 @@ export function characterTurnCall(request: {
   const expression = request.context.expressionPolicy as WorldJsonObject | undefined
   const speechAllowed = expression?.speech !== 'none'
   const narrationAllowed = expression?.narration !== false
+  // The pack's stage declares this character's expressions; without any, nothing about them is shown or asked.
+  const expressions = Array.isArray(request.context.expressions)
+    ? request.context.expressions.filter((name): name is string => typeof name === 'string')
+    : []
+  const expressionSchema = expressions.length ? { expression: { type: 'string', enum: expressions } } : {}
   const speechSchema = {
     type: 'string',
     maxLength: maximum,
@@ -111,7 +116,11 @@ export function characterTurnCall(request: {
                                 type: 'object',
                                 additionalProperties: false,
                                 required: ['type', 'text'],
-                                properties: { type: { const: 'speech' }, text: { ...speechSchema, minLength: 1 } },
+                                properties: {
+                                  type: { const: 'speech' },
+                                  text: { ...speechSchema, minLength: 1 },
+                                  ...expressionSchema,
+                                },
                               },
                             ]
                           : []),
@@ -124,6 +133,7 @@ export function characterTurnCall(request: {
                                 properties: {
                                   type: { const: 'narration' },
                                   text: { type: 'string', minLength: 1, maxLength: maximum },
+                                  ...expressionSchema,
                                 },
                               },
                             ]
@@ -173,6 +183,9 @@ export function characterTurnCall(request: {
             ? ''
             : '当前 activity 是临时玩法。仅可使用当前许可和工具字段；expressionPolicy 禁用的表达不应生成。游戏轮次与世界 tick 不同，游戏反馈只认程序提交的结果。主动 pass 是工具操作，abstain 不代表主动让出回合。') +
           `publish 提交 segments，可选 scope 和 addresseeIds。scope 可选 scene_public（公开）、direct（仅指定对象，旁观者无观察）、private（指定对象获得内容，旁观者只知道发生交流）、self（仅自己）。direct/private 必须指定当前可见的其他角色；scene_public/self 不指定接收对象。省略 scope 时，有接收对象为 direct，否则为 scene_public。segments 是有序的 {type: speech 或 narration, text} 数组，可任意交替或重复类型；所有片段共用受众，一次原子发布，文本合计最多 ${maximum} 字符。固定对白选项模式一次最多一个 speech 片段。` +
+          (expressions.length
+            ? `片段可附 expression，表示这一段时你的表情，从 ${expressions.join('、')} 中选；不写则保持上一次的表情。表情只是外显表现，不改变任何状态。`
+            : '') +
           '扮演场景中的这个角色，依据自己的性格和可见信息自主决定。' +
           '被唤醒只是处理新信息的机会，不要求你表演回应。没有要补充的内容时返回 abstain，不发布任何表达。' +
           (narrationAllowed
