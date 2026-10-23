@@ -14,6 +14,7 @@
 | 创作者 | 添加活动、经裁定的状态与状态栏 | [活动与状态](activity-and-variables.md) |
 | 创作者 | 按权限和关键词交付设定、区分角色态度与客观变量 | [世界设定](world-knowledge.md) |
 | 前端作者 | HTML/CSS/JS、公共接口、沙箱边界 | [自定义前端](web-ui.md) |
+| 画师 | 立绘、表情差分和拼合图的尺寸与对齐要求 | [立绘出图要求](portrait-art.md) |
 | 源码使用者 | 安装、启动及检查命令 | [本机运行](local-runbook.md) |
 
 详细格式和实现边界见 [预设](../model-presets.md)、[故事线](../storylines.md)、[前端授权](../frontend-authorization.md) 与 [创作者运行时](../architecture/creator-runtime.md)。这些设计与验收文档包含分阶段记录；日常操作优先从上表进入。
