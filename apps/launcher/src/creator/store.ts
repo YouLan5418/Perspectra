@@ -405,6 +405,13 @@ export const useCreatorStore = defineStore('creator', () => {
   function inspectRequests(enabled?: boolean) {
     return source.requests(enabled)
   }
+  /** 立绘标记页读写包里的 stage.json，同样走这一条数据源。 */
+  function readStage() {
+    return source.stage()
+  }
+  function saveStage(...args: Parameters<CreatorSource['saveStage']>) {
+    return source.saveStage(...args)
+  }
   function attach(nextToken: string) {
     if (token.value === nextToken) return
     token.value = nextToken
@@ -432,6 +439,8 @@ export const useCreatorStore = defineStore('creator', () => {
     meta,
     loadMeta,
     inspectRequests,
+    readStage,
+    saveStage,
     preview,
     world,
     history,

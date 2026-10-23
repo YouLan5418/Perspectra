@@ -6,6 +6,7 @@ import {
   Braces,
   Circle,
   Globe,
+  Image,
   ListTree,
   MessagesSquare,
   Send,
@@ -35,6 +36,7 @@ const groups = [
       { id: 'entities', label: '物品', icon: Boxes },
       { id: 'statuses', label: '状态', icon: Braces },
       { id: 'activities', label: '活动', icon: Activity },
+      { id: 'stage', label: '立绘标记', icon: Image },
     ],
   },
 ] as const

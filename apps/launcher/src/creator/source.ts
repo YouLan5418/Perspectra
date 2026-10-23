@@ -1,6 +1,7 @@
 import type { CreatorInspectionQuery, CreatorInspectionSnapshot } from '../../../../desktop/host/creator-inspection.ts'
 import type { CreatorHistoryQuery, CreatorHistorySnapshot } from '../../../../desktop/host/creator-history.ts'
 import type { CreatorRecordsQuery, CreatorRecordsSnapshot } from '../../../../desktop/host/creator-records.ts'
+import type { StageConfig, StageMarks } from '../../../../desktop/host/pack-frontend.ts'
 import type { InspectorSnapshot } from '@harness-world/provider-chat'
 import { MOCK_RECORDS, mockDebug, mockHistory } from './mock.ts'
 
@@ -9,6 +10,13 @@ export interface CreatorMeta {
   title: string
   storyline: string
   characters: { id: string; name: string }[]
+}
+
+/** 包里的默认舞台设置与可标记的立绘；只有用默认舞台的包能保存标记。 */
+export interface CreatorStage {
+  editable: boolean
+  stage: StageConfig | null
+  portraits?: string[]
 }
 
 /** 创作者读取入口。预览模式用固定样例，结构与真实接口一致。 */
@@ -20,6 +28,8 @@ export interface CreatorSource {
   history(query?: CreatorHistoryQuery): Promise<CreatorHistorySnapshot>
   records(query?: CreatorRecordsQuery): Promise<CreatorRecordsSnapshot>
   setCapture(enabled: boolean): Promise<void>
+  stage(): Promise<CreatorStage>
+  saveStage(characterId: string, marks: StageMarks): Promise<CreatorStage>
 }
 
 const wait = () => new Promise(resolve => setTimeout(resolve, 120))
@@ -100,6 +110,13 @@ const previewSource: CreatorSource = {
   async setCapture() {
     await wait()
   },
+  async stage() {
+    await wait()
+    return { editable: false, stage: null, portraits: [] }
+  },
+  async saveStage() {
+    throw new Error('浏览器预览不能保存标记。')
+  },
 }
 
 /** 同源读取运行中游戏的创作者接口；token 与玩家页面相同，没有 token 时使用预览样例。 */
@@ -133,6 +150,18 @@ export function creatorSource(token: string, fetcher: typeof fetch = (...args) =
     records: query => get('/api/creator-records', query),
     async setCapture(enabled) {
       await requests(enabled)
+    },
+    stage: () => get('/api/creator-stage'),
+    async saveStage(characterId, marks) {
+      const response = await fetcher('/api/creator-stage', {
+        method: 'POST',
+        headers: { 'x-playtest-token': token, 'content-type': 'application/json' },
+        body: JSON.stringify({ characterId, ...marks }),
+      })
+      const value = (await response.json()) as CreatorStage & { error?: string }
+      // The host says what in the marks the stage file cannot take.
+      if (!response.ok) throw new Error(value.error ?? `标记保存失败（${response.status}）`)
+      return value
     },
   }
 }

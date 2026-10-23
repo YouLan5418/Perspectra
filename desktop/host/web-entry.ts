@@ -16,7 +16,7 @@ import type { AddressInfo } from 'node:net'
 import { parseHostLaunchArguments } from './launch-arguments.ts'
 import { WorldHostRuntime, isV5SourcePackDirectory } from './world-runtime.ts'
 import { createHostServer } from './http-server.ts'
-import { loadPackWeb } from './pack-frontend.ts'
+import { loadPackWeb, saveStageMarks, type StageMarks } from './pack-frontend.ts'
 import { compileWorldPackSource, type CompiledWorldPackV5 } from '@harness-world/world-pack'
 import { interactionPackageDescription } from '@harness-world/contracts'
 import { createInstalledInteractionPackages } from '@harness-world/interactions-basic'
@@ -184,7 +184,12 @@ async function main(): Promise<void> {
       : undefined
   let hostOrigin = ''
   const server = createHostServer(
-    Object.assign(runtime, { creatorMeta: () => structuredClone(creatorMeta) }),
+    Object.assign(runtime, {
+      creatorMeta: () => structuredClone(creatorMeta),
+      ...(packWeb
+        ? { saveStageMarks: (id: string, marks: StageMarks) => saveStageMarks(packPath, packWeb, id, marks) }
+        : {}),
+    }),
     token,
     packWeb,
     policy,

@@ -78,3 +78,4 @@ export type ConsoleView =
   | 'entities'
   | 'statuses'
   | 'activities'
+  | 'stage'

@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import { lstat, readFile, readdir, realpath } from 'node:fs/promises'
+import { lstat, readFile, readdir, realpath, rename, writeFile } from 'node:fs/promises'
 import { extname, join, relative, resolve, sep } from 'node:path'
 
 export const FRONTEND_CAPABILITIES = [
@@ -306,4 +306,47 @@ export async function loadPackWeb(packPath: string): Promise<PackWeb | undefined
     digest,
     manifest: { apiVersion: 1, capabilities: [...new Set(capabilities)] },
   }
+}
+/** Where a creator marked one portrait's head top, waist and face. */
+export interface StageMarks {
+  readonly framing: { readonly top: number; readonly waist: number }
+  readonly face?: StageBox
+}
+/**
+ * Writes one character's marks into the pack's frontend/stage.json, keeping everything else in the file, and
+ * returns the checked result. Only packs on the default stage have one; the file is replaced whole.
+ */
+export async function saveStageMarks(
+  packPath: string,
+  web: PackWeb,
+  characterId: string,
+  marks: StageMarks,
+): Promise<StageConfig> {
+  if (web.page) throw new TypeError('这个包使用自己的页面，不读取 stage.json。')
+  const file = resolve(packPath, 'frontend', 'stage.json')
+  let data: { characters: Record<string, Record<string, unknown>> } = { characters: {} }
+  try {
+    data = JSON.parse(await readFile(file, 'utf8')) as typeof data
+  } catch (error: unknown) {
+    if (!(error instanceof Error && 'code' in error && error.code === 'ENOENT')) throw error
+  }
+  const { face: _face, framing: _framing, ...rest } = data.characters?.[characterId] ?? {}
+  const next = {
+    ...data,
+    characters: {
+      ...data.characters,
+      [characterId]: { framing: marks.framing, ...(marks.face ? { face: marks.face } : {}), ...rest },
+    },
+  }
+  const bytes = Buffer.from(JSON.stringify(next, null, 2) + '\n')
+  let stage: StageConfig
+  try {
+    stage = stageConfig(bytes, path => web.assets.has('/frontend/custom/' + path))
+  } catch (error: unknown) {
+    // A mark the file cannot take is the creator's to fix, not a host failure.
+    throw new TypeError(error instanceof Error ? error.message : String(error))
+  }
+  await writeFile(file + '.tmp', bytes)
+  await rename(file + '.tmp', file)
+  return stage
 }

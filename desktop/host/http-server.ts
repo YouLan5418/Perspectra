@@ -23,7 +23,7 @@ import type { ActivityRequest } from './pack-activity.ts'
 import type { KnownStatus, PlayerTruthStatus } from './pack-status.ts'
 import { timingSafeEqual } from 'node:crypto'
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http'
-import type { PackWeb } from './pack-frontend.ts'
+import type { PackWeb, StageBox, StageConfig, StageMarks } from './pack-frontend.ts'
 import { canonicalizeWorldJson, type WorldJsonObject } from '@harness-world/contracts'
 import type { ActionAffordance } from '@harness-world/kernel'
 
@@ -143,6 +143,8 @@ export const isWait = (action: HostAction): boolean =>
 
 export interface HostRuntime {
   creatorMeta?(): { title: string; storyline: string; characters: { id: string; name: string }[] }
+  /** Writes a creator's portrait marks into the pack's stage.json and returns the checked whole. */
+  saveStageMarks?(characterId: string, marks: StageMarks): Promise<StageConfig>
   saveNode?(title: string): Promise<{ id: string; title: string }>
   selectCandidate?(tailId: string, candidateId: string, requestId: string): Promise<HostState>
   regenerate?(tailId: string, requestId: string): Promise<HostState>
@@ -262,6 +264,8 @@ export function createHostServer(
   if (!/^[a-f0-9]{64}$/.test(token)) throw new TypeError('playtest token must be 32 random bytes in hexadecimal')
   const frontendActions = new FrontendActions(runtime)
   let subscriptions = 0
+  // Marks saved from the creator page reach the next stage that opens, without restarting the game.
+  let stage = packWeb?.stage
   return createServer(async (request, response) => {
     try {
       const url = new URL(request.url ?? '/', 'http://127.0.0.1')
@@ -322,7 +326,7 @@ export function createHostServer(
             ...(useDefault
               ? {
                   canSave: !!runtime.saveNode,
-                  ...(plain || !packWeb?.stage ? {} : { stageConfig: packWeb.stage }),
+                  ...(plain || !stage ? {} : { stageConfig: stage }),
                   stageAssets: plain
                     ? []
                     : [...(packWeb?.assets.keys() ?? [])].filter(path =>
@@ -496,6 +500,39 @@ export function createHostServer(
           return
         }
         json(response, 200, runtime.creatorMeta())
+        return
+      }
+      if (url.pathname === '/api/creator-stage' && request.method === 'GET') {
+        json(response, 200, {
+          editable: !!packWeb && !packWeb.page && !!runtime.saveStageMarks,
+          stage: stage ?? null,
+          portraits: [...(packWeb?.assets.keys() ?? [])]
+            .filter(path => /^\/frontend\/custom\/portraits\/(?:[^/]+\/)*[^/]+\.(png|webp)$/i.test(path))
+            .map(path => path.slice('/frontend/custom/'.length)),
+        })
+        return
+      }
+      if (url.pathname === '/api/creator-stage' && request.method === 'POST') {
+        if (!packWeb || packWeb.page || !runtime.saveStageMarks) {
+          json(response, 404, { error: '这个包没有可标记的默认舞台立绘' })
+          return
+        }
+        if (request.headers['content-type']?.split(';')[0] !== 'application/json')
+          throw new TypeError('请求必须是 JSON')
+        const value = (await body(request)) as Record<string, unknown> | null
+        if (
+          !value ||
+          typeof value.characterId !== 'string' ||
+          !value.framing ||
+          typeof value.framing !== 'object' ||
+          Object.keys(value).some(key => !['characterId', 'framing', 'face'].includes(key))
+        )
+          throw new TypeError('标记需要 characterId、framing，可选 face')
+        stage = await runtime.saveStageMarks(value.characterId, {
+          framing: value.framing as StageMarks['framing'],
+          ...(value.face === undefined ? {} : { face: value.face as StageBox }),
+        })
+        json(response, 200, { editable: true, stage })
         return
       }
       if (url.pathname === '/api/creator-debug' && request.method === 'GET') {

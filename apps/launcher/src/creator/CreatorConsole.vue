@@ -11,6 +11,7 @@ import EntitiesView from './EntitiesView.vue'
 import RequestsView from './RequestsView.vue'
 import TraceView from './TraceView.vue'
 import StatusView from './StatusView.vue'
+import StageView from './StageView.vue'
 import WorldView from './WorldView.vue'
 import { useCreatorStore, POLL_MS } from './store.ts'
 import './creator.css'
@@ -37,6 +38,7 @@ const views = {
   entities: EntitiesView,
   statuses: StatusView,
   activities: ActivitiesView,
+  stage: StageView,
 }
 const center = computed(() => views[store.view])
 const scroller = ref<{ scrollToEnd?: () => void } | null>(null)
