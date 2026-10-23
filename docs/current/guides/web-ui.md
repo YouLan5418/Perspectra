@@ -29,7 +29,37 @@
 { "characters": { "character:claude": { "framing": { "top": 0.02, "waist": 0.45 } } } }
 ```
 
-`stage.json` 在载入包时校验，格式不对会直接报错；现在只认 `framing`，表情差分以后加在同一个文件里。说话的人稍微放大、排到前面；有人进出时淡入淡出，留下的人不重复入场。场景、背景和在场的人跟着阅读进度切换：读到某人进出、玩家移动的那一句时才变化，而不是新内容一到就变；一批未读内容里的多次进出只体现最后结果。
+`stage.json` 在载入包时校验，格式不对会直接报错（引用的图片不存在、格子编号越界、框超出图片都算）。
+
+同一个文件里还可以写表情差分和姿势。例如给 Claude 先标一次脸部框，再用三种方式声明表情：
+
+```json
+{
+  "characters": {
+    "character:claude": {
+      "face": [0.44, 0.08, 0.14, 0.09],
+      "sheets": { "faces": "portraits/claude/faces.png" },
+      "expressions": {
+        "smile": "portraits/claude/smile.png",
+        "shy": { "image": "portraits/claude/shy-face.png" },
+        "angry": { "sheet": "faces", "cell": 5 }
+      },
+      "defaultExpression": "smile",
+      "poses": { "think": "portraits/claude/think.png" }
+    }
+  }
+}
+```
+
+- 框都写成 `[左, 上, 宽, 高]`，是占底图宽、高的比例。`face` 标一次，所有局部差分默认贴到这里；某个表情要放别处时写自己的 `at`。
+- `smile` 这种直接写路径的，是和底图一样大的透明图层，整张叠上去，不需要框。
+- `shy` 这种 `{ image }` 是局部贴片，按框贴上，图片会拉伸到框的大小，所以贴片最好和框同比例。
+- `angry` 这种 `{ sheet, cell }` 取拼合图里的一格：拼合图默认 4×4，也可以写 `{ "image": "…", "columns": 3, "rows": 2 }`；格子从 0 开始逐行编号，舞台直接显示那一格，不用事先裁开。
+- `poses` 是整张替换底图的姿势图，表情照样叠在上面，所以姿势图里脸的位置要和底图一致。
+- `defaultExpression` 是默认表情。角色按台词自选表情尚未接通，目前舞台始终显示默认表情。
+- 图片都放在 `portraits/` 下，可以分子目录；只放美术的包同样适用。
+
+说话的人稍微放大、排到前面；有人进出时淡入淡出，留下的人不重复入场。场景、背景和在场的人跟着阅读进度切换：读到某人进出、玩家移动的那一句时才变化，而不是新内容一到就变；一批未读内容里的多次进出只体现最后结果。
 
 `manifest.json`：
 

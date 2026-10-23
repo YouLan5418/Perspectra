@@ -412,12 +412,32 @@ export const DEFAULT_SCRIPT = String.raw`(() => {
    const frame=framing(id);portrait.style.setProperty('--top',String(frame.top));portrait.style.setProperty('--waist',String(frame.waist));
    const badge=document.createElement('div');badge.className='portrait-badge';badge.textContent=Array.from(name)[0]||'◇';
    const src=art('portraits',id);badge.hidden=!!src;
-   if(src){const img=document.createElement('img');img.alt=name+'的立绘';img.onerror=()=>{img.remove();badge.hidden=false};img.src=src;portrait.append(img)}portrait.append(badge);
+   if(src){const figure=document.createElement('div');figure.className='figure';const base=document.createElement('img');base.className='base';base.alt=name+'的立绘';base.onerror=()=>{figure.remove();badge.hidden=false};base.src=src;figure.append(base);portrait.append(figure);dress(portrait,stageConfig?.characters?.[id]?.defaultExpression,null)}portrait.append(badge);
    const label=document.createElement('span');label.className='character-name';label.textContent=name;portrait.append(label);
    portrait.tabIndex=0;portrait.setAttribute('role','button');portrait.setAttribute('aria-haspopup','menu');portrait.title='和'+name+'说话或做些什么';
    portrait.onclick=event=>{event.stopPropagation();characterMenu(id,portrait)};
    portrait.onkeydown=event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();characterMenu(id,portrait)}};
    return portrait;
+ }
+ /** Put a pose and an expression on a portrait, from the pack's stage.json. A pose replaces the base image; an
+  * expression is a layer the size of the base, a patch at its box, or one cell of a sheet shown in place. */
+ function dress(portrait,expression,pose){
+   const figure=portrait.querySelector('.figure'),own=stageConfig?.characters?.[portrait.dataset.characterId];if(!figure||!own)return;
+   if((portrait.dataset.expression||'')===(expression||'')&&(portrait.dataset.pose||'')===(pose||''))return;
+   portrait.dataset.expression=expression||'';portrait.dataset.pose=pose||'';
+   const url=path=>'/frontend/custom/'+path.split('/').map(encodeURIComponent).join('/');
+   const base=figure.querySelector('.base'),posed=pose&&own.poses?.[pose];
+   if(posed)base.src=url(posed);else{const plain=art('portraits',portrait.dataset.characterId);if(plain&&!base.src.endsWith(plain))base.src=plain}
+   figure.querySelector('.layer,.patch')?.remove();
+   const layer=expression&&own.expressions?.[expression];if(!layer)return;
+   if(typeof layer==='string'){const img=document.createElement('img');img.className='layer';img.alt='';img.src=url(layer);figure.append(img);return}
+   const box=layer.at||own.face;if(!box)return;
+   const place=element=>{element.className='patch';element.style.left=box[0]*100+'%';element.style.top=box[1]*100+'%';element.style.width=box[2]*100+'%';element.style.height=box[3]*100+'%';figure.append(element)};
+   if(layer.image){const img=document.createElement('img');img.alt='';img.src=url(layer.image);place(img);return}
+   const sheet=own.sheets?.[layer.sheet];if(!sheet)return;
+   const cell=document.createElement('div'),column=layer.cell%sheet.columns,row=Math.floor(layer.cell/sheet.columns);
+   cell.style.backgroundImage='url("'+url(sheet.image)+'")';cell.style.backgroundSize=sheet.columns*100+'% '+sheet.rows*100+'%';
+   cell.style.backgroundPosition=(sheet.columns>1?column/(sheet.columns-1)*100:0)+'% '+(sheet.rows>1?row/(sheet.rows-1)*100:0)+'%';place(cell);
  }
  function art(folder,id){
    if(!id)return null;const slug=String(id).replace(/^[^:]+:/,'');

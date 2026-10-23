@@ -108,18 +108,24 @@ h1{font:12.5px/1.6 var(--font-story);color:var(--muted);margin:4px 0 0}
 .portrait.leaving{animation:leave .32s var(--ease-out) forwards}
 @keyframes leave{to{opacity:0}}
 .portrait.speaking{z-index:2}
-.portrait img{
-  position:absolute;left:50%;width:auto;max-width:none;pointer-events:auto;
+/* 一个人物 = 底图（或姿势图）+ 表情层；缩放和定位都在人物上，表情层跟着底图走。 */
+.figure{
+  position:absolute;left:50%;pointer-events:auto;
   height:calc(var(--span) / (var(--waist) - var(--top)));
   top:calc(var(--head-y) - var(--span) * var(--top) / (var(--waist) - var(--top)));
   transform:translateX(-50%);transform-origin:center 20%;
   transition:filter .35s var(--ease-out),transform .35s var(--ease-out);
 }
-.portrait.speaking img{transform:translateX(-50%) scale(1.03)}
-#characters:has(.speaking) .portrait:not(.speaking) img{filter:brightness(.78) saturate(.85)}
-#characters:has(.speaking) .portrait:hover img,#characters:has(.speaking) .portrait:focus-visible img{filter:none}
+.figure .base{display:block;height:100%;width:auto;max-width:none}
+/* 同尺寸图层铺满底图；贴片按框放；拼合图的一格用背景定位显示，不必真的裁开 */
+.figure .layer{position:absolute;inset:0;width:100%;height:100%}
+.figure .patch{position:absolute;background-repeat:no-repeat}
+.figure img.patch{object-fit:fill}
+.portrait.speaking .figure{transform:translateX(-50%) scale(1.03)}
+#characters:has(.speaking) .portrait:not(.speaking) .figure{filter:brightness(.78) saturate(.85)}
+#characters:has(.speaking) .portrait:hover .figure,#characters:has(.speaking) .portrait:focus-visible .figure{filter:none}
 .portrait:focus-visible{outline:none}
-.portrait:focus-visible img,.portrait:focus-visible .portrait-badge{outline:1px dashed var(--accent);outline-offset:4px}
+.portrait:focus-visible .figure,.portrait:focus-visible .portrait-badge{outline:1px dashed var(--accent);outline-offset:4px}
 .portrait-badge{
   position:absolute;left:50%;top:calc(var(--head-y) + 4%);transform:translateX(-50%);width:min(70%,220px);aspect-ratio:4/5;pointer-events:auto;
   display:flex;align-items:flex-end;justify-content:center;padding-bottom:16%;font:600 30px/1 var(--font-story);color:var(--muted);

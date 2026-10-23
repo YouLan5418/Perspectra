@@ -128,6 +128,41 @@ it('reads portrait framing from stage.json and refuses a malformed one at load',
   })
   await stage({ characters: { 'character:claude': { framing: { top: 0.5, waist: 0.4 } } } })
   await expect(loadPackWeb(root)).rejects.toThrow('0 ≤ top < waist ≤ 1')
-  await stage({ characters: { 'character:claude': { expressions: {} } } })
-  await expect(loadPackWeb(root)).rejects.toThrow('只支持 framing')
+  await stage({ characters: { 'character:claude': { mood: {} } } })
+  await expect(loadPackWeb(root)).rejects.toThrow('不认识 mood')
+})
+it('reads the three kinds of expression layers and refuses ones that point nowhere', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'frontend-resources-'))
+  roots.push(root)
+  const png = Buffer.from([137, 80, 78, 71])
+  await mkdir(join(root, 'frontend', 'portraits', 'claude'), { recursive: true })
+  for (const file of ['claude.png', 'claude/smile.png', 'claude/shy-face.png', 'claude/faces.png', 'claude/think.png'])
+    await writeFile(join(root, 'frontend', 'portraits', file), png)
+  const stage = (character: object) =>
+    writeFile(join(root, 'frontend', 'stage.json'), JSON.stringify({ characters: { 'character:claude': character } }))
+  const claude = {
+    face: [0.38, 0.06, 0.24, 0.14],
+    sheets: { faces: 'portraits/claude/faces.png' },
+    expressions: {
+      smile: 'portraits/claude/smile.png',
+      shy: { image: 'portraits/claude/shy-face.png' },
+      angry: { sheet: 'faces', cell: 5, at: [0.4, 0.07, 0.2, 0.12] },
+    },
+    defaultExpression: 'smile',
+    poses: { think: 'portraits/claude/think.png' },
+  }
+  await stage(claude)
+  expect((await loadPackWeb(root))?.stage?.characters['character:claude']).toEqual({
+    ...claude,
+    // A sheet given as a path is a 4 by 4 grid.
+    sheets: { faces: { image: 'portraits/claude/faces.png', columns: 4, rows: 4 } },
+  })
+  await stage({ ...claude, expressions: { smile: 'portraits/claude/missing.png' }, defaultExpression: undefined })
+  await expect(loadPackWeb(root)).rejects.toThrow('引用的图片不存在')
+  await stage({ ...claude, expressions: { angry: { sheet: 'faces', cell: 16 } }, defaultExpression: undefined })
+  await expect(loadPackWeb(root)).rejects.toThrow('cell 超出')
+  await stage({ expressions: { shy: { image: 'portraits/claude/shy-face.png' } } })
+  await expect(loadPackWeb(root)).rejects.toThrow('需要 at 或角色的 face')
+  await stage({ ...claude, defaultExpression: 'sleepy' })
+  await expect(loadPackWeb(root)).rejects.toThrow('defaultExpression')
 })
