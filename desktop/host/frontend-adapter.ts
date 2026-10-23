@@ -228,6 +228,9 @@ export function projectPlayerView(state: HostState): PlayerView {
     player: { name: state.world.playerName },
     scene: state.world.currentScene
       ? {
+          ...(state.world.currentScene.locationId === undefined
+            ? {}
+            : { locationId: state.world.currentScene.locationId }),
           locationName: state.world.currentScene.locationName,
           visibleCharacters: [...state.world.currentScene.presentNpcNames],
           recipients: (state.world.currentScene.recipients ?? []).map(({ id, name }) => ({ id, name })),
@@ -252,7 +255,11 @@ export function projectPlayerView(state: HostState): PlayerView {
               fontSize: state.playerSettings.reading.fontSize,
               lineHeight: state.playerSettings.reading.lineHeight,
               autoFollow: state.playerSettings.reading.autoFollow,
+              ...(state.playerSettings.reading.autoSpeed === undefined
+                ? {}
+                : { autoSpeed: state.playerSettings.reading.autoSpeed }),
             },
+            ...(state.playerSettings.appearance ? { appearance: state.playerSettings.appearance } : {}),
             ...(state.playerSettings.audio
               ? {
                   audio: {

@@ -1,5 +1,6 @@
 import type { CharacterId, ExpressionSegment } from '@harness-world/contracts'
 import type { PlayerView } from './player-view.ts'
+import type { stagePreferences } from './stage-preferences.ts'
 
 /** An authorized, committed reading segment. No private runtime state or credentials. */
 export interface FrontendSpeechInput {
@@ -16,6 +17,8 @@ export interface FrontendSpeechAudio {
 /** Optional host service; implementations own provider configuration and any cache. */
 export interface FrontendHostServices {
   synthesizeSpeech?: ((input: FrontendSpeechInput, signal: AbortSignal) => Promise<FrontendSpeechAudio>) | undefined
+  /** Keeps the default stage's settings beyond this session (the launcher's preferences); absent when standalone. */
+  saveStagePreferences?: ((preferences: ReturnType<typeof stagePreferences>) => void) | undefined
 }
 
 export function frontendSpeechInput(view: PlayerView, value: unknown): FrontendSpeechInput {

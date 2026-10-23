@@ -93,6 +93,7 @@ export interface WorldHostOptions extends ModelOptions {
   /** The v5 Pack directory: the world the author wrote, compiled here with the Host's installed packages. */
   readonly packPath: string
   readonly reading?: ReadingPreferences
+  readonly appearance?: 'system' | 'light' | 'dark'
   readonly audio?: AudioPreferences
   readonly tuning?: RuntimeTuning
   readonly shadowAudit?: ShadowOptions
@@ -798,6 +799,7 @@ export class WorldHostCore implements HostRuntime {
         inputCharacters: this.#playSettings.playerInputCharacters,
         reading: this.#options.reading ?? DEFAULT_READING,
         audio: { ...(this.#options.audio ?? DEFAULT_AUDIO) },
+        ...(this.#options.appearance ? { appearance: this.#options.appearance } : {}),
       },
       availableActions: this.#availableActions,
       actionLabels: this.#actionLabels,
@@ -1824,6 +1826,7 @@ export class WorldHostCore implements HostRuntime {
       )
       this.#items = this.#visibleItems(events, scene.observerIds)
       this.#currentScene = {
+        ...(view.locationId === null ? {} : { locationId: view.locationId }),
         locationName:
           view.locationId === null ? '未知地点' : (this.#locationNames.get(view.locationId) ?? view.locationId),
         recipients: scene.observerIds
@@ -1902,6 +1905,7 @@ export class WorldHostCore implements HostRuntime {
         }
         this.#items = this.#visibleItems(events, scene.observerIds)
         this.#currentScene = {
+          ...(view.locationId === null ? {} : { locationId: view.locationId }),
           locationName:
             view.locationId === null ? '未知地点' : (this.#locationNames.get(view.locationId) ?? view.locationId),
           recipients: scene.observerIds

@@ -4,6 +4,7 @@ import {
   DEFAULT_PLAY_SETTINGS,
   readingPreferences,
   audioPreferences,
+  launcherPreferencesFromStage,
 } from '../../desktop/play-settings.ts'
 import { parseHostLaunchArguments } from '../../desktop/host/launch-arguments.ts'
 import { characterTurnCall } from '@harness-world/provider-chat'
@@ -76,4 +77,29 @@ it('uses the same publication limit in native/local schemas, instructions and ag
   expect(parseExpressionSegments(segments, 3000)).toHaveLength(2)
   expect(() => parseExpressionSegments(segments, 2999)).toThrow('2999')
   expect(() => parseExpressionSegments(segments)).toThrow('2000')
+})
+it('keeps the default stage settings as launcher reading, sound and appearance preferences', () => {
+  const stage = {
+    fontSize: 20,
+    lineHeight: 2,
+    autoFollow: false,
+    autoSpeed: 1.5,
+    volume: 40,
+    muted: true,
+    voiceEnabled: false,
+    appearance: 'dark',
+  }
+  expect(launcherPreferencesFromStage(stage)).toEqual({
+    reading: { fontSize: 20, lineHeight: 2, autoFollow: false, autoSpeed: 1.5 },
+    audio: { volume: 40, muted: true, voiceEnabled: false },
+    theme: 'dark',
+  })
+  // Reading saved before the stage had an auto-read pace still loads.
+  expect(readingPreferences({ fontSize: 17, lineHeight: 1.9, autoFollow: true })).toEqual({
+    fontSize: 17,
+    lineHeight: 1.9,
+    autoFollow: true,
+  })
+  expect(() => launcherPreferencesFromStage({ ...stage, autoSpeed: 3 })).toThrow('阅读字号')
+  expect(() => launcherPreferencesFromStage({ ...stage, appearance: 'sepia' })).toThrow('外观')
 })

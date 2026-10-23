@@ -14,6 +14,7 @@ import {
   playerViewPatch,
   frontendActionRequest,
   frontendSpeechInput,
+  stagePreferences,
   type FrontendHostServices,
   type FrontendSpeechAudio,
 } from '@harness-world/frontend'
@@ -65,6 +66,7 @@ export interface HostState {
     readonly playerName: string
     readonly npcNames: readonly string[]
     readonly currentScene?: {
+      readonly locationId?: string
       readonly locationName: string
       readonly presentNpcNames: readonly string[]
       readonly recipients?: readonly { readonly id: string; readonly name: string }[]
@@ -101,6 +103,7 @@ export interface HostState {
     inputCharacters: number
     reading: import('../play-settings.ts').ReadingPreferences
     audio?: import('../play-settings.ts').AudioPreferences
+    appearance?: 'system' | 'light' | 'dark'
   }
   readonly debug: Record<string, unknown>
 }
@@ -314,6 +317,16 @@ export function createHostServer(
             frontendMode: useDefault ? 'sandbox' : policy.mode,
             frontendOrigin: useDefault || policy.mode !== 'trusted' ? '' : policy.origin,
             ...(packWeb?.theme && !plain ? { theme: true } : {}),
+            ...(useDefault
+              ? {
+                  canSave: !!runtime.saveNode,
+                  stageAssets: plain
+                    ? []
+                    : [...(packWeb?.assets.keys() ?? [])].filter(path =>
+                        /^\/frontend\/custom\/(portraits|backgrounds)\/[^/]+\.(png|webp|jpe?g)$/i.test(path),
+                      ),
+                }
+              : {}),
             capabilities,
             view: projectPlayerView(await runtime.state()),
           })
@@ -505,6 +518,15 @@ export function createHostServer(
       }
       if (request.method === 'GET' && url.pathname === '/api/state') {
         json(response, 200, await runtimeCall(() => runtime.state()))
+        return
+      }
+      // The default stage's settings, kept beyond this session where a launcher runs the game.
+      if (request.method === 'POST' && url.pathname === '/api/stage-preferences') {
+        if (request.headers['content-type']?.split(';')[0] !== 'application/json')
+          throw new TypeError('请求必须是 JSON')
+        const preferences = stagePreferences(await body(request))
+        services.saveStagePreferences?.(preferences)
+        json(response, 200, { saved: services.saveStagePreferences !== undefined })
         return
       }
       if (request.method === 'POST' && url.pathname === '/api/story-save') {

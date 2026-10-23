@@ -1,3 +1,5 @@
+import { stagePreferences } from '@harness-world/frontend'
+
 /** Host-owned outer page. Creator presentation lives in the child frame. */
 export const HOST_ACTIVITY_PAGE = String.raw`<!doctype html>
 <html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
@@ -179,7 +181,7 @@ iframe{
     const candidateChanged=playerView.tailRound?.id&&playerView.tailRound.id===next.tailRound?.id&&selected(playerView.tailRound)!==selected(next.tailRound);
     if(init?.frontend==='default'&&candidateChanged){readingPending=true;shownActivity=next.activity?{title:next.activity.title,game:{active:next.activity.active,phase:next.activity.phase,public:next.activity.public}}:null;node('game').open=false;panelPresentation()}
 
-    for(const key of ['game','player','scene','status','canInterrupt','expression','actions','tailRound','settings','activity','activities','feedback'])if(JSON.stringify(playerView[key])!==JSON.stringify(next[key]))changes[key]=next[key];
+    for(const key of ['game','player','scene','status','canInterrupt','responders','expression','actions','tailRound','settings','activity','activities','feedback','statusBar','statusTruth','items'])if(JSON.stringify(playerView[key])!==JSON.stringify(next[key]))changes[key]=next[key];
     if(JSON.stringify(playerView.history)!==JSON.stringify(next.history)){
       const prefix=playerView.history.length<=next.history.length&&playerView.history.every((line,i)=>JSON.stringify(line)===JSON.stringify(next.history[i]));
       if(prefix)changes.historyAppend=next.history.slice(playerView.history.length);else changes.history=next.history;
@@ -196,6 +198,19 @@ iframe{
       const reply=value=>{if(current===epoch)channel.port1.postMessage({type:'response',requestId:r.requestId,...value})};
       try{
         if(JSON.stringify(r).length>(r.method==='synthesizeSpeech'?100000:Math.max(8192,(playerView?.settings?.inputCharacters||2000)*6+2048))||!r.payload||typeof r.payload!=='object'||Array.isArray(r.payload))throw new Error('前端请求格式无效');
+        // These controls belong only to the bundled stage, never to a pack's capability manifest.
+        if(['stagePreferences','saveProgress'].includes(r.method)){
+          if(init.frontend!=='default')throw new Error('仅官方默认舞台可使用此操作');
+          if(r.method==='stagePreferences'){
+            const preferences=normalizePreferences(r.payload);
+            try{localStorage.setItem('perspectra.stage.preferences',JSON.stringify(preferences))}catch{}
+            // Kept beyond this session by the launcher, once the player stops dragging a slider.
+            clearTimeout(preferenceTimer);preferenceTimer=setTimeout(()=>api('/api/stage-preferences',preferences).catch(()=>{}),400);
+            reply({ok:true,result:preferences});return;
+          }
+          if(!init.canSave||Object.keys(r.payload).join(',')!=='title'||typeof r.payload.title!=='string'||r.payload.title.length>80)throw new Error('保存请求无效');
+          const result=await api('/api/story-save',{title:r.payload.title});reply({ok:true,result:result.node});return;
+        }
         const grant={view:'view',history:'history',speak:'speak',perform:'perform',regenerate:'regenerate',selectCandidate:'regenerate',cancelRegeneration:'regenerate',resource:'resources',synthesizeSpeech:'speech'}[r.method];
         if(!grant||!init.capabilities.includes(grant))throw new Error('前端没有该能力');
         if(['view','history'].includes(r.method)){
@@ -219,7 +234,7 @@ iframe{
     };
     port.start();
     frame.contentWindow.postMessage({type:'frontend-connect',apiVersion:1},init.frontendMode==='trusted'?init.frontendOrigin:'*',[channel.port2]);
-    post({type:'initialized',apiVersion:1,frontendMode:init.frontendMode,capabilities:init.capabilities,view:playerView});panelPresentation();
+    post({type:'initialized',apiVersion:1,frontendMode:init.frontendMode,capabilities:init.capabilities,view:playerView,...(init.frontend==='default'?{stagePreferences:readPreferences(),stageAssets:init.stageAssets,canSave:init.canSave}:{})});panelPresentation();
     node('frontend-status').textContent=init.frontend==='default'?'官方默认模板 · 沙箱':init.frontendMode==='trusted'?'游戏包前端 · 受信任':'游戏包前端 · 沙箱';
   }
   window.addEventListener('message',event=>{
@@ -236,6 +251,12 @@ iframe{
 
   });
   frame.onload=()=>{frameLoaded=true;connect()};
+  const normalizePreferences=(${stagePreferences.toString()});
+  let preferenceTimer=null;
+  function readPreferences(){
+    let stored={};try{stored=JSON.parse(localStorage.getItem('perspectra.stage.preferences')||'{}')}catch{}
+    return normalizePreferences(stored,{...playerView?.settings?.reading,...playerView?.settings?.audio,...(playerView?.settings?.appearance?{appearance:playerView.settings.appearance}:{})});
+  }
   async function mount(fallback=false){
     revoke();useDefault=fallback;
     init=await publicApi('init'+(fallback?'?template=default':''));

@@ -121,6 +121,9 @@ async function main(): Promise<void> {
     ...(process.env.PERSPECTRA_AUDIO === undefined
       ? {}
       : { audio: audioPreferences(JSON.parse(process.env.PERSPECTRA_AUDIO)) }),
+    ...(['system', 'light', 'dark'].includes(process.env.PERSPECTRA_APPEARANCE ?? '')
+      ? { appearance: process.env.PERSPECTRA_APPEARANCE as 'system' | 'light' | 'dark' }
+      : {}),
     ...(process.env.PERSPECTRA_STORY_PARENT_NODE
       ? { storyParentNodeId: process.env.PERSPECTRA_STORY_PARENT_NODE }
       : {}),
@@ -180,7 +183,13 @@ async function main(): Promise<void> {
     token,
     packWeb,
     policy,
-    hostPlugins.services,
+    {
+      ...hostPlugins.services,
+      // Under the launcher, the stage's settings go back to it; a standalone host keeps them for this session only.
+      ...(process.send
+        ? { saveStagePreferences: preferences => process.send?.({ type: 'stage-preferences', preferences }) }
+        : {}),
+    },
   )
   let closing = false
   const close = async () => {

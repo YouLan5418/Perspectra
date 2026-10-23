@@ -99,11 +99,25 @@ export async function loadPackWeb(packPath: string): Promise<PackWeb | undefined
     digestHash.update(asset.bytes)
   }
   const digest = digestHash.digest('hex')
-  // Only a stylesheet: the default stage stays, restyled. It needs no manifest, as it asks for no capability.
-  if (!entry && assets.has('/frontend/custom/theme.css'))
-    return { theme: true, assets, digest, manifest: { apiVersion: 1, capabilities: [] } }
+  // Static stage artwork and styles need no executable page or capability manifest.
+  if (
+    !entry &&
+    [...assets.keys()].every(
+      path =>
+        path === '/frontend/custom/theme.css' ||
+        /^\/frontend\/custom\/(portraits|backgrounds)\/[^/]+\.(png|webp|jpe?g)$/i.test(path),
+    )
+  )
+    return {
+      theme: assets.has('/frontend/custom/theme.css'),
+      assets,
+      digest,
+      manifest: { apiVersion: 1, capabilities: [] },
+    }
   if (!entry || !source)
-    throw new Error('frontend/ 必须包含 index.html 与 manifest.json；只改默认舞台的样式时只放 theme.css。')
+    throw new Error(
+      'frontend/ 必须包含 index.html 与 manifest.json；默认舞台可只放 theme.css、portraits/ 和 backgrounds/。',
+    )
   const data = JSON.parse(source.bytes.toString('utf8')) as Record<string, unknown>
   if (
     !data ||

@@ -103,13 +103,19 @@ export interface ReadingPreferences {
   fontSize: number
   lineHeight: number
   autoFollow: boolean
+  /** The stage's auto-read pace, 0.5–2 times the default; absent means 1. */
+  autoSpeed?: number
 }
 export const DEFAULT_READING: ReadingPreferences = { fontSize: 17, lineHeight: 1.9, autoFollow: true }
 export function readingPreferences(value: unknown): ReadingPreferences {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new TypeError('阅读设置无效。')
   const v = value as Record<string, unknown>
   if (
-    Object.keys(v).sort().join(',') !== 'autoFollow,fontSize,lineHeight' ||
+    !['autoFollow,fontSize,lineHeight', 'autoFollow,autoSpeed,fontSize,lineHeight'].includes(
+      Object.keys(v).sort().join(','),
+    ) ||
+    (v.autoSpeed !== undefined &&
+      (typeof v.autoSpeed !== 'number' || !Number.isFinite(v.autoSpeed) || v.autoSpeed < 0.5 || v.autoSpeed > 2)) ||
     typeof v.fontSize !== 'number' ||
     !Number.isInteger(v.fontSize) ||
     v.fontSize < 14 ||
@@ -121,7 +127,33 @@ export function readingPreferences(value: unknown): ReadingPreferences {
     typeof v.autoFollow !== 'boolean'
   )
     throw new TypeError('阅读字号须为 14–28，行距须为 1.4–2.4。')
-  return { fontSize: v.fontSize, lineHeight: v.lineHeight, autoFollow: v.autoFollow }
+  return {
+    fontSize: v.fontSize,
+    lineHeight: v.lineHeight,
+    autoFollow: v.autoFollow,
+    ...(v.autoSpeed === undefined ? {} : { autoSpeed: v.autoSpeed as number }),
+  }
+}
+/** The default stage's settings, as the launcher keeps them: reading and sound preferences plus the one
+ * appearance (the launcher's theme). Throws on anything out of range, so nothing is half-saved. */
+export function launcherPreferencesFromStage(value: unknown): {
+  reading: ReadingPreferences
+  audio: AudioPreferences
+  theme: 'system' | 'light' | 'dark'
+} {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new TypeError('舞台设置无效。')
+  const v = value as Record<string, unknown>
+  if (!['system', 'light', 'dark'].includes(String(v.appearance))) throw new TypeError('外观设置无效。')
+  return {
+    reading: readingPreferences({
+      fontSize: v.fontSize,
+      lineHeight: v.lineHeight,
+      autoFollow: v.autoFollow,
+      autoSpeed: v.autoSpeed,
+    }),
+    audio: audioPreferences({ volume: v.volume, muted: v.muted, voiceEnabled: v.voiceEnabled }),
+    theme: v.appearance as 'system' | 'light' | 'dark',
+  }
 }
 
 /** Presentation preferences only. Templates decide whether to provide audio playback. */

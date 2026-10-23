@@ -83,3 +83,36 @@ it('restyles the default stage when the pack brings only a theme.css', async () 
   await writeFile(join(root, 'frontend', 'index.html'), '<p>own</p>')
   await expect(loadPackWeb(root)).rejects.toThrow('manifest.json')
 })
+
+it('accepts artwork alone for the default stage, while still rejecting executable pages without a manifest', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'frontend-resources-'))
+  roots.push(root)
+  await mkdir(join(root, 'frontend', 'portraits'), { recursive: true })
+  await mkdir(join(root, 'frontend', 'backgrounds'))
+  await writeFile(join(root, 'frontend', 'portraits', 'companion.png'), 'portrait-bytes')
+  await writeFile(join(root, 'frontend', 'backgrounds', 'library.webp'), 'background-bytes')
+  const pack = (await loadPackWeb(root))!
+  expect(pack.page).toBeUndefined()
+  expect(pack.theme).toBe(false)
+  expect(pack.manifest.capabilities).toEqual([])
+  let body = ''
+  frontendAsset(
+    {
+      method: 'GET',
+      url: '/frontend/custom/portraits/companion.png',
+      headers: { host: '127.0.0.1:1' },
+    } as IncomingMessage,
+    {
+      setHeader() {},
+      end: (bytes: Buffer) => {
+        body = String(bytes)
+      },
+    } as unknown as ServerResponse,
+    pack,
+    'http://127.0.0.1:1',
+    'sandbox',
+  )
+  expect(body).toBe('portrait-bytes')
+  await writeFile(join(root, 'frontend', 'app.js'), 'window.secret = true')
+  await expect(loadPackWeb(root)).rejects.toThrow('manifest.json')
+})

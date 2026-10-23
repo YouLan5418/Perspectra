@@ -8,7 +8,12 @@ export interface PlayerAction {
 export interface PlayerView {
   game: { title: string }
   player: { name: string }
-  scene: { locationName: string; visibleCharacters: string[]; recipients: { id: string; name: string }[] } | null
+  scene: {
+    locationId?: string
+    locationName: string
+    visibleCharacters: string[]
+    recipients: { id: string; name: string }[]
+  } | null
   activity?: { title: string; active: boolean; phase: string; public: WorldJsonObject }
   activities?: {
     key: string
@@ -26,8 +31,10 @@ export interface PlayerView {
   feedback?: { phase: string; message: string }
   settings?: {
     inputCharacters: number
-    reading: { fontSize: number; lineHeight: number; autoFollow: boolean }
+    reading: { fontSize: number; lineHeight: number; autoFollow: boolean; autoSpeed?: number }
     audio?: { volume: number; muted: boolean; voiceEnabled: boolean }
+    /** The player's chosen appearance for the stage; absent means follow the system. */
+    appearance?: 'system' | 'light' | 'dark'
   }
   tailRound?: {
     candidateIds?: readonly string[]
@@ -115,6 +122,7 @@ export function playerViewPatch(before: PlayerView, after: PlayerView): Record<s
     'feedback',
     'statusBar',
     'statusTruth',
+    'items',
   ] as const) {
     if (JSON.stringify(before[key]) !== JSON.stringify(after[key])) changes[key] = after[key]
   }

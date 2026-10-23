@@ -12,6 +12,8 @@ let state: HostState = {
       { type: 'narration', text: '她从书页间抬起头。窗外最后一束光，轻轻落在银白的发梢上。' },
       { type: 'speech', text: '你终于来了。\n我还以为，今天也要一个人在这里等到天黑。' }] }],
   actionNames: { 'entity:letter': '旧信件' },
+  items: [{ id: 'entity:letter', name: '旧信件', kind: '纸张', where: 'here' }],
+  statusBar: [{ key: 'time', label: '时间', holderId: null, value: '18:20', current: true, pinned: true }],
   availableActions: [{ actionType: 'move', actionVersion: 1, destinations: [{ locationId: 'hall', name: '长廊' }] },
     { actionType: 'interact', actionVersion: 1, interactions: [{ targetRef: { kind: 'entity', id: 'entity:letter' }, definitionRef: { id: 'base:take', version: 1 }, bindingId: 'preview-letter', arguments: {} }] }],
 }
@@ -29,7 +31,7 @@ const runtime: HostRuntime = {
   perform: async action => {
     if (action.actionType === 'interact') {
       submissions++; publish('旧信件已交由旅人保管。', true); publish('先收好吧，等我们找到收信人再还给她。')
-      state = { ...state, availableActions: state.availableActions?.filter(option => option.actionType === 'move') ?? [] }
+      state = { ...state, items: [{ id: 'entity:letter', name: '旧信件', kind: '纸张', where: 'held' }], statusBar: [{ key: 'time', label: '时间', holderId: null, value: '18:21', current: true, pinned: true }], availableActions: state.availableActions?.filter(option => option.actionType === 'move') ?? [] }
       return state
     }
     submissions++; state = { ...state, world: { ...state.world, currentScene: { locationName: '长廊', presentNpcNames: [], recipients: [] } } }
@@ -46,6 +48,11 @@ const runtime: HostRuntime = {
   },
   escape: async () => { state = { ...state, activity: { ...state.activity, game: { active: false, public: {} } } }; return state },
   pause: async () => state, resume: async () => state, close: async () => {},
+  saveNode: async title => {
+    await new Promise(resolve => setTimeout(resolve, 600))
+    if (title === '失败预览') throw new Error('预览保存失败，请重试。')
+    return { id: 'preview-node', title } as Awaited<ReturnType<NonNullable<HostRuntime['saveNode']>>>
+  },
 }
 if (process.argv.includes('--activity')) state = { ...state, activity: {
   title: '寻找遗失的信 · 调查', activityKey: 'investigation', id: 'preview-activity', revision: 1, participants: ['player', 'gpt'],
@@ -54,8 +61,8 @@ if (process.argv.includes('--activity')) state = { ...state, activity: {
   options: [{ label: '调查所选区域', definitionRef: { id: 'activity:guess', version: 1 },
     argumentSchema: { type: 'object', properties: { activityId: { type: 'string' }, revision: { type: 'integer' }, value: { type: 'integer', title: '调查区域', oneOf: [{ const: 3, title: '窗边书架' }, { const: 5, title: '靠门储物柜' }] } } } }],
 } }
-if (process.argv.includes('--multi')) state = { ...state, world: { ...state.world, npcNames: ['GPT-6', 'Claude', 'DeepSeek'],
-  currentScene: { locationName: '旧图书馆', presentNpcNames: ['GPT-6', 'Claude', 'DeepSeek'], recipients: [{ id: 'gpt', name: 'GPT-6' }, { id: 'claude', name: 'Claude' }, { id: 'deepseek', name: 'DeepSeek' }] } } }
+if (process.argv.includes('--multi')) state = { ...state, world: { ...state.world, npcNames: ['GPT-6', 'Claude', 'DeepSeek', '同行者'],
+  currentScene: { locationName: '旧图书馆', presentNpcNames: ['GPT-6', 'Claude', 'DeepSeek', '同行者'], recipients: [{ id: 'gpt', name: 'GPT-6' }, { id: 'claude', name: 'Claude' }, { id: 'deepseek', name: 'DeepSeek' }, { id: 'character:companion', name: '同行者' }] } } }
 /** --many：约 20 个行动，用于检查右栏分组、相关排序与翻页。 */
 if (process.argv.includes('--many')) {
   const items = [['letter', '旧信件'], ['lamp', '煤油灯'], ['key', '黄铜钥匙'], ['book', '褪色诗集'], ['map', '手绘地图'], ['tea', '冷掉的红茶'], ['quill', '羽毛笔']] as const

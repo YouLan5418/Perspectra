@@ -4,6 +4,7 @@ import {
   DEFAULT_READING,
   audioPreferences,
   DEFAULT_AUDIO,
+  launcherPreferencesFromStage,
   type PlaySettings,
   type ReadingPreferences,
   type AudioPreferences,
@@ -512,6 +513,19 @@ export class LauncherCore {
           : { state: 'idle', mode: 'real' },
     }
   }
+  /** Settings the player changed on the default stage come back as the launcher's own reading, sound and
+   * appearance preferences, so the next game starts with them. A malformed message is ignored. */
+  async #stagePreferences(child: ChildProcess, value: unknown): Promise<void> {
+    if (this.#child !== child || object(value).type !== 'stage-preferences') return
+    let next: ReturnType<typeof launcherPreferencesFromStage>
+    try {
+      next = launcherPreferencesFromStage(object(value).preferences)
+    } catch {
+      return
+    }
+    await this.#save({ ...this.#index, preferences: { ...this.#index.preferences, ...next } }).catch(() => {})
+  }
+
   async handle(value: unknown): Promise<unknown> {
     const request = object(value)
     switch (request.operation) {
@@ -922,6 +936,7 @@ export class LauncherCore {
               PERSPECTRA_STORY_NAME: instance.storylines.find(l => l.id === instance.currentStorylineId)!.name,
               PERSPECTRA_READING: JSON.stringify(this.#index.preferences.reading ?? DEFAULT_READING),
               PERSPECTRA_AUDIO: JSON.stringify(this.#index.preferences.audio ?? DEFAULT_AUDIO),
+              PERSPECTRA_APPEARANCE: this.#index.preferences.theme ?? 'system',
               PERSPECTRA_HOST_PLUGINS: JSON.stringify(this.#index.preferences.hostPlugins ?? []),
               PERSPECTRA_PRESET_ROOT: this.root,
               PERSPECTRA_PRESET_INSTANCE: instance.id,
@@ -986,6 +1001,7 @@ export class LauncherCore {
               i === instance ? { ...i, lastPlayedAt: new Date().toISOString() } : i,
             ),
           })
+          child.on('message', value => void this.#stagePreferences(child, value))
           this.#active = {
             instanceId: instance.id,
             url: 'http://127.0.0.1:' + ready.port + '/#token=' + ready.token,

@@ -1,14 +1,15 @@
 import { createReadingPlayback } from './reading-playback.ts'
 import { STAGE_STYLE } from './stage-style.ts'
+import { stagePreferences } from './stage-preferences.ts'
 
 export const DEFAULT_PAGE = String.raw`<!doctype html>
 <html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Perspectra 对话</title><link rel="stylesheet" href="/frontend/default.css"></head>
 <body><main>
-  <div class="backdrop" aria-hidden="true"></div>
-  <header class="world-header"><div class="scene-heading"><div><h2 id="scene">正在进入情景</h2><h1 id="title">正在进入世界</h1><div id="status-bar" class="status-bar" role="group" aria-label="你知道的状态" hidden></div></div></div><nav class="stage-tools" aria-label="舞台工具"><span id="status" class="status" role="status">正在连接</span><button id="history-toggle" type="button" aria-expanded="false">记录</button><button id="actions-toggle" type="button" aria-expanded="false">行动 <span id="action-count">0</span></button><button id="status-toggle" type="button" aria-expanded="false">状态</button></nav></header>
+  <div class="backdrop" aria-hidden="true"><img id="background" alt="" hidden></div>
+  <header class="world-header"><div class="scene-heading"><div><h2 id="scene">正在进入情景</h2><h1 id="title">正在进入世界</h1><div id="status-bar" class="status-bar" role="group" aria-label="你知道的状态" hidden></div></div></div><nav class="stage-tools" aria-label="舞台工具"><span id="status" class="status" role="status">正在连接</span><span id="plugin-tools" hidden></span><button id="history-toggle" type="button" aria-expanded="false" aria-controls="history-panel">记录</button><button id="actions-toggle" type="button" aria-expanded="false" aria-controls="action-panel">行动 <span id="action-count">0</span></button><button id="status-toggle" type="button" aria-expanded="false" aria-controls="status-panel">状态</button><button id="settings-toggle" type="button" aria-expanded="false" aria-controls="settings-panel">设置</button></nav></header>
   <div id="characters" aria-label="当前可见角色"></div><div id="character-menu" class="character-menu" role="menu" hidden></div>
-  <p id="movement-toast" class="movement-toast" role="status" hidden></p>
+  <div class="stage-notifications" aria-live="polite"><p id="movement-toast" class="movement-toast" hidden></p><p id="item-toast" class="movement-toast" hidden></p></div>
   <section id="activity-card" class="activity-card" aria-label="当前活动" hidden><button id="activity-heading" class="activity-heading" type="button" aria-expanded="true"><small>当前活动</small><strong id="activity-title"></strong><span id="activity-phase"></span></button><div id="activity-body"><p id="activity-objective"></p><dl id="activity-state"></dl><div id="activity-options"></div><p id="activity-result" class="hint" role="status"></p><div id="activity-manage" class="activity-manage"></div></div></section>
   <section class="stage-bottom" aria-label="故事与对话">
     <div class="dialogue-wrap" id="dialogue-wrap"><div class="dialogue-meta"><strong id="speaker" class="speaker-label">序幕</strong><span id="reading-count" class="reading-count"></span></div><button id="dialogue" class="dialogue" type="button" aria-label="阅读下一段">世界正在醒来……</button><div id="auto-progress" class="auto-progress" hidden><div id="auto-progress-bar" class="auto-progress-bar"></div></div><div class="dialogue-footer"><span id="continue-hint">点击继续</span><button id="auto-read" type="button" aria-pressed="false">自动</button><button id="skip-read" type="button" title="跳到已经发生的最新内容">跳过</button>      <div id="round-tools" class="round-tools" role="group" aria-label="末端回合候选" hidden><button id="candidate-prev" type="button" aria-label="上一个候选" title="上一个候选">‹</button><span id="candidate-count" aria-live="polite"></span><button id="candidate-next" type="button" aria-label="下一个候选" title="下一个候选">›</button><button id="regenerate-round" type="button" aria-label="重新生成" title="重新生成此回合"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M20 7v5h-5M4 17v-5h5"/><path d="M6 6a8 8 0 0 1 13 3l1 3M4 12l1 3a8 8 0 0 0 13 3"/></svg></button><button id="cancel-round" type="button" aria-label="取消重新生成" title="取消重新生成" hidden>停止</button></div>
@@ -40,6 +41,33 @@ export const DEFAULT_PAGE = String.raw`<!doctype html>
   <section id="history-panel" class="panel history-panel" aria-label="文字记录" hidden><div class="panel-header"><span>文字记录 · <span id="player"></span></span><button id="history-close" type="button" aria-label="关闭文字记录">×</button></div><section id="history" aria-label="玩家可见对话记录"></section><button id="latest" class="latest secondary" type="button" hidden>回到最新对话 ↓</button></section>
   <section id="action-panel" class="panel action-panel" aria-label="可用行动" hidden><div class="panel-header"><span>当前可用行动</span><button id="actions-close" type="button" aria-label="关闭行动">×</button></div><div id="actions"></div></section>
   <section id="status-panel" class="panel status-panel" aria-label="状态" hidden><div class="panel-header"><span>状态</span><button id="status-close" type="button" aria-label="关闭状态">×</button></div><div id="status-list" class="panel-body"></div></section>
+  <section id="settings-panel" class="panel settings-panel" aria-label="设置" hidden>
+    <div class="panel-header"><span>舞台设置</span><button id="settings-close" type="button" aria-label="关闭设置">×</button></div>
+    <div class="panel-body settings-body">
+      <p class="settings-intro">让故事以你喜欢的方式展开。</p>
+      <fieldset><legend>阅读</legend>
+        <label class="setting-range" for="setting-fontSize"><span>字号</span><output id="value-fontSize"></output><input id="setting-fontSize" type="range" min="14" max="28" step="1"></label>
+        <label class="setting-range" for="setting-lineHeight"><span>行距</span><output id="value-lineHeight"></output><input id="setting-lineHeight" type="range" min="1.4" max="2.4" step="0.1"></label>
+        <label class="setting-range" for="setting-autoSpeed"><span>自动阅读速度</span><output id="value-autoSpeed"></output><input id="setting-autoSpeed" type="range" min="0.5" max="2" step="0.25"></label>
+        <label class="setting-check"><span>记录跟随最新<small>新内容到达时，停在记录底部</small></span><input id="setting-autoFollow" type="checkbox" role="switch"></label>
+      </fieldset>
+      <fieldset><legend>声音</legend>
+        <label class="setting-range" for="setting-volume"><span>音量</span><output id="value-volume"></output><input id="setting-volume" type="range" min="0" max="100" step="1"></label>
+        <label class="setting-check"><span>静音</span><input id="setting-muted" type="checkbox" role="switch"></label>
+        <label class="setting-check"><span>角色语音<small id="voice-hint">尚未安装语音服务</small></span><input id="setting-voiceEnabled" type="checkbox" role="switch" disabled></label>
+        <p id="voice-notice" class="hint" role="status"></p>
+      </fieldset>
+      <fieldset><legend>外观</legend><div class="appearance-options" role="group" aria-label="界面外观"><label><input type="radio" name="appearance" value="system"><span>跟随系统</span></label><label><input type="radio" name="appearance" value="light"><span>浅色</span></label><label><input type="radio" name="appearance" value="dark"><span>深色</span></label></div></fieldset>
+      <section id="plugin-settings" hidden aria-label="插件设置"></section>
+      <fieldset><legend>故事进度</legend><p class="hint">保存此刻的故事，在启动器中继续。</p><button id="stage-save" class="save-entry" type="button" disabled>保存进度 <span aria-hidden="true">↗</span></button><p id="save-unavailable" class="hint" hidden>当前运行时不支持保存进度。</p></fieldset>
+      <p id="settings-notice" class="hint" role="status">设置仅影响本机显示，即时生效。</p>
+    </div>
+  </section>
+  <dialog id="save-dialog" class="save-dialog" aria-labelledby="save-heading"><div>
+    <div class="save-heading"><span class="eyebrow">故事进度</span><button id="save-close" type="button" aria-label="关闭保存进度">×</button></div><h2 id="save-heading">留住这一刻</h2><p class="hint">将当前位置保存为节点，之后可在启动器中继续。</p>
+    <label for="save-title">节点名称</label><input id="save-title" maxlength="80" autocomplete="off" required>
+    <p id="save-result" role="status" class="hint"></p><div class="save-buttons"><button id="save-cancel" type="button">取消</button><button id="save-confirm" class="primary" type="button">保存进度</button></div>
+  </div></dialog>
 </main><script src="/frontend/sdk.js"></script><script src="/frontend/default.js"></script></body></html>`
 
 export const DEFAULT_STYLE = STAGE_STYLE
@@ -92,6 +120,8 @@ function statusBarRows(view: {
 export const DEFAULT_SCRIPT = String.raw`(() => {
  const playback=(${createReadingPlayback.toString()})();
  const api=window.Perspectra,node=id=>document.getElementById(id);
+ const normalizePreferences=(${stagePreferences.toString()});
+ let preferences=normalizePreferences({}),stageAssets=[],canSave=false,hasSpeech=false,saving=false,preferencesVersion=0;
  let latest,posting=false,pending,attached=null,connected=false,historyKey='',actionsKey='',waitOption=null,statusKey='',canRegenerate=false,requestVersion=0,submittedPlayers=0;
  // Keep statusRows and roundTools adjacent and in this order: frontend-reading tests extract the helper by these markers.
  const statusRows=(${statusBarRows.toString()});
@@ -138,7 +168,8 @@ export const DEFAULT_SCRIPT = String.raw`(() => {
    const mode=readingBlocked||posting||(!canReply&&!activityOpen)?'reading':activityOpen?'activity':(composerExpanded&&canReply)?'response':'reading';
    document.querySelector('main').dataset.mode=mode;
    document.querySelector('main').dataset.hasActivity=String(!!(latest?.activity||latest?.activities?.length));
-   if(connected&&latest?.status==='ready')node('status').textContent=mode==='response'?'等待你的回应':mode==='activity'?'可以操作':readingBlocked?'阅读中':'已读完';
+   if(connected&&latest?.status==='ready')node('status').textContent=readingBlocked?'阅读中':'可以回应';
+   node('stage-save').disabled=!canSave||saving||posting||!connected||latest?.status!=='ready'||!!latest?.tailRound?.regenerating;
    node('composer').hidden=mode!=='response';node('dialogue-wrap').hidden=mode==='response';
    node('reply-bar').hidden=mode!=='reading'||readingBlocked||!canReply;node('reply-wait').hidden=!waitOption;node('reply-wait').disabled=actionDisabled;
    const unit=playback.current();node('reply-speaker').textContent=unit?.speaker||'当前情景';node('reply-summary').textContent=unit?.text||'故事从你的回应开始。';
@@ -176,11 +207,11 @@ export const DEFAULT_SCRIPT = String.raw`(() => {
    }
    const candidate=tail=>tail?.candidateIds?.[(tail.candidateIndex||1)-1]||null;
    if(latest?.tailRound?.id&&latest.tailRound.id===view.tailRound?.id&&candidate(latest.tailRound)!==candidate(view.tailRound))playback.invalidateScene();
+   renderItemChanges(latest,view);
    latest=view;renderRecipients(view);const hadPending=playback.pending();playback.update(view.history);if(!hadPending&&playback.pending())composerExpanded=false;renderStage();
    const expression=view.expression||{speech:'free',speechChoices:[],narration:true};
    if(JSON.stringify(expression)!==expressionKey){expressionKey=JSON.stringify(expression);node('expression-choices').replaceChildren();if(expression.speech==='choices')for(const text of expression.speechChoices){const button=document.createElement('button');button.type='button';button.textContent=text;button.onclick=()=>send('speak',{text,scope:speechScope(),addresseeIds:['direct','private'].includes(speechScope())?[node('speech-recipient').value]:[]});node('expression-choices').append(button)}}
-   const reading=view.settings?.reading||{fontSize:17,lineHeight:1.9,autoFollow:true};
-   document.documentElement.style.setProperty('--fs-story',reading.fontSize+'px');document.documentElement.style.setProperty('--story-line-height',String(reading.lineHeight));
+   const reading=preferences;
    node('input').maxLength=node('narration').maxLength=view.settings?.inputCharacters||2000;
    node('title').textContent=view.game.title;node('player').textContent='你 · '+view.player.name;
    const nextStatus=JSON.stringify([view.statusBar||[],view.items||[]]);
@@ -358,7 +389,89 @@ export const DEFAULT_SCRIPT = String.raw`(() => {
  node('input').oninput=controls;node('narration').oninput=controls;
  node('narration-panel').addEventListener('toggle',()=>{if(node('narration-panel').open)node('narration').focus()});
  node('input').onkeydown=node('narration').onkeydown=event=>{if(event.key==='Enter'&&!event.shiftKey&&!event.isComposing){event.preventDefault();node('send').click()}};
- let composerExpanded=false,activityOpen=false,auto=false,autoTimer=null,autoKey='',expressionKey='',sceneKey='',toastTimer=null;
+ let composerExpanded=false,activityOpen=false,auto=false,autoTimer=null,autoKey='',expressionKey='',sceneKey='';
+ const toastTimers=new Map();
+ function showToast(id,text){const target=node(id);target.textContent=text;target.hidden=false;clearTimeout(toastTimers.get(id));toastTimers.set(id,setTimeout(()=>target.hidden=true,4000))}
+ function renderItemChanges(before,after){
+   if(!before)return;
+   const prefix=before.history.length<=after.history.length&&before.history.every((line,index)=>JSON.stringify(line)===JSON.stringify(after.history[index]));
+   if(!prefix){node('item-toast').hidden=true;return}
+   const changes=[];
+   for(const item of after.items||[]){const old=(before.items||[]).find(entry=>entry.id===item.id);
+     if(item.where==='held'&&old?.where!=='held')changes.push('你拿到了'+item.name);
+     else if(old?.where==='held'&&item.where==='with')changes.push(item.name+'交给了'+(item.holderName||'别人'));
+     else if(old?.where==='held'&&item.where==='here')changes.push('你放下了'+item.name);
+   }
+   if(changes.length)showToast('item-toast',changes.join(' · '));
+ }
+ function art(folder,id){
+   if(!id)return null;const slug=String(id).replace(/^[^:]+:/,'');
+   for(const extension of folder==='portraits'?['png','webp']:['jpg','png','webp','jpeg']){
+     const path='/frontend/custom/'+folder+'/'+slug+'.'+extension;
+     if(stageAssets.includes(path))return '/frontend/custom/'+folder+'/'+encodeURIComponent(slug)+'.'+extension;
+   }return null;
+ }
+ let audioContext=null,audioSource=null,audioGain=null,voiceVersion=0,voiceKey='';
+ function stopVoice(){voiceVersion++;if(audioSource){audioSource.stop();audioSource=null}}
+ async function playVoice(){
+   const unit=playback.current(),key=JSON.stringify(unit);
+   if(!hasSpeech||!preferences.voiceEnabled||preferences.muted||!preferences.volume||!playback.pending()||unit?.player||unit?.type!=='speech'){stopVoice();voiceKey='';return}
+   if(key===voiceKey)return;voiceKey=key;stopVoice();const version=voiceVersion;
+   if(!audioContext||audioContext.state!=='running'){node('voice-notice').textContent='点击页面后开始播放语音。';return}
+   try{
+     const result=await api.synthesizeSpeech(unit.seq,unit.segmentIndex,unit.text);
+     if(version!==voiceVersion)return;
+     const buffer=await audioContext.decodeAudioData(result.bytes);
+     if(version!==voiceVersion)return;
+     audioSource=audioContext.createBufferSource();audioGain=audioContext.createGain();audioGain.gain.value=preferences.volume/100;
+     audioSource.buffer=buffer;audioSource.connect(audioGain);audioGain.connect(audioContext.destination);audioSource.start();node('voice-notice').textContent='';
+   }catch(error){if(version===voiceVersion)node('voice-notice').textContent='语音暂不可用：'+error.message}
+ }
+ function applyPreferences(){
+   const root=document.documentElement;root.dataset.appearance=preferences.appearance;
+   root.style.setProperty('--fs-story',preferences.fontSize+'px');root.style.setProperty('--story-line-height',String(preferences.lineHeight));
+   for(const key of ['fontSize','lineHeight','autoSpeed','volume']){node('setting-'+key).value=String(preferences[key]);node('value-'+key).textContent=key==='fontSize'?preferences[key]+' px':key==='volume'?preferences[key]+'%':preferences[key]+' ×'}
+   for(const key of ['autoFollow','muted','voiceEnabled'])node('setting-'+key).checked=preferences[key];
+   for(const radio of document.querySelectorAll('input[name="appearance"]'))radio.checked=radio.value===preferences.appearance;
+   if(audioGain)audioGain.gain.value=preferences.muted?0:preferences.volume/100;
+   autoKey='';clearTimeout(autoTimer);autoTimer=null;scheduleAuto();playVoice();
+ }
+ async function changePreference(key,value){
+   preferences=normalizePreferences({...preferences,[key]:value});applyPreferences();const version=++preferencesVersion;
+   try{await api.request('stagePreferences',preferences);if(version===preferencesVersion)node('settings-notice').textContent='已保存到本机，即时生效。'}catch(error){if(version===preferencesVersion)node('settings-notice').textContent=error.message}
+ }
+ for(const key of ['fontSize','lineHeight','autoSpeed','volume'])node('setting-'+key).oninput=event=>changePreference(key,Number(event.target.value));
+ for(const key of ['autoFollow','muted','voiceEnabled'])node('setting-'+key).onchange=async event=>{
+   if(key==='voiceEnabled'&&event.target.checked){try{audioContext=audioContext||new AudioContext();await audioContext.resume();voiceKey=''}catch(error){node('voice-notice').textContent='无法开启语音：'+error.message;event.target.checked=false;return}}
+   changePreference(key,event.target.checked);
+ };
+ for(const radio of document.querySelectorAll('input[name="appearance"]'))radio.onchange=()=>changePreference('appearance',radio.value);
+ async function unlockVoice(){
+   if(!hasSpeech||!preferences.voiceEnabled||audioContext?.state==='running')return;
+   try{audioContext=audioContext||new AudioContext();await audioContext.resume();voiceKey='';playVoice()}catch(error){node('voice-notice').textContent='无法开启语音：'+error.message}
+ }
+ document.addEventListener('pointerdown',unlockVoice);
+ document.addEventListener('keydown',event=>{if(event.key==='Enter'||event.key===' ')unlockVoice()});
+ node('stage-save').onclick=()=>{
+   if(node('stage-save').disabled)return;
+   node('save-title').value=(latest?.scene?.locationName||'故事')+' · '+new Date().toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit'});
+   node('save-title').hidden=false;node('save-title').disabled=false;node('save-confirm').hidden=false;node('save-confirm').disabled=false;
+   node('save-confirm').textContent='保存进度';node('save-cancel').textContent='取消';node('save-result').textContent='';node('save-dialog').dataset.state='idle';node('save-dialog').showModal();scheduleAuto();node('save-title').select();
+ };
+ function closeSave(){if(!saving)node('save-dialog').close()}
+ node('save-close').onclick=node('save-cancel').onclick=closeSave;
+ node('save-dialog').addEventListener('cancel',event=>{event.preventDefault();closeSave()});
+ node('save-dialog').addEventListener('close',()=>{node('stage-save').focus();scheduleAuto()});
+ node('save-title').onkeydown=event=>{if(event.key==='Enter'&&!event.isComposing){event.preventDefault();node('save-confirm').click()}};
+ node('save-confirm').onclick=async()=>{
+   if(saving)return;saving=true;controls();
+   const dialog=node('save-dialog');dialog.dataset.state='saving';node('save-result').textContent='正在保存此刻的故事……';
+   for(const id of ['save-confirm','save-cancel','save-close','save-title'])node(id).disabled=true;
+   try{const result=await api.request('saveProgress',{title:node('save-title').value});dialog.dataset.state='success';node('save-result').textContent='已保存「'+result.title+'」';node('save-confirm').hidden=true;node('save-cancel').textContent='完成'}
+   catch(error){dialog.dataset.state='error';node('save-result').textContent='保存未完成：'+error.message;node('save-confirm').textContent='重试保存'}
+   finally{saving=false;for(const id of ['save-confirm','save-cancel','save-close','save-title'])node(id).disabled=false;controls()}
+ };
+ window.addEventListener('pagehide',()=>{stopVoice();audioContext?.close()});
  function updateAutoProgress(duration){
    const wrap=node('auto-progress'),bar=node('auto-progress-bar');
    if(!wrap||!bar)return;
@@ -377,13 +490,16 @@ export const DEFAULT_SCRIPT = String.raw`(() => {
    node('dialogue').classList.remove('fade-in');void node('dialogue').offsetWidth;node('dialogue').classList.add('fade-in');
    const scene=playback.stageScene(latest?.scene||null),key=JSON.stringify(scene);
    if(key!==sceneKey){
-     if(sceneKey&&scene?.locationName){node('movement-toast').textContent='当前情景 · '+scene.locationName;node('movement-toast').hidden=false;clearTimeout(toastTimer);toastTimer=setTimeout(()=>node('movement-toast').hidden=true,3500)}
+     if(sceneKey&&scene?.locationName&&node('scene').textContent!==scene.locationName)showToast('movement-toast','当前情景 · '+scene.locationName);
     sceneKey=key;node('scene').textContent=scene?.locationName||'情景尚未开始';
+    const background=node('background'),backgroundUrl=art('backgrounds',scene?.locationId);
+    background.hidden=true;background.onerror=()=>background.hidden=true;background.onload=()=>background.hidden=false;
+    if(backgroundUrl)background.src=backgroundUrl;else background.removeAttribute('src');
     node('characters').replaceChildren();node('character-menu').hidden=true;
     for(const {id,name} of scene?.recipients||[]){const portrait=document.createElement('div');portrait.className='portrait';portrait.dataset.characterId=id;
       const badge=document.createElement('div');badge.className='portrait-badge';badge.hidden=true;badge.textContent=Array.from(name)[0]||'◇';
-      const slug=String(name).toLowerCase().split(/[\s（(·]/)[0];
-      const img=document.createElement('img');img.src='/frontend/assets/'+encodeURIComponent(slug)+'.png';img.alt=name+'的立绘';img.onerror=()=>{img.remove();badge.hidden=false};portrait.append(img,badge);
+      const src=art('portraits',id);badge.hidden=!!src;
+      if(src){const img=document.createElement('img');img.alt=name+'的立绘';img.onerror=()=>{img.remove();badge.hidden=false};img.src=src;portrait.append(img)}portrait.append(badge);
       const label=document.createElement('span');label.className='character-name';label.textContent=name;portrait.append(label);
       portrait.tabIndex=0;portrait.setAttribute('role','button');portrait.setAttribute('aria-haspopup','menu');portrait.title='和'+name+'说话或做些什么';
       portrait.onclick=event=>{event.stopPropagation();characterMenu(id,portrait)};
@@ -392,14 +508,15 @@ export const DEFAULT_SCRIPT = String.raw`(() => {
      if(!scene?.recipients.length){const empty=document.createElement('span');empty.className='alone';empty.textContent='片刻的宁静';node('characters').append(empty)}
    }
    for(const portrait of node('characters').children)portrait.classList.toggle('speaking',!!unit?.speakerId&&unit.speakerId===portrait.dataset.characterId);
-   scheduleAuto();
+   playVoice();scheduleAuto();
  }
  function scheduleAuto(){
    const key=JSON.stringify(playback.current());
-   if(autoTimer&&autoKey===key&&auto&&node('history-panel').hidden)return;
+   const unobstructed=!document.querySelector('.panel:not([hidden])')&&!node('save-dialog').open;
+   if(autoTimer&&autoKey===key&&auto&&unobstructed)return;
    clearTimeout(autoTimer);autoTimer=null;autoKey=key;updateAutoProgress(0);
-   if(auto&&playback.pending()&&node('history-panel').hidden){
-     const duration=Math.max(2500,Math.min(14000,(playback.current()?.text.length||0)*90));
+   if(auto&&playback.pending()&&unobstructed){
+     const duration=Math.max(1500,Math.min(28000,Math.max(2500,(playback.current()?.text.length||0)*90)/preferences.autoSpeed));
      updateAutoProgress(duration);
      autoTimer=setTimeout(()=>{autoTimer=null;updateAutoProgress(0);advance()},duration);
    }
@@ -409,7 +526,7 @@ export const DEFAULT_SCRIPT = String.raw`(() => {
    return !posting&&connected&&(['ready','error'].includes(latest?.status)||latest?.canInterrupt)&&(policy.speech!=='none'||policy.narration);
  }
  function advance(){
-   if(!node('history-panel').hidden)return;
+   if(document.querySelector('.panel:not([hidden])')||node('save-dialog').open)return;
    updateAutoProgress(0);
    if(playback.pending()){
      playback.advance();
@@ -423,7 +540,7 @@ export const DEFAULT_SCRIPT = String.raw`(() => {
    }
  }
  /* 记录、行动、状态三个抽屉同一时间只开一个。 */
- function drawer(name){for(const [id,toggle] of [['history-panel','history-toggle'],['action-panel','actions-toggle'],['status-panel','status-toggle']]){node(id).hidden=id!==name;node(toggle).setAttribute('aria-expanded',String(id===name))}}
+ function drawer(name){node('character-menu').hidden=true;audienceMenu(false);for(const [id,toggle] of [['history-panel','history-toggle'],['action-panel','actions-toggle'],['status-panel','status-toggle'],['settings-panel','settings-toggle']]){node(id).hidden=id!==name;node(toggle).setAttribute('aria-expanded',String(id===name))}scheduleAuto()}
  function historyPanel(open){if(open)drawer('history-panel');else node('history-panel').hidden=true;node('history-toggle').setAttribute('aria-expanded',String(open));if(open){clearTimeout(autoTimer);autoTimer=null;updateAutoProgress(0);node('history-close').focus();bottom()}else{node('history-toggle').focus();scheduleAuto()}controls()}
  node('dialogue').onclick=advance;
  node('skip-read').onclick=()=>{updateAutoProgress(0);playback.skip();renderStage();if(canReplyNow())composerExpanded=true;controls();if(canReplyNow())node('input').focus()};
@@ -432,17 +549,19 @@ export const DEFAULT_SCRIPT = String.raw`(() => {
  node('actions-toggle').onclick=()=>{drawer(node('action-panel').hidden?'action-panel':null);controls()};node('actions-close').onclick=()=>{drawer(null);controls()};
  node('composer-actions').onclick=()=>{drawer(node('action-panel').hidden?'action-panel':null);controls()};
  node('status-toggle').onclick=()=>{drawer(node('status-panel').hidden?'status-panel':null);controls()};node('status-close').onclick=()=>{drawer(null);controls()};
+ node('settings-toggle').onclick=()=>{const open=node('settings-panel').hidden;drawer(open?'settings-panel':null);if(open)node('settings-close').focus();controls()};node('settings-close').onclick=()=>{drawer(null);node('settings-toggle').focus();controls()};
  node('reply-context').onclick=()=>{composerExpanded=false;controls()};
- document.addEventListener('keydown',event=>{if(event.key==='Escape'){if(!node('character-menu').hidden){node('character-menu').hidden=true;return}if(!node('audience-menu').hidden){audienceMenu(false);node('audience-button').focus();return}historyPanel(false);drawer(null);composerExpanded=false;controls();return}if((event.key===' '||event.key==='Enter')&&!['INPUT','TEXTAREA','SELECT','BUTTON','SUMMARY'].includes(document.activeElement?.tagName)){event.preventDefault();advance()}});
+ node('reply-context').onkeydown=event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();event.stopPropagation();composerExpanded=false;controls();node('dialogue').focus()}};
+ document.addEventListener('keydown',event=>{if(node('save-dialog').open)return;if(event.key==='Escape'){if(!node('character-menu').hidden){node('character-menu').hidden=true;return}if(!node('audience-menu').hidden){audienceMenu(false);node('audience-button').focus();return}const toggle=document.querySelector('.stage-tools button[aria-expanded="true"]');drawer(null);composerExpanded=false;controls();toggle?.focus();return}if((event.key===' '||event.key==='Enter')&&!['INPUT','TEXTAREA','SELECT','BUTTON','SUMMARY'].includes(document.activeElement?.tagName)){event.preventDefault();advance()}});
  let lastWheel=0;
  document.addEventListener('wheel',event=>{
    if(['INPUT','TEXTAREA','SELECT'].includes(document.activeElement?.tagName))return;
-   if(node('history').contains(event.target))return;
+   if(event.target.closest('.panel,.character-menu,.audience-menu,.activity-card,dialog,.composer,.dialogue'))return;
    const now=Date.now();
    if(now-lastWheel<280)return;
    if(event.deltaY<-40&&node('history-panel').hidden){lastWheel=now;historyPanel(true)}
    else if(event.deltaY>40&&node('history-panel').hidden){lastWheel=now;advance()}
  },{passive:true});
  api.subscribe(event=>{if(event.type==='presentation'){activityOpen=event.activityOpen===true;if(activityOpen)composerExpanded=false;controls()}if(event.view){connected=true;render(event.view)}if(event.type==='disconnected'){connected=false;node('status').textContent='连接断开';node('status').dataset.state='disconnected';controls()}});
- controls();api.ready.then(info=>{canRegenerate=info.capabilities.includes('regenerate');connected=true;render(info.view)}).catch(error=>{node('notice').textContent=error.message;controls()});
+ controls();api.ready.then(info=>{canRegenerate=info.capabilities.includes('regenerate');hasSpeech=info.capabilities.includes('speech');canSave=info.canSave===true;stageAssets=info.stageAssets||[];preferences=normalizePreferences(info.stagePreferences,{...info.view.settings?.reading,...info.view.settings?.audio,...(info.view.settings?.appearance?{appearance:info.view.settings.appearance}:{})});applyPreferences();node('setting-voiceEnabled').disabled=!hasSpeech;node('voice-hint').textContent=hasSpeech?'朗读当前角色的对白':'尚未安装语音服务';node('save-unavailable').hidden=canSave;connected=true;render(info.view)}).catch(error=>{node('notice').textContent=error.message;controls()});
 })();`

@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createHostServer, HostBusyError, type HostRuntime, type HostState } from '../../desktop/host/http-server.ts'
 import { HOST_ACTIVITY_PAGE } from '../../desktop/host/host-page.ts'
 import { loadPackWeb, type PackWeb } from '../../desktop/host/pack-frontend.ts'
+import type { FrontendHostServices } from '@harness-world/frontend'
 
 const token = 'a'.repeat(64)
 const state: HostState = {
@@ -28,7 +29,7 @@ afterEach(async () => {
   }
 })
 
-async function fixture(overrides: Partial<HostRuntime> = {}, packWeb?: PackWeb) {
+async function fixture(overrides: Partial<HostRuntime> = {}, packWeb?: PackWeb, services: FrontendHostServices = {}) {
   const runtime: HostRuntime = {
     state: async () => state,
     submit: async () => state,
@@ -37,7 +38,7 @@ async function fixture(overrides: Partial<HostRuntime> = {}, packWeb?: PackWeb) 
     close: async () => {},
     ...overrides,
   }
-  const server = createHostServer(runtime, token, packWeb)
+  const server = createHostServer(runtime, token, packWeb, undefined, services)
   servers.push(server)
   server.listen(0, '127.0.0.1')
   await once(server, 'listening')
@@ -50,6 +51,22 @@ function auth(init: RequestInit = {}): RequestInit {
 }
 
 describe('local playtest server', () => {
+  it('hands the stage settings, kept in range, to the launcher and reports when none is listening', async () => {
+    const saved: unknown[] = []
+    const { url } = await fixture({}, undefined, { saveStagePreferences: preferences => saved.push(preferences) })
+    const post = (address: string, body: unknown) =>
+      fetch(
+        address + '/api/stage-preferences',
+        auth({ method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }),
+      )
+    const response = await post(url, { fontSize: 99, volume: 30, appearance: 'light' })
+    expect(await response.json()).toEqual({ saved: true })
+    // Out-of-range values fall back to the stage defaults rather than reaching the launcher.
+    expect(saved).toEqual([expect.objectContaining({ fontSize: 19, volume: 30, appearance: 'light' })])
+    expect((await fetch(url + '/api/stage-preferences', { method: 'POST', body: '{}' })).status).toBe(401)
+    const standalone = await fixture()
+    expect(await (await post(standalone.url, { volume: 30 })).json()).toEqual({ saved: false })
+  })
   it('serves a trusted host and a separate default sandbox without embedding the token', async () => {
     const { url } = await fixture()
     const response = await fetch(url)

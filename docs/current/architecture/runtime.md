@@ -1,5 +1,7 @@
 # 当前运行时
 
+2026-10-23 核对默认舞台：例如玩家拿起保温杯后，物品提示与状态抽屉随授权快照更新；在设置中调字号、外观立即生效，点“保存进度”打开节点名称弹框。宿主将 `items`、`statusBar`、`statusTruth`、`responders` 与现有字段一起转发；场景只增加已知当前位置 ID，供包内背景匹配。设置在宿主的浏览器站点存储，保存复用现有 `/api/story-save`；两种桥操作仅允许官方默认舞台，不给社区前端增加管理权限。声音通过已有 `speech` 注入点播放，不新增合成器。美术资源、设置范围、验证边界见[默认界面指南](../guides/web-ui.md#官方默认界面布局)。未修改角色 Context、规则提交、世界事实或节点格式，未重建发行包。
+
 2026-10-22 核对物品链路：例如角色选择拿起摘要，再把它交给在场角色，[状态桥](../../../desktop/host/pack-status.ts)先用包内 `policy(known, actorId, place)` 筛选目标，执行时重查许可与可达性，再调用 `resolve(truth, actorId, operationId, parameters, world, targetId)`。作者返回 `items` 改外观或去向；宿主校验后生成 `entity.upsert`／`entity.transferred`，与本次行动的对白、状态结果和授权观察原子提交。玩家附带的一句话仍按[同回合表达与行动](interaction.md)的先后顺序分别提交，不因此合并成一个事务。
 
 拿起／放下／交给由各 v5 示例包的 `scripts/status.js` 提供，标准写法在[作者模板](../../../examples/templates/item-rules.js)；宿主基础交互只保留牵手与松手，旧料理／修理模块也已删除。活动与自主许可引用 `status:take` 等 ID。相关自动测试场景已核对，本次未重跑；本次真实模型证据仅限《赔罪晚宴》A 路线和 hidden-cure-next D2，后者交给了玩家而非伊蕾，见[项目状态](../PROJECT-STATE.md#验证到了哪一步)。下列旧日期实验保留当时结论，不能视为作者模板已重验。
@@ -44,9 +46,9 @@
 
 2026-10-15 核对前端表现通路：例如同名角色从电话发言，玩家转录和逐段阅读保留来自授权观察的 `speakerId`，默认舞台只按场景成员 ID 标记说话者，不从发言推断在场。Launcher 全局声音偏好保存在 `launcher.json`，下次启动经 `PERSPECTRA_AUDIO` 交给运行时，再白名单投影到 `PlayerView.settings.audio`；不进入世界事实、记忆或故事节点。字段、模板接法及未实现部分见[前端能力边界](../studies/frontend-plugin-capability-boundary.md)。源码和相关自动化已验证，尚未验证真实模型音频体验，未重建发行包。
 
-同日预留可选 `FrontendHostServices.synthesizeSpeech` 宿主注入点：模板引用已授权段落，宿主校验并只交付文本、段落类型和发言者 ID；适配器返回音频字节，经 MessagePort 交给模板的 Web Audio，不开放前端网络或静态语音缓存。未注入时不授予 `speech` 能力。当前没有合成器、模型配置、缓存或默认播放器；后续只需在宿主组合处安装适配器及模板播放逻辑，不修改世界运行时、规则提交或记忆。前端资源额度调整为 2048 文件、单文件 64 MiB、合计 512 MiB，继续整包读入内存；接口和加载边界的验证见[能力边界](../studies/frontend-plugin-capability-boundary.md#tts-宿主扩展接口2026-10-15)。
+同日预留可选 `FrontendHostServices.synthesizeSpeech` 宿主注入点：模板引用已授权段落，宿主校验并只交付文本、段落类型和发言者 ID；适配器返回音频字节，经 MessagePort 交给模板的 Web Audio，不开放前端网络或静态语音缓存。未注入时不授予 `speech` 能力。2026-10-23 默认舞台已接播放器与开关，仍不附带合成器、模型配置或缓存；不修改世界运行时、规则提交或记忆。前端资源额度调整为 2048 文件、单文件 64 MiB、合计 512 MiB，继续整包读入内存；接口和加载边界的验证见[能力边界](../studies/frontend-plugin-capability-boundary.md#tts-宿主扩展接口2026-10-15)。
 
-2026-10-18：上述语音服务现可由 [Cordis 宿主插件](../host-plugins.md)注册。Launcher 全局设置保存本地插件路径及加载开关，经 `PERSPECTRA_HOST_PLUGINS` 交给游戏入口；入口在独立 Context 中装载启用模块，将服务交给现有 HTTP 宿主，退出时注销并取消请求。默认不装载插件，声音播放偏好与插件加载独立；提供可选 HTTP 转接示例，仍不附带合成模型或默认语音播放器。Live2D / BGM 的前端接线未实施。
+2026-10-18：上述语音服务现可由 [Cordis 宿主插件](../host-plugins.md)注册。Launcher 全局设置保存本地插件路径及加载开关，经 `PERSPECTRA_HOST_PLUGINS` 交给游戏入口；入口在独立 Context 中装载启用模块，将服务交给现有 HTTP 宿主，退出时注销并取消请求。默认不装载插件，声音播放偏好与插件加载独立；提供可选 HTTP 转接示例，仍不附带合成模型；默认播放器于 2026-10-23 接入。Live2D / BGM 的前端接线未实施。
 
 2026-10-11 实验分支增加[关键角色自主行动](creator-runtime.md#关键角色自主行动2026-10-11实验分支)：作者可以声明哪些玩家提交计数、每隔几回合给角色机会及可用交互/区域。角色无需新刺激即可依据自身目标处理，仍使用原有授权上下文和提交路径。普通回应与到期机会合并，自主及后续反应有独立启动器预算；主动 Activity 参与者继续由活动调度。源码已接通，现有发行包未更新，体验情况见[实验记录](../studies/character-autonomy-20261011.md)。
 
