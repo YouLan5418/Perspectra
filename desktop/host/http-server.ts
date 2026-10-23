@@ -67,6 +67,8 @@ export interface HostState {
     readonly npcNames: readonly string[]
     readonly currentScene?: {
       readonly locationId?: string
+      /** Seq of the latest change to the player's place or company; the stage waits for the reader to get there. */
+      readonly changedAt?: number
       readonly locationName: string
       readonly presentNpcNames: readonly string[]
       readonly recipients?: readonly { readonly id: string; readonly name: string }[]
@@ -320,6 +322,7 @@ export function createHostServer(
             ...(useDefault
               ? {
                   canSave: !!runtime.saveNode,
+                  ...(plain || !packWeb?.stage ? {} : { stageConfig: packWeb.stage }),
                   stageAssets: plain
                     ? []
                     : [...(packWeb?.assets.keys() ?? [])].filter(path =>

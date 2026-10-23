@@ -121,7 +121,7 @@ export const DEFAULT_SCRIPT = String.raw`(() => {
  const playback=(${createReadingPlayback.toString()})();
  const api=window.Perspectra,node=id=>document.getElementById(id);
  const normalizePreferences=(${stagePreferences.toString()});
- let preferences=normalizePreferences({}),stageAssets=[],canSave=false,hasSpeech=false,saving=false,preferencesVersion=0;
+ let preferences=normalizePreferences({}),stageAssets=[],stageConfig=null,canSave=false,hasSpeech=false,saving=false,preferencesVersion=0;
  let latest,posting=false,pending,attached=null,connected=false,historyKey='',actionsKey='',waitOption=null,statusKey='',canRegenerate=false,requestVersion=0,submittedPlayers=0;
  // Keep statusRows and roundTools adjacent and in this order: frontend-reading tests extract the helper by these markers.
  const statusRows=(${statusBarRows.toString()});
@@ -404,6 +404,21 @@ export const DEFAULT_SCRIPT = String.raw`(() => {
    }
    if(changes.length)showToast('item-toast',changes.join(' · '));
  }
+ /** Where the head top and waist sit in a portrait (fractions of its height), from the pack's stage.json; an
+  * unmarked portrait is taken as full body. The stylesheet scales it so heads line up across characters. */
+ function framing(id){const own=stageConfig?.characters?.[id]?.framing;return own||{top:.03,waist:.48}}
+ function createPortrait(id,name){
+   const portrait=document.createElement('div');portrait.className='portrait';portrait.dataset.characterId=id;
+   const frame=framing(id);portrait.style.setProperty('--top',String(frame.top));portrait.style.setProperty('--waist',String(frame.waist));
+   const badge=document.createElement('div');badge.className='portrait-badge';badge.textContent=Array.from(name)[0]||'◇';
+   const src=art('portraits',id);badge.hidden=!!src;
+   if(src){const img=document.createElement('img');img.alt=name+'的立绘';img.onerror=()=>{img.remove();badge.hidden=false};img.src=src;portrait.append(img)}portrait.append(badge);
+   const label=document.createElement('span');label.className='character-name';label.textContent=name;portrait.append(label);
+   portrait.tabIndex=0;portrait.setAttribute('role','button');portrait.setAttribute('aria-haspopup','menu');portrait.title='和'+name+'说话或做些什么';
+   portrait.onclick=event=>{event.stopPropagation();characterMenu(id,portrait)};
+   portrait.onkeydown=event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();characterMenu(id,portrait)}};
+   return portrait;
+ }
  function art(folder,id){
    if(!id)return null;const slug=String(id).replace(/^[^:]+:/,'');
    for(const extension of folder==='portraits'?['png','webp']:['jpg','png','webp','jpeg']){
@@ -495,19 +510,17 @@ export const DEFAULT_SCRIPT = String.raw`(() => {
     const background=node('background'),backgroundUrl=art('backgrounds',scene?.locationId);
     background.hidden=true;background.onerror=()=>background.hidden=true;background.onload=()=>background.hidden=false;
     if(backgroundUrl)background.src=backgroundUrl;else background.removeAttribute('src');
-    node('characters').replaceChildren();node('character-menu').hidden=true;
-    for(const {id,name} of scene?.recipients||[]){const portrait=document.createElement('div');portrait.className='portrait';portrait.dataset.characterId=id;
-      const badge=document.createElement('div');badge.className='portrait-badge';badge.hidden=true;badge.textContent=Array.from(name)[0]||'◇';
-      const src=art('portraits',id);badge.hidden=!!src;
-      if(src){const img=document.createElement('img');img.alt=name+'的立绘';img.onerror=()=>{img.remove();badge.hidden=false};img.src=src;portrait.append(img)}portrait.append(badge);
-      const label=document.createElement('span');label.className='character-name';label.textContent=name;portrait.append(label);
-      portrait.tabIndex=0;portrait.setAttribute('role','button');portrait.setAttribute('aria-haspopup','menu');portrait.title='和'+name+'说话或做些什么';
-      portrait.onclick=event=>{event.stopPropagation();characterMenu(id,portrait)};
-      portrait.onkeydown=event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();characterMenu(id,portrait)}};
-      node('characters').append(portrait)}
-     if(!scene?.recipients.length){const empty=document.createElement('span');empty.className='alone';empty.textContent='片刻的宁静';node('characters').append(empty)}
+    node('character-menu').hidden=true;
+    const box=node('characters'),present=scene?.recipients||[],kept=new Map();
+    box.querySelector('.alone')?.remove();
+    for(const old of box.querySelectorAll('.portrait:not(.leaving)')){
+      if(present.some(person=>person.id===old.dataset.characterId))kept.set(old.dataset.characterId,old);
+      else{old.classList.add('leaving');setTimeout(()=>old.remove(),320)}
+    }
+    for(const {id,name} of present)box.append(kept.get(id)||createPortrait(id,name));
+    if(!present.length){const empty=document.createElement('span');empty.className='alone';empty.textContent='片刻的宁静';box.append(empty)}
    }
-   for(const portrait of node('characters').children)portrait.classList.toggle('speaking',!!unit?.speakerId&&unit.speakerId===portrait.dataset.characterId);
+   for(const portrait of node('characters').querySelectorAll('.portrait'))portrait.classList.toggle('speaking',!!unit?.speakerId&&unit.speakerId===portrait.dataset.characterId);
    playVoice();scheduleAuto();
  }
  function scheduleAuto(){
@@ -563,5 +576,5 @@ export const DEFAULT_SCRIPT = String.raw`(() => {
    else if(event.deltaY>40&&node('history-panel').hidden){lastWheel=now;advance()}
  },{passive:true});
  api.subscribe(event=>{if(event.type==='presentation'){activityOpen=event.activityOpen===true;if(activityOpen)composerExpanded=false;controls()}if(event.view){connected=true;render(event.view)}if(event.type==='disconnected'){connected=false;node('status').textContent='连接断开';node('status').dataset.state='disconnected';controls()}});
- controls();api.ready.then(info=>{canRegenerate=info.capabilities.includes('regenerate');hasSpeech=info.capabilities.includes('speech');canSave=info.canSave===true;stageAssets=info.stageAssets||[];preferences=normalizePreferences(info.stagePreferences,{...info.view.settings?.reading,...info.view.settings?.audio,...(info.view.settings?.appearance?{appearance:info.view.settings.appearance}:{})});applyPreferences();node('setting-voiceEnabled').disabled=!hasSpeech;node('voice-hint').textContent=hasSpeech?'朗读当前角色的对白':'尚未安装语音服务';node('save-unavailable').hidden=canSave;connected=true;render(info.view)}).catch(error=>{node('notice').textContent=error.message;controls()});
+ controls();api.ready.then(info=>{canRegenerate=info.capabilities.includes('regenerate');hasSpeech=info.capabilities.includes('speech');canSave=info.canSave===true;stageAssets=info.stageAssets||[];stageConfig=info.stageConfig||null;preferences=normalizePreferences(info.stagePreferences,{...info.view.settings?.reading,...info.view.settings?.audio,...(info.view.settings?.appearance?{appearance:info.view.settings.appearance}:{})});applyPreferences();node('setting-voiceEnabled').disabled=!hasSpeech;node('voice-hint').textContent=hasSpeech?'朗读当前角色的对白':'尚未安装语音服务';node('save-unavailable').hidden=canSave;connected=true;render(info.view)}).catch(error=>{node('notice').textContent=error.message;controls()});
 })();`

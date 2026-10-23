@@ -93,33 +93,45 @@ h1{font:12.5px/1.6 var(--font-story);color:var(--muted);margin:4px 0 0}
 @keyframes pulse{50%{opacity:.25}}
 
 /* —— 立绘：说话者完整显示，其他人淡一些；点立绘打开人物菜单 —— */
+/* 取景：每张立绘按自己的头顶（--top）和腰部（--waist，都是占图片高度的比例）缩放，
+   让头顶落在舞台 --head-y、腰部落在 --waist-y；腰部以下延伸到对话框后面或画面外。
+   立绘不裁切，相邻的人可以互相遮一点；抽屉和活动卡片打开时立绘不移动。 */
 #characters{
-  /* 立绘不裁切：宽的立绘可以伸出这块区域，相邻的人互相遮一点；抽屉和活动卡片打开时立绘也不移动。 */
-  position:absolute;inset:84px 6% 96px;display:flex;justify-content:center;align-items:flex-end;gap:24px;overflow:visible;
-  transition:right .35s var(--ease-out);
+  position:absolute;inset:0 4%;display:flex;justify-content:center;pointer-events:none;
+  --head-y:9%;--waist-y:78%;
 }
 .portrait{
-  position:relative;flex:0 1 320px;min-width:0;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;
-  opacity:1;transform-origin:center bottom;cursor:pointer;
-  animation:appear .4s var(--ease-out);
+  --top:.03;--waist:.48;--span:calc(var(--waist-y) - var(--head-y));
+  position:relative;flex:0 1 26%;max-width:34%;height:100%;pointer-events:none;cursor:pointer;
+  animation:appear .32s var(--ease-out);
 }
+.portrait.leaving{animation:leave .32s var(--ease-out) forwards}
+@keyframes leave{to{opacity:0}}
+.portrait.speaking{z-index:2}
+.portrait img{
+  position:absolute;left:50%;width:auto;max-width:none;pointer-events:auto;
+  height:calc(var(--span) / (var(--waist) - var(--top)));
+  top:calc(var(--head-y) - var(--span) * var(--top) / (var(--waist) - var(--top)));
+  transform:translateX(-50%);transform-origin:center 20%;
+  transition:filter .35s var(--ease-out),transform .35s var(--ease-out);
+}
+.portrait.speaking img{transform:translateX(-50%) scale(1.03)}
 #characters:has(.speaking) .portrait:not(.speaking) img{filter:brightness(.78) saturate(.85)}
 #characters:has(.speaking) .portrait:hover img,#characters:has(.speaking) .portrait:focus-visible img{filter:none}
-.portrait:focus-visible{outline:1px dashed var(--accent);outline-offset:-5px;border-radius:var(--radius-lg)}
-.portrait.speaking img{z-index:1}
-.portrait img{position:relative;z-index:0;height:100%;width:auto;max-width:none;flex-shrink:0;object-fit:contain;object-position:center bottom;pointer-events:none;transition:filter .35s var(--ease-out)}
+.portrait:focus-visible{outline:none}
+.portrait:focus-visible img,.portrait:focus-visible .portrait-badge{outline:1px dashed var(--accent);outline-offset:4px}
 .portrait-badge{
-  position:absolute;left:50%;bottom:calc(24% + 16px);transform:translateX(-50%);width:min(62%,220px);aspect-ratio:4/5;
+  position:absolute;left:50%;top:calc(var(--head-y) + 4%);transform:translateX(-50%);width:min(70%,220px);aspect-ratio:4/5;pointer-events:auto;
   display:flex;align-items:flex-end;justify-content:center;padding-bottom:16%;font:600 30px/1 var(--font-story);color:var(--muted);
 }
 .portrait-badge:before{content:"";position:absolute;left:50%;top:6%;width:38%;aspect-ratio:1;transform:translateX(-50%);border-radius:50%;background:var(--surface-2);border:1px solid var(--line-strong)}
 .portrait-badge:after{content:"";position:absolute;left:4%;right:4%;top:48%;bottom:0;z-index:-1;border-radius:48% 48% 8% 8%/60% 60% 6% 6%;background:var(--surface-2);border:1px solid var(--line-strong)}
 .character-name{
-  position:absolute;z-index:2;bottom:24%;font:500 13px/1 var(--font-story);letter-spacing:.16em;padding:6px 14px;border-radius:999px;
+  position:absolute;z-index:2;top:calc(var(--waist-y) - 16%);left:50%;transform:translateX(-50%);white-space:nowrap;pointer-events:auto;font:500 13px/1 var(--font-story);letter-spacing:.16em;padding:6px 14px;border-radius:999px;
   color:var(--muted);background:var(--surface);border:1px solid var(--line-strong);
 }
 .portrait.speaking .character-name{color:var(--accent-ink);background:var(--accent);border-color:var(--accent)}
-.alone{align-self:center;color:var(--faint);letter-spacing:.5em;font:16px var(--font-story)}
+.alone{align-self:center;pointer-events:auto;color:var(--faint);letter-spacing:.5em;font:16px var(--font-story)}
 .character-menu,.audience-menu{
   background:var(--surface);border:1px solid var(--line-strong);border-radius:12px;box-shadow:var(--shadow);padding:6px;
 }
@@ -331,7 +343,7 @@ main:has(.panel:not([hidden])) .stage-bottom{left:calc((100% - var(--drawer-widt
 .visually-hidden{position:absolute;clip:rect(0,0,0,0);width:1px;height:1px;overflow:hidden}
 @keyframes appear{from{opacity:0}}
 @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
-@media(min-width:1500px){.stage-bottom{bottom:32px}.portrait{flex-basis:420px}}
+@media(min-width:1500px){.stage-bottom{bottom:32px}}
 @media(min-width:641px) and (max-width:1000px){:root{--drawer-width:340px}.world-header{gap:10px;padding:18px}.stage-tools{gap:2px;flex-wrap:wrap;justify-content:flex-end;max-width:360px}.status{width:100%;justify-content:flex-end}.panel{top:100px}main:has(.panel:not([hidden])) .stage-bottom{width:calc(100% - var(--drawer-width) - 48px)}.composer-keys{display:none}}
 @media(max-width:640px){
   main{min-height:360px}
@@ -342,7 +354,7 @@ main:has(.panel:not([hidden])) .stage-bottom{left:calc((100% - var(--drawer-widt
   .stage-tools{flex-wrap:wrap;justify-content:flex-end;width:100%;max-width:none;gap:4px}
   .status{margin-right:auto;max-width:100%;font-size:11px;padding-right:0}
   .stage-tools button{padding:7px 9px;font-size:11.5px;min-height:34px}
-  #characters{inset:148px 0 120px;gap:0}
+  #characters{inset:0;--head-y:20%;--waist-y:74%}
   .portrait{min-width:0}
   .character-name{font-size:11px;padding:4px 10px;letter-spacing:.08em}
   .stage-bottom{width:calc(100% - 24px);bottom:12px}

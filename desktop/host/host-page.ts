@@ -234,7 +234,7 @@ iframe{
     };
     port.start();
     frame.contentWindow.postMessage({type:'frontend-connect',apiVersion:1},init.frontendMode==='trusted'?init.frontendOrigin:'*',[channel.port2]);
-    post({type:'initialized',apiVersion:1,frontendMode:init.frontendMode,capabilities:init.capabilities,view:playerView,...(init.frontend==='default'?{stagePreferences:readPreferences(),stageAssets:init.stageAssets,canSave:init.canSave}:{})});panelPresentation();
+    post({type:'initialized',apiVersion:1,frontendMode:init.frontendMode,capabilities:init.capabilities,view:playerView,...(init.frontend==='default'?{stagePreferences:readPreferences(),stageAssets:init.stageAssets,stageConfig:init.stageConfig,canSave:init.canSave}:{})});panelPresentation();
     node('frontend-status').textContent=init.frontend==='default'?'官方默认模板 · 沙箱':init.frontendMode==='trusted'?'游戏包前端 · 受信任':'游戏包前端 · 沙箱';
   }
   window.addEventListener('message',event=>{

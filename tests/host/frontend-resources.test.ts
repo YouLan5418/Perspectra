@@ -116,3 +116,18 @@ it('accepts artwork alone for the default stage, while still rejecting executabl
   await writeFile(join(root, 'frontend', 'app.js'), 'window.secret = true')
   await expect(loadPackWeb(root)).rejects.toThrow('manifest.json')
 })
+it('reads portrait framing from stage.json and refuses a malformed one at load', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'frontend-resources-'))
+  roots.push(root)
+  await mkdir(join(root, 'frontend', 'portraits'), { recursive: true })
+  await writeFile(join(root, 'frontend', 'portraits', 'claude.png'), Buffer.from([137, 80, 78, 71]))
+  const stage = (value: unknown) => writeFile(join(root, 'frontend', 'stage.json'), JSON.stringify(value))
+  await stage({ characters: { 'character:claude': { framing: { top: 0.02, waist: 0.45 } } } })
+  expect((await loadPackWeb(root))?.stage).toEqual({
+    characters: { 'character:claude': { framing: { top: 0.02, waist: 0.45 } } },
+  })
+  await stage({ characters: { 'character:claude': { framing: { top: 0.5, waist: 0.4 } } } })
+  await expect(loadPackWeb(root)).rejects.toThrow('0 ≤ top < waist ≤ 1')
+  await stage({ characters: { 'character:claude': { expressions: {} } } })
+  await expect(loadPackWeb(root)).rejects.toThrow('只支持 framing')
+})

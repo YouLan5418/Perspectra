@@ -10,6 +10,8 @@ export interface PlayerView {
   player: { name: string }
   scene: {
     locationId?: string
+    /** Seq of the latest change to the player's place or company: show it once reading gets there. */
+    changedAt?: number
     locationName: string
     visibleCharacters: string[]
     recipients: { id: string; name: string }[]

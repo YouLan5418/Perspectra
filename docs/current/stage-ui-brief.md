@@ -88,7 +88,8 @@
 - 立绘：`frontend/portraits/<角色ID去掉前缀>.png`，例如 `character:companion` 对应 `portraits/companion.png`。透明背景，PNG 或 WebP，高 1600px 以上，人物底边贴图片底边，同一个包里的裁切位置一致（例如都裁到腰部）。
 - 背景：`frontend/backgrounds/<地点ID去掉前缀>.jpg`（png、webp 也可），16:9，至少 1920×1080。设计时注意对话框和立绘压在背景上的可读性：可以留一层半透明遮罩，深浅两套各一。
 - 缺文件时回退到剪影和纯色背景。
-- 以后用可选的 `frontend/stage.json` 补充表情差分（`portraits/companion/smile.png`）、Live2D 和例外映射。
+- 取景：只显示腰部以上，按 `frontend/stage.json` 里每张立绘的 `framing: { top, waist }`（头顶和腰部占图片高度的比例）对齐，没写时按全身立绘处理。
+- 以后在同一个 `stage.json` 里补充表情差分（同尺寸图层、局部贴片加坐标、4×4 拼合图三种）、Live2D 和例外映射。
 
 ## 7. 预留位置（仅有隐藏容器，尚无插件 UI 接口）
 

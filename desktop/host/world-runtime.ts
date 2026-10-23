@@ -85,7 +85,7 @@ import {
 import { CognitiveMemoryService } from '@harness-world/memory'
 import { adaptCompiledWorldPack, compileWorldPackSource, type CompiledWorldPackV5 } from '@harness-world/world-pack'
 import { actionText, HostBusyError, isWait, type HostAction, type HostRuntime, type HostState } from './http-server.ts'
-import { modelCharacters, playerTranscript } from './player-transcript.ts'
+import { modelCharacters, playerTranscript, sceneChangedAt } from './player-transcript.ts'
 import { DEFAULT_RUNTIME_TUNING, type RuntimeTuning } from './runtime-tuning.ts'
 
 export interface WorldHostOptions extends ModelOptions {
@@ -1827,6 +1827,7 @@ export class WorldHostCore implements HostRuntime {
       this.#items = this.#visibleItems(events, scene.observerIds)
       this.#currentScene = {
         ...(view.locationId === null ? {} : { locationId: view.locationId }),
+        changedAt: sceneChangedAt(events, this.#playerId),
         locationName:
           view.locationId === null ? '未知地点' : (this.#locationNames.get(view.locationId) ?? view.locationId),
         recipients: scene.observerIds
@@ -1906,6 +1907,7 @@ export class WorldHostCore implements HostRuntime {
         this.#items = this.#visibleItems(events, scene.observerIds)
         this.#currentScene = {
           ...(view.locationId === null ? {} : { locationId: view.locationId }),
+          changedAt: sceneChangedAt(events, this.#playerId),
           locationName:
             view.locationId === null ? '未知地点' : (this.#locationNames.get(view.locationId) ?? view.locationId),
           recipients: scene.observerIds

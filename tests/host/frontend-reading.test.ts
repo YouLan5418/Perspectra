@@ -6,7 +6,7 @@ import { playerViewPatch } from '../../packages/frontend/src/player-view.ts'
 import { projectPlayerView } from '../../desktop/host/frontend-adapter.ts'
 import type { HostState } from '../../desktop/host/http-server.ts'
 import { brandId, type CharacterView } from '@harness-world/contracts'
-import { playerTranscript } from '../../desktop/host/player-transcript.ts'
+import { playerTranscript, sceneChangedAt } from '../../desktop/host/player-transcript.ts'
 
 const line = (seq: number, text: string) => ({ seq, speaker: 'GPT-6', text, player: false })
 it('keeps same-name and remote speaker identities from authorized observations through segmented reading', () => {
@@ -172,6 +172,52 @@ it('holds scene membership while reading and flushes the latest authorized snaps
   expect(reading.stageScene(after)).toEqual(before)
   reading.skip()
   expect(reading.stageScene(after)).toEqual(after)
+})
+it('changes place and people when the reader reaches the line where they changed, not before', () => {
+  const reading = createReadingPlayback()
+  const before = { locationName: '客厅', visibleCharacters: ['Claude'], recipients: [] }
+  // DeepSeek walked in with the event at seq 3; the line about it is the third one.
+  const after = { changedAt: 3, locationName: '客厅', visibleCharacters: ['Claude', 'DeepSeek'], recipients: [] }
+  reading.update([line(1, '先说话')])
+  expect(reading.stageScene(before)).toEqual(before)
+  reading.update([
+    line(1, '先说话'),
+    line(2, 'Claude 的回答'),
+    line(3, '（DeepSeek 走进客厅。）'),
+    line(4, 'DeepSeek 开口'),
+  ])
+  expect(reading.stageScene(after)).toEqual(before)
+  reading.advance()
+  expect(reading.current()?.text).toBe('Claude 的回答')
+  expect(reading.stageScene(after)).toEqual(before)
+  reading.advance()
+  expect(reading.current()?.text).toBe('（DeepSeek 走进客厅。）')
+  expect(reading.stageScene(after)).toEqual(after)
+})
+it('dates a scene change by the last arrival or departure where the player is', () => {
+  const at = (seq: number, eventType: string, data: object) => ({ seq, eventType, data })
+  const events = [
+    at(1, 'character.created', { characterId: 'character:player', locationId: 'location:a' }),
+    at(2, 'character.created', { characterId: 'character:claude', locationId: 'location:a' }),
+    at(3, 'character.created', { characterId: 'character:glm', locationId: 'location:b' }),
+    at(4, 'character.speak', { characterId: 'character:claude', text: '你好' }),
+    at(5, 'character.moved', { characterId: 'character:glm', toLocationId: 'location:a' }),
+    at(6, 'character.speak', { characterId: 'character:glm', text: '我来了' }),
+  ]
+  expect(sceneChangedAt(events, 'character:player')).toBe(5)
+  // Someone moving between other rooms does not change the player's scene.
+  expect(
+    sceneChangedAt(
+      [...events, at(7, 'character.moved', { characterId: 'character:gpt', toLocationId: 'location:c' })],
+      'character:player',
+    ),
+  ).toBe(5)
+  expect(
+    sceneChangedAt(
+      [...events, at(8, 'character.moved', { characterId: 'character:player', toLocationId: 'location:b' })],
+      'character:player',
+    ),
+  ).toBe(8)
 })
 it('invalidates held scene data when history is replaced by a different candidate', () => {
   const reading = createReadingPlayback()

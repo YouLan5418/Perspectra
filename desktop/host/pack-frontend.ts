@@ -33,6 +33,45 @@ export interface PackWeb {
   readonly assets: ReadonlyMap<string, PackWebAsset>
   readonly manifest: FrontendManifest
   readonly digest: string
+  /** frontend/stage.json, checked at load: how the default stage frames each character's portrait. */
+  readonly stage?: StageConfig
+}
+/** Per character, where the head top and the waist sit in its portrait, as fractions of the image height. The
+ * default stage scales each portrait so heads line up and everything below the waist falls behind the dialogue. */
+export interface StageConfig {
+  readonly characters: Readonly<Record<string, { readonly framing?: { readonly top: number; readonly waist: number } }>>
+}
+function stageConfig(bytes: Buffer): StageConfig {
+  const fail = (why: string): never => {
+    throw new Error('frontend/stage.json 无效：' + why)
+  }
+  let data: unknown
+  try {
+    data = JSON.parse(bytes.toString('utf8'))
+  } catch {
+    fail('不是 JSON')
+  }
+  const object = (value: unknown): value is Record<string, unknown> =>
+    !!value && typeof value === 'object' && !Array.isArray(value)
+  if (!object(data) || Object.keys(data).some(key => key !== 'characters') || !object(data.characters))
+    fail('只支持 { "characters": { … } }')
+  const characters: Record<string, { framing?: { top: number; waist: number } }> = {}
+  for (const [id, value] of Object.entries((data as { characters: Record<string, unknown> }).characters)) {
+    if (!/^character:[^\s]{1,200}$/u.test(id)) fail('角色 ID 无效：' + id)
+    if (!object(value) || Object.keys(value).some(key => key !== 'framing')) fail(id + ' 只支持 framing')
+    const framing = (value as { framing?: unknown }).framing
+    if (framing === undefined) {
+      characters[id] = {}
+      continue
+    }
+    if (!object(framing) || Object.keys(framing).sort().join(',') !== 'top,waist')
+      fail(id + ' 的 framing 需要 top 和 waist')
+    const { top, waist } = framing as { top: unknown; waist: unknown }
+    if (typeof top !== 'number' || typeof waist !== 'number' || !(top >= 0 && top < waist && waist <= 1))
+      fail(id + ' 的 framing 需要 0 ≤ top < waist ≤ 1')
+    characters[id] = { framing: { top: top as number, waist: waist as number } }
+  }
+  return { characters }
 }
 const mime: Record<string, string> = {
   '.html': 'text/html; charset=utf-8',
@@ -99,12 +138,15 @@ export async function loadPackWeb(packPath: string): Promise<PackWeb | undefined
     digestHash.update(asset.bytes)
   }
   const digest = digestHash.digest('hex')
+  const staging = assets.get('/frontend/custom/stage.json'),
+    stage = staging === undefined ? undefined : stageConfig(staging.bytes)
   // Static stage artwork and styles need no executable page or capability manifest.
   if (
     !entry &&
     [...assets.keys()].every(
       path =>
         path === '/frontend/custom/theme.css' ||
+        path === '/frontend/custom/stage.json' ||
         /^\/frontend\/custom\/(portraits|backgrounds)\/[^/]+\.(png|webp|jpe?g)$/i.test(path),
     )
   )
@@ -113,10 +155,11 @@ export async function loadPackWeb(packPath: string): Promise<PackWeb | undefined
       assets,
       digest,
       manifest: { apiVersion: 1, capabilities: [] },
+      ...(stage === undefined ? {} : { stage }),
     }
   if (!entry || !source)
     throw new Error(
-      'frontend/ 必须包含 index.html 与 manifest.json；默认舞台可只放 theme.css、portraits/ 和 backgrounds/。',
+      'frontend/ 必须包含 index.html 与 manifest.json；默认舞台可只放 theme.css、stage.json、portraits/ 和 backgrounds/。',
     )
   const data = JSON.parse(source.bytes.toString('utf8')) as Record<string, unknown>
   if (

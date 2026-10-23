@@ -152,6 +152,45 @@ export function playerTranscript(
     .sort((left, right) => left.seq - right.seq)
 }
 
+/** The seq of the latest event that changed the player's place or who shares it. The stage shows the new
+ * place and people once the reader reaches this point, not before. Only arrivals and departures count. */
+export function sceneChangedAt(
+  events: readonly { seq: number; eventType: string; data: unknown }[],
+  playerId: string,
+): number {
+  const where = new Map<string, string>()
+  let key = '',
+    changedAt = 0
+  for (const event of events) {
+    const data = object(event.data)
+    const id = data?.characterId
+    if (typeof id !== 'string') continue
+    const to =
+      (event.eventType === 'character.upsert' || event.eventType === 'character.created') &&
+      typeof data?.locationId === 'string'
+        ? data.locationId
+        : event.eventType === 'character.moved' && typeof data?.toLocationId === 'string'
+          ? data.toLocationId
+          : undefined
+    if (to === undefined) continue
+    where.set(id, to)
+    const here = where.get(playerId)
+    const next =
+      (here ?? '') +
+      '|' +
+      [...where]
+        .filter(([other, place]) => other !== playerId && place === here)
+        .map(([other]) => other)
+        .sort()
+        .join(',')
+    if (next !== key) {
+      key = next
+      changedAt = event.seq
+    }
+  }
+  return changedAt
+}
+
 export function defaultGameDirectory(): string {
   const configured = process.env.HCW_PLAYTEST_DATA_DIRECTORY?.trim()
   if (configured) return resolve(configured)

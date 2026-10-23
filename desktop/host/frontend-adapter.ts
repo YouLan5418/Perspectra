@@ -231,6 +231,9 @@ export function projectPlayerView(state: HostState): PlayerView {
           ...(state.world.currentScene.locationId === undefined
             ? {}
             : { locationId: state.world.currentScene.locationId }),
+          ...(state.world.currentScene.changedAt === undefined
+            ? {}
+            : { changedAt: state.world.currentScene.changedAt }),
           locationName: state.world.currentScene.locationName,
           visibleCharacters: [...state.world.currentScene.presentNpcNames],
           recipients: (state.world.currentScene.recipients ?? []).map(({ id, name }) => ({ id, name })),

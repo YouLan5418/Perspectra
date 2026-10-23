@@ -157,7 +157,7 @@ it('closes the frozen G1 combination: hand contact, shared key, two NPCs and two
           }),
       )
     }
-    expect((await runtime.state()).world.currentScene).toEqual({
+    expect((await runtime.state()).world.currentScene).toMatchObject({
       locationId: 'location:front-room',
       locationName: '前室',
       presentNpcNames: ['同行者', '留守者'],
@@ -238,7 +238,7 @@ it('closes the frozen G1 combination: hand contact, shared key, two NPCs and two
     expect(currentLocation(events(), 'character:player')).toBe('location:back-room')
     expect(currentLocation(events(), 'character:companion')).toBe('location:back-room')
     expect(currentLocation(events(), 'character:friend')).toBe('location:front-room')
-    expect(movedState.world.currentScene).toEqual({
+    expect(movedState.world.currentScene).toMatchObject({
       locationId: 'location:back-room',
       locationName: '后室',
       presentNpcNames: ['同行者'],
@@ -302,7 +302,7 @@ it('closes the frozen G1 combination: hand contact, shared key, two NPCs and two
     expect(currentLocation(events(), 'character:player')).toBe('location:front-room')
     expect(currentLocation(events(), 'character:companion')).toBe('location:back-room')
     expect(currentEntityState(events(), 'entity:brass-key')?.holderId).toBe('character:companion')
-    expect(returnedState.world.currentScene).toEqual({
+    expect(returnedState.world.currentScene).toMatchObject({
       locationId: 'location:front-room',
       locationName: '前室',
       presentNpcNames: ['留守者'],

@@ -81,7 +81,9 @@ export function createReadingPlayback() {
       sceneInvalidated = true
     },
     stageScene(scene: PlayerView['scene']) {
-      if (heldScene === undefined || sceneInvalidated || cursor >= units.length) {
+      const reached =
+        cursor >= units.length || (scene?.changedAt !== undefined && (units[cursor]?.seq ?? 0) >= scene.changedAt)
+      if (heldScene === undefined || sceneInvalidated || reached) {
         heldScene = structuredClone(scene)
         sceneInvalidated = false
       }

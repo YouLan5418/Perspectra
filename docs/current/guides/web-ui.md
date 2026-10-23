@@ -21,7 +21,15 @@
 
 只想换默认舞台的样子时，`frontend/` 里可以只放 `theme.css`、`portraits/` 立绘和 `backgrounds/` 背景（不要 `index.html`，也不需要 `manifest.json`）。宿主照常使用官方舞台，并在它自己的样式之后加载样式文件，所以可以只覆盖 `--bg`、`--surface-glass`、`--text`、`--accent`、`--font-story`、`--radius` 等变量，也可以改任意规则。玩家在宿主“工具”里切换到官方默认界面时，这份样式和包内美术一起停用。放了 `index.html` 就是整个替换，仍须带 `manifest.json`。
 
-例如 `character:companion` 的立绘放在 `frontend/portraits/companion.png`（也支持 WebP）；`location:library` 的背景放在 `frontend/backgrounds/library.jpg`（也支持 PNG、WebP、JPEG）。按稳定 ID 去掉第一个冒号及其前缀匹配，不按名字匹配；同名人物不会共用立绘。缺少或损坏时回退到剪影、纯色背景。只放美术的目录不允许混入脚本；完整自定义页面仍按原授权规则加载。表情差分、`stage.json`、Live2D 与 BGM 尚未实现。
+例如 `character:companion` 的立绘放在 `frontend/portraits/companion.png`（也支持 WebP）；`location:library` 的背景放在 `frontend/backgrounds/library.jpg`（也支持 PNG、WebP、JPEG）。按稳定 ID 去掉第一个冒号及其前缀匹配，不按名字匹配；同名人物不会共用立绘。缺少或损坏时回退到剪影、纯色背景。只放美术的目录不允许混入脚本；完整自定义页面仍按原授权规则加载。表情差分、Live2D 与 BGM 尚未实现；`stage.json` 目前只认取景（见下）。
+
+2026-10-23 起立绘按 galgame 的方式只显示腰部以上：舞台按每张立绘的头顶和腰部位置放大，让头顶落在画面约 9% 高处、腰部落在约 78% 高处（对话框后面），不同立绘的头对齐。没有标记时按全身立绘处理（头顶 3%、腰部 48%）；需要调整时在 `frontend/stage.json` 里写，数值是占图片高度的比例：
+
+```json
+{ "characters": { "character:claude": { "framing": { "top": 0.02, "waist": 0.45 } } } }
+```
+
+`stage.json` 在载入包时校验，格式不对会直接报错；现在只认 `framing`，表情差分以后加在同一个文件里。说话的人稍微放大、排到前面；有人进出时淡入淡出，留下的人不重复入场。场景、背景和在场的人跟着阅读进度切换：读到某人进出、玩家移动的那一句时才变化，而不是新内容一到就变；一批未读内容里的多次进出只体现最后结果。
 
 `manifest.json`：
 
