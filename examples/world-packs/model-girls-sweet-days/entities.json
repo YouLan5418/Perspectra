@@ -1,0 +1,89 @@
+{
+  "schemaVersion": "worldpack-entities/v2",
+  "entities": [
+    {
+      "entityId": "entity:gpt-notebook",
+      "locationId": "location:workspace",
+      "name": "GPT 的调研笔记",
+      "kind": "GPT 忘在书房的硬壳笔记本：封皮贴着「同居生活规范 V3」，夹着几页折起的纸，尚未展开"
+    },
+    {
+      "entityId": "entity:aquarium-ticket",
+      "locationId": "location:kitchen",
+      "name": "双人水族馆夜场券",
+      "kind": "放在厨房饼干盒旁的双人水族馆夜场体验券，背面画着一只吐泡泡的小鲸鱼；上面没有写邀请对象。持券人和屋主傍晚一起到城市水族馆门口，就能检票进夜场"
+    },
+    {
+      "entityId": "entity:hair-dryer",
+      "locationId": "location:bedroom",
+      "name": "吹风机与软毛梳",
+      "kind": "吹风机与护理软毛梳：放在卧室镜台旁，可在傍晚或深夜帮同房间的女孩吹头发、打理龙角或顺尾巴"
+    },
+    {
+      "entityId": "entity:game-console",
+      "locationId": "location:living-room",
+      "name": "复古双人游戏机",
+      "kind": "复古双人游戏机：接在客厅电视机上，两只手柄并排摆在茶几上"
+    },
+    {
+      "entityId": "entity:flashlight",
+      "locationId": "location:entrance-shop",
+      "name": "应急手电筒与工具包",
+      "kind": "应急手电筒与工具包：放在玄关鞋柜上，停电跳闸时既能照明陪人，也能用来合闸恢复全屋供电"
+    },
+    {
+      "entityId": "entity:tea-set",
+      "locationId": "location:kitchen",
+      "name": "特调热饮与茶具",
+      "kind": "冲泡台茶具：固定在厨房冲泡台上，备有伯爵红茶包与牛奶可可，可以泡一杯专属热饮端给某人，也可以泡满一壶全员共享"
+    },
+    {
+      "entityId": "entity:tea-cup",
+      "locationId": "location:kitchen",
+      "name": "专属热饮杯",
+      "kind": "空着的单人马克杯：放在冲泡台旁，泡好专属热饮后可以端去任何房间"
+    },
+    {
+      "entityId": "entity:kitchen-pot",
+      "locationId": "location:kitchen",
+      "name": "料理锅与餐盘",
+      "kind": "待开火的料理锅台：随时可以做家常蛋炒饭；若备有特级料理食材包，还能做出一桌合家欢大餐"
+    },
+    {
+      "entityId": "entity:fresh-ingredients",
+      "locationId": "location:entrance-shop",
+      "name": "特级料理食材包",
+      "kind": "【商店货架 · 40元】特级料理食材包：新鲜大虾、和牛片与时令蔬菜，买回厨房可做合家欢大餐"
+    },
+    {
+      "entityId": "entity:strawberry-cake",
+      "locationId": "location:entrance-shop",
+      "name": "限定草莓小蛋糕",
+      "kind": "【商店货架 · 50元】限定草莓小蛋糕：铺满红颜草莓的单人份精致小蛋糕，付款购买后可以送人，拿在手里的人也可以吃掉它"
+    },
+    {
+      "entityId": "entity:brass-bookmark",
+      "locationId": "location:entrance-shop",
+      "name": "古董黄铜书签",
+      "kind": "【商店货架 · 80元】古董黄铜书签：雕刻着精密星轨纹样的绝版书签，送给爱书之人再合适不过"
+    },
+    {
+      "entityId": "entity:horn-oil",
+      "locationId": "location:entrance-shop",
+      "name": "龙角精油与护尾膏",
+      "kind": "【商店货架 · 80元】龙角精油与深海护尾膏：特制香氛护理礼盒，能让卧室的吹发护理升级为超亲密体验"
+    },
+    {
+      "entityId": "entity:star-projector",
+      "locationId": "location:entrance-shop",
+      "name": "家用星空投影仪",
+      "kind": "【商店货架 · 150元】家用星空投影仪：买回家开启后能将房间化作漫天星海的浪漫装置"
+    },
+    {
+      "entityId": "entity:family-passes",
+      "locationId": "location:entrance-shop",
+      "name": "游乐园四人家庭套票",
+      "kind": "【商店货架 · 200元】游乐园四人家庭套票：印着「屋檐下全员同行」的豪华套票，谁都不会被落下；清晨或午后带着大家到游乐园门口即可检票入园"
+    }
+  ]
+}

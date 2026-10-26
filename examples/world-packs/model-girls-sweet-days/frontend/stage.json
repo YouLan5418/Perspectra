@@ -1,0 +1,10 @@
+{
+  "characters": {
+    "character:claude": {
+      "framing": {
+        "top": 0,
+        "waist": 0.4844
+      }
+    }
+  }
+}

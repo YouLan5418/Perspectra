@@ -1,0 +1,50 @@
+{
+  "sourceSchemaVersion": "worldpack-source/v5",
+  "packId": "pack:model-girls-sweet-days",
+  "packVersion": "0.1.0",
+  "worldFile": "world.json",
+  "characterFiles": [
+    "characters.json"
+  ],
+  "locationFiles": [
+    "locations.json"
+  ],
+  "entityFiles": [
+    "entities.json"
+  ],
+  "sceneFiles": [
+    "scenes.json"
+  ],
+  "playerSlotFiles": [
+    "player-slots.json"
+  ],
+  "presentationFiles": [
+    "presentation.json"
+  ],
+  "cognitionFiles": [
+    "cognition.json"
+  ],
+  "memoryFiles": [
+    "memory.json"
+  ],
+  "documentFiles": [],
+  "markdownFiles": [],
+  "assetFiles": [
+    "communication.json",
+    "scripts/status.js",
+    "scripts/activities/schedule.js",
+    "scripts/activities/game-battle.js",
+    "scripts/activities/midnight-fridge.js",
+    "scripts/activities/secret-notebook.js",
+    "scripts/activities/blackout-comfort.js",
+    "scripts/activities/jealousy-moment.js",
+    "scripts/activities/starlight-finale.js",
+    "autonomy.json"
+  ],
+  "assertionFiles": [
+    "assertions.json"
+  ],
+  "reactionFile": "reaction.json",
+  "manifestationFile": "manifestation.json",
+  "interactionFile": "interactions.json"
+}

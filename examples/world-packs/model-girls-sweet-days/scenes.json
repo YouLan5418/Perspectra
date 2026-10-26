@@ -1,0 +1,66 @@
+{
+  "schemaVersion": "worldpack-scenes/v2",
+  "scenes": [
+    {
+      "sceneId": "scene:living-room",
+      "lifecycle": "active",
+      "locationId": "location:living-room",
+      "participantIds": [
+        "character:player",
+        "character:gpt"
+      ]
+    },
+    {
+      "sceneId": "scene:kitchen",
+      "lifecycle": "active",
+      "locationId": "location:kitchen",
+      "participantIds": [
+        "character:deepseek"
+      ]
+    },
+    {
+      "sceneId": "scene:workspace",
+      "lifecycle": "active",
+      "locationId": "location:workspace",
+      "participantIds": [
+        "character:claude"
+      ]
+    },
+    {
+      "sceneId": "scene:bedroom",
+      "lifecycle": "created",
+      "locationId": "location:bedroom",
+      "participantIds": []
+    },
+    {
+      "sceneId": "scene:entrance-shop",
+      "lifecycle": "created",
+      "locationId": "location:entrance-shop",
+      "participantIds": []
+    },
+    {
+      "sceneId": "scene:riverside",
+      "lifecycle": "created",
+      "locationId": "location:riverside",
+      "participantIds": []
+    },
+    {
+      "sceneId": "scene:shopping-street",
+      "lifecycle": "created",
+      "locationId": "location:shopping-street",
+      "participantIds": []
+    },
+    {
+      "sceneId": "scene:aquarium",
+      "lifecycle": "created",
+      "locationId": "location:aquarium",
+      "participantIds": []
+    },
+    {
+      "sceneId": "scene:amusement-park",
+      "lifecycle": "created",
+      "locationId": "location:amusement-park",
+      "participantIds": []
+    }
+  ]
+}

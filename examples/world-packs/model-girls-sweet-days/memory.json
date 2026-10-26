@@ -1,0 +1,48 @@
+{
+  "schemaVersion": "worldpack-memory/v2",
+  "characters": [
+    {
+      "characterId": "character:player",
+      "profile": "standard",
+      "attentionTopics": [
+        "日程与时段",
+        "谁收到了什么礼物或热饮",
+        "私密独处与牵手",
+        "三个人的心情与默契"
+      ]
+    },
+    {
+      "characterId": "character:gpt",
+      "profile": "standard",
+      "attentionTopics": [
+        "同居日程",
+        "调研笔记的秘密",
+        "屋主送的礼物与热饮",
+        "吹头发与护理龙角",
+        "屋主有没有偏心"
+      ]
+    },
+    {
+      "characterId": "character:claude",
+      "profile": "standard",
+      "attentionTopics": [
+        "红茶与古董书签",
+        "书房独处",
+        "雨夜停电谁来陪我",
+        "屋主的诚意与分寸",
+        "和其他两人的相处"
+      ]
+    },
+    {
+      "characterId": "character:deepseek",
+      "profile": "standard",
+      "attentionTopics": [
+        "草莓蛋糕与大餐",
+        "深夜冰箱偷吃共犯",
+        "水族馆夜场券",
+        "双人游戏机",
+        "顺尾巴与牵手"
+      ]
+    }
+  ]
+}

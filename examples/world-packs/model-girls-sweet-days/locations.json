@@ -1,0 +1,41 @@
+{
+  "schemaVersion": "worldpack-locations/v1",
+  "locations": [
+    {
+      "locationId": "location:living-room",
+      "name": "客厅"
+    },
+    {
+      "locationId": "location:kitchen",
+      "name": "厨房与餐厅"
+    },
+    {
+      "locationId": "location:workspace",
+      "name": "书房"
+    },
+    {
+      "locationId": "location:bedroom",
+      "name": "卧室"
+    },
+    {
+      "locationId": "location:entrance-shop",
+      "name": "玄关与街角商店"
+    },
+    {
+      "locationId": "location:riverside",
+      "name": "河堤步道"
+    },
+    {
+      "locationId": "location:shopping-street",
+      "name": "商店街"
+    },
+    {
+      "locationId": "location:aquarium",
+      "name": "城市水族馆"
+    },
+    {
+      "locationId": "location:amusement-park",
+      "name": "游乐园"
+    }
+  ]
+}

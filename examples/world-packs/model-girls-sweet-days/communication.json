@@ -1,0 +1,9 @@
+{
+  "medium": "短信",
+  "contacts": {
+    "character:player": ["character:gpt", "character:claude", "character:deepseek"],
+    "character:gpt": ["character:player"],
+    "character:claude": ["character:player"],
+    "character:deepseek": ["character:player"]
+  }
+}

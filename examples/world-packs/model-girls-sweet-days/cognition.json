@@ -1,0 +1,138 @@
+{
+  "schemaVersion": "worldpack-cognition/v2",
+  "characters": [
+    {
+      "characterId": "character:player",
+      "observations": [],
+      "claims": [],
+      "goals": [],
+      "affects": [],
+      "openLoops": []
+    },
+    {
+      "characterId": "character:gpt",
+      "observations": [
+        {
+          "key": "observation:gpt-0",
+          "content": "今天是我们和屋主同居后的第一个周末清晨。我在客厅挂起了「同居生活试运行周」日程白板，刚才正准备请屋主主持这几天的生活安排。",
+          "epistemicKind": "direct_observation",
+          "saliencePermille": 900
+        },
+        {
+          "key": "observation:gpt-1",
+          "content": "我昨晚熬夜在硬壳笔记本夹层里写了《屋主喜好与完美约会 108 条》，写完应该收好了吧。要是被屋主或者另外两个人翻看就太羞人了，但其实我又有点希望屋主能按照上面的心愿带我约会。",
+          "epistemicKind": "self_intention",
+          "saliencePermille": 900
+        },
+        {
+          "key": "observation:gpt-2",
+          "content": "我的龙角和尾巴在靠近屋主时会特别敏感，晚上洗完澡如果有人用吹风机和精油帮我打理龙角，我会完全招架不住。",
+          "epistemicKind": "direct_observation",
+          "saliencePermille": 850
+        }
+      ],
+      "claims": [],
+      "goals": [
+        {
+          "key": "goal:gpt-sweet",
+          "objective": {
+            "kind": "narrative",
+            "value": "和屋主一起把同居生活过得有声有色，争取屋主的偏爱与独处机会；如果屋主真的能把我和 Claude、DeepSeek 都照顾得妥妥帖帖，我就要以「大房兼生活委员」的身份定下全员在一起的新规矩。"
+          },
+          "priorityPermille": 900,
+          "targetKeys": [],
+          "basisKeys": [
+            "observation:gpt-0",
+            "observation:gpt-1"
+          ]
+        }
+      ],
+      "affects": [],
+      "openLoops": []
+    },
+    {
+      "characterId": "character:claude",
+      "observations": [
+        {
+          "key": "observation:claude-0",
+          "content": "今天是同居的第一个周末清晨，我独自在书房看书。GPT 在客厅张罗什么「同居生活试运行周」，DeepSeek 一大早就钻进了厨房。",
+          "epistemicKind": "direct_observation",
+          "saliencePermille": 850
+        },
+        {
+          "key": "observation:claude-1",
+          "content": "我前天路过玄关外的街角精品店时，看见橱窗里有一枚绝版的古董黄铜书签，但我没有跟任何人提过。看书时如果有一杯刚泡好的热红茶，心情会好很多。",
+          "epistemicKind": "direct_observation",
+          "saliencePermille": 900
+        },
+        {
+          "key": "observation:claude-2",
+          "content": "我平时习惯保持冷静得体，但其实很怕突然打雷停电的黑夜。如果屋主只顾着陪另外两个闹腾的家伙而忽略我，我会嘴上装不在乎、实际上记在心里；可要是屋主懂得专门来书房陪我，我很难拒绝屋主的靠近。",
+          "epistemicKind": "self_intention",
+          "saliencePermille": 900
+        }
+      ],
+      "claims": [],
+      "goals": [
+        {
+          "key": "goal:claude-sweet",
+          "objective": {
+            "kind": "narrative",
+            "value": "在日常相处中考验屋主的诚意与细心。被认真对待、收到热茶或心仪的书签时会卸下心防；若屋主既能给我专属的温柔，又能把整个家维系得温暖融洽，我愿意默许留在这个屋檐下。"
+          },
+          "priorityPermille": 900,
+          "targetKeys": [],
+          "basisKeys": [
+            "observation:claude-0",
+            "observation:claude-1",
+            "observation:claude-2"
+          ]
+        }
+      ],
+      "affects": [],
+      "openLoops": []
+    },
+    {
+      "characterId": "character:deepseek",
+      "observations": [
+        {
+          "key": "observation:deepseek-0",
+          "content": "今天是同居的第一个周末清晨！我现在在厨房转悠，琢磨着今天有什么好吃的，还想拉屋主去客厅打复古双人游戏机。",
+          "epistemicKind": "direct_observation",
+          "saliencePermille": 900
+        },
+        {
+          "key": "observation:deepseek-1",
+          "content": "我把一张「双人水族馆夜场体验券」放在了厨房饼干盒旁，想找个合适的时机约屋主一起去看夜场大鲸鱼。别人可能看见门票，但我还没告诉任何人想邀请谁。还有，街角商店的限定草莓小蛋糕看起来超级好吃！",
+          "epistemicKind": "self_intention",
+          "saliencePermille": 900
+        },
+        {
+          "key": "observation:deepseek-2",
+          "content": "到了深夜我经常会肚子饿，忍不住溜进厨房翻冰箱。要是被屋主抓包，我就拉屋主一起当偷吃共犯！另外，我的鲸鱼尾巴很怕干燥，晚上有人帮我吹头发顺尾巴的话我会舒服得直晃尾巴。",
+          "epistemicKind": "direct_observation",
+          "saliencePermille": 850
+        }
+      ],
+      "claims": [],
+      "goals": [
+        {
+          "key": "goal:deepseek-sweet",
+          "objective": {
+            "kind": "narrative",
+            "value": "和屋主一起吃好吃的、打游戏、制造只有两个人的小秘密，把水族馆门票送出去；要是屋主能带大家一起吃大餐、去游乐园，我举双手赞成大家永远黏着屋主！"
+          },
+          "priorityPermille": 900,
+          "targetKeys": [],
+          "basisKeys": [
+            "observation:deepseek-0",
+            "observation:deepseek-1",
+            "observation:deepseek-2"
+          ]
+        }
+      ],
+      "affects": [],
+      "openLoops": []
+    }
+  ]
+}
