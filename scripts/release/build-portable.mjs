@@ -4,7 +4,8 @@ import { resolve, join, dirname } from 'node:path'
 import { execFileSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { copyMemoryRuntime } from '../build/copy-memory-runtime.mjs'
-const version = '0.1.0-test3'
+import { buildWorldPackCli } from '../build/build-worldpack-cli.mjs'
+const { version } = JSON.parse(await readFile('package.json', 'utf8'))
 const output = resolve(process.argv[2] ?? 'dist/portable/Perspectra-' + version + '-win-x64')
 try {
   await access(output)
@@ -42,7 +43,8 @@ await cp(resolve('.tmp/portable-release-assets/NODE-LICENSE.txt'), join(runtime,
 await cp(pythonHome, join(runtime, 'python'), {
   recursive: true,
   dereference: true,
-  filter: path => filter(path) && !path.split(/[\\/]/).includes('site-packages'),
+  // A --system-site-packages venv gets numpy/ONNX from its base Python; retain those dependencies.
+  filter,
 })
 const crt = resolve(process.env.PERSPECTRA_BUILD_CRT_DIR ?? '.tmp/portable-release-assets/msvc-crt')
 for (const file of await readdir(crt)) {
@@ -55,7 +57,9 @@ await cp(resolve('.tmp/hindsight-vector-venv/Lib/site-packages'), join(runtime, 
   dereference: true,
   filter,
 })
-const inputs = new Set()
+const cli = await buildWorldPackCli(output)
+const inputs = new Set(Object.keys(cli.metafile.inputs).map(path => resolve(path)))
+inputs.add(resolve('node_modules/jieba-wasm/package.json'))
 await cp(resolve('packages/frontend/assets'), join(runtime, 'frontend-assets'), { recursive: true })
 await cp(resolve('apps/launcher/dist-creator'), join(runtime, 'creator-assets'), { recursive: true })
 for (const [entry, file] of [
@@ -78,10 +82,6 @@ for (const [entry, file] of [
   })
   for (const path of Object.keys(result.metafile.inputs)) inputs.add(resolve(path))
 }
-await cp(resolve('node_modules/jieba-wasm'), join(runtime, 'node_modules/jieba-wasm'), {
-  recursive: true,
-  dereference: true,
-})
 await copyMemoryRuntime(runtime)
 const assets = JSON.parse(await readFile('desktop/host/memory/python/core/e5-assets.json', 'utf8'))
 for (const [file, expected] of Object.entries(assets.files)) {
@@ -130,22 +130,7 @@ await writeFile(
   ),
 )
 await cp(resolve('apps/launcher/src-tauri/target/release/perspectra-launcher.exe'), join(output, 'Perspectra.exe'))
-await cp(resolve('examples/world-packs/prototype-g1'), join(output, 'examples/前室与后室'), {
-  recursive: true,
-  dereference: true,
-  filter,
-})
-await cp(resolve('examples/world-packs/launcher-demo'), join(output, 'examples/测试示例'), {
-  recursive: true,
-  dereference: true,
-  filter,
-})
-await cp(resolve('examples/world-packs/model-girls-official'), join(output, 'examples/大模型变成美少女了'), {
-  recursive: true,
-  dereference: true,
-  filter,
-})
-await cp(resolve('scripts/release/README.zh-CN.md'), join(output, '开始试玩.md'))
+await cp(resolve('scripts/release/README.zh-CN.md'), join(output, '使用说明.md'))
 await cp(resolve('scripts/release/feedback-template.zh-CN.md'), join(output, '反馈模板.md'))
 await cp(resolve('scripts/release/clean-windows-checklist.zh-CN.md'), join(output, '干净系统验收.md'))
 execFileSync(
@@ -159,15 +144,20 @@ await writeFile(
     {
       product: 'Perspectra',
       version,
+      includesDemoPacks: false,
+      creatorCli: 'worldpack.cmd',
+      creatorSkill: 'skills/perspectra-creator/SKILL.md',
       platform: 'win-x64',
       webview2: '154.0.4258.62',
       node: process.version,
       python: execFileSync(join(runtime, 'python/python.exe'), ['--version'], { encoding: 'utf8' }).trim(),
-      msvc: '14.50.35710',
+      msvc: '14.50.35719.0',
       model: assets.repoId,
       baseModel: 'intfloat/multilingual-e5-small',
       modelRevision: assets.revision,
       sourceCommit: execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8', windowsHide: true }).trim(),
+      sourceDirty:
+        execFileSync('git', ['status', '--porcelain'], { encoding: 'utf8', windowsHide: true }).trim().length > 0,
       buildTime: new Date().toISOString(),
     },
     null,

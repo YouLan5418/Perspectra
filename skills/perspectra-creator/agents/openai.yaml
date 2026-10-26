@@ -1,0 +1,4 @@
+interface:
+  display_name: "Perspectra 创作"
+  short_description: "使用打包版工具原创世界、迁移酒馆卡、创作原生预设并校验交付物"
+  default_prompt: "使用 $perspectra-creator 完成这次世界创作、酒馆卡迁移或预设创作，并用本机 Perspectra 校验。"

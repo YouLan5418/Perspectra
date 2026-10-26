@@ -23,6 +23,7 @@ import { WorldPackContractError } from './diagnostics.ts'
 import { worldPackErrorCode } from './schema.ts'
 
 export type WorldPackCliInvocation =
+  | { readonly command: 'help' }
   | { readonly command: 'validate'; readonly sourceDirectory: string }
   | { readonly command: 'compile'; readonly sourceDirectory: string; readonly outputPath: string }
   | { readonly command: 'inspect'; readonly compiledPackPath: string }
@@ -30,7 +31,7 @@ export type WorldPackCliInvocation =
   | { readonly command: 'activate'; readonly compiledPackPath: string; readonly dataDirectory: string }
 
 const USAGE =
-  'usage: worldpack validate <dir> | compile <dir> --out <worldpack.json> | inspect <worldpack.json> | test <dir> | activate <worldpack.json> --data-dir <dir>'
+  'usage: worldpack --help | --version | validate <dir> | compile <dir> --out <worldpack.json> | inspect <worldpack.json> | test <dir> | activate <worldpack.json> --data-dir <dir> | preset validate <file> [--pack]'
 
 function value(value: string | undefined, name: string): string {
   if (value === undefined || value.length === 0) throw new TypeError(`${name} is required; ${USAGE}`)
@@ -39,6 +40,9 @@ function value(value: string | undefined, name: string): string {
 
 export function parseWorldPackCliInvocation(args: readonly string[]): WorldPackCliInvocation {
   const command = args[0]
+  if ((command === 'help' || command === '--help' || command === '-h') && args.length === 1) {
+    return { command: 'help' }
+  }
   if ((command === 'validate' || command === 'test') && args.length === 2) {
     return { command, sourceDirectory: value(args[1], 'source directory') }
   }
@@ -114,6 +118,18 @@ export interface WorldPackCliOptions {
 /** Execute one local creator command and return one canonical JSON line. */
 export async function executeWorldPackCli(args: readonly string[], options: WorldPackCliOptions = {}): Promise<string> {
   const invocation = parseWorldPackCliInvocation(args)
+  if (invocation.command === 'help') {
+    return output({
+      command: 'help',
+      usage: USAGE,
+      output: 'One JSON line on stdout on success; ErrorEnvelope JSON on stderr and exit code 1 on failure.',
+      validation: 'Source schema, references, assets and installed interaction selection; no full Host startup.',
+      test: 'Compile and adapt only; assertionsExecuted is 0. No model calls or gameplay acceptance.',
+      activate: 'Initialize local databases only; does not start the game Host or load Host-side extensions.',
+      presets:
+        'preset validate <file> accepts native library exchanges; --pack requires a bare RolePreset. Checks fields, macros and regex syntax, not style quality.',
+    })
+  }
   if (invocation.command === 'validate') {
     const pack = await compileWorldPackSource(invocation.sourceDirectory, options.interactionPackages)
     return output({

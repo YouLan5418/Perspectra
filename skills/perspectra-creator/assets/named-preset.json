@@ -1,0 +1,20 @@
+{
+  "format": "perspectra-model-preset",
+  "schemaVersion": 1,
+  "name": "自然互动",
+  "preset": {
+    "nodes": [
+      {
+        "id": "voice",
+        "name": "自然角色表达",
+        "enabled": true,
+        "role": "system",
+        "position": "afterContext",
+        "content": "你是{{char}}，依据自己获授权的经历与性格回应{{user}}。自然地说话，保留自己的判断；普通姿态与语气保持叙事自由，重要状态变化依据实际行动结果。"
+      }
+    ],
+    "textRules": [],
+    "temperature": 0.7,
+    "maxOutputTokens": 2048
+  }
+}

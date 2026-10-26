@@ -1,14 +1,56 @@
-import { spawn } from 'node:child_process'
+import { execFileSync, spawn } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
-import { resolve, join } from 'node:path'
-import { mkdir, writeFile, readFile, access } from 'node:fs/promises'
-import { DEFAULT_PAGE, DEFAULT_STYLE, DEFAULT_SCRIPT } from '../../packages/frontend/src/default-template.ts'
-import { HOST_ACTIVITY_PAGE } from '../../desktop/host/host-page.ts'
+import { resolve, join, dirname } from 'node:path'
+import { mkdir, writeFile, readFile, access, readdir } from 'node:fs/promises'
+import { build, transform } from 'esbuild'
+// These templates embed function.toString(). Compare the same build transform, not tsx's output.
+const expectedFrontend = await build({
+  stdin: {
+    contents:
+      "export {DEFAULT_PAGE,DEFAULT_STYLE,DEFAULT_SCRIPT} from './packages/frontend/src/default-template.ts';" +
+      "export {HOST_ACTIVITY_PAGE} from './desktop/host/host-page.ts';",
+    resolveDir: process.cwd(),
+    sourcefile: 'portable-frontend-check.ts',
+  },
+  bundle: true,
+  platform: 'node',
+  target: 'node24',
+  format: 'esm',
+  write: false,
+})
+const { DEFAULT_PAGE, DEFAULT_STYLE, DEFAULT_SCRIPT, HOST_ACTIVITY_PAGE } = await import(
+  'data:text/javascript;base64,' + Buffer.from(expectedFrontend.outputFiles[0].contents).toString('base64')
+)
+// Whole-host bundling can rename locals in embedded functions (key -> key3).
+// Canonicalize only script syntax; preserve the HTML/CSS and observable string literals.
+async function comparableAsset(path, content) {
+  const script = async text => (await transform(text, { minify: true, format: 'esm', target: 'es2024' })).code
+  if (path.endsWith('.js')) return script(content)
+  if (path !== '/' && !path.endsWith('.html')) return content
+  let normalized = '',
+    cursor = 0
+  for (const match of content.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/gu)) {
+    normalized += content.slice(cursor, match.index) + match[0].replace(match[1], await script(match[1]))
+    cursor = match.index + match[0].length
+  }
+  return normalized + content.slice(cursor)
+}
+if (process.argv.length < 5 || process.argv.length > 6 || (process.argv[5] && process.argv[5] !== 'offline')) {
+  throw Error('usage: verify-portable.mjs <program-root> <fresh-data-dir> <external-source-pack> [offline]')
+}
 const root = resolve(process.argv[2]),
-  data = resolve(process.argv[3])
-await mkdir(data, { recursive: true })
-const official = process.argv[4] === 'official',
-  packName = official ? '大模型变成美少女了' : '前室与后室'
+  data = resolve(process.argv[3]),
+  sourcePack = resolve(process.argv[4])
+await mkdir(dirname(data), { recursive: true })
+await mkdir(data)
+const buildInfo = JSON.parse(await readFile(join(root, 'build-info.json'), 'utf8'))
+if (buildInfo.includesDemoPacks !== false || (await readdir(root)).includes('examples')) {
+  throw Error('Expected a program-only payload without demo packs')
+}
+execFileSync(process.execPath, ['scripts/release/verify-worldpack-cli.mjs', root], {
+  stdio: 'inherit',
+  windowsHide: true,
+})
 await access(join(root, 'runtime/creator-assets/index.html'))
 const runtime = join(root, 'runtime')
 const env = {
@@ -82,7 +124,7 @@ try {
       endpoint: 'http://127.0.0.1:8046/v1/chat/completions',
     },
   })
-  await request({ operation: 'load', path: join(root, 'examples', packName) })
+  await request({ operation: 'load', path: sourcePack })
   const snapshot = await request({ operation: 'snapshot' })
   await request({
     operation: 'create',
@@ -114,57 +156,23 @@ try {
     ['/frontend/default.js', DEFAULT_SCRIPT],
   ]) {
     const response = await fetch(origin + path, { signal: AbortSignal.timeout(15000) })
-    if (!response.ok || (await response.text()) !== expected)
-      throw Error('Portable frontend differs from current source: ' + path)
-  }
-  let prologue
-  if (official) {
-    for (const file of ['index.html', 'style.css', 'app.js']) {
-      const response = await fetch(origin + '/frontend/custom/' + file, { signal: AbortSignal.timeout(15000) })
-      if (
-        !response.ok ||
-        (await response.text()) !== (await readFile(join(root, 'examples', packName, 'frontend', file), 'utf8'))
+    const actual = await comparableAsset(path, await response.text())
+    const comparableExpected = await comparableAsset(path, expected)
+    if (!response.ok || actual !== comparableExpected) {
+      let at = 0
+      while (at < actual.length && actual[at] === comparableExpected[at]) at++
+      throw Error(
+        'Portable frontend differs from current source: ' +
+          path +
+          ' ' +
+          JSON.stringify({
+            status: response.status,
+            at,
+            actual: actual.slice(at, at + 160),
+            expected: comparableExpected.slice(at, at + 160),
+          }),
       )
-        throw Error('Official frontend asset mismatch: ' + file)
     }
-    const headers = {
-      'x-playtest-token': new URL(opened.url).hash.slice('#token='.length),
-      'content-type': 'application/json',
-    }
-    const api = async (path, action) => {
-      const response = await fetch(origin + path, {
-        headers,
-        ...(action ? { method: 'POST', body: JSON.stringify(action) } : {}),
-        signal: AbortSignal.timeout(60000),
-      })
-      if (!response.ok) throw Error('Official action failed: ' + response.status)
-      return response.json()
-    }
-    let state = await api('/api/state'),
-      steps = 0
-    const start = (await api('/frontend-api/v1/view')).actions.find(a => a.label.startsWith('开始 '))
-    if (!start) throw Error('Missing prologue start')
-    state = await api('/api/perform', start.action)
-    while (state.activity?.game?.active) {
-      const next = (await api('/frontend-api/v1/view')).actions.find(a => a.label === '继续')
-      if (!next || ++steps > 112) throw Error('Invalid prologue cursor')
-      state = await api('/api/perform', next.action)
-      if (state.error) throw Error('Prologue failed')
-    }
-    if (
-      state.debug.providerCalls !== 0 ||
-      state.transcript.filter(line => line.player).length !== 5 ||
-      state.transcript.at(-1)?.text !== '你愿意让我们暂时留下来吗？'
-    )
-      throw Error('Prologue handover mismatch')
-    prologue = {
-      steps,
-      playerExpressions: 5,
-      providerCalls: 0,
-      phase: state.activity.game.phase,
-      customFrontendMatches: true,
-    }
-    console.log('Bundled official prologue passed')
   }
   await request({ operation: 'stop' })
   await writeFile(
@@ -178,8 +186,9 @@ try {
         coreStarted: true,
         coreStopped: true,
         frontendMatchesSource: true,
-        packName,
-        ...(prologue ? { prologue } : {}),
+        programOnly: true,
+        creatorCliPassed: true,
+        sourcePack,
       },
       null,
       2,

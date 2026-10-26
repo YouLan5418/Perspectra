@@ -29,6 +29,8 @@ const installed = [interactionPackageDescription(createBasicInteractionPackage()
 
 describe('World Pack creator CLI', () => {
   it.each([
+    [['--help'], { command: 'help' }],
+    [['help'], { command: 'help' }],
     [['validate', 'pack'], { command: 'validate', sourceDirectory: 'pack' }],
     [
       ['compile', 'pack', '--out', 'pack.json'],
@@ -67,6 +69,14 @@ describe('World Pack creator CLI', () => {
     ).map(args => [args] as const),
   )('rejects an unsupported command %#', args => {
     expect(() => parseWorldPackCliInvocation(args)).toThrow(TypeError)
+  })
+
+  it('explains the automated validation boundary in machine-readable help', async () => {
+    expect(parsed(await executeWorldPackCli(['--help']))).toMatchObject({
+      command: 'help',
+      test: expect.stringContaining('assertionsExecuted is 0'),
+      validation: expect.stringContaining('no full Host startup'),
+    })
   })
 
   it('validates, compiles, inspects, and tests the current v5 Pack', async () => {
