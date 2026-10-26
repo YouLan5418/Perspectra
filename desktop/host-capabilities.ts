@@ -1,6 +1,17 @@
 import Ajv from 'ajv'
 import { Service, type Context } from '@deepseek-ai/cordis'
-import type { WorldAddress, WorldJsonObject, WorldJsonValue } from '@harness-world/contracts'
+import type { WorldJsonObject } from '@harness-world/contracts'
+import type {
+  CapabilitiesApi,
+  CapabilityListing,
+  CapabilityMethod,
+  CapabilityOutcome,
+  CapabilityProvider,
+  CapabilityWorld,
+} from '@harness-world/plugin-sdk'
+
+// The plugin-facing shapes live in the SDK so the host cannot drift from what plugin authors are promised.
+export type { CapabilityMethod, CapabilityOutcome, CapabilityProvider, CapabilityWorld }
 
 export const CAPABILITY_PENDING = 'HOST_CAPABILITY_PENDING'
 
@@ -11,15 +22,6 @@ export class MissingCapabilityError extends TypeError {
   }
 }
 
-export interface CapabilityMethod {
-  readonly arguments: WorldJsonObject
-  readonly result: WorldJsonObject
-  readonly effect: 'read' | 'external'
-}
-export interface CapabilityOutcome {
-  readonly completion: 'completed' | 'queued'
-  readonly data: WorldJsonValue
-}
 export interface CapabilityRequirement {
   readonly id: string
   readonly version: string
@@ -27,35 +29,13 @@ export interface CapabilityRequirement {
   readonly config: WorldJsonObject
   readonly characters?: readonly string[]
 }
-export interface CapabilityWorld {
-  readonly address: WorldAddress
-  readonly worldVersion: string
-  /** Bound by the host to the pack's declared NPCs; never accepts caller-supplied Context. */
-  readonly requestCharacter: (characterId: string, signal?: AbortSignal) => Promise<WorldJsonObject>
-}
-export interface CapabilityProvider {
-  readonly id: string
-  readonly version: string
-  readonly methods: Readonly<Record<string, CapabilityMethod>>
-  readonly open: (
-    world: CapabilityWorld,
-    config: WorldJsonObject,
-  ) => Promise<{
-    invoke(method: string, args: WorldJsonObject, actorId: string, signal: AbortSignal): Promise<CapabilityOutcome>
-    close(): Promise<void>
-  }>
-}
 export interface CapabilityCatalog {
-  list(): readonly {
-    readonly id: string
-    readonly version: string
-    readonly methods: Readonly<Record<string, CapabilityMethod>>
-  }[]
+  list(): readonly CapabilityListing[]
   attach(world: CapabilityWorld, requirements: readonly CapabilityRequirement[]): Promise<CapabilitySession>
 }
 
 /** Native providers are trusted. Their game sessions still receive only explicitly bound host operations. */
-export class HostCapabilities extends Service implements CapabilityCatalog {
+export class HostCapabilities extends Service implements CapabilityCatalog, CapabilitiesApi {
   private readonly providers = new Map<string, CapabilityProvider>()
   private readonly sessions = new Set<CapabilitySession>()
   private closed = false

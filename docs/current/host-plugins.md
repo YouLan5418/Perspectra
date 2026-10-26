@@ -1,5 +1,7 @@
 # 通过 Cordis 加载宿主插件
 
+2026-10-26 宿主 API 版本：每个插件模块须导出 `hostApi`（如 `'1.0'`），表示需要的最低宿主 API。装载器在调用插件前用 [plugin-sdk](../../packages/plugin-sdk/src/index.ts) 的 `hostApiCompatible` 比较，主版本不同、需要更高次版本或未声明时跳过，原因为 `version`，启动器显示“宿主 API 版本不兼容或未声明”。仓库示例插件均已声明 `1.0`；此前写好的本地插件需补上这一行。接口类型与版本规则见[插件编写指南](guides/host-plugin-authoring.md)。
+
 2026-10-26 玩家可见事件订阅：例如主播想把对白同步到直播画面。启用 [transcript-file.mjs](../../examples/host-plugins/transcript-file.mjs) 并设置 `PERSPECTRA_TRANSCRIPT_FILE`，文件会跟着玩家读到的对白更新，OBS 的文字源读取它即可。插件通过 `ctx.effect(() => ctx.playerFeed.subscribe(listener))` 订阅，收到的是宿主已经为玩家投影好的对话记录，与默认舞台的历史相同：没有角色 Context、心理、私有状态或其他角色的视角，监听器的返回值也不会回到世界。
 
 - 事件只有两种：`append` 带新增的行；`reset` 带完整记录，出现在首次推送、重新生成、切换候选或恢复之后，订阅者应整体替换已有内容。
@@ -40,6 +42,8 @@ RPG Maker [双端连接骨架](../../examples/rpg-maker/README.md)已注册 `rpg
 语音消费点是 `ctx.frontendServices.registerSpeech(synthesize)`，返回注销函数。插件通过 `ctx.effect()` 持有它，在 Cordis 释放插件时注销服务。参数和音频返回值沿用 [FrontendSpeechInput / FrontendSpeechAudio](../../packages/frontend/src/speech.ts)，不新增一套语音协议：
 
 ```js
+export const hostApi = '1.0'
+
 export default function speechPlugin(ctx) {
   const endpoint = new URL(process.env.PERSPECTRA_TTS_ENDPOINT);
   ctx.effect(() => ctx.frontendServices.registerSpeech(async (input, signal) => {

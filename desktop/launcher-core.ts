@@ -125,7 +125,7 @@ function object(value: unknown): Record<string, unknown> {
 }
 export interface SkippedPlugin {
   id: string
-  reason: 'import' | 'apply'
+  reason: 'import' | 'version' | 'apply'
 }
 /** The game process reports skipped plugins by ID and reason only; anything malformed is dropped. */
 function skippedPlugins(value: unknown): SkippedPlugin[] {
@@ -138,7 +138,7 @@ function skippedPlugins(value: unknown): SkippedPlugin[] {
         typeof item.id === 'string' &&
         item.id.length > 0 &&
         item.id.length <= 64 &&
-        (item.reason === 'import' || item.reason === 'apply'),
+        (item.reason === 'import' || item.reason === 'version' || item.reason === 'apply'),
     )
     .slice(0, 16)
     .map(item => ({ id: item.id, reason: item.reason }))

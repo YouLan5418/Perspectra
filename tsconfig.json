@@ -21,6 +21,7 @@
       "@harness-world/application": ["./packages/application/src/index.ts"],
       "@harness-world/contracts": ["./packages/contracts/src/index.ts"],
       "@harness-world/frontend": ["./packages/frontend/src/index.ts"],
+      "@harness-world/plugin-sdk": ["./packages/plugin-sdk/src/index.ts"],
       "@harness-world/kernel": ["./packages/kernel/src/index.ts"],
       "@harness-world/memory": ["./packages/memory/src/index.ts"],
       "@harness-world/presentation": ["./packages/presentation/src/index.ts"],

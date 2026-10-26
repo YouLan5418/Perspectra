@@ -44,7 +44,11 @@ export interface DrawerRow {
 }
 
 /** Player-facing words for why a host plugin was skipped at launch. */
-export const PLUGIN_SKIP_REASON = { import: '导入失败', apply: '初始化失败' } as const
+export const PLUGIN_SKIP_REASON = {
+  import: '导入失败',
+  version: '宿主 API 版本不兼容或未声明',
+  apply: '初始化失败',
+} as const
 
 export const useLauncherStore = defineStore('launcher', () => {
   const packages = ref<GamePackage[]>(isTauri() ? [] : [...fixtures])

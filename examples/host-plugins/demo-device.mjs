@@ -1,5 +1,8 @@
 import { setTimeout as delay } from 'node:timers/promises'
 
+// The lowest host API this plugin needs (packages/plugin-sdk); an older or newer-major host skips it.
+export const hostApi = '1.0'
+
 // An in-memory device demonstrates host capabilities without credentials or another installed application.
 export default function demoDevice(ctx) {
   const worlds = new Map()

@@ -871,15 +871,26 @@ it('shows plugins the game skipped and names a missing required capability witho
         port: 12345,
         token: 'a'.repeat(64),
         frontendMode: 'sandbox',
-        skippedPlugins: [{ id: 'tts', reason: 'apply' }, { id: 'odd', reason: 'unknown' }, 'junk'],
+        skippedPlugins: [
+          { id: 'tts', reason: 'apply' },
+          { id: 'old-api', reason: 'version' },
+          { id: 'odd', reason: 'unknown' },
+          'junk',
+        ],
       }),
     )
     await core.handle({ operation: 'start', instanceId })
     expect(core.snapshot().core.state).toBe('running')
-    expect(core.snapshot().skippedPlugins).toEqual([{ id: 'tts', reason: 'apply' }])
+    expect(core.snapshot().skippedPlugins).toEqual([
+      { id: 'tts', reason: 'apply' },
+      { id: 'old-api', reason: 'version' },
+    ])
     await core.stop()
     // Settings can still point at the plugin after the game stops.
-    expect(core.snapshot().skippedPlugins).toEqual([{ id: 'tts', reason: 'apply' }])
+    expect(core.snapshot().skippedPlugins).toEqual([
+      { id: 'tts', reason: 'apply' },
+      { id: 'old-api', reason: 'version' },
+    ])
     await writeFile(
       startup,
       JSON.stringify({

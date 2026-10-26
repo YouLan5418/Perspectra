@@ -15,6 +15,7 @@ import {
   type PlayerFeedEvent,
 } from '../../desktop/host-plugins.ts'
 import { hostPluginSettings } from '../../desktop/host-plugin-settings.ts'
+import { HOST_API_VERSION, hostApiCompatible } from '@harness-world/plugin-sdk'
 
 const roots: string[] = [],
   sessions: HostPlugins[] = []
@@ -61,7 +62,8 @@ async function moduleFile(source: string) {
   const root = await mkdtemp(join(tmpdir(), 'perspectra-host-plugin-'))
   roots.push(root)
   const path = join(root, 'plugin.mjs')
-  await writeFile(path, source)
+  // Plugins under test declare the current host API unless the test is about that declaration.
+  await writeFile(path, source.includes('hostApi') ? source : `export const hostApi = '1.0';\n${source}`)
   return { root, path }
 }
 const paragraph = { seq: 7, segmentIndex: 0, text: '你好。', type: 'speech' as const }
@@ -255,4 +257,53 @@ it('mirrors appends and resets into a file through the example transcript plugin
   await settled('玩家：你好。\n澄：早。\n')
   session.playerFeed.publish([line(1, '玩家', '你好。'), line(3, '澄', '另一种回答。')])
   await settled('玩家：你好。\n澄：另一种回答。\n')
+})
+
+it('accepts a plugin only for the same host API major and a minor this host already has', () => {
+  expect(hostApiCompatible('1.0', '1.0')).toBe(true)
+  expect(hostApiCompatible('1.2', '1.3')).toBe(true)
+  expect(hostApiCompatible('1.4', '1.3')).toBe(false)
+  expect(hostApiCompatible('2.0', '1.3')).toBe(false)
+  expect(hostApiCompatible('0.9', '1.3')).toBe(false)
+  for (const malformed of [undefined, 1, '1', '1.0.0', 'v1.0', '01.0', ''])
+    expect(hostApiCompatible(malformed, '1.0')).toBe(false)
+})
+
+it('skips plugins that need a newer host API or do not declare one, before their apply runs', async () => {
+  const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+  const root = await mkdtemp(join(tmpdir(), 'perspectra-host-api-'))
+  roots.push(root)
+  const body = (marker: string) => `import { writeFileSync } from 'node:fs';
+    export default function(ctx) { writeFileSync(new URL('./${marker}', import.meta.url), 'ran') }`
+  const write = async (name: string, source: string) => {
+    const path = join(root, name)
+    await writeFile(path, source)
+    return path
+  }
+  const session = await loadHostPlugins([
+    {
+      id: 'newer',
+      path: await write(
+        'newer.mjs',
+        `export const hostApi = '${HOST_API_VERSION.split('.')[0]}.99';\n${body('newer-ran')}`,
+      ),
+      enabled: true,
+    },
+    { id: 'undeclared', path: await write('undeclared.mjs', body('undeclared-ran')), enabled: true },
+    {
+      id: 'current',
+      path: await write('current.mjs', `export const hostApi = '${HOST_API_VERSION}';\n${body('current-ran')}`),
+      enabled: true,
+    },
+  ])
+  sessions.push(session)
+  expect(session.skipped).toEqual([
+    { id: 'newer', reason: 'version' },
+    { id: 'undeclared', reason: 'version' },
+  ])
+  await expect(readFile(join(root, 'newer-ran'), 'utf8')).rejects.toMatchObject({ code: 'ENOENT' })
+  await expect(readFile(join(root, 'undeclared-ran'), 'utf8')).rejects.toMatchObject({ code: 'ENOENT' })
+  expect(await readFile(join(root, 'current-ran'), 'utf8')).toBe('ran')
+  expect(error.mock.calls.some(([label]) => String(label).includes('（未声明 hostApi）'))).toBe(true)
+  error.mockRestore()
 })

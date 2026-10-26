@@ -4,28 +4,23 @@ import { hostPluginSettings, type HostPluginSettings } from './host-plugin-setti
 import type { FrontendHostServices } from '@harness-world/frontend'
 import { validBgmTrack, type FrontendBgmPlugin, type FrontendBgmService } from '@harness-world/frontend'
 import { HostCapabilities, type CapabilityCatalog } from './host-capabilities.ts'
-import type { HostState } from './host/http-server.ts'
+import {
+  HOST_API_VERSION,
+  hostApiCompatible,
+  type FrontendServicesApi,
+  type PlayerFeedApi,
+  type PlayerFeedEvent,
+  type PlayerFeedLine,
+} from '@harness-world/plugin-sdk'
+
+// The SDK declares the services on Cordis' Context; the classes below must satisfy its interfaces.
+export type { PlayerFeedEvent, PlayerFeedLine }
 
 type SpeechSynthesizer = NonNullable<FrontendHostServices['synthesizeSpeech']>
 
-declare module '@deepseek-ai/cordis' {
-  interface Context {
-    frontendServices: FrontendServices
-    capabilities: HostCapabilities
-    playerFeed: PlayerFeed
-  }
-}
-
-/** One line of what the player can read, exactly as the default stage receives it. */
-export type PlayerFeedLine = HostState['transcript'][number]
-/** `reset` replaces everything a listener holds: first publish, regeneration, candidate switch or restore. */
-export type PlayerFeedEvent =
-  | { readonly kind: 'append'; readonly lines: readonly PlayerFeedLine[] }
-  | { readonly kind: 'reset'; readonly lines: readonly PlayerFeedLine[] }
-
 /** Read-only: listeners see the player's own transcript after the host projects it, never character
  * Context, private statuses or other characters' views, and nothing they return reaches the world. */
-export class PlayerFeed extends Service {
+export class PlayerFeed extends Service implements PlayerFeedApi {
   #listeners = new Set<(event: PlayerFeedEvent) => unknown>()
   #published: readonly PlayerFeedLine[] | undefined
   #closed = false
@@ -76,7 +71,7 @@ export class PlayerFeed extends Service {
 }
 
 /** Host-only presentation services; this context does not contain world runtime services. */
-export class FrontendServices extends Service implements FrontendHostServices {
+export class FrontendServices extends Service implements FrontendHostServices, FrontendServicesApi {
   synthesizeSpeech: SpeechSynthesizer | undefined
   bgm: FrontendBgmService | undefined
   #closed = false
@@ -160,7 +155,8 @@ export class FrontendServices extends Service implements FrontendHostServices {
 /** Why an enabled plugin did not run. Module error text stays in the host log, never in this record. */
 export interface SkippedHostPlugin {
   readonly id: string
-  readonly reason: 'import' | 'apply'
+  /** `version`: the module's `hostApi` is missing or needs a newer host. */
+  readonly reason: 'import' | 'version' | 'apply'
 }
 
 export interface HostPlugins {
@@ -183,7 +179,7 @@ export async function loadHostPlugins(settings: HostPluginSettings[]): Promise<H
   const skipped: SkippedHostPlugin[] = []
   for (const plugin of plugins) {
     if (!plugin.enabled) continue
-    let module: { default?: unknown }
+    let module: { default?: unknown; hostApi?: unknown }
     try {
       module = await import(pathToFileURL(plugin.path).href)
       if (
@@ -199,6 +195,14 @@ export async function loadHostPlugins(settings: HostPluginSettings[]): Promise<H
     } catch (error) {
       console.error(`[宿主插件 ${plugin.id}] 导入失败，本次已跳过：`, error)
       skipped.push({ id: plugin.id, reason: 'import' })
+      continue
+    }
+    // Checked before apply, so an incompatible plugin never touches the host services.
+    if (!hostApiCompatible(module.hostApi)) {
+      console.error(
+        `[宿主插件 ${plugin.id}] 需要宿主 API ${typeof module.hostApi === 'string' ? module.hostApi : '（未声明 hostApi）'}，当前宿主 API 为 ${HOST_API_VERSION}，本次已跳过。`,
+      )
+      skipped.push({ id: plugin.id, reason: 'version' })
       continue
     }
     const fiber = root.plugin(module.default as Plugin)

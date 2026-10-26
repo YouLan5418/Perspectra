@@ -147,6 +147,7 @@ it('serves a dynamically loaded Cordis plugin through the same authorization bou
   await writeFile(
     path,
     `import { writeFileSync } from 'node:fs';
+    export const hostApi = '1.0';
     export default function(ctx) {
       ctx.effect(() => ctx.frontendServices.registerSpeech(async input => {
         writeFileSync(new URL('./input.json', import.meta.url), JSON.stringify(input));

@@ -187,6 +187,18 @@ importers:
         specifier: 2.4.0
         version: 2.4.0
 
+  packages/plugin-sdk:
+    dependencies:
+      '@deepseek-ai/cordis':
+        specifier: 4.0.1
+        version: 4.0.1
+      '@harness-world/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      '@harness-world/frontend':
+        specifier: workspace:*
+        version: link:../frontend
+
   packages/presentation:
     dependencies:
       '@harness-world/contracts':

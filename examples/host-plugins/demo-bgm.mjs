@@ -1,3 +1,6 @@
+// The lowest host API this plugin needs (packages/plugin-sdk); an older or newer-major host skips it.
+export const hostApi = '1.0'
+
 /** Runnable Cordis example. These quiet synthesized chords are test sounds, not a finished soundtrack. */
 export default function demoBgm(ctx) {
   const tracks = [

@@ -1,5 +1,8 @@
 import { createRpgMakerBridge } from './rpg-maker/transport.mjs'
 
+// The lowest host API this plugin needs (packages/plugin-sdk); an older or newer-major host skips it.
+export const hostApi = '1.0'
+
 // Desktop MZ and this trusted host plugin share only a per-launch token, never model credentials.
 export default async function rpgMakerBridge(ctx) {
   const bridge = await createRpgMakerBridge({

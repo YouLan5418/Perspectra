@@ -51,6 +51,8 @@ hook 必须同步，单次执行限制 100ms，只传入可序列化数据。模
 [demo-device.mjs](../../../examples/host-plugins/demo-device.mjs)是完整示例。注册方式：
 
 ```js
+export const hostApi = '1.0'
+
 export default function myPlugin(ctx) {
   ctx.effect(() => ctx.capabilities.register({
     id: 'my-device', version: '0.1.0',

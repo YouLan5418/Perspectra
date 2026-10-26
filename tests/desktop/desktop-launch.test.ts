@@ -30,6 +30,7 @@ describe('desktop launch boundary', () => {
     await writeFile(
       pluginPath,
       `import { writeFileSync } from 'node:fs';
+      export const hostApi = '1.0';
       export default function(ctx) {
         ctx.effect(() => ctx.frontendServices.registerSpeech(async () => ({contentType:'audio/wav',bytes:new Uint8Array([1])})));
         ctx.effect(() => ctx.frontendServices.registerBgm({

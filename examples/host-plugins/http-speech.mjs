@@ -1,3 +1,6 @@
+// The lowest host API this plugin needs (packages/plugin-sdk); an older or newer-major host skips it.
+export const hostApi = '1.0'
+
 /** Optional bridge to a trusted HTTP service accepting FrontendSpeechInput and returning audio. */
 export default function httpSpeech(ctx) {
   const endpoint = new URL(process.env.PERSPECTRA_TTS_ENDPOINT || '')
