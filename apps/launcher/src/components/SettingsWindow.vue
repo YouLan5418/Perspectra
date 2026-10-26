@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import { onMounted, provide, ref } from 'vue'
 import { X } from '@lucide/vue'
-import { PLUGIN_SKIP_REASON, useLauncherStore } from '../stores/launcher.ts'
+import { useLauncherStore } from '../stores/launcher.ts'
 import { chooseDataDirectory, dataLocation, type DataLocation } from '../services/desktop.ts'
 import { Button } from './ui/button/index.ts'
 import ModelSettingsDialog from './ModelSettingsDialog.vue'
+import PluginSettingsBlock from './PluginSettingsBlock.vue'
 /** 全局设置窗口：浮在启动器上方。外观与阅读声音走草稿，“应用 / 保存”提交；模型接口沿用即时保存。 */
 const emit = defineEmits<{ close: [] }>()
 provide('launcher-embedded', true)
@@ -68,10 +69,6 @@ function cancel() {
 }
 function addPlugin() {
   store.preferencesDraft.hostPlugins.push({ id: `plugin-${crypto.randomUUID()}`, path: '', enabled: false })
-}
-function skippedReason(id: string) {
-  const skipped = store.skippedPlugins.find(plugin => plugin.id === id)
-  return skipped ? PLUGIN_SKIP_REASON[skipped.reason] : ''
 }
 </script>
 <template>
@@ -177,23 +174,16 @@ function skippedReason(id: string) {
               插件在下次启动游戏时加载。只添加你信任的本地插件；它们与游戏宿主拥有相同的本机访问权限。
             </p>
             <p class="muted">
-              语音插件提供合成服务，背景音乐插件提供曲库与选曲规则。安装后可在游戏的声音设置中控制播放；当前未附带语音合成器。
+              选择插件文件后，这里会显示它旁边清单（与入口同名的
+              .plugin.json）中的名称、作者、所用服务和配置项。密钥类配置保存在系统凭据管理器，不写入设置文件。
             </p>
-            <section v-for="(plugin, index) in store.preferencesDraft.hostPlugins" :key="index" class="settings-block">
-              <div class="form-field">
-                <label :for="`plugin-id-${index}`">插件 ID</label
-                ><input :id="`plugin-id-${index}`" v-model="plugin.id" maxlength="64" />
-              </div>
-              <div class="form-field">
-                <label :for="`plugin-path-${index}`">插件文件（.mjs / .js 绝对路径）</label
-                ><input :id="`plugin-path-${index}`" v-model="plugin.path" />
-              </div>
-              <label class="checkbox-row"><input v-model="plugin.enabled" type="checkbox" />启动游戏时加载此插件</label>
-              <p v-if="skippedReason(plugin.id)" class="plugin-skipped" role="status">
-                上次启动时{{ skippedReason(plugin.id) }}，已跳过。请检查插件文件，或取消勾选后重试。
-              </p>
-              <Button variant="outline" @click="store.preferencesDraft.hostPlugins.splice(index, 1)">移除</Button>
-            </section>
+            <PluginSettingsBlock
+              v-for="(plugin, index) in store.preferencesDraft.hostPlugins"
+              :key="index"
+              :plugin="plugin"
+              :index="index"
+              @remove="store.preferencesDraft.hostPlugins.splice(index, 1)"
+            />
             <Button variant="outline" :disabled="store.preferencesDraft.hostPlugins.length >= 16" @click="addPlugin"
               >添加本地插件</Button
             >
@@ -268,15 +258,6 @@ function skippedReason(id: string) {
 </template>
 
 <style scoped>
-.plugin-skipped {
-  margin: 0;
-  padding: 8px 10px;
-  border-radius: 8px;
-  border-left: 3px solid var(--warning);
-  background: var(--warning-bg);
-  color: var(--foreground);
-  font-size: 13px;
-}
 .settings-scrim {
   position: absolute;
   inset: 0;

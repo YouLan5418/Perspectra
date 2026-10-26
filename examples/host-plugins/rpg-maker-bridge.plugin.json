@@ -1,0 +1,7 @@
+{
+  "name": "RPG Maker MZ 桥接",
+  "version": "0.1.0",
+  "author": "Perspectra",
+  "description": "连接桌面版 RPG Maker MZ：读取队员状态、排队公共事件、请求 AI 同伴处理。端口和令牌与 MZ 共用，仍由启动两边的环境变量 PERSPECTRA_RPG_MAKER_PORT / PERSPECTRA_RPG_MAKER_TOKEN 提供。",
+  "services": ["capabilities"]
+}

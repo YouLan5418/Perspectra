@@ -6,9 +6,9 @@ export const hostApi = '1.0'
 
 /** Mirrors what the player can read into a text file, e.g. for an OBS text source or an external log.
  * It only listens: nothing written here reaches characters or the world. */
-export default function transcriptFile(ctx) {
-  const file = process.env.PERSPECTRA_TRANSCRIPT_FILE
-  if (!file || !isAbsolute(file)) throw new TypeError('PERSPECTRA_TRANSCRIPT_FILE must be an absolute path')
+export default function transcriptFile(ctx, config) {
+  const file = config.file
+  if (!isAbsolute(file)) throw new TypeError('The output file must be an absolute path')
   const render = lines => lines.filter(line => !line.pause).map(line => `${line.speaker}：${line.text}\n`).join('')
   // Writes run one after another so an append never lands before the reset it follows; one failed
   // write is reported by the host and does not stop the next.

@@ -1,0 +1,7 @@
+{
+  "name": "示例背景音乐",
+  "version": "0.1.0",
+  "author": "Perspectra",
+  "description": "按玩家正在读的段落在日常与紧张两段合成和弦之间切换，用来试听默认舞台的播放器。",
+  "services": ["frontendServices"]
+}

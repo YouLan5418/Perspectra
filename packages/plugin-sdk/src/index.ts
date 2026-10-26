@@ -111,5 +111,41 @@ declare module '@deepseek-ai/cordis' {
   interface Context extends HostServices {}
 }
 
-/** A plugin module default-exports this (or a class / `{ apply }`) and exports `hostApi`. */
-export type HostPlugin = (ctx: Context) => void | Promise<void>
+/** A plugin module default-exports this (or a class / `{ apply }`) and exports `hostApi`. `config` holds
+ * the values the player entered for the fields its manifest declares, defaults filled in. */
+export type HostPlugin = (ctx: Context, config: PluginConfig) => void | Promise<void>
+export type PluginConfig = Readonly<Record<string, string | number | boolean>>
+
+/** One field the launcher renders in the plugin's settings. `secret` strings are kept in the system
+ * credential store, never in launcher settings, and reach the plugin only at launch. */
+export type PluginConfigField = {
+  readonly title: string
+  readonly description?: string
+  readonly required?: boolean
+} & (
+  | {
+      readonly type: 'string'
+      readonly default?: string
+      readonly enum?: readonly string[]
+      readonly maxLength?: number
+      readonly secret?: boolean
+    }
+  | {
+      readonly type: 'number' | 'integer'
+      readonly default?: number
+      readonly minimum?: number
+      readonly maximum?: number
+    }
+  | { readonly type: 'boolean'; readonly default?: boolean }
+)
+
+/** Contents of `<entry>.plugin.json` beside the plugin file. The launcher reads it without running the
+ * plugin. `services` is the author's statement shown to players; the host does not enforce it. */
+export interface PluginManifest {
+  readonly name: string
+  readonly version: string
+  readonly author?: string
+  readonly description?: string
+  readonly services: readonly (keyof HostServices)[]
+  readonly config?: Readonly<Record<string, PluginConfigField>>
+}

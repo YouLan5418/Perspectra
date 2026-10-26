@@ -1,6 +1,8 @@
 import { Context, Service, type Plugin } from '@deepseek-ai/cordis'
 import { pathToFileURL } from 'node:url'
 import { hostPluginSettings, type HostPluginSettings } from './host-plugin-settings.ts'
+import { resolvePluginConfig } from './host-plugin-manifest.ts'
+import { readPluginManifest } from './plugin-manifest-file.ts'
 import type { FrontendHostServices } from '@harness-world/frontend'
 import { validBgmTrack, type FrontendBgmPlugin, type FrontendBgmService } from '@harness-world/frontend'
 import { HostCapabilities, type CapabilityCatalog } from './host-capabilities.ts'
@@ -155,8 +157,11 @@ export class FrontendServices extends Service implements FrontendHostServices, F
 /** Why an enabled plugin did not run. Module error text stays in the host log, never in this record. */
 export interface SkippedHostPlugin {
   readonly id: string
-  /** `version`: the module's `hostApi` is missing or needs a newer host. */
-  readonly reason: 'import' | 'version' | 'apply'
+  /** `manifest`: the sidecar `.plugin.json` is unreadable or invalid. `config`: saved values or secrets do
+   * not fit it. `version`: the module's `hostApi` is missing or needs a newer host. */
+  readonly reason: 'manifest' | 'config' | 'import' | 'version' | 'apply'
+  /** Host-written and player-facing, for `manifest` and `config` only; never module error text or a value. */
+  readonly detail?: string
 }
 
 export interface HostPlugins {
@@ -170,7 +175,11 @@ export interface HostPlugins {
 /** Load only explicitly enabled, trusted modules. As in DSH, one plugin's failure is a warning: Cordis
  * unwinds that plugin's effects and the rest keep running. Whether a world can still open is decided
  * by the pack's required capabilities, not here. Invalid settings still fail the whole launch. */
-export async function loadHostPlugins(settings: HostPluginSettings[]): Promise<HostPlugins> {
+export async function loadHostPlugins(
+  settings: HostPluginSettings[],
+  /** Per plugin ID, secret field values the launcher read from the credential store. */
+  secrets: Readonly<Record<string, Readonly<Record<string, string>>>> = {},
+): Promise<HostPlugins> {
   const plugins = hostPluginSettings(settings)
   const root = new Context()
   const services = new FrontendServices(root)
@@ -179,6 +188,24 @@ export async function loadHostPlugins(settings: HostPluginSettings[]): Promise<H
   const skipped: SkippedHostPlugin[] = []
   for (const plugin of plugins) {
     if (!plugin.enabled) continue
+    // Manifest and config are checked before the module is imported, so a misconfigured plugin runs no code.
+    let config: Readonly<Record<string, string | number | boolean>>
+    try {
+      const manifest = await readPluginManifest(plugin.path)
+      try {
+        config = resolvePluginConfig(manifest, plugin.config, secrets[plugin.id])
+      } catch (error) {
+        const detail = (error as Error).message
+        console.error(`[宿主插件 ${plugin.id}] 配置无效，本次已跳过：${detail}`)
+        skipped.push({ id: plugin.id, reason: 'config', detail })
+        continue
+      }
+    } catch (error) {
+      const detail = (error as Error).message
+      console.error(`[宿主插件 ${plugin.id}] 清单无效，本次已跳过：${detail}`)
+      skipped.push({ id: plugin.id, reason: 'manifest', detail })
+      continue
+    }
     let module: { default?: unknown; hostApi?: unknown }
     try {
       module = await import(pathToFileURL(plugin.path).href)
@@ -205,7 +232,7 @@ export async function loadHostPlugins(settings: HostPluginSettings[]): Promise<H
       skipped.push({ id: plugin.id, reason: 'version' })
       continue
     }
-    const fiber = root.plugin(module.default as Plugin)
+    const fiber = root.plugin(module.default as Plugin, structuredClone(config))
     try {
       await fiber
     } catch (error) {

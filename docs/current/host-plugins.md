@@ -1,8 +1,16 @@
 # 通过 Cordis 加载宿主插件
 
+2026-10-26 插件清单与配置：例如你要用自己的语音服务。把语音插件加进启动器后，设置页显示它的名称“HTTP 语音合成”、作者、简介，声明使用“语音与背景音乐”，下方有“语音服务地址”和“API Key”两个输入框；不填地址就启动，这个插件会被跳过，启动器提示“请先填写：语音服务地址”。
+
+- **清单**：插件入口旁的 `<入口名>.plugin.json`，如 `http-speech.mjs` 配 `http-speech.plugin.json`。字段有 `name`、`version`、可选的 `author` / `description`、`services`（`frontendServices` / `capabilities` / `playerFeed` 中用到的项）和可选的 `config`。启动器读取它时不执行插件代码，这与 DSH 读取包元信息的做法相同。没有清单的插件照常加载，启动器显示“未提供插件清单”，插件收到空配置。`services` 是作者的声明，宿主不强制；插件仍是拥有本机权限的可信代码。
+- **配置项**：`config` 是字段名到定义的对象，类型为 `string`、`number`、`integer` 或 `boolean`，可带 `title`（必填）、`description`、`required`、`default`，字符串还可带 `enum`、`maxLength` 和 `secret`，数字可带 `minimum` / `maximum`。启动器按这些定义生成表单。
+- **保存在哪里**：普通值写进 `launcher.json` 的插件设置；`secret` 字段由桌面壳写入 Windows 凭据管理器（`plugin-config/<插件ID>/<字段>`），不经过 Node 后端落盘。插件被移除或改指向别的文件时，桌面壳删除它原来的密钥，与模型 Key 不跟随连接换主机的规则一致。
+- **交给插件**：启动游戏时，桌面壳只为已启用插件读取密钥，经 `PERSPECTRA_PLUGIN_SECRETS` 交给游戏进程；游戏入口读到后立即从环境中删除，再装载插件。装载器在导入模块前合并默认值、保存值和密钥并检查必填项，通过后作为 Cordis 的 `config` 传给插件：`export default function (ctx, config) {}`。清单无效或配置不符时只跳过这一个插件，原因分别为 `manifest` / `config`，启动器显示宿主写的说明（如缺哪一项），不显示配置值。
+- 源码：[清单格式与配置合并](../../desktop/host-plugin-manifest.ts)（启动器页面与宿主共用）、[读取清单文件](../../desktop/plugin-manifest-file.ts)、[凭据存储](../../apps/launcher/src-tauri/src/plugin_secrets.rs)、[设置页插件块](../../apps/launcher/src/components/PluginSettingsBlock.vue)。类型在 [plugin-sdk](../../packages/plugin-sdk/src/index.ts) 的 `PluginManifest`、`PluginConfigField`。自动测试覆盖清单解析、配置合并、导入前跳过、启动器保存校验、仅启用插件拿到密钥、密钥晚于设置保存，以及凭据清理规则；没有在 Tauri 桌面版里实际走过一遍保存密钥和启动的流程。
+
 2026-10-26 宿主 API 版本：每个插件模块须导出 `hostApi`（如 `'1.0'`），表示需要的最低宿主 API。装载器在调用插件前用 [plugin-sdk](../../packages/plugin-sdk/src/index.ts) 的 `hostApiCompatible` 比较，主版本不同、需要更高次版本或未声明时跳过，原因为 `version`，启动器显示“宿主 API 版本不兼容或未声明”。仓库示例插件均已声明 `1.0`；此前写好的本地插件需补上这一行。接口类型与版本规则见[插件编写指南](guides/host-plugin-authoring.md)。
 
-2026-10-26 玩家可见事件订阅：例如主播想把对白同步到直播画面。启用 [transcript-file.mjs](../../examples/host-plugins/transcript-file.mjs) 并设置 `PERSPECTRA_TRANSCRIPT_FILE`，文件会跟着玩家读到的对白更新，OBS 的文字源读取它即可。插件通过 `ctx.effect(() => ctx.playerFeed.subscribe(listener))` 订阅，收到的是宿主已经为玩家投影好的对话记录，与默认舞台的历史相同：没有角色 Context、心理、私有状态或其他角色的视角，监听器的返回值也不会回到世界。
+2026-10-26 玩家可见事件订阅：例如主播想把对白同步到直播画面。启用 [transcript-file.mjs](../../examples/host-plugins/transcript-file.mjs) 并在设置里填写输出文件，文件会跟着玩家读到的对白更新，OBS 的文字源读取它即可。插件通过 `ctx.effect(() => ctx.playerFeed.subscribe(listener))` 订阅，收到的是宿主已经为玩家投影好的对话记录，与默认舞台的历史相同：没有角色 Context、心理、私有状态或其他角色的视角，监听器的返回值也不会回到世界。
 
 - 事件只有两种：`append` 带新增的行；`reset` 带完整记录，出现在首次推送、重新生成、切换候选或恢复之后，订阅者应整体替换已有内容。
 - 重新生成时，候选在被选中之前不推送；取消或失败的候选从不出现在订阅里。
@@ -37,15 +45,15 @@ RPG Maker [双端连接骨架](../../examples/rpg-maker/README.md)已注册 `rpg
 
 ## 编写语音插件
 
-装载器接受默认导出的 Cordis 函数、类或带 `apply` 的对象。推荐使用 `.mjs`；`.js` 的 ESM 解析沿用文件所在目录的 Node 包配置。首版不安装依赖、不接收远程模块地址、不提供热更新或任意 JSON 插件配置。
+装载器接受默认导出的 Cordis 函数、类或带 `apply` 的对象。推荐使用 `.mjs`；`.js` 的 ESM 解析沿用文件所在目录的 Node 包配置。首版不安装依赖、不接收远程模块地址、不提供热更新。插件的配置项由入口旁的 `.plugin.json` 清单声明，见下方“插件清单与配置”。
 
 语音消费点是 `ctx.frontendServices.registerSpeech(synthesize)`，返回注销函数。插件通过 `ctx.effect()` 持有它，在 Cordis 释放插件时注销服务。参数和音频返回值沿用 [FrontendSpeechInput / FrontendSpeechAudio](../../packages/frontend/src/speech.ts)，不新增一套语音协议：
 
 ```js
 export const hostApi = '1.0'
 
-export default function speechPlugin(ctx) {
-  const endpoint = new URL(process.env.PERSPECTRA_TTS_ENDPOINT);
+export default function speechPlugin(ctx, config) {
+  const endpoint = new URL(config.endpoint);
   ctx.effect(() => ctx.frontendServices.registerSpeech(async (input, signal) => {
     const response = await fetch(endpoint, {
       method: 'POST', signal,
@@ -58,9 +66,9 @@ export default function speechPlugin(ctx) {
 }
 ```
 
-此例要求目标服务接收原样的授权段落 JSON 并返回 WAV。项目附带更完整的可选 [HTTP 语音插件](../../examples/host-plugins/http-speech.mjs)，支持 WAV / MP3 / OGG，并可读取 `PERSPECTRA_TTS_API_KEY` 作为 Bearer 凭证。它只是 HTTP 转接器，不附带合成模型，也不宣称兼容任意厂商的请求格式；供应商请求不同就替换插件内部的转换逻辑。
+此例要求目标服务接收原样的授权段落 JSON 并返回 WAV。项目附带更完整的可选 [HTTP 语音插件](../../examples/host-plugins/http-speech.mjs)，支持 WAV / MP3 / OGG，并可使用密钥配置项 `apiKey` 作为 Bearer 凭证。它只是 HTTP 转接器，不附带合成模型，也不宣称兼容任意厂商的请求格式；供应商请求不同就替换插件内部的转换逻辑。
 
-使用附带插件时，在启动 Launcher 的环境中设置 `PERSPECTRA_TTS_ENDPOINT` 为实际语音服务地址，必要时设置上述 Key，再把 `examples/host-plugins/http-speech.mjs` 的绝对路径添加到启动器。不在 Launcher 设置中保存这些环境值。HTTP 请求体是：
+使用附带插件时，把 `examples/host-plugins/http-speech.mjs` 的绝对路径添加到启动器，设置页会按 [http-speech.plugin.json](../../examples/host-plugins/http-speech.plugin.json) 显示“语音服务地址”和“API Key”两项。地址保存在启动器设置里；Key 保存在 Windows 凭据管理器，只在启动游戏时交给插件。2026-10-26 之前靠 `PERSPECTRA_TTS_ENDPOINT` / `PERSPECTRA_TTS_API_KEY` 环境变量的写法已不再读取。HTTP 请求体是：
 
 ```json
 {"seq":7,"segmentIndex":1,"text":"你好。","type":"speech","speakerId":"character:remote"}

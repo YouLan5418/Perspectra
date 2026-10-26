@@ -68,6 +68,7 @@ const log = value => appendFileSync(join(root, 'child.jsonl'), JSON.stringify(va
 const presetPath = join(root, 'preset-settings.json')
 const snapshot = { models: JSON.parse(process.env.PERSPECTRA_ROLE_MODELS), reading: process.env.PERSPECTRA_READING,
   hostPlugins: JSON.parse(process.env.PERSPECTRA_HOST_PLUGINS),
+  pluginSecrets: JSON.parse(process.env.PERSPECTRA_PLUGIN_SECRETS || '{}'),
   settings: process.argv.at(-1), presets: existsSync(presetPath) ? JSON.parse(readFileSync(presetPath, 'utf8')) : null }
 log({ type: 'started', snapshot })
 process.on('message', message => {
@@ -906,6 +907,74 @@ it('shows plugins the game skipped and names a missing required capability witho
     expect(String(failure)).not.toContain('PRIVATE_HOST_DETAIL')
     expect(core.snapshot().core.state).toBe('idle')
     expect(core.snapshot().skippedPlugins).toEqual([{ id: 'device', reason: 'import' }])
+  } finally {
+    await core.stop()
+    vi.unstubAllEnvs()
+  }
+})
+
+it('reads plugin manifests, checks saved config against them and hands over secrets only to enabled plugins', async () => {
+  const { core, instanceId, log } = await runningService()
+  const directory = join(core.root, 'plugins')
+  await mkdir(directory)
+  const tts = join(directory, 'tts.mjs'),
+    plain = join(directory, 'plain.mjs'),
+    broken = join(directory, 'broken.mjs')
+  for (const file of [tts, plain, broken]) await writeFile(file, 'export default () => {}')
+  await writeFile(
+    join(directory, 'tts.plugin.json'),
+    JSON.stringify({
+      name: '语音',
+      version: '1.0.0',
+      services: ['frontendServices'],
+      config: {
+        endpoint: { type: 'string', title: '服务地址', required: true },
+        apiKey: { type: 'string', title: 'API Key', secret: true },
+      },
+    }),
+  )
+  await writeFile(join(directory, 'broken.plugin.json'), '{ not json')
+  const save = (hostPlugins: unknown) =>
+    core.handle({ operation: 'preferences', theme: 'system', largeText: false, hostPlugins })
+  try {
+    expect(await core.handle({ operation: 'plugin-inspect', path: tts })).toMatchObject({ manifest: { name: '语音' } })
+    expect(await core.handle({ operation: 'plugin-inspect', path: plain })).toEqual({ missing: true })
+    expect(await core.handle({ operation: 'plugin-inspect', path: broken })).toEqual({
+      error: '插件清单不是有效的 JSON。',
+    })
+    await expect(core.handle({ operation: 'plugin-inspect', path: 'relative.mjs' })).rejects.toThrow('绝对路径')
+
+    const before = await readFile(join(core.root, 'launcher.json'), 'utf8')
+    await expect(save([{ id: 'tts', path: tts, enabled: true, config: { apiKey: 'leaked' } }])).rejects.toThrow(
+      '插件 tts：API Key 是密钥',
+    )
+    await expect(save([{ id: 'tts', path: tts, enabled: true, config: { volume: 1 } }])).rejects.toThrow(
+      '没有配置项 volume',
+    )
+    await expect(save([{ id: 'plain', path: plain, enabled: true, config: { x: 1 } }])).rejects.toThrow('没有配置项 x')
+    expect(await readFile(join(core.root, 'launcher.json'), 'utf8')).toBe(before)
+
+    await save([
+      { id: 'tts', path: tts, enabled: true, config: { endpoint: 'http://127.0.0.1:9000/tts' } },
+      { id: 'plain', path: plain, enabled: false },
+      { id: 'broken', path: broken, enabled: false },
+    ])
+    expect(core.snapshot().pluginManifests).toMatchObject({
+      tts: { manifest: { name: '语音' } },
+      plain: { missing: true },
+      broken: { error: '插件清单不是有效的 JSON。' },
+    })
+    expect(await readFile(join(core.root, 'launcher.json'), 'utf8')).not.toContain('apiKey')
+
+    // The desktop shell injects stored secrets into the start request; a disabled plugin gets none.
+    await core.handle({
+      operation: 'start',
+      instanceId,
+      pluginSecrets: { tts: { apiKey: 'from-credential-store' }, plain: { token: 'not-for-disabled' } },
+    })
+    const started = (await log()).filter(entry => entry.type === 'started').at(-1)
+    expect(started.snapshot.pluginSecrets).toEqual({ tts: { apiKey: 'from-credential-store' } })
+    expect(started.snapshot.hostPlugins[0].config).toEqual({ endpoint: 'http://127.0.0.1:9000/tts' })
   } finally {
     await core.stop()
     vi.unstubAllEnvs()

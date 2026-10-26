@@ -48,6 +48,23 @@ export default async function myBgm(ctx) {
 }
 ```
 
+再放一份同名清单 `my-bgm.plugin.json`，启动器会显示插件名、作者和用途，并为 `config` 里的字段生成输入框：
+
+```json
+{
+  "name": "我的配乐",
+  "version": "1.0.0",
+  "author": "你的名字",
+  "description": "日常与争执两段配乐。",
+  "services": ["frontendServices"],
+  "config": {
+    "tenseWord": { "type": "string", "title": "触发紧张曲的词", "default": "争执" }
+  }
+}
+```
+
+插件函数的第二个参数就是玩家填写的值，已补上默认值：把上例的 `input.text.includes('争执')` 换成 `input.text.includes(config.tenseWord)`，函数签名写成 `myBgm(ctx, config)`。需要保存 API Key 之类的值时，给字段加 `"secret": true`，它会存进 Windows 凭据管理器而不是设置文件。字段格式和保存位置见[宿主插件](../host-plugins.md)。
+
 将整个目录交给玩家，在 Launcher 添加 `my-bgm.mjs`，即可使用官方播放器。不要同时启用这个插件和示例 BGM；当前只允许一个插件决定配乐，但可以同时加载 TTS。
 
 音频格式用正确的 `contentType`：MP3 为 `audio/mpeg`，OGG 为 `audio/ogg`，WAV 为 `audio/wav`。宿主检查字节与大小，不检测实际编码，文件能否解码还取决于浏览器；加载损坏音频时舞台提示失败，阅读照常继续。

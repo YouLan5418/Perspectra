@@ -1,5 +1,9 @@
 import type { PlaySettings, ReadingPreferences, AudioPreferences } from '../../../desktop/play-settings.ts'
 import type { HostPluginSettings } from '../../../desktop/host-plugin-settings.ts'
+import type { PluginManifest } from '@harness-world/plugin-sdk'
+export type { PluginManifest }
+/** What the launcher knows about a plugin file: its manifest, that it has none, or why it is unreadable. */
+export type PluginManifestInfo = { manifest: PluginManifest } | { missing: true } | { error: string }
 import type { PackRolePresets, RolePreset, RolePresetMapping } from '@harness-world/provider-chat/preset'
 export type { PackRolePresets, RolePreset, RolePresetMapping }
 export interface PresetChoice extends RolePresetMapping {
@@ -58,7 +62,9 @@ export interface CoreSnapshot {
   playSettings?: Record<string, PlaySettings>
   dataDirectory: string
   /** Plugins that failed to load in the most recent game launch and were skipped. */
-  skippedPlugins?: { id: string; reason: 'import' | 'version' | 'apply' }[]
+  skippedPlugins?: { id: string; reason: 'manifest' | 'config' | 'import' | 'version' | 'apply'; detail?: string }[]
+  /** Per saved plugin ID. */
+  pluginManifests?: Record<string, PluginManifestInfo>
   core: {
     state: 'idle' | 'running' | 'error'
     mode: 'real'

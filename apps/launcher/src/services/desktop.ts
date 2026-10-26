@@ -1,5 +1,5 @@
 import { invoke, isTauri } from '@tauri-apps/api/core'
-import type { CoreSnapshot } from '../core-types.ts'
+import type { CoreSnapshot, PluginManifestInfo } from '../core-types.ts'
 export async function coreRequest(operation: string, data: Record<string, unknown> = {}): Promise<CoreSnapshot> {
   return invoke<CoreSnapshot>('launcher_request', { request: { operation, ...data } })
 }
@@ -65,6 +65,20 @@ export async function connectionKeyStatus(connectionIds: string[]): Promise<stri
     request: { operation: 'connection-key-status', connectionIds },
   })
   return result.stored
+}
+/** Secret plugin fields go straight to the system credential store; an empty value clears one. */
+export async function setPluginSecret(pluginId: string, field: string, value: string): Promise<void> {
+  await invoke('launcher_request', { request: { operation: 'plugin-secret-set', pluginId, field, value } })
+}
+export async function pluginSecretStatus(pluginId: string, fields: string[]): Promise<string[]> {
+  const result = await invoke<{ stored: string[] }>('launcher_request', {
+    request: { operation: 'plugin-secret-status', pluginId, fields },
+  })
+  return result.stored
+}
+/** Reads the manifest beside a plugin file the player just picked, before settings are saved. */
+export async function inspectPlugin(path: string): Promise<PluginManifestInfo> {
+  return invoke('launcher_request', { request: { operation: 'plugin-inspect', path } })
 }
 
 export async function chooseStoryFile(): Promise<string | null> {

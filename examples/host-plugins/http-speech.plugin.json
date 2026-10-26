@@ -1,0 +1,22 @@
+{
+  "name": "HTTP 语音合成",
+  "version": "0.2.0",
+  "author": "Perspectra",
+  "description": "把玩家有权阅读的段落发给你自己的语音服务，播放返回的 WAV、MP3 或 OGG。",
+  "services": ["frontendServices"],
+  "config": {
+    "endpoint": {
+      "type": "string",
+      "title": "语音服务地址",
+      "description": "完整的 http(s) 地址，服务接收段落 JSON 并返回音频。",
+      "required": true,
+      "maxLength": 2048
+    },
+    "apiKey": {
+      "type": "string",
+      "title": "API Key",
+      "description": "可选；以 Bearer 方式发送。",
+      "secret": true
+    }
+  }
+}

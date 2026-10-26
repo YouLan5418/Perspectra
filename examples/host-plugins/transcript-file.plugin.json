@@ -1,0 +1,16 @@
+{
+  "name": "对白写入文件",
+  "version": "0.2.0",
+  "author": "Perspectra",
+  "description": "把你能看到的对白同步写进一个文本文件，可作为直播软件的文字源。只读，不影响游戏。",
+  "services": ["playerFeed"],
+  "config": {
+    "file": {
+      "type": "string",
+      "title": "输出文件",
+      "description": "文本文件的绝对路径，重新生成或切换候选时会整份重写。",
+      "required": true,
+      "maxLength": 4096
+    }
+  }
+}

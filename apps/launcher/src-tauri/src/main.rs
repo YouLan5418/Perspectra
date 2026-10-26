@@ -1,6 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 mod data_location;
 mod model_keys;
+mod plugin_secrets;
 use serde_json::{json, Value};
 #[cfg(windows)]
 use std::os::windows::process::CommandExt;
@@ -179,7 +180,24 @@ async fn launcher_request(
             snapshot["connections"].as_array().and_then(|list| list.iter().find(|c| c["id"] == id.as_str()))
                 .and_then(|c| c["endpoint"].as_str().map(String::from))
         } else { None };
+        // Plugin secrets must not follow a plugin ID to a removed entry or a different file.
+        let previous_plugins = if request["operation"] == "preferences" {
+            Some(core.request(json!({"operation":"snapshot"}))?)
+        } else { None };
         match request["operation"].as_str() {
+            Some("plugin-secret-set") => {
+                let plugin = request["pluginId"].as_str().ok_or("插件标识无效。")?;
+                let field = request["field"].as_str().ok_or("插件密钥标识无效。")?;
+                let value = request["value"].as_str().ok_or("插件密钥无效。")?;
+                plugin_secrets::set(plugin, field, value)?;
+                return Ok(json!({ "saved": true }));
+            }
+            Some("plugin-secret-status") => {
+                let plugin = request["pluginId"].as_str().ok_or("插件标识无效。")?;
+                let fields = request["fields"].as_array().ok_or("插件密钥标识无效。")?;
+                let stored: Vec<&str> = fields.iter().filter_map(Value::as_str).filter(|field| plugin_secrets::get(plugin, field).is_some()).collect();
+                return Ok(json!({ "stored": stored }));
+            }
             Some("connection-key-set") => {
                 let id = request["connectionId"].as_str().ok_or("连接标识无效。")?;
                 let key = request["apiKey"].as_str().ok_or("API Key 无效。")?;
@@ -199,14 +217,23 @@ async fn launcher_request(
                 let snapshot = core.request(json!({"operation":"snapshot"}))?;
                 let ids: Vec<String> = snapshot["connections"].as_array().map(|list| list.iter().filter_map(|c| c["id"].as_str().map(String::from)).collect()).unwrap_or_default();
                 model_keys::inject(&mut request, &ids, model_keys::get);
+                plugin_secrets::inject(&mut request, Some(&snapshot), plugin_secrets::get);
             }
             _ => model_keys::inject(&mut request, &[], |_| None),
+        }
+        if request["operation"] != "start" {
+            plugin_secrets::inject(&mut request, None, |_, _| None);
         }
         let result = core.request(request.clone())?;
         if let (Some(old), Some(id)) = (previous_endpoint, request["connection"]["id"].as_str()) {
             let saved = result["connections"].as_array().and_then(|list| list.iter().find(|c| c["id"] == id)).and_then(|c| c["endpoint"].as_str());
             if saved.is_some_and(|new| !model_keys::same_origin(&old, new)) {
                 model_keys::remove(id);
+            }
+        }
+        if let Some(before) = previous_plugins {
+            for (plugin, field) in plugin_secrets::stale(&before, &result) {
+                plugin_secrets::remove(&plugin, &field);
             }
         }
         if request["operation"] == "connection-remove" {

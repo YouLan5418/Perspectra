@@ -1,6 +1,6 @@
 import { thinkingLevel, providerProtocol, rolePreset, rolePresetMapping } from '@harness-world/provider-chat'
 import { loadHostPlugins, type HostPlugins } from '../host-plugins.ts'
-import { hostPluginSettings } from '../host-plugin-settings.ts'
+import { hostPluginSettings, pluginSecretValues } from '../host-plugin-settings.ts'
 import { readingPreferences, audioPreferences } from '../play-settings.ts'
 import { runtimeRoleModels } from '../model-connections.ts'
 import { ModelPresets, packPreset } from '../model-presets.ts'
@@ -105,7 +105,13 @@ async function main(): Promise<void> {
     override: _override,
     ...mapping
   } = settings?.instances[instanceId] ?? { mode: 'auto', override: {} }
-  hostPlugins = await loadHostPlugins(hostPluginSettings(JSON.parse(process.env.PERSPECTRA_HOST_PLUGINS ?? '[]')))
+  // Removed from the environment before any plugin runs, so one plugin cannot read another's secrets there.
+  const pluginSecrets = pluginSecretValues(JSON.parse(process.env.PERSPECTRA_PLUGIN_SECRETS || '{}'))
+  delete process.env.PERSPECTRA_PLUGIN_SECRETS
+  hostPlugins = await loadHostPlugins(
+    hostPluginSettings(JSON.parse(process.env.PERSPECTRA_HOST_PLUGINS ?? '[]')),
+    pluginSecrets,
+  )
   const runtime = await WorldHostRuntime.create({
     capabilities: hostPlugins.capabilities,
     playerFeed: hostPlugins.playerFeed,

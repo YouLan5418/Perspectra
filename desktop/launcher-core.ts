@@ -9,7 +9,10 @@ import {
   type ReadingPreferences,
   type AudioPreferences,
 } from './play-settings.ts'
-import { hostPluginSettings, type HostPluginSettings } from './host-plugin-settings.ts'
+import { hostPluginSettings, pluginSecretValues, type HostPluginSettings } from './host-plugin-settings.ts'
+import { savedPluginConfig } from './host-plugin-manifest.ts'
+import { readPluginManifest } from './plugin-manifest-file.ts'
+import type { PluginManifest } from '@harness-world/plugin-sdk'
 import {
   providerEndpoint,
   providerHeaders,
@@ -125,7 +128,20 @@ function object(value: unknown): Record<string, unknown> {
 }
 export interface SkippedPlugin {
   id: string
-  reason: 'import' | 'version' | 'apply'
+  reason: 'manifest' | 'config' | 'import' | 'version' | 'apply'
+  /** Host-written text for manifest and config problems, e.g. which field to fill in. */
+  detail?: string
+}
+const SKIP_REASONS = ['manifest', 'config', 'import', 'version', 'apply']
+/** What the settings page shows about a plugin file: its manifest, that it has none, or why it is unreadable. */
+export type PluginManifestInfo = { manifest: PluginManifest } | { missing: true } | { error: string }
+async function inspectPlugin(path: string): Promise<PluginManifestInfo> {
+  try {
+    const manifest = await readPluginManifest(path)
+    return manifest ? { manifest } : { missing: true }
+  } catch (error) {
+    return { error: (error as Error).message }
+  }
 }
 /** The game process reports skipped plugins by ID and reason only; anything malformed is dropped. */
 function skippedPlugins(value: unknown): SkippedPlugin[] {
@@ -138,10 +154,14 @@ function skippedPlugins(value: unknown): SkippedPlugin[] {
         typeof item.id === 'string' &&
         item.id.length > 0 &&
         item.id.length <= 64 &&
-        (item.reason === 'import' || item.reason === 'version' || item.reason === 'apply'),
+        SKIP_REASONS.includes(item.reason),
     )
     .slice(0, 16)
-    .map(item => ({ id: item.id, reason: item.reason }))
+    .map(item => ({
+      id: item.id,
+      reason: item.reason,
+      ...(typeof item.detail === 'string' && item.detail.length <= 300 ? { detail: item.detail } : {}),
+    }))
 }
 /** A pack whose required capability is missing names it, so the player knows which plugin to fix. */
 function startupFailure(data: Record<string, unknown>): string {
@@ -155,6 +175,20 @@ function startupFailure(data: Record<string, unknown>): string {
     return `世界包需要宿主能力 ${missing}，但没有已启用的插件提供它。${skippedNote}请在设置中启用或修复对应插件后重试。`
   if (skipped.length) return `Core 初始化失败。${skippedNote}请检查包、存档、本机记忆依赖与这些插件文件。`
   return 'Core 初始化失败；请检查包、存档及本机记忆依赖。'
+}
+/** Saved values must fit the manifest beside each plugin file; secrets are refused here (credential store only). */
+async function checkedPluginConfig(plugins: HostPluginSettings[]): Promise<HostPluginSettings[]> {
+  for (const plugin of plugins) {
+    if (plugin.config === undefined || !Object.keys(plugin.config).length) continue
+    const info = await inspectPlugin(plugin.path)
+    if ('error' in info) throw new TypeError(`插件 ${plugin.id}：${info.error}`)
+    try {
+      savedPluginConfig('manifest' in info ? info.manifest : undefined, plugin.config)
+    } catch (error) {
+      throw new TypeError(`插件 ${plugin.id}：${(error as Error).message}`)
+    }
+  }
+  return plugins
 }
 function text(value: unknown, label: string, max = 4096): string {
   if (typeof value !== 'string' || !value.trim() || value.length > max) throw new Error(label + '无效。')
@@ -201,6 +235,14 @@ export class LauncherCore {
   #error = ''
   /** From the most recent game launch, kept after it stops so settings can still point at the plugin. */
   #skippedPlugins: SkippedPlugin[] = []
+  /** Per saved plugin ID, re-read when settings are saved or a game starts. */
+  #pluginManifests: Record<string, PluginManifestInfo> = {}
+  async #readPluginManifests(): Promise<void> {
+    const plugins = (this.#index.preferences.hostPlugins ?? []).filter(plugin => plugin.path)
+    this.#pluginManifests = Object.fromEntries(
+      await Promise.all(plugins.map(async plugin => [plugin.id, await inspectPlugin(plugin.path)] as const)),
+    )
+  }
   #frontends: Record<
     string,
     { kind: 'default' | 'custom'; mode: 'sandbox' | 'trusted'; digest: string; capabilities: string[] }
@@ -409,6 +451,7 @@ export class LauncherCore {
     await this.#presets.load()
     await this.#presets.loadLibrary()
     await this.#recommendations()
+    await this.#readPluginManifests()
   }
   async #recommendations() {
     for (const pack of this.#index.packs) {
@@ -561,6 +604,7 @@ export class LauncherCore {
       frontends: this.#frontends,
       dataDirectory: this.root,
       skippedPlugins: this.#skippedPlugins.map(plugin => ({ ...plugin })),
+      pluginManifests: structuredClone(this.#pluginManifests),
       core: this.#active
         ? {
             state: 'running',
@@ -940,10 +984,17 @@ export class LauncherCore {
             largeText: request.largeText,
             ...(request.reading === undefined ? {} : { reading: readingPreferences(request.reading) }),
             ...(request.audio === undefined ? {} : { audio: audioPreferences(request.audio) }),
-            ...(request.hostPlugins === undefined ? {} : { hostPlugins: hostPluginSettings(request.hostPlugins) }),
+            ...(request.hostPlugins === undefined
+              ? {}
+              : { hostPlugins: await checkedPluginConfig(hostPluginSettings(request.hostPlugins)) }),
           },
         })
+        await this.#readPluginManifests()
         return this.snapshot()
+      }
+      case 'plugin-inspect': {
+        const [plugin] = hostPluginSettings([{ id: 'inspect', path: request.path, enabled: true }])
+        return inspectPlugin(plugin!.path)
       }
       case 'settings': {
         if (request.largeText !== undefined && typeof request.largeText !== 'boolean')
@@ -975,6 +1026,13 @@ export class LauncherCore {
         this.#idle()
         this.#error = ''
         this.#skippedPlugins = []
+        await this.#readPluginManifests()
+        const enabledPlugins = new Set(
+          (this.#index.preferences.hostPlugins ?? []).filter(plugin => plugin.enabled).map(plugin => plugin.id),
+        )
+        const pluginSecrets = Object.fromEntries(
+          Object.entries(pluginSecretValues(request.pluginSecrets ?? {})).filter(([id]) => enabledPlugins.has(id)),
+        )
         let instance = this.#instance(request.instanceId)
         const packError = this.#details[instance.packageId]?.error
         if (packError) throw new Error(packError)
@@ -1049,6 +1107,8 @@ export class LauncherCore {
               PERSPECTRA_AUDIO: JSON.stringify(this.#index.preferences.audio ?? DEFAULT_AUDIO),
               PERSPECTRA_APPEARANCE: this.#index.preferences.theme ?? 'system',
               PERSPECTRA_HOST_PLUGINS: JSON.stringify(this.#index.preferences.hostPlugins ?? []),
+              // Read from the credential store by the desktop shell for this launch only; never saved here.
+              PERSPECTRA_PLUGIN_SECRETS: JSON.stringify(pluginSecrets),
               PERSPECTRA_PRESET_ROOT: this.root,
               PERSPECTRA_PRESET_INSTANCE: instance.id,
               PERSPECTRA_ROLE_PRESET: undefined,

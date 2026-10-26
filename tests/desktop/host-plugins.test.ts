@@ -38,17 +38,21 @@ it('runs the optional HTTP speech plugin against a local service without persist
   })
   server.listen(0, '127.0.0.1')
   await once(server, 'listening')
-  vi.stubEnv('PERSPECTRA_TTS_ENDPOINT', `http://127.0.0.1:${(server.address() as AddressInfo).port}/speech`)
-  vi.stubEnv('PERSPECTRA_TTS_API_KEY', 'fixture-only-key')
   try {
-    const session = await loadHostPlugins([
-      {
-        id: 'http-tts',
-        enabled: true,
-        path: fileURLToPath(new URL('../../examples/host-plugins/http-speech.mjs', import.meta.url)),
-      },
-    ])
+    // The endpoint is a saved setting; the key arrives as a secret, as the launcher hands it over at launch.
+    const session = await loadHostPlugins(
+      [
+        {
+          id: 'http-tts',
+          enabled: true,
+          path: fileURLToPath(new URL('../../examples/host-plugins/http-speech.mjs', import.meta.url)),
+          config: { endpoint: `http://127.0.0.1:${(server.address() as AddressInfo).port}/speech` },
+        },
+      ],
+      { 'http-tts': { apiKey: 'fixture-only-key' } },
+    )
     sessions.push(session)
+    expect(session.skipped).toEqual([])
     expect(await session.services.synthesizeSpeech!(paragraph, new AbortController().signal)).toEqual(audio)
     expect(received).toEqual([paragraph])
     expect(authorizations).toEqual(['Bearer fixture-only-key'])
@@ -234,12 +238,12 @@ it('mirrors appends and resets into a file through the example transcript plugin
   const root = await mkdtemp(join(tmpdir(), 'perspectra-transcript-'))
   roots.push(root)
   const file = join(root, 'transcript.txt')
-  vi.stubEnv('PERSPECTRA_TRANSCRIPT_FILE', file)
   const session = await loadHostPlugins([
     {
       id: 'transcript',
       path: fileURLToPath(new URL('../../examples/host-plugins/transcript-file.mjs', import.meta.url)),
       enabled: true,
+      config: { file },
     },
   ])
   sessions.push(session)
@@ -305,5 +309,62 @@ it('skips plugins that need a newer host API or do not declare one, before their
   await expect(readFile(join(root, 'undeclared-ran'), 'utf8')).rejects.toMatchObject({ code: 'ENOENT' })
   expect(await readFile(join(root, 'current-ran'), 'utf8')).toBe('ran')
   expect(error.mock.calls.some(([label]) => String(label).includes('（未声明 hostApi）'))).toBe(true)
+  error.mockRestore()
+})
+
+it('checks the manifest and config before importing, and hands the merged config to the plugin', async () => {
+  const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+  const root = await mkdtemp(join(tmpdir(), 'perspectra-plugin-config-'))
+  roots.push(root)
+  const plugin = async (name: string, manifest?: unknown) => {
+    const path = join(root, name + '.mjs')
+    await writeFile(
+      path,
+      `import { writeFileSync } from 'node:fs';
+      writeFileSync(new URL('./${name}-imported', import.meta.url), 'yes');
+      export const hostApi = '1.0';
+      export default function(ctx, config) { writeFileSync(new URL('./${name}-config', import.meta.url), JSON.stringify(config)) }`,
+    )
+    if (manifest !== undefined)
+      await writeFile(
+        join(root, name + '.plugin.json'),
+        typeof manifest === 'string' ? manifest : JSON.stringify(manifest),
+      )
+    return path
+  }
+  const manifest = {
+    name: '配置示例',
+    version: '1.0.0',
+    services: [],
+    config: {
+      endpoint: { type: 'string', title: '服务地址', required: true },
+      voice: { type: 'string', title: '音色', default: '温柔' },
+      apiKey: { type: 'string', title: 'API Key', secret: true },
+    },
+  }
+  const session = await loadHostPlugins(
+    [
+      { id: 'configured', path: await plugin('configured', manifest), enabled: true, config: { endpoint: 'http://x' } },
+      { id: 'unfilled', path: await plugin('unfilled', manifest), enabled: true },
+      { id: 'broken-manifest', path: await plugin('broken-manifest', '{ not json'), enabled: true },
+      { id: 'no-manifest', path: await plugin('no-manifest'), enabled: true },
+    ],
+    { configured: { apiKey: 'fixture-secret' } },
+  )
+  sessions.push(session)
+  expect(session.skipped).toEqual([
+    { id: 'unfilled', reason: 'config', detail: '请先填写：服务地址。' },
+    { id: 'broken-manifest', reason: 'manifest', detail: '插件清单不是有效的 JSON。' },
+  ])
+  expect(JSON.parse(await readFile(join(root, 'configured-config'), 'utf8'))).toEqual({
+    endpoint: 'http://x',
+    voice: '温柔',
+    apiKey: 'fixture-secret',
+  })
+  expect(JSON.parse(await readFile(join(root, 'no-manifest-config'), 'utf8'))).toEqual({})
+  // Skipped before import: neither module's top-level code ran.
+  for (const name of ['unfilled', 'broken-manifest'])
+    await expect(readFile(join(root, name + '-imported'), 'utf8')).rejects.toMatchObject({ code: 'ENOENT' })
+  expect(JSON.stringify(error.mock.calls)).not.toContain('fixture-secret')
   error.mockRestore()
 })

@@ -1,0 +1,7 @@
+{
+  "name": "示例设备",
+  "version": "0.1.0",
+  "author": "Perspectra",
+  "description": "内存中的假设备，配合 plugin-capabilities-demo 世界包演示外部能力：确认与排队两种结果。",
+  "services": ["capabilities"]
+}

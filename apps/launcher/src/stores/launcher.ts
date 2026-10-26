@@ -18,8 +18,18 @@ import {
   listConnectionModels,
   setConnectionKey,
   connectionKeyStatus,
+  setPluginSecret,
+  pluginSecretStatus,
+  inspectPlugin as inspectPluginFile,
 } from '../services/desktop.ts'
-import type { CoreSnapshot, RolePreset, PresetChoice, ModelConnection, InstanceModels } from '../core-types.ts'
+import type {
+  CoreSnapshot,
+  RolePreset,
+  PresetChoice,
+  ModelConnection,
+  InstanceModels,
+  PluginManifestInfo,
+} from '../core-types.ts'
 import { computed, ref, watch } from 'vue'
 import { defineStore } from 'pinia'
 import {
@@ -45,6 +55,8 @@ export interface DrawerRow {
 
 /** Player-facing words for why a host plugin was skipped at launch. */
 export const PLUGIN_SKIP_REASON = {
+  manifest: '插件清单无效',
+  config: '配置不完整或无效',
   import: '导入失败',
   version: '宿主 API 版本不兼容或未声明',
   apply: '初始化失败',
@@ -78,6 +90,11 @@ export const useLauncherStore = defineStore('launcher', () => {
   const audio = ref({ ...DEFAULT_AUDIO })
   const hostPlugins = ref<HostPluginSettings[]>([])
   const skippedPlugins = ref<NonNullable<CoreSnapshot['skippedPlugins']>>([])
+  const pluginManifests = ref<NonNullable<CoreSnapshot['pluginManifests']>>({})
+  /** Secret values typed in settings and not yet saved, per plugin ID; '' clears the stored one. */
+  const pluginSecretDrafts = ref<Record<string, Record<string, string>>>({})
+  /** Secret fields the credential store holds, per plugin ID. */
+  const pluginSecretsStored = ref<Record<string, string[]>>({})
   const packagePlaySettings = ref<Record<string, PlaySettings>>({})
   const currentPlaySettings = computed(
     () => packagePlaySettings.value[selectedPackageId.value] ?? DEFAULT_PLAY_SETTINGS,
@@ -429,6 +446,7 @@ export const useLauncherStore = defineStore('launcher', () => {
     audio.value = snapshot.preferences?.audio ?? { ...DEFAULT_AUDIO }
     hostPlugins.value = snapshot.preferences?.hostPlugins ?? []
     skippedPlugins.value = snapshot.skippedPlugins ?? []
+    pluginManifests.value = snapshot.pluginManifests ?? {}
     packagePlaySettings.value = snapshot.playSettings ?? {}
     dataDirectory.value = snapshot.dataDirectory
     for (const [id, detail] of Object.entries(snapshot.packDetails ?? {})) if (!detail.hasCover) delete covers.value[id]
@@ -644,10 +662,35 @@ export const useLauncherStore = defineStore('launcher', () => {
   })
   const preferencesDraft = ref(appliedPreferences())
   const preferencesDirty = computed(
-    () => JSON.stringify(preferencesDraft.value) !== JSON.stringify(appliedPreferences()),
+    () =>
+      JSON.stringify(preferencesDraft.value) !== JSON.stringify(appliedPreferences()) ||
+      Object.values(pluginSecretDrafts.value).some(fields => Object.keys(fields).length > 0),
   )
   function resetPreferencesDraft() {
     preferencesDraft.value = appliedPreferences()
+    pluginSecretDrafts.value = {}
+  }
+  /** Mock mode has no plugin files to read. */
+  async function inspectPlugin(path: string): Promise<PluginManifestInfo> {
+    if (!real) return { missing: true }
+    try {
+      return await inspectPluginFile(path)
+    } catch (error) {
+      return {
+        error: typeof error === 'string' ? error : error instanceof Error ? error.message : '无法读取插件清单。',
+      }
+    }
+  }
+  async function refreshPluginSecrets(pluginId: string, fields: string[]) {
+    if (!real || !fields.length) return
+    try {
+      pluginSecretsStored.value = {
+        ...pluginSecretsStored.value,
+        [pluginId]: await pluginSecretStatus(pluginId, fields),
+      }
+    } catch {
+      // The status only decorates the form; saving still reports its own errors.
+    }
   }
   async function applyPreferences() {
     const draft = preferencesDraft.value
@@ -661,6 +704,19 @@ export const useLauncherStore = defineStore('launcher', () => {
       ))
     )
       return false
+    // After the settings save: moving or removing a plugin has already dropped its old secrets.
+    for (const [pluginId, fields] of Object.entries(pluginSecretDrafts.value))
+      for (const [field, value] of Object.entries(fields)) {
+        if (!real) continue
+        try {
+          await setPluginSecret(pluginId, field, value)
+        } catch (error) {
+          notice.value = typeof error === 'string' ? error : '无法保存插件密钥。'
+          return false
+        }
+      }
+    for (const [pluginId, fields] of Object.entries(pluginSecretDrafts.value))
+      await refreshPluginSecrets(pluginId, Object.keys(fields))
     resetPreferencesDraft()
     return true
   }
@@ -810,6 +866,11 @@ export const useLauncherStore = defineStore('launcher', () => {
     audio,
     hostPlugins,
     skippedPlugins,
+    pluginManifests,
+    pluginSecretDrafts,
+    pluginSecretsStored,
+    inspectPlugin,
+    refreshPluginSecrets,
     currentPlaySettings,
     savePlaySettings,
     savePreferences,

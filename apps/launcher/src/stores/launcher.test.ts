@@ -7,6 +7,9 @@ const bridge = vi.hoisted(() => ({
   list: vi.fn(),
   setKey: vi.fn(),
   keyStatus: vi.fn(),
+  setSecret: vi.fn(),
+  secretStatus: vi.fn(),
+  inspect: vi.fn(),
 }))
 vi.mock('@tauri-apps/api/core', () => ({ isTauri: () => true }))
 vi.mock('../services/desktop.ts', () => ({
@@ -16,6 +19,9 @@ vi.mock('../services/desktop.ts', () => ({
   listConnectionModels: bridge.list,
   setConnectionKey: bridge.setKey,
   connectionKeyStatus: bridge.keyStatus,
+  setPluginSecret: bridge.setSecret,
+  pluginSecretStatus: bridge.secretStatus,
+  inspectPlugin: bridge.inspect,
 }))
 import { useLauncherStore } from './launcher.ts'
 const endpoint = 'http://127.0.0.1:8046/v1/chat/completions'
@@ -495,4 +501,44 @@ it('deletes an instance through Core with explicit confirmation and moves the se
   expect(store.instances).toEqual([])
   expect(store.selectedInstanceId).toBe('')
   expect(store.notice).toContain('已删除实例「实例」')
+})
+
+it('saves plugin secrets only after the settings, never inside them, and forgets the typed values', async () => {
+  const store = useLauncherStore()
+  await store.initialize()
+  const order: string[] = []
+  bridge.request.mockImplementation(async (operation: string) => {
+    order.push(operation)
+    return snapshot()
+  })
+  bridge.setSecret.mockImplementation(async () => {
+    order.push('secret')
+  })
+  bridge.secretStatus.mockResolvedValue(['apiKey'])
+  store.resetPreferencesDraft()
+  store.preferencesDraft.hostPlugins.push({
+    id: 'tts',
+    path: 'D:/plugins/tts.mjs',
+    enabled: true,
+    config: { endpoint: 'http://127.0.0.1:9000/tts' },
+  })
+  store.pluginSecretDrafts.tts = { apiKey: 'typed-secret' }
+  expect(store.preferencesDirty).toBe(true)
+  expect(await store.applyPreferences()).toBe(true)
+  expect(order).toEqual(['preferences', 'secret'])
+  expect(JSON.stringify(bridge.request.mock.calls)).not.toContain('typed-secret')
+  expect(bridge.setSecret).toHaveBeenCalledWith('tts', 'apiKey', 'typed-secret')
+  expect(store.pluginSecretDrafts).toEqual({})
+  expect(store.pluginSecretsStored.tts).toEqual(['apiKey'])
+})
+it('keeps typed secrets when the settings save fails', async () => {
+  const store = useLauncherStore()
+  await store.initialize()
+  bridge.request.mockRejectedValueOnce('插件 tts：没有配置项 volume。')
+  store.resetPreferencesDraft()
+  store.pluginSecretDrafts.tts = { apiKey: 'typed-secret' }
+  expect(await store.applyPreferences()).toBe(false)
+  expect(bridge.setSecret).not.toHaveBeenCalled()
+  expect(store.pluginSecretDrafts.tts).toEqual({ apiKey: 'typed-secret' })
+  expect(store.notice).toContain('没有配置项 volume')
 })
