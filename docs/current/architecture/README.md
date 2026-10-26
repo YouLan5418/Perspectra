@@ -29,7 +29,7 @@
 | 节点、分叉和分享怎样工作 | [故事线](../storylines.md) |
 | 游戏页面怎样获授权 | [前端授权](../frontend-authorization.md) |
 | 默认舞台怎样播放对白和活动 | [默认情景舞台](../frontend-stage.md) |
-| 启动器怎样选择 Cordis 宿主插件、注册语音服务 | [宿主插件](../host-plugins.md) |
+| 启动器怎样选择 Cordis 宿主插件、注册语音与 BGM 服务 | [宿主插件](../host-plugins.md)、[插件制作指南](../guides/host-plugin-authoring.md) |
 | 创作者用前端插件能做到什么、还缺什么 | [前端表现插件的能力边界](../studies/frontend-plugin-capability-boundary.md) |
 | 角色专属和角色组预设如何应用 | [预设说明](../model-presets.md) |
 | 模型服务如何接入 | [模型接口协议](../model-protocols.md) |
@@ -37,6 +37,8 @@
 | Launcher 的模型连接与按角色模型 | [模型接口协议](../model-protocols.md)、[运行时](runtime.md) |
 
 ## 怎样理解这些说明
+
+2026-10-24 发行／创作补充：本轮已生成不附试玩包的本地程序候选，随包 CLI 与 [perspectra-creator Skill](../../../skills/perspectra-creator/SKILL.md)支持无源码创作。宿主／离线编码、测试失败与未验收范围见[本轮记录](../studies/program-package-creator-skill-20261024.md)；这不表示所有专题页的旧试玩证据已经更新。
 
 本页核对日期：2026-10-18。入门、模块地图和代码路线的核对日期分别写在各自页首。
 

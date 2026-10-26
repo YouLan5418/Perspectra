@@ -24,3 +24,10 @@ apps/launcher/dist-creator/
 
 # Local SillyTavern character cards; source text stays off Git.
 Tavern Card/
+
+# Python bytecode caches from the bundled Core memory.
+__pycache__/
+# Empty files that Windows-style "> nul" redirections leave behind in Git Bash.
+nul
+# Local desktop shortcuts.
+*.lnk

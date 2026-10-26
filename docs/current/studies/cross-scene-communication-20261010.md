@@ -6,7 +6,7 @@
 
 ## 实验实现
 
-- [一次投递规则](../../../tests/support/cross-scene-communication.ts)复用 RulebookResolver/Registry，使用 `interact` 的现有参数形状；特殊实验绑定仅由此入口安装，不加入通用物理可达目标。
+- [一次投递规则](../../../desktop/host/pack-communication.ts)（2026-10-25 从 tests/support 移入宿主）复用 RulebookResolver/Registry，使用 `interact` 的现有参数形状；特殊实验绑定仅由此入口安装，不加入通用物理可达目标。
 - [实验运行时](../../../tests/support/cross-scene-runtime.ts)使用原有 PrototypeCharacterTurn、WorldStore 短事务、原生记忆与有界激活。没有加载活动，因此不能通过该入口验收活动期间的通信策略。
 - [样例包](../../../examples/world-packs/cross-scene-sms/worldpack.source.json)和 [communication.json](../../../examples/world-packs/cross-scene-sms/communication.json)声明有向联系人与媒介名称。联系人不等于在场人员，也不授予位置、物品或对方私有认知。
 - 发送规则在同一事务产生 `character.speak` 与接收者专属 `observation.upsert`，规则结果为 self 范围；接收观察只含消息。接收者的本地 publish 仍使用场景受众规则。
@@ -52,3 +52,13 @@ node --import tsx tests/experiments/cross-scene-inspect.ts output/experiments/my
 - 没有离线未读、后台自动唤醒、已读回执、外部消息投递或崩溃后精确续跑。已提交观察保留，后续处理仍受 3 波、12 次调用、每角色 2 次激活、120 秒预算限制；不会因跨场景重新获得预算。
 - medium 当前只是作者为一次投递给出的名称；改名“托梦”不自动实现睡眠条件、隐藏真实发送者或接受／拒绝规则。后续独立[电话实验](cross-scene-phone-20261010.md)已验证持续连接与本端可听边界，铃声和免提尚未实现。
 - 没有新增包、Manifest 版本、数据库或恢复协议。联系人是明确声明的有向许可，不默认因为一次来信就授权反向联系。
+
+## 2026-10-25：接入默认宿主与 `model-girls-sweet-days`
+
+例如屋主独自在河堤步道给厨房里的 DeepSeek 发“要不要过来一起走走？”，她回短信“等等我马上来”，随后正式移动到河堤并当面说话；其他人收不到这条短信（自动测试里与屋主同在客厅的 GPT 也收不到）。
+
+- 规则文件移入宿主，包根目录有 `communication.json` 才安装；没有它的包行为不变。玩家选项“给 X 发短信”的正文由表单填写，经 `/message` 走独立短事务提交（与 `/status` 同路），然后照常唤醒收到观察的角色。NPC 的规则链为 core → 短信 → 状态 → 活动；`autonomy.json` 可列出 `experiment:message`，让角色在自主机会里先发短信。活动进行中玩家不能发短信。
+- 修复：玩家短信的提交记录没有 `request` 字段，自主计数原先默认它存在而报错。
+- 自动测试：本包场景新增 1 项（发给另一房间的 DeepSeek，只有她被唤醒，同房间的 GPT 请求里没有正文，回信出现在玩家转录里）；本包、自主、活动自动开始、短信/电话/组合/Core/故事节点实验与前端授权 9 文件 81 项通过。
+- 真实模型（DeepSeek flash，Core 记忆，开启“角色发言后可接着行动”）：屋主在河堤步道连发三条短信、推进两个时段，22 次调用。DeepSeek 回短信后自己走到河堤；Claude 回短信“别用茶包糊弄我”，留在书房；推进时段时 GPT 在自主机会里主动发来短信催屋主回家，之后又回复了晚饭短信。逐条检查请求：每个角色的请求里只出现自己那一来一回的正文。
+- 仍未验证：长时间游玩中的短信频率与调用成本、活动期间收发、电话、离线未读与已读回执。

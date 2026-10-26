@@ -12,6 +12,7 @@
 | 用创作者页面排查角色和物品 | [创作者调试接口](current/creator-debug-api.md) |
 | 从入门到理解当前代码 | [代码技术文档](current/architecture/README.md) |
 | 真实实验依据 | [实验入口](../experiments/README.md)、[当前研究](current/studies/ai-girls/README.md) |
+| 代码命名与运行边界 | [误导性代码与命名审查（2026-10-21）](current/studies/misleading-code-audit-20261021.md)、[宿主整理工作树审查（2026-10-21）](current/studies/code-organization-review-20261021.md) |
 | 历史设计与过程 | [归档](archive/README.md)、[ADR](adr/README.md)、[冻结规格](spec/README.md) |
 
 最新便携包是 0.1.0-test3，已发布为 [GitHub 预发布版](https://github.com/YouLan5418/Perspectra/releases/tag/v0.1.0-test3)。它早于 2026-10-15 之后的 Launcher 改版、模型连接和创作者页面；这些只能从源码运行体验。

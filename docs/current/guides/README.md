@@ -2,8 +2,11 @@
 
 本目录对应当前 v5 源包、Tauri Launcher 与公共玩家接口。标为“当前源码”的功能不在 test3 便携包里，差异见[项目状态](../PROJECT-STATE.md)。历史版本的命令、字段和验收记录不作为当前操作说明。
 
+2026-10-24：本轮程序包不附试玩内容；源包需另行取得或创作。随包 CLI 的命令、退出码及范围见[创作校验](../../../scripts/release/CREATOR.zh-CN.md)。创作工具接通、完整程序构建、真实体验和公开发行分别记录，不能互相替代。
+
 | 使用者 | 要做什么 | 入口 |
 | --- | --- | --- |
+| 创作者 | 只有程序包时，让 AI 生成和修改自己的源包 | [perspectra-creator Skill](../../../skills/perspectra-creator/SKILL.md) |
 | 玩家 | 官方试玩包的序章与生活事件 | [包说明](../../../examples/world-packs/model-girls-official/README.md) |
 | 玩家 | 没有序章、没有预定结局的四人晚宴（当前源码） | [赔罪晚宴](../../../examples/world-packs/model-girls-dinner/README.md) |
 | 玩家/开发者 | 当前 test3 的交付和验收范围 | [便携构建记录](../studies/launcher-portable-test3-20261009.md) |

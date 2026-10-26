@@ -1,8 +1,10 @@
 # 通过 Cordis 加载宿主插件
 
-核对日期：2026-10-18。源码已接通；未重建便携发行包，未验收真实合成器或实际音频体验。
+核对日期：2026-10-24。源码已接通 Cordis 本地装载、TTS 与 BGM 服务；默认舞台已有两个播放器。本轮不重建便携发行包，不代表真实合成器、正式配乐或听感已经验收。
 
 例如玩家读到角色的一句对白，支持语音的前端引用这段对白申请音频。宿主先核对玩家是否有权阅读、内容是否仍有效，再把该段文本交给 Cordis 插件注册的合成服务。语音失败可以继续无声阅读，不改变角色决策、记忆或世界事实。
+
+例如玩家还停在平静对白时，即使后台已经发布争执，BGM 仍播放日常曲；等玩家读到争执段落，插件才选紧张曲，舞台淡出旧曲并循环播放新曲。可直接加载 [demo-bgm.mjs](../../examples/host-plugins/demo-bgm.mjs)试用；替换成自己的配乐与规则见[创作者插件制作指南](guides/host-plugin-authoring.md)。
 
 ## 在启动器启用
 
@@ -12,7 +14,7 @@
 
 插件选择保存在数据根目录的 `launcher.json` 的 `preferences.hostPlugins`，不进入世界包、存档或故事分享。默认列表为空，新添加的条目默认停用；停用条目不会被导入。移除条目只移除设置，不删除插件文件。最多配置 16 项。
 
-“阅读与声音”里的“启用语音朗读”是播放偏好，与插件加载开关独立。加载合成器不代表前端已有播放器；官方默认舞台目前仍未接入语音播放。自定义模板继续使用 [Perspectra.synthesizeSpeech](../../packages/frontend/src/client.ts) 及既有阅读游标。
+“阅读与声音”里的“启用语音朗读”是播放偏好，与插件加载开关独立。官方默认舞台已通过 Web Audio 播放授权对白；BGM 插件安装后，首次在舞台内点击解锁音频，按阅读进度播放。舞台的背景音乐开关只在当前页面有效，音量与静音沿用现有偏好。自定义模板使用 [Perspectra SDK](../../packages/frontend/src/client.ts)及既有阅读游标自行控制播放。
 
 **只加载可信本地代码。** 插件与游戏宿主拥有相同的文件、网络和进程权限。独立的 Cordis Context 只隔离服务注册，不是安全沙箱；用户的启用选择不是游戏包自动授权。界面不接收插件凭证，插件自行从环境或自己的安全配置读取，不能把凭证放进世界包、前端或上述设置。
 
@@ -20,7 +22,7 @@
 
 装载器接受默认导出的 Cordis 函数、类或带 `apply` 的对象。推荐使用 `.mjs`；`.js` 的 ESM 解析沿用文件所在目录的 Node 包配置。首版不安装依赖、不接收远程模块地址、不提供热更新或任意 JSON 插件配置。
 
-当前有一个实际消费点：`ctx.frontendServices.registerSpeech(synthesize)`，返回注销函数。插件通过 `ctx.effect()` 持有它，在 Cordis 释放插件时注销服务。参数和音频返回值沿用 [FrontendSpeechInput / FrontendSpeechAudio](../../packages/frontend/src/speech.ts)，不新增一套语音协议：
+语音消费点是 `ctx.frontendServices.registerSpeech(synthesize)`，返回注销函数。插件通过 `ctx.effect()` 持有它，在 Cordis 释放插件时注销服务。参数和音频返回值沿用 [FrontendSpeechInput / FrontendSpeechAudio](../../packages/frontend/src/speech.ts)，不新增一套语音协议：
 
 ```js
 export default function speechPlugin(ctx) {
@@ -51,15 +53,17 @@ export default function speechPlugin(ctx) {
 
 - [LauncherCore](../../desktop/launcher-core.ts)只保存和传递插件选择，不在启动器后端导入插件。每次启动用 `PERSPECTRA_HOST_PLUGINS` 覆盖传入当前保存的列表。
 - [游戏入口](../../desktop/host/web-entry.ts)在创建世界运行时之前调用 [loadHostPlugins](../../desktop/host-plugins.ts)。装载器创建独立 Context，注册 `frontendServices`，再按列表顺序 `ctx.plugin()`；没有挂载世界内核、存储、记忆或角色服务。
-- 同时只允许一个合成服务。启用模块不存在、导出不合法、初始化失败或重复注册会使本次启动明确失败，并释放此前装载的插件；用户可停用该条目后重试。宿主返回插件 ID 与公开错误，不把模块异常正文交给前端。
+- 同时只允许一个合成服务与一个 BGM 服务，两者可以由同一个或不同插件注册。启用模块不存在、导出不合法、初始化失败或重复注册会使本次启动明确失败，并释放此前装载的插件；用户可停用该条目后重试。宿主返回插件 ID 与公开错误，不把模块异常正文交给前端。
 - 服务通过已有 `FrontendHostServices` 交给 [HTTP 宿主](../../desktop/host/http-server.ts)。模板声明的能力与实际安装服务共同决定是否授予 `speech`；合成前校验授权文本，合成后重验段落，候选替换后返回 409。未安装服务返回 404，合成失败返回 502。
 - 前端请求断开或服务注销会触发 abort。插件应把信号传给实际请求；即使插件忽略取消，注销后晚到的音频也会被拒绝。关闭游戏时释放插件及其 `ctx.effect()`，不为未完成音频增加恢复机制。
 
-## Live2D 与 BGM 的范围
+## BGM 与其他扩展的范围
 
-同一装载入口可以加载其他可信 Cordis 插件，但当前只有语音合成的宿主消费点。Live2D 渲染、BGM 播放、前端脚本与素材注册、口型同步仍未接通，不会因为加载模块就自动出现在舞台。
+BGM 消费点是 `ctx.frontendServices.registerBgm({ tracks, selectTrack })`。曲库在注册时复制并校验，只提供明确发布的 WAV / MP3 / OGG 字节；选曲回调只收到与语音相同的授权阅读段落。当前最多 16 首、每首 32 MiB，全部驻留内存，不提供流媒体。`selectTrack` 返回注册曲目 ID，或 `null` 表示静音；应按输入独立决定，不依赖请求次数或顺序。
 
-后续增加这些表现时，复用装载和启停设置，按实际需要增加前端接线；播放与动画应跟随玩家阅读进度，不能直接追随后台最新发表，也不能把表现当作世界状态变化。当前不引入通用前端插件框架或新的世界事件。
+社区模板须声明 `bgm` 且宿主实际装有服务，才获得 `Perspectra.selectBgm(seq, segmentIndex, text)` 与 `Perspectra.getBgmAudio(id)`。前者走授权检查和候选替换重验，后者只读取插件已发布曲库，不接受文件路径，也不提供角色私有信息。默认舞台同曲不重启、循环播放、0.6 秒淡入淡出、音量及静音实时生效；过期异步结果被丢弃，页面退出时停止播放。
+
+同一装载入口可以加载其他可信 Cordis 插件，但 Live2D 渲染、任意前端脚本注入、通用插件设置面板与口型同步仍未接通。Cordis 负责生命周期与服务依赖；创作者能扩展的功能还取决于 Perspectra 已开放的消费接口。现有独立宿主 Context 没有提供世界内核、记忆、`ctx.tools` 或 `ctx.llm`，其他宿主的插件不能直接假定这些服务存在。当前不引入通用前端插件框架或新的世界事件。
 
 ## 验证范围
 
@@ -67,4 +71,6 @@ export default function speechPlugin(ctx) {
 
 本机还将游戏入口打包为 ESM，随附现有前端静态资源后，验证构建产物可装载外部 `.mjs` 插件、授予语音能力并在退出时清理；过程中未调用角色模型。该检查不代表完成 Tauri 或便携发行包构建。
 
-没有调用真实语音供应商或角色模型，没有验收浏览器 / Tauri 的音频播放、朗读节奏、Live2D 或 BGM，也没有重建发行包。相关实现测试见 [host-plugins](../../tests/desktop/host-plugins.test.ts)、[frontend-speech](../../tests/host/frontend-speech.test.ts)、[desktop-launch](../../tests/desktop/desktop-launch.test.ts) 与 [launcher-core](../../tests/desktop/launcher-core.test.ts)。
+以上装载与 TTS 构建检查是 2026-10-18 的历史验证。本轮 BGM 自动化见 [frontend-bgm](../../tests/host/frontend-bgm.test.ts)、[bgm-playback](../../tests/host/bgm-playback.test.ts)和[舞台桥权限](../../tests/host/stage-controls.test.ts)，覆盖真实 Cordis 示例装载、HTTP 字节返回、授权拒绝、候选失效、插件清理、阅读游标同步、同曲不重启、淡出、静音竞态与过期结果丢弃。复现界面使用[无模型预览](../../tests/experiments/bgm-plugin-preview.ts)，不读取已有存档。
+
+未调用真实语音供应商或角色模型，未验收正式配乐听感、长时间内存表现、Tauri WebView、Live2D 或便携发行包。浏览器结果与运行命令见[制作指南的验证范围](guides/host-plugin-authoring.md#验证范围)。

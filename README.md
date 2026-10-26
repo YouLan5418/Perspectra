@@ -16,31 +16,39 @@ Perspectra 希望让玩家与拥有独立认知、长期经历和自主行动能
 
 ## 开始试玩
 
-### Windows x64 便携候选版
+### Windows x64 程序预发行版
 
-当前候选版本为 **0.1.0-test3**，自带 Node、Python、Core 记忆依赖与离线 E5 模型、WebView2 和 C++ 运行库。玩家无需安装开发工具，但仍需要自己的模型服务。
+当前预发行版为 **0.3.1-test1**（2026-10-24，candidate4）：只发布 Perspectra 程序与创作工具，**不附带试玩包**。包含当前默认舞台、新启动器图标、自带 Node／Python、Core 记忆依赖、离线 E5、WebView2 和 C++ 运行库；玩家仍需自己的模型服务与完整的 v5 作品源目录。
 
-[下载便携 ZIP](https://github.com/YouLan5418/Perspectra/releases/download/v0.1.0-test3/Perspectra-0.1.0-test3-win-x64.zip) · [预发布页面](https://github.com/YouLan5418/Perspectra/releases/tag/v0.1.0-test3) · [试玩说明](scripts/release/README.zh-CN.md) · [候选版验收记录](docs/current/studies/launcher-portable-test3-20261009.md)
+[下载程序 ZIP](https://github.com/YouLan5418/Perspectra/releases/download/v0.3.1-test1/Perspectra-0.3.1-win-x64-candidate4.zip) · [预发行页面](https://github.com/YouLan5418/Perspectra/releases/tag/v0.3.1-test1) · [SHA-256](https://github.com/YouLan5418/Perspectra/releases/download/v0.3.1-test1/Perspectra-0.3.1-win-x64-candidate4.zip.sha256) · [随包验收记录](https://github.com/YouLan5418/Perspectra/releases/download/v0.3.1-test1/acceptance.zh-CN.md)
 
-**test3 已上传为 GitHub 预发布版附件。** ZIP 约 519 MB，SHA-256 见验收记录；源码与构建脚本在本仓库。它仍是小范围测试候选版，未完成干净 Windows 与长时试玩验收。
-
-完整操作见 [玩家试玩指南](docs/current/guides/player-playtest.md)。
-
-> test3 构建于 2026-10-09。之后源码里的 Launcher 已改版（单屏首页、本局抽屉、多条模型连接、按角色选模型、创作者页面），下面的步骤只对应 test3 包。两者差异见[项目状态](docs/current/PROJECT-STATE.md)。
-
-拿到测试包后：
+ZIP 为 521,587,384 字节，SHA-256：`bbfe12fda796d0288450b6e0285065cfeb0f84a86944d25ce719c9b4504c70ce`。
 
 1. 完整解压，运行 `Perspectra.exe`，保留同目录的 `runtime`。
-2. 打开“模型设置”，选择 OpenAI 兼容、Anthropic 或 Google 协议，填写对应的完整请求地址、模型标识和需要的 API Key。
-3. 点击“测试模型连接”，成功后应用设置。连接测试会发送一次少量请求，只验证接口响应，不保证模型能稳定遵循游戏的结构化输出协议。
-4. 载入随包的 `examples/大模型变成美少女了` 目录，创建实例并开始游戏。游戏在系统默认浏览器中打开，Launcher 保持独立窗口。
-5. 结束游戏后可以继续原进度；需要分叉时，在游戏运行且当前操作完成后，打开“故事线”保存完整节点，再停止游戏并创建新线路。
+2. 点右上角 ⚙，在“模型接口”配置连接与模型，测试接口。测试会发送少量请求，只证明接口能响应。
+3. 另行取得或创作完整的 `worldpack-source/v5` 源目录，在 Launcher 载入、创建实例并开始，游戏在系统默认浏览器中打开。
+4. 等待当前行动完成后保存进度，结束游戏后可从节点分叉或导出存档。API Key 按连接存入 Windows 凭据管理器，不写入作品或存档；备份前结束游戏并退出 Launcher。
 
-`examples/大模型变成美少女了` 是官方试玩包：112 条序章表达包含 5 条中性玩家输入，结尾交还控制权；后续生活事件由真实角色模型决定。先使用占位角色与简单背景，未包含正式美术和音效。源码目录为 [model-girls-official](examples/world-packs/model-girls-official/README.md)。
+### 创作者与统一 AI Skill
 
-`examples/前室与后室` 提供官方默认界面的基础示例；`examples/测试示例` 包含社区前端、包推荐预设、变量和猜数字活动。
+随包 `skills/perspectra-creator` 整合原创世界包、酒馆 PNG／JSON 卡静态提取与迁移，以及原生模型预设创作。附带空白源包生成器、物品规则模板、卡片容量分析和两种预设模板；原卡脚本、HTML、EJS 与正则作为数据审阅，所需玩法另行重写，不直接执行原卡。
 
-Launcher 使用 Core 记忆。test3 中 API Key 只保留在当前会话，重开 Launcher 要重新填写；当前源码改为按连接存进 Windows 凭据管理器。两者都不会把 Key 写入游戏包或存档。数据目录可在设置中查看，备份前应结束游戏并退出 Launcher。
+把整个 `skills/perspectra-creator` 目录复制到所用 AI 工具的 Skill 目录，告诉它 Perspectra 解压位置与创作需求。它使用程序自带 Node／Python，不要求源码、pnpm 或全局运行环境；生成作品另放自己的新目录。完整操作见解压后的 `创作校验.md`、`使用说明.md` 和 Skill。
+
+```powershell
+& 'D:\Perspectra\worldpack.cmd' --version
+& 'D:\Perspectra\worldpack.cmd' --help
+& 'D:\Perspectra\worldpack.cmd' validate 'D:\我的游戏'
+& 'D:\Perspectra\worldpack.cmd' test 'D:\我的游戏'
+& 'D:\Perspectra\worldpack.cmd' preset validate 'D:\预设\自然互动.json'
+& 'D:\Perspectra\worldpack.cmd' preset validate 'D:\我的游戏\model-preset.json' --pack
+```
+
+`test` 只编译适配，`assertionsExecuted: 0`；预设校验只检查字段、启用节点宏与正则语法。静态通过后仍需 Launcher 新实例和真实玩法验收。
+
+本次已检查随包 CLI／Skill、宿主启停、默认前端比对和离线编码；干净 Windows、原生界面完整流程和真实模型连续试玩尚未完成。既有全仓格式问题、一次活动测试不稳定及历史文档断链见随包验收记录。`build-info.json` 的 `sourceDirty=true`，GitHub 自动源码归档不等同于该次未提交构建工作区。
+
+[旧 test3 预发行版](https://github.com/YouLan5418/Perspectra/releases/tag/v0.1.0-test3)保留为 2026-10-09 的历史构建，含旧试玩内容；它的验收不代表新程序已完成真实体验验收。
 
 ### 从源码运行
 
@@ -65,7 +73,7 @@ corepack pnpm@11.7.0 experience:web `
 
 地址与模型只是本机验证示例，请按自己的服务修改。如需认证，通过环境设置 `HCW_LOCAL_API_KEY`，不要写入世界包、脚本或仓库。打开终端打印的完整本机地址；其中的令牌不要公开分享。
 
-**源码网页入口默认使用原生记忆**；准备好 Python/E5 后，添加 `--memory-core` 可启用 Core 记忆。源码网页另保留 Ollama/DeepSeek 适配，当前 Launcher 还支持 Anthropic Messages 与 Google Gemini 原生协议，配置与限制见[模型接口协议](docs/current/model-protocols.md)；test3 已包含这三种接口，实际模型支持与网关行为仍需分别验证。
+**源码网页入口默认使用 Core 记忆**，需准备 Python/E5；仅离线调试可显式加 `--memory-native`。源码网页另保留 Ollama/DeepSeek 适配，当前 Launcher 还支持 Anthropic Messages 与 Google Gemini 原生协议，配置与限制见[模型接口协议](docs/current/model-protocols.md)；实际模型支持与网关行为仍需分别验证。
 
 完整说明见 [创作者与真实模型试玩指南](docs/current/guides/creator-playtest.md)。
 
@@ -171,9 +179,9 @@ World Pack v5 描述角色、初始认知、地点、物品、场景、玩家槽
 - 长期记忆可能交付无关认识；后台整理和大上下文的容量、性能与角色体验仍需更多测试。
 - 作者没写物品显示名时，交互按钮仍可能显示机器 ID；没有代码签名、自动更新或跨版本存档迁移保证。
 - test3 已包含单节点分享、末端回合重新生成和节点记忆快照；完整树分享、线路合并及部分预设能力尚未实现。
-- 本次便携验收通过完整固定序章、前端资源一致性、Core 启停与离线编码；8046 连接不可用，自由阶段真实模型未在 test3 中重新验收。
+- test3 的历史验收覆盖固定序章、前端资源、Core 启停与离线编码；本轮程序包验收另行记录，不沿用这些结论。
 
-完整验证证据与未完成项见 [候选版验收记录](docs/current/studies/launcher-portable-test3-20261009.md)，当前架构状态见 [项目状态](docs/current/PROJECT-STATE.md)。
+本轮验证证据与未完成项见[程序包验收记录](docs/current/studies/program-package-creator-skill-20261024.md)，旧包证据见[test3 记录](docs/current/studies/launcher-portable-test3-20261009.md)，当前架构状态见[项目状态](docs/current/PROJECT-STATE.md)。
 
 ## 反馈问题与体验
 

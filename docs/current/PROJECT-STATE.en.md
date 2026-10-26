@@ -2,7 +2,7 @@
 
 **Languages: [English](PROJECT-STATE.en.md) | [简体中文](PROJECT-STATE.md)**
 
-Checked on 2026-10-18 against main commit `0289605`. This page translates the Chinese status page; Git remains the source of truth.
+Release/creator-tooling addendum checked on 2026-10-24. Other gameplay evidence below retains its original dates, including the 2026-10-18 main commit `0289605`; it has not all been rerun. Git and the working tree remain the source of truth.
 
 In one sentence: Perspectra is a player-driven, multi-character roleplay prototype. The model decides what each character says and tries to do; the program decides who is allowed to know what, and whether important state such as item ownership or location actually changed.
 
@@ -13,9 +13,14 @@ For how it works, see the [architecture documentation](architecture/README.md) (
 | Version | What it is | Note |
 | --- | --- | --- |
 | Portable build 0.1.0-test3 | Windows x64 ZIP built on 2026-10-09, published as a [GitHub pre-release](https://github.com/YouLan5418/Perspectra/releases/tag/v0.1.0-test3); see [build acceptance](studies/launcher-portable-test3-20261009.md) (Chinese) | Does not contain the changes listed in the next section |
-| Current source on main | In sync with origin/main; contains everything after test3 | No new portable build yet; new features can only be tried from source |
+| Program-only 0.3.1 candidate | Candidate4 is published as [v0.3.1-test1 pre-release](https://github.com/YouLan5418/Perspectra/releases/tag/v0.3.1-test1), with unified Tavern/preset creation tools and the selected icon; no demo packs | Remote ZIP digest verified; bundled tooling and offline host/encoding checks passed; [record](studies/program-package-creator-skill-20261024.md) retains gate failures and untested areas |
+| Current working tree | Includes uncommitted changes; inspect the actual files and Git status | The local candidate uses this tree; it does not update historical test3 or establish gameplay acceptance |
 
 When a document says "current source", assume the feature is not in test3.
+
+The bundled `worldpack.cmd` uses the program's own Node and dependencies. `--version` reports product/compiler/schema versions; validation failures return JSON diagnostics and exit code 1. `test` compiles and adapts only, executing zero declared assertions and no host extensions or model calls. Type checking, 182 World Pack tests, and isolated CLI checks passed. Runtime assets and notices were recovered from a preserved local portable build, with binary versions checked. Full package, clean-Windows, and real-model acceptance are separate; see [build instructions](../../scripts/release/BUILD.md) (Chinese).
+
+Candidate4 adds the earlier static Tavern extractor, capacity analysis and migration workflow to the unified creator Skill, plus pack/library preset templates. `preset validate <file> [--pack]` reuses native validation. The integration passed 20 Python tests, 58 relevant CLI/preset regressions, bundled synthetic PNG/JSON extraction, and offline host/encoding checks. Original card code is not executed; private cards and live model style were not tested.
 
 ## What source gained after test3 (2026-10-15 to 10-18)
 
@@ -65,6 +70,6 @@ When a document says "current source", assume the feature is not in test3.
 | Launcher redesign: unit tests, browser mock, real host serving creator page and save API | UI logic and backend endpoints work | Native Tauri window clicks, continuous real-model play, a release build |
 | test3: full prologue, Core start/stop, offline encoding, ZIP checks | That portable build ran on the build machine | A clean Windows machine; free-play model behaviour |
 
-Still needed: blind playtests by ordinary players, long-history performance and memory quality, more refuse/leave/return scenarios, clean Windows acceptance, and a new portable build from current source. No code signing, auto-update or cross-version save migration is promised.
+Still needed: resolve the current gate issues, blind playtests by ordinary players, long-history performance and memory quality, more refuse/leave/return scenarios, and clean Windows acceptance. A local program-only candidate now exists; no new public release was uploaded. No code signing, auto-update or cross-version save migration is promised.
 
 More real samples: [player validation](../../examples/world-packs/model-girls-official/PLAYER-VALIDATION.md), [live model validation](../../examples/world-packs/model-girls-official/LIVE-VALIDATION.md) and [memory studies](studies/ai-girls/README.md) (Chinese).

@@ -2,7 +2,7 @@
 
 **语言 / Languages：[简体中文](PROJECT-STATE.md) | [English](PROJECT-STATE.en.md)**
 
-本次补充核对：2026-10-22，限作者物品规则及相关文档，对应当前未提交工作区源码。其余概况保留 2026-10-18、main 提交 `0289605` 时的核对范围，不表示本次重新验收了所有能力。实时状态以工作区与 Git 为准。
+本次补充核对：2026-10-24，限程序包准备、随包创作 CLI 和文档；作者物品规则保留 10-22 的核对范围。其余概况保留 2026-10-18、main 提交 `0289605` 时的证据，不表示本次重新验收了所有能力。实时状态以工作区与 Git 为准。
 
 一句话概括：Perspectra 是一个玩家推动的多角色扮演原型。模型决定角色说什么、做什么；程序负责“谁能知道什么”，以及物品、位置这类重要状态是否真的发生了变化。
 
@@ -13,9 +13,18 @@
 | 版本 | 是什么 | 注意 |
 | --- | --- | --- |
 | 便携包 0.1.0-test3 | 2026-10-09 构建的 Windows x64 ZIP，已发布为 [GitHub 预发布版](https://github.com/YouLan5418/Perspectra/releases/tag/v0.1.0-test3)，见[构建验收](studies/launcher-portable-test3-20261009.md) | 不含后文列出的 10-15 及之后的改动 |
-| 当前工作区源码 | 以实际文件为准，包含本次尚未提交的作者物品规则改动 | 本次未核对发行包包含情况；不能把源码接通视为旧便携包已更新 |
+| 本轮 0.3.1 程序候选包 | candidate4 已上传为 [v0.3.1-test1 预发行版](https://github.com/YouLan5418/Perspectra/releases/tag/v0.3.1-test1)，统一 Skill 整合酒馆卡迁移与预设创作，保留新图标；不附试玩包 | 远端 ZIP 摘要已核对；随包工具、离线宿主／编码通过，[记录](studies/program-package-creator-skill-20261024.md)保留门禁失败及未测范围 |
+| 当前工作区源码 | 以实际文件为准，含尚未提交的本轮改动 | 本地程序候选基于此工作区；不代表旧 test3 已更新，源码与真实体验仍分开验收 |
 
 文档里写“当前源码”的功能，默认不在 test3 里。
+
+## 程序包与创作入口（2026-10-24）
+
+例如作者让同行者拿钥匙再交给玩家，先修改自己的源包，通过 `worldpack.cmd validate` 检查文件和引用，再在 Launcher 创建新实例验证规则结果。CLI 使用程序自带 Node 与依赖，`--version` 返回程序、编译器和格式版本，失败返回 JSON 诊断与退出码 1；`test` 只编译适配，不执行声明断言、宿主扩展或真实模型。
+
+随包入口、[创作 Skill](../../skills/perspectra-creator/SKILL.md)及本地程序候选已生成；CLI、Skill 脚手架／文档示例、新实例宿主启停和离线 E5／包内 CRT 检查通过。素材已恢复并核对，共享基础 Python 的依赖遗漏已修复。全量回归为 1374/1375，通过失败用例与整个活动文件的单独复核；三处既有格式问题仍阻断 check。实际命令、证据及未做真实模型／干净 Windows 的边界见[本轮记录](studies/program-package-creator-skill-20261024.md)。创作资源见[创作指南](guides/world-pack-authoring.md)，素材与构建命令见[构建说明](../../scripts/release/BUILD.md)。
+
+candidate4 的统一 Skill 内含原 tavern-to-perspectra 提取器、容量分析和迁移／验收流程，附带包推荐与预设库模板；`preset validate <file> [--pack]` 复用原生校验。新增整合通过 20 项 Python 测试、58 项 CLI／预设相关回归及实际随包合成卡验证，不执行原卡代码；没有将静态通过写成真实卡完整还原或模型风格验收。
 
 ## 作者定义物品规则（2026-10-22，当前源码）
 
@@ -74,6 +83,6 @@
 | Launcher 改版：单元测试、浏览器 Mock、真实宿主的创作者页与保存接口 | 界面逻辑和后端接口可用 | Tauri 原生窗口实机点击、真实模型连续试玩、发行包 |
 | test3 包内完整序章、Core 启停、离线编码、ZIP 校验 | 当时的便携包能在本机运行 | 干净 Windows、自由阶段的模型表现 |
 
-还需要：普通玩家完整盲测、长历史性能与记忆质量、更多拒绝/离开/返回场景、干净 Windows 验收，以及用当前源码重建便携包。没有代码签名、自动更新或跨版本存档迁移保证。
+还需要：处理本轮记录中的门禁问题，普通玩家完整盲测、长历史性能与记忆质量、更多拒绝/离开/返回场景和干净 Windows 验收。candidate4 已公开为程序预发行版，仍不表示完成上述验收。没有代码签名、自动更新或跨版本存档迁移保证。
 
 更多真实样例见[玩家验收](../../examples/world-packs/model-girls-official/PLAYER-VALIDATION.md)、[模型验收](../../examples/world-packs/model-girls-official/LIVE-VALIDATION.md)和[记忆研究](studies/ai-girls/README.md)。

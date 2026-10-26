@@ -1,5 +1,11 @@
 # 当前创作者运行时
 
+2026-10-24 创作资源：仓库的 [perspectra-creator](../../../skills/perspectra-creator/SKILL.md) 通过 [CLI 构建函数](../../../scripts/build/build-worldpack-cli.mjs)复制到程序的同名 skills 目录，整合原创世界包、旧 tavern-to-perspectra 的静态卡片提取／容量分析及迁移流程、原生预设创作与模板。脚手架使用随包 Node，卡片提取使用随包 Python；不执行原卡脚本，不依赖旧 Skill 或仓库。它不增加运行时插件或预装试玩包。[Skill 检查脚本](../../../scripts/release/verify-creator-skill.mjs)在独立环境验证脚手架、防覆盖、文档示例、合成 PNG／JSON 卡的数据保留，以及原生预设模板和非法字段／宏拒绝；真实迁移作品与角色体验仍需单独验收。
+
+预设创作可让同行者少写总结、保留自己的语气；不会授予其读取信件秘密的权限。CLI 进程新增 `preset validate <file> [--pack]`，直接复用 [rolePreset](../../../packages/provider-chat/src/preset.ts) 和[预设库导入](../../../packages/provider-chat/src/preset-library.ts)校验；包推荐模式只接受裸 RolePreset，预设库模式支持交换格式。它只检查字段、宏与正则语法，不执行文本替换、不写入预设库、不证明风格效果。世界包 validate 仍不自动加载预设扩展，需分别检查；详见[预设创作](../../../skills/perspectra-creator/references/presets.md)。
+
+2026-10-24 创作校验入口：例如作者修改同行者拿钥匙的作品后，可在程序目录调用 `worldpack.cmd validate <源目录>`，让创作 Skill 读取退出码及 JSON 诊断。便携构建复用 [CLI 进程入口](../../../packages/world-pack/process/cli-entry.ts)和[构建函数](../../../scripts/build/build-worldpack-cli.mjs)，随包 Node 与 jieba-wasm 执行，不依赖创作者的源码环境；`--version` 给出程序与格式版本，`--help` 说明范围。CLI 不执行玩法脚本或启动完整宿主；`test` 仅编译适配，不执行声明断言。独立目录、空 PATH、中文和空格路径以及错误码已由[隔离检查](../../../scripts/release/verify-worldpack-cli.mjs)覆盖；这次不涉及角色协议，也未据此声称真实模型体验或完整发行包通过。操作见[创作指南](../guides/world-pack-authoring.md#6-校验与试玩)。
+
 2026-10-22 核对：例如留守者自主去拿钥匙，包内 `scripts/status.js` 的作者模板提供 `status:take`，`autonomy.json` 再允许它在本次机会使用这一操作。活动 policy 同样用 `status:take`／`status:drop`／`status:give` 引用拿、放、给；这些操作不再由基础交互包安装。模板、目标筛选和执行复查见[物品操作](../guides/activity-and-variables.md#对物品做的操作2026-10-22当前源码)。下方示例已按现行 ID 更新，带日期的旧试玩结果不等于新模板已完成同样验收。
 
 2026-10-21 宿主整理：当前实现位于 `desktop/host`。例如创作者查看角色体力时，检查响应的 `statusTruth` 返回已提交状态真值，控制台“状态”页读取同一字段；旧 `variables` 字段已移除。它是宿主认证后的只读能力，玩家公开接口仍按既有权限过滤，不因更名扩大可读范围。活动自己的 public/private/internal 变量保持原含义。模型请求、Context、调度与状态裁定规则没有因目录整理改写；源码和构建验证不代表新的真实模型体验验收。
@@ -14,7 +20,7 @@
 
 同一天补齐了第一版[创作者控制台](../creator-debug-api.md#创作者控制台)：2026-10-17 起改为由 Launcher“打开创作者页面”在系统浏览器打开的独立页面（[入口](../../../apps/launcher/src/creator/main.ts)，只在游戏运行时可用，“模型请求”视图取代原请求探查对话框），左侧是游戏／故事线／角色导航，中间是「对话」连续阅读与「轨迹」紧凑表格，右侧是按对象变化的详情面板；世界总览、角色、物品、状态和活动共用同一套列表框架。它只做读取与合并：`apps/launcher/src/creator` 下的 [store.ts](../../../apps/launcher/src/creator/store.ts) 负责分页、轮询去重与选择状态，[model.ts](../../../apps/launcher/src/creator/model.ts) 把已提交事件与私有记录合成一条轨迹，[source.ts](../../../apps/launcher/src/creator/source.ts) 用页面令牌同源读取 `/api/creator-*`，没有令牌时使用浏览器 Mock 样例。合并规则不超出接口已有的证据：未读到正文的记录只显示「已记录」，失败与未发表内容默认收在「显示处理过程」之后。真实运行实例、长会话容量与发行包仍未验收。
 
-> [跨场景短信实验样例](../studies/cross-scene-communication-20261010.md)允许声明媒介名称和有向联系人；[电话实验](../studies/cross-scene-phone-20261010.md)进一步支持自主接听与持续连接，但仅独立实验入口加载。默认网页、活动脚本与 Launcher 尚未安装此能力；改名为托梦不会自动实现睡眠条件或匿名来源。
+> [跨场景短信实验样例](../studies/cross-scene-communication-20261010.md)允许声明媒介名称和有向联系人；[电话实验](../studies/cross-scene-phone-20261010.md)进一步支持自主接听与持续连接，但仅独立实验入口加载。2026-10-25 起包内放 `communication.json`（媒介名称与有向联系人，登记在 `assetFiles`）即在默认宿主启用短信，`model-girls-sweet-days` 是第一个开启的包；电话、活动期间收发短信仍未接入默认宿主；改名为托梦不会自动实现睡眠条件或匿名来源。
 
 > [活动与通信组合实验](../studies/cross-scene-activity-20261010.md)已用活动现有 `interactions` 白名单裁定通信：允许时可以收发与接听，禁止时直接提交也不能绕过；默认宿主尚未安装这套组合规则。
 
@@ -77,6 +83,8 @@ Interaction 定义和绑定提供玩法可选行为，规则负责重要状态�
 
 `ai-girls-hosted-guess` 展示主持角色私有答案与多 NPC 有界链；默认能力限制不替角色决定情绪、策略和台词；作者显式声明的固定演出可通过 simulate 提供同格式决策。完整活动结果附带身份／阶段元数据以形成授权经历，但 Core 整理仍须显式开启，默认网页仍原生记忆。
 
+2026-10-24 创作边界澄清：例如作者可以在送礼后写入角色专属的心动印象，引导接下来的反应，也可以显式编排剧情与固定演出。尊重角色主体性不要求每个游戏包都采用完全自主的感情发展；作者可以用已有状态与活动机制影响角色，仍须遵守信息接收范围，以及位置、物品等权威事实的正式提交规则。[屋檐下的心动日程](../../../examples/world-packs/model-girls-sweet-days/README.md)保留这种引导，弱化部分绝对结论；这些包内选择不构成引擎对其他作者的限制。
+
 ## 创作入口与限制
 
 先看[字段手册](../guides/world-pack-authoring.md)、[试玩步骤](../guides/creator-playtest.md)和[自定义网页](../guides/web-ui.md)。`frontend/` 使用显式 manifest 和 iframe 公共玩家接口，只改展示，不改变世界包编译身份；未提供时使用官方默认模板。新实验使用独立数据目录。
@@ -89,7 +97,7 @@ Launcher 游戏库（2026-10-16）界面配色由全局设置的主题色决定�
 
 例如玩家暂停猜数字、讨论周末计划、再回来继续猜：assetFiles 可登记 scripts/activities/guess.js 与 scripts/activities/weekend.js，每场各有状态、参与者和操作。它替代原先整个包只能使用一套活动的约束，没有新增并行调度。原 scripts/activity.js 作为 default 活动继续使用。
 
-2026-10-21：例如回报巡查后弭弗在场，就自动开始“名单”剧情。活动脚本可写可选的 `autoStart(truth, world, previous)`，返回 `when` 布尔数组（全真才满足，长度即条件数目）、可选 `npcIds` 与只给玩家的 `notice`（替换玩家看到的固定开场行，参与者仍收到固定行）。[宿主](../../../desktop/host/world-runtime.ts)在被接受的玩家回合依次完成角色反应和 `onRoundEnd` 后检查一次；没有活动运行时，条件数目最多的候选开始，平局从本轮随机记录中抽取，重新生成按记录回放。开始复用玩家开始路径，事件带 `source: 'auto'`、action.resolved 为 `sourceRole: 'director'`，不计玩家回合；每轮至多一场，不连锁。脚本或开始校验失败不提交，记 `debug.autoStartError`。活动仍不能移动角色。作者接口见[活动指南](../guides/activity-and-variables.md#按条件自动开始2026-10-21当前源码)；自动测试已覆盖，另有一次 8 回合 DeepSeek 短试玩确认了触发时机、提示投递与轮次计数，发行包未重建。
+2026-10-21：例如回报巡查后弭弗在场，就自动开始“名单”剧情。活动脚本可写可选的 `autoStart(truth, world, previous)`，返回 `when` 布尔数组（全真才满足，长度即条件数目）、可选 `npcIds` 与只给玩家的 `notice`（替换玩家看到的固定开场行，参与者仍收到固定行）。[宿主](../../../desktop/host/world-runtime.ts)在被接受的玩家回合依次完成角色反应和 `onRoundEnd` 后检查一次；没有活动运行时，条件数目最多的候选开始，平局从本轮随机记录中抽取，重新生成按记录回放。开始复用玩家开始路径，事件带 `source: 'auto'`、action.resolved 为 `sourceRole: 'director'`，不计玩家回合；每轮至多一场，不连锁。脚本或开始校验失败不提交，记 `debug.autoStartError`。2026-10-24 起，写了 `autoStart` 的活动只在条件全部满足时列出手动“开始”，[活动桥](../../../desktop/host/pack-activity.ts)对手动开始请求按同一条件重查；暂停后的继续不受影响。活动仍不能移动角色。作者接口见[活动指南](../guides/activity-and-variables.md#按条件自动开始2026-10-21当前源码)；自动测试已覆盖，另有一次 8 回合 DeepSeek 短试玩确认了触发时机、提示投递与轮次计数，发行包未重建。
 
 PackActivities 选择唯一正在运行的 PackActivity，只向该活动交付角色请求、许可和调度；没有 active 时使用普通规则。活动事件以 activityKey 区分，暂停保留进度并关闭 active，旧操作因身份／revision 或非 active 被拒绝。开始／继续在写入租约内检查没有另一 active；状态、玩家管理观察和世界 tick 同事务提交。继续使用当前授权 world 检查作者 resume 条件；没有 hook 时要求同场。暂停／恢复不改真实世界位置或物品，不续跑未提交计算。放弃暂停进度和前台逃生保留已提交经历，其他暂停活动不变。
 

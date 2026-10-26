@@ -6,6 +6,8 @@
 
 ## 1. 从一个可以运行的包开始
 
+只有程序包的创作者可以使用随包 [perspectra-creator Skill](../../../skills/perspectra-creator/SKILL.md)，用自带 Node 在新目录生成一个玩家、一个 NPC 和一个地点的空白 v5 源包，再逐步补作品内容。它还整合[酒馆卡静态提取与迁移](../../../skills/perspectra-creator/references/tavern.md)和[原生预设创作](../../../skills/perspectra-creator/references/presets.md)，卡片提取使用随包 Python，预设提供包推荐与预设库模板，并用 preset validate 单独校验。将整个 Skill 目录复制到所用 AI 工具的 Skill 目录；它不要求仓库、pnpm 或全局 Node／Python。下面的示例属于源码仓库，不附在本轮程序包中。
+
 | 示例 | 适合验证 |
 | --- | --- |
 | [prototype-g1](../../../examples/world-packs/prototype-g1) | 最小角色、房间、物品与交互 |
@@ -44,6 +46,7 @@ my-world/
   scripts/status.js
   scripts/activity.js
   model-preset.json
+  role-presets.json
   frontend/manifest.json
   frontend/index.html
   frontend/app.js
@@ -67,6 +70,7 @@ my-world/
 | assertionFiles | 断言声明；当前 `worldpack test` 仅编译计划，不执行断言 |
 | assetFiles | Core 资产；启用状态脚本 `scripts/status.js` 或活动脚本时登记固定脚本路径 |
 | model-preset.json | 可选包推荐预设，独立读取；详见预设文档 |
+| role-presets.json | 可选随包角色专属与角色组预设；启动器载入包时校验，并提示玩家一键分配到实例。不参与编译，也不改变包 Hash；详见[预设文档第 9 节](../model-presets.md#9-随包角色预设与一键分配2026-10-24当前源码) |
 | frontend/ | 可选社区前端，独立 manifest 与内容授权；详见前端指南 |
 | cover.webp / cover.png / cover.jpg | 可选 Launcher 封面，放在包根目录，≤4 MB，建议 16:9。不参与编译，也不改变包 Hash；详见[创作者运行时](../architecture/creator-runtime.md) |
 
@@ -95,6 +99,7 @@ NPC 自行决定回应或沉默，以及台词、情绪和行动。不要在调�
 ## 5. 扩展玩法和界面
 
 - [活动与状态](activity-and-variables.md)：固定后端脚本、public/private/internal 范围、有界角色机会；经裁定的常驻状态与状态栏。
+- 跨场景短信（实验）：根目录放 `communication.json`，写 `{"medium": "短信", "contacts": {"character:player": ["character:a"], "character:a": ["character:player"]}}`，并登记进 `assetFiles`。联系人是有向许可，不等于在场；短信正文只证明发送者这样说，收信人不获得对方房间的视野。想让角色在自主行动里也能发，在 `autonomy.json` 的 `interactions` 里加 `experiment:message`。电话尚未接入。
 - [预设格式](../model-presets.md)：根目录可选 `model-preset.json`，附加提示、参数、原生节点和文本规则；模型凭证不属于预设。
 - [自定义前端](web-ui.md)：HTML/CSS/JS 与公共玩家 API。没有 frontend 时自动使用官方界面，存在但配置错误时明确失败。
 
@@ -102,14 +107,24 @@ NPC 自行决定回应或沉默，以及台词、情绪和行动。不要在调�
 
 ## 6. 校验与试玩
 
-在仓库根目录执行，路径按自己的目录调整：
+2026-10-24：candidate4 已上传为 [v0.3.1-test1 预发行版](https://github.com/YouLan5418/Perspectra/releases/tag/v0.3.1-test1)，目录含 `worldpack.cmd` 和统一创作 Skill，使用随包 Node／Python，无需创作者安装源码、pnpm 或全局运行环境。程序不附试玩包；验收通过与未通过范围见[本轮记录](../studies/program-package-creator-skill-20261024.md)。先检查版本，再检查自己准备的作品源目录：
+
+```powershell
+& 'D:\Perspectra\worldpack.cmd' --version
+& 'D:\Perspectra\worldpack.cmd' validate 'D:\我的游戏'
+& 'D:\Perspectra\worldpack.cmd' test 'D:\我的游戏'
+```
+
+成功输出一行 JSON 并退出 0；失败在标准错误输出 ErrorEnvelope 并退出 1，包契约诊断含文件和 JSON pointer，便于创作 Skill 逐项修正。完整命令见[随包创作校验说明](../../../scripts/release/CREATOR.zh-CN.md)。当前自动验证覆盖脱离仓库、空 PATH、中文及空格路径下的命令入口、编译／适配／本地初始化和诊断；不等于完整 Launcher 或真实模型体验验收。
+
+源码开发者仍可在仓库根目录执行：
 
 ```powershell
 corepack pnpm@11.7.0 worldpack validate examples/world-packs/launcher-demo
 corepack pnpm@11.7.0 worldpack test examples/world-packs/launcher-demo
 ```
 
-校验检查格式、引用与宿主支持；`worldpack test` 当前返回 `status: compiled`、`assertionsExecuted: 0`，只编译断言计划，不能当成断言执行成功或真实角色体验通过。可以用 `worldpack compile <源目录> --out <文件>` 导出编译制品，并用 `worldpack inspect <文件>` 查看；**Launcher 和当前网页的 --pack 仍传源目录，不传该制品**。
+校验检查源格式、引用、声明资产与已安装交互选择，不执行玩法脚本，也不加载完整宿主的状态、活动、知识、前端及预设扩展配置；`worldpack test` 当前返回 `status: compiled`、`assertionsExecuted: 0`，只编译和适配断言计划，不能当成断言执行成功或真实角色体验通过。可以用 `worldpack compile <源目录> --out <文件>` 导出编译制品，并用 `worldpack inspect <文件>` 查看；**Launcher 和当前网页的 --pack 仍传源目录，不传该制品**。
 
 加载修改后的包并创建新实例，进行 [真实模型试玩](creator-playtest.md)。同一兼容包可以续玩，内容改变后旧实例可能因摘要不一致拒绝启动；保留原包及旧存档，不强行改哈希。新实验使用新目录，不写入 `D:/worlds` 历史数据。
 

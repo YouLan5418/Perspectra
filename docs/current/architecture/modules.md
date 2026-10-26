@@ -2,6 +2,10 @@
 
 核对日期：2026-10-22。本次追加核对物品规则移至作者脚本后的职责与入口；此前宿主迁移、Core 资源和前端适配核对保留，其他机制的验证限制仍见对应章节。目录位置是导航线索，不代表其中的全部代码都由当前入口运行。从入口沿 import 和调用向下查；导出清单不等于调用清单。
 
+2026-10-24 补充根目录创作 Skill 及程序分发入口；没有新增 packages 包或宿主插件。离线程序验收和未通过门禁见[本轮记录](../studies/program-package-creator-skill-20261024.md)。
+
+2026-10-24 BGM 补充：现有 `desktop/host-plugins.ts` 提供可信插件曲库与选曲服务，`frontend` 包增加 BGM 类型和跟随阅读的播放器，未新增包；接口和示例见[宿主插件制作指南](../guides/host-plugin-authoring.md)。上段“没有新增宿主插件”仅描述程序分发工作，不包含本次新增的可选 BGM 示例。
+
 例如角色拿起工具箱、修好灶台，先由包内 `scripts/status.js` 提出物品结果，再由宿主检查并提交；这些玩法不在基础交互包里。脚本接口见[受控交互](controlled-interaction.md)，标准拿／放／给写法见[作者模板](../../../examples/templates/item-rules.js)。
 
 ## 1. 先看这些目录
@@ -20,6 +24,7 @@
 | [tests/scenarios](../../../tests/scenarios) | 默认回归：跨包的玩法与角色行为 | [角色执行结果](../../../tests/scenarios/character-execution-result.test.ts)、[原始经历交付](../../../tests/scenarios/raw-history-delivery.test.ts) |
 | [tests/integration](../../../tests/integration) | 默认回归：世界包、交互路径与存储的跨包集成 | [交互路径](../../../tests/integration/interaction-path.test.ts) |
 | [scripts/release](../../../scripts/release) | 便携包构建、资产收集与发行检查 | [构建说明](../../../scripts/release/BUILD.md) |
+| [skills/perspectra-creator](../../../skills/perspectra-creator) | 随程序分发的世界包创作、酒馆卡静态提取／迁移及原生预设创作工具；运行时不执行 Skill | [Skill 入口](../../../skills/perspectra-creator/SKILL.md)、[生成器](../../../skills/perspectra-creator/scripts/create-world.mjs)、[预设](../../../skills/perspectra-creator/references/presets.md) |
 | [docs/current](..) | 当前说明、操作指南和研究结论 | [架构入口](README.md) |
 | [docs/archive](../../archive) | 历史方案与过程证据 | 需要解释旧设计时再读 |
 
@@ -38,7 +43,7 @@
 | [world-pack](../../../packages/world-pack) | 检查和编译作者的世界包 | [编译器](../../../packages/world-pack/src/compiler.ts)、[命令入口](../../../packages/world-pack/process/cli-entry.ts)；源包与 Manifest 版本不是同一个数字 |
 | [interaction-runtime](../../../packages/interaction-runtime) | 注册交互能力、校验定义与结果 | [注册](../../../packages/interaction-runtime/src/registry.ts)、[校验](../../../packages/interaction-runtime/src/validation.ts) |
 | [interactions-basic](../../../packages/interactions-basic) | 牵手与松手的内置规则 | [基础定义](../../../packages/interactions-basic/src/basic.ts)仅有 `base:hold-hand`、`base:end-contact`，须由世界包显式绑定。拿／放／给与料理／修理由各包 `scripts/status.js` 定义，经[状态桥](../../../desktop/host/pack-status.ts)裁定；旧物品规则与 home.ts、dinner.ts 已删除（2026-10-22） |
-| [frontend](../../../packages/frontend) | 公共玩家视图、客户端接口、默认情景舞台、本地阅读进度与可选语音服务契约 | [公共数据](../../../packages/frontend/src/player-view.ts)、[客户端](../../../packages/frontend/src/client.ts)、[默认模板](../../../packages/frontend/src/default-template.ts)、[阅读游标](../../../packages/frontend/src/reading-playback.ts)、[语音接口](../../../packages/frontend/src/speech.ts) |
+| [frontend](../../../packages/frontend) | 公共玩家视图、客户端接口、默认情景舞台、本地阅读进度与可选语音／BGM 服务契约 | [公共数据](../../../packages/frontend/src/player-view.ts)、[客户端](../../../packages/frontend/src/client.ts)、[默认模板](../../../packages/frontend/src/default-template.ts)、[阅读游标](../../../packages/frontend/src/reading-playback.ts)、[语音接口](../../../packages/frontend/src/speech.ts)、[BGM 接口](../../../packages/frontend/src/bgm.ts)与[播放器](../../../packages/frontend/src/bgm-playback.ts) |
 | [agents](../../../packages/agents) | 玩家意图调用记录、共用库连接与历史玩家输入解析 | [导出入口](../../../packages/agents/src/index.ts)、[玩家调用记录](../../../packages/agents/src/player-intent-call.ts)、[连接](../../../packages/agents/src/context-database.ts)；旧 NPC Context、Reflection 和调用服务已移除，NPC 主循环在 application |
 | [presentation](../../../packages/presentation) | 把授权观察转成确定性的展示文本 | [Presenter](../../../packages/presentation/src/presenter.ts)；不是 Vue 界面或 NPC 决策器 |
 | [runtime-cordis](../../../packages/runtime-cordis) | Cordis 注册与分支资源生命周期 | [运行时](../../../packages/runtime-cordis/src/runtime.ts)；先了解游戏流程再读资源管理 |

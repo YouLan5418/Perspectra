@@ -16,31 +16,39 @@ The project was previously named Cordis World. Some code, commands, and historic
 
 ## Start playing
 
-### Windows x64 portable test candidate
+### Windows x64 program pre-release
 
-The current candidate build is **0.1.0-test3**. It bundles Node, Python, Core memory dependencies and an offline E5 model, WebView2, and the C++ runtime. Players do not need to install development tools, but **must provide access to their own model service**.
+**0.3.1-test1** (2026-10-24, candidate4) ships the program and creator tools, **without demo packs**. It includes the current default stage, updated launcher icon, Node, Python, Core memory dependencies, offline E5, WebView2 and the C++ runtime. Provide your own model service and a complete v5 source pack.
 
-[Download portable ZIP](https://github.com/YouLan5418/Perspectra/releases/download/v0.1.0-test3/Perspectra-0.1.0-test3-win-x64.zip) · [Pre-release page](https://github.com/YouLan5418/Perspectra/releases/tag/v0.1.0-test3) · [Playtest instructions](scripts/release/README.zh-CN.md) (Chinese) · [Build acceptance record](docs/current/studies/launcher-portable-test3-20261009.md) (Chinese)
+[Download program ZIP](https://github.com/YouLan5418/Perspectra/releases/download/v0.3.1-test1/Perspectra-0.3.1-win-x64-candidate4.zip) · [Pre-release](https://github.com/YouLan5418/Perspectra/releases/tag/v0.3.1-test1) · [SHA-256](https://github.com/YouLan5418/Perspectra/releases/download/v0.3.1-test1/Perspectra-0.3.1-win-x64-candidate4.zip.sha256) · [Acceptance record](https://github.com/YouLan5418/Perspectra/releases/download/v0.3.1-test1/acceptance.zh-CN.md) (Chinese)
 
-**test3 is available as a GitHub pre-release attachment.** The ZIP is approximately 519 MB; see the acceptance record for its SHA-256 checksum. Source code and build scripts are included in the repository. This is still a small-scale test candidate: clean Windows installation and extended-play validation remain incomplete.
+ZIP: 521,587,384 bytes. SHA-256: `bbfe12fda796d0288450b6e0285065cfeb0f84a86944d25ce719c9b4504c70ce`.
 
-Detailed instructions: [Player playtest guide](docs/current/guides/player-playtest.md) (Chinese).
+1. Fully extract the archive and run `Perspectra.exe`. Keep `runtime` beside it.
+2. Open Settings → Model connections, configure your connection and model, and test it. This sends a small request and only checks connectivity.
+3. Load a separately obtained or newly created `worldpack-source/v5` directory, create an instance and start. Gameplay opens in your default browser.
+4. Save progress after the current operation finishes; stop the game before branching or exporting. Connection keys use Windows Credential Manager, not pack/save files. Stop the game and exit the launcher before backing up data.
 
-> test3 was built on 2026-10-09. Since then the launcher in source has been redesigned (single-screen home, session drawer, multiple model connections, per-character models, creator page). The steps below apply to the test3 build only; see [project status](docs/current/PROJECT-STATE.en.md) for the differences.
+### Creators and the unified AI Skill
 
-After downloading:
+The bundled `skills/perspectra-creator` combines original world creation, Tavern PNG/JSON card migration, and native model preset creation. It includes a blank-pack generator, item rules, static card extraction/capacity analysis, and pack/library preset templates. Original card scripts, HTML, EJS and regex settings are reviewed as data; required gameplay is rewritten rather than executing original card code.
 
-1. Fully extract the archive, then run `Perspectra.exe`. Keep the bundled `runtime` directory beside it.
-2. In the launcher, open **Model Settings** (模型设置). Select an OpenAI-compatible, Anthropic, or Google protocol, and enter the complete endpoint URL, model ID, and API key as required.
-3. Click **Test Model Connection** (测试模型连接). A successful connection check confirms only a small request/response exchange; it does not guarantee the model will reliably follow gameplay's structured-output contract.
-4. Load the bundled `examples/大模型变成美少女了` directory, create an instance, and start the game. Gameplay opens in your default browser while the launcher remains a separate window.
-5. You can resume progress later. To branch the story, save a complete node from the **Storyline** interface after current operations finish; then stop the game and create a new line from that node.
+Copy the complete Skill folder into your AI tool's Skill directory and provide the Perspectra installation path and creation request. It uses bundled Node/Python and needs no source checkout, pnpm or global runtime. Save creations in a separate directory. Read the bundled `创作校验.md`, `使用说明.md` and Skill for complete instructions.
 
-The bundled official demo `examples/大模型变成美少女了` (roughly, *The LLMs Became Anime Girls?!*) has a scripted prologue of 112 committed expressions, including five neutral player questions. Control returns to the player at the end; subsequent everyday interactions are decided by real character models. This version uses placeholder characters and simple backgrounds, without final art or audio. The source pack is [model-girls-official](examples/world-packs/model-girls-official/README.md).
+```powershell
+& 'D:\Perspectra\worldpack.cmd' --version
+& 'D:\Perspectra\worldpack.cmd' --help
+& 'D:\Perspectra\worldpack.cmd' validate 'D:\My Game'
+& 'D:\Perspectra\worldpack.cmd' test 'D:\My Game'
+& 'D:\Perspectra\worldpack.cmd' preset validate 'D:\Presets\natural.json'
+& 'D:\Perspectra\worldpack.cmd' preset validate 'D:\My Game\model-preset.json' --pack
+```
 
-The bundled `examples/前室与后室` demonstrates the default frontend, while `examples/测试示例` includes a community frontend, pack-recommended presets, variables, and a number-guessing activity.
+`test` compiles and adapts only (`assertionsExecuted: 0`). Preset validation checks fields, enabled-node macros and regex syntax. Full host startup and gameplay still need separate acceptance.
 
-The launcher uses Core memory. In test3, API keys are held only for the current session and must be re-entered after restarting the launcher; current source stores them per connection in Windows Credential Manager. Neither writes keys into the game pack or save files. Check the settings to locate your data directory. Stop the game and exit the launcher before backing up data.
+Bundled CLI/Skill checks, host start/stop, default frontend comparison and offline encoding passed. Clean Windows, complete native UI operation and sustained live-model play remain untested. Existing formatting failures, one unstable activity test and historical documentation links are recorded in the bundled acceptance report. `build-info.json` has `sourceDirty=true`; GitHub's automatic source archive does not reproduce that uncommitted build workspace.
+
+[Historical test3](https://github.com/YouLan5418/Perspectra/releases/tag/v0.1.0-test3), built on 2026-10-09 with old demo content, remains available. Its evidence does not establish acceptance of this new program.
 
 ### Run from source
 
@@ -65,7 +73,7 @@ corepack pnpm@11.7.0 experience:web `
 
 These values are local examples, not a hosted service. Adjust them to your provider. If authentication is required, use `HCW_LOCAL_API_KEY` in the environment rather than committing credentials to the game pack or repository. Open the full local URL printed by the process; do not share its session token.
 
-**The source-based web entry uses native memory by default.** Add `--memory-core` after preparing Python/E5 to enable Core memory. The source web entry also retains Ollama/DeepSeek adapters. The launcher supports Anthropic Messages and Google Gemini native protocols as well as OpenAI-compatible endpoints; see [model protocols](docs/current/model-protocols.md) (Chinese). test3 includes these protocol integrations, but not all models and gateways have been validated.
+**The source-based web entry uses Core memory by default**, requiring Python/E5. Use `--memory-native` explicitly for offline debugging. The source web entry also retains Ollama/DeepSeek adapters. The launcher supports Anthropic Messages and Google Gemini native protocols as well as OpenAI-compatible endpoints; see [model protocols](docs/current/model-protocols.md) (Chinese). Models and gateways need their own verification.
 
 See the [creator and real-model playtest guide](docs/current/guides/creator-playtest.md) (Chinese).
 

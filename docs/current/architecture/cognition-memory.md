@@ -85,7 +85,17 @@ Core 不再按 16 条观察／8 条自身表达截断；首次整理前保留授
 
 Claude 私下听到一句暗号后，模型历史仍包含原始话语、private 受众和来源性质；GPT 的历史仍只有它有权看到的记录。呈现步骤不会补入其他角色经历，也不改变观察投影或记忆交付权限。
 
-`characterRequestText` 在最后序列化阶段把 `observations` 与 `selfObservations` 合并成 `context.history`，使用宿主 `sourceSeq` 排序，以 observed / self 区分观察和自己的表达。模型不再接收排序序号、追踪 action/observation ID、证据 Hash、提交前缀和来源索引引用等保管字段；来源类型、正文、受众、认识置信与立场、记忆年龄保留。角色身份/设定先呈现，历史随后，当前刺激、场景、当前位置和调用阶段随后，减少追加经历时的早期文本变化。当前位置从 `character.locationId` 移到 `context.locationId`，系统说明同步解释该字段。
+`characterRequestText` 在最后序列化阶段把 `observations` 与 `selfObservations` 合并成 `context.history`，使用宿主 `sourceSeq` 排序，以 observed / self 区分观察和自己的表达。模型不再接收排序序号、追踪 action/observation ID、证据 Hash、提交前缀和来源索引引用等保管字段；来源类型、正文、受众、认识置信与立场、记忆年龄保留。当前位置从 `character.locationId` 移到 `context.locationId`，系统说明同步解释该字段。
+
+字段顺序（2026-10-24 调整）：例如 Claude 在书房连续两次回应屋主，两次请求的角色设定、所在房间、物品、可用操作和操作说明都没变，只有经历多了一条、刺激换了一句。现在 `context` 依次是：角色设定 `character`、`cognition`、`claims`、`goals`、`publicationCharacters`、`knownStatusNote`，然后是经历 `history`，再是眼下处境 `locationId`、`memories`、`knownStatus`、`items`、`scene`、`affordances`、`actionExplanations`，未列出的字段（如 `activity`、`autonomy`）保持相对顺序放在其后，最后是 `recentExecutionEvidence`、`statusChanges`、`stimulus`。（2026-10-25 再次调整：最初把处境放在 `history` 之前，依据的是本地记忆下只有几千字符的短 `history`；Launcher 默认的 Core 记忆会让 `history` 累积到数万字符，占请求九成以上，处境里任何一项变化都会让其后的整段经历无法复用。用玩家真实试玩的 40 次请求模拟，处境在前时理论可复用前缀为 55%，`history` 在前时为 84%。）这样同一房间的相邻请求能共享很长的前缀，模型服务的前缀缓存可以命中；当前刺激也紧跟在经历之后、位于上下文末尾。只改变呈现顺序，不增删字段、不改变授权内容。
+
+调整前 `history` 排在第二位，它每次都会追加，导致其后约五千字符的稳定内容无法复用；`stimulus` 名义上最后写入，实际因对象键顺序停在场景之前。2026-10-24 用 deepseek-flash、本机《屋檐下的心动日程》与同一套 11 步对白做 A/B（新旧顺序各 2 局，其余完全相同）：实际缓存命中率 47.8% → 63.8%，每次调用未命中输入 token 3447 → 2436（约 −29%）；回复长度、套话与第一人称旁白无差异，两组角色都回应了最新输入。两组各出现叙事疏漏：旧顺序一次虚构“红茶已喝完”，新顺序一局中 Claude 写出尚未购买的黄铜书签，并两次以“他”指代屋主。样本小，未观察到系统性退化，也不能证明行为等价。
+
+`history` 是否只在末尾追加，取决于记忆模式。例如 GPT 已有 20 条经历时又听到一句话：Core 记忆（Launcher 默认）把记忆边界之后的经历全部放进 `history`，两次记忆整理之间只在末尾追加，整理后边界前移一次；本地记忆（`--memory-native`，离线调试用）只取最近 16 条观察与 8 条自我表达（[character-turn.ts](../../../packages/application/src/character-turn.ts) 的 `recentObservations` / `recentSelfObservations`），超出后每来一条新经历就从开头挤出最旧一条，`history` 整体前移，前缀从开头断开。2026-10-24 用固定回复模型让玩家连说 30 句验证：本地记忆下 GPT 的 `history` 停在 16 条，之后 17 次请求都从开头断开；Core 记忆下从 4 条增长到 33 条，29 次全部纯追加。上文 A/B 与早期试玩驱动使用本地记忆，较长的对局里观察到的约两成“开头不同”即来自这一滑动窗口，并非初始观察排序不稳定。本地记忆路径的这一缓存损失作为已知限制保留，未改动窗口规则。
+
+公开状态的变化（2026-10-25）：例如屋主在深夜说完“晚安”就结束今天，GPT 第二天清晨被自主行动唤起。以前她的刺激为空，最近的经历停在那句晚安，`knownStatus` 里的“清晨”只是一个状态值，她常常接着道晚安；不在同一房间的角色连推进时段的旁白都看不到。现在宿主在每次角色调用前，把她最近一次被提交的行动（`action.resolved` 的 `actorId` 是她；从未行动则以初始状态为准）时知道的公开状态，与现在知道的值比较，值不同的公开状态（`holderId` 为空且当前已确认）列为 `context.statusChanges`：`[{ key, label, from, to }]`，例如“天数 1→2、今日时段 深夜→清晨”，停电时还有“全屋供电 true→false”。只从已提交事件推导，不新增存储，重启或重新生成同一回合给出相同结果；它不授予新的知识，列出的都是她本来就能在 `knownStatus` 里看到的公开值。系统说明同步解释这个字段；自主行动提示保留“没有新消息不代表发生了你不知道的事”，并补充“statusChanges 里的变化已经发生，请按现在的时段与处境行动”。实现见 [pack-status.ts](../../../desktop/host/pack-status.ts) 的 `publicStatusChanges` 与 [world-runtime.ts](../../../desktop/host/world-runtime.ts)。
+
+验证：场景测试覆盖“推进到深夜、说晚安、结束今天”后 GPT 收到天数与时段变化，同一晚相邻请求没有变化。2026-10-25 用 deepseek-flash 做受控回放：取真实的第二天清晨 GPT 自主请求，去掉她对晚安的回应，使最后一条经历是屋主的“晚安”，同一请求各发 6 次。旧提示且无 `statusChanges` 时 3 次接着道晚安或说“明早”、1 次关灯离开、2 次 abstain；新提示加 `statusChanges` 时 5 次按清晨说话、1 次移动。另跑 4 局完整对局（Core 记忆，新旧各 2 局），`statusChanges` 在每次推进时段与睡醒后的唤起中正确送达；这 4 局里没有自然出现“晚安未回应就入睡”的条件，因此行为差异以受控回放为证据。样本小，未覆盖停电、打工外出等其他状态变化的真实表现。
 
 工具 Schema、Action 参数、交互目标与绑定引用、Activity 和作者变量保留原样；历史中的 parameters / arguments 也不按元数据字段名过滤。Rulebook、Core 归档与模型追踪继续使用原始宿主请求，结果续写仅去除外层 operationId / eventRefs，保留实际行动、状态与结果描述。没有新增输出协议、持久化格式或缓存服务。
 
