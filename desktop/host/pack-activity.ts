@@ -33,7 +33,7 @@ import {
   type CompiledWorldManifest,
 } from '@harness-world/kernel'
 import type { CompiledWorldPackV5 } from '@harness-world/world-pack'
-import type { PackStatus } from './pack-status.ts'
+import { SCRIPT_SOURCE_LIMIT, type PackStatus } from './pack-status.ts'
 
 /** Actor-scoped facts from the same candidate prefix; never a global inventory.
  * Shared by activity and status script hooks as their `world` argument. */
@@ -274,7 +274,7 @@ export class PackActivity {
     }
     const bytes = readFileSync(file)
     if (
-      bytes.length > 65536 ||
+      bytes.length > SCRIPT_SOURCE_LIMIT ||
       bytes.length !== lock.size ||
       'sha256:' + createHash('sha256').update(bytes).digest('hex') !== lock.contentHash
     )

@@ -160,7 +160,9 @@ export function publicStatusChanges(
 const ENTRY = 'scripts/status.js'
 const PREFIX = 'status:'
 const REJECTED = 'STATUS_OPERATION_REJECTED'
-const LIMIT = 64 * 1024
+/** Source size for status and activity scripts. The whole script runs again on every hook call, so this
+ * bounds per-call cost (about 1.6ms at 256 KiB, measured 2026-10-26), not just loading. */
+export const SCRIPT_SOURCE_LIMIT = 256 * 1024
 const CALL_LIMIT = 1024 * 1024,
   VALUE_LIMIT = 16 * 1024
 const NAME = /^[a-z][a-z0-9-]{0,40}$/u
@@ -252,7 +254,8 @@ export class PackStatus {
   readonly operations: readonly StatusOperation[]
 
   private constructor(source: string, pack: CompiledWorldPackV5) {
-    if (Buffer.byteLength(source) > LIMIT) throw new RangeError('状态脚本过长')
+    // Also bounds the script composed from status.js and pack modules (PackModules.statusSource).
+    if (Buffer.byteLength(source) > SCRIPT_SOURCE_LIMIT) throw new RangeError('状态脚本过长')
     this.#script = new Script(
       source +
         '\nJSON.stringify(__method === "definition" ? statusScript.definition' +
@@ -363,7 +366,7 @@ export class PackStatus {
     }
     const bytes = readFileSync(file)
     if (
-      bytes.length > LIMIT ||
+      bytes.length > SCRIPT_SOURCE_LIMIT ||
       bytes.length !== lock.size ||
       'sha256:' + createHash('sha256').update(bytes).digest('hex') !== lock.contentHash
     ) {

@@ -453,3 +453,11 @@ describe('pack status', () => {
     expect(() => status.activityEvent(events, 'duel', 'character:gpt', { changes: hit.changes }, scene)).toThrow()
   })
 })
+
+it('accepts status scripts up to 256 KiB, including the source composed with pack modules, and rejects larger', () => {
+  // A comment pads the real market rules; the whole source runs on every call, so its size is what is bounded.
+  const padded = (bytes: number) => market + '\n//' + 'x'.repeat(bytes - Buffer.byteLength(market) - 3)
+  expect(PackStatus.fromSource(padded(100 * 1024), pack).statuses.length).toBeGreaterThan(0)
+  expect(PackStatus.fromSource(padded(256 * 1024), pack).statuses.length).toBeGreaterThan(0)
+  expect(() => PackStatus.fromSource(padded(256 * 1024 + 1), pack)).toThrow('状态脚本过长')
+})

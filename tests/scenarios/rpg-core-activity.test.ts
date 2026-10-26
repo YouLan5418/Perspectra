@@ -14,8 +14,11 @@ import { WorldHostRuntime } from '../../desktop/host/world-runtime.ts'
 import { projectPlayerView } from '../../desktop/host/frontend-adapter.ts'
 import { PackStatus } from '../../desktop/host/pack-status.ts'
 
-const { renderActivityFile } = (await import(pathToFileURL(resolve('examples/rpg-core/generate.mjs')).href)) as {
-  renderActivityFile: (config: unknown, from: string) => string
+const { renderActivityFile, HOST_SOURCE_LIMIT } = (await import(
+  pathToFileURL(resolve('examples/rpg-core/generate.mjs')).href
+)) as {
+  renderActivityFile: (config: unknown, from: string, limit?: number) => string
+  HOST_SOURCE_LIMIT: number
 }
 const PACK = resolve('examples/world-packs/rpg-core-demo'),
   CONFIG = 'battle.config.json',
@@ -267,7 +270,7 @@ it('ships the script generated from its config and rejects invalid RPG data befo
   expect(() => renderActivityFile(config, CONFIG)).toThrow('RPG_CONFIG_INVALID')
 })
 
-it('rejects an oversized generated script before the CLI can overwrite an existing output', () => {
+it('fits every valid config under the host limit, rejects oversize, and never overwrites output on failure', () => {
   const config = JSON.parse(readFileSync(join(PACK, CONFIG), 'utf8'))
   config.skills = Array.from({ length: 64 }, (_, index) => ({
     id: 'skill-' + index + '-' + 'x'.repeat(88),
@@ -289,12 +292,18 @@ it('rejects an oversized generated script before the CLI can overwrite an existi
     speed: index === 0 ? 20 : 10,
     skills: config.skills.map((skill: { id: string }) => skill.id),
   }))
-  expect(() => renderActivityFile(config, CONFIG)).toThrow('65536 UTF-8 bytes')
+  // The largest config validation allows still renders well under the host's 256 KiB.
+  expect(HOST_SOURCE_LIMIT).toBe(256 * 1024)
+  expect(Buffer.byteLength(renderActivityFile(config, CONFIG))).toBeLessThan(HOST_SOURCE_LIMIT)
+  // The size check itself, exercised with a smaller limit since valid data cannot reach the real one.
+  expect(() => renderActivityFile(config, CONFIG, 65536)).toThrow('65536 UTF-8 bytes')
   const root = mkdtempSync(join(tmpdir(), 'rpg-core-oversized-'))
   roots.push(root)
   const input = join(root, CONFIG),
     output = join(root, 'battle.js'),
     previous = '// previous valid activity\n'
+  // The CLI renders before it writes: a config that fails validation leaves the old file in place.
+  config.units[0].skills = ['missing-skill']
   writeFileSync(input, JSON.stringify(config))
   writeFileSync(output, previous)
   const result = spawnSync(process.execPath, [resolve('examples/rpg-core/generate.mjs'), input, output], {
@@ -303,7 +312,7 @@ it('rejects an oversized generated script before the CLI can overwrite an existi
   })
   expect(result.error).toBeUndefined()
   expect(result.status).not.toBe(0)
-  expect(result.stderr).toContain('65536 UTF-8 bytes')
+  expect(result.stderr).toContain('RPG_CONFIG_INVALID')
   expect(readFileSync(output, 'utf8')).toBe(previous)
 })
 
