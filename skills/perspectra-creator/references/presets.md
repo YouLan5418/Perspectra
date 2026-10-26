@@ -25,7 +25,7 @@
 裸 RolePreset 可含 prompt、nodes、textRules、temperature、topP、frequencyPenalty、presencePenalty、maxOutputTokens、stop，不能添加酒馆的 prompts／prompt_order 或未知字段。
 
 - nodes 每项必须有 id、name、enabled、role、position、content。role 是 system/user/assistant；position 只有 beforeContext/afterContext。Core 固定协议仍在首位，授权 Context 是一个固定插槽；assistant 节点是普通消息，不保证 prefill。
-- 节点按数组顺序求值、按位置排列。每节点及附加 prompt 最多 16000 UTF-16 单元，总提示最多 32000，节点最多 64。disabled 节点也占数量和原文长度；只在启用节点里展开宏，prompt 不做节点宏展开。
+- 节点按数组顺序求值、按位置排列。每节点最多 32000 UTF-16 单元，附加 prompt 最多 16000，总提示最多 64000，节点最多 64。disabled 节点也占数量和原文长度；只在启用节点里展开宏，prompt 不做节点宏展开。
 - temperature 为 0–2，topP 为 0–1，两种 penalty 为 -2–2；maxOutputTokens 是 1–32768 整数。stop 最多四条且可能截断结构化输出，默认留空。实际模型／网关是否支持这些参数另行验收。
 - 支持 `{{char}}`、`{{user}}`、`{{scene}}`、`{{date}}`、`{{time}}`、`{{trim}}`、`{{//注释}}`、`{{setvar::key::value}}`、`{{getvar::key}}`、`{{random::A::B}}`、`{{roll::1d6}}`。date/time 是请求时本机时间，不是游戏时间。
 - setvar/getvar 只在本次请求内存在，不跨角色、请求或 continuation，不是世界变量。未知宏与嵌套宏失败；不能用酒馆宏语法直接替代原生写法。

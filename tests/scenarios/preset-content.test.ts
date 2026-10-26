@@ -30,6 +30,22 @@ const rule = (stage: TextRule['stage'], patch: Partial<TextRule> = {}): TextRule
   replacement: '',
   ...patch,
 })
+it('accepts nodes up to 32000 characters and a 64000-character total, including the attached prompt', () => {
+  const node = (id: string, length: number) => ({
+    id,
+    name: id,
+    role: 'system',
+    position: 'beforeContext',
+    content: '设'.repeat(length),
+    enabled: true,
+  })
+  expect(rolePreset({ nodes: [node('a', 32000), node('b', 32000)] }).nodes).toHaveLength(2)
+  expect(() => rolePreset({ nodes: [node('a', 32001)] })).toThrow('节点内容')
+  expect(() => rolePreset({ nodes: [node('a', 32000), node('b', 32000)], prompt: '多' })).toThrow(
+    '提示总长度最多 64000 字符',
+  )
+  expect(() => rolePreset({ prompt: '设'.repeat(16001) })).toThrow('附加提示最多 16000')
+})
 it('validates native node/rule data without accepting credentials or execution fields', () => {
   const node = { id: 'n', name: '风格', role: 'user', position: 'afterContext', content: '简短', enabled: true }
   expect(rolePreset({ nodes: [node], textRules: [rule('output')] })).toMatchObject({ nodes: [node] })

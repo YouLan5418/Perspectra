@@ -92,7 +92,7 @@ export function rolePreset(value: unknown, checkMacros = true): RolePreset {
         ...identity(v),
         role: v.role as PromptNode['role'],
         position: v.position as PromptNode['position'],
-        content: shortText(v.content, 16000, '节点内容'),
+        content: shortText(v.content, 32000, '节点内容'),
       }
     })
   for (const node of out.nodes ?? [])
@@ -105,8 +105,8 @@ export function rolePreset(value: unknown, checkMacros = true): RolePreset {
         )
       }
     }
-  if ((out.nodes ?? []).reduce((n, v) => n + v.content.length, out.prompt?.length ?? 0) > 32000)
-    throw new TypeError('提示总长度最多 32000 字符。')
+  if ((out.nodes ?? []).reduce((n, v) => n + v.content.length, out.prompt?.length ?? 0) > 64000)
+    throw new TypeError('提示总长度最多 64000 字符。')
   if (r.textRules !== undefined)
     out.textRules = entries(r.textRules, 32, '文本规则', v => {
       exact(v, ['id', 'name', 'enabled', 'stage', 'target', 'pattern', 'flags', 'replacement'])

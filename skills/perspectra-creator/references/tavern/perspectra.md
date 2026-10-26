@@ -40,7 +40,7 @@
 | 文档/包 | 文档4096、单Markdown256KiB、单JSON1MiB、源总量16MiB、单asset8MiB | `world-pack/src/schema.ts`、`compiler.ts`；字节与字符不可混用 |
 | 状态 | 64状态、32操作；源码256KiB UTF-8（含拼合的包内插件模块）；调用输入/输出1MiB UTF-8；单值规范JSON16384 UTF-16单元，总值524288单元；单次物品效果至多8项 | `pack-status.ts`parse、call、validateValue、reduce、parseItemChanges；实际值并非按字节计 |
 | 活动 | 16操作、8 NPC；opening500 UTF-16单元；源码262144字节，通常调用输入/输出65536 UTF-16单元，simulate输入另有较高限额；VM100ms | `pack-activity.ts`constructor、load、call、simulate；不能拿simulate预算套普通hook |
-| 预设 | 64提示节点，总提示32000 UTF-16单元；32文本规则，替换正文4000单元 | `provider-chat/src/preset.ts`及runtime；位置是beforeContext/afterContext，不支持任意消息楼层 |
+| 预设 | 64提示节点，单节点32000、附加prompt 16000、总提示64000 UTF-16单元；32文本规则，替换正文4000单元 | `provider-chat/src/preset.ts`及runtime；位置是beforeContext/afterContext，不支持任意消息楼层 |
 | 世界初始化 | 恰好一个PlayerSlot；角色controller为manual/scripted | `world-pack/src/compiler.ts`、`contracts.ts`，不要猜narrator类型 |
 
 `base:take/drop/give`不应从旧演示照搬；检查当前注册，参考`examples/templates/item-rules.js`重写作者物品操作。模板是例子，不是唯一允许的实现。Interaction、Activity与状态操作分别确认入口、候选和执行，不能只发现一个类型名就判已接通。

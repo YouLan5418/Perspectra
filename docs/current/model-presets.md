@@ -132,7 +132,7 @@ Launcher 的角色预设弹窗新增节点和文本规则编辑，支持添加�
 | nodes | 最多 64 个节点；每节点 id 唯一、name、enabled、role、position、content 必填 |
 | role | system / user / assistant；assistant 是普通提示消息，不承诺模型预填充能力 |
 | position | beforeContext / afterContext；Core 系统契约固定在首位，当前授权上下文作为一个固定插槽 |
-| content | 每节点最多 16000 字符；包括附加 prompt 的提示总长度最多 32000 字符 |
+| content | 每节点最多 32000 字符；包括附加 prompt 的提示总长度最多 64000 字符（2026-10-26 由 16000 / 32000 放宽，与宏展开、文本规则的 64000 对齐） |
 | textRules | 最多 32 条；每条 id 唯一，name、enabled、stage、target、pattern、flags、replacement 必填 |
 | target | speech / narration / both；对白与外显叙述分开选择 |
 | pattern / flags | 正则源文本不带 / 分隔符；最多 1000 字符；标志支持 g、i、m、s、u |

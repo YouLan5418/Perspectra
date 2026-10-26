@@ -261,7 +261,7 @@ const checked = (event: Event) => (event.target as HTMLInputElement).checked
       <textarea
         aria-label="节点内容"
         :value="n.content"
-        maxlength="16000"
+        maxlength="32000"
         rows="3"
         @input="node(i, { content: text($event) })"
       />
