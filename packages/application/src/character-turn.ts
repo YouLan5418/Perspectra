@@ -18,6 +18,8 @@ import {
   currentCharacterLifecycle,
   type CompiledWorldManifest,
   type RulebookRegistry,
+  type RulebookResolution,
+  type RulebookResolutionContext,
 } from '@harness-world/kernel'
 import {
   CognitionProjectionRebuilder,
@@ -148,6 +150,12 @@ export class CharacterTurn {
         reserveFormatRetry?: () => boolean,
       ) => Promise<unknown>
       readonly projectContext?: (context: WorldJsonObject, canPerform: boolean) => WorldJsonObject
+      /** Optional host executor. No SQLite transaction is open while it awaits external work. */
+      readonly resolveAction?: (
+        context: RulebookResolutionContext,
+        signal: AbortSignal,
+        resolve: () => RulebookResolution,
+      ) => Promise<RulebookResolution>
       readonly validateDecision?: (decision: WorldJsonObject, request: CharacterTurnRequest) => void
       readonly executionResult?: (
         input: Parameters<typeof characterExecutionResult>[0],
@@ -161,6 +169,7 @@ export class CharacterTurn {
       ) => void
       /** Host projection runs after the complete action transaction, never on model output. */
       readonly onCommitted?: () => Promise<void>
+      readonly onActionFailure?: () => void
       /** With Core, preserve the authorized tail after its successfully archived prefix. */
       readonly shortTermAfterSeq?: (characterId: CharacterId) => number
       readonly publicationCharacters?: number
@@ -665,7 +674,14 @@ export class CharacterTurn {
               const actionId = `${roundId}:action`
               const actionStartedAt = new Date().toISOString(),
                 actionStarted = performance.now()
-              const resolution = rules.resolve({ ...ruleContext, action, roundId, actionId })
+              const actionContext = { ...ruleContext, action, roundId, actionId }
+              const resolve = () => rules.resolve(actionContext)
+              const resolution = this.options.resolveAction
+                ? await this.options.resolveAction(actionContext, signal, resolve)
+                : resolve()
+              signal.throwIfAborted()
+              if (this.options.store.head(this.options.address).headSeq !== head.headSeq)
+                throw new Error('World changed while awaiting an external action; do not repeat the external effect')
               if (action.actionType === 'speak' && resolution.reason === 'SPEECH_RECIPIENT_UNREACHABLE') {
                 rejectedPublication = { action, status: resolution.status, reason: resolution.reason }
               }
@@ -839,6 +855,7 @@ export class CharacterTurn {
       }
       return done('budget_exhausted')
     } catch (error) {
+      this.options.onActionFailure?.()
       if (signal.aborted) return done('interrupted')
       if (error instanceof InvalidCharacterOutputError) modelFailure = 'invalid_output'
       if (error instanceof CharacterPresetError) modelFailure = 'preset_failed'

@@ -1,0 +1,20 @@
+{
+  "modules": [
+    {
+      "id": "greetings",
+      "entry": "plugins/greetings.js",
+      "characters": [
+        "character:player",
+        "character:companion"
+      ],
+      "capabilities": [
+        {
+          "id": "demo-device",
+          "version": "0.1.0",
+          "required": true,
+          "config": {}
+        }
+      ]
+    }
+  ]
+}

@@ -1,5 +1,11 @@
 # 通过 Cordis 加载宿主插件
 
+2026-10-26 双入口：例如澄请求设备确认，包内模块定义操作、私有次数和完成规则，可信 Cordis 插件提供异步设备能力。新增 `plugins.json`／`plugins/*.js` 与 `ctx.capabilities.register`，沿用原有状态和交互提交。会话可以请求绑定 NPC 的原有角色回合，不传出私有 Context。[开发指南](guides/dual-plugin-entrypoints.md)说明声明、能力目录、角色绑定、完成／排队和取消语义；源码及打包后端入口已自动验证，真实模型与发行包未验收。
+
+RPG Maker [双端连接骨架](../../examples/rpg-maker/README.md)已注册 `rpg-maker@0.1.0`，按包配置把宿主调用者绑定到队员；MZ 可请求已绑定 NPC 处理，观察结果可由包内规则提交为本人已知状态。当前没有实际 MZ 工程、AI 战斗输入或配对存档；通信与接口替身测试不能证明实际 RPG Maker 玩法已集成。
+
+2026-10-26 玩法实验：例如玩家与澄对抗两只规则怪物。最初由 Cordis 插件通过 `ctx.gameplay.registerActivity` 在开局生成活动脚本；同日已删除该服务，RPG Core 改为作者端生成器，生成的脚本随包发布，宿主不再为玩法规则加载插件。原因与现状见[实验记录](studies/2026-10-26_cordis-rpg-core-prototype.md)和[示例包](../../examples/world-packs/rpg-core-demo/README.md)。下方 TTS / BGM 的日期和验收仍保留各自原范围。
+
 核对日期：2026-10-24。源码已接通 Cordis 本地装载、TTS 与 BGM 服务；默认舞台已有两个播放器。本轮不重建便携发行包，不代表真实合成器、正式配乐或听感已经验收。
 
 例如玩家读到角色的一句对白，支持语音的前端引用这段对白申请音频。宿主先核对玩家是否有权阅读、内容是否仍有效，再把该段文本交给 Cordis 插件注册的合成服务。语音失败可以继续无声阅读，不改变角色决策、记忆或世界事实。
@@ -52,7 +58,7 @@ export default function speechPlugin(ctx) {
 ## 装载、授权与退出
 
 - [LauncherCore](../../desktop/launcher-core.ts)只保存和传递插件选择，不在启动器后端导入插件。每次启动用 `PERSPECTRA_HOST_PLUGINS` 覆盖传入当前保存的列表。
-- [游戏入口](../../desktop/host/web-entry.ts)在创建世界运行时之前调用 [loadHostPlugins](../../desktop/host-plugins.ts)。装载器创建独立 Context，注册 `frontendServices`，再按列表顺序 `ctx.plugin()`；没有挂载世界内核、存储、记忆或角色服务。
+- [游戏入口](../../desktop/host/web-entry.ts)在创建世界运行时之前调用 [loadHostPlugins](../../desktop/host-plugins.ts)。装载器创建独立 Context，注册 `frontendServices` 和按世界绑定的 `capabilities`，再按列表顺序 `ctx.plugin()`。只提供有限角色请求回调，没有挂载世界内核、存储、记忆或原始 Context。
 - 同时只允许一个合成服务与一个 BGM 服务，两者可以由同一个或不同插件注册。启用模块不存在、导出不合法、初始化失败或重复注册会使本次启动明确失败，并释放此前装载的插件；用户可停用该条目后重试。宿主返回插件 ID 与公开错误，不把模块异常正文交给前端。
 - 服务通过已有 `FrontendHostServices` 交给 [HTTP 宿主](../../desktop/host/http-server.ts)。模板声明的能力与实际安装服务共同决定是否授予 `speech`；合成前校验授权文本，合成后重验段落，候选替换后返回 409。未安装服务返回 404，合成失败返回 502。
 - 前端请求断开或服务注销会触发 abort。插件应把信号传给实际请求；即使插件忽略取消，注销后晚到的音频也会被拒绝。关闭游戏时释放插件及其 `ctx.effect()`，不为未完成音频增加恢复机制。

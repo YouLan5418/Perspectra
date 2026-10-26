@@ -1,0 +1,29 @@
+{
+  "schemaVersion": "worldpack-world/v1",
+  "title": "双插件入口：设备招呼",
+  "description": "你与澄尝试一台模拟设备。包内插件维护规则与计数，用户启用的 Cordis 插件提供异步设备能力。",
+  "timeMode": "TURN_DRIVEN",
+  "roundQueueLimit": 16,
+  "coreProfiles": {
+    "rulebook": {
+      "rulebookId": "builtin:speak-move",
+      "version": 2
+    },
+    "sceneDecision": {
+      "pluginId": "builtin:scene-decision",
+      "version": "2.0.0"
+    },
+    "agentContext": {
+      "pluginId": "builtin:agent-context",
+      "version": "2.0.0"
+    },
+    "presentation": {
+      "profileId": "builtin:deterministic-presentation",
+      "version": "1.0.0"
+    }
+  },
+  "initialFacts": [],
+  "playerInputPolicy": {
+    "version": "player-intent/v1"
+  }
+}

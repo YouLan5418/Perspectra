@@ -47,6 +47,7 @@ import {
   WorldApplication,
   type ActivationTurn,
   type CharacterTurnRequest,
+  type CharacterTurnResult,
   type RecallShadowObservation,
 } from '@harness-world/application'
 import { saveStoryNode, readStoryNodes } from '../story-nodes.ts'
@@ -88,8 +89,11 @@ import { adaptCompiledWorldPack, compileWorldPackSource, type CompiledWorldPackV
 import { actionText, HostBusyError, isWait, type HostAction, type HostRuntime, type HostState } from './http-server.ts'
 import { modelCharacters, playerTranscript, sceneChangedAt } from './player-transcript.ts'
 import { DEFAULT_RUNTIME_TUNING, type RuntimeTuning } from './runtime-tuning.ts'
+import { PackModules, lockedPackAsset } from './pack-modules.ts'
+import { CapabilitySession, type CapabilityCatalog } from '../host-capabilities.ts'
 
 export interface WorldHostOptions extends ModelOptions {
+  readonly capabilities?: CapabilityCatalog
   readonly dataDirectory: string
   /** The v5 Pack directory: the world the author wrote, compiled here with the Host's installed packages. */
   readonly packPath: string
@@ -351,6 +355,46 @@ export class WorldHostCore implements HostRuntime {
   #memoryCore: CoreMemoryAdapter | undefined
   #closeCore: (() => Promise<void>) | undefined
   #activity: PackActivities | undefined
+  #modules: PackModules | undefined
+  #capabilities: CapabilitySession | undefined
+  #pluginsReady = false
+  #roundHolds = 0
+  supportsHistoryRestore(): boolean {
+    return !this.#capabilities?.externalEffects
+  }
+  /** Native capabilities can request a declared role's normal turn; no raw Context or model key crosses this API. */
+  async requestCharacter(characterId: string, signal?: AbortSignal): Promise<WorldJsonObject> {
+    if (
+      !this.#pluginsReady ||
+      this.#closing ||
+      !this.#modules?.characters.has(characterId) ||
+      characterId === this.#playerId
+    )
+      throw new TypeError('Character is not bound to this plugin session')
+    if (this.#busy || this.#escaping || this.#paused || this.#roundHolds > 0)
+      throw new HostBusyError('当前实例不能处理新的角色请求。')
+    this.#beginWork()
+    try {
+      const before = (await this.#application.head(this.#address)).headSeq
+      const result = await this.#activateCharacters(false, brandId(characterId, 'CharacterId'), signal)
+      await this.#refresh()
+      const expressions = this.#transcript
+        .filter(line => line.seq > before && line.speakerId === characterId)
+        .map(line => ({
+          speaker: line.speaker,
+          speakerId: characterId,
+          text: line.text,
+          ...(line.segments ? { segments: line.segments } : {}),
+        }))
+      return {
+        status: result?.status ?? 'inactive',
+        calls: result?.calls ?? 0,
+        expressions: expressions as unknown as WorldJsonObject[],
+      }
+    } finally {
+      this.#endWork()
+    }
+  }
   #autonomy: PackAutonomy | undefined
   /** The pack's SMS contacts; the rule wraps the core resolver anew for every resolver chain. */
   #communication: CrossSceneCommunication | undefined
@@ -684,6 +728,12 @@ export class WorldHostCore implements HostRuntime {
       resolve(options.packPath),
       createInstalledInteractionPackages().map(interactionPackageDescription),
     )) as CompiledWorldPackV5
+    const modules = PackModules.load(options.packPath, pack, options.capabilities)
+    const statusSource = modules?.statusSource(
+      pack.assets.some(asset => asset.path === 'scripts/status.js')
+        ? lockedPackAsset(options.packPath, pack, 'scripts/status.js')
+        : undefined,
+    )
     const compiled = adaptCompiledWorldPack(pack, {
       address: {
         tenantId: brandId('tenant:web-playtest', 'TenantId'),
@@ -716,7 +766,24 @@ export class WorldHostCore implements HostRuntime {
           runtime.#coreRules().resolve('builtin:speak-move', 2, 'communication', runtime.#address),
         )
       runtime.#application.activate(compiled)
-      runtime.#status = PackStatus.load(options.packPath, pack)
+      runtime.#modules = modules
+      if (modules) {
+        const scope = {
+          address: runtime.#address,
+          worldVersion: runtime.#worldVersion,
+          requestCharacter: (characterId: string, signal?: AbortSignal) =>
+            runtime.requestCharacter(characterId, signal),
+        }
+        runtime.#capabilities = options.capabilities
+          ? await options.capabilities.attach(scope, modules.requirements)
+          : await CapabilitySession.open(scope, modules.requirements, new Map(), () => {})
+      }
+      runtime.#status =
+        statusSource === undefined ? PackStatus.load(options.packPath, pack) : PackStatus.fromSource(statusSource, pack)
+      if (modules) {
+        modules.bind(runtime.#status!, runtime.#capabilities!)
+        runtime.#status!.externalActions = modules
+      }
       await runtime.#status?.ensureInitial(
         resolve(options.dataDirectory, 'world.sqlite'),
         runtime.#address,
@@ -731,6 +798,16 @@ export class WorldHostCore implements HostRuntime {
         runtime.#playerId,
         runtime.#status,
       )
+      if (modules)
+        runtime.#activity?.setActionResolver((context, adjudicate) =>
+          modules.resolveAction(
+            context,
+            resolve(options.dataDirectory, 'world.sqlite'),
+            runtime.#address,
+            AbortSignal.timeout(10000),
+            adjudicate,
+          ),
+        )
       await runtime.#refresh()
       const rebuildPath = resolve(options.dataDirectory, 'rebuild-memory.json')
       if (existsSync(rebuildPath)) {
@@ -749,7 +826,11 @@ export class WorldHostCore implements HostRuntime {
         runtime.#memoryCore.snapshotAliases(runtime.#characterIds)
         unlinkSync(rebuildPath)
       }
-      if (options.storyNodes && readStoryNodes(options.logicalDirectory ?? options.dataDirectory).length === 0)
+      if (
+        options.storyNodes &&
+        runtime.supportsHistoryRestore() &&
+        readStoryNodes(options.logicalDirectory ?? options.dataDirectory).length === 0
+      )
         await runtime.saveNode('首次保存节点')
       if (options.shadowAudit !== undefined) {
         if (
@@ -778,6 +859,7 @@ export class WorldHostCore implements HostRuntime {
           },
         })
       }
+      runtime.#pluginsReady = true
       return runtime
     } catch (error) {
       await runtime.close()
@@ -1078,6 +1160,7 @@ export class WorldHostCore implements HostRuntime {
   }
 
   #beginWork(): void {
+    if (this.#capabilities?.resultUnknown) throw new TypeError('外部执行结果尚未确认，请检查外部游戏后重新启动实例。')
     this.#allowInterruption = false
     this.#autonomyCycle = undefined
     this.#abortedWork = false
@@ -1121,6 +1204,7 @@ export class WorldHostCore implements HostRuntime {
   }
   /** The accepted player input's round is over: the status hook, then at most one author-conditioned activity start. */
   async #endPlayerRound(): Promise<void> {
+    if (this.#capabilities?.resultUnknown) throw new TypeError('外部执行结果尚未确认，本轮不再自动推进。')
     await this.#endStatusRound()
     await this.#autoStartActivity()
   }
@@ -1156,6 +1240,7 @@ export class WorldHostCore implements HostRuntime {
     return this.#status !== undefined && this.#activity?.current()?.game.active !== true
   }
   async saveNode(title: string) {
+    if (!this.supportsHistoryRestore()) throw new TypeError('当前宿主能力尚不支持外部状态配对保存。')
     if (this.#busy || this.#escaping || this.#closing || this.#paused)
       throw new HostBusyError('请等待当前行动完成并恢复 NPC 后保存节点。')
     this.#savingNode = true
@@ -1188,9 +1273,11 @@ export class WorldHostCore implements HostRuntime {
     return this.#activity?.roundRandom() ?? []
   }
   holdCognition(): void {
+    this.#roundHolds++
     this.#memoryCore?.holdInstallation()
   }
   releaseCognition(): void {
+    this.#roundHolds = Math.max(0, this.#roundHolds - 1)
     this.#memoryCore?.releaseInstallation()
   }
   #track(turn: ActivationTurn): ActivationTurn {
@@ -1208,6 +1295,7 @@ export class WorldHostCore implements HostRuntime {
   }
   abortWork(): void {
     this.#abortedWork = true
+    this.#capabilities?.cancelPending()
     this.#continuationController?.abort()
   }
   async settleRound() {
@@ -1242,6 +1330,7 @@ export class WorldHostCore implements HostRuntime {
     if (this.#escaping) return this.#escaping
     // Set the override before awaiting anything. Late model outputs are cancelled,
     // and the host waits for the in-flight writer to release its lease.
+    this.#capabilities?.cancelPending()
     this.#continuationController?.abort()
     this.#escaping = (async () => {
       await this.#workDone
@@ -1404,6 +1493,7 @@ export class WorldHostCore implements HostRuntime {
 
   async pause(): Promise<HostState> {
     this.#paused = true
+    this.#capabilities?.cancelPending()
     this.#continuationController?.abort()
     this.#notice = 'NPC 已暂停：暂停期间的输入不会推进世界。'
     return this.state()
@@ -1419,10 +1509,13 @@ export class WorldHostCore implements HostRuntime {
 
   async close(): Promise<void> {
     this.#closing = true
+    this.#pluginsReady = false
+    const closingCapabilities = this.#capabilities?.close()
     this.#inspector.configure(false)
     this.#continuationController?.abort()
     const closingMemory = this.#memoryCore?.close()
     await this.#workDone
+    await closingCapabilities
     await closingMemory
     await this.#closeCore?.()
     await this.#shadow?.close()
@@ -1449,7 +1542,11 @@ export class WorldHostCore implements HostRuntime {
     return registry
   }
 
-  async #activateCharacters(activityOnly = false): Promise<void> {
+  async #activateCharacters(
+    activityOnly = false,
+    requestedCharacter?: CharacterId,
+    requestSignal?: AbortSignal,
+  ): Promise<CharacterTurnResult | undefined> {
     await this.#application.release(this.#address)
     if (this.#escaping || this.#closing || this.#abortedWork) return
     const path = resolve(this.#dataDirectory, 'world.sqlite')
@@ -1469,6 +1566,14 @@ export class WorldHostCore implements HostRuntime {
       )
       const createTurn = this.#turnFactory(path, store, leases, availability, memory)
       const turn = createTurn()
+      if (requestedCharacter)
+        return await turn.run(requestedCharacter, {
+          signal: requestSignal
+            ? AbortSignal.any([requestSignal, this.#continuationController.signal])
+            : this.#continuationController.signal,
+          maxCalls: 2,
+          maxModelCalls: this.#playSettings.maximumNpcCalls,
+        })
       this.#phaseLabel = '角色正在处理场景与行动结果'
       const active = this.#activity?.current()
       const due =
@@ -1527,6 +1632,15 @@ export class WorldHostCore implements HostRuntime {
           ? this.#autonomy!.rulebooks(base.resolve('builtin:speak-move', 2, 'autonomy', this.#address))
           : base,
         decide: (request, signal, reserveFormatRetry) => this.#decide(request, signal, reserveFormatRetry),
+        ...(this.#modules
+          ? {
+              resolveAction: (
+                context: import('@harness-world/kernel').RulebookResolutionContext,
+                signal: AbortSignal,
+                adjudicate: () => import('@harness-world/kernel').RulebookResolution,
+              ) => this.#modules!.resolveAction(context, path, this.#address, signal, adjudicate),
+            }
+          : {}),
         onTrace: (kind, characterId, decisionId, data) => {
           if (this.#inspector.enabled) this.#records.trace(kind, characterId, decisionId, data)
         },
@@ -1539,8 +1653,10 @@ export class WorldHostCore implements HostRuntime {
           !this.#activity?.current()?.game.active &&
           this.#options.publicationAudit === undefined,
         onCommitted: async () => {
+          this.#modules?.committed()
           await this.#projectCommitted(store)
         },
+        onActionFailure: () => this.#modules?.failed(),
         allowUnrelatedCommits:
           !this.#options.serialScheduling &&
           !this.#activity?.current()?.game.active &&
@@ -1614,6 +1730,7 @@ export class WorldHostCore implements HostRuntime {
           .slice(-8)
           .map(o => o.value as WorldJsonObject),
       })
+      if (this.#capabilities?.resultUnknown) return
       this.#error = result.failure !== undefined
       this.#notice =
         result.failure === undefined

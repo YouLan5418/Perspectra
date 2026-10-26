@@ -1,0 +1,38 @@
+{
+  "schemaVersion": "worldpack-characters/v3",
+  "characters": [
+    {
+      "characterId": "character:player",
+      "displayName": "冒险者",
+      "controllerClass": "manual",
+      "pronouns": "你",
+      "initialLocationId": "location:front-room",
+      "portrayal": {
+        "summary": "与法师澄结伴探索遗迹，行动由玩家决定。",
+        "speakingStyle": "短句，符合眼前局势，不重复播报面板。"
+      }
+    },
+    {
+      "characterId": "character:companion",
+      "displayName": "澄",
+      "controllerClass": "scripted",
+      "pronouns": "ta",
+      "initialLocationId": "location:front-room",
+      "portrayal": {
+        "summary": "谨慎而有主见的同伴法师。战斗时依据已知生命和魔力决定攻击或治疗；只在自己的回合执行列出的战斗操作，依据程序结果描述效果。",
+        "speakingStyle": "短句，符合眼前局势，不重复播报面板。"
+      }
+    },
+    {
+      "characterId": "character:friend",
+      "displayName": "遗迹守卫",
+      "controllerClass": "scripted",
+      "pronouns": "ta",
+      "initialLocationId": "location:front-room",
+      "portrayal": {
+        "summary": "守卫遗迹的敌方构装体，与冒险者和澄敌对。只在自己的回合选择可用战斗操作，攻击敌对目标；生命为零表示失去战斗能力，不擅自宣布伤害或胜败。",
+        "speakingStyle": "简短机械的警告。"
+      }
+    }
+  ]
+}

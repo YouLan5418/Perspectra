@@ -1,0 +1,80 @@
+{
+  "schemaVersion": "worldpack-cognition/v2",
+  "characters": [
+    {
+      "characterId": "character:player",
+      "observations": [
+        {
+          "key": "observation:character-player-device",
+          "content": "我可以尝试演示设备；成功确认与排队是两种不同结果。",
+          "epistemicKind": "direct_observation",
+          "saliencePermille": 600
+        }
+      ],
+      "goals": [
+        {
+          "key": "goal:character-player-device",
+          "objective": {
+            "kind": "narrative",
+            "value": "根据自己的想法决定是否参与眼前互动，以实际收到的结果为准。"
+          },
+          "priorityPermille": 600,
+          "targetKeys": [],
+          "basisKeys": [
+            "observation:character-player-device"
+          ]
+        }
+      ]
+    },
+    {
+      "characterId": "character:companion",
+      "observations": [
+        {
+          "key": "observation:character-companion-device",
+          "content": "我可以尝试演示设备；成功确认与排队是两种不同结果。",
+          "epistemicKind": "direct_observation",
+          "saliencePermille": 600
+        }
+      ],
+      "goals": [
+        {
+          "key": "goal:character-companion-device",
+          "objective": {
+            "kind": "narrative",
+            "value": "根据自己的想法决定是否参与眼前互动，以实际收到的结果为准。"
+          },
+          "priorityPermille": 600,
+          "targetKeys": [],
+          "basisKeys": [
+            "observation:character-companion-device"
+          ]
+        }
+      ]
+    },
+    {
+      "characterId": "character:friend",
+      "observations": [
+        {
+          "key": "observation:character-friend-device",
+          "content": "我在旁边看着他们试用设备，没有获得接入操作。",
+          "epistemicKind": "direct_observation",
+          "saliencePermille": 600
+        }
+      ],
+      "goals": [
+        {
+          "key": "goal:character-friend-device",
+          "objective": {
+            "kind": "narrative",
+            "value": "根据自己的想法决定是否参与眼前互动，以实际收到的结果为准。"
+          },
+          "priorityPermille": 600,
+          "targetKeys": [],
+          "basisKeys": [
+            "observation:character-friend-device"
+          ]
+        }
+      ]
+    }
+  ]
+}

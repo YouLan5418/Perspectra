@@ -1,0 +1,6 @@
+{
+  "schemaVersion": "worldpack-interactions/v1",
+  "packages": [{ "id": "package:interactions-basic", "version": 1 }],
+  "definitions": [],
+  "relationBindings": []
+}

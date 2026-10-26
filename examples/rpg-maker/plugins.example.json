@@ -1,0 +1,11 @@
+{
+  "modules": [{
+    "id": "rm",
+    "entry": "plugins/rpg-maker.js",
+    "characters": ["character:player", "character:companion"],
+    "capabilities": [{
+      "id": "rpg-maker", "version": "0.1.0", "required": true,
+      "config": { "actors": { "character:player": 1, "character:companion": 2 } }
+    }]
+  }]
+}

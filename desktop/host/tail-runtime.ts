@@ -106,6 +106,9 @@ export class TailRoundRuntime {
     if (this.#closed || this.#regenerating || this.#interrupting) throw new HostBusyError('请等待世界切换完成。')
     return this.#runtime.creatorInspection(query)
   }
+  supportsHistoryRestore(): boolean {
+    return this.#runtime.supportsHistoryRestore()
+  }
   async state(): Promise<HostState> {
     const state = await this.#runtime.state()
     const canInterrupt =
@@ -138,7 +141,12 @@ export class TailRoundRuntime {
               this.#candidates().findIndex(
                 candidate => candidate.id === (this.#selection.tail!.selected ?? this.#selection.tail!.id),
               ) + 1,
-            canRegenerate: !this.#busy && !this.#closed && !this.#escaping && !state.paused,
+            canRegenerate:
+              this.#runtime.supportsHistoryRestore() &&
+              !this.#busy &&
+              !this.#closed &&
+              !this.#escaping &&
+              !state.paused,
             regenerating: this.#regenerating,
           }
         : { id: null, worldVersion: this.#selection.version, canRegenerate: false, regenerating: this.#regenerating },
@@ -219,7 +227,8 @@ export class TailRoundRuntime {
       // Old eligibility is invalidated durably BEFORE the next world operation.
       this.#write({ ...this.#selection, tail: null })
       const before = await this.#runtime.settleRound()
-      await this.#runtime.snapshotRound(join(this.options.dataDirectory, '.tail', 'bases', base))
+      if (this.supportsHistoryRestore())
+        await this.#runtime.snapshotRound(join(this.options.dataDirectory, '.tail', 'bases', base))
       this.#runtime.beginRoundRandom()
       const result =
         'text' in input
@@ -229,7 +238,7 @@ export class TailRoundRuntime {
             : await this.#runtime.activityAction(input.activity as ActivityRequest)
       if (result.paused || this.#escaping) return result
       const head = await this.#runtime.settleRound()
-      if (head.headSeq > before.headSeq || 'activity' in input)
+      if (this.supportsHistoryRestore() && (head.headSeq > before.headSeq || 'activity' in input))
         this.#write({
           ...this.#selection,
           tail: {
@@ -360,6 +369,7 @@ export class TailRoundRuntime {
     return result
   }
   async #regenerate(tailId: string): Promise<HostState> {
+    if (!this.#runtime.supportsHistoryRestore()) throw new TypeError('当前外部能力不支持回退或重新生成。')
     const tail = this.#selection.tail
     if (!tail || tail.id !== tailId) throw new TypeError('只能重新生成当前世界线的末端回合。')
     this.#begin()
@@ -471,6 +481,7 @@ export class TailRoundRuntime {
     return result
   }
   async #selectCandidate(tailId: string, candidateId: string): Promise<HostState> {
+    if (!this.#runtime.supportsHistoryRestore()) throw new TypeError('当前外部能力不支持候选切换。')
     const tail = this.#selection.tail,
       candidates = this.#candidates()
     const target = candidates.find(candidate => candidate.id === candidateId)

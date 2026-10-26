@@ -1,0 +1,9 @@
+{
+  "schemaVersion": "worldpack-locations/v1",
+  "locations": [
+    {
+      "locationId": "location:front-room",
+      "name": "遗迹门厅"
+    }
+  ]
+}

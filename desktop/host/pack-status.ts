@@ -25,6 +25,9 @@ import { WorldStore, WriterLeaseService } from '@harness-world/store-sqlite'
 import type { CompiledWorldPackV5 } from '@harness-world/world-pack'
 import { characterExecutionResult } from '@harness-world/application'
 import { activityProgress, actorWorldView } from './pack-activity.ts'
+import { CAPABILITY_PENDING, type CapabilityOutcome } from '../host-capabilities.ts'
+import type { ExternalStatusInput } from './pack-modules.ts'
+import type { RulebookResolutionContext } from '@harness-world/kernel'
 
 export type StatusValue = WorldJsonValue
 export interface StatusChange {
@@ -223,6 +226,22 @@ export function knownStatusView(
 /** Trusted author rules for adjudicated statuses. True values live only in `status.updated` events;
  * truth and known values are pure folds over the event list, never a separate store. */
 export class PackStatus {
+  externalActions:
+    | {
+        has(operation: string): boolean
+        outcome(input: ExternalStatusInput): CapabilityOutcome | undefined
+        committed(): void
+        failed(): void
+        execute<T>(
+          input: ExternalStatusInput,
+          context: RulebookResolutionContext,
+          worldPath: string,
+          address: WorldAddress,
+          signal: AbortSignal | undefined,
+          resolve: () => T,
+        ): Promise<T>
+      }
+    | undefined
   readonly #script: Script
   readonly #characterIds: readonly string[]
   readonly #entityNames: ReadonlyMap<string, string>
@@ -318,6 +337,9 @@ export class PackStatus {
       }
     })
     if (new Set(this.operations.map(o => o.id)).size !== this.operations.length) throw new TypeError('重复的操作 ID')
+  }
+  static fromSource(source: string, pack: CompiledWorldPackV5): PackStatus {
+    return new PackStatus(source, pack)
   }
 
   /** The latest author policy failure per actor, cleared when that actor's policy next succeeds. */
@@ -741,8 +763,32 @@ export class PackStatus {
     }
     if (input.targetId !== undefined && !this.#reachable(events, actorId, input.targetId, sceneIds))
       return { status: 'rejected', reason: '这件物品不在你够得着的地方，什么都没有发生。' }
+    const external = this.externalActions?.has(op.id)
+      ? this.externalActions.outcome({
+          operation: op.id,
+          actorId,
+          parameters: parameters as WorldJsonObject,
+          asOfWorldSeq: input.asOfWorldSeq,
+        })
+      : undefined
+    if (this.externalActions?.has(op.id) && !external) return { status: 'rejected', reason: CAPABILITY_PENDING }
     const result = object(
-      this.#call('resolve', [this.truth(events), actorId, op.id, parameters, world, input.targetId ?? null]),
+      external?.completion === 'queued'
+        ? {
+            changes: [],
+            reveals: [],
+            description: '外部请求已排队，尚未确认执行；没有提交所请求的世界状态变化。',
+            audience: 'self',
+          }
+        : this.#call('resolve', [
+            this.truth(events),
+            actorId,
+            op.id,
+            parameters,
+            world,
+            input.targetId ?? null,
+            external?.data ?? null,
+          ]),
       '状态操作结果',
     )
     if (Object.hasOwn(result, 'rejectReason')) {
@@ -957,6 +1003,7 @@ export class PackStatus {
         })
         if (result.status === 'accepted')
           return { status: 'accepted', events: result.events, observationScope: result.observationScope }
+        if (result.reason === CAPABILITY_PENDING) return { status: 'rejected', events: [], reason: CAPABILITY_PENDING }
         // The actor's own attempt failed: it learns why, and nothing about any status value.
         const rejected = rejectRulebookResolution(actorId, 'interact', REJECTED)
         return {
@@ -1029,7 +1076,10 @@ export class PackStatus {
     build: (
       store: WorldStore,
       head: { headSeq: number; tick: number },
-    ) => { events: WorldEventDraft[]; authority: WorldJsonObject } | undefined,
+    ) =>
+      | { events: WorldEventDraft[]; authority: WorldJsonObject }
+      | undefined
+      | Promise<{ events: WorldEventDraft[]; authority: WorldJsonObject } | undefined>,
   ): Promise<boolean> {
     const store = new WorldStore(worldPath),
       leases = new WriterLeaseService(worldPath)
@@ -1037,7 +1087,7 @@ export class PackStatus {
     try {
       lease = leases.acquire(address, owner, 180000)
       const head = store.head(address),
-        round = build(store, head)
+        round = await build(store, head)
       if (!round) return false
       await store.commitRound({
         address,
@@ -1052,7 +1102,11 @@ export class PackStatus {
         correlationId: owner,
         authority: round.authority,
       })
+      this.externalActions?.committed()
       return true
+    } catch (error) {
+      this.externalActions?.failed()
+      throw error
     } finally {
       if (lease) leases.release(address, owner, lease.fencingToken)
       leases.close()
@@ -1083,11 +1137,12 @@ export class PackStatus {
     parameters: WorldJsonObject,
     requestId: string,
     targetId?: string,
+    signal?: AbortSignal,
   ): Promise<boolean> {
     const owner = 'status:' + requestId,
       actionId = owner + ':action',
       request = { operation, parameters, ...(targetId === undefined ? {} : { targetId }) }
-    return this.#commitRound(worldPath, address, owner, (store, head) => {
+    return this.#commitRound(worldPath, address, owner, async (store, head) => {
       const prior = store.readRoundAuthority(address, brandId(owner, 'TransactionId'))
       if (prior) {
         const same = (value: unknown) => Buffer.from(canonicalizeWorldJson(value as WorldJsonObject)).toString('utf8')
@@ -1096,7 +1151,7 @@ export class PackStatus {
       }
       const events = store.readEvents(address),
         manifest = store.readManifest(address)!.manifest as CompiledWorldManifest
-      const result = this.#adjudicate({
+      const input = {
         worldPath,
         address,
         playerId,
@@ -1107,7 +1162,33 @@ export class PackStatus {
         operationId: operation,
         parameters,
         ...(targetId === undefined ? {} : { targetId }),
-      })
+      }
+      let result = this.#adjudicate(input)
+      if (result.status === 'rejected' && result.reason === CAPABILITY_PENDING) {
+        const context: RulebookResolutionContext = {
+          manifest,
+          events,
+          characterId: playerId,
+          asOfWorldSeq: head.headSeq,
+          action: {
+            actionType: 'interact',
+            parameters: {
+              targetRef: { kind: 'character', id: playerId },
+              bindingId: 'status',
+              definitionRef: { id: PREFIX + operation, version: 1 },
+              arguments: parameters,
+            },
+          },
+        }
+        result = await this.externalActions!.execute(
+          { operation, actorId: playerId, parameters, asOfWorldSeq: head.headSeq },
+          context,
+          worldPath,
+          address,
+          signal,
+          () => this.#adjudicate(input),
+        )
+      }
       if (result.status === 'rejected') throw new TypeError(result.reason)
       // Witnesses of a move keep track of who holds the item, as with the built-in rules.
       const transfer = result.events.find(event => event.eventType === 'entity.transferred')

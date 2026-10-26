@@ -1,0 +1,80 @@
+{
+  "schemaVersion": "worldpack-cognition/v2",
+  "characters": [
+    {
+      "characterId": "character:player",
+      "observations": [
+        {
+          "key": "observation:battle-0",
+          "content": "与法师澄结伴探索遗迹，行动由玩家决定。",
+          "epistemicKind": "direct_observation",
+          "saliencePermille": 600
+        }
+      ],
+      "goals": [
+        {
+          "key": "goal:battle-0",
+          "objective": {
+            "kind": "narrative",
+            "value": "与同伴协作击败守卫；保护濒危队友。"
+          },
+          "priorityPermille": 800,
+          "targetKeys": [],
+          "basisKeys": [
+            "observation:battle-0"
+          ]
+        }
+      ]
+    },
+    {
+      "characterId": "character:companion",
+      "observations": [
+        {
+          "key": "observation:battle-1",
+          "content": "谨慎而有主见的同伴法师。战斗时依据已知生命和魔力决定攻击或治疗；只在自己的回合执行列出的战斗操作，依据程序结果描述效果。",
+          "epistemicKind": "direct_observation",
+          "saliencePermille": 600
+        }
+      ],
+      "goals": [
+        {
+          "key": "goal:battle-1",
+          "objective": {
+            "kind": "narrative",
+            "value": "与同伴协作击败守卫；保护濒危队友。"
+          },
+          "priorityPermille": 800,
+          "targetKeys": [],
+          "basisKeys": [
+            "observation:battle-1"
+          ]
+        }
+      ]
+    },
+    {
+      "characterId": "character:friend",
+      "observations": [
+        {
+          "key": "observation:battle-2",
+          "content": "守卫遗迹的敌方构装体，与冒险者和澄敌对。只在自己的回合选择可用战斗操作，攻击敌对目标；生命为零表示失去战斗能力，不擅自宣布伤害或胜败。",
+          "epistemicKind": "direct_observation",
+          "saliencePermille": 600
+        }
+      ],
+      "goals": [
+        {
+          "key": "goal:battle-2",
+          "objective": {
+            "kind": "narrative",
+            "value": "击倒入侵者，守住遗迹。"
+          },
+          "priorityPermille": 800,
+          "targetKeys": [],
+          "basisKeys": [
+            "observation:battle-2"
+          ]
+        }
+      ]
+    }
+  ]
+}

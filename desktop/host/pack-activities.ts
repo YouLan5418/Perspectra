@@ -77,6 +77,9 @@ export class PackActivities {
   current() {
     return this.#selected()?.current()
   }
+  setActionResolver(resolve: NonNullable<PackActivity['resolveAction']>): void {
+    for (const activity of this.#entries.values()) activity.resolveAction = resolve
+  }
   debugStates(events: readonly RulebookEvent[]): WorldJsonObject[] {
     return [...this.#entries.entries()].map(([activityKey, entry]) => ({
       activityKey,

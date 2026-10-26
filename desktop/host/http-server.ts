@@ -151,6 +151,7 @@ export interface HostRuntime {
   /** Writes a creator's portrait marks into the pack's stage.json and returns the checked whole. */
   saveStageMarks?(characterId: string, marks: StageMarks): Promise<StageConfig>
   saveNode?(title: string): Promise<{ id: string; title: string }>
+  supportsHistoryRestore?(): boolean
   selectCandidate?(tailId: string, candidateId: string, requestId: string): Promise<HostState>
   regenerate?(tailId: string, requestId: string): Promise<HostState>
   cancelRegeneration?(): Promise<HostState>
@@ -316,7 +317,10 @@ export function createHostServer(
           const useDefault = plain || !packWeb?.page
           const capabilities = useDefault ? [...FRONTEND_CAPABILITIES] : [...packWeb!.manifest.capabilities]
           if (!useDefault && policy.mode === 'trusted') capabilities.push('external-network', 'browser-storage')
-          if (!runtime.regenerate && capabilities.includes('regenerate'))
+          if (
+            (!runtime.regenerate || runtime.supportsHistoryRestore?.() === false) &&
+            capabilities.includes('regenerate')
+          )
             capabilities.splice(capabilities.indexOf('regenerate'), 1)
           if (!runtime.perform)
             capabilities.splice(capabilities.indexOf('perform'), capabilities.includes('perform') ? 1 : 0)
@@ -331,7 +335,7 @@ export function createHostServer(
             ...(packWeb?.theme && !plain ? { theme: true } : {}),
             ...(useDefault
               ? {
-                  canSave: !!runtime.saveNode,
+                  canSave: !!runtime.saveNode && runtime.supportsHistoryRestore?.() !== false,
                   ...(plain || !stage ? {} : { stageConfig: stage }),
                   stageAssets: plain
                     ? []

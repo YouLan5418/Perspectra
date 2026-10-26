@@ -3,12 +3,14 @@ import { pathToFileURL } from 'node:url'
 import { hostPluginSettings, type HostPluginSettings } from './host-plugin-settings.ts'
 import type { FrontendHostServices } from '@harness-world/frontend'
 import { validBgmTrack, type FrontendBgmPlugin, type FrontendBgmService } from '@harness-world/frontend'
+import { HostCapabilities, type CapabilityCatalog } from './host-capabilities.ts'
 
 type SpeechSynthesizer = NonNullable<FrontendHostServices['synthesizeSpeech']>
 
 declare module '@deepseek-ai/cordis' {
   interface Context {
     frontendServices: FrontendServices
+    capabilities: HostCapabilities
   }
 }
 
@@ -96,6 +98,7 @@ export class FrontendServices extends Service implements FrontendHostServices {
 
 export interface HostPlugins {
   readonly services: FrontendHostServices
+  readonly capabilities: CapabilityCatalog
   close(): Promise<void>
 }
 
@@ -104,6 +107,7 @@ export async function loadHostPlugins(settings: HostPluginSettings[]): Promise<H
   const plugins = hostPluginSettings(settings)
   const root = new Context()
   const services = new FrontendServices(root)
+  const capabilities = new HostCapabilities(root)
   try {
     for (const plugin of plugins) {
       if (!plugin.enabled) continue
@@ -124,7 +128,7 @@ export async function loadHostPlugins(settings: HostPluginSettings[]): Promise<H
         throw new Error(`宿主插件 ${plugin.id} 加载失败，请检查插件文件；也可在设置中停用后重试。`)
       }
     }
-    return { services, close: () => root.fiber.dispose() }
+    return { services, capabilities, close: () => root.fiber.dispose() }
   } catch (error) {
     await root.fiber.dispose()
     throw error

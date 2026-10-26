@@ -1,5 +1,13 @@
 # 当前创作者运行时
 
+2026-10-26 双入口：例如澄请求设备确认后只增加本人次数，作者随包分发 `plugins.json` 和规则模块，本地 Cordis 插件注册 `ctx.capabilities`。模块组合进既有 PackStatus，候选与执行继续重查权限；异步完成后才校验结果并沿现有事件事务提交，queued 只确认排队。[实现记录](../studies/2026-10-26_dual-plugin-entrypoints.md)和[作者指南](../guides/dual-plugin-entrypoints.md)说明目录、世界绑定、角色请求、取消与未知结果暂停。源码、模拟模型和构建入口验证不代表真实体验或发行包验收。
+
+RPG Maker 方向暂停继续扩展自研 RPG Core 战斗规则。[桥接骨架](../../../examples/rpg-maker/README.md)通过同一入口提供有限队员视图与公共事件白名单；MZ 可请求绑定 NPC 运行原有角色回合。外部观察须由包内规则选择是否提交，不直接变成世界真值。仍没有实际 MZ 工程、合法战斗技能输入或配对存档；含外部写能力时禁用节点和回退。下方自研规则实验保留当时验收范围。
+
+2026-10-26 RPG Core 实验：例如澄选择火球后，守卫和浮游机按确定性规则反击，两个敌人只作为战斗单位存在。共享算法在 [examples/rpg-core](../../../examples/rpg-core/generate.mjs)，作者编辑战斗数据后运行生成器，得到普通的 `scripts/activities/battle.js`，随包发布并受资产锁保护；运行时只走下方原有的包内活动路径，不加载插件、不新增数据库、角色协议或提交路径。最初版本由 Cordis 插件在开局生成脚本，同日已删除。群攻、中毒、奖励事务、重启以及“发布脚本与资料一致”已由模拟服务测试验证；真实模型、浏览器体验与发行包未验收，完整限制见[实验记录](../studies/2026-10-26_cordis-rpg-core-prototype.md)。
+
+2026-10-26 包内 RPG 实验：例如玩家施放火球后，同伴和守卫依次提交技能，再由包内规则结算胜败。[遗迹守卫包](../../../examples/world-packs/rpg-turn-battle/README.md)只用现有状态脚本和活动脚本完成 2v1 回合战斗，未修改宿主。活动进度与 HP / MP / 药水 / 金币沿同一事务提交；默认 NPC 由 `simulate` 提供策略，也可将同伴切换到模型决策。相关宿主自动化已验证，模型模式只使用模拟服务；真实模型策略、浏览器体验和发行包尚未验收。机制范围与限制见[评估记录](../studies/2026-10-26_gameplay-rpg-report.md)。这证明可信包内编程可以组合现有机制，不代表静态交互 JSON 自动具备战斗效果。
+
 2026-10-24 创作资源：仓库的 [perspectra-creator](../../../skills/perspectra-creator/SKILL.md) 通过 [CLI 构建函数](../../../scripts/build/build-worldpack-cli.mjs)复制到程序的同名 skills 目录，整合原创世界包、旧 tavern-to-perspectra 的静态卡片提取／容量分析及迁移流程、原生预设创作与模板。脚手架使用随包 Node，卡片提取使用随包 Python；不执行原卡脚本，不依赖旧 Skill 或仓库。它不增加运行时插件或预装试玩包。[Skill 检查脚本](../../../scripts/release/verify-creator-skill.mjs)在独立环境验证脚手架、防覆盖、文档示例、合成 PNG／JSON 卡的数据保留，以及原生预设模板和非法字段／宏拒绝；真实迁移作品与角色体验仍需单独验收。
 
 预设创作可让同行者少写总结、保留自己的语气；不会授予其读取信件秘密的权限。CLI 进程新增 `preset validate <file> [--pack]`，直接复用 [rolePreset](../../../packages/provider-chat/src/preset.ts) 和[预设库导入](../../../packages/provider-chat/src/preset-library.ts)校验；包推荐模式只接受裸 RolePreset，预设库模式支持交换格式。它只检查字段、宏与正则语法，不执行文本替换、不写入预设库、不证明风格效果。世界包 validate 仍不自动加载预设扩展，需分别检查；详见[预设创作](../../../skills/perspectra-creator/references/presets.md)。

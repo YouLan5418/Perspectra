@@ -152,6 +152,12 @@ export class PackActivity {
     return value
   }
   readonly #script: Script
+  resolveAction:
+    | ((
+        context: RulebookResolutionContext,
+        resolve: () => import('@harness-world/kernel').RulebookResolution,
+      ) => Promise<import('@harness-world/kernel').RulebookResolution>)
+    | undefined
   readonly #operations: Operation[]
   readonly #validators = new Map<string, ReturnType<Ajv['compile']>>()
   readonly title: string
@@ -1291,7 +1297,7 @@ export class PackActivity {
       }
       const manifest = store.readManifest(this.address)!,
         rules = this.rulebooks().resolve('builtin:speak-move', 2, owner, this.address)
-      const result = rules.resolve({
+      const context = {
         manifest: manifest.manifest as CompiledWorldManifest,
         manifestHash: manifest.manifestHash,
         events,
@@ -1300,7 +1306,10 @@ export class PackActivity {
         asOfWorldSeq: head.headSeq,
         resolutionAuthority: resolutionAuthority('player', 'standard'),
         action,
-      })
+      }
+      const result = this.resolveAction
+        ? await this.resolveAction(context, () => rules.resolve(context))
+        : rules.resolve(context)
       // A rejected status operation tells the player its own reason; other rejections stay generic.
       if (result.status !== 'accepted')
         throw new TypeError(
@@ -1409,6 +1418,10 @@ export class PackActivity {
         correlationId: owner,
         authority: { actorId: this.playerId, action, status: 'accepted' },
       })
+      this.status?.externalActions?.committed()
+    } catch (error) {
+      this.status?.externalActions?.failed()
+      throw error
     } finally {
       if (lease) leases.release(this.address, owner, lease.fencingToken)
       availability.close()

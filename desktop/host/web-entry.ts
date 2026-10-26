@@ -106,6 +106,7 @@ async function main(): Promise<void> {
   } = settings?.instances[instanceId] ?? { mode: 'auto', override: {} }
   hostPlugins = await loadHostPlugins(hostPluginSettings(JSON.parse(process.env.PERSPECTRA_HOST_PLUGINS ?? '[]')))
   const runtime = await WorldHostRuntime.create({
+    capabilities: hostPlugins.capabilities,
     dataDirectory,
     provider,
     packPath,

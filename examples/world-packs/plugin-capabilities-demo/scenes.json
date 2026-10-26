@@ -1,0 +1,21 @@
+{
+  "schemaVersion": "worldpack-scenes/v2",
+  "scenes": [
+    {
+      "sceneId": "scene:front-room",
+      "lifecycle": "active",
+      "locationId": "location:front-room",
+      "participantIds": [
+        "character:companion",
+        "character:friend",
+        "character:player"
+      ]
+    },
+    {
+      "sceneId": "scene:back-room",
+      "lifecycle": "created",
+      "locationId": "location:back-room",
+      "participantIds": []
+    }
+  ]
+}

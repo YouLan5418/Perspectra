@@ -1,5 +1,9 @@
 # 创作者：活动与状态
 
+2026-10-26：可用[包内插件模块](dual-plugin-entrypoints.md)组合现有状态与操作，并声明所需的本地 Cordis 异步能力。规则仍通过同一状态／交互裁定，活动 policy 继续限制模块操作；外部只确认排队时不修改数值。它补充原脚本入口，不要求重写活动或状态文件。
+
+2026-10-26 新增[包内回合战斗示例](../../../examples/world-packs/rpg-turn-battle/README.md)：玩家与同伴轮流攻击守卫，支持 HP / MP、治疗、防御、药水与胜败奖励；只新增包内容，未修改宿主。完整宿主自动化通过，真实模型与浏览器体验未验收，边界见[评估记录](../studies/2026-10-26_gameplay-rpg-report.md)。
+
 2026-10-22 核对：例如角色拿起保温杯后把它交给同伴，拿／放／给由包内作者脚本定义；本节更新了目标物品、候选筛选、物品结果和调试入口。旧日期的活动与状态验收保留当时范围，不代表当前物品模板已重验。
 
 当前玩法桥由实验宿主加载可信本地脚本。先复制 [launcher-demo](../../../examples/world-packs/launcher-demo) 或 [主持猜数字示例](../../../examples/world-packs/ai-girls-hosted-guess)，逐步修改并真实试玩。完整运行时边界见 [创作者运行时](../architecture/creator-runtime.md)。

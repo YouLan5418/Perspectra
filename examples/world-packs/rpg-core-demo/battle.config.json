@@ -1,0 +1,109 @@
+{
+  "title": "遗迹敌群战",
+  "playerId": "character:player",
+  "outcomeStatus": "encounter",
+  "potions": 2,
+  "reward": {
+    "key": "gold",
+    "amount": 45
+  },
+  "skills": [
+    {
+      "id": "strike",
+      "name": "普通攻击",
+      "kind": "damage",
+      "scope": "one",
+      "power": 8,
+      "mp": 0
+    },
+    {
+      "id": "fire",
+      "name": "火球术",
+      "kind": "damage",
+      "scope": "one",
+      "power": 16,
+      "mp": 3
+    },
+    {
+      "id": "nova",
+      "name": "毒雾新星",
+      "kind": "damage",
+      "scope": "all",
+      "power": 8,
+      "mp": 4,
+      "poison": {
+        "damage": 4,
+        "turns": 2
+      }
+    },
+    {
+      "id": "heal",
+      "name": "治疗术",
+      "kind": "heal",
+      "scope": "one",
+      "power": 14,
+      "mp": 3
+    }
+  ],
+  "units": [
+    {
+      "id": "unit:hero",
+      "name": "冒险者",
+      "team": "party",
+      "characterId": "character:player",
+      "hp": 40,
+      "mp": 8,
+      "attack": 2,
+      "defense": 1,
+      "speed": 30,
+      "skills": [
+        "strike",
+        "fire",
+        "nova",
+        "heal"
+      ]
+    },
+    {
+      "id": "unit:mage",
+      "name": "澄",
+      "team": "party",
+      "characterId": "character:companion",
+      "hp": 30,
+      "mp": 12,
+      "attack": 0,
+      "defense": 1,
+      "speed": 20,
+      "skills": [
+        "strike",
+        "fire",
+        "heal"
+      ]
+    },
+    {
+      "id": "unit:golem",
+      "name": "遗迹守卫",
+      "team": "enemy",
+      "hp": 50,
+      "mp": 0,
+      "attack": 1,
+      "defense": 2,
+      "speed": 10,
+      "skills": [
+        "strike"
+      ]
+    },
+    {
+      "id": "unit:drone",
+      "name": "浮游机",
+      "team": "enemy",
+      "hp": 24,
+      "mp": 0,
+      "attack": 0,
+      "defense": 0,
+      "speed": 5,
+      "skills": [
+        "strike"
+      ]
+    }
+  ]
+}

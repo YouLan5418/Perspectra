@@ -1,0 +1,23 @@
+{
+  "schemaVersion": "worldpack-memory/v2",
+  "characters": [
+    {
+      "characterId": "character:player",
+      "profile": "standard",
+      "attentionTopics": [
+        "遗迹战斗",
+        "同伴",
+        "已裁定的行动结果"
+      ]
+    },
+    {
+      "characterId": "character:companion",
+      "profile": "standard",
+      "attentionTopics": [
+        "遗迹战斗",
+        "同伴",
+        "已裁定的行动结果"
+      ]
+    }
+  ]
+}

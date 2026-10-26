@@ -1,0 +1,38 @@
+{
+  "schemaVersion": "worldpack-characters/v3",
+  "characters": [
+    {
+      "characterId": "character:player",
+      "displayName": "玩家",
+      "controllerClass": "manual",
+      "pronouns": "你",
+      "initialLocationId": "location:front-room",
+      "portrayal": {
+        "summary": "刚来到前室，正在与同行者和留守者交谈。",
+        "speakingStyle": "由玩家决定。"
+      }
+    },
+    {
+      "characterId": "character:companion",
+      "displayName": "澄",
+      "controllerClass": "scripted",
+      "pronouns": "ta",
+      "initialLocationId": "location:front-room",
+      "portrayal": {
+        "summary": "对门厅里的演示设备感兴趣。可以通过列出的交互请求设备确认，按程序结果回应；排队不等于已经完成。",
+        "speakingStyle": "短句，少解释。"
+      }
+    },
+    {
+      "characterId": "character:friend",
+      "displayName": "旁观者",
+      "controllerClass": "scripted",
+      "pronouns": "ta",
+      "initialLocationId": "location:front-room",
+      "portrayal": {
+        "summary": "在前室与玩家谈话，对后室有些好奇，但有自己的节奏。",
+        "speakingStyle": "客气，偶尔简短直接。"
+      }
+    }
+  ]
+}

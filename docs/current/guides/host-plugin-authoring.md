@@ -1,5 +1,9 @@
 # 编写并加载自己的 Cordis 宿主插件
 
+2026-10-26：例如同伴操作外部设备，包内模块负责玩法规则，Cordis 插件通过 `ctx.capabilities.register` 提供异步原生能力。按世界创建会话、角色请求、完成后裁定及失败限制见[双入口指南](dual-plugin-entrypoints.md)。原生完整例子是 [demo-device.mjs](../../../examples/host-plugins/demo-device.mjs)，外部程序方向见 [RPG Maker](../../../examples/rpg-maker/README.md)。下方声音指南仍沿用原验收范围。
+
+2026-10-26 玩法补充：宿主插件不负责生成包的玩法规则。可复用的规则以作者工具形式分发，例如 [RPG Core 生成器](../../../examples/rpg-core/generate.mjs) 在创作时输出普通活动脚本，随包发布；同日删除的 `ctx.gameplay.registerActivity` 不再可用。说明见[示例包](../../../examples/world-packs/rpg-core-demo/README.md)与[实验记录](../studies/2026-10-26_cordis-rpg-core-prototype.md)。
+
 例如同行者读到“门外的争执让气氛变得紧张”，创作者希望日常曲淡出、紧张曲响起。创作者编写曲库和选曲规则；默认舞台提供播放器，玩家读到那一段才触发选择。音乐不会写入世界事件、存档或角色记忆。
 
 核对日期：2026-10-24。适用于当前源码；本轮未重建便携发行包。插件是可信本地 Node 代码，与宿主拥有相同权限，须由玩家在启动器明确启用。Cordis 管理装载与退出，不提供安全沙箱或自动 npm 安装。
@@ -51,6 +55,7 @@ export default async function myBgm(ctx) {
 
 | 接口 | 用途 |
 | --- | --- |
+| `ctx.capabilities.register(provider)` / `list()` | 注册按世界打开的异步能力 / 读取方法目录，详见[双入口指南](dual-plugin-entrypoints.md) |
 | `ctx.frontendServices.registerBgm({ tracks, selectTrack })` | 注册一个曲库和选曲回调，返回注销函数 |
 | `ctx.frontendServices.registerSpeech(synthesize)` | 注册一个 TTS 回调，详见[语音示例](../../../examples/host-plugins/http-speech.mjs) |
 | `ctx.effect(() => disposer)` | 把自己打开的连接、定时器或注册项交给 Cordis 在退出时释放 |
