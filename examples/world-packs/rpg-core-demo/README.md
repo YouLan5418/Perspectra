@@ -25,7 +25,7 @@ node examples/rpg-core/generate.mjs examples/world-packs/rpg-core-demo/battle.co
 corepack pnpm@11.7.0 worldpack validate examples/world-packs/rpg-core-demo
 ```
 
-生成器先校验数据，单位、技能或奖励不合法时报 `RPG_CONFIG_INVALID`，不会写出脚本。`battle.config.json` 只供作者使用，不在资产锁里，运行时不会读取它。
+生成器先校验数据，单位、技能或奖励不合法时报 `RPG_CONFIG_INVALID`，不会写出脚本。最终脚本（包括生成说明与配置）不得超过宿主的 65,536 个 UTF-8 字节；超限时在写入前拒绝，并保留已有输出文件。`battle.config.json` 只供作者使用，不在资产锁里，运行时不会读取它。
 
 | 数据 | 本例 |
 | --- | --- |

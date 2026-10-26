@@ -252,6 +252,51 @@ it('fails missing required capabilities before world creation and supports a pur
   expect(f.truth().public['greetings-enabled']).toBe(false)
 }, 60_000)
 
+function sharedCapabilityModules(path: string, conflicting = false) {
+  const file = join(path, 'plugins.json'),
+    declaration = JSON.parse(readFileSync(file, 'utf8'))
+  const first = declaration.modules[0]
+  first.capabilities[0].config = { channel: 'greetings', options: { primary: 1, fallback: 2 } }
+  declaration.modules.push({
+    id: 'second',
+    entry: 'plugins/second.js',
+    characters: first.characters,
+    capabilities: [
+      {
+        config: { options: { fallback: conflicting ? 3 : 2, primary: 1 }, channel: 'greetings' },
+        required: true,
+        version: '0.1.0',
+        id: 'demo-device',
+      },
+    ],
+  })
+  writeFileSync(file, JSON.stringify(declaration))
+  writeFileSync(
+    join(path, 'plugins/second.js'),
+    readFileSync(join(path, 'plugins/greetings.js'), 'utf8')
+      .replaceAll('greetings-', 'second-')
+      .replace('请求设备确认', '请求第二模块确认'),
+  )
+  const manifestPath = join(path, 'worldpack.source.json'),
+    manifest = JSON.parse(readFileSync(manifestPath, 'utf8'))
+  manifest.assetFiles.push('plugins/second.js')
+  writeFileSync(manifestPath, JSON.stringify(manifest))
+}
+
+it('shares a capability across modules regardless of declaration and nested config key order', async () => {
+  const f = await fixture({ modify: path => sharedCapabilityModules(path) })
+  await f.act('请求设备确认')
+  await f.act('请求第二模块确认')
+  expect(f.truth().characters[PLAYER]!['greetings-count']).toBe(1)
+  expect(f.truth().characters[PLAYER]!['second-count']).toBe(1)
+}, 60_000)
+
+it('still rejects genuinely conflicting shared capability config', async () => {
+  await expect(fixture({ modify: path => sharedCapabilityModules(path, true) })).rejects.toThrow(
+    'Conflicting module capability requirement',
+  )
+})
+
 it('keeps optional missing capabilities out of options while allowing local game rules', async () => {
   const f = await fixture({
     modify(path) {

@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { randomUUID } from 'node:crypto'
+import { spawnSync } from 'node:child_process'
 import { afterEach, expect, it } from 'vitest'
 import { interactionPackageDescription, type WorldJsonObject } from '@harness-world/contracts'
 import { createInstalledInteractionPackages } from '@harness-world/interactions-basic'
@@ -264,6 +265,46 @@ it('ships the script generated from its config and rejects invalid RPG data befo
   expect(readFileSync(join(PACK, SCRIPT), 'utf8')).toBe(renderActivityFile(config, CONFIG))
   config.units[0].skills = ['missing-skill']
   expect(() => renderActivityFile(config, CONFIG)).toThrow('RPG_CONFIG_INVALID')
+})
+
+it('rejects an oversized generated script before the CLI can overwrite an existing output', () => {
+  const config = JSON.parse(readFileSync(join(PACK, CONFIG), 'utf8'))
+  config.skills = Array.from({ length: 64 }, (_, index) => ({
+    id: 'skill-' + index + '-' + 'x'.repeat(88),
+    name: '技能' + index,
+    kind: 'damage',
+    scope: 'one',
+    power: 1,
+    mp: 0,
+  }))
+  config.units = Array.from({ length: 16 }, (_, index) => ({
+    id: 'unit:' + index,
+    name: '单位' + index,
+    team: index === 0 ? 'party' : 'enemy',
+    ...(index === 0 ? { characterId: PLAYER } : {}),
+    hp: 10,
+    mp: 0,
+    attack: 1,
+    defense: 0,
+    speed: index === 0 ? 20 : 10,
+    skills: config.skills.map((skill: { id: string }) => skill.id),
+  }))
+  expect(() => renderActivityFile(config, CONFIG)).toThrow('65536 UTF-8 bytes')
+  const root = mkdtempSync(join(tmpdir(), 'rpg-core-oversized-'))
+  roots.push(root)
+  const input = join(root, CONFIG),
+    output = join(root, 'battle.js'),
+    previous = '// previous valid activity\n'
+  writeFileSync(input, JSON.stringify(config))
+  writeFileSync(output, previous)
+  const result = spawnSync(process.execPath, [resolve('examples/rpg-core/generate.mjs'), input, output], {
+    encoding: 'utf8',
+    windowsHide: true,
+  })
+  expect(result.error).toBeUndefined()
+  expect(result.status).not.toBe(0)
+  expect(result.stderr).toContain('65536 UTF-8 bytes')
+  expect(readFileSync(output, 'utf8')).toBe(previous)
 })
 
 it('rejects an invalid reward and rolls back the winning strike together with all enemy HP changes', async () => {

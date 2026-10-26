@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto'
 import { lstatSync, readFileSync, realpathSync } from 'node:fs'
 import { relative, resolve } from 'node:path'
 import { Script, createContext } from 'node:vm'
-import type { WorldJsonObject, WorldJsonValue } from '@harness-world/contracts'
+import { canonicalizeWorldJson, type WorldJsonObject, type WorldJsonValue } from '@harness-world/contracts'
 import type { RulebookResolution, RulebookResolutionContext } from '@harness-world/kernel'
 import type { CompiledWorldPackV5 } from '@harness-world/world-pack'
 import {
@@ -101,7 +101,12 @@ export class PackModules {
         object(requirement.config)
         const typed = requirement as unknown as CapabilityRequirement,
           prior = requirements.get(typed.id)
-        if (prior && JSON.stringify(prior) !== JSON.stringify(typed))
+        if (
+          prior &&
+          (prior.version !== typed.version ||
+            prior.required !== typed.required ||
+            !Buffer.from(canonicalizeWorldJson(prior.config)).equals(Buffer.from(canonicalizeWorldJson(typed.config))))
+        )
           throw new TypeError('Conflicting module capability requirement: ' + typed.id)
         requirements.set(typed.id, typed)
         module.requirements.push(typed)
