@@ -78,6 +78,6 @@ basisKeys 引用本角色合法来源，不能直接引用别人未公开的私�
 }
 ```
 
-背景设定不会自动成为角色亲历。大卡和长文先按受众、主题拆分，并按实际选择预算组织；静态字符总量不等于每次模型注入量。constant 只免除关键词匹配，仍受受众、条件与预算限制。
+背景设定不会自动成为角色亲历。大卡和长文先按受众、主题拆分，并按实际选择预算组织；单篇正文长于 maximumCharacters 时宿主拒绝加载，可用 `scripts/split-knowledge.mjs <作品目录>` 按段落拆分（先加 `--dry-run` 看计划），拆后逐段改写关键词；静态字符总量不等于每次模型注入量。constant 只免除关键词匹配，仍受受众、条件与预算限制。
 
 可选 when 是 JSON Schema，根 type 为 object；只读取接收者获授权的 public/self/characters 状态、characterId、locationId、scene、items、activity、stimulus、knownStatus。属性要存在时写 required；`knownStatus.current=false` 和 items.lastObserved 表示上次确认，不能当成当前真值。条件不能扩大私有文档受众，完整宿主载入仍需实际验证。

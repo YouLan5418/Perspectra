@@ -75,6 +75,16 @@ export class PackKnowledge {
     }
     if (new Set(root.entries.map(row => row.documentId)).size !== root.entries.length)
       throw new TypeError('知识条目重复')
+    // select() injects whole entries only, so one longer than the per-turn budget would never be injected.
+    // Refuse it here rather than drop it silently at every turn.
+    for (const entry of root.entries) {
+      const document = pack.content.documents.find(row => row.documentId === entry.documentId)!
+      const length = pack.content.markdown.find(row => row.path === document.contentRef)?.text.length ?? 0
+      if (length > root.maximumCharacters)
+        throw new TypeError(
+          `知识条目 ${entry.documentId} 有 ${length} 字符，超过每轮上限 maximumCharacters ${root.maximumCharacters}，永远不会被注入。请拆成多条带关键词的条目，或调高 maximumCharacters（最多 ${MAX_CHARACTERS}）。`,
+        )
+    }
     return new PackKnowledge(pack, root.entries, root.maximumCharacters, conditions)
   }
   static load(root: string, pack: CompiledWorldPackV5): PackKnowledge | undefined {

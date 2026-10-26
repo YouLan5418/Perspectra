@@ -72,17 +72,23 @@ const fields = (properties: WorldJsonObject): WorldJsonObject => ({
 })
 const contains = (properties: WorldJsonObject): WorldJsonObject => ({ type: 'array', contains: fields(properties) })
 
-it('checks knowledge audience before matching and skips whole entries exceeding the budget', async () => {
+it('checks knowledge audience, skips whole entries past the remaining budget and refuses entries larger than it', async () => {
   const f = await packFixture(),
     knowledge = PackKnowledge.load(f.path, f.pack)!
   expect(JSON.stringify(knowledge.select(context('character:friend', '青竹 黑海岸')))).not.toContain('密约')
   expect(JSON.stringify(knowledge.select(context('character:friend')))).not.toContain('研究基地')
   expect(JSON.stringify(knowledge.select(context('character:companion', '黑海岸')))).toContain('密约')
   expect(JSON.stringify(knowledge.select(context('character:companion', '黑海岸')))).toContain('研究基地')
-  const limited = PackKnowledge.parse({ ...f.knowledgeConfig, maximumCharacters: 100 }, f.pack)
+  // Each entry fits the budget alone; after the higher-priority secret (12) the lore (132) no longer does.
+  const limited = PackKnowledge.parse({ ...f.knowledgeConfig, maximumCharacters: 140 }, f.pack)
   const delivered = limited.select(context('character:companion', '黑海岸')).entries as WorldJsonObject[]
-  expect(delivered.reduce((n, row) => n + String(row.content).length, 0)).toBeLessThanOrEqual(100)
+  expect(delivered.reduce((n, row) => n + String(row.content).length, 0)).toBeLessThanOrEqual(140)
+  expect(JSON.stringify(delivered)).toContain('密约')
   expect(JSON.stringify(delivered)).not.toContain('研究基地')
+  // An entry longer than the whole budget could never be injected: refused at load, naming the entry.
+  expect(() => PackKnowledge.parse({ ...f.knowledgeConfig, maximumCharacters: 100 }, f.pack)).toThrow(
+    '知识条目 document:lore 有 132 字符，超过每轮上限 maximumCharacters 100',
+  )
   expect(() =>
     PackKnowledge.parse(
       {
