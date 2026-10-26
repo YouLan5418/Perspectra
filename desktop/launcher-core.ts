@@ -19,11 +19,13 @@ import {
   exportPresets,
   namedPreset,
   rolePreset,
+  assignPackRolePresets,
+  type PackRolePresets,
   type RolePreset,
 } from '@harness-world/provider-chat'
 import { exportStoryNode, importStoryNode } from './story-share.ts'
 import { readStoryNodes, restoreStoryNode, storyId } from './story-nodes.ts'
-import { ModelPresets, packPreset, presetChoice } from './model-presets.ts'
+import { ModelPresets, packPreset, packRolePresets, presetChoice } from './model-presets.ts'
 import {
   brokenModels,
   instanceModels,
@@ -38,7 +40,7 @@ import {
 import { FrontendAuthorizations, type FrontendIdentity } from './frontend-authorization.ts'
 import { spawn, type ChildProcess } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
-import { mkdir, readFile, rename, writeFile, access, copyFile } from 'node:fs/promises'
+import { mkdir, readFile, rename, rm, writeFile, access, copyFile } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
 import { compileWorldPackSource, type CompiledWorldPackV5 } from '@harness-world/world-pack'
 import { interactionPackageDescription } from '@harness-world/contracts'
@@ -90,6 +92,13 @@ function packCharacters(pack: CompiledWorldPackV5) {
   return pack.content.characters
     .filter(c => c.characterId !== player && c.controllerClass !== 'manual' && (c.lifecycle ?? 'active') === 'active')
     .map(c => ({ id: c.characterId, name: c.displayName }))
+}
+/** The package's role-presets.json may only name characters the Launcher can map in its instances. */
+function checkBundled(characters: readonly { id: string }[], bundled: PackRolePresets): PackRolePresets {
+  const ids = new Set(characters.map(c => c.id))
+  if ([...Object.keys(bundled.characters), ...bundled.groups.flatMap(g => g.members)].some(id => !ids.has(id)))
+    throw new Error('游戏包 role-presets.json 引用了此包之外或不可调用的角色。')
+  return bundled
 }
 /** 世界包根目录的约定封面；只供启动器展示，不进入编译产物与世界事实。 */
 const COVER_FILES = [
@@ -216,6 +225,11 @@ export class LauncherCore {
   #characters: Record<string, { id: string; name: string }[]> = {}
   #presets: ModelPresets
   #recommended: Record<string, RolePreset> = {}
+  #bundled: Record<string, PackRolePresets> = {}
+  #setBundled(packId: string, bundled: PackRolePresets | undefined) {
+    if (bundled) this.#bundled[packId] = checkBundled(this.#characters[packId] ?? [], bundled)
+    else delete this.#bundled[packId]
+  }
   #details: Record<string, { description: string; hasCover: boolean; error?: string }> = {}
   #covers: Record<string, string> = {}
   async #describe(pack: Pack, compiled: CompiledWorldPackV5) {
@@ -365,17 +379,26 @@ export class LauncherCore {
     for (const pack of this.#index.packs) {
       try {
         const recommended = await packPreset(pack.path)
+        const bundled = await packRolePresets(pack.path)
         const compiled = (await compileWorldPackSource(
           pack.path,
           createInstalledInteractionPackages().map(interactionPackageDescription),
         )) as CompiledWorldPackV5
         await this.#describe(pack, compiled)
+        // The author edited the pack since it was loaded: new instances follow the files as they are now.
+        if (compiled.packHash !== pack.hash)
+          await this.#save({
+            ...this.#index,
+            packs: this.#index.packs.map(p => (p.id === pack.id ? { ...p, hash: compiled.packHash } : p)),
+          })
         this.#recommended[pack.id] = recommended
         this.#characters[pack.id] = packCharacters(compiled)
+        this.#setBundled(pack.id, bundled)
       } catch {
         // Package files are external to the index; one unavailable package must
         // not hide other games or leave stale author metadata available.
         delete this.#recommended[pack.id]
+        delete this.#bundled[pack.id]
         delete this.#characters[pack.id]
         delete this.#covers[pack.id]
         this.#details[pack.id] = {
@@ -497,6 +520,7 @@ export class LauncherCore {
         global: this.#presets.global,
         instances: this.#presets.instances,
         recommended: this.#recommended,
+        bundled: this.#bundled,
       },
       packDetails: this.#details,
       frontends: this.#frontends,
@@ -642,6 +666,31 @@ export class LauncherCore {
       case 'preset-inspect':
         await this.#recommendations()
         return this.snapshot()
+      case 'preset-apply-bundle': {
+        // Copies the package's character and group presets into one instance; other mappings stay as they are.
+        const instance = this.#instance(request.instanceId)
+        const bundle = this.#bundled[instance.packageId]
+        if (!bundle) throw new Error('这个游戏包没有随包角色预设。')
+        const { mode, override, ...mapping } = this.#presets.instances[instance.id] ?? {
+          mode: 'auto' as const,
+          override: {},
+        }
+        const choice = presetChoice({ mode, override, ...assignPackRolePresets(mapping, bundle, randomUUID) })
+        this.#validMapping(instance, choice)
+        await this.#presets.save(this.#presets.global, { ...this.#presets.instances, [instance.id]: choice })
+        if (request.library === true) {
+          const title = (this.#index.packs.find(p => p.id === instance.packageId)?.title ?? '游戏包').slice(0, 40)
+          const names = new Map((this.#characters[instance.packageId] ?? []).map(c => [c.id, c.name]))
+          await this.#presets.addLibrary([
+            ...Object.entries(bundle.characters).map(([id, preset]) => ({
+              name: title + ' · ' + (names.get(id) ?? id).slice(0, 30) + ' 专属',
+              preset,
+            })),
+            ...bundle.groups.map(group => ({ name: title + ' · ' + group.name.slice(0, 30), preset: group.preset })),
+          ])
+        }
+        return this.snapshot()
+      }
       case 'preset-global':
         await this.#presets.save(rolePreset(request.preset), this.#presets.instances)
         return this.snapshot()
@@ -683,6 +732,9 @@ export class LauncherCore {
         )) as CompiledWorldPackV5
         await loadPackWeb(path)
         const recommended = await packPreset(path)
+        const characters = packCharacters(compiled)
+        const bundled = await packRolePresets(path)
+        if (bundled) checkBundled(characters, bundled)
         const pack: Pack = {
           id: compiled.packId,
           version: compiled.packVersion,
@@ -690,12 +742,11 @@ export class LauncherCore {
           path,
           hash: compiled.packHash,
         }
-        const existing = this.#index.packs.find(p => p.id === pack.id)
-        if (existing && existing.hash !== pack.hash)
-          throw new Error('同 ID 的包内容已变化；首轮不自动替换已有包与实例。')
+        // Reloading an edited pack replaces its record; instances keep the hash they were played on.
         await this.#save({ ...this.#index, packs: [...this.#index.packs.filter(p => p.id !== pack.id), pack] })
         this.#recommended[pack.id] = recommended
-        this.#characters[pack.id] = packCharacters(compiled)
+        this.#characters[pack.id] = characters
+        this.#setBundled(pack.id, bundled)
         await this.#describe(pack, compiled)
         return this.snapshot()
       }
@@ -815,6 +866,20 @@ export class LauncherCore {
         await this.#save({ ...this.#index, instances: [...this.#index.instances, instance] })
         return this.snapshot()
       }
+      case 'instance-remove': {
+        this.#idle()
+        const instance = this.#instance(request.instanceId)
+        if (request.confirmed !== true) throw new Error('删除实例需要先确认。')
+        // The index goes first: if removing files fails halfway, no listed instance points at a broken save.
+        await this.#save({ ...this.#index, instances: this.#index.instances.filter(i => i.id !== instance.id) })
+        if (instance.id in this.#presets.instances) {
+          const { [instance.id]: _removed, ...rest } = this.#presets.instances
+          await this.#presets.save(this.#presets.global, rest)
+        }
+        await this.#authorizations().revoke(instance.id)
+        await rm(join(this.root, 'instances', instance.id), { recursive: true, force: true })
+        return this.snapshot()
+      }
       case 'play-settings': {
         const pack = this.#index.packs.find(pack => pack.id === request.packageId)
         if (!pack) throw new Error('请先载入游戏包。')
@@ -873,7 +938,7 @@ export class LauncherCore {
       case 'start': {
         this.#idle()
         this.#error = ''
-        const instance = this.#instance(request.instanceId)
+        let instance = this.#instance(request.instanceId)
         const packError = this.#details[instance.packageId]?.error
         if (packError) throw new Error(packError)
         if (!instance.models) throw new Error('请先在模型配置中选择模型。')
@@ -881,7 +946,16 @@ export class LauncherCore {
         const pack = this.#index.packs.find(p => p.id === instance.packageId)!
         const directory = this.#storyDirectory(instance)
         const preflight = await preflightSave(pack.path, directory)
-        if (preflight.packHash !== instance.packHash) throw new Error('世界包内容与创建实例时不同，请恢复原包。')
+        if (preflight.packHash !== instance.packHash) {
+          // An instance that has never been played has no world yet, so it simply takes the pack as it is now.
+          if (preflight.kind === 'resume')
+            throw new Error('这个实例创建于世界包修改之前，已有进度不能在改过的包上继续；请新建实例，或恢复原包。')
+          instance = { ...instance, packHash: preflight.packHash }
+          await this.#save({
+            ...this.#index,
+            instances: this.#index.instances.map(i => (i.id === instance.id ? instance : i)),
+          })
+        }
         try {
           await access(corePythonExecutable())
         } catch (error) {
@@ -998,7 +1072,7 @@ export class LauncherCore {
           await this.#save({
             ...this.#index,
             instances: this.#index.instances.map(i =>
-              i === instance ? { ...i, lastPlayedAt: new Date().toISOString() } : i,
+              i.id === instance.id ? { ...i, lastPlayedAt: new Date().toISOString() } : i,
             ),
           })
           child.on('message', value => void this.#stagePreferences(child, value))

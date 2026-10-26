@@ -40,12 +40,13 @@ async function withPack(core: LauncherCore, names: string[] = ['first']) {
   for (const name of names) await core.handle({ operation: 'create', packageId: core.snapshot().packs[0]!.id, name })
   return core.snapshot().instances
 }
-async function runningService(customFrontend = false) {
+async function runningService(customFrontend = false, packPath?: string) {
   const core = await service()
   await core.handle({ operation: 'connection-save', connection: local })
   await core.handle({
     operation: 'load',
-    path: resolve(customFrontend ? 'examples/world-packs/launcher-demo' : 'examples/world-packs/prototype-g1'),
+    path:
+      packPath ?? resolve(customFrontend ? 'examples/world-packs/launcher-demo' : 'examples/world-packs/prototype-g1'),
   })
   const packageId = core.snapshot().packs[0]!.id
   await core.handle({
@@ -279,6 +280,55 @@ describe('real Launcher metadata and authority boundary', () => {
     await expect(core.handle({ operation: 'open-creator' })).rejects.toThrow('游戏尚未启动')
     for (const operation of ['creator-debug', 'creator-history', 'creator-records', 'request-inspector']) {
       await expect(core.handle({ operation, instanceId: 'missing' })).rejects.toThrow('不支持')
+    }
+  })
+  it('deletes a confirmed instance with its saves, and never one that is running', async () => {
+    const core = await service()
+    const [first, second] = await withPack(core, ['旧实例', '保留'])
+    const directory = join(core.root, 'instances', first!.id)
+    await mkdir(join(directory, 'storylines'), { recursive: true })
+    await writeFile(join(directory, 'world.sqlite'), 'save')
+    await expect(core.handle({ operation: 'instance-remove', instanceId: first!.id })).rejects.toThrow('确认')
+    await core.handle({ operation: 'instance-remove', instanceId: first!.id, confirmed: true })
+    expect(core.snapshot().instances.map(i => i.id)).toEqual([second!.id])
+    await expect(readdir(directory)).rejects.toMatchObject({ code: 'ENOENT' })
+    const restored = new LauncherCore(resolve('.'), core.root)
+    await restored.initialize()
+    expect(restored.snapshot().instances.map(i => i.id)).toEqual([second!.id])
+
+    const running = await runningService()
+    try {
+      await running.core.handle({ operation: 'start', instanceId: running.instanceId })
+      await expect(
+        running.core.handle({ operation: 'instance-remove', instanceId: running.instanceId, confirmed: true }),
+      ).rejects.toThrow('请先结束当前游戏')
+      expect(running.core.snapshot().instances).toHaveLength(1)
+    } finally {
+      await running.core.stop()
+      vi.unstubAllEnvs()
+    }
+  })
+  it('lets a never-played instance follow a pack the author edited after loading it', async () => {
+    const pack = await mkdtemp(join(tmpdir(), 'perspectra-edited-pack-'))
+    roots.push(pack)
+    await cp(resolve('examples/world-packs/prototype-g1'), pack, { recursive: true })
+    const { core, instanceId } = await runningService(false, pack)
+    const created = core.snapshot().instances[0]!.packHash
+    const world = JSON.parse(await readFile(join(pack, 'world.json'), 'utf8'))
+    await writeFile(join(pack, 'world.json'), JSON.stringify({ ...world, description: world.description + '（改）' }))
+    const restarted = new LauncherCore(resolve('.'), core.root)
+    try {
+      await restarted.initialize()
+      const edited = restarted.snapshot().packs[0]!.hash
+      expect(edited).not.toBe(created)
+      // Reloading the edited pack no longer refuses the same pack ID.
+      await restarted.handle({ operation: 'load', path: pack })
+      await restarted.handle({ operation: 'start', instanceId })
+      expect(restarted.snapshot().instances[0]!.packHash).toBe(edited)
+    } finally {
+      await restarted.stop()
+      await core.stop()
+      vi.unstubAllEnvs()
     }
   })
   it('opens the creator page on the active host with the host token', async () => {

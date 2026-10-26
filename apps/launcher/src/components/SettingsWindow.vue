@@ -146,7 +146,9 @@ function addPlugin() {
             </section>
             <section class="settings-block">
               <h4>声音偏好</h4>
-              <p class="muted">下次启动游戏时生效，供支持音频的游戏界面采用。官方舞台暂未提供音乐与语音播放。</p>
+              <p class="muted">
+                下次启动游戏时生效。官方舞台安装对应插件后支持角色语音与背景音乐，首次点击页面后开始播放。
+              </p>
               <div class="form-field">
                 <label for="audio-volume">音量（0–100）</label
                 ><input
@@ -171,7 +173,7 @@ function addPlugin() {
               插件在下次启动游戏时加载。只添加你信任的本地插件；它们与游戏宿主拥有相同的本机访问权限。
             </p>
             <p class="muted">
-              语音插件提供合成服务；“阅读与声音”中的朗读开关控制是否播放。当前未附带合成器，官方舞台暂未接入语音播放。
+              语音插件提供合成服务，背景音乐插件提供曲库与选曲规则。安装后可在游戏的声音设置中控制播放；当前未附带语音合成器。
             </p>
             <section v-for="(plugin, index) in store.preferencesDraft.hostPlugins" :key="index" class="settings-block">
               <div class="form-field">

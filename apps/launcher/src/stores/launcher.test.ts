@@ -456,3 +456,43 @@ it('applies the settings window draft once and can reset it to the last applied 
   expect(store.preferencesDraft.theme).toBe('dark')
   expect(store.preferencesDirty).toBe(false)
 })
+it('offers package role presets after a new instance and names the settings an assignment would replace', async () => {
+  const presets = (instances = {}) => ({
+    library: [],
+    characters: { 'pack:real': [{ id: 'character:a', name: '甲' }] },
+    global: {},
+    instances,
+    recommended: {},
+    bundled: { 'pack:real': { characters: { 'character:a': { prompt: 'a' } }, groups: [] } },
+  })
+  bridge.request.mockImplementation(async () => ({ ...snapshot(), presets: presets() }))
+  const store = useLauncherStore()
+  await store.initialize()
+  expect(store.bundlePrompt).toBe(false)
+  bridge.list.mockResolvedValueOnce(['m1'])
+  await store.newInstance('新实例')
+  expect(store.bundlePrompt).toBe(true)
+  expect(store.bundleOverwrites).toEqual([])
+
+  bridge.request.mockImplementation(async () => ({
+    ...snapshot(),
+    presets: presets({ 'instance-1': { mode: 'auto', override: {}, characters: { 'character:a': {} } } }),
+  }))
+  await store.refresh()
+  store.selectedInstanceId = 'instance-1'
+  expect(store.bundleOverwrites).toEqual(['甲'])
+  expect(await store.applyBundledPreset(true)).toBe(true)
+  expect(bridge.request).toHaveBeenLastCalledWith('preset-apply-bundle', { instanceId: 'instance-1', library: true })
+  expect(store.bundlePrompt).toBe(false)
+})
+
+it('deletes an instance through Core with explicit confirmation and moves the selection on', async () => {
+  const store = useLauncherStore()
+  await store.initialize()
+  bridge.request.mockImplementation(async () => ({ ...snapshot(), instances: [] }))
+  await store.removeInstance('instance-1')
+  expect(bridge.request).toHaveBeenLastCalledWith('instance-remove', { instanceId: 'instance-1', confirmed: true })
+  expect(store.instances).toEqual([])
+  expect(store.selectedInstanceId).toBe('')
+  expect(store.notice).toContain('已删除实例「实例」')
+})

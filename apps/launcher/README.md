@@ -15,9 +15,23 @@ corepack pnpm@11.7.0 --filter @perspectra/launcher tauri build --no-bundle
 
 开发机需要 Node、仓库依赖、Rust/Cargo、Windows 构建工具，以及 [Core 记忆环境](../../desktop/host/memory/README.md) 的 Python/E5。`launcher:dev` 仅运行浏览器 Mock 展示，不能启动真实 Core。
 
+### 启动器图标
+
+2026-10-24：启动器使用用户提供的人物图作为应用图标，保留原构图和背景；原始 PNG 保存在 `src-tauri/icons/icon.png`。用 Tauri icon 工具生成配置引用的 32／128／256 PNG、Windows ICO 和 macOS ICNS；`public/icon.png` 是同图的浏览器 favicon。替换后需重新构建 EXE，不能只替换便携目录中的 PNG；此前已生成的 ZIP 也不会自动更新。
+
+```powershell
+corepack pnpm@11.7.0 --filter @perspectra/launcher tauri icon "D:/DeepSeek Harness/Perspectra V1/apps/launcher/src-tauri/icons/icon.png" --output "D:/DeepSeek Harness/Perspectra V1/.tmp/launcher-icons-20261024"
+```
+
+命令中的路径按实际仓库调整。只把当前 tauri.conf.json 引用的图标复制回 `src-tauri/icons`，保留原始 icon.png；浏览器 favicon 使用生成的 128x128.png。build.rs 显式监听图标目录，避免只换图时增量构建继续嵌入旧 ICO。原生 EXE、Vite favicon 与完整界面体验的验证分别记录。
+
+本次已重新完成 Vite／创作者页面与正式 Tauri 构建；从新 EXE 提取的 32×32 图标和生成 PNG 逐像素一致，生产 favicon 与 public 源文件摘要一致。未据此重新验收原生界面完整操作或真实模型试玩。
+
 ## Windows x64 便携候选版
 
 便携包在 EXE 同级 `runtime` 中自带 Node、Python、E5、固定 WebView2 和 C++ 运行库，玩家无需安装开发工具。正式构建缺少运行依赖时明确报错；源码回退仅用于 debug。
+
+2026-10-24 原生启动复核：工作区内的 candidate4 EXE 带 Low Mandatory Level 标签，创建 WebView2 时报 0x800700AA 并退出；将原 ZIP 完整重新解压到普通用户目录后，同一摘要的 EXE 已打开完整界面。开发工作区的限制不写入 ZIP；请在普通目录验收便携包，不通过修改系统权限或删除现有配置解决。完整过程见[本轮验收记录](../../docs/current/studies/program-package-creator-skill-20261024.md)。
 
 当前 test3 候选 ZIP 已上传到 [GitHub 预发布版](https://github.com/YouLan5418/Perspectra/releases/tag/v0.1.0-test3)。构建素材与命令见 [构建说明](../../scripts/release/BUILD.md)，实际验证与剩余门禁见 [验收记录](../../docs/current/studies/launcher-portable-test3-20261009.md)。本机隔离 PATH 的验证不等于干净 Windows 系统验收。
 

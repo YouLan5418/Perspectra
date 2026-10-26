@@ -119,6 +119,8 @@ export const useLauncherStore = defineStore('launcher', () => {
         notice.value = connections.value.length
           ? '已创建独立实例。'
           : '已创建独立实例；请先在模型设置添加连接，再到模型配置选择模型。'
+        // A package's own character presets are offered once per new instance, never applied silently.
+        if (bundledPreset.value) bundlePrompt.value = true
       }
       return
     }
@@ -128,6 +130,17 @@ export const useLauncherStore = defineStore('launcher', () => {
     instance.model.defaultModelId = globalDefaultModelId.value
     instances.value.push(instance)
     selectedInstanceId.value = instance.id
+  }
+  /** Deletes an instance together with its saves and storylines; the caller has already asked the player. */
+  async function removeInstance(id: string) {
+    const name = instances.value.find(instance => instance.id === id)?.name ?? ''
+    if (real) {
+      if (!(await action('instance-remove', { instanceId: id, confirmed: true }))) return
+    } else {
+      instances.value = instances.value.filter(instance => instance.id !== id)
+      if (selectedInstanceId.value === id) selectedInstanceId.value = gameInstances.value[0]?.id ?? ''
+    }
+    notice.value = '已删除实例「' + name + '」及其存档。'
   }
   function loadMockPackage(pack: GamePackage) {
     if (!packages.value.some(existing => existing.id === pack.id)) packages.value.push(pack)
@@ -224,6 +237,34 @@ export const useLauncherStore = defineStore('launcher', () => {
         ? presets.value.global
         : { ...presets.value.global, ...presets.value.recommended[selectedPackageId.value] }
   })
+  const bundledPreset = computed(() => presets.value.bundled?.[selectedPackageId.value])
+  const bundlePrompt = ref(false)
+  /** Names whose current instance settings the package presets would replace. */
+  const bundleOverwrites = computed(() => {
+    const bundle = bundledPreset.value,
+      choice = presets.value.instances[selectedInstanceId.value]
+    if (!bundle || !choice) return []
+    const name = (id: string) => presetCharacters.value.find(c => c.id === id)?.name ?? id
+    const existingGroups = Object.values(choice.groups ?? {}).map(g => g.name)
+    return [
+      ...Object.keys(bundle.characters)
+        .filter(id => Object.hasOwn(choice.characters ?? {}, id))
+        .map(name),
+      ...bundle.groups.filter(g => existingGroups.includes(g.name)).map(g => '角色组「' + g.name + '」'),
+      ...bundle.groups
+        .flatMap(g => g.members)
+        .filter(id => Object.hasOwn(choice.memberships ?? {}, id))
+        .map(id => name(id) + '的分组'),
+    ]
+  })
+  async function applyBundledPreset(library: boolean) {
+    if (!(await action('preset-apply-bundle', { instanceId: selectedInstanceId.value, library }))) return false
+    bundlePrompt.value = false
+    notice.value = library
+      ? '已分配随包角色预设，并存入预设库；下次启动游戏时生效。'
+      : '已分配随包角色预设；下次启动游戏时生效。'
+    return true
+  }
   async function inspectPreset() {
     return action('preset-inspect')
   }
@@ -716,6 +757,10 @@ export const useLauncherStore = defineStore('launcher', () => {
     libraryAction,
     presetCharacters,
     presets,
+    bundledPreset,
+    bundlePrompt,
+    bundleOverwrites,
+    applyBundledPreset,
     effectivePreset,
     inspectPreset,
     saveGlobalPreset,
@@ -771,6 +816,7 @@ export const useLauncherStore = defineStore('launcher', () => {
     gameInstances,
     selectPackage,
     newInstance,
+    removeInstance,
     loadMockPackage,
     forkAt,
     importMockStory,

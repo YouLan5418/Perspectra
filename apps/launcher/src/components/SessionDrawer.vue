@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, provide, ref, watch } from 'vue'
-import { ChevronLeft, ChevronRight, Plus, X } from '@lucide/vue'
+import { ChevronLeft, ChevronRight, Plus, Trash2, X } from '@lucide/vue'
 import { useLauncherStore, type DrawerSection } from '../stores/launcher.ts'
 import StorylineDialog from './StorylineDialog.vue'
 import ImportDialog from './ImportDialog.vue'
@@ -73,6 +73,12 @@ function onKey(event: KeyboardEvent) {
 onMounted(() => window.addEventListener('keydown', onKey))
 onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 const shown = (name: Page) => props.open && page.value === name
+function removeCurrent() {
+  const instance = store.currentInstance
+  if (!instance) return
+  if (confirm('删除实例「' + instance.name + '」？它的存档、故事线和节点会一起删除，不能恢复。'))
+    void store.removeInstance(instance.id)
+}
 </script>
 
 <template>
@@ -99,6 +105,13 @@ const shown = (name: Page) => props.open && page.value === name
                 @click="store.newInstance('第 ' + (store.gameInstances.length + 1) + ' 次游玩')"
               >
                 <Plus :size="13" />新建实例
+              </button>
+              <button
+                class="drawer-link danger"
+                :disabled="store.running || store.busy || !store.currentInstance"
+                @click="removeCurrent"
+              >
+                <Trash2 :size="13" />删除实例
               </button>
             </div>
           </div>
@@ -230,6 +243,13 @@ const shown = (name: Page) => props.open && page.value === name
   color: var(--primary);
   font-size: 12.5px;
   cursor: pointer;
+}
+.drawer-link.danger {
+  color: var(--danger);
+}
+.drawer-link:disabled {
+  opacity: 0.5;
+  cursor: default;
 }
 .drawer-icon {
   border: 0;

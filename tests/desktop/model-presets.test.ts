@@ -332,3 +332,93 @@ it("routes each character's decision call to its own model and endpoint", async 
     }),
   ).rejects.toThrow('此包之外')
 })
+it('offers package role presets and assigns them to one instance without touching other mappings', async () => {
+  const dir = await root(),
+    pack = join(dir, 'pack')
+  await cp(resolve('examples/world-packs/model-girls-sweet-days'), pack, { recursive: true })
+  await rm(join(pack, 'role-presets.json'))
+  const core = new LauncherCore(resolve('.'), join(dir, 'launcher'))
+  await core.initialize()
+  await core.handle({ operation: 'load', path: pack })
+  const packId = core.snapshot().packs[0]!.id,
+    hash = core.snapshot().packs[0]!.hash
+  expect(core.snapshot().presets.bundled?.[packId]).toBeUndefined()
+  await core.handle({ operation: 'create', packageId: packId, name: '第一次游玩' })
+  const instanceId = core.snapshot().instances[0]!.id
+  await expect(core.handle({ operation: 'preset-apply-bundle', instanceId })).rejects.toThrow('没有随包角色预设')
+
+  // An existing mapping: Claude has its own preset, DeepSeek sits in a same-named group, GPT is untouched.
+  const groupId = randomUUID()
+  await core.handle({
+    operation: 'preset-instance',
+    instanceId,
+    choice: {
+      mode: 'auto',
+      override: {},
+      characters: { 'character:claude': { prompt: 'old claude' } },
+      groups: { [groupId]: { name: '日常组', preset: { prompt: 'old group' } } },
+      memberships: { 'character:deepseek': groupId },
+    },
+  })
+  await writeFile(
+    join(pack, 'role-presets.json'),
+    JSON.stringify({
+      characters: { 'character:gpt': { prompt: 'gpt' }, 'character:claude': { prompt: 'claude' } },
+      groups: [{ name: '日常组', preset: { prompt: 'group' }, members: ['character:deepseek'] }],
+    }),
+  )
+  // Loading the same package again: the file is Launcher metadata and leaves the world hash alone.
+  await core.handle({ operation: 'load', path: pack })
+  expect(core.snapshot().packs[0]!.hash).toBe(hash)
+  expect(Object.keys(core.snapshot().presets.bundled![packId]!.characters)).toEqual([
+    'character:gpt',
+    'character:claude',
+  ])
+
+  for (let round = 0; round < 2; round++)
+    await core.handle({ operation: 'preset-apply-bundle', instanceId, library: round === 0 })
+  const choice = core.snapshot().presets.instances[instanceId]!
+  expect(choice).toEqual({
+    mode: 'auto',
+    override: {},
+    characters: { 'character:gpt': { prompt: 'gpt' }, 'character:claude': { prompt: 'claude' } },
+    groups: { [groupId]: { name: '日常组', preset: { prompt: 'group' } } },
+    memberships: { 'character:deepseek': groupId },
+  })
+  // Only the first round asked for library copies.
+  const title = core.snapshot().packs[0]!.title
+  expect(core.snapshot().presets.library.map(entry => entry.name)).toEqual([
+    title + ' · GPT 专属',
+    title + ' · Claude 专属',
+    title + ' · 日常组',
+  ])
+  const restored = new LauncherCore(resolve('.'), join(dir, 'launcher'))
+  await restored.initialize()
+  expect(restored.snapshot().presets.instances[instanceId]).toEqual(choice)
+  expect(restored.snapshot().presets.bundled?.[packId]).toEqual(core.snapshot().presets.bundled?.[packId])
+})
+it.each([
+  ['a character outside the package', { characters: { 'character:foreign': {} } }, '此包之外'],
+  [
+    'a character in two groups',
+    {
+      groups: [
+        { name: 'A', preset: {}, members: ['character:gpt'] },
+        { name: 'B', preset: {}, members: ['character:gpt'] },
+      ],
+    },
+    '无效',
+  ],
+  ['an unknown field', { characters: {}, instance: {} }, '无效'],
+  ['an empty file', {}, '无效'],
+])('rejects role presets naming %s before the package enters the index', async (_label, value, message) => {
+  const dir = await root(),
+    pack = join(dir, 'pack')
+  await cp(resolve('examples/world-packs/model-girls-sweet-days'), pack, { recursive: true })
+  await writeFile(join(pack, 'role-presets.json'), JSON.stringify(value))
+  const core = new LauncherCore(resolve('.'), join(dir, 'launcher'))
+  await core.initialize()
+  await expect(core.handle({ operation: 'load', path: pack })).rejects.toThrow(message)
+  expect(core.snapshot().packs).toHaveLength(0)
+  expect(core.snapshot().presets.bundled ?? {}).toEqual({})
+})

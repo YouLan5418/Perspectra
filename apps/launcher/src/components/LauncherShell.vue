@@ -6,6 +6,7 @@ import TitleBar from './TitleBar.vue'
 import PackRail from './PackRail.vue'
 import HomeStage from './HomeStage.vue'
 import ImportDialog from './ImportDialog.vue'
+import BundlePresetDialog from './BundlePresetDialog.vue'
 import SessionDrawer from './SessionDrawer.vue'
 import SettingsWindow from './SettingsWindow.vue'
 
@@ -68,6 +69,7 @@ function openDrawer(section?: DrawerSection) {
     <p v-if="store.core.state === 'error'" class="notice" role="alert">{{ store.core.message }}</p>
     <SessionDrawer :open="drawer.open" :section="drawer.section" @close="drawer.open = false" />
     <ImportDialog :open="panel === 'package'" mode="package" @close="panel = null" />
+    <BundlePresetDialog />
     <SettingsWindow v-if="panel === 'settings'" @close="panel = null" />
   </div>
 </template>

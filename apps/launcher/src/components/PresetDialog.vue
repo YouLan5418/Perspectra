@@ -1,6 +1,11 @@
 <script setup lang="ts">
 import { ref, watch, computed, nextTick, inject, onBeforeUnmount } from 'vue'
-import { characterPreset, rolePreset, type RolePreset } from '@harness-world/provider-chat/preset'
+import {
+  assignPackRolePresets,
+  characterPreset,
+  rolePreset,
+  type RolePreset,
+} from '@harness-world/provider-chat/preset'
 import type { PresetChoice } from '../core-types.ts'
 import { useLauncherStore } from '../stores/launcher.ts'
 import DialogFrame from './DialogFrame.vue'
@@ -142,6 +147,19 @@ function number(key: (typeof numeric)[number], event: Event) {
   if (value === '') delete draft.value[key]
   else draft.value[key] = Number(value)
 }
+const bundleNote = ref('')
+/** Merges the package's role presets into the drafts; "保存全部配置" still writes them. */
+function applyBundled() {
+  const bundle = store.bundledPreset
+  if (!bundle) return
+  const { mode, override, ...mapping } = collected().choice
+  choice.value = { mode, override, ...assignPackRolePresets(mapping, clone(bundle), () => crypto.randomUUID()) }
+  editorRevision.value++
+  if (scope.value === 'group' && !choice.value.groups?.[groupId.value])
+    groupId.value = Object.keys(choice.value.groups ?? {})[0] ?? ''
+  resetDraft()
+  bundleNote.value = '已合并到草稿；点“保存全部配置”后生效。'
+}
 function addGroup() {
   const id = crypto.randomUUID()
   choice.value.groups = { ...choice.value.groups, [id]: { name: '新角色组', preset: clone(base.value) } }
@@ -251,6 +269,13 @@ async function save() {
               <option value="group">角色组</option>
             </select></label
           >
+          <p v-if="store.bundledPreset" class="bundle-row">
+            <span
+              >游戏包带有随包角色预设：角色专属 {{ Object.keys(store.bundledPreset.characters).length }} 个，角色组
+              {{ store.bundledPreset.groups.length }} 个。</span
+            ><Button variant="outline" @click="applyBundled">应用随包角色预设</Button>
+          </p>
+          <p v-if="bundleNote">{{ bundleNote }}</p>
           <label v-if="scope === 'instance'" class="field-label"
             >使用方式<select v-model="choice.mode">
               <option value="auto">采用包推荐，并继承全局默认</option>
@@ -428,6 +453,12 @@ textarea {
 }
 .group-actions label {
   flex: 1;
+}
+.bundle-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  align-items: center;
 }
 button:not([data-slot='button']),
 input,

@@ -5,6 +5,8 @@ import {
   rolePreset,
   rolePresetMapping,
   characterPreset,
+  characterPresets,
+  type PackRolePresets,
   type RolePreset,
   type RolePresetMapping,
 } from '@harness-world/provider-chat'
@@ -36,6 +38,56 @@ export async function packPreset(path: string): Promise<RolePreset> {
   } catch (error: unknown) {
     if (error instanceof Error && 'code' in error && error.code === 'ENOENT') return {}
     throw new Error('游戏包 model-preset.json 无效。')
+  }
+}
+/** Optional role-presets.json; the Launcher offers it for one-click assignment instead of applying it silently. */
+export async function packRolePresets(path: string): Promise<PackRolePresets | undefined> {
+  let text: string
+  try {
+    text = await readFile(join(path, 'role-presets.json'), 'utf8')
+  } catch (error: unknown) {
+    if (error instanceof Error && 'code' in error && error.code === 'ENOENT') return undefined
+    throw new Error('游戏包 role-presets.json 无法读取。')
+  }
+  try {
+    const value = JSON.parse(text) as Record<string, unknown>
+    if (
+      !value ||
+      typeof value !== 'object' ||
+      Array.isArray(value) ||
+      Object.keys(value).some(key => !['characters', 'groups'].includes(key)) ||
+      (value.groups !== undefined && (!Array.isArray(value.groups) || value.groups.length > 32))
+    )
+      throw new Error('fields')
+    const names = new Set<string>(),
+      members = new Set<string>()
+    const groups = ((value.groups ?? []) as unknown[]).map(entry => {
+      const group = entry as Record<string, unknown>
+      if (
+        !group ||
+        typeof group !== 'object' ||
+        Object.keys(group).sort().join(',') !== 'members,name,preset' ||
+        typeof group.name !== 'string' ||
+        !group.name.trim() ||
+        group.name.length > 80 ||
+        names.has(group.name.trim()) ||
+        !Array.isArray(group.members) ||
+        !group.members.length
+      )
+        throw new Error('group')
+      names.add(group.name.trim())
+      // A character belongs to at most one group, as in the instance mapping.
+      for (const id of group.members) {
+        if (typeof id !== 'string' || !id || id.length > 200 || members.has(id)) throw new Error('member')
+        members.add(id)
+      }
+      return { name: group.name.trim(), preset: rolePreset(group.preset), members: [...(group.members as string[])] }
+    })
+    const characters = characterPresets(value.characters ?? {})
+    if (!Object.keys(characters).length && !groups.length) throw new Error('empty')
+    return { characters, groups }
+  } catch {
+    throw new Error('游戏包 role-presets.json 无效。')
   }
 }
 export class ModelPresets {

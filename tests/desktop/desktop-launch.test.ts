@@ -32,6 +32,10 @@ describe('desktop launch boundary', () => {
       `import { writeFileSync } from 'node:fs';
       export default function(ctx) {
         ctx.effect(() => ctx.frontendServices.registerSpeech(async () => ({contentType:'audio/wav',bytes:new Uint8Array([1])})));
+        ctx.effect(() => ctx.frontendServices.registerBgm({
+          tracks: [{id:'calm',title:'日常',contentType:'audio/wav',bytes:new Uint8Array([82,73,70,70])}],
+          selectTrack: () => 'calm',
+        }));
         ctx.effect(() => () => writeFileSync(new URL('./plugin-closed', import.meta.url), 'yes'));
       }`,
     )
@@ -114,6 +118,14 @@ describe('desktop launch boundary', () => {
         await fetch(`${origin}/frontend-api/v1/init`, { headers: { 'x-playtest-token': ready.token } })
       ).json()
       expect(init.capabilities).toContain('speech')
+      expect(init.capabilities).toContain('bgm')
+      const music = await fetch(`${origin}/frontend-api/v1/bgm/audio`, {
+        method: 'POST',
+        headers: { 'x-playtest-token': ready.token, 'content-type': 'application/json' },
+        body: JSON.stringify({ id: 'calm' }),
+      })
+      expect(music.status).toBe(200)
+      expect(new Uint8Array(await music.arrayBuffer())).toEqual(new Uint8Array([82, 73, 70, 70]))
       child.send({ type: 'shutdown' })
       const exitCode = await new Promise<number | null>(resolveExit => child.once('exit', resolveExit))
       expect(exitCode).toBe(0)
