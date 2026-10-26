@@ -7,6 +7,7 @@ import type { RulebookResolution, RulebookResolutionContext } from '@harness-wor
 import type { CompiledWorldPackV5 } from '@harness-world/world-pack'
 import {
   CAPABILITY_PENDING,
+  MissingCapabilityError,
   type CapabilityCatalog,
   type CapabilityOutcome,
   type CapabilityRequirement,
@@ -107,8 +108,7 @@ export class PackModules {
         const installed = catalog
           ?.list()
           .find(provider => provider.id === typed.id && provider.version === typed.version)
-        if (!installed && typed.required)
-          throw new TypeError('Required capability unavailable: ' + typed.id + '@' + typed.version)
+        if (!installed && typed.required) throw new MissingCapabilityError(typed.id + '@' + typed.version)
       }
       module.definition = object(callModule(module.source, 'definition', []))
       const statuses = module.definition.statuses,

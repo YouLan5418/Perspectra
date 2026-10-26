@@ -22,6 +22,7 @@ import { interactionPackageDescription } from '@harness-world/contracts'
 import { createInstalledInteractionPackages } from '@harness-world/interactions-basic'
 import { defaultGameDirectory } from './player-transcript.ts'
 import { PROVIDER_DEFAULTS } from '../provider-defaults.ts'
+import { MissingCapabilityError } from '../host-capabilities.ts'
 
 let hostPlugins: HostPlugins | undefined
 let startupRuntime: WorldHostRuntime | undefined
@@ -258,7 +259,7 @@ async function main(): Promise<void> {
     policy.origin = 'http://127.0.0.1:' + (trustedAssets.address() as AddressInfo).port
     policy.mode = 'trusted'
   }
-  process.send?.({ type: 'ready', port, token, frontendMode: policy.mode })
+  process.send?.({ type: 'ready', port, token, frontendMode: policy.mode, skippedPlugins: hostPlugins.skipped })
   process.stdout.write(`\n本机试玩页已启动：\nhttp://127.0.0.1:${port}/#token=${token}\n\n`)
   process.stdout.write(
     `世界数据：${dataDirectory}\nProvider：${provider}\n模型：${model?.trim() || PROVIDER_DEFAULTS[provider].model}\n按 Ctrl+C 安全关闭。\n`,
@@ -268,6 +269,10 @@ async function main(): Promise<void> {
       'Core 记忆已开启；可在宿主页启动或取消后台整理，整理期间可以继续游玩。未整理时长期交付为空。\n',
     )
   if (packPath !== undefined) process.stdout.write(`World Pack：${packPath}\n`)
+  if (hostPlugins.skipped.length)
+    process.stdout.write(
+      `已跳过加载失败的宿主插件：${hostPlugins.skipped.map(p => p.id).join('、')}；详情见上方日志。\n`,
+    )
 }
 
 try {
@@ -276,7 +281,15 @@ try {
   const cleanup = await Promise.allSettled([hostPlugins?.close(), startupRuntime?.close()])
   if (cleanup.some(result => result.status === 'rejected')) console.error('启动失败后的资源清理未完成。')
   const message = error instanceof Error ? error.message : '未知错误'
-  process.send?.({ type: 'startup-error', message }, () => process.disconnect?.())
+  process.send?.(
+    {
+      type: 'startup-error',
+      message,
+      skippedPlugins: hostPlugins?.skipped ?? [],
+      ...(error instanceof MissingCapabilityError ? { missingCapability: error.capability } : {}),
+    },
+    () => process.disconnect?.(),
+  )
   console.error('本机试玩页启动失败：', message)
   process.exitCode = 1
 }

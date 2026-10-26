@@ -96,41 +96,56 @@ export class FrontendServices extends Service implements FrontendHostServices {
   }
 }
 
+/** Why an enabled plugin did not run. Module error text stays in the host log, never in this record. */
+export interface SkippedHostPlugin {
+  readonly id: string
+  readonly reason: 'import' | 'apply'
+}
+
 export interface HostPlugins {
   readonly services: FrontendHostServices
   readonly capabilities: CapabilityCatalog
+  readonly skipped: readonly SkippedHostPlugin[]
   close(): Promise<void>
 }
 
-/** Load only explicitly enabled, trusted modules; failures unwind all mounted effects. */
+/** Load only explicitly enabled, trusted modules. As in DSH, one plugin's failure is a warning: Cordis
+ * unwinds that plugin's effects and the rest keep running. Whether a world can still open is decided
+ * by the pack's required capabilities, not here. Invalid settings still fail the whole launch. */
 export async function loadHostPlugins(settings: HostPluginSettings[]): Promise<HostPlugins> {
   const plugins = hostPluginSettings(settings)
   const root = new Context()
   const services = new FrontendServices(root)
   const capabilities = new HostCapabilities(root)
-  try {
-    for (const plugin of plugins) {
-      if (!plugin.enabled) continue
-      try {
-        const module: { default?: unknown } = await import(pathToFileURL(plugin.path).href)
-        if (
-          typeof module.default !== 'function' &&
-          !(
-            module.default &&
-            typeof module.default === 'object' &&
-            'apply' in module.default &&
-            typeof module.default.apply === 'function'
-          )
+  const skipped: SkippedHostPlugin[] = []
+  for (const plugin of plugins) {
+    if (!plugin.enabled) continue
+    let module: { default?: unknown }
+    try {
+      module = await import(pathToFileURL(plugin.path).href)
+      if (
+        typeof module.default !== 'function' &&
+        !(
+          module.default &&
+          typeof module.default === 'object' &&
+          'apply' in module.default &&
+          typeof module.default.apply === 'function'
         )
-          throw new TypeError('缺少 Cordis 默认导出')
-        await root.plugin(module.default as Plugin)
-      } catch {
-        throw new Error(`宿主插件 ${plugin.id} 加载失败，请检查插件文件；也可在设置中停用后重试。`)
-      }
+      )
+        throw new TypeError('缺少 Cordis 默认导出')
+    } catch (error) {
+      console.error(`[宿主插件 ${plugin.id}] 导入失败，本次已跳过：`, error)
+      skipped.push({ id: plugin.id, reason: 'import' })
+      continue
     }
-    return { services, capabilities, close: () => root.fiber.dispose() }
-  } catch (error) {
-    await root.fiber.dispose()
-    throw error
+    const fiber = root.plugin(module.default as Plugin)
+    try {
+      await fiber
+    } catch (error) {
+      console.error(`[宿主插件 ${plugin.id}] 初始化失败，本次已跳过：`, error)
+      await fiber.dispose()
+      skipped.push({ id: plugin.id, reason: 'apply' })
+    }
   }
+  return { services, capabilities, skipped, close: () => root.fiber.dispose() }
 }

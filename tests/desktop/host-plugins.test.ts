@@ -80,33 +80,64 @@ it('does not even import disabled modules and loads an enabled Cordis speech ser
   expect(session.services.synthesizeSpeech).toBeUndefined()
 })
 
-it('unwinds already mounted plugins on startup failure and hides module error details', async () => {
+it('skips a failing plugin, unwinds only its own registrations and keeps the rest running', async () => {
+  const error = vi.spyOn(console, 'error').mockImplementation(() => {})
   const file = await moduleFile(`import { writeFileSync } from 'node:fs';
     export default function(ctx) {
       ctx.effect(() => () => writeFileSync(new URL('./disposed', import.meta.url), 'yes'));
     }`)
-  const failed = await moduleFile(`export default function() { throw new Error('PRIVATE_PLUGIN_SECRET') }`)
-  await expect(
-    loadHostPlugins([
-      { id: 'first', path: file.path, enabled: true },
-      { id: 'broken', path: failed.path, enabled: true },
-    ]),
-  ).rejects.toThrow(/^宿主插件 broken 加载失败/)
+  // Registers a capability, then fails: Cordis must take the registration back with the plugin.
+  const failed = await moduleFile(`export default function(ctx) {
+    ctx.effect(() => ctx.capabilities.register({ id: 'half-done', version: '1', methods: {
+      ping: { arguments: { type: 'object' }, result: { type: 'object' }, effect: 'read' } },
+      async open() { return { async invoke() { return { completion: 'completed', data: {} } }, async close() {} } } }));
+    throw new Error('PRIVATE_PLUGIN_SECRET')
+  }`)
+  const missing = await moduleFile(`export const notDefault = 1`)
+  const session = await loadHostPlugins([
+    { id: 'first', path: file.path, enabled: true },
+    { id: 'broken', path: failed.path, enabled: true },
+    { id: 'no-export', path: missing.path, enabled: true },
+    { id: 'absent', path: join(file.root, 'absent.mjs'), enabled: true },
+  ])
+  sessions.push(session)
+  expect(session.skipped).toEqual([
+    { id: 'broken', reason: 'apply' },
+    { id: 'no-export', reason: 'import' },
+    { id: 'absent', reason: 'import' },
+  ])
+  expect(JSON.stringify(session.skipped)).not.toContain('PRIVATE_PLUGIN_SECRET')
+  expect(session.capabilities.list()).toEqual([])
+  await expect(readFile(join(file.root, 'disposed'), 'utf8')).rejects.toMatchObject({ code: 'ENOENT' })
+  // The detailed cause goes to the host log, labelled with the plugin ID.
+  expect(error.mock.calls.some(([label]) => String(label).includes('[宿主插件 broken] 初始化失败'))).toBe(true)
+  error.mockRestore()
+  await session.close()
+  sessions.splice(sessions.indexOf(session), 1)
   expect(await readFile(join(file.root, 'disposed'), 'utf8')).toBe('yes')
 })
 
-it('rejects two active synthesizers and disposes both plugins', async () => {
+it('keeps the first synthesizer and skips a second plugin that tries to register another', async () => {
+  vi.spyOn(console, 'error').mockImplementation(() => {})
   const source = `export default function(ctx) {
     ctx.effect(() => ctx.frontendServices.registerSpeech(async () => ({contentType:'audio/wav',bytes:new Uint8Array([1])})));
   }`
   const first = await moduleFile(source),
     second = await moduleFile(source)
+  const session = await loadHostPlugins([
+    { id: 'one', path: first.path, enabled: true },
+    { id: 'two', path: second.path, enabled: true },
+  ])
+  sessions.push(session)
+  expect(session.skipped).toEqual([{ id: 'two', reason: 'apply' }])
+  expect(session.services.synthesizeSpeech).toBeDefined()
+  vi.restoreAllMocks()
+})
+
+it('still fails the whole launch for invalid plugin settings', async () => {
   await expect(
-    loadHostPlugins([
-      { id: 'one', path: first.path, enabled: true },
-      { id: 'two', path: second.path, enabled: true },
-    ]),
-  ).rejects.toThrow(/^宿主插件 two 加载失败/)
+    loadHostPlugins([{ id: 'bad', path: 'https://example.com/plugin.mjs', enabled: true }]),
+  ).rejects.toThrow()
 })
 
 it('aborts outstanding synthesis and rejects late audio when its owner is disposed', async () => {

@@ -123,6 +123,39 @@ function object(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('请求无效。')
   return value as Record<string, unknown>
 }
+export interface SkippedPlugin {
+  id: string
+  reason: 'import' | 'apply'
+}
+/** The game process reports skipped plugins by ID and reason only; anything malformed is dropped. */
+function skippedPlugins(value: unknown): SkippedPlugin[] {
+  if (!Array.isArray(value)) return []
+  return value
+    .filter(
+      (item): item is SkippedPlugin =>
+        !!item &&
+        typeof item === 'object' &&
+        typeof item.id === 'string' &&
+        item.id.length > 0 &&
+        item.id.length <= 64 &&
+        (item.reason === 'import' || item.reason === 'apply'),
+    )
+    .slice(0, 16)
+    .map(item => ({ id: item.id, reason: item.reason }))
+}
+/** A pack whose required capability is missing names it, so the player knows which plugin to fix. */
+function startupFailure(data: Record<string, unknown>): string {
+  const skipped = skippedPlugins(data.skippedPlugins).map(plugin => plugin.id)
+  const missing =
+    typeof data.missingCapability === 'string' && /^[a-z][a-z0-9-]{0,40}@[^\s]{1,80}$/u.test(data.missingCapability)
+      ? data.missingCapability
+      : undefined
+  const skippedNote = skipped.length ? `本次加载失败已跳过的插件：${skipped.join('、')}。` : ''
+  if (missing)
+    return `世界包需要宿主能力 ${missing}，但没有已启用的插件提供它。${skippedNote}请在设置中启用或修复对应插件后重试。`
+  if (skipped.length) return `Core 初始化失败。${skippedNote}请检查包、存档、本机记忆依赖与这些插件文件。`
+  return 'Core 初始化失败；请检查包、存档及本机记忆依赖。'
+}
 function text(value: unknown, label: string, max = 4096): string {
   if (typeof value !== 'string' || !value.trim() || value.length > max) throw new Error(label + '无效。')
   return value.trim()
@@ -166,6 +199,8 @@ export class LauncherCore {
   #child: ChildProcess | undefined
   #active: { instanceId: string; url: string; frontendMode: 'sandbox' | 'trusted' } | undefined
   #error = ''
+  /** From the most recent game launch, kept after it stops so settings can still point at the plugin. */
+  #skippedPlugins: SkippedPlugin[] = []
   #frontends: Record<
     string,
     { kind: 'default' | 'custom'; mode: 'sandbox' | 'trusted'; digest: string; capabilities: string[] }
@@ -525,6 +560,7 @@ export class LauncherCore {
       packDetails: this.#details,
       frontends: this.#frontends,
       dataDirectory: this.root,
+      skippedPlugins: this.#skippedPlugins.map(plugin => ({ ...plugin })),
       core: this.#active
         ? {
             state: 'running',
@@ -938,6 +974,7 @@ export class LauncherCore {
       case 'start': {
         this.#idle()
         this.#error = ''
+        this.#skippedPlugins = []
         let instance = this.#instance(request.instanceId)
         const packError = this.#details[instance.packageId]?.error
         if (packError) throw new Error(packError)
@@ -1049,7 +1086,10 @@ export class LauncherCore {
               const failed = () => finish(new Error('无法启动本机 Node/Core 进程。'))
               const message = (value: unknown) => {
                 const data = object(value)
-                if (data.type === 'startup-error') finish(new Error('Core 初始化失败；请检查包、存档及本机记忆依赖。'))
+                if (data.type === 'startup-error') {
+                  this.#skippedPlugins = skippedPlugins(data.skippedPlugins)
+                  finish(new Error(startupFailure(data)))
+                }
                 if (
                   data.type === 'ready' &&
                   Number.isInteger(data.port) &&
@@ -1057,12 +1097,14 @@ export class LauncherCore {
                   Number(data.port) <= 65535 &&
                   typeof data.token === 'string' &&
                   /^[a-f0-9]{64}$/.test(data.token)
-                )
+                ) {
+                  this.#skippedPlugins = skippedPlugins(data.skippedPlugins)
                   finish(undefined, {
                     port: Number(data.port),
                     token: data.token,
                     frontendMode: data.frontendMode === 'trusted' ? 'trusted' : 'sandbox',
                   })
+                }
               }
               child.on('message', message)
               child.once('exit', exit)

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { onMounted, provide, ref } from 'vue'
 import { X } from '@lucide/vue'
-import { useLauncherStore } from '../stores/launcher.ts'
+import { PLUGIN_SKIP_REASON, useLauncherStore } from '../stores/launcher.ts'
 import { chooseDataDirectory, dataLocation, type DataLocation } from '../services/desktop.ts'
 import { Button } from './ui/button/index.ts'
 import ModelSettingsDialog from './ModelSettingsDialog.vue'
@@ -68,6 +68,10 @@ function cancel() {
 }
 function addPlugin() {
   store.preferencesDraft.hostPlugins.push({ id: `plugin-${crypto.randomUUID()}`, path: '', enabled: false })
+}
+function skippedReason(id: string) {
+  const skipped = store.skippedPlugins.find(plugin => plugin.id === id)
+  return skipped ? PLUGIN_SKIP_REASON[skipped.reason] : ''
 }
 </script>
 <template>
@@ -185,6 +189,9 @@ function addPlugin() {
                 ><input :id="`plugin-path-${index}`" v-model="plugin.path" />
               </div>
               <label class="checkbox-row"><input v-model="plugin.enabled" type="checkbox" />启动游戏时加载此插件</label>
+              <p v-if="skippedReason(plugin.id)" class="plugin-skipped" role="status">
+                上次启动时{{ skippedReason(plugin.id) }}，已跳过。请检查插件文件，或取消勾选后重试。
+              </p>
               <Button variant="outline" @click="store.preferencesDraft.hostPlugins.splice(index, 1)">移除</Button>
             </section>
             <Button variant="outline" :disabled="store.preferencesDraft.hostPlugins.length >= 16" @click="addPlugin"
@@ -261,6 +268,15 @@ function addPlugin() {
 </template>
 
 <style scoped>
+.plugin-skipped {
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border-left: 3px solid var(--warning);
+  background: var(--warning-bg);
+  color: var(--foreground);
+  font-size: 13px;
+}
 .settings-scrim {
   position: absolute;
   inset: 0;

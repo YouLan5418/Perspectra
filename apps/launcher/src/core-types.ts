@@ -57,6 +57,8 @@ export interface CoreSnapshot {
   }
   playSettings?: Record<string, PlaySettings>
   dataDirectory: string
+  /** Plugins that failed to load in the most recent game launch and were skipped. */
+  skippedPlugins?: { id: string; reason: 'import' | 'apply' }[]
   core: {
     state: 'idle' | 'running' | 'error'
     mode: 'real'

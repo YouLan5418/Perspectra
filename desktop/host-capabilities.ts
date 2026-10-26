@@ -4,6 +4,13 @@ import type { WorldAddress, WorldJsonObject, WorldJsonValue } from '@harness-wor
 
 export const CAPABILITY_PENDING = 'HOST_CAPABILITY_PENDING'
 
+/** A pack's required capability has no installed provider; the world must not open. */
+export class MissingCapabilityError extends TypeError {
+  constructor(readonly capability: string) {
+    super('Required capability unavailable: ' + capability)
+  }
+}
+
 export interface CapabilityMethod {
   readonly arguments: WorldJsonObject
   readonly result: WorldJsonObject
@@ -137,8 +144,7 @@ export class CapabilitySession {
       for (const requirement of requirements) {
         const provider = providers.get(requirement.id)
         if (!provider || provider.version !== requirement.version) {
-          if (requirement.required)
-            throw new TypeError('Required capability unavailable: ' + requirement.id + '@' + requirement.version)
+          if (requirement.required) throw new MissingCapabilityError(requirement.id + '@' + requirement.version)
           continue
         }
         const lifetime = new AbortController()

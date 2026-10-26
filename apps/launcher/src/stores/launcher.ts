@@ -43,6 +43,9 @@ export interface DrawerRow {
   disabled?: boolean
 }
 
+/** Player-facing words for why a host plugin was skipped at launch. */
+export const PLUGIN_SKIP_REASON = { import: '导入失败', apply: '初始化失败' } as const
+
 export const useLauncherStore = defineStore('launcher', () => {
   const packages = ref<GamePackage[]>(isTauri() ? [] : [...fixtures])
   const instances = ref<import('../types.ts').GameInstance[]>(
@@ -70,6 +73,7 @@ export const useLauncherStore = defineStore('launcher', () => {
   const reading = ref({ ...DEFAULT_READING })
   const audio = ref({ ...DEFAULT_AUDIO })
   const hostPlugins = ref<HostPluginSettings[]>([])
+  const skippedPlugins = ref<NonNullable<CoreSnapshot['skippedPlugins']>>([])
   const packagePlaySettings = ref<Record<string, PlaySettings>>({})
   const currentPlaySettings = computed(
     () => packagePlaySettings.value[selectedPackageId.value] ?? DEFAULT_PLAY_SETTINGS,
@@ -420,6 +424,7 @@ export const useLauncherStore = defineStore('launcher', () => {
     reading.value = snapshot.preferences?.reading ?? { ...DEFAULT_READING }
     audio.value = snapshot.preferences?.audio ?? { ...DEFAULT_AUDIO }
     hostPlugins.value = snapshot.preferences?.hostPlugins ?? []
+    skippedPlugins.value = snapshot.skippedPlugins ?? []
     packagePlaySettings.value = snapshot.playSettings ?? {}
     dataDirectory.value = snapshot.dataDirectory
     for (const [id, detail] of Object.entries(snapshot.packDetails ?? {})) if (!detail.hasCover) delete covers.value[id]
@@ -800,6 +805,7 @@ export const useLauncherStore = defineStore('launcher', () => {
     reading,
     audio,
     hostPlugins,
+    skippedPlugins,
     currentPlaySettings,
     savePlaySettings,
     savePreferences,

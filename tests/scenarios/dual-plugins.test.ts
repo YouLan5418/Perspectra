@@ -13,7 +13,12 @@ import { WorldHostRuntime } from '../../desktop/host/world-runtime.ts'
 import { projectPlayerView } from '../../desktop/host/frontend-adapter.ts'
 import { PackStatus } from '../../desktop/host/pack-status.ts'
 import { PackModules } from '../../desktop/host/pack-modules.ts'
-import { HostCapabilities, type CapabilityProvider, type CapabilityWorld } from '../../desktop/host-capabilities.ts'
+import {
+  HostCapabilities,
+  MissingCapabilityError,
+  type CapabilityProvider,
+  type CapabilityWorld,
+} from '../../desktop/host-capabilities.ts'
 
 const PLAYER = 'character:player',
   ALLY = 'character:companion',
@@ -218,14 +223,15 @@ it('filters module actions by policy and rechecks stale options without executin
 
 it('fails missing required capabilities before world creation and supports a pure pack module', async () => {
   const missing = files()
-  await expect(
-    WorldHostRuntime.create({
-      ...missing,
-      provider: 'ollama',
-      model: 'unused',
-      utilityEndpoint: 'http://127.0.0.1:1/api/chat',
-    }),
-  ).rejects.toThrow('Required capability unavailable')
+  const failure = await WorldHostRuntime.create({
+    ...missing,
+    provider: 'ollama',
+    model: 'unused',
+    utilityEndpoint: 'http://127.0.0.1:1/api/chat',
+  }).catch((error: unknown) => error)
+  // The launcher names this capability to the player, so the error must carry it.
+  expect(failure).toBeInstanceOf(MissingCapabilityError)
+  expect((failure as MissingCapabilityError).capability).toBe('demo-device@0.1.0')
   expect(existsSync(join(missing.dataDirectory, 'world.sqlite'))).toBe(false)
   const f = await fixture({
     modify(path) {

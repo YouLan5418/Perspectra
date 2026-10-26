@@ -60,6 +60,8 @@ it('loads capability plugins through both source and bundled host entries and ex
             HCW_OLLAMA_MODEL: 'fixture',
             PERSPECTRA_HOST_PLUGINS: JSON.stringify([
               { id: plugin, enabled: true, path: resolve('examples/host-plugins/' + plugin + '.mjs') },
+              // A broken, unrelated plugin is skipped; the world still opens because it does not need it.
+              { id: 'missing-file', enabled: true, path: join(directory, 'missing.mjs') },
             ]),
           },
         },
@@ -69,7 +71,7 @@ it('loads capability plugins through both source and bundled host entries and ex
         errors += String(chunk)
       })
       try {
-        const ready = await new Promise<{ port: number; token: string }>((done, reject) => {
+        const ready = await new Promise<{ port: number; token: string; skippedPlugins: unknown }>((done, reject) => {
           const timer = setTimeout(() => reject(new Error('Host startup timed out: ' + errors.slice(-1000))), 30_000)
           child.once('error', error => {
             clearTimeout(timer)
@@ -80,7 +82,13 @@ it('loads capability plugins through both source and bundled host entries and ex
             reject(new Error('Host exited before ready: ' + errors.slice(-1000)))
           })
           child.on('message', value => {
-            const message = value as { type: string; port: number; token: string; message?: string }
+            const message = value as {
+              type: string
+              port: number
+              token: string
+              message?: string
+              skippedPlugins: unknown
+            }
             if (message.type === 'ready') {
               clearTimeout(timer)
               done(message)
@@ -91,6 +99,7 @@ it('loads capability plugins through both source and bundled host entries and ex
             }
           })
         })
+        expect(ready.skippedPlugins).toEqual([{ id: 'missing-file', reason: 'import' }])
         const url = 'http://127.0.0.1:' + ready.port
         const headers = { 'x-playtest-token': ready.token, 'content-type': 'application/json' }
         const view = async () => {

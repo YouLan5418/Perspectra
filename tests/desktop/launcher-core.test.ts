@@ -74,7 +74,8 @@ process.on('message', message => {
   if (message.type === 'frontend-revoke') { log(message); process.send({ type: 'frontend-revoked' }) }
   if (message.type === 'shutdown') { log({ type: 'stopped', snapshot }); process.disconnect() }
 })
-process.send({ type: 'ready', port: 12345, token: 'a'.repeat(64), frontendMode: process.env.PERSPECTRA_FRONTEND_APPROVED_SHA256 ? 'trusted' : 'sandbox' })
+const startup = join(root, 'fake-startup.json')
+process.send(existsSync(startup) ? JSON.parse(readFileSync(startup, 'utf8')) : { type: 'ready', port: 12345, token: 'a'.repeat(64), frontendMode: process.env.PERSPECTRA_FRONTEND_APPROVED_SHA256 ? 'trusted' : 'sandbox' })
 `,
   )
   vi.stubEnv('PERSPECTRA_RUNTIME_ROOT', runtime)
@@ -853,6 +854,47 @@ it('passes only saved plugin choices at startup and applies changes on the next 
       enabled,
       disabled,
     ])
+  } finally {
+    await core.stop()
+    vi.unstubAllEnvs()
+  }
+})
+
+it('shows plugins the game skipped and names a missing required capability without the host error text', async () => {
+  const { core, instanceId } = await runningService()
+  const startup = join(core.root, 'fake-startup.json')
+  try {
+    await writeFile(
+      startup,
+      JSON.stringify({
+        type: 'ready',
+        port: 12345,
+        token: 'a'.repeat(64),
+        frontendMode: 'sandbox',
+        skippedPlugins: [{ id: 'tts', reason: 'apply' }, { id: 'odd', reason: 'unknown' }, 'junk'],
+      }),
+    )
+    await core.handle({ operation: 'start', instanceId })
+    expect(core.snapshot().core.state).toBe('running')
+    expect(core.snapshot().skippedPlugins).toEqual([{ id: 'tts', reason: 'apply' }])
+    await core.stop()
+    // Settings can still point at the plugin after the game stops.
+    expect(core.snapshot().skippedPlugins).toEqual([{ id: 'tts', reason: 'apply' }])
+    await writeFile(
+      startup,
+      JSON.stringify({
+        type: 'startup-error',
+        message: 'PRIVATE_HOST_DETAIL',
+        skippedPlugins: [{ id: 'device', reason: 'import' }],
+        missingCapability: 'demo-device@0.1.0',
+      }),
+    )
+    const failure = await core.handle({ operation: 'start', instanceId }).catch((error: Error) => error)
+    expect(String(failure)).toContain('世界包需要宿主能力 demo-device@0.1.0')
+    expect(String(failure)).toContain('device')
+    expect(String(failure)).not.toContain('PRIVATE_HOST_DETAIL')
+    expect(core.snapshot().core.state).toBe('idle')
+    expect(core.snapshot().skippedPlugins).toEqual([{ id: 'device', reason: 'import' }])
   } finally {
     await core.stop()
     vi.unstubAllEnvs()
