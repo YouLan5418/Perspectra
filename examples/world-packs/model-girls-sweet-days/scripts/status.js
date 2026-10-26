@@ -225,6 +225,8 @@ globalThis.statusScript = {
       { key: 'gift-scene', label: '亲历送礼的房间', type: 'string', owner: 'character' },
       { key: 'money', label: '生活费', type: 'number', owner: 'character', bar: true },
       { key: 'energy', label: '精力', type: 'number', owner: 'character', bar: true },
+      // 谁是卧底的赢家可以向输家提一个小要求；只记资格，要求是什么、照不照办由角色自己决定。
+      { key: 'undercover-privilege', label: '谁是卧底胜者特权', type: 'string', owner: 'character' },
       {
         key: 'mood-note',
         label: '心动印象',
@@ -352,6 +354,7 @@ globalThis.statusScript = {
             money: initialMoney[id] ?? 50,
             energy: 3,
             'gift-scene': '',
+            'undercover-privilege': '',
             'mood-note': initialMoods[id] ?? '平静日常',
           },
         ]),

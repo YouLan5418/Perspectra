@@ -34,6 +34,7 @@
     "scripts/status.js",
     "scripts/activities/schedule.js",
     "scripts/activities/game-battle.js",
+    "scripts/activities/undercover.js",
     "scripts/activities/midnight-fridge.js",
     "scripts/activities/secret-notebook.js",
     "scripts/activities/blackout-comfort.js",
