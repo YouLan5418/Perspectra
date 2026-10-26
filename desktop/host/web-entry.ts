@@ -108,6 +108,7 @@ async function main(): Promise<void> {
   hostPlugins = await loadHostPlugins(hostPluginSettings(JSON.parse(process.env.PERSPECTRA_HOST_PLUGINS ?? '[]')))
   const runtime = await WorldHostRuntime.create({
     capabilities: hostPlugins.capabilities,
+    playerFeed: hostPlugins.playerFeed,
     dataDirectory,
     provider,
     packPath,

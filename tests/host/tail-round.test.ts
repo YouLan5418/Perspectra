@@ -18,6 +18,8 @@ import { preflightSave } from '../../desktop/save-preflight.ts'
 import { frontendActionRequest, playerViewPatch } from '../../packages/frontend/src/player-view.ts'
 import { FrontendActions, projectPlayerView } from '../../desktop/host/frontend-adapter.ts'
 import { itemDecision, withItemRules } from '../support/item-rules.ts'
+import { Context } from '@deepseek-ai/cordis'
+import { PlayerFeed, type PlayerFeedEvent, type PlayerFeedLine } from '../../desktop/host-plugins.ts'
 
 const roots: string[] = [],
   servers: Server[] = [],
@@ -36,7 +38,7 @@ const built = (input: WorldJsonObject): WorldJsonObject => ({
   index: { scope: input.scope!, units: [], vectors: [] },
 })
 const empty = { delivery: [], deliveryTrace: { delivered: [], activityCoverage: [] } }
-async function fixture(core = false, build?: CoreRunner) {
+async function fixture(core = false, build?: CoreRunner, playerFeed?: PlayerFeed) {
   const root = mkdtempSync(join(tmpdir(), 'tail-round-'))
   roots.push(root)
   const pack = join(root, 'pack'),
@@ -98,6 +100,7 @@ async function fixture(core = false, build?: CoreRunner) {
     utilityEndpoint: 'http://127.0.0.1:' + (server.address() as { port: number }).port + '/v1/chat/completions',
     timeoutMs: 5000,
     ...(core ? { memoryCore: true, memoryCoreRun: run, memoryCoreBuildRun: run } : {}),
+    ...(playerFeed ? { playerFeed } : {}),
   }
   const create = async () => {
     const runtime = await WorldHostRuntime.create(options)
@@ -290,6 +293,68 @@ it('keeps a failed or cancelled candidate invisible, prevents concurrent writers
   expect((await outcome).message).toContain('取消')
   expect(JSON.stringify(f.events())).toBe(before)
   expect(readFileSync(join(f.data, 'current-world.json'), 'utf8')).toBe(selection)
+}, 30_000)
+
+it('feeds subscribers only the selected line: cancelled candidates stay silent and replacements reset', async () => {
+  const ctx = new Context(),
+    feed = new PlayerFeed(ctx),
+    received: PlayerFeedEvent[] = []
+  feed.subscribe(event => {
+    received.push(event)
+  })
+  // What a subscriber holds after applying every event in order.
+  const mirror = () =>
+    received.reduce<PlayerFeedLine[]>(
+      (lines, event) => (event.kind === 'reset' ? [...event.lines] : [...lines, ...event.lines]),
+      [],
+    )
+  const delivered = () => new Promise<void>(done => setImmediate(done))
+  try {
+    const f = await fixture(false, undefined, feed)
+    await delivered()
+    expect(received[0]?.kind).toBe('reset')
+    f.setDecision(input =>
+      actor(input) === 'character:companion' && !input.continuation
+        ? { decision: 'publish', segments: [{ type: 'speech', text: '原回合暗号紫檀四号。' }] }
+        : { decision: 'abstain' },
+    )
+    await f.runtime.submit('原回合。')
+    await delivered()
+    expect(mirror()).toEqual((await f.runtime.state()).transcript)
+    expect(JSON.stringify(mirror())).toContain('紫檀四号')
+    expect(received.at(-1)?.kind).toBe('append')
+
+    let entered!: () => void, release!: () => void
+    const waiting = new Promise<void>(done => {
+        entered = done
+      }),
+      gate = new Promise<void>(done => {
+        release = done
+      })
+    f.setDecision(async () => {
+      entered()
+      await gate
+      return { decision: 'publish', segments: [{ type: 'speech', text: '不得安装的候选。' }] }
+    })
+    const outcome = regenerate(f.runtime).catch(error => error)
+    await waiting
+    await f.runtime.cancelRegeneration()
+    release()
+    expect(await outcome).toBeInstanceOf(Error)
+    await delivered()
+    expect(JSON.stringify(received)).not.toContain('不得安装')
+    expect(mirror()).toEqual((await f.runtime.state()).transcript)
+
+    f.setDecision(() => ({ decision: 'abstain' }))
+    const before = received.length
+    await regenerate(f.runtime)
+    await delivered()
+    expect(received.slice(before).some(event => event.kind === 'reset')).toBe(true)
+    expect(mirror()).toEqual((await f.runtime.state()).transcript)
+    expect(JSON.stringify(mirror())).not.toContain('紫檀四号')
+  } finally {
+    await ctx.fiber.dispose()
+  }
 }, 30_000)
 
 it('replays activity initialization through permissions with identical randomness and restores status', async () => {

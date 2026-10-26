@@ -7,7 +7,13 @@ import { createServer } from 'node:http'
 import type { AddressInfo } from 'node:net'
 import { Context } from '@deepseek-ai/cordis'
 import { afterEach, expect, it, vi } from 'vitest'
-import { FrontendServices, loadHostPlugins, type HostPlugins } from '../../desktop/host-plugins.ts'
+import {
+  FrontendServices,
+  PlayerFeed,
+  loadHostPlugins,
+  type HostPlugins,
+  type PlayerFeedEvent,
+} from '../../desktop/host-plugins.ts'
 import { hostPluginSettings } from '../../desktop/host-plugin-settings.ts'
 
 const roots: string[] = [],
@@ -184,4 +190,69 @@ it('validates local module settings without allowing extra credential fields', (
       { id: 'tts', path: '', enabled: false },
     ]),
   ).toThrow()
+})
+
+it('feeds only changes to the player transcript, isolates listeners and stops after unsubscribe', async () => {
+  const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+  const root = new Context(),
+    feed = new PlayerFeed(root),
+    received: PlayerFeedEvent[] = []
+  const delivered = () => new Promise<void>(done => setImmediate(done))
+  const line = (seq: number, text: string) => ({ seq, speaker: '澄', text, player: false })
+  feed.subscribe(() => {
+    throw new Error('broken listener')
+  })
+  feed.subscribe(async () => {
+    throw new Error('broken async listener')
+  })
+  const unsubscribe = feed.subscribe(event => {
+    received.push(event)
+    // A listener mutating its copy must not change what the feed compares against next.
+    ;(event.lines as unknown as { text: string }[]).forEach(entry => (entry.text = 'changed'))
+  })
+  const transcript = [line(1, '你好。')]
+  feed.publish(transcript)
+  feed.publish(transcript)
+  feed.publish([...transcript, line(2, '要出发了吗？')])
+  feed.publish([line(1, '你好。'), line(3, '另一条候选。')])
+  await delivered()
+  expect(received.map(event => event.kind)).toEqual(['reset', 'append', 'reset'])
+  expect(received[1]!.lines).toHaveLength(1)
+  expect(error).toHaveBeenCalledTimes(6)
+  unsubscribe()
+  feed.publish([line(1, '你好。'), line(3, '另一条候选。'), line(4, '退订后。')])
+  await delivered()
+  expect(received).toHaveLength(3)
+  await root.fiber.dispose()
+  expect(() => feed.subscribe(() => {})).toThrow('关闭')
+  error.mockRestore()
+})
+
+it('mirrors appends and resets into a file through the example transcript plugin', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'perspectra-transcript-'))
+  roots.push(root)
+  const file = join(root, 'transcript.txt')
+  vi.stubEnv('PERSPECTRA_TRANSCRIPT_FILE', file)
+  const session = await loadHostPlugins([
+    {
+      id: 'transcript',
+      path: fileURLToPath(new URL('../../examples/host-plugins/transcript-file.mjs', import.meta.url)),
+      enabled: true,
+    },
+  ])
+  sessions.push(session)
+  expect(session.skipped).toEqual([])
+  const line = (seq: number, speaker: string, text: string) => ({ seq, speaker, text, player: false })
+  const settled = async (expected: string) => {
+    for (let i = 0; i < 50; i++) {
+      if ((await readFile(file, 'utf8').catch(() => '')) === expected) return
+      await new Promise(done => setTimeout(done, 10))
+    }
+    expect(await readFile(file, 'utf8')).toBe(expected)
+  }
+  session.playerFeed.publish([line(1, '玩家', '你好。')])
+  session.playerFeed.publish([line(1, '玩家', '你好。'), line(2, '澄', '早。')])
+  await settled('玩家：你好。\n澄：早。\n')
+  session.playerFeed.publish([line(1, '玩家', '你好。'), line(3, '澄', '另一种回答。')])
+  await settled('玩家：你好。\n澄：另一种回答。\n')
 })

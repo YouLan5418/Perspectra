@@ -106,6 +106,18 @@ export class TailRoundRuntime {
     if (this.#closed || this.#regenerating || this.#interrupting) throw new HostBusyError('请等待世界切换完成。')
     return this.#runtime.creatorInspection(query)
   }
+  /** A candidate stays silent until it is installed, so subscribers never read an unselected tail. */
+  #candidateFeed(): { options: Pick<WorldHostOptions, 'playerFeed'>; open(): void } {
+    const target = this.options.playerFeed
+    if (!target) return { options: {}, open: () => {} }
+    let installed = false
+    return {
+      options: { playerFeed: { publish: transcript => installed && target.publish(transcript) } },
+      open: () => {
+        installed = true
+      },
+    }
+  }
   supportsHistoryRestore(): boolean {
     return this.#runtime.supportsHistoryRestore()
   }
@@ -395,8 +407,10 @@ export class TailRoundRuntime {
       )
       this.#runtime.inheritCreatorBase(tail.base, directory)
       const { shadowAudit: _shadow, ...isolatedOptions } = this.options
+      const feed = this.#candidateFeed()
       const candidateOptions = {
         ...isolatedOptions,
+        ...feed.options,
         dataDirectory: resolve(this.options.dataDirectory, directory),
         logicalDirectory: this.options.dataDirectory,
         worldVersion: version,
@@ -446,6 +460,8 @@ export class TailRoundRuntime {
       selected = true // no awaits between the durable commit point and installing the matching runtime
       this.#runtime = this.#candidate
       this.#candidate = undefined
+      feed.open()
+      this.#runtime.publishPlayerFeed()
       this.#regenerating = false
       this.#runtime.releaseCognition()
       this.#notice = '已生成新候选，原结果仍可切换。'
@@ -515,8 +531,10 @@ export class TailRoundRuntime {
       oldClosed = true
       flushTailData(this.dataDirectory)
       const { shadowAudit: _shadow, ...options } = this.options
+      const feed = this.#candidateFeed()
       this.#candidate = await this.factory({
         ...options,
+        ...feed.options,
         dataDirectory: path,
         logicalDirectory: this.options.dataDirectory,
         worldVersion: version,
@@ -538,6 +556,8 @@ export class TailRoundRuntime {
       })
       this.#runtime = this.#candidate
       this.#candidate = undefined
+      feed.open()
+      this.#runtime.publishPlayerFeed()
       this.#regenerating = false
       this.#notice = '已切换回合候选。'
     } catch (error) {

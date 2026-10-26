@@ -20,6 +20,8 @@ Launcher 设置窗口（右上角 ⚙）的“模型接口”管理多条模型�
 
 源码网页入口继续使用现有 local 启动方式，通过 `HCW_MODEL_PROTOCOL=openai|anthropic|google` 选择协议；模型、完整地址及密钥仍从 `HCW_LOCAL_MODEL`、`HCW_LOCAL_ENDPOINT`、`HCW_LOCAL_API_KEY` 读取。未设置协议的现有配置按 OpenAI 处理。独立 Ollama / DeepSeek 入口保持其现有协议。
 
+**`local` 不表示本机。** 例如把 `HCW_LOCAL_ENDPOINT` 设为远程服务的 `https://服务地址/v1/messages`，再设 `HCW_MODEL_PROTOCOL=anthropic`，同样走 `local` 入口。它是历史命名，实际是通用接口入口：宿主只检查地址是 http(s)、路径符合所选协议，不限制主机；默认值 `127.0.0.1:8045` 只是未配置时的回退。Launcher 的模型连接也全部经由它启动，`--deepseek`、`--ollama` 是两个保留的专用入口。名字暂不修改，以免影响已有启动脚本和环境变量。
+
 ## 调用边界
 
 - 复用现有 ChatCall、授权角色上下文和决策 Schema。供应商适配器只转换 HTTP 请求与响应；perform 仍经过 Host / Rulebook / Event 提交。

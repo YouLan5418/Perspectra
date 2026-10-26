@@ -4,6 +4,7 @@ import { hostPluginSettings, type HostPluginSettings } from './host-plugin-setti
 import type { FrontendHostServices } from '@harness-world/frontend'
 import { validBgmTrack, type FrontendBgmPlugin, type FrontendBgmService } from '@harness-world/frontend'
 import { HostCapabilities, type CapabilityCatalog } from './host-capabilities.ts'
+import type { HostState } from './host/http-server.ts'
 
 type SpeechSynthesizer = NonNullable<FrontendHostServices['synthesizeSpeech']>
 
@@ -11,6 +12,66 @@ declare module '@deepseek-ai/cordis' {
   interface Context {
     frontendServices: FrontendServices
     capabilities: HostCapabilities
+    playerFeed: PlayerFeed
+  }
+}
+
+/** One line of what the player can read, exactly as the default stage receives it. */
+export type PlayerFeedLine = HostState['transcript'][number]
+/** `reset` replaces everything a listener holds: first publish, regeneration, candidate switch or restore. */
+export type PlayerFeedEvent =
+  | { readonly kind: 'append'; readonly lines: readonly PlayerFeedLine[] }
+  | { readonly kind: 'reset'; readonly lines: readonly PlayerFeedLine[] }
+
+/** Read-only: listeners see the player's own transcript after the host projects it, never character
+ * Context, private statuses or other characters' views, and nothing they return reaches the world. */
+export class PlayerFeed extends Service {
+  #listeners = new Set<(event: PlayerFeedEvent) => unknown>()
+  #published: readonly PlayerFeedLine[] | undefined
+  #closed = false
+
+  constructor(ctx: Context) {
+    super(ctx, 'playerFeed')
+    ctx.effect(() => () => {
+      this.#closed = true
+      this.#listeners.clear()
+    })
+  }
+
+  /** Own the returned disposer with the subscribing plugin's ctx.effect(). */
+  readonly subscribe = (listener: (event: PlayerFeedEvent) => unknown): (() => void) => {
+    if (this.#closed) throw new Error('宿主服务已关闭。')
+    if (typeof listener !== 'function') throw new TypeError('订阅须提供监听函数。')
+    this.#listeners.add(listener)
+    return () => void this.#listeners.delete(listener)
+  }
+
+  /** Called by the host after each projection; only changes reach listeners. */
+  publish(transcript: readonly PlayerFeedLine[]): void {
+    if (this.#closed) return
+    const previous = this.#published
+    this.#published = structuredClone(transcript)
+    let event: PlayerFeedEvent
+    if (
+      previous &&
+      previous.length <= transcript.length &&
+      JSON.stringify(previous) === JSON.stringify(transcript.slice(0, previous.length))
+    ) {
+      if (previous.length === transcript.length) return
+      event = { kind: 'append', lines: structuredClone(transcript.slice(previous.length)) }
+    } else event = { kind: 'reset', lines: structuredClone(transcript) }
+    // Deliver outside the host's projection; a slow or failing listener cannot hold up or break play.
+    for (const listener of this.#listeners)
+      setImmediate(() => {
+        if (!this.#listeners.has(listener)) return
+        try {
+          void Promise.resolve(listener(structuredClone(event))).catch(error =>
+            console.error('[玩家可见事件订阅] 监听器出错：', error),
+          )
+        } catch (error) {
+          console.error('[玩家可见事件订阅] 监听器出错：', error)
+        }
+      })
   }
 }
 
@@ -105,6 +166,7 @@ export interface SkippedHostPlugin {
 export interface HostPlugins {
   readonly services: FrontendHostServices
   readonly capabilities: CapabilityCatalog
+  readonly playerFeed: PlayerFeed
   readonly skipped: readonly SkippedHostPlugin[]
   close(): Promise<void>
 }
@@ -117,6 +179,7 @@ export async function loadHostPlugins(settings: HostPluginSettings[]): Promise<H
   const root = new Context()
   const services = new FrontendServices(root)
   const capabilities = new HostCapabilities(root)
+  const playerFeed = new PlayerFeed(root)
   const skipped: SkippedHostPlugin[] = []
   for (const plugin of plugins) {
     if (!plugin.enabled) continue
@@ -147,5 +210,5 @@ export async function loadHostPlugins(settings: HostPluginSettings[]): Promise<H
       skipped.push({ id: plugin.id, reason: 'apply' })
     }
   }
-  return { services, capabilities, skipped, close: () => root.fiber.dispose() }
+  return { services, capabilities, playerFeed, skipped, close: () => root.fiber.dispose() }
 }

@@ -1,5 +1,12 @@
 # 通过 Cordis 加载宿主插件
 
+2026-10-26 玩家可见事件订阅：例如主播想把对白同步到直播画面。启用 [transcript-file.mjs](../../examples/host-plugins/transcript-file.mjs) 并设置 `PERSPECTRA_TRANSCRIPT_FILE`，文件会跟着玩家读到的对白更新，OBS 的文字源读取它即可。插件通过 `ctx.effect(() => ctx.playerFeed.subscribe(listener))` 订阅，收到的是宿主已经为玩家投影好的对话记录，与默认舞台的历史相同：没有角色 Context、心理、私有状态或其他角色的视角，监听器的返回值也不会回到世界。
+
+- 事件只有两种：`append` 带新增的行；`reset` 带完整记录，出现在首次推送、重新生成、切换候选或恢复之后，订阅者应整体替换已有内容。
+- 重新生成时，候选在被选中之前不推送；取消或失败的候选从不出现在订阅里。
+- 宿主在下一轮事件循环里调用监听器，每个监听器拿到独立副本；监听器抛错或返回失败的 Promise 只记录到游戏进程的标准错误，不影响游戏和其他监听器。
+- 源码接通点是 [PlayerFeed](../../desktop/host-plugins.ts)、运行时每次刷新玩家投影后调用的 `publishPlayerFeed()`，以及 [TailRoundRuntime](../../desktop/host/tail-runtime.ts) 给候选加的闸门。自动测试覆盖比较逻辑、监听器隔离、示例插件写文件，以及取消的候选不泄露；真实模型、真实直播软件和发行包未验收。
+
 2026-10-26 插件故障：例如玩家同时启用了语音插件和设备插件，语音插件文件损坏。游戏照常启动，启动器提示“tts（导入失败）已跳过”，设置页在该插件下标出原因；只有当世界包把设备能力声明为必需而设备插件也坏了时，世界才不打开，启动器会写明缺少哪个能力。做法参考 DSH 的可选插件策略，见下方“装载、授权与退出”。
 
 2026-10-26 双入口：例如澄请求设备确认，包内模块定义操作、私有次数和完成规则，可信 Cordis 插件提供异步设备能力。新增 `plugins.json`／`plugins/*.js` 与 `ctx.capabilities.register`，沿用原有状态和交互提交。会话可以请求绑定 NPC 的原有角色回合，不传出私有 Context。[开发指南](guides/dual-plugin-entrypoints.md)说明声明、能力目录、角色绑定、完成／排队和取消语义；源码及打包后端入口已自动验证，真实模型与发行包未验收。
@@ -60,7 +67,7 @@ export default function speechPlugin(ctx) {
 ## 装载、授权与退出
 
 - [LauncherCore](../../desktop/launcher-core.ts)只保存和传递插件选择，不在启动器后端导入插件。每次启动用 `PERSPECTRA_HOST_PLUGINS` 覆盖传入当前保存的列表。
-- [游戏入口](../../desktop/host/web-entry.ts)在创建世界运行时之前调用 [loadHostPlugins](../../desktop/host-plugins.ts)。装载器创建独立 Context，注册 `frontendServices` 和按世界绑定的 `capabilities`，再按列表顺序 `ctx.plugin()`。只提供有限角色请求回调，没有挂载世界内核、存储、记忆或原始 Context。
+- [游戏入口](../../desktop/host/web-entry.ts)在创建世界运行时之前调用 [loadHostPlugins](../../desktop/host-plugins.ts)。装载器创建独立 Context，注册 `frontendServices`、按世界绑定的 `capabilities` 和只读的 `playerFeed`，再按列表顺序 `ctx.plugin()`。只提供有限角色请求回调，没有挂载世界内核、存储、记忆或原始 Context。
 - 同时只允许一个合成服务与一个 BGM 服务，两者可以由同一个或不同插件注册。启用模块不存在或导出不合法（`import`）、初始化抛错或重复注册（`apply`）时，只跳过这一个插件：Cordis 撤销它已经用 `ctx.effect` 注册的服务，其他插件照常运行。详细错误带插件 ID 写入游戏进程的标准错误输出；`ready` 与 `startup-error` 消息只带 `{ id, reason }`，启动器据此在主界面和设置页提示，不显示模块异常正文。插件设置本身不合法（ID、路径格式）仍使整次启动失败。世界能否打开由包声明的必需能力决定：缺少时宿主抛出 `MissingCapabilityError`，启动器提示“世界包需要宿主能力 X”。被跳过的语音或 BGM 插件不阻止任何世界，只是没有对应服务。已知限制：Launcher 不保存游戏进程输出，玩家在界面上只看到插件 ID 与原因；插件作者需从命令行启动游戏查看详细错误。
 - 服务通过已有 `FrontendHostServices` 交给 [HTTP 宿主](../../desktop/host/http-server.ts)。模板声明的能力与实际安装服务共同决定是否授予 `speech`；合成前校验授权文本，合成后重验段落，候选替换后返回 409。未安装服务返回 404，合成失败返回 502。
 - 前端请求断开或服务注销会触发 abort。插件应把信号传给实际请求；即使插件忽略取消，注销后晚到的音频也会被拒绝。关闭游戏时释放插件及其 `ctx.effect()`，不为未完成音频增加恢复机制。

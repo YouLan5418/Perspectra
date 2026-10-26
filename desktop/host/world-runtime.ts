@@ -94,6 +94,8 @@ import { CapabilitySession, type CapabilityCatalog } from '../host-capabilities.
 
 export interface WorldHostOptions extends ModelOptions {
   readonly capabilities?: CapabilityCatalog
+  /** Receives the player's transcript after each projection; read-only, it cannot affect the world. */
+  readonly playerFeed?: { publish(transcript: HostState['transcript']): void }
   readonly dataDirectory: string
   /** The v5 Pack directory: the world the author wrote, compiled here with the Host's installed packages. */
   readonly packPath: string
@@ -359,6 +361,10 @@ export class WorldHostCore implements HostRuntime {
   #capabilities: CapabilitySession | undefined
   #pluginsReady = false
   #roundHolds = 0
+  /** Hand the current player transcript to subscribers; tail candidates call this once installed. */
+  publishPlayerFeed(): void {
+    this.#options.playerFeed?.publish(this.#transcript)
+  }
   supportsHistoryRestore(): boolean {
     return !this.#capabilities?.externalEffects
   }
@@ -2022,6 +2028,7 @@ export class WorldHostCore implements HostRuntime {
         worldVersion: this.#worldVersion,
         visibleSceneIds: view.scenes.map(scene => scene.sceneId),
       }
+      this.publishPlayerFeed()
     } finally {
       availability.close()
     }
@@ -2137,6 +2144,7 @@ export class WorldHostCore implements HostRuntime {
       visibleSceneIds: view.scenes.map(scene => scene.sceneId),
     }
     this.#shadow?.observe(head.headSeq)
+    this.publishPlayerFeed()
   }
 }
 

@@ -21,7 +21,7 @@ $env:HCW_LOCAL_MODEL = 'gemini-3.7-flash'
 corepack pnpm@11.7.0 experience:web --pack examples/world-packs/launcher-demo --data-dir .tmp/my-playtest
 ```
 
-先启动自己的模型服务。示例配置可按实际接口修改；未设置环境变量时源码网页默认 8045，Launcher 默认 8046。认证通过进程环境 `HCW_LOCAL_API_KEY` 提供，不写入仓库。打开终端打印的完整回环地址，不公开其 token。
+先启动自己的模型服务。示例配置可按实际接口修改；未设置环境变量时源码网页默认 8045，Launcher 默认 8046。认证通过进程环境 `HCW_LOCAL_API_KEY` 提供，不写入仓库。`HCW_LOCAL_*` 里的 local 是历史命名，地址也可以是远程服务，见[模型接口协议](../model-protocols.md)。打开终端打印的完整回环地址，不公开其 token。
 
 源码网页默认 Core 记忆，启动前须准备 Python/E5，缺少时直接报错；`--ollama` / `--deepseek` 暂不支持 Core，须加 `--memory-native`。便携 Launcher 已打包 Core 运行依赖，仍需外部模型服务。[创作者试玩](creator-playtest.md) 说明两条路径的验收差异。
 

@@ -56,6 +56,7 @@ export default async function myBgm(ctx) {
 | 接口 | 用途 |
 | --- | --- |
 | `ctx.capabilities.register(provider)` / `list()` | 注册按世界打开的异步能力 / 读取方法目录，详见[双入口指南](dual-plugin-entrypoints.md) |
+| `ctx.playerFeed.subscribe(listener)` | 只读订阅玩家可见的对话记录，收到 `{ kind: 'append' \| 'reset', lines }`，返回退订函数；详见[宿主插件](../host-plugins.md)，例子是 [transcript-file.mjs](../../../examples/host-plugins/transcript-file.mjs) |
 | `ctx.frontendServices.registerBgm({ tracks, selectTrack })` | 注册一个曲库和选曲回调，返回注销函数 |
 | `ctx.frontendServices.registerSpeech(synthesize)` | 注册一个 TTS 回调，详见[语音示例](../../../examples/host-plugins/http-speech.mjs) |
 | `ctx.effect(() => disposer)` | 把自己打开的连接、定时器或注册项交给 Cordis 在退出时释放 |
