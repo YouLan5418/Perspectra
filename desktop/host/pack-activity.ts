@@ -464,6 +464,7 @@ export class PackActivity {
       activityKey: this.key,
       suspended: member && state?.suspendedTurn !== undefined,
       available: actorId === this.playerId,
+      ...(actorId === this.playerId && !this.#manualStartAllowed() ? { manualStart: false } : {}),
       ...(quick.length ? { quickOperations: quick } : {}),
       ...(selection ? { participantSelection: selection } : {}),
       ...(state && member
@@ -964,12 +965,25 @@ export class PackActivity {
       ...(typeof result.notice === 'string' ? { notice: result.notice } : {}),
     }
   }
-  async apply(request: ActivityRequest, auto?: { notice?: string }): Promise<boolean> {
+  /** A script with autoStart offers its manual start only while the same conditions all hold. */
+  #manualStartAllowed(): boolean {
+    try {
+      return this.autoStartCandidate()?.met !== false
+    } catch {
+      // A broken hook hides the entry; apply re-runs it and reports the error, as automatic starts do.
+      return false
+    }
+  }
+  /** `quiet` marks the start a quick operation makes on the player's behalf: it writes no opening line. */
+  async apply(request: ActivityRequest, auto?: { notice?: string }, quiet = false): Promise<boolean> {
+    if (request.operation === 'start' && auto === undefined && this.autoStartCandidate()?.met === false)
+      throw new TypeError('这场活动的开始条件尚未满足')
     if (request.activityId === null && this.#operations.some(op => op.quick && op.id === request.operation)) {
       // Two ordinary commits: a management start, then the counted operation. A retry reuses both request IDs.
+      // The player made one action, so only the operation's own result is shown.
       if (request.revision !== 0 || Object.keys(request.parameters).length) throw new TypeError('快捷操作请求已失效')
       const startId = request.requestId + ':start'
-      const startedNow = await this.apply({ ...request, operation: 'start', requestId: startId })
+      const startedNow = await this.apply({ ...request, operation: 'start', requestId: startId }, undefined, true)
       const store = new WorldStore(this.worldPath)
       let started: ActivityState
       try {
@@ -1151,19 +1165,21 @@ export class PackActivity {
       // the player alone; it is written from the player's side, so participants keep the fixed line.
       const notice = request.operation === 'start' ? (auto?.notice ?? this.opening) : undefined
       drafts.push(
-        ...(notice === undefined
-          ? this.#observations(state, description, this.playerId, actionId, observerIds, request.operation)
-          : [
-              ...this.#observations(state, notice, this.playerId, actionId, [this.playerId], request.operation),
-              ...this.#observations(
-                state,
-                description,
-                this.playerId,
-                actionId,
-                observerIds.filter(id => id !== this.playerId),
-                request.operation,
-              ),
-            ]),
+        ...(quiet
+          ? []
+          : notice === undefined
+            ? this.#observations(state, description, this.playerId, actionId, observerIds, request.operation)
+            : [
+                ...this.#observations(state, notice, this.playerId, actionId, [this.playerId], request.operation),
+                ...this.#observations(
+                  state,
+                  description,
+                  this.playerId,
+                  actionId,
+                  observerIds.filter(id => id !== this.playerId),
+                  request.operation,
+                ),
+              ]),
         // A host-initiated start is direction, not a player action, so it never counts as a player round.
         {
           eventType: 'action.resolved',

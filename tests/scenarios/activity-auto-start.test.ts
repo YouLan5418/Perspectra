@@ -6,6 +6,7 @@ import { afterEach, expect, it, vi } from 'vitest'
 import { WorldStore } from '@harness-world/store-sqlite'
 import type { WorldJsonObject } from '@harness-world/contracts'
 import { WorldHostRuntime } from '../../desktop/host/world-runtime.ts'
+import { projectPlayerView } from '../../desktop/host/frontend-adapter.ts'
 
 const PLAYER = 'character:player'
 const roots: string[] = [],
@@ -163,6 +164,24 @@ it('starts an activity whose conditions all hold after the player round, once, w
   })
   await f.runtime.submit('/status wait {}')
   expect(f.starts()).toHaveLength(1)
+})
+
+it('offers no manual start while the autoStart conditions are unmet, and refuses one sent anyway', async () => {
+  const f = await fixture({ other: '(truth) => ({ when: [truth.public.flag >= 1] })' })
+  const labels = projectPlayerView(await f.runtime.state()).actions.map(action => action.label)
+  expect(labels).toContain('开始 guess')
+  expect(labels).not.toContain('开始 other')
+  await expect(
+    f.runtime.activityAction({
+      activityKey: 'other',
+      activityId: null,
+      revision: 0,
+      operation: 'start',
+      parameters: {},
+      requestId: 'manual',
+    }),
+  ).rejects.toThrow('开始条件尚未满足')
+  expect(f.events().filter(event => event.eventType === 'activity.updated')).toHaveLength(0)
 })
 
 it('prefers the candidate with more conditions and breaks ties with the recorded round random', async () => {

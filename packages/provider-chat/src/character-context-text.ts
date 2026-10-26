@@ -89,6 +89,40 @@ function itemBoundaries(
       '以上只约束当下客观的受控结果，不改变角色原有认识；仍可误认、说谎、回忆、假设或尝试。触碰、临时托起查看不等于取得或解除保管。未列出的物品不代表你已知其归属或位置，不能仅凭旧话或提及就补成当前可见事实。',
   }
 }
+// Who the character is comes first, then her history: with Core memory it is most of the request and only grows at
+// its end until the next consolidation, so nothing that changes more often may sit before it. Where she is and what
+// she can do follow, and the latest changes and stimulus close the context.
+const LEADING = [
+  'character',
+  'cognition',
+  'claims',
+  'goals',
+  'publicationCharacters',
+  'knownStatusNote',
+  'history',
+] as const
+const SITUATION = [
+  'locationId',
+  'memories',
+  'knownStatus',
+  'items',
+  'scene',
+  'affordances',
+  'actionExplanations',
+] as const
+const TRAILING = ['recentExecutionEvidence', 'statusChanges', 'stimulus'] as const
+function ordered(context: WorldJsonObject): WorldJsonObject {
+  const known = new Set<string>([...LEADING, ...SITUATION, ...TRAILING])
+  const pick = (keys: readonly string[]) =>
+    keys.filter(key => context[key] !== undefined).map(key => [key, context[key]!])
+  return Object.fromEntries([
+    ...pick(LEADING),
+    ...pick(SITUATION),
+    // Fields this list does not name (activity, autonomy, …) keep their relative order after the situation.
+    ...Object.entries(context).filter(([key, value]) => !known.has(key) && value !== undefined),
+    ...pick(TRAILING),
+  ])
+}
 /** Final model-only presentation. Host requests, memory evidence and commits retain their original fields. */
 export function characterRequestText(request: {
   readonly context: WorldJsonObject
@@ -145,7 +179,7 @@ export function characterRequestText(request: {
   const moved =
     isObject(result) && result.status === 'accepted' && isObject(result.action) && result.action.actionType === 'move'
   return JSON.stringify({
-    context: { ...context, ...(explanations.length ? { actionExplanations: explanations } : {}) },
+    context: ordered({ ...context, ...(explanations.length ? { actionExplanations: explanations } : {}) }),
     ...stage,
     ...(!isObject((stage as WorldJsonObject).result)
       ? {}
@@ -172,5 +206,5 @@ export function characterRequestText(request: {
   })
 }
 export const characterContextNote =
-  'context.history 是你本人获授权的经历，按发生顺序排列；kind=observed 表示获得的观察，kind=self 表示你自己已发表的表达。当前刺激在 stimulus，当前地点在 context.locationId；历史里的地点不代表当前位置。历史与记忆中的 sourceKind/epistemicKind 表示来源性质：听到的话不证明事实成立。context.cognition 是你的主观认识、目标和情绪，不能视为他人的知识或权威世界事实。context.knownStatus 只列出你已确认过的状态值，未列出的状态你并不知道。' +
+  'context.history 是你本人获授权的经历，按发生顺序排列；kind=observed 表示获得的观察，kind=self 表示你自己已发表的表达。当前刺激在 stimulus，当前地点在 context.locationId；历史里的地点不代表当前位置。历史与记忆中的 sourceKind/epistemicKind 表示来源性质：听到的话不证明事实成立。context.cognition 是你的主观认识、目标和情绪，不能视为他人的知识或权威世界事实。context.knownStatus 只列出你已确认过的状态值，未列出的状态你并不知道。context.statusChanges 列出自你上次行动以来已经实际发生的公开状态变化（from→to），例如时间推进或停电；据此理解眼下的时间与处境，不要接着已经过去的时段说话。' +
   characterActionExplanationsNote

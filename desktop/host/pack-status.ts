@@ -115,6 +115,45 @@ export type Adjudication =
     }
 
 export const KNOWN_STATUS_NOTE = '这是你上次确认的状态值；current=false 表示之后可能已经改变，你并不知道现在的值。'
+/** One public status a character knows that changed since her own last committed action. */
+export interface PublicStatusChange {
+  key: string
+  label: string
+  from: StatusValue
+  to: StatusValue
+}
+/** Public statuses (time, power, …) whose known value differs from what the character knew at her own last
+ * committed action, or at the world's initial status when she has never acted. Derived from committed events
+ * only, so a restart or a regenerated round tells her the same thing. */
+export function publicStatusChanges(
+  status: PackStatus,
+  updates: readonly (RulebookEvent & { readonly seq: number })[],
+  events: readonly (RulebookEvent & { readonly seq: number })[],
+  actorId: string,
+  known: readonly KnownStatus[],
+): PublicStatusChange[] {
+  const own = events.findLast(
+    event => event.eventType === 'action.resolved' && object(event.data, '行动结果').actorId === actorId,
+  )
+  const baseline = own ? updates.filter(event => event.seq <= own.seq) : updates.slice(0, 1)
+  const before = new Map(
+    status
+      .known(baseline, actorId)
+      .filter(entry => entry.holderId === null)
+      .map(entry => [entry.key, entry]),
+  )
+  return known.flatMap(entry => {
+    const previous = before.get(entry.key)
+    if (
+      entry.holderId !== null ||
+      !entry.current ||
+      !previous ||
+      JSON.stringify(previous.value) === JSON.stringify(entry.value)
+    )
+      return []
+    return [{ key: entry.key, label: entry.label, from: previous.value, to: entry.value }]
+  })
+}
 const ENTRY = 'scripts/status.js'
 const PREFIX = 'status:'
 const REJECTED = 'STATUS_OPERATION_REJECTED'

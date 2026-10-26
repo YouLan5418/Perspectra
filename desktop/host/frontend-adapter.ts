@@ -69,7 +69,9 @@ export function projectPlayerView(state: HostState): PlayerView {
         // recipient is always named, so the same action for different people stays apart.
         const authored = state.actionLabels?.[option.bindingId]
         const label =
-          definition.id.startsWith('activity:') || definition.id.startsWith('status:')
+          definition.id.startsWith('activity:') ||
+          definition.id.startsWith('status:') ||
+          definition.id === 'experiment:message'
             ? String(option.label ?? definition.id)
             : (authored ??
                 {
@@ -103,6 +105,8 @@ export function projectPlayerView(state: HostState): PlayerView {
   for (const activity of activities) {
     const active = (activity.game as WorldJsonObject | undefined)?.active === true
     if (!active && foreground) continue
+    // An activity with autoStart lists its start only while the author's conditions hold.
+    if (!active && activity.suspended !== true && activity.manualStart === false) continue
     const quick =
       !active && activity.suspended !== true && Array.isArray(activity.quickOperations)
         ? (activity.quickOperations as WorldJsonObject[])

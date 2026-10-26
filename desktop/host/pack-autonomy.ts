@@ -69,7 +69,8 @@ export class PackAutonomy {
     const targets = new Set([...characters, ...pack.content.entities.map(e => e.entityId as string)])
     const definitions = new Set(pack.interactions.definitions.map(d => d.ref.id))
     // Activity and author status operations are named by their own scripts, not by the interaction catalog.
-    const knownDefinition = (id: string) => definitions.has(id) || /^(activity|status):[a-z][a-z0-9-]*$/u.test(id)
+    const knownDefinition = (id: string) =>
+      definitions.has(id) || id === 'experiment:message' || /^(activity|status):[a-z][a-z0-9-]*$/u.test(id)
     const roles = root.characters.map(entry => {
       const row = object(entry)
       exact(
@@ -198,7 +199,8 @@ export class PackAutonomy {
         return object(action.parameters)
       }
       // A player's status operation records its operation name, the definition being status:<operation>.
-      const request = object(record.request)
+      // A player's SMS records only its action, with no request.
+      const request = record.request === undefined ? {} : object(record.request)
       if (record.action === undefined && typeof request.operation === 'string')
         return { definitionRef: { id: 'status:' + request.operation } }
       return record.action === undefined ? {} : object(object(record.action).parameters)

@@ -56,9 +56,10 @@ import { assertCoreEnvironment, coreRunnerGroups, type CoreRunner, type MemoryRu
 import { type ActivityRequest } from './pack-activity.ts'
 import { decideWithFormatRetry } from './decision-format.ts'
 import { PackActivities } from './pack-activities.ts'
-import { KNOWN_STATUS_NOTE, PackStatus, pauseRounds } from './pack-status.ts'
+import { KNOWN_STATUS_NOTE, PackStatus, pauseRounds, publicStatusChanges } from './pack-status.ts'
 import { PackKnowledge } from './pack-knowledge.ts'
 import { PackAutonomy, type AutonomousRole } from './pack-autonomy.ts'
+import { CrossSceneCommunication, communicationInstruction, loadCommunicationConfig } from './pack-communication.ts'
 import { auditBeforePublication, type InterventionOptions } from './jev-publication-intervention.ts'
 import { JevShadow, type ShadowOptions } from './jev-shadow.ts'
 import { appendFileSync, mkdirSync, readFileSync } from 'node:fs'
@@ -351,6 +352,8 @@ export class WorldHostCore implements HostRuntime {
   #closeCore: (() => Promise<void>) | undefined
   #activity: PackActivities | undefined
   #autonomy: PackAutonomy | undefined
+  /** The pack's SMS contacts; the rule wraps the core resolver anew for every resolver chain. */
+  #communication: CrossSceneCommunication | undefined
   #autonomyCycle: Record<string, unknown> | undefined
   #modelCallBudget: { remaining: number; exhausted: boolean } | undefined
   #activityView: WorldJsonObject | undefined
@@ -552,18 +555,25 @@ export class WorldHostCore implements HostRuntime {
     const characterId = String(character.characterId)
     if (this.#status) {
       const store = new WorldStore(resolve(this.#options.dataDirectory, 'world.sqlite'))
-      let updates
+      let events
       try {
-        updates = store.readEventsRange(this.#address, 0, store.head(this.#address).headSeq, ['status.updated'])
+        events = store.readEventsRange(this.#address, 0, store.head(this.#address).headSeq, [
+          'status.updated',
+          'action.resolved',
+        ])
       } finally {
         store.close()
       }
+      const updates = events.filter(event => event.eventType === 'status.updated')
+      const known = this.#status.known(updates, characterId)
+      const statusChanges = publicStatusChanges(this.#status, updates, events, characterId, known)
       request = {
         ...request,
         context: {
           ...request.context,
-          knownStatus: this.#status.known(updates, characterId) as unknown as WorldJsonObject[],
+          knownStatus: known as unknown as WorldJsonObject[],
           knownStatusNote: KNOWN_STATUS_NOTE,
+          ...(statusChanges.length ? { statusChanges: statusChanges as unknown as WorldJsonObject[] } : {}),
         },
       }
     }
@@ -698,6 +708,13 @@ export class WorldHostCore implements HostRuntime {
       )
       runtime.#storyParentNodeId = options.storyParentNodeId ?? null
       runtime.#autonomy = PackAutonomy.load(options.packPath, pack, runtime.#playerId)
+      const communication = loadCommunicationConfig(options.packPath, pack)
+      if (communication !== undefined)
+        runtime.#communication = new CrossSceneCommunication(
+          communication,
+          compiled.manifest,
+          runtime.#coreRules().resolve('builtin:speak-move', 2, 'communication', runtime.#address),
+        )
       runtime.#application.activate(compiled)
       runtime.#status = PackStatus.load(options.packPath, pack)
       await runtime.#status?.ensureInitial(
@@ -964,6 +981,41 @@ export class WorldHostCore implements HostRuntime {
         )
       } else await this.#activity!.speak(text, key)
       this.#notice = '操作已提交；单纯对白不消耗游戏行动回合。'
+      return { accepted: true, react: true }
+    }
+    if (text.startsWith('/message ')) {
+      if (!this.#communication) throw new TypeError('本包没有开启短信')
+      const message = JSON.parse(text.slice('/message '.length)) as WorldJsonObject
+      const recipientId = String(message.recipientId)
+      if (typeof message.text !== 'string' || !message.text.trim())
+        throw new TypeError(this.#communication.medium + '内容不能为空')
+      if (message.text.length > this.#playSettings.publicationCharacters)
+        throw new RangeError(this.#communication.medium + '太长了')
+      const path = resolve(this.#dataDirectory, 'world.sqlite')
+      const store = new WorldStore(path),
+        leases = new WriterLeaseService(path)
+      try {
+        // Only an active contact is offered; the rule would record anything else as a refused message.
+        if (
+          !this.#communication
+            .options(store.readEvents(this.#address), this.#playerId)
+            .some(option => option.targetRef.id === recipientId)
+        )
+          throw new TypeError('不能给这个人发' + this.#communication.medium)
+        await this.#communication.send({
+          store,
+          leases,
+          address: this.#address,
+          manifest: this.#entities,
+          actorId: this.#playerId,
+          recipientId,
+          text: message.text,
+        })
+      } finally {
+        leases.close()
+        store.close()
+      }
+      this.#notice = this.#communication.medium + '已发出，不代表对方已读或同意。'
       return { accepted: true, react: true }
     }
     if (text.startsWith('/status ')) {
@@ -1377,10 +1429,14 @@ export class WorldHostCore implements HostRuntime {
     await this.#application.close()
   }
 
-  /** Resolver chain: core, then status operations, then the running activity's permissions. */
+  #coreRules(): RulebookRegistry {
+    return createCoreRulebookRegistry({ interactionPackages: createInstalledInteractionPackages() })
+  }
+
+  /** Resolver chain: core, then the pack's SMS, then status operations, then the running activity's permissions. */
   #rulebooks(worldPath: string): RulebookRegistry {
-    const core = createCoreRulebookRegistry({ interactionPackages: createInstalledInteractionPackages() })
-    if (!this.#status) return this.#activity?.rulebooks() ?? core
+    const core = this.#communication?.registry() ?? this.#coreRules()
+    if (!this.#status) return this.#activity?.rulebooks(this.#communication?.resolver()) ?? core
     const status = this.#status.resolver(
       core.resolve('builtin:speak-move', 2, 'status', this.#address),
       worldPath,
@@ -1475,7 +1531,7 @@ export class WorldHostCore implements HostRuntime {
           if (this.#inspector.enabled) this.#records.trace(kind, characterId, decisionId, data)
         },
         continueAfterPublish:
-          this.#options.continueAfterPublish === true &&
+          (this.#options.continueAfterPublish === true || this.#playSettings.continueAfterPublish === 1) &&
           !this.#activity?.current()?.game.active &&
           this.#options.publicationAudit === undefined,
         beforeActionExpression:
@@ -1490,13 +1546,14 @@ export class WorldHostCore implements HostRuntime {
           !this.#activity?.current()?.game.active &&
           this.#options.publicationAudit === undefined,
         projectContext: (context: WorldJsonObject, canPerform: boolean) => {
-          const projected = this.#activity?.projectContext(context, canPerform) ?? context
+          const activityContext = this.#activity?.projectContext(context, canPerform) ?? context
+          const projected = this.#communication ? { ...activityContext, communicationInstruction } : activityContext
           return autonomous
             ? {
                 ...projected,
                 autonomy: {
                   instruction:
-                    '现在是你自主处理自身目标的机会。依据自己的目标、经历和眼前情况决定是否行动；可以表达或 abstain。没有新消息不代表发生了你不知道的事。',
+                    '现在是你自主处理自身目标的机会。依据自己的目标、经历和眼前情况决定是否行动；可以表达或 abstain。没有新消息不代表发生了你不知道的事；但 context.statusChanges 里的变化已经发生，例如时间已经推进，请按现在的时段与处境行动，不要接着已经过去的对话收尾。',
                 },
               }
             : projected
@@ -1507,12 +1564,14 @@ export class WorldHostCore implements HostRuntime {
               validateDecision: (decision: WorldJsonObject, request: CharacterTurnRequest) =>
                 this.#activity!.validateDecision(decision, request),
             }),
-        ...(this.#activity === undefined && this.#status === undefined
+        ...(this.#activity === undefined && this.#status === undefined && this.#communication === undefined
           ? {}
           : {
               executionResult: (input: Parameters<typeof characterExecutionResult>[0]) =>
-                this.#status?.executionResult(input) ??
-                (this.#activity?.executionResult ?? characterExecutionResult)(input),
+                (input.action.parameters as WorldJsonObject).bindingId === 'experiment:message'
+                  ? this.#communication!.executionResult(input)
+                  : (this.#status?.executionResult(input) ??
+                    (this.#activity?.executionResult ?? characterExecutionResult)(input)),
             }),
         ...(this.#memoryCore === undefined
           ? {}
@@ -1918,6 +1977,21 @@ export class WorldHostCore implements HostRuntime {
             .filter(id => id !== this.#playerId)
             .map(id => ({ id, name: this.#names.get(id) ?? id })),
           presentNpcNames: scene.observerIds.filter(id => id !== this.#playerId).map(id => this.#names.get(id) ?? id),
+        }
+        if (this.#communication) {
+          // The player writes the text in the form; the label names the contact, who may be anywhere.
+          const messages = this.#communication
+            .options(events, this.#playerId, this.#playSettings.publicationCharacters)
+            .map(option => ({
+              ...option,
+              arguments: {},
+              label: '给 ' + (this.#names.get(option.targetRef.id) ?? option.targetRef.id) + ' 发' + option.medium,
+            }))
+          if (messages.length)
+            this.#availableActions = [
+              ...this.#availableActions,
+              { actionType: 'interact', actionVersion: 2, interactions: messages },
+            ]
         }
       } finally {
         availability.close()

@@ -1,4 +1,7 @@
-import { randomUUID } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
+import { lstatSync, readFileSync, realpathSync } from 'node:fs'
+import { relative, resolve, sep } from 'node:path'
+import type { CompiledWorldPackV5 } from '@harness-world/world-pack'
 import {
   brandId,
   resolutionAuthority,
@@ -17,13 +20,37 @@ import {
   type RulebookResolution,
 } from '@harness-world/kernel'
 import { WorldStore, WriterLeaseService } from '@harness-world/store-sqlite'
-import { characterExecutionResult } from '../../packages/application/src/character-execution-result.ts'
+import { characterExecutionResult } from '@harness-world/application'
 
 const object = (value: WorldJsonValue | undefined): WorldJsonObject | undefined =>
   value !== null && typeof value === 'object' && !Array.isArray(value) ? (value as WorldJsonObject) : undefined
 const exact = (value: WorldJsonObject, keys: string[]) => Object.keys(value).sort().join(',') === keys.sort().join(',')
 
-/** Experimental one-shot delivery. This registry is never installed by the default host. */
+/** The SMS rule a pack switches on with communication.json; without that file the host never installs it. */
+export function loadCommunicationConfig(packPath: string, pack: CompiledWorldPackV5): unknown {
+  const entry = 'communication.json',
+    lock = pack.assets.find(a => a.path === entry)
+  if (!lock) return undefined
+  const filename = resolve(packPath, entry)
+  if (
+    !lstatSync(filename).isFile() ||
+    relative(realpathSync(packPath), realpathSync(filename)) !== entry.split('/').join(sep)
+  )
+    throw new TypeError('通信配置必须是包内普通文件')
+  const bytes = readFileSync(filename)
+  if (
+    bytes.length > 65536 ||
+    bytes.length !== lock.size ||
+    'sha256:' + createHash('sha256').update(bytes).digest('hex') !== lock.contentHash
+  )
+    throw new TypeError('通信配置与编译包不一致')
+  return JSON.parse(bytes.toString('utf8'))
+}
+
+export const communicationInstruction =
+  '这是跨场景通信实验。experiment:message 是一次远程投递；targetRef 是联系人，不表示在场。arguments.text 自主填写要发出的消息正文，不要复制空示例。远程回复必须 perform 此交互；publish 是本地表达，不能送到远端。短信只证明发送者这样说，不证明正文描述的事情发生。发送后可继续本地表达或 abstain。'
+
+/** One-shot delivery of a free-text message to a declared contact, wherever that contact is. */
 export class CrossSceneCommunication {
   readonly contacts: ReadonlyMap<string, readonly string[]>
   readonly medium: string
@@ -58,36 +85,37 @@ export class CrossSceneCommunication {
     )
     this.medium = root.medium
   }
-  parameters(recipientId: string, text: string): WorldJsonObject {
+  parameters(recipientId: string, text: string) {
     return {
-      targetRef: { kind: 'character', id: recipientId },
+      targetRef: { kind: 'character' as const, id: recipientId },
       bindingId: 'experiment:message',
       definitionRef: { id: 'experiment:message', version: 1 },
       arguments: { text },
     }
   }
+  /** One message option per active contact of an active actor; the text is the actor's to write. */
+  options(events: RulebookResolutionContext['events'], actorId: string, publicationCharacters = 2000) {
+    if (currentCharacterLifecycle(events, actorId) !== 'active') return []
+    return (this.contacts.get(actorId) ?? [])
+      .filter(id => currentCharacterLifecycle(events, id) === 'active')
+      .map(id => ({
+        ...this.parameters(id, ''),
+        medium: this.medium,
+        argumentSchema: {
+          type: 'object',
+          additionalProperties: false,
+          required: ['text'],
+          properties: {
+            text: { type: 'string', title: this.medium + '内容', minLength: 1, maxLength: publicationCharacters },
+          },
+        },
+      }))
+  }
   resolver(): RulebookResolver {
     return {
       affordances: context => {
         const values = this.base.affordances(context)
-        const contacts = this.contacts.get(String(context.characterId)) ?? []
-        const options =
-          currentCharacterLifecycle(context.events, String(context.characterId)) !== 'active'
-            ? []
-            : contacts
-                .filter(id => currentCharacterLifecycle(context.events, id) === 'active')
-                .map(id => ({
-                  ...this.parameters(id, ''),
-                  medium: this.medium,
-                  argumentSchema: {
-                    type: 'object',
-                    additionalProperties: false,
-                    required: ['text'],
-                    properties: {
-                      text: { type: 'string', minLength: 1, maxLength: context.publicationCharacters ?? 2000 },
-                    },
-                  },
-                }))
+        const options = this.options(context.events, String(context.characterId), context.publicationCharacters)
         const interactions = [
           ...values.filter(a => a.actionType === 'interact').flatMap(a => a.interactions ?? []),
           ...options,

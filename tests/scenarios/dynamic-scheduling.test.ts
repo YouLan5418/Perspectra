@@ -11,6 +11,7 @@ import { WorldHostRuntime } from '../../desktop/host/world-runtime.ts'
 import { readTailSelection } from '../../desktop/tail-storage.ts'
 import { FrontendActions, projectPlayerView } from '../../desktop/host/frontend-adapter.ts'
 import { statusMarketWithoutRoundHook } from '../fixtures/status-market-no-hook.ts'
+import { DEFAULT_PLAY_SETTINGS } from '../../desktop/play-settings.ts'
 
 const roots: string[] = [],
   servers: Server[] = [],
@@ -38,7 +39,12 @@ const deferred = () => {
   releases.push(resolve)
   return { promise, resolve }
 }
-async function fixture(witness = false, serialScheduling = false, continueAfterPublish = false, status = false) {
+async function fixture(
+  witness = false,
+  serialScheduling = false,
+  continueAfterPublish: boolean | 'play setting' = false,
+  status = false,
+) {
   const root = mkdtempSync(join(tmpdir(), 'dynamic-scheduling-'))
   roots.push(root)
   const pack = join(root, 'pack'),
@@ -107,7 +113,10 @@ async function fixture(witness = false, serialScheduling = false, continueAfterP
     utilityEndpoint: `http://127.0.0.1:${(server.address() as { port: number }).port}/api/chat`,
     timeoutMs: 10000,
     serialScheduling,
-    continueAfterPublish,
+    // The Launcher turns it on through the player's play settings; experiments pass the host option.
+    ...(continueAfterPublish === 'play setting'
+      ? { playSettings: { ...DEFAULT_PLAY_SETTINGS, continueAfterPublish: 1 } }
+      : { continueAfterPublish }),
     tuning: {
       maximumWaves: 3,
       maximumNpcCalls: 12,
@@ -139,8 +148,31 @@ async function fixture(witness = false, serialScheduling = false, continueAfterP
 }
 const enterFront = '/act move {"locationId":"location:front-room"}'
 
-it('continues the same host activation after speaking, refreshes its scene and counts every HTTP call', async () => {
-  const f = await fixture(false, false, true)
+it.each([true, 'play setting'] as const)(
+  'continues the same host activation after speaking, refreshes its scene and counts every HTTP call (%s)',
+  async source => {
+    const f = await fixture(false, false, source)
+    let started = false
+    f.setDecision(input => {
+      if (actor(input) !== 'character:companion') return { decision: 'abstain' }
+      if (!started) {
+        started = true
+        return publish('我去后室看看。')
+      }
+      if (input.afterPublication) return move('location:back-room')
+      return { decision: 'abstain' }
+    })
+    const state = await f.runtime.submit(enterFront)
+    expect(state.error).toBe(false)
+    expect(currentLocation(f.events(), 'character:companion')).toBe('location:back-room')
+    expect(f.requests.some(input => input.afterPublication === true)).toBe(true)
+    expect(object(state.debug.activationCycle).calls).toBe(f.requests.length)
+    expect(Number(object(state.debug.activationCycle).calls)).toBeLessThanOrEqual(12)
+  },
+)
+
+it('keeps the speaking turn closed when the play setting is left at its default', async () => {
+  const f = await fixture()
   let started = false
   f.setDecision(input => {
     if (actor(input) !== 'character:companion') return { decision: 'abstain' }
@@ -148,15 +180,11 @@ it('continues the same host activation after speaking, refreshes its scene and c
       started = true
       return publish('我去后室看看。')
     }
-    if (input.afterPublication) return move('location:back-room')
-    return { decision: 'abstain' }
+    return input.afterPublication ? move('location:back-room') : { decision: 'abstain' }
   })
-  const state = await f.runtime.submit(enterFront)
-  expect(state.error).toBe(false)
-  expect(currentLocation(f.events(), 'character:companion')).toBe('location:back-room')
-  expect(f.requests.some(input => input.afterPublication === true)).toBe(true)
-  expect(object(state.debug.activationCycle).calls).toBe(f.requests.length)
-  expect(Number(object(state.debug.activationCycle).calls)).toBeLessThanOrEqual(12)
+  await f.runtime.submit(enterFront)
+  expect(f.requests.some(input => input.afterPublication === true)).toBe(false)
+  expect(currentLocation(f.events(), 'character:companion')).not.toBe('location:back-room')
 })
 
 it.each([false, true])('repairs a normal role through the host with counted calls (serial=%s)', async serial => {

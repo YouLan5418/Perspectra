@@ -188,7 +188,8 @@ it('merges observed and self history in stable chronological order, leaving new 
   const after = characterRequestText(request),
     next = JSON.parse(after)
   expect(next.context.history.slice(0, 3)).toEqual(initial.context.history)
-  expect(after.startsWith(before.slice(0, before.indexOf('],"stimulus"')))).toBe(true)
+  // Everything up to the end of the earlier history is unchanged, so a provider can reuse that whole prefix.
+  expect(after.startsWith(before.slice(0, before.indexOf('],"locationId"')))).toBe(true)
   expect(after.indexOf('新回答')).toBeLessThan(after.indexOf('另一个刺激'))
   expect(next.context.observations).toBeUndefined()
   expect(next.context.selfObservations).toBeUndefined()
@@ -215,4 +216,40 @@ it('keeps occurrence-only private observations occurrence-only and preserves cus
     content: { actorId: 'b', actionType: 'private_interaction', contentVisibility: 'occurrence_only' },
   })
   expect(rendered.context.history[1].content).toEqual({ text: '授权的自定义观察' })
+})
+it('puts the profile and the growing history first, the current situation after it and the new stimulus last', () => {
+  const rendered = JSON.parse(
+    characterRequestText({
+      context: {
+        character: { characterId: 'a', locationId: 'kitchen' },
+        observations: [{ sourceSeq: 1, value: { content: { text: '早先的经历' } } }],
+        cognition: { observations: [] },
+        publicationCharacters: [],
+        stimulus: [{ content: { text: '新刺激' } }],
+        scene: { people: [] },
+        items: { current: [], lastObserved: [] },
+        affordances: [],
+        knownStatus: [],
+        knownStatusNote: '只列已确认的状态。',
+        activity: { title: '活动' },
+        statusChanges: [{ key: 'slot', label: '时段', from: '深夜', to: '清晨' }],
+      },
+      canPerform: false,
+    }),
+  )
+  expect(Object.keys(rendered.context)).toEqual([
+    'character',
+    'cognition',
+    'publicationCharacters',
+    'knownStatusNote',
+    'history',
+    'locationId',
+    'knownStatus',
+    'items',
+    'scene',
+    'affordances',
+    'activity',
+    'statusChanges',
+    'stimulus',
+  ])
 })

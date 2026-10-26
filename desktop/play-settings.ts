@@ -21,6 +21,15 @@ export const PLAY_SETTING_FIELDS = [
   { key: 'maximumWaves', label: '反应周期最多波次', default: 3, min: 1, max: 10, group: '普通反应周期' },
   { key: 'maximumNpcCalls', label: 'NPC 模型调用总预算', default: 8, min: 2, max: 40, group: '普通反应周期' },
   { key: 'maximumCallsPerCharacter', label: '每角色最多激活次数', default: 2, min: 1, max: 10, group: '普通反应周期' },
+  // A character who says "I'll go fetch her" may then actually move in the same turn, if calls remain.
+  {
+    key: 'continueAfterPublish',
+    label: '角色发言后可接着行动（1 开 / 0 关，开启后调用更多）',
+    default: 0,
+    min: 0,
+    max: 1,
+    group: '普通反应周期',
+  },
   {
     key: 'reactionDeadlineSeconds',
     label: '全部角色反应总时限（秒）',

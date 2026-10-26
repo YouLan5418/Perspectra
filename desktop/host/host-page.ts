@@ -197,7 +197,7 @@ iframe{
       if(current!==epoch||!r||r.type!=='request'||typeof r.requestId!=='string'||!/^[a-zA-Z0-9:-]{1,100}$/.test(r.requestId))return;
       const reply=value=>{if(current===epoch)channel.port1.postMessage({type:'response',requestId:r.requestId,...value})};
       try{
-        if(JSON.stringify(r).length>(r.method==='synthesizeSpeech'?100000:Math.max(8192,(playerView?.settings?.inputCharacters||2000)*6+2048))||!r.payload||typeof r.payload!=='object'||Array.isArray(r.payload))throw new Error('前端请求格式无效');
+        if(JSON.stringify(r).length>(['synthesizeSpeech','selectBgm'].includes(r.method)?100000:Math.max(8192,(playerView?.settings?.inputCharacters||2000)*6+2048))||!r.payload||typeof r.payload!=='object'||Array.isArray(r.payload))throw new Error('前端请求格式无效');
         // These controls belong only to the bundled stage, never to a pack's capability manifest.
         if(['stagePreferences','saveProgress'].includes(r.method)){
           if(init.frontend!=='default')throw new Error('仅官方默认舞台可使用此操作');
@@ -211,7 +211,7 @@ iframe{
           if(!init.canSave||Object.keys(r.payload).join(',')!=='title'||typeof r.payload.title!=='string'||r.payload.title.length>80)throw new Error('保存请求无效');
           const result=await api('/api/story-save',{title:r.payload.title});reply({ok:true,result:result.node});return;
         }
-        const grant={view:'view',history:'history',speak:'speak',perform:'perform',regenerate:'regenerate',selectCandidate:'regenerate',cancelRegeneration:'regenerate',resource:'resources',synthesizeSpeech:'speech'}[r.method];
+        const grant={view:'view',history:'history',speak:'speak',perform:'perform',regenerate:'regenerate',selectCandidate:'regenerate',cancelRegeneration:'regenerate',resource:'resources',synthesizeSpeech:'speech',selectBgm:'bgm',getBgmAudio:'bgm'}[r.method];
         if(!grant||!init.capabilities.includes(grant))throw new Error('前端没有该能力');
         if(['view','history'].includes(r.method)){
           if(Object.keys(r.payload).length)throw new Error('查询不接受额外参数');
@@ -222,9 +222,12 @@ iframe{
           if(Object.keys(r.payload).join(',')!=='path')throw new Error('资源请求格式无效');
           const result=await publicApi('resource',{path:r.payload.path});reply({ok:true,result});return;
         }
-        if(r.method==='synthesizeSpeech'){
-          const response=await fetch('/frontend-api/v1/speech',{method:'POST',headers:{'x-playtest-token':token,'content-type':'application/json'},body:JSON.stringify(r.payload)});
-          if(!response.ok){const value=await response.json();const error=new Error(value.error||'语音合成未完成');error.status=response.status;throw error}
+        if(r.method==='selectBgm'){
+          const result=await publicApi('bgm',r.payload);reply({ok:true,result});return;
+        }
+        if(['synthesizeSpeech','getBgmAudio'].includes(r.method)){
+          const response=await fetch('/frontend-api/v1/'+(r.method==='getBgmAudio'?'bgm/audio':'speech'),{method:'POST',headers:{'x-playtest-token':token,'content-type':'application/json'},body:JSON.stringify(r.payload)});
+          if(!response.ok){const value=await response.json();const error=new Error(value.error||'音频获取未完成');error.status=response.status;throw error}
           const contentType=response.headers.get('content-type'),bytes=await response.arrayBuffer();
           reply({ok:true,result:{contentType,bytes}});return;
         }
@@ -367,6 +370,7 @@ iframe{
       button.disabled=disabled;button.onclick=work;node(management?'management':'options').append(button);return button;
     };
     if(!active)for(const choice of state.activities||[a]){
+      if(!choice.suspended&&choice.manualStart===false)continue;
       if(!choice.suspended&&choice.participantSelection){
         const selection=choice.participantSelection,label=document.createElement('label');label.textContent='参与角色';
         const picker=document.createElement('select');picker.multiple=selection.max>1;

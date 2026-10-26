@@ -20,7 +20,7 @@ import {
 import { CognitiveMemoryService } from '@harness-world/memory'
 import { CharacterTurn, type CharacterTurnRequest } from '../../packages/application/src/character-turn.ts'
 import { runCharacterActivations } from '../../packages/application/src/activation-cycle.ts'
-import { CrossSceneCommunication } from './cross-scene-communication.ts'
+import { CrossSceneCommunication, communicationInstruction } from '../../desktop/host/pack-communication.ts'
 import { CrossScenePhone, phoneCalls, type PhoneOperation } from './cross-scene-phone.ts'
 import { SceneDecisionService } from '../../packages/application/src/scene-decision.ts'
 import { PackActivities } from '../../desktop/host/pack-activities.ts'
@@ -328,8 +328,7 @@ export async function crossSceneRuntime(
   }
 }
 
-export const communicationInstruction =
-  '这是跨场景通信实验。experiment:message 是一次远程投递；targetRef 是联系人，不表示在场。arguments.text 自主填写要发出的消息正文，不要复制空示例。远程回复必须 perform 此交互；publish 是本地表达，不能送到远端。短信只证明发送者这样说，不证明正文描述的事情发生。发送后可继续本地表达或 abstain。'
+export { communicationInstruction }
 export const phoneInstruction =
   '这是跨场景电话实验。phone-call 发出呼叫；收到呼叫后你自主选择 phone-accept 接听、phone-decline 拒接，也可 abstain 暂不处理。接通后 phone-say 的 arguments.text 自主填写你要在电话里说的话，本地旁观者可能听见你的这一端声音，但听不见远端声音；普通 publish 只在本地传播，不经过电话。phone-hangup 结束连接。复制可用操作的绑定、定义和 callId，不要复制空正文。接听只授权这次连接，不授予对方房间视野。话语是说话者的陈述，不证明受控事实发生。你自主决定内容与是否继续通话。'
 export function communicationContext(request: CharacterTurnRequest): CharacterTurnRequest {

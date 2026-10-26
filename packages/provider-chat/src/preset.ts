@@ -216,6 +216,31 @@ export function rolePresetMapping(value: unknown, checkMacros = true): RolePrese
     )
   return result
 }
+/** Author-assigned character and group presets a package ships beside its recommendation (role-presets.json). */
+export interface PackRolePresets {
+  characters: Record<string, RolePreset>
+  groups: { name: string; preset: RolePreset; members: string[] }[]
+}
+/** Copies package presets into an instance mapping. Named characters and same-named groups are replaced;
+ * everything else in the mapping stays. */
+export function assignPackRolePresets(
+  mapping: RolePresetMapping,
+  bundle: PackRolePresets,
+  newGroupId: () => string,
+): RolePresetMapping {
+  const groups = { ...mapping.groups },
+    memberships = { ...mapping.memberships }
+  for (const group of bundle.groups) {
+    const id = Object.entries(groups).find(([, g]) => g.name === group.name)?.[0] ?? newGroupId()
+    groups[id] = { name: group.name, preset: group.preset }
+    for (const member of group.members) memberships[member] = id
+  }
+  return {
+    characters: { ...mapping.characters, ...bundle.characters },
+    ...(Object.keys(groups).length ? { groups } : {}),
+    ...(Object.keys(memberships).length ? { memberships } : {}),
+  }
+}
 export function characterPreset(base: RolePreset, mapping: RolePresetMapping, id: string): RolePreset {
   if (Object.hasOwn(mapping.characters ?? {}, id)) return mapping.characters![id]!
   const group = Object.hasOwn(mapping.memberships ?? {}, id) ? mapping.memberships![id] : undefined

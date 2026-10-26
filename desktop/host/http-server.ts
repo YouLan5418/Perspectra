@@ -129,6 +129,11 @@ export function actionText(action: HostAction): string {
     const item = target?.kind === 'entity' ? '@' + String(target.id) : ''
     return '/status ' + id.slice('status:'.length) + item + ' ' + JSON.stringify(action.parameters.arguments ?? {})
   }
+  if (action.actionType === 'interact' && action.parameters.bindingId === 'experiment:message') {
+    const target = action.parameters.targetRef as WorldJsonObject | undefined
+    const args = action.parameters.arguments as WorldJsonObject | undefined
+    return '/message ' + JSON.stringify({ recipientId: target?.id ?? null, text: args?.text ?? '' })
+  }
   return '/act ' + action.actionType + ' ' + JSON.stringify(action.parameters)
 }
 
@@ -317,6 +322,7 @@ export function createHostServer(
             capabilities.splice(capabilities.indexOf('perform'), capabilities.includes('perform') ? 1 : 0)
           if (!services.synthesizeSpeech && capabilities.includes('speech'))
             capabilities.splice(capabilities.indexOf('speech'), 1)
+          if (!services.bgm && capabilities.includes('bgm')) capabilities.splice(capabilities.indexOf('bgm'), 1)
           json(response, 200, {
             apiVersion: 1,
             frontend: useDefault ? 'default' : 'custom',
@@ -341,6 +347,68 @@ export function createHostServer(
         }
         if (request.method === 'GET' && url.pathname === '/frontend-api/v1/view') {
           json(response, 200, projectPlayerView(await runtime.state()))
+          return
+        }
+        if (
+          request.method === 'POST' &&
+          ['/frontend-api/v1/bgm', '/frontend-api/v1/bgm/audio'].includes(url.pathname)
+        ) {
+          const bgm = services.bgm
+          if (!bgm) {
+            json(response, 404, { error: '背景音乐插件未安装' })
+            return
+          }
+          if (request.headers['content-type']?.split(';')[0] !== 'application/json')
+            throw new TypeError('请求必须是 JSON')
+          const value = await body(request, 100_000)
+          if (url.pathname.endsWith('/audio')) {
+            const item = value as Record<string, unknown> | null
+            if (
+              !item ||
+              typeof item !== 'object' ||
+              Array.isArray(item) ||
+              Object.keys(item).join(',') !== 'id' ||
+              typeof item.id !== 'string'
+            )
+              throw new TypeError('音乐请求须引用已注册曲目')
+            let track
+            try {
+              track = bgm.getTrack(item.id)
+            } catch {
+              json(response, 502, { error: '背景音乐暂不可用' })
+              return
+            }
+            if (!track) {
+              json(response, 404, { error: '音乐曲目不存在' })
+              return
+            }
+            headers(response, track.contentType)
+            response.end(track.bytes)
+            return
+          }
+          const input = frontendSpeechInput(projectPlayerView(await runtime.state()), value)
+          const controller = new AbortController(),
+            abort = () => controller.abort()
+          response.once('close', abort)
+          try {
+            const track = await bgm.selectTrack(input, controller.signal)
+            if (response.destroyed) return
+            let current
+            try {
+              current = frontendSpeechInput(projectPlayerView(await runtime.state()), value)
+            } catch (error) {
+              if (!(error instanceof TypeError)) throw error
+            }
+            if (JSON.stringify(current) !== JSON.stringify(input)) {
+              json(response, 409, { error: '音乐对应的阅读段落已变化' })
+              return
+            }
+            json(response, 200, { track })
+          } catch {
+            if (!response.destroyed) json(response, 502, { error: '背景音乐选曲未完成，可继续阅读' })
+          } finally {
+            response.off('close', abort)
+          }
           return
         }
         if (request.method === 'POST' && url.pathname === '/frontend-api/v1/speech') {
