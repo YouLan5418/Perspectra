@@ -2,6 +2,7 @@ import { Context, Service, type Plugin } from '@deepseek-ai/cordis'
 import { pathToFileURL } from 'node:url'
 import { hostPluginSettings, type HostPluginSettings } from './host-plugin-settings.ts'
 import type { FrontendHostServices } from '@harness-world/frontend'
+import { validBgmTrack, type FrontendBgmPlugin, type FrontendBgmService } from '@harness-world/frontend'
 
 type SpeechSynthesizer = NonNullable<FrontendHostServices['synthesizeSpeech']>
 
@@ -14,14 +15,17 @@ declare module '@deepseek-ai/cordis' {
 /** Host-only presentation services; this context does not contain world runtime services. */
 export class FrontendServices extends Service implements FrontendHostServices {
   synthesizeSpeech: SpeechSynthesizer | undefined
+  bgm: FrontendBgmService | undefined
   #closed = false
   #unregister: (() => void) | undefined
+  #unregisterBgm: (() => void) | undefined
 
   constructor(ctx: Context) {
     super(ctx, 'frontendServices')
     ctx.effect(() => () => {
       this.#closed = true
       this.#unregister?.()
+      this.#unregisterBgm?.()
     })
   }
 
@@ -43,6 +47,49 @@ export class FrontendServices extends Service implements FrontendHostServices {
       lifetime.abort()
     }
     this.#unregister = unregister
+    return unregister
+  }
+
+  /** One curator owns the soundtrack; assets are made public by explicit registration. */
+  readonly registerBgm = (plugin: FrontendBgmPlugin): (() => void) => {
+    if (this.#closed) throw new Error('Host services are closed')
+    if (this.bgm) throw new Error('Only one BGM service can be registered')
+    if (
+      !Array.isArray(plugin.tracks) ||
+      !plugin.tracks.length ||
+      plugin.tracks.length > 16 ||
+      typeof plugin.selectTrack !== 'function'
+    )
+      throw new TypeError('BGM requires a selector and 1-16 tracks')
+    const tracks = new Map<string, FrontendBgmPlugin['tracks'][number]>()
+    for (const track of plugin.tracks) {
+      if (!validBgmTrack(track) || tracks.has(track.id)) throw new TypeError('Invalid or duplicate BGM track')
+      tracks.set(track.id, { ...track, bytes: new Uint8Array(track.bytes) })
+    }
+    const lifetime = new AbortController()
+    const service: FrontendBgmService = {
+      selectTrack: async (input, signal) => {
+        const combined = AbortSignal.any([signal, lifetime.signal])
+        combined.throwIfAborted()
+        const id = await plugin.selectTrack(input, combined)
+        combined.throwIfAborted()
+        if (id === null) return null
+        const track = tracks.get(id)
+        if (!track) throw new TypeError('BGM selector returned an unregistered track')
+        return { id: track.id, title: track.title }
+      },
+      getTrack: id => {
+        lifetime.signal.throwIfAborted()
+        return tracks.get(id)
+      },
+    }
+    this.bgm = service
+    const unregister = () => {
+      if (this.bgm === service) this.bgm = undefined
+      lifetime.abort()
+      tracks.clear()
+    }
+    this.#unregisterBgm = unregister
     return unregister
   }
 }

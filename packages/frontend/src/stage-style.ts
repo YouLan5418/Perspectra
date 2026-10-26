@@ -203,7 +203,6 @@ main:has(.panel:not([hidden])) .composer-keys{display:none}
 .composer-submit{display:flex;gap:8px}
 #send{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);min-width:88px;font-weight:600}
 #send:hover:not(:disabled){background:var(--accent);opacity:.88}
-.audience-picker{position:relative}
 .audience-button{display:inline-flex;align-items:center;gap:8px;padding:5px 12px 5px 10px;border-radius:999px;font-size:12.5px}
 .audience-button[aria-expanded="true"]{border-color:var(--accent)}
 .audience-button .chevron{font-size:9px;color:var(--faint)}
@@ -211,7 +210,8 @@ main:has(.panel:not([hidden])) .composer-keys{display:none}
 .audience-picker:has(input[value="direct"]:checked) .audience-dot{background:transparent;border:2px solid var(--accent)}
 .audience-picker:has(input[value="private"]:checked) .audience-dot{background:transparent;border:2px dashed var(--accent)}
 .audience-picker:has(input[value="self"]:checked) .audience-dot{background:var(--faint)}
-.audience-menu{position:absolute;left:0;bottom:calc(100% + 8px);z-index:20;width:236px}
+/* Placed against .stage-bottom by the script: the composer scrolls and would clip a menu opening upward. */
+.audience-menu{position:absolute;z-index:20;width:236px;overflow:auto}
 .audience-options{display:grid;gap:2px;border:0;padding:0;margin:0}
 .audience-options legend{padding:6px 10px;font-size:11px;color:var(--faint)}
 .audience-options label{position:relative;display:grid;grid-template-columns:auto 1fr;column-gap:10px;align-items:center;padding:8px 10px;border-radius:8px;cursor:pointer}
@@ -288,15 +288,29 @@ main:has(.panel:not([hidden])) .stage-bottom{left:calc((100% - var(--drawer-widt
 .status-section dd{margin:0;overflow-wrap:anywhere}
 .hint{font-size:11.5px;color:var(--faint)}
 
+/* Inventory is a view of authorized items, with the author's existing action controls. */
+.inventory-section{padding:18px 20px 4px}
+.inventory-section h3{margin:0 0 12px;font-size:11.5px;font-weight:600;letter-spacing:.1em;color:var(--muted)}
+.inventory-item{margin-bottom:10px;border:1px solid var(--line-strong);border-radius:var(--radius);overflow:hidden}
+.inventory-item summary{cursor:pointer;padding:14px 16px;overflow-wrap:anywhere}
+.inventory-item summary strong{font:600 15px var(--font-story)}
+.inventory-item summary small{display:block;margin:6px 0 0 16px;font-size:11.5px;color:var(--muted)}
+.inventory-item[open] summary{border-bottom:1px solid var(--line)}
+.inventory-item-body{padding:12px 16px}
+.inventory-description{margin:0;font-size:13px;line-height:1.8;color:var(--muted);white-space:pre-wrap;overflow-wrap:anywhere}
+.inventory-actions{padding:6px 0 0}
+.inventory-actions .action-form{margin-bottom:8px}
+.inventory-actions .hint{margin:8px 0 0}
+
 /* —— 进行中的活动：舞台左侧的卡片，可折叠 —— */
 .activity-card{
   position:absolute;z-index:4;top:120px;left:28px;width:300px;max-height:max(150px,calc(100% - 460px));overflow:auto;padding:14px 16px;
   background:var(--surface);border:1px solid var(--line-strong);border-radius:var(--radius-lg);box-shadow:var(--shadow);
 }
-.activity-heading{display:grid;grid-template-columns:1fr auto;gap:2px 8px;width:100%;padding:0;border:0;background:transparent!important;text-align:left}
+.activity-heading{display:grid;grid-template-columns:minmax(10em,1fr) minmax(0,auto);gap:2px 8px;width:100%;padding:0;border:0;background:transparent!important;text-align:left}
 .activity-heading small{font-size:11px;letter-spacing:.1em;color:var(--faint)}
 .activity-heading strong{grid-column:1;font:600 16px/1.4 var(--font-story);overflow-wrap:anywhere}
-.activity-heading span{grid-column:2;grid-row:1/3;align-self:center;font-size:12px;color:var(--muted)}
+.activity-heading span{grid-column:2;grid-row:1/3;align-self:center;font-size:12px;color:var(--muted);overflow-wrap:anywhere}
 #activity-body{margin-top:10px;display:flex;flex-direction:column;gap:10px}
 #activity-objective{font:14px/1.7 var(--font-story);color:var(--muted)}
 #activity-state{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;margin:0}
@@ -316,6 +330,11 @@ main:has(.panel:not([hidden])) .stage-bottom{left:calc((100% - var(--drawer-widt
   background:var(--surface);border:1px solid var(--line-strong);border-radius:999px;font:15px var(--font-story);letter-spacing:.14em;box-shadow:var(--shadow);
 }
 .settings-body{padding:24px}
+.message-body{display:flex;flex-direction:column;gap:8px;padding:20px}
+.message-body label{font-size:12px;color:var(--muted)}
+.message-body select,.message-body textarea{width:100%}
+.message-body textarea{resize:vertical;min-height:96px}
+.message-body .primary{align-self:flex-end;min-width:96px}
 .settings-intro{font:15px/1.8 var(--font-story);color:var(--muted);margin-bottom:26px}
 .settings-body fieldset{border:0;border-top:1px solid var(--line);padding:18px 0 24px;margin:0;min-width:0}
 .settings-body legend{font-size:12px;letter-spacing:.15em;padding:0 12px 0 0;color:var(--muted)}

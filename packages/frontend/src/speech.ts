@@ -1,6 +1,7 @@
 import type { CharacterId, ExpressionSegment } from '@harness-world/contracts'
 import type { PlayerView } from './player-view.ts'
 import type { stagePreferences } from './stage-preferences.ts'
+import type { FrontendBgmService } from './bgm.ts'
 
 /** An authorized, committed reading segment. No private runtime state or credentials. */
 export interface FrontendSpeechInput {
@@ -16,13 +17,14 @@ export interface FrontendSpeechAudio {
 }
 /** Optional host service; implementations own provider configuration and any cache. */
 export interface FrontendHostServices {
+  bgm?: FrontendBgmService | undefined
   synthesizeSpeech?: ((input: FrontendSpeechInput, signal: AbortSignal) => Promise<FrontendSpeechAudio>) | undefined
   /** Keeps the default stage's settings beyond this session (the launcher's preferences); absent when standalone. */
   saveStagePreferences?: ((preferences: ReturnType<typeof stagePreferences>) => void) | undefined
 }
 
 export function frontendSpeechInput(view: PlayerView, value: unknown): FrontendSpeechInput {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new TypeError('语音请求无效')
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new TypeError('阅读段落请求无效')
   const request = value as Record<string, unknown>
   if (
     Object.keys(request).sort().join(',') !== 'segmentIndex,seq,text' ||
@@ -32,11 +34,11 @@ export function frontendSpeechInput(view: PlayerView, value: unknown): FrontendS
     Number(request.segmentIndex) < 0 ||
     typeof request.text !== 'string'
   )
-    throw new TypeError('语音请求须引用已授权的发表段落')
+    throw new TypeError('请求须引用已授权的发表段落')
   const line = view.history.find(line => line.seq === request.seq)
   const segments = line?.segments?.length ? line.segments : line ? [{ type: 'speech' as const, text: line.text }] : []
   const segment = segments[Number(request.segmentIndex)]
-  if (!line || !segment?.text.trim() || segment.text !== request.text) throw new TypeError('语音段落不存在或已变化')
+  if (!line || !segment?.text.trim() || segment.text !== request.text) throw new TypeError('阅读段落不存在或已变化')
   return {
     seq: line.seq,
     segmentIndex: Number(request.segmentIndex),

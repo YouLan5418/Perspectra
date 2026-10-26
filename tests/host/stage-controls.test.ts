@@ -35,7 +35,7 @@ function bridge(frontend: string) {
     frameLoaded: true,
     frontendReady: true,
     epoch: 1,
-    init: { frontend, capabilities: [], canSave: true },
+    init: { frontend, capabilities: [] as string[], canSave: true },
     playerView: {},
     port: null,
     MessageChannel: function () {
@@ -82,6 +82,25 @@ it('allows only the bundled stage to save or persist local display preferences',
     'perspectra.stage.preferences',
     expect.not.stringContaining('secret'),
   )
+})
+
+it('requires the BGM capability before forwarding music requests through the public bridge', async () => {
+  const custom = bridge('custom')
+  const publicApi = vi.fn(async () => ({ track: { id: 'calm', title: '日常' } }))
+  Object.assign(custom.context, { publicApi })
+  const payload = { seq: 1, segmentIndex: 0, text: '你好' }
+  await custom.send('selectBgm', payload)
+  await custom.send('getBgmAudio', { id: 'calm' })
+  expect(publicApi).not.toHaveBeenCalled()
+  expect(custom.replies.slice(1)).toEqual([
+    expect.objectContaining({ ok: false, error: '前端没有该能力' }),
+    expect.objectContaining({ ok: false, error: '前端没有该能力' }),
+  ])
+  custom.context.init.capabilities.push('bgm')
+  await custom.send('selectBgm', payload)
+  expect(publicApi).toHaveBeenCalledWith('bgm', payload)
+  expect(custom.replies.at(-1)).toMatchObject({ ok: true, result: { track: { id: 'calm', title: '日常' } } })
+  expect(custom.api).not.toHaveBeenCalled()
 })
 
 it('forwards changed visible items, known status and responders through both patch steps', () => {

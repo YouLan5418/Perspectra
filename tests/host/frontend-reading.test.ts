@@ -1,7 +1,7 @@
 import { expect, it } from 'vitest'
 import { runInNewContext } from 'node:vm'
 import { createReadingPlayback } from '../../packages/frontend/src/reading-playback.ts'
-import { DEFAULT_SCRIPT } from '../../packages/frontend/src/default-template.ts'
+import { DEFAULT_PAGE, DEFAULT_SCRIPT } from '../../packages/frontend/src/default-template.ts'
 import { playerViewPatch } from '../../packages/frontend/src/player-view.ts'
 import { projectPlayerView } from '../../desktop/host/frontend-adapter.ts'
 import type { HostState } from '../../desktop/host/http-server.ts'
@@ -348,4 +348,17 @@ it('keeps an NPC that shares the player name apart from the player in the status
     { holder: '小明', items: [{ label: '余额', value: '5', note: '' }] },
     { holder: '你', items: [{ label: '余额', value: '100', note: '' }] },
   ])
+})
+it('lifts text messages out of the action drawer into their own composer button and panel', () => {
+  const source = DEFAULT_SCRIPT.slice(
+    DEFAULT_SCRIPT.indexOf('function isMessage('),
+    DEFAULT_SCRIPT.indexOf('\n let messageOptions'),
+  )
+  const isMessage = runInNewContext('(' + source + ')') as (option: unknown) => boolean
+  const option = (bindingId: string) => ({ action: { actionType: 'interact', parameters: { bindingId } } })
+  expect(isMessage(option('experiment:message'))).toBe(true)
+  expect(isMessage(option('base:hold-hand'))).toBe(false)
+  expect(isMessage({ action: { actionType: 'move', parameters: { locationId: 'location:a' } } })).toBe(false)
+  expect(DEFAULT_PAGE).toContain('id="composer-message"')
+  expect(DEFAULT_PAGE).toContain('id="message-panel"')
 })

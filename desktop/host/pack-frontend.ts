@@ -11,6 +11,7 @@ export const FRONTEND_CAPABILITIES = [
   'subscribe',
   'resources',
   'speech',
+  'bgm',
 ] as const
 export const FRONTEND_RESOURCE_LIMITS = {
   files: 2048,

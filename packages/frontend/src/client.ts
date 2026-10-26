@@ -50,6 +50,8 @@ export const FRONTEND_SDK = String.raw`/** API v1: the only connection is a host
     perform:(optionId,actionId=id(),npcIds,extra={})=>request('perform',{optionId,...(npcIds===undefined?{}:{npcIds}),...extra},actionId),
     resource:path=>request('resource',{path}),
     synthesizeSpeech:(seq,segmentIndex,text)=>request('synthesizeSpeech',{seq,segmentIndex,text}),
+    selectBgm:(seq,segmentIndex,text)=>request('selectBgm',{seq,segmentIndex,text}),
+    getBgmAudio:id=>request('getBgmAudio',{id}),
     subscribe:listener=>{listeners.add(listener);return()=>listeners.delete(listener)},
   });
 })();`
