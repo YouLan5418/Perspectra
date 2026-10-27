@@ -53,6 +53,8 @@ OpenAI 兼容协议的 topP、penalty 与 stop 原样传递；Anthropic 传 topP
 
 2026-10-27 自动化：本机流式模拟供应商覆盖三种协议的请求字段（强制工具、采样、思考字段、输出上限、认证头与无 Key）、响应提取、截断、非流式、HTTP 失败、取消与检查器；三种协议都跑通取钥匙 → 放回 → 续写，检查两次受控事实提交与最终保管状态。全量回归 1507 项通过。
 
-尚未验证：替换后的真实模型试玩（8045 网关 Claude + Gemini、DeepSeek 官方开启与关闭思考、Ollama 小模型工具调用稳定性），以及角色表现是否退化。2026-10-17 的旧实现验收记录见[按角色模型研究](studies/launcher-role-models-20261017.md)与 [DeepSeek Anthropic 实测](studies/deepseek-anthropic-20261008.md)，不代表当前实现。
+2026-10-27 真实模型：DeepSeek 官方 OpenAI 兼容（思考未设与低）及 Anthropic 兼容地址各 3 轮短场景全部成功，请求字段与事实提交符合预期，Key 未落盘，见[实测记录](studies/unified-provider-playtest-20261027.md)。
+
+尚未验证：8045 网关 Claude + Gemini 的改造前后对比、Ollama 小模型工具调用稳定性、经 Launcher 的 Core 记忆整理，以及较长游玩中角色表现是否退化。2026-10-17 的旧实现验收记录见[按角色模型研究](studies/launcher-role-models-20261017.md)与 [DeepSeek Anthropic 实测](studies/deepseek-anthropic-20261008.md)，不代表当前实现。
 
 协议依据：[Anthropic 工具](https://platform.claude.com/docs/en/agents-and-tools/tool-use/define-tools)、[Anthropic API 使用](https://platform.claude.com/docs/en/claude_api_primer)、[Google generateContent](https://ai.google.dev/api/generate-content)。
