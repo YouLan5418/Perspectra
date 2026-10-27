@@ -1,7 +1,9 @@
 import type { DecisionTarget, InstanceModels, ModelTarget, ThinkingLevel } from './core-types.ts'
 
-/** Some Gemini models cannot turn thinking fully off. */
-export const geminiRequired = (model: string) => /gemini-(?:[3-9]|2\.5-pro)/i.test(model)
+/** A level the model offers stays; otherwise the lowest offered level. An unknown offer keeps the choice. */
+export function fitThinkingLevel(value: ThinkingLevel, levels: readonly ThinkingLevel[]): ThinkingLevel {
+  return levels.length === 0 || levels.includes(value) ? value : levels[0]!
+}
 
 /** Editable form of one layer: a decision model plus a memory model that may follow it. */
 export interface LayerDraft {
@@ -20,7 +22,7 @@ export interface ModelsDraft extends LayerDraft {
 function layer(decision: DecisionTarget | undefined, memory: ModelTarget | undefined): LayerDraft {
   return {
     ...(decision ? { decision: { connectionId: decision.connectionId, model: decision.model } } : {}),
-    thinkingLevel: decision?.thinkingLevel ?? (geminiRequired(decision?.model ?? '') ? 'low' : 'off'),
+    thinkingLevel: decision?.thinkingLevel ?? 'off',
     memoryFollows: memory === undefined,
     ...(memory ? { memory: { ...memory } } : {}),
   }

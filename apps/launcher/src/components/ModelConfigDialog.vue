@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { useLauncherStore } from '../stores/launcher.ts'
-import { draftModels, geminiRequired, modelsDraft, type LayerDraft, type ModelsDraft } from '../model-choices.ts'
+import { draftModels, modelsDraft, type ModelsDraft } from '../model-choices.ts'
 import { Button } from './ui/button/index.ts'
 import DialogFrame from './DialogFrame.vue'
 import ModelPicker from './ModelPicker.vue'
@@ -21,18 +21,6 @@ watch(
     )
   },
   { immediate: true },
-)
-// Choosing a Gemini model that cannot turn thinking off moves the choice to the lowest allowed level.
-function keepThinkingValid(layer: LayerDraft) {
-  if (layer.thinkingLevel === 'off' && geminiRequired(layer.decision?.model ?? '')) layer.thinkingLevel = 'low'
-}
-watch(
-  draft,
-  value => {
-    keepThinkingValid(value)
-    for (const role of Object.values(value.characters)) keepThinkingValid(role)
-  },
-  { deep: true },
 )
 const overrides = computed(() => Object.values(draft.value.characters).filter(role => role.override).length)
 async function save() {
@@ -54,10 +42,14 @@ async function save() {
     <p v-if="!store.connections.length" class="inline-info">还没有模型连接。请先在右上角 ⚙ 的“模型接口”添加连接。</p>
     <template v-else>
       <ModelPicker v-model="draft.decision" label="所有角色" id-prefix="instance-default" />
-      <ThinkingOptions v-model="draft.thinkingLevel" :model="draft.decision?.model ?? ''" label="角色思考强度" />
+      <ThinkingOptions
+        v-model="draft.thinkingLevel"
+        :connection-id="draft.decision?.connectionId"
+        :model="draft.decision?.model ?? ''"
+        label="角色思考强度"
+      />
       <p class="muted">
-        仅影响角色决策。更强的思考可能增加等待与消耗；DeepSeek 的中、高分别对应原生 high、max。Gemini
-        部分型号不能完全关闭。
+        仅影响角色决策。更强的思考可能增加等待与消耗；可选的强度由模型自身声明决定，不支持的档位会变灰。
       </p>
       <label class="check-row"
         ><input v-model="draft.memoryFollows" type="checkbox" /> 记忆整理跟随上面的决策模型</label
@@ -86,6 +78,7 @@ async function save() {
               />
               <ThinkingOptions
                 v-model="draft.characters[character.id]!.thinkingLevel"
+                :connection-id="draft.characters[character.id]!.decision?.connectionId"
                 :model="draft.characters[character.id]!.decision?.model ?? ''"
                 :label="character.name + ' · 思考强度'"
               />

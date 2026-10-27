@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest'
-import { modelsDraft, draftModels } from './model-choices.ts'
+import { modelsDraft, draftModels, fitThinkingLevel } from './model-choices.ts'
 const a = '6f1c2a4e-1d0b-4c39-9a51-0d6c1b7e2f10',
   b = '7a2d3b5f-2e1c-4d4a-8b62-1e7d2c8f3a21'
 const characters = ['character:companion', 'character:friend']
@@ -53,4 +53,11 @@ it('drops followed layers, trims models, forgets characters no longer in the pac
   delete draft.memory
   expect(draftModels(draft)).toBeUndefined()
   expect(draftModels(modelsDraft(undefined, characters))).toBeUndefined()
+})
+
+it('keeps a supported thinking level and moves an unsupported one to the lowest offered', () => {
+  expect(fitThinkingLevel('medium', ['off', 'low', 'medium', 'high'])).toBe('medium')
+  expect(fitThinkingLevel('off', ['low', 'medium', 'high'])).toBe('low')
+  expect(fitThinkingLevel('medium', ['off', 'low', 'high'])).toBe('off')
+  expect(fitThinkingLevel('high', [])).toBe('high')
 })

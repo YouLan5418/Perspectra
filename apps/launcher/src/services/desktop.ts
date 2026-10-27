@@ -1,5 +1,5 @@
 import { invoke, isTauri } from '@tauri-apps/api/core'
-import type { CoreSnapshot, PluginManifestInfo } from '../core-types.ts'
+import type { CoreSnapshot, PluginManifestInfo, ThinkingLevel } from '../core-types.ts'
 export async function coreRequest(operation: string, data: Record<string, unknown> = {}): Promise<CoreSnapshot> {
   return invoke<CoreSnapshot>('launcher_request', { request: { operation, ...data } })
 }
@@ -56,6 +56,13 @@ export async function listConnectionModels(connectionId: string): Promise<string
     request: { operation: 'list-models', connectionId },
   })
   return result.models
+}
+/** The thinking levels the model's declaration offers; the Node backend reads them from the model catalog. */
+export async function thinkingLevels(connectionId: string, model: string): Promise<ThinkingLevel[]> {
+  const result = await invoke<{ levels: ThinkingLevel[] }>('launcher_request', {
+    request: { operation: 'thinking-levels', connectionId, model },
+  })
+  return result.levels
 }
 export async function setConnectionKey(connectionId: string, apiKey: string): Promise<void> {
   await invoke('launcher_request', { request: { operation: 'connection-key-set', connectionId, apiKey } })
