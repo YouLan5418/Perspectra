@@ -16,6 +16,10 @@ export interface FakeAnswer {
   readonly thinking?: string
   readonly stop?: 'length'
   readonly status?: number
+  /** Text of a non-200 answer; defaults to a fixed refusal. */
+  readonly body?: string
+  /** OpenAI only: tool arguments sent verbatim instead of the JSON of `tool`. */
+  readonly rawArguments?: string
   readonly plainJson?: boolean
 }
 
@@ -70,7 +74,7 @@ function openaiStream(answer: FakeAnswer): string {
               index: 0,
               id: 'call_fake',
               type: 'function',
-              function: { name: 'submit_actions', arguments: JSON.stringify(answer.tool) },
+              function: { name: 'submit_actions', arguments: answer.rawArguments ?? JSON.stringify(answer.tool) },
             },
           ],
         }
@@ -167,7 +171,7 @@ export async function startFakeProvider(
           if (response.destroyed) return
           if (result.status !== undefined && result.status !== 200) {
             response.writeHead(result.status, { 'content-type': 'text/plain' })
-            response.end('fake provider refused: ' + result.status)
+            response.end(result.body ?? 'fake provider refused: ' + result.status)
           } else if (result.plainJson) {
             response.writeHead(200, { 'content-type': 'application/json' })
             response.end(JSON.stringify({ message: { content: JSON.stringify(result.tool ?? result.text ?? '') } }))

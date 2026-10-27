@@ -8,7 +8,7 @@ import {
   type ProviderProtocol,
 } from '@harness-world/provider-chat'
 import { afterEach, describe, expect, it } from 'vitest'
-import { startFakeProvider, type FakeAnswer, type FakeProviderCall } from '../support/fake-provider.ts'
+import { startFakeProvider, streamingFetch, type FakeAnswer, type FakeProviderCall } from '../support/fake-provider.ts'
 
 const call = {
   messages: [
@@ -220,4 +220,62 @@ describe('the pi-ai adapter on the wire', () => {
         ),
       ).toBe('OK')
     })
+})
+
+describe('review fixes', () => {
+  it('refuses to follow a redirect, so the key never reaches another host', async () => {
+    const elsewhere = await startFakeProvider('anthropic', () => ({ tool: proposal }))
+    closers.push(elsewhere.close)
+    const { createServer } = await import('node:http')
+    const redirector = createServer((_request, response) => {
+      response.writeHead(307, { location: elsewhere.endpoint })
+      response.end()
+    })
+    await new Promise<void>(done => redirector.listen(0, '127.0.0.1', done))
+    closers.push(() => new Promise<void>(done => redirector.close(() => done())))
+    const port = (redirector.address() as { port: number }).port
+    const chat = createChatProvider({
+      protocol: 'anthropic',
+      endpoint: new URL(`http://127.0.0.1:${port}/v1/messages`),
+      model: 'fixture',
+      apiKey: 'SECRET_KEY',
+    })
+    await expect(decide(chat)).rejects.toBeInstanceOf(Error)
+    expect(elsewhere.calls).toHaveLength(0)
+  })
+
+  it('returns the model’s own text when its tool arguments are not JSON', async () => {
+    const { chat } = await provider('openai', () => ({ tool: {}, rawArguments: '{"decision": "publish", oops' }))
+    expect(await decide(chat)).toBe('{"decision": "publish", oops')
+  })
+
+  it('names streaming when a gateway refuses stream_options', async () => {
+    const { chat } = await provider('openai', () => ({
+      status: 400,
+      body: 'Unrecognized request argument supplied: stream_options',
+    }))
+    await expect(decide(chat)).rejects.toThrow('流式')
+  })
+
+  it('keeps later system messages in place on the DeepSeek official endpoint', async () => {
+    const bodies: Record<string, unknown>[] = []
+    const chat = createChatProvider({
+      protocol: 'openai',
+      endpoint: new URL('https://api.deepseek.com/chat/completions'),
+      model: 'deepseek-flash',
+      apiKey: 'k',
+      fetch: streamingFetch(async (_url, init) => {
+        bodies.push(JSON.parse(String(init!.body)) as Record<string, unknown>)
+        return new Response(JSON.stringify({ message: { content: JSON.stringify(proposal) } }))
+      }),
+    })
+    await chat.decide(
+      {
+        ...call,
+        messages: [...call.messages, { role: 'system', content: 'after context' }, { role: 'user', content: 'go' }],
+      },
+      new AbortController().signal,
+    )
+    expect((bodies[0]!.messages as { role: string }[]).map(m => m.role)).toEqual(['system', 'user', 'system', 'user'])
+  })
 })

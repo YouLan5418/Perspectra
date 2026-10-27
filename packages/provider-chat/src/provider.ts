@@ -68,11 +68,15 @@ const NOT_STREAMED = '模型接口未返回流式响应（SSE）；请确认接�
 /**
  * The request shape this adapter sent before pi-ai, kept for an endpoint the catalog does not describe on this
  * host: system messages stay `system` and in place, the output cap is `max_tokens`, and nothing vendor-specific
- * such as `store` or eager tool streaming is added.
+ * such as `store` or eager tool streaming is added. Preset system nodes keep their place on every OpenAI-compatible
+ * endpoint, catalog-described or not, because their position is part of how the author shapes the character.
  */
 function callModel(target: ModelTarget): Model<Api> {
   const model = piModel(target)
-  if (model.compat !== undefined) return model
+  if (model.compat !== undefined)
+    return target.protocol === 'openai'
+      ? ({ ...model, compat: { ...model.compat, supportsMidConvoSystemMessages: true } } as Model<Api>)
+      : model
   if (target.protocol === 'openai')
     return {
       ...model,
@@ -219,6 +223,9 @@ function payloadOf(message: AssistantMessage, toolName: string): WorldJsonValue 
   const calls = message.content.filter(block => block.type === 'toolCall')
   if (calls.length) {
     if (calls.length !== 1 || calls[0]!.name !== toolName) throw new ChatTransportError('模型须返回一次指定工具调用。')
+    // Arguments that are not JSON reach the world as the model wrote them, so the refusal keeps its evidence.
+    const broken = calls[0]!.argumentsError
+    if (broken !== undefined) return broken.split('\n\nReceived arguments:\n').at(-1) ?? broken
     return calls[0]!.arguments as WorldJsonValue
   }
   const text = message.content.map(block => (block.type === 'text' ? block.text : '')).join('')
@@ -240,7 +247,8 @@ interface Exchange {
 /** Wraps the transport so the HTTP status and the endpoint's own words survive pi-ai's error normalisation. */
 function observingFetch(base: typeof globalThis.fetch, exchange: Exchange): typeof globalThis.fetch {
   return (async (input, init) => {
-    const response = await base(input, init)
+    // A redirect could carry the key to another host; the old adapter refused them and so does this one.
+    const response = await base(input, { ...init, redirect: 'error' })
     exchange.httpStatus = response.status
     if (!response.ok) exchange.detail = (await response.clone().text()).slice(0, 512)
     else if (!(response.headers.get('content-type') ?? '').includes('text/event-stream')) {
@@ -257,7 +265,11 @@ function failure(message: AssistantMessage, exchange: Exchange): ChatTransportEr
   if (Number.isFinite(status) && status >= 400) {
     exchange.httpStatus = status
     const detail = exchange.detail ?? message.errorMessage ?? ''
-    return new ChatTransportError(`chat endpoint returned HTTP ${status}${detail ? `: ${detail.slice(0, 512)}` : ''}`)
+    // Requests always stream; a gateway that refuses the stream fields should say so in the player's language.
+    const hint = status === 400 && /stream/i.test(detail) ? '（接口可能不支持流式响应或 stream_options）' : ''
+    return new ChatTransportError(
+      `chat endpoint returned HTTP ${status}${hint}${detail ? `: ${detail.slice(0, 512)}` : ''}`,
+    )
   }
   return new ChatTransportError(message.errorMessage ?? 'chat endpoint failed')
 }

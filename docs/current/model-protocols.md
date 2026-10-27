@@ -37,6 +37,7 @@ DeepSeek 官方填 `https://api.deepseek.com/chat/completions`（OpenAI 兼容�
 - 未设置思考强度时请求不含任何思考字段（pi-ai 默认会写入“关闭”，适配层剥掉），唯一例外是 DeepSeek 思考格式的角色决策沿用 `thinking: disabled`。显式“关闭”由 pi-ai 按协议发送；低、中、高交给 pi-ai 换算，开启思考时输出上限至少提到 8192 / 16384 / 32768。
 - 没有继承到兼容声明的地址，按改造前的请求形状发送：OpenAI 兼容保留 system 角色和位置、用 `max_tokens`、不发 `store`；Anthropic 不发 eager 工具流；三种协议都不加提示缓存标记。
 - pi-ai 总是流式请求（OpenAI 兼容带 `stream_options.include_usage`）。接口返回非 SSE 时明确报“未返回流式响应”；`max_tokens` 截断、多工具、错工具名、空响应和取消均失败，`maxRetries` 为 0，不隐式重试。
+- OpenAI 兼容与 Anthropic 请求拒绝跟随重定向，避免 Key 随跳转发往其他主机；pi-ai 的 Google 实现不能注入请求函数，这一防护对 Google 协议不生效，是已知限制。工具参数不是合法 JSON 时，模型原文交给 Host 校验与检查器，不当作空对象。OpenAI 兼容协议下，后置的 system 预设节点在 DeepSeek 等目录内模型上同样保持原位。
 - Anthropic 总是走 SDK 的 beta 客户端（请求地址带 `?beta=true` 并附 beta 头），这一点无法关闭。
 - Core 记忆的 Python utility_llm 仍自己发请求（未经 pi-ai），使用该角色生效的记忆模型、协议、地址和连接 Key；未覆盖的角色沿用实例默认记忆选择；角色单独选择决策模型且未指定记忆模型时，记忆跟随该角色决策。决策思考强度不传给记忆 Utility。
 - 请求检查器记录 pi-ai 最终发出的请求体（Google 为 SDK 参数形状），按转换前消息保留来源标签；响应为 pi-ai 组装后的文本、工具调用、思考摘要与用量，不再是供应商原始 JSON。检查器不接收认证头。
