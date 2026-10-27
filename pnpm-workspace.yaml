@@ -10,3 +10,5 @@ allowBuilds:
   esbuild: true
   electron: true
   electron-winstaller: true
+  '@google/genai': false
+  protobufjs: false

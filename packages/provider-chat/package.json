@@ -11,6 +11,7 @@
     "./preset-regex": "./src/preset-regex.ts"
   },
   "dependencies": {
+    "@earendil-works/pi-ai": "1.4.0",
     "@harness-world/contracts": "workspace:*"
   }
 }
