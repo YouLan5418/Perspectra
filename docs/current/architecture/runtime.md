@@ -137,6 +137,8 @@ Core 长期整理在排队前冻结授权 Source 前缀。后台运行期间前�
 
 2026-10-17 核对：[modelEnvironment](../../../desktop/model-connections.ts) 用 `PERSPECTRA_ROLE_MODELS` 传递无 Key 的解析目标，`PERSPECTRA_MODEL_KEYS` 传递被引用的连接 Key；[游戏入口](../../../desktop/host/web-entry.ts)合并后立即删除后一个环境变量。运行时为各角色建立自己的 provider，整体替换协议、地址、模型、思考强度与 Key。记忆按不同配置复用 runner 组，每组 Python 只接收该组的连接 Key，档案与授权 scope 仍按角色隔离。具体传递和进程边界见[Launcher 接入](../launcher-core-integration.md#3-数据与进程)。
 
+2026-10-27：Launcher 不再额外传 `HCW_LOCAL_*`，默认决策目标也只从 `PERSPECTRA_ROLE_MODELS` 读取；源码入口无该变量时改读 `PERSPECTRA_MODEL_*` 拼出单一目标。`local` / `--deepseek` / `--ollama` 入口已删除，原先挂在入口名上的行为改由协议决定：OpenAI 兼容与 Anthropic 使用扁平决策 Schema，任何目标都可用 Core 记忆与按角色模型，默认超时统一为游玩设置或 60 秒。调用经 [provider-chat](../../../packages/provider-chat/src/provider.ts) 交给 pi-ai，见[模型接口协议](../model-protocols.md)。
+
 玩家可选择关闭、低、中、高思考强度，保存后在下一次启动生效，仅影响角色决策及行动结果续写。玩家输入解析不新增模型配置；记忆 Utility 使用角色生效的记忆模型和既有参数，不沿用决策思考档位。模型选择不会重写存档事件。源码已接通，发行包尚未重建。
 
 本轮在 8045 网关验证两种协议的角色决策、四份记忆档案安装与非空测试 Key 不落盘；也修复了 Anthropic 路径根 `oneOf` 造成持续 `abstain` 的兼容问题。真实整理曾被无效 JSON 拒绝，最终成功不证明稳定质量。检查命令、证据和限制见[按角色模型验收](../studies/launcher-role-models-20261017.md)。

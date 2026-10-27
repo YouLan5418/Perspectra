@@ -64,16 +64,16 @@ corepack pnpm@11.7.0 launcher:desktop
 不使用 Launcher 时，也可以运行本机网页入口。先启动自己的模型服务，再设置地址与模型：
 
 ```powershell
-$env:HCW_LOCAL_ENDPOINT = "http://127.0.0.1:8046/v1/chat/completions"
-$env:HCW_LOCAL_MODEL = "gemini-3.7-flash"
+$env:PERSPECTRA_MODEL_ENDPOINT = "http://127.0.0.1:8046/v1/chat/completions"
+$env:PERSPECTRA_MODEL = "gemini-3.7-flash"
 corepack pnpm@11.7.0 experience:web `
   --pack examples/world-packs/model-girls-official `
   --data-dir .tmp/my-playtest
 ```
 
-地址与模型只是本机验证示例，请按自己的服务修改。如需认证，通过环境设置 `HCW_LOCAL_API_KEY`，不要写入世界包、脚本或仓库。打开终端打印的完整本机地址；其中的令牌不要公开分享。
+地址与模型只是本机验证示例，请按自己的服务修改。如需认证，通过环境设置 `PERSPECTRA_MODEL_API_KEY`，不要写入世界包、脚本或仓库。打开终端打印的完整本机地址；其中的令牌不要公开分享。
 
-**源码网页入口默认使用 Core 记忆**，需准备 Python/E5；仅离线调试可显式加 `--memory-native`。源码网页另保留 Ollama/DeepSeek 适配，当前 Launcher 还支持 Anthropic Messages 与 Google Gemini 原生协议，配置与限制见[模型接口协议](docs/current/model-protocols.md)；实际模型支持与网关行为仍需分别验证。
+**源码网页入口默认使用 Core 记忆**，需准备 Python/E5；仅离线调试可显式加 `--memory-native`。源码网页与 Launcher 使用同一套模型适配（经 pi-ai），支持 OpenAI 兼容、Anthropic Messages 与 Google Gemini 协议；DeepSeek、Ollama 按 OpenAI 兼容地址配置，配置与限制见[模型接口协议](docs/current/model-protocols.md)；实际模型支持与网关行为仍需分别验证。
 
 完整说明见 [创作者与真实模型试玩指南](docs/current/guides/creator-playtest.md)。
 
