@@ -14,10 +14,8 @@ import { savedPluginConfig } from './host-plugin-manifest.ts'
 import { readPluginManifest } from './plugin-manifest-file.ts'
 import type { PluginManifest } from '@harness-world/plugin-sdk'
 import {
-  providerEndpoint,
-  providerHeaders,
-  nativeMessages,
-  nativePayload,
+  ChatTransportError,
+  testTextCall,
   importPresets,
   exportPresets,
   namedPreset,
@@ -659,49 +657,21 @@ export class LauncherCore {
       }
       case 'test-model': {
         const connection = this.#connection(request.connectionId)
-        const model = { model: text(request.model, '模型标识', 120), endpoint: connection.endpoint }
-        const key = apiKeys(request.apiKeys)[connection.id]
-        let response: Response
-        const protocol = connection.protocol
-        const messages = [{ role: 'user', content: '请只回复 OK。这是连接测试，不包含游戏内容。' }]
-        const body =
-          protocol === 'openai'
-            ? { model: model.model, messages, max_tokens: 128 }
-            : protocol === 'anthropic'
-              ? { model: model.model, ...nativeMessages(messages, protocol), max_tokens: 128 }
-              : { ...nativeMessages(messages, protocol), generationConfig: { maxOutputTokens: 128 } }
+        const model = text(request.model, '模型标识', 120)
         try {
-          response = await fetch(providerEndpoint(new URL(model.endpoint), protocol, model.model), {
-            method: 'POST',
-            redirect: 'error',
-            headers: providerHeaders(protocol, key),
-            body: JSON.stringify(body),
-            signal: AbortSignal.timeout(15000),
-          })
-        } catch {
-          throw new Error('模型连接失败或超过 15 秒；请检查接口地址、服务是否启动和网络。')
-        }
-        if (response.status === 401 || response.status === 403)
-          throw new Error('模型接口拒绝认证；请检查 API Key 与访问权限。')
-        if (response.status === 429) throw new Error('模型接口限流或额度不足，请稍后重试并检查额度。')
-        if (!response.ok) throw new Error('模型接口返回 HTTP ' + response.status + '；请检查模型标识与接口配置。')
-        let data: unknown
-        try {
-          data = await response.json()
-        } catch {
-          throw new Error('模型接口未返回有效 JSON。')
-        }
-        if (protocol === 'openai') {
-          const choices = (data as { choices?: { message?: { content?: unknown } }[] } | null)?.choices
-          if (
-            !Array.isArray(choices) ||
-            typeof choices[0]?.message?.content !== 'string' ||
-            !choices[0].message.content.trim()
+          await testTextCall(
+            { protocol: connection.protocol, endpoint: new URL(connection.endpoint), model },
+            apiKeys(request.apiKeys)[connection.id],
+            AbortSignal.timeout(15000),
           )
-            throw new Error('模型接口未返回有效文本；请检查 chat/completions 协议与模型。')
-        } else {
-          const payload = nativePayload(data, protocol)
-          if (typeof payload !== 'string' || !payload.trim()) throw new Error('模型接口未返回有效文本。')
+        } catch (error) {
+          const status = Number(/HTTP (\d{3})/.exec(error instanceof Error ? error.message : '')?.[1] ?? NaN)
+          if (status === 401 || status === 403) throw new Error('模型接口拒绝认证；请检查 API Key 与访问权限。')
+          if (status === 429) throw new Error('模型接口限流或额度不足，请稍后重试并检查额度。')
+          if (status >= 400) throw new Error('模型接口返回 HTTP ' + status + '；请检查模型标识与接口配置。')
+          if (error instanceof ChatTransportError && /流式|有效文本|API Key/.test(error.message))
+            throw new Error(error.message)
+          throw new Error('模型连接失败或超过 15 秒；请检查接口地址、服务是否启动和网络。')
         }
         return { message: '模型接口已响应。此测试不验证游戏所需的结构化输出。' }
       }

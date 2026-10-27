@@ -11,6 +11,8 @@ export interface FakeProviderCall {
 export interface FakeAnswer {
   readonly tool?: unknown
   readonly text?: string
+  /** OpenAI only: returned as `reasoning_content`. */
+  readonly thinking?: string
   readonly stop?: 'length'
   readonly status?: number
   readonly plainJson?: boolean
@@ -59,10 +61,15 @@ function openaiAnswer(response: ServerResponse, answer: FakeAnswer) {
   const base = { id: 'chatcmpl-fake', object: 'chat.completion.chunk', created: 0, model: 'fixture' }
   const delta =
     answer.tool === undefined
-      ? { role: 'assistant', content: answer.text ?? '' }
+      ? {
+          role: 'assistant',
+          content: answer.text ?? '',
+          ...(answer.thinking === undefined ? {} : { reasoning_content: answer.thinking }),
+        }
       : {
           role: 'assistant',
-          content: null,
+          content: answer.text ?? null,
+          ...(answer.thinking === undefined ? {} : { reasoning_content: answer.thinking }),
           tool_calls: [
             {
               index: 0,

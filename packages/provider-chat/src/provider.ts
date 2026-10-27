@@ -1,24 +1,16 @@
-import { thinkingRequest, type ThinkingLevel } from './thinking.ts'
-import {
-  nativeMessages,
-  nativePayload,
-  providerEndpoint,
-  providerHeaders,
-  providerProtocol,
-  type ProviderProtocol,
-} from './protocol.ts'
+import type { Api, AssistantMessage, Message, Model, ProviderStreams, SimpleStreamOptions } from '@earendil-works/pi-ai'
+import { anthropicMessagesApi } from '@earendil-works/pi-ai/api/anthropic-messages.lazy'
+import { googleGenerativeAIApi } from '@earendil-works/pi-ai/api/google-generative-ai.lazy'
+import { openAICompletionsApi } from '@earendil-works/pi-ai/api/openai-completions.lazy'
+import { normalizeContext } from '@earendil-works/pi-ai/utils/transcript'
+import type { WorldJsonValue } from '@harness-world/contracts'
+import { piModel, usesDeepSeekThinking, type ModelTarget } from './pi-model.ts'
+import { providerProtocol, type ProviderProtocol } from './protocol.ts'
 import type { PresetOrigin, RequestInspector } from './request-inspector.ts'
 import { rolePreset, type RolePreset } from './preset.ts'
-import type { WorldJsonValue } from '@harness-world/contracts'
+import type { ThinkingLevel } from './thinking.ts'
 import { objectValue, textValue } from './value.ts'
-import { intentCall, type ChatCall } from './wire.ts'
-
-/**
- * How the endpoint takes a schema. `tool` is the OpenAI-shaped forced tool call, which is what the spec
- * asks for where the provider supports it; `format` is the same request expressed as a vendor-side output
- * format, for local endpoints that have no tools at all.
- */
-export type ChatStyle = 'tool' | 'format'
+import { intentCall, type ChatCall, type ChatMessage } from './wire.ts'
 
 /** What one call did, for a caller that shows or budgets its own provider traffic. Never content. */
 export interface ChatCallObservation {
@@ -42,21 +34,20 @@ export interface ChatCallProfile {
 }
 
 export interface ChatProviderOptions {
+  /** Defaults to OpenAI-compatible, the protocol most gateways speak. */
   readonly protocol?: ProviderProtocol
+  /** The full request address, as the connection stores it. */
   readonly endpoint: URL
   readonly model: string
   /** The Host's Secret. It is used for one header and never stored, hashed, echoed or reported. */
   readonly apiKey?: string
-  readonly style?: ChatStyle
   readonly timeoutMs?: number
   readonly preset?: RolePreset
   readonly temperature?: number
   readonly maxOutputTokens?: number
   readonly toolName?: string
-  /** Legacy transport override; explicit character thinkingLevel takes precedence. */
-  readonly thinking?: 'disabled' | 'unspecified'
   readonly thinkingLevel?: ThinkingLevel
-  /** Injected so the transport can be tested against a local endpoint instead of a vendor. */
+  /** Injected so the transport can be tested; the Google adapter cannot take one and always uses the platform's. */
   readonly fetch?: typeof globalThis.fetch
   readonly inspector?: RequestInspector
   readonly presetOrigin?: PresetOrigin
@@ -66,77 +57,250 @@ export interface ChatProviderOptions {
 /** A call the endpoint did not answer with a payload at all. That is a provider failure, not a proposal. */
 export class ChatTransportError extends Error {}
 
-function payloadOf(value: unknown, style: ChatStyle): WorldJsonValue {
-  const root = objectValue(value)
-  const message =
-    style === 'tool'
-      ? objectValue(objectValue(Array.isArray(root?.choices) ? root.choices[0] : undefined)?.message)
-      : objectValue(root?.message)
-  const call = objectValue(Array.isArray(message?.tool_calls) ? message.tool_calls[0] : undefined)
-  const fn = objectValue(call?.function)
-  // Some endpoints hand the arguments over already parsed; the ones that hand over a string are the ones
-  // whose payload this adapter parses.
-  const stated = fn?.arguments ?? message?.content
-  if (stated === undefined || stated === null) throw new ChatTransportError('chat endpoint returned no payload')
-  if (typeof stated !== 'string') return stated as WorldJsonValue
-  try {
-    return JSON.parse(stated) as WorldJsonValue
-  } catch {
-    // Prose is valid World JSON. Returning it lets the world classify the answer as invalid model output -
-    // with what the model actually said kept in the durable call - instead of the adapter turning it into a
-    // transport failure, which is a different fact about a different thing.
-    return stated
-  }
+const APIS: Record<ProviderProtocol, () => ProviderStreams> = {
+  openai: openAICompletionsApi,
+  anthropic: anthropicMessagesApi,
+  google: googleGenerativeAIApi,
+}
+const THINKING_FLOOR = { low: 8192, medium: 16384, high: 32768 } as const
+const NOT_STREAMED = '模型接口未返回流式响应（SSE）；请确认接口支持 stream。'
+
+/**
+ * The request shape this adapter sent before pi-ai, kept for an endpoint the catalog does not describe on this
+ * host: system messages stay `system` and in place, the output cap is `max_tokens`, and nothing vendor-specific
+ * such as `store` or eager tool streaming is added.
+ */
+function callModel(target: ModelTarget): Model<Api> {
+  const model = piModel(target)
+  if (model.compat !== undefined) return model
+  if (target.protocol === 'openai')
+    return {
+      ...model,
+      compat: {
+        supportsDeveloperRole: false,
+        supportsStore: false,
+        maxTokensField: 'max_tokens',
+        supportsMidConvoSystemMessages: true,
+      },
+    } as Model<Api>
+  if (target.protocol === 'anthropic')
+    return { ...model, compat: { supportsEagerToolInputStreaming: false } } as Model<Api>
+  return model
 }
 
-function nativeBody(
-  protocol: 'anthropic' | 'google',
-  messages: ChatCall['messages'],
-  prepared: ChatCall,
-  model: string,
-  maximum: number,
-  generation: RolePreset,
-  options: ChatProviderOptions,
-  toolName: string,
+interface DecisionTool {
+  readonly name: string
+  readonly description: string
+  readonly schema: ChatCall['schema']
+}
+
+function context(messages: readonly ChatMessage[], protocol: ProviderProtocol, model: string, tool?: DecisionTool) {
+  if (
+    protocol !== 'openai' &&
+    messages.filter(m => m.role === 'user' || m.role === 'assistant').at(-1)?.role !== 'user'
+  )
+    throw new TypeError('原生协议请求须以 user 消息结束；请调整末尾 assistant 预设节点。')
+  const converted = messages.map((message): Message => {
+    if (message.role === 'system' || message.role === 'developer')
+      return { role: 'system', content: message.content, timestamp: 0 }
+    if (message.role === 'user') return { role: 'user', content: message.content, timestamp: 0 }
+    if (message.role === 'assistant')
+      return {
+        role: 'assistant',
+        content: [{ type: 'text', text: message.content }],
+        api: 'prefill',
+        provider: 'prefill',
+        model,
+        usage: {
+          input: 0,
+          output: 0,
+          cacheRead: 0,
+          cacheWrite: 0,
+          totalTokens: 0,
+          cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+        },
+        stopReason: 'stop',
+        timestamp: 0,
+      } as AssistantMessage
+    throw new TypeError('此协议不支持消息身份：' + message.role)
+  })
+  return normalizeContext({
+    messages: converted,
+    ...(tool === undefined
+      ? {}
+      : { tools: [{ name: tool.name, description: tool.description, parameters: tool.schema as never }] }),
+  })
+}
+
+/**
+ * An unset level means no thinking field at all, as before pi-ai: pi-ai writes its own "disabled" otherwise,
+ * which a model that cannot turn thinking off refuses. The one exception is the DeepSeek wire format's
+ * character decision, which this adapter always sent with thinking disabled.
+ */
+export function thinkingPayload(
+  model: Model<Api>,
+  protocol: ProviderProtocol,
+  payload: Record<string, unknown>,
+  level: ThinkingLevel | undefined,
+  kind: 'character' | 'intent',
 ): Record<string, unknown> {
-  const temperature = generation.temperature ?? options.temperature
-  if (protocol === 'anthropic') {
-    if (generation.frequencyPenalty !== undefined || generation.presencePenalty !== undefined) {
-      throw new TypeError('Anthropic 不支持 frequencyPenalty / presencePenalty；请清空这些预设参数。')
-    }
-    const rendered = nativeMessages(messages, protocol)
-    return {
-      ...rendered,
-      model,
-      max_tokens: maximum,
-      stream: false,
-      system: String(rendered.system ?? '') + '\n请使用 ' + toolName + ' 工具返回本次决策；不要执行其他工具。',
-      ...(temperature === undefined ? {} : { temperature }),
-      ...(generation.topP === undefined ? {} : { top_p: generation.topP }),
-      ...(generation.stop?.length ? { stop_sequences: generation.stop } : {}),
-      tools: [{ name: toolName, description: prepared.description, input_schema: prepared.schema }],
-      tool_choice: { type: 'auto', disable_parallel_tool_use: true },
-    }
+  if (level !== undefined) return payload
+  const next = { ...payload }
+  if (protocol === 'openai') {
+    for (const key of ['thinking', 'reasoning_effort', 'enable_thinking', 'chat_template_kwargs']) delete next[key]
+    if (kind === 'character' && usesDeepSeekThinking(model)) next.thinking = { type: 'disabled' }
+  } else if (protocol === 'anthropic') delete next.thinking
+  else if (objectValue(next.config)) {
+    const { thinkingConfig: _thinking, ...config } = next.config as Record<string, unknown>
+    next.config = config
   }
-  return {
-    ...nativeMessages(messages, protocol),
-    generationConfig: {
-      maxOutputTokens: maximum,
-      temperature: temperature ?? 0.3,
+  return next
+}
+
+function decisionPayload(
+  model: Model<Api>,
+  protocol: ProviderProtocol,
+  payload: Record<string, unknown>,
+  toolName: string,
+  enabled: boolean,
+  generation: RolePreset,
+): Record<string, unknown> {
+  const next = { ...payload }
+  if (protocol === 'openai') {
+    next.tool_choice =
+      enabled && usesDeepSeekThinking(model) ? 'auto' : { type: 'function', function: { name: toolName } }
+  } else if (protocol === 'anthropic') {
+    next.tool_choice = { type: 'auto', disable_parallel_tool_use: true }
+    const instruction = '\n请使用 ' + toolName + ' 工具返回本次决策；不要执行其他工具。'
+    next.system = Array.isArray(next.system)
+      ? [...next.system, { type: 'text', text: instruction }]
+      : String(next.system ?? '') + instruction
+    if (generation.topP !== undefined) next.top_p = generation.topP
+    if (generation.stop?.length) next.stop_sequences = generation.stop
+    if (enabled) {
+      delete next.temperature
+      delete next.top_p
+    }
+  } else {
+    next.config = {
+      ...(next.config as Record<string, unknown>),
+      toolConfig: { functionCallingConfig: { mode: 'ANY', allowedFunctionNames: [toolName] } },
       ...(generation.topP === undefined ? {} : { topP: generation.topP }),
       ...(generation.frequencyPenalty === undefined ? {} : { frequencyPenalty: generation.frequencyPenalty }),
       ...(generation.presencePenalty === undefined ? {} : { presencePenalty: generation.presencePenalty }),
       ...(generation.stop?.length ? { stopSequences: generation.stop } : {}),
-    },
-    tools: [
-      {
-        functionDeclarations: [
-          { name: toolName, description: prepared.description, parametersJsonSchema: prepared.schema },
-        ],
-      },
-    ],
-    toolConfig: { functionCallingConfig: { mode: 'ANY', allowedFunctionNames: [toolName] } },
+    }
   }
+  return next
+}
+
+/** Shapes the assembled answer as content blocks the request inspector already reads; signatures are not kept. */
+function inspected(message: AssistantMessage): Record<string, unknown> {
+  return {
+    content: message.content.flatMap((block): Record<string, unknown>[] =>
+      block.type === 'text'
+        ? [{ type: 'text', text: block.text }]
+        : block.type === 'toolCall'
+          ? [{ type: 'tool_use', id: block.id, name: block.name, input: block.arguments }]
+          : block.redacted
+            ? []
+            : [{ type: 'thinking', thinking: block.thinking }],
+    ),
+    stop_reason: message.rawStopReason ?? message.stopReason,
+    usage: {
+      input_tokens: message.usage.input,
+      output_tokens: message.usage.output,
+      total_tokens: message.usage.totalTokens,
+    },
+  }
+}
+
+function payloadOf(message: AssistantMessage, toolName: string): WorldJsonValue {
+  const calls = message.content.filter(block => block.type === 'toolCall')
+  if (calls.length) {
+    if (calls.length !== 1 || calls[0]!.name !== toolName) throw new ChatTransportError('模型须返回一次指定工具调用。')
+    return calls[0]!.arguments as WorldJsonValue
+  }
+  const text = message.content.map(block => (block.type === 'text' ? block.text : '')).join('')
+  if (!text.trim()) throw new ChatTransportError('模型接口未返回有效文本。')
+  try {
+    return JSON.parse(text) as WorldJsonValue
+  } catch {
+    // Prose is valid World JSON. Returning it lets the world classify the answer as invalid model output.
+    return text
+  }
+}
+
+interface Exchange {
+  httpStatus?: number
+  detail?: string
+  notStreamed?: boolean
+}
+
+/** Wraps the transport so the HTTP status and the endpoint's own words survive pi-ai's error normalisation. */
+function observingFetch(base: typeof globalThis.fetch, exchange: Exchange): typeof globalThis.fetch {
+  return (async (input, init) => {
+    const response = await base(input, init)
+    exchange.httpStatus = response.status
+    if (!response.ok) exchange.detail = (await response.clone().text()).slice(0, 512)
+    else if (!(response.headers.get('content-type') ?? '').includes('text/event-stream')) {
+      exchange.notStreamed = true
+      throw new ChatTransportError(NOT_STREAMED)
+    }
+    return response
+  }) as typeof globalThis.fetch
+}
+
+function failure(message: AssistantMessage, exchange: Exchange): ChatTransportError {
+  if (exchange.notStreamed) return new ChatTransportError(NOT_STREAMED)
+  const status = exchange.httpStatus ?? Number(/\b([45]\d\d)\b/.exec(message.errorMessage ?? '')?.[1] ?? NaN)
+  if (Number.isFinite(status) && status >= 400) {
+    exchange.httpStatus = status
+    const detail = exchange.detail ?? message.errorMessage ?? ''
+    return new ChatTransportError(`chat endpoint returned HTTP ${status}${detail ? `: ${detail.slice(0, 512)}` : ''}`)
+  }
+  return new ChatTransportError(message.errorMessage ?? 'chat endpoint failed')
+}
+
+/** Key handling shared by decisions and the connection test: a keyless connection sends no auth header. */
+function credentials(protocol: ProviderProtocol, apiKey: string | undefined): Partial<SimpleStreamOptions> {
+  if (apiKey) return { apiKey }
+  if (protocol === 'google') throw new ChatTransportError('Google 协议需要 API Key；请在模型连接中填写。')
+  return { apiKey: 'unused', headers: { authorization: null, 'x-api-key': null } }
+}
+
+/** One plain-text call for the Launcher's connection test, over the same transport the game uses. */
+export async function testTextCall(
+  target: ModelTarget,
+  apiKey: string | undefined,
+  signal: AbortSignal,
+): Promise<string> {
+  const exchange: Exchange = {}
+  const model = callModel(target)
+  const message = await APIS[target.protocol]()
+    .streamSimple(
+      model,
+      context(
+        [{ role: 'user', content: '请只回复 OK。这是连接测试，不包含游戏内容。' }],
+        target.protocol,
+        target.model,
+      ),
+      {
+        ...credentials(target.protocol, apiKey),
+        signal,
+        maxTokens: 128,
+        maxRetries: 0,
+        cacheRetention: 'none',
+        ...(target.protocol === 'google' ? {} : { fetch: observingFetch(globalThis.fetch, exchange) }),
+        onPayload: payload =>
+          thinkingPayload(model, target.protocol, payload as Record<string, unknown>, undefined, 'intent'),
+      },
+    )
+    .result()
+  if (message.stopReason === 'error' || message.stopReason === 'aborted') throw failure(message, exchange)
+  const text = message.content.map(block => (block.type === 'text' ? block.text : '')).join('')
+  if (!text.trim()) throw new ChatTransportError('模型接口未返回有效文本。')
+  return text
 }
 
 export interface ChatProvider {
@@ -147,33 +311,31 @@ export interface ChatProvider {
 }
 
 /**
- * One adapter from the Host's assembled provider requests to a chat-completions endpoint, and back.
+ * One adapter from the Host's assembled provider requests to a model endpoint, through pi-ai, and back.
  *
  * It renders and transports; it never judges. What comes back is returned as the model stated it, so the
- * world's own validator and resolution decide it - a payload the protocol refuses stays a refused
- * proposal rather than becoming an adapter-side error. Failures that belong to the endpoint - a non-OK
- * response, an answer with no payload, an aborted call - throw, which is how the Host's availability and
- * output-quality policies see them.
+ * world's own validator and resolution decide it. Failures that belong to the endpoint - a non-OK response,
+ * an answer with no payload, a truncated or aborted call - throw.
  */
 export function createChatProvider(options: ChatProviderOptions): ChatProvider {
   const preset = rolePreset(options.preset ?? {})
-  const post = options.fetch ?? globalThis.fetch
-  const style = options.style ?? 'tool'
   const protocol = providerProtocol(options.protocol)
-  if (protocol !== 'openai' && style === 'format') throw new TypeError('Ollama format 不能与原生协议混用。')
   const toolName = options.toolName ?? 'submit_actions'
 
   async function send(
     prepared: ChatCall,
-    model: string,
+    modelId: string,
     timeoutMs: number,
     maximum: number,
     kind: ChatCallObservation['kind'],
     signal?: AbortSignal,
   ): Promise<WorldJsonValue> {
-    const headers = providerHeaders(protocol, options.apiKey)
-    // The Host resolves the Secret; the adapter only carries it, and nothing here records or reports it.
     const generation = kind === 'character' ? preset : {}
+    if (
+      protocol === 'anthropic' &&
+      (generation.frequencyPenalty !== undefined || generation.presencePenalty !== undefined)
+    )
+      throw new TypeError('Anthropic 不支持 frequencyPenalty / presencePenalty；请清空这些预设参数。')
     const messages =
       kind === 'character' && generation.prompt?.trim()
         ? [
@@ -185,62 +347,15 @@ export function createChatProvider(options: ChatProviderOptions): ChatProvider {
     if (kind === 'character' && generation.maxOutputTokens !== undefined) maximum = generation.maxOutputTokens
     const level = kind === 'character' ? options.thinkingLevel : undefined
     const enabled = level !== undefined && level !== 'off'
-    if (enabled) maximum = Math.max(maximum, { low: 8192, medium: 16384, high: 32768 }[level])
-    const body: Record<string, unknown> =
-      protocol !== 'openai'
-        ? nativeBody(protocol, messages, prepared, model, maximum, generation, options, toolName)
-        : style === 'tool'
-          ? {
-              model,
-              messages,
-              stream: false,
-              temperature: generation.temperature ?? options.temperature ?? 0.3,
-              max_tokens: maximum,
-              ...(generation.topP === undefined ? {} : { top_p: generation.topP }),
-              ...(generation.frequencyPenalty === undefined ? {} : { frequency_penalty: generation.frequencyPenalty }),
-              ...(generation.presencePenalty === undefined ? {} : { presence_penalty: generation.presencePenalty }),
-              ...(generation.stop?.length ? { stop: generation.stop } : {}),
-              ...(level === undefined
-                ? options.thinking === 'unspecified'
-                  ? {}
-                  : { thinking: { type: 'disabled' } }
-                : thinkingRequest(protocol, model, level)),
-              tools: [
-                {
-                  type: 'function',
-                  function: { name: toolName, description: prepared.description, parameters: prepared.schema },
-                },
-              ],
-              tool_choice:
-                enabled && model.toLowerCase().includes('deepseek')
-                  ? 'auto'
-                  : { type: 'function', function: { name: toolName } },
-            }
-          : {
-              model,
-              messages,
-              stream: false,
-              format: prepared.schema,
-              options: {
-                temperature: generation.temperature ?? options.temperature ?? 0.3,
-                num_predict: maximum,
-                ...(generation.topP === undefined ? {} : { top_p: generation.topP }),
-                ...(generation.frequencyPenalty === undefined
-                  ? {}
-                  : { frequency_penalty: generation.frequencyPenalty }),
-                ...(generation.presencePenalty === undefined ? {} : { presence_penalty: generation.presencePenalty }),
-                ...(generation.stop?.length ? { stop: generation.stop } : {}),
-              },
-            }
-    if (level !== undefined && protocol === 'anthropic') {
-      Object.assign(body, thinkingRequest(protocol, model, level))
-      if (enabled) {
-        delete body.temperature
-        delete body.top_p
-      }
+    if (enabled) maximum = Math.max(maximum, THINKING_FLOOR[level])
+    const model = callModel({ protocol, endpoint: options.endpoint, model: modelId })
+    const temperature = generation.temperature ?? options.temperature ?? (protocol === 'anthropic' ? undefined : 0.3)
+    const sampling = {
+      ...(generation.topP === undefined ? {} : { top_p: generation.topP }),
+      ...(generation.frequencyPenalty === undefined ? {} : { frequency_penalty: generation.frequencyPenalty }),
+      ...(generation.presencePenalty === undefined ? {} : { presence_penalty: generation.presencePenalty }),
+      ...(generation.stop?.length ? { stop: generation.stop } : {}),
     }
-    if (level !== undefined && protocol === 'google')
-      Object.assign(body.generationConfig as object, thinkingRequest(protocol, model, level))
     const sources = [...(prepared.inspection?.sources ?? [])]
     if (kind === 'character' && generation.prompt?.trim())
       sources.splice(1, 0, { source: 'preset', name: '附加角色提示', original: generation.prompt })
@@ -259,53 +374,75 @@ export function createChatProvider(options: ChatProviderOptions): ChatProvider {
             },
           }
         : undefined
-    const inspectionId = options.inspector?.begin(body, inspection, messages, model)
+    const exchange: Exchange = {}
+    let inspectionId: number | undefined
+    let assembled: AssistantMessage | undefined
     const started = performance.now()
-    let httpStatus: number | undefined
-    let responseBody: unknown
+    const elapsed = () => Math.round(performance.now() - started)
+    const timeout = AbortSignal.timeout(timeoutMs)
+    const combined = signal === undefined ? timeout : AbortSignal.any([signal, timeout])
     try {
-      const timeout = AbortSignal.timeout(timeoutMs)
-      const response = await post(providerEndpoint(options.endpoint, protocol, model), {
-        method: 'POST',
-        redirect: 'error',
-        headers,
-        body: JSON.stringify(body),
-        signal: signal === undefined ? timeout : AbortSignal.any([signal, timeout]),
-      })
-      httpStatus = response.status
-      if (!response.ok) {
-        // The endpoint's own words about what it refused are the operator's only clue, so they travel with
-        // the failure rather than being replaced by a status code.
-        const detail = (await response.text()).slice(0, 512)
-        throw new ChatTransportError(
-          `chat endpoint returned HTTP ${response.status}${detail.length === 0 ? '' : `: ${detail}`}`,
-        )
+      const streamOptions: SimpleStreamOptions = {
+        ...credentials(protocol, options.apiKey),
+        signal: combined,
+        timeoutMs,
+        maxRetries: 0,
+        maxTokens: maximum,
+        cacheRetention: 'none',
+        ...(temperature === undefined ? {} : { temperature }),
+        ...(enabled ? { reasoning: level } : {}),
+        ...(protocol === 'openai' && Object.keys(sampling).length ? { samplingParams: sampling } : {}),
+        ...(protocol === 'google' ? {} : { fetch: observingFetch(options.fetch ?? globalThis.fetch, exchange) }),
+        onPayload: raw => {
+          const payload = decisionPayload(
+            model,
+            protocol,
+            thinkingPayload(model, protocol, raw as Record<string, unknown>, level, kind),
+            toolName,
+            enabled,
+            generation,
+          )
+          inspectionId = options.inspector?.begin(payload, inspection, messages, modelId)
+          return payload
+        },
       }
-      responseBody = await response.json()
-      const payload =
-        protocol === 'openai' ? payloadOf(responseBody, style) : nativePayload(responseBody, protocol, toolName)
-      options.inspector?.finish(inspectionId, 'ok', Math.round(performance.now() - started), responseBody, {
-        httpStatus,
+      const message = (assembled = await APIS[protocol]()
+        .streamSimple(
+          model,
+          context(messages, protocol, modelId, {
+            name: toolName,
+            description: prepared.description,
+            schema: prepared.schema,
+          }),
+          streamOptions,
+        )
+        .result())
+      if (message.stopReason === 'error' || message.stopReason === 'aborted') throw failure(message, exchange)
+      if (message.stopReason === 'length') throw new ChatTransportError('模型输出超过 token 上限。')
+      const payload = payloadOf(message, toolName)
+      options.inspector?.finish(inspectionId, 'ok', elapsed(), inspected(message), {
+        httpStatus: exchange.httpStatus ?? 200,
       })
-      options.onCall?.({ kind, model, durationMs: Math.round(performance.now() - started), status: 'ok' })
+      options.onCall?.({ kind, model: modelId, durationMs: elapsed(), status: 'ok' })
       return payload
     } catch (error: unknown) {
-      options.inspector?.finish(inspectionId, 'failed', Math.round(performance.now() - started), responseBody, {
-        ...(httpStatus === undefined ? {} : { httpStatus }),
+      const answered = assembled !== undefined && assembled.stopReason !== 'error' && assembled.stopReason !== 'aborted'
+      options.inspector?.finish(inspectionId, 'failed', elapsed(), answered ? inspected(assembled!) : undefined, {
+        ...(exchange.httpStatus === undefined ? {} : { httpStatus: exchange.httpStatus }),
         failure: signal?.aborted
           ? 'cancelled'
-          : responseBody !== undefined
-            ? 'invalid_envelope'
-            : httpStatus !== undefined && httpStatus >= 400
-              ? 'http'
+          : exchange.httpStatus !== undefined && exchange.httpStatus >= 400
+            ? 'http'
+            : answered
+              ? 'invalid_envelope'
               : 'transport',
       })
       options.onCall?.({
         kind,
-        model,
-        durationMs: Math.round(performance.now() - started),
+        model: modelId,
+        durationMs: elapsed(),
         status: 'failed',
-        ...(httpStatus === undefined ? {} : { httpStatus }),
+        ...(exchange.httpStatus === undefined ? {} : { httpStatus: exchange.httpStatus }),
       })
       throw error
     }
@@ -323,11 +460,8 @@ export function createChatProvider(options: ChatProviderOptions): ChatProvider {
       )
     },
     async dispatch(request: WorldJsonValue, profile: ChatCallProfile, signal: AbortSignal): Promise<WorldJsonValue> {
-      // The Host hands over its request together with the waterline it was prepared at, so the request is
-      // the `body` of what arrives. A caller that passes the request alone reads the same way.
       const root = objectValue(request)
       const prepared = intentCall(objectValue(root?.body) ?? root ?? {})
-      // The profile is the Host's own statement about this call: the model it asked for, and its limits.
       const model = textValue(profile.modelId) ?? options.model
       return await send(
         prepared,

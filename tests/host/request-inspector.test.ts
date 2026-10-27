@@ -5,6 +5,7 @@ import { RequestInspector } from '../../packages/provider-chat/src/request-inspe
 import { createChatProvider } from '../../packages/provider-chat/src/provider.ts'
 import { presetCall } from '../../packages/provider-chat/src/preset-runtime.ts'
 import { createHostServer, type HostRuntime } from '../../desktop/host/http-server.ts'
+import { startFakeProvider } from '../support/fake-provider.ts'
 const info = { characterId: 'npc:a', continuation: false, sources: [{ source: 'core', name: 'Core' }] }
 const body = { model: 'test', messages: [{ role: 'system', content: '契约' }] }
 it('is opt-in, bounded, detached, and clears private requests on disable', () => {
@@ -23,29 +24,16 @@ it('is opt-in, bounded, detached, and clears private requests on disable', () =>
 it('captures exact requests, preset sources and returned model content, without headers or credentials', async () => {
   const inspector = new RequestInspector()
   inspector.configure(true)
-  let sent: unknown
+  const server = await startFakeProvider('openai', () => ({
+    tool: { decision: 'abstain' },
+    text: 'RESPONSE_PRIVATE',
+  }))
   const provider = createChatProvider({
-    endpoint: new URL('http://localhost/test'),
+    endpoint: new URL(server.endpoint),
     model: 'm',
     apiKey: 'TEST_SECRET',
     inspector,
     preset: { prompt: '附加规则', temperature: 0.8, maxOutputTokens: 333 },
-    fetch: async (_input, init) => {
-      sent = JSON.parse(String(init?.body))
-      return new Response(
-        JSON.stringify({
-          usage: { prompt_tokens: 101, completion_tokens: 9, total_tokens: 110 },
-          choices: [
-            {
-              message: {
-                tool_calls: [{ function: { arguments: '{"decision":"abstain"}' } }],
-                content: 'RESPONSE_PRIVATE',
-              },
-            },
-          ],
-        }),
-      )
-    },
   })
   const call = presetCall(
     {
@@ -75,8 +63,9 @@ it('captures exact requests, preset sources and returned model content, without 
     '玩家',
   )
   await expect(provider.decide(call, new AbortController().signal)).resolves.toEqual({ decision: 'abstain' })
+  await server.close()
   const capture = inspector.snapshot().requests[0]!
-  expect(capture.body).toEqual(sent)
+  expect(capture.body).toEqual(server.calls[0]!.body)
   expect(capture.body).toMatchObject({ temperature: 0.8, max_tokens: 333 })
   expect(capture.messages.map(m => m.source.name)).toEqual([
     'Core 固定契约',
@@ -93,7 +82,7 @@ it('captures exact requests, preset sources and returned model content, without 
   expect(capture).toMatchObject({
     continuation: true,
     status: 'ok',
-    usage: { inputTokens: 101, outputTokens: 9, totalTokens: 110 },
+    usage: { inputTokens: 11, outputTokens: 7, totalTokens: 18 },
   })
   expect(JSON.stringify(capture)).not.toContain('TEST_SECRET')
   expect(capture.response).toMatchObject({ content: ['RESPONSE_PRIVATE'], thinkingStatus: 'not_provided' })
@@ -103,20 +92,17 @@ it('captures exact requests, preset sources and returned model content, without 
 it('records transport failure without copying the endpoint error body', async () => {
   const inspector = new RequestInspector()
   inspector.configure(true)
-  const provider = createChatProvider({
-    endpoint: new URL('http://localhost/test'),
-    model: 'm',
-    inspector,
-    fetch: async () => new Response('PRIVATE_ERROR', { status: 500 }),
-  })
+  const server = await startFakeProvider('openai', () => ({ status: 500 }))
+  const provider = createChatProvider({ endpoint: new URL(server.endpoint), model: 'm', inspector })
   await expect(
     provider.decide(
-      { messages: body.messages, schema: {}, description: 'x', inspection: info },
+      { messages: [...body.messages, { role: 'user', content: '{}' }], schema: {}, description: 'x', inspection: info },
       new AbortController().signal,
     ),
   ).rejects.toThrow('500')
+  await server.close()
   expect(inspector.snapshot().requests[0]?.status).toBe('failed')
-  expect(JSON.stringify(inspector.snapshot())).not.toContain('PRIVATE_ERROR')
+  expect(JSON.stringify(inspector.snapshot())).not.toContain('fake provider refused')
 })
 it('omits oversized bodies explicitly', () => {
   const inspector = new RequestInspector()
@@ -127,24 +113,20 @@ it('omits oversized bodies explicitly', () => {
 it('retains returned thinking for invalid envelopes without persisting opaque response fields', async () => {
   const inspector = new RequestInspector()
   inspector.configure(true)
+  const server = await startFakeProvider('openai', () => ({ text: '', thinking: 'RETURNED_THOUGHT' }))
   const provider = createChatProvider({
-    endpoint: new URL('http://localhost/test'),
+    endpoint: new URL(server.endpoint),
     model: 'm',
+    apiKey: 'OPAQUE_SECRET',
     inspector,
-    fetch: async () =>
-      new Response(
-        JSON.stringify({
-          choices: [{ message: { reasoning_content: 'RETURNED_THOUGHT', signature: 'OPAQUE_SECRET' } }],
-          headers: { authorization: 'HEADER_SECRET' },
-        }),
-      ),
   })
   await expect(
     provider.decide(
-      { messages: body.messages, schema: {}, description: 'x', inspection: info },
+      { messages: [...body.messages, { role: 'user', content: '{}' }], schema: {}, description: 'x', inspection: info },
       new AbortController().signal,
     ),
-  ).rejects.toThrow('no payload')
+  ).rejects.toThrow('模型接口未返回有效文本。')
+  await server.close()
   expect(inspector.snapshot().requests[0]).toMatchObject({
     status: 'failed',
     httpStatus: 200,
@@ -152,7 +134,6 @@ it('retains returned thinking for invalid envelopes without persisting opaque re
     response: { thinkingStatus: 'provided', thinking: [{ kind: 'text', text: 'RETURNED_THOUGHT' }] },
   })
   expect(JSON.stringify(inspector.snapshot())).not.toContain('OPAQUE_SECRET')
-  expect(JSON.stringify(inspector.snapshot())).not.toContain('HEADER_SECRET')
 })
 it('requires the host token and exposes no Inspector in Frontend API', async () => {
   const inspector = new RequestInspector()

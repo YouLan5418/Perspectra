@@ -8,6 +8,7 @@ import { ModelPresets, packPreset } from '../../desktop/model-presets.ts'
 import { LauncherCore } from '../../desktop/launcher-core.ts'
 import { rolePreset } from '../../packages/provider-chat/src/preset.ts'
 import { createChatProvider } from '../../packages/provider-chat/src/provider.ts'
+import { startFakeProvider } from '../support/fake-provider.ts'
 const roots: string[] = []
 afterEach(async () => {
   vi.unstubAllGlobals()
@@ -88,9 +89,9 @@ it('loads optional package recommendations and Launcher selections without chang
   expect(core.snapshot().presets.instances[id]).toEqual({ mode: 'custom', override: { prompt: 'instance' } })
 })
 it('adds portrayal settings only to character calls and keeps Host messages, schema and intent limits', async () => {
-  const sent: Record<string, unknown>[] = []
+  const server = await startFakeProvider('openai', () => ({ tool: {} }))
   const provider = createChatProvider({
-    endpoint: new URL('http://example.test/chat'),
+    endpoint: new URL(server.endpoint),
     model: 'role-model',
     preset: {
       prompt: '简短对白',
@@ -101,11 +102,8 @@ it('adds portrayal settings only to character calls and keeps Host messages, sch
       maxOutputTokens: 333,
       stop: ['END'],
     },
-    fetch: (async (_url, init) => {
-      sent.push(JSON.parse(String(init?.body)) as Record<string, unknown>)
-      return new Response(JSON.stringify({ choices: [{ message: { content: '{}' } }] }))
-    }) as typeof fetch,
   })
+
   const call = {
     messages: [
       { role: 'system' as const, content: 'Core contract' },
@@ -115,7 +113,7 @@ it('adds portrayal settings only to character calls and keeps Host messages, sch
     schema: { type: 'object' as const, additionalProperties: false },
   }
   await provider.decide(call, new AbortController().signal)
-  expect(sent[0]).toMatchObject({
+  expect(server.calls[0]!.body).toMatchObject({
     model: 'role-model',
     temperature: 0.7,
     top_p: 0.8,
@@ -125,12 +123,12 @@ it('adds portrayal settings only to character calls and keeps Host messages, sch
     stop: ['END'],
     tool_choice: { type: 'function', function: { name: 'submit_actions' } },
   })
-  expect(sent[0]!.messages).toEqual([
+  expect(server.calls[0]!.body.messages).toEqual([
     call.messages[0],
     { role: 'system', content: '角色表现预设：简短对白' },
     call.messages[1],
   ])
-  expect(sent[0]!.tools).toEqual([
+  expect(server.calls[0]!.body.tools).toEqual([
     { type: 'function', function: { name: 'submit_actions', description: call.description, parameters: call.schema } },
   ])
   await provider.dispatch(
@@ -138,9 +136,11 @@ it('adds portrayal settings only to character calls and keeps Host messages, sch
     { modelId: 'intent-model', timeoutMs: 1000, maxOutputTokens: 64 },
     new AbortController().signal,
   )
-  expect(sent[1]).toMatchObject({ model: 'intent-model', temperature: 0.3, max_tokens: 64 })
-  for (const key of ['top_p', 'frequency_penalty', 'presence_penalty', 'stop']) expect(sent[1]).not.toHaveProperty(key)
-  expect(JSON.stringify(sent[1]!.messages)).not.toContain('简短对白')
+  expect(server.calls[1]!.body).toMatchObject({ model: 'intent-model', temperature: 0.3, max_tokens: 64 })
+  for (const key of ['top_p', 'frequency_penalty', 'presence_penalty', 'stop'])
+    expect(server.calls[1]!.body).not.toHaveProperty(key)
+  expect(JSON.stringify(server.calls[1]!.body.messages)).not.toContain('简短对白')
+  await server.close()
 })
 
 it('uses character over group over instance and keeps a second instance independent', async () => {

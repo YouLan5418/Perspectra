@@ -5,7 +5,7 @@ import { openAICompletionsApi } from '@earendil-works/pi-ai/api/openai-completio
 import { normalizeContext } from '@earendil-works/pi-ai/utils/transcript'
 import { piModel } from '@harness-world/provider-chat'
 import { describe, expect, it } from 'vitest'
-import { startFakeProvider } from './fake-provider.ts'
+import { startFakeProvider } from '../support/fake-provider.ts'
 
 const apis: Record<'openai' | 'anthropic' | 'google', () => ProviderStreams> = {
   openai: openAICompletionsApi,

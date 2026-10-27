@@ -38,7 +38,7 @@ if (process.argv.includes('--probe')) {
   const profile = { version: 'player-intent-profile/v1' as const, providerId: 'chat-completions',
     modelId: 'deepseek-flash', maxOutputTokens: 1024, timeoutMs: 60000 }
   const provider = createChatProvider({ endpoint: new URL('https://api.deepseek.com/chat/completions'),
-    model: profile.modelId, apiKey: key, style: 'tool', timeoutMs: 60000 })
+    model: profile.modelId, apiKey: key, timeoutMs: 60000 })
   const cases = [
     { id: 'bare-lift', holder: null, text: '我拿起日记。', expected: 'no-transfer' },
     { id: 'look', holder: null, text: '我拿起日记看看。', expected: 'no-transfer' },
