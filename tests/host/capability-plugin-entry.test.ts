@@ -1,7 +1,7 @@
 import { build } from 'esbuild'
 import { spawn } from 'node:child_process'
 import { once } from 'node:events'
-import { createServer } from 'node:http'
+import { createChatServer } from '../support/fake-provider.ts'
 import { cp, mkdir, mkdtemp, rm } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
 import type { AddressInfo } from 'node:net'
@@ -13,7 +13,7 @@ it('loads capability plugins through both source and bundled host entries and ex
     plugin = 'demo-device'
   await mkdir('.tmp', { recursive: true })
   const directory = await mkdtemp(resolve('.tmp/capability-plugin-entry-'))
-  const model = createServer((request, response) => {
+  const model = createChatServer((request, response) => {
     request.resume()
     request.on('end', () => {
       response.writeHead(200, { 'content-type': 'application/json' })
@@ -40,7 +40,6 @@ it('loads capability plugins through both source and bundled host entries and ex
         process.execPath,
         [
           ...(layout === 'source' ? ['--import', 'tsx', resolve('desktop/host/web-entry.ts')] : [entry]),
-          '--ollama',
           '--memory-native',
           '--pack',
           resolve('examples/world-packs/' + pack),
@@ -56,8 +55,9 @@ it('loads capability plugins through both source and bundled host entries and ex
             PERSPECTRA_ROLE_MODELS: undefined,
             PERSPECTRA_MODEL_KEYS: undefined,
             PERSPECTRA_PRESET_ROOT: undefined,
-            HCW_OLLAMA_ENDPOINT: 'http://127.0.0.1:' + (model.address() as AddressInfo).port + '/api/chat',
-            HCW_OLLAMA_MODEL: 'fixture',
+            PERSPECTRA_MODEL_ENDPOINT:
+              'http://127.0.0.1:' + (model.address() as AddressInfo).port + '/v1/chat/completions',
+            PERSPECTRA_MODEL: 'fixture',
             PERSPECTRA_HOST_PLUGINS: JSON.stringify([
               { id: plugin, enabled: true, path: resolve('examples/host-plugins/' + plugin + '.mjs') },
               // A broken, unrelated plugin is skipped; the world still opens because it does not need it.

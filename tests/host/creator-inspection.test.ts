@@ -4,11 +4,11 @@ import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { once } from 'node:events'
 import type { AddressInfo } from 'node:net'
-import { createServer } from 'node:http'
 import { WorldHostCore } from '../../desktop/host/world-runtime.ts'
 import { createHostServer } from '../../desktop/host/http-server.ts'
 import { creatorInspectionQuery } from '../../desktop/host/creator-inspection.ts'
 import { RequestInspector } from '../../packages/provider-chat/src/request-inspector.ts'
+import { createChatServer, fakeModels } from '../support/fake-provider.ts'
 
 const cleanups: (() => Promise<void>)[] = []
 afterEach(async () => {
@@ -22,15 +22,13 @@ async function fixture(utilityEndpoint?: string) {
   const runtime = await WorldHostCore.create({
     packPath: resolve('examples/world-packs/prototype-g1'),
     dataDirectory: root,
-    provider: 'local',
-    model: 'test',
-    ...(utilityEndpoint ? { utilityEndpoint } : {}),
+    models: fakeModels(utilityEndpoint ?? 'http://127.0.0.1:9/v1/chat/completions', 'openai', 'test'),
   })
   cleanups.push(() => runtime.close())
   return runtime
 }
 it('reports committed custody and movement, actual request context and observation recipients', async () => {
-  const provider = createServer((request, response) => {
+  const provider = createChatServer((request, response) => {
     request.resume()
     request.on('end', () => {
       response.setHeader('content-type', 'application/json')

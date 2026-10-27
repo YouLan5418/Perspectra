@@ -1,4 +1,4 @@
-import { createServer, type Server } from 'node:http'
+import { type Server } from 'node:http'
 import { once } from 'node:events'
 import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -18,6 +18,7 @@ import {
 import { createHostServer } from '../../desktop/host/http-server.ts'
 import { parseHostLaunchArguments } from '../../desktop/host/launch-arguments.ts'
 import type { CoreRunner } from '../../desktop/host/memory/python-worker.ts'
+import { createChatServer, fakeModels } from '../support/fake-provider.ts'
 
 const roots: string[] = [],
   runtimes: WorldHostRuntime[] = [],
@@ -43,7 +44,7 @@ async function fixture(
   const data = mkdtempSync(join(tmpdir(), 'memory-web-test-'))
   roots.push(data)
   const requests: WorldJsonObject[] = []
-  const provider = createServer((req, res) => {
+  const provider = createChatServer((req, res) => {
     let body = ''
     req.on('data', c => {
       body += String(c)
@@ -81,9 +82,7 @@ async function fixture(
   const runtime = await WorldHostRuntime.create({
     dataDirectory: data,
     packPath: resolve('examples/world-packs/ai-girls-hosted-guess'),
-    provider: 'local',
-    model: 'fixture',
-    utilityEndpoint: `http://127.0.0.1:${address.port}/v1/chat/completions`,
+    models: fakeModels(`http://127.0.0.1:${address.port}/v1/chat/completions`, 'openai', 'fixture'),
     memoryCore: true,
     memoryCoreRun: run,
     memoryCoreBuildRun: run,
@@ -231,7 +230,7 @@ describe('optional web Core memory', () => {
     expect(parseHostLaunchArguments([]).memoryCore).toBe(true)
     expect(parseHostLaunchArguments(['--memory-native']).memoryCore).toBeUndefined()
     expect(() => parseHostLaunchArguments(['--memory-core', '--memory-core'])).toThrow('once')
-    expect(() => parseHostLaunchArguments(['--ollama'])).toThrow('--memory-native')
+    expect(() => parseHostLaunchArguments(['--ollama'])).toThrow('unsupported host argument')
   })
   it('refuses to start default Core without Python or E5, before creating the save directory', async () => {
     const root = mkdtempSync(join(tmpdir(), 'memory-web-test-core-env-'))
@@ -240,8 +239,7 @@ describe('optional web Core memory', () => {
       options = {
         packPath: resolve('examples/world-packs/prototype-g1'),
         dataDirectory: data,
-        provider: 'local' as const,
-        model: 'fixture',
+        models: fakeModels('http://127.0.0.1:9/v1/chat/completions'),
         memoryCore: true,
       }
     vi.stubEnv('HCW_HINDSIGHT_PYTHON', join(root, 'missing-python.exe'))
@@ -828,7 +826,7 @@ it("uses each character's own memory runner for recall and build", async () => {
 it('starts one Core runner per distinct memory model and never writes a key to the data directory', async () => {
   const data = mkdtempSync(join(tmpdir(), 'memory-web-test-'))
   roots.push(data)
-  const provider = createServer((req, res) => {
+  const provider = createChatServer((req, res) => {
     req.resume()
     req.on('end', () => {
       res.writeHead(200, { 'content-type': 'application/json' })
@@ -845,12 +843,9 @@ it('starts one Core runner per distinct memory model and never writes a key to t
   const runtime = await WorldHostRuntime.create({
     dataDirectory: data,
     packPath: resolve('examples/world-packs/ai-girls-hosted-guess'),
-    provider: 'local',
-    model: 'fixture',
-    utilityEndpoint: endpoint,
-    apiKey: 'MEMORY_KEY_BASE',
     memoryCore: true,
-    roleModels: {
+    models: {
+      ...fakeModels(endpoint, 'openai', 'fixture', 'MEMORY_KEY_BASE'),
       characters: {
         'character:claude': { decision: strong, memory: strong },
         'character:gpt': {

@@ -418,7 +418,6 @@ export class WorldHostCore implements HostRuntime {
   #autoStartError: string | undefined
   #knowledge: PackKnowledge | undefined
   #activationCycle: Awaited<ReturnType<typeof runCharacterActivations>> | undefined
-  readonly #provider: 'local' | 'deepseek' | 'ollama'
   readonly #manifestVersion: number
   readonly #intentEnabled: boolean
   readonly #dataDirectory: string
@@ -499,7 +498,6 @@ export class WorldHostCore implements HostRuntime {
     this.#title = compiled.manifest.metadata.title
     this.#entities = compiled.manifest
     this.#playerName = this.#names.get(this.#playerId) ?? this.#playerId
-    this.#provider = options.provider
     const characters = modelCharacters(compiled.manifest, this.#playerId)
     const models = createRoleProviders(
       options,
@@ -521,13 +519,7 @@ export class WorldHostCore implements HostRuntime {
     this.#effectivePresets = effectivePresets
     this.#characterIds = characters.map(character => character.actorId)
     if (options.memoryCore) {
-      if (options.provider !== 'local') throw new TypeError('Core 记忆须使用 local 配置入口。')
-      const defaultMemory: RuntimeModel = options.roleModels?.memory ?? {
-        protocol: models.protocol,
-        endpoint: models.endpoint.href,
-        model: models.model,
-        ...(options.apiKey === undefined ? {} : { apiKey: options.apiKey }),
-      }
+      const defaultMemory: RuntimeModel = options.models.default.memory
       const groups = coreRunnerGroups(options.dataDirectory, options.memoryCoreRunners)
       const shared =
         options.memoryCoreRun === undefined || options.memoryCoreBuildRun === undefined
@@ -535,12 +527,7 @@ export class WorldHostCore implements HostRuntime {
           : undefined
       const own =
         options.memoryCoreRun === undefined
-          ? new Map(
-              Object.entries(options.roleModels?.characters ?? {}).map(([id, role]) => [
-                id,
-                groups.runnersFor(role.memory),
-              ]),
-            )
+          ? new Map(Object.entries(options.models.characters).map(([id, role]) => [id, groups.runnersFor(role.memory)]))
           : new Map<string, MemoryRunners>()
       this.#closeCore = groups.close
       this.#memoryCore = new CoreMemoryAdapter(
@@ -639,7 +626,7 @@ export class WorldHostCore implements HostRuntime {
       try {
         const projected = await presetContext(visible, effectivePreset!, String(this.#playerId), signal)
         return presetCall(
-          this.#options.provider === 'local' && this.#models.protocols.get(characterId) !== 'google'
+          this.#models.protocols.get(characterId) !== 'google'
             ? gatewayTurnCall(projected)
             : characterTurnCall(projected),
           effectivePreset!,
@@ -948,7 +935,7 @@ export class WorldHostCore implements HostRuntime {
       debug: {
         ...this.#debug,
         worldVersion: this.#worldVersion,
-        provider: this.#provider,
+        provider: this.#models.protocol,
         model: this.#model,
         intentModel: this.#intentModel,
         providerCalls: this.#providerCalls,

@@ -1,4 +1,4 @@
-import { createServer, type Server } from 'node:http'
+import { type Server } from 'node:http'
 import { randomUUID } from 'node:crypto'
 import { DatabaseSync } from 'node:sqlite'
 import {
@@ -25,6 +25,7 @@ import { exportStoryNode } from '../../desktop/story-share.ts'
 import { LauncherCore } from '../../desktop/launcher-core.ts'
 import { knownTime, statusMarketWithoutRoundHook } from '../fixtures/status-market-no-hook.ts'
 import { withItemRules } from '../support/item-rules.ts'
+import { createChatServer, fakeModels } from '../support/fake-provider.ts'
 
 const roots: string[] = [],
   servers: Server[] = [],
@@ -59,7 +60,7 @@ async function fixture() {
   let follow = false,
     followed = false,
     gate: Promise<void> | undefined
-  const server = createServer((request, response) => {
+  const server = createChatServer((request, response) => {
     // Endpoint capability probes have no chat body; this fixture implements only POST completion.
     if (request.method !== 'POST') {
       response.writeHead(404)
@@ -103,9 +104,7 @@ async function fixture() {
   }
   const options = {
     packPath: pack,
-    provider: 'local' as const,
-    model: 'fixture',
-    utilityEndpoint: 'http://127.0.0.1:' + port + '/v1/chat/completions',
+    models: fakeModels('http://127.0.0.1:' + port + '/v1/chat/completions', 'openai', 'fixture'),
     memoryCore: true,
     memoryCoreRun: run,
     memoryCoreBuildRun: run,
@@ -371,7 +370,12 @@ it('shares one historical node across independent launchers, preserves installed
   const senderConnection = '6f1c2a4e-1d0b-4c39-9a51-0d6c1b7e2f10'
   await sender.handle({
     operation: 'connection-save',
-    connection: { id: senderConnection, name: 'fixture', protocol: 'openai', endpoint: f.options.utilityEndpoint },
+    connection: {
+      id: senderConnection,
+      name: 'fixture',
+      protocol: 'openai',
+      endpoint: f.options.models.default.decision.endpoint,
+    },
   })
   await sender.handle({
     operation: 'configure',

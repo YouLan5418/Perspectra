@@ -1,4 +1,4 @@
-import { createServer, type Server } from 'node:http'
+import { type Server } from 'node:http'
 import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { itemRulesScript } from '../support/item-rules.ts'
 import { tmpdir } from 'node:os'
@@ -7,6 +7,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { WorldHostRuntime, providerFailureNotice } from '../../desktop/host/world-runtime.ts'
 import { WorldStore } from '@harness-world/store-sqlite'
 import { currentEntityState } from '@harness-world/kernel'
+import { createChatServer, fakeModels } from '../support/fake-provider.ts'
 
 describe('provider failure notice', () => {
   it('names the likely cause from the status class without quoting the endpoint', () => {
@@ -85,7 +86,7 @@ describe('the web playtest on a frozen world', () => {
   it('reports the failed role HTTP status without exposing endpoint details', async () => {
     const root = mkdtempSync(join(tmpdir(), 'role-http-status-'))
     roots.push(root)
-    const server = createServer((_request, response) => {
+    const server = createChatServer((_request, response) => {
       response.writeHead(400, { 'content-type': 'application/json' })
       response.end(JSON.stringify({ error: 'private endpoint detail' }))
     })
@@ -93,9 +94,7 @@ describe('the web playtest on a frozen world', () => {
     const runtime = await WorldHostRuntime.create({
       dataDirectory: root,
       packPath: interactionFixture(),
-      provider: 'ollama',
-      model: 'fixture',
-      utilityEndpoint: `http://127.0.0.1:${await listening(server)}/api/chat`,
+      models: fakeModels(`http://127.0.0.1:${await listening(server)}/api/chat`, 'openai', 'fixture'),
     })
     try {
       const state = await runtime.submit('/act speak {"text":"大家早安。"}')
@@ -119,7 +118,7 @@ describe('the web playtest on a frozen world', () => {
     })
     let movingId = '',
       movingName = ''
-    const server = createServer((request, response) => {
+    const server = createChatServer((request, response) => {
       let body = ''
       request.on('data', chunk => {
         body += String(chunk)
@@ -151,9 +150,7 @@ describe('the web playtest on a frozen world', () => {
     const runtime = await WorldHostRuntime.create({
       dataDirectory: root,
       packPath: resolve('examples/world-packs/ai-girls-awaken-v10'),
-      provider: 'ollama',
-      model: 'fixture',
-      utilityEndpoint: `http://127.0.0.1:${await listening(server)}/api/chat`,
+      models: fakeModels(`http://127.0.0.1:${await listening(server)}/api/chat`, 'openai', 'fixture'),
     })
     let pending: Promise<unknown> | undefined
     try {
@@ -205,7 +202,7 @@ describe('the web playtest on a frozen world', () => {
       release = done
     })
     let calls = 0
-    const server = createServer(async (_request, response) => {
+    const server = createChatServer(async (_request, response) => {
       calls++
       if (calls === 2) {
         entered()
@@ -228,9 +225,7 @@ describe('the web playtest on a frozen world', () => {
     const runtime = await WorldHostRuntime.create({
       dataDirectory: root,
       packPath: resolve('examples/world-packs/ai-girls-awaken-v10'),
-      provider: 'ollama',
-      model: 'fixture',
-      utilityEndpoint: `http://127.0.0.1:${await listening(server)}/api/chat`,
+      models: fakeModels(`http://127.0.0.1:${await listening(server)}/api/chat`, 'openai', 'fixture'),
     })
     let pending: Promise<unknown> | undefined
     try {
@@ -258,7 +253,7 @@ describe('the web playtest on a frozen world', () => {
     const root = mkdtempSync(join(tmpdir(), 'empty-room-return-'))
     roots.push(root)
     const inputs: unknown[] = []
-    const server = createServer((request, response) => {
+    const server = createChatServer((request, response) => {
       let body = ''
       request.on('data', chunk => {
         body += String(chunk)
@@ -273,9 +268,7 @@ describe('the web playtest on a frozen world', () => {
     const runtime = await WorldHostRuntime.create({
       dataDirectory: root,
       packPath: resolve('examples/world-packs/ai-girls-awaken-v10'),
-      provider: 'ollama',
-      model: 'fixture',
-      utilityEndpoint: `http://127.0.0.1:${await listening(server)}/api/chat`,
+      models: fakeModels(`http://127.0.0.1:${await listening(server)}/api/chat`, 'openai', 'fixture'),
     })
     try {
       for (const locationId of ['location:living-room', 'location:kitchen', 'location:living-room']) {
@@ -304,7 +297,7 @@ describe('the web playtest on a frozen world', () => {
     const root = mkdtempSync(join(tmpdir(), 'gemini-flat-tool-'))
     roots.push(root)
     const schemas: unknown[] = []
-    const server = createServer((request, response) => {
+    const server = createChatServer((request, response) => {
       let body = ''
       request.on('data', chunk => {
         body += String(chunk)
@@ -334,10 +327,12 @@ describe('the web playtest on a frozen world', () => {
     const runtime = await WorldHostRuntime.create({
       dataDirectory: root,
       packPath: interactionFixture(),
-      provider: 'local',
-      model: 'gemini-3.7-flash',
+      models: fakeModels(
+        `http://127.0.0.1:${await listening(server)}/v1/chat/completions`,
+        'openai',
+        'gemini-3.7-flash',
+      ),
       memoryShadow: true,
-      utilityEndpoint: `http://127.0.0.1:${await listening(server)}/v1/chat/completions`,
     })
     try {
       const state = await runtime.submit('/act speak {"text":"早上好。"}')
@@ -369,7 +364,7 @@ describe('the web playtest on a frozen world', () => {
     const root = mkdtempSync(join(tmpdir(), 'activation-two-operations-'))
     roots.push(root)
     let claudeCalls = 0
-    const server = createServer((request, response) => {
+    const server = createChatServer((request, response) => {
       let body = ''
       request.on('data', chunk => {
         body += String(chunk)
@@ -408,9 +403,7 @@ describe('the web playtest on a frozen world', () => {
     const runtime = await WorldHostRuntime.create({
       dataDirectory: root,
       packPath: interactionFixture(),
-      provider: 'ollama',
-      model: 'fixture',
-      utilityEndpoint: `http://127.0.0.1:${await listening(server)}/api/chat`,
+      models: fakeModels(`http://127.0.0.1:${await listening(server)}/api/chat`, 'openai', 'fixture'),
     })
     try {
       const state = await runtime.submit('/act speak {"text":"大家早安。"}')
@@ -441,7 +434,7 @@ describe('the web playtest on a frozen world', () => {
     const release = new Promise<void>(resolve => {
       finish = resolve
     })
-    const server = createServer(async (_request, response) => {
+    const server = createChatServer(async (_request, response) => {
       wake()
       await release
       response.writeHead(200, { 'content-type': 'application/json' })
@@ -466,9 +459,7 @@ describe('the web playtest on a frozen world', () => {
     const runtime = await WorldHostRuntime.create({
       dataDirectory: root,
       packPath: interactionFixture(),
-      provider: 'ollama',
-      model: 'fixture',
-      utilityEndpoint: `http://127.0.0.1:${await listening(server)}/api/chat`,
+      models: fakeModels(`http://127.0.0.1:${await listening(server)}/api/chat`, 'openai', 'fixture'),
     })
     try {
       const pending = runtime.submit('/act speak {"text":"大家早安。"}')
@@ -496,7 +487,7 @@ describe('the web playtest on a frozen world', () => {
     const root = mkdtempSync(join(tmpdir(), 'activation-reopen-'))
     roots.push(root)
     let calls = 0
-    const server = createServer((_request, response) => {
+    const server = createChatServer((_request, response) => {
       calls++
       const answer =
         calls === 1
@@ -522,9 +513,7 @@ describe('the web playtest on a frozen world', () => {
       WorldHostRuntime.create({
         dataDirectory: root,
         packPath: interactionFixture(),
-        provider: 'ollama',
-        model: 'fixture',
-        utilityEndpoint: `http://127.0.0.1:${port}/api/chat`,
+        models: fakeModels(`http://127.0.0.1:${port}/api/chat`, 'openai', 'fixture'),
       })
     const first = await open()
     let initialHead: number
@@ -573,7 +562,7 @@ describe('the web playtest on a frozen world', () => {
     roots.push(root)
     const seen: { actor: string; continuation: boolean }[] = []
     const acted = new Set<string>()
-    const server = createServer((request, response) => {
+    const server = createChatServer((request, response) => {
       let body = ''
       request.on('data', chunk => {
         body += String(chunk)
@@ -624,9 +613,7 @@ describe('the web playtest on a frozen world', () => {
     const runtime = await WorldHostRuntime.create({
       dataDirectory: root,
       packPath: interactionFixture(),
-      provider: 'ollama',
-      model: 'fixture',
-      utilityEndpoint: `http://127.0.0.1:${await listening(server)}/api/chat`,
+      models: fakeModels(`http://127.0.0.1:${await listening(server)}/api/chat`, 'openai', 'fixture'),
     })
     try {
       const state = await runtime.submit('/act speak {"text":"大家早安。"}')
@@ -651,7 +638,7 @@ describe('the web playtest on a frozen world', () => {
     const root = mkdtempSync(join(tmpdir(), 'single-expression-web-'))
     roots.push(root)
     let calls = 0
-    const server = createServer((_request, response) => {
+    const server = createChatServer((_request, response) => {
       calls++
       response.writeHead(200, { 'content-type': 'application/json' })
       response.end(
@@ -666,9 +653,7 @@ describe('the web playtest on a frozen world', () => {
     const runtime = await WorldHostRuntime.create({
       dataDirectory: root,
       packPath: interactionFixture(),
-      provider: 'ollama',
-      model: 'fixture',
-      utilityEndpoint: `http://127.0.0.1:${await listening(server)}/api/chat`,
+      models: fakeModels(`http://127.0.0.1:${await listening(server)}/api/chat`, 'openai', 'fixture'),
     })
     try {
       const state = await runtime.submit('/act speak {"text":"大家早安。"}')
@@ -684,7 +669,7 @@ describe('the web playtest on a frozen world', () => {
     const root = mkdtempSync(join(tmpdir(), 'player-expression-activation-'))
     roots.push(root)
     let calls = 0
-    const server = createServer((_request, response) => {
+    const server = createChatServer((_request, response) => {
       calls++
       response.writeHead(200, { 'content-type': 'application/json' })
       response.end(JSON.stringify({ message: { content: JSON.stringify({ decision: 'abstain' }) } }))
@@ -693,9 +678,7 @@ describe('the web playtest on a frozen world', () => {
     const runtime = await WorldHostRuntime.create({
       dataDirectory: root,
       packPath: interactionFixture(),
-      provider: 'ollama',
-      model: 'fixture',
-      utilityEndpoint: `http://127.0.0.1:${await listening(server)}/api/chat`,
+      models: fakeModels(`http://127.0.0.1:${await listening(server)}/api/chat`, 'openai', 'fixture'),
     })
     try {
       const state = await runtime.submit('/act speak {"text":"","narration":"有点尴尬地笑了笑。"}')
@@ -709,7 +692,7 @@ describe('the web playtest on a frozen world', () => {
 
   it('keeps compound player words intact and never dispatches an intent request', async () => {
     let intentCalls = 0
-    const server = createServer((request, response) => {
+    const server = createChatServer((request, response) => {
       let body = ''
       request.on('data', chunk => {
         body += String(chunk)
@@ -726,9 +709,7 @@ describe('the web playtest on a frozen world', () => {
     const runtime = await WorldHostRuntime.create({
       dataDirectory: root,
       packPath: resolve('examples/world-packs/prototype-g1'),
-      provider: 'ollama',
-      model: 'fixture',
-      utilityEndpoint: `http://127.0.0.1:${await listening(server)}/api/chat`,
+      models: fakeModels(`http://127.0.0.1:${await listening(server)}/api/chat`, 'openai', 'fixture'),
     })
     try {
       const before = await runtime.state()

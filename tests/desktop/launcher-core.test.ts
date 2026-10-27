@@ -6,7 +6,7 @@ import { LauncherCore } from '../../desktop/launcher-core.ts'
 import { modelConnection } from '../../desktop/model-connections.ts'
 import { WorldHostRuntime } from '../../desktop/host/world-runtime.ts'
 import { projectPlayerView } from '../../desktop/host/frontend-adapter.ts'
-import { startFakeProvider, type FakeAnswer } from '../support/fake-provider.ts'
+import { fakeModels, startFakeProvider, type FakeAnswer } from '../support/fake-provider.ts'
 
 vi.mock('node:fs/promises', async importOriginal => {
   const actual = await importOriginal<typeof import('node:fs/promises')>()
@@ -974,8 +974,7 @@ it('restores global audio preferences and rejects invalid updates without changi
   const runtime = await WorldHostRuntime.create({
     dataDirectory: join(core.root, 'presentation-world'),
     packPath: resolve('examples/world-packs/prototype-g1'),
-    provider: 'local',
-    model: 'fixture',
+    models: fakeModels('http://127.0.0.1:9/v1/chat/completions'),
     audio: restored.snapshot().preferences.audio!,
   })
   try {

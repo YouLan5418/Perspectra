@@ -49,7 +49,6 @@ describe('desktop launch boundary', () => {
       [
         ...(bundled ? [] : ['--import', 'tsx']),
         entry,
-        '--ollama',
         '--memory-native',
         '--pack',
         pack,
@@ -71,6 +70,10 @@ describe('desktop launch boundary', () => {
         windowsHide: true,
         env: {
           ...process.env,
+          PERSPECTRA_ROLE_MODELS: undefined,
+          PERSPECTRA_MODEL_KEYS: undefined,
+          PERSPECTRA_MODEL_ENDPOINT: 'http://127.0.0.1:9/v1/chat/completions',
+          PERSPECTRA_MODEL: 'fixture',
           PERSPECTRA_HOST_PLUGINS: JSON.stringify([
             { id: 'tts', path: pluginPath, enabled: true },
             { id: 'disabled', path: join(pluginDirectory, 'not-installed.mjs'), enabled: false },

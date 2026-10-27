@@ -4,7 +4,6 @@ import { parseRuntimeTuning, type RuntimeTuning } from './runtime-tuning.ts'
 export interface HostLaunchArguments {
   readonly playSettings?: PlaySettings
   readonly tuning?: RuntimeTuning
-  readonly provider: 'local' | 'ollama' | 'deepseek'
   readonly memoryCore?: boolean
   readonly serialScheduling?: boolean
   readonly packPath?: string
@@ -14,7 +13,6 @@ export interface HostLaunchArguments {
 
 /** Parse the v5 game host command line. */
 export function parseHostLaunchArguments(args: readonly string[]): HostLaunchArguments {
-  let provider: 'local' | 'ollama' | 'deepseek' = 'local'
   let packPath: string | undefined
   let dataDirectory: string | undefined
   let shadowConfigPath: string | undefined
@@ -32,10 +30,6 @@ export function parseHostLaunchArguments(args: readonly string[]): HostLaunchArg
     if (argument === '--memory-core' || argument === '--memory-native') {
       if (memory !== undefined) throw new Error('--memory-core / --memory-native may be supplied only once')
       memory = argument === '--memory-core' ? 'core' : 'native'
-      continue
-    }
-    if (argument === '--deepseek' || argument === '--ollama') {
-      provider = argument === '--deepseek' ? 'deepseek' : 'ollama'
       continue
     }
     if (
@@ -68,13 +62,8 @@ export function parseHostLaunchArguments(args: readonly string[]): HostLaunchArg
   }
   if (settings && tuning) throw new Error('--play-settings 与 --tuning 不可同时使用。')
   // Core is the default, matching what the Launcher gives players; native memory is an explicit offline choice.
-  if (provider !== 'local' && memory !== 'native')
-    throw new Error(
-      `${provider === 'ollama' ? '--ollama' : '--deepseek'} 入口暂不支持 Core 记忆；离线调试请同时加 --memory-native。`,
-    )
   const memoryCore = memory !== 'native'
   return {
-    provider,
     ...(serialScheduling ? { serialScheduling: true } : {}),
     ...(settings === undefined ? {} : { playSettings: settings }),
     ...(memoryCore ? { memoryCore: true } : {}),

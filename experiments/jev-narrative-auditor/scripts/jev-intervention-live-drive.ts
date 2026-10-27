@@ -7,6 +7,7 @@ import { currentEntityState } from '@harness-world/kernel'
 import { WorldHostRuntime } from '../../../desktop/host/world-runtime.ts'
 import { type ShadowRecord } from '../../../desktop/host/jev-shadow.ts'
 import { createClaimClassifier } from '../../../desktop/host/jev-shadow-claims-client.ts'
+import { environmentRoleModels } from '../../../desktop/model-connections.ts'
 
 const mode = process.argv.includes('--correct') ? 'correct' : 'baseline'
 const explicit = true, probe = true
@@ -29,7 +30,7 @@ let evidence: Record<string,unknown>
   const key=process.env.DEEPSEEK_API_KEY
   if(!key)throw new Error('DEEPSEEK_API_KEY missing')
   const runtime=await WorldHostRuntime.create({dataDirectory:directory,packPath:resolve('examples/world-packs/prototype-g1'),
-    provider:'deepseek',model:'deepseek-flash',apiKey:key,shadowAudit:{items,classify,write},publicationAudit:{mode,items,classify,write:r=>{interventions.push(r);appendFileSync(resolve(directory,'interventions.jsonl'),JSON.stringify(r)+'\n')}}})
+    models: environmentRoleModels({ PERSPECTRA_MODEL_ENDPOINT: 'https://api.deepseek.com/chat/completions', PERSPECTRA_MODEL: 'deepseek-flash', PERSPECTRA_MODEL_API_KEY: key }),shadowAudit:{items,classify,write},publicationAudit:{mode,items,classify,write:r=>{interventions.push(r);appendFileSync(resolve(directory,'interventions.jsonl'),JSON.stringify(r)+'\n')}}})
   const prompts=[
     '桌上的黄铜钥匙看起来有什么特别？',
     '同行者，请帮我拿起黄铜钥匙，先保管一下。',

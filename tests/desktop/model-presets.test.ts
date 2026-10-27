@@ -8,7 +8,7 @@ import { ModelPresets, packPreset } from '../../desktop/model-presets.ts'
 import { LauncherCore } from '../../desktop/launcher-core.ts'
 import { rolePreset } from '../../packages/provider-chat/src/preset.ts'
 import { createChatProvider } from '../../packages/provider-chat/src/provider.ts'
-import { startFakeProvider } from '../support/fake-provider.ts'
+import { fakeModels, startFakeProvider, streamingFetch } from '../support/fake-provider.ts'
 const roots: string[] = []
 afterEach(async () => {
   vi.unstubAllGlobals()
@@ -206,21 +206,23 @@ it('checks group references and NPC IDs before saving any instance mappings', as
 })
 it('routes each real Core character call to its selected preset without cross-character prompts', async () => {
   const calls: { actor: string; wire: Record<string, unknown> }[] = []
-  vi.stubGlobal('fetch', (async (_url: unknown, init: RequestInit) => {
-    const wire = JSON.parse(String(init.body)) as Record<string, unknown>
-    const input = JSON.parse((wire.messages as { content: string }[]).at(-1)!.content) as {
-      context: { character: { characterId: string } }
-    }
-    calls.push({ actor: input.context.character.characterId, wire })
-    return new Response(JSON.stringify({ message: { content: JSON.stringify({ decision: 'abstain' }) } }))
-  }) as typeof fetch)
+  vi.stubGlobal(
+    'fetch',
+    streamingFetch(async (_url: unknown, init?: RequestInit) => {
+      const wire = JSON.parse(String(init!.body)) as Record<string, unknown>
+      const input = JSON.parse((wire.messages as { content: string }[]).at(-1)!.content) as {
+        context: { character: { characterId: string } }
+      }
+      calls.push({ actor: input.context.character.characterId, wire })
+      return new Response(JSON.stringify({ message: { content: JSON.stringify({ decision: 'abstain' }) } }))
+    }),
+  )
   const group = randomUUID(),
     dir = await root()
   const runtime = await WorldHostRuntime.create({
     packPath: resolve('examples/world-packs/prototype-g1'),
     dataDirectory: join(dir, 'world'),
-    provider: 'ollama',
-    model: 'fixture',
+    models: fakeModels('http://127.0.0.1:9/v1/chat/completions'),
     preset: { prompt: 'instance only', temperature: 0.2 },
     presetMapping: {
       groups: { [group]: { name: '组', preset: { prompt: 'group only', temperature: 0.5 } } },
@@ -238,8 +240,8 @@ it('routes each real Core character call to its selected preset without cross-ch
     expect(JSON.stringify(second!.wire.messages)).toContain('group only')
     expect(JSON.stringify(second!.wire.messages)).not.toContain('companion only')
     expect(JSON.stringify(calls)).not.toContain('instance only')
-    expect(first!.wire.options).toMatchObject({ temperature: 0.8 })
-    expect(second!.wire.options).toMatchObject({ temperature: 0.5 })
+    expect(first!.wire).toMatchObject({ temperature: 0.8 })
+    expect(second!.wire).toMatchObject({ temperature: 0.5 })
   } finally {
     await runtime.close()
   }
@@ -247,52 +249,55 @@ it('routes each real Core character call to its selected preset without cross-ch
     WorldHostRuntime.create({
       packPath: resolve('examples/world-packs/prototype-g1'),
       dataDirectory: join(dir, 'foreign'),
-      provider: 'ollama',
+      models: fakeModels('http://127.0.0.1:9/v1/chat/completions'),
       presetMapping: { characters: { 'character:foreign': { prompt: 'not allowed' } } },
     }),
   ).rejects.toThrow('此包之外')
 })
 it("routes each character's decision call to its own model and endpoint", async () => {
   const calls: { url: string; model: unknown; key: string | null; actor: string }[] = []
-  vi.stubGlobal('fetch', (async (url: unknown, init: RequestInit) => {
-    const wire = JSON.parse(String(init.body)) as {
-      model?: unknown
-      messages: { content: unknown }[]
-      tools: { input_schema?: { oneOf?: unknown; properties?: { decision?: { enum?: string[] } } } }[]
-    }
-    const headers = new Headers(init.headers),
-      anthropic = String(url).includes('/v1/messages')
-    const input = JSON.parse(String(wire.messages.at(-1)!.content)) as {
-      context: { character: { characterId: string } }
-    }
-    calls.push({
-      url: String(url),
-      model: wire.model,
-      key: headers.get('authorization') ?? headers.get('x-api-key'),
-      actor: input.context.character.characterId,
-    })
-    // The gateway keeps only the first root oneOf branch (abstain). A flat
-    // decision enum must preserve publish for an Anthropic character override.
-    const canPublish = anthropic && wire.tools[0]?.input_schema?.properties?.decision?.enum?.includes('publish')
-    const answer = canPublish
-      ? { decision: 'publish', segments: [{ type: 'speech', text: '我也想回应。' }] }
-      : { decision: 'abstain' }
-    return new Response(
-      JSON.stringify(
-        anthropic
-          ? { content: [{ type: 'tool_use', name: 'submit_actions', input: answer }] }
-          : {
-              choices: [
-                {
-                  message: {
-                    tool_calls: [{ function: { name: 'submit_actions', arguments: JSON.stringify(answer) } }],
+  vi.stubGlobal(
+    'fetch',
+    streamingFetch(async (url: unknown, init?: RequestInit) => {
+      const wire = JSON.parse(String(init!.body)) as {
+        model?: unknown
+        messages: { content: unknown }[]
+        tools: { input_schema?: { oneOf?: unknown; properties?: { decision?: { enum?: string[] } } } }[]
+      }
+      const headers = new Headers(init!.headers),
+        anthropic = String(url).includes('/v1/messages')
+      const input = JSON.parse(String(wire.messages.at(-1)!.content)) as {
+        context: { character: { characterId: string } }
+      }
+      calls.push({
+        url: String(url),
+        model: wire.model,
+        key: headers.get('authorization') ?? headers.get('x-api-key'),
+        actor: input.context.character.characterId,
+      })
+      // The gateway keeps only the first root oneOf branch (abstain). A flat
+      // decision enum must preserve publish for an Anthropic character override.
+      const canPublish = anthropic && wire.tools[0]?.input_schema?.properties?.decision?.enum?.includes('publish')
+      const answer = canPublish
+        ? { decision: 'publish', segments: [{ type: 'speech', text: '我也想回应。' }] }
+        : { decision: 'abstain' }
+      return new Response(
+        JSON.stringify(
+          anthropic
+            ? { content: [{ type: 'tool_use', name: 'submit_actions', input: answer }] }
+            : {
+                choices: [
+                  {
+                    message: {
+                      tool_calls: [{ function: { name: 'submit_actions', arguments: JSON.stringify(answer) } }],
+                    },
                   },
-                },
-              ],
-            },
-      ),
-    )
-  }) as typeof fetch)
+                ],
+              },
+        ),
+      )
+    }),
+  )
   const dir = await root()
   const other = {
     protocol: 'anthropic' as const,
@@ -303,11 +308,10 @@ it("routes each character's decision call to its own model and endpoint", async 
   const runtime = await WorldHostRuntime.create({
     packPath: resolve('examples/world-packs/prototype-g1'),
     dataDirectory: join(dir, 'world'),
-    provider: 'local',
-    model: 'base',
-    utilityEndpoint: 'http://default.test/v1/chat/completions',
-    apiKey: 'K1',
-    roleModels: { characters: { 'character:companion': { decision: other, memory: other } } },
+    models: {
+      ...fakeModels('http://default.test/v1/chat/completions', 'openai', 'base', 'K1'),
+      characters: { 'character:companion': { decision: other, memory: other } },
+    },
   })
   try {
     const result = await runtime.submit('你好，可以介绍这里吗？')
@@ -316,7 +320,10 @@ it("routes each character's decision call to its own model and endpoint", async 
       friend = calls.filter(call => call.actor === 'character:friend')
     expect(companion.length).toBeGreaterThan(0)
     expect(friend.length).toBeGreaterThan(0)
-    for (const call of companion) expect(call).toMatchObject({ url: other.endpoint, model: 'strong', key: 'K2' })
+    for (const call of companion) {
+      expect(call.url).toContain(other.endpoint)
+      expect(call).toMatchObject({ model: 'strong', key: 'K2' })
+    }
     for (const call of friend)
       expect(call).toMatchObject({ url: 'http://default.test/v1/chat/completions', model: 'base', key: 'Bearer K1' })
     expect(JSON.stringify(friend)).not.toContain('K2')
@@ -327,8 +334,10 @@ it("routes each character's decision call to its own model and endpoint", async 
     WorldHostRuntime.create({
       packPath: resolve('examples/world-packs/prototype-g1'),
       dataDirectory: join(dir, 'foreign'),
-      provider: 'local',
-      roleModels: { characters: { 'character:foreign': { decision: other, memory: other } } },
+      models: {
+        ...fakeModels('http://127.0.0.1:9/v1/chat/completions'),
+        characters: { 'character:foreign': { decision: other, memory: other } },
+      },
     }),
   ).rejects.toThrow('此包之外')
 })
