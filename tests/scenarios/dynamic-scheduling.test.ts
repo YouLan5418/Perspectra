@@ -1,4 +1,4 @@
-import { createServer, type Server } from 'node:http'
+import { type Server } from 'node:http'
 import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
@@ -12,6 +12,7 @@ import { readTailSelection } from '../../desktop/tail-storage.ts'
 import { FrontendActions, projectPlayerView } from '../../desktop/host/frontend-adapter.ts'
 import { statusMarketWithoutRoundHook } from '../fixtures/status-market-no-hook.ts'
 import { DEFAULT_PLAY_SETTINGS } from '../../desktop/play-settings.ts'
+import { createChatServer, fakeModels } from '../support/fake-provider.ts'
 
 const roots: string[] = [],
   servers: Server[] = [],
@@ -76,7 +77,7 @@ async function fixture(
   }
   let decide: (input: WorldJsonObject) => unknown | Promise<unknown> = () => ({ decision: 'abstain' })
   const requests: WorldJsonObject[] = []
-  const server = createServer((request, response) => {
+  const server = createChatServer((request, response) => {
     let body = ''
     request.on('data', chunk => {
       body += String(chunk)
@@ -108,9 +109,7 @@ async function fixture(
   const runtime = await WorldHostRuntime.create({
     dataDirectory: data,
     packPath: pack,
-    provider: 'ollama',
-    model: 'fixture',
-    utilityEndpoint: `http://127.0.0.1:${(server.address() as { port: number }).port}/api/chat`,
+    models: fakeModels(`http://127.0.0.1:${(server.address() as { port: number }).port}/api/chat`, 'openai', 'fixture'),
     timeoutMs: 10000,
     serialScheduling,
     // The Launcher turns it on through the player's play settings; experiments pass the host option.

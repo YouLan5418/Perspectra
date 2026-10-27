@@ -1,4 +1,4 @@
-import { createServer, type Server } from 'node:http'
+import { type Server } from 'node:http'
 import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
@@ -15,6 +15,7 @@ import { projectPlayerView, FrontendActions } from '../../desktop/host/frontend-
 import { PackActivity } from '../../desktop/host/pack-activity.ts'
 import { restoreStoryNode } from '../../desktop/story-nodes.ts'
 import type { CoreRunner } from '../../desktop/host/memory/python-worker.ts'
+import { createChatServer, fakeModels } from '../support/fake-provider.ts'
 
 const roots: string[] = [],
   servers: Server[] = [],
@@ -64,7 +65,7 @@ async function fixture(secondHook = '', dynamic?: { min: number; max: number; ca
   manifest.assetFiles = ['scripts/activities/guess.js', 'scripts/activities/other.js']
   writeFileSync(join(pack, 'worldpack.source.json'), JSON.stringify(manifest))
   const inputs: WorldJsonObject[] = []
-  const server = createServer((request, response) => {
+  const server = createChatServer((request, response) => {
     let body = ''
     request.on('data', chunk => {
       body += String(chunk)
@@ -94,9 +95,7 @@ async function fixture(secondHook = '', dynamic?: { min: number; max: number; ca
   const port = (server.address() as { port: number }).port
   const options = {
     packPath: pack,
-    provider: 'local' as const,
-    model: 'fixture',
-    utilityEndpoint: 'http://127.0.0.1:' + port + '/v1/chat/completions',
+    models: fakeModels('http://127.0.0.1:' + port + '/v1/chat/completions', 'openai', 'fixture'),
     timeoutMs: 5000,
   }
   const memoryRun: CoreRunner = async input =>

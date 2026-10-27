@@ -3,6 +3,7 @@ import { resolve } from 'node:path'
 import type { WorldAddress } from '@harness-world/contracts'
 import { WorldStore } from '@harness-world/store-sqlite'
 import { WorldHostRuntime } from '../../desktop/host/world-runtime.ts'
+import { environmentRoleModels } from '../../desktop/model-connections.ts'
 
 /**
  * Manual: a real model plays the frozen world through **the page's own runtime**, turn after turn,
@@ -236,8 +237,7 @@ globalThis.fetch = async (input, init) => {
 }
 
 async function play(from: number, until: number, session: string): Promise<void> {
-  const runtime = await WorldHostRuntime.create({ dataDirectory, packPath, provider: 'local',
-    model, ...(apiKey === undefined ? {} : { apiKey }),
+  const runtime = await WorldHostRuntime.create({ models: environmentRoleModels({ PERSPECTRA_MODEL_ENDPOINT: process.env.HCW_LOCAL_ENDPOINT ?? 'http://127.0.0.1:8045/v1/chat/completions', PERSPECTRA_MODEL: model, PERSPECTRA_MODEL_API_KEY: process.env.HCW_LOCAL_API_KEY }), dataDirectory, packPath, ...(apiKey === undefined ? {} : { apiKey }),
     ...(endpoint === undefined ? {} : { utilityEndpoint: endpoint }), timeoutMs: 90_000,
     memoryShadow: process.argv.includes('--memory-shadow') })
   address ??= runtime.address

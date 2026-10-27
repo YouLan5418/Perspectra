@@ -4,6 +4,7 @@ import { join, resolve } from 'node:path'
 import type { WorldJsonObject } from '@harness-world/contracts'
 import { WorldHostRuntime } from '../../desktop/host/world-runtime.ts'
 import type { HostState } from '../../desktop/host/http-server.ts'
+import { environmentRoleModels } from '../../desktop/model-connections.ts'
 
 // A model-free run of examples/world-packs/status-market: scripted NPC decisions drive a theft, the player
 // buys and checks the purse, and the round hook advances time. Only the player's status bar and the
@@ -32,9 +33,8 @@ const server = createServer((request, response) => {
   })
 })
 await new Promise<void>(done => server.listen(0, '127.0.0.1', done))
-const runtime = await WorldHostRuntime.create({ packPath: resolve('examples/world-packs/status-market'),
-  dataDirectory: join(directory, 'data'), provider: 'ollama', model: 'scripted-fixture', timeoutMs: 10000,
-  utilityEndpoint: 'http://127.0.0.1:' + (server.address() as { port: number }).port + '/api/chat' })
+const runtime = await WorldHostRuntime.create({ models: environmentRoleModels({ PERSPECTRA_MODEL_ENDPOINT: 'http://127.0.0.1:' + (server.address() as { port: number }).port + '/api/chat', PERSPECTRA_MODEL: 'scripted-fixture' }), packPath: resolve('examples/world-packs/status-market'),
+  dataDirectory: join(directory, 'data'), timeoutMs: 10000})
 const bar = (state: HostState) => state.statusBar ?? []
 const entry = (state: HostState, key: string) => bar(state).find(e => e.key === key && (key === 'time' || e.self))
 const steps: { input: string; error: boolean; notice: string; money: unknown; time: unknown; statusBar: unknown }[] = []

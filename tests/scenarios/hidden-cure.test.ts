@@ -1,16 +1,16 @@
-import { createServer } from 'node:http'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { expect, it } from 'vitest'
 import { WorldHostRuntime } from '../../desktop/host/world-runtime.ts'
 import { command, object, packPath, settings, snapshot, takeRecord } from '../support/hidden-cure-scenario.ts'
+import { createChatServer, fakeModels } from '../support/fake-provider.ts'
 
 it('compiles the experiment and preserves private knowledge and exclusive document custody', async () => {
   const directory = mkdtempSync(join(tmpdir(), 'hidden-cure-')),
     inputs: unknown[] = []
   // Mechanical regression only. NPC abstention here is never used as real-model behavior evidence.
-  const server = createServer((req, res) => {
+  const server = createChatServer((req, res) => {
     let body = ''
     req.on('data', chunk => {
       body += String(chunk)
@@ -27,10 +27,12 @@ it('compiles the experiment and preserves private knowledge and exclusive docume
     runtime = await WorldHostRuntime.create({
       dataDirectory: directory,
       packPath,
-      provider: 'ollama',
-      model: 'mechanical-abstention',
+      models: fakeModels(
+        `http://127.0.0.1:${(server.address() as { port: number }).port}/api/chat`,
+        'openai',
+        'mechanical-abstention',
+      ),
       playSettings: settings,
-      utilityEndpoint: `http://127.0.0.1:${(server.address() as { port: number }).port}/api/chat`,
       timeoutMs: 5000,
     })
     const initial = snapshot(runtime)

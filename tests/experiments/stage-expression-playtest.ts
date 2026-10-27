@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url'
 import type { WorldJsonObject } from '@harness-world/contracts'
 import { WorldHostRuntime } from '../../desktop/host/world-runtime.ts'
 import { loadPackWeb } from '../../desktop/host/pack-frontend.ts'
+import { environmentRoleModels } from '../../desktop/model-connections.ts'
 
 /**
  * Real provider run of per-line expressions: the pack's stage.json declares expressions for some characters,
@@ -33,12 +34,9 @@ export async function playStageExpressions(output: string, pack: string, model: 
     ),
   )
   const runtime = await WorldHostRuntime.create({
+    models: environmentRoleModels({ PERSPECTRA_MODEL_ENDPOINT: 'https://api.deepseek.com/chat/completions', PERSPECTRA_MODEL: model, PERSPECTRA_MODEL_API_KEY: process.env.DEEPSEEK_API_KEY }),
     packPath: resolve(pack),
     dataDirectory,
-    provider: 'local',
-    utilityEndpoint: 'https://api.deepseek.com/chat/completions',
-    model,
-    apiKey: process.env.DEEPSEEK_API_KEY,
     memoryCore: true,
     timeoutMs: 90000,
     stageExpressions,

@@ -13,6 +13,7 @@ import type { CharacterTurnRequest } from '../../packages/application/src/charac
 import { WorldHostRuntime } from '../../desktop/host/world-runtime.ts'
 import type { HostState } from '../../desktop/host/http-server.ts'
 import { DEFAULT_RUNTIME_TUNING } from '../../desktop/host/runtime-tuning.ts'
+import { environmentRoleModels } from '../../desktop/model-connections.ts'
 
 const root=resolve(process.argv[2]??'.tmp/hosted-memory-live-20261003-'+randomUUID().slice(0,6))
 const resume=process.argv.includes('--resume')
@@ -205,8 +206,7 @@ async function reunite(){
  return false
 }
 try{
- runtime=await WorldHostRuntime.create({packPath,dataDirectory:base,
-  provider:'local',model,utilityEndpoint:'http://127.0.0.1:'+port.port,timeoutMs:55000,
+ runtime=await WorldHostRuntime.create({models: environmentRoleModels({ PERSPECTRA_MODEL_ENDPOINT: 'http://127.0.0.1:'+port.port, PERSPECTRA_MODEL: model, PERSPECTRA_MODEL_API_KEY: process.env.HCW_LOCAL_API_KEY }),packPath,dataDirectory:base,timeoutMs:55000,
   tuning:{...DEFAULT_RUNTIME_TUNING,reactionDeadlineSeconds:120}})
  save('address.json',runtime.address)
  if(!resume)save('protocol.json',{model,experiment:'three hosted games plus continuous free interaction',limits:{rootInputs:80,targetRootInputs:60,gameInputs:[12,8,12],retryPerStall:2,reactionDeadlineSeconds:120},

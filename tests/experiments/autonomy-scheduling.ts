@@ -9,6 +9,7 @@ import { estimateRequestTokens } from '../../packages/provider-chat/src/request-
 import { projectPlayerView } from '../../desktop/host/frontend-adapter.ts'
 import { playSettings } from '../../desktop/play-settings.ts'
 import { WorldHostRuntime } from '../../desktop/host/world-runtime.ts'
+import { environmentRoleModels } from '../../desktop/model-connections.ts'
 
 // Author-side acceptance driver; retain no raw prompts, responses, reasoning or credentials.
 const args = process.argv.slice(2), live = args.includes('--live'), stagedAutonomy = args.includes('--staged-autonomy')
@@ -133,9 +134,9 @@ async function run(name: Case) {
   })
   await new Promise<void>(done => server.listen(0, '127.0.0.1', done))
   const runtime = await WorldHostRuntime.create({dataDirectory: join(directory, name),
-    packPath: resolve('examples/world-packs/autonomy-scheduling'), provider: live ? 'local' : 'ollama',
-    model: live ? model : 'controlled-goal-fixture', ...(live ? {thinkingLevel: 'low' as const} : {}),
-    utilityEndpoint: `http://127.0.0.1:${(server.address() as {port: number}).port}/v1/chat/completions`,
+    packPath: resolve('examples/world-packs/autonomy-scheduling'),
+    models: environmentRoleModels({PERSPECTRA_MODEL_ENDPOINT: `http://127.0.0.1:${(server.address() as {port: number}).port}/v1/chat/completions`,
+      PERSPECTRA_MODEL: live ? model : 'controlled-goal-fixture', ...(live ? {PERSPECTRA_THINKING_LEVEL: 'low'} : {})}),
     timeoutMs: live ? 60000 : 5000, serialScheduling, stagedAutonomy, playSettings: settings})
   let initialIdleCalls = 0, finalIdleCalls = 0, goalCompletedRound: number | null = null, reachedSeq: number | null = null
   let state = await runtime.state()

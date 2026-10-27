@@ -1,4 +1,4 @@
-import { createServer, type Server } from 'node:http'
+import type { Server } from 'node:http'
 import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
@@ -18,6 +18,7 @@ import { restoreStoryNode } from '../../desktop/story-nodes.ts'
 import { projectPlayerView } from '../../desktop/host/frontend-adapter.ts'
 import { WAIT_ACTION } from '../../desktop/host/http-server.ts'
 import { withItemRules } from '../support/item-rules.ts'
+import { createChatServer, fakeModels } from '../support/fake-provider.ts'
 
 const roots: string[] = [],
   runtimes: WorldHostRuntime[] = [],
@@ -183,7 +184,7 @@ async function fixture(
   )) as CompiledWorldPackV5
   const requests: WorldJsonObject[] = []
   let decide: Decide = () => ({ decision: 'abstain' })
-  const server = createServer((request, response) => {
+  const server = createChatServer((request, response) => {
     let body = ''
     request.on('data', chunk => {
       body += String(chunk)
@@ -227,13 +228,8 @@ async function fixture(
   const options = {
     packPath,
     dataDirectory: data,
-    provider,
-    model: 'fixture',
+    models: fakeModels('http://127.0.0.1:' + (server.address() as { port: number }).port + '/v1/chat/completions'),
     timeoutMs: 5000,
-    utilityEndpoint:
-      'http://127.0.0.1:' +
-      (server.address() as { port: number }).port +
-      (provider === 'ollama' ? '/api/chat' : '/v1/chat/completions'),
   }
   // A story fork rebuilds memory through Core, so forks get an empty in-process Core runner.
   const memory: CoreRunner = async input =>

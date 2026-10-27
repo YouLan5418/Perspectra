@@ -1,4 +1,3 @@
-import { createServer } from 'node:http'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
@@ -16,6 +15,7 @@ import {
 import { createInstalledInteractionPackages } from '@harness-world/interactions-basic'
 import { WorldStore } from '@harness-world/store-sqlite'
 import { WorldHostRuntime } from '../../desktop/host/world-runtime.ts'
+import { createChatServer, fakeModels } from '../support/fake-provider.ts'
 
 const keyAction = {
   decision: 'perform',
@@ -41,7 +41,7 @@ it('closes the frozen G1 combination: hand contact, shared key, two NPCs and two
     memories: readonly { text: string; sourceMaxSeq?: number }[]
     history: readonly { kind: string; content: unknown }[]
   }[] = []
-  const server = createServer((request, response) => {
+  const server = createChatServer((request, response) => {
     let body = ''
     request.on('data', chunk => {
       body += String(chunk)
@@ -114,9 +114,7 @@ it('closes the frozen G1 combination: hand contact, shared key, two NPCs and two
     runtime = await WorldHostRuntime.create({
       dataDirectory: root,
       packPath: resolve('examples/world-packs/prototype-g1'),
-      provider: 'ollama',
-      model: 'fixture',
-      utilityEndpoint: `http://127.0.0.1:${port}/api/chat`,
+      models: fakeModels(`http://127.0.0.1:${port}/api/chat`, 'openai', 'fixture'),
     })
     const submit = async (next: string, text: string) => {
       stage = next

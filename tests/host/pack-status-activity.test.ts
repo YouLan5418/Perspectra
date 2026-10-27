@@ -1,4 +1,4 @@
-import { createServer, type Server } from 'node:http'
+import { type Server } from 'node:http'
 import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
@@ -13,6 +13,7 @@ import { WorldHostRuntime } from '../../desktop/host/world-runtime.ts'
 import { PackActivities } from '../../desktop/host/pack-activities.ts'
 import { PackStatus, type KnownStatus } from '../../desktop/host/pack-status.ts'
 import { projectPlayerView } from '../../desktop/host/frontend-adapter.ts'
+import { createChatServer, fakeModels } from '../support/fake-provider.ts'
 
 const roots: string[] = [],
   runtimes: WorldHostRuntime[] = [],
@@ -69,7 +70,7 @@ async function fixture() {
   )) as CompiledWorldPackV5
   const requests: WorldJsonObject[] = []
   let decide: Decide = () => ({ decision: 'abstain' })
-  const server = createServer((request, response) => {
+  const server = createChatServer((request, response) => {
     let body = ''
     request.on('data', chunk => {
       body += String(chunk)
@@ -92,10 +93,12 @@ async function fixture() {
   const runtime = await WorldHostRuntime.create({
     packPath,
     dataDirectory: data,
-    provider: 'ollama',
-    model: 'fixture',
+    models: fakeModels(
+      'http://127.0.0.1:' + (server.address() as { port: number }).port + '/api/chat',
+      'openai',
+      'fixture',
+    ),
     timeoutMs: 5000,
-    utilityEndpoint: 'http://127.0.0.1:' + (server.address() as { port: number }).port + '/api/chat',
   })
   runtimes.push(runtime)
   const worldPath = join(runtime.dataDirectory, 'world.sqlite')

@@ -1,4 +1,4 @@
-import { createServer, type Server } from 'node:http'
+import { type Server } from 'node:http'
 import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
@@ -13,6 +13,7 @@ import { WorldStore } from '@harness-world/store-sqlite'
 import { WorldHostRuntime } from '../../desktop/host/world-runtime.ts'
 import { projectPlayerView } from '../../desktop/host/frontend-adapter.ts'
 import { PackStatus } from '../../desktop/host/pack-status.ts'
+import { createChatServer, fakeModels } from '../support/fake-provider.ts'
 
 const { renderActivityFile, HOST_SOURCE_LIMIT } = (await import(
   pathToFileURL(resolve('examples/rpg-core/generate.mjs')).href
@@ -60,7 +61,7 @@ async function fixture(modify?: (config: MutableObject) => void) {
   const status = PackStatus.load(files.packPath, compiled)!
   const requests: WorldJsonObject[] = []
   let mode: 'fire' | 'guard' | 'abstain' = 'fire'
-  const server = createServer((request, response) => {
+  const server = createChatServer((request, response) => {
     let body = ''
     request.on('data', chunk => {
       body += String(chunk)
@@ -100,10 +101,12 @@ async function fixture(modify?: (config: MutableObject) => void) {
   await new Promise<void>(done => server.listen(0, '127.0.0.1', done))
   const options = {
     ...files,
-    provider: 'ollama' as const,
-    model: 'fixture',
+    models: fakeModels(
+      'http://127.0.0.1:' + (server.address() as { port: number }).port + '/api/chat',
+      'openai',
+      'fixture',
+    ),
     timeoutMs: 5000,
-    utilityEndpoint: 'http://127.0.0.1:' + (server.address() as { port: number }).port + '/api/chat',
   }
   let runtime = await WorldHostRuntime.create(options)
   runtimes.push(runtime)

@@ -1,4 +1,4 @@
-import { createServer, type Server } from 'node:http'
+import { type Server } from 'node:http'
 import { afterEach, expect, it } from 'vitest'
 import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
@@ -9,6 +9,7 @@ import { compileWorldPackSource } from '@harness-world/world-pack'
 import { WorldStore } from '@harness-world/store-sqlite'
 import { WorldHostCore } from '../../desktop/host/world-runtime.ts'
 import { PackStatus } from '../../desktop/host/pack-status.ts'
+import { createChatServer, fakeModels } from '../support/fake-provider.ts'
 
 const HEROINES = ['character:gpt', 'character:claude', 'character:deepseek']
 const NAMES: Record<string, string> = {
@@ -58,7 +59,7 @@ async function fixture() {
 
   // What each heroine was shown, by character.
   const seen: { self: string; text: string }[] = []
-  const server: Server = createServer((request, response) => {
+  const server: Server = createChatServer((request, response) => {
     let body = ''
     request.on('data', chunk => (body += String(chunk)))
     request.on('end', () => {
@@ -106,9 +107,11 @@ async function fixture() {
   const runtime = await WorldHostCore.create({
     packPath: pack,
     dataDirectory: data,
-    provider: 'local',
-    model: 'fixture',
-    utilityEndpoint: 'http://127.0.0.1:' + (server.address() as { port: number }).port + '/v1/chat/completions',
+    models: fakeModels(
+      'http://127.0.0.1:' + (server.address() as { port: number }).port + '/v1/chat/completions',
+      'openai',
+      'fixture',
+    ),
     timeoutMs: 5000,
   })
   cleanup.push(() => runtime.close())

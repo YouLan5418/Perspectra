@@ -5,6 +5,7 @@ import { WorldStore } from '@harness-world/store-sqlite'
 import { playSettings } from '../../desktop/play-settings.ts'
 import { projectPlayerView } from '../../desktop/host/frontend-adapter.ts'
 import { WorldHostRuntime } from '../../desktop/host/world-runtime.ts'
+import { environmentRoleModels } from '../../desktop/model-connections.ts'
 
 // 《赔罪晚宴》真实模型短试玩：固定玩家路线，NPC 全部由本机模型决定。只写作者证据到 .tmp，不写凭证。
 const packPath=resolve('examples/world-packs/model-girls-dinner-v2')
@@ -72,9 +73,7 @@ function snapshot(runtime:WorldHostRuntime){
 }
 const directory=mkdtempSync(join(resolve('.tmp/model-girls-dinner-live'),'run-').replace('run-','run-'))
 mkdirSync(directory,{recursive:true})
-const runtime=await WorldHostRuntime.create({dataDirectory:join(directory,'world'),packPath,provider:'local',model:process.env.HCW_LOCAL_MODEL??'gemini-3.8-flash',
-  thinkingLevel:'low',utilityEndpoint:process.env.HCW_LOCAL_ENDPOINT??'http://127.0.0.1:8045/v1/chat/completions',
-  ...(process.env.HCW_LOCAL_API_KEY?{apiKey:process.env.HCW_LOCAL_API_KEY}:{}),timeoutMs:60000,playSettings:settings})
+const runtime=await WorldHostRuntime.create({models: environmentRoleModels({ PERSPECTRA_MODEL_ENDPOINT: process.env.HCW_LOCAL_ENDPOINT??'http://127.0.0.1:8045/v1/chat/completions', PERSPECTRA_MODEL: process.env.HCW_LOCAL_MODEL??'gemini-3.8-flash', PERSPECTRA_MODEL_API_KEY: process.env.HCW_LOCAL_API_KEY, PERSPECTRA_THINKING_LEVEL: 'low' }),dataDirectory:join(directory,'world'),packPath,timeoutMs:60000,playSettings:settings})
 const rounds:unknown[]=[]
 let shown=0,transcript=''
 try{

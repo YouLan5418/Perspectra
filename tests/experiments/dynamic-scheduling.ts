@@ -7,6 +7,7 @@ import type { WorldJsonObject } from '@harness-world/contracts'
 import { WorldHostRuntime } from '../../desktop/host/world-runtime.ts'
 import type { HostState } from '../../desktop/host/http-server.ts'
 import { projectPlayerView } from '../../desktop/host/frontend-adapter.ts'
+import { environmentRoleModels } from '../../desktop/model-connections.ts'
 
 // A local, reproducible scheduling comparison. Only public player output and timings are saved.
 const live = process.argv.slice(2).includes('--live')
@@ -68,9 +69,11 @@ async function run(serialScheduling: boolean) {
   const runtime = await WorldHostRuntime.create({
     dataDirectory: join(directory, serialScheduling ? 'serial' : 'dynamic'),
     packPath: resolve('examples/world-packs/dynamic-scheduling'),
-    provider: live ? 'local' : 'ollama', model: live ? liveModel : 'controlled-fixture',
-    ...(live ? { thinkingLevel: 'low' as const } : {}),
-    utilityEndpoint: `http://127.0.0.1:${(server.address() as { port: number }).port}/v1/chat/completions`,
+    models: environmentRoleModels({
+      PERSPECTRA_MODEL_ENDPOINT: `http://127.0.0.1:${(server.address() as { port: number }).port}/v1/chat/completions`,
+      PERSPECTRA_MODEL: live ? liveModel : 'controlled-fixture',
+      ...(live ? { PERSPECTRA_THINKING_LEVEL: 'low' } : {}),
+    }),
     serialScheduling, timeoutMs: live ? 90000 : 10000,
     tuning: { maximumWaves: 3, maximumNpcCalls: 12, maximumCallsPerCharacter: 2,
       reactionDeadlineSeconds: live ? 120 : 30, recentObservations: 16, recentSelfObservations: 8 },

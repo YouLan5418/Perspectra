@@ -1,5 +1,5 @@
 import { Context } from '@deepseek-ai/cordis'
-import { createServer, type Server } from 'node:http'
+import { type Server } from 'node:http'
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
@@ -19,6 +19,7 @@ import {
   type CapabilityProvider,
   type CapabilityWorld,
 } from '../../desktop/host-capabilities.ts'
+import { createChatServer, fakeModels } from '../support/fake-provider.ts'
 
 const PLAYER = 'character:player',
   ALLY = 'character:companion',
@@ -77,7 +78,7 @@ async function fixture(options: { provider?: CapabilityProvider; modify?: (path:
   const status = PackStatus.fromSource(modules.statusSource(), compiled)
   const requests: WorldJsonObject[] = []
   let mode: 'perform' | 'abstain' = 'abstain'
-  const server = createServer((request, response) => {
+  const server = createChatServer((request, response) => {
     let body = ''
     request.on('data', chunk => {
       body += String(chunk)
@@ -110,10 +111,12 @@ async function fixture(options: { provider?: CapabilityProvider; modify?: (path:
   const runtime = await WorldHostRuntime.create({
     ...paths,
     capabilities: catalog,
-    provider: 'ollama',
-    model: 'fixture',
+    models: fakeModels(
+      'http://127.0.0.1:' + (server.address() as { port: number }).port + '/api/chat',
+      'openai',
+      'fixture',
+    ),
     timeoutMs: 5000,
-    utilityEndpoint: 'http://127.0.0.1:' + (server.address() as { port: number }).port + '/api/chat',
   })
   runtimes.push(runtime)
   const events = () => {
@@ -225,9 +228,7 @@ it('fails missing required capabilities before world creation and supports a pur
   const missing = files()
   const failure = await WorldHostRuntime.create({
     ...missing,
-    provider: 'ollama',
-    model: 'unused',
-    utilityEndpoint: 'http://127.0.0.1:1/api/chat',
+    models: fakeModels('http://127.0.0.1:1/api/chat', 'openai', 'unused'),
   }).catch((error: unknown) => error)
   // The launcher names this capability to the player, so the error must carry it.
   expect(failure).toBeInstanceOf(MissingCapabilityError)

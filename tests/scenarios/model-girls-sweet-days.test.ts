@@ -1,4 +1,4 @@
-import { createServer, type Server } from 'node:http'
+import { type Server } from 'node:http'
 import { afterEach, expect, it } from 'vitest'
 import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
@@ -11,6 +11,7 @@ import { currentEntityState, currentLocation } from '@harness-world/kernel'
 import { WorldHostCore } from '../../desktop/host/world-runtime.ts'
 import { projectPlayerView } from '../../desktop/host/frontend-adapter.ts'
 import { PackStatus } from '../../desktop/host/pack-status.ts'
+import { createChatServer, fakeModels } from '../support/fake-provider.ts'
 
 const roots: string[] = [],
   servers: Server[] = [],
@@ -53,7 +54,7 @@ async function fixture(
   const status = PackStatus.load(pack, compiled)!
   // Context of every character request, in call order, for tests that check what a character was told.
   const contexts: WorldJsonObject[] = []
-  const server = createServer((request, response) => {
+  const server = createChatServer((request, response) => {
     let body = ''
     request.on('data', chunk => (body += String(chunk)))
     request.on('end', () => {
@@ -82,9 +83,7 @@ async function fixture(
   const runtime = await WorldHostCore.create({
     packPath: pack,
     dataDirectory: data,
-    provider: 'local',
-    model: 'fixture',
-    utilityEndpoint: 'http://127.0.0.1:' + port + '/v1/chat/completions',
+    models: fakeModels('http://127.0.0.1:' + port + '/v1/chat/completions', 'openai', 'fixture'),
     timeoutMs: 5000,
   })
   runtimes.push(runtime)

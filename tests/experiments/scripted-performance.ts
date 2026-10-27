@@ -6,6 +6,7 @@ import type { WorldJsonObject } from '@harness-world/contracts'
 import { WorldStore } from '@harness-world/store-sqlite'
 import { WorldHostRuntime } from '../../desktop/host/world-runtime.ts'
 import type { HostState } from '../../desktop/host/http-server.ts'
+import { environmentRoleModels } from '../../desktop/model-connections.ts'
 
 // No real model service: an accidental provider call fails the experiment.
 const root=resolve(process.argv[2]??`.tmp/scripted-performance-${Date.now()}`)
@@ -14,9 +15,8 @@ mkdirSync(root,{recursive:true})
 const results:WorldJsonObject[]=[]
 for(const choice of ['hear','leave']){
   const dataDirectory=resolve(root,choice)
-  const runtime=await WorldHostRuntime.create({dataDirectory,
-    packPath:resolve('examples/world-packs/scripted-performance'),provider:'ollama',model:'unused',
-    utilityEndpoint:'http://127.0.0.1:1/api/chat',timeoutMs:1000})
+  const runtime=await WorldHostRuntime.create({models: environmentRoleModels({ PERSPECTRA_MODEL_ENDPOINT: 'http://127.0.0.1:1/api/chat', PERSPECTRA_MODEL: 'unused' }),dataDirectory,
+    packPath:resolve('examples/world-packs/scripted-performance'),timeoutMs:1000})
   const operation=(state:HostState,id:string,parameters:WorldJsonObject={})=>({
     activityId:typeof state.activity?.id==='string'?state.activity.id:null,revision:Number(state.activity?.revision),
     operation:id,parameters,requestId:randomUUID()})

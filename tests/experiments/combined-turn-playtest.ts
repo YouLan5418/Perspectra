@@ -7,6 +7,7 @@ import { WorldStore } from '@harness-world/store-sqlite'
 import { WorldHostRuntime } from '../../desktop/host/world-runtime.ts'
 import { projectPlayerView } from '../../desktop/host/frontend-adapter.ts'
 import type { HostState, PlayerLine } from '../../desktop/host/http-server.ts'
+import { environmentRoleModels } from '../../desktop/model-connections.ts'
 
 type Option = ReturnType<typeof projectPlayerView>['actions'][number]
 const COMPANION = 'character:companion',
@@ -81,13 +82,9 @@ export async function playCombinedTurns(
   if (!process.env.DEEPSEEK_API_KEY) throw new TypeError('缺少 DEEPSEEK_API_KEY')
   mkdirSync(dataDirectory, { recursive: true })
   const runtime = await WorldHostRuntime.create({
+    models: environmentRoleModels({ PERSPECTRA_MODEL_ENDPOINT: 'https://api.deepseek.com/chat/completions', PERSPECTRA_MODEL: model, PERSPECTRA_MODEL_API_KEY: process.env.DEEPSEEK_API_KEY }),
     packPath: resolve(pack),
     dataDirectory,
-    // Core memory runs only behind the local (OpenAI-compatible) entry; the official API speaks that protocol.
-    provider: 'local',
-    utilityEndpoint: 'https://api.deepseek.com/chat/completions',
-    model,
-    apiKey: process.env.DEEPSEEK_API_KEY,
     memoryCore: true,
     timeoutMs: 90000,
     beforeActionExpression: beforeAction,

@@ -5,11 +5,11 @@ import { randomUUID } from 'node:crypto'
 import { WorldStore } from '@harness-world/store-sqlite'
 import type { WorldJsonObject } from '@harness-world/contracts'
 import { WorldHostRuntime } from '../../desktop/host/world-runtime.ts'
+import { environmentRoleModels } from '../../desktop/model-connections.ts'
 
 const root=resolve('.tmp','activity-invitation-live-'+Date.now()),model=process.env.HCW_LOCAL_MODEL??'gemini-3.8-flash'
 mkdirSync(root,{recursive:true})
-const runtime=await WorldHostRuntime.create({packPath:resolve('examples/world-packs/multiple-activities'),dataDirectory:join(root,'data'),
-  provider:'local',model,utilityEndpoint:process.env.HCW_LOCAL_ENDPOINT??'http://127.0.0.1:8046/v1/chat/completions',timeoutMs:45_000})
+const runtime=await WorldHostRuntime.create({models: environmentRoleModels({ PERSPECTRA_MODEL_ENDPOINT: process.env.HCW_LOCAL_ENDPOINT??'http://127.0.0.1:8046/v1/chat/completions', PERSPECTRA_MODEL: model, PERSPECTRA_MODEL_API_KEY: process.env.HCW_LOCAL_API_KEY }),packPath:resolve('examples/world-packs/multiple-activities'),dataDirectory:join(root,'data'),timeoutMs:45_000})
 const steps:unknown[]=[]
 function events(){const store=new WorldStore(join(runtime.dataDirectory,'world.sqlite'));try{return store.readEvents(runtime.address)}finally{store.close()}}
 async function act(operation:string,parameters:WorldJsonObject={}){

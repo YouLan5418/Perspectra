@@ -274,9 +274,11 @@ function streamFor(body: unknown): string | undefined {
   const message = root?.message ?? root?.choices?.[0]?.message
   if (message !== undefined) {
     const calls = (message as { tool_calls?: { function: { arguments: string } }[] }).tool_calls
-    return openaiStream(
-      calls?.length ? { tool: JSON.parse(calls[0]!.function.arguments) } : { text: String(message.content ?? '') },
-    )
+    const thinking = (message as { reasoning_content?: unknown }).reasoning_content
+    return openaiStream({
+      ...(calls?.length ? { tool: JSON.parse(calls[0]!.function.arguments) } : { text: String(message.content ?? '') }),
+      ...(typeof thinking === 'string' ? { thinking } : {}),
+    })
   }
   if (Array.isArray(root?.content)) {
     const tool = root.content.find(block => block.type === 'tool_use')
