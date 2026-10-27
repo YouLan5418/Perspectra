@@ -15,6 +15,7 @@ import { readPluginManifest } from './plugin-manifest-file.ts'
 import type { PluginManifest } from '@harness-world/plugin-sdk'
 import {
   ChatTransportError,
+  supportedThinkingLevels,
   testTextCall,
   importPresets,
   exportPresets,
@@ -655,6 +656,16 @@ export class LauncherCore {
         const connection = this.#connection(request.connectionId)
         return { models: await listModels(connection, apiKeys(request.apiKeys)[connection.id]) }
       }
+      case 'thinking-levels': {
+        const connection = this.#connection(request.connectionId)
+        return {
+          levels: supportedThinkingLevels({
+            protocol: connection.protocol,
+            endpoint: new URL(connection.endpoint),
+            model: text(request.model, '模型标识', 120),
+          }),
+        }
+      }
       case 'test-model': {
         const connection = this.#connection(request.connectionId)
         const model = text(request.model, '模型标识', 120)
@@ -1008,6 +1019,12 @@ export class LauncherCore {
         if (packError) throw new Error(packError)
         if (!instance.models) throw new Error('请先在模型配置中选择模型。')
         const modelEnv = modelEnvironment(instance.models, this.#index.connections, apiKeys(request.apiKeys))
+        // A stored choice the model's declaration no longer allows is caught here, not when the Launcher opens.
+        instanceModels(
+          instance.models,
+          this.#index.connections,
+          (this.#characters[instance.packageId] ?? []).map(c => c.id),
+        )
         const pack = this.#index.packs.find(p => p.id === instance.packageId)!
         const directory = this.#storyDirectory(instance)
         const preflight = await preflightSave(pack.path, directory)
@@ -1068,7 +1085,17 @@ export class LauncherCore {
             windowsHide: true,
             env: {
               ...process.env,
+              // The Launcher's own environment must not leak a model target or key into the game process.
+              HCW_LOCAL_MODEL: undefined,
+              HCW_LOCAL_ENDPOINT: undefined,
+              HCW_LOCAL_API_KEY: undefined,
+              HCW_MODEL_PROTOCOL: undefined,
               HCW_THINKING_LEVEL: undefined,
+              PERSPECTRA_MODEL_ENDPOINT: undefined,
+              PERSPECTRA_MODEL: undefined,
+              PERSPECTRA_MODEL_API_KEY: undefined,
+              PERSPECTRA_MODEL_PROTOCOL: undefined,
+              PERSPECTRA_THINKING_LEVEL: undefined,
               ...modelEnv,
               PERSPECTRA_STORY_PARENT_NODE:
                 instance.storylines.find(l => l.id === instance.currentStorylineId)?.parentNodeId ?? '',

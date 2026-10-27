@@ -1005,11 +1005,18 @@ it('persists thinking strength per instance and rejects unsupported explicit cho
   await core.handle({
     operation: 'configure',
     instanceId: instance!.id,
-    models: { decision: { connectionId: deepseek.id, model: 'deepseek-flash', thinkingLevel: 'medium' } },
+    models: { decision: { connectionId: deepseek.id, model: 'deepseek-flash', thinkingLevel: 'high' } },
   })
   const restored = new LauncherCore(resolve('.'), core.root)
   await restored.initialize()
-  expect(restored.snapshot().instances[0]!.models?.decision.thinkingLevel).toBe('medium')
+  expect(restored.snapshot().instances[0]!.models?.decision.thinkingLevel).toBe('high')
+  await expect(
+    core.handle({
+      operation: 'configure',
+      instanceId: instance!.id,
+      models: { decision: { connectionId: deepseek.id, model: 'deepseek-flash', thinkingLevel: 'medium' } },
+    }),
+  ).rejects.toThrow('不支持该思考强度')
   await expect(
     core.handle({
       operation: 'configure',
@@ -1024,4 +1031,33 @@ it('persists thinking strength per instance and rejects unsupported explicit cho
       models: { decision: { connectionId: google.id, model: 'gemini-3.7-flash', thinkingLevel: 'off' } },
     }),
   ).rejects.toThrow('不支持')
+  expect(
+    await core.handle({ operation: 'thinking-levels', connectionId: google.id, model: 'gemini-3.7-flash' }),
+  ).toEqual({ levels: ['low', 'medium', 'high'] })
+  expect(await core.handle({ operation: 'thinking-levels', connectionId: deepseek.id, model: 'fixture' })).toEqual({
+    levels: ['off', 'low', 'medium', 'high'],
+  })
+})
+
+it('opens with a stored choice the model no longer supports and refuses to start it', async () => {
+  const core = await service()
+  const google = {
+    id: '8b3e4c60-3f2d-4e5b-9c73-2f8e3d904b32',
+    name: 'Google',
+    protocol: 'google',
+    endpoint: 'https://local.test/v1beta/models/gemini-3.7-flash:generateContent',
+  }
+  await core.handle({ operation: 'connection-save', connection: google })
+  const [instance] = await withPack(core, ['stale thinking'])
+  await core.handle({
+    operation: 'configure',
+    instanceId: instance!.id,
+    models: { decision: { connectionId: google.id, model: 'gemini-3.7-flash', thinkingLevel: 'low' } },
+  })
+  const file = join(core.root, 'launcher.json')
+  await writeFile(file, (await readFile(file, 'utf8')).replace(/"thinkingLevel":\s*"low"/, '"thinkingLevel": "off"'))
+  const restored = new LauncherCore(resolve('.'), core.root)
+  await restored.initialize()
+  expect(restored.snapshot().instances[0]!.models?.decision.thinkingLevel).toBe('off')
+  await expect(restored.handle({ operation: 'start', instanceId: instance!.id })).rejects.toThrow('不支持该思考强度')
 })

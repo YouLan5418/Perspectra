@@ -1,9 +1,9 @@
 import {
   providerHeaders,
   providerProtocol,
+  supportedThinkingLevels,
   type ProviderProtocol,
   thinkingLevel,
-  thinkingRequest,
   type ThinkingLevel,
 } from '@harness-world/provider-chat'
 import { randomUUID } from 'node:crypto'
@@ -199,7 +199,15 @@ export function instanceModels(
   const check = (target: DecisionTarget) => {
     const connection = connections.find(c => c.id === target.connectionId)
     if (!connection) throw new Error('所选模型连接不存在。')
-    if (target.thinkingLevel !== undefined) thinkingRequest(connection.protocol, target.model, target.thinkingLevel)
+    if (
+      target.thinkingLevel !== undefined &&
+      !supportedThinkingLevels({
+        protocol: connection.protocol,
+        endpoint: new URL(connection.endpoint),
+        model: target.model,
+      }).includes(target.thinkingLevel)
+    )
+      throw new Error('所选模型不支持该思考强度，请在模型配置中重新选择。')
   }
   check(models.decision)
   if (models.memory) check(models.memory)
@@ -270,17 +278,13 @@ export function resolveRoleModels(models: InstanceModels, connections: readonly 
   return { default: base, characters }
 }
 
-/**
- * The default decision keeps the single-model variables the runtime already reads; per-character targets travel
- * as resolved JSON without keys, and only the keys those targets reference travel beside them.
- */
+/** Resolved targets travel as JSON without keys; only the keys those targets reference travel beside them. */
 export function modelEnvironment(
   models: InstanceModels,
   connections: readonly ModelConnection[],
   apiKeys: Readonly<Record<string, string>>,
-): Record<string, string> {
-  const roles = resolveRoleModels(models, connections),
-    decision = roles.default.decision
+): { PERSPECTRA_ROLE_MODELS: string; PERSPECTRA_MODEL_KEYS: string } {
+  const roles = resolveRoleModels(models, connections)
   const used = new Set(
     [roles.default, ...Object.values(roles.characters)].flatMap(role => [
       role.decision.connectionId,
@@ -288,15 +292,7 @@ export function modelEnvironment(
     ]),
   )
   const keys = Object.fromEntries([...used].flatMap(id => (apiKeys[id] ? [[id, apiKeys[id]]] : [])))
-  return {
-    HCW_LOCAL_MODEL: decision.model,
-    HCW_LOCAL_ENDPOINT: decision.endpoint,
-    HCW_MODEL_PROTOCOL: decision.protocol,
-    ...(decision.thinkingLevel === undefined ? {} : { HCW_THINKING_LEVEL: decision.thinkingLevel }),
-    HCW_LOCAL_API_KEY: apiKeys[decision.connectionId] ?? '',
-    PERSPECTRA_ROLE_MODELS: JSON.stringify(roles),
-    PERSPECTRA_MODEL_KEYS: JSON.stringify(keys),
-  }
+  return { PERSPECTRA_ROLE_MODELS: JSON.stringify(roles), PERSPECTRA_MODEL_KEYS: JSON.stringify(keys) }
 }
 
 /** One fully resolved call target as the game process uses it; the key is only ever held in memory. */
@@ -307,10 +303,14 @@ export interface RuntimeModel {
   readonly thinkingLevel?: ThinkingLevel
   readonly apiKey?: string
 }
-/** `memory` is the default layer's memory model; characters absent here use the default layer. */
+export interface RuntimeRole {
+  readonly decision: RuntimeModel
+  readonly memory: RuntimeModel
+}
+/** Every call target the game process uses; characters absent from `characters` use `default`. */
 export interface RuntimeRoleModels {
-  readonly memory?: RuntimeModel
-  readonly characters: Readonly<Record<string, { readonly decision: RuntimeModel; readonly memory: RuntimeModel }>>
+  readonly default: RuntimeRole
+  readonly characters: Readonly<Record<string, RuntimeRole>>
 }
 
 /** Game-process side of `modelEnvironment`: rejoins each target with its connection key. */
@@ -331,7 +331,7 @@ export function runtimeRoleModels(roles: unknown, apiKeys: unknown): RuntimeRole
   const data = record(roles, '角色模型配置无效。'),
     base = record(data.default, '角色模型配置无效。')
   return {
-    memory: target(base.memory, false),
+    default: { decision: target(base.decision, true), memory: target(base.memory, false) },
     characters: Object.fromEntries(
       Object.entries(record(data.characters, '角色模型配置无效。')).map(([id, value]) => {
         const role = record(value, '角色模型配置无效。')
@@ -339,6 +339,25 @@ export function runtimeRoleModels(roles: unknown, apiKeys: unknown): RuntimeRole
       }),
     ),
   }
+}
+
+/** The source entry's single target, for developers running the game process without the Launcher. */
+export function environmentRoleModels(env: Readonly<Record<string, string | undefined>>): RuntimeRoleModels {
+  const endpoint = env.PERSPECTRA_MODEL_ENDPOINT?.trim(),
+    model = env.PERSPECTRA_MODEL?.trim()
+  if (!endpoint || !model)
+    throw new Error('未配置模型：请设置 PERSPECTRA_MODEL_ENDPOINT 与 PERSPECTRA_MODEL，或由 Launcher 启动。')
+  const protocol = providerProtocol(env.PERSPECTRA_MODEL_PROTOCOL?.trim() || undefined)
+  const apiKey = env.PERSPECTRA_MODEL_API_KEY?.trim()
+  const memory: RuntimeModel = {
+    protocol,
+    endpoint: modelEndpoint(endpoint, protocol).href,
+    model: modelId(model),
+    ...(apiKey ? { apiKey } : {}),
+  }
+  const level = env.PERSPECTRA_THINKING_LEVEL?.trim()
+  const decision: RuntimeModel = { ...memory, ...(level ? { thinkingLevel: thinkingLevel(level) } : {}) }
+  return { default: { decision, memory }, characters: {} }
 }
 
 /** One-time move from the single-endpoint index: one connection per distinct protocol + address. */

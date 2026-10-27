@@ -1,5 +1,6 @@
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http'
 import type { ProviderProtocol } from '@harness-world/provider-chat'
+import type { RuntimeRoleModels } from '../../desktop/model-connections.ts'
 
 /** What the fake endpoint was asked. `userText` is the last user turn's plain text, whatever shape the protocol uses. */
 export interface FakeProviderCall {
@@ -16,16 +17,6 @@ export interface FakeAnswer {
   readonly stop?: 'length'
   readonly status?: number
   readonly plainJson?: boolean
-}
-
-interface RuntimeModel {
-  readonly protocol: ProviderProtocol
-  readonly endpoint: string
-  readonly model: string
-}
-interface RuntimeRoleModels {
-  readonly default: { readonly decision: RuntimeModel; readonly memory: RuntimeModel }
-  readonly characters: Readonly<Record<string, { readonly decision: RuntimeModel; readonly memory: RuntimeModel }>>
 }
 
 const PATHS = {
