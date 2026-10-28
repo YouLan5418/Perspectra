@@ -8,6 +8,7 @@ import { currentEntityState } from '@harness-world/kernel'
 import { PackActivity } from '../../desktop/host/pack-activity.ts'
 import { WorldHostCore } from '../../desktop/host/world-runtime.ts'
 import { FrontendActions, projectPlayerView } from '../../desktop/host/frontend-adapter.ts'
+import { fakeModels } from '../support/fake-provider.ts'
 const roots: string[] = [],
   runtimes: WorldHostCore[] = []
 afterEach(async () => {
@@ -49,9 +50,7 @@ async function fixture(menu = false, kitchen = false, noCooker = false) {
   const options = {
     packPath: pack,
     dataDirectory: data,
-    provider: 'ollama' as const,
-    model: 'unused',
-    utilityEndpoint: 'http://127.0.0.1:1/api/chat',
+    models: fakeModels('http://127.0.0.1:1/api/chat', 'openai', 'unused'),
     timeoutMs: 1000,
   }
   const runtime = await WorldHostCore.create(options)

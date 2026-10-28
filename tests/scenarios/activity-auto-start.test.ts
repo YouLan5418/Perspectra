@@ -1,4 +1,4 @@
-import { createServer, type Server } from 'node:http'
+import { type Server } from 'node:http'
 import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
@@ -7,6 +7,7 @@ import { WorldStore } from '@harness-world/store-sqlite'
 import type { WorldJsonObject } from '@harness-world/contracts'
 import { WorldHostRuntime } from '../../desktop/host/world-runtime.ts'
 import { projectPlayerView } from '../../desktop/host/frontend-adapter.ts'
+import { createChatServer, fakeModels } from '../support/fake-provider.ts'
 
 const PLAYER = 'character:player'
 const roots: string[] = [],
@@ -74,7 +75,7 @@ async function fixture(
   manifest.assetFiles = ['scripts/activities/guess.js', 'scripts/activities/other.js', 'scripts/status.js']
   writeFileSync(join(pack, 'worldpack.source.json'), JSON.stringify(manifest))
   const inputs: WorldJsonObject[] = []
-  const server = createServer((request, response) => {
+  const server = createChatServer((request, response) => {
     let body = ''
     request.on('data', chunk => {
       body += String(chunk)
@@ -103,9 +104,7 @@ async function fixture(
   const port = (server.address() as { port: number }).port
   const runtime = await WorldHostRuntime.create({
     packPath: pack,
-    provider: 'local',
-    model: 'fixture',
-    utilityEndpoint: 'http://127.0.0.1:' + port + '/v1/chat/completions',
+    models: fakeModels('http://127.0.0.1:' + port + '/v1/chat/completions', 'openai', 'fixture'),
     timeoutMs: 5000,
     dataDirectory: data,
   })

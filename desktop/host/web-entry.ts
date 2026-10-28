@@ -1,8 +1,8 @@
-import { thinkingLevel, providerProtocol, rolePreset, rolePresetMapping } from '@harness-world/provider-chat'
+import { rolePreset, rolePresetMapping } from '@harness-world/provider-chat'
 import { loadHostPlugins, type HostPlugins } from '../host-plugins.ts'
 import { hostPluginSettings, pluginSecretValues } from '../host-plugin-settings.ts'
 import { readingPreferences, audioPreferences } from '../play-settings.ts'
-import { runtimeRoleModels } from '../model-connections.ts'
+import { environmentRoleModels, runtimeRoleModels } from '../model-connections.ts'
 import { ModelPresets, packPreset } from '../model-presets.ts'
 import { createTrustedFrontendServer, type FrontendPolicy } from './frontend-server.ts'
 import { readFileSync, mkdirSync } from 'node:fs'
@@ -21,7 +21,6 @@ import { compileWorldPackSource, type CompiledWorldPackV5 } from '@harness-world
 import { interactionPackageDescription } from '@harness-world/contracts'
 import { createInstalledInteractionPackages } from '@harness-world/interactions-basic'
 import { defaultGameDirectory } from './player-transcript.ts'
-import { PROVIDER_DEFAULTS } from '../provider-defaults.ts'
 import { MissingCapabilityError } from '../host-capabilities.ts'
 
 let hostPlugins: HostPlugins | undefined
@@ -29,36 +28,18 @@ let startupRuntime: WorldHostRuntime | undefined
 
 async function main(): Promise<void> {
   const launch = parseHostLaunchArguments(process.argv.slice(2))
-  const provider = launch.provider
   const packPath = launch.packPath ?? (process.env.HCW_PLAYTEST_PACK?.trim() || undefined)
   const dataDirectory =
     launch.dataDirectory ?? (process.env.HCW_PLAYTEST_DATA_DIRECTORY?.trim() || defaultGameDirectory())
-  const endpoint =
-    provider === 'ollama'
-      ? process.env.HCW_OLLAMA_ENDPOINT
-      : provider === 'local'
-        ? process.env.HCW_LOCAL_ENDPOINT
-        : undefined
-  const model =
-    provider === 'deepseek'
-      ? process.env.HCW_DEEPSEEK_MODEL?.trim() || PROVIDER_DEFAULTS.deepseek.model
-      : provider === 'ollama'
-        ? process.env.HCW_OLLAMA_MODEL
-        : process.env.HCW_LOCAL_MODEL
-  const apiKey =
-    provider === 'deepseek'
-      ? process.env.DEEPSEEK_API_KEY
-      : provider === 'local'
-        ? process.env.HCW_LOCAL_API_KEY
-        : undefined
   // Keys stay in this process's memory only; the Core Python workers receive just the key of their own target.
-  const roleModels = process.env.PERSPECTRA_ROLE_MODELS
+  const models = process.env.PERSPECTRA_ROLE_MODELS
     ? runtimeRoleModels(
         JSON.parse(process.env.PERSPECTRA_ROLE_MODELS),
         JSON.parse(process.env.PERSPECTRA_MODEL_KEYS || '{}'),
       )
-    : undefined
+    : environmentRoleModels(process.env)
   delete process.env.PERSPECTRA_MODEL_KEYS
+  delete process.env.PERSPECTRA_MODEL_API_KEY
   if (packPath === undefined || !isV5SourcePackDirectory(packPath)) {
     throw new Error('请通过 --pack 指定 worldpack-source/v5 世界源目录；旧 Pack 已不再由网页试玩入口运行')
   }
@@ -116,12 +97,8 @@ async function main(): Promise<void> {
     capabilities: hostPlugins.capabilities,
     playerFeed: hostPlugins.playerFeed,
     dataDirectory,
-    provider,
+    models,
     packPath,
-    ...(process.env.HCW_THINKING_LEVEL === undefined
-      ? {}
-      : { thinkingLevel: thinkingLevel(process.env.HCW_THINKING_LEVEL) }),
-    protocol: providerProtocol(process.env.HCW_MODEL_PROTOCOL),
     storyNodes: !!process.send,
     ...(launch.playSettings === undefined ? {} : { playSettings: launch.playSettings }),
     ...(process.env.PERSPECTRA_READING === undefined
@@ -175,13 +152,9 @@ async function main(): Promise<void> {
       ? rolePresetMapping(mapping)
       : rolePresetMapping(JSON.parse(process.env.PERSPECTRA_ROLE_MAPPING ?? '{}')),
     ...(launch.memoryCore ? { memoryCore: true } : {}),
-    ...(roleModels === undefined ? {} : { roleModels }),
     ...(launch.serialScheduling ? { serialScheduling: true } : {}),
     ...(launch.tuning === undefined ? {} : { tuning: launch.tuning }),
     ...(shadowAudit === undefined ? {} : { shadowAudit }),
-    ...(model === undefined ? {} : { model }),
-    ...(apiKey === undefined ? {} : { apiKey }),
-    ...(endpoint === undefined ? {} : { utilityEndpoint: endpoint }),
   })
   startupRuntime = runtime
   const token = randomBytes(32).toString('hex')
@@ -269,7 +242,7 @@ async function main(): Promise<void> {
   process.send?.({ type: 'ready', port, token, frontendMode: policy.mode, skippedPlugins: hostPlugins.skipped })
   process.stdout.write(`\n本机试玩页已启动：\nhttp://127.0.0.1:${port}/#token=${token}\n\n`)
   process.stdout.write(
-    `世界数据：${dataDirectory}\nProvider：${provider}\n模型：${model?.trim() || PROVIDER_DEFAULTS[provider].model}\n按 Ctrl+C 安全关闭。\n`,
+    `世界数据：${dataDirectory}\n模型：${models.default.decision.protocol} ${models.default.decision.model} @ ${new URL(models.default.decision.endpoint).host}\n按 Ctrl+C 安全关闭。\n`,
   )
   if (launch.memoryCore)
     process.stdout.write(

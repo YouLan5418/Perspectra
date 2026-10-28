@@ -7,15 +7,14 @@ import type { WorldJsonObject } from '@harness-world/contracts'
 import { WorldHostRuntime } from '../../desktop/host/world-runtime.ts'
 import { createHostServer } from '../../desktop/host/http-server.ts'
 import { DEFAULT_RUNTIME_TUNING } from '../../desktop/host/runtime-tuning.ts'
+import { environmentRoleModels } from '../../desktop/model-connections.ts'
 
 const root=resolve(process.argv[2]??'')
 if(!process.argv[2]||existsSync(root))throw new Error('provide a fresh output directory')
 mkdirSync(root,{recursive:true})
 const dataDirectory=join(root,'data'),token=randomBytes(32).toString('hex')
 process.env.HCW_HINDSIGHT_UTILITY_TRACE=join(root,'utility-calls.jsonl')
-const options={dataDirectory,packPath:resolve('examples/world-packs/ai-girls-hosted-guess'),provider:'local' as const,
-  model:'gemini-3.7-flash',memoryCore:true,tuning:{...DEFAULT_RUNTIME_TUNING,reactionDeadlineSeconds:120},
-  ...(process.env.HCW_LOCAL_API_KEY?{apiKey:process.env.HCW_LOCAL_API_KEY}:{})}
+const options={models: environmentRoleModels({ PERSPECTRA_MODEL_ENDPOINT: process.env.HCW_LOCAL_ENDPOINT ?? 'http://127.0.0.1:8045/v1/chat/completions', PERSPECTRA_MODEL: 'gemini-3.7-flash', PERSPECTRA_MODEL_API_KEY: process.env.HCW_LOCAL_API_KEY }),dataDirectory,packPath:resolve('examples/world-packs/ai-girls-hosted-guess'),memoryCore:true,tuning:{...DEFAULT_RUNTIME_TUNING,reactionDeadlineSeconds:120}}
 let runtime=await WorldHostRuntime.create(options),server=createHostServer(runtime,token)
 const steps:unknown[]=[]
 async function listen(){server.listen(0,'127.0.0.1');await once(server,'listening')}

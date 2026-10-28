@@ -1,4 +1,4 @@
-import { createServer, type Server } from 'node:http'
+import type { Server } from 'node:http'
 import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
@@ -11,6 +11,7 @@ import { WorldHostRuntime, type WorldHostOptions } from '../../desktop/host/worl
 import { createHostServer } from '../../desktop/host/http-server.ts'
 import { characterRequestText } from '../../packages/provider-chat/src/character-context-text.ts'
 import type { ActivityRequest } from '../../desktop/host/pack-activity.ts'
+import { createChatServer, fakeModels } from '../support/fake-provider.ts'
 
 const roots: string[] = [],
   servers: Server[] = [],
@@ -54,7 +55,7 @@ async function fixture(
   )
   const inputs: WorldJsonObject[] = [],
     schemas: WorldJsonObject[] = []
-  const server = createServer((req, res) => {
+  const server = createChatServer((req, res) => {
     let body = ''
     req.on('data', chunk => {
       body += String(chunk)
@@ -99,9 +100,7 @@ async function fixture(
   const options = {
     packPath: pack,
     dataDirectory: data,
-    provider,
-    model: 'fixture',
-    utilityEndpoint: 'http://127.0.0.1:' + address.port + '/api/chat',
+    models: fakeModels('http://127.0.0.1:' + address.port + '/v1/chat/completions'),
     timeoutMs: 5000,
     ...extra,
   }

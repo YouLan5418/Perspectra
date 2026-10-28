@@ -6,22 +6,17 @@ export {
   type ChatCallProfile,
   type ChatProvider,
   type ChatProviderOptions,
-  type ChatStyle,
+  testTextCall,
+  thinkingPayload,
 } from './provider.ts'
 export { objectValue, textValue } from './value.ts'
 export { characterTurnCall } from './character-turn-call.ts'
 
-export {
-  providerProtocol,
-  providerEndpoint,
-  providerHeaders,
-  nativeMessages,
-  nativePayload,
-  type ProviderProtocol,
-} from './protocol.ts'
+export { providerProtocol, providerHeaders, type ProviderProtocol } from './protocol.ts'
 
-export { thinkingLevel, thinkingRequest, type ThinkingLevel } from './thinking.ts'
+export { thinkingLevel, type ThinkingLevel } from './thinking.ts'
 export * from './preset.ts'
 export * from './preset-library.ts'
 export * from './preset-runtime.ts'
 export * from './request-inspector.ts'
+export { piBaseUrl, piModel, supportedThinkingLevels, usesDeepSeekThinking, type ModelTarget } from './pi-model.ts'

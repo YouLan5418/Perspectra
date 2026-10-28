@@ -27,14 +27,14 @@ corepack pnpm@11.7.0 worldpack test examples/world-packs/launcher-demo
 模型地址、标识由自己的服务决定，以下 8046 是本机验证示例，不是内置服务：
 
 ```powershell
-$env:HCW_LOCAL_ENDPOINT = 'http://127.0.0.1:8046/v1/chat/completions'
-$env:HCW_LOCAL_MODEL = 'gemini-3.7-flash'
+$env:PERSPECTRA_MODEL_ENDPOINT = 'http://127.0.0.1:8046/v1/chat/completions'
+$env:PERSPECTRA_MODEL = 'gemini-3.7-flash'
 corepack pnpm@11.7.0 experience:web --pack examples/world-packs/launcher-demo --data-dir .tmp/my-creator-playtest
 ```
 
-需要认证时仅在当前进程设置 `HCW_LOCAL_API_KEY`。打开终端打印的完整回环地址；其中 token 不对外分享。未设置环境变量时源码网页默认地址为 8045；Launcher 默认配置为 8046，两者不是同一配置来源。
+需要认证时仅在当前进程设置 `PERSPECTRA_MODEL_API_KEY`；非 OpenAI 兼容协议另设 `PERSPECTRA_MODEL_PROTOCOL`。打开终端打印的完整回环地址；其中 token 不对外分享。源码网页没有内置默认地址，Launcher 的模型连接是另一处配置来源。
 
-源码网页默认使用 Core 记忆，与 Launcher 一致；先按 [记忆实验说明](../../../experiments/activity-memory/README.md) 准备 Python/E5，缺少时启动直接报错。Core 用于 local 配置入口，`--ollama` / `--deepseek` 必须同时加 `--memory-native`。原生记忆只取最近 16 条观察的滑动窗口，结果不代表玩家体验，不把不同模型和记忆路径混为同一验收结果。
+源码网页默认使用 Core 记忆，与 Launcher 一致；先按 [记忆实验说明](../../../experiments/activity-memory/README.md) 准备 Python/E5，缺少时启动直接报错。离线调试可加 `--memory-native`。原生记忆只取最近 16 条观察的滑动窗口，结果不代表玩家体验，不把不同模型和记忆路径混为同一验收结果。
 
 ### 物品规则调试（2026-10-22，当前源码）
 

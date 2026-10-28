@@ -1,6 +1,7 @@
 import { cpSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { WorldHostCore } from '../../desktop/host/world-runtime.ts'
+import { fakeModels } from './fake-provider.ts'
 
 export const nextRoot = resolve('examples/world-packs/hidden-cure-next')
 export const goals = {
@@ -77,9 +78,7 @@ export async function prepareTakenRecord(packPath: string, dataDirectory: string
   const runtime = await WorldHostCore.create({
     packPath,
     dataDirectory,
-    provider: 'ollama',
-    model: 'unused',
-    utilityEndpoint: 'http://127.0.0.1:1/api/chat',
+    models: fakeModels('http://127.0.0.1:1/api/chat', 'openai', 'unused'),
     timeoutMs: 1000,
   })
   const results: { status: 'accepted' | 'rejected'; input: string; reason?: string }[] = []

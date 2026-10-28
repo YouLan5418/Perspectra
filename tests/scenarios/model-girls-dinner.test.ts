@@ -7,6 +7,7 @@ import { WorldStore } from '@harness-world/store-sqlite'
 import { currentEntityState } from '@harness-world/kernel'
 import { WorldHostCore } from '../../desktop/host/world-runtime.ts'
 import { projectPlayerView } from '../../desktop/host/frontend-adapter.ts'
+import { fakeModels } from '../support/fake-provider.ts'
 
 const roots: string[] = [],
   runtimes: WorldHostCore[] = []
@@ -25,9 +26,7 @@ async function fixture() {
   const runtime = await WorldHostCore.create({
     packPath: pack,
     dataDirectory: data,
-    provider: 'ollama',
-    model: 'unused',
-    utilityEndpoint: 'http://127.0.0.1:1/api/chat',
+    models: fakeModels('http://127.0.0.1:1/api/chat', 'openai', 'unused'),
     timeoutMs: 1000,
   })
   runtimes.push(runtime)

@@ -5,6 +5,7 @@ import { basename } from 'node:path'
 import { WorldHostRuntime } from '../../desktop/host/world-runtime.ts'
 import type { CoreRunner } from '../../desktop/host/memory/python-worker.ts'
 import { LauncherCore } from '../../desktop/launcher-core.ts'
+import { fakeModels } from './fake-provider.ts'
 
 // Test-only fault injection: no hooks or recovery machinery in production code.
 const config = JSON.parse(process.argv[2]!) as {
@@ -76,8 +77,7 @@ const run: CoreRunner = async input => {
 const options = {
   packPath: config.pack,
   dataDirectory: config.directory,
-  provider: 'local' as const,
-  model: 'fixture',
+  models: fakeModels('http://127.0.0.1:9/v1/chat/completions'),
   memoryCore: true,
   memoryCoreRun: run,
   memoryCoreBuildRun: run,

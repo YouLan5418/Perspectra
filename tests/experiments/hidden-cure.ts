@@ -4,6 +4,7 @@ import { join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { WorldHostRuntime } from '../../desktop/host/world-runtime.ts'
 import { array, object, packPath, plans, settings, snapshot } from '../support/hidden-cure-scenario.ts'
+import { environmentRoleModels } from '../../desktop/model-connections.ts'
 
 async function run() {
   const args = process.argv.slice(2), selected = args.find(arg => arg.startsWith('--case='))?.slice(7)
@@ -53,8 +54,7 @@ async function run() {
     const meta = {name, model, thinkingLevel: 'low', settings, packPath, plan: plans[name],
       memoryMode: 'native', dynamicScheduling: true, activity: false, variables: false, authorEvidenceOnly: true}
     try {
-      runtime = await WorldHostRuntime.create({dataDirectory: join(caseDir, 'world'), packPath, provider: 'local', model,
-        thinkingLevel: 'low', utilityEndpoint: `http://127.0.0.1:${(server.address() as {port:number}).port}/v1/chat/completions`,
+      runtime = await WorldHostRuntime.create({models: environmentRoleModels({ PERSPECTRA_MODEL_ENDPOINT: `http://127.0.0.1:${(server.address() as {port:number}).port}/v1/chat/completions`, PERSPECTRA_MODEL: model, PERSPECTRA_MODEL_API_KEY: process.env.HCW_LOCAL_API_KEY, PERSPECTRA_THINKING_LEVEL: 'low' }),dataDirectory: join(caseDir, 'world'), packPath,
         timeoutMs: 60000, playSettings: settings})
       const initial = snapshot(runtime)
       persist({meta, initial, rounds, calls})

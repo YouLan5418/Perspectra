@@ -64,16 +64,16 @@ corepack pnpm@11.7.0 launcher:desktop
 You can also use the source-based local web entry point without the launcher. Start your model service first, then configure its endpoint and model:
 
 ```powershell
-$env:HCW_LOCAL_ENDPOINT = "http://127.0.0.1:8046/v1/chat/completions"
-$env:HCW_LOCAL_MODEL = "gemini-3.7-flash"
+$env:PERSPECTRA_MODEL_ENDPOINT = "http://127.0.0.1:8046/v1/chat/completions"
+$env:PERSPECTRA_MODEL = "gemini-3.7-flash"
 corepack pnpm@11.7.0 experience:web `
   --pack examples/world-packs/model-girls-official `
   --data-dir .tmp/my-playtest
 ```
 
-These values are local examples, not a hosted service. Adjust them to your provider. If authentication is required, use `HCW_LOCAL_API_KEY` in the environment rather than committing credentials to the game pack or repository. Open the full local URL printed by the process; do not share its session token.
+These values are local examples, not a hosted service. Adjust them to your provider. If authentication is required, use `PERSPECTRA_MODEL_API_KEY` in the environment rather than committing credentials to the game pack or repository. Open the full local URL printed by the process; do not share its session token.
 
-**The source-based web entry uses Core memory by default**, requiring Python/E5. Use `--memory-native` explicitly for offline debugging. The source web entry also retains Ollama/DeepSeek adapters. The launcher supports Anthropic Messages and Google Gemini native protocols as well as OpenAI-compatible endpoints; see [model protocols](docs/current/model-protocols.md) (Chinese). Models and gateways need their own verification.
+**The source-based web entry uses Core memory by default**, requiring Python/E5. Use `--memory-native` explicitly for offline debugging. The source web entry and the launcher share one model adapter (through pi-ai) covering OpenAI-compatible, Anthropic Messages and Google Gemini protocols; DeepSeek and Ollama are configured as OpenAI-compatible addresses. See [model protocols](docs/current/model-protocols.md) (Chinese). Models and gateways need their own verification.
 
 See the [creator and real-model playtest guide](docs/current/guides/creator-playtest.md) (Chinese).
 

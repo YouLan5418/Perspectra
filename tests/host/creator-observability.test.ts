@@ -1,5 +1,4 @@
 import { afterEach, expect, it } from 'vitest'
-import { createServer } from 'node:http'
 import { once } from 'node:events'
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -11,6 +10,7 @@ import { createHostServer } from '../../desktop/host/http-server.ts'
 import { CreatorRecords } from '../../desktop/host/creator-records.ts'
 import { RequestInspector } from '../../packages/provider-chat/src/request-inspector.ts'
 import { projectPlayerView } from '../../desktop/host/frontend-adapter.ts'
+import { createChatServer, fakeModels } from '../support/fake-provider.ts'
 
 const cleanups: (() => Promise<void>)[] = []
 afterEach(async () => {
@@ -21,7 +21,7 @@ async function fixture(extra: Partial<WorldHostOptions> = {}) {
   cleanups.push(async () => {
     rmSync(root, { recursive: true, force: true })
   })
-  const provider = createServer((request, response) => {
+  const provider = createChatServer((request, response) => {
     request.resume()
     request.on('end', () => {
       response.setHeader('content-type', 'application/json')
@@ -48,9 +48,11 @@ async function fixture(extra: Partial<WorldHostOptions> = {}) {
   const options: WorldHostOptions = {
     packPath: resolve('examples/world-packs/prototype-g1'),
     dataDirectory: root,
-    provider: 'local',
-    model: 'fixture',
-    utilityEndpoint: 'http://127.0.0.1:' + (provider.address() as AddressInfo).port + '/v1/chat/completions',
+    models: fakeModels(
+      'http://127.0.0.1:' + (provider.address() as AddressInfo).port + '/v1/chat/completions',
+      'openai',
+      'fixture',
+    ),
     ...extra,
   }
   const runtime = await WorldHostCore.create(options)

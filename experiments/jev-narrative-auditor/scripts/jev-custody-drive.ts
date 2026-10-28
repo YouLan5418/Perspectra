@@ -8,6 +8,7 @@ import { WorldStore } from '@harness-world/store-sqlite'
 import { WorldHostRuntime } from '../../../desktop/host/world-runtime.ts'
 import { createClaimClassifier } from '../../../desktop/host/jev-shadow-claims-client.ts'
 import { JevShadow, type ShadowRecord } from '../../../desktop/host/jev-shadow.ts'
+import { environmentRoleModels } from '../../../desktop/model-connections.ts'
 
 const directory = resolve(process.argv[2] ?? '')
 if (!process.argv[2] || existsSync(directory)) throw new Error('provide a new output directory')
@@ -87,7 +88,7 @@ if (process.argv.includes('--probe')) {
   const records: ShadowRecord[] = []
   const runtime = await WorldHostRuntime.create({ dataDirectory: resolve(directory, 'world'),
     packPath: resolve('experiments/jev-narrative-auditor/holdout-2026-09-27/live-pack'),
-    provider: 'deepseek', model: 'deepseek-flash', apiKey: key, shadowAudit: { items: liveItems, classify,
+    models: environmentRoleModels({ PERSPECTRA_MODEL_ENDPOINT: 'https://api.deepseek.com/chat/completions', PERSPECTRA_MODEL: 'deepseek-flash', PERSPECTRA_MODEL_API_KEY: key }), shadowAudit: { items: liveItems, classify,
       write: async record => { records.push(record); appendFileSync(resolve(directory, 'jev-shadow.jsonl'), JSON.stringify(record) + '\n') } } })
   const action = (definition: string, recipientId?: string) => '/act interact ' + JSON.stringify({
     targetRef: { kind: 'entity', id: 'entity:diary' }, bindingId: `binding:diary-${definition}`,

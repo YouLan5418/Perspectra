@@ -41,7 +41,6 @@ export function tailRuntimeIdentity(): string {
       'desktop/host/pack-json-asset.ts',
       'desktop/host/gateway-turn-call.ts',
       'desktop/host/role-providers.ts',
-      'desktop/provider-defaults.ts',
       'desktop/host/memory/python-worker.ts',
       'desktop/host/memory/python-paths.ts',
       'desktop/host/memory/alias-history.ts',

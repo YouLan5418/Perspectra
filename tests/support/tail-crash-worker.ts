@@ -2,6 +2,7 @@ import fs from 'node:fs'
 import { syncBuiltinESMExports } from 'node:module'
 import { basename } from 'node:path'
 import { WorldHostRuntime } from '../../desktop/host/world-runtime.ts'
+import { fakeModels } from './fake-provider.ts'
 
 const config = JSON.parse(process.argv[2]!) as {
   phase: string
@@ -21,9 +22,7 @@ function halt(path: string): never {
 const runtime = await WorldHostRuntime.create({
   dataDirectory: config.dataDirectory,
   packPath: config.packPath,
-  provider: 'ollama',
-  model: 'fixture',
-  utilityEndpoint: config.endpoint,
+  models: fakeModels(config.endpoint, 'openai', 'fixture'),
   timeoutMs: 5000,
 })
 fs.copyFileSync = (...args: Parameters<typeof fs.copyFileSync>) => {

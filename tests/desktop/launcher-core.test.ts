@@ -6,6 +6,7 @@ import { LauncherCore } from '../../desktop/launcher-core.ts'
 import { modelConnection } from '../../desktop/model-connections.ts'
 import { WorldHostRuntime } from '../../desktop/host/world-runtime.ts'
 import { projectPlayerView } from '../../desktop/host/frontend-adapter.ts'
+import { fakeModels, startFakeProvider, type FakeAnswer } from '../support/fake-provider.ts'
 
 vi.mock('node:fs/promises', async importOriginal => {
   const actual = await importOriginal<typeof import('node:fs/promises')>()
@@ -664,20 +665,18 @@ it('keeps stored invalid macros editable without weakening save or import checks
 
 it('tests model connectivity without persisting secrets or echoing provider content', async () => {
   const core = await service()
-  await core.handle({ operation: 'connection-save', connection: local })
+  let answer: FakeAnswer = { text: 'PRIVATE_RESPONSE' }
+  const server = await startFakeProvider('openai', () => answer)
+  const connection = { ...local, endpoint: server.endpoint }
+  await core.handle({ operation: 'connection-save', connection })
   const before = JSON.stringify(core.snapshot()),
     request = { operation: 'test-model', connectionId: local.id, model: 'fixture' }
-  const fetch = vi.fn()
-  vi.stubGlobal('fetch', fetch)
   try {
-    fetch.mockResolvedValueOnce(
-      new Response(JSON.stringify({ choices: [{ message: { content: 'PRIVATE_RESPONSE' } }] }), { status: 200 }),
-    )
     expect(await core.handle({ ...request, apiKeys: { [local.id]: 'PRIVATE_KEY' } })).toEqual({
       message: expect.stringContaining('已响应'),
     })
-    expect(fetch.mock.calls[0]![1].headers.authorization).toBe('Bearer PRIVATE_KEY')
-    expect(JSON.parse(fetch.mock.calls[0]![1].body).messages).toEqual([
+    expect(server.calls[0]!.headers.authorization).toBe('Bearer PRIVATE_KEY')
+    expect(server.calls[0]!.body.messages).toEqual([
       { role: 'user', content: expect.stringContaining('不包含游戏内容') },
     ])
     for (const [status, expected] of [
@@ -685,48 +684,32 @@ it('tests model connectivity without persisting secrets or echoing provider cont
       [429, '限流'],
       [500, 'HTTP 500'],
     ] as const) {
-      fetch.mockResolvedValueOnce(new Response('PRIVATE_PROVIDER_ERROR', { status }))
+      answer = { status }
       await expect(core.handle(request)).rejects.toThrow(expected)
     }
-    fetch.mockResolvedValueOnce(new Response('{'))
-    await expect(core.handle(request)).rejects.toThrow('JSON')
-    fetch.mockResolvedValueOnce(new Response(JSON.stringify({ choices: [] })))
+    answer = { text: 'x', plainJson: true }
+    await expect(core.handle(request)).rejects.toThrow('流式')
+    answer = { text: '' }
     await expect(core.handle(request)).rejects.toThrow('有效文本')
-    fetch.mockRejectedValueOnce(new Error('PRIVATE_NETWORK'))
+    await server.close()
     await expect(core.handle(request)).rejects.toThrow('连接失败')
     expect(JSON.stringify(core.snapshot())).toBe(before)
+    expect(JSON.stringify(core.snapshot())).not.toContain('PRIVATE_RESPONSE')
   } finally {
-    vi.unstubAllGlobals()
+    await server.close()
   }
 })
 
-it('persists native protocols and uses their headers and responses in connection tests', async () => {
+it('persists native protocols and uses their headers in connection tests', async () => {
   const core = await service()
-  const fetch = vi.fn()
-  vi.stubGlobal('fetch', fetch)
-  try {
-    for (const protocol of ['anthropic', 'google'] as const) {
-      const connection = {
-        ...local,
-        protocol,
-        endpoint:
-          protocol === 'google'
-            ? 'https://native.test/v1beta/models/old:generateContent'
-            : 'https://native.test/v1/messages',
-      }
+  for (const protocol of ['anthropic', 'google'] as const) {
+    const server = await startFakeProvider(protocol, () => ({ text: 'OK' }))
+    try {
+      const connection = { ...local, protocol, endpoint: server.endpoint.replace('/fixture:', '/old:') }
       await core.handle({ operation: 'connection-save', connection })
       const restored = new LauncherCore(resolve('.'), core.root)
       await restored.initialize()
       expect(restored.snapshot().connections).toEqual([connection])
-      fetch.mockResolvedValueOnce(
-        new Response(
-          JSON.stringify(
-            protocol === 'anthropic'
-              ? { content: [{ type: 'text', text: 'OK' }] }
-              : { candidates: [{ content: { parts: [{ text: 'OK' }] } }] },
-          ),
-        ),
-      )
       await expect(
         core.handle({
           operation: 'test-model',
@@ -735,23 +718,21 @@ it('persists native protocols and uses their headers and responses in connection
           apiKeys: { [local.id]: 'SESSION_ONLY' },
         }),
       ).resolves.toEqual({ message: expect.stringContaining('已响应') })
-      const [url, init] = fetch.mock.calls.at(-1)!
-      expect(String(url)).toContain(protocol === 'google' ? '/models/selected:generateContent' : '/messages')
-      if (protocol === 'google') expect(JSON.parse(init.body)).not.toHaveProperty('systemInstruction')
-      expect(init.headers).toMatchObject(
-        protocol === 'google' ? { 'x-goog-api-key': 'SESSION_ONLY' } : { 'x-api-key': 'SESSION_ONLY' },
-      )
+      const call = server.calls.at(-1)!
+      expect(call.path).toContain(protocol === 'google' ? '/models/selected:streamGenerateContent' : '/messages')
+      if (protocol === 'google') expect(call.body).not.toHaveProperty('systemInstruction')
+      expect(call.headers[protocol === 'google' ? 'x-goog-api-key' : 'x-api-key']).toBe('SESSION_ONLY')
       expect(await readFile(join(core.root, 'launcher.json'), 'utf8')).not.toContain('SESSION_ONLY')
+    } finally {
+      await server.close()
     }
-    await expect(
-      core.handle({ operation: 'connection-save', connection: { ...local, protocol: 'invalid' } }),
-    ).rejects.toThrow()
-    await expect(
-      core.handle({ operation: 'connection-save', connection: { ...local, protocol: 'anthropic' } }),
-    ).rejects.toThrow()
-  } finally {
-    vi.unstubAllGlobals()
   }
+  await expect(
+    core.handle({ operation: 'connection-save', connection: { ...local, protocol: 'invalid' } }),
+  ).rejects.toThrow()
+  await expect(
+    core.handle({ operation: 'connection-save', connection: { ...local, protocol: 'anthropic' } }),
+  ).rejects.toThrow()
 })
 
 it('persists appearance separately from models and rejects invalid theme without overwriting settings', async () => {
@@ -993,8 +974,7 @@ it('restores global audio preferences and rejects invalid updates without changi
   const runtime = await WorldHostRuntime.create({
     dataDirectory: join(core.root, 'presentation-world'),
     packPath: resolve('examples/world-packs/prototype-g1'),
-    provider: 'local',
-    model: 'fixture',
+    models: fakeModels('http://127.0.0.1:9/v1/chat/completions'),
     audio: restored.snapshot().preferences.audio!,
   })
   try {
@@ -1024,11 +1004,18 @@ it('persists thinking strength per instance and rejects unsupported explicit cho
   await core.handle({
     operation: 'configure',
     instanceId: instance!.id,
-    models: { decision: { connectionId: deepseek.id, model: 'deepseek-flash', thinkingLevel: 'medium' } },
+    models: { decision: { connectionId: deepseek.id, model: 'deepseek-flash', thinkingLevel: 'high' } },
   })
   const restored = new LauncherCore(resolve('.'), core.root)
   await restored.initialize()
-  expect(restored.snapshot().instances[0]!.models?.decision.thinkingLevel).toBe('medium')
+  expect(restored.snapshot().instances[0]!.models?.decision.thinkingLevel).toBe('high')
+  await expect(
+    core.handle({
+      operation: 'configure',
+      instanceId: instance!.id,
+      models: { decision: { connectionId: deepseek.id, model: 'deepseek-flash', thinkingLevel: 'medium' } },
+    }),
+  ).rejects.toThrow('不支持该思考强度')
   await expect(
     core.handle({
       operation: 'configure',
@@ -1043,4 +1030,33 @@ it('persists thinking strength per instance and rejects unsupported explicit cho
       models: { decision: { connectionId: google.id, model: 'gemini-3.7-flash', thinkingLevel: 'off' } },
     }),
   ).rejects.toThrow('不支持')
+  expect(
+    await core.handle({ operation: 'thinking-levels', connectionId: google.id, model: 'gemini-3.7-flash' }),
+  ).toEqual({ levels: ['low', 'medium', 'high'] })
+  expect(await core.handle({ operation: 'thinking-levels', connectionId: deepseek.id, model: 'fixture' })).toEqual({
+    levels: ['off', 'low', 'medium', 'high'],
+  })
+})
+
+it('opens with a stored choice the model no longer supports and refuses to start it', async () => {
+  const core = await service()
+  const google = {
+    id: '8b3e4c60-3f2d-4e5b-9c73-2f8e3d904b32',
+    name: 'Google',
+    protocol: 'google',
+    endpoint: 'https://local.test/v1beta/models/gemini-3.7-flash:generateContent',
+  }
+  await core.handle({ operation: 'connection-save', connection: google })
+  const [instance] = await withPack(core, ['stale thinking'])
+  await core.handle({
+    operation: 'configure',
+    instanceId: instance!.id,
+    models: { decision: { connectionId: google.id, model: 'gemini-3.7-flash', thinkingLevel: 'low' } },
+  })
+  const file = join(core.root, 'launcher.json')
+  await writeFile(file, (await readFile(file, 'utf8')).replace(/"thinkingLevel":\s*"low"/, '"thinkingLevel": "off"'))
+  const restored = new LauncherCore(resolve('.'), core.root)
+  await restored.initialize()
+  expect(restored.snapshot().instances[0]!.models?.decision.thinkingLevel).toBe('off')
+  await expect(restored.handle({ operation: 'start', instanceId: instance!.id })).rejects.toThrow('不支持该思考强度')
 })

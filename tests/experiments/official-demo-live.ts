@@ -6,12 +6,13 @@ import { WorldStore, CharacterViewBuilder } from '@harness-world/store-sqlite'
 import { currentEntityState, currentLocation } from '@harness-world/kernel'
 import { WorldHostCore } from '../../desktop/host/world-runtime.ts'
 import { projectPlayerView } from '../../desktop/host/frontend-adapter.ts'
+import { environmentRoleModels } from '../../desktop/model-connections.ts'
 
 // Real role provider; scripts substitute only the explicitly authored prologue/seed.
 const root=resolve('.tmp/official-live-'+Date.now());mkdirSync(root,{recursive:true})
-const options={packPath:resolve('examples/world-packs/model-girls-official'),provider:'local' as const,model:'gemini-3.7-flash',utilityEndpoint:'http://127.0.0.1:8046/v1/chat/completions',timeoutMs:60_000}
+const options={models: environmentRoleModels({ PERSPECTRA_MODEL_ENDPOINT: 'http://127.0.0.1:8046/v1/chat/completions', PERSPECTRA_MODEL: 'gemini-3.7-flash', PERSPECTRA_MODEL_API_KEY: process.env.HCW_LOCAL_API_KEY }),packPath:resolve('examples/world-packs/model-girls-official'),timeoutMs:60_000}
 const base=join(root,'base'),report:{name:string;directory:string;steps:unknown[]}[]=[]
-const save=()=>writeFileSync(join(root,'report.json'),JSON.stringify({root,model:options.model,endpoint:options.utilityEndpoint,sessions:report},null,2))
+const save=()=>writeFileSync(join(root,'report.json'),JSON.stringify({root,model:options.models.default.decision.model,endpoint:options.models.default.decision.endpoint,sessions:report},null,2))
 const events=(runtime:WorldHostCore,directory:string)=>{const store=new WorldStore(join(directory,'world.sqlite'));try{return store.readEvents(runtime.address)}finally{store.close()}}
 const choose=async(runtime:WorldHostCore,label:string)=>{const option=projectPlayerView(await runtime.state()).actions.find(a=>a.label===label);assert.ok(option,'missing player option '+label);return runtime.perform(option.action)}
 const begin=async(runtime:WorldHostCore)=>{const option=projectPlayerView(await runtime.state()).actions.find(a=>a.label.startsWith('开始 '));assert.ok(option);return runtime.perform(option.action)}

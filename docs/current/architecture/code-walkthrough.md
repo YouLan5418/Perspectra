@@ -55,7 +55,7 @@ NPC 处理途中玩家也可以插话，规则见下一节末尾。
 
 原生记忆由 [CognitiveMemoryService](../../../packages/memory/src/cognitive-context.ts)准备召回；Core 模式由 [CoreMemoryAdapter](../../../desktop/host/memory/core-memory.ts)投影请求，经 [Python 桥](../../../desktop/host/memory/python-worker.ts)调用记忆实现。Core 的 Retain／Group／Consolidate 是提炼、分组和形成认识，不是世界裁定。详见[认知与记忆](cognition-memory.md)。
 
-调用格式见 [character-turn-call.ts](../../../packages/provider-chat/src/character-turn-call.ts)，本机适配见 [gateway-turn-call.ts](../../../desktop/host/gateway-turn-call.ts)。合法 JSON 仍需检查协议与行动资格。
+调用格式见 [character-turn-call.ts](../../../packages/provider-chat/src/character-turn-call.ts)，OpenAI 兼容与 Anthropic 协议的扁平 Schema 见 [gateway-turn-call.ts](../../../desktop/host/gateway-turn-call.ts)，实际发送经 [provider.ts](../../../packages/provider-chat/src/provider.ts) 交给 pi-ai。合法 JSON 仍需检查协议与行动资格。
 
 这是当前 publish 的决策格式示例，不是玩家命令：
 

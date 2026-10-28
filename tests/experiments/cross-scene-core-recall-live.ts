@@ -18,7 +18,7 @@ const environment = { HCW_LOCAL_ENDPOINT: process.env.HCW_LOCAL_ENDPOINT ?? 'htt
   HCW_LOCAL_MODEL: process.env.HCW_LOCAL_MODEL ?? 'gemini-3.8-flash', HCW_MODEL_PROTOCOL: 'openai' }
 const worker = createCoreWorker(environment)
 const provider = createChatProvider({ endpoint: new URL(environment.HCW_LOCAL_ENDPOINT), model: environment.HCW_LOCAL_MODEL,
-  style: 'tool', timeoutMs: 60000, ...(process.env.HCW_LOCAL_API_KEY ? { apiKey: process.env.HCW_LOCAL_API_KEY } : {}) })
+  timeoutMs: 60000, ...(process.env.HCW_LOCAL_API_KEY ? { apiKey: process.env.HCW_LOCAL_API_KEY } : {}) })
 const requests: WorldJsonObject[] = [], decisions: unknown[] = []
 const runtime = await crossSceneRuntime(data, async (request, signal) => {
   requests.push(request.context)

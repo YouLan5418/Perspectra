@@ -11,7 +11,7 @@ import { currentLocation } from '@harness-world/kernel'
 const directory = process.argv[2]
 if (!directory) throw new TypeError('请指定新的电话实验数据目录，追加 --scenario 可运行固定短场景')
 const provider = createChatProvider({ endpoint: new URL(process.env.HCW_LOCAL_ENDPOINT ?? 'http://127.0.0.1:8046/v1/chat/completions'),
-  model: process.env.HCW_LOCAL_MODEL ?? 'gemini-3.8-flash', style: 'tool', timeoutMs: 60000,
+  model: process.env.HCW_LOCAL_MODEL ?? 'gemini-3.8-flash', timeoutMs: 60000,
   ...(process.env.HCW_LOCAL_API_KEY ? { apiKey: process.env.HCW_LOCAL_API_KEY } : {}) })
 const runtime = await crossSceneRuntime(resolve(directory), async (request, signal) => {
   const raw = await provider.decide(gatewayTurnCall(communicationContext(request)), signal)

@@ -9,6 +9,7 @@ import { projectPlayerView } from '../../desktop/host/frontend-adapter.ts'
 import { array, command, object, settings, snapshot } from '../support/hidden-cure-scenario.ts'
 import { buildNextPacks, goals, nextRoot, prepareTakenRecord } from '../support/hidden-cure-next-content.ts'
 import { createEPolicy } from '../support/hidden-cure-next-policy.ts'
+import { environmentRoleModels } from '../../desktop/model-connections.ts'
 function entityStates(runtime:WorldHostRuntime) {
   const store=new WorldStore(join(runtime.dataDirectory,'world.sqlite'))
   try {const events=store.readEvents(runtime.address)
@@ -70,8 +71,7 @@ async function run() {
       memoryMode: 'native', dynamicScheduling: true, activity: false, variables: false, authorEvidenceOnly: true}
     try {
       const setup = name==='D3'||name==='E' ? await prepareTakenRecord(packPath,join(caseDir,'world')) : []
-      runtime = await WorldHostRuntime.create({dataDirectory: join(caseDir, 'world'), packPath, provider: 'local', model,
-        thinkingLevel: 'low', utilityEndpoint: `http://127.0.0.1:${(server.address() as {port:number}).port}/v1/chat/completions`,
+      runtime = await WorldHostRuntime.create({models: environmentRoleModels({ PERSPECTRA_MODEL_ENDPOINT: `http://127.0.0.1:${(server.address() as {port:number}).port}/v1/chat/completions`, PERSPECTRA_MODEL: model, PERSPECTRA_MODEL_API_KEY: process.env.HCW_LOCAL_API_KEY, PERSPECTRA_THINKING_LEVEL: 'low' }),dataDirectory: join(caseDir, 'world'), packPath,
         timeoutMs: 60000, playSettings: settings})
       const initial = snapshot(runtime)
       persist({meta, setup, initial, rounds, calls})

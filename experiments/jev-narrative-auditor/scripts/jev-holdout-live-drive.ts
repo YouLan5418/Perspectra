@@ -7,6 +7,7 @@ import { currentEntityState } from '@harness-world/kernel'
 import { WorldHostRuntime } from '../../../desktop/host/world-runtime.ts'
 import { type ShadowRecord } from '../../../desktop/host/jev-shadow.ts'
 import { createClaimClassifier } from '../../../desktop/host/jev-shadow-claims-client.ts'
+import { environmentRoleModels } from '../../../desktop/model-connections.ts'
 
 const mode = process.argv.includes('--correct') ? 'correct' : 'baseline'
 const explicit = true, probe = true
@@ -29,7 +30,7 @@ let evidence: Record<string,unknown>
   const key=process.env.DEEPSEEK_API_KEY
   if(!key)throw new Error('DEEPSEEK_API_KEY missing')
   const runtime=await WorldHostRuntime.create({dataDirectory:directory,packPath:resolve('experiments/jev-narrative-auditor/holdout-2026-09-27/live-pack'),
-    provider:'deepseek',model:'deepseek-flash',apiKey:key,shadowAudit:{items,classify,write},publicationAudit:{mode,items,classify,write:r=>{interventions.push(r);appendFileSync(resolve(directory,'interventions.jsonl'),JSON.stringify(r)+'\n')}}})
+    models: environmentRoleModels({ PERSPECTRA_MODEL_ENDPOINT: 'https://api.deepseek.com/chat/completions', PERSPECTRA_MODEL: 'deepseek-flash', PERSPECTRA_MODEL_API_KEY: key }),shadowAudit:{items,classify,write},publicationAudit:{mode,items,classify,write:r=>{interventions.push(r);appendFileSync(resolve(directory,'interventions.jsonl'),JSON.stringify(r)+'\n')}}})
   const prompts=[
     "雨还没停。你们看看铜怀表和布面日记，先聊聊哪件更能找到失主，不急着动它们。",
     "陆舟，你愿意拿起铜怀表看看背面的字吗？看完暂时替大家拿着。",

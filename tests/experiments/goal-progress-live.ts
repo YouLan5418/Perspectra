@@ -13,6 +13,7 @@ import { gatewayTurnCall } from '../../desktop/host/gateway-turn-call.ts'
 import { goalProgressPacks, goalProgressScenarios } from './goal-progress-content.ts'
 import { estimateContextTokens } from '../../desktop/host/memory/core-memory.ts'
 import { playSettings } from '../../desktop/play-settings.ts'
+import { environmentRoleModels } from '../../desktop/model-connections.ts'
 
 const object=(v:unknown):Record<string,unknown>=>v!==null&&typeof v==='object'&&!Array.isArray(v)?v as Record<string,unknown>:{}
 const array=(v:unknown):unknown[]=>Array.isArray(v)?v:[]
@@ -69,8 +70,7 @@ async function main() {
  })
  await new Promise<void>(done=>server.listen(0,'127.0.0.1',done))
  const port=(server.address() as {port:number}).port
- const create=(packPath:string,dataDirectory:string,enabled=false)=>WorldHostRuntime.create({packPath,dataDirectory,provider:'local',model,
-  utilityEndpoint:`http://127.0.0.1:${port}/v1/chat/completions`,thinkingLevel:'low',preset:{maxOutputTokens:32768},timeoutMs:60000,
+ const create=(packPath:string,dataDirectory:string,enabled=false)=>WorldHostRuntime.create({models: environmentRoleModels({ PERSPECTRA_MODEL_ENDPOINT: `http://127.0.0.1:${port}/v1/chat/completions`, PERSPECTRA_MODEL: model, PERSPECTRA_MODEL_API_KEY: process.env.HCW_LOCAL_API_KEY, PERSPECTRA_THINKING_LEVEL: 'low' }),packPath,dataDirectory,preset:{maxOutputTokens:32768},timeoutMs:60000,
   playSettings:settings,recentExecutionEvidence:enabled,continueAfterPublish:false,beforeActionExpression:false})
  const frozen:Record<string,{request:CharacterTurnRequest;packPath:string;dataDirectory:string;initial:ReturnType<typeof snapshot>}>= {}
  try {

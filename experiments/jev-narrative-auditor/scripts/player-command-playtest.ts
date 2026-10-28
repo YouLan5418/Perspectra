@@ -7,6 +7,7 @@ import { WorldStore } from '@harness-world/store-sqlite'
 import { WorldHostRuntime } from '../../../desktop/host/world-runtime.ts'
 import { createClaimClassifier } from '../../../desktop/host/jev-shadow-claims-client.ts'
 import type { ShadowRecord } from '../../../desktop/host/jev-shadow.ts'
+import { environmentRoleModels } from '../../../desktop/model-connections.ts'
 
 const directory = resolve(process.argv[2] ?? '')
 if (!process.argv[2] || existsSync(directory)) throw new Error('provide a new output directory')
@@ -38,7 +39,7 @@ globalThis.fetch = async (url, init) => {
 }
 const runtime = await WorldHostRuntime.create({ dataDirectory: resolve(directory, 'world'),
   packPath: resolve('experiments/jev-narrative-auditor/holdout-2026-09-27/live-pack'),
-  provider: 'deepseek', model: 'deepseek-flash', apiKey: process.env.DEEPSEEK_API_KEY,
+  models: environmentRoleModels({ PERSPECTRA_MODEL_ENDPOINT: 'https://api.deepseek.com/chat/completions', PERSPECTRA_MODEL: 'deepseek-flash', PERSPECTRA_MODEL_API_KEY: process.env.DEEPSEEK_API_KEY }),
   shadowAudit: { items: [{ entityId: 'entity:diary', name: '布面日记' }, { entityId: 'entity:pocket-watch', name: '铜怀表' }],
     classify: createClaimClassifier(process.env.OPENROUTER_JEV_KEY),
     write: async record => { records.push(record); log('jev-shadow.jsonl', record) } } })

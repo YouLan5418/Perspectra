@@ -1,4 +1,4 @@
-import { createServer, type Server } from 'node:http'
+import { type Server } from 'node:http'
 import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
@@ -21,6 +21,7 @@ import { WorldHostRuntime, type WorldHostOptions } from '../../desktop/host/worl
 import { projectPlayerView } from '../../desktop/host/frontend-adapter.ts'
 import { WAIT_ACTION } from '../../desktop/host/http-server.ts'
 import type { PlaySettings } from '../../desktop/play-settings.ts'
+import { createChatServer, fakeModels } from '../support/fake-provider.ts'
 
 const roots: string[] = [],
   servers: Server[] = [],
@@ -78,7 +79,7 @@ async function fixture(
   writeFileSync(join(pack, 'autonomy.json'), JSON.stringify(config))
   const requests: WorldJsonObject[] = []
   let decision: (input: WorldJsonObject) => unknown | Promise<unknown> = () => ({ decision: 'abstain' })
-  const server = createServer((request, response) => {
+  const server = createChatServer((request, response) => {
     let body = ''
     request.on('data', chunk => {
       body += String(chunk)
@@ -109,9 +110,11 @@ async function fixture(
   const options = {
     packPath: pack,
     dataDirectory: data,
-    provider: 'ollama' as const,
-    model: 'fixture',
-    utilityEndpoint: 'http://127.0.0.1:' + (server.address() as { port: number }).port + '/api/chat',
+    models: fakeModels(
+      'http://127.0.0.1:' + (server.address() as { port: number }).port + '/api/chat',
+      'openai',
+      'fixture',
+    ),
     timeoutMs: 5000,
     playSettings: playSettings(settings),
     ...controls,

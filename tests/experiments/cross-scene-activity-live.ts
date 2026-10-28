@@ -13,7 +13,7 @@ const directory = process.argv[2], medium = process.argv[3]
 if (!directory || !['sms', 'phone'].includes(medium ?? '')) throw new TypeError('用法：指定新目录与 sms 或 phone')
 const root = resolve(directory); mkdirSync(root, { recursive: true })
 const provider = createChatProvider({ endpoint: new URL(process.env.HCW_LOCAL_ENDPOINT ?? 'http://127.0.0.1:8046/v1/chat/completions'),
-  model: process.env.HCW_LOCAL_MODEL ?? 'gemini-3.8-flash', style: 'tool', timeoutMs: 60000,
+  model: process.env.HCW_LOCAL_MODEL ?? 'gemini-3.8-flash', timeoutMs: 60000,
   ...(process.env.HCW_LOCAL_API_KEY ? { apiKey: process.env.HCW_LOCAL_API_KEY } : {}) })
 let phase = 'contact'
 const runtime = await crossSceneRuntime(root, async (request, signal) => {

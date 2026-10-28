@@ -4,14 +4,13 @@ import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { createHostServer } from '../../desktop/host/http-server.ts'
 import { WorldHostCore } from '../../desktop/host/world-runtime.ts'
+import { environmentRoleModels } from '../../desktop/model-connections.ts'
 
 const dataDirectory = mkdtempSync(join(tmpdir(), 'perspectra-inventory-'))
 const runtime = await WorldHostCore.create({
+  models: environmentRoleModels({ PERSPECTRA_MODEL_ENDPOINT: 'http://127.0.0.1:1/api/chat', PERSPECTRA_MODEL: 'unused' }),
   packPath: resolve('examples/world-packs/status-market'),
   dataDirectory,
-  provider: 'ollama',
-  model: 'unused',
-  utilityEndpoint: 'http://127.0.0.1:1/api/chat',
   timeoutMs: 1000,
 })
 const token = 'f'.repeat(64)

@@ -1,4 +1,3 @@
-import { createServer } from 'node:http'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
@@ -8,6 +7,7 @@ import { WorldStore } from '@harness-world/store-sqlite'
 import { WorldHostRuntime } from '../../desktop/host/world-runtime.ts'
 import { type ShadowRecord } from '../../desktop/host/jev-shadow.ts'
 import { claimCriteria, type ClaimQuestion, type ClaimKind } from '../../desktop/host/jev-shadow-claims-client.ts'
+import { createChatServer, fakeModels } from '../support/fake-provider.ts'
 
 afterEach(() => vi.restoreAllMocks())
 
@@ -29,7 +29,7 @@ it.each([0, 0.999])(
       const blocked = new Promise<void>(done => {
         release = done
       })
-      const server = createServer((request, response) => {
+      const server = createChatServer((request, response) => {
         let body = ''
         request.on('data', chunk => {
           body += String(chunk)
@@ -72,9 +72,7 @@ it.each([0, 0.999])(
         runtime = await WorldHostRuntime.create({
           dataDirectory: root,
           packPath: resolve('examples/world-packs/prototype-g1'),
-          provider: 'ollama',
-          model: 'fixture',
-          utilityEndpoint: `http://127.0.0.1:${port}/api/chat`,
+          models: fakeModels(`http://127.0.0.1:${port}/api/chat`, 'openai', 'fixture'),
           ...(enabled
             ? {
                 shadowAudit: {

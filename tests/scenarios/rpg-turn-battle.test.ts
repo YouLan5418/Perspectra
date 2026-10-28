@@ -1,4 +1,4 @@
-import { createServer, type Server } from 'node:http'
+import { type Server } from 'node:http'
 import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
@@ -11,6 +11,7 @@ import { WorldStore } from '@harness-world/store-sqlite'
 import { WorldHostRuntime } from '../../desktop/host/world-runtime.ts'
 import { projectPlayerView } from '../../desktop/host/frontend-adapter.ts'
 import { PackStatus } from '../../desktop/host/pack-status.ts'
+import { createChatServer, fakeModels } from '../support/fake-provider.ts'
 
 const PLAYER = 'character:player',
   ALLY = 'character:companion',
@@ -45,7 +46,7 @@ async function fixture(fault = false) {
   const status = PackStatus.load(packPath, compiled)!
   const requests: WorldJsonObject[] = []
   let tactics: 'guard' | 'abstain' = 'guard'
-  const server = createServer((request, response) => {
+  const server = createChatServer((request, response) => {
     let body = ''
     request.on('data', chunk => {
       body += String(chunk)
@@ -79,10 +80,12 @@ async function fixture(fault = false) {
   const options = {
     packPath,
     dataDirectory,
-    provider: 'ollama' as const,
-    model: 'fixture',
+    models: fakeModels(
+      'http://127.0.0.1:' + (server.address() as { port: number }).port + '/api/chat',
+      'openai',
+      'fixture',
+    ),
     timeoutMs: 5000,
-    utilityEndpoint: 'http://127.0.0.1:' + (server.address() as { port: number }).port + '/api/chat',
   }
   let runtime = await WorldHostRuntime.create(options)
   runtimes.push(runtime)

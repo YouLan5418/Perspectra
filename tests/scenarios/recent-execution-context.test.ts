@@ -1,4 +1,3 @@
-import { createServer } from 'node:http'
 import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
@@ -9,12 +8,13 @@ import { WorldHostRuntime } from '../../desktop/host/world-runtime.ts'
 import { restoreStoryNode } from '../../desktop/story-nodes.ts'
 import { playSettings } from '../../desktop/play-settings.ts'
 import type { CoreRunner } from '../../desktop/host/memory/python-worker.ts'
+import { createChatServer, fakeModels } from '../support/fake-provider.ts'
 
 it('keeps disabled requests unchanged and isolates private evidence across a real saved-node fork', async () => {
   const root = mkdtempSync(join(tmpdir(), 'execution-context-')),
     requests: Record<string, any>[] = []
   let action: 'none' | 'move' | 'take' = 'none'
-  const server = createServer((request, response) => {
+  const server = createChatServer((request, response) => {
     if (request.method !== 'POST') {
       response.writeHead(404)
       response.end()
@@ -68,9 +68,7 @@ it('keeps disabled requests unchanged and isolates private evidence across a rea
   const options = {
     packPath,
     dataDirectory: data,
-    provider: 'local' as const,
-    model: 'fixture',
-    utilityEndpoint: `http://127.0.0.1:${port}/v1/chat/completions`,
+    models: fakeModels(`http://127.0.0.1:${port}/v1/chat/completions`, 'openai', 'fixture'),
     playSettings: settings,
     storyNodes: true,
     memoryCore: true,

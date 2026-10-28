@@ -1,4 +1,3 @@
-import { createServer } from 'node:http'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
@@ -7,6 +6,7 @@ import { WorldStore } from '@harness-world/store-sqlite'
 import { currentEntityState } from '@harness-world/kernel'
 import { WorldHostRuntime } from '../../desktop/host/world-runtime.ts'
 import type { InterventionRecord } from '../../desktop/host/jev-publication-intervention.ts'
+import { createChatServer, fakeModels } from '../support/fake-provider.ts'
 
 it('real runtime commits a performed take once, repairs false recipient hold before observations, and keeps recipient scope', async () => {
   const root = mkdtempSync(join(tmpdir(), 'jev-correct-runtime-')),
@@ -14,7 +14,7 @@ it('real runtime commits a performed take once, repairs false recipient hold bef
   let performed = false,
     published = false,
     repairs = 0
-  const server = createServer((req, res) => {
+  const server = createChatServer((req, res) => {
     let body = ''
     req.on('data', c => (body += String(c)))
     req.on('end', () => {
@@ -65,9 +65,11 @@ it('real runtime commits a performed take once, repairs false recipient hold bef
     runtime = await WorldHostRuntime.create({
       dataDirectory: root,
       packPath: resolve('examples/world-packs/prototype-g1'),
-      provider: 'ollama',
-      model: 'fixture',
-      utilityEndpoint: `http://127.0.0.1:${(server.address() as { port: number }).port}/api/chat`,
+      models: fakeModels(
+        `http://127.0.0.1:${(server.address() as { port: number }).port}/api/chat`,
+        'openai',
+        'fixture',
+      ),
       publicationAudit: {
         mode: 'correct',
         items: [{ entityId: 'entity:brass-key', name: '黄铜钥匙' }],

@@ -11,6 +11,7 @@ import { preparePlayerIntent } from '../../../packages/application/src/player-in
 import { WorldHostRuntime } from '../../../desktop/host/world-runtime.ts'
 import { createClaimClassifier } from '../../../desktop/host/jev-shadow-claims-client.ts'
 import type { ShadowRecord } from '../../../desktop/host/jev-shadow.ts'
+import { environmentRoleModels } from '../../../desktop/model-connections.ts'
 
 const directory = resolve(process.argv[2] ?? '')
 if (!process.argv[2] || existsSync(directory)) throw new Error('provide a new output directory')
@@ -27,7 +28,7 @@ const diary = 'entity:diary', player = 'character:player'
 
 if (process.argv.includes('--probe')) {
   const runtime = await WorldHostRuntime.create({ dataDirectory: resolve(directory, 'world'), packPath,
-    provider: 'deepseek', model: 'deepseek-flash', apiKey: key })
+    models: environmentRoleModels({ PERSPECTRA_MODEL_ENDPOINT: 'https://api.deepseek.com/chat/completions', PERSPECTRA_MODEL: 'deepseek-flash', PERSPECTRA_MODEL_API_KEY: key }) })
   const store = new WorldStore(resolve(directory, 'world/world.sqlite'))
   const stored = store.readManifest(runtime.address)!
   const manifest = stored.manifest as CompiledWorldManifest
@@ -37,7 +38,7 @@ if (process.argv.includes('--probe')) {
   const profile = { version: 'player-intent-profile/v1' as const, providerId: 'chat-completions',
     modelId: 'deepseek-flash', maxOutputTokens: 1024, timeoutMs: 60000 }
   const provider = createChatProvider({ endpoint: new URL('https://api.deepseek.com/chat/completions'),
-    model: profile.modelId, apiKey: key, style: 'tool', timeoutMs: 60000 })
+    model: profile.modelId, apiKey: key, timeoutMs: 60000 })
   const cases = [
     { id: 'flip', holder: null, text: '我翻开桌上的布面日记看一页。', expected: 'narrate' },
     { id: 'lift-return', holder: null, text: '我把布面日记拿起来看清封底，马上放回原处，不接管。', expected: 'narrate' },
@@ -106,7 +107,7 @@ if (process.argv.includes('--probe')) {
     return response
   }
   const runtime = await WorldHostRuntime.create({ dataDirectory: resolve(directory, 'world'), packPath,
-    provider: 'deepseek', model: 'deepseek-flash', apiKey: key, shadowAudit: { items,
+    models: environmentRoleModels({ PERSPECTRA_MODEL_ENDPOINT: 'https://api.deepseek.com/chat/completions', PERSPECTRA_MODEL: 'deepseek-flash', PERSPECTRA_MODEL_API_KEY: key }), shadowAudit: { items,
       classify: createClaimClassifier(process.env.OPENROUTER_JEV_KEY ?? ''),
       write: async record => { records.push(record); log('jev-shadow.jsonl', record) } } })
   const store = new WorldStore(resolve(directory, 'world/world.sqlite'))

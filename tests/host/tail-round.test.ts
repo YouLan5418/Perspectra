@@ -1,5 +1,5 @@
 import { spawn } from 'node:child_process'
-import { createServer, type Server } from 'node:http'
+import type { Server } from 'node:http'
 import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync, readdirSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
@@ -20,6 +20,7 @@ import { FrontendActions, projectPlayerView } from '../../desktop/host/frontend-
 import { itemDecision, withItemRules } from '../support/item-rules.ts'
 import { Context } from '@deepseek-ai/cordis'
 import { PlayerFeed, type PlayerFeedEvent, type PlayerFeedLine } from '../../desktop/host-plugins.ts'
+import { createChatServer, fakeModels } from '../support/fake-provider.ts'
 
 const roots: string[] = [],
   servers: Server[] = [],
@@ -59,7 +60,7 @@ async function fixture(core = false, build?: CoreRunner, playerFeed?: PlayerFeed
   let decide: (input: WorldJsonObject) => unknown | Promise<unknown> = () => ({ decision: 'abstain' })
   const requests: WorldJsonObject[] = [],
     memoryRequests: WorldJsonObject[] = []
-  const server = createServer((request, response) => {
+  const server = createChatServer((request, response) => {
     let body = ''
     request.on('data', chunk => {
       body += String(chunk)
@@ -95,9 +96,7 @@ async function fixture(core = false, build?: CoreRunner, playerFeed?: PlayerFeed
   const options = {
     dataDirectory: data,
     packPath: pack,
-    provider: core ? ('local' as const) : ('ollama' as const),
-    model: 'fixture',
-    utilityEndpoint: 'http://127.0.0.1:' + (server.address() as { port: number }).port + '/v1/chat/completions',
+    models: fakeModels('http://127.0.0.1:' + (server.address() as { port: number }).port + '/v1/chat/completions'),
     timeoutMs: 5000,
     ...(core ? { memoryCore: true, memoryCoreRun: run, memoryCoreBuildRun: run } : {}),
     ...(playerFeed ? { playerFeed } : {}),
@@ -535,7 +534,7 @@ for (const phase of ['candidate-copy', 'switch-before', 'switch-after', 'select-
             phase,
             dataDirectory: f.data,
             packPath: f.pack,
-            endpoint: f.options.utilityEndpoint,
+            endpoint: f.options.models.default.decision.endpoint,
             tailId: oldId,
             candidateId,
           }),

@@ -6,6 +6,7 @@ import { WorldStore } from '@harness-world/store-sqlite'
 import type { WorldJsonObject } from '@harness-world/contracts'
 import { WorldHostRuntime } from '../../desktop/host/world-runtime.ts'
 import type { HostState } from '../../desktop/host/http-server.ts'
+import { environmentRoleModels } from '../../desktop/model-connections.ts'
 
 const root=resolve('.tmp','multiple-activities-live-'+Date.now()),pack=join(root,'pack'),data=join(root,'data')
 mkdirSync(root,{recursive:true});cpSync(resolve('examples/world-packs/multiple-activities'),pack,{recursive:true})
@@ -25,8 +26,7 @@ globalThis.fetch=async(input,init)=>{
     throw error
   }
 }
-const runtime=await WorldHostRuntime.create({packPath:pack,dataDirectory:data,provider:'local',
-  model:process.env.HCW_LOCAL_MODEL??'gemini-3.8-flash',utilityEndpoint:process.env.HCW_LOCAL_ENDPOINT??'http://127.0.0.1:8046/v1/chat/completions',timeoutMs:45_000})
+const runtime=await WorldHostRuntime.create({models: environmentRoleModels({ PERSPECTRA_MODEL_ENDPOINT: process.env.HCW_LOCAL_ENDPOINT??'http://127.0.0.1:8046/v1/chat/completions', PERSPECTRA_MODEL: process.env.HCW_LOCAL_MODEL??'gemini-3.8-flash', PERSPECTRA_MODEL_API_KEY: process.env.HCW_LOCAL_API_KEY }),packPath:pack,dataDirectory:data,timeoutMs:45_000})
 const steps:{label:string;elapsedMs:number;error:boolean;notice:string;activities:unknown;lastProviderCall:unknown}[]=[]
 async function act(key:string,operation:string,parameters:WorldJsonObject={}):Promise<HostState>{
   const activity=(await runtime.state()).activities!.find(value=>value.activityKey===key)!,started=Date.now()

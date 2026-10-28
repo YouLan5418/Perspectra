@@ -14,6 +14,7 @@ import {
 } from '../../packages/provider-chat/src/preset-runtime.ts'
 import { WorldHostRuntime } from '../../desktop/host/world-runtime.ts'
 import { WorldStore } from '@harness-world/store-sqlite'
+import { fakeModels, streamingFetch } from '../support/fake-provider.ts'
 const roots: string[] = []
 afterEach(async () => {
   vi.unstubAllGlobals()
@@ -261,36 +262,38 @@ it('publishes cleaned text through the real Core, isolates role prompts, project
   roots.push(dir)
   const requests: Record<string, unknown>[] = [],
     answered = new Set<string>()
-  vi.stubGlobal('fetch', (async (_url: unknown, init: RequestInit) => {
-    const body = JSON.parse(String(init.body)) as { messages: { content: string }[] }
-    requests.push(body)
-    const data = body.messages
-      .map(m => {
-        try {
-          return JSON.parse(m.content) as { context?: { character: { characterId: string } } }
-        } catch {
-          return {}
-        }
-      })
-      .find(m => m.context)
-    const actor = data!.context!.character.characterId
-    const decision = answered.has(actor)
-      ? { decision: 'abstain' }
-      : {
-          decision: 'publish',
-          segments: [
-            { type: 'narration', text: '微笑' },
-            { type: 'speech', text: '<draft>未发布草稿</draft>已发布表达' },
-          ],
-        }
-    answered.add(actor)
-    return new Response(JSON.stringify({ message: { content: JSON.stringify(decision) } }))
-  }) as typeof fetch)
+  vi.stubGlobal(
+    'fetch',
+    streamingFetch(async (_url: unknown, init?: RequestInit) => {
+      const body = JSON.parse(String(init!.body)) as { messages: { content: string }[] }
+      requests.push(body)
+      const data = body.messages
+        .map(m => {
+          try {
+            return JSON.parse(m.content) as { context?: { character: { characterId: string } } }
+          } catch {
+            return {}
+          }
+        })
+        .find(m => m.context)
+      const actor = data!.context!.character.characterId
+      const decision = answered.has(actor)
+        ? { decision: 'abstain' }
+        : {
+            decision: 'publish',
+            segments: [
+              { type: 'narration', text: '微笑' },
+              { type: 'speech', text: '<draft>未发布草稿</draft>已发布表达' },
+            ],
+          }
+      answered.add(actor)
+      return new Response(JSON.stringify({ message: { content: JSON.stringify(decision) } }))
+    }),
+  )
   const options = {
     packPath: resolve('examples/world-packs/prototype-g1'),
     dataDirectory: join(dir, 'world'),
-    provider: 'ollama' as const,
-    model: 'fixture',
+    models: fakeModels('http://127.0.0.1:9/v1/chat/completions'),
     presetMapping: {
       characters: {
         'character:companion': {
@@ -398,8 +401,7 @@ it('reports request-dependent preset expansion failure without calling the provi
   const runtime = await WorldHostRuntime.create({
     packPath: resolve('examples/world-packs/prototype-g1'),
     dataDirectory: directory,
-    provider: 'local',
-    model: 'fixture',
+    models: fakeModels('http://127.0.0.1:9/v1/chat/completions'),
     preset,
   })
   try {

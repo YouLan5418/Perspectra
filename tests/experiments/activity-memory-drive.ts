@@ -14,6 +14,7 @@ import { createBasicInteractionPackage } from '@harness-world/interactions-basic
 import { CharacterTurn, type CharacterTurnRequest } from '../../packages/application/src/character-turn.ts'
 import { WorldHostRuntime } from '../../desktop/host/world-runtime.ts'
 import { gatewayTurnCall } from '../../desktop/host/gateway-turn-call.ts'
+import { environmentRoleModels } from '../../desktop/model-connections.ts'
 
 const rootArg=process.argv[2],stage=process.argv[3]??'game'
 if(!rootArg||!['game','sources','build','probe'].includes(stage))throw new Error('provide output directory and game/sources/build/probe stage')
@@ -45,7 +46,7 @@ if(stage==='game'){
   res.writeHead(response.status,{'content-type':'application/json'});res.end(text)
  }catch(error){append('errors.jsonl',{stage:'game-call',error:error instanceof Error?error.message:'unknown'});res.writeHead(502);res.end('{}')}})()})})
  await new Promise<void>(done=>proxy.listen(0,'127.0.0.1',done));const port=proxy.address();if(!port||typeof port==='string')throw new Error('no proxy')
- const runtime=await WorldHostRuntime.create({packPath:pack,dataDirectory:base,provider:'local',model,utilityEndpoint:'http://127.0.0.1:'+port.port,timeoutMs:50000})
+ const runtime=await WorldHostRuntime.create({models: environmentRoleModels({ PERSPECTRA_MODEL_ENDPOINT: 'http://127.0.0.1:'+port.port, PERSPECTRA_MODEL: model, PERSPECTRA_MODEL_API_KEY: process.env.HCW_LOCAL_API_KEY }),packPath:pack,dataDirectory:base,timeoutMs:50000})
  try{
   const command=async(operation:string,parameters:WorldJsonObject={})=>{const before=await runtime.state(),after=await runtime.activityAction({activityId:operation==='start'?null:String(before.activity!.id),revision:operation==='start'?0:Number(before.activity!.revision),operation,parameters,requestId:randomUUID()});save('game-state.json',after);append('game-steps.jsonl',{operation,parameters,headSeq:after.debug.headSeq,game:after.activity?.game,notice:after.notice,error:after.error});return after}
   let state=await command('start');let low=1,high=100

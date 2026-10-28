@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  environmentRoleModels,
   instanceModels,
   listModels,
   migrateModels,
@@ -51,6 +52,13 @@ describe('model connections', () => {
     expect(modelsListUrl(openai).href).toBe('http://127.0.0.1:8046/v1/models')
     expect(modelsListUrl(anthropic).href).toBe('https://api.anthropic.com/v1/models')
     expect(modelsListUrl(google).href).toBe('https://g.test/v1beta/models')
+  })
+
+  it('rejects Anthropic addresses the adapter cannot call before saving a connection', () => {
+    expect(() => modelConnection({ ...anthropic, endpoint: 'https://gateway.test/messages' })).toThrow('/v1/messages')
+    expect(modelConnection(anthropic).endpoint).toBe(anthropic.endpoint)
+    const endpoint = 'https://api.deepseek.com/anthropic/v1/messages'
+    expect(modelConnection({ ...anthropic, endpoint }).endpoint).toBe(endpoint)
   })
 
   it('reads one page of each protocol and keeps only chat-capable Google models', () => {
@@ -212,21 +220,58 @@ describe('instance model choices', () => {
     expect(migrated.lastModels).toEqual({ decision: { connectionId: local!.id, model: 'gemini-3.7-flash' } })
   })
 
-  it('builds the launch environment from the default decision and its connection key only', () => {
+  it('passes resolved targets through one path: role JSON plus only the keys it references', () => {
     const env = modelEnvironment(
       { decision: { connectionId: other.id, model: 'm', thinkingLevel: 'low' } },
       connections,
       { [other.id]: 'K-OTHER', [id]: 'K-LOCAL' },
     )
-    expect(env).toMatchObject({
-      HCW_LOCAL_MODEL: 'm',
-      HCW_LOCAL_ENDPOINT: other.endpoint,
-      HCW_MODEL_PROTOCOL: 'openai',
-      HCW_THINKING_LEVEL: 'low',
-      HCW_LOCAL_API_KEY: 'K-OTHER',
-    })
-    expect(JSON.parse(env.PERSPECTRA_MODEL_KEYS!)).toEqual({ [other.id]: 'K-OTHER' })
+    expect(Object.keys(env).sort()).toEqual(['PERSPECTRA_MODEL_KEYS', 'PERSPECTRA_ROLE_MODELS'])
+    expect(JSON.parse(env.PERSPECTRA_MODEL_KEYS)).toEqual({ [other.id]: 'K-OTHER' })
     expect(env.PERSPECTRA_ROLE_MODELS).not.toContain('K-')
+    const runtime = runtimeRoleModels(JSON.parse(env.PERSPECTRA_ROLE_MODELS), JSON.parse(env.PERSPECTRA_MODEL_KEYS))
+    expect(runtime.default.decision).toEqual({
+      protocol: 'openai',
+      endpoint: other.endpoint,
+      model: 'm',
+      thinkingLevel: 'low',
+      apiKey: 'K-OTHER',
+    })
+  })
+
+  it('builds one target from the source-entry environment and refuses an incomplete one', () => {
+    expect(() => environmentRoleModels({})).toThrow('未配置模型')
+    const models = environmentRoleModels({
+      PERSPECTRA_MODEL_ENDPOINT: 'http://127.0.0.1:1/v1/chat/completions',
+      PERSPECTRA_MODEL: 'fixture',
+      PERSPECTRA_MODEL_API_KEY: 'K',
+      PERSPECTRA_THINKING_LEVEL: 'low',
+    })
+    expect(models.default.decision).toEqual({
+      protocol: 'openai',
+      endpoint: 'http://127.0.0.1:1/v1/chat/completions',
+      model: 'fixture',
+      thinkingLevel: 'low',
+      apiKey: 'K',
+    })
+    expect(models.default.memory).toEqual({
+      protocol: 'openai',
+      endpoint: 'http://127.0.0.1:1/v1/chat/completions',
+      model: 'fixture',
+      apiKey: 'K',
+    })
+    expect(models.characters).toEqual({})
+  })
+
+  it('refuses a thinking level the model does not declare, on either protocol', () => {
+    for (const connection of [openai, google])
+      expect(() =>
+        instanceModels(
+          { decision: { connectionId: id, model: 'gemini-3.8-flash', thinkingLevel: 'off' } },
+          [connection],
+          characters,
+        ),
+      ).toThrow('不支持该思考强度')
   })
 
   it('passes per-character targets without keys and only the keys they reference', () => {
@@ -245,10 +290,15 @@ describe('instance model choices', () => {
       },
     }
     const env = modelEnvironment(models, all, { [id]: 'K-LOCAL', [other.id]: 'K-OTHER', [third.id]: 'K-THIRD' })
-    expect(JSON.parse(env.PERSPECTRA_MODEL_KEYS!)).toEqual({ [id]: 'K-LOCAL', [other.id]: 'K-OTHER' })
+    expect(JSON.parse(env.PERSPECTRA_MODEL_KEYS)).toEqual({ [id]: 'K-LOCAL', [other.id]: 'K-OTHER' })
     expect(env.PERSPECTRA_ROLE_MODELS).not.toContain('K-')
-    const runtime = runtimeRoleModels(JSON.parse(env.PERSPECTRA_ROLE_MODELS!), JSON.parse(env.PERSPECTRA_MODEL_KEYS!))
-    expect(runtime.memory).toEqual({ protocol: 'openai', endpoint: openai.endpoint, model: 'base', apiKey: 'K-LOCAL' })
+    const runtime = runtimeRoleModels(JSON.parse(env.PERSPECTRA_ROLE_MODELS), JSON.parse(env.PERSPECTRA_MODEL_KEYS))
+    expect(runtime.default.memory).toEqual({
+      protocol: 'openai',
+      endpoint: openai.endpoint,
+      model: 'base',
+      apiKey: 'K-LOCAL',
+    })
     expect(runtime.characters['character:companion']).toEqual({
       decision: {
         protocol: 'openai',
@@ -260,7 +310,7 @@ describe('instance model choices', () => {
       memory: { protocol: 'openai', endpoint: other.endpoint, model: 'strong', apiKey: 'K-OTHER' },
     })
     expect(
-      runtimeRoleModels(JSON.parse(env.PERSPECTRA_ROLE_MODELS!), {}).characters['character:companion']!.decision,
+      runtimeRoleModels(JSON.parse(env.PERSPECTRA_ROLE_MODELS), {}).characters['character:companion']!.decision,
     ).not.toHaveProperty('apiKey')
     expect(() => runtimeRoleModels({ default: { decision: {}, memory: {} }, characters: {} }, {})).toThrow()
   })

@@ -55,7 +55,13 @@ it('boots the built backend from a source checkout and an isolated installed lay
           cwd: installed ? runtime : resolve('.'),
           windowsHide: true,
           stdio: ['ignore', 'ignore', 'pipe', 'ipc'],
-          env: { ...process.env, PERSPECTRA_RUNTIME_ROOT: installed ? runtime : undefined },
+          env: {
+            ...process.env,
+            PERSPECTRA_RUNTIME_ROOT: installed ? runtime : undefined,
+            PERSPECTRA_ROLE_MODELS: undefined,
+            PERSPECTRA_MODEL_ENDPOINT: 'http://127.0.0.1:9/v1/chat/completions',
+            PERSPECTRA_MODEL: 'fixture',
+          },
         },
       )
       let errors = ''
