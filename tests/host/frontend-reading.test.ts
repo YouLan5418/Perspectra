@@ -278,6 +278,20 @@ const embedded = (name: string, next: string) =>
       DEFAULT_SCRIPT.indexOf(';\n const ' + next + '='),
     ),
   )
+it('says only that a reply is coming, never who is replying', () => {
+  // Naming the responder would reveal who acts in hidden turns, such as who is awake at night in werewolf.
+  const start = DEFAULT_SCRIPT.indexOf(' const statusText=') + ' const statusText='.length
+  const statusText = runInNewContext(DEFAULT_SCRIPT.slice(start, DEFAULT_SCRIPT.indexOf(';\n', start))) as (
+    view: unknown,
+    reading: boolean,
+  ) => string
+  expect(statusText({ status: 'busy', responders: ['GPT', 'Claude'] }, false)).toBe('正在回复中')
+  expect(statusText({ status: 'busy', responders: ['GPT'], canInterrupt: true }, false)).toBe('正在回复中')
+  expect(statusText({ status: 'busy' }, false)).toBe('正在回复中')
+  expect(statusText({ status: 'busy', canInterrupt: true }, false)).toBe('可以接着说')
+  expect(statusText({ status: 'ready' }, true)).toBe('阅读中')
+  expect(DEFAULT_SCRIPT).not.toContain('responders.join')
+})
 it('renders the status panel with labels and values and marks stale ones as last confirmed', () => {
   const statusRows = embedded('statusRows', 'roundTools') as (
     view: unknown,

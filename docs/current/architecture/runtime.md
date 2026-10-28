@@ -128,7 +128,7 @@ Core 长期整理在排队前冻结授权 Source 前缀。后台运行期间前�
 
 例：玩家离开 B、C 所在的客厅去厨房找 A。A 回应后也走去客厅，厨房只剩玩家。此时 B、C 对“玩家离开”“A 到来”的反应仍在计算，但都发生在玩家场景之外。宿主据此把玩家视图显示为“可以回应”，不点名场外角色；玩家这时发言、点行动按钮或保存节点，会先取消这些未提交的场外计算再执行，已提交的观察和行动保留。若玩家场景内有角色正在处理，状态显示“A 正在回应”，玩家可以等，也可以照常插话。
 
-实现上，运行时把交给 `runCharacterActivations` 的 `turn` 包一层，记录正在运行的角色，在 `state()` 中与当前场景成员比对，得到 `responders`（场内正在处理的角色名）和 `background`（只剩场外处理且允许插话）。`projectPlayerView` 在 `background` 时输出 `ready`，不再透出 `canInterrupt` 和处理阶段文案。[TailRoundRuntime](../../../desktop/host/tail-runtime.ts) 的 `perform` 现在和发言共用同一中止入口；`background` 时保存节点也会先中止。中止信号会传到模型 HTTP 请求，取消不需要等模型返回。自动测试见 [dynamic-scheduling.test.ts](../../../tests/scenarios/dynamic-scheduling.test.ts)；2026-10-17 晚宴包真实模型试玩中，玩家反馈离场后等待明显缩短，未做计时对照；发行包未更新。已知限制：玩家行动较快时，场外连锁会被截短；刚完成一个场内角色、下一个尚未派发的瞬间，状态可能短暂显示为可回应。
+实现上，运行时把交给 `runCharacterActivations` 的 `turn` 包一层，记录正在运行的角色，在 `state()` 中与当前场景成员比对，得到 `responders`（场内正在处理的角色名）和 `background`（只剩场外处理且允许插话）。默认舞台只用 `responders` 判断是否显示“正在回复中”，不显示名字：狼人杀这类隐藏回合里，夜里被激活的人名本身就是身份信息（2026-10-28）。想看具体是谁，用创作者页面。`projectPlayerView` 在 `background` 时输出 `ready`，不再透出 `canInterrupt` 和处理阶段文案。[TailRoundRuntime](../../../desktop/host/tail-runtime.ts) 的 `perform` 现在和发言共用同一中止入口；`background` 时保存节点也会先中止。中止信号会传到模型 HTTP 请求，取消不需要等模型返回。自动测试见 [dynamic-scheduling.test.ts](../../../tests/scenarios/dynamic-scheduling.test.ts)；2026-10-17 晚宴包真实模型试玩中，玩家反馈离场后等待明显缩短，未做计时对照；发行包未更新。已知限制：玩家行动较快时，场外连锁会被截短；刚完成一个场内角色、下一个尚未派发的瞬间，状态可能短暂显示为可回应。
 
 
 ## 角色思考强度

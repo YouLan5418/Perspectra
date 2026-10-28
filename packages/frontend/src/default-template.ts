@@ -129,6 +129,8 @@ export const DEFAULT_SCRIPT = String.raw`(() => {
  const normalizePreferences=(${stagePreferences.toString()});
  let preferences=normalizePreferences({}),stageAssets=[],stageConfig=null,canSave=false,hasSpeech=false,hasBgm=false,saving=false,preferencesVersion=0;
  let latest,posting=false,pending,attached=null,connected=false,historyKey='',actionsKey='',waitOption=null,statusKey='',canRegenerate=false,requestVersion=0,submittedPlayers=0;
+ // Never name who is replying: in hidden turns (who is awake at night) the name alone gives the game away.
+ const statusText=(view,reading)=>({ready:reading?'阅读中':'可以回应',busy:view.responders?.length?'正在回复中':view.canInterrupt?'可以接着说':view.tailRound?.regenerating?'正在处理回合':'正在回复中',paused:'已暂停',error:'处理未完成'})[view.status];
  // Keep statusRows and roundTools adjacent and in this order: frontend-reading tests extract the helper by these markers.
  const statusRows=(${statusBarRows.toString()});
  const roundTools=node('round-tools');
@@ -234,7 +236,7 @@ export const DEFAULT_SCRIPT = String.raw`(() => {
      for(const group of rows){const section=document.createElement('section');section.className='status-section';const heading=document.createElement('h3');heading.textContent=group.holder;const table=document.createElement('dl');
        for(const item of group.items){const term=document.createElement('dt');term.textContent=item.label;const value=document.createElement('dd');value.textContent=item.value+(item.note?'（'+item.note+'）':'');table.append(term,value)}
        section.append(heading,table);list.append(section)}}
-   node('status').textContent=({ready:playback.pending()?'阅读中':'可以回应',busy:view.responders?.length?view.responders.join('、')+' 正在回应':view.canInterrupt?'可以接着说':view.tailRound?.regenerating?'正在处理回合':'角色正在回应',paused:'已暂停',error:'处理未完成'})[view.status];
+   node('status').textContent=statusText(view,playback.pending());
    node('status').dataset.state=view.status;
    node('status').title=view.feedback?.phase||'';
    if(!pending)node('notice').textContent=view.canInterrupt?'可继续输入；尚未完成的回应会被打断，已发生的行动保留。':view.status==='busy'?(view.feedback?.phase||'角色正在处理，已发表的回应会立即显示。'):view.feedback?.message||'';
