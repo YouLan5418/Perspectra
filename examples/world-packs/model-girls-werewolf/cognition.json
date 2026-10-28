@@ -1,0 +1,61 @@
+{
+  "schemaVersion": "worldpack-cognition/v2",
+  "characters": [
+    {
+      "characterId": "character:player",
+      "observations": [],
+      "claims": [],
+      "goals": [],
+      "affects": [],
+      "openLoops": []
+    },
+    {
+      "characterId": "character:gpt",
+      "observations": [],
+      "claims": [],
+      "goals": [],
+      "affects": [],
+      "openLoops": []
+    },
+    {
+      "characterId": "character:claude",
+      "observations": [],
+      "claims": [],
+      "goals": [],
+      "affects": [],
+      "openLoops": []
+    },
+    {
+      "characterId": "character:deepseek",
+      "observations": [],
+      "claims": [],
+      "goals": [],
+      "affects": [],
+      "openLoops": []
+    },
+    {
+      "characterId": "character:glm",
+      "observations": [],
+      "claims": [],
+      "goals": [],
+      "affects": [],
+      "openLoops": []
+    },
+    {
+      "characterId": "character:gemini",
+      "observations": [],
+      "claims": [],
+      "goals": [],
+      "affects": [],
+      "openLoops": []
+    },
+    {
+      "characterId": "character:qwen",
+      "observations": [],
+      "claims": [],
+      "goals": [],
+      "affects": [],
+      "openLoops": []
+    }
+  ]
+}

@@ -1,0 +1,75 @@
+{
+  "schemaVersion": "worldpack-memory/v2",
+  "characters": [
+    {
+      "characterId": "character:player",
+      "profile": "standard",
+      "attentionTopics": [
+        "狼人杀",
+        "谁骗过我",
+        "谁投了我",
+        "谁值得信任"
+      ]
+    },
+    {
+      "characterId": "character:gpt",
+      "profile": "standard",
+      "attentionTopics": [
+        "狼人杀",
+        "谁骗过我",
+        "谁投了我",
+        "谁值得信任"
+      ]
+    },
+    {
+      "characterId": "character:claude",
+      "profile": "standard",
+      "attentionTopics": [
+        "狼人杀",
+        "谁骗过我",
+        "谁投了我",
+        "谁值得信任"
+      ]
+    },
+    {
+      "characterId": "character:deepseek",
+      "profile": "standard",
+      "attentionTopics": [
+        "狼人杀",
+        "谁骗过我",
+        "谁投了我",
+        "谁值得信任"
+      ]
+    },
+    {
+      "characterId": "character:glm",
+      "profile": "standard",
+      "attentionTopics": [
+        "狼人杀",
+        "谁骗过我",
+        "谁投了我",
+        "谁值得信任"
+      ]
+    },
+    {
+      "characterId": "character:gemini",
+      "profile": "standard",
+      "attentionTopics": [
+        "狼人杀",
+        "谁骗过我",
+        "谁投了我",
+        "谁值得信任"
+      ]
+    },
+    {
+      "characterId": "character:qwen",
+      "profile": "standard",
+      "attentionTopics": [
+        "狼人杀",
+        "谁骗过我",
+        "谁投了我",
+        "谁值得信任"
+      ]
+    }
+  ]
+}
