@@ -67,7 +67,7 @@ function table() {
       return r
     },
     /** The host hands policy a scoped view: `private` is already the actor's own record. */
-    policy(actor: string): { speech: string; operations: string[] } {
+    policy(actor: string): { speech: string; narration: boolean; operations: string[] } {
       const g = t.state.game
       const view = { participants: EVERYONE, game: { ...g, private: g.private[actor], internal: undefined } }
       return plain(script.policy(view, actor))
@@ -110,6 +110,25 @@ describe('werewolf rules', () => {
     const villager = t.who('村民').find(id => id !== PLAYER)!
     expect(t.policy(villager)).toMatchObject({ speech: 'none', operations: [] })
     expect(t.policy(PLAYER).operations).toContain('quit')
+  })
+
+  it('night actions report to the actor only, so nobody learns who acted last', () => {
+    const t = table()
+    const round = t.state.game.round
+    const results = t.night({ kill: t.who('村民')[0]!, potion: { choice: 'none' } })
+    expect(t.state.game.phase).toBe('day-speak')
+    expect(results.every(r => r.audience === 'self')).toBe(true)
+    // The dawn still reaches everyone, through the public state rather than an observation.
+    expect(String(t.state.game.public['lastResult'])).toContain('天亮了')
+    // The visible round must not count how many role holders acted.
+    expect(t.state.game.round).toBe(round)
+  })
+
+  it('wolves cannot narrate at night and are told that any public word gives them away', () => {
+    const t = table()
+    const wolf = t.state.game.turn!
+    expect(t.policy(wolf)).toMatchObject({ speech: 'free', narration: false })
+    expect(String(t.state.game.private[wolf]!['提醒'])).toContain('暴露')
   })
 
   it('witch saving the kill target means nobody dies at dawn', () => {
@@ -416,6 +435,15 @@ describe('werewolf on the host', () => {
       if (role !== '狼人') expect(s.text).not.toMatch(new RegExp(`"狼同伴"|"同伴提议"|${WHISPER}`))
       if (role !== '预言家') expect(s.text).not.toContain('"验人记录"')
       if (role !== '女巫') expect(s.text).not.toContain('"今晚被刀"')
+    }
+    // A dawn that does not end the game is delivered only to whoever closed the night.
+    for (const id of NPCS) {
+      const views = JSON.parse(f.observations(id)) as { value: { content?: WorldJsonObject; observerId?: string } }[]
+      for (const o of views) {
+        const description = String(o.value.content?.resultDescription ?? '')
+        if (description.includes('天亮了') && !description.includes('身份公布'))
+          expect(o.value.content!.actorId).toBe(id)
+      }
     }
   }, 120000)
 

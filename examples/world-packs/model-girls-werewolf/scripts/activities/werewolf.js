@@ -40,7 +40,7 @@ function reminder(role, partner) {
   if (role === '狼人')
     return (
       `你是狼人，同伴是 ${nameOf(partner)}。夜晚轮到你时用 kill 选择今晚要刀的人；两名狼人依次提交，以后提交的为准。` +
-      '想和同伴商量，就用定向发言只对同伴说，公开发言所有人都能听到。白天你可以隐藏身份。' +
+      '夜里只有狼人能开口，所以夜里任何公开发言都会暴露你是狼；想和同伴商量，只能用定向发言只对同伴说。白天你可以隐藏身份。' +
       speech +
       '胜利条件：存活狼人数不少于存活好人数。'
     )
@@ -264,7 +264,9 @@ globalThis.activityScript = {
     } else if (myTurn && game.phase === 'day-speak') speech = 'free'
     else if (myTurn && game.phase === 'vote') operations.push('vote')
     if (game.active && actorId === playerId) operations.push('quit')
-    return { speech, speechChoices: [], narration: speech === 'free', move: false, interactions: [], operations }
+    // 夜里的描写同样只能出自狼人，关掉它，免得一句动作描写就暴露身份。
+    const narration = speech === 'free' && game.phase !== 'night'
+    return { speech, speechChoices: [], narration, move: false, interactions: [], operations }
   },
   resolve(state, actorId, operation, parameters) {
     const game = copy(state.game)
@@ -284,10 +286,10 @@ globalThis.activityScript = {
     if (parameters.target !== undefined && parameters.target !== ABSTAIN && target === undefined)
       return { rejectReason: `${parameters.target} 不在这局游戏里。` }
     if (target !== undefined && !isAlive(game, target)) return { rejectReason: `${nameOf(target)} 已经出局了。` }
-    game.round += 1
 
     if (operation === 'vote') {
       if (game.phase !== 'vote') return { rejectReason: '现在不是投票时间。' }
+      game.round += 1
       if (target === actorId) return { rejectReason: '不能投给自己。' }
       game.internal.票[actorId] = target ?? ABSTAIN
       const next = game.internal.发言序.find(id => isAlive(game, id) && game.internal.票[id] === undefined)
@@ -336,9 +338,16 @@ globalThis.activityScript = {
         note = `你对 ${nameOf(target)} 用了毒药。`
       } else note = '你今晚没有用药。'
     }
+    // 夜间操作不推进公开的 round：别人数不出今晚有几个人行动。
     nextNightTurn(game)
-    // 结束夜晚的那次操作改为公开天亮结果；本人的私密结果已经写在自己的 private 里。
-    if (game.turn === null) return { game, description: dawn(game), audience: 'participants' }
+    // 观察会带上行动者，所以结束夜晚的操作仍只告知本人；天亮结果经公开状态（死讯、lastResult）让所有人看到。
+    // 只有天亮即终局时才公告全体：此时身份已全部公开，谁最后行动不再是秘密。
+    if (game.turn === null) {
+      const announcement = dawn(game)
+      return game.active
+        ? { game, description: note + announcement, audience: 'self' }
+        : { game, description: announcement, audience: 'participants' }
+    }
     game.public.statusText = `第 ${game.public.第几天} 夜，大家闭着眼睛。`
     return { game, description: note, audience: 'self' }
   },
