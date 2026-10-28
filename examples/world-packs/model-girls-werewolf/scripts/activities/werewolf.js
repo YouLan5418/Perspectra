@@ -254,7 +254,8 @@ globalThis.activityScript = {
     const playerId = view.participants[0]
     const game = view.game
     const myTurn = game.active && game.turn === actorId && game.public.存活.includes(nameOf(actorId))
-    const role = game.private[actorId]?.身份
+    // 宿主传入的是本人视图：private 已经是本人自己的那一份。
+    const role = game.private.身份
     let speech = 'none'
     const operations = []
     if (myTurn && game.phase === 'night') {
