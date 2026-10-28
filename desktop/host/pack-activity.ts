@@ -889,15 +889,17 @@ export class PackActivity {
       throw new TypeError('调度请求了未授权角色')
     return plan.characterId
   }
+  // Scheduling sees the whole committed state, internal included: a game may keep whose hidden turn it is
+  // out of every participant's view and still decide whom to activate. Only an activation leaves the script.
   schedule(): string | undefined {
     const state = this.current()
     if (!state?.game.active) return undefined
-    return this.#plan(this.#call('schedule', [this.scoped(state, this.playerId)]))
+    return this.#plan(this.#call('schedule', [state]))
   }
   outcome(result: WorldJsonObject): string | undefined {
     const state = this.current()
     if (!state?.game.active) return undefined
-    return this.#plan(this.#call('onOutcome', [result, this.scoped(state, this.playerId)]))
+    return this.#plan(this.#call('onOutcome', [result, state]))
   }
   #observations(
     state: ActivityState,

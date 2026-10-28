@@ -163,7 +163,8 @@ it('offers foreground pause or independent starts/resumes without exposing priva
       turn: 'player',
       phase: 'playing',
       public: { score: 2 },
-      private: { secret: 'PRIVATE_ACTIVITY' },
+      // Host state is scoped to the player: `private` is the player's own record and is shown to them.
+      private: { mine: 'PLAYER_OWN' },
       internal: { secret: 'PRIVATE_INTERNAL' },
     },
   })
@@ -172,6 +173,7 @@ it('offers foreground pause or independent starts/resumes without exposing priva
   expect(view.actions.map(action => action.label)).toContain('继续 guess')
   expect(view.actions.map(action => action.label)).toContain('开始 cards')
   expect(JSON.stringify(view)).not.toContain('PRIVATE_')
+  expect(view.activities?.[0]?.private).toEqual({ mine: 'PLAYER_OWN' })
   state = { ...state, activities: [activity('guess', false, true), activity('cards', true, false)] }
   view = projectPlayerView(state)
   expect(

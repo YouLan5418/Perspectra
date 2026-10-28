@@ -1,0 +1,46 @@
+{
+  "schemaVersion": "worldpack-world/v1",
+  "title": "模型娘狼人杀",
+  "description": "玩家和 GPT、Claude、DeepSeek、GLM、Gemini、Qwen 六个模型娘常在客厅聚会，今晚又摆开了狼人杀。客厅的沙发、茶几和零食只属于叙述，不建立系统实体。",
+  "timeMode": "TURN_DRIVEN",
+  "roundQueueLimit": 16,
+  "coreProfiles": {
+    "rulebook": {
+      "rulebookId": "builtin:speak-move",
+      "version": 2
+    },
+    "sceneDecision": {
+      "pluginId": "builtin:scene-decision",
+      "version": "2.0.0"
+    },
+    "agentContext": {
+      "pluginId": "builtin:agent-context",
+      "version": "2.0.0"
+    },
+    "presentation": {
+      "profileId": "builtin:deterministic-presentation",
+      "version": "1.0.0"
+    }
+  },
+  "initialFacts": [
+    {
+      "factId": "fact:werewolf-night",
+      "proposition": {
+        "subject": "event:tonight",
+        "predicate": "friends_gather_for_werewolf"
+      },
+      "initialAudience": [
+        "character:player",
+        "character:gpt",
+        "character:claude",
+        "character:deepseek",
+        "character:glm",
+        "character:gemini",
+        "character:qwen"
+      ]
+    }
+  ],
+  "playerInputPolicy": {
+    "version": "player-intent/v1"
+  }
+}

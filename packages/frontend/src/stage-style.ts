@@ -88,9 +88,9 @@ h1{font:12.5px/1.6 var(--font-story);color:var(--muted);margin:4px 0 0}
 .status{display:inline-flex;align-items:center;gap:7px;font-size:12px;color:var(--muted);padding:6px 6px 6px 0}
 .status:before{content:"";width:7px;height:7px;border-radius:50%;border:1px solid var(--faint)}
 .status[data-state="ready"]:before{background:var(--accent);border-color:var(--accent)}
-.status[data-state="busy"]:before{background:var(--accent);border-color:var(--accent);animation:pulse 1.2s ease-in-out infinite}
+.status[data-state="busy"]:before{width:9px;height:9px;box-sizing:border-box;border:1.5px solid var(--faint);border-top-color:var(--accent);animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
 .status[data-state="error"]:before{background:var(--danger);border-color:var(--danger)}
-@keyframes pulse{50%{opacity:.25}}
 
 /* —— 立绘：说话者完整显示，其他人淡一些；点立绘打开人物菜单 —— */
 /* 取景：每张立绘按自己的头顶（--top）和腰部（--waist，都是占图片高度的比例）缩放，
@@ -317,6 +317,8 @@ main:has(.panel:not([hidden])) .stage-bottom{left:calc((100% - var(--drawer-widt
 #activity-state div{padding:6px 10px;border:1px solid var(--line);border-radius:var(--radius)}
 #activity-state dt{font-size:11px;color:var(--faint)}
 #activity-state dd{margin:0;font-weight:600;overflow-wrap:anywhere}
+#activity-state div.own{border-color:var(--accent)}
+#activity-state div.own dt:after{content:" · 只有你知道"}
 #activity-options{display:flex;flex-direction:column;gap:6px}
 #activity-options>button,#activity-options .action-form button{width:100%;text-align:left}
 .activity-manage{display:flex;flex-wrap:wrap;gap:6px}

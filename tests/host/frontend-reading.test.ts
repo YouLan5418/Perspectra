@@ -262,7 +262,8 @@ it('projects only the current player expression policy and patches permission ch
   const before = projectPlayerView(state)
   expect(before.expression).toEqual({ speech: 'choices', speechChoices: ['接受', '拒绝'], narration: false })
   expect(JSON.stringify(before)).not.toContain('secret')
-  expect(JSON.stringify(before)).not.toContain('answer')
+  // Host state is already scoped to the player, so its `private` is the player's own record and is shown as such.
+  expect(before.activity?.private).toEqual({ answer: 42 })
   const after = projectPlayerView({ ...state, activity: { ...state.activity, game: { active: false, public: {} } } })
   expect(playerViewPatch(before, after)).toHaveProperty('expression', {
     speech: 'free',
@@ -278,6 +279,41 @@ const embedded = (name: string, next: string) =>
       DEFAULT_SCRIPT.indexOf(';\n const ' + next + '='),
     ),
   )
+it("lists an activity's public state and then what only the player knows", () => {
+  const start = DEFAULT_SCRIPT.indexOf(' const activityRows=') + ' const activityRows='.length
+  const activityRows = runInNewContext(DEFAULT_SCRIPT.slice(start, DEFAULT_SCRIPT.indexOf(';\n', start))) as (
+    shown: unknown,
+    own: unknown,
+  ) => { label: string; value: string; own: boolean }[]
+  expect(
+    activityRows(
+      { statusText: '第 1 夜', 存活: ['玩家', 'GPT'], 第几天: 1, 票型: null, nested: { a: 1 } },
+      { 身份: '狼人', 狼同伴: 'GLM', 验人记录: ['第 1 夜：GPT 是好人'], 轮到你: true },
+    ),
+  ).toEqual([
+    { label: '存活', value: '玩家、GPT', own: false },
+    { label: '第几天', value: '1', own: false },
+    { label: '身份', value: '狼人', own: true },
+    { label: '狼同伴', value: 'GLM', own: true },
+    { label: '验人记录', value: '第 1 夜：GPT 是好人', own: true },
+    { label: '轮到你', value: '是', own: true },
+  ])
+  expect(activityRows({}, undefined)).toEqual([])
+})
+it('says only that a reply is coming, never who is replying', () => {
+  // Naming the responder would reveal who acts in hidden turns, such as who is awake at night in werewolf.
+  const start = DEFAULT_SCRIPT.indexOf(' const statusText=') + ' const statusText='.length
+  const statusText = runInNewContext(DEFAULT_SCRIPT.slice(start, DEFAULT_SCRIPT.indexOf(';\n', start))) as (
+    view: unknown,
+    reading: boolean,
+  ) => string
+  expect(statusText({ status: 'busy', responders: ['GPT', 'Claude'] }, false)).toBe('正在回复中')
+  expect(statusText({ status: 'busy', responders: ['GPT'], canInterrupt: true }, false)).toBe('正在回复中')
+  expect(statusText({ status: 'busy' }, false)).toBe('正在回复中')
+  expect(statusText({ status: 'busy', canInterrupt: true }, false)).toBe('可以接着说')
+  expect(statusText({ status: 'ready' }, true)).toBe('阅读中')
+  expect(DEFAULT_SCRIPT).not.toContain('responders.join')
+})
 it('renders the status panel with labels and values and marks stale ones as last confirmed', () => {
   const statusRows = embedded('statusRows', 'roundTools') as (
     view: unknown,
