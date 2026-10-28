@@ -1,6 +1,6 @@
 # 模型接口协议
 
-日期：2026-10-27。角色决策调用统一经由 [pi-ai](https://github.com/earendil-works/pi)（`@earendil-works/pi-ai` 1.4.0，锁定版本）发出，支持 OpenAI 兼容、Anthropic Messages 和 Google Gemini Developer API；按角色选择决策和记忆整理模型。旧的 `local` / `--deepseek` / `--ollama` 三个入口已删除，DeepSeek、Ollama 只是普通地址。设计与取舍见[统一 Provider 适配器设计](../superpowers/specs/2026-10-27-unified-provider-adapter-design.md)。自动测试已覆盖三种协议；本次替换后的真实模型试玩尚未完成（见文末验证）。
+日期：2026-10-28。角色决策调用统一经由 [pi-ai](https://github.com/earendil-works/pi)（`@earendil-works/pi-ai` 1.4.0，锁定版本）发出，支持 OpenAI 兼容、Anthropic Messages 和 Google Gemini Developer API；按角色选择决策和记忆整理模型。旧的 `local` / `--deepseek` / `--ollama` 三个入口已删除，DeepSeek、Ollama 只是普通地址。设计与取舍见[统一 Provider 适配器设计](../superpowers/specs/2026-10-27-unified-provider-adapter-design.md)。自动测试已覆盖三种协议；真实模型试玩范围见文末验证。
 
 ## 配置
 
@@ -16,7 +16,7 @@ Launcher 设置窗口（右上角 ⚙）的“模型接口”管理多条模型�
 | Anthropic Messages | `https://api.anthropic.com/v1/messages` | `anthropic-messages` | x-api-key |
 | Google Gemini | `https://generativelanguage.googleapis.com/v1beta/models/模型标识:generateContent` | `google-generative-ai` | x-goog-api-key |
 
-DeepSeek 官方填 `https://api.deepseek.com/chat/completions`（OpenAI 兼容）或 `https://api.deepseek.com/anthropic/v1/messages`（Anthropic）；Ollama 填 `http://127.0.0.1:11434/v1/chat/completions`。pi-ai 需要 SDK 式的基础地址，适配层按协议去掉末尾操作路径（Anthropic 须以 `/v1/messages` 结尾）。Google 的实际 URL 模型段以模型标识字段为准；地址中不允许 API Key 查询参数。Google 只支持 Developer API 的 API Key 认证，没有接入 Vertex AI / OAuth；Google 协议的连接必须填写 Key。
+DeepSeek 官方填 `https://api.deepseek.com/chat/completions`（OpenAI 兼容）或 `https://api.deepseek.com/anthropic/v1/messages`（Anthropic）；Ollama 填 `http://127.0.0.1:11434/v1/chat/completions`。pi-ai 需要 SDK 式的基础地址，适配层按协议去掉末尾操作路径；Anthropic 须以 `/v1/messages` 结尾，保存连接时就拒绝其他路径，避免保存成功后才在调用时失败。Google 的实际 URL 模型段以模型标识字段为准；地址中不允许 API Key 查询参数。Google 只支持 Developer API 的 API Key 认证，没有接入 Vertex AI / OAuth；Google 协议的连接必须填写 Key。
 
 源码网页入口不读取 Launcher 配置，由环境变量拼出一个默认目标：`PERSPECTRA_MODEL_ENDPOINT`（完整地址）、`PERSPECTRA_MODEL`、可选 `PERSPECTRA_MODEL_PROTOCOL=openai|anthropic|google`（默认 openai）、`PERSPECTRA_MODEL_API_KEY`、`PERSPECTRA_THINKING_LEVEL`。地址或模型缺失时直接报错，不再回退到内置默认地址。Launcher 启动游戏时只传 `PERSPECTRA_ROLE_MODELS`（全部解析后的目标，不含 Key）与 `PERSPECTRA_MODEL_KEYS`（仅被引用到的连接 Key），游戏进程读取后立即从环境删除 Key。
 
@@ -34,7 +34,7 @@ DeepSeek 官方填 `https://api.deepseek.com/chat/completions`（OpenAI 兼容�
 - 复用现有 ChatCall、授权角色上下文和决策 Schema。适配器只转换请求与响应；perform 仍经过 Host / Rulebook / Event 提交。
 - OpenAI 兼容和 Anthropic 协议使用扁平决策 Schema，避免兼容网关把根 `oneOf` 只解释为首个 `abstain` 分支；Google 使用原 Schema。Host 仍按原始角色协议检查输出。
 - pi-ai 只支持 `auto` / `none` 工具选择。适配层在请求发出前补回原有行为：OpenAI 兼容强制调用 `submit_actions`（DeepSeek 思考格式开启思考时改为 auto）；Anthropic 用 auto 并在系统提示要求使用该工具；Google 用 ANY 并限定函数名。只接受一次指定工具调用，或交给 Host 验证的 JSON 正文。
-- 未设置思考强度时请求不含任何思考字段（pi-ai 默认会写入“关闭”，适配层剥掉），唯一例外是 DeepSeek 思考格式的角色决策沿用 `thinking: disabled`。显式“关闭”由 pi-ai 按协议发送；低、中、高交给 pi-ai 换算，开启思考时输出上限至少提到 8192 / 16384 / 32768。
+- 未设置思考强度时请求不含任何思考字段（包括 OpenRouter 的 `reasoning`；pi-ai 默认会写入“关闭”，适配层剥掉），唯一例外是 DeepSeek 思考格式的角色决策沿用 `thinking: disabled`。显式“关闭”由 pi-ai 按协议发送；OpenAI 兼容模型没有声明关闭映射时，适配层补默认 `off: none`，使普通兼容接口收到 `reasoning_effort: none`，目录里的禁用档位与供应商映射仍优先。低、中、高交给 pi-ai 换算，开启思考时输出上限至少提到 8192 / 16384 / 32768。
 - 没有继承到兼容声明的地址，按改造前的请求形状发送：OpenAI 兼容保留 system 角色和位置、用 `max_tokens`、不发 `store`；Anthropic 不发 eager 工具流；三种协议都不加提示缓存标记。
 - pi-ai 总是流式请求（OpenAI 兼容带 `stream_options.include_usage`）。接口返回非 SSE 时明确报“未返回流式响应”；`max_tokens` 截断、多工具、错工具名、空响应和取消均失败，`maxRetries` 为 0，不隐式重试。
 - OpenAI 兼容与 Anthropic 请求拒绝跟随重定向，避免 Key 随跳转发往其他主机；pi-ai 的 Google 实现不能注入请求函数，这一防护对 Google 协议不生效，是已知限制。工具参数不是合法 JSON 时，模型原文交给 Host 校验与检查器，不当作空对象。OpenAI 兼容协议下，后置的 system 预设节点在 DeepSeek 等目录内模型上同样保持原位。
@@ -55,6 +55,8 @@ OpenAI 兼容协议的 topP、penalty 与 stop 原样传递；Anthropic 传 topP
 2026-10-27 自动化：本机流式模拟供应商覆盖三种协议的请求字段（强制工具、采样、思考字段、输出上限、认证头与无 Key）、响应提取、截断、非流式、HTTP 失败、取消与检查器；三种协议都跑通取钥匙 → 放回 → 续写，检查两次受控事实提交与最终保管状态。全量回归 1507 项通过。
 
 2026-10-27 真实模型：DeepSeek 官方 OpenAI 兼容（思考未设与低）及 Anthropic 兼容地址各 3 轮短场景全部成功，请求字段与事实提交符合预期，Key 未落盘，见[实测记录](studies/unified-provider-playtest-20261027.md)。
+
+2026-10-28 审查修复的回归范围：本地模拟请求验证未知 OpenAI 兼容模型显式关闭、OpenRouter 未设与关闭的区别、非法工具参数原文同时进入 Host 与检查器，以及保存连接时拒绝不支持的 Anthropic 路径。这轮修复未调用真实模型或重建发行包，不扩展前述真实体验验收范围。
 
 尚未验证：8045 网关 Claude + Gemini 的改造前后对比、Ollama 小模型工具调用稳定性、经 Launcher 的 Core 记忆整理，以及较长游玩中角色表现是否退化。2026-10-17 的旧实现验收记录见[按角色模型研究](studies/launcher-role-models-20261017.md)与 [DeepSeek Anthropic 实测](studies/deepseek-anthropic-20261008.md)，不代表当前实现。
 

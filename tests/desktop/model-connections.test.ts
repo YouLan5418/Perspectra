@@ -54,6 +54,13 @@ describe('model connections', () => {
     expect(modelsListUrl(google).href).toBe('https://g.test/v1beta/models')
   })
 
+  it('rejects Anthropic addresses the adapter cannot call before saving a connection', () => {
+    expect(() => modelConnection({ ...anthropic, endpoint: 'https://gateway.test/messages' })).toThrow('/v1/messages')
+    expect(modelConnection(anthropic).endpoint).toBe(anthropic.endpoint)
+    const endpoint = 'https://api.deepseek.com/anthropic/v1/messages'
+    expect(modelConnection({ ...anthropic, endpoint }).endpoint).toBe(endpoint)
+  })
+
   it('reads one page of each protocol and keeps only chat-capable Google models', () => {
     expect(modelPage('openai', { data: [{ id: 'b' }, { id: 'a' }] })).toEqual({ models: ['b', 'a'] })
     expect(modelPage('anthropic', { data: [{ id: 'claude-x' }], has_more: true, last_id: 'claude-x' })).toEqual({

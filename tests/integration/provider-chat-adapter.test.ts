@@ -96,6 +96,32 @@ describe('the pi-ai adapter on the wire', () => {
     expect((server.calls[0]!.body.thinking as { type: string }).type).toBe('disabled')
   })
 
+  it('explicit off sends reasoning_effort none for an unknown OpenAI-compatible model', async () => {
+    const { chat, server } = await provider('openai', () => ({ tool: proposal }), { thinkingLevel: 'off' })
+    await decide(chat)
+    expect(server.calls[0]!.body.reasoning_effort).toBe('none')
+  })
+
+  it('OpenRouter leaves thinking unset unless the player explicitly switches it off', async () => {
+    const bodies: Record<string, unknown>[] = []
+    const fetch = streamingFetch(async (_url, init) => {
+      bodies.push(JSON.parse(String(init!.body)) as Record<string, unknown>)
+      return new Response(JSON.stringify({ message: { content: JSON.stringify(proposal) } }))
+    })
+    for (const level of [undefined, 'off'] as const) {
+      const chat = createChatProvider({
+        endpoint: new URL('https://openrouter.ai/api/v1/chat/completions'),
+        model: 'fixture',
+        fetch,
+        ...(level === undefined ? {} : { thinkingLevel: level }),
+      })
+      await decide(chat)
+    }
+    expect(bodies[0]!.reasoning).toBeUndefined()
+    expect(bodies[1]!.reasoning).toEqual({ effort: 'none' })
+    expect(bodies[1]!.reasoning_effort).toBeUndefined()
+  })
+
   it('a thinking level raises the output ceiling to its floor', async () => {
     const { chat, server } = await provider('openai', () => ({ tool: proposal }), { thinkingLevel: 'low' })
     await decide(chat)
@@ -245,8 +271,12 @@ describe('review fixes', () => {
   })
 
   it('returns the model’s own text when its tool arguments are not JSON', async () => {
-    const { chat } = await provider('openai', () => ({ tool: {}, rawArguments: '{"decision": "publish", oops' }))
-    expect(await decide(chat)).toBe('{"decision": "publish", oops')
+    const inspector = new RequestInspector()
+    inspector.configure(true)
+    const rawArguments = '{"decision": "publish", oops'
+    const { chat } = await provider('openai', () => ({ tool: {}, rawArguments }), { inspector })
+    expect(await decide(chat)).toBe(rawArguments)
+    expect(inspector.snapshot().requests[0]!.response?.toolCalls[0]?.arguments).toBe(rawArguments)
   })
 
   it('names streaming when a gateway refuses stream_options', async () => {

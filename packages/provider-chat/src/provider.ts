@@ -1,4 +1,12 @@
-import type { Api, AssistantMessage, Message, Model, ProviderStreams, SimpleStreamOptions } from '@earendil-works/pi-ai'
+import type {
+  Api,
+  AssistantMessage,
+  Message,
+  Model,
+  ProviderStreams,
+  SimpleStreamOptions,
+  ToolCall,
+} from '@earendil-works/pi-ai'
 import { anthropicMessagesApi } from '@earendil-works/pi-ai/api/anthropic-messages.lazy'
 import { googleGenerativeAIApi } from '@earendil-works/pi-ai/api/google-generative-ai.lazy'
 import { openAICompletionsApi } from '@earendil-works/pi-ai/api/openai-completions.lazy'
@@ -72,7 +80,13 @@ const NOT_STREAMED = '模型接口未返回流式响应（SSE）；请确认接�
  * endpoint, catalog-described or not, because their position is part of how the author shapes the character.
  */
 function callModel(target: ModelTarget): Model<Api> {
-  const model = piModel(target)
+  const declared = piModel(target)
+  // pi-ai needs an explicit off mapping for standard reasoning_effort. Catalog restrictions and
+  // vendor-specific mappings still win; unset levels have their generated fields stripped below.
+  const model: Model<Api> =
+    target.protocol === 'openai' && declared.reasoning
+      ? { ...declared, thinkingLevelMap: { off: 'none', ...declared.thinkingLevelMap } }
+      : declared
   if (model.compat !== undefined)
     return target.protocol === 'openai'
       ? ({ ...model, compat: { ...model.compat, supportsMidConvoSystemMessages: true } } as Model<Api>)
@@ -151,7 +165,8 @@ export function thinkingPayload(
   if (level !== undefined) return payload
   const next = { ...payload }
   if (protocol === 'openai') {
-    for (const key of ['thinking', 'reasoning_effort', 'enable_thinking', 'chat_template_kwargs']) delete next[key]
+    for (const key of ['thinking', 'reasoning', 'reasoning_effort', 'enable_thinking', 'chat_template_kwargs'])
+      delete next[key]
     if (kind === 'character' && usesDeepSeekThinking(model)) next.thinking = { type: 'disabled' }
   } else if (protocol === 'anthropic') delete next.thinking
   else if (objectValue(next.config)) {
@@ -198,6 +213,15 @@ function decisionPayload(
   return next
 }
 
+/** Use the same model-authored arguments for Host validation and the inspector, including invalid JSON. */
+function toolArguments(call: ToolCall): WorldJsonValue {
+  const broken = call.argumentsError
+  if (broken === undefined) return call.arguments as WorldJsonValue
+  const marker = '\n\nReceived arguments:\n'
+  const start = broken.indexOf(marker)
+  return start < 0 ? broken : broken.slice(start + marker.length)
+}
+
 /** Shapes the assembled answer as content blocks the request inspector already reads; signatures are not kept. */
 function inspected(message: AssistantMessage): Record<string, unknown> {
   return {
@@ -205,7 +229,7 @@ function inspected(message: AssistantMessage): Record<string, unknown> {
       block.type === 'text'
         ? [{ type: 'text', text: block.text }]
         : block.type === 'toolCall'
-          ? [{ type: 'tool_use', id: block.id, name: block.name, input: block.arguments }]
+          ? [{ type: 'tool_use', id: block.id, name: block.name, input: toolArguments(block) }]
           : block.redacted
             ? []
             : [{ type: 'thinking', thinking: block.thinking }],
@@ -223,10 +247,7 @@ function payloadOf(message: AssistantMessage, toolName: string): WorldJsonValue 
   const calls = message.content.filter(block => block.type === 'toolCall')
   if (calls.length) {
     if (calls.length !== 1 || calls[0]!.name !== toolName) throw new ChatTransportError('模型须返回一次指定工具调用。')
-    // Arguments that are not JSON reach the world as the model wrote them, so the refusal keeps its evidence.
-    const broken = calls[0]!.argumentsError
-    if (broken !== undefined) return broken.split('\n\nReceived arguments:\n').at(-1) ?? broken
-    return calls[0]!.arguments as WorldJsonValue
+    return toolArguments(calls[0]!)
   }
   const text = message.content.map(block => (block.type === 'text' ? block.text : '')).join('')
   if (!text.trim()) throw new ChatTransportError('模型接口未返回有效文本。')

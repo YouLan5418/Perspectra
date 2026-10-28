@@ -44,8 +44,8 @@ export function modelEndpoint(endpoint: string, protocol: ProviderProtocol): URL
     throw new Error('请使用不含认证参数的 HTTP/HTTPS 地址。')
   if (protocol === 'openai' && !url.pathname.endsWith('/chat/completions'))
     throw new Error('接口地址须包含 /chat/completions。')
-  if (protocol === 'anthropic' && !url.pathname.endsWith('/messages'))
-    throw new Error('Anthropic 接口须以 /messages 结尾。')
+  if (protocol === 'anthropic' && !url.pathname.endsWith('/v1/messages'))
+    throw new Error('Anthropic 接口须以 /v1/messages 结尾。')
   if (protocol === 'google' && !/\/models\/[^/]+:generateContent$/.test(url.pathname))
     throw new Error('Google 接口须为 /models/模型:generateContent。')
   return url
