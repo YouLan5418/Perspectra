@@ -11,7 +11,9 @@ import { brandId, type WorldJsonObject } from '@harness-world/contracts'
 import { CharacterViewBuilder, WorldStore } from '@harness-world/store-sqlite'
 import { WorldHostCore } from '../../desktop/host/world-runtime.ts'
 import { playSettings } from '../../desktop/play-settings.ts'
-import { PROVIDER_DEFAULTS } from '../../desktop/provider-defaults.ts'
+import { environmentRoleModels } from '../../desktop/model-connections.ts'
+
+const models = environmentRoleModels(process.env)
 
 const root = resolve(process.argv[2] ?? '.tmp/werewolf-live-' + randomUUID().slice(0, 6))
 if (existsSync(root)) throw new Error('live play needs a new directory: ' + root)
@@ -34,10 +36,7 @@ type Game = { active: boolean; phase: string; turn: string | null; public: World
 const runtime = await WorldHostCore.create({
   packPath: resolve('examples/world-packs/model-girls-werewolf'),
   dataDirectory: data,
-  provider: 'local',
-  model: process.env.HCW_LOCAL_MODEL ?? PROVIDER_DEFAULTS.local.model,
-  utilityEndpoint: process.env.HCW_LOCAL_ENDPOINT ?? PROVIDER_DEFAULTS.local.endpoint,
-  ...(process.env.HCW_LOCAL_API_KEY ? { apiKey: process.env.HCW_LOCAL_API_KEY } : {}),
+  models,
   playSettings: playSettings({ activityOpportunities: 20, activityDeadlineSeconds: 600 }),
 })
 const withStore = <T>(read: (store: WorldStore) => T): T => {
@@ -132,7 +131,7 @@ async function playOne(index: number) {
 }
 
 try {
-  transcript(`# 狼人杀真实模型试玩\n\n模型：${process.env.HCW_LOCAL_MODEL ?? PROVIDER_DEFAULTS.local.model}；数据目录：${data}`)
+  transcript(`# 狼人杀真实模型试玩\n\n模型：${models.default.decision.model}；数据目录：${data}`)
   const results = []
   for (let i = 1; i <= 2; i++) {
     const started = Date.now()

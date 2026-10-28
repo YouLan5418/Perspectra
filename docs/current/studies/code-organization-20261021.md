@@ -105,7 +105,7 @@ node scripts/docs/check-links.mjs
 
 **测试分层**（`6097aed`）。`tests/prototype` 按被测入口拆为 [tests/host](../../../tests/host)、[tests/desktop](../../../tests/desktop)、[tests/scenarios](../../../tests/scenarios)；根目录的 `p2/p4/p8/frozen-*` 集成测试移入 [tests/integration](../../../tests/integration) 并按行为命名。默认配置改名为 `vitest.regression.config.ts`，并纳入原先只在 `test:related` 中运行的 10 个集成测试文件（60 项，迁移前已确认全部通过）。
 
-**宿主拆分**（本提交）。模型与按角色预设的装配移到 [role-providers.ts](../../../desktop/host/role-providers.ts)，Core 记忆按模型分组的 runner 移到 [python-worker.ts](../../../desktop/host/memory/python-worker.ts)，散落在 5 处的默认模型与端点统一为 [provider-defaults.ts](../../../desktop/provider-defaults.ts)。角色决策管线从构造函数中的闭包改为私有方法 `#decide`，逻辑原样搬移。`WorldHostCore` 构造函数由约 180 行降到约 75 行。
+**宿主拆分**（本提交）。模型与按角色预设的装配移到 [role-providers.ts](../../../desktop/host/role-providers.ts)，Core 记忆按模型分组的 runner 移到 [python-worker.ts](../../../desktop/host/memory/python-worker.ts)，散落在 5 处的默认模型与端点统一为 `provider-defaults.ts`（当时模块，2026-10-27 已删除；现改由[模型配置](../../../desktop/model-connections.ts)解析调用目标）。角色决策管线从构造函数中的闭包改为私有方法 `#decide`，逻辑原样搬移。`WorldHostCore` 构造函数由约 180 行降到约 75 行。
 
 有意保留：
 - 调度（`#activateCharacters`、`#activateAutonomous`）和状态投影仍在 `WorldHostCore` 中。它们与大量可变运行状态交织，拆分需要配合真实试玩，本轮不动。

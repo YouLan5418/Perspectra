@@ -22,7 +22,7 @@ corepack pnpm@11.7.0 experience:web --pack examples/world-packs/model-girls-were
 
 一个白天需要 12–13 次角色处理，超过默认的 4 次 / 90 秒，所以要把「活动连续处理机会」调到 20、「活动处理总时限」调到 600 秒（上面的 `--play-settings`，或在启动器的试玩设置里改）。修改脚本后使用新数据目录。
 
-自动对局驱动：`node --import tsx tests/experiments/werewolf-live.ts <新目录>`，模型由 `HCW_LOCAL_MODEL` / `HCW_LOCAL_ENDPOINT` 指定。
+自动对局驱动：`node --import tsx tests/experiments/werewolf-live.ts <新目录>`。源码网页和驱动统一使用 `PERSPECTRA_MODEL` / `PERSPECTRA_MODEL_ENDPOINT` 指定模型与完整接口地址；协议用 `PERSPECTRA_MODEL_PROTOCOL`（默认 `openai`），认证用进程环境 `PERSPECTRA_MODEL_API_KEY`，配置见[本地运行说明](../../../docs/current/guides/local-runbook.md)。
 
 ## 已知限制
 

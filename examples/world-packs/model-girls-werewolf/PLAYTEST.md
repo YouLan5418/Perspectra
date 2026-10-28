@@ -70,3 +70,14 @@
 - 自动测试：`tests/scenarios/model-girls-werewolf.test.ts` 22 项（规则 14 项、宿主 8 项），修复后连续 3 次通过；`tests/host`、`tests/scenarios`、`packages/frontend` 共 82 个文件 707 项通过；类型检查、Lint、格式检查通过。
 - 真实模型：两轮各两局，`HCW_LOCAL_MODEL=gemini-3.8-flash node --import tsx tests/experiments/werewolf-live.ts <新目录>`。
 - 未做：浏览器里的手动试玩（内置浏览器连不上沙箱 iframe 前端，改动前后都一样）；忙碌提示和活动卡片只用静态预览页核对过；Core 记忆入口未测；未跑全仓 `check`。
+
+## 与统一 Provider 分支合并后的复核（2026-10-28）
+
+复核狼人杀 `c465b11` 与 Provider `a58a2ba` 的合并结果。原三项问题的修复保留：夜间行动者只在 internal 和本人 private，玩家视图包含本人的 private，未成功提交的处理结果停止连续调度。
+
+合并时发现狼人杀测试和真实试玩驱动仍使用旧 `provider` / `utilityEndpoint` 参数，且假服务仍返回非流式 JSON；Provider 分支已删除这些入口。现复用 `fakeModels` / `createChatServer` 驱动流式假服务，真实试玩驱动复用 `environmentRoleModels`，配置与当前源码入口一致，不增加兼容分支。
+
+- 类型检查、宿主边界、Lint、格式检查通过；相关回归 13 个文件 180 项通过；Launcher 类型检查及 49 项测试通过。
+- 完整回归 163 个文件 1538 项：1536 项通过，`provider-chat-adapter.test.ts` 的 2 项 OpenAI 测试初跑报 `Connection error.`；该文件原样复跑 38 项全部通过，另做 500 次本机假服务调用未复现。不能将初跑记为全部通过，连接错误的根因尚未确定。
+- 文档链接检查仍报 97 处既有断链，均在未改动的两篇历史研究中；本次删除 `provider-defaults.ts` 引入的断链已改为历史说明。
+- 本次未调用真实模型；内置浏览器工具连接失败，未完成浏览器手动验收。玩家私密信息的投影和渲染仅由自动回归验证，前两轮真实试玩仍只代表各自记录的版本。

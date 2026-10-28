@@ -1,4 +1,4 @@
-import { createServer, type Server } from 'node:http'
+import { type Server } from 'node:http'
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
@@ -9,6 +9,7 @@ import { CharacterViewBuilder, WorldStore } from '@harness-world/store-sqlite'
 import { WorldHostCore } from '../../desktop/host/world-runtime.ts'
 import { playSettings } from '../../desktop/play-settings.ts'
 import { projectPlayerView } from '../../desktop/host/frontend-adapter.ts'
+import { createChatServer, fakeModels } from '../support/fake-provider.ts'
 
 type Game = {
   active: boolean
@@ -314,7 +315,7 @@ async function host(options: { talkOnly?: boolean } = {}) {
   const data = join(root, 'data')
   const seen: { self: string; text: string; night?: string; turn?: string | null; activity?: string }[] = []
   const whispered = new Set<string>()
-  const server: Server = createServer((request, response) => {
+  const server: Server = createChatServer((request, response) => {
     let body = ''
     request.on('data', chunk => (body += String(chunk)))
     request.on('end', () => {
@@ -392,9 +393,7 @@ async function host(options: { talkOnly?: boolean } = {}) {
   const runtime = await WorldHostCore.create({
     packPath: resolve('examples/world-packs/model-girls-werewolf'),
     dataDirectory: data,
-    provider: 'local',
-    model: 'fixture',
-    utilityEndpoint: 'http://127.0.0.1:' + (server.address() as { port: number }).port + '/v1/chat/completions',
+    models: fakeModels('http://127.0.0.1:' + (server.address() as { port: number }).port + '/v1/chat/completions'),
     timeoutMs: 5000,
     playSettings: playSettings({ activityOpportunities: 20, activityDeadlineSeconds: 600 }),
   })
