@@ -108,7 +108,8 @@ async function playOne(index: number) {
       return await game()
     }
     const living = (g.public['存活'] as string[]).filter(n => n !== '玩家')
-    if (g.turn !== PLAYER) {
+    const mine = g.phase === 'night' ? g.private['轮到你'] === true : g.turn === PLAYER
+    if (!mine) {
       await request('retry')
       continue
     }

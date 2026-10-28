@@ -131,6 +131,8 @@ export const DEFAULT_SCRIPT = String.raw`(() => {
  let latest,posting=false,pending,attached=null,connected=false,historyKey='',actionsKey='',waitOption=null,statusKey='',canRegenerate=false,requestVersion=0,submittedPlayers=0;
  // Never name who is replying: in hidden turns (who is awake at night) the name alone gives the game away.
  const statusText=(view,reading)=>({ready:reading?'阅读中':'可以回应',busy:view.responders?.length?'正在回复中':view.canInterrupt?'可以接着说':view.tailRound?.regenerating?'正在处理回合':'正在回复中',paused:'已暂停',error:'处理未完成'})[view.status];
+ // Public fields first, then what only the player knows (its private record, e.g. a dealt role); flat lists read as one line.
+ const activityRows=(shown,own)=>{const hidden=['statusText','lastResult','objective','instructions','description','phaseLabel'],labels={round:'回合',clues:'线索',funds:'资金',stock:'库存',score:'得分',attempts:'次数',health:'生命',phase:'阶段'},text=value=>Array.isArray(value)?(value.some(item=>item!==null&&typeof item==='object')?'':value.join('、')):typeof value==='boolean'?(value?'是':'否'):value===null||typeof value==='object'?'':String(value),rows=[];for(const [source,mine] of [[shown||{},false],[own||{},true]])for(const [name,value] of Object.entries(source)){const shownValue=text(value);if((!mine&&hidden.includes(name))||!shownValue)continue;rows.push({label:labels[name]||name,value:shownValue,own:mine})}return rows};
  // Keep statusRows and roundTools adjacent and in this order: frontend-reading tests extract the helper by these markers.
  const statusRows=(${statusBarRows.toString()});
  const roundTools=node('round-tools');
@@ -337,8 +339,6 @@ export const DEFAULT_SCRIPT = String.raw`(() => {
  /* 进行中的活动：舞台左侧一张卡片，显示标题、阶段、目标和公开状态，以及这场活动此刻允许的操作。
     操作和暂停都来自玩家视图的 actions，提交走同一个 perform；读完当前演出前与其他行动一样置灰。 */
  const PHASES={playing:'进行中',investigation:'调查',prologue:'序章',finished:'已结束','host-aborted':'已中止'};
- const HIDDEN_PUBLIC=['statusText','lastResult','objective','instructions','description','phaseLabel'];
- const PUBLIC_LABELS={round:'回合',clues:'线索',funds:'资金',stock:'库存',score:'得分',attempts:'次数',health:'生命',phase:'阶段'};
  let activityKey='';
  function renderActivity(view){
    const running=(view.activities||[]).find(entry=>entry.active)||(view.activity?.active?view.activity:null),card=node('activity-card');
@@ -351,7 +351,7 @@ export const DEFAULT_SCRIPT = String.raw`(() => {
    node('activity-phase').textContent=shown.statusText||shown.phaseLabel||PHASES[running.phase]||running.phase;
    node('activity-objective').textContent=shown.objective||shown.instructions||shown.description||'选择这场活动允许的操作；角色会在情景里回应。';
    const state=node('activity-state');state.replaceChildren();
-   for(const [name,value] of Object.entries(shown)){if(HIDDEN_PUBLIC.includes(name)||value===null||typeof value==='object')continue;const block=document.createElement('div'),label=document.createElement('dt'),content=document.createElement('dd');label.textContent=PUBLIC_LABELS[name]||name;content.textContent=String(value);block.append(label,content);state.append(block)}
+   for(const row of activityRows(shown,running.private)){const block=document.createElement('div'),label=document.createElement('dt'),content=document.createElement('dd');if(row.own)block.className='own';label.textContent=row.label;content.textContent=row.value;block.append(label,content);state.append(block)}
    state.hidden=!state.children.length;
    node('activity-result').textContent=typeof shown.lastResult==='string'?shown.lastResult:'';
    const box=node('activity-options');box.replaceChildren();

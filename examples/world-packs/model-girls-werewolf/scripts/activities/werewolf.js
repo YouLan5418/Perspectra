@@ -34,6 +34,14 @@ const idOf = (game, name) => game.internal.座位.find(id => nameOf(id) === name
 const isAlive = (game, id) => game.public.存活.includes(nameOf(id))
 const roleOf = (game, id) => game.internal.身份表[id]
 const alive = game => game.internal.座位.filter(id => isAlive(game, id))
+// 夜里公开的 turn 停在一个中性座位上（座位顺序第一个活着的 NPC），整夜不变；真正该谁行动只在 internal.夜序，
+// 并在本人 private 里标“轮到你”。否则每次换手都会让刚行动完的人看到下一个有身份的人是谁。
+const actorOf = game => (game.phase === 'night' ? (game.internal.夜序[0] ?? null) : game.turn)
+function markNightActor(game) {
+  for (const id of game.internal.座位) delete game.private[id].轮到你
+  const actor = actorOf(game)
+  if (game.phase === 'night' && actor !== null) game.private[actor].轮到你 = true
+}
 
 function reminder(role, partner) {
   const speech = '白天轮到你时说一段话；你说的话不改变任何裁定，别人说的也只是她们的说法。'
@@ -68,6 +76,7 @@ function winner(game) {
 function finish(game, text) {
   game.active = false
   game.turn = null
+  for (const id of game.internal.座位) delete game.private[id].轮到你
   game.public.身份公布 = Object.fromEntries(game.internal.座位.map(id => [nameOf(id), roleOf(game, id)]))
   const roles = game.internal.座位.map(id => `${nameOf(id)}是${roleOf(game, id)}`).join('，')
   game.public.statusText = text
@@ -86,17 +95,19 @@ function startNight(game) {
   ]
   game.internal.夜间 = { kill: null, save: false, poison: null }
   for (const id of living) if (roleOf(game, id) === '狼人') delete game.private[id].同伴提议
-  game.turn = game.internal.夜序[0]
+  game.turn = game.internal.座位.find(id => NPCS.includes(id) && isAlive(game, id))
+  markNightActor(game)
   game.public.statusText = `第 ${game.public.第几天} 夜，大家闭上了眼睛。`
 }
 
 // 轮到女巫时才把刀口写给她，之前的女巫视图里不会出现今晚的刀口。
 function nextNightTurn(game) {
   game.internal.夜序 = game.internal.夜序.slice(1)
-  game.turn = game.internal.夜序[0] ?? null
-  if (game.turn !== null && roleOf(game, game.turn) === '女巫') {
+  markNightActor(game)
+  const actor = actorOf(game)
+  if (actor !== null && roleOf(game, actor) === '女巫') {
     const kill = game.internal.夜间.kill
-    game.private[game.turn].今晚被刀 = kill === null ? '无人' : nameOf(kill)
+    game.private[actor].今晚被刀 = kill === null ? '无人' : nameOf(kill)
   }
 }
 
@@ -151,10 +162,11 @@ function closeVote(game) {
   return game.public.lastResult
 }
 
-function npcToActivate(view) {
-  const playerId = view.participants[0]
-  return view.game.active && view.game.turn !== null && view.game.turn !== playerId
-    ? { kind: 'activate', characterId: view.game.turn }
+// 宿主把完整状态交给 schedule / onOutcome，所以这里能读到夜里真正的行动者。
+function npcToActivate(state) {
+  const actor = actorOf(state.game)
+  return state.game.active && actor !== null && actor !== state.participants[0]
+    ? { kind: 'activate', characterId: actor }
     : { kind: 'wait' }
 }
 
@@ -169,19 +181,19 @@ globalThis.activityScript = {
       {
         id: 'kill',
         label: '狼人：选择今晚刀谁',
-        requiresTurn: true,
+        requiresTurn: false,
         schema: { type: 'object', additionalProperties: false, required: ['target'], properties: { target: TARGET } },
       },
       {
         id: 'check',
         label: '预言家：查验一人',
-        requiresTurn: true,
+        requiresTurn: false,
         schema: { type: 'object', additionalProperties: false, required: ['target'], properties: { target: TARGET } },
       },
       {
         id: 'potion',
         label: '女巫：用药',
-        requiresTurn: true,
+        requiresTurn: false,
         schema: {
           type: 'object',
           additionalProperties: false,
@@ -253,7 +265,8 @@ globalThis.activityScript = {
   policy(view, actorId) {
     const playerId = view.participants[0]
     const game = view.game
-    const myTurn = game.active && game.turn === actorId && game.public.存活.includes(nameOf(actorId))
+    const mine = game.phase === 'night' ? game.private.轮到你 === true : game.turn === actorId
+    const myTurn = game.active && mine && game.public.存活.includes(nameOf(actorId))
     // 宿主传入的是本人视图：private 已经是本人自己的那一份。
     const role = game.private.身份
     let speech = 'none'
@@ -279,7 +292,7 @@ globalThis.activityScript = {
       return { game, description: `玩家收起了身份牌，这局狼人杀没有打完。${text}`, audience: 'participants' }
     }
     if (!game.active) return { rejectReason: '这局已经结束了。' }
-    if (game.turn !== actorId) return { rejectReason: '还没轮到你。' }
+    if (actorOf(game) !== actorId) return { rejectReason: '还没轮到你。' }
     if (!isAlive(game, actorId)) return { rejectReason: '你已经出局了。' }
     const role = roleOf(game, actorId)
     const target = parameters.target === undefined ? undefined : idOf(game, parameters.target)
@@ -342,7 +355,7 @@ globalThis.activityScript = {
     nextNightTurn(game)
     // 观察会带上行动者，所以结束夜晚的操作仍只告知本人；天亮结果经公开状态（死讯、lastResult）让所有人看到。
     // 只有天亮即终局时才公告全体：此时身份已全部公开，谁最后行动不再是秘密。
-    if (game.turn === null) {
+    if (actorOf(game) === null) {
       const announcement = dawn(game)
       return game.active
         ? { game, description: note + announcement, audience: 'self' }
@@ -371,5 +384,10 @@ globalThis.activityScript = {
     return game
   },
   schedule: npcToActivate,
-  onOutcome: (_result, view) => npcToActivate(view),
+  // 只有真的往前走了一步（操作被接受，或发出了一段话）才继续叫人；失败、中断、沉默都停下等玩家重试。
+  onOutcome(result, state) {
+    const progressed =
+      result.performResult?.status === 'accepted' || (result.status === 'published' && !result.failure)
+    return progressed ? npcToActivate(state) : { kind: 'wait' }
+  },
 }

@@ -16,7 +16,8 @@ export interface PlayerView {
     visibleCharacters: string[]
     recipients: { id: string; name: string }[]
   } | null
-  activity?: { title: string; active: boolean; phase: string; public: WorldJsonObject }
+  /** `private` is the player's own record in the activity, such as a role dealt only to them. */
+  activity?: { title: string; active: boolean; phase: string; public: WorldJsonObject; private: WorldJsonObject }
   activities?: {
     key: string
     title: string
@@ -24,6 +25,7 @@ export interface PlayerView {
     suspended: boolean
     phase: string
     public: WorldJsonObject
+    private: WorldJsonObject
   }[]
   status: 'ready' | 'busy' | 'paused' | 'error'
   canInterrupt?: boolean

@@ -210,6 +210,8 @@ export function projectPlayerView(state: HostState): PlayerView {
             active: activityGame?.active === true,
             phase: String(activityGame?.phase ?? 'not-started'),
             public: structuredClone(activityGame?.public ?? {}) as WorldJsonObject,
+            // The host state is already scoped to the player, so this is the player's own record only.
+            private: structuredClone(activityGame?.private ?? {}) as WorldJsonObject,
           },
         }
       : {}),
@@ -224,6 +226,7 @@ export function projectPlayerView(state: HostState): PlayerView {
               suspended: activity.suspended === true,
               phase: String(game?.phase ?? 'not-started'),
               public: structuredClone(game?.public ?? {}) as WorldJsonObject,
+              private: structuredClone(game?.private ?? {}) as WorldJsonObject,
             }
           }),
         }

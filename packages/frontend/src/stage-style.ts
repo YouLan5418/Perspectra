@@ -317,6 +317,8 @@ main:has(.panel:not([hidden])) .stage-bottom{left:calc((100% - var(--drawer-widt
 #activity-state div{padding:6px 10px;border:1px solid var(--line);border-radius:var(--radius)}
 #activity-state dt{font-size:11px;color:var(--faint)}
 #activity-state dd{margin:0;font-weight:600;overflow-wrap:anywhere}
+#activity-state div.own{border-color:var(--accent)}
+#activity-state div.own dt:after{content:" · 只有你知道"}
 #activity-options{display:flex;flex-direction:column;gap:6px}
 #activity-options>button,#activity-options .action-form button{width:100%;text-align:left}
 .activity-manage{display:flex;flex-wrap:wrap;gap:6px}

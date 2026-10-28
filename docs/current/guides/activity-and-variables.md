@@ -24,7 +24,7 @@
 | initialize | 根据宿主提供的玩家和 NPC 身份生成初始状态 |
 | policy | 限定当前角色可用的发言、叙事、移动、交互和活动操作 |
 | resolve | 对操作参数同步裁定，返回新状态和结果描述 |
-| schedule / onOutcome | 等待，或给已声明角色一次处理机会；不直接发布或执行角色输出 |
+| schedule / onOutcome | 等待，或给已声明角色一次处理机会；不直接发布或执行角色输出。两者收到**完整**活动状态（含 internal 和所有人的 private），可以按隐藏的回合决定叫醒谁；输出只有这一次激活，不会进入任何视图 |
 | simulate（可选） | 为当前角色返回与模型相同格式的决策，或返回 null 继续调用模型 |
 | resume（可选） | 依据玩家自己的候选恢复视图和当前授权 world 检查继续条件；null 接受，`{ rejectReason: "原因" }` 拒绝 |
 | autoStart（可选） | 每个玩家回合结束时判断是否自动开始这场活动，见[按条件自动开始](#按条件自动开始2026-10-21当前源码) |
@@ -111,11 +111,13 @@ autoStart(truth, world, previous) {
 | 字段 | 可见范围 |
 | --- | --- |
 | public | 活动参与者共同可见 |
-| private | 只交付对应角色的部分 |
+| private | 只交付对应角色的部分；玩家自己的那一份也进入玩家视图（PlayerView 的 `activity.private`），默认舞台在活动卡片里标“只有你知道” |
 | internal | 程序内部裁定材料，不进入角色视图 |
-| active / phase / turn / round | 活动控制状态，按当前脚本契约生成 |
+| active / phase / turn / round | 活动控制状态，按当前脚本契约生成；**每个参与者都看得到**，所以隐藏回合（比如狼人杀夜里谁醒着）不能写在 turn 里，见下文 |
 
-猜数字的答案可以留在 internal，若主持角色需要知道答案则写进该角色 private。不要先把秘密写进 public，再试图用结果收件人 self 补救；操作 description 也应检查是否泄密。
+猜数字的答案可以留在 internal，若主持角色需要知道答案则写进该角色 private。
+
+隐藏回合的做法见[狼人杀实验包](../../../examples/world-packs/model-girls-werewolf/scripts/activities/werewolf.js)：夜里公开的 turn 停在一个整夜不变的中性座位，真正的行动者记在 internal，并在本人 private 里标“轮到你”；policy 读这个标记，夜间操作声明不消耗回合（requiresTurn: false），resolve 自己核对是否轮到；schedule 读 internal 叫醒对的人。宿主的活动 revision 仍会随每次操作增加，模型可据此推断有几次操作，这一点包内无法隐藏。不要先把秘密写进 public，再试图用结果收件人 self 补救；操作 description 也应检查是否泄密。
 
 Activity 收紧局部玩法许可；默认由模型决定扮演内容，作者也可显式提供局部固定演出输出。活动状态沿 activity.updated 提交；位置和物品仍走已有规则路径。宿主限定角色调用次数和链路耗时；耗尽或失败保留已提交结果，玩家可重试或逃生，未提交机会不保证精确恢复。
 

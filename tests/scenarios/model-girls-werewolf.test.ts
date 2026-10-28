@@ -8,6 +8,7 @@ import { brandId, type WorldJsonObject } from '@harness-world/contracts'
 import { CharacterViewBuilder, WorldStore } from '@harness-world/store-sqlite'
 import { WorldHostCore } from '../../desktop/host/world-runtime.ts'
 import { playSettings } from '../../desktop/play-settings.ts'
+import { projectPlayerView } from '../../desktop/host/frontend-adapter.ts'
 
 type Game = {
   active: boolean
@@ -55,9 +56,12 @@ function table() {
     who: (role: string): string[] => EVERYONE.filter(id => t.roleOf(id) === role),
     alive: (): string[] => (t.state.game.public['存活'] as string[]).map(n => EVERYONE.find(id => NAME[id] === n)!),
     good: (): string[] => t.alive().filter(id => t.roleOf(id) !== '狼人'),
+    /** Who really acts now: at night the visible turn is a neutral seat and the actor is first in the night order. */
+    actor: (): string =>
+      t.state.game.phase === 'night' ? (t.state.game.internal['夜序'] as string[])[0]! : t.state.game.turn!,
     /** Resolve as whoever holds the turn (or `actor`); a refusal returns the reason and keeps the state. */
     try(operation: string, parameters: Record<string, unknown>, actor?: string): Resolved {
-      const r = plain(script.resolve(t.state, actor ?? t.state.game.turn, operation, parameters, {}, {}) as Resolved)
+      const r = plain(script.resolve(t.state, actor ?? t.actor(), operation, parameters, {}, {}) as Resolved)
       if (r.game) t.state = { ...t.state, game: r.game }
       return r
     },
@@ -72,6 +76,10 @@ function table() {
       const view = { participants: EVERYONE, game: { ...g, private: g.private[actor], internal: undefined } }
       return plain(script.policy(view, actor))
     },
+    /** The host hands schedule and onOutcome the whole state. */
+    outcome(result: Record<string, unknown>): { kind: string; characterId?: string } {
+      return plain(script.onOutcome(result, t.state))
+    },
     speak(): Game | null {
       const next = plain(script.onPublished(t.state, t.state.game.turn, null) as Game | null)
       if (next) t.state = { ...t.state, game: next }
@@ -81,11 +89,11 @@ function table() {
     night(choice: { kill: string; potion?: Record<string, unknown>; check?: string }): Resolved[] {
       const results: Resolved[] = []
       while (t.state.game.phase === 'night') {
-        const role = t.roleOf(t.state.game.turn!)
+        const role = t.roleOf(t.actor())
         if (role === '狼人') results.push(t.act('kill', { target: NAME[choice.kill] }))
         else if (role === '女巫') results.push(t.act('potion', choice.potion ?? { choice: 'none' }))
         else if (role === '预言家') {
-          const target = choice.check ?? t.alive().find(id => id !== t.state.game.turn)!
+          const target = choice.check ?? t.alive().find(id => id !== t.actor())!
           results.push(t.act('check', { target: NAME[target] }))
         } else throw new Error('unexpected night turn: ' + role)
       }
@@ -104,7 +112,7 @@ function table() {
 describe('werewolf rules', () => {
   it('policy reads the role from the scoped view and lets only the turn holder act', () => {
     const t = table()
-    const wolf = t.state.game.turn!
+    const wolf = t.actor()
     expect(t.policy(wolf).speech).toBe('free')
     expect(t.policy(wolf).operations).toContain('kill')
     const villager = t.who('村民').find(id => id !== PLAYER)!
@@ -126,9 +134,39 @@ describe('werewolf rules', () => {
 
   it('wolves cannot narrate at night and are told that any public word gives them away', () => {
     const t = table()
-    const wolf = t.state.game.turn!
+    const wolf = t.actor()
     expect(t.policy(wolf)).toMatchObject({ speech: 'free', narration: false })
     expect(String(t.state.game.private[wolf]!['提醒'])).toContain('暴露')
+  })
+
+  it('keeps the visible turn on one neutral seat all night; only the actor is told it is her turn', () => {
+    const t = table()
+    const firstNpc = (t.state.game.internal['座位'] as string[]).find(id => id !== PLAYER && t.alive().includes(id))
+    const seen = new Set<string>()
+    while (t.state.game.phase === 'night') {
+      seen.add(String(t.state.game.turn))
+      const actor = t.actor()
+      for (const id of EVERYONE) expect(t.state.game.private[id]!['轮到你'] === true).toBe(id === actor)
+      const role = t.roleOf(actor)
+      if (role === '狼人') t.act('kill', { target: NAME[t.who('村民')[0]!] })
+      else if (role === '女巫') t.act('potion', { choice: 'none' })
+      else t.act('check', { target: NAME[t.alive().find(id => id !== actor)!] })
+    }
+    expect([...seen]).toEqual([firstNpc])
+    for (const id of EVERYONE) expect(t.state.game.private[id]!['轮到你']).toBeUndefined()
+  })
+
+  it('waits after a failure, an interruption or silence, and goes on after an accepted action or a line', () => {
+    const t = table()
+    const wolf = t.actor()
+    expect(t.outcome({ status: 'failed', failure: 'provider_failed' })).toEqual({ kind: 'wait' })
+    expect(t.outcome({ status: 'interrupted' })).toEqual({ kind: 'wait' })
+    expect(t.outcome({ status: 'abstained' })).toEqual({ kind: 'wait' })
+    expect(t.outcome({ status: 'abstained', performResult: { status: 'rejected' } })).toEqual({ kind: 'wait' })
+    // A whisper to the partner is a real step; the wolf still owes a kill, so she is asked again.
+    const expected = wolf === PLAYER ? { kind: 'wait' } : { kind: 'activate', characterId: wolf }
+    expect(t.outcome({ status: 'published' })).toEqual(expected)
+    expect(t.outcome({ status: 'abstained', performResult: { status: 'accepted' } })).toEqual(expected)
   })
 
   it('witch saving the kill target means nobody dies at dawn', () => {
@@ -157,11 +195,11 @@ describe('werewolf rules', () => {
   it('witch cannot save herself and cannot use both potions in one night', () => {
     const t = table()
     const witch = t.who('女巫')[0]!
-    while (t.roleOf(t.state.game.turn!) === '狼人') t.act('kill', { target: NAME[witch] })
-    expect(t.state.game.turn).toBe(witch)
+    while (t.roleOf(t.actor()) === '狼人') t.act('kill', { target: NAME[witch] })
+    expect(t.actor()).toBe(witch)
     expect(t.try('potion', { choice: 'save' }).rejectReason).toBeTruthy()
     t.act('potion', { choice: 'poison', target: NAME[t.who('村民')[0]!] })
-    expect(t.state.game.turn).not.toBe(witch)
+    expect(t.actor()).not.toBe(witch)
   })
 
   it('seer killed on night one still checks that night, is skipped on night two', () => {
@@ -261,6 +299,9 @@ const idOfName = (name: string) => EVERYONE.find(id => NAME[id] === name)!
 const WHISPER = '悄悄说：今晚就动手吧'
 /** On the host every view is scoped: `private` is the viewer's own record. */
 const mine = (game: Game) => game.private as unknown as Record<string, unknown>
+/** At night the visible turn is a neutral seat; the viewer's own record says whether it is her turn. */
+const myTurn = (game: Game, self: string) =>
+  game.phase === 'night' ? mine(game)['轮到你'] === true : game.turn === self
 
 /**
  * Every NPC is a fake model that plays from its own scoped view only: a wolf whispers once to its partner and
@@ -271,7 +312,7 @@ async function host(options: { talkOnly?: boolean } = {}) {
   const root = mkdtempSync(join(tmpdir(), 'model-girls-werewolf-'))
   cleanup.push(() => rmSync(root, { recursive: true, force: true }))
   const data = join(root, 'data')
-  const seen: { self: string; text: string }[] = []
+  const seen: { self: string; text: string; night?: string; turn?: string | null; activity?: string }[] = []
   const whispered = new Set<string>()
   const server: Server = createServer((request, response) => {
     let body = ''
@@ -282,7 +323,17 @@ async function host(options: { talkOnly?: boolean } = {}) {
       const activity = find(input, o => o.activityKey === 'werewolf' && typeof o.game === 'object')
       const game = activity?.game as Game | undefined
       const self = String(find(input.context, o => typeof o.characterId === 'string')?.characterId ?? '')
-      seen.push({ self, text: JSON.stringify(input) })
+      seen.push({
+        self,
+        text: JSON.stringify(input),
+        ...(game?.phase === 'night'
+          ? {
+              night: String(activity!.id) + ':' + String(game.public['第几天']),
+              turn: game.turn,
+              activity: String(activity!.id),
+            }
+          : {}),
+      })
       const perform = (operation: string, parameters: WorldJsonObject): WorldJsonObject => ({
         decision: 'perform',
         actionType: 'interact',
@@ -294,7 +345,7 @@ async function host(options: { talkOnly?: boolean } = {}) {
         },
       })
       let decision: WorldJsonObject = { decision: 'abstain' }
-      if (input.result === undefined && game?.active && game.turn === self) {
+      if (input.result === undefined && game?.active && myTurn(game, self)) {
         const own = mine(game)
         const living = game.public['存活'] as string[]
         const seats = game.public['座位'] as string[]
@@ -396,7 +447,7 @@ async function host(options: { talkOnly?: boolean } = {}) {
     for (let step = 0; step < 300; step++) {
       const g = await game()
       if (!g.active) return g
-      if (g.turn !== PLAYER) await request('retry')
+      if (!myTurn(g, PLAYER)) await request('retry')
       else if (g.phase === 'day-speak') await runtime.submit('我是玩家，我先听听大家的。')
       else if (g.phase === 'vote') await request('vote', { target: '弃票' })
       else {
@@ -409,7 +460,7 @@ async function host(options: { talkOnly?: boolean } = {}) {
     }
     throw new Error('game did not finish')
   }
-  return { runtime, seen, events, observations, game, request, start, playToEnd }
+  return { runtime, seen, events, observations, current, game, request, start, playToEnd }
 }
 
 describe('werewolf on the host', () => {
@@ -436,6 +487,12 @@ describe('werewolf on the host', () => {
       if (role !== '预言家') expect(s.text).not.toContain('"验人记录"')
       if (role !== '女巫') expect(s.text).not.toContain('"今晚被刀"')
     }
+    // Every request in one night, follow-ups after an action included, sees the same neutral turn.
+    const nights = new Map<string, Set<string | null | undefined>>()
+    for (const s of f.seen.filter(s => s.night !== undefined))
+      nights.set(s.night!, (nights.get(s.night!) ?? new Set()).add(s.turn))
+    expect(nights.size).toBeGreaterThan(0)
+    for (const turns of nights.values()) expect(turns.size).toBe(1)
     // A dawn that does not end the game is delivered only to whoever closed the night.
     for (const id of NPCS) {
       const views = JSON.parse(f.observations(id)) as { value: { content?: WorldJsonObject; observerId?: string } }[]
@@ -457,14 +514,27 @@ describe('werewolf on the host', () => {
     expect(f.events().length).toBe(before)
   }, 120000)
 
+  it("shows the player only the player's own role and night information", async () => {
+    const f = await host()
+    await f.start('狼人')
+    const view = projectPlayerView(await f.runtime.state())
+    const own = view.activity?.private as Record<string, unknown> | undefined
+    expect(own?.['身份']).toBe('狼人')
+    expect(own?.['狼同伴']).toBeDefined()
+    // The player's record only: no other character's private data and nothing from internal.
+    expect(JSON.stringify(view)).not.toMatch(/"(身份表|夜序|夜间|character:[a-z]+":\{"身份")/)
+    expect(view.activities?.find(a => a.key === 'werewolf')?.private).toEqual(own)
+  }, 120000)
+
   it('a wolf who only talks keeps the turn', async () => {
     const f = await host({ talkOnly: true })
     await f.start('村民')
-    const wolf = (await f.game()).turn
     await f.request('retry')
-    const g = await f.game()
-    expect(g.phase).toBe('night')
-    expect(g.turn).toBe(wolf)
+    expect((await f.game()).phase).toBe('night')
+    // Only the first wolf was ever asked: talking never hands the night on.
+    const id = String((await f.current()).id)
+    const asked = new Set(f.seen.filter(s => s.activity === id).map(s => s.self))
+    expect(asked.size).toBe(1)
   }, 120000)
 
   it('the player cannot speak when it is not their turn to speak', async () => {
@@ -478,7 +548,7 @@ describe('werewolf on the host', () => {
   it('a player wolf whispers to the partner only', async () => {
     const f = await host()
     await f.start('狼人')
-    while ((await f.game()).turn !== PLAYER) await f.request('retry')
+    while (!myTurn(await f.game(), PLAYER)) await f.request('retry')
     const partner = idOfName(String(mine(await f.game())['狼同伴']))
     const text = '我们今晚刀 Qwen 吧'
     await f.runtime.submit(`/act speak ${JSON.stringify({ text, scope: 'direct', addresseeIds: [partner] })}`)
