@@ -30,5 +30,5 @@ corepack pnpm@11.7.0 experience:web --pack examples/world-packs/model-girls-were
 - 默认舞台的忙碌提示只显示“正在回复中”，不显示是谁；自带前端的包若显示 `responders` 名字，同样会暴露夜里谁在行动。
 - 宿主的活动 `revision` 随夜间操作增加，模型可据此推断夜里行动的人数。
 - 模型不提交操作时回合会停住，可重试或逃生；不会替角色行动。
-- 一局约 11–12 分钟（gemini-3.8-flash）。
+- 一局约 7.5–12 分钟（gemini-3.8-flash）。
 - 没有专用前端，使用默认活动卡片；浏览器内体验尚未验收。
