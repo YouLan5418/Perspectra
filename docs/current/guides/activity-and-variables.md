@@ -117,7 +117,7 @@ autoStart(truth, world, previous) {
 
 猜数字的答案可以留在 internal，若主持角色需要知道答案则写进该角色 private。
 
-隐藏回合的做法见[狼人杀实验包](../../../examples/world-packs/model-girls-werewolf/scripts/activities/werewolf.js)：夜里公开的 turn 停在一个整夜不变的中性座位，真正的行动者记在 internal，并在本人 private 里标“轮到你”；policy 读这个标记，夜间操作声明不消耗回合（requiresTurn: false），resolve 自己核对是否轮到；schedule 读 internal 叫醒对的人。宿主的活动 revision 仍会随每次操作增加，模型可据此推断有几次操作，这一点包内无法隐藏。不要先把秘密写进 public，再试图用结果收件人 self 补救；操作 description 也应检查是否泄密。
+隐藏回合的做法见[狼人杀实验包](../../../examples/world-packs/model-girls-werewolf/scripts/activities/werewolf.js)：夜里公开的 turn 停在一个整夜不变的中性座位，真正的行动者记在 internal，并在本人 private 里标“轮到你”；policy 读这个标记，夜间操作声明不消耗回合（requiresTurn: false），resolve 自己核对是否轮到；schedule 读 internal 叫醒对的人。宿主的活动 revision 仍会随每次操作增加，模型可据此推断有几次操作；公共 PlayerView 的 `responders` 也仍列出正在处理的角色（默认舞台只显示“正在回复”，不显示名字），玩家用开发者工具或社区前端可以读到。这两点包内无法隐藏。不要先把秘密写进 public，再试图用结果收件人 self 补救；操作 description 也应检查是否泄密。
 
 Activity 收紧局部玩法许可；默认由模型决定扮演内容，作者也可显式提供局部固定演出输出。活动状态沿 activity.updated 提交；位置和物品仍走已有规则路径。宿主限定角色调用次数和链路耗时；耗尽或失败保留已提交结果，玩家可重试或逃生，未提交机会不保证精确恢复。
 

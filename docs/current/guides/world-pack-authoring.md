@@ -22,7 +22,7 @@
 | [model-girls-dinner](../../../examples/world-packs/model-girls-dinner/README.md) | 角色各有秘密的多人局、物品显示名、一键活动操作与旁白 |
 | [status-market](../../../examples/world-packs/status-market/README.md) | 金钱等常驻状态、只告诉部分人的结果、按已知状态筛选知识 |
 | [rpg-turn-battle](../../../examples/world-packs/rpg-turn-battle/README.md) | HP / MP、轮流攻击与胜败奖励的回合战斗活动 |
-| [model-girls-werewolf](../../../examples/world-packs/model-girls-werewolf/README.md) | 隐藏回合：夜里谁醒着不进公开 turn，只有本人和调度知道 |
+| [model-girls-werewolf](../../../examples/world-packs/model-girls-werewolf/README.md) | 隐藏回合：夜里谁醒着不写进公开 turn，角色上下文里只有本人知道；默认舞台不显示谁在回复，但公共 PlayerView 的 `responders` 仍带正在处理的角色 |
 | [model-girls-sweet-days](../../../examples/world-packs/model-girls-sweet-days/README.md) | 多场条件生活事件、角色自主、短信、随包角色预设与舞台美术 |
 | [plugin-capabilities-demo](../../../examples/world-packs/plugin-capabilities-demo/README.md) | 包内插件模块调用玩家启用的本地 Cordis 能力 |
 
@@ -118,7 +118,7 @@ NPC 自行决定回应或沉默，以及台词、情绪和行动。不要在调�
 
 ## 5. 扩展玩法和界面
 
-- [活动与状态](activity-and-variables.md)：固定后端脚本、public/private/internal 范围、有界角色机会；经裁定的常驻状态与状态栏。另有多场活动与暂停、按条件自动开始（`autoStart`）、一键操作（`quick: true`）、固定演出（`simulate`）和隐藏回合：活动的 turn 每个参与者都看得到，狼人杀夜里谁醒着这类秘密写在 internal 和本人 private，由 schedule 读完整状态叫醒对的人。玩家自己那份 private 也会显示在玩家的活动卡片上。
+- [活动与状态](activity-and-variables.md)：固定后端脚本、public/private/internal 范围、有界角色机会；经裁定的常驻状态与状态栏。另有多场活动与暂停、按条件自动开始（`autoStart`）、一键操作（`quick: true`）、固定演出（`simulate`）和隐藏回合：活动的 turn 每个参与者都看得到，狼人杀夜里谁醒着这类秘密写在 internal 和本人 private，由 schedule 读完整状态叫醒对的人。这只对角色隔离：默认舞台只显示“正在回复”，但公共 PlayerView 的 `responders` 仍列出正在处理的角色，玩家用开发者工具或社区前端可以读到；活动 revision 也会随夜间操作增加。玩家自己那份 private 也会显示在玩家的活动卡片上。
 - 角色自主（`autonomy.json`）：例如留守者独自在后室，每两回合获得一次机会，可以自己走去前室或拿钥匙。只给机会，不规定他做什么，也不把前室的对话传给他。
 - 跨场景短信（实验）：根目录放 `communication.json`，写 `{"medium": "短信", "contacts": {"character:player": ["character:a"], "character:a": ["character:player"]}}`，并登记进 `assetFiles`。联系人是有向许可，不等于在场；短信正文只证明发送者这样说，收信人不获得对方房间的视野。想让角色在自主行动里也能发，在 `autonomy.json` 的 `interactions` 里加 `experiment:message`。电话尚未接入。
 - [预设格式](../model-presets.md)：根目录可选 `model-preset.json`，附加提示、参数、原生节点和文本规则；模型凭证不属于预设。
