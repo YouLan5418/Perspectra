@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "Perspectra",
-  "version": "0.1.0",
+  "version": "0.3.1",
   "identifier": "app.perspectra.launcher",
   "build": {
     "beforeDevCommand": "corepack pnpm@11.7.0 dev",

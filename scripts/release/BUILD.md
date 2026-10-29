@@ -1,6 +1,6 @@
 # Windows x64 便携测试包构建
 
-2026-10-24 起，本轮只构建 Perspectra 程序，不附带试玩包。版本读取根 `package.json`（当前 0.3.1），随包 `worldpack.cmd --version` 使用同一版本；Tauri 自身应用版本仍由其配置管理。历史 test3 记录见 docs/current/studies。以下从仓库根目录执行。构建机需要现有 pnpm/Cargo/Node；玩家机不需要这些开发工具。
+2026-10-24 起，本轮只构建 Perspectra 程序，不附带试玩包。版本读取根 `package.json`（当前 0.3.1），随包 `worldpack.cmd --version` 使用同一版本；2026-10-29 起 Launcher 的 package.json、Tauri 配置与 Cargo 包版本也统一为 0.3.1。历史 test3 记录见 docs/current/studies。以下从仓库根目录执行。构建机需要现有 pnpm/Cargo/Node；玩家机不需要这些开发工具。
 
 ## 素材
 
