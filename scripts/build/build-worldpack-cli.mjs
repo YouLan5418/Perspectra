@@ -30,7 +30,10 @@ export async function buildWorldPackCli(output) {
   await cp('scripts/release/CREATOR.zh-CN.md', join(output, '创作校验.md'))
   await cp('skills/perspectra-creator', join(output, 'skills/perspectra-creator'), {
     recursive: true,
-    filter: path => !path.split(/[\\/]/u).some(part => part === '__pycache__' || part.endsWith('.pyc')),
+    filter: path =>
+      !path
+        .split(/[\\/]/u)
+        .some(part => part === '__pycache__' || part.endsWith('.pyc') || part.toLowerCase() === 'nul'),
   })
   return result
 }

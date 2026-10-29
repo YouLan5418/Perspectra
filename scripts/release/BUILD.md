@@ -25,7 +25,7 @@ node scripts/release/verify-worldpack-cli.mjs
 
 此命令在新临时目录创建 CLI、Node 与 jieba-wasm 的隔离布局，并在空 PATH、源码外工作目录中实际运行 `worldpack.cmd`。覆盖版本、帮助、校验、编译、概要、适配、本地数据库初始化，以及参数、源格式、引用和缺失目录错误；还验证校验不会执行玩法脚本。产物和夹具目录写在末尾 JSON 的 `root`、`evidenceDirectory`。可传已构建程序根目录，改为检查实际发行载荷：`node scripts/release/verify-worldpack-cli.mjs <程序目录>`。此检查不是可公开分发的完整程序包，也不代替完整宿主或真实体验验收。
 
-同一构建函数还复制仓库 `skills/perspectra-creator` 到程序根目录的 skills，过滤 Python 缓存。统一 Skill 包含原创世界包、静态酒馆卡迁移和原生预设创作。另运行 `node scripts/release/verify-creator-skill.mjs <完整程序目录>`，使用实际随包 Node 创建源包并检查拒绝覆盖、文档 JSON 和物品脚本模板；随包 Python 提取合成 PNG／JSON 卡，检查脚本与正则原文、容量报告和拒绝覆盖；随包 CLI 校验两种原生预设模板并拒绝交换格式混用、未知字段／宏和未来格式版本，再编译适配世界包。此检查需要完整载荷中的 Python，不使用真实私人卡片，也不执行原卡脚本或真实模型调用。输出 sourceDirectory 可作为后续 `verify-portable.mjs` 的外部源包参数，检查宿主扩展与包推荐预设启动；夹具不进入程序载荷。Skill 的 Markdown 结构校验不能代替这些可执行检查。
+同一构建函数还复制仓库 `skills/perspectra-creator` 到程序根目录的 skills，过滤 Python 缓存及 Git Bash 重定向遗留的空 nul 文件；源目录中的这些文件保留原样。统一 Skill 包含原创世界包、静态酒馆卡迁移和原生预设创作。另运行 `node scripts/release/verify-creator-skill.mjs <完整程序目录>`，使用实际随包 Node 创建源包并检查拒绝覆盖、文档 JSON 和物品脚本模板；随包 Python 提取合成 PNG／JSON 卡，检查脚本与正则原文、容量报告和拒绝覆盖；随包 CLI 校验两种原生预设模板并拒绝交换格式混用、未知字段／宏和未来格式版本，再编译适配世界包。此检查需要完整载荷中的 Python，不使用真实私人卡片，也不执行原卡脚本或真实模型调用。输出 sourceDirectory 可作为后续 `verify-portable.mjs` 的外部源包参数，检查宿主扩展与包推荐预设启动；夹具不进入程序载荷。Skill 的 Markdown 结构校验不能代替这些可执行检查。
 
 只核对本次宿主与 Core 目录迁移时，可先构建源码，再运行隔离布局的离线检查。它在全新的 `.tmp/core-layout-*` 目录验证单次 Python 请求、常驻 worker、本地 E5，以及构建后端在源码仓库、构建产物目录（`dist/backend`）和隔离便携目录三种布局下的默认 Core HTTP 启动。不调用外部模型，也不复制完整 Python/WebView2/CRT；通过不代表 Tauri 界面、完整便携包或干净系统验收。
 
@@ -62,7 +62,7 @@ Windows 原生启动另行验证：2026-10-24 复现工作区 candidate4 的 Per
 | --- | --- | --- |
 | 使用说明.md | scripts/release/README.zh-CN.md；启动、模型、保存与权限 | build-portable.mjs 复制 |
 | 创作校验.md | scripts/release/CREATOR.zh-CN.md；CLI、构建识别、创作与验收范围 | build-worldpack-cli.mjs 复制 |
-| skills/perspectra-creator/ | 完整 Skill：SKILL.md、references、scripts、assets、agents；离线创作参考与模板 | build-worldpack-cli.mjs 整目录复制，过滤 Python 缓存；不能只带 SKILL.md |
+| skills/perspectra-creator/ | 完整 Skill：SKILL.md、references、scripts、assets、agents；离线创作参考与模板 | build-worldpack-cli.mjs 整目录复制，过滤 Python 缓存及 nul 文件；不能只带 SKILL.md |
 | 反馈模板.md | scripts/release/feedback-template.zh-CN.md；复现信息与隐私提示 | build-portable.mjs 复制 |
 | 干净系统验收.md | scripts/release/clean-windows-checklist.zh-CN.md；测试版验收步骤，不代表已经通过 | build-portable.mjs 复制 |
 | 验收记录.md | 本次实际构建、自动检查、原生启动、真实试玩及未测范围 | 验收后写到包根目录；archive-portable.mjs 要求存在，不能沿用旧包结论 |
