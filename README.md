@@ -2,21 +2,27 @@
 
 **语言 / Languages：[简体中文](README.md) | [English](README.en.md)**
 
-**致力于打造以 AI 角色为核心，融合 Galgame、RPG 与生活模拟 SLG 的半开放式游戏运行平台。**
+**以角色为中心的 AI 原生游戏引擎。**
 
-Perspectra 希望让玩家与拥有独立认知、长期经历和自主行动能力的角色共同生活在持续变化的游戏世界中：自由交流与规则化交互并存，创作者定义关键行为与玩法，重要世界事实由系统裁定。
+在 Perspectra 里，每个 AI 角色都有自己的认知、经历和目标，会自己决定说什么、做什么；世界的重要事实由规则维护，不靠模型记住；创作者用规则和活动组织剧情与玩法，把 Galgame 的人物互动、RPG 的探索与规则、生活模拟 SLG 的日常与经营放进同一个持续存在的世界。
 
 > **让模型负责扮演角色，让系统负责维护世界，让玩家真正参与游戏，让创作者定义游戏的可能性。**
 
-**[阅读完整产品愿景](docs/current/vision.md)** · [当前实现与验证状态](docs/current/PROJECT-STATE.md)
+**[产品愿景](docs/current/vision.md)** · [当前实现与验证状态](docs/current/PROJECT-STATE.md) · [代码技术文档](docs/current/architecture/README.md)
 
-项目仍处于早期公开测试阶段。当前版本适合**试玩、小型内容创作、玩法验证和机制测试**，不代表上述完整游戏形态已经实现，也暂不建议用于需要长期维护的大型正式项目。
-
-原项目名为 Cordis World；部分代码、命令和历史文档仍保留旧名称。
+项目仍处于早期公开测试阶段，适合**试玩、小型内容创作、玩法验证和机制测试**，暂不建议用于需要长期维护的大型正式项目。原项目名为 Cordis World，部分代码、命令和历史文档仍保留旧名称。
 
 ## 为什么做 Perspectra
 
-在很多以对话续写为中心的 AI RP 中，聊天记录不只是故事的记录，也是世界的主要载体：物品在哪里、谁知道什么、剧情走到了哪一步，都要靠模型从文本里读出来，再继续写下去。这很适合自由叙事。但当作品需要明确规则、多个角色和持续状态时，玩家往往得兼任编剧和导演，自己推动故事；创作者也很难保证物品位置不前后矛盾、角色不知道不该知道的事、重要事件按设计条件推进。
+在很多以对话续写为中心的 AI RP 中，聊天记录不只是故事的记录，也是世界的主要载体：物品在哪里、谁知道什么、剧情走到了哪一步，都要靠模型从文本里读出来，再继续写下去。
+
+这很适合自由叙事。但当作品需要明确规则、多个角色和持续状态时，就会遇到三个困难：
+
+- **世界需要有人推动。** 角色就算有目标，也未必有机会行动，玩家往往得兼任编剧和导演。
+- **重要规则依赖模型自行遵守。** 模型写出“你拿到了钥匙”，这句话就同时成了故事描述和后续默认采用的事实。
+- **角色的信息边界不由世界维护。** 多个角色共享一段包含秘密的上下文时，只能靠模型自己分辨谁知道什么。
+
+即使引入多个 Agent，如果最后仍由一个负责整体叙事的 Agent 判断发生了什么，大部分负担依然集中在它的一次生成上。
 
 Perspectra 的基本思路是**以角色为主体，以世界为载体，以规则为边界**：
 
@@ -25,6 +31,24 @@ Perspectra 的基本思路是**以角色为主体，以世界为载体，以规�
 - **角色认知分离**：每个角色只接收自己有权知道的信息，并根据自己的经历决定如何回应。
 
 比如角色在对白里说“钥匙在我手里”，这句话确实被说出来了，听见的人也可能相信她；但钥匙的实际归属，仍由已经裁定的世界状态决定。普通对话、表情、语气和不需要严格维护的细节，依然由模型自由发挥。
+
+## 核心机制
+
+**角色认知与记忆。** 角色只接收自己获授权的信息；没有听见的秘密，不会因为别人知道就进入她的上下文。获知信息不等于获知真相，角色可以相信谎言、形成误解。长期记忆从角色自己的经历中整理认识，并保留来源和时间边界。[认知与记忆](docs/current/architecture/cognition-memory.md)
+
+**世界事实与行动。** 移动、物品归属这类创作者明确追踪的变化，要经过规则裁定才会提交为世界事件。玩家在输入框里写的内容始终按发言或表现处理：写“我拿走了钥匙”不会改变钥匙的归属，要真正拿到钥匙，需要使用行动选项。这是为了让世界事实可信而有意接受的限制。[Interaction](docs/current/architecture/interaction.md)
+
+**活动。** 创作者可以把一顿晚餐、一次约会、一场料理比赛或回合战斗组织成活动，安排开始条件、参与者、阶段、临时规则、共享与私有信息、固定演出和结算；活动结束后回到普通互动。约会邀请可以被拒绝，因为是否接受由被邀请的角色自己决定。[活动与状态指南](docs/current/guides/activity-and-variables.md)
+
+**角色自主行动。** 调度系统给予角色处理机会，并限制次数和时间；角色自己决定回应、行动还是沉默。作者可以让关键角色在玩家不在场时按自己的目标行动，部分世界包还提供“静观”，让玩家主动让一轮过去。[创作者运行时](docs/current/architecture/creator-runtime.md)
+
+**插件。** 世界包插件随作品提供，定义作品自己的状态和操作；本地宿主插件由玩家在 Launcher 启用，连接外部程序或服务，结果仍交回作品规则处理。[两种插件入口](docs/current/guides/dual-plugin-entrypoints.md)
+
+## 试玩进展
+
+目前已经用真实模型短时间试玩过同居日常、晚宴、谁是卧底、狼人杀、猜数字与约会邀请，以及多角色争夺物品的动态博弈。角色能自己行动、隐瞒秘密，也会依据自己看到的信息作出判断（包括判断错误），只是偶尔会说要行动却没有执行，或者叙述了不存在的细节。这些都还是几局到十几个回合的小样本，长期游玩的稳定性还没有验证。
+
+这种方式也有代价：每个角色需要单独调用模型，一轮互动往往会调用多次，成本和等待时间都比单次生成高。在之前的试玩中，普通对话每轮要等 5～37 秒，有角色在场外行动的回合要等 19～47 秒；一次三角色博弈实验的 24 个回合共调用模型 61 次，约 28 万 token。
 
 ## 开始试玩
 
@@ -41,23 +65,6 @@ ZIP 为 521,587,384 字节，SHA-256：`bbfe12fda796d0288450b6e0285065cfeb0f84a8
 3. 另行取得或创作完整的 `worldpack-source/v5` 源目录，在 Launcher 载入、创建实例并开始，游戏在系统默认浏览器中打开。
 4. 等待当前行动完成后保存进度，结束游戏后可从节点分叉或导出存档。API Key 按连接存入 Windows 凭据管理器，不写入作品或存档；备份前结束游戏并退出 Launcher。
 
-### 创作者与统一 AI Skill
-
-随包 `skills/perspectra-creator` 整合原创世界包、酒馆 PNG／JSON 卡静态提取与迁移，以及原生模型预设创作。附带空白源包生成器、物品规则模板、卡片容量分析和两种预设模板；原卡脚本、HTML、EJS 与正则作为数据审阅，所需玩法另行重写，不直接执行原卡。
-
-把整个 `skills/perspectra-creator` 目录复制到所用 AI 工具的 Skill 目录，告诉它 Perspectra 解压位置与创作需求。它使用程序自带 Node／Python，不要求源码、pnpm 或全局运行环境；生成作品另放自己的新目录。完整操作见解压后的 `创作校验.md`、`使用说明.md` 和 Skill。
-
-```powershell
-& 'D:\Perspectra\worldpack.cmd' --version
-& 'D:\Perspectra\worldpack.cmd' --help
-& 'D:\Perspectra\worldpack.cmd' validate 'D:\我的游戏'
-& 'D:\Perspectra\worldpack.cmd' test 'D:\我的游戏'
-& 'D:\Perspectra\worldpack.cmd' preset validate 'D:\预设\自然互动.json'
-& 'D:\Perspectra\worldpack.cmd' preset validate 'D:\我的游戏\model-preset.json' --pack
-```
-
-`test` 只编译适配，`assertionsExecuted: 0`；预设校验只检查字段、启用节点宏与正则语法。静态通过后仍需 Launcher 新实例和真实玩法验收。
-
 本次已检查随包 CLI／Skill、宿主启停、默认前端比对和离线编码；干净 Windows、原生界面完整流程和真实模型连续试玩尚未完成。既有全仓格式问题、一次活动测试不稳定及历史文档断链见随包验收记录。`build-info.json` 的 `sourceDirty=true`，GitHub 自动源码归档不等同于该次未提交构建工作区。
 
 [旧 test3 预发行版](https://github.com/YouLan5418/Perspectra/releases/tag/v0.1.0-test3)保留为 2026-10-09 的历史构建，含旧试玩内容；它的验收不代表新程序已完成真实体验验收。
@@ -71,8 +78,6 @@ corepack pnpm@11.7.0 install --frozen-lockfile
 corepack pnpm@11.7.0 launcher:desktop
 ```
 
-[Launcher 开发说明](apps/launcher/README.md) · [便携包构建说明](scripts/release/BUILD.md)
-
 不使用 Launcher 时，也可以运行本机网页入口。先启动自己的模型服务，再设置地址与模型：
 
 ```powershell
@@ -83,147 +88,77 @@ corepack pnpm@11.7.0 experience:web `
   --data-dir .tmp/my-playtest
 ```
 
-地址与模型只是本机验证示例，请按自己的服务修改。如需认证，通过环境设置 `PERSPECTRA_MODEL_API_KEY`，不要写入世界包、脚本或仓库。打开终端打印的完整本机地址；其中的令牌不要公开分享。
+地址与模型只是本机验证示例，请按自己的服务修改。如需认证，通过环境设置 `PERSPECTRA_MODEL_API_KEY`，不要写入世界包、脚本或仓库。打开终端打印的完整本机地址；其中的令牌不要公开分享。源码网页入口默认使用 Core 记忆，需准备 Python/E5；仅离线调试可显式加 `--memory-native`。
 
-**源码网页入口默认使用 Core 记忆**，需准备 Python/E5；仅离线调试可显式加 `--memory-native`。源码网页与 Launcher 使用同一套模型适配（经 pi-ai），支持 OpenAI 兼容、Anthropic Messages 与 Google Gemini 协议；DeepSeek、Ollama 按 OpenAI 兼容地址配置，配置与限制见[模型接口协议](docs/current/model-protocols.md)；实际模型支持与网关行为仍需分别验证。
+模型适配经 pi-ai，支持 OpenAI 兼容、Anthropic Messages 与 Google Gemini 协议；DeepSeek、Ollama 按 OpenAI 兼容地址配置，见[模型接口协议](docs/current/model-protocols.md)。
 
-完整说明见 [创作者与真实模型试玩指南](docs/current/guides/creator-playtest.md)。
-
-## 当前能体验什么
-
-| 功能 | 当前范围 |
-| --- | --- |
-| 角色认知隔离 | 按角色权限提供观察、经历与上下文；不同角色可以拥有不同认知 |
-| 角色自主行动 | 玩家推动有界反应周期，角色可以决定回应、沉默或提出行动；作者可让关键角色在玩家不在场时按自己的目标获得行动机会，部分世界包提供“静观”让一轮过去 |
-| 长期记忆 | 基于角色授权经历整理认识，支持召回、宽短期上下文与后台整理 |
-| 世界状态与交互 | 移动、物品归属等明确追踪的状态经过规则裁定，再提交世界事件 |
-| Activity | 创作者把一段情境组织成剧情或玩法：开始条件（玩家开始或按条件自动开始）、参与者、阶段、临时规则、共享与私有信息、固定演出和结算；一次运行一场 |
-| 插件 | 世界包插件随作品定义状态和操作；本地宿主插件由玩家在 Launcher 启用，连接外部程序或服务 |
-| Storyline | 保存节点及当时记忆、分叉与独立续玩、单节点导出导入 |
-| 思考强度与运行参数 | 实例选择关闭/低/中/高；按包配置反应预算，默认期限 120 秒 |
-| 角色预设 | 全局默认、包推荐、实例覆盖、角色组和角色专属配置 |
-| 自定义前端 | HTML/CSS/JavaScript 与公共玩家接口，默认 iframe 沙箱、明确授权的受信任模式 |
-| 桌面 Launcher | 载入 v5 世界包目录、独立实例、模型配置、启停与继续游戏；当前源码另有多条模型连接和按角色选模型 |
-| 创作者页面（当前源码） | 游戏运行时在浏览器里只读查看对话、行动轨迹、实际模型请求、物品去向和角色记忆 |
-
-这些运行链路已经接通；自动化检查与本机真实试玩不代表所有玩法、模型或机器环境都已验证。
-
-### 实验中的试玩情况
-
-目前已经用真实模型短时间试玩过同居日常、晚宴、谁是卧底、狼人杀、猜数字与约会邀请，以及多角色争夺物品的动态博弈。角色能自己行动、隐瞒秘密，也会依据自己看到的信息作出判断（包括判断错误），只是偶尔会说要行动却没有执行，或者叙述了不存在的细节。这些都还是几局到十几个回合的小样本，长期游玩的稳定性还没有验证。
-
-这种方式也有代价：每个角色需要单独调用模型，一轮互动往往会调用多次，成本和等待时间都比单次生成高。在之前的试玩中，普通对话每轮要等 5～37 秒，有角色在场外行动的回合要等 19～47 秒；一次三角色博弈实验的 24 个回合共调用模型 61 次，约 28 万 token。
-
-### 角色认知与记忆
-
-角色只接收自己获授权的信息。没有听见的秘密，不应仅因为其他角色的上下文包含它就进入自己的上下文。
-
-获知信息不等于获知真相：角色可以听到谎言、相信传闻，或者形成误解；这些认识不会自动成为权威世界事实。
-
-Core 记忆的大致路径是：
-
-```text
-角色获授权的信息 → 提炼与组织经历 → 形成长期认识 → 检索与召回 → 角色回应
-```
-
-记忆首先服从角色、世界与经历范围的边界，再考虑召回。整理需要模型调用，长期记忆能否稳定改善角色表现仍需要真实试玩验证。
-
-[认知与记忆架构](docs/current/architecture/cognition-memory.md)
-
-### 世界状态与 Activity
-
-对白、表情、语气和一般叙事表现尽量保留自由。对于创作者明确要求追踪的重要变化，模型或玩家提出行动后，由规则与交互定义裁定，再提交为世界事件。
-
-玩家在输入框里写的内容始终按发言或表现处理：写“我拿走了钥匙”不会改变钥匙的归属，要真正拿到钥匙，需要使用行动选项。这是为了让世界事实可信而有意接受的限制。
-
-Activity 可以在特定玩法中临时收紧允许操作、移动或表达方式，维护活动状态与结果，结束后恢复普通 RP。例如进入料理比赛后，只能使用比赛允许的食材和操作；约会邀请可以由被邀请的角色自己决定是否接受。调度系统给予角色处理机会，但不预先规定角色的情绪、意图或对白。
-
-活动一次只运行一场，暂停的活动不会在后台推进，活动也不能直接移动角色。活动隔离的是活动信息而不是声音：同场的非参与者仍能听到参与者的公开发言。
-
-**自由文本仍可能作出未经裁定的状态变化声明，甚至影响后续角色理解。数据库没有越权变化，不代表叙事语义上的矛盾已经解决。** 这是当前明确保留的测试问题。
-
-[Interaction](docs/current/architecture/interaction.md) · [Activity 与受控交互](docs/current/architecture/controlled-interaction.md)
-
-### Storyline：从同一个过去走向不同的未来
-
-玩家可以保存当前世界的完整节点，并从历史节点开启新线路，尝试另一种选择，同时保留原线路的进度。
-
-新线路恢复节点时的世界状态、已安装长期档案和授权原文，并校验角色、世界、来源及时间前缀，避免带入原线路后来的认识。保存和分叉不会额外调用模型整理；旧节点没有档案时保留截至节点的授权原始经历，无法精确恢复未保存的长期摘要。
-
-当前 Storyline 是**保存、分叉与独立续玩**；test3 支持单个完整节点的文件导出与导入；持续剧情阶段追踪、线路合并和完整树分享不在当前实现范围内。
-
-[故事线使用与边界](docs/current/storylines.md)
-
-### 轻量化角色预设
-
-预设支持角色提示、生成参数、提示节点、基础宏与文本规则，并可在预设库中保存、导入和导出原生配置。
-
-实例内按 **角色专属 > 角色组 > 实例默认** 选择配置。预设可调整模型如何扮演和表达，但不能替代角色认知边界、世界规则或 Core 的结构化输出契约。
-
-Launcher 使用 Perspectra 原生格式，界面里不能直接导入酒馆预设；源码提供 `preset:import` 命令把酒馆预设离线转换成原生格式，转换后仍需试玩核对。Assistant Prefill 和自定义上下文模板尚未接入。
-
-[预设说明](docs/current/model-presets.md)
-
-### 自定义前端与授权
-
-创作者可以在内容包的 `frontend/` 目录提供 HTML、CSS、JavaScript 和素材，通过显式 manifest 与公共玩家接口展示内容、提交操作；没有自定义前端时使用官方默认模板。
-
-社区前端默认运行在 iframe 沙箱中。玩家明确授权当前实例与前端内容后，可以启用受信任模式，开放外部网络和浏览器存储等能力；仍不提供 Core 令牌、模型密钥、角色私有上下文或数据库权限。
-
-授权可以撤销，运行中撤销会恢复官方沙箱模板并保留已提交进度。
-
-> **受信任前端访问的远程内容可以在不改变游戏包摘要的情况下发生变化。** 请只授权自己认可的来源。
-
-[前端创作指南](docs/current/guides/web-ui.md) · [沙箱边界](docs/current/frontend-v1.md) · [前端授权](docs/current/frontend-authorization.md)
+[Launcher 开发说明](apps/launcher/README.md) · [便携包构建说明](scripts/release/BUILD.md) · [创作者与真实模型试玩指南](docs/current/guides/creator-playtest.md)
 
 ## 创作自己的内容
 
-World Pack v5 描述角色、初始认知、地点、物品、场景、玩家槽位、交互、Activity 和前端资源。
+World Pack v5 描述角色、初始认知、地点、物品、场景、玩家槽位、交互、活动和前端资源。当前 Launcher 接受 v5 源目录，不直接导入 ZIP；载入后的包路径需要保留。
 
-可从小型示例开始验证：
+可以从这些示例开始：
 
 - `examples/world-packs/model-girls-official`：官方序章与晚餐、私密交流、蛋糕和跨日回访事件。
-- `examples/world-packs/model-girls-dinner`：《赔罪晚宴》，没有序章、没有预定结局的四人晚宴，含一键活动操作与旁白。
 - `examples/world-packs/model-girls-sweet-days`：《屋檐下的心动日程》，同居恋爱与生活安排，含谁是卧底等可反复玩的活动。
+- `examples/world-packs/model-girls-dinner`：《赔罪晚宴》，没有序章、没有预定结局的四人晚宴。
 - `examples/world-packs/model-girls-werewolf`：7 人局狼人杀实验，验证身份隔离与跨局记忆。
 - `examples/world-packs/multiple-activities`：多个活动的暂停、恢复与约会邀请。
 - `examples/world-packs/hidden-cure`：没有活动和预设分支的多角色动态博弈实验。
-- `examples/world-packs/prototype-g1`：两房间、角色和基础物品交互。
-- `examples/world-packs/launcher-demo`：Launcher 测试示例，含活动、预设与社区前端。
-- `examples/world-packs/hand-in-hand`：角色交互示例。
-- `examples/world-packs/ai-girls-hosted-guess`：角色主持活动示例。
-- `examples/world-packs/ai-girls-awaken-v10`：多角色真实试玩研究包。
+- `examples/world-packs/prototype-g1`：两房间、角色和基础物品交互的最小示例。
 
-当前 Launcher 接受 v5 世界包源目录，不直接导入 ZIP；载入后的包路径需要保留。当前不自动替换同 ID 的不同内容包，也不保证跨版本存档迁移。
+### 创作 Skill 与命令行工具
 
-[World Pack v5 创作指南](docs/current/guides/world-pack-authoring.md) · [活动与变量](docs/current/guides/activity-and-variables.md) · [当前创作者运行时](docs/current/architecture/creator-runtime.md) · [两种插件入口](docs/current/guides/dual-plugin-entrypoints.md)
+随包 `skills/perspectra-creator` 整合原创世界包、酒馆 PNG／JSON 卡静态提取与迁移，以及原生模型预设创作。把整个目录复制到所用 AI 工具的 Skill 目录，告诉它 Perspectra 解压位置与创作需求即可；它使用程序自带 Node／Python。原卡脚本、HTML、EJS 与正则只作为数据审阅，所需玩法另行重写。
 
-## 已知限制与验收状态
+```powershell
+& 'D:\Perspectra\worldpack.cmd' validate 'D:\我的游戏'
+& 'D:\Perspectra\worldpack.cmd' test 'D:\我的游戏'
+& 'D:\Perspectra\worldpack.cmd' preset validate 'D:\我的游戏\model-preset.json' --pack
+```
 
-- 便携候选版尚未完成干净 Windows 环境、长时间稳定性和原生目录选择器完整流程验收。
+`test` 只编译适配，`assertionsExecuted: 0`；静态通过后仍需在 Launcher 新建实例做真实玩法验收。
+
+[World Pack v5 创作指南](docs/current/guides/world-pack-authoring.md) · [活动与状态](docs/current/guides/activity-and-variables.md) · [创作者运行时](docs/current/architecture/creator-runtime.md) · [两种插件入口](docs/current/guides/dual-plugin-entrypoints.md)
+
+## 功能一览
+
+| 功能 | 当前范围 | 详细说明 |
+| --- | --- | --- |
+| 角色认知隔离 | 按角色权限提供观察、经历与上下文 | [认知与记忆](docs/current/architecture/cognition-memory.md) |
+| 长期记忆 | 从授权经历整理认识，支持召回与后台整理 | [认知与记忆](docs/current/architecture/cognition-memory.md) |
+| 世界状态与交互 | 明确追踪的状态经过规则裁定后提交 | [Interaction](docs/current/architecture/interaction.md) |
+| 活动 | 开始条件、参与者、阶段、临时规则、信息范围与结算；一次运行一场 | [活动与状态](docs/current/guides/activity-and-variables.md) |
+| 角色自主行动 | 有界的反应与场外行动机会，由角色自己决定 | [创作者运行时](docs/current/architecture/creator-runtime.md) |
+| 插件 | 世界包插件与本地宿主插件 | [两种插件入口](docs/current/guides/dual-plugin-entrypoints.md) |
+| 故事线 | 保存节点及当时记忆、分叉续玩、单节点导出导入；最近一回合可重新生成 | [故事线](docs/current/storylines.md) |
+| 角色预设 | 全局默认、包推荐、实例覆盖、角色组和角色专属配置 | [预设说明](docs/current/model-presets.md) |
+| 自定义前端 | HTML/CSS/JavaScript 与公共玩家接口，默认沙箱，可显式授权受信任模式 | [前端创作指南](docs/current/guides/web-ui.md) |
+| 桌面 Launcher | 载入世界包、独立实例、多条模型连接、按角色选模型 | [Launcher](apps/launcher/README.md) |
+| 创作者页面 | 运行时只读查看对话、行动轨迹、实际模型请求、物品去向和角色记忆 | [调试接口](docs/current/creator-debug-api.md) |
+
+这些运行链路已经接通；自动化检查与本机真实试玩不代表所有玩法、模型或机器环境都已验证。
+
+## 已知限制
+
 - 真实模型仍可能格式错误、处理失败、重复回应或产生叙事越权；连接成功不保证玩法稳定。
-- 认知隔离保证程序提供的信息范围，不保证模型永远正确理解信息或从不虚构细节。
+- 认知隔离保证程序提供的信息范围，不保证模型永远正确理解信息或从不虚构细节。**自由文本仍可能作出未经裁定的状态变化声明，并影响其他角色的理解**；数据库没有越权变化，不代表叙事上的矛盾已经解决。
+- 活动一次只运行一场，暂停的活动不会在后台推进，活动也不能直接移动角色；活动隔离的是活动信息，同场非参与者仍能听到公开发言。
+- 角色自主行动发生在玩家推进的回合内，还没有按现实时间在后台持续运行的世界。
 - 长期记忆可能交付无关认识；后台整理和大上下文的容量、性能与角色体验仍需更多测试。
-- 作者没写物品显示名时，交互按钮仍可能显示机器 ID；没有代码签名、自动更新或跨版本存档迁移保证。
-- test3 已包含单节点分享、末端回合重新生成和节点记忆快照；完整树分享、线路合并及部分预设能力尚未实现。
-- test3 的历史验收覆盖固定序章、前端资源、Core 启停与离线编码；本轮程序包验收另行记录，不沿用这些结论。
+- 受信任模式的前端可以访问外部网络，它加载的远程内容可能在游戏包摘要不变的情况下发生变化；请只授权自己认可的来源。受信任前端仍拿不到 Core 令牌、模型密钥、角色私有上下文或数据库权限。
+- 便携版尚未完成干净 Windows 环境、长时间稳定性和原生目录选择器完整流程验收；没有代码签名、自动更新或跨版本存档迁移保证。
 
-本轮验证证据与未完成项见[程序包验收记录](docs/current/studies/program-package-creator-skill-20261024.md)，旧包证据见[test3 记录](docs/current/studies/launcher-portable-test3-20261009.md)，当前架构状态见[项目状态](docs/current/PROJECT-STATE.md)。
+验证证据见[程序包验收记录](docs/current/studies/program-package-creator-skill-20261024.md)和[项目状态](docs/current/PROJECT-STATE.md)。
 
 ## 反馈问题与体验
 
-欢迎在 [GitHub Issues](https://github.com/YouLan5418/Perspectra/issues) 提交 Bug、设计问题和体验反馈。
+欢迎在 [GitHub Issues](https://github.com/YouLan5418/Perspectra/issues) 提交 Bug、设计问题和体验反馈。我们尤其希望了解：角色是否自然、是否知道了不该知道的信息、记忆是否改善连续互动、世界状态与叙事是否矛盾，以及规则是否帮助了玩法。
 
-我们尤其希望了解：角色是否自然、是否知道了不该知道的信息、记忆是否改善连续互动、世界状态与叙事是否矛盾，以及规则是否帮助了玩法。
+反馈请提供测试版本、Windows 环境、使用的游戏包和前端模式、模型标识与接口类型、最短复现步骤、预期与实际结果，以及遮挡私人信息后的截图。可参考[反馈模板](scripts/release/feedback-template.zh-CN.md)。
 
-反馈请提供：
-
-- 测试版本、Windows 环境、使用的游戏包和前端模式；
-- 模型标识与接口类型；
-- 最短复现步骤、预期与实际结果；
-- 界面错误文字，以及遮挡私人信息后的截图。
-
-**不要公开 API Key、原始模型请求、完整数据库或角色私密日志。** 实际模型请求窗口包含私有角色上下文，只用于自己调试。可参考 [反馈模板](scripts/release/feedback-template.zh-CN.md)。
+**不要公开 API Key、原始模型请求、完整数据库或角色私密日志。** 实际模型请求窗口包含私有角色上下文，只用于自己调试。
 
 ## 开发与文档
 
@@ -232,16 +167,16 @@ corepack pnpm@11.7.0 check
 corepack pnpm@11.7.0 launcher:check
 ```
 
-自动测试验证机制边界，不能替代真实模型试玩。只浏览 Mock 界面的命令为 `launcher:dev`，它不能启动真实 Core。旧 Electron 入口已于 2026-10-21 删除，桌面入口只有 Tauri Launcher。
+自动测试验证机制边界，不能替代真实模型试玩。只浏览 Mock 界面的命令为 `launcher:dev`，它不能启动真实 Core。
 
 | 想了解什么 | 入口 |
 | --- | --- |
 | 项目最终想做什么 | [产品愿景与核心设计理念](docs/current/vision.md) |
+| 当前状态与证据 | [项目状态](docs/current/PROJECT-STATE.md) |
 | 易读的代码解释与当前运行机制 | [代码技术文档](docs/current/architecture/README.md) |
-| 当前记忆实测与性能 | [AI Girls 研究](docs/current/studies/ai-girls/README.md) |
-| Launcher 开发与运行 | [Launcher README](apps/launcher/README.md) |
-| Windows x64 便携构建 | [构建说明](scripts/release/BUILD.md) |
 | 试玩与创作指南 | [当前指南](docs/current/guides/README.md) |
+| 记忆实测与性能 | [AI Girls 研究](docs/current/studies/ai-girls/README.md) |
+| Windows x64 便携构建 | [构建说明](scripts/release/BUILD.md) |
 | 实验代码与证据 | [experiments](experiments/README.md) |
 | 历史设计 | [archive](docs/archive/README.md)、[ADR](docs/adr/README.md)、[spec](docs/spec/README.md) |
 | 开发约束 | [AGENTS.md](AGENTS.md) |

@@ -2,11 +2,11 @@
 
 **Languages: [English](vision.en.md) | [简体中文](vision.md)**
 
-> **Status: product vision, not a feature-completion claim.** This document describes the kind of game platform Perspectra aims to become. For what currently works, what has been tested, and what is included in the release package, see the [current project status](PROJECT-STATE.en.md) and [README](../../README.en.md).
+> **Status: product vision, not a feature-completion claim.** This document describes the kind of game engine Perspectra aims to become. For what currently works, what has been tested, and what is included in the release package, see the [current project status](PROJECT-STATE.en.md) and [README](../../README.en.md).
 
 ## 1. What Perspectra is
 
-**Perspectra aims to be a semi-open AI-native game platform centered on autonomous characters, combining the character-driven experiences of visual novels (Galgame), the exploration and rule-based interactions of RPGs, and the daily life and management systems of life-simulation games (SLG).**
+**Perspectra is a character-centered, AI-native game engine for semi-open games, combining the character-driven experiences of visual novels (Galgame), the exploration and rule-based interactions of RPGs, and the daily life and management systems of life-simulation games (SLG).**
 
 Players should be able to share a persistent virtual world with AI characters who have their own knowledge, long-term experiences, personal goals, and opportunities to act independently. The world has objective state maintained by game rules, rather than by prose alone.
 
@@ -181,7 +181,7 @@ Buttons supplement free-form interaction rather than replace it. The frontend di
 
 ## 7. Creators define possibilities, not every story branch
 
-Perspectra aims to be a platform where different creators build different games, not just a runtime for one story.
+Perspectra aims to be an engine that different creators use to build different games, not just a runtime for one story.
 
 World packs can define characters, initial knowledge, places, interactions, mechanics, activities, performances, and frontend assets.
 
@@ -236,7 +236,7 @@ This is an illustrative target experience, not a claim that the current demo alr
 
 ## 10. Long-term vision
 
-Perspectra aims to become an **extensible, AI-native, semi-open game platform**.
+Perspectra aims to become an **extensible, character-centered, AI-native game engine**.
 
 It combines the character experiences of visual novels, the exploration and rules of RPGs, and the daily life and management of life sims, all grounded in a shared world state, character-specific knowledge, persistent experiences, and gameplay interactions.
 
