@@ -20,6 +20,19 @@
 | interactions.json | 至少选择一个宿主交互包；脚手架选基础包但未绑定具体动作，不会自动提供牵手；不是任意 JS 玩法的通用注册表 |
 | assertions.json | 断言声明；CLI test 不执行它们 |
 
+按玩法需要再加可选文件。除预设、封面和 frontend/ 外都要登记进 assetFiles，宿主不会扫描目录：
+
+| 文件 | 用途 |
+| --- | --- |
+| scripts/status.js | 常驻状态、物品规则和自定义操作，见[玩法扩展](gameplay.md) |
+| scripts/activity.js 或 scripts/activities/<标识>.js | 一场或多场活动；标识小写字母开头，可含数字和连字符，最长 41 字符，default 留给 activity.js |
+| documents.json + *.md、knowledge.json | 大段设定和运行时选择，见下文 |
+| autonomy.json、communication.json | 角色自主机会与跨场景短信，见[玩法扩展](gameplay.md) |
+| plugins.json + plugins/*.js | 包内插件模块，可声明玩家需启用的本地 Cordis 能力 |
+| model-preset.json、role-presets.json | 包推荐预设与角色专属预设，见[原生预设](presets.md)；不参与编译 |
+| cover.png／.webp／.jpg | Launcher 封面，≤4 MB，建议 16:9；不参与编译 |
+| frontend/ | 只换美术时放 theme.css、portraits/、backgrounds/、stage.json；放 index.html 则整页替换并须带 manifest.json |
+
 所有 JSON 用 UTF-8，不能有注释、尾逗号或未知字段。文件路径保持包内相对路径，新增 JSON/Markdown/脚本按其用途登记。编译通过后保持完整源目录供 Launcher 载入；不要只交付 compile 的 JSON。
 
 ## 初始认知

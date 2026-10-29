@@ -2,6 +2,8 @@
 
 当前 Launcher 与源码网页读取 `worldpack-source/v5` **源目录**。建议复制已运行的 v5 示例后逐步修改，不从历史 v4 模板或旧 `worldpack init` 开始。本文是当前创作入口；[旧字段手册](../../archive/creator-guides/world-pack-authoring-v1-v4.md) 仅用于查阅历史，不能把旧版本命令或 schema 直接套进当前包。
 
+2026-10-29 按 main 源码补齐可选文件：例如甜蜜日程包同时用了多场活动、角色自主、短信、随包角色预设和只换美术的舞台，这些文件现在都列在下面第 2 节，详细契约仍在各自指南。本次只核对文件名、登记方式和加载入口，没有重新试玩或重建发行包。
+
 2026-10-22 核对物品创作入口：例如希望角色拿起钥匙再交给汤汤，在包内 `scripts/status.js` 配置物品规则；当前所有 v5 示例包都已使用作者模板。本文说明源码接法，自动测试与真实样本的范围见[活动与状态指南](activity-and-variables.md#作者物品规则的验证范围)；未据此确认发行包已包含这些改动。
 
 ## 1. 从一个可以运行的包开始
@@ -18,6 +20,11 @@
 | [ai-girls-hosted-guess](../../../examples/world-packs/ai-girls-hosted-guess) | 主持角色私有信息与多 NPC 活动 |
 | [ai-girls-awaken-v10](../../../examples/world-packs/ai-girls-awaken-v10) | 多角色连续试玩 |
 | [model-girls-dinner](../../../examples/world-packs/model-girls-dinner/README.md) | 角色各有秘密的多人局、物品显示名、一键活动操作与旁白 |
+| [status-market](../../../examples/world-packs/status-market/README.md) | 金钱等常驻状态、只告诉部分人的结果、按已知状态筛选知识 |
+| [rpg-turn-battle](../../../examples/world-packs/rpg-turn-battle/README.md) | HP / MP、轮流攻击与胜败奖励的回合战斗活动 |
+| [model-girls-werewolf](../../../examples/world-packs/model-girls-werewolf/README.md) | 隐藏回合：夜里谁醒着不进公开 turn，只有本人和调度知道 |
+| [model-girls-sweet-days](../../../examples/world-packs/model-girls-sweet-days/README.md) | 多场条件生活事件、角色自主、短信、随包角色预设与舞台美术 |
+| [plugin-capabilities-demo](../../../examples/world-packs/plugin-capabilities-demo/README.md) | 包内插件模块调用玩家启用的本地 Cordis 能力 |
 
 复制整个目录到自己的新目录。独立作品设置新的 `packId`，保留所有引用一致；修改正式内容时提升 `packVersion`。不要只改版本号期待旧存档自动迁移，运行时也校验实际内容摘要。
 
@@ -25,7 +32,7 @@
 
 ## 2. 源目录与入口
 
-以 `launcher-demo` 为例：
+必需文件以 `launcher-demo` 为例，`#` 后是可选文件：
 
 ```text
 my-world/
@@ -43,14 +50,22 @@ my-world/
   manifestation.json
   interactions.json
   assertions.json
-  scripts/status.js
-  scripts/activity.js
+  scripts/status.js              # 状态与物品规则
+  scripts/activity.js            # 单场活动（标识 default）
+  scripts/activities/<标识>.js   # 或多场独立活动
+  documents.json + *.md          # 大段设定正文
+  knowledge.json                 # 按关键词和权限交付设定
+  autonomy.json                  # 玩家不在身边时角色的自主机会
+  communication.json             # 跨场景短信（实验）
+  plugins.json + plugins/*.js    # 包内插件模块
   model-preset.json
   role-presets.json
-  frontend/manifest.json
+  cover.png
+  frontend/manifest.json         # 整页替换：manifest + index.html …
   frontend/index.html
-  frontend/app.js
-  frontend/style.css
+  frontend/theme.css             # 或只换美术：theme.css、portraits/、backgrounds/、stage.json
+  frontend/portraits/<角色>.png
+  frontend/backgrounds/<地点>.jpg
 ```
 
 `worldpack.source.json` 是 Core 编译入口。完整形状可直接参照 [当前示例清单](../../../examples/world-packs/launcher-demo/worldpack.source.json)，不要把下面分类表当成可省略必填字段的缩略 schema。
@@ -68,10 +83,15 @@ my-world/
 | reactionFile / manifestationFile | 连续反应与叙事表现配置；沿用 v5 示例当前版本 |
 | interactionFile | 宿主已安装的交互包、定义版本和绑定 |
 | assertionFiles | 断言声明；当前 `worldpack test` 仅编译计划，不执行断言 |
-| assetFiles | Core 资产；启用状态脚本 `scripts/status.js` 或活动脚本时登记固定脚本路径 |
+| assetFiles | Core 资产；只有登记过的文件才会被宿主读取。`scripts/status.js`、`scripts/activity.js`、`scripts/activities/<标识>.js`（标识小写字母开头，可含数字和连字符，最长 41 字符）、`knowledge.json`、`autonomy.json`、`communication.json`、`plugins.json` 与 `plugins/*.js` 都登记在这里 |
+| scripts/activities/<标识>.js | 多场独立活动，每个文件一场，各自保留进度、一次只运行一场；与 `scripts/activity.js` 可并存，但不能再用 default 作标识。契约见[活动与状态](activity-and-variables.md#多活动选择与暂停2026-10-10当前源码) |
+| knowledge.json | 运行时按权限、关键词和条件交付 documentFiles 里的设定；见[世界设定指南](world-knowledge.md) |
+| autonomy.json | 指定哪些角色每隔几回合、在哪些地点获得自主处理机会，以及可用的操作；见[创作者运行时](../architecture/creator-runtime.md) |
+| communication.json | 跨场景短信的媒介名和有向联系人，见第 5 节 |
+| plugins.json / plugins/*.js | 包内插件模块，可声明所需的本地 Cordis 能力；必需能力缺失时世界打不开并写明缺少什么。见[包内插件](dual-plugin-entrypoints.md) |
 | model-preset.json | 可选包推荐预设，独立读取；详见预设文档 |
 | role-presets.json | 可选随包角色专属与角色组预设；启动器载入包时校验，并提示玩家一键分配到实例。不参与编译，也不改变包 Hash；详见[预设文档第 9 节](../model-presets.md#9-随包角色预设与一键分配2026-10-24当前源码) |
-| frontend/ | 可选社区前端，独立 manifest 与内容授权；详见前端指南 |
+| frontend/ | 可选。放 `index.html` 时整页替换，须带 manifest 与内容授权；只放 `theme.css`、`portraits/`、`backgrounds/` 和 `stage.json` 时沿用官方舞台，只换样式和美术，立绘与背景按 ID 去掉前缀匹配（`character:companion` → `portraits/companion.png`）。详见[前端指南](web-ui.md)与[立绘出图要求](portrait-art.md) |
 | cover.webp / cover.png / cover.jpg | 可选 Launcher 封面，放在包根目录，≤4 MB，建议 16:9。不参与编译，也不改变包 Hash；详见[创作者运行时](../architecture/creator-runtime.md) |
 
 JSON 用 UTF-8，不写注释、尾随逗号或未知字段。各文件 schemaVersion 不全相同，不可统一替换成 v5。ID 使用稳定、合法、唯一的值；改角色 ID 时一起修改场景、认知、玩家槽和活动的引用。私有认知的 basisKeys 必须对应合法来源，不能引用其他角色的私密信息冒充已知。
@@ -98,10 +118,12 @@ NPC 自行决定回应或沉默，以及台词、情绪和行动。不要在调�
 
 ## 5. 扩展玩法和界面
 
-- [活动与状态](activity-and-variables.md)：固定后端脚本、public/private/internal 范围、有界角色机会；经裁定的常驻状态与状态栏。
+- [活动与状态](activity-and-variables.md)：固定后端脚本、public/private/internal 范围、有界角色机会；经裁定的常驻状态与状态栏。另有多场活动与暂停、按条件自动开始（`autoStart`）、一键操作（`quick: true`）、固定演出（`simulate`）和隐藏回合：活动的 turn 每个参与者都看得到，狼人杀夜里谁醒着这类秘密写在 internal 和本人 private，由 schedule 读完整状态叫醒对的人。玩家自己那份 private 也会显示在玩家的活动卡片上。
+- 角色自主（`autonomy.json`）：例如留守者独自在后室，每两回合获得一次机会，可以自己走去前室或拿钥匙。只给机会，不规定他做什么，也不把前室的对话传给他。
 - 跨场景短信（实验）：根目录放 `communication.json`，写 `{"medium": "短信", "contacts": {"character:player": ["character:a"], "character:a": ["character:player"]}}`，并登记进 `assetFiles`。联系人是有向许可，不等于在场；短信正文只证明发送者这样说，收信人不获得对方房间的视野。想让角色在自主行动里也能发，在 `autonomy.json` 的 `interactions` 里加 `experiment:message`。电话尚未接入。
 - [预设格式](../model-presets.md)：根目录可选 `model-preset.json`，附加提示、参数、原生节点和文本规则；模型凭证不属于预设。
-- [自定义前端](web-ui.md)：HTML/CSS/JS 与公共玩家 API。没有 frontend 时自动使用官方界面，存在但配置错误时明确失败。
+- [包内插件](dual-plugin-entrypoints.md)：`plugins.json` 声明模块和所需的本地能力；能力由玩家在 Launcher 启用的 Cordis 插件提供，包不能自己安装原生代码。BGM 也通过 Cordis 插件提供曲库。
+- [自定义前端](web-ui.md)：HTML/CSS/JS 与公共玩家 API；只想换风格时放 `theme.css`、立绘、背景和 `stage.json`（取景、表情差分、姿势）即可。没有 frontend 时自动使用官方界面，存在但配置错误时明确失败。
 
 后端活动/状态脚本是可信本地代码，不能把浏览器 iframe 沙箱或“前端授权”理解为恶意后端包的安全保证。只加载信任来源的整个游戏包。
 
