@@ -12,6 +12,10 @@ Players should be able to share a persistent virtual world with AI characters wh
 
 Perspectra is not intended to generate the next chapter of a story whenever a player types a message. Instead, it separates **characters, authoritative world state, game rules, and narrative expression**, and brings them together in one playable environment.
 
+The separation matters because, in AI roleplay built around continuing a conversation, the chat log often carries the whole world: where items are, who knows what, and how far the plot has gone all have to be read back from text by the model before it writes more. That suits free-form storytelling, but it makes multi-character games with rules and persistent state hard to sustain. The world needs the player to keep pushing it, important rules depend on the model choosing to follow them, and each character's knowledge boundary is left for the model to sort out. Even with several agents, if one narrating agent still decides what happened, most of the load remains on its generation.
+
+Perspectra's basic approach is therefore **characters as the subjects, the world as the medium, rules as the boundary**.
+
 The guiding principle is:
 
 > **Let models play the characters, let the system maintain the world, let players participate in the game, and let creators define what is possible.**
@@ -189,6 +193,10 @@ The same foundational systems could support:
 - A mystery game involving private information, evidence, and independent character action.
 
 Creators may still write fixed scenes and scripted moments. The goal is not to eliminate scripting but to reduce the need to anticipate every conversation and story branch.
+
+The main way to organize story and gameplay is the **activity**. A dinner, a date, an investigation, a cooking contest or a turn-based battle can each be an activity: the creator sets its start conditions, participants, phases, temporary rules, information scope and resolution, and everyone returns to ordinary interaction when it ends. An activity controls the rules and pacing of a situation while characters still make their own choices; a character invited on a date can say no.
+
+State and operations a work needs can ship as world-pack plugins. Capabilities that connect external programs or services come from host plugins the player enables locally, and their results are still handed back to the work's rules. Different kinds of gameplay therefore do not all have to be built into the engine core.
 
 Creators provide the world's possibilities, constraints, and initial tensions. Players and characters shape what happens within them.
 

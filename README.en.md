@@ -14,6 +14,18 @@ The project is still in **early public testing**. The current build is suitable 
 
 The project was previously named Cordis World. Some code, commands, and historical documents still use the old name.
 
+## Why Perspectra
+
+In many AI roleplay setups built around continuing a conversation, the chat log is not only the record of the story but also the main carrier of the world. Where an item is, who knows what, and how far the plot has progressed all live in text that the model has to read back before writing the next part. That works well for free-form storytelling. But when a work needs clear rules, several characters and persistent state, players often end up acting as writer and director to keep the story moving, and creators struggle to keep items from contradicting themselves, to stop characters from knowing what they should not, and to make key events happen under the conditions they designed.
+
+Perspectra's basic approach is **characters as the subjects, the world as the medium, rules as the boundary**:
+
+- **Facts are separate from narration**: state the creator marks for strict tracking is recorded through rules and events. Narration can be expressive, but it cannot by itself prove that state has changed.
+- **Proposals are separate from adjudication**: players and characters can attempt actions; rules decide the outcome of anything that needs control.
+- **Each character's knowledge is separate**: every character receives only what they are entitled to know and responds from their own experience.
+
+For example, a character may say "the key is in my hand". The line was really spoken, and those who hear it may believe it, but who actually holds the key is still decided by adjudicated world state. Ordinary dialogue, expressions, tone and details that need no strict tracking are still left to the model.
+
 ## Start playing
 
 ### Windows x64 program pre-release
@@ -82,10 +94,11 @@ See the [creator and real-model playtest guide](docs/current/guides/creator-play
 | Capability | Current scope |
 | --- | --- |
 | Character knowledge isolation | Observations, experiences, and context are delivered according to each character's permissions; different characters may know different things |
-| Autonomous responses | Player-driven, bounded reaction cycles allow characters to respond, stay silent, or propose actions |
+| Autonomous actions | Player-driven, bounded reaction cycles allow characters to respond, stay silent, or propose actions; creators can give key characters opportunities to pursue their own goals while the player is elsewhere, and some packs offer a "wait" action that lets a round pass |
 | Long-term memory | Organizes knowledge from authorized experiences, with retrieval, large short-term contexts, and background consolidation |
 | World state and interactions | Tracked changes such as movement and item ownership pass rule checks before becoming committed world events |
-| Activity | Creators define local activity rules, allowed operations, state, and ending conditions |
+| Activity | Creators turn a situation into a playable scene or game: start conditions (player-started or automatic), participants, phases, temporary rules, shared and private information, scripted performances and outcomes; one activity runs at a time |
+| Plugins | World-pack plugins ship with a work and define its state and operations; local host plugins are enabled by the player in the launcher and connect external programs or services |
 | Storyline | Save checkpoints including contemporary memory, branch into independent continuations, and export/import single nodes |
 | Reasoning settings and budgets | Off/low/medium/high selectable per instance; pack-configurable reaction budgets, with a 120-second default deadline |
 | Character presets | Global defaults, pack recommendations, instance overrides, character groups, and per-character settings |
@@ -94,6 +107,12 @@ See the [creator and real-model playtest guide](docs/current/guides/creator-play
 | Creator page (current source) | While a game runs, a read-only browser page shows the conversation, action trace, actual model requests, item custody and character memory |
 
 These paths are wired into the runtime, but passing automated checks or short local playtests does not validate every gameplay style, model, or machine.
+
+### Experimental playtests so far
+
+Short real-model playtests have covered daily life in a shared home, a dinner party, Who Is the Undercover, Werewolf, number guessing and date invitations, and a multi-character contest over an item. Characters act on their own, keep secrets, and reason from what they actually saw (including reasoning wrongly). They sometimes announce an action without carrying it out, or narrate details that do not exist. These are small samples of a few games or a dozen-odd turns; stability over long play has not been verified.
+
+This design has a cost. Each character calls the model separately, and one round often takes several calls, so cost and waiting time are higher than with a single generation. In earlier playtests, ordinary dialogue rounds took 5–37 seconds and rounds with off-scene character actions took 19–47 seconds; one three-character contest used 61 model calls and about 280k tokens over 24 turns.
 
 ### Character knowledge and memory
 
@@ -115,7 +134,11 @@ Permissions and the scope of each character's world and experiences take priorit
 
 Dialogue, expression, tone, and ordinary narration remain as free as possible. When an important change has been explicitly marked for tracking, a player or model proposes an action; rules and interaction definitions resolve it before it becomes a committed world event.
 
-Activities can temporarily restrict actions, movement, or forms of expression for selected participants, track activity state and outcomes, and return to ordinary roleplay afterwards. The scheduler gives characters opportunities to act without dictating their emotions, intentions, or dialogue.
+Whatever the player types in the input box is always treated as speech or self-description: writing "I take the key" does not change who holds it. To actually take the key, the player uses an action option. This limit is deliberate, so that world facts stay trustworthy.
+
+Activities can temporarily restrict actions, movement, or forms of expression for selected participants, track activity state and outcomes, and return to ordinary roleplay afterwards. During a cooking contest, for example, only the ingredients and operations the contest allows are available; an invited character decides for themselves whether to accept a date. The scheduler gives characters opportunities to act without dictating their emotions, intentions, or dialogue.
+
+Only one activity runs at a time, a paused activity does not advance in the background, and activities cannot move characters directly. Activities isolate activity information, not sound: non-participants in the same scene still hear participants' public speech.
 
 **Free-form text can still claim an unadjudicated change, and that claim may affect what other characters believe. A protected database is not proof of semantic consistency in narration.** This remains an explicit testing concern.
 
@@ -161,6 +184,10 @@ Existing examples include:
 
 - `examples/world-packs/model-girls-official`: official prologue plus dinner, private conversation, cake, and next-day follow-up events.
 - `examples/world-packs/model-girls-dinner`: *Apology Dinner*, a four-roommate dinner with no prologue and no fixed ending, using one-click activity operations and narration.
+- `examples/world-packs/model-girls-sweet-days`: *Sweet Days Under One Roof*, shared-home romance and daily scheduling, with replayable activities such as Who Is the Undercover.
+- `examples/world-packs/model-girls-werewolf`: a seven-player Werewolf experiment testing role isolation and memory across games.
+- `examples/world-packs/multiple-activities`: pausing and resuming several activities, plus date invitations.
+- `examples/world-packs/hidden-cure`: a multi-character contest experiment with no activities or preset branches.
 - `examples/world-packs/prototype-g1`: a two-room interaction example with characters and items.
 - `examples/world-packs/launcher-demo`: launcher demo with an activity, presets, and community frontend.
 - `examples/world-packs/hand-in-hand`: character interaction example.
@@ -169,7 +196,7 @@ Existing examples include:
 
 The current launcher loads World Pack v5 **source directories**, not ZIP archives. Keep the pack's path in place after loading. Automatically replacing a pack with another pack of the same ID, and migrating saves between incompatible releases, are not guaranteed.
 
-[World Pack v5 creator guide](docs/current/guides/world-pack-authoring.md) · [Activities and variables](docs/current/guides/activity-and-variables.md) · [Current creator runtime](docs/current/architecture/creator-runtime.md) (Chinese)
+[World Pack v5 creator guide](docs/current/guides/world-pack-authoring.md) · [Activities and variables](docs/current/guides/activity-and-variables.md) · [Current creator runtime](docs/current/architecture/creator-runtime.md) · [Two plugin entry points](docs/current/guides/dual-plugin-entrypoints.md) (Chinese)
 
 ## Known limitations and validation status
 
