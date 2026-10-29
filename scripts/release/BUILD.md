@@ -53,3 +53,22 @@ Windows 原生启动另行验证：2026-10-24 复现工作区 candidate4 的 Per
 压缩前将本轮真实验收结果写入包根目录 `验收记录.md`；归档脚本拒绝缺少记录、存在链接或已有 ZIP 的目录。不得使用临时带调试参数的 Tauri 配置构建最终 EXE。
 
 包中不复制源码工作树、私人实例、试玩包或测试数据。根目录提供 `worldpack.cmd`、`创作校验.md`、`使用说明.md`，runtime 内含其捆绑入口与依赖。build-info.json 记录是否有试玩包、CLI 入口、源提交及构建时工作树是否有改动；工作树有改动时不能把 sourceCommit 当作完整源码快照。Rust 清单由目标平台 cargo metadata 离线生成，包含构建相关依赖；它是随包许可资料，不表示完整法律审查。
+
+## 随包文档清单
+
+2026-10-29 对照 build-portable.mjs、build-worldpack-cli.mjs 与 archive-portable.mjs 核对。比如创作者在没有源码的电脑上让 AI 制作钥匙交接，程序包要提供操作说明和完整 Skill，使 AI 能从包内找到格式、模板与校验步骤；源码调研、架构历史不参与这个流程。本次仅同步文档，没有生成新的程序包。
+
+| 包内位置 | 来源与用途 | 怎样进入程序包 |
+| --- | --- | --- |
+| 使用说明.md | scripts/release/README.zh-CN.md；启动、模型、保存与权限 | build-portable.mjs 复制 |
+| 创作校验.md | scripts/release/CREATOR.zh-CN.md；CLI、构建识别、创作与验收范围 | build-worldpack-cli.mjs 复制 |
+| skills/perspectra-creator/ | 完整 Skill：SKILL.md、references、scripts、assets、agents；离线创作参考与模板 | build-worldpack-cli.mjs 整目录复制，过滤 Python 缓存；不能只带 SKILL.md |
+| 反馈模板.md | scripts/release/feedback-template.zh-CN.md；复现信息与隐私提示 | build-portable.mjs 复制 |
+| 干净系统验收.md | scripts/release/clean-windows-checklist.zh-CN.md；测试版验收步骤，不代表已经通过 | build-portable.mjs 复制 |
+| 验收记录.md | 本次实际构建、自动检查、原生启动、真实试玩及未测范围 | 验收后写到包根目录；archive-portable.mjs 要求存在，不能沿用旧包结论 |
+| build-info.json | 构建时间、版本、sourceCommit、sourceDirty、CLI／Skill 入口及运行环境身份 | build-portable.mjs 生成，随包保留 |
+| licenses/ 与 runtime 内许可证 | Node、Python／原生依赖、WebView2／CRT、记忆组件和模型相关许可资料 | 按现有构建脚本复制或收集，随对应运行环境保留 |
+
+仓库的 docs/current/guides/world-pack-authoring.md 是带源码、示例和专题链接的创作总入口；不应单独改名复制到包根目录，否则离线阅读会出现断链。当前程序包用创作校验.md 和 Skill 内的 world-pack.md／gameplay.md／presets.md 提供不依赖仓库的创作入口。若以后要求分发完整离线字段手册，需先整理不依赖源码导航的版本并核对全部引用，再纳入构建；当前脚本不会自动复制 docs/current。
+
+本次同步的 web-ui.md、frontend-stage.md、creator-runtime.md、frontend-v1.md 和中英文 PROJECT-STATE 属于仓库技术说明与证据导航，无需逐份放进程序包。保留在仓库即可；其中影响玩家／创作者操作的结论已同步到上表的使用说明、创作校验和 Skill。打包时使用同一工作树的程序与这些文档，并在验收记录说明所用源码和未验证能力；不能仅凭 0.3.1／v5／编译器 0.5.0 相同就宣称完整活动状态调度等能力可用。

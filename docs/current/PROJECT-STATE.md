@@ -2,21 +2,31 @@
 
 **语言 / Languages：[简体中文](PROJECT-STATE.md) | [English](PROJECT-STATE.en.md)**
 
-本次补充核对：2026-10-24，限程序包准备、随包创作 CLI 和文档；作者物品规则保留 10-22 的核对范围。其余概况保留 2026-10-18、main 提交 `0289605` 时的证据，不表示本次重新验收了所有能力。实时状态以工作区与 Git 为准。
+本次补充核对：2026-10-29，限 main `ea4e3ea` 的创作资源、活动／前端边界及近期合并记录；没有重跑真实模型或重建发行包。程序包准备保留 10-24 的证据，作者物品规则保留 10-22 的范围；其余概况保留各节原日期，不表示重新验收了所有能力。实时状态以工作区与 Git 为准。
 
 一句话概括：Perspectra 是一个玩家推动的多角色扮演原型。模型决定角色说什么、做什么；程序负责“谁能知道什么”，以及物品、位置这类重要状态是否真的发生了变化。
 
 怎么实现的见[代码技术文档](architecture/README.md)，长期想做成什么见[产品愿景](vision.md)，更早的阶段见[旧状态记录](../archive/prototype-g1-g4/PROJECT-STATE-history-through-20261009.md)。
 
-## 先分清两个版本
+## 程序版本与当前源码
 
 | 版本 | 是什么 | 注意 |
 | --- | --- | --- |
 | 便携包 0.1.0-test3 | 2026-10-09 构建的 Windows x64 ZIP，已发布为 [GitHub 预发布版](https://github.com/YouLan5418/Perspectra/releases/tag/v0.1.0-test3)，见[构建验收](studies/launcher-portable-test3-20261009.md) | 不含后文列出的 10-15 及之后的改动 |
 | 本轮 0.3.1 程序候选包 | candidate4 已上传为 [v0.3.1-test1 预发行版](https://github.com/YouLan5418/Perspectra/releases/tag/v0.3.1-test1)，统一 Skill 整合酒馆卡迁移与预设创作，保留新图标；不附试玩包 | 远端 ZIP 摘要已核对；随包工具、离线宿主／编码通过，[记录](studies/program-package-creator-skill-20261024.md)保留门禁失败及未测范围 |
-| 当前工作区源码 | 以实际文件为准，含尚未提交的本轮改动 | 本地程序候选基于此工作区；不代表旧 test3 已更新，源码与真实体验仍分开验收 |
+| 当前工作区源码 | 以实际文件和 Git 为准，已合并统一 Provider 与狼人杀实验 | 不代表已发布的 candidate4 或旧 test3 已更新；构建内容另由 build-info 和当次验收记录说明 |
 
 文档里写“当前源码”的功能，默认不在 test3 里。
+
+## 近期源码与创作资源（2026-10-27 ～ 10-29）
+
+例如角色用 DeepSeek 判断是否收起钥匙，或在狼人杀夜里只按自己的身份行动：前者统一请求适配，后者依靠活动状态和授权视图；它们都不让模型直接改世界事实。
+
+- **统一 Provider：** 角色决策经锁定的 pi-ai 适配 OpenAI 兼容、Anthropic Messages、Google Gemini，使用流式请求；旧 local／deepseek／ollama 专用入口已删除。思考档位按模型能力声明提供。10-27 有 DeepSeek 两种协议的短场景实测；不代表 Google、Ollama、Launcher Core 整理或长期体验通过，见[协议与验证范围](model-protocols.md)。
+- **狼人杀实验：** 新增[模型娘狼人杀](../../examples/world-packs/model-girls-werewolf/README.md)。schedule/onOutcome 可读完整活动状态，角色仍只收授权视图；玩家自己的 private 进入活动卡片。默认舞台不点名处理者，但公共 responders 与活动 revision 仍可能泄露调度信息。10-28 有两轮四局原生记忆真实模型记录，合并后的流式适配只做自动复核，没有重新真实试玩、Core 或浏览器手动验收，见[完整记录](../../examples/world-packs/model-girls-werewolf/PLAYTEST.md)。
+- **创作资源：** 10-29 的 Skill 与[字段手册](guides/world-pack-authoring.md)补齐多活动、自动开始、状态栏、角色自主、短信、插件、随包预设和只换美术的舞台说明。源文件、宿主扩展和前端资源的登记边界分别说明；CLI 通过不等于完整宿主或角色体验通过。
+
+本节描述源码与已有证据；未将这些更新重新打入 candidate4。相同的 0.3.1／v5／编译器 0.5.0 不能证明宿主能力相同，应使用同构建的 Skill、build-info 与验收记录，见[构建及随包文档清单](../../scripts/release/BUILD.md#随包文档清单)。
 
 ## 程序包与创作入口（2026-10-24）
 
@@ -60,7 +70,7 @@ candidate4 的统一 Skill 内含原 tavern-to-perspectra 提取器、容量分�
 - **生活事件**：晚餐、私密交流、蛋糕、跨日回访都有触发条件；之后的发展由真实角色模型决定。美术是占位角色和简单背景，没有正式音效。
 - **说话的范围**：公开、定向、私密、仅自己四种。程序保证没资格的角色收不到内容，但不能保证模型从不虚构。
 - **多角色反应**：玩家每次输入后，相关角色依次获得处理机会，可以回应、行动或沉默。次数和时间有上限（源码网页默认 3 波、8 次调用、30 秒；Launcher 默认反应时限 120 秒，可按包调整）。没有持续运行的后台自治。
-- **模型协议**：OpenAI 兼容、Anthropic Messages、Google Gemini 原生。思考强度可选关闭/低/中/高，部分 Gemini 不能关闭。
+- **模型协议**：OpenAI 兼容、Anthropic Messages、Google Gemini Developer API，角色决策统一经 pi-ai 流式调用。思考强度提供关闭/低/中/高中的模型支持档位，未声明的模型使用默认选项；完整限制见[模型接口协议](model-protocols.md)。
 - **重要状态**：移动、物品转移和机制状态都要经过规则裁定才算数。角色在台词里说“我拿到了”不等于真的拿到；这类叙事矛盾需要在试玩中单独检查。
 
 ## 记忆与故事线

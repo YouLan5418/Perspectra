@@ -2,6 +2,8 @@
 
 > 玩家操作见 [玩家指南](player-playtest.md#5-社区前端与授权)。
 
+2026-10-29 核对活动投影与默认舞台：例如玩家抽到狼人，前端会收到玩家自己的身份记录，不会收到 NPC 的私有身份表。下文补齐 `activity.private`、`activities[].private` 与等待提示的边界；只核对源码，没有重跑浏览器、真实模型或发行包验收。
+
 2026-10-24：默认舞台已支持通过 [Cordis 插件](host-plugin-authoring.md)提供曲库与选曲规则。BGM 跟随阅读段落切换，循环播放并淡入淡出；首次在舞台内点击后解锁声音，音乐开关只在当前页面有效，音量与静音沿用现有偏好。社区模板声明 `bgm` 后可经 SDK 选曲和取得注册音频字节，播放器由模板自己实现。Live2D 仍未接通；本次未重建发行包。
 
 > 社区前端授权已实现，含内容绑定、双记录、HMAC 与受信任模式；当前边界见 [授权交付](../frontend-authorization.md)。下文的沙箱描述仍适用于默认模式。
@@ -160,7 +162,11 @@ const { url } = await api.resource("assets/banner.svg");
 
 ## 公开活动选项
 
-view.activity 可提供 title、active、phase 和 public，用于显示序章章节、已提交台词及游戏日标签；不会返回角色 private、internal 或脚本玩家来源。view.activities 列出各场的 key、title、active、suspended、phase、public。view.actions 可包含无需额外输入参数的活动操作，以及当前版本绑定的开始／暂停／继续／放弃与再次请求角色处理选项，仍通过 perform(optionId, actionId) 执行。动态开始选项额外提供 participantSelection（min、max、当前候选 id/name），使用 `api.perform(optionId, actionId, npcIds)` 或 request 的 perform payload `{ optionId, npcIds }`；提交时重新检查当前候选与人数。默认前端和宿主面板提供选人控件。其他带额外参数的活动操作留在宿主表单；该支持不授予任意脚本调用权限。
+view.activity 提供 title、active、phase、public、private；view.activities 列出各场的 key、title、active、suspended、phase、public、private。public 是活动参与者共享内容；这里的 private **只含玩家自己那份记录**，不是按角色 ID 索引的全部私有状态。其他角色的 private、internal 和脚本玩家来源不返回。默认舞台将可展示的玩家私有字段放在活动卡片的“只有你知道”区域。源码见[玩家投影](../../../desktop/host/frontend-adapter.ts)与[PlayerView](../../../packages/frontend/src/player-view.ts)。
+
+view.actions 包含当前活动操作及开始／暂停／继续／放弃与再次请求角色处理选项，仍通过 perform 提交。有参数时使用当前选项的 argumentSchema 与 SDK 的 arguments 字段；动态开始选项另提供 participantSelection（min、max、当前候选 id/name），使用 `api.perform(optionId, actionId, npcIds)` 或 request 的 perform payload `{ optionId, npcIds }`。提交时重新检查当前候选、人数和参数；默认舞台与宿主面板提供选人和参数表单。这些入口不授予任意脚本调用权限。
+
+默认舞台等待时只显示“正在回复中”，但公共视图的 `responders` 仍可能包含场内正在处理的角色名；社区前端和浏览器开发者工具都能读取。隐藏回合只通过活动授权视图保护其他角色的信息，尚未对玩家隐藏这一调度信息；活动 revision 也可能暴露操作次数。不要把不显示人名当成接口层面的秘密隔离，详见[活动与状态指南](activity-and-variables.md)。
 
 [官方试玩前端](../../../examples/world-packs/model-girls-official/frontend/index.html) 使用该接口逐项演出与快进，结束后提供公开、定向、私密和仅自己的原有表达范围。连接失败时保留同一 actionId 重试；活动已提交但 NPC 当前节点待发表时，可刷新视图后使用“恢复当前活动节点”。不要通过改本地 DOM 或伪造对白推进权威游标。
 

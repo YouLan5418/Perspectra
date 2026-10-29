@@ -21,6 +21,8 @@ description: 为 Perspectra 创作与修改世界游玩包和原生模型预设�
 
 程序用户不必有仓库、pnpm 或全局 Node／Python。JS 脚手架使用 `<程序目录>/runtime/node.exe`；酒馆卡提取使用 `<程序目录>/runtime/python/python.exe`。以下路径占位符均替换成实际路径，相对源路径以终端工作目录为准。程序尚未定位时可以继续设计与编辑已有文件，不能声称已验证兼容。
 
+本次玩法说明核对到 2026-10-29 main 的 `ea4e3ea`；完整活动状态调度、玩家自己的活动 private 和匿名等待提示对应 2026-10-28 的宿主／舞台修复。产品、格式和编译器版本相同，不表示这些宿主能力相同；10-24 的 candidate4 验收不覆盖它们。优先使用目标程序随附的 Skill，对照 build-info 的 sourceCommit、sourceDirty、buildTime 与该包的验收记录；sourceDirty 为 true 时提交号不是完整构建快照。无法确认时先完成设计，在目标 Launcher 新实例中检查实际 hook 输入和玩家视图，再报告兼容范围。复制新版 Skill 不会升级旧程序。
+
 预设校验还需实际确认 `--help` 中有 `preset validate`；旧程序即使也报 0.3.1，未必带此新增入口。缺少时可在 Launcher 导入／载入验证或使用更新的程序工具，不把未知命令失败写成预设有效。
 
 ## 创作或修改

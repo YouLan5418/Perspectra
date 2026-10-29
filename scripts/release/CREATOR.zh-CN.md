@@ -17,6 +17,16 @@
 
 把示例路径替换为实际解压目录和作品目录。当前程序发行包不附带试玩包；作品源目录需另行准备。
 
+## 确认创作资源与程序属于同一构建
+
+例如要制作夜间身份保密的活动，除了确认 v5 格式，还要确认目标宿主能把完整活动状态交给调度、把玩家自己的 private 交给前端。这些是宿主能力，不由源格式或编译器版本单独决定。优先使用本程序目录随附的 Skill；复制新 Skill 不会升级旧程序。
+
+本次文档按 2026-10-29 main `ea4e3ea` 核对；完整活动状态调度、玩家活动 private 和匿名等待提示来自 10-28 修复，10-24 candidate4 的验收不覆盖这些改动。检查本包 build-info.json 的 sourceCommit、sourceDirty、buildTime，再读本包验收记录；sourceDirty 为 true 时提交号不代表完整源码快照。即使同为 0.3.1／v5／编译器 0.5.0，也要在目标 Launcher 新实例检查所需功能。
+
+默认舞台不点名正在回复的角色，但公共 PlayerView.responders 仍可包含场内处理者，活动 revision 也可暴露操作次数。角色之间的信息隔离与对玩家隐藏调度信息是不同目标，当前不能宣称后者已实现。
+
+## 命令与验收范围
+
 | 命令 | 实际检查或输出 |
 | --- | --- |
 | `--version` | 程序版本、源格式版本、编译格式版本、编译器版本与限制配置名称 |
@@ -36,3 +46,5 @@
 创作 Skill 可以先读取 `--version` 和 `--help`，针对该版本生成源包，循环运行 `validate` 修正诊断，再运行 `test` 检查适配。预设要单独用 `preset validate`；它不执行文本匹配、不写入预设库、不调用模型，语法有效不代表风格效果或正则运行时行为通过。较早的 0.3.1 候选没有此命令，需实际检查帮助。请分别记录静态通过、宿主启动、真实模型试玩结果。CLI 不提供模板生成、酒馆自动迁移或跨版本存档迁移。
 
 程序附带的 [perspectra-creator Skill](skills/perspectra-creator/SKILL.md) 提供空白源包脚手架、人物与私有知识写法、物品规则模板，已整合原 tavern-to-perspectra 的静态提取、容量分析、迁移和验收流程，还附带原生预设创作指南及两种模板。酒馆卡提取使用随包 Python，原脚本、EJS 和正则保留为数据，所需行为由 AI 按当前规则重写；不是自动运行原卡的兼容器。脚手架使用随包 Node，不需要 pnpm、源码或全局 Python。安装整个 Skill 目录到所用 AI 工具后，提供本程序解压路径及创作需求即可；作品输出到自己的新目录。
+
+按任务继续读 Skill 内的[源包与人物](skills/perspectra-creator/references/world-pack.md)、[玩法扩展](skills/perspectra-creator/references/gameplay.md)与[预设](skills/perspectra-creator/references/presets.md)。玩法说明覆盖多活动、自动开始、隐藏回合、状态栏、角色自主、短信、插件和只换美术的舞台；具体目标程序的加载与运行仍需验证。这些参考随 Skill 一起分发，不需要另装源码文档。

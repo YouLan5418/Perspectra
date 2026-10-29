@@ -9,9 +9,11 @@
 | 某作品的包推荐 | assets/model-preset.json | 复制为作品根部 model-preset.json；`worldpack.cmd preset validate <file> --pack`，然后 Launcher 选择包推荐 |
 | Launcher 预设库单项 | assets/named-preset.json | 自定义 name 和 preset；`worldpack.cmd preset validate <file>`，再从预设库导入 |
 | 一组可选风格 | 同一交换封装的 presets 数组 | 顶层 format/schemaVersion/presets，各项是 name/preset；每个 preset 独立校验 |
-| 某作品的角色专属与角色组 | 作品根部 role-presets.json：`{ characters: { 角色ID: RolePreset }, groups: [{ name, preset, members }] }` | 启动器载入包时校验并弹窗提示玩家一键分配到实例；见 [预设说明第 9 节](../../../docs/current/model-presets.md#9-随包角色预设与一键分配2026-10-24当前源码) |
+| 某作品的角色专属与角色组 | 作品根部 role-presets.json：`{ characters: { 角色ID: RolePreset }, groups: [{ name, preset, members }] }` | 启动器载入包时校验并弹窗提示玩家一键分配到实例；规则见下文，不依赖源码仓库文档 |
 
 模板是可修改起点，不能只改标题就宣布用户的完整风格已实现。包推荐只放裸 RolePreset；不要把带 format／name／preset 的交换文件直接改名为 model-preset.json。模型、接口地址、Key、角色映射和世界状态都不属于这两种预设文件。复制到新的文件，不静默覆盖现有预设。
+
+role-presets.json 只接受 characters、groups，至少有一项；各 preset 都是本节的裸 RolePreset。组名为 1–80 字符且不重名，最多 32 组，每个角色最多属于一个组；只引用本包可调用的 active NPC，排除玩家和 manual 角色。这个文件不参与世界包编译或改变包 Hash，CLI 的 preset validate 不校验这份角色映射；需在目标 Launcher 载入时验证。无效引用会使包载入失败。一键分配须由玩家确认，替换同角色专属和同名组，保留其他配置；分配后保存到实例，后续包更新不会自动改掉已分配副本。
 
 ```powershell
 & '<程序目录>/worldpack.cmd' preset validate '<预设交换文件>'

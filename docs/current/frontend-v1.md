@@ -1,5 +1,7 @@
 # 游戏前端 V1：最小沙箱实验
 
+> 2026-10-29 核对：本文主体保留初版沙箱实验的实现与验收证据，不是现行完整 SDK 字段清单。当前制作入口是[自定义前端指南](guides/web-ui.md)，字段以[PlayerView](../../packages/frontend/src/player-view.ts)和[玩家投影](../../desktop/host/frontend-adapter.ts)为准。活动已通过公共接口提供 public 与玩家自己的 private；默认舞台不显示处理者名字，但公共 responders 仍可能包含场内处理者，尚未对玩家隐藏该信息。本次只同步说明，未重跑浏览器、真实模型或发行包验收。
+
 > 2026-10-24：默认舞台已接入 TTS 播放器和 Cordis BGM 消费接口；社区模板可声明 `bgm` 后，经 SDK 选择与读取插件注册的音乐。旧日期中“没有播放器／BGM 接线”的结论只适用于当时。现行制作步骤及验证边界见[插件指南](guides/host-plugin-authoring.md)。
 
 > 默认模板已增量改为 GAL 情景舞台；当前阅读、活动界面与数据缺口见[默认情景舞台](frontend-stage.md)。本文保留最初沙箱实验的证据范围。
@@ -41,7 +43,7 @@ tests/host/frontend-api.test.ts
 
 默认与社区前端均通过 SDK → MessagePort → Host → 公共接口 → 既有 Core；没有模板直接操作数据库的路径。公共 API 是现有 HostRuntime 的小适配器，尚非独立发布的 SDK 包。
 
-## 2. 数据与操作边界
+## 2. 初版的数据与操作边界（历史）
 
 | 公共 PlayerView | 来源 |
 | --- | --- |
@@ -51,7 +53,7 @@ tests/host/frontend-api.test.ts
 | history | 玩家已获授权的转录，显式选取 seq / speaker / text / player |
 | actions | 当前 Core affordance 中的移动和普通交互选项 |
 
-不返回 debug、notice、phaseLabel、private variables、记忆档案、完整角色名单或转录中的附加私有字段。公共状态不透传整个 runtime.state。当前也不返回 public variables、活动详情或角色记忆摘要；活动及记忆控制暂保留在受信任外层 Host。
+初版不返回 debug、notice、phaseLabel、private variables、记忆档案、完整角色名单或转录中的附加私有字段，也没有活动详情。后续已增加活动、已知状态、作者明确公开的状态真值和物品投影：`activity` 与 `activities[]` 的 private 仅包含玩家自己的记录，其他角色 private 与 internal 仍不返回。公共接口继续逐项投影，不透传整个 runtime.state；当前字段和操作见[前端指南](guides/web-ui.md#公开活动选项)。下方六种能力、仅 text 发言等描述同样仅记录初版，现行请求以 SDK 与该指南为准。
 
 支持 view / history / speak / perform / subscribe / resources 六种能力。manifest 请求的未知能力不授予；Host 在每次桥请求前检查已声明能力。这只是实验中的能力白名单，不是持久化授权系统。
 

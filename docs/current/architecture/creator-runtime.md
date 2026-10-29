@@ -1,5 +1,7 @@
 # 当前创作者运行时
 
+2026-10-29 补充核对活动调度、玩家私有视图与创作资源版本边界。例如夜里轮到预言家，可信活动调度可读取真实行动者，其他角色只拿到各自授权视图；玩家能看到自己抽到的身份。下面按现行实现区分这些入口，未重新执行真实模型、浏览器或发行包验收。
+
 2026-10-26 双入口：例如澄请求设备确认后只增加本人次数，作者随包分发 `plugins.json` 和规则模块，本地 Cordis 插件注册 `ctx.capabilities`。模块组合进既有 PackStatus，候选与执行继续重查权限；异步完成后才校验结果并沿现有事件事务提交，queued 只确认排队。[实现记录](../studies/2026-10-26_dual-plugin-entrypoints.md)和[作者指南](../guides/dual-plugin-entrypoints.md)说明目录、世界绑定、角色请求、取消与未知结果暂停。源码、模拟模型和构建入口验证不代表真实体验或发行包验收。
 
 RPG Maker 方向暂停继续扩展自研 RPG Core 战斗规则。[桥接骨架](../../../examples/rpg-maker/README.md)通过同一入口提供有限队员视图与公共事件白名单；MZ 可请求绑定 NPC 运行原有角色回合。外部观察须由包内规则选择是否提交，不直接变成世界真值。仍没有实际 MZ 工程、合法战斗技能输入或配对存档；含外部写能力时禁用节点和回退。下方自研规则实验保留当时验收范围。
@@ -83,19 +85,23 @@ Interaction 定义和绑定提供玩法可选行为，规则负责重要状态�
 
 ## 包内活动
 
-例如作者可以固定与同行者猜数字，也可以让玩家选择邀请留守者约会；被邀请者自己通过操作接受或拒绝。当前活动桥位于实验宿主。可信本地脚本声明 title、operations，以及固定 npcIds 或动态 participants（player-select、人数与可选候选白名单），可选 opening 作为玩家看到的开场文案（参与者仍收到固定开场行）；initialize 收到本次实际选定的 npcIds，policy 决定各主体表达／操作许可，resolve 同步裁定，schedule / onOutcome 返回 wait 或请求该场参与者处理。可选 simulate(request) 为该角色提供局部固定演出决策，null 表示调用真实模型；仅替换响应来源，不改变授权上下文、预设输出处理、格式校验、Rulebook、事务提交或观察分发。
+例如作者可以固定与同行者猜数字，也可以让玩家选择邀请留守者约会；被邀请者自己通过操作接受或拒绝。当前活动桥位于实验宿主。可信本地脚本声明 title、operations，以及固定 npcIds 或动态 participants（player-select、人数与可选候选白名单），可选 opening 作为玩家看到的开场文案（参与者仍收到固定开场行）；initialize 收到本次实际选定的 npcIds，policy 决定各主体表达／操作许可，resolve 同步裁定。`schedule(state)` 与 `onOutcome(result, state)` 接收完整已提交活动状态，包括 internal 和所有参与者的 private，只返回 wait 或一次参与角色激活，不把这些输入传给角色或前端。policy、resume 仍读取对应主体的授权视图。可选 simulate(request) 只接收本次角色的授权请求，为该角色提供局部固定演出决策，null 表示调用真实模型；不因此获得完整活动状态，仅替换响应来源，不改变预设输出处理、格式校验、Rulebook、事务提交或观察分发。源码见[活动桥](../../../desktop/host/pack-activity.ts)。
 
 每场最多 8 个 NPC，玩家身份由宿主绑定，开始时参与者须存在且属于玩家当前授权场景；动态名单开始后固定，暂停与恢复保留同一名单。状态 public 只在参与者间共享，private 仅给对应角色，internal 不进入角色视图；脚本不能直接写世界或调用模型。活动结果按参与者或 self 投递，非参与者不获得活动视图、许可限制或活动调度资格，仍按普通交流和行动的观察权限知情。结果范围 self 只限制结果收件人，不能补救把秘密写进 public 的错误。接口例子和旁观者边界见[活动指南](../guides/activity-and-variables.md)。
 
+玩家也是活动参与者：公共 PlayerView 的 activity.private 和 activities[].private 只投影玩家自己的记录，默认舞台显示可呈现字段并标“只有你知道”。隐藏行动者应放在 internal 和本人 private；默认舞台虽不点名处理者，公共 responders 仍可暴露场内处理者名字，revision 仍暴露操作次数。这些是当前接受的限制，不代表已完成对玩家的隐藏回合隔离。
+
 每次活动输入最多串行 4 次角色激活、每次最多 2 次决策机会，主动 recall 可追加一次补问；最多 12 次模型调用，活动链 90 秒。预算耗尽或失败保留已提交状态，允许显式重试或逃生，不精确恢复未提交机会。
 
-`ai-girls-hosted-guess` 展示主持角色私有答案与多 NPC 有界链；默认能力限制不替角色决定情绪、策略和台词；作者显式声明的固定演出可通过 simulate 提供同格式决策。完整活动结果附带身份／阶段元数据以形成授权经历，但 Core 整理仍须显式开启，默认网页仍原生记忆。
+`ai-girls-hosted-guess` 展示主持角色私有答案与多 NPC 有界链；默认能力限制不替角色决定情绪、策略和台词；作者显式声明的固定演出可通过 simulate 提供同格式决策。完整活动结果附带身份／阶段元数据以形成授权经历。当前源码网页与 Launcher 默认使用 Core 记忆，缺少 Python/E5 时明确失败；后台整理仍需显式启动，未整理时长期交付为空。只有显式 `--memory-native` 才使用原生记忆，见[启动参数](../../../desktop/host/launch-arguments.ts)与[创作者试玩](../guides/creator-playtest.md)。
 
 2026-10-24 创作边界澄清：例如作者可以在送礼后写入角色专属的心动印象，引导接下来的反应，也可以显式编排剧情与固定演出。尊重角色主体性不要求每个游戏包都采用完全自主的感情发展；作者可以用已有状态与活动机制影响角色，仍须遵守信息接收范围，以及位置、物品等权威事实的正式提交规则。[屋檐下的心动日程](../../../examples/world-packs/model-girls-sweet-days/README.md)保留这种引导，弱化部分绝对结论；这些包内选择不构成引擎对其他作者的限制。
 
 ## 创作入口与限制
 
-先看[字段手册](../guides/world-pack-authoring.md)、[试玩步骤](../guides/creator-playtest.md)和[自定义网页](../guides/web-ui.md)。`frontend/` 使用显式 manifest 和 iframe 公共玩家接口，只改展示，不改变世界包编译身份；未提供时使用官方默认模板。新实验使用独立数据目录。
+先看[字段手册](../guides/world-pack-authoring.md)、[试玩步骤](../guides/creator-playtest.md)和[自定义网页](../guides/web-ui.md)。`frontend/` 含 index.html 时须带 manifest.json，使用 iframe 公共玩家接口；只放 theme.css、portraits/、backgrounds/ 与 stage.json 时沿用官方舞台，不需要 manifest。未提供时使用官方默认模板。这些前端资源不改变世界包编译身份；新实验使用独立数据目录。
+
+随包 Skill 与宿主应按同一次构建使用。产品 0.3.1、源格式 v5 和编译器 0.5.0 相同，也不能证明完整活动状态调度等 10-28 新增能力可用；应核对 build-info 与当次验收记录。仓库文档和 Skill 的更新不会修改已发布的 candidate4，所需随包文档与构建步骤见[构建说明](../../../scripts/release/BUILD.md)。
 
 Launcher 游戏库（2026-10-16）界面配色由全局设置的主题色决定（樱色默认，另有灯火、月夜、森林；保存在 launcher.json 的 preferences.palette，经 PERSPECTRA_PALETTE 传给游戏进程）（2026-10-22 起主题色设置已删除：官方舞台和宿主外壳改为黑白、跟随系统；启动器保留原默认配色；旧 launcher.json 里的 palette 读取时忽略、下次保存时去掉。），以世界包封面作为首屏：在包根目录放 `cover.webp`、`cover.png` 或 `cover.jpg`（≤4 MB，建议 16:9 横图、主体偏右，左下留给标题），[launcher-core](../../../desktop/launcher-core.ts) 载入或启动时读取，经单独的 `pack-cover` 请求交给页面，不随 2.5 秒快照轮询重复传输；简介取 `world.json` 的 `description`。封面不进入编译产物，也不改变包 Hash。缺少封面时启动器按标题首字生成排版封面。（2026-10-17 改版后封面铺满整个窗口，“游玩准备”与折叠的“引擎与创作者工具”已由本局抽屉取代，见[首轮真实 Core 接入](../launcher-core-integration.md)顶部说明。）已用浏览器 Mock 与 `launcher-core` 测试核对；Tauri 真机窗口与发行包未验收。
 
