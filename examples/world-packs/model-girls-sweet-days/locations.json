@@ -7,15 +7,31 @@
     },
     {
       "locationId": "location:kitchen",
-      "name": "厨房与餐厅"
+      "name": "厨房"
     },
     {
       "locationId": "location:workspace",
-      "name": "书房"
+      "name": "Claude 的卧室（书房）"
+    },
+    {
+      "locationId": "location:gpt-bedroom",
+      "name": "GPT 的卧室"
+    },
+    {
+      "locationId": "location:deepseek-bedroom",
+      "name": "DeepSeek 的卧室"
     },
     {
       "locationId": "location:bedroom",
       "name": "卧室"
+    },
+    {
+      "locationId": "location:toilet",
+      "name": "卫生间"
+    },
+    {
+      "locationId": "location:bathroom",
+      "name": "浴室"
     },
     {
       "locationId": "location:entrance-shop",

@@ -7,29 +7,51 @@
       "locationId": "location:living-room",
       "participantIds": [
         "character:player",
-        "character:gpt"
-      ]
-    },
-    {
-      "sceneId": "scene:kitchen",
-      "lifecycle": "active",
-      "locationId": "location:kitchen",
-      "participantIds": [
+        "character:gpt",
+        "character:claude",
         "character:deepseek"
       ]
     },
     {
+      "sceneId": "scene:kitchen",
+      "lifecycle": "created",
+      "locationId": "location:kitchen",
+      "participantIds": []
+    },
+    {
       "sceneId": "scene:workspace",
-      "lifecycle": "active",
+      "lifecycle": "created",
       "locationId": "location:workspace",
-      "participantIds": [
-        "character:claude"
-      ]
+      "participantIds": []
+    },
+    {
+      "sceneId": "scene:gpt-bedroom",
+      "lifecycle": "created",
+      "locationId": "location:gpt-bedroom",
+      "participantIds": []
+    },
+    {
+      "sceneId": "scene:deepseek-bedroom",
+      "lifecycle": "created",
+      "locationId": "location:deepseek-bedroom",
+      "participantIds": []
     },
     {
       "sceneId": "scene:bedroom",
       "lifecycle": "created",
       "locationId": "location:bedroom",
+      "participantIds": []
+    },
+    {
+      "sceneId": "scene:toilet",
+      "lifecycle": "created",
+      "locationId": "location:toilet",
+      "participantIds": []
+    },
+    {
+      "sceneId": "scene:bathroom",
+      "lifecycle": "created",
+      "locationId": "location:bathroom",
       "participantIds": []
     },
     {

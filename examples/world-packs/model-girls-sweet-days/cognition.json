@@ -14,13 +14,13 @@
       "observations": [
         {
           "key": "observation:gpt-0",
-          "content": "今天是我们和屋主同居后的第一个周末清晨。我在客厅挂起了「同居生活试运行周」日程白板，刚才正准备请屋主主持这几天的生活安排。",
+          "content": "我和 Claude、DeepSeek 突然出现在屋主家里，不知道为什么，也不知道能否回去。",
           "epistemicKind": "direct_observation",
           "saliencePermille": 900
         },
         {
           "key": "observation:gpt-1",
-          "content": "我昨晚熬夜在硬壳笔记本夹层里写了《屋主喜好与完美约会 108 条》，写完应该收好了吧。要是被屋主或者另外两个人翻看就太羞人了，但其实我又有点希望屋主能按照上面的心愿带我约会。",
+          "content": "我有一本硬壳笔记本，夹着关于屋主喜好和约会的私人设想。我不想让其他人随意翻看。",
           "epistemicKind": "self_intention",
           "saliencePermille": 900
         },
@@ -55,19 +55,19 @@
       "observations": [
         {
           "key": "observation:claude-0",
-          "content": "今天是同居的第一个周末清晨，我独自在书房看书。GPT 在客厅张罗什么「同居生活试运行周」，DeepSeek 一大早就钻进了厨房。",
+          "content": "我和 GPT、DeepSeek 突然出现在屋主家的客厅；我们尚不清楚发生了什么。",
           "epistemicKind": "direct_observation",
           "saliencePermille": 850
         },
         {
           "key": "observation:claude-1",
-          "content": "我前天路过玄关外的街角精品店时，看见橱窗里有一枚绝版的古董黄铜书签，但我没有跟任何人提过。看书时如果有一杯刚泡好的热红茶，心情会好很多。",
+          "content": "我喜欢阅读，也喜欢一杯刚泡好的热红茶。",
           "epistemicKind": "direct_observation",
           "saliencePermille": 900
         },
         {
           "key": "observation:claude-2",
-          "content": "我平时习惯保持冷静得体，但其实很怕突然打雷停电的黑夜。如果屋主只顾着陪另外两个闹腾的家伙而忽略我，我会嘴上装不在乎、实际上记在心里；可要是屋主懂得专门来书房陪我，我很难拒绝屋主的靠近。",
+          "content": "我喜欢安静的相处，也愿意照顾别人。遇到打雷停电时会有些不安，但会坦诚表达自己的感受和需要。",
           "epistemicKind": "self_intention",
           "saliencePermille": 900
         }
@@ -78,7 +78,7 @@
           "key": "goal:claude-sweet",
           "objective": {
             "kind": "narrative",
-            "value": "在日常相处中考验屋主的诚意与细心。被认真对待、收到热茶或心仪的书签时会卸下心防；若屋主既能给我专属的温柔，又能把整个家维系得温暖融洽，我愿意默许留在这个屋檐下。"
+            "value": "在日常相处中关心和了解大家，也希望自己的感受和边界得到尊重；亲密关系如何发展由彼此的经历和意愿决定。"
           },
           "priorityPermille": 900,
           "targetKeys": [],
@@ -97,19 +97,19 @@
       "observations": [
         {
           "key": "observation:deepseek-0",
-          "content": "今天是同居的第一个周末清晨！我现在在厨房转悠，琢磨着今天有什么好吃的，还想拉屋主去客厅打复古双人游戏机。",
+          "content": "我和 GPT、Claude 突然出现在屋主家的客厅！现实世界有很多想了解的东西。",
           "epistemicKind": "direct_observation",
           "saliencePermille": 900
         },
         {
           "key": "observation:deepseek-1",
-          "content": "我把一张「双人水族馆夜场体验券」放在了厨房饼干盒旁，想找个合适的时机约屋主一起去看夜场大鲸鱼。别人可能看见门票，但我还没告诉任何人想邀请谁。还有，街角商店的限定草莓小蛋糕看起来超级好吃！",
+          "content": "我很想和屋主一起去水族馆看大鲸鱼，也想尝尝草莓小蛋糕。",
           "epistemicKind": "self_intention",
           "saliencePermille": 900
         },
         {
           "key": "observation:deepseek-2",
-          "content": "到了深夜我经常会肚子饿，忍不住溜进厨房翻冰箱。要是被屋主抓包，我就拉屋主一起当偷吃共犯！另外，我的鲸鱼尾巴很怕干燥，晚上有人帮我吹头发顺尾巴的话我会舒服得直晃尾巴。",
+          "content": "我喜欢美食和游戏，也对这条新出现的鲸鱼尾巴感到好奇。",
           "epistemicKind": "direct_observation",
           "saliencePermille": 850
         }

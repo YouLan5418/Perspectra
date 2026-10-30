@@ -3,9 +3,9 @@
   "entities": [
     {
       "entityId": "entity:gpt-notebook",
-      "locationId": "location:workspace",
+      "locationId": "location:gpt-bedroom",
       "name": "GPT 的调研笔记",
-      "kind": "GPT 忘在书房的硬壳笔记本：封皮贴着「同居生活规范 V3」，夹着几页折起的纸，尚未展开"
+      "kind": "放在 GPT 卧室里的硬壳笔记本：封皮贴着「同居生活规范 V3」，夹着几页折起的纸，尚未展开"
     },
     {
       "entityId": "entity:aquarium-ticket",
@@ -22,8 +22,8 @@
     {
       "entityId": "entity:game-console",
       "locationId": "location:living-room",
-      "name": "复古双人游戏机",
-      "kind": "复古双人游戏机：接在客厅电视机上，两只手柄并排摆在茶几上"
+      "name": "客厅游戏机",
+      "kind": "接在客厅电视上的游戏机，可以邀请同房间的人一起玩像素 RPG：遗迹守卫。"
     },
     {
       "entityId": "entity:flashlight",
@@ -48,6 +48,12 @@
       "locationId": "location:kitchen",
       "name": "料理锅与餐盘",
       "kind": "待开火的料理锅台：随时可以做家常蛋炒饭；若备有特级料理食材包，还能做出一桌合家欢大餐"
+    },
+    {
+      "entityId": "entity:meal-platter",
+      "locationId": "location:kitchen",
+      "name": "餐盘",
+      "kind": "空餐盘：放在厨房，做好饭菜后可端去客厅"
     },
     {
       "entityId": "entity:fresh-ingredients",

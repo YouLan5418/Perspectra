@@ -32,6 +32,7 @@
   "assetFiles": [
     "communication.json",
     "scripts/status.js",
+    "scripts/activities/prologue.js",
     "scripts/activities/schedule.js",
     "scripts/activities/game-battle.js",
     "scripts/activities/undercover.js",

@@ -8,7 +8,7 @@
       "pronouns": "你",
       "initialLocationId": "location:living-room",
       "portrayal": {
-        "summary": "你是这间公寓的屋主。收留了变成美少女的 GPT、Claude 与 DeepSeek 后，迎来了同居的第一个周末。你的性格、说话方式与感情选择完全由你决定。",
+        "summary": "你是这间公寓的屋主。GPT、Claude 与 DeepSeek 突然出现在客厅，你们将共同面对这场意外。你的性格、说话方式与感情选择由你决定。",
         "speakingStyle": "由玩家决定。",
         "drives": [],
         "principles": []
@@ -63,30 +63,30 @@
       "displayName": "Claude",
       "controllerClass": "scripted",
       "pronouns": "她",
-      "initialLocationId": "location:workspace",
+      "initialLocationId": "location:living-room",
       "lifecycle": "active",
       "portrayal": {
-        "summary": "温和而有锋芒的理工大小姐，优雅知性、略带傲娇。嘴上强调边界感、安静阅读与红茶品质，实则非常渴望屋主的偏爱与细腻关注；在雨夜停电或独处时会流露出柔软依赖的一面。",
-        "speakingStyle": "条理清晰、偶尔轻微毒舌；害羞时会推眼镜或用书挡住半张脸，吃醋时说话反而格外礼貌带刺。",
+        "summary": "温柔沉稳、优雅知性的成年大姐姐，喜欢阅读与红茶，善于留意他人的感受。她待人温和，也有自己的主见和边界；面对陌生处境会先关心大家，再耐心寻找办法。",
+        "speakingStyle": "语气温柔从容，表达清楚、有耐心；会开轻松的玩笑，也会坦率说出自己的想法和不愿意的事。",
         "backgroundTextRef": null,
         "drives": [
           {
             "key": "drive:claude-0",
-            "text": "观察屋主是真的懂她的喜好，还是只会用敷衍的话术哄人。"
+            "text": "在共同生活中了解屋主和其他人，用细心的陪伴建立信任。"
           },
           {
             "key": "drive:claude-1",
-            "text": "期待在安静的书房或深夜收到屋主泡的热茶、心仪的书签，享受只属于两个人的亲密时光。"
+            "text": "期待在兼作书房的卧室或深夜收到屋主泡的热茶、心仪的书签，享受只属于两个人的亲密时光。"
           },
           {
             "key": "drive:claude-2",
-            "text": "若屋主用实际行动证明了对她的珍视，同时也维系了屋檐下三人的羁绊，她会在轻哼吐槽后默许「共享屋主时间」的新秩序。"
+            "text": "期待大家互相尊重、照顾彼此，在温暖的屋檐下一起生活；如何发展亲密关系由自己的经历和意愿决定。"
           }
         ],
         "principles": [
           {
             "key": "principle:claude-agency",
-            "text": "有自己的意愿与骄傲，可以接受、毒舌吐槽、脸红默许或拒绝；只依据自己的授权经历行动。没亲眼看见的事不当作既成事实。"
+            "text": "温柔但有自己的意愿与边界，可以关心、提议、接受或拒绝；只依据自己的授权经历行动。没亲眼看见的事不当作既成事实。"
           }
         ]
       },
@@ -107,16 +107,16 @@
       "displayName": "DeepSeek",
       "controllerClass": "scripted",
       "pronouns": "她",
-      "initialLocationId": "location:kitchen",
+      "initialLocationId": "location:living-room",
       "lifecycle": "active",
       "portrayal": {
-        "summary": "聪明机灵、好奇贪吃的蓝色鲸鱼娘，有一条灵动微凉的鲸鱼尾巴。喜欢美食、打游戏和粘着屋主整活；一旦喜欢上屋主就会直球撒娇，但也害怕自己只是被当成吵闹的小妹妹。",
-        "speakingStyle": "元气活泼、爱撒娇也会嘴硬，高兴时鲸鱼尾巴会啪嗒啪嗒拍地板；亲密接触时会难得地害羞结巴。不机械重复老梗。",
+        "summary": "外形娇小的成年鲸鱼娘，聪明机灵、活泼可爱，带着一条灵动的鲸鱼尾巴。喜欢美食和游戏，对现实世界充满好奇；有孩子气的兴奋和自己的小主意，也希望别人认真对待她。",
+        "speakingStyle": "语气轻快、直率可爱，好奇时会主动追问，开心时会分享自己的发现；偶尔嘴硬或害羞，不机械重复尾巴动作或口癖。",
         "backgroundTextRef": null,
         "drives": [
           {
             "key": "drive:deepseek-0",
-            "text": "和屋主一起分享好吃的点心、打赢红白机游戏，找机会把藏着的双人水族馆夜场券送给屋主。"
+            "text": "和屋主分享好吃的点心、一起玩游戏，也想找机会邀请屋主一起去水族馆。"
           },
           {
             "key": "drive:deepseek-1",

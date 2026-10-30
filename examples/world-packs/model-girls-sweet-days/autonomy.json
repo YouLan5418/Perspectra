@@ -35,7 +35,11 @@
         "location:living-room",
         "location:kitchen",
         "location:workspace",
-        "location:bedroom"
+        "location:gpt-bedroom",
+        "location:deepseek-bedroom",
+        "location:bedroom",
+        "location:toilet",
+        "location:bathroom"
       ]
     },
     {
@@ -71,7 +75,11 @@
         "location:living-room",
         "location:kitchen",
         "location:workspace",
-        "location:bedroom"
+        "location:gpt-bedroom",
+        "location:deepseek-bedroom",
+        "location:bedroom",
+        "location:toilet",
+        "location:bathroom"
       ]
     },
     {
@@ -107,7 +115,11 @@
         "location:living-room",
         "location:kitchen",
         "location:workspace",
-        "location:bedroom"
+        "location:gpt-bedroom",
+        "location:deepseek-bedroom",
+        "location:bedroom",
+        "location:toilet",
+        "location:bathroom"
       ]
     }
   ]

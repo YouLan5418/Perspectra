@@ -1,15 +1,71 @@
-// 客厅日常小活动：复古红白机双人对战（可邀请 1~3 名在场少女一起玩或围观助威）。
+// 客厅游戏机里的合作 RPG：战斗数值只属于这一局游戏。
 const NAMES = {
+  'character:player': '屋主',
   'character:gpt': 'GPT',
   'character:claude': 'Claude',
   'character:deepseek': 'DeepSeek',
 }
 const none = { type: 'object', additionalProperties: false, properties: {} }
-
+const healTarget = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['target'],
+  properties: { target: { type: 'string', title: '治疗谁', enum: ['屋主', 'GPT', 'Claude', 'DeepSeek'] } },
+}
+const copy = value => JSON.parse(JSON.stringify(value))
+const nameOf = id => NAMES[id] ?? id
+const unitOf = (game, id) => game.public.party.find(unit => unit.id === id)
+function summary(game) {
+  game.public.队伍 = game.public.party
+    .map(unit => `${nameOf(unit.id)} ${unit.hp}/${unit.maxHp}生命 ${unit.mp}魔力${unit.guard ? '（防御）' : ''}`)
+    .join('；')
+  game.public.敌人 = `遗迹守卫 ${game.public.enemyHp}/${game.public.enemyMaxHp}生命`
+  game.public.当前回合 = game.turn ? nameOf(game.turn) : '战斗结束'
+}
+function finish(game, phase, messages) {
+  game.active = false
+  game.phase = phase
+  game.turn = null
+  game.public.phaseLabel = phase === 'victory' ? '冒险胜利' : phase === 'defeat' ? '冒险失败' : '退出冒险'
+  messages.push(
+    phase === 'victory'
+      ? '遗迹守卫倒下，屏幕亮起通关画面！'
+      : phase === 'defeat'
+        ? '队伍全部倒下，这次冒险结束了。'
+        : '大家暂时退出了冒险。',
+  )
+}
+function advance(game, currentId, messages) {
+  const party = game.public.party
+  const index = party.findIndex(unit => unit.id === currentId)
+  for (let i = index + 1; i < party.length; i++) {
+    if (party[i].hp > 0) {
+      game.turn = party[i].id
+      return
+    }
+  }
+  const targets = party.filter(unit => unit.hp > 0)
+  if (!targets.length) {
+    finish(game, 'defeat', messages)
+    return
+  }
+  // 守卫攻击生命最低的角色；平血按队伍顺序选择。
+  const target = targets.reduce((a, b) => (b.hp < a.hp ? b : a))
+  const damage = target.guard ? 4 : 8
+  target.guard = false
+  target.hp = Math.max(0, target.hp - damage)
+  messages.push(`遗迹守卫攻击${nameOf(target.id)}，造成${damage}点伤害，剩余${target.hp}生命。`)
+  if (!party.some(unit => unit.hp > 0)) {
+    finish(game, 'defeat', messages)
+    return
+  }
+  game.round += 1
+  game.turn = party.find(unit => unit.hp > 0).id
+}
 globalThis.activityScript = {
   definition: {
-    title: '红白机游戏对战',
-    opening: '你打开客厅的复古双人游戏机，把另一只手柄递了出去。电视屏幕亮起像素风的音乐！',
+    title: '一起玩像素 RPG：遗迹守卫',
+    opening: '游戏机的屏幕亮起，像素风的遗迹出现在电视上。大家准备组队挑战守卫。',
     participants: {
       mode: 'player-select',
       min: 1,
@@ -17,116 +73,115 @@ globalThis.activityScript = {
       candidates: ['character:gpt', 'character:claude', 'character:deepseek'],
     },
     operations: [
-      { id: 'play-serious', label: '全神贯注认真操作（秀一波技术）', requiresTurn: false, schema: none },
-      { id: 'play-throw', label: '不动声色故意放水（让她赢下这一局）', requiresTurn: false, schema: none },
-      { id: 'play-tease', label: '趁她盯着屏幕紧张时，轻轻碰她的手背', requiresTurn: false, schema: none },
-      { id: 'finish', label: '收起手柄，结束游戏时光', requiresTurn: false, schema: none },
+      { id: 'attack', label: '普通攻击（8伤害）', requiresTurn: true, schema: none },
+      { id: 'magic', label: '火球术（消耗2魔力，14伤害）', requiresTurn: true, schema: none },
+      { id: 'heal', label: '治疗术（消耗2魔力，恢复10生命）', requiresTurn: true, schema: healTarget },
+      { id: 'guard', label: '防御（下次受击减半）', requiresTurn: true, schema: none },
+      { id: 'skip', label: '让等待中的队友本回合待命', requiresTurn: false, schema: none },
+      { id: 'quit', label: '退出像素 RPG', requiresTurn: false, schema: none },
     ],
   },
-  initialize({ playerId, npcIds }) {
-    return {
+  initialize({ playerId, npcIds, world }) {
+    if (
+      world.locationId !== 'location:living-room' ||
+      !world.items.current.some(item => item.entityId === 'entity:game-console')
+    )
+      throw new TypeError('请在客厅游戏机旁开始 RPG。')
+    const party = [playerId, ...npcIds].map(id => ({ id, hp: 24, maxHp: 24, mp: 4, guard: false }))
+    const enemyMaxHp = 35 + party.length * 12
+    const game = {
       active: true,
-      phase: 'playing',
+      phase: 'battle',
       turn: playerId,
       round: 1,
       public: {
-        phaseLabel: '手柄激战中',
-        statusText: '第 1 局进行中',
-        对手与围观: npcIds.map(id => NAMES[id] ?? id).join('、'),
+        phaseLabel: '遗迹守卫战',
         objective:
-          '正在客厅玩复古双人游戏机！可以选择认真操作、故意放水哄她开心，或者趁她专注时来一点亲密小动作。',
-        lastResult: '游戏音乐响起，大家在沙发上挨着坐了下来。',
+          '你们在客厅一起玩回合制 RPG。队伍依次行动，随后守卫攻击生命最低的人；击败守卫获胜，全队倒下则失败。普通攻击8伤害；火球消耗2魔力造成14伤害；治疗消耗2魔力恢复10生命；防御使下次受击减半。生命和魔力仅属于游戏角色。轮到自己时可使用活动操作，也可以先聊天。',
+        party,
+        enemyHp: enemyMaxHp,
+        enemyMaxHp,
+        lastResult: '第一回合开始，屋主先操作。',
       },
       private: Object.fromEntries([playerId, ...npcIds].map(id => [id, {}])),
       internal: {},
     }
+    summary(game)
+    return game
   },
   policy(view, actorId) {
     const isPlayer = actorId === view.participants[0]
+    const own = view.game.turn === actorId && view.game.active
     return {
       speech: 'free',
       speechChoices: [],
       narration: true,
       move: false,
-      interactions: ['base:hold-hand', 'base:end-contact'],
-      operations: isPlayer && view.game.active ? ['play-serious', 'play-throw', 'play-tease', 'finish'] : [],
+      interactions: [],
+      operations: [
+        ...(own ? ['attack', 'magic', 'heal', 'guard'] : []),
+        ...(isPlayer && view.game.active ? [...(!own ? ['skip'] : []), 'quit'] : []),
+      ],
     }
   },
-  resolve(state, actorId, operation) {
-    const game = JSON.parse(JSON.stringify(state.game))
-    const npcIds = state.participants.slice(1)
-    if (actorId !== state.participants[0]) return { rejectReason: '由屋主选择本局操作。' }
-
-    if (operation === 'finish') {
-      game.active = false
-      game.phase = 'finished'
-      game.turn = null
-      game.round += 1
-      game.public.statusText = '游戏结束'
-      game.public.lastResult = '大家意犹未尽地放下了手柄，沙发上的距离比刚才更近了。'
-      // 收起手柄是日常收尾，不写心动印象；偷碰手背那一刻仍会写。
-      return {
-        game,
-        description: '收起游戏手柄，结束了这一轮热闹的红白机对战。',
-        audience: 'participants',
+  resolve(state, actorId, operation, parameters, world) {
+    const game = copy(state.game)
+    const playerId = state.participants[0]
+    if (!game.active) return { rejectReason: '这局游戏已经结束。' }
+    if (!state.participants.every(id => world.characterIds.includes(id)))
+      return { rejectReason: '参与游戏的人需要在同一个房间。' }
+    const messages = []
+    if (operation === 'quit') {
+      if (actorId !== playerId) return { rejectReason: '只有屋主可以退出。' }
+      finish(game, 'quit', messages)
+    } else if (operation === 'skip') {
+      if (actorId !== playerId || game.turn === playerId) return { rejectReason: '只能让等待中的队友暂时待命。' }
+      const waiting = game.turn
+      messages.push(`${nameOf(waiting)}的游戏角色本回合待命。`)
+      advance(game, waiting, messages)
+    } else {
+      const own = unitOf(game, actorId)
+      if (!own || own.hp <= 0 || game.turn !== actorId) return { rejectReason: '还没有轮到你，或游戏角色已经倒下。' }
+      if (!['attack', 'magic', 'heal', 'guard'].includes(operation)) return { rejectReason: '未知游戏操作。' }
+      if (['magic', 'heal'].includes(operation) && own.mp < 2) return { rejectReason: '魔力不足。' }
+      if (operation === 'heal') {
+        const target = game.public.party.find(unit => nameOf(unit.id) === parameters.target)
+        if (!target || target.hp <= 0) return { rejectReason: '请选择仍在战斗的队友。' }
+        if (target.hp >= target.maxHp) return { rejectReason: '目标生命已满。' }
+        own.guard = false
+        own.mp -= 2
+        target.hp = Math.min(target.maxHp, target.hp + 10)
+        messages.push(`${nameOf(actorId)}施放治疗术，${nameOf(target.id)}恢复至${target.hp}生命。`)
+      } else if (operation === 'guard') {
+        own.guard = true
+        messages.push(`${nameOf(actorId)}的游戏角色防御，下次受到的伤害减半。`)
+      } else {
+        own.guard = false
+        const damage = operation === 'magic' ? 14 : 8
+        if (operation === 'magic') own.mp -= 2
+        game.public.enemyHp = Math.max(0, game.public.enemyHp - damage)
+        messages.push(
+          `${nameOf(actorId)}${operation === 'magic' ? '施放火球术' : '普通攻击'}，造成${damage}点伤害；守卫剩余${game.public.enemyHp}生命。`,
+        )
       }
+      if (game.public.enemyHp === 0) finish(game, 'victory', messages)
+      else advance(game, actorId, messages)
     }
-
-    const activeNpc = npcIds[(game.round - 1) % npcIds.length]
-    game.turn = activeNpc
-    game.round += 1
-    if (operation === 'play-serious') {
-      game.public.statusText = '屋主华丽连招获胜'
-      game.public.lastResult = '你打出一套行云流水的操作拿下了这一小局！身旁的少女顿时不服气了。'
-      return {
-        game,
-        description: '屋主全神贯注打出一波精彩连招，赢下了这一局！',
-        audience: 'participants',
-      }
-    }
-    if (operation === 'play-throw') {
-      game.public.statusText = '少女绝地反杀获胜'
-      game.public.lastResult = '你在最后关头故意卖了个破绽，让她险胜通关！'
-      return {
-        game,
-        description: '屋主在关键时刻不动声色地放了水，让她拿下了本局胜利！',
-        audience: 'participants',
-      }
-    }
-    if (operation === 'play-tease') {
-      game.public.statusText = '手柄上的心跳擦碰'
-      game.public.lastResult = '趁她死死盯着屏幕狂按按键时，你的手指轻轻覆在了她的手背上。'
-      const changes = [
-        {
-          holderId: activeNpc,
-          key: 'mood-note',
-          value: '打游戏时被屋主偷偷碰了手背，握着手柄的指尖都在发烫',
-        },
-      ]
-      const reveals = [{ observerId: activeNpc, holderId: activeNpc, key: 'mood-note' }]
-      return {
-        game,
-        description: '趁她紧张操作时，屋主温热的手指轻轻擦过并贴上了她握着手柄的手背。',
-        audience: 'participants',
-        status: { changes, reveals },
-      }
-    }
-    return { rejectReason: '未知游戏操作。' }
+    game.public.lastResult = messages.join(' ')
+    summary(game)
+    return { game, description: game.public.lastResult, audience: 'participants' }
   },
   schedule(view) {
     return view.game.active && view.game.turn !== view.participants[0]
       ? { kind: 'activate', characterId: view.game.turn }
       : { kind: 'wait' }
   },
-  onOutcome(_result, view) {
-    return view.game.active && view.game.turn !== view.participants[0]
+  onOutcome(result, view) {
+    return result.status !== 'abstained' &&
+      result.failure === undefined &&
+      view.game.active &&
+      view.game.turn !== view.participants[0]
       ? { kind: 'activate', characterId: view.game.turn }
       : { kind: 'wait' }
-  },
-  onPublished(state, actorId) {
-    const game = JSON.parse(JSON.stringify(state.game))
-    if (!game.active || actorId === state.participants[0]) return null
-    game.turn = state.participants[0]
-    return game
   },
 }

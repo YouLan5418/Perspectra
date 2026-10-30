@@ -39,6 +39,16 @@ async function fixture() {
   const pack = join(root, 'pack'),
     data = join(root, 'data')
   cpSync(resolve('examples/world-packs/model-girls-sweet-days'), pack, { recursive: true })
+  // This fixture starts after the prologue, at the first morning.
+  const sourcePath = join(pack, 'worldpack.source.json')
+  const source = JSON.parse(readFileSync(sourcePath, 'utf8'))
+  source.assetFiles = source.assetFiles.filter((asset: string) => asset !== 'scripts/activities/prologue.js')
+  writeFileSync(sourcePath, JSON.stringify(source))
+  const statusPath = join(pack, 'scripts/status.js')
+  writeFileSync(
+    statusPath,
+    readFileSync(statusPath, 'utf8').replace("day: 0,\n        slot: '深夜'", "day: 1,\n        slot: '清晨'"),
+  )
   const characters = JSON.parse(readFileSync(join(pack, 'characters.json'), 'utf8'))
   for (const c of characters.characters) c.initialLocationId = 'location:living-room'
   writeFileSync(join(pack, 'characters.json'), JSON.stringify(characters))

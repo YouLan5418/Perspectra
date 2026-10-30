@@ -8,6 +8,41 @@ const NAMES = {
 }
 const none = { type: 'object', additionalProperties: false, properties: {} }
 
+// 每位参与者的固定演出发表后，再推进到下一位。
+const advanceResponse = (game, participants) => {
+  const next = participants.slice(1).find(id => !game.public.responded.includes(id))
+  game.turn = next ?? null
+  if (!next) {
+    game.active = false
+    game.phase = 'finished'
+    game.public.statusText = '这段互动暂告一段落'
+  }
+}
+
+const openingLines = {
+  'character:gpt': '先别慌，我记得玄关有应急工具。大家都还好吗？',
+  'character:claude': '雨声一下子变大了……没关系，我们先待在一起，慢慢想办法。',
+  'character:deepseek': '突然好黑……你们都在吧？我能听见你们说话就放心了。',
+}
+const responseLines = {
+  'stay-close': {
+    'character:gpt': [
+      '我、我没有害怕，只是在确认大家的位置。',
+      '谢谢你在这里。等我们准备好了，再一起想办法恢复供电吧。',
+    ],
+    'character:claude': ['谢谢，你的声音让我安心了一些。', '我们不必急着摸黑行动。等大家准备好，再去玄关看看吧。'],
+    'character:deepseek': [
+      '我在这里！这次没有偷偷跑去找吃的哦。',
+      '你再说句话吧。听到你的声音，雨好像也没那么吓人了。',
+    ],
+  },
+  'candle-gather': {
+    'character:gpt': ['有光就好，至少可以看清大家有没有受伤。', '接下来先别着急，我来和你一起想想怎么恢复供电。'],
+    'character:claude': ['这点光正好，让人觉得安心。', '雨还在下。我们先陪彼此待一会儿，好吗？'],
+    'character:deepseek': ['亮起来了！虽然只有一点点，但感觉好多了。', '等电恢复以后，我们还能在客厅一起玩游戏吗？'],
+  },
+}
+
 globalThis.activityScript = {
   definition: {
     title: '雨夜停电的黑暗陪伴',
@@ -19,9 +54,10 @@ globalThis.activityScript = {
       candidates: HEROINES,
     },
     operations: [
+      { id: 'end-response', label: '结束这段互动，继续生活', requiresTurn: false, schema: none },
       {
         id: 'stay-close',
-        label: '在黑暗中伸出手，稳稳握住身边人的手给她安全感',
+        label: '在黑暗中伸出手，轻声安慰身边的人',
         requiresTurn: false,
         schema: none,
       },
@@ -36,14 +72,9 @@ globalThis.activityScript = {
   autoStart(truth, world, previous) {
     const present = world.characterIds.filter(id => HEROINES.includes(id))
     return {
-      when: [
-        previous === null,
-        truth?.public?.['power-on'] === false,
-        present.length >= 1,
-      ],
+      when: [previous === null, truth?.public?.['power-on'] === false, present.length >= 1],
       npcIds: present.length ? present : ['character:claude'],
-      notice:
-        '轰隆一声闷雷滚过天际，房间里一片漆黑。黑暗中似乎有人轻轻抓住了你的衣袖……',
+      notice: '轰隆一声闷雷滚过天际，房间里一片漆黑。黑暗中，大家一时停下了交谈。',
     }
   },
   initialize({ playerId, npcIds }) {
@@ -56,8 +87,7 @@ globalThis.activityScript = {
         phaseLabel: '雨夜停电中',
         statusText: '黑暗拉近了彼此的距离',
         在场陪伴: npcIds.map(id => NAMES[id] ?? id).join('、'),
-        objective:
-          '突如其来的雨夜停电让平时矜持的少女也流露出一丝不安。你在第一时间陪在了她们身边！',
+        objective: '突如其来的雨夜停电让平时矜持的少女也流露出一丝不安。你在第一时间陪在了她们身边！',
         lastResult: '窗外雨声淅沥，黑暗中传来衣料摩擦的细微声响。',
       },
       private: Object.fromEntries([playerId, ...npcIds].map(id => [id, {}])),
@@ -67,21 +97,39 @@ globalThis.activityScript = {
   policy(view, actorId) {
     const isPlayer = actorId === view.participants[0]
     return {
-      speech: 'free',
+      speech: isPlayer ? 'none' : 'free',
       speechChoices: [],
-      narration: true,
+      narration: false,
       move: false,
-      interactions: ['base:hold-hand', 'base:end-contact'],
-      operations: isPlayer && view.game.active ? ['stay-close', 'candle-gather'] : [],
+      interactions: [],
+      operations:
+        isPlayer && view.game.active
+          ? view.game.phase === 'responses'
+            ? ['end-response']
+            : view.game.turn === actorId
+              ? ['stay-close', 'candle-gather']
+              : []
+          : [],
     }
   },
   resolve(state, actorId, operation) {
     const game = JSON.parse(JSON.stringify(state.game))
     const npcIds = state.participants.slice(1)
     if (actorId !== state.participants[0]) return { rejectReason: '由屋主做出行动。' }
-    game.active = false
-    game.phase = 'finished'
-    game.turn = null
+    if (operation === 'end-response' && game.phase === 'responses') {
+      game.active = false
+      game.phase = 'finished'
+      game.turn = null
+      game.round += 1
+      return { game, description: '这段互动暂告一段落。', audience: 'participants' }
+    }
+    if (game.phase === 'responses') return { rejectReason: '先听听大家的回应。' }
+    game.phase = 'responses'
+    game.public.responded = []
+    game.public.choice = operation
+    game.public.phaseLabel = '选择后的回应'
+    game.public.objective = '剧情将根据你的选择继续演出。'
+    advanceResponse(game, state.participants)
     game.round += 1
 
     const changes = npcIds.map(id => ({
@@ -96,10 +144,10 @@ globalThis.activityScript = {
 
     if (operation === 'stay-close') {
       game.public.statusText = '黑暗中紧扣的十指'
-      game.public.lastResult = '你在黑暗中准确地握住了她的手，掌心的温度让她的颤抖渐渐平息下来。'
+      game.public.lastResult = '你在黑暗中向身边的人伸出手，轻声说自己在这里。'
       return {
         game,
-        description: '在漆黑的雨夜里，屋主主动伸手揽住并紧握住身边少女微凉的手指，轻声给她安全感。',
+        description: '在漆黑的雨夜里，屋主向身边的人伸出手，轻声说自己在这里。',
         audience: 'participants',
         status: { changes, reveals },
       }
@@ -107,7 +155,7 @@ globalThis.activityScript = {
 
     if (operation === 'candle-gather') {
       game.public.statusText = '摇曳烛光下的依偎'
-      game.public.lastResult = '微弱而温暖的光亮映照出少女泛红的脸颊，大家挨着你坐在一起。'
+      game.public.lastResult = '你点起应急烛光，开口安慰在场的人。'
       return {
         game,
         description: '屋主点亮微光并温柔地安抚在场的每一个人，雨夜的房间变得格外温馨。',
@@ -123,15 +171,33 @@ globalThis.activityScript = {
       ? { kind: 'activate', characterId: view.game.turn }
       : { kind: 'wait' }
   },
-  onOutcome() {
-    return { kind: 'wait' }
+  onOutcome(result, view) {
+    return result.status !== 'abstained' &&
+      result.failure === undefined &&
+      view.game.active &&
+      view.game.turn !== view.participants[0]
+      ? { kind: 'activate', characterId: view.game.turn }
+      : { kind: 'wait' }
+  },
+  simulate(request) {
+    const game = request.context.activity?.game
+    const actorId = request.context.character.characterId
+    if (!game?.active || game.turn !== actorId) return { decision: 'abstain' }
+    const line =
+      game.phase === 'responses' ? responseLines[game.public.choice]?.[actorId]?.join('\n') : openingLines[actorId]
+    if (!line) return { decision: 'abstain' }
+    return { decision: 'publish', scope: 'scene_public', segments: [{ type: 'speech', text: line }] }
   },
   onPublished(state, actorId) {
     const game = JSON.parse(JSON.stringify(state.game))
-    if (actorId !== state.participants[0] && game.active) {
-      game.turn = state.participants[0]
-      return game
+    if (!game.active || actorId !== game.turn || actorId === state.participants[0]) return null
+    if (game.phase === 'responses') {
+      game.public.responded.push(actorId)
+      advanceResponse(game, state.participants)
+    } else {
+      game.public.introDone = [...(game.public.introDone ?? []), actorId]
+      game.turn = state.participants.slice(1).find(id => !game.public.introDone.includes(id)) ?? state.participants[0]
     }
-    return null
+    return game
   },
 }

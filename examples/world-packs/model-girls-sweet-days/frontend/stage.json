@@ -6,5 +6,9 @@
         "waist": 0.4844
       }
     }
+  },
+  "autoplay": {
+    "activity": "prologue",
+    "operation": "next"
   }
 }

@@ -26,17 +26,38 @@ afterEach(async () => {
 })
 
 async function fixture(
-  initialLocations: Record<string, string> = {},
+  initialLocations: Record<string, string> = {
+    'character:claude': 'location:workspace',
+    'character:deepseek': 'location:kitchen',
+  },
   decision: WorldJsonObject = { decision: 'abstain' },
+  includePrologue = false,
+  battleAgent = false,
 ) {
   const root = mkdtempSync(join(tmpdir(), 'model-girls-sweet-days-'))
   roots.push(root)
   const pack = join(root, 'pack'),
     data = join(root, 'data')
   cpSync(resolve('examples/world-packs/model-girls-sweet-days'), pack, { recursive: true })
+  if (!includePrologue) {
+    const sourcePath = join(pack, 'worldpack.source.json')
+    const source = JSON.parse(readFileSync(sourcePath, 'utf8'))
+    source.assetFiles = source.assetFiles.filter((asset: string) => asset !== 'scripts/activities/prologue.js')
+    writeFileSync(sourcePath, JSON.stringify(source))
+    const statusPath = join(pack, 'scripts/status.js')
+    writeFileSync(
+      statusPath,
+      readFileSync(statusPath, 'utf8').replace("day: 0,\n        slot: '深夜'", "day: 1,\n        slot: '清晨'"),
+    )
+  }
   const characters = JSON.parse(readFileSync(join(pack, 'characters.json'), 'utf8'))
   for (const character of characters.characters) {
-    character.initialLocationId = initialLocations[character.characterId] ?? character.initialLocationId
+    character.initialLocationId =
+      initialLocations[character.characterId] ??
+      (
+        { 'character:claude': 'location:workspace', 'character:deepseek': 'location:kitchen' } as Record<string, string>
+      )[character.characterId] ??
+      character.initialLocationId
   }
   writeFileSync(join(pack, 'characters.json'), JSON.stringify(characters))
   const scenes = JSON.parse(readFileSync(join(pack, 'scenes.json'), 'utf8'))
@@ -59,17 +80,37 @@ async function fixture(
     request.on('data', chunk => (body += String(chunk)))
     request.on('end', () => {
       const user = (JSON.parse(body).messages as { role: string; content: string }[]).findLast(m => m.role === 'user')
-      if (user?.content.startsWith('{"context"')) contexts.push(JSON.parse(user.content).context)
-      respond()
+      let answer = decision
+      if (user?.content.startsWith('{"context"')) {
+        const input = JSON.parse(user.content)
+        contexts.push(input.context)
+        const activity = input.context.activity
+        if (battleAgent && activity?.activityKey === 'game-battle' && activity.game?.active) {
+          const self = input.context.character.characterId
+          answer = input.continuation
+            ? { decision: 'publish', segments: [{ type: 'speech', text: '这一击命中了！' }] }
+            : {
+                decision: 'perform',
+                actionType: 'interact',
+                parameters: {
+                  targetRef: { kind: 'character', id: self },
+                  bindingId: activity.id,
+                  definitionRef: { id: 'activity:attack', version: 1 },
+                  arguments: { activityId: activity.id, revision: activity.revision },
+                },
+              }
+        }
+      }
+      respond(answer)
     })
-    const respond = () => {
+    const respond = (answer: WorldJsonObject) => {
       response.writeHead(200, { 'content-type': 'application/json' })
       response.end(
         JSON.stringify({
           choices: [
             {
               message: {
-                tool_calls: [{ function: { name: 'submit_actions', arguments: JSON.stringify(decision) } }],
+                tool_calls: [{ function: { name: 'submit_actions', arguments: JSON.stringify(answer) } }],
               },
             },
           ],
@@ -119,6 +160,81 @@ async function fixture(
   return { runtime, events, view, actions, act, kind, holder, truth, known, contexts }
 }
 
+it('plays the complete prologue and enters the first morning with committed dialogue', async () => {
+  const f = await fixture(
+    { 'character:claude': 'location:living-room', 'character:deepseek': 'location:living-room' },
+    { decision: 'abstain' },
+    true,
+  )
+  expect(f.truth().public).toMatchObject({ day: 0, slot: '深夜' })
+  const opening = (await f.view()).actions.find(action => action.label === '开始 序章：房间里突然多了三个人')!
+  expect(opening.target).toMatchObject({ kind: 'activity', id: 'prologue' })
+  expect(opening.action.parameters.definitionRef).toMatchObject({ id: 'host:activity-start' })
+  await f.act('开始 序章：房间里突然多了三个人')
+  const next = (await f.view()).actions.find(action => action.label === '继续序章')!
+  expect(next.target).toMatchObject({ kind: 'activity', id: 'prologue' })
+  expect(next.action.parameters.definitionRef).toMatchObject({ id: 'activity:next' })
+  let steps = 0
+  while (steps++ < 60) {
+    const labels = (await f.actions()).map(action => action.label)
+    if (labels.includes('继续序章')) await f.act('继续序章')
+    else break
+  }
+  const state = await f.runtime.state()
+  const game = (state.activities as WorldJsonObject[]).find(a => a.activityKey === 'prologue')?.game
+  expect(game).toMatchObject({ active: false, phase: 'finished' })
+  expect(f.truth().public).toMatchObject({ day: 1, slot: '清晨' })
+  const events = JSON.stringify(f.events())
+  expect(events).toContain('商量之后，屋主同意让她们先暂时住下来')
+  expect(events).toContain('那间书房很安静')
+  expect(events).toContain('早餐吃什么')
+  expect(f.contexts).toHaveLength(0)
+  for (const id of ['character:player', 'character:gpt', 'character:claude', 'character:deepseek'])
+    expect(currentLocation(f.events(), id)).toBe('location:living-room')
+  expect((await f.actions()).map(action => action.label)).toContain('推进到下一时段（大家各自忙一阵）')
+}, 120_000)
+
+it('starts together and carries a meal from the kitchen to the living room', async () => {
+  const pack = resolve('examples/world-packs/model-girls-sweet-days')
+  const characters = JSON.parse(readFileSync(join(pack, 'characters.json'), 'utf8'))
+  expect(characters.characters.map((character: { initialLocationId: string }) => character.initialLocationId)).toEqual([
+    'location:living-room',
+    'location:living-room',
+    'location:living-room',
+    'location:living-room',
+  ])
+  const f = await fixture({
+    'character:claude': 'location:living-room',
+    'character:deepseek': 'location:living-room',
+  })
+  await f.act('前往 厨房')
+  await f.act('做一锅热乎的黄金蛋炒饭')
+  await f.act('拿起餐盘')
+  await f.act('前往 客厅')
+  await f.act('放下餐盘')
+  expect(currentEntityState(f.events(), 'entity:meal-platter')).toMatchObject({
+    locationId: 'location:living-room',
+    holderId: null,
+  })
+  expect(f.kind('entity:meal-platter')).toContain('黄金蛋炒饭')
+  await f.act('前往 卫生间')
+  expect(currentLocation(f.events(), 'character:player')).toBe('location:toilet')
+  await f.act('前往 浴室')
+  expect(currentLocation(f.events(), 'character:player')).toBe('location:bathroom')
+})
+
+it('lets the player visit each newly assigned bedroom', async () => {
+  const f = await fixture()
+  for (const [label, location] of [
+    ['GPT 的卧室', 'location:gpt-bedroom'],
+    ['DeepSeek 的卧室', 'location:deepseek-bedroom'],
+    ['Claude 的卧室（书房）', 'location:workspace'],
+  ]) {
+    await f.act(`前往 ${label}`)
+    expect(currentLocation(f.events(), 'character:player')).toBe(location)
+  }
+})
+
 it('supports part-time work, shop purchases, feast cooking, and midnight fridge autoStart with DeepSeek', async () => {
   const f = await fixture()
   await f.act('前往 玄关与街角商店')
@@ -146,7 +262,7 @@ it('supports part-time work, shop purchases, feast cooking, and midnight fridge 
   await f.act('推进到下一时段（大家各自忙一阵）')
 
   // Enter kitchen at 深夜 where DeepSeek is located -> autoStarts midnight-fridge!
-  const kitchenState = await f.act('前往 厨房与餐厅')
+  const kitchenState = await f.act('前往 厨房')
   const running = (kitchenState.activities as WorldJsonObject[]).find(
     a => (a.game as WorldJsonObject | undefined)?.active === true,
   )
@@ -157,6 +273,7 @@ it('supports part-time work, shop purchases, feast cooking, and midnight fridge 
 
   // Resolve midnight-fridge as partners in crime
   await f.act('小声关上门：「见者有份，我们一人一半当共犯」')
+  expect(JSON.stringify(f.events())).toContain('从现在开始，我们就是深夜厨房探险队！')
   expect(
     ((await f.runtime.state()).activities as WorldJsonObject[]).find(a => a.activityKey === 'midnight-fridge')?.game,
   ).toMatchObject({
@@ -240,8 +357,9 @@ it('keeps a blackout through cooking and overnight rest until power is actually 
     activityKey: 'blackout-comfort',
     title: '雨夜停电的黑暗陪伴',
   })
-  await f.act('在黑暗中伸出手，稳稳握住身边人的手给她安全感')
-  await f.act('前往 厨房与餐厅')
+  await f.act('在黑暗中伸出手，轻声安慰身边的人')
+  expect(JSON.stringify(f.events())).toContain('等我们准备好了，再一起想办法恢复供电吧。')
+  await f.act('前往 厨房')
   await f.act('做一锅热乎的黄金蛋炒饭')
   expect(f.truth().public['power-on']).toBe(false)
   await f.act('推进到下一时段（大家各自忙一阵）')
@@ -267,6 +385,37 @@ it('rejects morning sleep without committing a day change', async () => {
   expect(f.events()).toHaveLength(before)
 })
 
+it('plays fixed branching dialogue for each gift-scene participant without a model request', async () => {
+  const f = await fixture(
+    { 'character:claude': 'location:living-room', 'character:deepseek': 'location:living-room' },
+    { decision: 'publish', segments: [{ type: 'speech', text: '我听到了，还想再说几句。' }] },
+  )
+  await f.act('前往 玄关与街角商店')
+  await f.act('付款购买限定草莓小蛋糕')
+  await f.act('前往 客厅')
+  await f.act('把限定草莓小蛋糕交给', { recipientId: 'character:gpt' })
+  expect(JSON.stringify(f.events())).toContain('我看到了哦！那我的份呢？我可以先排队！')
+  const contextCount = f.contexts.length
+  const previousEvents = f.events().length
+  await f.act('展现端水艺术：「每个人都有专属惊喜，怎么可能忘了你？」')
+  const afterChoice = JSON.stringify(f.events().slice(previousEvents))
+  expect(afterChoice).toContain('每个人都有？那我可要把你的承诺记进日程表了。')
+  expect(afterChoice).toContain('比起惊喜是什么，我更想知道你有没有认真想过。')
+  expect(afterChoice).toContain('真的吗？那我也有专属惊喜！')
+  expect(
+    f.contexts
+      .slice(contextCount)
+      .filter(context => (context.activity as WorldJsonObject | undefined)?.activityKey === 'jealousy-moment'),
+  ).toHaveLength(0)
+  const game = ((await f.runtime.state()).activities as WorldJsonObject[]).find(
+    a => a.activityKey === 'jealousy-moment',
+  )?.game as WorldJsonObject
+  expect(game).toMatchObject({ active: false, phase: 'finished' })
+  expect((game.public as WorldJsonObject).responded).toEqual(
+    expect.arrayContaining(['character:gpt', 'character:claude', 'character:deepseek']),
+  )
+})
+
 it('reveals the gift incident only to its witnesses and can trigger another incident after resolution', async () => {
   const f = await fixture({ 'character:claude': 'location:living-room' })
   await f.act('前往 玄关与街角商店')
@@ -283,18 +432,133 @@ it('reveals the gift incident only to its witnesses and can trigger another inci
   expect(f.truth().characters['character:deepseek']!['gift-scene']).toBe('')
   await f.act('展现端水艺术：「每个人都有专属惊喜，怎么可能忘了你？」')
   expect(f.truth().characters['character:claude']!['gift-scene']).toBe('')
-  await f.act('前往 厨房与餐厅')
+  await f.act('前往 厨房')
   await f.act('冲泡一杯专属热饮端在手里')
   await f.act('前往 客厅')
   await f.act('把专属热饮杯交给', { recipientId: 'character:claude' })
   expect((await f.runtime.state()).activity).toMatchObject({ activityKey: 'jealousy-moment' })
 })
 
-it('keeps a gift impression through fried rice, shared tea and a finished game', async () => {
+it('plays a cooperative RPG to victory with characters choosing their own actions', async () => {
+  const f = await fixture({ 'character:claude': 'location:living-room' }, { decision: 'abstain' }, false, true)
+  const before = f.truth()
+  await f.runtime.activityAction({
+    activityKey: 'game-battle',
+    activityId: null,
+    revision: 0,
+    operation: 'start',
+    parameters: { npcIds: ['character:gpt', 'character:claude'] },
+    requestId: 'rpg-start',
+  })
+  await f.act('火球术（消耗2魔力，14伤害）')
+  await f.act('火球术（消耗2魔力，14伤害）')
+  await f.act('普通攻击（8伤害）')
+  const game = ((await f.runtime.state()).activities as WorldJsonObject[]).find(
+    a => a.activityKey === 'game-battle',
+  )?.game
+  expect(game).toMatchObject({ active: false, phase: 'victory' })
+  const events = JSON.stringify(f.events())
+  expect(events).toContain('GPT普通攻击')
+  expect(events).toContain('Claude普通攻击')
+  expect(events).toContain('屏幕亮起通关画面')
+  expect(f.truth().public).toEqual(before.public)
+  expect(f.truth().characters['character:player']).toEqual(before.characters['character:player'])
+})
+
+it('rejects invalid healing without spending magic and keeps RPG health separate from the house', async () => {
+  const f = await fixture()
+  const started = await f.runtime.activityAction({
+    activityKey: 'game-battle',
+    activityId: null,
+    revision: 0,
+    operation: 'start',
+    parameters: { npcIds: ['character:gpt'] },
+    requestId: 'rpg-invalid',
+  })
+  const activity = (started.activities as WorldJsonObject[]).find(a => a.activityKey === 'game-battle')!
+  const before = f.events().length
+  await expect(
+    f.runtime.activityAction({
+      activityKey: 'game-battle',
+      activityId: String(activity.id),
+      revision: Number(activity.revision),
+      operation: 'heal',
+      parameters: { target: '屋主' },
+      requestId: 'rpg-heal-full',
+    }),
+  ).rejects.toThrow('目标生命已满')
+  expect(f.events()).toHaveLength(before)
+  const unchanged = ((await f.runtime.state()).activity as WorldJsonObject).game as WorldJsonObject
+  expect((unchanged.public as WorldJsonObject).party).toEqual(
+    expect.arrayContaining([expect.objectContaining({ id: 'character:player', hp: 24, mp: 4 })]),
+  )
+  await f.act('普通攻击（8伤害）')
+  await f.act('让等待中的队友本回合待命')
+  const game = ((await f.runtime.state()).activity as WorldJsonObject).game as WorldJsonObject
+  expect((game.public as WorldJsonObject).party).toEqual(
+    expect.arrayContaining([expect.objectContaining({ id: 'character:player', hp: 16, mp: 4 })]),
+  )
+  expect(f.truth().characters['character:player']!.energy).toBe(3)
+  const current = (await f.runtime.state()).activity as WorldJsonObject
+  await f.runtime.activityAction({
+    activityKey: 'game-battle',
+    activityId: String(current.id),
+    revision: Number(current.revision),
+    operation: 'heal',
+    parameters: { target: '屋主' },
+    requestId: 'rpg-heal-hurt',
+  })
+  const healed = ((await f.runtime.state()).activity as WorldJsonObject).game as WorldJsonObject
+  expect((healed.public as WorldJsonObject).party).toEqual(
+    expect.arrayContaining([expect.objectContaining({ id: 'character:player', hp: 24, mp: 2 })]),
+  )
+  await f.act('让等待中的队友本回合待命')
+  await f.act('防御（下次受击减半）')
+  await f.act('让等待中的队友本回合待命')
+  const guarded = ((await f.runtime.state()).activity as WorldJsonObject).game as WorldJsonObject
+  expect((guarded.public as WorldJsonObject).party).toEqual(
+    expect.arrayContaining([expect.objectContaining({ id: 'character:player', hp: 12, guard: false })]),
+  )
+})
+
+it('permits the player to skip a silent teammate and quit without changing world state', async () => {
+  const f = await fixture()
+  await f.runtime.activityAction({
+    activityKey: 'game-battle',
+    activityId: null,
+    revision: 0,
+    operation: 'start',
+    parameters: { npcIds: ['character:gpt'] },
+    requestId: 'rpg-silent',
+  })
+  await f.act('普通攻击（8伤害）')
+  expect((await f.actions()).map(a => a.label)).toContain('让等待中的队友本回合待命')
+  await f.act('让等待中的队友本回合待命')
+  await f.act('退出像素 RPG')
+  const game = ((await f.runtime.state()).activities as WorldJsonObject[]).find(
+    a => a.activityKey === 'game-battle',
+  )?.game
+  expect(game).toMatchObject({ active: false, phase: 'quit' })
+  expect(f.truth().public).toMatchObject({ day: 1, slot: '清晨' })
+  const again = await f.runtime.activityAction({
+    activityKey: 'game-battle',
+    activityId: null,
+    revision: 0,
+    operation: 'start',
+    parameters: { npcIds: ['character:gpt'] },
+    requestId: 'rpg-replay',
+  })
+  const nextGame = (again.activities as WorldJsonObject[]).find(a => a.activityKey === 'game-battle')
+    ?.game as WorldJsonObject
+  expect(nextGame).toMatchObject({ active: true, phase: 'battle', round: 1 })
+  expect((nextGame.public as WorldJsonObject).enemyHp).toBe(59)
+})
+
+it('keeps a gift impression through fried rice and shared tea', async () => {
   const f = await fixture()
   await f.act('前往 玄关与街角商店')
   await f.act('付款购买限定草莓小蛋糕')
-  await f.act('前往 厨房与餐厅')
+  await f.act('前往 厨房')
   await f.act('把限定草莓小蛋糕交给', { recipientId: 'character:deepseek' })
   const impression = () => f.truth().characters['character:deepseek']!['mood-note']
   const gift = impression()
@@ -302,29 +566,12 @@ it('keeps a gift impression through fried rice, shared tea and a finished game',
   await f.act('做一锅热乎的黄金蛋炒饭')
   await f.act('冲泡一整壶下午茶（招待在场所有人）')
   expect(impression()).toBe(gift)
-  const started = await f.runtime.activityAction({
-    activityKey: 'game-battle',
-    activityId: null,
-    revision: 0,
-    operation: 'start',
-    parameters: { npcIds: ['character:deepseek'] },
-    requestId: 'game-start',
-  })
-  const game = (started.activities as WorldJsonObject[]).find(a => a.activityKey === 'game-battle')!
-  await f.runtime.activityAction({
-    activityKey: 'game-battle',
-    activityId: String(game.id),
-    revision: Number(game.revision),
-    operation: 'finish',
-    parameters: {},
-    requestId: 'game-finish',
-  })
   expect(impression()).toBe(gift)
 })
 
 it('keeps the tea set in the kitchen when a single cup is brewed and given away', async () => {
   const f = await fixture()
-  await f.act('前往 厨房与餐厅')
+  await f.act('前往 厨房')
   expect((await f.actions()).map(a => a.label)).not.toContain('拿起特调热饮与茶具')
   await f.act('冲泡一杯专属热饮端在手里')
   expect(f.holder('entity:tea-cup')).toBe('character:player')
@@ -346,9 +593,9 @@ it('opens the notebook scene wherever the player brings it to GPT alone, not wit
     ((await f.runtime.state()).activities as WorldJsonObject[]).find(
       a => (a.game as WorldJsonObject | undefined)?.active === true,
     )?.activityKey
-  // Claude reads in the study, so picking the notebook up there starts nothing.
+  // GPT’s notebook starts in her room; she is in the living room.
   let f = await fixture()
-  await f.act('前往 书房')
+  await f.act('前往 GPT 的卧室')
   await f.act('拿起GPT 的调研笔记')
   expect(await running()).toBeUndefined()
   await f.act('前往 客厅')
@@ -356,19 +603,32 @@ it('opens the notebook scene wherever the player brings it to GPT alone, not wit
 
   // With DeepSeek also in the living room, GPT is not alone with the player.
   f = await fixture({ 'character:deepseek': 'location:living-room' })
-  await f.act('前往 书房')
+  await f.act('前往 GPT 的卧室')
   await f.act('拿起GPT 的调研笔记')
   await f.act('前往 客厅')
   expect(await running()).toBeUndefined()
   expect((await f.actions()).map(a => a.label)).not.toContain('开始 小龙娘的秘密约会笔记')
 })
 
+it('plays the notebook rehearsal branch as a fixed scene', async () => {
+  const f = await fixture({ 'character:gpt': 'location:gpt-bedroom' })
+  await f.act('前往 GPT 的卧室')
+  await f.act('拿起GPT 的调研笔记')
+  const before = f.events().length
+  await f.act('指着笔记第 1 条：「既然写了计划表，现在就先跟我预演一遍吧」')
+  const events = JSON.stringify(f.events().slice(before))
+  expect(events).toContain('现在就预演？我还没有把流程检查完')
+  expect(events).toContain('我可以陪你一起想')
+  expect(f.holder('entity:gpt-notebook')).toBe('character:player')
+})
+
 it('keeps the notebook held after promising secrecy and transfers it only through give', async () => {
-  const f = await fixture({ 'character:gpt': 'location:workspace', 'character:claude': 'location:kitchen' })
-  await f.act('前往 书房')
+  const f = await fixture({ 'character:gpt': 'location:gpt-bedroom', 'character:claude': 'location:kitchen' })
+  await f.act('前往 GPT 的卧室')
   expect(f.kind('entity:gpt-notebook')).not.toContain('完美约会')
   await f.act('拿起GPT 的调研笔记')
   await f.act('把笔记轻轻合上：「我会替你保密，也会认真考虑这些心愿」')
+  expect(JSON.stringify(f.events())).toContain('你真的会保密吗？……谢谢。')
   expect(f.holder('entity:gpt-notebook')).toBe('character:player')
   await f.act('把GPT 的调研笔记交给', { recipientId: 'character:gpt' })
   expect(f.holder('entity:gpt-notebook')).toBe('character:gpt')
@@ -478,7 +738,7 @@ it('leaves a switched-on projector in its room and never starts the confession w
   expect(currentEntityState(f.events(), 'entity:star-projector')?.locationId).toBe('location:living-room')
   // Carrying the running projector into the kitchen, where DeepSeek is alone, does not light that room.
   await f.act('拿起家用星空投影仪')
-  const state = await f.act('前往 厨房与餐厅')
+  const state = await f.act('前往 厨房')
   const running = (state.activities as WorldJsonObject[]).find(
     a => (a.game as WorldJsonObject | undefined)?.active === true,
   )
@@ -496,7 +756,7 @@ it('eats a cake and drinks a cup only once, and an empty plate given away is no 
   const before = f.events().length
   await expect(f.runtime.perform(eat)).rejects.toThrow()
   expect(f.events()).toHaveLength(before)
-  await f.act('前往 厨房与餐厅')
+  await f.act('前往 厨房')
   const mood = f.truth().characters['character:deepseek']!['mood-note']
   await f.act('把限定草莓小蛋糕交给', { recipientId: 'character:deepseek' })
   expect(f.truth().characters['character:deepseek']!['mood-note']).toBe(mood)
@@ -512,7 +772,7 @@ it('eats a cake and drinks a cup only once, and an empty plate given away is no 
 it('uses the aquarium ticket once, at the aquarium in the evening with a companion', async () => {
   const f = await fixture({ 'character:gpt': 'location:aquarium' })
   const enter = '凭双人水族馆夜场券进入水族馆夜场（需与屋主同行 · 度过1时段）'
-  await f.act('前往 厨房与餐厅')
+  await f.act('前往 厨房')
   await f.act('拿起双人水族馆夜场券')
   await f.act('前往 城市水族馆')
   expect((await f.actions()).map(a => a.label)).not.toContain(enter)

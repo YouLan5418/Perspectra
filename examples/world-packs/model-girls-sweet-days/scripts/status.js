@@ -52,6 +52,7 @@ const ITEM_RULES = {
     'entity:horn-oil',
     'entity:star-projector',
     'entity:family-passes',
+    'entity:meal-platter',
   ],
   drop: [
     'entity:gpt-notebook',
@@ -65,6 +66,7 @@ const ITEM_RULES = {
     'entity:horn-oil',
     'entity:star-projector',
     'entity:family-passes',
+    'entity:meal-platter',
   ],
   give: [
     'entity:gpt-notebook',
@@ -78,6 +80,7 @@ const ITEM_RULES = {
     'entity:horn-oil',
     'entity:star-projector',
     'entity:family-passes',
+    'entity:meal-platter',
   ],
 }
 
@@ -331,9 +334,9 @@ globalThis.statusScript = {
   initialize(characterIds) {
     const initialMoods = {
       'character:player': '合租屋主',
-      'character:gpt': '干劲满满地张罗试运行周，偷偷期待约会',
-      'character:claude': '在书房安静看书，观察屋主的诚意与边界感',
-      'character:deepseek': '惦记着好吃的与游戏机，藏着双人水族馆门票',
+      'character:gpt': '突然来到屋主家，努力搞清眼前的状况',
+      'character:claude': '突然来到屋主家，关心大家是否安好',
+      'character:deepseek': '突然来到屋主家，对现实世界充满好奇',
     }
     const initialMoney = {
       'character:player': 120,
@@ -343,8 +346,8 @@ globalThis.statusScript = {
     }
     return {
       public: {
-        day: 1,
-        slot: '清晨',
+        day: 0,
+        slot: '深夜',
         'power-on': true,
       },
       characters: Object.fromEntries(
@@ -383,6 +386,7 @@ globalThis.statusScript = {
     const cupAtHand = cup && (cup.holderId === actorId || cup.holderId === null) && !filledCup(cup)
     const pot = findItem('entity:kitchen-pot')
     const ingredients = findItem('entity:fresh-ingredients')
+    const platter = findItem('entity:meal-platter')
     const dryer = findItem('entity:hair-dryer')
     const flashlight = findItem('entity:flashlight')
     const projector = findItem('entity:star-projector')
@@ -424,8 +428,8 @@ globalThis.statusScript = {
         'buy-item': buyable,
         'brew-single-tea': tea && cupAtHand ? [tea.entityId] : [],
         'brew-shared-tea': tea ? [tea.entityId] : [],
-        'cook-simple': pot ? [pot.entityId] : [],
-        'cook-feast': pot && freshIngredients(ingredients) && energy >= 1 ? [pot.entityId] : [],
+        'cook-simple': pot && platter && (platter.holderId === null || platter.holderId === actorId) ? [pot.entityId] : [],
+        'cook-feast': pot && platter && (platter.holderId === null || platter.holderId === actorId) && freshIngredients(ingredients) && energy >= 1 ? [pot.entityId] : [],
         'care-hair': dryer && powerOn && energy >= 1 && (slot === '傍晚' || slot === '深夜') ? [dryer.entityId] : [],
         'fix-power': flashlight && !powerOn && place.locationId === 'location:entrance-shop' ? [flashlight.entityId] : [],
         'turn-on-stars':
@@ -578,6 +582,7 @@ globalThis.statusScript = {
     if (operationId === 'cook-simple') {
       const pot = hereItem('entity:kitchen-pot')
       if (!pot) return { rejectReason: '手边没有料理锅台。' }
+      if (!hereItem('entity:meal-platter')) return { rejectReason: '需要餐盘在厨房，才能盛出饭菜。' }
       // 家常简餐不写心动印象，保留之前重要时刻的那一句。
       return {
         changes: [],
@@ -587,6 +592,7 @@ globalThis.statusScript = {
             entityId: 'entity:kitchen-pot',
             kind: '热气腾腾的黄金蛋炒饭：粒粒分明、鸡蛋蓬松，简单却充满家的烟火气',
           },
+          { entityId: 'entity:meal-platter', kind: '盛着黄金蛋炒饭的餐盘：可以端到客厅与大家分享' },
         ],
         description: '开火颠勺，做出了一大盘热气腾腾的黄金蛋炒饭。',
         audience: 'scene',
@@ -597,6 +603,7 @@ globalThis.statusScript = {
       const pot = hereItem('entity:kitchen-pot')
       const ingredients = hereItem('entity:fresh-ingredients')
       if (!pot) return { rejectReason: '需要在厨房的料理锅台旁才能做大餐。' }
+      if (!hereItem('entity:meal-platter')) return { rejectReason: '需要餐盘在厨房，才能盛出饭菜。' }
       if (!freshIngredients(ingredients)) {
         return { rejectReason: '手边没有买好的「特级料理食材包」，可以先去玄关商店采购。' }
       }
@@ -624,11 +631,15 @@ globalThis.statusScript = {
             kind: '丰盛的海鲜和牛合家欢大餐：鲜虾、和牛与时蔬咕嘟作响，香气飘满了整间屋子',
           },
           {
+            entityId: 'entity:meal-platter',
+            kind: '盛着海鲜和牛大餐的餐盘：可以端到客厅与大家分享',
+          },
+          {
             entityId: 'entity:fresh-ingredients',
             kind: '已用完的特级料理食材礼盒：见证了一顿超丰盛的合家欢料理',
           },
         ],
-        description: '用特级料理食材包精心烹制了一整桌「海鲜和牛合家欢大餐」，满屋飘香！',
+        description: '用特级料理食材包精心烹制了「海鲜和牛合家欢大餐」，盛到餐盘里，可以端到客厅分享。',
         audience: 'scene',
       }
     }
