@@ -667,14 +667,18 @@ export class WorldHostCore implements HostRuntime {
       }
       return roleProvider.decide(call, signal)
     }
+    // Preset output rules clean up model text. A scripted line is the author's exact text, which activity hooks
+    // check verbatim on publication, so it bypasses them.
     const decide = async (call: typeof prepared) =>
-      presetOutput(
-        simulated === undefined ? await callProvider(call) : simulated,
-        effectivePreset!,
-        signal,
-        request.context.expressionPolicy as WorldJsonObject | undefined,
-        this.#playSettings.publicationCharacters,
-      )
+      simulated !== undefined
+        ? simulated
+        : presetOutput(
+            await callProvider(call),
+            effectivePreset!,
+            signal,
+            request.context.expressionPolicy as WorldJsonObject | undefined,
+            this.#playSettings.publicationCharacters,
+          )
     const raw = await decideWithFormatRetry(
       prepared,
       decide,

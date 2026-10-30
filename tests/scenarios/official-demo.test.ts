@@ -16,7 +16,7 @@ afterEach(async () => {
   for (const r of runtimes.splice(0)) await r.close()
   for (const p of roots.splice(0)) rmSync(p, { recursive: true, force: true })
 })
-async function fixture(menu = false, kitchen = false, noCooker = false) {
+async function fixture(menu = false, kitchen = false, noCooker = false, extra: WorldJsonObject = {}) {
   const root = mkdtempSync(join(tmpdir(), 'official-demo-'))
   roots.push(root)
   const pack = join(root, 'pack'),
@@ -52,6 +52,7 @@ async function fixture(menu = false, kitchen = false, noCooker = false) {
     dataDirectory: data,
     models: fakeModels('http://127.0.0.1:1/api/chat', 'openai', 'unused'),
     timeoutMs: 1000,
+    ...extra,
   }
   const runtime = await WorldHostCore.create(options)
   runtimes.push(runtime)
@@ -340,4 +341,29 @@ it('publishes a fixed beat with a Core-sized authorized context, and bounds over
   const option = projectPlayerView(failed).actions.find(a => a.label === '再次请求角色处理')!
   await f.runtime.perform(option.action)
   expect(f.events().filter(e => e.eventType === 'character.speak')).toHaveLength(2)
+})
+
+it('publishes scripted lines verbatim even when a role preset rewrites model output', async () => {
+  // Text rules shape what a model wrote; a fixed beat is the author's own line and must match it exactly.
+  const f = await fixture(false, false, false, {
+    preset: {
+      textRules: [
+        {
+          id: 'exclaim',
+          name: '句号改感叹号',
+          enabled: true,
+          stage: 'output',
+          target: 'both',
+          pattern: '。',
+          flags: 'g',
+          replacement: '！',
+        },
+      ],
+    },
+  })
+  await f.activate()
+  const first = await f.operation('继续')
+  expect(first.error).toBe(false)
+  expect(f.events().filter(e => e.eventType === 'character.speak')).toHaveLength(1)
+  expect(first.debug.providerCalls).toBe(0)
 })
