@@ -18,6 +18,7 @@
 | 阅读问题 | 入口 |
 | --- | --- |
 | 一次输入怎样运行、什么时候停止 | [运行时](runtime.md) |
+| 分支组件和历史怎样复用，缓存何时失效、维护时注意什么 | [运行时缓存设计](runtime-caches.md) |
 | 自由表达与重要状态如何共存 | [Interaction](interaction.md) |
 | 原生记忆与 Core 记忆有什么不同 | [认知与记忆](cognition-memory.md) |
 | 特定玩法怎样限制行为 | [受控交互](controlled-interaction.md) |
