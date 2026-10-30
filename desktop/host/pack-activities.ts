@@ -8,7 +8,7 @@ import {
   type RulebookEvent,
   type RulebookResolver,
 } from '@harness-world/kernel'
-import { PackActivity, activityProgress, type ActivityRequest } from './pack-activity.ts'
+import { PackActivity, activityProgress, readActivityWorld, type ActivityRequest } from './pack-activity.ts'
 import { characterExecutionResult } from '@harness-world/application'
 import type { PackStatus } from './pack-status.ts'
 
@@ -89,8 +89,22 @@ export class PackActivities {
   view(actorId: string) {
     return this.#selected()?.view(actorId)
   }
+  /**
+   * Every activity's view from one committed prefix. While one runs in the foreground the others' start choices
+   * are hidden everywhere, so their conditions are not evaluated; otherwise they share one world snapshot.
+   */
   views(actorId: string): WorldJsonObject[] {
-    return [...this.#entries.values()].map(entry => entry.view(actorId))
+    const events = this.#events()
+    const foreground = this.#selected(events)?.state(events)?.game.active === true
+    let world: ReturnType<typeof readActivityWorld> | undefined
+    return [...this.#entries.values()].map(entry =>
+      entry.view(actorId, {
+        // Hooks may touch what they are given; the cached prefix stays untouched.
+        state: structuredClone(entry.state(events)),
+        foreground,
+        ...(foreground ? {} : { world: (world ??= readActivityWorld(this.worldPath, this.address)) }),
+      }),
+    )
   }
   // One recorded sequence per round, so regenerating replays both the tie-break and every initialize in order.
   #randomValues: number[] = []
@@ -115,8 +129,9 @@ export class PackActivities {
    * win; a tie draws from the round random. Returns whether a start was committed. */
   async autoStart(): Promise<boolean> {
     if (this.current()?.game.active) return false
+    const world = readActivityWorld(this.worldPath, this.address)
     const met = [...this.#entries].flatMap(([key, entry]) => {
-      const candidate = entry.autoStartCandidate()
+      const candidate = entry.autoStartCandidate(world)
       return candidate?.met ? [{ key, entry, ...candidate }] : []
     })
     if (!met.length) return false

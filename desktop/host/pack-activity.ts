@@ -62,6 +62,44 @@ export function actorWorldView(
   }
 }
 
+/** One committed prefix read once and shared by every activity in a single views() or autoStart() pass.
+ * Actor views and status truth are computed on first use, so activities that need neither pay nothing. */
+export interface ActivityWorld {
+  readonly headSeq: number
+  readonly events: readonly RulebookEvent[]
+  readonly manifest: CompiledWorldManifest
+  worldView(actorId: string): WorldJsonObject
+  truth(status: PackStatus | undefined): unknown
+}
+export function readActivityWorld(worldPath: string, address: WorldAddress): ActivityWorld {
+  const store = new WorldStore(worldPath)
+  let headSeq: number, events: readonly RulebookEvent[], manifest: CompiledWorldManifest
+  try {
+    headSeq = store.head(address).headSeq
+    events = store.readEvents(address)
+    manifest = store.readManifest(address)!.manifest as CompiledWorldManifest
+  } finally {
+    store.close()
+  }
+  const views = new Map<string, WorldJsonObject>()
+  const truths = new Map<PackStatus | undefined, unknown>()
+  return {
+    headSeq,
+    events,
+    manifest,
+    worldView(actorId) {
+      if (!views.has(actorId))
+        views.set(actorId, actorWorldView(worldPath, address, manifest, events, actorId, headSeq))
+      // Script hooks receive their own copy, as with a fresh read.
+      return structuredClone(views.get(actorId)!)
+    },
+    truth(status) {
+      if (!truths.has(status)) truths.set(status, status?.truth(events) ?? null)
+      return structuredClone(truths.get(status))
+    },
+  }
+}
+
 type Game = WorldJsonObject & {
   active: boolean
   phase: string
@@ -436,29 +474,34 @@ export class PackActivity {
         },
       }))
   }
-  view(actorId: string): WorldJsonObject {
-    const state = this.current()
+  /**
+   * `shared.state` is this activity's committed state from a prefix the caller already read. `shared.world` lends
+   * one snapshot to every activity in a pass. `shared.foreground` says another activity runs, so start choices,
+   * which no surface shows then, are not computed.
+   */
+  view(
+    actorId: string,
+    shared: { state?: ActivityState | undefined; world?: ActivityWorld; foreground?: boolean } = {},
+  ): WorldJsonObject {
+    const state = 'state' in shared ? shared.state : this.current()
+    const starting = !shared.foreground || state?.game.active === true
+    let snapshot = shared.world
+    const read = () => (snapshot ??= readActivityWorld(this.worldPath, this.address))
     let selection: WorldJsonObject | undefined
-    if (this.participantSelection && actorId === this.playerId) {
-      const store = new WorldStore(this.worldPath)
-      try {
-        const manifest = store.readManifest(this.address)!.manifest as CompiledWorldManifest,
-          head = store.head(this.address)
-        const world = this.#worldView(manifest, store.readEvents(this.address), actorId, head.headSeq)
-        const candidates = manifest.characters
-          .filter(
-            character =>
-              character.characterId !== actorId &&
-              !manifest.playerBindings.some(binding => binding.characterId === character.characterId) &&
-              (world.characterIds as string[]).includes(character.characterId) &&
-              (!this.participantSelection!.candidates ||
-                this.participantSelection!.candidates.includes(character.characterId)),
-          )
-          .map(character => ({ id: character.characterId, name: character.name }))
-        selection = { min: this.participantSelection.min, max: this.participantSelection.max, candidates }
-      } finally {
-        store.close()
-      }
+    if (starting && this.participantSelection && actorId === this.playerId) {
+      const manifest = read().manifest
+      const world = read().worldView(actorId)
+      const candidates = manifest.characters
+        .filter(
+          character =>
+            character.characterId !== actorId &&
+            !manifest.playerBindings.some(binding => binding.characterId === character.characterId) &&
+            (world.characterIds as string[]).includes(character.characterId) &&
+            (!this.participantSelection!.candidates ||
+              this.participantSelection!.candidates.includes(character.characterId)),
+        )
+        .map(character => ({ id: character.characterId, name: character.name }))
+      selection = { min: this.participantSelection.min, max: this.participantSelection.max, candidates }
     }
     const member = state?.participants.includes(actorId) === true
     const quick =
@@ -470,7 +513,14 @@ export class PackActivity {
       activityKey: this.key,
       suspended: member && state?.suspendedTurn !== undefined,
       available: actorId === this.playerId,
-      ...(actorId === this.playerId && !this.#manualStartAllowed() ? { manualStart: false } : {}),
+      // A running or paused activity has no start condition to check (autoStartCandidate would return undefined).
+      ...(starting &&
+      actorId === this.playerId &&
+      !state?.game.active &&
+      state?.suspendedTurn === undefined &&
+      !this.#manualStartAllowed(read())
+        ? { manualStart: false }
+        : {}),
       ...(quick.length ? { quickOperations: quick } : {}),
       ...(selection ? { participantSelection: selection } : {}),
       ...(state && member
@@ -931,21 +981,14 @@ export class PackActivity {
   }
   /** The author's start condition after a player round. Only reads truth and the player's authorized facts;
    * undefined when this script declares no condition, already runs, or holds paused progress for the player. */
-  autoStartCandidate(): { conditions: number; met: boolean; parameters: WorldJsonObject; notice?: string } | undefined {
-    const store = new WorldStore(this.worldPath)
-    let truth: unknown, world: WorldJsonObject, previous: WorldJsonObject | null
-    try {
-      const head = store.head(this.address),
-        events = store.readEvents(this.address),
-        current = this.state(events)
-      if (current?.game.active || current?.suspendedTurn !== undefined) return undefined
-      const manifest = store.readManifest(this.address)!.manifest as CompiledWorldManifest
-      truth = this.status?.truth(events) ?? null
-      world = this.#worldView(manifest, events, this.playerId, head.headSeq)
-      previous = current ? this.scoped(current, this.playerId) : null
-    } finally {
-      store.close()
-    }
+  autoStartCandidate(
+    snapshot: ActivityWorld = readActivityWorld(this.worldPath, this.address),
+  ): { conditions: number; met: boolean; parameters: WorldJsonObject; notice?: string } | undefined {
+    const current = this.state(snapshot.events)
+    if (current?.game.active || current?.suspendedTurn !== undefined) return undefined
+    const truth = snapshot.truth(this.status)
+    const world = snapshot.worldView(this.playerId)
+    const previous = current ? this.scoped(structuredClone(current), this.playerId) : null
     const output = this.#call('autoStart', [truth, world, previous])
     if (output === null) return undefined
     const result = object(output)
@@ -974,9 +1017,9 @@ export class PackActivity {
     }
   }
   /** A script with autoStart offers its manual start only while the same conditions all hold. */
-  #manualStartAllowed(): boolean {
+  #manualStartAllowed(snapshot?: ActivityWorld): boolean {
     try {
-      return this.autoStartCandidate()?.met !== false
+      return this.autoStartCandidate(snapshot)?.met !== false
     } catch {
       // A broken hook hides the entry; apply re-runs it and reports the error, as automatic starts do.
       return false

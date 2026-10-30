@@ -474,3 +474,20 @@ it('lets only the selected invitee accept or decline and keeps invitation accept
     store.close()
   }
 }, 60_000)
+
+it('skips other activities’ start checks while one runs and offers the same start choices once it ends', async () => {
+  const f = await fixture('', { min: 1, max: 1 })
+  const idle = projectPlayerView(await f.runtime.state()).actions.find(action => action.label === '开始 other')!
+  let state = await choose(f.runtime, '开始 guess')
+  // While guess runs, no surface lists other's start, so its candidates and start conditions are not computed.
+  const checks = vi.spyOn(PackActivity.prototype, 'autoStartCandidate')
+  state = await f.runtime.activityAction(request(state, 'guess', 'guess', { value: 1 }))
+  expect(checks).not.toHaveBeenCalled()
+  expect(progress(state, 'other').participantSelection).toBeUndefined()
+  expect(projectPlayerView(state).actions.some(action => action.label === '开始 other')).toBe(false)
+  checks.mockRestore()
+  state = await f.runtime.activityAction(request(await f.runtime.state(), 'guess', 'quit'))
+  expect(state.activity?.game).toMatchObject({ active: false })
+  const after = projectPlayerView(state).actions.find(action => action.label === '开始 other')!
+  expect(after.participantSelection).toEqual(idle.participantSelection)
+})
