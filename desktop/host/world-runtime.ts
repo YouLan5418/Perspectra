@@ -1520,7 +1520,11 @@ export class WorldHostCore implements HostRuntime {
     await closingMemory
     await this.#closeCore?.()
     await this.#shadow?.close()
-    await this.#application.close()
+    try {
+      await this.#application.close()
+    } finally {
+      this.#activity?.close()
+    }
   }
 
   #coreRules(): RulebookRegistry {

@@ -6,13 +6,16 @@ import { randomUUID } from 'node:crypto'
 import { afterEach, expect, it, vi } from 'vitest'
 import { WorldStore } from '@harness-world/store-sqlite'
 import type { WorldJsonObject } from '@harness-world/contracts'
-import { brandId, resolutionAuthority } from '@harness-world/contracts'
+import { brandId, interactionPackageDescription, resolutionAuthority } from '@harness-world/contracts'
+import { createInstalledInteractionPackages } from '@harness-world/interactions-basic'
+import { compileWorldPackSource } from '@harness-world/world-pack'
 import type { CompiledWorldManifest } from '@harness-world/kernel'
 import { WorldHostRuntime } from '../../desktop/host/world-runtime.ts'
 import type { HostState } from '../../desktop/host/http-server.ts'
 import { frontendActionRequest } from '../../packages/frontend/src/player-view.ts'
 import { projectPlayerView, FrontendActions } from '../../desktop/host/frontend-adapter.ts'
 import { PackActivity } from '../../desktop/host/pack-activity.ts'
+import { PackActivities } from '../../desktop/host/pack-activities.ts'
 import { restoreStoryNode } from '../../desktop/story-nodes.ts'
 import type { CoreRunner } from '../../desktop/host/memory/python-worker.ts'
 import { createChatServer, fakeModels } from '../support/fake-provider.ts'
@@ -144,6 +147,46 @@ async function choose(runtime: WorldHostRuntime, label: string) {
   expect(action).toBeDefined()
   return runtime.perform(action.action)
 }
+
+it('shares committed activity state, reads only the new prefix, and closes its retained connection', async () => {
+  const f = await fixture(),
+    active = await choose(f.runtime, '开始 guess'),
+    pack = await compileWorldPackSource(
+      f.pack,
+      createInstalledInteractionPackages().map(interactionPackageDescription),
+    ),
+    catalog = PackActivities.load(f.pack, pack, join(f.data, 'world.sqlite'), f.runtime.address, 'character:player')!
+  const beforeSeq = Number(active.debug.headSeq)
+  try {
+    const original = catalog.current()!,
+      copy = catalog.current()!,
+      reads = vi.spyOn(WorldStore.prototype, 'readEventsRange'),
+      closes = vi.spyOn(WorldStore.prototype, 'close')
+    copy.game.active = false
+    Object.assign(copy.game.private, { 'character:companion': { secret: 'overwritten' } })
+    expect(catalog.current()).toEqual(original)
+    expect((catalog.view('character:player')!.game as WorldJsonObject).private).toEqual({})
+    expect(reads).not.toHaveBeenCalled()
+    expect(closes).not.toHaveBeenCalled()
+    const paused = await f.runtime.activityAction(request(active, 'guess', 'suspend'))
+    reads.mockClear()
+    closes.mockClear()
+    expect(catalog.current()!.game.active).toBe(false)
+    expect(catalog.current()!.revision).toBe(paused.activity!.revision)
+    expect(reads).toHaveBeenCalledExactlyOnceWith(f.runtime.address, beforeSeq, Number(paused.debug.headSeq), [
+      'activity.updated',
+    ])
+    expect(closes).not.toHaveBeenCalled()
+    reads.mockClear()
+    expect(catalog.current()!.game.active).toBe(false)
+    expect(reads).not.toHaveBeenCalled()
+    catalog.close()
+    expect(closes).toHaveBeenCalledTimes(1)
+    expect(() => catalog.current()).toThrow('Activity catalog is closed')
+  } finally {
+    catalog.close()
+  }
+})
 
 it('selects independent activities, pauses both, isolates secrets, rejects old actions, and restores all progress from a story node', async () => {
   const f = await fixture(),

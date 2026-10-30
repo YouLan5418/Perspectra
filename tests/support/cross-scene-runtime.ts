@@ -319,6 +319,7 @@ export async function crossSceneRuntime(
     },
     async close() {
       await memoryCore?.close()
+      activities?.close()
       memory.close()
       session?.close()
       availability.close()

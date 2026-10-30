@@ -168,6 +168,8 @@ function json(value: WorldJsonObject): string {
 /** Trusted, synchronous creator rules; all writes and model calls remain in the host. */
 export class PackActivity {
   #currentState: { headSeq: number; state: ActivityState | undefined } | undefined
+  /** The catalog owns the live-prefix cache; standalone activities retain their local reader. */
+  readCurrent: (() => ActivityState | undefined) | undefined
   #randomValues: number[] = []
   #randomReplay: readonly number[] | undefined
   #randomCursor = 0
@@ -407,6 +409,7 @@ export class PackActivity {
     return state as ActivityState
   }
   current(): ActivityState | undefined {
+    if (this.readCurrent) return structuredClone(this.readCurrent())
     const store = new WorldStore(this.worldPath)
     try {
       const headSeq = store.head(this.address).headSeq

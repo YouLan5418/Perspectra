@@ -17,9 +17,11 @@ import { createChatServer, fakeModels } from '../support/fake-provider.ts'
 
 const roots: string[] = [],
   runtimes: WorldHostRuntime[] = [],
+  catalogs: PackActivities[] = [],
   servers: Server[] = []
 afterEach(async () => {
   for (const runtime of runtimes.splice(0)) await runtime.close()
+  for (const catalog of catalogs.splice(0)) catalog.close()
   for (const server of servers.splice(0)) {
     server.closeAllConnections()
     await new Promise<void>(done => server.close(() => done()))
@@ -114,6 +116,7 @@ async function fixture() {
   // The runtime's resolver chain, rebuilt here to ask what a non-player character would be offered;
   // the player's options are read from the runtime itself.
   const activities = PackActivities.load(packPath, pack, worldPath, runtime.address, PLAYER, status)!
+  catalogs.push(activities)
   const core = createCoreRulebookRegistry({ interactionPackages: createInstalledInteractionPackages() }).resolve(
     'builtin:speak-move',
     2,

@@ -135,21 +135,24 @@ function assertManifestEvents(manifest: WorldJsonValue, events: readonly WorldEv
 /** Authoritative World Event, Head, Tick, and Outbox store. */
 export class WorldStore {
   readonly #db: DatabaseSync
-  readonly #audit: OperationalAuditLog
+  #audit: OperationalAuditLog | undefined
 
   constructor(
-    path: string,
+    private readonly path: string,
     private readonly faultInjector?: FaultInjector,
     private readonly operationalNow: () => number = Date.now,
   ) {
     this.#db = openWorldDatabase(path)
-    this.#audit = new OperationalAuditLog(`${path}.audit.sqlite`, operationalNow)
+  }
+
+  #auditLog(): OperationalAuditLog {
+    return (this.#audit ??= new OperationalAuditLog(`${this.path}.audit.sqlite`, this.operationalNow))
   }
 
   /** Create an empty root branch at seq/tick zero. */
   createBranch(address: WorldAddress): void {
     const key = worldAddressKey(address)
-    this.#audit.record(key, 'world.branch.create.requested', `create:${address.branchId}`, { address })
+    this.#auditLog().record(key, 'world.branch.create.requested', `create:${address.branchId}`, { address })
     this.#db.exec('BEGIN IMMEDIATE')
     try {
       this.#db
@@ -206,7 +209,7 @@ export class WorldStore {
       throw new TypeError('Genesis cognitive job characterId values must be unique')
     }
     const addressKey = worldAddressKey(request.address)
-    this.#audit.record(addressKey, 'world.activate.requested', request.correlationId, {
+    this.#auditLog().record(addressKey, 'world.activate.requested', request.correlationId, {
       manifestHash: request.manifestHash,
       genesisHash: request.genesisHash,
       transactionId: request.transactionId,
@@ -436,7 +439,11 @@ export class WorldStore {
     }
     const parentKey = worldAddressKey(parent)
     const childKey = worldAddressKey(child)
-    this.#audit.record(childKey, 'world.branch.fork.requested', `fork:${child.branchId}`, { parent, child, forkSeq })
+    this.#auditLog().record(childKey, 'world.branch.fork.requested', `fork:${child.branchId}`, {
+      parent,
+      child,
+      forkSeq,
+    })
     this.#db.exec('BEGIN IMMEDIATE')
     try {
       const control = this.#db
@@ -1317,7 +1324,7 @@ export class WorldStore {
   }
 
   close(): void {
-    this.#audit.close()
+    this.#audit?.close()
     this.#db.close()
   }
 

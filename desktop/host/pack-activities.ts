@@ -1,4 +1,4 @@
-import type { WorldAddress, WorldJsonObject } from '@harness-world/contracts'
+import type { StoredWorldEvent, WorldAddress, WorldHash, WorldJsonObject } from '@harness-world/contracts'
 import type { CompiledWorldPackV5 } from '@harness-world/world-pack'
 import { WorldStore } from '@harness-world/store-sqlite'
 import { createInstalledInteractionPackages } from '@harness-world/interactions-basic'
@@ -8,15 +8,25 @@ import {
   type RulebookEvent,
   type RulebookResolver,
 } from '@harness-world/kernel'
-import { PackActivity, activityProgress, readActivityWorld, type ActivityRequest } from './pack-activity.ts'
+import {
+  PackActivity,
+  activityProgress,
+  readActivityWorld,
+  type ActivityRequest,
+  type ActivityState,
+} from './pack-activity.ts'
 import { characterExecutionResult } from '@harness-world/application'
 import type { PackStatus } from './pack-status.ts'
 
 /** One foreground activity, with independent progress in the existing world event log. */
 export class PackActivities {
   readonly #entries = new Map<string, PackActivity>()
-  #snapshot: { headSeq: number; events: readonly RulebookEvent[] } | undefined
-  #selection: { events: readonly RulebookEvent[]; entry: PackActivity | undefined } | undefined
+  #store: WorldStore | undefined
+  #closed = false
+  #snapshot: { headSeq: number; eventHash: WorldHash | 'genesis'; events: readonly StoredWorldEvent[] } | undefined
+  #selection:
+    | { events: readonly RulebookEvent[]; entry: PackActivity | undefined; states: ReadonlyMap<string, ActivityState> }
+    | undefined
   private constructor(
     readonly worldPath: string,
     readonly address: WorldAddress,
@@ -38,22 +48,51 @@ export class PackActivities {
       if (catalog.#entries.has(key)) throw new TypeError('重复的活动标识：' + key)
       const activity = PackActivity.load(packPath, pack, worldPath, address, playerId, asset.path, key, status)!
       activity.randomSource = () => catalog.#nextRandom()
+      activity.readCurrent = () => catalog.#current(key)
       catalog.#entries.set(key, activity)
     }
     if (!catalog.#entries.size) return undefined
-    catalog.#selected() // Validate stored activities and the single-foreground invariant on open.
-    return catalog
+    try {
+      catalog.#selected() // Validate stored activities and the single-foreground invariant on open.
+      return catalog
+    } catch (error) {
+      catalog.close()
+      throw error
+    }
+  }
+  #readStore(): WorldStore {
+    if (this.#closed) throw new Error('Activity catalog is closed')
+    return (this.#store ??= new WorldStore(this.worldPath))
+  }
+  close(): void {
+    if (this.#closed) return
+    this.#closed = true
+    this.#store?.close()
+    this.#store = undefined
+    this.#snapshot = undefined
+    this.#selection = undefined
   }
   #events(): readonly RulebookEvent[] {
-    const store = new WorldStore(this.worldPath)
-    try {
-      const headSeq = store.head(this.address).headSeq
-      if (this.#snapshot?.headSeq !== headSeq)
-        this.#snapshot = { headSeq, events: store.readEventsRange(this.address, 0, headSeq, ['activity.updated']) }
-      return this.#snapshot.events
-    } finally {
-      store.close()
+    const store = this.#readStore(),
+      { headSeq, eventHash } = store.head(this.address),
+      previous = this.#snapshot
+    if (previous?.headSeq === headSeq && previous.eventHash === eventHash) return previous.events
+    // Each update contains a complete state. Keep the latest event per key, not the entire activity history.
+    const afterSeq = previous && headSeq > previous.headSeq ? previous.headSeq : 0
+    const latest = new Map<string, StoredWorldEvent>()
+    for (const event of [
+      ...(afterSeq > 0 ? previous!.events : []),
+      ...store.readEventsRange(this.address, afterSeq, headSeq, ['activity.updated']),
+    ]) {
+      const key = (event.data as WorldJsonObject).activityKey ?? 'default'
+      if (typeof key !== 'string') throw new TypeError('活动标识损坏')
+      // Updating insertion order also preserves the latest activity when none occupies the foreground.
+      latest.delete(key)
+      latest.set(key, event)
     }
+    const events = [...latest.values()]
+    this.#snapshot = { headSeq, eventHash, events }
+    return events
   }
   #selected(events = this.#events()): PackActivity | undefined {
     if (this.#selection?.events === events) return this.#selection.entry
@@ -71,11 +110,16 @@ export class PackActivities {
       (latest
         ? this.#entries.get(String((latest.data as WorldJsonObject).activityKey ?? 'default'))
         : this.#entries.values().next().value)
-    this.#selection = { events, entry }
+    this.#selection = { events, entry, states: progress }
     return entry
   }
+  #current(key: string): ActivityState | undefined {
+    this.#selected()
+    return this.#selection!.states.get(key)
+  }
   current() {
-    return this.#selected()?.current()
+    const entry = this.#selected()
+    return structuredClone(entry ? this.#selection!.states.get(entry.key) : undefined)
   }
   setActionResolver(resolve: NonNullable<PackActivity['resolveAction']>): void {
     for (const activity of this.#entries.values()) activity.resolveAction = resolve
@@ -87,7 +131,8 @@ export class PackActivities {
     }))
   }
   view(actorId: string) {
-    return this.#selected()?.view(actorId)
+    const entry = this.#selected()
+    return entry?.view(actorId, { state: structuredClone(this.#selection!.states.get(entry.key)) })
   }
   /**
    * Every activity's view from one committed prefix. While one runs in the foreground the others' start choices

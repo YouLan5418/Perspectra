@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from 'node:fs'
+import { existsSync, mkdtempSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { DatabaseSync } from 'node:sqlite'
@@ -111,6 +111,23 @@ afterEach(() => {
 })
 
 describe('SQLite ownership helpers', () => {
+  it('opens audit storage only for audited operations and rejects audit failures before changing the world', () => {
+    const path = database('lazy-audit.sqlite'),
+      store = new WorldStore(path)
+    expect(store.listBranches()).toEqual([])
+    expect(existsSync(`${path}.audit.sqlite`)).toBe(false)
+    const invalidAudit = new DatabaseSync(`${path}.audit.sqlite`)
+    invalidAudit.exec('PRAGMA application_id = 1234')
+    invalidAudit.close()
+    try {
+      expect(store.listBranches()).toEqual([])
+      expect(() => store.createBranch(fixtureAddress())).toThrow('application_id mismatch')
+      expect(store.listBranches()).toEqual([])
+    } finally {
+      store.close()
+    }
+  })
+
   it('round-trips validated JSON and rejects ownership/version mismatches', () => {
     expect(parseWorldJson(worldJsonText({ b: 2, a: 1 }))).toEqual({ a: 1, b: 2 })
     expect(() => parseWorldJson('{"value":1.5}')).toThrow(TypeError)
