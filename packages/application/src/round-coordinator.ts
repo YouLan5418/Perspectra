@@ -176,6 +176,7 @@ export class RoundCoordinator {
   readonly #rulebook: RulebookResolver
   readonly #leaseTtlMs: number
   #lease: WriterLease
+  #writerReleased = false
   #closed = false
 
   constructor(private readonly options: RoundCoordinatorOptions) {
@@ -253,8 +254,24 @@ export class RoundCoordinator {
 
   close(): void {
     if (this.#closed) return
+    this.yieldWriter()
     this.#closed = true
+  }
+
+  /** Hand writing to another host phase without disposing the branch's stores and services. */
+  yieldWriter(): void {
+    if (this.#closed || this.#writerReleased) return
     this.options.leases.release(this.#address, this.options.ownerId, this.#lease.fencingToken)
+    this.#writerReleased = true
+  }
+
+  /** Restore the writer/Memory synchronization boundary previously provided by a fresh mount. */
+  resumeWriter(): void {
+    if (this.#closed) throw new Error('RoundCoordinator is closed')
+    if (!this.#writerReleased) return
+    this.#lease = this.options.leases.acquire(this.#address, this.options.ownerId, this.#leaseTtlMs)
+    this.#writerReleased = false
+    this.processCognitiveJobs()
   }
 
   /** Share the current writer lease with the player input worker. */
@@ -1006,6 +1023,7 @@ export class RoundCoordinator {
 
   #refreshLease(): void {
     this.#lease = this.options.leases.acquire(this.#address, this.options.ownerId, this.#leaseTtlMs)
+    this.#writerReleased = false
     this.#renewLease()
   }
 

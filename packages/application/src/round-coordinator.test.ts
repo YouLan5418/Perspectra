@@ -46,6 +46,13 @@ it('commits a player action in a world with no NPC bindings', async () => {
       ownerId: 'coordinator:no-bindings',
       rulebooks: createCoreRulebookRegistry({ interactionPackages: [basicInteractionPackage] }),
     })
+    const initialLease = coordinator.writerLease
+    coordinator.yieldWriter()
+    const external = leases.acquire(world.manifest.address, 'temporary-external-writer')
+    expect(leases.release(world.manifest.address, external.ownerId, external.fencingToken)).toBe(true)
+    coordinator.resumeWriter()
+    expect(coordinator.writerLease.fencingToken).toBeGreaterThan(initialLease.fencingToken)
+    expect(coordinator.writerLease.fencingToken).toBeGreaterThan(external.fencingToken)
     await expect(
       coordinator.submit({
         idempotencyKey: 'responsive:no-bindings',

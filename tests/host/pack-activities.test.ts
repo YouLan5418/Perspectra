@@ -8,6 +8,7 @@ import { WorldStore } from '@harness-world/store-sqlite'
 import type { WorldJsonObject } from '@harness-world/contracts'
 import { brandId, interactionPackageDescription, resolutionAuthority } from '@harness-world/contracts'
 import { createInstalledInteractionPackages } from '@harness-world/interactions-basic'
+import { WorldBranchComponentFactory } from '@harness-world/application'
 import { compileWorldPackSource } from '@harness-world/world-pack'
 import type { CompiledWorldManifest } from '@harness-world/kernel'
 import { WorldHostRuntime } from '../../desktop/host/world-runtime.ts'
@@ -147,6 +148,14 @@ async function choose(runtime: WorldHostRuntime, label: string) {
   expect(action).toBeDefined()
   return runtime.perform(action.action)
 }
+
+it('keeps the mounted application through activity handoffs and tail backups', async () => {
+  const f = await fixture(),
+    creates = vi.spyOn(WorldBranchComponentFactory.prototype, 'create')
+  const started = await choose(f.runtime, '开始 guess')
+  await f.runtime.activityAction(request(started, 'guess', 'guess', { value: 1 }))
+  expect(creates).not.toHaveBeenCalled()
+})
 
 it('does not load world history for fixed-roster menus or absent automatic-start hooks', async () => {
   const f = await fixture(),

@@ -1036,7 +1036,7 @@ export class WorldHostCore implements HostRuntime {
 
   /** Commits one input without letting anyone react. `accepted` is false when the world refused or never took it. */
   async #commitInput(text: string, key: string, inActivity: boolean): Promise<InputOutcome> {
-    await this.#application.release(this.#address)
+    await this.#application.yieldWriter(this.#address)
     if (inActivity) {
       // A refusal throws: an activity commits nothing for a rejected player action.
       if (text.startsWith('/act ')) {
@@ -1186,7 +1186,7 @@ export class WorldHostCore implements HostRuntime {
     this.#error = false
     try {
       this.#rootBeforeSeq = (await this.#application.head(this.#address)).headSeq
-      await this.#application.release(this.#address)
+      await this.#application.yieldWriter(this.#address)
       const changed = await this.#activity.apply(request)
       const committed = (await this.#application.head(this.#address)).headSeq > this.#rootBeforeSeq
       this.#notice = changed ? '游戏操作已提交。' : '已返回原提交结果，没有再次执行。'
@@ -1212,7 +1212,7 @@ export class WorldHostCore implements HostRuntime {
   /** Script and start-validation failures are recorded, not retried, and commit nothing; storage faults still throw. */
   async #autoStartActivity(): Promise<void> {
     if (!this.#activity || this.#escaping || this.#closing || this.#paused || this.#abortedWork) return
-    await this.#application.release(this.#address)
+    await this.#application.yieldWriter(this.#address)
     let started = false
     try {
       started = await this.#activity.autoStart()
@@ -1227,7 +1227,7 @@ export class WorldHostCore implements HostRuntime {
   /** The status hook runs once per accepted player round, recording (not retrying) a failure. */
   async #endStatusRound(pause = false): Promise<void> {
     if (!this.#status || this.#escaping || this.#closing) return
-    await this.#application.release(this.#address)
+    await this.#application.yieldWriter(this.#address)
     const result = await this.#status.endRound(
       resolve(this.#dataDirectory, 'world.sqlite'),
       this.#address,
@@ -1302,7 +1302,7 @@ export class WorldHostCore implements HostRuntime {
   async settleRound() {
     if (this.#busy || this.#escaping || this.#paused) throw new HostBusyError('当前玩家回合尚未完成。')
     await this.#application.deliver(this.#address, 'tail-round:deliver')
-    await this.#application.release(this.#address)
+    await this.#application.yieldWriter(this.#address)
     return assertSettled(this.#dataDirectory, this.#address)
   }
   async snapshotRound(target: string): Promise<void> {
@@ -1552,7 +1552,7 @@ export class WorldHostCore implements HostRuntime {
     requestedCharacter?: CharacterId,
     requestSignal?: AbortSignal,
   ): Promise<CharacterTurnResult | undefined> {
-    await this.#application.release(this.#address)
+    await this.#application.yieldWriter(this.#address)
     if (this.#escaping || this.#closing || this.#abortedWork) return
     const path = resolve(this.#dataDirectory, 'world.sqlite')
     const store = new WorldStore(path),

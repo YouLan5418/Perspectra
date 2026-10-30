@@ -31,6 +31,8 @@ WorldApplication 负责玩家提交和授权记忆来源捕获；RoundCoordinato
 
 普通场景提交玩家输入后，宿主刷新视图并调用 #activateCharacters。活动输入先检查活动策略，不能把普通场景分支套到所有活动上。
 
+例如玩家行动提交后交给 NPC 续写，宿主用 WorldApplication.yieldWriter 归还当前写租约，保留分支组件；NPC 自己取得租约提交。后续应用读取恢复原实例的写租约并同步未完成的授权记忆任务，避免每个阶段重新挂载。手动存档、逃生、维护与关闭仍完整释放资源；常规末端备份只要求已经结算并交还写租约。实现与验证范围见[分支复用记录](../studies/2026-10-30_branch-runtime-reuse-report.md)。
+
 NPC 处理途中玩家也可以插话，规则见下一节末尾。
 
 ## 4. NPC 如何获得处理机会

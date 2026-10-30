@@ -933,6 +933,14 @@ export class WorldApplication {
     }
   }
 
+  /** Yield only the writer lease; the next application operation resumes the same branch components. */
+  async yieldWriter(address: WorldAddress): Promise<void> {
+    const pending = this.#branches.get(worldAddressKey(address))
+    if (pending === undefined) return
+    const branch = await pending
+    branch.kernel.yieldWriter()
+  }
+
   async release(address: WorldAddress): Promise<void> {
     const key = worldAddressKey(address)
     const pending = this.#branches.get(key)
@@ -1017,7 +1025,16 @@ export class WorldApplication {
     this.#assertOpen()
     const key = worldAddressKey(address)
     const current = this.#branches.get(key)
-    if (current !== undefined) return current
+    if (current !== undefined) {
+      const branch = await current
+      try {
+        branch.kernel.resumeWriter()
+        return branch
+      } catch (error) {
+        await this.release(address)
+        throw error
+      }
+    }
     const pending = this.#mount(address)
     this.#branches.set(key, pending)
     try {

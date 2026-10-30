@@ -4,6 +4,8 @@
 
 2026-10-24 补充根目录创作 Skill 及程序分发入口；没有新增 packages 包或宿主插件。离线程序验收和未通过门禁见[本轮记录](../studies/program-package-creator-skill-20261024.md)。
 
+2026-10-30 核对分支资源交接：application 的 yieldWriter 只交还写租约，保留已经挂载的 Store、收件箱、投递与记忆组件；恢复时重新取得租约并同步授权记忆任务。正式 release 和实例关闭仍交给 runtime-cordis 的 Fiber 清理全部组件。没有新增包或连接池，细节与验证限制见[分支复用记录](../studies/2026-10-30_branch-runtime-reuse-report.md)。
+
 2026-10-24 BGM 补充：现有 `desktop/host-plugins.ts` 提供可信插件曲库与选曲服务，`frontend` 包增加 BGM 类型和跟随阅读的播放器，未新增包；接口和示例见[宿主插件制作指南](../guides/host-plugin-authoring.md)。上段“没有新增宿主插件”仅描述程序分发工作，不包含本次新增的可选 BGM 示例。
 
 例如角色拿起工具箱、修好灶台，先由包内 `scripts/status.js` 提出物品结果，再由宿主检查并提交；这些玩法不在基础交互包里。脚本接口见[受控交互](controlled-interaction.md)，标准拿／放／给写法见[作者模板](../../../examples/templates/item-rules.js)。
