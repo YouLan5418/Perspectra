@@ -58,6 +58,7 @@ export interface StageCharacter {
   readonly poses?: Readonly<Record<string, string>>
 }
 export interface StageConfig {
+  readonly autoplay?: { readonly activity: string; readonly operation: string }
   readonly characters: Readonly<Record<string, StageCharacter>>
 }
 const STAGE_NAME = /^[a-z0-9][a-z0-9_-]{0,39}$/u
@@ -104,7 +105,19 @@ function stageConfig(bytes: Buffer, has: (path: string) => boolean): StageConfig
     if (!STAGE_NAME.test(value)) fail(where + ' 的名字只能用小写字母、数字、- 和 _：' + value)
   }
   if (!object(data)) fail('需要一个对象')
-  only(data as Record<string, unknown>, ['characters'], '顶层')
+  only(data as Record<string, unknown>, ['characters', 'autoplay'], '顶层')
+  const autoplay = (data as Record<string, unknown>).autoplay
+  if (autoplay !== undefined) {
+    if (!object(autoplay)) fail('autoplay 需要 activity 和 operation')
+    only(autoplay as Record<string, unknown>, ['activity', 'operation'], 'autoplay')
+    if (
+      typeof (autoplay as Record<string, unknown>).activity !== 'string' ||
+      !STAGE_NAME.test(String((autoplay as Record<string, unknown>).activity)) ||
+      typeof (autoplay as Record<string, unknown>).operation !== 'string' ||
+      !STAGE_NAME.test(String((autoplay as Record<string, unknown>).operation))
+    )
+      fail('autoplay 的 activity 和 operation 必须是有效名称')
+  }
   if (!object((data as Record<string, unknown>).characters)) fail('需要 characters 对象')
   const characters: Record<string, StageCharacter> = {}
   for (const [id, value] of Object.entries((data as { characters: Record<string, unknown> }).characters)) {
@@ -196,7 +209,10 @@ function stageConfig(bytes: Buffer, has: (path: string) => boolean): StageConfig
     }
     characters[id] = character
   }
-  return { characters }
+  return {
+    characters,
+    ...(autoplay === undefined ? {} : { autoplay: autoplay as { activity: string; operation: string } }),
+  }
 }
 const mime: Record<string, string> = {
   '.html': 'text/html; charset=utf-8',

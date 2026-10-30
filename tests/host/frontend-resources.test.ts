@@ -126,6 +126,13 @@ it('reads portrait framing from stage.json and refuses a malformed one at load',
   expect((await loadPackWeb(root))?.stage).toEqual({
     characters: { 'character:claude': { framing: { top: 0.02, waist: 0.45 } } },
   })
+  await stage({ characters: {}, autoplay: { activity: 'prologue', operation: 'next' } })
+  expect((await loadPackWeb(root))?.stage).toEqual({
+    characters: {},
+    autoplay: { activity: 'prologue', operation: 'next' },
+  })
+  await stage({ characters: {}, autoplay: { activity: 'prologue', operation: '../next' } })
+  await expect(loadPackWeb(root)).rejects.toThrow('有效名称')
   await stage({ characters: { 'character:claude': { framing: { top: 0.5, waist: 0.4 } } } })
   await expect(loadPackWeb(root)).rejects.toThrow('0 ≤ top < waist ≤ 1')
   await stage({ characters: { 'character:claude': { mood: {} } } })

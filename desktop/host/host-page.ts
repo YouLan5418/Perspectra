@@ -1,10 +1,11 @@
-import { stagePreferences } from '@harness-world/frontend'
+import { stagePreferences, createParticipantPicker, PARTICIPANT_PICKER_STYLE } from '@harness-world/frontend'
 
 /** Host-owned outer page. Creator presentation lives in the child frame. */
 export const HOST_ACTIVITY_PAGE = String.raw`<!doctype html>
 <html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Perspectra 试玩</title>
 <style>
+${PARTICIPANT_PICKER_STYLE}
 /* 宿主外壳：与舞台、启动器同一套主题色；只保留一层很薄的顶栏。 */
 /* 黑白两色，跟随系统浅色／深色；变量名沿用舞台的旧名字，外壳其余规则不变。 */
 :root{--ink:#f7f7f7;--ink-0:#ffffff;--ink-2:#efefef;--ink-3:#ffffff;--lamp:#111111;--lamp-strong:#000000;--lamp-deep:#333333;--lamp-ink:#ffffff;--text:#111111;--muted:#555555;--faint:#8c8c8c;--say:#111111;--act:#5a5a5a;--narr:#333333}
@@ -255,6 +256,7 @@ iframe{
   });
   frame.onload=()=>{frameLoaded=true;connect()};
   const normalizePreferences=(${stagePreferences.toString()});
+  const participantPicker=(${createParticipantPicker.toString()});
   let preferenceTimer=null;
   function readPreferences(){
     let stored={};try{stored=JSON.parse(localStorage.getItem('perspectra.stage.preferences')||'{}')}catch{}
@@ -372,13 +374,12 @@ iframe{
     if(!active)for(const choice of state.activities||[a]){
       if(!choice.suspended&&choice.manualStart===false)continue;
       if(!choice.suspended&&choice.participantSelection){
-        const selection=choice.participantSelection,label=document.createElement('label');label.textContent='参与角色';
-        const picker=document.createElement('select');picker.multiple=selection.max>1;
-        for(const candidate of selection.candidates){const item=document.createElement('option');item.value=candidate.id;item.textContent=candidate.name;picker.append(item)}
-        picker.disabled=state.busy||state.paused||posting||blocked;label.append(picker);node('options').append(label);
-        add('开始 '+choice.title,()=>{const npcIds=Array.from(picker.selectedOptions,item=>item.value);
+        const selection=choice.participantSelection,disabled=state.busy||state.paused||posting||blocked;
+        const picker=participantPicker(selection,choice.title,valid=>{button.disabled=disabled||!valid});
+        picker.element.disabled=disabled;node('options').append(picker.element);
+        const button=add('开始 '+choice.title,()=>{const npcIds=picker.read();
           if(npcIds.length<selection.min||npcIds.length>selection.max){node('notice').textContent='请选择 '+selection.min+' 至 '+selection.max+' 名参与角色';return}
-          send('start',{npcIds},choice)},state.busy||state.paused||posting||blocked||selection.candidates.length<selection.min);
+          send('start',{npcIds},choice)},disabled||!picker.valid());
       }else add((choice.suspended?'恢复 ':'开始 ')+choice.title,()=>send(choice.suspended?'resume':'start',{},choice),state.busy||state.paused||posting||blocked);
       if(choice.suspended){const giveUp=add('放弃 '+choice.title,()=>send('abandon',{},choice),state.busy||state.paused||posting||blocked);giveUp.dataset.tone='danger'}
     }

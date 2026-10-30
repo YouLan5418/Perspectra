@@ -1,4 +1,7 @@
+import { PARTICIPANT_PICKER_STYLE } from './participant-picker.ts'
+
 export const STAGE_STYLE = String.raw`
+${PARTICIPANT_PICKER_STYLE}
 /* Perspectra 默认舞台：黑白两色，跟随系统浅色／深色。
    颜色、字体、圆角都在下面两组变量里；包可以只提供 frontend/theme.css 覆盖它们（以及任意规则），
    不必复制整套页面。 */

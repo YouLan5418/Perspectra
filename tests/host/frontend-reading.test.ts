@@ -398,3 +398,91 @@ it('lifts text messages out of the action drawer into their own composer button 
   expect(DEFAULT_PAGE).toContain('id="composer-message"')
   expect(DEFAULT_PAGE).toContain('id="message-panel"')
 })
+it('automatically starts and advances the configured opening only after reading, and does not restart it', () => {
+  expect(() => new Function(DEFAULT_SCRIPT)).not.toThrow()
+  const start = DEFAULT_SCRIPT.indexOf(' function scheduleOpening(){')
+  const end = DEFAULT_SCRIPT.indexOf('\n function canReplyNow(){', start)
+  expect(start).toBeGreaterThan(0)
+  const code = DEFAULT_SCRIPT.slice(start, end)
+  const sent: string[] = [],
+    timers: (() => void)[] = []
+  let reading = false
+  const startAction = {
+    id: 'start',
+    target: { id: 'prologue' },
+    action: { parameters: { definitionRef: { id: 'host:activity-start' } } },
+  }
+  const nextAction = {
+    id: 'next',
+    target: { id: 'prologue' },
+    action: { parameters: { definitionRef: { id: 'activity:next' } } },
+  }
+  const button = { setAttribute() {}, classList: { add() {}, toggle() {} } }
+  const context = {
+    stageConfig: { autoplay: { activity: 'prologue', operation: 'next' } },
+    latest: {
+      status: 'ready',
+      activities: [{ key: 'prologue', active: false, phase: 'not-started' }],
+      actions: [startAction],
+    },
+    openingSeen: false,
+    openingPreviousAuto: false,
+    openingHalted: false,
+    openingRetried: '',
+    openingTimer: null as unknown,
+    connected: true,
+    auto: false,
+    posting: false,
+    pending: null,
+    node: (id: string) => (id === 'save-dialog' ? { open: false } : button),
+    document: { querySelector: () => null },
+    playback: { pending: () => reading },
+    scheduleAuto: () => {},
+    setTimeout: (fn: () => void) => {
+      timers.push(fn)
+      return timers.length
+    },
+    send: (_method: string, payload: { optionId: string }) => sent.push(payload.optionId),
+  }
+  // The page routes every auto-read change through setAuto; here it only flips the flag the sliced code reads.
+  Object.assign(context, { setAuto: (value: boolean) => (context.auto = value) })
+  const schedule = runInNewContext(code + ';scheduleOpening', context) as () => void
+  schedule()
+  timers.shift()!()
+  expect(sent).toEqual(['start'])
+  expect(context.auto).toBe(true)
+  context.latest = {
+    status: 'ready',
+    activities: [{ key: 'prologue', active: true, phase: 'prologue' }],
+    actions: [nextAction],
+  }
+  reading = true
+  schedule()
+  expect(timers).toHaveLength(0)
+  reading = false
+  context.auto = false
+  schedule()
+  expect(timers).toHaveLength(0)
+  context.auto = true
+  schedule()
+  timers.shift()!()
+  expect(sent).toEqual(['start', 'next'])
+  const retryAction = {
+    id: 'retry',
+    target: { id: 'prologue' },
+    action: { parameters: { definitionRef: { id: 'host:activity-retry' } } },
+  }
+  context.latest = {
+    status: 'ready',
+    activities: [{ key: 'prologue', active: true, phase: 'prologue' }],
+    actions: [retryAction],
+  }
+  schedule()
+  timers.shift()!()
+  expect(sent).toEqual(['start', 'next', 'retry'])
+  context.latest = { status: 'ready', activities: [{ key: 'prologue', active: false, phase: 'finished' }], actions: [] }
+  schedule()
+  expect(context.auto).toBe(false)
+  schedule()
+  expect(timers).toHaveLength(0)
+})

@@ -2,6 +2,7 @@ import { createReadingPlayback } from './reading-playback.ts'
 import { STAGE_STYLE } from './stage-style.ts'
 import { stagePreferences } from './stage-preferences.ts'
 import { createBgmPlayback } from './bgm-playback.ts'
+import { createParticipantPicker } from './participant-picker.ts'
 
 export const DEFAULT_PAGE = String.raw`<!doctype html>
 <html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
@@ -124,6 +125,7 @@ function statusBarRows(view: {
 }
 
 export const DEFAULT_SCRIPT = String.raw`(() => {
+ const participantPicker=(${createParticipantPicker.toString()});
  const playback=(${createReadingPlayback.toString()})();
  const api=window.Perspectra,node=id=>document.getElementById(id);
  const normalizePreferences=(${stagePreferences.toString()});
@@ -206,6 +208,7 @@ export const DEFAULT_SCRIPT = String.raw`(() => {
    node('regenerate-round').disabled=posting||!connected||!tail?.canRegenerate;
    node('regenerate-round').hidden=!!tail?.regenerating;
    node('cancel-round').hidden=!tail?.regenerating;
+   scheduleOpening();
  }
  function bottom(){history.scrollTop=history.scrollHeight;node('latest').hidden=true}
  history.onscroll=()=>{node('latest').hidden=history.scrollHeight-history.scrollTop-history.clientHeight<70};
@@ -301,13 +304,11 @@ export const DEFAULT_SCRIPT = String.raw`(() => {
    const button=document.createElement('button');button.type='button';
    const label=document.createElement('span');label.textContent=option.label;const arrow=document.createElement('span');arrow.textContent='↗';arrow.setAttribute('aria-hidden','true');button.append(label,arrow);
    if(option.participantSelection){
-     const selection=option.participantSelection,picker=document.createElement('select');picker.setAttribute('aria-label','选择参与角色');
-     picker.multiple=selection.max>1;
-     for(const candidate of selection.candidates){const item=document.createElement('option');item.value=candidate.id;item.textContent=candidate.name;picker.append(item)}
-     button.onclick=()=>{const npcIds=Array.from(picker.selectedOptions,item=>item.value);
+     const selection=option.participantSelection,picker=participantPicker(selection,option.label,valid=>{button.dataset.unavailable=String(!valid);controls()});
+     button.onclick=()=>{const npcIds=picker.read();
        if(npcIds.length<selection.min||npcIds.length>selection.max){node('notice').textContent='请选择 '+selection.min+' 至 '+selection.max+' 名参与角色';return}
-       send('perform',{optionId:option.id,npcIds})};group.append(picker);
-     if(selection.candidates.length<selection.min)button.dataset.unavailable='true';
+       send('perform',{optionId:option.id,npcIds})};group.append(picker.element);
+     button.dataset.unavailable=String(!picker.valid());
    }else if(option.argumentSchema){const form=argumentForm(option);group.append(form);form.append(button);
      button.onclick=()=>{let args;try{args=form.read()}catch(error){node('notice').textContent=error.message;return}act(option,args)};
    }else button.onclick=()=>act(option);
@@ -344,6 +345,7 @@ export const DEFAULT_SCRIPT = String.raw`(() => {
    const running=(view.activities||[]).find(entry=>entry.active)||(view.activity?.active?view.activity:null),card=node('activity-card');
    document.querySelector('main').dataset.activity=String(!!running);
    card.hidden=!running;if(!running){activityKey='';return}
+   if(!openingHalted&&auto&&running.key===stageConfig?.autoplay?.activity){card.hidden=true;return}
    const options=view.actions.filter(option=>option.kind==='activity'&&option.target?.kind==='activity'),manage=view.actions.filter(option=>option.kind==='manage');
    const key=JSON.stringify([running,options,manage]);if(key===activityKey)return;activityKey=key;
    const shown=running.public||{};
@@ -372,7 +374,7 @@ export const DEFAULT_SCRIPT = String.raw`(() => {
      const line=request.method==='speak'?request.payload:request.payload.say;
      if(line){if(node('input').value.trim()===line.text)node('input').value='';if(node('narration').value.trim()===(line.narration||''))node('narration').value=''}
      if(request.method==='perform'&&attached?.option.id===request.payload.optionId)detach();pending=null;node('notice').textContent='';render(view)}
-   catch(error){if(version!==requestVersion)return;if((request.method==='regenerate'||request.method==='selectCandidate')&&error.retryable===false)pending=null;node('notice').textContent=error.message+(pending?'；可重试查询同一操作结果。':'')}
+   catch(error){if(version!==requestVersion)return;if(openingSeen){openingHalted=true;setAuto(openingPreviousAuto)}if((request.method==='regenerate'||request.method==='selectCandidate')&&error.retryable===false)pending=null;node('notice').textContent=error.message+(pending?'；可重试查询同一操作结果。':'')}
    finally{if(version===requestVersion){await refresh(version);if(version===requestVersion){posting=false;controls()}}}
  }
  function send(method,payload){
@@ -384,7 +386,7 @@ export const DEFAULT_SCRIPT = String.raw`(() => {
  function choose(offset){const tail=latest?.tailRound,id=tail?.candidateIds?.[(tail.candidateIndex||1)-1+offset];if(id)send('selectCandidate',{tailId:tail.id,candidateId:id})}
  node('candidate-prev').onclick=()=>choose(-1);node('candidate-next').onclick=()=>choose(1);
  node('cancel-round').onclick=async()=>{try{await api.cancelRegeneration()}catch(error){node('notice').textContent=error.message}};
- node('retry').onclick=()=>{if(!posting&&connected&&pending)submit(pending)};
+ node('retry').onclick=()=>{if(!posting&&connected&&pending){if(openingHalted&&openingSeen){openingHalted=false;setAuto(true)}submit(pending)}};
  /* 一个回合 = 一次表达 + 至多一个行动。输入框里有话时，点选的行动先附在发送按钮旁，和这句话一起提交；没有话时直接执行。 */
  function composerLine(){return (latest?.expression&&latest.expression.speech!=='free'?'':node('input').value.trim())||(latest?.expression?.narration===false?'':node('narration').value.trim())}
  function attach(option,args){attached={option,args};node('attached-label').textContent='连同行动：'+option.label;node('attached-action').hidden=false;drawer(null);controls();node('input').focus()}
@@ -449,6 +451,7 @@ export const DEFAULT_SCRIPT = String.raw`(() => {
  node('narration-panel').addEventListener('toggle',()=>{if(node('narration-panel').open)node('narration').focus()});
  node('input').onkeydown=node('narration').onkeydown=event=>{if(event.key==='Enter'&&!event.shiftKey&&!event.isComposing){event.preventDefault();node('send').click()}};
  let composerExpanded=false,activityOpen=false,auto=false,autoTimer=null,autoKey='',expressionKey='',sceneKey='';
+ let openingSeen=false,openingPreviousAuto=false,openingHalted=false,openingTimer=null,openingRetried='';
  const toastTimers=new Map();
  function showToast(id,text){const target=node(id);target.textContent=text;target.hidden=false;clearTimeout(toastTimers.get(id));toastTimers.set(id,setTimeout(()=>target.hidden=true,4000))}
  function renderItemChanges(before,after){
@@ -624,6 +627,27 @@ export const DEFAULT_SCRIPT = String.raw`(() => {
      autoTimer=setTimeout(()=>{autoTimer=null;updateAutoProgress(0);advance()},duration);
    }
  }
+ // Author-configured opening: perform only offered actions, after the current text has been read.
+ function scheduleOpening(){
+   const config=stageConfig?.autoplay;
+   if(!config||openingHalted||!latest||!connected)return;
+   const entry=(latest.activities||[]).find(item=>item.key===config.activity);
+   const start=latest.actions.find(option=>option.target?.id===config.activity&&option.action?.parameters?.definitionRef?.id==='host:activity-start');
+   if(!openingSeen&&(entry?.active||start)){
+     openingSeen=true;openingPreviousAuto=auto;setAuto(true);
+   }
+   if(!openingSeen)return;
+   if(entry&&!entry.active&&entry.phase==='finished'&&!playback.pending()&&!posting){
+     openingSeen=false;setAuto(openingPreviousAuto);return;
+   }
+   if(!auto||posting||pending||openingTimer||latest.status!=='ready'||playback.pending()||document.querySelector('.panel:not([hidden])')||node('save-dialog').open)return;
+   const next=latest.actions.find(option=>option.target?.id===config.activity&&option.action?.parameters?.definitionRef?.id==='activity:'+config.operation);
+   const retry=latest.actions.find(option=>option.target?.id===config.activity&&option.action?.parameters?.definitionRef?.id==='host:activity-retry');
+   const action=entry?.active?(next||retry):start;
+   if(!action)return;
+   if(action===retry&&openingRetried===action.id){openingHalted=true;setAuto(openingPreviousAuto);return}
+   openingTimer=setTimeout(()=>{openingTimer=null;if(openingHalted||!auto||posting||pending||latest.status!=='ready'||playback.pending()||document.querySelector('.panel:not([hidden])')||node('save-dialog').open)return;if(!latest.actions.some(option=>option.id===action.id)){scheduleOpening();return}if(action===retry)openingRetried=action.id;send('perform',{optionId:action.id})},0);
+ }
  function canReplyNow(){
    const policy=latest?.expression||{speech:'free',speechChoices:[],narration:true};
    return !posting&&connected&&(['ready','error'].includes(latest?.status)||latest?.canInterrupt)&&(policy.speech!=='none'||policy.narration);
@@ -647,7 +671,9 @@ export const DEFAULT_SCRIPT = String.raw`(() => {
  function historyPanel(open){if(open)drawer('history-panel');else node('history-panel').hidden=true;node('history-toggle').setAttribute('aria-expanded',String(open));if(open){clearTimeout(autoTimer);autoTimer=null;updateAutoProgress(0);node('history-close').focus();bottom()}else{node('history-toggle').focus();scheduleAuto()}controls()}
  node('dialogue').onclick=advance;
  node('skip-read').onclick=()=>{updateAutoProgress(0);playback.skip();renderStage();if(canReplyNow())composerExpanded=true;controls();if(canReplyNow())node('input').focus()};
- node('auto-read').onclick=()=>{auto=!auto;node('auto-read').setAttribute('aria-pressed',String(auto));node('auto-read').classList.toggle('active',auto);scheduleAuto()};
+ // Every change of auto-read goes through here, so the button, the opening card and the timer agree.
+ function setAuto(value){auto=value;node('auto-read').setAttribute('aria-pressed',String(auto));node('auto-read').classList.toggle('active',auto);if(latest)renderActivity(latest);scheduleAuto()}
+ node('auto-read').onclick=()=>{setAuto(!auto);controls()};
  node('history-toggle').onclick=()=>historyPanel(node('history-panel').hidden);node('history-close').onclick=()=>historyPanel(false);
  node('actions-toggle').onclick=()=>{drawer(node('action-panel').hidden?'action-panel':null);controls()};node('actions-close').onclick=()=>{drawer(null);controls()};
  node('composer-actions').onclick=()=>{drawer(node('action-panel').hidden?'action-panel':null);controls()};
