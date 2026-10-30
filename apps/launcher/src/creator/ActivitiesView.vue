@@ -1,18 +1,28 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { asRecord, inlineJson } from './format.ts'
+import { activityStatus, asRecord, inlineJson, text } from './format.ts'
 import { useCreatorStore } from './store.ts'
 
 const store = useCreatorStore()
 const activities = computed(() =>
   store.activities.map(value => {
     const item = asRecord(value)
-    const game = asRecord(item.game)
+    // 参与者与 game 变量都在最近提交的 state 里；未开始时 state 为 null。
+    const state = asRecord(item.state)
+    const game = asRecord(state.game)
+    const [status, tone] = activityStatus(item.state)
     return {
       key: String(item.activityKey ?? 'default'),
-      state: item.state === null || item.state === undefined ? '未开始' : String(item.state),
-      description: String(item.description ?? ''),
-      participants: Array.isArray(item.participantIds) ? item.participantIds.map(id => store.label(String(id))) : [],
+      status,
+      tone,
+      description: [
+        text(game.round) ? `第 ${text(game.round)} 轮` : '',
+        text(game.turn) ? `轮到 ${store.label(text(game.turn))}` : '',
+        text(state.revision) ? `修订 ${text(state.revision)}` : '',
+      ]
+        .filter(Boolean)
+        .join(' · '),
+      participants: Array.isArray(state.participants) ? state.participants.map(id => store.label(String(id))) : [],
       public: asRecord(game.public),
       private: asRecord(game.private),
       internal: asRecord(game.internal),
@@ -36,11 +46,7 @@ const activities = computed(() =>
     >
       <span class="cr-strong">{{ activity.key }}</span>
       <span
-        ><span
-          class="cr-tag"
-          :class="activity.state === 'active' ? 'ok' : activity.state === '未开始' ? 'muted' : 'warn'"
-          >{{ activity.state }}</span
-        ></span
+        ><span class="cr-tag" :class="activity.tone">{{ activity.status }}</span></span
       >
       <span class="cr-muted">{{ activity.participants.join('、') || '无参与者' }}</span>
       <span class="cr-muted">{{ activity.description || '—' }}</span>

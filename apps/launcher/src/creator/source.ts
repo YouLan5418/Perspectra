@@ -10,6 +10,8 @@ export interface CreatorMeta {
   title: string
   storyline: string
   characters: { id: string; name: string }[]
+  /** 包声明的地点名；旧宿主不提供时为空。 */
+  locations?: { id: string; name: string }[]
 }
 
 /** 包里的默认舞台设置与可标记的立绘；只有用默认舞台的包能保存标记。 */

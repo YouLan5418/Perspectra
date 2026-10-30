@@ -75,6 +75,8 @@ async function main(): Promise<void> {
         c => c.characterId !== playerId && c.controllerClass !== 'manual' && (c.lifecycle ?? 'active') === 'active',
       )
       .map(c => ({ id: c.characterId, name: c.displayName })),
+    // 包里公开的地点名，供创作者页在更早的 location.upsert 未载入时显示可读名称。
+    locations: compiled.content.locations.map(location => ({ id: location.locationId, name: location.name })),
   }
   const recommended = await packPreset(packPath)
   const settings = process.env.PERSPECTRA_PRESET_ROOT ? new ModelPresets(process.env.PERSPECTRA_PRESET_ROOT) : undefined

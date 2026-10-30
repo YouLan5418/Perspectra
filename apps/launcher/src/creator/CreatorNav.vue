@@ -5,6 +5,7 @@ import {
   Boxes,
   Braces,
   Circle,
+  ChartGantt,
   Globe,
   Image,
   ListTree,
@@ -25,6 +26,7 @@ const groups = [
     items: [
       { id: 'conversation', label: '对话', icon: MessagesSquare },
       { id: 'trace', label: '轨迹', icon: ListTree },
+      { id: 'timeline', label: '运行时间线', icon: ChartGantt },
       { id: 'requests', label: '模型请求', icon: Send },
     ],
   },

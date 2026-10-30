@@ -72,6 +72,7 @@ export interface Selection {
 export type ConsoleView =
   | 'conversation'
   | 'trace'
+  | 'timeline'
   | 'requests'
   | 'world'
   | 'characters'

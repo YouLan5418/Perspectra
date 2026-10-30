@@ -22,6 +22,8 @@ interface BuildInput {
   /** 已读取正文的记录；仅 request / action 会被主动读取，用于落位和思考展示。 */
   details: Record<string, CreatorRecord>
   names: NameTables
+  /** 时间线把行动记录（裁定耗时）与已提交裁定事件分在不同泳道，两者都保留。 */
+  keepResolved?: boolean
 }
 
 /** 私有记录同序落位时排名相同，用组序与组内位置区分先后。 */
@@ -227,6 +229,22 @@ function eventNode(item: CreatorHistoryItem, names: NameTables): TraceNode {
         summary: `活动 ${text(data.activityKey) || 'default'} · ${ACTIVITY_OPERATION[text(data.operation)] ?? (text(data.operation) || '更新')}`,
         detail: readable(data.description),
       }
+    case 'status.updated': {
+      const changes = asArray(data.changes).map(asRecord)
+      const keys = [...new Set(changes.map(change => text(change.key)).filter(Boolean))]
+      const description = text(data.description).trim()
+      return {
+        ...base,
+        key: `e${event.seq}`,
+        kind: 'event',
+        characterId: text(asRecord(data.source).actorId) || actorId,
+        statusKey: 'committed',
+        statusLabel: '已提交',
+        tone: 'muted',
+        summary: `状态更新 · ${description || keys.join('、') || '无字段变化'}`,
+        detail: keys.length ? `${keys.length} 项：${keys.slice(0, 4).join('、')}` : '',
+      }
+    }
     case 'world.tick-advanced':
       return {
         ...base,
@@ -517,7 +535,7 @@ export function buildTrace(input: BuildInput): TraceNode[] {
     }
   }
 
-  const kept = superseded.size ? events.filter(node => !superseded.has(node.key)) : events
+  const kept = superseded.size && !input.keepResolved ? events.filter(node => !superseded.has(node.key)) : events
   return [...kept, ...produced].sort(
     (a, b) => a.sortSeq - b.sortSeq || a.sortRank - b.sortRank || a.key.localeCompare(b.key),
   )

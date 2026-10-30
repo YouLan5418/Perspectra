@@ -94,6 +94,15 @@ const detailCount = computed(() => store.trace.length)
         >
           轨迹 <span v-if="detailCount">· {{ detailCount }}</span>
         </button>
+        <button
+          class="cr-tab"
+          role="tab"
+          :aria-selected="store.view === 'timeline'"
+          :class="{ active: store.view === 'timeline' }"
+          @click="store.view = 'timeline'"
+        >
+          运行时间线
+        </button>
       </div>
       <div class="cr-top-actions">
         <label class="cr-field"
@@ -120,7 +129,8 @@ const detailCount = computed(() => store.trace.length)
             <option v-for="entity in store.entities" :key="entity.id" :value="entity.id">{{ entity.name }}</option>
           </select>
         </label>
-        <label class="cr-field"
+        <!-- 时间线有自己的类型、结果、跟随与增量刷新控件；这里只保留决定载入范围的服务端筛选。 -->
+        <label v-if="store.view !== 'timeline'" class="cr-field"
           >类型
           <select
             class="cr-select"
@@ -137,7 +147,7 @@ const detailCount = computed(() => store.trace.length)
             <option v-for="[id, text] in kinds" :key="id" :value="id">{{ text }}</option>
           </select>
         </label>
-        <label class="cr-field"
+        <label v-if="store.view !== 'timeline'" class="cr-field"
           >状态
           <select
             class="cr-select"
@@ -163,6 +173,7 @@ const detailCount = computed(() => store.trace.length)
           />
         </label>
         <button
+          v-if="store.view !== 'timeline'"
           class="cr-button"
           :class="{ primary: store.follow }"
           :aria-pressed="store.follow"
@@ -173,6 +184,7 @@ const detailCount = computed(() => store.trace.length)
           }}
         </button>
         <button
+          v-if="store.view !== 'timeline'"
           class="cr-button"
           :class="{ primary: store.showProcess }"
           :aria-pressed="store.showProcess"
@@ -180,7 +192,7 @@ const detailCount = computed(() => store.trace.length)
         >
           显示处理过程
         </button>
-        <button class="cr-button" :disabled="store.busy" @click="store.load(true)">
+        <button v-if="store.view !== 'timeline'" class="cr-button" :disabled="store.busy" @click="store.load(true)">
           <RefreshCw :size="13" :class="{ 'cr-loading': store.busy }" />刷新
         </button>
       </div>

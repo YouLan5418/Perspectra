@@ -1,14 +1,14 @@
 /* 创作者控制台：深色、紧凑、三栏。颜色只作辅助，状态始终带文字标签。 */
 .cr-root {
-  /* 与启动器同一组主题色（--pal-*）；强调色只表示「选中 / 当前」。 */
-  --cr-panel: var(--pal-d-bg);
-  --cr-panel-2: color-mix(in srgb, var(--pal-d-bg) 92%, var(--pal-d-text));
-  --cr-panel-3: var(--pal-d-secondary);
-  --cr-line: color-mix(in srgb, var(--pal-d-text) 7%, transparent);
-  --cr-line-2: color-mix(in srgb, var(--pal-d-text) 15%, transparent);
-  --cr-text: var(--pal-d-text);
-  --cr-dim: color-mix(in srgb, var(--pal-d-mfg) 80%, var(--pal-d-text));
-  --cr-faint: color-mix(in srgb, var(--pal-d-faint) 75%, var(--pal-d-mfg));
+  /* 暗色用中性近黑底，不带启动器的暖色偏色；强调色（--pal-accent）只表示「选中 / 当前」。 */
+  --cr-panel: #0b0c0e;
+  --cr-panel-2: #121316;
+  --cr-panel-3: #1c1e22;
+  --cr-line: rgba(255, 255, 255, 0.07);
+  --cr-line-2: rgba(255, 255, 255, 0.14);
+  --cr-text: #e9e9ec;
+  --cr-dim: #a9abb2;
+  --cr-faint: #73767e;
   --cr-blue: var(--pal-accent);
   --cr-blue-soft: color-mix(in srgb, var(--pal-accent) 12%, transparent);
   --cr-model: #b9a2e6;
@@ -267,6 +267,8 @@
 .cr-kv dt { color: var(--cr-faint); }
 .cr-kv dd { margin: 0; overflow-wrap: anywhere; }
 .cr-mono { font-family: var(--cr-mono); font-size: 12px; }
+.cr-root .cr-muted { color: var(--cr-dim); }
+.cr-detail-body p.cr-muted, .cr-detail-body ul.cr-muted { font-size: 12px; }
 .cr-pre {
   margin: 6px 0 0; padding: 8px 10px; border: 1px solid var(--cr-line); border-radius: 6px; background: var(--cr-panel);
   font-family: var(--cr-mono); font-size: 12px; line-height: 1.6; white-space: pre-wrap; overflow-wrap: anywhere; max-height: 340px; overflow: auto;

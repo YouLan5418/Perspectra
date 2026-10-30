@@ -1,11 +1,12 @@
 import { defineStore } from 'pinia'
-import { computed, ref, shallowRef } from 'vue'
+import { computed, nextTick, ref, shallowRef } from 'vue'
 import type { CreatorInspectionSnapshot } from '../../../../desktop/host/creator-inspection.ts'
 import type { CreatorHistoryItem } from '../../../../desktop/host/creator-history.ts'
 import type { CreatorRecord } from '../../../../desktop/host/creator-records.ts'
 import { buildConversation, buildTrace, type ConversationEntry, type RecordSummary } from './model.ts'
 import { KIND_LABEL } from './format.ts'
 import { creatorSource, type CreatorMeta, type CreatorSource } from './source.ts'
+import { EMPTY_TIMELINE_FILTERS, type TimelineFilters } from './timeline.ts'
 import type { ConsoleView, NameTables, Selection, StatusTone, TraceKind, TraceNode } from './types.ts'
 
 /** 接口单次上限 100；一屏按一页加载，更早内容按需向前翻。 */
@@ -40,6 +41,7 @@ export const useCreatorStore = defineStore('creator', () => {
   const error = ref('')
   const updatedAt = ref('')
   const added = ref(0)
+  const pollError = ref('')
   const follow = ref(true)
   const server = ref<ServerFilters>({ ...EMPTY_SERVER })
   const local = ref<LocalFilters>({ ...EMPTY_LOCAL })
@@ -79,6 +81,7 @@ export const useCreatorStore = defineStore('creator', () => {
     const tables: NameTables = { characters: {}, entities: {}, locations: {} }
     for (const character of characters.value) tables.characters[character.id] = character.name
     for (const entity of entities.value) tables.entities[entity.id] = entity.name
+    for (const location of meta.value.locations ?? []) tables.locations[location.id] = location.name
     for (const character of characters.value)
       if (character.locationId && character.locationName)
         tables.locations[character.locationId] = character.locationName
@@ -111,6 +114,23 @@ export const useCreatorStore = defineStore('creator', () => {
     }),
   )
   const conversation = computed<ConversationEntry[]>(() => buildConversation(visibleTrace.value))
+  /** 时间线同时保留行动记录与已提交裁定事件：二者分属规则泳道与行为者泳道。 */
+  const timelineTrace = computed<TraceNode[]>(() =>
+    buildTrace({
+      history: history.value,
+      records: records.value,
+      details: details.value,
+      names: names.value,
+      keepResolved: true,
+    }),
+  )
+  /** 时间线自己的筛选；切换页面后保留，在工具栏中始终可见并可一键清除。 */
+  const timelineFilters = ref<TimelineFilters>({ ...EMPTY_TIMELINE_FILTERS })
+  const timelineCharacters = computed(() => {
+    const listed = characters.value.map(character => ({ id: character.id, name: character.name }))
+    if (listed.length) return listed
+    return meta.value.characters
+  })
 
   function mergeHistory(items: CreatorHistoryItem[]) {
     if (!items.length) return 0
@@ -265,12 +285,14 @@ export const useCreatorStore = defineStore('creator', () => {
       fresh += mergeRecords(recordSnapshot.items)
       await loadWindowDetails()
       updatedAt.value = new Date().toISOString()
+      pollError.value = ''
       if (fresh > 0) {
         if (follow.value) added.value = 0
         else added.value += fresh
       }
     } catch {
-      /* 轮询失败保留上一次可读状态与错误提示 */
+      // 轮询失败保留已载入内容；时间线据此提示并提供重试。
+      pollError.value = '增量读取失败，可能是实例已关闭或网络短暂断开。'
     } finally {
       loading.value = false
     }
@@ -393,6 +415,35 @@ export const useCreatorStore = defineStore('creator', () => {
     focusKey.value = ''
     focusKey.value = nodeKey
   }
+  /**
+   * 在轨迹页或时间线定位同一条记录。轨迹页用行动记录取代同一行动的裁定事件、并默认收起处理过程，
+   * 所以定位前先换成轨迹里实际存在的键，并按需展开处理过程。
+   */
+  function reveal(target: 'trace' | 'timeline', nodeKey: string) {
+    let key = nodeKey
+    if (target === 'trace') {
+      const node = timelineTrace.value.find(item => item.key === nodeKey)
+      if (node && !trace.value.some(item => item.key === nodeKey) && node.actionId) {
+        const replacement = trace.value.find(item => item.kind === 'action' && item.actionId === node.actionId)
+        if (replacement) key = replacement.key
+      }
+      const shown = trace.value.find(item => item.key === key)
+      if (shown?.processing) showProcess.value = true
+      if (shown && local.value.kinds.length && !local.value.kinds.includes(shown.kind))
+        local.value = { ...local.value, kinds: [] }
+      if (shown && local.value.tones.length && !local.value.tones.includes(shown.tone))
+        local.value = { ...local.value, tones: [] }
+    }
+    follow.value = false
+    view.value = target
+    // 目标页面在下一次渲染后才挂载，挂载后再发出定位。
+    void nextTick(() => focus(key))
+  }
+  function timelineForCharacter(characterId: string) {
+    timelineFilters.value = { ...timelineFilters.value, characterIds: [characterId] }
+    follow.value = true
+    view.value = 'timeline'
+  }
   /** 页面的游戏名、故事线与角色名；失败时保留旧值，由数据读取的错误提示说明。 */
   async function loadMeta() {
     try {
@@ -432,6 +483,7 @@ export const useCreatorStore = defineStore('creator', () => {
     recordTotal.value = 0
     server.value = { ...EMPTY_SERVER }
     local.value = { ...EMPTY_LOCAL }
+    timelineFilters.value = { ...EMPTY_TIMELINE_FILTERS }
   }
 
   return {
@@ -449,6 +501,7 @@ export const useCreatorStore = defineStore('creator', () => {
     loading,
     busy,
     error,
+    pollError,
     updatedAt,
     added,
     follow,
@@ -477,6 +530,11 @@ export const useCreatorStore = defineStore('creator', () => {
     names,
     label,
     trace,
+    timelineTrace,
+    timelineFilters,
+    timelineCharacters,
+    reveal,
+    timelineForCharacter,
     visibleTrace,
     conversation,
     selectionDetail,

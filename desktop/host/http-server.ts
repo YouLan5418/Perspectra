@@ -147,7 +147,12 @@ export const isWait = (action: HostAction): boolean =>
   (action.parameters.definitionRef as WorldJsonObject | undefined)?.id === 'host:wait'
 
 export interface HostRuntime {
-  creatorMeta?(): { title: string; storyline: string; characters: { id: string; name: string }[] }
+  creatorMeta?(): {
+    title: string
+    storyline: string
+    characters: { id: string; name: string }[]
+    locations?: { id: string; name: string }[]
+  }
   /** Writes a creator's portrait marks into the pack's stage.json and returns the checked whole. */
   saveStageMarks?(characterId: string, marks: StageMarks): Promise<StageConfig>
   saveNode?(title: string): Promise<{ id: string; title: string }>

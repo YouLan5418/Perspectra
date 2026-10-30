@@ -5,6 +5,7 @@ import type { InspectedRequest } from '@harness-world/provider-chat'
 import type { CreatorInspectionSnapshot } from '../../../../desktop/host/creator-inspection.ts'
 import type { CreatorRecord } from '../../../../desktop/host/creator-records.ts'
 import {
+  activityStatus,
   asArray,
   asRecord,
   dateTimeLabel,
@@ -16,6 +17,7 @@ import {
   tokenLabel,
   truncate,
 } from './format.ts'
+import ChainSection from './ChainSection.vue'
 import { useCreatorStore } from './store.ts'
 import type { TraceNode } from './types.ts'
 
@@ -59,20 +61,20 @@ function tabsFor(): string[] {
     switch (record.value?.kind ?? node.value?.kind) {
       case 'request':
       case 'model':
-        return ['概览', '上下文', '预设', '响应', '思考', '计时', '原始 JSON']
+        return ['概览', '链路', '上下文', '预设', '响应', '思考', '计时', '原始 JSON']
       case 'action':
-        return ['概览', '参数', '结果', 'Schema', '计时', '原始 JSON']
+        return ['概览', '链路', '参数', '结果', 'Schema', '计时', '原始 JSON']
       case 'recall':
-        return ['概览', '查询与返回', '原始 JSON']
+        return ['概览', '链路', '查询与返回', '原始 JSON']
       case 'decision':
-        return ['概览', '提案', '原始 JSON']
+        return ['概览', '链路', '提案', '原始 JSON']
       case 'turn':
-        return ['概览', '数据', '原始 JSON']
+        return ['概览', '链路', '数据', '原始 JSON']
       default:
         return ['概览', '原始 JSON']
     }
   }
-  if (current.kind === 'event') return ['正文', '受众', '来源', '关联记录', '原始 JSON']
+  if (current.kind === 'event') return ['正文', '链路', '受众', '来源', '关联记录', '原始 JSON']
   if (current.kind === 'entity') return ['当前状态', '流转历史', '角色观察', '原始 JSON']
   if (current.kind === 'character') return ['概览', '授权观察', '最近请求', '记忆分层', '原始 JSON']
   if (current.kind === 'activity') return ['活动状态']
@@ -97,6 +99,14 @@ const relatedEvents = computed(() => {
   if (!item) return []
   const seqs = new Set([...item.relatedSeqs, item.event.seq])
   return store.trace.filter(node => node.seq !== undefined && seqs.has(node.seq))
+})
+
+/** 已知角色中没有收到这次行动观察记录的人；受众由服务端按完整前缀推导。 */
+const unobserved = computed(() => {
+  const item = node.value?.history
+  if (!item?.actionId || !item.recipients.length) return []
+  const seen = new Set(item.recipients.map(recipient => recipient.characterId))
+  return store.timelineCharacters.map(character => character.id).filter(id => !seen.has(id))
 })
 
 const entityFlow = computed(() => (selection.value ? store.entityFlow(selection.value.id) : []))
@@ -204,9 +214,21 @@ function toneOf(value: boolean): string {
       </button>
     </div>
 
+    <div v-if="node && (selection?.kind === 'event' || selection?.kind === 'record')" class="cr-detail-links">
+      <button v-if="store.view !== 'trace'" class="cr-button tiny" @click="store.reveal('trace', node.key)">
+        在轨迹页查看
+      </button>
+      <button v-if="store.view !== 'timeline'" class="cr-button tiny" @click="store.reveal('timeline', node.key)">
+        在时间线查看
+      </button>
+    </div>
+
     <div class="cr-detail-body">
       <p v-if="notice" class="cr-tag ok" style="height: auto">{{ notice }}</p>
       <p v-if="!selection" class="cr-muted">在中间列表或对话中点击条目，这里显示可读信息；原始数据在最后一级。</p>
+
+      <!-- 事件与记录共用：有证据的上下游链路 -->
+      <ChainSection v-else-if="tab === '链路' && node" :node="node" />
 
       <!-- 私有记录：模型调用 -->
       <template v-else-if="selection.kind === 'record' && (record?.kind === 'request' || node?.kind === 'model')">
@@ -561,6 +583,11 @@ function toneOf(value: boolean): string {
             </button>
           </div>
           <p v-if="!node?.history?.recipients.length" class="cr-muted">没有记录到受众。空数组不证明无人知情。</p>
+          <p v-else-if="unobserved.length" class="cr-muted">
+            未收到该行动观察记录：{{
+              unobserved.map(id => store.label(id)).join('、')
+            }}（不按同场景或时间推定他们知道）。
+          </p>
         </section>
 
         <section v-else-if="tab === '来源'">
@@ -664,7 +691,8 @@ function toneOf(value: boolean): string {
               {{ store.label(asRecord(item.entityChange?.after).holderId as string) || '无人保管' }}
               <span v-if="item.entityChange?.followsHolder"> · 随保管者移动，不是独立转移</span>
             </div>
-            <button class="cr-button tiny" @click="jump(`e${item.event.seq}`)">在轨迹中查看</button>
+            <button class="cr-button tiny" @click="store.reveal('trace', `e${item.event.seq}`)">在轨迹中查看</button>
+            <button class="cr-button tiny" @click="store.reveal('timeline', `e${item.event.seq}`)">在时间线查看</button>
           </div>
           <p v-if="!entityChanges.length" class="cr-muted">
             没有结构化追踪的流转记录。查询只按结构化实体目标建立关联，不从对白关键词推测物品已转移。
@@ -718,6 +746,12 @@ function toneOf(value: boolean): string {
             <dd>{{ character.memory.archivePrefix ?? '—' }}</dd>
             <dt>维护</dt>
             <dd>{{ character.memory.maintenance ? inlineJson(character.memory.maintenance, 80) : '无' }}</dd>
+            <dt>时间线</dt>
+            <dd>
+              <button class="cr-button tiny" @click="store.timelineForCharacter(character.id)">
+                只看此角色的时间线
+              </button>
+            </dd>
           </section>
 
           <section v-else-if="tab === '授权观察'">
@@ -834,11 +868,7 @@ function toneOf(value: boolean): string {
             <dd>{{ selection.label }}</dd>
             <dt>状态</dt>
             <dd>
-              {{
-                selection.id in activityIndex
-                  ? String(asRecord(activityIndex[selection.id]).state ?? '未开始')
-                  : '未开始'
-              }}
+              {{ activityStatus(asRecord(activityIndex[selection.id]).state)[0] }}
             </dd>
           </div>
           <pre class="cr-pre">{{ JSON.stringify(activityIndex[selection.id] ?? {}, null, 2) }}</pre>

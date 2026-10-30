@@ -55,7 +55,7 @@
 | 要改或排查什么 | 先查哪里 | 再查哪里 |
 | --- | --- | --- |
 | Launcher 按钮、列表与设置 | apps/launcher 组件与 store | desktop/launcher-core.ts 与 Rust 桥 |
-| 创作者页面的对话、轨迹、模型请求与详情 | apps/launcher/src/creator/store.ts、model.ts、source.ts | desktop/host/creator-inspection.ts、creator-history.ts、creator-records.ts；页面静态托管见 creator-assets.ts |
+| 创作者页面的对话、轨迹、运行时间线、模型请求与详情 | apps/launcher/src/creator/store.ts、model.ts、timeline.ts、TimelineView.vue、source.ts | desktop/host/creator-inspection.ts、creator-history.ts、creator-records.ts；页面静态托管见 creator-assets.ts |
 | 模型连接、Key 与按角色模型 | desktop/model-connections.ts、apps/launcher 的 ModelSettingsDialog / ModelPicker | Rust 桥读取凭据；游戏进程启动时按角色构造决策与记忆调用 |
 | 游戏内对白与状态显示 | frontend/default-template.ts、player-transcript.ts | http-server.ts；社区模板另查包内 frontend/ |
 | 角色知道了秘密 | character-view.ts、character-turn.ts | 原生记忆或 core-memory.ts 的来源和交付 |

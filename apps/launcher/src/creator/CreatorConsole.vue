@@ -10,11 +10,13 @@ import ConversationView from './ConversationView.vue'
 import EntitiesView from './EntitiesView.vue'
 import RequestsView from './RequestsView.vue'
 import TraceView from './TraceView.vue'
+import TimelineView from './TimelineView.vue'
 import StatusView from './StatusView.vue'
 import StageView from './StageView.vue'
 import WorldView from './WorldView.vue'
 import { useCreatorStore, POLL_MS } from './store.ts'
 import './creator.css'
+import './timeline.css'
 
 /** 独立页面入口：token 来自 main.ts，页面标题与故事线来自 /api/creator-meta。 */
 const props = defineProps<{ token: string }>()
@@ -32,6 +34,7 @@ watch(
 const views = {
   conversation: ConversationView,
   trace: TraceView,
+  timeline: TimelineView,
   requests: RequestsView,
   world: WorldView,
   characters: CharactersView,

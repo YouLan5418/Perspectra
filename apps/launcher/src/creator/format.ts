@@ -48,6 +48,15 @@ const REQUEST_STATUS: Record<string, [string, StatusTone]> = {
   pending: ['未完成', 'warn'],
 }
 
+/** 活动最近提交的 state 是对象（game.active / phase 等），未开始时为 null；只取人读的状态文字。 */
+export function activityStatus(state: unknown): [string, StatusTone] {
+  if (state === null || state === undefined) return ['未开始', 'muted']
+  const game = asRecord(asRecord(state).game)
+  const phase = text(game.phase)
+  if (game.active === true) return [phase ? `进行中 · ${phase}` : '进行中', 'ok']
+  return [phase ? `已结束 · ${phase}` : '已结束', 'warn']
+}
+
 export function turnStatus(status: string): [string, StatusTone] {
   return TURN_STATUS[status] ?? [status || '未知', 'muted']
 }

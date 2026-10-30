@@ -255,12 +255,16 @@ export class WorldHostCore implements HostRuntime {
       const entities = entityIds.map(id => {
         const state = currentEntityState(events, id)!
         const holderLocation = characters.find(character => character.id === state.holderId)?.locationId ?? null
-        const initial = events.findLast(
-          event => event.eventType === 'entity.upsert' && (event.data as WorldJsonObject).entityId === id,
-        )!
+        // 状态更新的 upsert 常常只写 kind / locationId，名称取最近一次写明 name 的记录。
+        const named = events.findLast(
+          event =>
+            event.eventType === 'entity.upsert' &&
+            (event.data as WorldJsonObject).entityId === id &&
+            typeof (event.data as WorldJsonObject).name === 'string',
+        )
         return {
           id,
-          name: String((initial.data as WorldJsonObject).name ?? id),
+          name: String((named?.data as WorldJsonObject | undefined)?.name ?? id),
           state,
           holderMeaning: 'custody' as const,
           effectiveLocationId: state.locationId ?? holderLocation,
