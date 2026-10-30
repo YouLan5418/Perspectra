@@ -373,8 +373,8 @@ export const DEFAULT_SCRIPT = String.raw`(() => {
      const view=await api.getView();if(version!==requestVersion)return;
      const line=request.method==='speak'?request.payload:request.payload.say;
      if(line){if(node('input').value.trim()===line.text)node('input').value='';if(node('narration').value.trim()===(line.narration||''))node('narration').value=''}
-     if(request.method==='perform'&&attached?.option.id===request.payload.optionId)detach();pending=null;node('notice').textContent='';render(view)}
-   catch(error){if(version!==requestVersion)return;if(openingSeen){openingHalted=true;setAuto(openingPreviousAuto)}if((request.method==='regenerate'||request.method==='selectCandidate')&&error.retryable===false)pending=null;node('notice').textContent=error.message+(pending?'；可重试查询同一操作结果。':'')}
+     if(request.method==='perform'&&attached?.option.id===request.payload.optionId)detach();pending=null;if(openingHalted)resumeOpening();node('notice').textContent='';render(view)}
+   catch(error){if(version!==requestVersion)return;if(openingSeen)haltOpening();if((request.method==='regenerate'||request.method==='selectCandidate')&&error.retryable===false)pending=null;node('notice').textContent=error.message+(pending?'；可重试查询同一操作结果。':'')}
    finally{if(version===requestVersion){await refresh(version);if(version===requestVersion){posting=false;controls()}}}
  }
  function send(method,payload){
@@ -386,7 +386,7 @@ export const DEFAULT_SCRIPT = String.raw`(() => {
  function choose(offset){const tail=latest?.tailRound,id=tail?.candidateIds?.[(tail.candidateIndex||1)-1+offset];if(id)send('selectCandidate',{tailId:tail.id,candidateId:id})}
  node('candidate-prev').onclick=()=>choose(-1);node('candidate-next').onclick=()=>choose(1);
  node('cancel-round').onclick=async()=>{try{await api.cancelRegeneration()}catch(error){node('notice').textContent=error.message}};
- node('retry').onclick=()=>{if(!posting&&connected&&pending){if(openingHalted&&openingSeen){openingHalted=false;setAuto(true)}submit(pending)}};
+ node('retry').onclick=()=>{if(!posting&&connected&&pending){if(openingHalted&&openingSeen){resumeOpening();setAuto(true)}submit(pending)}};
  /* 一个回合 = 一次表达 + 至多一个行动。输入框里有话时，点选的行动先附在发送按钮旁，和这句话一起提交；没有话时直接执行。 */
  function composerLine(){return (latest?.expression&&latest.expression.speech!=='free'?'':node('input').value.trim())||(latest?.expression?.narration===false?'':node('narration').value.trim())}
  function attach(option,args){attached={option,args};node('attached-label').textContent='连同行动：'+option.label;node('attached-action').hidden=false;drawer(null);controls();node('input').focus()}
@@ -640,14 +640,21 @@ export const DEFAULT_SCRIPT = String.raw`(() => {
    if(entry&&!entry.active&&entry.phase==='finished'&&!playback.pending()&&!posting){
      openingSeen=false;setAuto(openingPreviousAuto);return;
    }
-   if(!auto||posting||pending||openingTimer||latest.status!=='ready'||playback.pending()||document.querySelector('.panel:not([hidden])')||node('save-dialog').open)return;
    const next=latest.actions.find(option=>option.target?.id===config.activity&&option.action?.parameters?.definitionRef?.id==='activity:'+config.operation);
    const retry=latest.actions.find(option=>option.target?.id===config.activity&&option.action?.parameters?.definitionRef?.id==='host:activity-retry');
-   const action=entry?.active?(next||retry):start;
+   // A failed character turn comes back as an error view, not a rejected request: ask once more, then stop and hand over the card.
+   const failed=latest.status==='error'&&!!entry?.active;
+   if(failed&&!posting&&!pending&&(!retry||openingRetried===retry.id)){haltOpening();return}
+   if(!auto||posting||pending||openingTimer||(latest.status!=='ready'&&!failed)||playback.pending()||document.querySelector('.panel:not([hidden])')||node('save-dialog').open)return;
+   const action=failed?retry:entry?.active?(next||retry):start;
    if(!action)return;
-   if(action===retry&&openingRetried===action.id){openingHalted=true;setAuto(openingPreviousAuto);return}
-   openingTimer=setTimeout(()=>{openingTimer=null;if(openingHalted||!auto||posting||pending||latest.status!=='ready'||playback.pending()||document.querySelector('.panel:not([hidden])')||node('save-dialog').open)return;if(!latest.actions.some(option=>option.id===action.id)){scheduleOpening();return}if(action===retry)openingRetried=action.id;send('perform',{optionId:action.id})},0);
+   if(action===retry&&openingRetried===action.id){haltOpening();return}
+   openingTimer=setTimeout(()=>{openingTimer=null;if(openingHalted||!auto||posting||pending||!['ready','error'].includes(latest.status)||playback.pending()||document.querySelector('.panel:not([hidden])')||node('save-dialog').open)return;if(!latest.actions.some(option=>option.id===action.id)){scheduleOpening();return}if(action===retry)openingRetried=action.id;send('perform',{optionId:action.id})},0);
  }
+ // A halted opening shows its activity card and leaves auto-read as it was before the opening.
+ function haltOpening(){openingHalted=true;setAuto(openingPreviousAuto)}
+ // Explicitly turning auto-read back on, or any request that succeeds, lets the opening continue.
+ function resumeOpening(){openingHalted=false;openingRetried=''}
  function canReplyNow(){
    const policy=latest?.expression||{speech:'free',speechChoices:[],narration:true};
    return !posting&&connected&&(['ready','error'].includes(latest?.status)||latest?.canInterrupt)&&(policy.speech!=='none'||policy.narration);
@@ -673,7 +680,7 @@ export const DEFAULT_SCRIPT = String.raw`(() => {
  node('skip-read').onclick=()=>{updateAutoProgress(0);playback.skip();renderStage();if(canReplyNow())composerExpanded=true;controls();if(canReplyNow())node('input').focus()};
  // Every change of auto-read goes through here, so the button, the opening card and the timer agree.
  function setAuto(value){auto=value;node('auto-read').setAttribute('aria-pressed',String(auto));node('auto-read').classList.toggle('active',auto);if(latest)renderActivity(latest);scheduleAuto()}
- node('auto-read').onclick=()=>{setAuto(!auto);controls()};
+ node('auto-read').onclick=()=>{if(!auto&&openingSeen&&openingHalted)resumeOpening();setAuto(!auto);controls()};
  node('history-toggle').onclick=()=>historyPanel(node('history-panel').hidden);node('history-close').onclick=()=>historyPanel(false);
  node('actions-toggle').onclick=()=>{drawer(node('action-panel').hidden?'action-panel':null);controls()};node('actions-close').onclick=()=>{drawer(null);controls()};
  node('composer-actions').onclick=()=>{drawer(node('action-panel').hidden?'action-panel':null);controls()};

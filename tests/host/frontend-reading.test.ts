@@ -486,3 +486,70 @@ it('automatically starts and advances the configured opening only after reading,
   schedule()
   expect(timers).toHaveLength(0)
 })
+
+it('stops the opening on an error view after one retry, and resumes once the player turns auto-read back on', () => {
+  const start = DEFAULT_SCRIPT.indexOf(' function scheduleOpening(){')
+  const end = DEFAULT_SCRIPT.indexOf('\n function canReplyNow(){', start)
+  const code = DEFAULT_SCRIPT.slice(start, end)
+  const sent: string[] = [],
+    timers: (() => void)[] = []
+  const option = (id: string, definition: string) => ({
+    id,
+    target: { id: 'prologue' },
+    action: { parameters: { definitionRef: { id: definition } } },
+  })
+  const retry = option('retry', 'host:activity-retry'),
+    next = option('next', 'activity:next')
+  const running = (status: string, actions: unknown[]) => ({
+    status,
+    activities: [{ key: 'prologue', active: true, phase: 'prologue' }],
+    actions,
+  })
+  const button = { setAttribute() {}, classList: { add() {}, toggle() {} } }
+  const context = {
+    stageConfig: { autoplay: { activity: 'prologue', operation: 'next' } },
+    latest: running('error', [retry]),
+    openingSeen: true,
+    openingPreviousAuto: false,
+    openingHalted: false,
+    openingRetried: '',
+    openingTimer: null as unknown,
+    connected: true,
+    auto: true,
+    posting: false,
+    pending: null,
+    node: (id: string) => (id === 'save-dialog' ? { open: false } : button),
+    document: { querySelector: () => null },
+    playback: { pending: () => false },
+    scheduleAuto: () => {},
+    setTimeout: (fn: () => void) => {
+      timers.push(fn)
+      return timers.length
+    },
+    send: (_method: string, payload: { optionId: string }) => sent.push(payload.optionId),
+  }
+  Object.assign(context, { setAuto: (value: boolean) => (context.auto = value) })
+  const [schedule, resume] = runInNewContext(code + ';[scheduleOpening,resumeOpening]', context) as (() => void)[]
+  // A failed character turn arrives as an error view; the opening asks once more instead of waiting forever.
+  schedule!()
+  timers.shift()!()
+  expect(sent).toEqual(['retry'])
+  // The same failure again: stop, turn auto-read off and leave the card to the player.
+  schedule!()
+  expect(context.openingHalted).toBe(true)
+  expect(context.auto).toBe(false)
+  expect(timers).toHaveLength(0)
+  // An error with nothing to retry stops at once, too.
+  Object.assign(context, { openingHalted: false, openingRetried: '', auto: true, latest: running('error', []) })
+  schedule!()
+  expect(context.openingHalted).toBe(true)
+  expect(context.auto).toBe(false)
+  // The player continues by hand and then turns auto-read back on: the opening carries on by itself.
+  resume!()
+  expect(context.openingHalted).toBe(false)
+  expect(context.openingRetried).toBe('')
+  Object.assign(context, { auto: true, latest: running('ready', [next]) })
+  schedule!()
+  timers.shift()!()
+  expect(sent).toEqual(['retry', 'next'])
+})
