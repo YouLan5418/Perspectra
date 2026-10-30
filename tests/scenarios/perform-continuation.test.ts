@@ -737,21 +737,23 @@ it('rechecks a stale item proposal against the latest possession before executio
   expect(currentEntityState(events, 'entity:cup')?.holderId).toBe(npc)
 })
 
-it('prepares a dynamic decision with one history read and one authorized view build', async () => {
+it('prepares and commits a dynamic decision with one history read and one authorized view build', async () => {
   const f = fixture(
     async request => {
       expect(history).toHaveBeenCalledTimes(1)
       expect(views).toHaveBeenCalledTimes(1)
       expect(request.context.character).toMatchObject({ characterId: npc, locationId: 'location:room' })
       expect(request.context.affordances).not.toEqual([])
-      return { decision: 'abstain' }
+      return repairedSpeech
     },
     [],
     { allowUnrelatedCommits: true },
   )
   const history = vi.spyOn(f.store, 'readEvents')
-  const views = vi.spyOn(CharacterViewBuilder.prototype, 'rebuildAt')
-  expect(await f.turn.run(npc)).toMatchObject({ status: 'abstained', calls: 1 })
+  const views = vi.spyOn(CharacterViewBuilder.prototype, 'rebuildFromEvents')
+  expect(await f.turn.run(npc)).toMatchObject({ status: 'published', calls: 1 })
+  expect(history).toHaveBeenCalledTimes(1)
+  expect(views).toHaveBeenCalledTimes(1)
 })
 
 it.each([false, true])(

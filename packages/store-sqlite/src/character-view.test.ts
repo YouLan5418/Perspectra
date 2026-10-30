@@ -123,6 +123,16 @@ describe('CharacterViewBuilder', () => {
       expect(old.claims.map(record => record.id)).toEqual(['claim:old'])
       expect(old.goals.map(record => record.id)).toEqual(['goal:old'])
       expect(old.scenes).toEqual([])
+      const history = store.readEvents(target)
+      reads.mockClear()
+      const reused = builder.rebuildFromEvents(target, character, head, history)
+      expect(reused.bundleHash).toBe(hash)
+      expect(builder.rebuildFromEvents(target, character, oldSeq, history)).toEqual(old)
+      expect(JSON.stringify(reused)).not.toContain('OTHER_PRIVATE')
+      Object.assign(reused.observations[0]!.value as WorldJsonObject, { content: 'reused view mutation' })
+      expect(builder.rebuildFromEvents(target, character, head, history).bundleHash).toBe(hash)
+      expect(reads).not.toHaveBeenCalled()
+      expect(() => builder.rebuildFromEvents(target, character, head + 1, history)).toThrow('branch head')
     } finally {
       store.close()
     }

@@ -54,7 +54,7 @@ import { saveStoryNode, readStoryNodes } from '../story-nodes.ts'
 import { existsSync, unlinkSync } from 'node:fs'
 import { CoreMemoryAdapter, type MemoryContextBudget, type MemoryBuildOptions } from './memory/core-memory.ts'
 import { assertCoreEnvironment, coreRunnerGroups, type CoreRunner, type MemoryRunners } from './memory/python-worker.ts'
-import { type ActivityRequest } from './pack-activity.ts'
+import { activityWorldFromEvents, type ActivityRequest, type ActivityWorld } from './pack-activity.ts'
 import { decideWithFormatRetry } from './decision-format.ts'
 import { PackActivities } from './pack-activities.ts'
 import { KNOWN_STATUS_NOTE, PackStatus, pauseRounds, publicStatusChanges } from './pack-status.ts'
@@ -1992,10 +1992,10 @@ export class WorldHostCore implements HostRuntime {
   /** The active NPC owns the writer lease. Project its committed prefix without remounting the app. */
   async #projectCommitted(store: WorldStore): Promise<void> {
     const head = store.head(this.#address)
-    const view = new CharacterViewBuilder(store).rebuildAt(this.#address, this.#playerId, head.headSeq)
+    const events = store.readEvents(this.#address, head.headSeq)
+    const view = new CharacterViewBuilder(store).rebuildFromEvents(this.#address, this.#playerId, head.headSeq, events)
     const availability = new CharacterRuntimeAvailabilityService(resolve(this.#dataDirectory, 'world.sqlite'))
     try {
-      const events = store.readEvents(this.#address, head.headSeq)
       const scene = new SceneDecisionService(store, availability).decideFromEvents(
         this.#address,
         this.#playerId,
@@ -2053,10 +2053,13 @@ export class WorldHostCore implements HostRuntime {
 
     const worldPath = resolve(this.#dataDirectory, 'world.sqlite')
     const world = new WorldStore(worldPath)
+    let activityWorld: ActivityWorld | undefined
     try {
       const availability = new CharacterRuntimeAvailabilityService(worldPath)
       try {
         const events = world.readEvents(this.#address, view.asOfWorldSeq)
+        if (this.#activity)
+          activityWorld = activityWorldFromEvents(worldPath, this.#address, view.asOfWorldSeq, events, this.#entities)
         const scene = new SceneDecisionService(world, availability).decideFromEvents(
           this.#address,
           this.#playerId,
@@ -2124,8 +2127,8 @@ export class WorldHostCore implements HostRuntime {
     }
     // Like transcript and affordances, serve the last refreshed committed projection.
     // Polling must not open a migrating writer while tail snapshots copy the database.
-    this.#activityView = this.#activity?.view(this.#playerId)
-    this.#activityViews = this.#activity?.views(this.#playerId)
+    this.#activityView = this.#activity?.view(this.#playerId, activityWorld)
+    this.#activityViews = this.#activity?.views(this.#playerId, activityWorld)
     const activityState = this.#activity?.current()
     this.#waitable = this.#status !== undefined && activityState?.game.active !== true
     if (activityState?.game.active && activityState.participants.includes(this.#playerId)) {

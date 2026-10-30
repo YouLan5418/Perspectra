@@ -148,6 +148,24 @@ async function choose(runtime: WorldHostRuntime, label: string) {
   return runtime.perform(action.action)
 }
 
+it('does not load world history for fixed-roster menus or absent automatic-start hooks', async () => {
+  const f = await fixture(),
+    pack = await compileWorldPackSource(
+      f.pack,
+      createInstalledInteractionPackages().map(interactionPackageDescription),
+    ),
+    catalog = PackActivities.load(f.pack, pack, join(f.data, 'world.sqlite'), f.runtime.address, 'character:player')!
+  try {
+    const reads = vi.spyOn(WorldStore.prototype, 'readEvents')
+    expect(catalog.view('character:player')!.manualStart).not.toBe(false)
+    expect(catalog.views('character:player')).toHaveLength(2)
+    expect(await catalog.autoStart()).toBe(false)
+    expect(reads).not.toHaveBeenCalled()
+  } finally {
+    catalog.close()
+  }
+})
+
 it('shares committed activity state, reads only the new prefix, and closes its retained connection', async () => {
   const f = await fixture(),
     active = await choose(f.runtime, '开始 guess'),

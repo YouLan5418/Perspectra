@@ -33,6 +33,7 @@ const CHARACTER_VIEW_EVENT_TYPES = [
 
 const CHARACTER_VIEW_EVENT_TYPE_SET = new Set<string>(CHARACTER_VIEW_EVENT_TYPES)
 const CHARACTER_VIEW_READ_EVENT_TYPES = [...CHARACTER_VIEW_EVENT_TYPES, ...PROJECTION_EVENT_TYPES]
+const CHARACTER_VIEW_READ_EVENT_TYPE_SET = new Set<string>(CHARACTER_VIEW_READ_EVENT_TYPES)
 
 function object(value: WorldJsonValue): WorldJsonObject | undefined {
   return typeof value === 'object' && value !== null && !Array.isArray(value) ? (value as WorldJsonObject) : undefined
@@ -151,11 +152,40 @@ export class CharacterViewBuilder {
     asOfWorldSeq: number,
     heartbeat?: () => void,
   ): CharacterView {
+    this.#validatePrefix(address, asOfWorldSeq)
+    const events = this.worldStore.readEventsRange(address, 0, asOfWorldSeq, CHARACTER_VIEW_READ_EVENT_TYPES)
+    return this.#rebuild(address, characterId, asOfWorldSeq, events, heartbeat)
+  }
+
+  /** Reuse an already read committed prefix; copying keeps callers' views separate from the source history. */
+  rebuildFromEvents(
+    address: WorldAddress,
+    characterId: CharacterId,
+    asOfWorldSeq: number,
+    events: readonly StoredWorldEvent[],
+    heartbeat?: () => void,
+  ): CharacterView {
+    this.#validatePrefix(address, asOfWorldSeq)
+    const relevant = events.filter(
+      event => event.seq <= asOfWorldSeq && CHARACTER_VIEW_READ_EVENT_TYPE_SET.has(event.eventType),
+    )
+    return this.#rebuild(address, characterId, asOfWorldSeq, structuredClone(relevant), heartbeat)
+  }
+
+  #validatePrefix(address: WorldAddress, asOfWorldSeq: number): void {
     if (!Number.isSafeInteger(asOfWorldSeq) || asOfWorldSeq < 0)
       throw new RangeError('asOfWorldSeq must be a non-negative safe integer')
     const head = this.worldStore.head(address)
     if (asOfWorldSeq > head.headSeq) throw new RangeError('asOfWorldSeq cannot be later than the branch head')
-    const events = this.worldStore.readEventsRange(address, 0, asOfWorldSeq, CHARACTER_VIEW_READ_EVENT_TYPES)
+  }
+
+  #rebuild(
+    address: WorldAddress,
+    characterId: CharacterId,
+    asOfWorldSeq: number,
+    events: readonly StoredWorldEvent[],
+    heartbeat?: () => void,
+  ): CharacterView {
     heartbeat?.()
     const projections = rebuildProjectionFromEvents(address, asOfWorldSeq, events, heartbeat)
     const observations = projections.observations.filter(record => owned(record, characterId, 'observerId'))

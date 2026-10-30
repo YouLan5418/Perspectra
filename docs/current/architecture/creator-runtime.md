@@ -144,4 +144,6 @@ NPC 固定台词发表时，可选 `onPublished(state, actorId, expression)` 返
 
 缓存和连接只属于当前活动目录，在 WorldHostCore 关闭时释放；节点恢复、重新生成和候选切换建立独立实例，不跨实例复用。规则裁定继续使用传入的正式事件前缀，不从缓存写入世界。单独构造的 PackActivity 保留原来的局部读取方式。角色授权上下文、模型决策和运行可用性没有加入跨调用缓存。
 
-这是源码优化，尚未重建发行包；首次恢复、完整世界视图和记忆来源仍有历史读取成本。本轮测量与验证范围见[活动性能记录](../studies/2026-10-30_sqlite-activity-performance-report.md)。原有序章实验见[历史性能实测](../studies/prologue-performance-20261010.md)；其数字不代表本次改动的性能或验收范围。
+第二轮在脚本加载时探测是否声明 autoStart；没有 hook 的固定名单活动不再为菜单和自动开始准备世界历史，动态选人仍读取授权场景，声明了 hook 的条件仍按当前状态重新计算，不缓存条件结果。玩家刷新可以把已经读取的同一前缀交给活动菜单，共用该次刷新内的授权世界投影；如果目录头已改变，则重新读取。该复用不会跨回合缓存角色视图或扩大 script 的信息接收范围。
+
+这是源码优化，尚未重建发行包；首次恢复、完整世界视图和记忆来源仍有历史读取成本。测量与验证范围见[首轮活动性能记录](../studies/2026-10-30_sqlite-activity-performance-report.md)与[第二轮读取记录](../studies/2026-10-30_sqlite-activity-performance-round2-report.md)。原有序章实验见[历史性能实测](../studies/prologue-performance-20261010.md)；其数字不代表本次改动的性能或验收范围。

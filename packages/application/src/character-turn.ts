@@ -359,7 +359,7 @@ export class CharacterTurn {
         asOfWorldSeq = head.headSeq
         let history = this.options.store.readEvents(this.options.address, head.headSeq)
         const initialView = this.options.allowUnrelatedCommits
-          ? this.#view.rebuildAt(this.options.address, characterId, head.headSeq)
+          ? this.#view.rebuildFromEvents(this.options.address, characterId, head.headSeq, history)
           : undefined
         const state =
           initialView === undefined
@@ -394,7 +394,8 @@ export class CharacterTurn {
           asOfWorldSeq: head.headSeq,
           resolutionAuthority: resolutionAuthority('agent', 'standard'),
         }
-        const view = initialView ?? this.#view.rebuildAt(this.options.address, characterId, head.headSeq)
+        const view =
+          initialView ?? this.#view.rebuildFromEvents(this.options.address, characterId, head.headSeq, history)
         let scene = this.#scene.decideFromEvents(this.options.address, characterId, history, head.headSeq)
         const character = this.#manifest.characters.find(value => value.characterId === characterId)!
         const recalled = this.options.memory?.prepareStimulus({
@@ -659,8 +660,10 @@ export class CharacterTurn {
             for (const [index, action] of actions.entries()) {
               signal.throwIfAborted()
               // Resolve and grant audiences at the latest prefix, never at a speculative model prefix.
-              head = this.options.store.head(this.options.address)
-              history = this.options.store.readEvents(this.options.address, head.headSeq)
+              const latest = this.options.store.head(this.options.address)
+              if (latest.headSeq !== head.headSeq || latest.eventHash !== head.eventHash)
+                history = this.options.store.readEvents(this.options.address, latest.headSeq)
+              head = latest
               // The head may advance between the earlier freshness check and acquiring the lease.
               // Recheck while holding the lease before using the latest prefix to resolve this output.
               if (ownPrefix === undefined ? !isCurrent() : head.headSeq !== ownPrefix) return false

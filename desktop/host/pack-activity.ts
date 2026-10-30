@@ -76,11 +76,22 @@ export function readActivityWorld(worldPath: string, address: WorldAddress): Act
   let headSeq: number, events: readonly RulebookEvent[], manifest: CompiledWorldManifest
   try {
     headSeq = store.head(address).headSeq
-    events = store.readEvents(address)
+    events = store.readEvents(address, headSeq)
     manifest = store.readManifest(address)!.manifest as CompiledWorldManifest
   } finally {
     store.close()
   }
+  return activityWorldFromEvents(worldPath, address, headSeq, events, manifest)
+}
+
+/** Share only this presentation pass's committed history; authorized actor views remain separately projected. */
+export function activityWorldFromEvents(
+  worldPath: string,
+  address: WorldAddress,
+  headSeq: number,
+  events: readonly RulebookEvent[],
+  manifest: CompiledWorldManifest,
+): ActivityWorld {
   const views = new Map<string, WorldJsonObject>()
   const truths = new Map<PackStatus | undefined, unknown>()
   return {
@@ -204,6 +215,7 @@ export class PackActivity {
   /** Optional player-facing opening line that replaces "<title>开始。" for the player. */
   readonly opening: string | undefined
   readonly npcIds: string[]
+  readonly hasAutoStart: boolean
   readonly participantSelection?: { min: number; max: number; candidates?: string[] }
   constructor(
     source: string,
@@ -215,7 +227,7 @@ export class PackActivity {
   ) {
     this.#script = new Script(
       source +
-        '\nJSON.stringify(__method === "definition" ? activityScript.definition : __method === "hasResume" ? typeof activityScript.resume === "function" : (["simulate","onPublished","resume","autoStart"].includes(__method) && activityScript[__method] === undefined) ? null : activityScript[__method](...JSON.parse(__args)))',
+        '\nJSON.stringify(__method === "definition" ? activityScript.definition : __method === "hasResume" ? typeof activityScript.resume === "function" : __method === "hasAutoStart" ? activityScript.autoStart !== undefined : (["simulate","onPublished","resume","autoStart"].includes(__method) && activityScript[__method] === undefined) ? null : activityScript[__method](...JSON.parse(__args)))',
     )
     const definition = object(this.#call('definition', []))
     exact(definition, [
@@ -238,6 +250,7 @@ export class PackActivity {
       throw new TypeError('活动开场文案必须是 1–500 字符')
     this.title = definition.title
     this.opening = typeof definition.opening === 'string' ? definition.opening : undefined
+    this.hasAutoStart = this.#call('hasAutoStart', []) === true
     if (Object.hasOwn(definition, 'participants')) {
       const selection = object(definition.participants)
       exact(selection, ['mode', 'min', 'max', ...(Object.hasOwn(selection, 'candidates') ? ['candidates'] : [])])
@@ -484,12 +497,17 @@ export class PackActivity {
    */
   view(
     actorId: string,
-    shared: { state?: ActivityState | undefined; world?: ActivityWorld; foreground?: boolean } = {},
+    shared: {
+      state?: ActivityState | undefined
+      world?: ActivityWorld
+      readWorld?: () => ActivityWorld
+      foreground?: boolean
+    } = {},
   ): WorldJsonObject {
     const state = 'state' in shared ? shared.state : this.current()
     const starting = !shared.foreground || state?.game.active === true
     let snapshot = shared.world
-    const read = () => (snapshot ??= readActivityWorld(this.worldPath, this.address))
+    const read = () => (snapshot ??= shared.readWorld?.() ?? readActivityWorld(this.worldPath, this.address))
     let selection: WorldJsonObject | undefined
     if (starting && this.participantSelection && actorId === this.playerId) {
       const manifest = read().manifest
@@ -521,6 +539,7 @@ export class PackActivity {
       actorId === this.playerId &&
       !state?.game.active &&
       state?.suspendedTurn === undefined &&
+      this.hasAutoStart &&
       !this.#manualStartAllowed(read())
         ? { manualStart: false }
         : {}),
@@ -985,8 +1004,10 @@ export class PackActivity {
   /** The author's start condition after a player round. Only reads truth and the player's authorized facts;
    * undefined when this script declares no condition, already runs, or holds paused progress for the player. */
   autoStartCandidate(
-    snapshot: ActivityWorld = readActivityWorld(this.worldPath, this.address),
+    snapshot?: ActivityWorld,
   ): { conditions: number; met: boolean; parameters: WorldJsonObject; notice?: string } | undefined {
+    if (!this.hasAutoStart) return undefined
+    snapshot ??= readActivityWorld(this.worldPath, this.address)
     const current = this.state(snapshot.events)
     if (current?.game.active || current?.suspendedTurn !== undefined) return undefined
     const truth = snapshot.truth(this.status)
