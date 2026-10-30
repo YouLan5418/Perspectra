@@ -2,6 +2,7 @@ import { parseExpressionSegments } from '@harness-world/contracts'
 import {
   compareWorldText,
   hashWorldJson,
+  worldAddressKey,
   type CharacterId,
   type CharacterLifecycleState,
   type CharacterSceneView,
@@ -142,6 +143,11 @@ function selfState(
   return { locationId, lifecycleState, observations }
 }
 
+const immutableViews = new WeakMap<
+  StoredWorldEvent,
+  Map<string, { readonly events: readonly StoredWorldEvent[]; readonly view: CharacterView }>
+>()
+
 /** Builds the model-visible, character-scoped view from one exact event prefix. */
 export class CharacterViewBuilder {
   constructor(private readonly worldStore: WorldStore) {}
@@ -154,7 +160,7 @@ export class CharacterViewBuilder {
   ): CharacterView {
     this.#validatePrefix(address, asOfWorldSeq)
     const events = this.worldStore.readEventsRange(address, 0, asOfWorldSeq, CHARACTER_VIEW_READ_EVENT_TYPES)
-    return this.#rebuild(address, characterId, asOfWorldSeq, events, heartbeat)
+    return this.#reuseOrRebuild(address, characterId, asOfWorldSeq, events, false, heartbeat)
   }
 
   /** Reuse an already read committed prefix; copying keeps callers' views separate from the source history. */
@@ -169,7 +175,34 @@ export class CharacterViewBuilder {
     const relevant = events.filter(
       event => event.seq <= asOfWorldSeq && CHARACTER_VIEW_READ_EVENT_TYPE_SET.has(event.eventType),
     )
-    return this.#rebuild(address, characterId, asOfWorldSeq, structuredClone(relevant), heartbeat)
+    return this.#reuseOrRebuild(address, characterId, asOfWorldSeq, relevant, true, heartbeat)
+  }
+
+  #reuseOrRebuild(
+    address: WorldAddress,
+    characterId: CharacterId,
+    asOfWorldSeq: number,
+    events: readonly StoredWorldEvent[],
+    copy: boolean,
+    heartbeat?: () => void,
+  ): CharacterView {
+    const last = events.at(-1),
+      cacheable = !copy && last !== undefined && events.every(event => Object.isFrozen(event)),
+      key = `${worldAddressKey(address)}\u001f${characterId}\u001f${asOfWorldSeq}`
+    const entries = last === undefined ? undefined : immutableViews.get(last),
+      cached = entries?.get(key)
+    if (cached && cached.events.length === events.length && events.every((event, i) => event === cached.events[i])) {
+      heartbeat?.()
+      return structuredClone(cached.view)
+    }
+    const view = this.#rebuild(address, characterId, asOfWorldSeq, copy ? structuredClone(events) : events, heartbeat)
+    if (cacheable) {
+      const values = entries ?? new Map()
+      values.set(key, { events: [...events], view })
+      if (entries === undefined) immutableViews.set(last, values)
+      return structuredClone(view)
+    }
+    return view
   }
 
   #validatePrefix(address: WorldAddress, asOfWorldSeq: number): void {

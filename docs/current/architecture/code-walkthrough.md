@@ -35,6 +35,8 @@ WorldApplication 负责玩家提交和授权记忆来源捕获；RoundCoordinato
 
 NPC 处理途中玩家也可以插话，规则见下一节末尾。
 
+例如序章一步先读活动、再处理角色、最后结算与刷新，turn／activityAction／requestCharacter 用 WorldStore.withEventReadCache 包住自身等待链：相同提交前缀只解析一次，写入后补读尾部，完成或失败后清空。角色仍按本人权限投影，候选哈希仍按原规则计算。实现、单步快照的限制与实测见[单步前缀记录](../studies/2026-10-30_event-prefix-reuse-report.md)。
+
 ## 4. NPC 如何获得处理机会
 
 先看一个例子：玩家在客厅说“谁看见我的钥匙了？”。客厅里的 A、B 听见了，厨房里的 C 没听见。[runCharacterActivations](../../../packages/application/src/activation-cycle.ts) 看到新提交的观察，给 A、B 各一次处理机会。A 回答“在桌上”，这句话又成了 B 的新观察，B 可能再回应一次——这就是“下一波”。到没人有新东西要处理，或者次数、时间用完，这一轮就停下。

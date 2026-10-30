@@ -47,6 +47,41 @@ async function commit(
 }
 
 describe('CharacterViewBuilder', () => {
+  it('reuses immutable scoped prefixes across builders without sharing mutable or private views', async () => {
+    const store = new WorldStore(database('scoped-view.sqlite')),
+      target = address('scoped-view'),
+      character = brandId('character:a', 'CharacterId'),
+      other = brandId('character:b', 'CharacterId')
+    try {
+      store.createBranch(target)
+      await commit(store, target, 'scoped-view', [
+        ...[character, other].map(characterId => ({
+          eventType: 'character.created',
+          eventVersion: 1,
+          data: { characterId, locationId: 'location:home' },
+        })),
+        {
+          eventType: 'observation.upsert',
+          eventVersion: 1,
+          data: { id: 'observation:private', value: { observerId: character, content: 'PRIVATE' } },
+        },
+      ])
+      const head = store.head(target).headSeq,
+        expected = new CharacterViewBuilder(store).rebuildAt(target, character, head)
+      await WorldStore.withEventReadCache(async () => {
+        const first = new CharacterViewBuilder(store).rebuildAt(target, character, head)
+        Object.assign(first.observations[0]!.value as WorldJsonObject, { content: 'caller mutation' })
+        expect(new CharacterViewBuilder(store).rebuildAt(target, character, head)).toEqual(expected)
+        expect(
+          new CharacterViewBuilder(store).rebuildFromEvents(target, character, head, store.readEvents(target)),
+        ).toEqual(expected)
+        expect(new CharacterViewBuilder(store).rebuildAt(target, other, head).observations).toEqual([])
+      })
+    } finally {
+      store.close()
+    }
+  })
+
   it('reads one prefix for self-state and projections, applies removals, and returns independent views', async () => {
     const store = new WorldStore(database('single-prefix.sqlite'))
     try {

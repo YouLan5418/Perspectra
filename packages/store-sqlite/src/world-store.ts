@@ -1,4 +1,6 @@
 import type { DatabaseSync } from 'node:sqlite'
+import { AsyncLocalStorage } from 'node:async_hooks'
+import { resolve } from 'node:path'
 import {
   brandId,
   compareWorldText,
@@ -89,6 +91,23 @@ interface EventRow {
   readonly event_ordinal: number
 }
 
+interface EventReadPrefix {
+  head: ReturnType<WorldStore['head']>
+  throughSeq: number
+  events: StoredWorldEvent[]
+}
+
+const eventReadScope = new AsyncLocalStorage<{
+  active: boolean
+  prefixes: Map<string | DatabaseSync, Map<string, EventReadPrefix>>
+}>()
+
+function freezeEventValue(value: unknown): void {
+  if (value === null || typeof value !== 'object' || Object.isFrozen(value)) return
+  for (const child of Object.values(value)) freezeEventValue(child)
+  Object.freeze(value)
+}
+
 function assertManifestEvents(manifest: WorldJsonValue, events: readonly WorldEventDraft[]): void {
   if (
     typeof manifest !== 'object' ||
@@ -135,6 +154,7 @@ function assertManifestEvents(manifest: WorldJsonValue, events: readonly WorldEv
 /** Authoritative World Event, Head, Tick, and Outbox store. */
 export class WorldStore {
   readonly #db: DatabaseSync
+  readonly #eventCacheKey: string | DatabaseSync
   #audit: OperationalAuditLog | undefined
 
   constructor(
@@ -143,6 +163,21 @@ export class WorldStore {
     private readonly operationalNow: () => number = Date.now,
   ) {
     this.#db = openWorldDatabase(path)
+    this.#eventCacheKey = path === ':memory:' ? this.#db : resolve(path)
+  }
+
+  /** Share immutable committed prefixes only for this operation, including its awaited continuations. */
+  static async withEventReadCache<T>(operation: () => Promise<T>): Promise<T> {
+    if (eventReadScope.getStore()?.active) return operation()
+    const scope = { active: true, prefixes: new Map<string | DatabaseSync, Map<string, EventReadPrefix>>() }
+    return eventReadScope.run(scope, async () => {
+      try {
+        return await operation()
+      } finally {
+        scope.active = false
+        scope.prefixes.clear()
+      }
+    })
   }
 
   #auditLog(): OperationalAuditLog {
@@ -788,7 +823,41 @@ export class WorldStore {
 
   /** Read effective inherited history through asOfSeq. */
   readEvents(address: WorldAddress, asOfSeq = Number.MAX_SAFE_INTEGER): StoredWorldEvent[] {
-    return this.#readEventsByKey(worldAddressKey(address), 0, asOfSeq)
+    const scope = eventReadScope.getStore(),
+      key = worldAddressKey(address)
+    if (!scope?.active) return this.#readEventsByKey(key, 0, asOfSeq)
+    const head = this.head(address),
+      throughSeq = Math.min(asOfSeq, head.headSeq)
+    let branches = scope.prefixes.get(this.#eventCacheKey)
+    if (branches === undefined) scope.prefixes.set(this.#eventCacheKey, (branches = new Map()))
+    let prefix = branches.get(key)
+    if (
+      prefix !== undefined &&
+      (head.headSeq < prefix.head.headSeq ||
+        (head.headSeq === prefix.head.headSeq &&
+          (head.eventHash !== prefix.head.eventHash || head.tick !== prefix.head.tick)))
+    ) {
+      branches.delete(key)
+      prefix = undefined
+    }
+    if (prefix === undefined) {
+      const events = this.#readEventsByKey(key, 0, throughSeq)
+      events.forEach(freezeEventValue)
+      prefix = { head, throughSeq, events }
+      branches.set(key, prefix)
+    } else if (throughSeq > prefix.throughSeq) {
+      const added = this.#readEventsByKey(key, prefix.throughSeq, throughSeq)
+      // A replaced prefix is a new snapshot, even when its final sequence advanced.
+      if (added.length && added[0]!.previousHash !== (prefix.events.at(-1)?.eventHash ?? 'genesis')) {
+        branches.delete(key)
+        return this.readEvents(address, asOfSeq)
+      }
+      added.forEach(freezeEventValue)
+      prefix.events = prefix.events.concat(added)
+      prefix.throughSeq = throughSeq
+    }
+    prefix.head = head
+    return prefix.events.filter(event => event.seq <= throughSeq)
   }
 
   /** Read timestamps in the effective branch prefix without loading event payloads. */
@@ -823,6 +892,10 @@ export class WorldStore {
       throw new TypeError('Event range types must be non-empty, unpadded strings')
     }
     if (normalizedTypes?.length === 0) return []
+    if (eventReadScope.getStore()?.active)
+      return this.readEvents(address, asOfSeq).filter(
+        event => event.seq > afterSeq && (normalizedTypes === undefined || normalizedTypes.includes(event.eventType)),
+      )
     return this.#readEventsByKey(worldAddressKey(address), afterSeq, asOfSeq, normalizedTypes)
   }
 
@@ -1264,7 +1337,7 @@ export class WorldStore {
   verifyBranchIntegrity(address: WorldAddress): BranchIntegrityReport {
     const addressKey = worldAddressKey(address)
     const head = this.head(address)
-    const events = this.readEvents(address, head.headSeq)
+    const events = this.#readEventsByKey(addressKey, 0, head.headSeq)
     let previousHash: WorldHash | 'genesis' = 'genesis'
     let tick = 0
     for (const [index, event] of events.entries()) {

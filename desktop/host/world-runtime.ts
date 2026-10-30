@@ -374,6 +374,9 @@ export class WorldHostCore implements HostRuntime {
   }
   /** Native capabilities can request a declared role's normal turn; no raw Context or model key crosses this API. */
   async requestCharacter(characterId: string, signal?: AbortSignal): Promise<WorldJsonObject> {
+    return WorldStore.withEventReadCache(() => this.#requestCharacter(characterId, signal))
+  }
+  async #requestCharacter(characterId: string, signal?: AbortSignal): Promise<WorldJsonObject> {
     if (
       !this.#pluginsReady ||
       this.#closing ||
@@ -977,6 +980,9 @@ export class WorldHostCore implements HostRuntime {
    * own get their turn.
    */
   async turn(inputs: readonly string[], idempotencyKey?: string): Promise<HostState> {
+    return WorldStore.withEventReadCache(() => this.#turn(inputs, idempotencyKey))
+  }
+  async #turn(inputs: readonly string[], idempotencyKey?: string): Promise<HostState> {
     if (this.#busy || this.#escaping || this.#closing) throw new HostBusyError('请等待当前行动完成。')
     if (this.#paused) {
       this.#notice = 'NPC 已暂停：这次输入没有提交。恢复后再试。'
@@ -1179,6 +1185,9 @@ export class WorldHostCore implements HostRuntime {
     this.#finishWork = undefined
   }
   async activityAction(request: ActivityRequest): Promise<HostState> {
+    return WorldStore.withEventReadCache(() => this.#activityAction(request))
+  }
+  async #activityAction(request: ActivityRequest): Promise<HostState> {
     if (this.#busy || this.#escaping || this.#closing) throw new HostBusyError('请等待当前处理完成，或使用逃生按钮。')
     if (this.#paused) throw new TypeError('请先恢复 NPC，或使用逃生按钮。')
     if (!this.#activity) throw new TypeError('本包没有安装游戏脚本。')
