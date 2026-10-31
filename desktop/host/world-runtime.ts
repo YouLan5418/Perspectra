@@ -56,8 +56,15 @@ import { CoreMemoryAdapter, type MemoryContextBudget, type MemoryBuildOptions } 
 import { assertCoreEnvironment, coreRunnerGroups, type CoreRunner, type MemoryRunners } from './memory/python-worker.ts'
 import { activityWorldFromEvents, type ActivityRequest, type ActivityWorld } from './pack-activity.ts'
 import { decideWithFormatRetry } from './decision-format.ts'
-import { PackActivities, type AutoStartEvaluation } from './pack-activities.ts'
-import { KNOWN_STATUS_NOTE, PackStatus, pauseRounds, publicStatusChanges } from './pack-status.ts'
+import { PackActivities, type ActivityDefinitionView, type AutoStartEvaluation } from './pack-activities.ts'
+import {
+  KNOWN_STATUS_NOTE,
+  PackStatus,
+  pauseRounds,
+  publicStatusChanges,
+  type StatusDefinition,
+  type StatusOperation,
+} from './pack-status.ts'
 import { PackKnowledge } from './pack-knowledge.ts'
 import { PackAutonomy, type AutonomousRole } from './pack-autonomy.ts'
 import { CrossSceneCommunication, communicationInstruction, loadCommunicationConfig } from './pack-communication.ts'
@@ -1279,6 +1286,21 @@ export class WorldHostCore implements HostRuntime {
   /** Automatic-start checks for the pack lens: the last round's, or recomputed now without starting anything. */
   autoStartEvaluations(mode: 'last' | 'now'): readonly AutoStartEvaluation[] {
     return (mode === 'last' ? this.#activity?.lastAutoStart() : this.#activity?.evaluateAutoStart()) ?? []
+  }
+  /** The author's status definition (statuses and operations) from the loaded status script, for the pack lens. */
+  statusDefinition(): {
+    readonly statuses: readonly StatusDefinition[]
+    readonly operations: readonly StatusOperation[]
+    readonly hasRoundHook: boolean
+  } {
+    return {
+      statuses: this.#status?.statuses ?? [],
+      operations: this.#status?.operations ?? [],
+      hasRoundHook: this.#status?.hasRoundHook ?? false,
+    }
+  }
+  activityDefinitions(): readonly ActivityDefinitionView[] {
+    return this.#activity?.definitions() ?? []
   }
   beginRoundRandom(values?: readonly number[]): void {
     this.#activity?.beginRoundRandom(values)

@@ -31,6 +31,19 @@ export interface AutoStartEvaluation {
   readonly error?: string
 }
 
+/** One activity as the author declared it, for the pack lens. */
+export interface ActivityDefinitionView {
+  readonly activityKey: string
+  readonly title: string
+  readonly opening: string | undefined
+  readonly npcIds: readonly string[]
+  readonly participantSelection:
+    | { readonly min: number; readonly max: number; readonly candidates?: string[] }
+    | undefined
+  readonly hasAutoStart: boolean
+  readonly operations: readonly { readonly id: string; readonly label: string }[]
+}
+
 /** One foreground activity, with independent progress in the existing world event log. */
 export class PackActivities {
   readonly #entries = new Map<string, PackActivity>()
@@ -225,6 +238,18 @@ export class PackActivities {
   /** Each autoStart activity's checks from the most recent round's autoStart(). */
   lastAutoStart(): readonly AutoStartEvaluation[] {
     return this.#lastAutoStart
+  }
+  /** The author's activity declarations, read from the already loaded scripts. */
+  definitions(): readonly ActivityDefinitionView[] {
+    return [...this.#entries].map(([activityKey, entry]) => ({
+      activityKey,
+      title: entry.title,
+      opening: entry.opening,
+      npcIds: [...entry.npcIds],
+      participantSelection: entry.participantSelection && structuredClone(entry.participantSelection),
+      hasAutoStart: entry.hasAutoStart,
+      operations: entry.operationLabels,
+    }))
   }
   /** Read-only: the same checks against the committed state now; starts nothing and reports hook errors per item. */
   evaluateAutoStart(): readonly AutoStartEvaluation[] {

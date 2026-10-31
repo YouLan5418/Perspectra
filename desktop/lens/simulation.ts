@@ -226,6 +226,12 @@ export class LensSimulation {
   conditionsNow(): readonly AutoStartEvaluation[] {
     return this.#runtime.autoStartEvaluations('now')
   }
+  statusDefinition() {
+    return this.#runtime.statusDefinition()
+  }
+  activityDefinitions() {
+    return this.#runtime.activityDefinitions()
+  }
 
   async step(step: LensStep): Promise<LensStepTrace> {
     const index = this.#steps++

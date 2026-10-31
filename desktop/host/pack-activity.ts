@@ -235,6 +235,10 @@ export class PackActivity {
   readonly opening: string | undefined
   readonly npcIds: string[]
   readonly hasAutoStart: boolean
+  /** The player-facing operations, by id and label, for the pack lens. */
+  get operationLabels(): readonly { readonly id: string; readonly label: string }[] {
+    return this.#operations.map(op => ({ id: op.id, label: op.label }))
+  }
   readonly participantSelection?: { min: number; max: number; candidates?: string[] }
   constructor(
     source: string,
