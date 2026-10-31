@@ -1,6 +1,6 @@
 # Windows x64 便携测试包构建
 
-2026-10-24 起，本轮只构建 Perspectra 程序，不附带试玩包。版本读取根 `package.json`（当前 0.3.1），随包 `worldpack.cmd --version` 使用同一版本；2026-10-29 起 Launcher 的 package.json、Tauri 配置与 Cargo 包版本也统一为 0.3.1。历史 test3 记录见 docs/current/studies。以下从仓库根目录执行。构建机需要现有 pnpm/Cargo/Node；玩家机不需要这些开发工具。
+2026-10-24 起，本轮只构建 Perspectra 程序，不附带试玩包。版本读取根 `package.json`（当前 0.3.5），随包 `worldpack.cmd --version` 使用同一版本；2026-10-29 起 Launcher 的 package.json、Tauri 配置与 Cargo 包版本也统一为根版本（2026-10-30 起 0.3.5）。历史 test3 记录见 docs/current/studies。以下从仓库根目录执行。构建机需要现有 pnpm/Cargo/Node；玩家机不需要这些开发工具。
 
 ## 素材
 
@@ -41,9 +41,9 @@ node --import tsx scripts/release/verify-core-layout.mjs
 corepack pnpm@11.7.0 check
 corepack pnpm@11.7.0 launcher:check
 corepack pnpm@11.7.0 --filter @perspectra/launcher tauri build --no-bundle
-node scripts/release/build-portable.mjs dist/portable/Perspectra-0.3.1-win-x64
-node scripts/release/verify-portable.mjs dist/portable/Perspectra-0.3.1-win-x64 .tmp/portable-0.3.1-smoke examples/world-packs/prototype-g1 offline
-node scripts/release/archive-portable.mjs dist/portable/Perspectra-0.3.1-win-x64
+node scripts/release/build-portable.mjs dist/portable/Perspectra-0.3.5-win-x64
+node scripts/release/verify-portable.mjs dist/portable/Perspectra-0.3.5-win-x64 .tmp/portable-0.3.5-smoke examples/world-packs/prototype-g1 offline
+node scripts/release/archive-portable.mjs dist/portable/Perspectra-0.3.5-win-x64
 ```
 
 输出目录必须不存在；验收数据目录必须全新。`verify-portable.mjs` 用构建机 esbuild 生成前端比对值，再规范化内嵌脚本的局部变量名，避免源码加载器或整包符号重命名导致无意义差异；HTML/CSS 和可观察字符串仍参加比对。它不会给玩家增加开发依赖。第三个参数是另行准备的源包目录，验收夹具不会被加入程序载荷；检查程序包没有 `examples`，并运行随包 CLI、载入／实例／Core 生命周期、前端一致性及离线编码。以上命令末尾 `offline` 跳过真实连接，报告明确标注；去掉它会请求本机 8046/gemini-3.7-flash，需服务可用。它不代替界面试玩、完整玩法或干净系统验收，也不再验收官方试玩包序章。
