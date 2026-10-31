@@ -109,6 +109,7 @@ const trace = computed(() => [...simulation.value.trace].reverse())
                 </option>
               </select>
               <span v-else class="cr-muted">此刻没有可尝试的交互</span>
+              <span class="cr-muted">选项是她主动时（轮到她自己行动的回合）可以做的事</span>
             </template>
           </div>
         </div>
