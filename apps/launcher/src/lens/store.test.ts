@@ -2,7 +2,10 @@ import { beforeEach, expect, it, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 import type { LensSnapshot } from '../../../../desktop/lens/session.ts'
 
+const bridge = vi.hoisted(() => ({ lensRequest: vi.fn() }))
 vi.mock('@tauri-apps/api/core', () => ({ isTauri: () => true, invoke: vi.fn() }))
+vi.mock('../services/desktop.ts', () => ({ lensRequest: bridge.lensRequest }))
+import { conditionItems } from '../../../../desktop/lens/ids.ts'
 import { useLensStore } from './store.ts'
 
 const source = { kind: 'json', file: 'characters.json', pointer: '/characters/0' } as const
@@ -51,11 +54,22 @@ function snapshot(): LensSnapshot {
     requests: [request('1', 'open'), request('2', 'changed'), request('3', 'removed'), request('4', 'closed')],
     checkpoints: [],
     scenarios: [],
-    simulation: { start: {}, trace: [], conditions: [], state: {} as LensSnapshot['simulation']['state'] },
+    simulation: {
+      start: {},
+      trace: [],
+      conditions: [],
+      npcOptions: {},
+      state: {} as LensSnapshot['simulation']['state'],
+    },
   }
 }
 
-beforeEach(() => setActivePinia(createPinia()))
+beforeEach(() => {
+  setActivePinia(createPinia())
+  bridge.lensRequest.mockReset()
+  bridge.lensRequest.mockResolvedValue(snapshot())
+})
+const sent = () => bridge.lensRequest.mock.calls.map(([operation]) => operation as string)
 
 it('indexes changes by item id', () => {
   const store = useLensStore()
@@ -80,4 +94,73 @@ it('counts only open and changed requests', () => {
   expect(store.requestsOpenCount).toBe(0)
   store.snapshot = snapshot()
   expect(store.requestsOpenCount).toBe(2)
+})
+
+it('surfaces a failed operation in error and clears busy', async () => {
+  const store = useLensStore()
+  bridge.lensRequest.mockRejectedValueOnce(new Error('世界包读不了'))
+  expect(await store.open('pack:test')).toBeUndefined()
+  expect(store.error).toBe('世界包读不了')
+  expect(store.busy).toBe(false)
+  expect(store.snapshot).toBeNull()
+  expect(await store.reload()).toBe(true)
+  expect(store.error).toBe('')
+})
+
+it('sends the NPC plans before the step, and stops if the plans fail', async () => {
+  const store = useLensStore()
+  const plans = { 'character:a': [{ kind: 'abstain' as const }] }
+  expect(await store.step({ kind: 'wait' }, plans)).toBe(true)
+  expect(bridge.lensRequest.mock.calls).toEqual([
+    ['lens-npc-plans', { plans }],
+    ['lens-step', { step: { kind: 'wait' } }],
+  ])
+  bridge.lensRequest.mockClear()
+  bridge.lensRequest.mockRejectedValueOnce(new Error('计划无效'))
+  expect(await store.step({ kind: 'wait' }, plans)).toBe(false)
+  expect(sent()).toEqual(['lens-npc-plans'])
+  expect(store.error).toBe('计划无效')
+})
+
+it('only the seen action moves the baseline', async () => {
+  const store = useLensStore()
+  await store.open('pack:test')
+  await store.reload()
+  await store.setBaseline({ kind: 'checkpoint', name: '前' })
+  await store.saveCheckpoint('前')
+  await store.addRequest('character:a', '改')
+  await store.close()
+  expect(sent()).not.toContain('lens-seen')
+  await store.open('pack:test')
+  await store.markSeen()
+  expect(sent().filter(operation => operation === 'lens-seen')).toHaveLength(1)
+})
+
+it('close clears local state, and a failed close is reported', async () => {
+  const store = useLensStore()
+  await store.open('pack:test')
+  store.select('character:a')
+  await store.close()
+  expect(sent().at(-1)).toBe('lens-close')
+  expect(store.snapshot).toBeNull()
+  expect(store.selectedId).toBe('')
+  expect(store.error).toBe('')
+
+  await store.open('pack:test')
+  bridge.lensRequest.mockRejectedValueOnce(new Error('后端没响应'))
+  await store.close()
+  expect(store.snapshot).toBeNull()
+  expect(store.error).toBe('关闭透视失败：后端没响应')
+  // Nothing open: closing again does not call the backend.
+  bridge.lensRequest.mockClear()
+  await store.close()
+  expect(sent()).toEqual([])
+})
+
+it('condition ids follow one shared rule', () => {
+  expect(conditionItems('event:x', [{ label: '深夜' }, { label: null }, { label: '深夜' }])).toEqual([
+    { title: '深夜', id: 'event:x/when/深夜' },
+    { title: '条件 2', id: 'event:x/when/条件 2' },
+    { title: '深夜', id: 'event:x/when/深夜#2' },
+  ])
 })

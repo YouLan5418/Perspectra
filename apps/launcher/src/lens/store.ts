@@ -8,6 +8,9 @@ import type { LensItem, LensSection } from '../../../../desktop/lens/view.ts'
 import { lensRequest } from '../services/desktop.ts'
 import { mockLensSnapshot } from '../mock.ts'
 
+const message = (cause: unknown) =>
+  typeof cause === 'string' ? cause : cause instanceof Error ? cause.message : '透视操作失败。'
+
 export type LensViewName = LensSection | 'simulation' | 'requests'
 
 /** 透视页面的状态：后端每个操作都返回完整快照，这里只整体替换，不在前端改写包内容。 */
@@ -64,7 +67,7 @@ export const useLensStore = defineStore('lens', () => {
       snapshot.value = real ? await lensRequest(operation, data) : mockLensSnapshot()
       return true
     } catch (cause) {
-      error.value = typeof cause === 'string' ? cause : cause instanceof Error ? cause.message : '透视操作失败。'
+      error.value = message(cause)
       return false
     } finally {
       busy.value = false
@@ -90,16 +93,18 @@ export const useLensStore = defineStore('lens', () => {
     view.value = 'characters'
     await call('lens-open', { packageId })
   }
+  /** 关闭透视：本地状态总会清掉；后端关闭失败时写进 `error`，不当成成功。 */
   async function close() {
-    if (real && snapshot.value) {
-      try {
-        await lensRequest('lens-close')
-      } catch {
-        /* 关闭失败时后端会在下次打开时替换旧透视；页面照常关闭。 */
-      }
-    }
+    const open = real && snapshot.value !== null
     snapshot.value = null
+    selectedId.value = ''
     error.value = ''
+    if (!open) return
+    try {
+      await lensRequest('lens-close')
+    } catch (cause) {
+      error.value = '关闭透视失败：' + message(cause)
+    }
   }
   /** 先交给后端本步的 NPC 行为（空对象清掉上一步没用完的设置），再走这一步。 */
   async function step(next: LensStep, plans: Record<string, readonly LensNpcPlan[]>) {

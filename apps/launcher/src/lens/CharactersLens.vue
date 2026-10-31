@@ -11,6 +11,11 @@ const characters = computed(() => store.inSection('characters'))
 const removed = computed(() => store.removedIn('characters'))
 /** 最近一步推演里获得机会的角色。 */
 const activated = computed(() => new Set(store.snapshot?.simulation.trace.at(-1)?.activated ?? []))
+/** 静态白名单之外的第二层：推演当前时刻，运行时（状态脚本 policy、活动、白名单）真的会给她的交互。
+ * 选项与白名单用同一套命名规则，所以按名字对应。 */
+const availableNow = (item: LensItem, name: string) =>
+  (store.snapshot?.simulation.npcOptions[item.id] ?? []).some(option => option.label === name)
+const hasOptions = (item: LensItem) => item.id in (store.snapshot?.simulation.npcOptions ?? {})
 
 const wake = (item: LensItem) => {
   const every = fieldValue(item.fields, 'everyPlayerTurns')
@@ -66,7 +71,16 @@ const events = (item: LensItem) => (item.links ?? []).flatMap(id => store.itemBy
             </template>
             <template v-if="fieldValue(item.fields, 'interactions') !== undefined">
               <dt :class="{ changed: changedKeys(item).has('interactions') }">可用交互</dt>
-              <dd>{{ showValue(fieldValue(item.fields, 'interactions')!) }}</dd>
+              <dd v-if="!hasOptions(item) || !list(item, 'interactions').length">
+                {{ showValue(fieldValue(item.fields, 'interactions')!) }}
+              </dd>
+              <dd v-else class="lens-abilities">
+                <span v-for="name in list(item, 'interactions')" :key="name" class="lens-ability">
+                  {{ name }}
+                  <span v-if="availableNow(item, name)" class="cr-tag ok">此刻可用</span>
+                  <span v-else class="cr-tag muted">此刻不可用</span>
+                </span>
+              </dd>
             </template>
             <template v-if="fieldValue(item.fields, 'places') !== undefined">
               <dt :class="{ changed: changedKeys(item).has('places') }">可去地点</dt>
@@ -133,6 +147,16 @@ const events = (item: LensItem) => (item.links ?? []).flatMap(id => store.itemBy
 }
 .cr-kv dt.changed {
   color: var(--cr-action);
+}
+.lens-abilities {
+  display: grid;
+  gap: 2px;
+}
+.lens-ability {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
 }
 .lens-chip {
   margin: 0 4px 4px 0;

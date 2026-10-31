@@ -12,6 +12,8 @@ import type { AutoStartEvaluation } from '../host/pack-activities.ts'
 import { PackStatus } from '../host/pack-status.ts'
 import { WorldHostRuntime } from '../host/world-runtime.ts'
 import { startStubModel, type StubDecision, type StubModel } from './stub-model.ts'
+import { interactionName } from './ids.ts'
+import { interactionLabels } from './view.ts'
 
 /** Another opening for the pack, written into a temporary copy before the runtime starts. */
 export interface LensStart {
@@ -37,6 +39,15 @@ export interface LensTraceLine {
   readonly activityKey?: string
   readonly text: string
   readonly seq: number
+}
+/** One interaction a non-player character is offered right now by the real runtime; `label` names it the way the
+ * lens view names her whitelisted interactions, so the page can match the two. */
+export interface LensNpcOption {
+  readonly definitionId: string
+  readonly label: string
+  readonly targetId?: string
+  readonly targetName?: string
+  readonly action: HostAction
 }
 export interface LensStepTrace {
   readonly index: number
@@ -155,6 +166,8 @@ export class LensSimulation {
   readonly #playerId: string
   readonly #names: ReadonlyMap<string, string>
   readonly #activityTitles: ReadonlyMap<string, string>
+  readonly #npcIds: readonly string[]
+  #labels: ReturnType<typeof interactionLabels> | undefined
   #plans = new Map<string, LensNpcPlan[]>()
   #asked = new Set<string>()
   #steps = 0
@@ -172,6 +185,7 @@ export class LensSimulation {
     this.#runtime = runtime
     this.#stub = stub
     this.#playerId = pack.content.playerSlots[0]!.characterId
+    this.#npcIds = pack.content.characters.map(c => c.characterId as string).filter(id => id !== this.#playerId)
     this.#names = new Map([
       ...pack.content.characters.map(c => [c.characterId, c.displayName] as const),
       ...pack.content.locations.map(l => [l.locationId, l.name ?? l.locationId] as const),
@@ -233,6 +247,43 @@ export class LensSimulation {
   }
   activityDefinitions() {
     return this.#runtime.activityDefinitions()
+  }
+  /** Per non-player character, the interactions the runtime's own resolver chain offers her right now. */
+  npcOptions(): Record<string, readonly LensNpcOption[]> {
+    this.#labels ??= interactionLabels(join(this.#root, 'pack'), this.#runtime.statusDefinition().operations)
+    const { operationLabels, bindingLabels } = this.#labels
+    return Object.fromEntries(
+      this.#npcIds.map(characterId => [
+        characterId,
+        this.#runtime
+          .characterAffordances(characterId)
+          .filter(affordance => affordance.actionType === 'interact')
+          .flatMap(affordance => affordance.interactions ?? [])
+          .flatMap((option): LensNpcOption[] => {
+            const definitionId = (option.definitionRef as WorldJsonObject | undefined)?.id
+            if (typeof definitionId !== 'string') return []
+            const targetId = (option.targetRef as WorldJsonObject | undefined)?.id
+            const label =
+              definitionId.startsWith('activity:') && typeof option.label === 'string'
+                ? option.label
+                : interactionName(definitionId, characterId, operationLabels, bindingLabels)
+            const parameters: WorldJsonObject = {
+              ...(option.targetRef === undefined ? {} : { targetRef: option.targetRef }),
+              ...(option.bindingId === undefined ? {} : { bindingId: option.bindingId }),
+              definitionRef: option.definitionRef!,
+              arguments: option.arguments ?? {},
+            }
+            return [
+              {
+                definitionId,
+                label,
+                ...(typeof targetId === 'string' ? { targetId, targetName: this.#name(targetId) } : {}),
+                action: { actionType: 'interact', parameters },
+              },
+            ]
+          }),
+      ]),
+    )
   }
 
   async step(step: LensStep): Promise<LensStepTrace> {

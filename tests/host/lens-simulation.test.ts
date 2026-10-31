@@ -88,6 +88,26 @@ it('npc plan is consumed then abstains', async () => {
   expect(chances).toEqual([true, false])
 }, 120_000)
 
+it('npc options follow the real status policy and autonomy whitelist', async () => {
+  const cooks = (lens: LensSimulation) =>
+    lens.npcOptions()[DEEPSEEK]!.filter(option => option.definitionId === 'status:cook-simple')
+  // The policy offers cook-simple only with the kitchen pot at hand; at the opening she is in the living room.
+  const opening = await open(PACK, { skipAutoStart: ['prologue'] })
+  expect(cooks(opening)).toEqual([])
+  const kitchen = await open(PACK, kitchenStart('白天'))
+  const offered = cooks(kitchen)
+  expect(offered).toHaveLength(1)
+  expect(offered[0]!.label).toBe('做一锅热乎的黄金蛋炒饭')
+  expect(offered[0]!.targetId).toBe('entity:kitchen-pot')
+  // Brewing tea is not on her autonomy whitelist, so it is never offered to her own turn.
+  expect(kitchen.npcOptions()[DEEPSEEK]!.some(option => option.definitionId === 'status:brew-shared-tea')).toBe(false)
+  // The action is shaped for a perform plan: the same refs the runtime offered.
+  expect(offered[0]!.action).toMatchObject({
+    actionType: 'interact',
+    parameters: { definitionRef: { id: 'status:cook-simple' }, targetRef: { id: 'entity:kitchen-pot' } },
+  })
+}, 120_000)
+
 it('does not touch the pack or data', async () => {
   const before = mtimes(PACK)
   const lens = await LensSimulation.open(PACK, kitchenStart('深夜'))

@@ -4,7 +4,14 @@ import type { HostState } from '../host/http-server.ts'
 import type { AutoStartEvaluation } from '../host/pack-activities.ts'
 import { diffLensViews, type LensChange } from './diff.ts'
 import { applyScenario, parseScenario } from './scenario.ts'
-import { LensSimulation, type LensNpcPlan, type LensStart, type LensStep, type LensStepTrace } from './simulation.ts'
+import {
+  LensSimulation,
+  type LensNpcOption,
+  type LensNpcPlan,
+  type LensStart,
+  type LensStep,
+  type LensStepTrace,
+} from './simulation.ts'
 import { LensStore, type LensRequestView } from './store.ts'
 import { buildLensView, type LensView } from './view.ts'
 
@@ -20,6 +27,8 @@ export interface LensSnapshot {
     readonly trace: readonly LensStepTrace[]
     readonly state: HostState
     readonly conditions: readonly AutoStartEvaluation[]
+    /** Per non-player character, what the real runtime offers her right now (see `LensSimulation.npcOptions`). */
+    readonly npcOptions: Readonly<Record<string, readonly LensNpcOption[]>>
   }
 }
 type Baseline = { readonly kind: 'seen' } | { readonly kind: 'checkpoint'; readonly name: string }
@@ -78,6 +87,7 @@ export class LensSession {
         trace: this.#trace,
         state: await this.simulation.state(),
         conditions: this.simulation.conditionsNow(),
+        npcOptions: this.simulation.npcOptions(),
       },
     }
   }

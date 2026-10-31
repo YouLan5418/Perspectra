@@ -22,6 +22,8 @@ import {
   currentLocation,
   currentSceneStates,
   RulebookRegistry,
+  type ActionAffordance,
+  type CompiledWorldManifest,
 } from '@harness-world/kernel'
 import {
   playSettings,
@@ -77,6 +79,7 @@ import {
   brandId,
   interactionPackageDescription,
   RECALL_KEYWORD_TOKENIZER_ID,
+  resolutionAuthority,
   type CharacterId,
   type StoredWorldEvent,
   type WorldJsonObject,
@@ -1301,6 +1304,36 @@ export class WorldHostCore implements HostRuntime {
   }
   activityDefinitions(): readonly ActivityDefinitionView[] {
     return this.#activity?.definitions() ?? []
+  }
+  /**
+   * What a non-player character would be offered right now, for the pack lens: the same resolver chain and context
+   * her turn request uses (core, communication, status policy, running activity), narrowed by her autonomy
+   * whitelist when she is an autonomous role. Reads committed events only; nothing is resolved or written.
+   */
+  characterAffordances(characterId: string): readonly ActionAffordance[] {
+    const path = resolve(this.#dataDirectory, 'world.sqlite')
+    const store = new WorldStore(path)
+    try {
+      const stored = store.readManifest(this.#address)
+      if (!stored) throw new Error('世界尚未初始化')
+      const manifest = stored.manifest as CompiledWorldManifest
+      const { rulebookId, version } = manifest.rulebook
+      const base = this.#rulebooks(path)
+      const rules = this.#autonomy?.roles.some(role => role.characterId === characterId)
+        ? this.#autonomy.rulebooks(base.resolve(rulebookId, version, 'lens', this.#address))
+        : base
+      return rules.resolve(rulebookId, version, 'lens', this.#address).affordances({
+        manifest,
+        manifestHash: stored.manifestHash,
+        events: store.readEvents(this.#address),
+        characterId,
+        asOfWorldSeq: store.head(this.#address).headSeq,
+        publicationCharacters: this.#playSettings.publicationCharacters,
+        resolutionAuthority: resolutionAuthority('agent', 'standard'),
+      })
+    } finally {
+      store.close()
+    }
   }
   beginRoundRandom(values?: readonly number[]): void {
     this.#activity?.beginRoundRandom(values)

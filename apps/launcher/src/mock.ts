@@ -368,8 +368,25 @@ export function mockLensSnapshot(): LensSnapshot {
         id: 'activity-1',
         revision: 2,
         game: { active: true },
-        options: [{ label: '结束这段互动，继续生活', definitionRef: { id: 'activity:end-response', version: 1 } }],
+        options: [
+          { label: '结束这段互动，继续生活', definitionRef: { id: 'activity:end-response', version: 1 } },
+          {
+            label: '悄悄说一句',
+            definitionRef: { id: 'activity:whisper', version: 1 },
+            arguments: { activityId: 'activity-1', revision: 2 },
+            argumentSchema: {
+              type: 'object',
+              required: ['activityId', 'revision', 'text'],
+              properties: {
+                activityId: { type: 'string' },
+                revision: { type: 'integer' },
+                text: { type: 'string', title: '说什么' },
+              },
+            },
+          },
+        ],
       },
+      { title: '谁是卧底', activityKey: 'undercover', available: true, suspended: true, id: 'activity-0', revision: 5 },
     ],
     debug: {},
   } as unknown as LensSnapshot['simulation']['state']
@@ -467,6 +484,25 @@ export function mockLensSnapshot(): LensSnapshot {
       ],
       state,
       conditions,
+      npcOptions: {
+        'character:deepseek': [
+          {
+            definitionId: 'status:cook-simple',
+            label: '做一锅热乎的黄金蛋炒饭',
+            targetId: 'entity:kitchen-pot',
+            targetName: '厨房的锅',
+            action: {
+              actionType: 'interact',
+              parameters: {
+                targetRef: { kind: 'entity', id: 'entity:kitchen-pot' },
+                definitionRef: { id: 'status:cook-simple', version: 1 },
+                arguments: {},
+              },
+            },
+          },
+        ],
+        'character:gpt': [],
+      },
     },
   }
 }

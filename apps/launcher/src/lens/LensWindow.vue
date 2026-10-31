@@ -15,6 +15,7 @@ import {
   X,
 } from '@lucide/vue'
 import type { LensSection } from '../../../../desktop/lens/view.ts'
+import { useLauncherStore } from '../stores/launcher.ts'
 import { useLensStore, type LensViewName } from './store.ts'
 import { SECTION_LABEL } from './format.ts'
 import CharactersLens from './CharactersLens.vue'
@@ -29,6 +30,7 @@ import '../creator/creator.css'
 const props = defineProps<{ packageId: string }>()
 const emit = defineEmits<{ close: [] }>()
 const store = useLensStore()
+const launcher = useLauncherStore()
 
 const nav: { id: LensViewName; icon: unknown; label: string }[] = [
   { id: 'characters', icon: Users, label: SECTION_LABEL.characters },
@@ -68,10 +70,15 @@ async function saveCheckpoint() {
 
 async function close() {
   await store.close()
+  // 页面随即关闭；后端关闭失败要在启动器的提示条里留下，不能悄悄吞掉。
+  if (store.error) launcher.notice = store.error
   emit('close')
 }
 function onKeydown(event: KeyboardEvent) {
   if (event.key !== 'Escape') return
+  // 正在输入且有草稿时，Esc 不关闭页面，免得丢掉没提交的话。
+  const target = event.target
+  if ((target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement) && target.value.trim()) return
   if (store.selectedId) store.selectedId = ''
   else void close()
 }

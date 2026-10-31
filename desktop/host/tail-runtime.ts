@@ -131,6 +131,9 @@ export class TailRoundRuntime {
   activityDefinitions() {
     return this.#runtime.activityDefinitions()
   }
+  characterAffordances(characterId: string) {
+    return this.#runtime.characterAffordances(characterId)
+  }
   async state(): Promise<HostState> {
     const state = await this.#runtime.state()
     const canInterrupt =

@@ -2,6 +2,7 @@
 import { computed } from 'vue'
 import type { AutoStartEvaluation } from '../../../../desktop/host/pack-activities.ts'
 import type { LensItem } from '../../../../desktop/lens/view.ts'
+import { conditionItems } from '../../../../desktop/lens/ids.ts'
 import { useLensStore } from './store.ts'
 import { fieldValue, showValue } from './format.ts'
 import ChangeBadge from './ChangeBadge.vue'
@@ -15,15 +16,10 @@ const conditions = computed(
 )
 const keyOf = (item: LensItem) => item.id.slice('event:'.length)
 
-/** 和透视结果里条件条目的 id 规则一致：标签（无标签时“条件 N”），重名的加 #序号。 */
+/** 条件条目的 id 规则与透视结果共用 desktop/lens/ids.ts，两边不会对不上。 */
 function checkRows(item: LensItem, evaluation: AutoStartEvaluation) {
-  const used = new Map<string, number>()
-  return (evaluation.checks ?? []).map((check, position) => {
-    const title = check.label ?? `条件 ${position + 1}`
-    const seen = (used.get(title) ?? 0) + 1
-    used.set(title, seen)
-    return { ...check, title, id: `${item.id}/when/${title}${seen > 1 ? '#' + seen : ''}` }
-  })
+  const checks = evaluation.checks ?? []
+  return conditionItems(item.id, checks).map((row, position) => ({ ...checks[position]!, ...row }))
 }
 const removedChecks = (item: LensItem) =>
   store.removedIn('events').filter(change => change.id.startsWith(item.id + '/when/'))

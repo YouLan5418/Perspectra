@@ -1,5 +1,6 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { conditionItems, interactionName as sharedInteractionName } from './ids.ts'
 import type { LensSimulation } from './simulation.ts'
 
 export type LensSection = 'characters' | 'knowledge' | 'places' | 'statuses' | 'items' | 'events' | 'rules' | 'presets'
@@ -82,17 +83,10 @@ export async function buildLensView(packPath: string, opening: LensSimulation): 
 
   const statusDefinition = opening.statusDefinition()
   const activities = opening.activityDefinitions()
-  const operationLabels = new Map(statusDefinition.operations.map(op => [`status:${op.id}`, op.label]))
-  const bindingLabels = new Map<string, Map<string, string>>()
-  for (const { row } of characters) {
-    const labels = new Map<string, string>()
-    for (const binding of (row.interactionBindings ?? []) as Json[])
-      if (!labels.has(binding.definition.id)) labels.set(binding.definition.id, binding.label)
-    bindingLabels.set(row.characterId, labels)
-  }
+  const labels = interactionLabels(packPath, statusDefinition.operations)
   // A shared definition has no name of its own; a character's own binding label names it for that character.
   const interactionName = (id: string, characterId?: string) =>
-    operationLabels.get(id) ?? (characterId === undefined ? undefined : bindingLabels.get(characterId)?.get(id)) ?? id
+    sharedInteractionName(id, characterId, labels.operationLabels, labels.bindingLabels)
   const activityTitle = new Map(activities.map(a => [a.activityKey, a.title]))
   const activityFile = (key: string) => (key === 'default' ? 'scripts/activity.js' : `scripts/activities/${key}.js`)
   const activitiesOf = (characterId: string) =>
@@ -275,13 +269,11 @@ export async function buildLensView(packPath: string, opening: LensSimulation): 
       source: { kind: 'script', file, hook: 'definition' },
       ...(activity.npcIds.length ? { links: [...activity.npcIds] } : {}),
     })
-    const used = new Map<string, number>()
-    for (const [position, check] of (conditions.get(activity.activityKey)?.checks ?? []).entries()) {
-      const title = check.label ?? `条件 ${position + 1}`
-      const seen = (used.get(title) ?? 0) + 1
-      used.set(title, seen)
+    const checks = conditions.get(activity.activityKey)?.checks ?? []
+    for (const [position, { title, id: conditionId }] of conditionItems(id, checks).entries()) {
+      const check = checks[position]!
       add({
-        id: `${id}/when/${title}${seen > 1 ? '#' + seen : ''}`,
+        id: conditionId,
         section: 'events',
         title,
         parentId: id,
@@ -379,6 +371,24 @@ export async function buildLensView(packPath: string, opening: LensSimulation): 
     title: String(world.title ?? manifest.packId),
     items,
   }
+}
+
+/** Names for interactions: status operations by `status:<id>`, and each character's own binding labels from the
+ * pack's character files. Shared by the view and the simulation's NPC options so both name an interaction alike. */
+export function interactionLabels(
+  packPath: string,
+  operations: readonly { readonly id: string; readonly label: string }[],
+): { operationLabels: Map<string, string>; bindingLabels: Map<string, Map<string, string>> } {
+  const manifest = readJson(packPath, 'worldpack.source.json') as Manifest
+  const bindingLabels = new Map<string, Map<string, string>>()
+  for (const file of manifest.characterFiles)
+    for (const row of readJson(packPath, file).characters as Json[]) {
+      const labels = new Map<string, string>()
+      for (const binding of (row.interactionBindings ?? []) as Json[])
+        if (!labels.has(binding.definition.id)) labels.set(binding.definition.id, binding.label)
+      bindingLabels.set(row.characterId, labels)
+    }
+  return { operationLabels: new Map(operations.map(op => [`status:${op.id}`, op.label])), bindingLabels }
 }
 
 function presetFields(preset: Json): LensField[] {
