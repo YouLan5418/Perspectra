@@ -71,15 +71,17 @@ async function fixture(secondHook = '', dynamic?: { min: number; max: number; ca
   manifest.assetFiles = ['scripts/activities/guess.js', 'scripts/activities/other.js']
   writeFileSync(join(pack, 'worldpack.source.json'), JSON.stringify(manifest))
   const inputs: WorldJsonObject[] = []
+  const hooks: { onModel?: () => Promise<void> } = {}
   const server = createChatServer((request, response) => {
     let body = ''
     request.on('data', chunk => {
       body += String(chunk)
     })
-    request.on('end', () => {
+    request.on('end', async () => {
       const wire = JSON.parse(body),
         input = JSON.parse(wire.messages.findLast((message: { role: string }) => message.role === 'user').content)
       inputs.push(input)
+      await hooks.onModel?.()
       response.writeHead(200, { 'content-type': 'application/json' })
       response.end(
         JSON.stringify({
@@ -129,7 +131,7 @@ async function fixture(secondHook = '', dynamic?: { min: number; max: number; ca
       store.close()
     }
   }
-  return { runtime, root, pack, data, inputs, create, events }
+  return { runtime, root, pack, data, inputs, hooks, create, events }
 }
 function progress(state: HostState, key: string): WorldJsonObject {
   return state.activities!.find(activity => activity.activityKey === key)!
@@ -157,6 +159,18 @@ it('keeps the mounted application through activity handoffs and tail backups', a
   const started = await choose(f.runtime, '开始 guess')
   await f.runtime.activityAction(request(started, 'guess', 'guess', { value: 1 }))
   expect(creates).not.toHaveBeenCalled()
+})
+
+it('shows the player operation in the activity panel while the next participant is still deciding', async () => {
+  const f = await fixture()
+  const started = await choose(f.runtime, '开始 guess')
+  let during: WorldJsonObject | undefined
+  f.hooks.onModel = async () => {
+    during ??= progress(await f.runtime.state(), 'guess')
+  }
+  await f.runtime.activityAction(request(started, 'guess', 'guess', { value: 1 }))
+  expect(during).toBeDefined()
+  expect((during!.game as WorldJsonObject).public).toMatchObject({ guesses: 1 })
 })
 
 it('does not load world history for fixed-roster menus or absent automatic-start hooks', async () => {

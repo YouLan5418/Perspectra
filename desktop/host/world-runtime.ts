@@ -1210,6 +1210,13 @@ export class WorldHostCore implements HostRuntime {
       const committed = (await this.#application.head(this.#address)).headSeq > this.#rootBeforeSeq
       this.#notice = changed ? '游戏操作已提交。' : '已返回原提交结果，没有再次执行。'
       if (changed) {
+        // Show the operation's result before the next participant spends its model call.
+        const store = new WorldStore(resolve(this.#dataDirectory, 'world.sqlite'))
+        try {
+          await this.#projectCommitted(store)
+        } finally {
+          store.close()
+        }
         await this.#activateCharacters(true)
         if (committed) await this.#endPlayerRound()
       }
@@ -2078,6 +2085,16 @@ export class WorldHostCore implements HostRuntime {
         events,
       )
       this.#items = this.#visibleItems(events, scene.observerIds)
+      if (this.#activity)
+        this.#projectActivity(
+          activityWorldFromEvents(
+            resolve(this.#dataDirectory, 'world.sqlite'),
+            this.#address,
+            head.headSeq,
+            events,
+            this.#entities,
+          ),
+        )
       this.#currentScene = {
         ...(view.locationId === null ? {} : { locationId: view.locationId }),
         changedAt: sceneChangedAt(events, this.#playerId),
@@ -2099,6 +2116,12 @@ export class WorldHostCore implements HostRuntime {
     } finally {
       availability.close()
     }
+  }
+
+  /** The activity panel follows every commit in a round, e.g. the enemy's HP right after the player's attack. */
+  #projectActivity(world: ActivityWorld | undefined): void {
+    this.#activityView = this.#activity?.view(this.#playerId, world)
+    this.#activityViews = this.#activity?.views(this.#playerId, world)
   }
 
   async #refresh(): Promise<void> {
@@ -2195,8 +2218,7 @@ export class WorldHostCore implements HostRuntime {
     }
     // Like transcript and affordances, serve the last refreshed committed projection.
     // Polling must not open a migrating writer while tail snapshots copy the database.
-    this.#activityView = this.#activity?.view(this.#playerId, activityWorld)
-    this.#activityViews = this.#activity?.views(this.#playerId, activityWorld)
+    this.#projectActivity(activityWorld)
     const activityState = this.#activity?.current()
     this.#waitable = this.#status !== undefined && activityState?.game.active !== true
     if (activityState?.game.active && activityState.participants.includes(this.#playerId)) {
