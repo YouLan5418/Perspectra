@@ -1,4 +1,5 @@
-import { existsSync, readFileSync } from 'node:fs'
+import { cpSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { afterAll, beforeAll, expect, it } from 'vitest'
 import { LensSimulation } from '../../desktop/lens/simulation.ts'
@@ -74,3 +75,27 @@ it('ids are stable across builds', async () => {
   expect(new Set(view.items.map(candidate => candidate.id)).size).toBe(view.items.length)
   expect(again.packId).toBe('pack:model-girls-sweet-days')
 })
+
+it('keyless knowledge entries still get unique ids, and shared rules have a neutral title', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'lens-view-'))
+  const pack = join(root, 'pack')
+  try {
+    cpSync(PACK, pack, { recursive: true })
+    const file = join(pack, 'cognition.json')
+    const document = JSON.parse(readFileSync(file, 'utf8'))
+    delete document.characters[1].observations[0].key
+    delete document.characters[1].observations[1].key
+    writeFileSync(file, JSON.stringify(document))
+    // The compiler requires keys, so the view is built from the edited files with the shared opening simulation.
+    const keyless = await buildLensView(pack, simulation)
+    const ids = keyless.items.map(candidate => candidate.id)
+    expect(new Set(ids).size).toBe(ids.length)
+    expect(ids.some(id => id.includes('undefined'))).toBe(false)
+  } finally {
+    rmSync(root, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 })
+  }
+  const rule = item('rule:base:hold-hand')
+  expect(rule.title).toBe('base:hold-hand')
+  expect(rule.fields.some(f => f.key === 'onRoundEnd' || f.key === 'actors')).toBe(false)
+  expect(item('rule:status:cook-simple').fields.some(f => f.key === 'onRoundEnd')).toBe(true)
+}, 60_000)
