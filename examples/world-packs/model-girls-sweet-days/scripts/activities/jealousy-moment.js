@@ -72,7 +72,7 @@ globalThis.activityScript = {
       id => HEROINES.includes(id) && truth?.characters?.[id]?.['gift-scene'] === world.locationId,
     )
     return {
-      when: [present.length >= 2],
+      when: [['至少两位亲历送礼的少女在场', present.length >= 2]],
       npcIds: present.length >= 2 ? present : ['character:gpt', 'character:deepseek'],
       notice: '「咳咳……屋主，你刚才是不是偏心了一点？」房间里同时在场的少女们视线交汇，空气中飘起了微妙的醋味！',
     }

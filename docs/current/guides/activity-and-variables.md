@@ -82,9 +82,9 @@ autoStart(truth, world, previous) {
   const stage = truth?.public.patrol?.valley?.stage
   return {
     when: [
-      previous === null,                                // 以前没开始过
-      stage === 'done' || stage === 'claimed',          // 已经回报巡查
-      world.characterIds.includes('character:c11'),     // 弭弗在玩家身边
+      ['还没发生过', previous === null],
+      ['已经回报巡查', stage === 'done' || stage === 'claimed'],
+      ['弭弗在玩家身边', world.characterIds.includes('character:c11')],
     ],
     notice: '弭弗朝你走了过来。',                        // 可选
   }
@@ -92,7 +92,7 @@ autoStart(truth, world, previous) {
 ```
 
 - **参数：** `truth` 是状态真实值（没有状态脚本时为 null），只在宿主内使用；`world` 是**玩家**当前授权事实（locationId、characterIds、items），格式同 resolve 第五参数；`previous` 是这场活动上次的玩家视图，从未开始过时为 null。
-- **返回：** `null` 表示不检查；否则返回对象。`when` 为 1–32 个布尔值，全部为 true 才满足，数组长度就是条件数目。玩家选人活动必须给 `npcIds`，固定参与者活动不能给。`notice`（1–500 字符）是自动开始专用的开场提示，用法同定义里的 `opening`：玩家只看到这一条开场行，不会连着出现两条系统行；参与者仍收到固定开场行。玩家开场行的优先级为 `notice` → `opening` → 固定的“〈标题〉开始。”。
+- **返回：** `null` 表示不检查；否则返回对象。`when` 为 1–32 项条件，全部为 true 才满足，数组长度就是条件数目。每项可以是布尔值，也可以是 `[标签, 布尔值]`，标签为 1–80 字符，两种写法可以混用；标签不影响是否满足，只是给这条条件起个名字，包透视会逐条显示标签和当前真假（没写标签的条件只显示真假）。建议都写上标签，排查“为什么没触发”时一眼就能看出卡在哪一条。玩家选人活动必须给 `npcIds`，固定参与者活动不能给。`notice`（1–500 字符）是自动开始专用的开场提示，用法同定义里的 `opening`：玩家只看到这一条开场行，不会连着出现两条系统行；参与者仍收到固定开场行。玩家开场行的优先级为 `notice` → `opening` → 固定的“〈标题〉开始。”。
 - **何时检查：** 一个被接受的玩家回合结束时，依次经过在场角色反应、`onRoundEnd`，最后检查自动开始。幂等重试、NPC 行动、逃生或暂停 NPC 期间都不检查。有活动正在运行时不检查；暂停中的活动不参与（继续仍由玩家决定）。
 - **选哪一场：** 条件全部满足的候选中，条件数目最多的开始；数目相同时随机选一个。每轮最多开始一场，本轮新开始的活动不会在同一轮触发下一场。随机值和活动初始化的随机数记录在同一序列里，重新生成这一轮时按记录回放。
 - **怎样开始：** 与玩家点“开始”走同一条路径：参与者数量、白名单和同场校验不变，开局按参与者投递，参与者按活动 schedule 获得处理机会。开始事件带 `source: 'auto'`，对应的 action.resolved 为 `sourceRole: 'director'`，不计入玩家回合，`onRoundEnd` 的轮次不额外递增。

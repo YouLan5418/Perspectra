@@ -44,10 +44,10 @@ globalThis.activityScript = {
   autoStart(truth, world, previous) {
     return {
       when: [
-        previous === null,
-        truth?.public?.slot === '深夜',
-        world.locationId === 'location:kitchen',
-        world.characterIds.includes('character:deepseek'),
+        ['还没发生过', previous === null],
+        ['时段是深夜', truth?.public?.slot === '深夜'],
+        ['玩家在厨房', world.locationId === 'location:kitchen'],
+        ['DeepSeek 在厨房', world.characterIds.includes('character:deepseek')],
       ],
       notice: '深夜的厨房里传来悉悉索索的动静——你推门一看，冰箱灯映出了一条慌张摆动的蓝色鲸鱼尾巴！',
     }

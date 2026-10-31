@@ -15,9 +15,21 @@ import {
   type ActivityRequest,
   type ActivityState,
   type ActivityWorld,
+  type AutoStartCheck,
 } from './pack-activity.ts'
 import { characterExecutionResult } from '@harness-world/application'
 import type { PackStatus } from './pack-status.ts'
+
+/** One activity's automatic-start checks for the pack lens; null checks: not checked this time
+ * (an activity runs or holds paused progress, or the hook returned null). */
+export interface AutoStartEvaluation {
+  readonly activityKey: string
+  readonly title: string
+  readonly checks: readonly AutoStartCheck[] | null
+  readonly started: boolean
+  /** The hook's failure message; a round still throws it, evaluation only reports it. */
+  readonly error?: string
+}
 
 /** One foreground activity, with independent progress in the existing world event log. */
 export class PackActivities {
@@ -179,13 +191,9 @@ export class PackActivities {
   /** After a player round: start at most one activity whose author conditions all hold. The most conditions
    * win; a tie draws from the round random. Returns whether a start was committed. */
   async autoStart(): Promise<boolean> {
-    if (![...this.#entries.values()].some(entry => entry.hasAutoStart)) return false
-    if (this.current()?.game.active) return false
-    const world = readActivityWorld(this.worldPath, this.address)
-    const met = [...this.#entries].flatMap(([key, entry]) => {
-      const candidate = entry.autoStartCandidate(world)
-      return candidate?.met ? [{ key, entry, ...candidate }] : []
-    })
+    const { evaluations, met, error } = this.#evaluateAutoStart()
+    this.#lastAutoStart = evaluations
+    if (error) throw error
     if (!met.length) return false
     const most = Math.max(...met.map(candidate => candidate.conditions)),
       tied = met.filter(candidate => candidate.conditions === most)
@@ -199,7 +207,7 @@ export class PackActivities {
       store.close()
     }
     // Derived from the committed prefix, so a repeated check of the same round cannot start twice.
-    return chosen.entry.apply(
+    const started = await chosen.entry.apply(
       {
         activityKey: chosen.key,
         activityId: null,
@@ -210,6 +218,44 @@ export class PackActivities {
       },
       chosen.notice === undefined ? {} : { notice: chosen.notice },
     )
+    this.#lastAutoStart = evaluations.map(item => (item.activityKey === chosen.key ? { ...item, started } : item))
+    return started
+  }
+  #lastAutoStart: readonly AutoStartEvaluation[] = []
+  /** Each autoStart activity's checks from the most recent round's autoStart(). */
+  lastAutoStart(): readonly AutoStartEvaluation[] {
+    return this.#lastAutoStart
+  }
+  /** Read-only: the same checks against the committed state now; starts nothing and reports hook errors per item. */
+  evaluateAutoStart(): readonly AutoStartEvaluation[] {
+    return this.#evaluateAutoStart().evaluations
+  }
+  /** Script and validation errors stay with their item; storage faults still throw. */
+  #evaluateAutoStart() {
+    const entries = [...this.#entries].filter(([, entry]) => entry.hasAutoStart)
+    const evaluations: AutoStartEvaluation[] = [],
+      met: (NonNullable<ReturnType<PackActivity['autoStartCandidate']>> & { key: string; entry: PackActivity })[] = []
+    let error: Error | undefined
+    // A running foreground activity skips every start check, as rounds always have.
+    const skipped = entries.length === 0 || this.current()?.game.active === true
+    const world = skipped ? undefined : readActivityWorld(this.worldPath, this.address)
+    for (const [key, entry] of entries) {
+      const item = { activityKey: key, title: entry.title, started: false }
+      if (!world) {
+        evaluations.push({ ...item, checks: null })
+        continue
+      }
+      try {
+        const candidate = entry.autoStartCandidate(world)
+        evaluations.push({ ...item, checks: candidate?.checks ?? null })
+        if (candidate?.met) met.push({ key, entry, ...candidate })
+      } catch (cause: unknown) {
+        if (!(cause instanceof TypeError) && !(cause instanceof RangeError)) throw cause
+        error ??= cause
+        evaluations.push({ ...item, checks: null, error: cause.message })
+      }
+    }
+    return { evaluations, met, error }
   }
   async apply(request: ActivityRequest): Promise<boolean> {
     const entry =

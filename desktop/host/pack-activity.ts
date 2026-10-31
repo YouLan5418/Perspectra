@@ -175,6 +175,25 @@ function strings(value: unknown): string[] {
 function json(value: WorldJsonObject): string {
   return Buffer.from(canonicalizeWorldJson(value)).toString('utf8')
 }
+/** One autoStart condition as the author wrote it; the label only names it for the pack lens. */
+export interface AutoStartCheck {
+  readonly label: string | null
+  readonly met: boolean
+}
+const AUTO_START_CONDITIONS = '自动开始条件必须是 1–32 个布尔值或 [标签, 布尔值]'
+function autoStartCheck(value: unknown): AutoStartCheck {
+  if (typeof value === 'boolean') return { label: null, met: value }
+  if (
+    Array.isArray(value) &&
+    value.length === 2 &&
+    typeof value[0] === 'string' &&
+    value[0].length >= 1 &&
+    value[0].length <= 80 &&
+    typeof value[1] === 'boolean'
+  )
+    return { label: value[0], met: value[1] }
+  throw new TypeError(AUTO_START_CONDITIONS)
+}
 
 /** Trusted, synchronous creator rules; all writes and model calls remain in the host. */
 export class PackActivity {
@@ -1005,7 +1024,9 @@ export class PackActivity {
    * undefined when this script declares no condition, already runs, or holds paused progress for the player. */
   autoStartCandidate(
     snapshot?: ActivityWorld,
-  ): { conditions: number; met: boolean; parameters: WorldJsonObject; notice?: string } | undefined {
+  ):
+    | { conditions: number; met: boolean; checks: AutoStartCheck[]; parameters: WorldJsonObject; notice?: string }
+    | undefined {
     if (!this.hasAutoStart) return undefined
     snapshot ??= readActivityWorld(this.worldPath, this.address)
     const current = this.state(snapshot.events)
@@ -1017,13 +1038,9 @@ export class PackActivity {
     if (output === null) return undefined
     const result = object(output)
     exact(result, ['when', ...['npcIds', 'notice'].filter(key => Object.hasOwn(result, key))])
-    if (
-      !Array.isArray(result.when) ||
-      result.when.length === 0 ||
-      result.when.length > 32 ||
-      result.when.some(value => typeof value !== 'boolean')
-    )
-      throw new TypeError('自动开始条件必须是 1–32 个布尔值')
+    if (!Array.isArray(result.when) || result.when.length === 0 || result.when.length > 32)
+      throw new TypeError(AUTO_START_CONDITIONS)
+    const checks = result.when.map(autoStartCheck)
     if (Object.hasOwn(result, 'npcIds') !== !!this.participantSelection)
       throw new TypeError(
         this.participantSelection ? '玩家选人活动自动开始须指定 npcIds' : '固定参与者活动自动开始不能指定 npcIds',
@@ -1034,8 +1051,9 @@ export class PackActivity {
     )
       throw new TypeError('自动开始提示必须是 1–500 字符')
     return {
-      conditions: result.when.length,
-      met: result.when.every(Boolean),
+      conditions: checks.length,
+      met: checks.every(check => check.met),
+      checks,
       parameters: this.participantSelection ? { npcIds: strings(result.npcIds) } : {},
       ...(typeof result.notice === 'string' ? { notice: result.notice } : {}),
     }

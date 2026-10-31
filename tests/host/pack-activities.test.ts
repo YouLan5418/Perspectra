@@ -15,7 +15,7 @@ import { WorldHostRuntime } from '../../desktop/host/world-runtime.ts'
 import type { HostState } from '../../desktop/host/http-server.ts'
 import { frontendActionRequest } from '../../packages/frontend/src/player-view.ts'
 import { projectPlayerView, FrontendActions } from '../../desktop/host/frontend-adapter.ts'
-import { PackActivity } from '../../desktop/host/pack-activity.ts'
+import { PackActivity, readActivityWorld } from '../../desktop/host/pack-activity.ts'
 import { PackActivities } from '../../desktop/host/pack-activities.ts'
 import { restoreStoryNode } from '../../desktop/story-nodes.ts'
 import type { CoreRunner } from '../../desktop/host/memory/python-worker.ts'
@@ -23,9 +23,11 @@ import { createChatServer, fakeModels } from '../support/fake-provider.ts'
 
 const roots: string[] = [],
   servers: Server[] = [],
-  runtimes: WorldHostRuntime[] = []
+  runtimes: WorldHostRuntime[] = [],
+  catalogs: PackActivities[] = []
 afterEach(async () => {
   vi.restoreAllMocks()
+  for (const catalog of catalogs.splice(0)) catalog.close()
   for (const runtime of runtimes.splice(0)) await runtime.close()
   for (const server of servers.splice(0)) {
     server.closeAllConnections()
@@ -560,4 +562,99 @@ it('skips other activities’ start checks while one runs and offers the same st
   expect(state.activity?.game).toMatchObject({ active: false })
   const after = projectPlayerView(state).actions.find(action => action.label === '开始 other')!
   expect(after.participantSelection).toEqual(idle.participantSelection)
+})
+
+/** The `other` activity with an autoStart hook, read through a standalone catalog over the fixture world. */
+async function autoStartCatalog(hook: string) {
+  const f = await fixture('\nactivityScript.autoStart = ' + hook + ';\n'),
+    pack = await compileWorldPackSource(
+      f.pack,
+      createInstalledInteractionPackages().map(interactionPackageDescription),
+    ),
+    catalog = PackActivities.load(f.pack, pack, join(f.data, 'world.sqlite'), f.runtime.address, 'character:player')!
+  catalogs.push(catalog)
+  return { f, catalog }
+}
+
+it('starts on labelled when entries like booleans and reports each labelled check', async () => {
+  const { f, catalog } = await autoStartCatalog("() => ({ when: [['时段是深夜', true], ['玩家在厨房', true]] })")
+  await f.runtime.close() // The standalone catalog commits the start, so the runtime releases its writer lease.
+  expect(await catalog.autoStart()).toBe(true)
+  expect(catalog.lastAutoStart()).toEqual([
+    {
+      activityKey: 'other',
+      title: 'other',
+      checks: [
+        { label: '时段是深夜', met: true },
+        { label: '玩家在厨房', met: true },
+      ],
+      started: true,
+    },
+  ])
+  expect(catalog.current()?.game.active).toBe(true)
+})
+
+it('mixes labelled and bare entries and starts only when all hold', async () => {
+  const { catalog } = await autoStartCatalog("() => ({ when: [['A', true], false] })")
+  expect(await catalog.autoStart()).toBe(false)
+  expect(catalog.lastAutoStart()).toEqual([
+    {
+      activityKey: 'other',
+      title: 'other',
+      checks: [
+        { label: 'A', met: true },
+        { label: null, met: false },
+      ],
+      started: false,
+    },
+  ])
+})
+
+it('rejects bad label shapes', async () => {
+  const f = await fixture(),
+    worldPath = join(f.data, 'world.sqlite'),
+    source = readFileSync(join(f.pack, 'scripts/activities/other.js'), 'utf8'),
+    world = readActivityWorld(worldPath, f.runtime.address)
+  for (const when of [[['', true]], [['A']], [['A', 1]], [['长'.repeat(81), true]]]) {
+    const activity = new PackActivity(
+      source + '\nactivityScript.autoStart = () => ({ when: ' + JSON.stringify(when) + ' });\n',
+      worldPath,
+      f.runtime.address,
+      'character:player',
+      'other',
+    )
+    expect(() => activity.autoStartCandidate(world)).toThrow('自动开始条件必须是 1–32 个布尔值或 [标签, 布尔值]')
+  }
+  const longest = new PackActivity(
+    source + "\nactivityScript.autoStart = () => ({ when: [['" + '长'.repeat(80) + "', true]] });\n",
+    worldPath,
+    f.runtime.address,
+    'character:player',
+    'other',
+  )
+  expect(longest.autoStartCandidate(world)?.checks).toEqual([{ label: '长'.repeat(80), met: true }])
+})
+
+it('evaluates automatic starts from committed state without committing', async () => {
+  const { f, catalog } = await autoStartCatalog("() => ({ when: [['总是', true]] })")
+  const before = f.events().length
+  expect(catalog.evaluateAutoStart()).toEqual([
+    { activityKey: 'other', title: 'other', checks: [{ label: '总是', met: true }], started: false },
+  ])
+  expect(f.events()).toHaveLength(before)
+  expect(catalog.current()).toBeUndefined()
+  expect(catalog.lastAutoStart()).toEqual([])
+})
+
+it('reports a throwing autoStart hook in evaluation and still throws in a round', async () => {
+  const { f, catalog } = await autoStartCatalog("() => { throw new Error('坏了') }")
+  const before = f.events().length
+  expect(catalog.evaluateAutoStart()).toEqual([
+    { activityKey: 'other', title: 'other', checks: null, started: false, error: '包内活动脚本执行失败或超时' },
+  ])
+  await expect(catalog.autoStart()).rejects.toThrow('包内活动脚本执行失败或超时')
+  expect(catalog.lastAutoStart()).toEqual([
+    { activityKey: 'other', title: 'other', checks: null, started: false, error: '包内活动脚本执行失败或超时' },
+  ])
+  expect(f.events()).toHaveLength(before)
 })

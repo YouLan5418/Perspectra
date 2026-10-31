@@ -68,11 +68,11 @@ globalThis.activityScript = {
     const present = world.characterIds.filter(id => HEROINES.includes(id))
     return {
       when: [
-        previous === null,
-        truth?.public?.['power-on'] === true,
-        ['傍晚', '深夜'].includes(truth?.public?.slot),
-        starsHere(world),
-        present.length === 1 || present.length === 3,
+        ['还没发生过', previous === null],
+        ['全屋有电', truth?.public?.['power-on'] === true],
+        ['时段是傍晚或深夜', ['傍晚', '深夜'].includes(truth?.public?.slot)],
+        ['星空投影在这里', starsHere(world)],
+        ['在场少女是一位或三位', present.length === 1 || present.length === 3],
       ],
       npcIds: present.length ? present : ['character:gpt'],
       notice:

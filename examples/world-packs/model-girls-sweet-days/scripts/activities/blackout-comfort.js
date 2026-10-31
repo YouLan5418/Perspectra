@@ -72,7 +72,11 @@ globalThis.activityScript = {
   autoStart(truth, world, previous) {
     const present = world.characterIds.filter(id => HEROINES.includes(id))
     return {
-      when: [previous === null, truth?.public?.['power-on'] === false, present.length >= 1],
+      when: [
+        ['还没发生过', previous === null],
+        ['全屋停电', truth?.public?.['power-on'] === false],
+        ['玩家身边至少有一位少女', present.length >= 1],
+      ],
       npcIds: present.length ? present : ['character:claude'],
       notice: '轰隆一声闷雷滚过天际，房间里一片漆黑。黑暗中，大家一时停下了交谈。',
     }

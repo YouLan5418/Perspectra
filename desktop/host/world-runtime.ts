@@ -56,7 +56,7 @@ import { CoreMemoryAdapter, type MemoryContextBudget, type MemoryBuildOptions } 
 import { assertCoreEnvironment, coreRunnerGroups, type CoreRunner, type MemoryRunners } from './memory/python-worker.ts'
 import { activityWorldFromEvents, type ActivityRequest, type ActivityWorld } from './pack-activity.ts'
 import { decideWithFormatRetry } from './decision-format.ts'
-import { PackActivities } from './pack-activities.ts'
+import { PackActivities, type AutoStartEvaluation } from './pack-activities.ts'
 import { KNOWN_STATUS_NOTE, PackStatus, pauseRounds, publicStatusChanges } from './pack-status.ts'
 import { PackKnowledge } from './pack-knowledge.ts'
 import { PackAutonomy, type AutonomousRole } from './pack-autonomy.ts'
@@ -1275,6 +1275,10 @@ export class WorldHostCore implements HostRuntime {
       this.#savingNode = false
       this.#endWork()
     }
+  }
+  /** Automatic-start checks for the pack lens: the last round's, or recomputed now without starting anything. */
+  autoStartEvaluations(mode: 'last' | 'now'): readonly AutoStartEvaluation[] {
+    return (mode === 'last' ? this.#activity?.lastAutoStart() : this.#activity?.evaluateAutoStart()) ?? []
   }
   beginRoundRandom(values?: readonly number[]): void {
     this.#activity?.beginRoundRandom(values)
