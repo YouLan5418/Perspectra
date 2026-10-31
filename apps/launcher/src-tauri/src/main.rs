@@ -23,11 +23,13 @@ struct Bridge {
 impl Bridge {
     fn start(app: &tauri::AppHandle) -> Result<Self, String> {
         let executable = std::env::current_exe().map_err(|_| "无法定位 Launcher。")?;
-        let portable = executable.parent().ok_or("无法定位运行目录。")?.join("runtime");
+        let folder = executable.parent().ok_or("无法定位运行目录。")?;
+        let portable = folder.join("runtime");
         let root = std::env::var_os("PERSPECTRA_LAUNCHER_DATA_DIR")
             .map(std::path::PathBuf::from).map(Ok)
             .unwrap_or_else(|| {
-                let fallback = app.path().app_data_dir().map_err(|e| e.to_string())?;
+                // The portable package keeps its data beside the program instead of the user's AppData.
+                let fallback = if portable.is_dir() { folder.join("data") } else { app.path().app_data_dir().map_err(|e| e.to_string())? };
                 let config = app.path().app_config_dir().map_err(|e| e.to_string())?.join("launcher-location.json");
                 data_location::load(&config, &fallback)
             })

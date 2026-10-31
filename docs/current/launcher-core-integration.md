@@ -86,10 +86,10 @@ corepack pnpm@11.7.0 --filter @perspectra/launcher tauri build --debug --no-bund
 
 ## 3. 数据与进程
 
-默认根目录由 Tauri 的应用数据目录提供，设置中只读显示实际路径：
+便携包（EXE 旁有 runtime 目录）自 0.3.5 起默认根目录为程序目录下的 `data`，便于整体搬移且不占用系统盘用户目录；源码开发启动仍用 Tauri 的应用数据目录。`PERSPECTRA_LAUNCHER_DATA_DIR` 和设置中保存的数据位置（仍记在应用配置目录的 launcher-location.json）优先于默认值。旧版本默认目录中的实例不自动搬迁，需在设置中指回该目录。设置中显示实际路径：
 
 ```text
-应用数据目录/
+<程序目录>/data/
 ├─ launcher.json
 └─ instances/
    └─ <本地 UUID>/

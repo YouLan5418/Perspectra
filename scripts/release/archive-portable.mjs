@@ -6,6 +6,13 @@ import { resolve, join, basename } from 'node:path'
 const root = resolve(process.argv[2]),
   zip = root + '.zip'
 await access(join(root, '验收记录.md'))
+// A native launch from this folder writes player data to its default data directory.
+try {
+  await access(join(root, 'data'))
+  throw Error('Package contains a data folder from a local launch; rebuild or remove it before archiving.')
+} catch (e) {
+  if (e.code !== 'ENOENT') throw e
+}
 try {
   await access(zip)
   throw Error('Archive already exists; choose a new release path.')
