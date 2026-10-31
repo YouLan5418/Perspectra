@@ -55,6 +55,7 @@ it('midnight kitchen starts the fridge event', async () => {
   expect(trace.error).toBeUndefined()
   expect(trace.autoStart.find(e => e.activityKey === 'midnight-fridge')?.started).toBe(true)
   expect(trace.lines.some(line => line.kind === 'activity')).toBe(true)
+  expect(trace.lines.find(line => line.kind === 'activity')?.activityKey).toBe('midnight-fridge')
   expect(trace.lines.some(line => line.kind === 'moved' && line.text.includes('厨房'))).toBe(true)
 }, 60_000)
 

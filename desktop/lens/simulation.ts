@@ -33,6 +33,8 @@ export type LensStep =
 export interface LensTraceLine {
   readonly kind: 'input' | 'resolved' | 'rejected' | 'moved' | 'speech' | 'item' | 'status' | 'round-hook' | 'activity'
   readonly actorId?: string
+  /** Set on `activity` lines: the activity the committed event belongs to. */
+  readonly activityKey?: string
   readonly text: string
   readonly seq: number
 }
@@ -378,6 +380,7 @@ export class LensSimulation {
         return {
           kind: 'activity',
           actorId: String(data.actorId),
+          activityKey: key,
           text: `活动 ${this.#activityTitles.get(key) ?? key}（${key}）：${show(data.description)}`,
         }
       }

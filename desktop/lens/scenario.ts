@@ -145,9 +145,14 @@ function resolve(step: LensScenarioStep, state: HostState): LensStep {
     const options = actions.filter(a => a.actionType === 'interact').flatMap(a => a.interactions ?? [])
     const idOf = (option: WorldJsonObject) => (option.definitionRef as WorldJsonObject | undefined)?.id
     const targetOf = (option: WorldJsonObject) => (option.targetRef as WorldJsonObject | undefined)?.id
-    const found = options.find(
+    const candidates = options.filter(
       option => idOf(option) === step.interact && (step.target === undefined || targetOf(option) === step.target),
     )
+    if (candidates.length > 1) {
+      const targets = candidates.map(option => String(targetOf(option) ?? '（无目标）'))
+      throw new Unmatched(`交互 ${step.interact} 有多个目标，请用 target 指定其一：${targets.join('、')}`)
+    }
+    const found = candidates[0]
     if (!found) {
       const ids = [...new Set(options.map(option => String(idOf(option))))]
       throw new Unmatched(
@@ -182,6 +187,30 @@ function resolve(step: LensScenarioStep, state: HostState): LensStep {
   }
 }
 
+/** What the scenario asked for, unmatched: only the names the author wrote, no invented parameters. */
+function asked(step: LensScenarioStep): LensStep {
+  if ('say' in step) return { kind: 'say', text: step.say }
+  if ('wait' in step) return { kind: 'wait' }
+  if ('move' in step) return { kind: 'action', action: { actionType: 'move', parameters: { locationId: step.move } } }
+  if ('interact' in step) {
+    const parameters: WorldJsonObject = {
+      definitionRef: { id: step.interact },
+      ...(step.target === undefined ? {} : { targetRef: { id: step.target } }),
+    }
+    return { kind: 'action', action: { actionType: 'interact', parameters } }
+  }
+  return {
+    kind: 'activity',
+    request: {
+      activityKey: step.activity,
+      activityId: null,
+      revision: 0,
+      operation: step.operation,
+      parameters: step.parameters ?? {},
+    },
+  }
+}
+
 const show = (value: unknown) => JSON.stringify(value)
 function statusValue(truth: WorldJsonObject, key: string): unknown {
   if (key.startsWith('character:')) {
@@ -199,7 +228,7 @@ async function check(
 ): Promise<LensExpectation[]> {
   const startedKeys = new Set([
     ...trace.autoStart.filter(e => e.started).map(e => e.activityKey),
-    ...trace.lines.filter(l => l.kind === 'activity').map(l => /（([^（）]+)）：/u.exec(l.text)?.[1] ?? ''),
+    ...trace.lines.flatMap(l => (l.kind === 'activity' && l.activityKey !== undefined ? [l.activityKey] : [])),
   ])
   const results: LensExpectation[] = []
   if (expect.started !== undefined)
@@ -227,8 +256,14 @@ export async function applyScenario(sim: LensSimulation, scenario: LensScenario)
       trace = await sim.step(resolve(scenarioStep, await sim.state()))
     } catch (cause) {
       if (!(cause instanceof Unmatched)) throw cause
-      const placeholder: LensStep = { kind: 'action', action: { actionType: 'interact', parameters: {} } }
-      trace = { index: position, step: placeholder, lines: [], autoStart: [], activated: [], error: cause.message }
+      trace = {
+        index: position,
+        step: asked(scenarioStep),
+        lines: [],
+        autoStart: [],
+        activated: [],
+        error: cause.message,
+      }
     }
     const expectations = scenarioStep.expect ? await check(sim, scenarioStep.expect, trace) : undefined
     steps.push(expectations ? { ...trace, expectations } : trace)

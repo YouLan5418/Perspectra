@@ -117,6 +117,16 @@ it('simulate reports an unmatched action', async () => {
   expect(out.steps[0].error).toContain('status:sleep-next-day')
 }, 90_000)
 
+it('simulate refuses an untargeted interact offered on several targets', async () => {
+  const script = scenarioFile('ambiguous.json', { title: 'x', start: START, steps: [{ interact: 'base:hold-hand' }] })
+  const { code, out } = await lens('simulate', pack, script)
+  expect(code).toBe(0)
+  expect(out.steps[0].error).toContain('target')
+  expect(out.steps[0].error).toContain('character:claude')
+  expect(out.steps[0].error).toContain('character:gpt')
+  expect(out.steps[0].step.action.parameters.definitionRef).toEqual({ id: 'base:hold-hand' })
+}, 90_000)
+
 it('bad scenario json names the path', async () => {
   const script = scenarioFile('bad.json', { title: 'x', steps: [{ expect: {} }] })
   const { code, err } = await lens('simulate', pack, script)
