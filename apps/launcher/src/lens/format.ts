@@ -1,4 +1,4 @@
-import type { LensRequestState } from '../../../../desktop/lens/store.ts'
+import type { LensRequestState, LensRequestView } from '../../../../desktop/lens/store.ts'
 import type { AutoStartEvaluation } from '../../../../desktop/host/pack-activities.ts'
 import type { LensField, LensItem, LensSection, LensSource } from '../../../../desktop/lens/view.ts'
 import { conditionItems } from '../../../../desktop/lens/ids.ts'
@@ -85,4 +85,26 @@ export function conditionRows(
     if (!known.has(id))
       rows.push({ id, title: row.title, met: row.met, labelled: row.label !== null, selectable: false })
   return rows
+}
+
+/** “复制给 AI”的文本：只含待改和已改动待确认的条目，每条带作者原话、条目叫法、源码位置、创建时的值和状态。 */
+export function requestsForAi(requests: readonly LensRequestView[]): string {
+  const pending = requests.filter(request => request.state === 'open' || request.state === 'changed')
+  return [
+    `以下是作者在 Perspectra 包透视里圈出的待改条目（${pending.length} 条）。`,
+    '你可以按清单修改世界包源文件，但不能关闭、删除或修改清单条目；改完由作者在透视里核对后自己关闭。',
+    ...pending.map((request, position) =>
+      [
+        '',
+        `${position + 1}. ${request.id}（${REQUEST_STATE_LABEL[request.state]}）`,
+        `   作者原话：${request.note}`,
+        `   条目叫法：${request.itemTitle}（${request.itemId}）`,
+        `   源码位置：${showSource(request.source)}`,
+        '   创建时的值：',
+        ...(request.valueAtCreation.length
+          ? request.valueAtCreation.map(field => `     - ${field.label}：${showValue(field.value)}`)
+          : ['     （无字段）']),
+      ].join('\n'),
+    ),
+  ].join('\n')
 }

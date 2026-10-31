@@ -189,7 +189,7 @@ skill 增加一条工作方式：作者说“按清单改”时，先读清单�
 
 - 实现位置：`desktop/lens/`（推演、视图、比较、存储、脚本、CLI、会话）、`desktop/launcher-core.ts` 的 `lens-*` 操作、`apps/launcher/src/lens/`。作者指南见[包透视](../../current/guides/pack-lens.md)，代码说明见[创作者运行时](../../current/architecture/creator-runtime.md)。
 - CLI 命令名为 `worldpack.cmd lens view|requests|simulate`。`lens` 不走 `packages/world-pack` 的 CLI 进程，而是独立打包成 `runtime/lens.mjs`，由 `worldpack.cmd` 转发，因为它需要完整的宿主运行时。
-- 没有实现第 7.2 节的“复制给 AI”备用按钮。
+- 第 7.2 节的“复制给 AI”备用按钮在待改清单页，复制待改与已改动条目的可读文本（含“AI 不能关闭条目”的说明）。
 - 待改清单条目的状态为 open / changed / removed / closed；CLI 只列出 open 与 changed。
 - 推演脚本的 `start` 支持 `status`、`scenes`、`skipAutoStart`；步骤为 `say`、`move`、`interact`（可加 `target`、`arguments`）、`activity`、`wait`；期望为 `started`、`notStarted`、`status`。窗口里点选推演还可以给角色指定一次行为，并显示她此刻被运行时提供的选项（`npcOptions`）。
 - 脚本和对比点的存放位置是 `<包源目录>/.perspectra-lens/`，已加入仓库 `.gitignore`；编译只读取清单列出的文件，没有为该目录另写忽略逻辑，打包时是否带走未专门验证。

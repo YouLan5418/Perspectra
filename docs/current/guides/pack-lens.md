@@ -85,6 +85,8 @@ CLI 三条命令都是只读的：读透视不会移动“已看过”基准，�
 
 AI 改完后，如果该条目的内容变了，清单上显示“已改动，待确认”。**条目只能由你在窗口里关闭**，AI 不能关闭或修改它。
 
+AI 不能运行命令行时，在待改清单页点“复制给 AI”，把待改和已改动待确认的条目（id、原话、条目叫法、位置、创建时的值、状态）复制成文本贴给它；文本里写明 AI 不能关闭条目。复制成功或失败都会在按钮旁提示。
+
 对 AI 说“按清单改”时，它会：运行 `lens requests` 读清单；逐条修改；运行 `validate`；为相关条目写或复用推演脚本并运行 `lens simulate`；交付说明逐条对应清单 id。
 
 ## 7. 让条件可读
@@ -95,8 +97,8 @@ AI 改完后，如果该条目的内容变了，清单上显示“已改动，�
 
 | 范围 | 状态 |
 | --- | --- |
-| 源码已接通 | 透视视图、桩模型推演、起点覆盖、改动比较、对比点、待改清单、三条 CLI 命令、Launcher 的透视窗口与主页入口、`[标签, 布尔值]` 条件 |
-| 自动测试 | `tests/host/lens-simulation`、`lens-view`、`lens-diff`、`lens-store`、`lens-cli` 的测试，`tests/desktop/lens-launcher.test.ts`，Launcher 前端 `apps/launcher/src/lens/store.test.ts`，`tests/host/pack-activities.test.ts` 里的带标签条件用例；发行 CLI 的 `verify-worldpack-cli.mjs` 含 `lens view` 冒烟 |
+| 源码已接通 | 透视视图、桩模型推演、起点覆盖、改动比较、对比点、待改清单、三条 CLI 命令、Launcher 的透视窗口与主页入口、待改清单页的“复制给 AI”、`[标签, 布尔值]` 条件 |
+| 自动测试 | `tests/host/lens-simulation`、`lens-view`、`lens-diff`、`lens-store`、`lens-cli` 的测试，`tests/desktop/lens-launcher.test.ts`，Launcher 前端 `apps/launcher/src/lens/store.test.ts` 与 `format.test.ts`（事件页条件说明、复制给 AI 的文本），`tests/host/pack-activities.test.ts` 里的带标签条件用例；发行 CLI 的 `verify-worldpack-cli.mjs` 含 `lens view` 冒烟 |
 | 真实体验验收 | 待验收：真实 Tauri 窗口用真实包操作一遍；AI 实际按“按清单改”工作流改一处；NPC 按选项实际执行一次。角色对白质量不在范围内，需要真实模型试玩 |
 | 发行包已包含 | 构建脚本把 `lens.mjs` 加进 CLI 运行目录，`worldpack.cmd` 将 `lens` 子命令转给它；带 `PERSPECTRA_RUNTIME_ROOT` 的打包构建尚未实机验收（待验收） |
 
@@ -105,7 +107,7 @@ AI 改完后，如果该条目的内容变了，清单上显示“已改动，�
 - 只读：不能在窗口里编辑包。
 - 不翻译脚本代码；说明文字只来自你写的标签和运行时实际算出的结果。
 - 不会自动从当前状态分叉去试跑每个选项，只有你选过的才显示效果。
-- “复制给 AI”备用按钮没有实现；AI 通过 CLI 读取。
+- “复制给 AI”只是备用：它把当时的待改与已改动条目复制成文本，不会随包变化更新；能运行命令行的 AI 仍应通过 `lens requests` 读取。
 - 活动操作的参数结构较复杂（超出字符串、数字、布尔、枚举）时，窗口提示改用推演脚本填写。
 - 只支持当前 `worldpack-source/v5`。
 - 编译只读取清单列出的文件，没有为 `.perspectra-lens/` 另做忽略；该目录已列入仓库 `.gitignore`，打包时是否带走未专门验证。

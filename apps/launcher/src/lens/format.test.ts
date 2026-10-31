@@ -1,6 +1,6 @@
 import { expect, it } from 'vitest'
 import type { LensItem } from '../../../../desktop/lens/view.ts'
-import { autoStartStatus, conditionRows } from './format.ts'
+import { autoStartStatus, conditionRows, requestsForAi } from './format.ts'
 
 const base = { activityKey: 'fridge', title: '冰箱', started: false } as const
 const condition = (title: string, label?: string): LensItem => ({
@@ -44,4 +44,31 @@ it('keeps condition rows from the view while an activity runs and overlays live 
     ['event:fridge/when/条件 2', false, true],
     ['event:fridge/when/新条件', true, false],
   ])
+})
+
+it('copies only open and changed requests as readable text that forbids closing them', () => {
+  const request = (id: string, state: 'open' | 'changed' | 'closed' | 'removed') => ({
+    id,
+    itemId: 'character:a',
+    itemTitle: 'DeepSeek',
+    source: { kind: 'json', file: 'characters.json', pointer: '/characters/0' } as const,
+    note: '语气再冷一点',
+    valueAtCreation: [{ key: 'tone', label: '语气', value: '温和' }],
+    createdAt: '2026-10-31T00:00:00.000Z',
+    state,
+  })
+  const text = requestsForAi([
+    request('r-open', 'open'),
+    request('r-changed', 'changed'),
+    request('r-closed', 'closed'),
+  ])
+  expect(text).toContain('（2 条）')
+  expect(text).toContain('不能关闭')
+  expect(text).toContain('1. r-open（待改）')
+  expect(text).toContain('2. r-changed（已改动，待确认）')
+  expect(text).not.toContain('r-closed')
+  expect(text).toContain('作者原话：语气再冷一点')
+  expect(text).toContain('条目叫法：DeepSeek（character:a）')
+  expect(text).toContain('源码位置：characters.json /characters/0')
+  expect(text).toContain('- 语气：温和')
 })
