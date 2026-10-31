@@ -1,5 +1,14 @@
 import { randomUUID } from 'node:crypto'
-import { appendFileSync, cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import {
+  appendFileSync,
+  cpSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, relative, resolve } from 'node:path'
 import { interactionPackageDescription, type WorldJsonObject } from '@harness-world/contracts'
@@ -66,6 +75,33 @@ const message = (error: unknown) => (error instanceof Error ? error.message : St
 const object = (value: unknown) => value as WorldJsonObject
 const readJson = <T>(path: string) => JSON.parse(readFileSync(path, 'utf8')) as T
 const show = (value: unknown) => (typeof value === 'string' ? value : JSON.stringify(value))
+
+const COPY_PREFIX = 'perspectra-lens-'
+const STALE_COPY_MS = 24 * 60 * 60 * 1000
+/** Copies this process still uses; a lens left open for more than a day must not lose its copy to the sweep. */
+const liveCopies = new Set<string>()
+
+/** Best effort: removes temporary copies older than a day that a killed Launcher left behind. A copy that cannot be
+ * read or removed (another lens may still use it) is skipped; the sweep never throws. */
+export function sweepStaleLensCopies(directory = tmpdir(), now = Date.now()): void {
+  let names: string[]
+  try {
+    names = readdirSync(directory)
+  } catch {
+    return
+  }
+  for (const name of names) {
+    if (!name.startsWith(COPY_PREFIX)) continue
+    const path = join(directory, name)
+    if (liveCopies.has(path)) continue
+    try {
+      const stat = statSync(path)
+      if (stat.isDirectory() && now - stat.mtimeMs > STALE_COPY_MS) rmSync(path, { recursive: true, force: true })
+    } catch {
+      // Skipped: in use or already gone.
+    }
+  }
+}
 
 /** Writes the start into the copy; reference errors name the field and ID. */
 function rewriteCopy(copy: string, pack: CompiledWorldPackV5, start: LensStart): void {
@@ -200,8 +236,10 @@ export class LensSimulation {
 
   static async open(packPath: string, start: LensStart = {}): Promise<LensSimulation> {
     const source = resolve(packPath)
-    const root = mkdtempSync(join(tmpdir(), 'perspectra-lens-')),
+    sweepStaleLensCopies()
+    const root = mkdtempSync(join(tmpdir(), COPY_PREFIX)),
       copy = join(root, 'pack')
+    liveCopies.add(root)
     let stub: StubModel | undefined, runtime: WorldHostRuntime | undefined
     try {
       cpSync(source, copy, { recursive: true, filter: path => relative(source, path) !== LENS_DIRECTORY })
@@ -226,6 +264,7 @@ export class LensSimulation {
       await runtime?.close()
       await stub?.close()
       rmSync(root, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 })
+      liveCopies.delete(root)
       throw error
     }
   }
@@ -339,6 +378,7 @@ export class LensSimulation {
       } finally {
         await this.#stub.close()
         rmSync(this.#root, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 })
+        liveCopies.delete(this.#root)
       }
     })()
     return this.#closing

@@ -1,10 +1,21 @@
-import { cpSync, existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import {
+  cpSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  utimesSync,
+  writeFileSync,
+} from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { afterEach, expect, it } from 'vitest'
 import type { WorldJsonObject } from '@harness-world/contracts'
 import { WorldStore } from '@harness-world/store-sqlite'
-import { LensSimulation, type LensStart } from '../../desktop/lens/simulation.ts'
+import { LensSimulation, sweepStaleLensCopies, type LensStart } from '../../desktop/lens/simulation.ts'
 import { applyScenario } from '../../desktop/lens/scenario.ts'
 import { startStubModel } from '../../desktop/lens/stub-model.ts'
 import { WorldHostRuntime } from '../../desktop/host/world-runtime.ts'
@@ -125,6 +136,25 @@ it('npc options follow the real status policy and autonomy whitelist', async () 
     parameters: { definitionRef: { id: 'status:cook-simple' }, targetRef: { id: 'entity:kitchen-pot' } },
   })
 }, 120_000)
+
+it('sweeps temporary copies older than a day left by a killed Launcher', () => {
+  const root = tempDir('lens-sweep-')
+  const old = join(root, 'perspectra-lens-old'),
+    fresh = join(root, 'perspectra-lens-fresh'),
+    other = join(root, 'someone-else')
+  for (const dir of [old, fresh, other]) {
+    mkdirSync(join(dir, 'pack'), { recursive: true })
+    writeFileSync(join(dir, 'pack', 'file.txt'), 'x')
+  }
+  const twoDaysAgo = new Date(Date.now() - 48 * 60 * 60 * 1000)
+  utimesSync(old, twoDaysAgo, twoDaysAgo)
+  utimesSync(other, twoDaysAgo, twoDaysAgo)
+  sweepStaleLensCopies(root)
+  expect(existsSync(old)).toBe(false)
+  expect(existsSync(fresh)).toBe(true)
+  expect(existsSync(other)).toBe(true)
+  expect(() => sweepStaleLensCopies(join(root, 'missing'))).not.toThrow()
+})
 
 it('does not touch the pack or data', async () => {
   const before = mtimes(PACK)
