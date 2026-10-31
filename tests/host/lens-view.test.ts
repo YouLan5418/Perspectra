@@ -44,6 +44,10 @@ it('statuses show opening values', () => {
   expect(field('status:money', 'opening:character:deepseek')).toBe(20)
 })
 
+it('places name their scenes for the simulation start', () => {
+  expect(field('place:location:kitchen', 'scenes')).toEqual(['scene:kitchen'])
+})
+
 it('knowledge is per character', () => {
   const entry = view.items.find(
     candidate =>

@@ -182,9 +182,8 @@ export async function buildLensView(packPath: string, opening: LensSimulation): 
 
   // places
   for (const entry of locations) {
-    const present = scenes
-      .filter(s => s.row.locationId === entry.row.locationId)
-      .flatMap(s => s.row.participantIds as string[])
+    const here = scenes.filter(s => s.row.locationId === entry.row.locationId)
+    const present = here.flatMap(s => s.row.participantIds as string[])
     add({
       id: 'place:' + entry.row.locationId,
       section: 'places',
@@ -192,6 +191,8 @@ export async function buildLensView(packPath: string, opening: LensSimulation): 
       fields: [
         { key: 'name', label: '地点名', value: name(entry.row.locationId) },
         { key: 'present', label: '开场时在场者', value: present.map(name) },
+        // A simulation start places characters by scene, so the lens names each place's scenes.
+        { key: 'scenes', label: '场景', value: here.map(s => String(s.row.sceneId)) },
       ],
       source: json(entry.file, pointer(entry)),
       ...(present.length ? { links: present } : {}),
