@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, statSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { sameFieldValue } from './diff.ts'
 import type { LensField, LensItem, LensSource, LensView } from './view.ts'
@@ -162,11 +162,24 @@ export class LensStore {
     return value as LensRequest[]
   }
 
-  /** Writes a temporary file next to the target, then renames it into place. */
+  /** Writes a temporary file next to the target, then renames it into place. A failure (e.g. a read-only pack)
+   * becomes a plain message naming the path; a system error with a `code` would reach the author masked. */
   private write(path: string, value: unknown): void {
-    mkdirSync(dirname(path), { recursive: true })
     const temporary = `${path}.${randomUUID()}.tmp`
-    writeFileSync(temporary, JSON.stringify(value, null, 2))
-    renameSync(temporary, path)
+    try {
+      mkdirSync(dirname(path), { recursive: true })
+      writeFileSync(temporary, JSON.stringify(value, null, 2))
+      renameSync(temporary, path)
+    } catch (error) {
+      try {
+        rmSync(temporary, { force: true })
+      } catch {
+        // The write error below is what the author needs; a leftover .tmp file is harmless.
+      }
+      const code = (error as NodeJS.ErrnoException).code
+      throw new Error(`无法写入透视文件：${path}（${code ?? (error as Error).message}），请确认包目录可写。`, {
+        cause: error,
+      })
+    }
   }
 }

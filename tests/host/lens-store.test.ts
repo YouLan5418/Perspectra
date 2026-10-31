@@ -27,6 +27,19 @@ it('seen round-trips', () => {
   expect(new LensStore(pack).seen()).toEqual(view(item(1)))
 })
 
+it('a write that fails names the lens file in a plain error the Launcher does not mask', () => {
+  writeFileSync(join(pack, '.perspectra-lens'), 'not a directory')
+  let caught: unknown
+  try {
+    new LensStore(pack).markSeen(view(item(1)))
+  } catch (error) {
+    caught = error
+  }
+  expect(caught).toBeInstanceOf(Error)
+  expect((caught as Error).message).toMatch(/^无法写入透视文件：.*seen\.json/)
+  expect('code' in (caught as Error)).toBe(false)
+})
+
 it('missing seen is null', () => {
   expect(new LensStore(pack).seen()).toBeNull()
 })
