@@ -1,6 +1,6 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { conditionItems, interactionName as sharedInteractionName } from './ids.ts'
+import { activityScriptPath, conditionItems, interactionName as sharedInteractionName } from './ids.ts'
 import type { LensSimulation } from './simulation.ts'
 
 export type LensSection = 'characters' | 'knowledge' | 'places' | 'statuses' | 'items' | 'events' | 'rules' | 'presets'
@@ -88,7 +88,6 @@ export async function buildLensView(packPath: string, opening: LensSimulation): 
   const interactionName = (id: string, characterId?: string) =>
     sharedInteractionName(id, characterId, labels.operationLabels, labels.bindingLabels)
   const activityTitle = new Map(activities.map(a => [a.activityKey, a.title]))
-  const activityFile = (key: string) => (key === 'default' ? 'scripts/activity.js' : `scripts/activities/${key}.js`)
   const activitiesOf = (characterId: string) =>
     activities.filter(a => a.npcIds.includes(characterId) || a.participantSelection?.candidates?.includes(characterId))
 
@@ -251,7 +250,7 @@ export async function buildLensView(packPath: string, opening: LensSimulation): 
   const conditions = new Map(opening.conditionsNow().map(e => [e.activityKey, e]))
   for (const activity of activities) {
     const id = 'event:' + activity.activityKey
-    const file = activityFile(activity.activityKey)
+    const file = activityScriptPath(activity.activityKey)
     const players = activity.participantSelection
       ? [`玩家选择 ${activity.participantSelection.min}–${activity.participantSelection.max} 位`]
       : activity.npcIds.map(name)

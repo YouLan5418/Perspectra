@@ -137,6 +137,20 @@ it('npc options follow the real status policy and autonomy whitelist', async () 
   })
 }, 120_000)
 
+it('skipAutoStart names a single-activity pack by its default key', async () => {
+  const pack = join(tempDir('lens-default-'), 'pack')
+  cpSync(resolve('examples/world-packs/launcher-demo'), pack, { recursive: true })
+  writeFileSync(
+    join(pack, 'scripts/activity.js'),
+    readFileSync(join(pack, 'scripts/activity.js'), 'utf8') +
+      "\nactivityScript.autoStart = () => ({ when: [['总是', true]] });\n",
+  )
+  const plain = await open(pack)
+  expect(plain.conditionsNow().map(e => e.activityKey)).toEqual(['default'])
+  const skipped = await open(pack, { skipAutoStart: ['default'] })
+  expect(skipped.conditionsNow()).toEqual([])
+}, 60_000)
+
 it('sweeps temporary copies older than a day left by a killed Launcher', () => {
   const root = tempDir('lens-sweep-')
   const old = join(root, 'perspectra-lens-old'),

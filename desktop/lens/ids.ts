@@ -29,3 +29,8 @@ export function interactionName(
     definitionId
   )
 }
+
+/** The script file of an activity key, the way the host loads them: a single-activity pack's `default` activity is
+ * `scripts/activity.js`, every other key `scripts/activities/<key>.js`. */
+export const activityScriptPath = (key: string) =>
+  key === 'default' ? 'scripts/activity.js' : `scripts/activities/${key}.js`

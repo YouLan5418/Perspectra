@@ -21,7 +21,7 @@ import type { AutoStartEvaluation } from '../host/pack-activities.ts'
 import { PackStatus } from '../host/pack-status.ts'
 import { WorldHostRuntime } from '../host/world-runtime.ts'
 import { startStubModel, type StubDecision, type StubModel } from './stub-model.ts'
-import { interactionName } from './ids.ts'
+import { activityScriptPath, interactionName } from './ids.ts'
 import { interactionLabels } from './view.ts'
 
 /** Another opening for the pack, written into a temporary copy before the runtime starts. */
@@ -127,9 +127,8 @@ function rewriteCopy(copy: string, pack: CompiledWorldPackV5, start: LensStart):
       check(values, 'character', 'status.characters.' + characterId)
     }
   }
-  const activityPath = (key: string) => `scripts/activities/${key}.js`
   for (const key of start.skipAutoStart ?? [])
-    if (!pack.assets.some(asset => asset.path === activityPath(key)))
+    if (!pack.assets.some(asset => asset.path === activityScriptPath(key)))
       throw new TypeError(`起点 skipAutoStart：未知活动 ${key}`)
 
   const manifest = readJson<{ sceneFiles: string[]; characterFiles: string[] }>(join(copy, 'worldpack.source.json'))
@@ -177,7 +176,7 @@ function rewriteCopy(copy: string, pack: CompiledWorldPackV5, start: LensStart):
 `,
     )
   for (const key of start.skipAutoStart ?? [])
-    appendFileSync(join(copy, activityPath(key)), '\nglobalThis.activityScript.autoStart = undefined\n')
+    appendFileSync(join(copy, activityScriptPath(key)), '\nglobalThis.activityScript.autoStart = undefined\n')
 }
 
 function npcDecision(plan: LensNpcPlan | undefined): StubDecision {
