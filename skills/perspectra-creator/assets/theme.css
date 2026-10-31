@@ -1,0 +1,156 @@
+/*
+ * Perspectra 默认舞台主题模板
+ *
+ * 用法：复制到世界包的 frontend/theme.css（不要放 index.html）。宿主在官方舞台样式之后加载它，
+ * 所以这里写的同名变量和规则会覆盖官方值。
+ *
+ * - 第 1 部分是变量，填的是官方默认值；原样复制不会改变任何外观，只改你想换的那几项即可。
+ * - 第 2 部分是各区域的常用选择器，默认全部注释掉；需要时去掉注释再改。
+ * - 变量是稳定的约定；第 2 部分的类名和 ID 属于官方舞台的内部结构，以后改版可能变化。
+ * - 只能改样式，不能改按钮的行为或卡片显示的内容。
+ * - 管不到宿主页面：最上方的 Perspectra 标题栏、“工具／保存进度／中止活动”按钮不在舞台里。
+ * - 玩家在宿主“工具”里切换到官方默认界面时，本文件连同包内立绘、背景一起停用。
+ */
+
+/* ========== 1. 变量：浅色模式 ========== */
+:root {
+  /* —— 底色与表面 —— */
+  --bg: #f7f7f7; /* 页面底色；没有背景图时整个舞台就是这个颜色 */
+  --surface: #ffffff; /* 卡片、对话框、按钮、输入框的底色 */
+  --surface-2: #efefef; /* 按钮悬停、菜单悬停等“稍深一层”的底色 */
+  --surface-glass: rgba(255, 255, 255, 0.93); /* 浮在背景图上的半透明面板（抽屉、对话框） */
+  --veil: rgba(247, 247, 247, 0.78); /* 背景图上下两端的渐变遮罩，保证文字可读；改成 transparent 可去掉 */
+
+  /* —— 文字 —— */
+  --text: #111111; /* 正文、按钮文字 */
+  --muted: #555555; /* 次要文字：说明、活动目标等 */
+  --faint: #8c8c8c; /* 最弱的文字：小标签、占位提示 */
+
+  /* —— 对白的三种段落 —— */
+  --say: #111111; /* 说出口的话 */
+  --act: #5a5a5a; /* 动作描写 */
+  --narr: #333333; /* 旁白 */
+
+  /* —— 强调色 —— */
+  --accent: #111111; /* 强调色：主按钮、已打开的抽屉按钮、焦点框、名牌底色等 */
+  --accent-ink: #ffffff; /* 强调色上的文字颜色，要和 --accent 有足够对比度 */
+  --danger: #333333; /* 危险或失败提示的颜色 */
+
+  /* —— 线条与阴影 —— */
+  --line: rgba(0, 0, 0, 0.09); /* 细分隔线、数值格子的边框 */
+  --line-strong: rgba(0, 0, 0, 0.2); /* 按钮、输入框、卡片的边框 */
+  --shade: rgba(0, 0, 0, 0.06); /* 轻微的底纹填充 */
+  --shadow: 0 10px 30px rgba(0, 0, 0, 0.08); /* 卡片和面板的投影；改成 none 可去掉 */
+
+  /* —— 字体与字号 —— */
+  --font-ui: "Segoe UI Variable Text", "Segoe UI", "PingFang SC", "Microsoft YaHei UI", "Microsoft YaHei", sans-serif; /* 按钮、标签、面板的界面字体 */
+  --font-story: "Noto Serif SC", "Source Han Serif SC", "Source Han Serif CN", "Songti SC", "STSong", serif; /* 对白、活动标题等故事文字 */
+  --fs-story: 19px; /* 对话框正文字号；玩家在设置里调字号时会覆盖它 */
+  --story-line-height: 1.9; /* 对话框正文行高 */
+
+  /* —— 形状与间距 —— */
+  --radius: 10px; /* 按钮、输入框、小格子的圆角 */
+  --radius-lg: 16px; /* 对话框、活动卡片、抽屉的圆角 */
+  --space-page: 28px; /* 舞台四周的留白 */
+  --space-control: 10px; /* 控件之间的间距 */
+  --drawer-width: 400px; /* 右侧抽屉（记录、行动、状态、背包、设置）的宽度 */
+}
+
+/* ========== 1. 变量：深色模式 ==========
+ * 玩家系统为深色，或在设置里选了“深色”时生效。两条选择器都要保留：
+ * 前一条对应“跟随系统”，后一条对应玩家手动选择深色。
+ * 不想单独做深色主题时，可以删掉这一段；不过官方深色值会把你的浅色配色盖掉，记得自己检查效果。 */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-appearance="light"]) {
+    --bg: #0d0d0d;
+    --surface: #171717;
+    --surface-2: #222222;
+    --surface-glass: rgba(23, 23, 23, 0.94);
+    --veil: rgba(13, 13, 13, 0.74);
+    --text: #f2f2f2;
+    --muted: #b3b3b3;
+    --faint: #7c7c7c;
+    --say: #f5f5f5;
+    --act: #a6a6a6;
+    --narr: #d0d0d0;
+    --accent: #f2f2f2;
+    --accent-ink: #111111;
+    --danger: #eeeeee;
+    --line: rgba(255, 255, 255, 0.09);
+    --line-strong: rgba(255, 255, 255, 0.22);
+    --shade: rgba(255, 255, 255, 0.06);
+    --shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+  }
+}
+:root[data-appearance="dark"] {
+  --bg: #0d0d0d;
+  --surface: #171717;
+  --surface-2: #222222;
+  --surface-glass: rgba(23, 23, 23, 0.94);
+  --veil: rgba(13, 13, 13, 0.74);
+  --text: #f2f2f2;
+  --muted: #b3b3b3;
+  --faint: #7c7c7c;
+  --say: #f5f5f5;
+  --act: #a6a6a6;
+  --narr: #d0d0d0;
+  --accent: #f2f2f2;
+  --accent-ink: #111111;
+  --danger: #eeeeee;
+  --line: rgba(255, 255, 255, 0.09);
+  --line-strong: rgba(255, 255, 255, 0.22);
+  --shade: rgba(255, 255, 255, 0.06);
+  --shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+}
+
+/* ========== 2. 各区域（默认注释掉，按需打开） ========== */
+
+/* —— 左上角：地点名、世界名、置顶的状态 —— */
+/* .world-header { }              整块左上角区域 */
+/* .scene-heading { }             地点名与世界名 */
+/* .status-bar .status-item { }   名字旁边那一排置顶状态（天数、时段等）中的一项 */
+
+/* —— 右上角：记录、行动、背包、状态、设置按钮 —— */
+/* .stage-tools button { border-radius: 999px; }                      这一排按钮 */
+/* .stage-tools button[aria-expanded="true"] { }                      当前打开的抽屉对应的按钮 */
+/* #action-count, #inventory-count { }                               按钮上的数字角标 */
+/* .stage-bottom .status { }                                          “可以回应／正在回复”状态提示 */
+
+/* —— 立绘 —— */
+/* #characters .portrait { }            每个角色的立绘 */
+/* #characters .portrait.speaking { }   正在说话的角色（其他人会淡一些） */
+/* .character-name { }                  立绘下方的名牌 */
+/* .character-menu { }                  点立绘弹出的菜单（悄悄说、给东西、邀请活动等） */
+
+/* —— 底部对话区 —— */
+/* .dialogue { }                        对话框本体 */
+/* .speaker-label { }                   对话框左上角的说话人名牌 */
+/* .reading-count { }                   右上角的“待阅读 N 段／已读完” */
+/* .auto-progress-bar { }               自动阅读的进度条 */
+/* .reply-bar { }                       轮到玩家时那一行“回应／静观” */
+/* .composer { }                        展开后的输入区 */
+/* #send { }                            发送按钮 */
+/* #notice { }                          对话框内的提示行（如“游戏操作已提交”） */
+
+/* —— 右侧抽屉：记录、行动、状态、背包、设置 —— */
+/* .panel { }                           所有抽屉共用的外框 */
+/* .panel-header { }                    抽屉标题栏 */
+/* #history .line { }                   记录里的一条对白 */
+/* #actions .action-group { }           行动抽屉里的一组行动 */
+/* .inventory-item { }                  背包里的一件物品 */
+
+/* —— 活动卡片（RPG、谁是卧底等进行中的活动） —— */
+/* .activity-card { width: 360px; }     整张卡片；默认 300px 宽，玩家可以拖右下角调整大小 */
+/* .activity-card { resize: none; }     不允许玩家拖动调整大小 */
+/* .activity-heading strong { }         活动标题 */
+/* #activity-phase { }                  标题右边的阶段名（如“遗迹守卫战”） */
+/* #activity-objective { }              活动说明文字 */
+/* #activity-state div { }              每个数值格子（敌人血量、当前回合等） */
+/* #activity-state div.own { }          只有玩家自己知道的数值格子（如抽到的身份） */
+/* #activity-options > button { }       活动操作按钮（普通攻击、火球术等） */
+/* #activity-result { }                 操作结果反馈 */
+
+/* —— 所有按钮与输入框的通用样式 —— */
+/* button { }                           所有按钮；悬停用 --surface-2，禁用时半透明 */
+/* .primary { }                         主按钮（如保存确认） */
+/* textarea, select, input { }          输入框和下拉框 */

@@ -64,6 +64,6 @@ changes 是 `{ holderId, key, value }`，整体替换该键（公共状态 holde
 
 `plugins.json` + `plugins/*.js` 是包内插件模块，可以声明需要玩家在 Launcher 启用的本地 Cordis 能力；必需能力缺失时世界打不开并写明缺少什么，可选能力缺失时只隐藏相应操作。包不能自动安装原生代码，用户没要求时不引入。
 
-model-preset.json、role-presets.json 和 frontend/ 是宿主独立读取的扩展；CLI 编译不等于它们已有效。默认沿用官方舞台；只想换风格时在 frontend/ 放 theme.css、portraits/、backgrounds/ 和 stage.json（取景、表情差分、姿势），立绘和背景按 ID 去掉前缀命名，例如 `character:companion` → `portraits/companion.png`。确需整页界面时仅使用公共玩家数据，静态前端不得含角色秘密或 Key。不把模型预设当作规则或权限的替代品。
+model-preset.json、role-presets.json 和 frontend/ 是宿主独立读取的扩展；CLI 编译不等于它们已有效。默认沿用官方舞台；只想换风格时在 frontend/ 放 theme.css（从本 Skill 的 `assets/theme.css` 复制，模板逐项标注了每个变量和区域选择器的作用）、portraits/、backgrounds/ 和 stage.json（取景、表情差分、姿势），立绘和背景按 ID 去掉前缀命名，例如 `character:companion` → `portraits/companion.png`。确需整页界面时仅使用公共玩家数据，静态前端不得含角色秘密或 Key。不把模型预设当作规则或权限的替代品。
 
 验收至少覆盖：正确条件下出现选项、条件失效时被拒绝、成功后状态与观察一致、未授权角色没有获得秘密。数据库一致与叙事一致分别检查；未调用真实模型时不能宣布后者通过。
