@@ -32,7 +32,7 @@ changes 是 `{ holderId, key, value }`，整体替换该键（公共状态 holde
 - definition：`{ title, npcIds | participants, operations, opening? }`。npcIds 固定参与者；`participants: { mode: 'player-select', min, max, candidates? }` 让玩家选人（1–8 个 NPC）。operations 每项 `{ id, label, requiresTurn, schema, quick? }`，最多 16 项；start、retry、suspend、resume、abandon 为保留名。opening 是 1–500 字的玩家开场文案。
 - initialize、policy、resolve：生成初始状态、限定当前角色可用的操作、同步裁定操作。resolve 也可以附带状态变化，或返回 `playerExpression: { text }`／`{ narration }` 在玩家明确选择的操作中提交公开发言或旁白。
 - schedule / onOutcome：等待，或给一个已声明角色一次处理机会；它们收到完整活动状态（含 internal 和所有人的 private），输出只有这一次激活，不进入任何视图。
-- 可选：autoStart(truth, world, previous) 在玩家回合结束时按 `when` 布尔数组全部为真自动开始，写了它的活动手动开始也要满足同一组条件；`quick: true` 让仅有玩家、无参数的操作一键开始并执行；simulate 返回固定演出替代一次模型响应；resume 检查暂停后能否继续。
+- 可选：autoStart(truth, world, previous) 在玩家回合结束时按 `when` 全部为真自动开始（每项是布尔值，或 `[标签, 布尔值]`，如 `['时段是深夜', truth?.public?.slot === '深夜']`；标签 1–80 字符，只给包透视显示条件名，不影响判定，建议都写），写了它的活动手动开始也要满足同一组条件；`quick: true` 让仅有玩家、无参数的操作一键开始并执行；simulate 返回固定演出替代一次模型响应；resume 检查暂停后能否继续。
 
 可见范围：public 是参与者共享，不是全世界公开；private 每人只拿到自己的一份，玩家那份会显示在玩家的活动卡片上；internal 不进任何角色视图。active、phase、turn、round 每个参与者都看得到，所以隐藏回合（比如夜里轮到谁）不能写在 turn 里：公开 turn 停在一个不变的中性值，真实行动者记在 internal，并在本人 private 里标“轮到你”，相关操作 `requiresTurn: false`，resolve 自己核对，schedule 读 internal 叫醒对的人。这样做只让其他角色不知道轮到谁；默认舞台只显示“正在回复”，但公共 PlayerView 的 `responders` 仍列出正在处理的角色，活动 revision 也随夜间操作增加，所以不要对玩家宣称接口层面已隐藏。活动不能移动角色、不会自动暂停正在运行的活动，也不替角色决定是否接受邀请或怎样行动。
 
@@ -67,3 +67,39 @@ changes 是 `{ holderId, key, value }`，整体替换该键（公共状态 holde
 model-preset.json、role-presets.json 和 frontend/ 是宿主独立读取的扩展；CLI 编译不等于它们已有效。默认沿用官方舞台；只想换风格时在 frontend/ 放 theme.css、portraits/、backgrounds/ 和 stage.json（取景、表情差分、姿势），立绘和背景按 ID 去掉前缀命名，例如 `character:companion` → `portraits/companion.png`。确需整页界面时仅使用公共玩家数据，静态前端不得含角色秘密或 Key。不把模型预设当作规则或权限的替代品。
 
 验收至少覆盖：正确条件下出现选项、条件失效时被拒绝、成功后状态与观察一致、未授权角色没有获得秘密。数据库一致与叙事一致分别检查；未调用真实模型时不能宣布后者通过。
+
+## 包透视与推演脚本
+
+作者想看清包、核对改动或让你“按清单改”时，用 `worldpack.cmd lens`（源码环境用 `node --import tsx desktop/lens/cli.ts`），三条命令都只读：
+
+- `lens view <源目录>`：输出透视结果和相对作者“已看过”基准的改动；
+- `lens requests <源目录>`：输出作者待改清单里未关闭的条目（含位置和当时的值）；
+- `lens simulate <源目录> <脚本.json>`：用真实宿主运行时加桩模型跑推演脚本。脚本名可写路径，或 `.perspectra-lens/scenarios/` 下的文件名。
+
+推演脚本是 JSON，字段只有这些，写错的字段会报出路径：
+
+~~~json
+{
+  "title": "傍晚厨房",
+  "start": {
+    "status": { "public": { "slot": "傍晚" } },
+    "scenes": { "character:player": "scene:living-room", "character:deepseek": "scene:kitchen" },
+    "skipAutoStart": ["prologue"]
+  },
+  "npcPlans": { "character:deepseek": [{ "kind": "say", "text": "你怎么来了？" }] },
+  "steps": [
+    { "move": "location:kitchen", "expect": { "started": "midnight-fridge" } },
+    { "interact": "status:take", "target": "entity:key", "expect": { "status": { "slot": "傍晚" } } },
+    { "activity": "midnight-fridge", "operation": "<活动操作ID>", "parameters": {} },
+    { "say": "早上好" },
+    { "wait": true }
+  ]
+}
+~~~
+
+- `start` 是另一种开场：`status` 覆盖状态初始值（`public` 与按角色的 `characters`），`scenes` 指定角色（含玩家）在哪个场景，`skipAutoStart` 列出这次不自动开始的活动标识。未知角色、场景会直接报错。
+- `npcPlans` 按角色给每次获得机会时的行为：`{ kind: 'abstain' }`、`{ kind: 'say', text }` 或 `{ kind: 'perform', action }`；没写的角色弃权。
+- 每个 step 恰好写一种行动：`say`、`move`（地点 ID）、`interact`（定义 ID，同一交互有多个目标时必须加 `target`，可加 `arguments`）、`activity`（活动标识加 `operation`，可加 `parameters`）、`wait: true`。行动按名字对照当前实际可用的选项，匹配不上时这一步报错并列出可用项，后面的步骤不再执行。
+- `expect` 可写 `started`（活动开始了）、`notStarted`、`status`（公共状态写 `"slot"`，角色自己的状态写 `"character:deepseek.mood-note"`）。
+
+推演只证明规则与触发，不判断角色演得好不好；这些仍要真实模型试玩。写好的脚本可存进作者包的 `.perspectra-lens/scenarios/`，编译只读取清单列出的文件，不会读它。

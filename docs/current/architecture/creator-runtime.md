@@ -97,6 +97,21 @@ Interaction 定义和绑定提供玩法可选行为，规则负责重要状态�
 
 2026-10-24 创作边界澄清：例如作者可以在送礼后写入角色专属的心动印象，引导接下来的反应，也可以显式编排剧情与固定演出。尊重角色主体性不要求每个游戏包都采用完全自主的感情发展；作者可以用已有状态与活动机制影响角色，仍须遵守信息接收范围，以及位置、物品等权威事实的正式提交规则。[屋檐下的心动日程](../../../examples/world-packs/model-girls-sweet-days/README.md)保留这种引导，弱化部分绝对结论；这些包内选择不构成引擎对其他作者的限制。
 
+## 包透视与桩模型推演（2026-10-31，当前源码）
+
+例如作者想知道“深夜冰箱”为什么没触发：把起点设成“傍晚，玩家走进厨房”，推演逐步列出玩家移动被规则接受、自动事件检查里“时段是深夜”为 ✘，角色没有被叫醒，回合结束钩子推进了时间；作者不必开游戏，也不必读脚本。
+
+[desktop/lens](../../../desktop/lens) 把世界包源目录变成只读视图，并在一份临时副本上启动**真实的** [WorldHostRuntime](../../../desktop/host/world-runtime.ts)，只做两处替换：数据目录是临时目录，模型是[桩](../../../desktop/lens/stub-model.ts)（角色默认弃权，或照推演计划说话、尝试行动，仍经规则裁定）。没有另写一套简化规则；起点（状态初始值、场景位置、跳过的自动开场活动）是在运行时启动前改写临时副本里的初始数据，不在运行中途写入事实。宿主为此新增了只读接口：[PackActivities](../../../desktop/host/pack-activities.ts) 报告每个 autoStart 活动的逐条检查（`lastAutoStart` 取最近一轮，`evaluateAutoStart` 按已提交状态重算且不开始任何活动）和活动声明；PackActivity 接受 `when` 里的 `[标签, 布尔值]`，标签不改变触发语义。
+
+文件分工：[view.ts](../../../desktop/lens/view.ts) 生成按分类、有稳定 id 的条目列表，[diff.ts](../../../desktop/lens/diff.ts) 按条目比较，[store.ts](../../../desktop/lens/store.ts) 在包源目录的 `.perspectra-lens/` 里保存“已看过”快照、命名对比点、待改清单与推演脚本，[scenario.ts](../../../desktop/lens/scenario.ts) 解析并执行推演脚本，[session.ts](../../../desktop/lens/session.ts) 把一次打开的视图、基准、清单与一个推演串行起来，供 [LauncherCore](../../../desktop/launcher-core.ts) 的 `lens-*` 操作和 [Launcher 透视窗口](../../../apps/launcher/src/lens/LensWindow.vue)使用；[cli.ts](../../../desktop/lens/cli.ts) 是 AI 用的只读命令行（`worldpack.cmd lens view|requests|simulate`）。只有窗口的“已看过”能移动基准，只有窗口能新增或关闭待改条目。
+
+作者操作与用法见[包透视指南](../guides/pack-lens.md)。边界：
+
+- 源码已接通：上述全部。自动测试：`tests/host/lens-*.test.ts`、`tests/desktop/lens-launcher.test.ts`、Launcher 的 `apps/launcher/src/lens/store.test.ts`，以及 `scripts/release/verify-worldpack-cli.mjs` 的 `lens view` 冒烟。
+- 待验收：真实 Tauri 窗口配真实包的操作；随发行包使用 `lens.mjs`（构建脚本已加入，需要 `PERSPECTRA_RUNTIME_ROOT` 指向运行目录）；AI 实际按清单改一轮；NPC 按 `npcOptions` 里的选项实际执行一遍。
+- 推演不证明体验：桩模型不产生真实对白，角色是否自然、有没有主体性仍靠真实模型试玩。
+- 限制：不自动分叉试跑每个活动选项；不翻译脚本代码，条件说明只来自作者写的标签和运行时结果；没有“复制给 AI”按钮。
+
 ## 创作入口与限制
 
 先看[字段手册](../guides/world-pack-authoring.md)、[试玩步骤](../guides/creator-playtest.md)和[自定义网页](../guides/web-ui.md)。`frontend/` 含 index.html 时须带 manifest.json，使用 iframe 公共玩家接口；只放 theme.css、portraits/、backgrounds/ 与 stage.json 时沿用官方舞台，不需要 manifest。未提供时使用官方默认模板。这些前端资源不改变世界包编译身份；新实验使用独立数据目录。

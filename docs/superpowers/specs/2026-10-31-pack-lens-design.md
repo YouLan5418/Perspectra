@@ -1,6 +1,6 @@
 # 包透视：不开游戏看清世界包（设计）
 
-日期：2026-10-31。状态：设计已与用户确认问答，待用户通读文档。验收对象：[甜蜜日程包](../../../examples/world-packs/model-girls-sweet-days/)。
+日期：2026-10-31。状态：**已实现**（`feat/pack-lens` 分支，Task 1–9；用户通读与真实桌面验收待完成），与设计的差异见文末第 11 节。验收对象：[甜蜜日程包](../../../examples/world-packs/model-girls-sweet-days/)。
 
 ## 1. 为什么做
 
@@ -184,3 +184,13 @@ skill 增加一条工作方式：作者说“按清单改”时，先读清单�
 - 让 AI 按清单改一处，例如把触发时段改成傍晚：AI 通过 CLI 读到清单并完成修改；工具标出这处改动，清单显示“已改动”；推演确认傍晚触发；
 - 推演不写任何存档或包内容文件（可以只检查文件修改时间）；
 - 明确不覆盖：角色对白和表现的质量，仍需真实模型试玩。
+
+## 11. 实现与设计的差异（2026-10-31）
+
+- 实现位置：`desktop/lens/`（推演、视图、比较、存储、脚本、CLI、会话）、`desktop/launcher-core.ts` 的 `lens-*` 操作、`apps/launcher/src/lens/`。作者指南见[包透视](../../current/guides/pack-lens.md)，代码说明见[创作者运行时](../../current/architecture/creator-runtime.md)。
+- CLI 命令名为 `worldpack.cmd lens view|requests|simulate`。`lens` 不走 `packages/world-pack` 的 CLI 进程，而是独立打包成 `runtime/lens.mjs`，由 `worldpack.cmd` 转发，因为它需要完整的宿主运行时。
+- 没有实现第 7.2 节的“复制给 AI”备用按钮。
+- 待改清单条目的状态为 open / changed / removed / closed；CLI 只列出 open 与 changed。
+- 推演脚本的 `start` 支持 `status`、`scenes`、`skipAutoStart`；步骤为 `say`、`move`、`interact`（可加 `target`、`arguments`）、`activity`、`wait`；期望为 `started`、`notStarted`、`status`。窗口里点选推演还可以给角色指定一次行为，并显示她此刻被运行时提供的选项（`npcOptions`）。
+- 脚本和对比点的存放位置是 `<包源目录>/.perspectra-lens/`，已加入仓库 `.gitignore`；编译只读取清单列出的文件，没有为该目录另写忽略逻辑，打包时是否带走未专门验证。
+- 仍待验收：真实桌面窗口与真实包、发行包中的 `lens.mjs`、真实 AI 按清单改、NPC 按选项实际执行。
