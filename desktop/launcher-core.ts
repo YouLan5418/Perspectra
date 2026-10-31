@@ -1211,7 +1211,14 @@ export class LauncherCore {
         if (packError) throw new Error(packError)
         const previous = this.#lens
         this.#lens = undefined
-        await previous?.close()
+        try {
+          await previous?.close()
+        } catch (error) {
+          // The old lens is already dropped; say why the new one did not open instead of a bare system error.
+          throw new Error(`关闭上一个透视失败，请重新打开：${error instanceof Error ? error.message : String(error)}`, {
+            cause: error,
+          })
+        }
         this.#lens = await LensSession.open(pack.path)
         return this.#lens.snapshot()
       }

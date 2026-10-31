@@ -4,7 +4,7 @@ import { join, resolve } from 'node:path'
 import { tmpdir } from 'node:os'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { LauncherCore } from '../../desktop/launcher-core.ts'
-import type { LensSnapshot } from '../../desktop/lens/session.ts'
+import { LensSession, type LensSnapshot } from '../../desktop/lens/session.ts'
 
 const SWEET = resolve('examples/world-packs/model-girls-sweet-days')
 const CONNECTION = '6f1c2a4e-1d0b-4c39-9a51-0d6c1b7e2f10'
@@ -90,6 +90,23 @@ describe('Launcher pack lens operations', () => {
     const after = await lens(core, { operation: 'lens-baseline', baseline: { kind: 'seen' } })
     expect(after.view.items.some(item => item.id === 'event:midnight-fridge')).toBe(true)
     expect(after.simulation.start).toEqual({ skipAutoStart: ['midnight-fridge'] })
+  }, 180_000)
+
+  it('lens-open reports a failed close of the previous lens and leaves none open', async () => {
+    const core = await service()
+    const { packageId } = await withSweetDays(core)
+    await lens(core, { operation: 'lens-open', packageId })
+    const original = LensSession.prototype.close
+    // Really close it (no leaked copy), then report a failure.
+    const close = vi.spyOn(LensSession.prototype, 'close').mockImplementationOnce(async function (this: LensSession) {
+      await original.call(this)
+      throw new Error('副本被占用')
+    })
+    await expect(core.handle({ operation: 'lens-open', packageId })).rejects.toThrow(
+      '关闭上一个透视失败，请重新打开：副本被占用',
+    )
+    close.mockRestore()
+    await expect(core.handle({ operation: 'lens-seen' })).rejects.toThrow('透视尚未打开')
   }, 180_000)
 
   it('lens-step appends to the trace; requests are added by item id and closed', async () => {
