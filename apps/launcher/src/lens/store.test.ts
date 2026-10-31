@@ -157,6 +157,18 @@ it('close clears local state, and a failed close is reported', async () => {
   expect(sent()).toEqual([])
 })
 
+it('closing while the open is still in flight still closes the backend lens', async () => {
+  const store = useLensStore()
+  let finish: (value: LensSnapshot) => void = () => undefined
+  bridge.lensRequest.mockImplementationOnce(() => new Promise<LensSnapshot>(done => (finish = done)))
+  const opening = store.open('pack:test')
+  await store.close()
+  expect(sent()).toEqual(['lens-open', 'lens-close'])
+  finish(snapshot())
+  await opening
+  expect(store.snapshot).toBeNull()
+})
+
 it('condition ids follow one shared rule', () => {
   expect(conditionItems('event:x', [{ label: '深夜' }, { label: null }, { label: '深夜' }])).toEqual([
     { title: '深夜', id: 'event:x/when/深夜' },

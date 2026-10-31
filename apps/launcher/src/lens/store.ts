@@ -87,15 +87,24 @@ export const useLensStore = defineStore('lens', () => {
     selectedId.value = id
   }
 
+  /** 已向后端请求打开、还没关闭的那一次；打开还在进行时关闭，也要让后端关掉它。 */
+  let openRequested = false
+  let generation = 0
   async function open(packageId: string) {
+    const mine = ++generation
+    openRequested = true
     snapshot.value = null
     selectedId.value = ''
     view.value = 'characters'
     await call('lens-open', { packageId })
+    // 打开途中已经关闭：后端会按顺序先打开再关闭，迟到的快照不再显示。
+    if (mine !== generation) snapshot.value = null
   }
   /** 关闭透视：本地状态总会清掉；后端关闭失败时写进 `error`，不当成成功。 */
   async function close() {
-    const open = real && snapshot.value !== null
+    const open = real && (snapshot.value !== null || openRequested)
+    openRequested = false
+    generation++
     snapshot.value = null
     selectedId.value = ''
     error.value = ''
