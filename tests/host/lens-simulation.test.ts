@@ -5,6 +5,7 @@ import { afterEach, expect, it } from 'vitest'
 import type { WorldJsonObject } from '@harness-world/contracts'
 import { WorldStore } from '@harness-world/store-sqlite'
 import { LensSimulation, type LensStart } from '../../desktop/lens/simulation.ts'
+import { applyScenario } from '../../desktop/lens/scenario.ts'
 import { startStubModel } from '../../desktop/lens/stub-model.ts'
 import { WorldHostRuntime } from '../../desktop/host/world-runtime.ts'
 import type { HostAction, HostState } from '../../desktop/host/http-server.ts'
@@ -57,6 +58,23 @@ it('midnight kitchen starts the fridge event', async () => {
   expect(trace.lines.some(line => line.kind === 'activity')).toBe(true)
   expect(trace.lines.find(line => line.kind === 'activity')?.activityKey).toBe('midnight-fridge')
   expect(trace.lines.some(line => line.kind === 'moved' && line.text.includes('厨房'))).toBe(true)
+}, 60_000)
+
+it('a step that commits nothing does not repeat the previous start', async () => {
+  const lens = await open(PACK, kitchenStart('深夜'))
+  const result = await applyScenario(lens, {
+    title: '启动后误操作',
+    steps: [
+      { move: 'location:kitchen', expect: { started: 'midnight-fridge' } },
+      { activity: 'midnight-fridge', operation: 'no-such-operation', expect: { notStarted: 'midnight-fridge' } },
+    ],
+  })
+  const [started, rejected] = result.steps
+  expect(started!.autoStart.find(e => e.activityKey === 'midnight-fridge')?.started).toBe(true)
+  expect(rejected!.error).toBeTruthy()
+  expect(rejected!.lines.filter(line => line.kind !== 'input')).toEqual([])
+  expect(rejected!.autoStart).toEqual([])
+  expect(result.steps.flatMap(step => step.expectations ?? []).every(e => e.ok)).toBe(true)
 }, 60_000)
 
 it('daytime kitchen explains the failed condition', async () => {

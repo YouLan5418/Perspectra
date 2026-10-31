@@ -291,6 +291,9 @@ export class LensSimulation {
     const before = this.#read().at(-1)?.seq ?? 0
     let error: string | undefined
     this.#asked = new Set()
+    // The host refreshes its last evaluations only when a round commits; autoStart() assigns a new array, so an
+    // unchanged reference means this step ran no check and must not repeat the previous step's (e.g. `started`).
+    const previousAutoStart = this.#runtime.autoStartEvaluations('last')
     try {
       if (step.kind === 'say') await this.#runtime.submit(step.text)
       else if (step.kind === 'action') await this.#runtime.perform(step.action)
@@ -306,6 +309,7 @@ export class LensSimulation {
       { kind: 'input' as const, actorId: this.#playerId, text: inputText(step), seq: before },
       ...this.#lines(events, before),
     ]
+    const autoStart = this.#runtime.autoStartEvaluations('last')
     const activated = new Set([...this.#asked].filter(id => id !== this.#playerId))
     for (const event of events)
       if (event.seq > before) {
@@ -322,7 +326,7 @@ export class LensSimulation {
       index,
       step: structuredClone(step),
       lines,
-      autoStart: this.#runtime.autoStartEvaluations('last'),
+      autoStart: autoStart === previousAutoStart ? [] : autoStart,
       activated: [...activated],
       ...(error === undefined ? {} : { error }),
     }
