@@ -122,6 +122,9 @@ export class TailRoundRuntime {
   supportsHistoryRestore(): boolean {
     return this.#runtime.supportsHistoryRestore()
   }
+  autoStartEvaluations(mode: 'last' | 'now') {
+    return this.#runtime.autoStartEvaluations(mode)
+  }
   async state(): Promise<HostState> {
     const state = await this.#runtime.state()
     const canInterrupt =
