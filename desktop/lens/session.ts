@@ -110,12 +110,15 @@ export class LensSession {
   reload(): Promise<LensSnapshot> {
     return this.#run(async () => {
       const opening = await LensSimulation.open(this.packPath)
+      let view: LensView
       try {
-        this.view = await buildLensView(this.packPath, opening)
+        view = await buildLensView(this.packPath, opening)
       } finally {
         await opening.close()
       }
+      // A start the edited pack no longer accepts keeps the old view and simulation together.
       await this.#replaceSimulation(this.simulation.startedFrom)
+      this.view = view
       return this.#snapshot()
     })
   }

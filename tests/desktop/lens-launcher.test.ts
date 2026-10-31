@@ -77,6 +77,21 @@ describe('Launcher pack lens operations', () => {
     expect((await lens(core, { operation: 'lens-seen' })).changes).toEqual([])
   }, 180_000)
 
+  it('a reload whose start the edited pack rejects keeps the old view', async () => {
+    const core = await service()
+    const { path, packageId } = await withSweetDays(core)
+    await lens(core, { operation: 'lens-open', packageId })
+    await lens(core, { operation: 'lens-restart', start: { skipAutoStart: ['midnight-fridge'] } })
+    const file = join(path, 'worldpack.source.json')
+    const manifest = JSON.parse(await readFile(file, 'utf8'))
+    manifest.assetFiles = manifest.assetFiles.filter((asset: string) => !asset.endsWith('midnight-fridge.js'))
+    await writeFile(file, JSON.stringify(manifest))
+    await expect(core.handle({ operation: 'lens-reload' })).rejects.toThrow('midnight-fridge')
+    const after = await lens(core, { operation: 'lens-baseline', baseline: { kind: 'seen' } })
+    expect(after.view.items.some(item => item.id === 'event:midnight-fridge')).toBe(true)
+    expect(after.simulation.start).toEqual({ skipAutoStart: ['midnight-fridge'] })
+  }, 180_000)
+
   it('lens-step appends to the trace; requests are added by item id and closed', async () => {
     const core = await service()
     const { packageId } = await withSweetDays(core)
