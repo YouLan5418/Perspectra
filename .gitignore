@@ -31,3 +31,6 @@ __pycache__/
 nul
 # Local desktop shortcuts.
 *.lnk
+
+# Pack lens: seen snapshots, checkpoints and change requests live beside the pack source.
+.perspectra-lens/

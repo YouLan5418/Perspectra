@@ -45,7 +45,8 @@ export function diffLensViews(base: LensView, next: LensView): readonly LensChan
         fields.push({ key: field.key, label: field.label, before: field.value, after: now?.value ?? null })
     }
     for (const field of item.fields)
-      if (!oldFields.has(field.key)) fields.push({ key: field.key, label: field.label, before: null, after: field.value })
+      if (!oldFields.has(field.key))
+        fields.push({ key: field.key, label: field.label, before: null, after: field.value })
     if (fields.length > 0) changes.push({ kind: 'changed', id: item.id, fields })
   }
   return changes
