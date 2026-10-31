@@ -20,13 +20,15 @@ import {
 import { characterExecutionResult } from '@harness-world/application'
 import type { PackStatus } from './pack-status.ts'
 
-/** One activity's automatic-start checks for the pack lens; null checks: not checked this time
- * (an activity runs or holds paused progress, or the hook returned null). */
+/** One activity's automatic-start checks for the pack lens; null checks: not checked this time, see `skipped`. */
 export interface AutoStartEvaluation {
   readonly activityKey: string
   readonly title: string
   readonly checks: readonly AutoStartCheck[] | null
   readonly started: boolean
+  /** Why checks are null without an error: an activity runs in the foreground, this one holds paused progress,
+   * or its hook returned null. */
+  readonly skipped?: 'running' | 'paused' | 'none'
   /** The hook's failure message; a round still throws it, evaluation only reports it. */
   readonly error?: string
 }
@@ -267,12 +269,17 @@ export class PackActivities {
     for (const [key, entry] of entries) {
       const item = { activityKey: key, title: entry.title, started: false }
       if (!world) {
-        evaluations.push({ ...item, checks: null })
+        evaluations.push({ ...item, checks: null, skipped: 'running' })
         continue
       }
       try {
         const candidate = entry.autoStartCandidate(world)
-        evaluations.push({ ...item, checks: candidate?.checks ?? null })
+        if (candidate) evaluations.push({ ...item, checks: candidate.checks })
+        else {
+          const state = entry.state(world.events)
+          const skipped = state?.game.active ? 'running' : state?.suspendedTurn !== undefined ? 'paused' : 'none'
+          evaluations.push({ ...item, checks: null, skipped })
+        }
         if (candidate?.met) met.push({ key, entry, ...candidate })
       } catch (cause: unknown) {
         if (!(cause instanceof TypeError) && !(cause instanceof RangeError)) throw cause

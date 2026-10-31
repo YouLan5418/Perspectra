@@ -1,10 +1,8 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import type { AutoStartEvaluation } from '../../../../desktop/host/pack-activities.ts'
 import type { LensItem } from '../../../../desktop/lens/view.ts'
-import { conditionItems } from '../../../../desktop/lens/ids.ts'
 import { useLensStore } from './store.ts'
-import { fieldValue, showValue } from './format.ts'
+import { autoStartStatus, conditionRows, fieldValue, showValue } from './format.ts'
 import ChangeBadge from './ChangeBadge.vue'
 
 /** 按事件看：什么条件下触发（✔/✘ 按推演当前时刻，没有推演时是开场）、玩家能选什么、推演里选过之后改了什么。 */
@@ -16,11 +14,10 @@ const conditions = computed(
 )
 const keyOf = (item: LensItem) => item.id.slice('event:'.length)
 
-/** 条件条目的 id 规则与透视结果共用 desktop/lens/ids.ts，两边不会对不上。 */
-function checkRows(item: LensItem, evaluation: AutoStartEvaluation) {
-  const checks = evaluation.checks ?? []
-  return conditionItems(item.id, checks).map((row, position) => ({ ...checks[position]!, ...row }))
-}
+/** 条件行以透视结果里的条件条目为准（改动标记、选中都挂在它们上面），此刻算出的 ✔/✘ 叠在上面；
+ * id 规则与透视结果共用 desktop/lens/ids.ts。 */
+const checkRows = (item: LensItem) =>
+  conditionRows(item.id, store.childrenOf(item.id), conditions.value.get(keyOf(item)))
 const removedChecks = (item: LensItem) =>
   store.removedIn('events').filter(change => change.id.startsWith(item.id + '/when/'))
 
@@ -49,7 +46,7 @@ function chosen(item: LensItem) {
       <p class="cr-banner">
         条件真假按{{
           store.snapshot?.simulation.trace.length ? '推演当前时刻' : '开场状态'
-        }}计算；选项效果只在推演中实际选过之后显示。
+        }}计算（“·”表示此刻没有检查）；选项效果只在推演中实际选过之后显示。
       </p>
       <article
         v-for="item in events"
@@ -64,25 +61,27 @@ function chosen(item: LensItem) {
         <p class="lens-opening">{{ showValue(fieldValue(item.fields, 'opening') ?? '') }}</p>
         <p class="cr-muted lens-line">参与者：{{ showValue(fieldValue(item.fields, 'participants') ?? []) }}</p>
 
-        <template v-if="conditions.get(keyOf(item))">
-          <p class="lens-line">
+        <template v-if="conditions.get(keyOf(item)) || checkRows(item).length">
+          <p v-if="conditions.get(keyOf(item))" class="lens-line">
             自动触发：
-            <span v-if="conditions.get(keyOf(item))!.started" class="cr-tag ok">此刻会触发</span>
-            <span v-else class="cr-tag muted">此刻不会触发</span>
+            <span class="cr-tag" :class="autoStartStatus(conditions.get(keyOf(item))!).ok ? 'ok' : 'muted'">
+              {{ autoStartStatus(conditions.get(keyOf(item))!).text }}
+            </span>
             <span v-if="conditions.get(keyOf(item))!.error" class="cr-tag danger">
               {{ conditions.get(keyOf(item))!.error }}
             </span>
           </p>
           <ul class="lens-checks">
             <li
-              v-for="check in checkRows(item, conditions.get(keyOf(item))!)"
+              v-for="check in checkRows(item)"
               :key="check.id"
-              :class="{ selected: store.selectedId === check.id }"
+              :class="{ selected: store.selectedId === check.id, 'lens-unselectable': !check.selectable }"
               @click="store.select(check.id)"
             >
-              <span :class="check.met ? 'lens-met' : 'lens-unmet'">{{ check.met ? '✔' : '✘' }}</span>
+              <span v-if="check.met === undefined" class="cr-muted" title="此刻没有检查">·</span>
+              <span v-else :class="check.met ? 'lens-met' : 'lens-unmet'">{{ check.met ? '✔' : '✘' }}</span>
               <span>{{ check.title }}</span>
-              <span v-if="check.label === null" class="cr-mono cr-muted">{{ item.source.file }} · autoStart</span>
+              <span v-if="!check.labelled" class="cr-mono cr-muted">{{ item.source.file }} · autoStart</span>
               <ChangeBadge :change="store.changesById.get(check.id)" />
             </li>
             <li v-for="change in removedChecks(item)" :key="change.id" class="lens-removed">
@@ -90,7 +89,6 @@ function chosen(item: LensItem) {
               ><ChangeBadge :change="change" />
             </li>
           </ul>
-          <p v-if="conditions.get(keyOf(item))!.checks === null" class="cr-muted lens-line">没有返回条件列表。</p>
         </template>
 
         <p class="lens-line">玩家操作：</p>
@@ -190,6 +188,9 @@ function chosen(item: LensItem) {
 }
 .lens-unmet {
   color: var(--cr-fail);
+}
+.lens-checks li.lens-unselectable {
+  cursor: default;
 }
 .lens-removed {
   opacity: 0.6;

@@ -1,5 +1,7 @@
 import type { LensRequestState } from '../../../../desktop/lens/store.ts'
-import type { LensField, LensSection, LensSource } from '../../../../desktop/lens/view.ts'
+import type { AutoStartEvaluation } from '../../../../desktop/host/pack-activities.ts'
+import type { LensField, LensItem, LensSection, LensSource } from '../../../../desktop/lens/view.ts'
+import { conditionItems } from '../../../../desktop/lens/ids.ts'
 
 export const SECTION_LABEL: Record<LensSection, string> = {
   characters: '角色',
@@ -34,3 +36,53 @@ export function showSource(source: LensSource): string {
 }
 
 export const fieldValue = (fields: readonly LensField[], key: string) => fields.find(field => field.key === key)?.value
+
+/** 事件页“自动触发”一行：按“此刻”的检查结果说明，不说“会不会触发”——真正的检查发生在下一回合结束时。 */
+export function autoStartStatus(evaluation: AutoStartEvaluation): { readonly ok: boolean; readonly text: string } {
+  if (evaluation.error !== undefined) return { ok: false, text: '条件脚本出错' }
+  if (evaluation.checks === null)
+    return {
+      ok: false,
+      text:
+        evaluation.skipped === 'running'
+          ? '有活动正在进行，此刻不检查自动触发'
+          : evaluation.skipped === 'paused'
+            ? '这个活动有暂停的进度，不会自动开始'
+            : '条件脚本此刻返回 null，不检查',
+    }
+  return evaluation.checks.every(check => check.met)
+    ? { ok: true, text: '条件已全部满足（下一回合结束时检查）' }
+    : { ok: false, text: '条件未全部满足' }
+}
+
+/** 一个条件行：条目来自透视结果（开场时算出的条件），此刻的 ✔/✘ 有就叠上去；met 为 undefined 表示此刻没有检查。
+ * 此刻多出来、透视结果里没有的条件也列出，但没有条目可选。 */
+export interface ConditionRow {
+  readonly id: string
+  readonly title: string
+  readonly met: boolean | undefined
+  readonly labelled: boolean
+  readonly selectable: boolean
+}
+export function conditionRows(
+  eventId: string,
+  children: readonly LensItem[],
+  evaluation: AutoStartEvaluation | undefined,
+): ConditionRow[] {
+  const checks = evaluation?.checks ?? []
+  const live = new Map(
+    conditionItems(eventId, checks).map((row, position) => [row.id, { ...row, ...checks[position]! }]),
+  )
+  const rows: ConditionRow[] = children.map(child => ({
+    id: child.id,
+    title: child.title,
+    met: live.get(child.id)?.met,
+    labelled: child.source.kind === 'script' && child.source.label !== undefined,
+    selectable: true,
+  }))
+  const known = new Set(children.map(child => child.id))
+  for (const [id, row] of live)
+    if (!known.has(id))
+      rows.push({ id, title: row.title, met: row.met, labelled: row.label !== null, selectable: false })
+  return rows
+}

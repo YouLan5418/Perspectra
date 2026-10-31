@@ -646,6 +646,19 @@ it('evaluates automatic starts from committed state without committing', async (
   expect(catalog.lastAutoStart()).toEqual([])
 })
 
+it('says why an evaluation has no checks', async () => {
+  const quiet = await autoStartCatalog('() => null')
+  expect(quiet.catalog.evaluateAutoStart()).toEqual([
+    { activityKey: 'other', title: 'other', checks: null, started: false, skipped: 'none' },
+  ])
+  const { f, catalog } = await autoStartCatalog("() => ({ when: [['总是', true]] })")
+  await f.runtime.close()
+  expect(await catalog.autoStart()).toBe(true)
+  expect(catalog.evaluateAutoStart()).toEqual([
+    { activityKey: 'other', title: 'other', checks: null, started: false, skipped: 'running' },
+  ])
+})
+
 it('reports a throwing autoStart hook in evaluation and still throws in a round', async () => {
   const { f, catalog } = await autoStartCatalog("() => { throw new Error('坏了') }")
   const before = f.events().length
