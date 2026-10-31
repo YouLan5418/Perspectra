@@ -15,6 +15,7 @@
 | 创作者 | 用 Launcher 或源码进行真实模型验收 | [创作者试玩](creator-playtest.md) |
 | 创作者 | 在浏览器里只读查看对话、物品去向、模型请求与记忆 | [创作者调试接口](../creator-debug-api.md) |
 | 创作者 | 添加活动、经裁定的状态与状态栏 | [活动与状态](activity-and-variables.md) |
+| 创作者 | 不开游戏看清包的全部设置、对比 AI 的改动、桩模型推演（当前源码） | [包透视](pack-lens.md) |
 | 创作者 | 按权限和关键词交付设定、区分角色态度与客观变量 | [世界设定](world-knowledge.md) |
 | 前端作者 | HTML/CSS/JS、公共接口、沙箱边界 | [自定义前端](web-ui.md) |
 | 画师 | 立绘、表情差分和拼合图的尺寸与对齐要求 | [立绘出图要求](portrait-art.md) |

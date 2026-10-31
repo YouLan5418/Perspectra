@@ -252,6 +252,8 @@ export class PackStatus {
   readonly #policyErrors = new Map<string, string>()
   readonly statuses: readonly StatusDefinition[]
   readonly operations: readonly StatusOperation[]
+  /** Whether the script declares an onRoundEnd hook; the pack lens shows it. */
+  readonly hasRoundHook: boolean
 
   private constructor(source: string, pack: CompiledWorldPackV5) {
     // Also bounds the script composed from status.js and pack modules (PackModules.statusSource).
@@ -259,11 +261,13 @@ export class PackStatus {
     this.#script = new Script(
       source +
         '\nJSON.stringify(__method === "definition" ? statusScript.definition' +
+        ' : __method === "hasRoundHook" ? typeof statusScript.onRoundEnd === "function"' +
         ' : __method === "onRoundEnd" && typeof statusScript.onRoundEnd !== "function" ? null' +
         ' : __method === "policy" && typeof statusScript.policy !== "function" ? null' +
         ' : statusScript[__method](...JSON.parse(__args)))',
       { filename: ENTRY },
     )
+    this.hasRoundHook = this.#call('hasRoundHook', []) === true
     this.#characterIds = pack.content.characters.map(c => c.characterId)
     this.#entityNames = new Map((pack.content.entities ?? []).map(e => [e.entityId, e.name ?? e.entityId]))
     const definition = object(this.#call('definition', []), '状态定义')
@@ -375,7 +379,10 @@ export class PackStatus {
     return new PackStatus(bytes.toString('utf8'), pack)
   }
 
-  #call(method: 'definition' | 'initialize' | 'resolve' | 'onRoundEnd' | 'policy', args: unknown[]): unknown {
+  #call(
+    method: 'definition' | 'hasRoundHook' | 'initialize' | 'resolve' | 'onRoundEnd' | 'policy',
+    args: unknown[],
+  ): unknown {
     const input = JSON.stringify(args)
     if (Buffer.byteLength(input) > CALL_LIMIT) throw new RangeError('状态脚本输入过长')
     const context = createContext(Object.assign(Object.create(null), { __method: method, __args: input }), {

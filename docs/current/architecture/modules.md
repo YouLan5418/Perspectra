@@ -24,6 +24,7 @@
 | [experiments](../../../experiments) | 历史工具、冻结证据、数据和报告；默认 Python Core 已迁出 | [实验索引](../../../experiments/README.md)、[历史 JEV 脚本](../../../experiments/jev-narrative-auditor/scripts/README.md) |
 | [examples/world-packs](../../../examples/world-packs) | 可运行世界包和创作样例 | [Launcher 示例](../../../examples/world-packs/launcher-demo/worldpack.source.json) |
 | [tests/host](../../../tests/host) | 默认回归：游戏宿主的模块、HTTP 与前端接口、末端回合和崩溃恢复 | [宿主边界](../../../tests/host/boundaries.test.ts)、[末端回合](../../../tests/host/tail-round.test.ts) |
+| [desktop/lens](../../../desktop/lens) | 包透视：读世界包源目录生成只读的作者设置视图，在临时副本上用真实宿主运行时加桩模型推演，保存“已看过”快照、对比点、待改清单，并提供 `lens` 命令行 | [视图](../../../desktop/lens/view.ts)、[推演](../../../desktop/lens/simulation.ts)、[脚本](../../../desktop/lens/scenario.ts)、[存储](../../../desktop/lens/store.ts)、[CLI](../../../desktop/lens/cli.ts)、[会话](../../../desktop/lens/session.ts)；窗口在 [apps/launcher/src/lens](../../../apps/launcher/src/lens)；作者指南见[包透视](../guides/pack-lens.md) |
 | [tests/desktop](../../../tests/desktop) | 默认回归：Launcher 后端、模型连接、预设和故事节点 | [LauncherCore](../../../tests/desktop/launcher-core.test.ts) |
 | [tests/scenarios](../../../tests/scenarios) | 默认回归：跨包的玩法与角色行为 | [角色执行结果](../../../tests/scenarios/character-execution-result.test.ts)、[原始经历交付](../../../tests/scenarios/raw-history-delivery.test.ts) |
 | [tests/integration](../../../tests/integration) | 默认回归：世界包、交互路径与存储的跨包集成 | [交互路径](../../../tests/integration/interaction-path.test.ts) |

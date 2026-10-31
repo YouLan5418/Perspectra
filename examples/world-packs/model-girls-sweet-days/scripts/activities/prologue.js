@@ -63,11 +63,14 @@ globalThis.activityScript = {
   autoStart(truth, world, previous) {
     return {
       when: [
-        previous === null,
-        truth?.public?.day === 0,
-        truth?.public?.slot === '深夜',
-        world.locationId === 'location:living-room',
-        ['character:gpt', 'character:claude', 'character:deepseek'].every(id => world.characterIds.includes(id)),
+        ['还没发生过', previous === null],
+        ['第 0 天', truth?.public?.day === 0],
+        ['时段是深夜', truth?.public?.slot === '深夜'],
+        ['玩家在客厅', world.locationId === 'location:living-room'],
+        [
+          '三位少女都在客厅',
+          ['character:gpt', 'character:claude', 'character:deepseek'].every(id => world.characterIds.includes(id)),
+        ],
       ],
     }
   },

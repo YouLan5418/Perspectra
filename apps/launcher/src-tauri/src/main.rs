@@ -322,6 +322,8 @@ fn main() {
             if let tauri::RunEvent::Exit = event {
                 if let Ok(mut bridge) = app.state::<Core>().0.lock() {
                     if let Some(core) = bridge.as_mut() {
+                        // The child is killed right after, so close the pack lens first: it removes its temp copy.
+                        core.request(json!({"operation":"lens-close"})).ok();
                         core.request(json!({"operation":"stop"})).ok();
                     }
                     *bridge = None;

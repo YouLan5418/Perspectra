@@ -6,9 +6,7 @@ import { join } from 'node:path'
 export async function buildWorldPackCli(output) {
   const runtime = join(output, 'runtime')
   await mkdir(runtime, { recursive: true })
-  const result = await build({
-    entryPoints: ['packages/world-pack/process/cli-entry.ts'],
-    outfile: join(runtime, 'worldpack.mjs'),
+  const options = {
     write: false,
     bundle: true,
     platform: 'node',
@@ -20,8 +18,20 @@ export async function buildWorldPackCli(output) {
     banner: {
       js: "import {createRequire as __createRequire} from 'node:module'; const require=__createRequire(import.meta.url);",
     },
+  }
+  const result = await build({
+    ...options,
+    entryPoints: ['packages/world-pack/process/cli-entry.ts'],
+    outfile: join(runtime, 'worldpack.mjs'),
   })
   await writeFile(join(runtime, 'worldpack.mjs'), result.outputFiles[0].contents)
+  // The read-only pack lens for AI agents (`worldpack lens ...`), bundled beside the creator CLI.
+  const lens = await build({
+    ...options,
+    entryPoints: ['desktop/lens/cli.ts'],
+    outfile: join(runtime, 'lens.mjs'),
+  })
+  await writeFile(join(runtime, 'lens.mjs'), lens.outputFiles[0].contents)
   await cp('node_modules/jieba-wasm', join(runtime, 'node_modules/jieba-wasm'), {
     recursive: true,
     dereference: true,

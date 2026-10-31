@@ -1,16 +1,34 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { Ellipsis, ExternalLink, LayoutList, Play, ShieldAlert, ShieldCheck, Square, Cpu, GitFork } from '@lucide/vue'
+import {
+  Ellipsis,
+  ExternalLink,
+  LayoutList,
+  Play,
+  ShieldAlert,
+  ShieldCheck,
+  Square,
+  Cpu,
+  GitFork,
+  ScanEye,
+} from '@lucide/vue'
 import { useLauncherStore } from '../stores/launcher.ts'
 
 /** 主屏：封面铺满，底部渐变托住包名、状态标签和启动按钮。 */
-defineEmits<{ openDrawer: [section?: 'model' | 'frontend' | 'story']; load: [] }>()
+defineEmits<{ openDrawer: [section?: 'model' | 'frontend' | 'story']; load: []; lens: [packageId: string] }>()
 const store = useLauncherStore()
 const pack = computed(() => store.selectedPackage)
 const summary = computed(() => store.stageSummary)
 const frontendLabel = computed(
   () =>
     ({ sandbox: '沙箱', trusted: '已信任前端', default: '官方模板', unknown: '检查前端中' })[summary.value.frontend],
+)
+/** 透视只读包源，不需要实例；包校验失败时不可用，并在提示里写出错误。 */
+const lensBlocked = computed(() => pack.value?.validation.status === 'blocked')
+const lensTitle = computed(() =>
+  lensBlocked.value
+    ? '包校验失败，不能透视：' + (pack.value?.validation.issues.join('；') || '未知错误')
+    : '不开游戏，查看这个包的全部设置',
 )
 const playLabel = computed(() =>
   store.busy ? '正在启动…' : store.currentInstance?.lastPlayedAt ? '继续游戏' : '开始游戏',
@@ -83,6 +101,11 @@ const playLabel = computed(() =>
         >
           载入世界包
         </button>
+        <span v-if="pack" class="stage-lens" :title="lensTitle">
+          <button class="stage-ghost" :disabled="lensBlocked" @click="$emit('lens', pack.id)">
+            <ScanEye :size="15" />透视
+          </button>
+        </span>
       </div>
     </section>
 
@@ -96,6 +119,11 @@ const playLabel = computed(() =>
           <LayoutList :size="15" />打开创作者页面
         </button>
       </template>
+      <span class="stage-lens" :title="lensTitle">
+        <button class="stage-ghost" :disabled="lensBlocked" @click="$emit('lens', pack.id)">
+          <ScanEye :size="15" />透视
+        </button>
+      </span>
       <button class="stage-more" aria-label="本局设置" title="本局设置" @click="$emit('openDrawer')">
         <Ellipsis :size="18" />
       </button>
@@ -292,6 +320,14 @@ const playLabel = computed(() =>
 .stage-more:hover,
 .stage-ghost:hover:not(:disabled) {
   background: rgba(255, 255, 255, 0.26);
+}
+.stage-ghost:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+/* 禁用按钮收不到指针事件；提示挂在外层，校验错误照样能悬停看到。 */
+.stage-lens {
+  display: inline-flex;
 }
 .stage-live {
   display: inline-flex;

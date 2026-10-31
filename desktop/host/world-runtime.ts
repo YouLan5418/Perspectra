@@ -22,6 +22,8 @@ import {
   currentLocation,
   currentSceneStates,
   RulebookRegistry,
+  type ActionAffordance,
+  type CompiledWorldManifest,
 } from '@harness-world/kernel'
 import {
   playSettings,
@@ -56,8 +58,15 @@ import { CoreMemoryAdapter, type MemoryContextBudget, type MemoryBuildOptions } 
 import { assertCoreEnvironment, coreRunnerGroups, type CoreRunner, type MemoryRunners } from './memory/python-worker.ts'
 import { activityWorldFromEvents, type ActivityRequest, type ActivityWorld } from './pack-activity.ts'
 import { decideWithFormatRetry } from './decision-format.ts'
-import { PackActivities } from './pack-activities.ts'
-import { KNOWN_STATUS_NOTE, PackStatus, pauseRounds, publicStatusChanges } from './pack-status.ts'
+import { PackActivities, type ActivityDefinitionView, type AutoStartEvaluation } from './pack-activities.ts'
+import {
+  KNOWN_STATUS_NOTE,
+  PackStatus,
+  pauseRounds,
+  publicStatusChanges,
+  type StatusDefinition,
+  type StatusOperation,
+} from './pack-status.ts'
 import { PackKnowledge } from './pack-knowledge.ts'
 import { PackAutonomy, type AutonomousRole } from './pack-autonomy.ts'
 import { CrossSceneCommunication, communicationInstruction, loadCommunicationConfig } from './pack-communication.ts'
@@ -70,6 +79,7 @@ import {
   brandId,
   interactionPackageDescription,
   RECALL_KEYWORD_TOKENIZER_ID,
+  resolutionAuthority,
   type CharacterId,
   type StoredWorldEvent,
   type WorldJsonObject,
@@ -1274,6 +1284,55 @@ export class WorldHostCore implements HostRuntime {
     } finally {
       this.#savingNode = false
       this.#endWork()
+    }
+  }
+  /** Automatic-start checks for the pack lens: the last round's, or recomputed now without starting anything. */
+  autoStartEvaluations(mode: 'last' | 'now'): readonly AutoStartEvaluation[] {
+    return (mode === 'last' ? this.#activity?.lastAutoStart() : this.#activity?.evaluateAutoStart()) ?? []
+  }
+  /** The author's status definition (statuses and operations) from the loaded status script, for the pack lens. */
+  statusDefinition(): {
+    readonly statuses: readonly StatusDefinition[]
+    readonly operations: readonly StatusOperation[]
+    readonly hasRoundHook: boolean
+  } {
+    return {
+      statuses: this.#status?.statuses ?? [],
+      operations: this.#status?.operations ?? [],
+      hasRoundHook: this.#status?.hasRoundHook ?? false,
+    }
+  }
+  activityDefinitions(): readonly ActivityDefinitionView[] {
+    return this.#activity?.definitions() ?? []
+  }
+  /**
+   * What a non-player character would be offered right now, for the pack lens: the same resolver chain and context
+   * her turn request uses (core, communication, status policy, running activity), narrowed by her autonomy
+   * whitelist when she is an autonomous role. Reads committed events only; nothing is resolved or written.
+   */
+  characterAffordances(characterId: string): readonly ActionAffordance[] {
+    const path = resolve(this.#dataDirectory, 'world.sqlite')
+    const store = new WorldStore(path)
+    try {
+      const stored = store.readManifest(this.#address)
+      if (!stored) throw new Error('世界尚未初始化')
+      const manifest = stored.manifest as CompiledWorldManifest
+      const { rulebookId, version } = manifest.rulebook
+      const base = this.#rulebooks(path)
+      const rules = this.#autonomy?.roles.some(role => role.characterId === characterId)
+        ? this.#autonomy.rulebooks(base.resolve(rulebookId, version, 'lens', this.#address))
+        : base
+      return rules.resolve(rulebookId, version, 'lens', this.#address).affordances({
+        manifest,
+        manifestHash: stored.manifestHash,
+        events: store.readEvents(this.#address),
+        characterId,
+        asOfWorldSeq: store.head(this.#address).headSeq,
+        publicationCharacters: this.#playSettings.publicationCharacters,
+        resolutionAuthority: resolutionAuthority('agent', 'standard'),
+      })
+    } finally {
+      store.close()
     }
   }
   beginRoundRandom(values?: readonly number[]): void {

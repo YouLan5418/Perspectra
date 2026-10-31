@@ -55,11 +55,11 @@ globalThis.activityScript = {
     const notebook = world.items?.current?.find(item => item.entityId === 'entity:gpt-notebook')
     return {
       when: [
-        previous === null,
+        ['还没发生过', previous === null],
         // 只有玩家与 GPT 独处时才曝光，有第三人在场时她不会当众追问。
-        world.characterIds.length === 2,
-        world.characterIds.includes('character:gpt'),
-        notebook?.holderId === 'character:player',
+        ['房间里只有两人', world.characterIds.length === 2],
+        ['GPT 在场', world.characterIds.includes('character:gpt')],
+        ['玩家拿着秘密笔记', notebook?.holderId === 'character:player'],
       ],
       notice: '「等、等等！那本笔记不能看——！」GPT 撞见你手里的硬壳笔记本，连身后的龙尾都慌张地卷了起来！',
     }

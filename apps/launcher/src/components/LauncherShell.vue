@@ -9,6 +9,7 @@ import ImportDialog from './ImportDialog.vue'
 import BundlePresetDialog from './BundlePresetDialog.vue'
 import SessionDrawer from './SessionDrawer.vue'
 import SettingsWindow from './SettingsWindow.vue'
+import LensWindow from '../lens/LensWindow.vue'
 
 const store = useLauncherStore()
 watch(
@@ -56,7 +57,13 @@ const skippedNotice = computed(() =>
     : '',
 )
 const dismissedSkipped = ref('')
-const panel = ref<'settings' | 'package' | null>(null)
+const panel = ref<'settings' | 'package' | 'lens' | null>(null)
+/** 透视打开的包；透视不需要实例或存档。 */
+const lensPackageId = ref('')
+function openLens(packageId: string) {
+  lensPackageId.value = packageId
+  panel.value = 'lens'
+}
 /** 主屏状态标签直达对应行；“⋯”打开抽屉首页。 */
 const drawer = ref<{ open: boolean; section: DrawerSection | null }>({ open: false, section: null })
 function openDrawer(section?: DrawerSection) {
@@ -66,7 +73,7 @@ function openDrawer(section?: DrawerSection) {
 
 <template>
   <div class="launcher" :class="{ 'large-text': store.largeText }">
-    <HomeStage @open-drawer="openDrawer" @load="panel = 'package'" />
+    <HomeStage @open-drawer="openDrawer" @load="panel = 'package'" @lens="openLens" />
     <PackRail @load="panel = 'package'" />
     <TitleBar @open-settings="panel = 'settings'" />
     <Transition name="notice-fade">
@@ -87,5 +94,6 @@ function openDrawer(section?: DrawerSection) {
     <ImportDialog :open="panel === 'package'" mode="package" @close="panel = null" />
     <BundlePresetDialog />
     <SettingsWindow v-if="panel === 'settings'" @close="panel = null" />
+    <LensWindow v-if="panel === 'lens'" :package-id="lensPackageId" @close="panel = null" />
   </div>
 </template>

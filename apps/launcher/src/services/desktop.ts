@@ -1,7 +1,12 @@
 import { invoke, isTauri } from '@tauri-apps/api/core'
 import type { CoreSnapshot, PluginManifestInfo, ThinkingLevel } from '../core-types.ts'
+import type { LensSnapshot } from '../../../../desktop/lens/session.ts'
 export async function coreRequest(operation: string, data: Record<string, unknown> = {}): Promise<CoreSnapshot> {
   return invoke<CoreSnapshot>('launcher_request', { request: { operation, ...data } })
+}
+/** 包透视的操作（lens-open、lens-step……）都返回完整快照；lens-close 返回空对象。 */
+export async function lensRequest(operation: string, data: Record<string, unknown> = {}): Promise<LensSnapshot> {
+  return invoke<LensSnapshot>('launcher_request', { request: { operation, ...data } })
 }
 export async function openGame(): Promise<void> {
   await invoke('launcher_request', { request: { operation: 'open' } })
