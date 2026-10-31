@@ -88,7 +88,8 @@ h1{font:12.5px/1.6 var(--font-story);color:var(--muted);margin:4px 0 0}
 .stage-tools button[aria-expanded="true"]{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
 #action-count{display:inline-grid;place-items:center;min-width:18px;height:18px;margin-left:4px;padding:0 5px;border-radius:9px;font-size:11px;font-weight:600;color:var(--accent-ink);background:var(--accent)}
 .stage-tools button[aria-expanded="true"] #action-count{color:var(--accent);background:var(--accent-ink)}
-.status{display:inline-flex;align-items:center;gap:7px;font-size:12px;color:var(--muted);padding:6px 6px 6px 0}
+/* Pinned above the story area, so it stays in view while reading and while replying. */
+.status{position:absolute;right:0;bottom:calc(100% + 6px);display:inline-flex;align-items:center;gap:7px;font-size:12px;color:var(--muted);padding:5px 12px;border:1px solid var(--line);border-radius:999px;background:var(--surface-glass);backdrop-filter:blur(10px)}
 .status:before{content:"";width:7px;height:7px;border-radius:50%;border:1px solid var(--faint)}
 .status[data-state="ready"]:before{background:var(--accent);border-color:var(--accent)}
 .status[data-state="busy"]:before{width:9px;height:9px;box-sizing:border-box;border:1.5px solid var(--faint);border-top-color:var(--accent);animation:spin .8s linear infinite}
@@ -250,7 +251,9 @@ main:has(.panel:not([hidden])) .composer-keys{display:none}
 .expression-choices:empty{display:none}
 .expression-choices button{font:15px var(--font-story);text-align:left}
 .feedback{font-size:12.5px;color:var(--muted)}
-.feedback:has(#notice:not(:empty)){display:flex;align-items:center;gap:10px;padding:8px 16px;background:var(--surface);border:1px solid var(--line-strong);border-radius:var(--radius)}
+.feedback:has(#notice:not(:empty)),.feedback:has(#retry:not([hidden])){display:flex;align-items:center;gap:10px;padding:0 28px 6px}
+.composer .feedback:has(#notice:not(:empty)),.composer .feedback:has(#retry:not([hidden])){padding:8px 0 0}
+#notice{margin:0;min-width:0;overflow-wrap:anywhere}
 #retry{font-size:12px;padding:4px 12px;margin-left:auto}
 
 
@@ -305,10 +308,11 @@ main:has(.panel:not([hidden])) .stage-bottom{left:calc((100% - var(--drawer-widt
 .inventory-actions .action-form{margin-bottom:8px}
 .inventory-actions .hint{margin:8px 0 0}
 
-/* —— 进行中的活动：舞台左侧的卡片，可折叠 —— */
+/* —— 进行中的活动：舞台左侧的卡片，可折叠；右下角可拖动调整大小 —— */
 .activity-card{
   position:absolute;z-index:4;top:120px;left:28px;width:300px;max-height:max(150px,calc(100% - 460px));overflow:auto;padding:14px 16px;
   background:var(--surface);border:1px solid var(--line-strong);border-radius:var(--radius-lg);box-shadow:var(--shadow);
+  resize:both;min-width:240px;min-height:96px;max-width:calc(100% - 56px);
 }
 .activity-heading{display:grid;grid-template-columns:minmax(10em,1fr) minmax(0,auto);gap:2px 8px;width:100%;padding:0;border:0;background:transparent!important;text-align:left}
 .activity-heading small{font-size:11px;letter-spacing:.1em;color:var(--faint)}
@@ -374,15 +378,15 @@ main:has(.panel:not([hidden])) .stage-bottom{left:calc((100% - var(--drawer-widt
 @keyframes appear{from{opacity:0}}
 @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 @media(min-width:1500px){.stage-bottom{bottom:32px}}
-@media(min-width:641px) and (max-width:1000px){:root{--drawer-width:340px}.world-header{gap:10px;padding:18px}.stage-tools{gap:2px;flex-wrap:wrap;justify-content:flex-end;max-width:360px}.status{width:100%;justify-content:flex-end}.panel{top:100px}main:has(.panel:not([hidden])) .stage-bottom{width:calc(100% - var(--drawer-width) - 48px)}.composer-keys{display:none}}
+@media(min-width:641px) and (max-width:1000px){:root{--drawer-width:340px}.world-header{gap:10px;padding:18px}.stage-tools{gap:2px;flex-wrap:wrap;justify-content:flex-end;max-width:360px}.panel{top:100px}main:has(.panel:not([hidden])) .stage-bottom{width:calc(100% - var(--drawer-width) - 48px)}.composer-keys{display:none}}
 @media(max-width:640px){
   main{min-height:360px}
-  .activity-card{top:156px;left:12px;right:12px;width:auto;max-height:27dvh}
+  .activity-card{top:156px;left:12px;right:12px;width:auto!important;min-width:0;max-width:none;max-height:27dvh;resize:vertical}
   .world-header{padding:16px 16px 10px;flex-direction:column;gap:12px}
   h2{font-size:18px}h1{font-size:11px;max-width:170px}
   .scene-heading{max-width:100%}.scene-heading>div{min-width:0}
   .stage-tools{flex-wrap:wrap;justify-content:flex-end;width:100%;max-width:none;gap:4px}
-  .status{margin-right:auto;max-width:100%;font-size:11px;padding-right:0}
+  .status{font-size:11px}
   .stage-tools button{padding:7px 9px;font-size:11.5px;min-height:34px}
   #characters{inset:0;--head-y:20%;--waist-y:74%}
   .portrait{min-width:0}
@@ -391,6 +395,7 @@ main:has(.panel:not([hidden])) .stage-bottom{left:calc((100% - var(--drawer-widt
   main:has(.panel:not([hidden])) .stage-bottom{left:50%;width:calc(100% - 24px)}
   .dialogue{padding:24px 16px 6px;min-height:80px;max-height:24dvh;font-size:calc(var(--fs-story) - 1px)}
   .dialogue-footer{padding:2px 10px 10px 16px;flex-wrap:wrap}
+  .dialogue-wrap .feedback{padding-left:16px!important;padding-right:10px!important}
   .dialogue-footer>span{width:100%}
   .composer{padding:12px}
   .composer-main textarea#input{max-height:24dvh;min-height:60px}

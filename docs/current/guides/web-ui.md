@@ -23,7 +23,7 @@
     assets/banner.svg
 ```
 
-只想换默认舞台的样子时，`frontend/` 里可以只放 `theme.css`、`portraits/` 立绘和 `backgrounds/` 背景（不要 `index.html`，也不需要 `manifest.json`）。宿主照常使用官方舞台，并在它自己的样式之后加载样式文件，所以可以只覆盖 `--bg`、`--surface-glass`、`--text`、`--accent`、`--font-story`、`--radius` 等变量，也可以改任意规则。玩家在宿主“工具”里切换到官方默认界面时，这份样式和包内美术一起停用。放了 `index.html` 就是整个替换，仍须带 `manifest.json`。
+只想换默认舞台的样子时，`frontend/` 里可以只放 `theme.css`、`portraits/` 立绘和 `backgrounds/` 背景（不要 `index.html`，也不需要 `manifest.json`）。宿主照常使用官方舞台，并在它自己的样式之后加载样式文件，所以可以只覆盖 `--bg`、`--surface-glass`、`--text`、`--accent`、`--font-story`、`--radius` 等变量，也可以改任意规则。起点可复制[主题模板](../../../skills/perspectra-creator/assets/theme.css)：变量部分填的是官方默认值并逐项注明用途，原样复制不改变外观；第二部分列出左上角、右上角按钮、立绘、对话区、抽屉、活动卡片的常用选择器，默认注释掉。变量是稳定约定，类名和 ID 是官方舞台内部结构，改版时可能变化。玩家在宿主“工具”里切换到官方默认界面时，这份样式和包内美术一起停用。放了 `index.html` 就是整个替换，仍须带 `manifest.json`。
 
 例如 `character:companion` 的立绘放在 `frontend/portraits/companion.png`（也支持 WebP）；`location:library` 的背景放在 `frontend/backgrounds/library.jpg`（也支持 PNG、WebP、JPEG）。按稳定 ID 去掉第一个冒号及其前缀匹配，不按名字匹配；同名人物不会共用立绘。缺少或损坏时回退到剪影、纯色背景。只放美术的目录不允许混入脚本；完整自定义页面仍按原授权规则加载。BGM 见上方 Cordis 插件说明，Live2D 尚未实现；取景、表情差分和姿势写在 `stage.json` 里（见下）。
 

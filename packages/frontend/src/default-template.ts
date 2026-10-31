@@ -9,15 +9,15 @@ export const DEFAULT_PAGE = String.raw`<!doctype html>
 <title>Perspectra 对话</title><link rel="stylesheet" href="/frontend/default.css"></head>
 <body><main>
   <div class="backdrop" aria-hidden="true"><img id="background" alt="" hidden></div>
-  <header class="world-header"><div class="scene-heading"><div><h2 id="scene">正在进入情景</h2><h1 id="title">正在进入世界</h1><div id="status-bar" class="status-bar" role="group" aria-label="你知道的状态" hidden></div></div></div><nav class="stage-tools" aria-label="舞台工具"><span id="status" class="status" role="status">正在连接</span><span id="plugin-tools" hidden></span><button id="history-toggle" type="button" aria-expanded="false" aria-controls="history-panel">记录</button><button id="actions-toggle" type="button" aria-expanded="false" aria-controls="action-panel">行动 <span id="action-count">0</span></button><button id="inventory-toggle" type="button" aria-expanded="false" aria-controls="inventory-panel">背包 <span id="inventory-count">0</span></button><button id="status-toggle" type="button" aria-expanded="false" aria-controls="status-panel">状态</button><button id="settings-toggle" type="button" aria-expanded="false" aria-controls="settings-panel">设置</button></nav></header>
+  <header class="world-header"><div class="scene-heading"><div><h2 id="scene">正在进入情景</h2><h1 id="title">正在进入世界</h1><div id="status-bar" class="status-bar" role="group" aria-label="你知道的状态" hidden></div></div></div><nav class="stage-tools" aria-label="舞台工具"><span id="plugin-tools" hidden></span><button id="history-toggle" type="button" aria-expanded="false" aria-controls="history-panel">记录</button><button id="actions-toggle" type="button" aria-expanded="false" aria-controls="action-panel">行动 <span id="action-count">0</span></button><button id="inventory-toggle" type="button" aria-expanded="false" aria-controls="inventory-panel">背包 <span id="inventory-count">0</span></button><button id="status-toggle" type="button" aria-expanded="false" aria-controls="status-panel">状态</button><button id="settings-toggle" type="button" aria-expanded="false" aria-controls="settings-panel">设置</button></nav></header>
   <div id="characters" aria-label="当前可见角色"></div><div id="character-menu" class="character-menu" role="menu" hidden></div>
   <div class="stage-notifications" aria-live="polite"><p id="movement-toast" class="movement-toast" hidden></p><p id="item-toast" class="movement-toast" hidden></p></div>
   <section id="activity-card" class="activity-card" aria-label="当前活动" hidden><button id="activity-heading" class="activity-heading" type="button" aria-expanded="true"><small>当前活动</small><strong id="activity-title"></strong><span id="activity-phase"></span></button><div id="activity-body"><p id="activity-objective"></p><dl id="activity-state"></dl><div id="activity-options"></div><p id="activity-result" class="hint" role="status"></p><div id="activity-manage" class="activity-manage"></div></div></section>
-  <section class="stage-bottom" aria-label="故事与对话">
-    <div class="dialogue-wrap" id="dialogue-wrap"><div class="dialogue-meta"><strong id="speaker" class="speaker-label">序幕</strong><span id="reading-count" class="reading-count"></span></div><button id="dialogue" class="dialogue" type="button" aria-label="阅读下一段">世界正在醒来……</button><div id="auto-progress" class="auto-progress" hidden><div id="auto-progress-bar" class="auto-progress-bar"></div></div><div class="dialogue-footer"><span id="continue-hint">点击继续</span><button id="auto-read" type="button" aria-pressed="false">自动</button><button id="skip-read" type="button" title="跳到已经发生的最新内容">跳过</button>      <div id="round-tools" class="round-tools" role="group" aria-label="末端回合候选" hidden><button id="candidate-prev" type="button" aria-label="上一个候选" title="上一个候选">‹</button><span id="candidate-count" aria-live="polite"></span><button id="candidate-next" type="button" aria-label="下一个候选" title="下一个候选">›</button><button id="regenerate-round" type="button" aria-label="重新生成" title="重新生成此回合"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M20 7v5h-5M4 17v-5h5"/><path d="M6 6a8 8 0 0 1 13 3l1 3M4 12l1 3a8 8 0 0 0 13 3"/></svg></button><button id="cancel-round" type="button" aria-label="取消重新生成" title="取消重新生成" hidden>停止</button></div>
+  <section class="stage-bottom" aria-label="故事与对话"><span id="status" class="status" role="status">正在连接</span>
+    <div class="dialogue-wrap" id="dialogue-wrap"><div class="dialogue-meta"><strong id="speaker" class="speaker-label">序幕</strong><span id="reading-count" class="reading-count"></span></div><button id="dialogue" class="dialogue" type="button" aria-label="阅读下一段">世界正在醒来……</button><div id="auto-progress" class="auto-progress" hidden><div id="auto-progress-bar" class="auto-progress-bar"></div></div><div id="feedback" class="feedback"><p id="notice" role="status"></p><button id="retry" class="secondary" type="button" hidden>重试同一操作</button></div><div class="dialogue-footer"><span id="continue-hint">点击继续</span><button id="auto-read" type="button" aria-pressed="false">自动</button><button id="skip-read" type="button" title="跳到已经发生的最新内容">跳过</button>      <div id="round-tools" class="round-tools" role="group" aria-label="末端回合候选" hidden><button id="candidate-prev" type="button" aria-label="上一个候选" title="上一个候选">‹</button><span id="candidate-count" aria-live="polite"></span><button id="candidate-next" type="button" aria-label="下一个候选" title="下一个候选">›</button><button id="regenerate-round" type="button" aria-label="重新生成" title="重新生成此回合"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M20 7v5h-5M4 17v-5h5"/><path d="M6 6a8 8 0 0 1 13 3l1 3M4 12l1 3a8 8 0 0 0 13 3"/></svg></button><button id="cancel-round" type="button" aria-label="取消重新生成" title="取消重新生成" hidden>停止</button></div>
 </div></div>
 <div id="reply-bar" class="reply-bar" hidden><button id="reply-open" type="button">说点什么…</button><button id="reply-wait" type="button" hidden title="不说也不做，让这一轮过去">静观</button></div>
-<div class="feedback"><p id="notice" role="status"></p><button id="retry" class="secondary" type="button" hidden>重试同一操作</button></div>      <div class="composer" id="composer" hidden><div class="reply-context" id="reply-context" role="button" tabindex="0" title="点击返回对白"><span id="reply-speaker"></span><p id="reply-summary"></p></div>
+      <div class="composer" id="composer" hidden><div class="reply-context" id="reply-context" role="button" tabindex="0" title="点击返回对白"><span id="reply-speaker"></span><p id="reply-summary"></p></div>
         <div class="composer-body"><div class="composer-main">
         <div id="expression-choices" class="expression-choices"></div><label class="visually-hidden" for="input">写下你的回应</label><textarea id="input" maxlength="2000" placeholder="说出你想对角色说的话……" rows="2"></textarea>
         <div class="composer-footer"><div class="audience-picker" id="audience-picker">
@@ -183,6 +183,8 @@ export const DEFAULT_SCRIPT = String.raw`(() => {
    if(connected&&latest?.status==='ready')node('status').textContent=readingBlocked?'阅读中':'可以回应';
    node('stage-save').disabled=!canSave||saving||posting||!connected||latest?.status!=='ready'||!!latest?.tailRound?.regenerating;
    node('composer').hidden=mode!=='response';node('dialogue-wrap').hidden=mode==='response';
+   // The notice lives inside whichever box is showing: below the dialogue while reading, at the foot of the composer while replying.
+   if(mode==='response')node('composer').append(node('feedback'));else node('dialogue-wrap').insertBefore(node('feedback'),node('dialogue-wrap').querySelector('.dialogue-footer'));
    node('reply-bar').hidden=mode!=='reading'||readingBlocked||!canReply;node('reply-wait').hidden=!waitOption;node('reply-wait').disabled=actionDisabled;
    const unit=playback.current();node('reply-speaker').textContent=unit?.speaker||'当前情景';node('reply-summary').textContent=unit?.text||'故事从你的回应开始。';
    node('actions-toggle').disabled=actionDisabled;
@@ -364,11 +366,20 @@ export const DEFAULT_SCRIPT = String.raw`(() => {
    const tools=node('activity-manage');tools.replaceChildren();
    for(const option of manage){const button=document.createElement('button');button.type='button';button.textContent=option.label;button.onclick=()=>send('perform',{optionId:option.id});tools.append(button)}
  }
- node('activity-heading').onclick=()=>{const open=node('activity-heading').getAttribute('aria-expanded')!=='true';node('activity-heading').setAttribute('aria-expanded',String(open));node('activity-body').hidden=!open};
+ node('activity-heading').onclick=()=>{const open=node('activity-heading').getAttribute('aria-expanded')!=='true';node('activity-heading').setAttribute('aria-expanded',String(open));node('activity-body').hidden=!open;if(!open){node('activity-card').style.height='';node('activity-card').style.maxHeight=''}};
+ // Grabbing the resize grip lets the card grow down to the dialogue area, never under it, so the grip stays reachable.
+ node('activity-card').addEventListener('pointerdown',event=>{
+   const card=node('activity-card'),box=card.getBoundingClientRect();
+   if(event.clientX<box.right-20||event.clientY<box.bottom-20)return;
+   card.style.height=box.height+'px';card.style.maxHeight=Math.max(box.height,activityRoom())+'px';
+ });
+ function activityRoom(){return document.querySelector('.stage-bottom').getBoundingClientRect().top-node('activity-card').getBoundingClientRect().top-12}
+ // When the dialogue area grows (the composer opens), a resized card shrinks back above it.
+ new ResizeObserver(()=>{const card=node('activity-card');if(!card.style.maxHeight||card.hidden)return;const room=Math.max(96,activityRoom());card.style.maxHeight=room+'px';if(parseFloat(card.style.height)>room)card.style.height=room+'px'}).observe(document.querySelector('.stage-bottom'));
  async function refresh(expectedVersion){try{const view=await api.getView();if(expectedVersion!==requestVersion)return;connected=true;render(view)}catch(error){if(expectedVersion!==requestVersion)return;node('notice').textContent=error.message;connected=false;node('status').textContent='连接断开';node('status').dataset.state='disconnected';controls()}}
  async function submit(request){
    const version=++requestVersion;submittedPlayers=latest?.history.filter(line=>line.player).length||0;
-   posting=true;controls();node('notice').textContent='正在提交……';
+   posting=true;controls();if(!request.quiet)node('notice').textContent='正在提交……';
    try{await api.request(request.method,request.payload,request.actionId);if(version!==requestVersion)return;
      const view=await api.getView();if(version!==requestVersion)return;
      const line=request.method==='speak'?request.payload:request.payload.say;
@@ -377,10 +388,11 @@ export const DEFAULT_SCRIPT = String.raw`(() => {
    catch(error){if(version!==requestVersion)return;if(openingSeen)haltOpening();if((request.method==='regenerate'||request.method==='selectCandidate')&&error.retryable===false)pending=null;node('notice').textContent=error.message+(pending?'；可重试查询同一操作结果。':'')}
    finally{if(version===requestVersion){await refresh(version);if(version===requestVersion){posting=false;controls()}}}
  }
- function send(method,payload){
+ // The opening reads ahead: it may submit while earlier text is still being read.
+ function send(method,payload,readingAhead=false){
    const tailOperation=method==='regenerate'||method==='selectCandidate';
-   if(posting||!connected||(!tailOperation&&playback.pending())||(tailOperation?!latest?.tailRound?.canRegenerate:!['ready','error'].includes(latest?.status)&&!(method==='speak'&&latest?.canInterrupt)))return;
-   composerExpanded=false;drawer(null);pending={method,payload,actionId:api.newActionId()};submit(pending);
+   if(posting||!connected||(!tailOperation&&!readingAhead&&playback.pending())||(tailOperation?!latest?.tailRound?.canRegenerate:!['ready','error'].includes(latest?.status)&&!(method==='speak'&&latest?.canInterrupt)))return;
+   composerExpanded=false;drawer(null);pending={method,payload,actionId:api.newActionId(),...(readingAhead?{quiet:true}:{})};submit(pending);
  }
  node('regenerate-round').onclick=()=>send('regenerate',{tailId:latest.tailRound.id});
  function choose(offset){const tail=latest?.tailRound,id=tail?.candidateIds?.[(tail.candidateIndex||1)-1+offset];if(id)send('selectCandidate',{tailId:tail.id,candidateId:id})}
@@ -450,7 +462,7 @@ export const DEFAULT_SCRIPT = String.raw`(() => {
  node('input').oninput=controls;node('narration').oninput=controls;
  node('narration-panel').addEventListener('toggle',()=>{if(node('narration-panel').open)node('narration').focus()});
  node('input').onkeydown=node('narration').onkeydown=event=>{if(event.key==='Enter'&&!event.shiftKey&&!event.isComposing){event.preventDefault();node('send').click()}};
- let composerExpanded=false,activityOpen=false,auto=false,autoTimer=null,autoKey='',expressionKey='',sceneKey='';
+ let composerExpanded=false,activityOpen=false,auto=false,autoTimer=null,autoKey='',expressionKey='',sceneKey='',dialogueKey='';
  let openingSeen=false,openingPreviousAuto=false,openingHalted=false,openingTimer=null,openingRetried='';
  const toastTimers=new Map();
  function showToast(id,text){const target=node(id);target.textContent=text;target.hidden=false;clearTimeout(toastTimers.get(id));toastTimers.set(id,setTimeout(()=>target.hidden=true,4000))}
@@ -592,9 +604,15 @@ export const DEFAULT_SCRIPT = String.raw`(() => {
  }
  function renderStage(){
    const unit=playback.current();
-   node('speaker').textContent=unit?.speaker||'序幕';node('dialogue').replaceChildren();fillText(node('dialogue'),unit?.text||'看看眼前的世界，向角色打个招呼吧。');
-   node('dialogue').dataset.type=unit?.type||'speech';node('reading-count').textContent=playback.pending()?'待阅读 '+playback.remaining()+' 段':'已读完';
-   node('dialogue').classList.remove('fade-in');void node('dialogue').offsetWidth;node('dialogue').classList.add('fade-in');
+   node('reading-count').textContent=playback.pending()?'待阅读 '+playback.remaining()+' 段':'已读完';
+   // New views arrive while a queued text is read; only a different text is redrawn and fades in.
+   const shown=JSON.stringify([unit?.seq,unit?.segmentIndex,unit?.speaker,unit?.type,unit?.text]);
+   if(shown!==dialogueKey){
+     dialogueKey=shown;
+     node('speaker').textContent=unit?.speaker||'序幕';node('dialogue').replaceChildren();fillText(node('dialogue'),unit?.text||'看看眼前的世界，向角色打个招呼吧。');
+     node('dialogue').dataset.type=unit?.type||'speech';
+     node('dialogue').classList.remove('fade-in');void node('dialogue').offsetWidth;node('dialogue').classList.add('fade-in');
+   }
    const scene=playback.stageScene(latest?.scene||null),key=JSON.stringify(scene);
    if(key!==sceneKey){
      if(sceneKey&&scene?.locationName&&node('scene').textContent!==scene.locationName)showToast('movement-toast','当前情景 · '+scene.locationName);
@@ -627,7 +645,7 @@ export const DEFAULT_SCRIPT = String.raw`(() => {
      autoTimer=setTimeout(()=>{autoTimer=null;updateAutoProgress(0);advance()},duration);
    }
  }
- // Author-configured opening: perform only offered actions, after the current text has been read.
+ // Author-configured opening: perform only offered actions, queuing the whole opening for reading instead of one text at a time.
  function scheduleOpening(){
    const config=stageConfig?.autoplay;
    if(!config||openingHalted||!latest||!connected)return;
@@ -645,11 +663,11 @@ export const DEFAULT_SCRIPT = String.raw`(() => {
    // A failed character turn comes back as an error view, not a rejected request: ask once more, then stop and hand over the card.
    const failed=latest.status==='error'&&!!entry?.active;
    if(failed&&!posting&&!pending&&(!retry||openingRetried===retry.id)){haltOpening();return}
-   if(!auto||posting||pending||openingTimer||(latest.status!=='ready'&&!failed)||playback.pending()||document.querySelector('.panel:not([hidden])')||node('save-dialog').open)return;
+   if(!auto||posting||pending||openingTimer||(latest.status!=='ready'&&!failed)||document.querySelector('.panel:not([hidden])')||node('save-dialog').open)return;
    const action=failed?retry:entry?.active?(next||retry):start;
    if(!action)return;
    if(action===retry&&openingRetried===action.id){haltOpening();return}
-   openingTimer=setTimeout(()=>{openingTimer=null;if(openingHalted||!auto||posting||pending||!['ready','error'].includes(latest.status)||playback.pending()||document.querySelector('.panel:not([hidden])')||node('save-dialog').open)return;if(!latest.actions.some(option=>option.id===action.id)){scheduleOpening();return}if(action===retry)openingRetried=action.id;send('perform',{optionId:action.id})},0);
+   openingTimer=setTimeout(()=>{openingTimer=null;if(openingHalted||!auto||posting||pending||!['ready','error'].includes(latest.status)||document.querySelector('.panel:not([hidden])')||node('save-dialog').open)return;if(!latest.actions.some(option=>option.id===action.id)){scheduleOpening();return}if(action===retry)openingRetried=action.id;send('perform',{optionId:action.id},true)},0);
  }
  // A halted opening shows its activity card and leaves auto-read as it was before the opening.
  function haltOpening(){openingHalted=true;setAuto(openingPreviousAuto)}
@@ -676,7 +694,8 @@ export const DEFAULT_SCRIPT = String.raw`(() => {
  // Only one drawer is visible at a time; every drawer pauses automatic reading.
  function drawer(name){node('character-menu').hidden=true;audienceMenu(false);for(const [id,toggle] of [['history-panel','history-toggle'],['action-panel','actions-toggle'],['message-panel','composer-message'],['inventory-panel','inventory-toggle'],['status-panel','status-toggle'],['settings-panel','settings-toggle']]){node(id).hidden=id!==name;node(toggle).setAttribute('aria-expanded',String(id===name))}scheduleAuto()}
  function historyPanel(open){if(open)drawer('history-panel');else node('history-panel').hidden=true;node('history-toggle').setAttribute('aria-expanded',String(open));if(open){clearTimeout(autoTimer);autoTimer=null;updateAutoProgress(0);node('history-close').focus();bottom()}else{node('history-toggle').focus();scheduleAuto()}controls()}
- node('dialogue').onclick=advance;
+ // Clicking the dialogue while a drawer is open only closes the drawer, so the player returns to the story without skipping a line.
+ node('dialogue').onclick=()=>{if(node('save-dialog').open)return;if(document.querySelector('.panel:not([hidden])')){drawer(null);controls();return}advance()};
  node('skip-read').onclick=()=>{updateAutoProgress(0);playback.skip();renderStage();if(canReplyNow())composerExpanded=true;controls();if(canReplyNow())node('input').focus()};
  // Every change of auto-read goes through here, so the button, the opening card and the timer agree.
  function setAuto(value){auto=value;node('auto-read').setAttribute('aria-pressed',String(auto));node('auto-read').classList.toggle('active',auto);if(latest)renderActivity(latest);scheduleAuto()}

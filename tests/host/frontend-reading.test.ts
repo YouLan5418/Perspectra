@@ -398,7 +398,7 @@ it('lifts text messages out of the action drawer into their own composer button 
   expect(DEFAULT_PAGE).toContain('id="composer-message"')
   expect(DEFAULT_PAGE).toContain('id="message-panel"')
 })
-it('automatically starts and advances the configured opening only after reading, and does not restart it', () => {
+it('automatically starts the configured opening, queues it ahead of reading, and does not restart it', () => {
   expect(() => new Function(DEFAULT_SCRIPT)).not.toThrow()
   const start = DEFAULT_SCRIPT.indexOf(' function scheduleOpening(){')
   const end = DEFAULT_SCRIPT.indexOf('\n function canReplyNow(){', start)
@@ -442,7 +442,10 @@ it('automatically starts and advances the configured opening only after reading,
       timers.push(fn)
       return timers.length
     },
-    send: (_method: string, payload: { optionId: string }) => sent.push(payload.optionId),
+    send: (_method: string, payload: { optionId: string }, readingAhead?: boolean) => {
+      expect(readingAhead).toBe(true)
+      sent.push(payload.optionId)
+    },
   }
   // The page routes every auto-read change through setAuto; here it only flips the flag the sliced code reads.
   Object.assign(context, { setAuto: (value: boolean) => (context.auto = value) })
@@ -456,10 +459,8 @@ it('automatically starts and advances the configured opening only after reading,
     activities: [{ key: 'prologue', active: true, phase: 'prologue' }],
     actions: [nextAction],
   }
+  // Unread text does not hold the opening back: the next step is queued while the player reads.
   reading = true
-  schedule()
-  expect(timers).toHaveLength(0)
-  reading = false
   context.auto = false
   schedule()
   expect(timers).toHaveLength(0)
@@ -467,6 +468,7 @@ it('automatically starts and advances the configured opening only after reading,
   schedule()
   timers.shift()!()
   expect(sent).toEqual(['start', 'next'])
+  reading = false
   const retryAction = {
     id: 'retry',
     target: { id: 'prologue' },
