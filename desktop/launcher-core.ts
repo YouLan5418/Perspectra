@@ -50,6 +50,8 @@ import { createInstalledInteractionPackages } from '@harness-world/interactions-
 import { preflightSave } from './save-preflight.ts'
 import { loadPackWeb } from './host/pack-frontend.ts'
 import { corePythonExecutable } from './host/memory/python-worker.ts'
+import { LensSession } from './lens/session.ts'
+import type { LensNpcPlan, LensStart, LensStep } from './lens/simulation.ts'
 
 interface Pack {
   id: string
@@ -232,6 +234,12 @@ export class LauncherCore {
   #child: ChildProcess | undefined
   #active: { instanceId: string; url: string; frontendMode: 'sandbox' | 'trusted' } | undefined
   #error = ''
+  /** The pack lens the author has open; it reads the pack source only and never touches instances or saves. */
+  #lens: LensSession | undefined
+  #lensSession(): LensSession {
+    if (!this.#lens) throw new Error('透视尚未打开。')
+    return this.#lens
+  }
   /** From the most recent game launch, kept after it stops so settings can still point at the plugin. */
   #skippedPlugins: SkippedPlugin[] = []
   /** Per saved plugin ID, re-read when settings are saved or a game starts. */
@@ -1196,6 +1204,48 @@ export class LauncherCore {
         if (!this.#active) throw new Error('游戏尚未启动。')
         return { url: this.#active.url }
       }
+      case 'lens-open': {
+        const pack = this.#index.packs.find(p => p.id === request.packageId)
+        if (!pack) throw new Error('世界包不存在。')
+        const packError = this.#details[pack.id]?.error
+        if (packError) throw new Error(packError)
+        const previous = this.#lens
+        this.#lens = undefined
+        await previous?.close()
+        this.#lens = await LensSession.open(pack.path)
+        return this.#lens.snapshot()
+      }
+      case 'lens-reload':
+        return this.#lensSession().reload()
+      case 'lens-baseline': {
+        const baseline = object(request.baseline)
+        if (baseline.kind === 'seen') return this.#lensSession().setBaseline({ kind: 'seen' })
+        if (baseline.kind === 'checkpoint')
+          return this.#lensSession().setBaseline({ kind: 'checkpoint', name: text(baseline.name, '对比点名称', 40) })
+        throw new Error('对比基准无效。')
+      }
+      case 'lens-seen':
+        return this.#lensSession().markSeen()
+      case 'lens-checkpoint':
+        return this.#lensSession().saveCheckpoint(text(request.name, '对比点名称', 40))
+      case 'lens-request-add':
+        return this.#lensSession().addRequest(text(request.itemId, '设置项', 400), text(request.note, '待改说明', 2000))
+      case 'lens-request-close':
+        return this.#lensSession().closeRequest(text(request.id, '待改条目', 200))
+      case 'lens-restart':
+        return this.#lensSession().restart(object(request.start) as LensStart)
+      case 'lens-step':
+        return this.#lensSession().step(object(request.step) as LensStep)
+      case 'lens-npc-plans':
+        return this.#lensSession().setNpcPlans(object(request.plans) as Record<string, readonly LensNpcPlan[]>)
+      case 'lens-scenario':
+        return this.#lensSession().runScenario(text(request.name, '推演脚本', 200))
+      case 'lens-close': {
+        const lens = this.#lens
+        this.#lens = undefined
+        await lens?.close()
+        return {}
+      }
       case 'stop':
         await this.stop()
         return this.snapshot()
@@ -1209,5 +1259,15 @@ export class LauncherCore {
     this.#active = undefined
     this.#error = ''
     if (child) await terminate(child)
+  }
+  /** Launcher shutdown: the game and any open pack lens. `stop` alone ends only the game. */
+  async close(): Promise<void> {
+    const lens = this.#lens
+    this.#lens = undefined
+    try {
+      await this.stop()
+    } finally {
+      await lens?.close()
+    }
   }
 }

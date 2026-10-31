@@ -36,5 +36,5 @@ try {
     }
   }
 } finally {
-  await core.stop()
+  await core.close()
 }
