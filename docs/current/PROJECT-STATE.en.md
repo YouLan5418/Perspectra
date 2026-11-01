@@ -34,7 +34,7 @@ Candidate4 adds the earlier static Tavern extractor, capacity analysis and migra
 
 ## What source gained after test3 (2026-10-15 to 10-18)
 
-**Launcher redesign.** The window is filled by the world pack's cover, with a thin rail on the left for switching packs. Clicking "⋯" or a status tag slides out a session drawer for saves, models, character presets, frontend permission, runtime settings and creator tools. The ⚙ button opens a settings window. Settings can be edited while a game runs and take effect at the next start. See [Launcher integration](launcher-core-integration.md) (Chinese).
+**Launcher redesign.** The window is filled by the world pack's cover, with a thin rail on the left for switching packs. Clicking "⋯" or a status tag slides out a session drawer for saves, models, character presets, frontend permission, runtime settings and the pack lens. The ⚙ button opens a settings window. Settings can be edited while a game runs and take effect at the next start. See [Launcher integration](launcher-core-integration.md) (Chinese).
 
 **Model connections and per-character models.** Several connections (OpenAI-compatible, Anthropic, Google) can be saved; API keys live in Windows Credential Manager and survive restarts. Each instance picks its own model, and an important character can use a stronger model with its own memory-consolidation model. See [model protocols](model-protocols.md) and the [acceptance record](studies/launcher-role-models-20261017.md) (both Chinese).
 

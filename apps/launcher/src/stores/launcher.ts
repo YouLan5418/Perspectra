@@ -42,7 +42,7 @@ import {
 import { availableModel, historyTo } from '../domain.ts'
 import type { CoreStatus, GamePackage } from '../types.ts'
 
-export type DrawerSection = 'story' | 'model' | 'preset' | 'frontend' | 'play' | 'creator'
+export type DrawerSection = 'story' | 'model' | 'preset' | 'frontend' | 'play' | 'lens'
 export interface DrawerRow {
   id: DrawerSection
   group: '游玩' | '进阶'
@@ -351,6 +351,7 @@ export const useLauncherStore = defineStore('launcher', () => {
       play = currentPlaySettings.value
     const presetMode = presets.value.instances[selectedInstanceId.value]?.mode
     const sandboxed = summary.frontend === 'sandbox'
+    const lensBlocked = selectedPackage.value?.validation.status === 'blocked'
     return [
       {
         id: 'story',
@@ -385,12 +386,12 @@ export const useLauncherStore = defineStore('launcher', () => {
         action: '调整',
       },
       {
-        id: 'creator',
+        id: 'lens',
         group: '进阶',
-        label: '创作者工具',
-        summary: running.value ? '控制台 · 模型请求' : '启动游戏后可用',
+        label: '透视',
+        summary: lensBlocked ? '包校验失败，不能透视' : '不开游戏，查看这个包的全部设置',
         action: '打开',
-        disabled: !running.value,
+        disabled: lensBlocked,
       },
     ]
   })

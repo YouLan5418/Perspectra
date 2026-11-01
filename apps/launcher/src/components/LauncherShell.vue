@@ -64,6 +64,10 @@ function openLens(packageId: string) {
   lensPackageId.value = packageId
   panel.value = 'lens'
 }
+function openLensFromDrawer() {
+  drawer.value.open = false
+  openLens(store.selectedPackageId)
+}
 /** 主屏状态标签直达对应行；“⋯”打开抽屉首页。 */
 const drawer = ref<{ open: boolean; section: DrawerSection | null }>({ open: false, section: null })
 function openDrawer(section?: DrawerSection) {
@@ -90,7 +94,12 @@ function openDrawer(section?: DrawerSection) {
         <X :size="15" />
       </button>
     </div>
-    <SessionDrawer :open="drawer.open" :section="drawer.section" @close="drawer.open = false" />
+    <SessionDrawer
+      :open="drawer.open"
+      :section="drawer.section"
+      @close="drawer.open = false"
+      @lens="openLensFromDrawer"
+    />
     <ImportDialog :open="panel === 'package'" mode="package" @close="panel = null" />
     <BundlePresetDialog />
     <SettingsWindow v-if="panel === 'settings'" @close="panel = null" />

@@ -427,21 +427,22 @@ it('lists the session drawer rows with summaries, a sandbox warning and creator 
     ['游玩', 'preset'],
     ['游玩', 'frontend'],
     ['进阶', 'play'],
-    ['进阶', 'creator'],
+    ['进阶', 'lens'],
   ])
   const row = (id: string) => store.drawerRows.find(r => r.id === id)!
   expect(row('story').summary).toBe('主故事线 · 1 条故事线')
   expect(row('model').summary).toBe('actual-model')
   expect(row('preset').summary).toBe('采用包推荐')
   expect(row('frontend')).toMatchObject({ summary: '沙箱（自定义前端）', warn: true, action: '解除沙箱' })
-  expect(row('creator')).toMatchObject({ disabled: true, summary: '启动游戏后可用' })
+  // 透视不需要启动游戏。
+  expect(row('lens')).toMatchObject({ disabled: false, summary: '不开游戏，查看这个包的全部设置' })
   bridge.request.mockImplementation(async () => ({
     ...data,
     core: { state: 'running', mode: 'real', instanceId: 'instance-1', storylineId: 'main', url: '' },
   }))
   await store.refresh()
   expect(row('frontend')).toMatchObject({ summary: '检查中', warn: false, action: '查看' })
-  expect(row('creator').disabled).toBe(false)
+  expect(row('lens').disabled).toBe(false)
 })
 
 it('applies the settings window draft once and can reset it to the last applied values', async () => {

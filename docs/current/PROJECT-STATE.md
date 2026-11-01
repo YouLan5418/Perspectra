@@ -44,7 +44,7 @@ candidate4 的统一 Skill 内含原 tavern-to-perspectra 提取器、容量分�
 
 ## test3 之后源码新增了什么（2026-10-15 ～ 10-18）
 
-**Launcher 改版。** 打开后是铺满窗口的世界包封面，左侧细栏切换世界包。点“⋯”或状态标签，右侧滑出“本局抽屉”，在里面管理存档、模型、角色预设、前端权限、运行参数和创作者工具。右上角 ⚙ 是设置窗口。游戏运行中也能改设置，下次启动生效。见 [Launcher 接入](launcher-core-integration.md)。
+**Launcher 改版。** 打开后是铺满窗口的世界包封面，左侧细栏切换世界包。点“⋯”或状态标签，右侧滑出“本局抽屉”，在里面管理存档、模型、角色预设、前端权限、运行参数和透视。右上角 ⚙ 是设置窗口。游戏运行中也能改设置，下次启动生效。见 [Launcher 接入](launcher-core-integration.md)。
 
 **模型连接与按角色选模型。** 可以保存多条模型连接（OpenAI 兼容、Anthropic、Google），API Key 存在 Windows 凭据管理器，重启不用重填。每个实例选自己的模型；还能让某个重要角色单独用强模型，并单独指定它的记忆整理模型。见[模型接口协议](model-protocols.md)和[验收记录](studies/launcher-role-models-20261017.md)。
 

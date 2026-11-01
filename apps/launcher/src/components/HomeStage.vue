@@ -23,7 +23,7 @@ const frontendLabel = computed(
   () =>
     ({ sandbox: '沙箱', trusted: '已信任前端', default: '官方模板', unknown: '检查前端中' })[summary.value.frontend],
 )
-/** 透视只读包源，不需要实例；包校验失败时不可用，并在提示里写出错误。 */
+/** 还没有实例时没有抽屉，透视入口留在这里；包校验失败时不可用，并在提示里写出错误。 */
 const lensBlocked = computed(() => pack.value?.validation.status === 'blocked')
 const lensTitle = computed(() =>
   lensBlocked.value
@@ -119,11 +119,6 @@ const playLabel = computed(() =>
           <LayoutList :size="15" />打开创作者页面
         </button>
       </template>
-      <span class="stage-lens" :title="lensTitle">
-        <button class="stage-ghost" :disabled="lensBlocked" @click="$emit('lens', pack.id)">
-          <ScanEye :size="15" />透视
-        </button>
-      </span>
       <button class="stage-more" aria-label="本局设置" title="本局设置" @click="$emit('openDrawer')">
         <Ellipsis :size="18" />
       </button>
