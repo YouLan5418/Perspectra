@@ -260,6 +260,13 @@ interface MemoryInstance {
 
 Python 目录和 `python-paths.ts`、发行脚本的路径随 `official-memory-core` 移动。
 
+2026-11-02 实施前修正：
+
+- 方法名沿用 `CoreMemoryAdapter`（`snapshotAliases`、`snapshotArchives`、`restoreArchives`、`inspect` 等），除 `project` 外都是可选的；上面的接口草稿以[阶段 2 计划](../plans/2026-11-02-plugin-first-phase-2-memory.md)为准。
+- Core 需要模型凭据，而第三方插件不能拿到，所以 `coreMemoryProvider` 由入口带配置组装，`WorldServices` 不含模型信息。`WorldServices` 增加 `instanceDirectory`，Core 的文件留在实例目录，节点和重新生成的复制逻辑不变。
+- 第三方记忆插件 `open` 失败时世界不打开，不回退。记忆有持久数据，悄悄换实现会让角色失忆，这一点和调度器不同。
+- 已有的 `memory.sqlite` 通过一次迁移丢弃原生表，来源行和哈希不变，已有存档和 Core 档案继续可用。
+
 记忆数据不迁移：换记忆插件后，旧插件目录保留但不读取。新插件从授权来源重建。启动器明确提示“记忆插件已更换”。
 
 ### 6.3 决策管道与 `ctx.llm`
