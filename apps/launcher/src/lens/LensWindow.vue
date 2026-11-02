@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import {
   Boxes,
   Braces,
@@ -12,10 +12,8 @@ import {
   Scale,
   SlidersHorizontal,
   Users,
-  X,
 } from '@lucide/vue'
 import type { LensSection } from '../../../../desktop/lens/view.ts'
-import { useLauncherStore } from '../stores/launcher.ts'
 import { useLensStore, type LensViewName } from './store.ts'
 import { SECTION_LABEL } from './format.ts'
 import CharactersLens from './CharactersLens.vue'
@@ -27,10 +25,9 @@ import LensDetail from './LensDetail.vue'
 import '../creator/creator.css'
 
 /** 包透视：不开游戏看包的全部作者设置。左导航、主视图、右详情，样式沿用创作者控制台。 */
-const props = defineProps<{ packageId: string }>()
-const emit = defineEmits<{ close: [] }>()
 const store = useLensStore()
-const launcher = useLauncherStore()
+/** 多久问一次包有没有改动。 */
+const POLL_MS = 3000
 
 const nav: { id: LensViewName; icon: unknown; label: string }[] = [
   { id: 'characters', icon: Users, label: SECTION_LABEL.characters },
@@ -68,29 +65,33 @@ async function saveCheckpoint() {
   if (name && (await store.saveCheckpoint(name))) checkpointName.value = ''
 }
 
-async function close() {
-  await store.close()
-  // 页面随即关闭；后端关闭失败要在启动器的提示条里留下，不能悄悄吞掉。
-  if (store.error) launcher.notice = store.error
-  emit('close')
-}
 function onKeydown(event: KeyboardEvent) {
   if (event.key !== 'Escape') return
   // 正在输入且有草稿时，Esc 不关闭页面，免得丢掉没提交的话。
   const target = event.target
   if ((target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement) && target.value.trim()) return
-  if (store.selectedId) store.selectedId = ''
-  else void close()
+  store.selectedId = ''
 }
+let timer: ReturnType<typeof setInterval> | undefined
 onMounted(() => {
   window.addEventListener('keydown', onKeydown)
-  void store.open(props.packageId)
+  void store.open()
+  timer = setInterval(() => void store.poll(), POLL_MS)
 })
-onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
+onBeforeUnmount(() => {
+  window.removeEventListener('keydown', onKeydown)
+  clearInterval(timer)
+})
+watch(
+  () => snapshot.value?.view.title,
+  title => {
+    document.title = title ? title + ' · 包透视' : '包透视'
+  },
+)
 </script>
 
 <template>
-  <div class="cr-root lens-window" role="dialog" aria-label="包透视">
+  <div class="cr-root" aria-label="包透视">
     <div class="cr-body">
       <nav class="cr-nav lens-nav" aria-label="透视导航">
         <div class="cr-brand">
@@ -125,16 +126,8 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
               <span v-if="snapshot" class="cr-crumb">{{ snapshot.view.packId }} · {{ snapshot.view.packVersion }}</span>
             </div>
             <div class="cr-top-actions">
-              <button
-                class="cr-button"
-                :disabled="store.busy || !snapshot"
-                title="AI 改完包后，重新读取"
-                @click="store.reload()"
-              >
+              <button class="cr-button" :disabled="store.busy" title="AI 改完包后，重新读取" @click="store.reload()">
                 <RefreshCw :size="13" />重新读取
-              </button>
-              <button class="cr-icon-button" aria-label="关闭透视" title="关闭透视" @click="close()">
-                <X :size="16" />
               </button>
             </div>
           </div>
@@ -176,10 +169,16 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
           </div>
         </header>
         <p v-if="!store.real" class="cr-banner warn">浏览器预览：显示固定样例，按钮不会真正读取或推演世界包。</p>
+        <p v-if="store.disconnected" class="cr-banner danger" role="alert">
+          透视服务已经结束（启动器或命令行关闭了）。重新打开透视才能继续。
+        </p>
+        <p v-else-if="store.stale" class="cr-banner warn" role="status">
+          包有改动，这里还是读取时的内容。点“重新读取”查看，推演会回到起点。
+        </p>
         <p v-if="store.error" class="cr-banner danger" role="alert">{{ store.error }}</p>
         <div class="cr-content">
           <p v-if="!snapshot" class="cr-empty cr-center">
-            {{ store.busy ? '正在读取世界包并准备推演…' : '没有读到透视结果。' }}
+            {{ store.busy ? '正在读取世界包并准备推演…' : '没有读到透视结果。修好上面的问题后，点“重新读取”。' }}
           </p>
           <template v-else>
             <CharactersLens v-if="store.view === 'characters'" />
@@ -196,12 +195,6 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
 </template>
 
 <style scoped>
-.lens-window {
-  position: absolute;
-  inset: 40px 0 0;
-  height: auto;
-  z-index: 40;
-}
 .lens-nav {
   width: 188px;
 }

@@ -52,6 +52,7 @@ execFileSync(process.execPath, ['scripts/release/verify-worldpack-cli.mjs', root
   windowsHide: true,
 })
 await access(join(root, 'runtime/creator-assets/index.html'))
+await access(join(root, 'runtime/lens-assets/index.html'))
 const runtime = join(root, 'runtime')
 const env = {
   ...process.env,

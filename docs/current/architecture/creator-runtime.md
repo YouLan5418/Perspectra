@@ -105,6 +105,8 @@ Interaction 定义和绑定提供玩法可选行为，规则负责重要状态�
 
 文件分工：[view.ts](../../../desktop/lens/view.ts) 生成按分类、有稳定 id 的条目列表，[diff.ts](../../../desktop/lens/diff.ts) 按条目比较，[store.ts](../../../desktop/lens/store.ts) 在包源目录的 `.perspectra-lens/` 里保存“已看过”快照、命名对比点、待改清单与推演脚本，[scenario.ts](../../../desktop/lens/scenario.ts) 解析并执行推演脚本，[session.ts](../../../desktop/lens/session.ts) 把一次打开的视图、基准、清单与一个推演串行起来，供 [LauncherCore](../../../desktop/launcher-core.ts) 的 `lens-*` 操作和 [Launcher 透视窗口](../../../apps/launcher/src/lens/LensWindow.vue)使用；[cli.ts](../../../desktop/lens/cli.ts) 是 AI 用的只读命令行（`worldpack.cmd lens view|requests|simulate`）。只有窗口的“已看过”能移动基准，只有窗口能新增或关闭待改条目。
 
+2026-11-01：透视从 Launcher 窗口里的面板改成独立的本机网页，这样作者能和 AI 的窗口并排看，长操作也不再占住 Launcher 的请求队列，不用先载入包，校验失败的包也能看到原因。[server.ts](../../../desktop/lens/server.ts) 只监听 127.0.0.1，令牌随 `#token=` 传给页面（和创作者页面同样的做法），会话在页面请求时才打开，文件监听发现包改动后由页面提示“重新读取”。页面入口在 [apps/launcher/src/lens/main.ts](../../../apps/launcher/src/lens/main.ts)，单独构建到 `dist-lens`，发行包复制到 `runtime/lens-assets`。Launcher 的 `lens-open` 只负责启动服务并返回地址，由 Rust 校验后交给系统浏览器；原来逐项转发的 `lens-*` 操作已删除。
+
 作者操作与用法见[包透视指南](../guides/pack-lens.md)。边界：
 
 - 源码已接通：上述全部。自动测试：`tests/host/lens-*.test.ts`、`tests/desktop/lens-launcher.test.ts`、Launcher 的 `apps/launcher/src/lens/store.test.ts`，以及 `scripts/release/verify-worldpack-cli.mjs` 的 `lens view` 冒烟。

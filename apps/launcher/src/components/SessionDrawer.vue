@@ -13,7 +13,7 @@ import PlaySettingsDialog from './PlaySettingsDialog.vue'
 /** 本局抽屉：一列设置行，点进去在抽屉内部翻页；原对话框在这里只渲染内容。 */
 type Page = Exclude<DrawerSection, 'lens'> | 'import' | 'export'
 const props = defineProps<{ open: boolean; section: DrawerSection | null }>()
-const emit = defineEmits<{ close: []; lens: [] }>()
+const emit = defineEmits<{ close: [] }>()
 provide('launcher-embedded', true)
 const store = useLauncherStore()
 const page = ref<Page | null>(null)
@@ -37,7 +37,7 @@ watch(
 )
 function choose(id: DrawerSection) {
   if (id === 'lens') {
-    emit('lens')
+    void store.openLens(store.selectedPackageId)
     return
   }
   page.value = id

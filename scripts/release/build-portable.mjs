@@ -16,9 +16,10 @@ try {
 if (process.platform !== 'win32' || process.arch !== 'x64') throw Error('Windows x64 build required')
 try {
   await access(resolve('apps/launcher/dist-creator/index.html'))
+  await access(resolve('apps/launcher/dist-lens/index.html'))
 } catch (error) {
   if (error.code !== 'ENOENT') throw error
-  throw Error('Run launcher:build first; creator page is missing.')
+  throw Error('Run launcher:build first; creator or lens page is missing.')
 }
 const pythonHome = process.env.PERSPECTRA_BUILD_PYTHON_HOME ?? readFileSyncConfig()
 function readFileSyncConfig() {
@@ -62,6 +63,7 @@ const inputs = new Set(Object.keys(cli.metafile.inputs).map(path => resolve(path
 inputs.add(resolve('node_modules/jieba-wasm/package.json'))
 await cp(resolve('packages/frontend/assets'), join(runtime, 'frontend-assets'), { recursive: true })
 await cp(resolve('apps/launcher/dist-creator'), join(runtime, 'creator-assets'), { recursive: true })
+await cp(resolve('apps/launcher/dist-lens'), join(runtime, 'lens-assets'), { recursive: true })
 for (const [entry, file] of [
   ['desktop/launcher-entry.ts', 'launcher.mjs'],
   ['desktop/host/web-entry.ts', 'playtest.mjs'],

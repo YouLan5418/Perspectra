@@ -14,6 +14,7 @@ import {
   coreRequest,
   openGame,
   openCreator as openCreatorPage,
+  openLensPage,
   packCover,
   listConnectionModels,
   setConnectionKey,
@@ -389,9 +390,8 @@ export const useLauncherStore = defineStore('launcher', () => {
         id: 'lens',
         group: '进阶',
         label: '透视',
-        summary: lensBlocked ? '包校验失败，不能透视' : '不开游戏，查看这个包的全部设置',
+        summary: lensBlocked ? '包校验失败，打开可查看原因' : '在浏览器里查看这个包的全部设置',
         action: '打开',
-        disabled: lensBlocked,
       },
     ]
   })
@@ -780,6 +780,18 @@ export const useLauncherStore = defineStore('launcher', () => {
       notice.value = error instanceof Error ? error.message : '创作者页面打开失败。'
     }
   }
+  async function openLens(packageId: string) {
+    if (!real) {
+      notice.value = '浏览器预览没有透视服务；可用 lens:dev 查看透视页面样例。'
+      return
+    }
+    try {
+      await openLensPage(packageId)
+      notice.value = '透视已在系统浏览器打开。'
+    } catch (error) {
+      notice.value = error instanceof Error ? error.message : '透视打开失败。'
+    }
+  }
   async function exportStory(nodeId: string, path: string): Promise<boolean> {
     if (!real) return false
     if (!(await action('story-export', { instanceId: selectedInstanceId.value, nodeId, path }))) return false
@@ -819,6 +831,7 @@ export const useLauncherStore = defineStore('launcher', () => {
     selectStoryline,
     forkStory,
     openCreator,
+    openLens,
     savePresetDrafts,
     libraryAction,
     presetCharacters,

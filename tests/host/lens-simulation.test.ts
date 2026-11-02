@@ -172,6 +172,8 @@ it('sweeps temporary copies older than a day left by a killed Launcher', () => {
 
 it('does not touch the pack or data', async () => {
   const before = mtimes(PACK)
+  // An author may already have lens files here; a simulation neither adds nor changes them.
+  const lensFiles = existsSync(join(PACK, '.perspectra-lens'))
   const lens = await LensSimulation.open(PACK, kitchenStart('深夜'))
   const directories = readdirSync(tmpdir()).filter(name => name.startsWith('perspectra-lens-'))
   await lens.step({ kind: 'action', action: moveTo(await lens.state(), 'location:kitchen') })
@@ -180,7 +182,7 @@ it('does not touch the pack or data', async () => {
   const after = readdirSync(tmpdir()).filter(name => name.startsWith('perspectra-lens-'))
   // The session's own temporary directory is gone; others may belong to concurrent tests.
   expect(directories.filter(name => !after.includes(name)).length).toBeGreaterThanOrEqual(1)
-  expect(existsSync(join(PACK, '.perspectra-lens'))).toBe(false)
+  expect(existsSync(join(PACK, '.perspectra-lens'))).toBe(lensFiles)
 }, 60_000)
 
 it('rejects unknown start references', async () => {

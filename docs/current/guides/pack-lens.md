@@ -1,6 +1,6 @@
 # 包透视：不开游戏看清世界包
 
-2026-10-31 按 `feat/pack-lens` 分支源码核对。
+2026-11-01 按当前源码核对。
 
 例如你对 AI 说“深夜冰箱事件改成傍晚也能触发”。AI 改完后给你一段总结，你没法判断它改全了没有；亲自试玩要开新实例、走到傍晚、走进厨房。包透视让你不开游戏就能看三件事：事件“深夜冰箱的偷吃抓包”现在有哪几条触发条件，其中“时段是傍晚”是不是新出现的；把起点设成“傍晚，玩家在客厅，DeepSeek 在厨房”后让玩家走进厨房，这场事件会不会触发，没触发时卡在哪一条；你想再改的地方，选中它写一句“再放宽一点”，AI 自己去读这条清单。
 
@@ -16,14 +16,17 @@
 
 | 入口 | 谁用 | 做什么 |
 | --- | --- | --- |
-| Launcher 本局抽屉（“⋯”）的“透视”一行 | 作者 | 打开当前包的透视窗口；包校验失败时不可用。还没有实例时没有抽屉，入口是主页的“透视”按钮，悬停提示写出校验错误。创作者控制台仍在游戏运行时从主页的“打开创作者页面”进入 |
+| Launcher 本局抽屉（“⋯”）的“透视”一行 | 作者 | 在系统浏览器打开当前包的透视页面，可以和 AI 的窗口并排看。还没有实例时没有抽屉，入口是主页的“透视”按钮。创作者控制台仍在游戏运行时从主页的“打开创作者页面”进入 |
+| `worldpack.cmd lens serve <源目录> [--no-open]` | 作者或 AI | 不经过 Launcher，直接为一个源目录打开同一个页面。命令会一直运行，先输出一行含页面地址的 JSON；AI 应在后台运行它。页面闲置 1 小时后服务自动退出 |
 | `worldpack.cmd lens view <源目录>` | AI | 输出与界面同源的透视结果 JSON，外加相对“已看过”基准的改动列表 |
 | `worldpack.cmd lens requests <源目录>` | AI | 输出未关闭（open 或 changed）的待改清单 |
 | `worldpack.cmd lens simulate <源目录> <脚本.json>` | AI | 跑一份推演脚本，输出逐步经过与期望结果 |
 
 用源码而不是发行包时，把 `worldpack.cmd lens` 换成 `node --import tsx desktop/lens/cli.ts`，参数相同。脚本名可以是一个文件路径，也可以是 `.perspectra-lens/scenarios/` 下的文件名。输出是单行 JSON；失败时退出码为 1，stderr 带 `{"error":{"code","message"}}`。
 
-CLI 三条命令都是只读的：读透视不会移动“已看过”基准，也不能新增或关闭待改条目。
+`view`、`requests`、`simulate` 三条命令都是只读的：读透视不会移动“已看过”基准，也不能新增或关闭待改条目。`serve` 只把页面交给作者；“已看过”和待改清单的写操作要用页面地址里的令牌，这个令牌只给打开页面的人，服务只监听本机。
+
+包校验失败也能打开页面：页面显示错误，修好后点“重新读取”。包文件变化时页面顶部提示“包有改动”，不会自动刷新，因为重新读取会让推演回到起点。
 
 ## 3. 窗口里的视图
 
@@ -97,10 +100,10 @@ AI 不能运行命令行时，在待改清单页点“复制给 AI”，把待�
 
 | 范围 | 状态 |
 | --- | --- |
-| 源码已接通 | 透视视图、桩模型推演、起点覆盖、改动比较、对比点、待改清单、三条 CLI 命令、Launcher 的透视窗口与主页入口、待改清单页的“复制给 AI”、`[标签, 布尔值]` 条件 |
-| 自动测试 | `tests/host/lens-simulation`、`lens-view`、`lens-diff`、`lens-store`、`lens-cli` 的测试，`tests/desktop/lens-launcher.test.ts`，Launcher 前端 `apps/launcher/src/lens/store.test.ts` 与 `format.test.ts`（事件页条件说明、复制给 AI 的文本），`tests/host/pack-activities.test.ts` 里的带标签条件用例；发行 CLI 的 `verify-worldpack-cli.mjs` 含 `lens view` 冒烟 |
+| 源码已接通 | 透视视图、桩模型推演、起点覆盖、改动比较、对比点、待改清单、三条 CLI 命令、本机透视页面（`lens serve`）、Launcher 入口、包改动提示、待改清单页的“复制给 AI”、`[标签, 布尔值]` 条件 |
+| 自动测试 | `tests/host/lens-server`、`lens-simulation`、`lens-view`、`lens-diff`、`lens-store`、`lens-cli` 的测试，`tests/desktop/lens-launcher.test.ts`，Launcher 前端 `apps/launcher/src/lens/store.test.ts` 与 `format.test.ts`（事件页条件说明、复制给 AI 的文本），`tests/host/pack-activities.test.ts` 里的带标签条件用例；发行 CLI 的 `verify-worldpack-cli.mjs` 含 `lens view` 冒烟 |
 | 真实体验验收 | 待验收：真实 Tauri 窗口用真实包操作一遍；AI 实际按“按清单改”工作流改一处；NPC 按选项实际执行一次。角色对白质量不在范围内，需要真实模型试玩 |
-| 发行包已包含 | 构建脚本把 `lens.mjs` 加进 CLI 运行目录，`worldpack.cmd` 将 `lens` 子命令转给它；带 `PERSPECTRA_RUNTIME_ROOT` 的打包构建尚未实机验收（待验收） |
+| 发行包已包含 | 构建脚本把 `lens.mjs` 加进 CLI 运行目录，把页面复制到 `runtime/lens-assets`，`worldpack.cmd` 将 `lens` 子命令转给它；带 `PERSPECTRA_RUNTIME_ROOT` 的打包构建尚未实机验收（待验收） |
 
 ## 9. 已知限制
 

@@ -1,11 +1,10 @@
 import { defineStore } from 'pinia'
 import { computed, ref, shallowRef } from 'vue'
-import { isTauri } from '@tauri-apps/api/core'
 import type { LensSnapshot } from '../../../../desktop/lens/session.ts'
 import type { LensChange } from '../../../../desktop/lens/diff.ts'
 import type { LensNpcPlan, LensStart, LensStep } from '../../../../desktop/lens/simulation.ts'
 import type { LensItem, LensSection } from '../../../../desktop/lens/view.ts'
-import { lensRequest } from '../services/desktop.ts'
+import { lensConnected, lensRequest, lensStatus } from './api.ts'
 import { mockLensSnapshot } from '../mock.ts'
 
 const message = (cause: unknown) =>
@@ -15,13 +14,17 @@ export type LensViewName = LensSection | 'simulation' | 'requests'
 
 /** 透视页面的状态：后端每个操作都返回完整快照，这里只整体替换，不在前端改写包内容。 */
 export const useLensStore = defineStore('lens', () => {
-  const real = isTauri()
+  const real = lensConnected()
   /** 快照含 HostState 等递归结构；用 shallowRef 避免深层类型展开，替换时整体赋值。 */
   const snapshot = shallowRef<LensSnapshot | null>(null)
   const view = ref<LensViewName>('characters')
   const selectedId = ref('')
   const busy = ref(false)
   const error = ref('')
+  /** 包在上次读取之后又改过。 */
+  const stale = ref(false)
+  /** 透视服务已经不在了（启动器或命令行关闭）。 */
+  const disconnected = ref(false)
 
   const items = computed(() => snapshot.value?.view.items ?? [])
   const itemById = computed(() => new Map(items.value.map(item => [item.id, item])))
@@ -63,7 +66,7 @@ export const useLensStore = defineStore('lens', () => {
     busy.value = true
     error.value = ''
     try {
-      // 浏览器预览没有桌面后端：任何操作都回到同一份固定样例。
+      // 浏览器预览没有透视服务：任何操作都回到同一份固定样例。
       snapshot.value = real ? await lensRequest(operation, data) : mockLensSnapshot()
       return true
     } catch (cause) {
@@ -87,32 +90,22 @@ export const useLensStore = defineStore('lens', () => {
     selectedId.value = id
   }
 
-  /** 已向后端请求打开、还没关闭的那一次；打开还在进行时关闭，也要让后端关掉它。 */
-  let openRequested = false
-  let generation = 0
-  async function open(packageId: string) {
-    const mine = ++generation
-    openRequested = true
-    snapshot.value = null
-    selectedId.value = ''
-    view.value = 'characters'
-    await call('lens-open', { packageId })
-    // 打开途中已经关闭：后端会按顺序先打开再关闭，迟到的快照不再显示。
-    if (mine !== generation) snapshot.value = null
+  async function open() {
+    await call('lens-open')
   }
-  /** 关闭透视：本地状态总会清掉；后端关闭失败时写进 `error`，不当成成功。 */
-  async function close() {
-    const open = real && (snapshot.value !== null || openRequested)
-    openRequested = false
-    generation++
-    snapshot.value = null
-    selectedId.value = ''
-    error.value = ''
-    if (!open) return
+  async function reload() {
+    const done = await call('lens-reload')
+    if (done) stale.value = false
+    return done
+  }
+  /** 问一次包有没有改动；服务没响应就提示重新打开，不打断正在进行的操作。 */
+  async function poll() {
+    if (!real || busy.value) return
     try {
-      await lensRequest('lens-close')
-    } catch (cause) {
-      error.value = '关闭透视失败：' + message(cause)
+      stale.value = (await lensStatus()).stale
+      disconnected.value = false
+    } catch {
+      disconnected.value = true
     }
   }
   /** 先交给后端本步的 NPC 行为（空对象清掉上一步没用完的设置），再走这一步。 */
@@ -128,6 +121,8 @@ export const useLensStore = defineStore('lens', () => {
     selectedId,
     busy,
     error,
+    stale,
+    disconnected,
     items,
     itemById,
     changesById,
@@ -142,9 +137,9 @@ export const useLensStore = defineStore('lens', () => {
     select,
     jump,
     open,
-    close,
+    reload,
+    poll,
     step,
-    reload: () => call('lens-reload'),
     markSeen: () => call('lens-seen'),
     saveCheckpoint: (name: string) => call('lens-checkpoint', { name }),
     setBaseline: (baseline: { kind: 'seen' } | { kind: 'checkpoint'; name: string }) =>

@@ -140,3 +140,37 @@ it('rejects unknown commands with a usage error', async () => {
   expect(code).toBe(1)
   expect(err.error.code).toBe('INVALID_REQUEST')
 })
+
+it('serve prints the page address and keeps answering until stopped', async () => {
+  const child = spawn(process.execPath, ['--import', 'tsx', CLI, 'serve', pack, '--no-open'], {
+    stdio: ['ignore', 'pipe', 'ignore'],
+  })
+  try {
+    const line = await new Promise<string>((done, reject) => {
+      let stdout = ''
+      child.stdout.on('data', chunk => {
+        stdout += chunk
+        if (stdout.includes('\n')) done(stdout.split('\n')[0]!)
+      })
+      child.once('error', reject)
+      child.once('close', code => reject(new Error(`serve exited early: ${code}`)))
+    })
+    const { command, url } = JSON.parse(line) as { command: string; url: string }
+    expect(command).toBe('serve')
+    const { origin, hash } = new URL(url)
+    const status = await fetch(origin + '/api/lens/status', {
+      headers: { 'x-lens-token': hash.slice('#token='.length) },
+    })
+    expect(await status.json()).toEqual({ stale: false, watching: true })
+  } finally {
+    child.removeAllListeners('close')
+    child.kill()
+  }
+}, 60_000)
+
+it('serve refuses a folder that is not a pack, and a missing path', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'lens-cli-empty-'))
+  roots.push(root)
+  expect((await lens('serve', root, '--no-open')).err.error.code).toBe('PACK_NOT_FOUND')
+  expect((await lens('serve', '--no-open')).err.error.code).toBe('INVALID_REQUEST')
+}, 60_000)
