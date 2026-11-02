@@ -18,7 +18,7 @@ export function parseHostLaunchArguments(args: readonly string[]): HostLaunchArg
   let shadowConfigPath: string | undefined
   let tuning: RuntimeTuning | undefined
   let settings: PlaySettings | undefined
-  let memory: 'core' | 'native' | undefined
+  let memory: 'core' | 'none' | undefined
   let serialScheduling = false
   for (let index = 0; index < args.length; index += 1) {
     const argument = args[index]
@@ -27,9 +27,9 @@ export function parseHostLaunchArguments(args: readonly string[]): HostLaunchArg
       serialScheduling = true
       continue
     }
-    if (argument === '--memory-core' || argument === '--memory-native') {
-      if (memory !== undefined) throw new Error('--memory-core / --memory-native may be supplied only once')
-      memory = argument === '--memory-core' ? 'core' : 'native'
+    if (argument === '--memory-core' || argument === '--memory-none') {
+      if (memory !== undefined) throw new Error('--memory-core / --memory-none may be supplied only once')
+      memory = argument === '--memory-core' ? 'core' : 'none'
       continue
     }
     if (
@@ -61,8 +61,8 @@ export function parseHostLaunchArguments(args: readonly string[]): HostLaunchArg
     }
   }
   if (settings && tuning) throw new Error('--play-settings 与 --tuning 不可同时使用。')
-  // Core is the default, matching what the Launcher gives players; native memory is an explicit offline choice.
-  const memoryCore = memory !== 'native'
+  // Core is the default, matching what the Launcher gives players; no memory is for offline development and tests.
+  const memoryCore = memory !== 'none'
   return {
     ...(serialScheduling ? { serialScheduling: true } : {}),
     ...(settings === undefined ? {} : { playSettings: settings }),

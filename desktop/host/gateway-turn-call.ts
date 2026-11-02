@@ -134,7 +134,6 @@ export function gatewayTurnCall(request: CharacterTurnRequest) {
               )?.allOf ?? [],
           },
         },
-        { if: { properties: { decision: { const: 'recall' } } }, then: { required: ['query'] } },
         {
           if: { properties: { decision: { const: 'perform' } } },
           then: {
@@ -164,10 +163,9 @@ export function gatewayTurnCall(request: CharacterTurnRequest) {
           enum: [
             'abstain',
             ...(speechAllowed || narrationAllowed ? ['publish'] : []),
-            ...(request.canRecall === true ? ['recall'] : []),
             ...(actionTypes.length > 0 ? ['perform'] : []),
           ],
-          description: 'publish 需要有序 segments；recall 需要 query；perform 需要 actionType 和 parameters。',
+          description: 'publish 需要有序 segments；perform 需要 actionType 和 parameters。',
         },
         ...(speechAllowed || narrationAllowed
           ? {
@@ -202,7 +200,6 @@ export function gatewayTurnCall(request: CharacterTurnRequest) {
         ...(addressees.length === 0
           ? {}
           : { addresseeIds: { type: 'array', uniqueItems: true, items: { type: 'string', enum: addressees } } }),
-        ...(request.canRecall === true ? { query: { type: 'string', minLength: 2, maxLength: 120 } } : {}),
         ...(actionTypes.length === 0
           ? {}
           : {

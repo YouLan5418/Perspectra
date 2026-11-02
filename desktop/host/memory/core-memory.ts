@@ -387,7 +387,6 @@ export class CoreMemoryAdapter {
           observations: context.observations ?? [],
           selfObservations: context.selfObservations ?? [],
         },
-        ...(request.recallEvidence === undefined ? {} : { recallEvidence: { query: request.recallEvidence.query! } }),
       }
       result = await (this.#runFor?.(actor)?.recall ?? this.run)(
         {
@@ -454,7 +453,6 @@ export class CoreMemoryAdapter {
     return {
       ...request,
       context: { ...request.context, memories },
-      ...(request.recallEvidence === undefined ? {} : { recallEvidence: { ...request.recallEvidence, memories } }),
     }
   }
   recordDecision(request: CharacterTurnRequest, response: unknown): void {

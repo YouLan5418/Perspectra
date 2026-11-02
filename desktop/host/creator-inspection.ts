@@ -48,7 +48,7 @@ export interface CreatorInspectionSnapshot {
     latestRequest: InspectedRequest | null
     contextNotice: string
     memory: {
-      mode: 'core' | 'native'
+      mode: 'core' | 'none'
       archivePrefix: number | null
       sections: Record<string, { total: number; items: unknown[]; hasMore: boolean }>
       maintenance: WorldJsonObject | null

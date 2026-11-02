@@ -178,7 +178,9 @@ it('closes the frozen G1 combination: hand contact, shared key, two NPCs and two
     await submit('stale', '/act speak {"text":"留守者，你也试着拿同一把钥匙。"}')
     expect(events().filter(event => event.eventType === 'entity.transferred')).toHaveLength(1)
     expect(
-      calls.every(call => Array.isArray(call.history) && call.memories.every(memory => !('sourceMaxSeq' in memory))),
+      calls.every(
+        call => Array.isArray(call.history) && (call.memories ?? []).every(memory => !('sourceMaxSeq' in memory)),
+      ),
     ).toBe(true)
     // The unavailable take is rejected by the strict model schema; its one correction abstains.
     expect(calls.filter(call => call.stage === 'stale' && call.actor === 'character:friend')).toHaveLength(2)

@@ -50,7 +50,6 @@ import {
   type ActivationTurn,
   type CharacterTurnRequest,
   type CharacterTurnResult,
-  type RecallShadowObservation,
 } from '@harness-world/application'
 import { saveStoryNode, readStoryNodes } from '../story-nodes.ts'
 import { existsSync, unlinkSync } from 'node:fs'
@@ -92,14 +91,13 @@ import {
   WorldStore,
   WriterLeaseService,
 } from '@harness-world/store-sqlite'
-import { CognitiveMemoryService } from '@harness-world/memory'
 import { adaptCompiledWorldPack, compileWorldPackSource, type CompiledWorldPackV5 } from '@harness-world/world-pack'
 import { actionText, HostBusyError, isWait, type HostAction, type HostRuntime, type HostState } from './http-server.ts'
 import { modelCharacters, playerTranscript, sceneChangedAt } from './player-transcript.ts'
 import { DEFAULT_RUNTIME_TUNING, type RuntimeTuning } from './runtime-tuning.ts'
 import { PackModules, lockedPackAsset } from './pack-modules.ts'
 import { CapabilitySession, type CapabilityCatalog } from '../host-capabilities.ts'
-import { officialSeams, type HostSeams } from '../official-bundle.ts'
+import { officialMemoryNoneProvider, officialSeams, type HostSeams } from '../official-bundle.ts'
 import { normalizeSchedulerResult, trackSchedulerTurns } from './scheduler-result.ts'
 import { createWorldReader } from './world-reader.ts'
 import type { MemoryInstance, SchedulerInstance, SchedulerResult, WorldServices } from '@harness-world/plugin-sdk'
@@ -122,7 +120,6 @@ export interface WorldHostOptions extends ModelOptions {
   readonly audio?: AudioPreferences
   readonly tuning?: RuntimeTuning
   readonly shadowAudit?: ShadowOptions
-  readonly memoryShadow?: boolean
   readonly storyNodes?: boolean
   readonly storyParentNodeId?: string
   readonly worldVersion?: string
@@ -334,14 +331,14 @@ export class WorldHostCore implements HostRuntime {
           contextNotice:
             'currentView 是当前授权视图；latestRequest 是启用采集后该角色最近一次实际请求，时刻可能早于当前世界。每角色保留最近一次，超出总容量会淘汰。',
           memory: {
-            mode: this.#memoryIsCore ? 'core' : 'native',
+            mode: this.#memoryIsCore ? 'core' : 'none',
             // The shape an implementation reports; the creator page only displays it.
             archivePrefix: (archive?.archivePrefix ?? null) as number | null,
             sections: (archive?.sections ?? {}) as never,
             maintenance: (archive?.maintenance ?? null) as WorldJsonObject | null,
             notice: this.#memoryIsCore
               ? '已安装档案分页，不触发整理或召回。本次实际召回见 latestRequest.contextParts 的 memories。'
-              : '原生完整记忆档案尚未接入；授权经历见 currentView，本次召回见实际请求。',
+              : '当前没有长期记忆档案；授权经历见 currentView。',
           },
         }
       }
@@ -447,7 +444,6 @@ export class WorldHostCore implements HostRuntime {
   #abortedWork = false
   readonly #playSettings: PlaySettings
   readonly #tuning: RuntimeTuning
-  readonly #memoryShadowFile: string | undefined
   #transcript: HostState['transcript'] = []
   #availableActions: NonNullable<HostState['availableActions']> = []
   #statusBar: HostState['statusBar']
@@ -498,7 +494,6 @@ export class WorldHostCore implements HostRuntime {
       maximumCallsPerCharacter: settings.maximumCallsPerCharacter,
       reactionDeadlineSeconds: settings.reactionDeadlineSeconds,
     }
-    this.#memoryShadowFile = options.memoryShadow ? resolve(options.dataDirectory, 'memory-shadow.jsonl') : undefined
     this.#manifestVersion = compiled.manifest.schemaVersion
     this.#intentEnabled = intentEnabled
     const binding = compiled.manifest.playerBindings[0]
@@ -1612,18 +1607,10 @@ export class WorldHostCore implements HostRuntime {
     const store = new WorldStore(path),
       leases = new WriterLeaseService(path)
     const availability = new CharacterRuntimeAvailabilityService(path)
-    let memory: CognitiveMemoryService | undefined
     this.#continuationController = new AbortController()
     try {
       if (this.#paused) return
-      memory = new CognitiveMemoryService(
-        resolve(this.#dataDirectory, 'memory.sqlite'),
-        store,
-        undefined,
-        2,
-        RECALL_KEYWORD_TOKENIZER_ID,
-      )
-      const createTurn = this.#turnFactory(path, store, leases, availability, memory)
+      const createTurn = this.#turnFactory(path, store, leases, availability)
       const turn = createTurn()
       if (requestedCharacter)
         return await turn.run(requestedCharacter, {
@@ -1658,7 +1645,6 @@ export class WorldHostCore implements HostRuntime {
       await this.#runSceneReactions(store, turn, createTurn, due, active)
     } finally {
       this.#allowInterruption = false
-      memory?.close()
       availability.close()
       leases.close()
       store.close()
@@ -1674,9 +1660,7 @@ export class WorldHostCore implements HostRuntime {
     store: WorldStore,
     leases: WriterLeaseService,
     availability: CharacterRuntimeAvailabilityService,
-    memory: CognitiveMemoryService,
   ): (autonomous?: boolean) => CharacterTurn {
-    const shadowFile = this.#memoryShadowFile
     return (autonomous = false) => {
       const base = this.#rulebooks(path)
       return new CharacterTurn({
@@ -1686,7 +1670,6 @@ export class WorldHostCore implements HostRuntime {
         store,
         leases,
         availability,
-        ...(this.#memory === undefined ? { memory } : {}),
         rulebooks: autonomous
           ? this.#autonomy!.rulebooks(base.resolve('builtin:speak-move', 2, 'autonomy', this.#address))
           : base,
@@ -1753,12 +1736,6 @@ export class WorldHostCore implements HostRuntime {
           : { shortTermAfterSeq: (actor: CharacterId) => this.#memory!.shortTermAfterSeq!(actor) }),
         recentObservations: this.#tuning.recentObservations,
         recentSelfObservations: this.#tuning.recentSelfObservations,
-        ...(shadowFile === undefined
-          ? {}
-          : {
-              onRecallShadow: (observation: RecallShadowObservation) =>
-                appendFileSync(shadowFile, JSON.stringify(observation) + '\n'),
-            }),
       })
     }
   }
@@ -1880,8 +1857,7 @@ export class WorldHostCore implements HostRuntime {
 
   /** A memory holds durable data, so one that cannot open stops the world rather than silently forgetting. */
   async #openMemory(): Promise<void> {
-    const provider = this.#options.plugins?.memory
-    if (provider === undefined) return
+    const provider = this.#options.plugins?.memory ?? officialMemoryNoneProvider
     this.#memoryIsCore = provider.id === 'official-memory-core'
     try {
       this.#memory = await provider.open(this.#services(provider.id), AbortSignal.timeout(30_000))
@@ -2274,7 +2250,7 @@ export class WorldHostCore implements HostRuntime {
       worldVersion: this.#worldVersion,
       manifestVersion: this.#manifestVersion,
       outputProtocol: 'perform/publish(segments)/abstain',
-      memoryMode: this.#memoryIsCore ? 'core' : 'native',
+      memoryMode: this.#memoryIsCore ? 'core' : 'none',
       activationCycle: this.#activationCycle ?? null,
       autonomy: this.#autonomyCycle ?? null,
       visibleSceneIds: view.scenes.map(scene => scene.sceneId),

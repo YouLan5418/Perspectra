@@ -72,7 +72,7 @@ if (mode === '--prepare') {
       let request: CharacterTurnRequest | undefined
       const preview = new CharacterTurn({ address: f.address, store: f.store, leases: f.leases, availability: f.availability, rulebooks: f.rules,
         projectContext: context => actionContext({ character: context.character!, stimulus: context.stimulus!, memories: [], ...context }), executionResult: actionResult,
-        recentObservations: 4, recentSelfObservations: 4, decide: async r => { request = { ...r, canRecall: false }; return { decision: 'abstain' } } })
+        recentObservations: 4, recentSelfObservations: 4, decide: async r => { request = { ...r }; return { decision: 'abstain' } } })
       const before = f.store.head(f.address)
       await preview.run(npc, { stimulus, maxCalls: 1 })
       if (!request || JSON.stringify(before) !== JSON.stringify(f.store.head(f.address))
@@ -130,7 +130,7 @@ if (mode === '--prepare') {
           recentObservations: 4, recentSelfObservations: 4,
           validateDecision: d => { if (d.decision === 'recall') throw new Error('active recall disabled consistently') },
           decide: async (r, signal) => {
-            const visible: CharacterTurnRequest = { ...r, canRecall: false, context: { ...r.context, memories } }
+            const visible: CharacterTurnRequest = { ...r, context: { ...r.context, memories } }
             if (JSON.stringify(visible).includes(privateText)) throw new Error('private evidence leaked')
             if (!r.continuation) {
               if (plain(visible) !== plain(expected)) throw new Error('nonmemory context differs')

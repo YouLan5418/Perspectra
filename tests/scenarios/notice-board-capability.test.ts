@@ -23,7 +23,6 @@ function turn(f: ReturnType<typeof setup>, decide: (r: CharacterTurnRequest) => 
   return new CharacterTurn({
     address: f.address,
     store: f.store,
-    memory: f.memory,
     leases: f.leases,
     availability: f.availability,
     rulebooks: f.rules,

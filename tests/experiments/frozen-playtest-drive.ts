@@ -238,8 +238,7 @@ globalThis.fetch = async (input, init) => {
 
 async function play(from: number, until: number, session: string): Promise<void> {
   const runtime = await WorldHostRuntime.create({ models: environmentRoleModels({ PERSPECTRA_MODEL_ENDPOINT: process.env.HCW_LOCAL_ENDPOINT ?? 'http://127.0.0.1:8045/v1/chat/completions', PERSPECTRA_MODEL: model, PERSPECTRA_MODEL_API_KEY: process.env.HCW_LOCAL_API_KEY }), dataDirectory, packPath, ...(apiKey === undefined ? {} : { apiKey }),
-    ...(endpoint === undefined ? {} : { utilityEndpoint: endpoint }), timeoutMs: 90_000,
-    memoryShadow: process.argv.includes('--memory-shadow') })
+    ...(endpoint === undefined ? {} : { utilityEndpoint: endpoint }), timeoutMs: 90_000})
   address ??= runtime.address
   currentSession = session
   try {

@@ -190,9 +190,6 @@ export function characterRequestText(request: {
             ),
           ),
         }),
-    ...((stage as WorldJsonObject).recallEvidence === undefined
-      ? {}
-      : { recallEvidence: evidence((stage as WorldJsonObject).recallEvidence!) }),
     ...(moved
       ? {
           currentSceneAfterMove: {

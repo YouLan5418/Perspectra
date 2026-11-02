@@ -1,3 +1,4 @@
+import { CognitiveMemoryService } from '@harness-world/memory'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -93,6 +94,9 @@ it('delivers a private remote message, permits remote reply and triggers only ob
   expect(result.transcript.some(line => line.speaker.includes('短信') && line.text.includes('收到'))).toBe(true)
   expect(result.transcript.some(line => line.text.includes('你先留在这里'))).toBe(false)
   expect(currentLocation(r.store.readEvents(r.address), companion)).toBe('location:back-room')
+  const sources = new CognitiveMemoryService(join(directory, 'memory.sqlite'), r.store, undefined, 2)
+  sources.catchUpReceipt(r.address, companion as never, r.store.head(r.address).headSeq)
+  sources.close()
   const db = new DatabaseSync(join(directory, 'memory.sqlite'))
   try {
     const rows = db.prepare('SELECT text_value,epistemic_kind FROM cognitive_memory_v2_sources').all()

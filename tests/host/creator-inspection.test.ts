@@ -85,7 +85,7 @@ it('reads the committed world and character view without calling a model or adva
   const detail = runtime.creatorInspection({ characterId: id, afterSeq: 0, limit: 2 })
   expect(detail.character?.currentView.characterId).toBe(id)
   expect(detail.character?.latestRequest).toBeNull()
-  expect(detail.character?.memory.mode).toBe('native')
+  expect(detail.character?.memory.mode).toBe('none')
   expect(detail.events.items).toHaveLength(2)
   expect(detail.events.hasMore).toBe(true)
   const next = runtime.creatorInspection({ afterSeq: detail.events.nextAfterSeq, limit: 2 })

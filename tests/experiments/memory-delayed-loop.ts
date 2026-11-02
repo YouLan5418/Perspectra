@@ -121,7 +121,7 @@ if (mode==='--finalize') {
           projectContext:context=>actionContext({character:context.character!,stimulus:context.stimulus!,memories:[],...context}),
           executionResult:actionResult,recentObservations:4,recentSelfObservations:4,
           validateDecision:d=>{if(d.decision==='recall')throw new Error('active recall forbidden')},
-          decide:async(r,signal)=>{const visible:CharacterTurnRequest={...r,canRecall:false,context:{...r.context,memories:[]}},call=gatewayTurnCall(visible)
+          decide:async(r,signal)=>{const visible:CharacterTurnRequest={...r,context:{...r.context,memories:[]}},call=gatewayTurnCall(visible)
             if(JSON.stringify(visible).includes(privateText))throw new Error('private context leaked')
             transport=join(dir,'gap-'+i+'-transport.json');gapCalls++;const file=join(dir,'gap-'+i+'-call.json'),start=performance.now()
             save(file,{status:'pending',request:visible,prepared:call,requestBytes:historyBytes(call),head:f.store.head(f.address)})
@@ -139,7 +139,7 @@ if (mode==='--finalize') {
       let request:CharacterTurnRequest|undefined
       const preview=new CharacterTurn({address:f.address,store:f.store,leases:f.leases,availability:f.availability,rulebooks:f.rules,
         projectContext:context=>actionContext({character:context.character!,stimulus:context.stimulus!,memories:[],...context}),
-        executionResult:actionResult,recentObservations:4,recentSelfObservations:4,decide:async r=>{request={...r,canRecall:false};return{decision:'abstain'}}})
+        executionResult:actionResult,recentObservations:4,recentSelfObservations:4,decide:async r=>{request={...r};return{decision:'abstain'}}})
       await preview.run(npc,{stimulus,maxCalls:1})
       if(!request||JSON.stringify(before)!==JSON.stringify(f.store.head(f.address)))throw new Error('preview changed prefix')
       const snapshot=rawHistorySnapshot(f);save(join(folder,'request.json'),request);save(join(folder,'snapshot.json'),snapshot)

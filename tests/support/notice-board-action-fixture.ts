@@ -293,7 +293,6 @@ export async function setupRead(f: ReturnType<typeof openActionWorld>, target: s
   const turn = new CharacterTurn({
     address: f.address,
     store: f.store,
-    memory: f.memory,
     leases: f.leases,
     availability: f.availability,
     rulebooks: f.rules,

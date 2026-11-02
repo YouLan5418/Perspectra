@@ -23,8 +23,6 @@ export function characterTurnCall(request: {
   readonly context: WorldJsonObject
   readonly continuation: boolean
   readonly canPerform?: boolean
-  readonly canRecall?: boolean
-  readonly recallEvidence?: WorldJsonObject
   readonly result?: WorldJsonObject
   readonly canContinueAfterPublish?: boolean
   readonly afterPublication?: boolean
@@ -155,21 +153,10 @@ export function characterTurnCall(request: {
               },
             ]
           : []),
-        ...(request.canRecall === true
-          ? [
-              {
-                type: 'object',
-                additionalProperties: false,
-                required: ['decision', 'query'],
-                properties: { decision: { const: 'recall' }, query: { type: 'string', minLength: 2, maxLength: 120 } },
-              },
-            ]
-          : []),
         ...perform,
       ],
     },
-    description:
-      '选择表达、主动查询自己的记忆、不补充内容，或在剩余预算内执行一次声明交互；执行提交后才会收到真实结果。',
+    description: '选择表达、不补充内容，或在剩余预算内执行一次声明交互；执行提交后才会收到真实结果。',
     messages: [
       {
         role: 'system',
@@ -202,12 +189,11 @@ export function characterTurnCall(request: {
             ? '你刚才已经正式发表了表达，最新历史包含该内容。现在重新依据当前授权场景决定是否实际行动；无需重复刚才的对白。可以改变主意或 abstain，宿主不会从你的台词推导行动。'
             : '') +
           '历史观察中的 playerInput 是完整原始玩家输入，用来核对谁在说话、邀请谁做什么；抽取片段可能不完整。原文和邀请不证明行动成功，实际状态仍以裁定结果及可见物品为准。' +
-          '若需要核对旧经历，可用 recall 以具体线索查询一次自己的记忆；结果只提供证据，不保证完整或真实，也不替你作结论。' +
           '记忆的 sourceAgeTicks 是其最新来源距当前的轮次差，不是现实时间；听到转述的轮次也不证明转述之事发生于那时，旧记录不自动代表现状。' +
           '他人说过的话只证明对方说过，不能因此断定所说之事发生。即使没找到记忆，也不能断定事情没发生。' +
           'perform 的参数来自可尝试选项，结果由世界裁定。执行后会给你真实成功或失败结果与刷新后的场景。' +
           '一次激活最多尝试两次重要交互；仅在本次工具契约仍提供 perform 时才能再次请求。' +
-          '没有 perform 时可以 publish 或 abstain；只有当前工具契约提供 recall 时才能查询记忆。表达不能改变受控状态或替别人决定反应。',
+          '没有 perform 时可以 publish 或 abstain。表达不能改变受控状态或替别人决定反应。',
       },
       { role: 'user', content: characterRequestText(request) },
     ],

@@ -229,7 +229,7 @@ describe('optional web Core memory', () => {
   it('defaults to Core, takes native only explicitly, and rejects a duplicate', () => {
     expect(parseHostLaunchArguments(['--memory-core']).memoryCore).toBe(true)
     expect(parseHostLaunchArguments([]).memoryCore).toBe(true)
-    expect(parseHostLaunchArguments(['--memory-native']).memoryCore).toBeUndefined()
+    expect(parseHostLaunchArguments(['--memory-none']).memoryCore).toBeUndefined()
     expect(() => parseHostLaunchArguments(['--memory-core', '--memory-core'])).toThrow('once')
     expect(() => parseHostLaunchArguments(['--ollama'])).toThrow('unsupported host argument')
   })
@@ -299,7 +299,7 @@ describe('optional web Core memory', () => {
     await f.runtime.submit('早上好，今天打算做些什么？')
     expect(f.requests.length).toBeGreaterThan(0)
     expect(f.requests.every(r => Array.isArray((r.context as WorldJsonObject).memories))).toBe(true)
-    expect(f.requests.every(r => r.canRecall === false && r.recallEvidence === undefined)).toBe(true)
+    expect(f.requests.every(r => !('canRecall' in r) && !('recallEvidence' in r))).toBe(true)
     // A restart reuses the same archives and restores only previously authorized identity entries.
     const restarted = new CoreMemoryAdapter(f.data, f.runtime.address, run)
     await restarted.refresh(['character:claude'], AbortSignal.timeout(2000), () => {})

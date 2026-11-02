@@ -9,12 +9,10 @@ describe('creator playtest launch arguments', () => {
       memoryCore: true,
       shadowConfigPath: 'items.json',
     })
-    expect(parseHostLaunchArguments(['--pack', 'world-source', '--memory-native', '--data-dir', 'world-data'])).toEqual(
-      {
-        packPath: 'world-source',
-        dataDirectory: 'world-data',
-      },
-    )
+    expect(parseHostLaunchArguments(['--pack', 'world-source', '--memory-none', '--data-dir', 'world-data'])).toEqual({
+      packPath: 'world-source',
+      dataDirectory: 'world-data',
+    })
     expect(parseHostLaunchArguments(['--tuning', JSON.stringify(DEFAULT_RUNTIME_TUNING)])).toEqual({
       memoryCore: true,
       tuning: DEFAULT_RUNTIME_TUNING,
@@ -37,9 +35,18 @@ describe('creator playtest launch arguments', () => {
     ['--recall-keyword', 'legacy'],
     ['--ollama'],
     ['--deepseek'],
-    ['--deepseek', '--memory-native'],
-    ['--memory-core', '--memory-native'],
+    ['--deepseek', '--memory-none'],
+    ['--memory-core', '--memory-none'],
   ])('rejects an unsupported or ambiguous command line %#', (...args) => {
     expect(() => parseHostLaunchArguments(args)).toThrow()
   })
+})
+
+it('rejects the removed native memory flag', () => {
+  expect(() => parseHostLaunchArguments(['--memory-native'])).toThrow()
+})
+
+it('runs without long-term memory only when asked', () => {
+  expect(parseHostLaunchArguments(['--memory-none']).memoryCore).toBeUndefined()
+  expect(parseHostLaunchArguments([]).memoryCore).toBe(true)
 })

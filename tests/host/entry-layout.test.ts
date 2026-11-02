@@ -45,7 +45,7 @@ it('boots the built backend from a source checkout and an isolated installed lay
         process.execPath,
         [
           ...command,
-          '--memory-native',
+          '--memory-none',
           '--pack',
           resolve('examples/world-packs/prototype-g1'),
           '--data-dir',
@@ -95,7 +95,7 @@ it('boots the built backend from a source checkout and an isolated installed lay
           signal: AbortSignal.timeout(10_000),
         })
         expect(response.status).toBe(200)
-        expect(((await response.json()) as { debug: { memoryMode: string } }).debug.memoryMode).toBe('native')
+        expect(((await response.json()) as { debug: { memoryMode: string } }).debug.memoryMode).toBe('none')
       } finally {
         if (child.exitCode === null && child.signalCode === null) {
           const exited = once(child, 'exit')

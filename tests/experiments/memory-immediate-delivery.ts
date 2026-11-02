@@ -56,7 +56,7 @@ for (const [i,seed] of seeds.entries()) {
       availability: f.availability, rulebooks: f.rules,
       projectContext: context => actionContext({ character: context.character!, stimulus: context.stimulus!, memories: [], ...context }),
       executionResult: actionResult, recentObservations: 4, recentSelfObservations: 4,
-      decide: async r => { request = { ...r, canRecall: false }; return { decision: 'abstain' } } })
+      decide: async r => { request = { ...r }; return { decision: 'abstain' } } })
     await preview.run(npc, { stimulus, maxCalls: 1 })
     if (!request || JSON.stringify(f.store.head(f.address)) !== JSON.stringify(before)) throw new Error('preview changed frozen world')
     const snapshot = rawHistorySnapshot(f), initial = load(join(previous, 'seed-' + i, 'initial.json'))

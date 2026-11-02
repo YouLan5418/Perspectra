@@ -332,19 +332,15 @@ describe('the web playtest on a frozen world', () => {
         'openai',
         'gemini-3.7-flash',
       ),
-      memoryShadow: true,
     })
     try {
       const state = await runtime.submit('/act speak {"text":"早上好。"}')
       expect(state.error).toBe(false)
-      const shadow = readFileSync(resolve(root, 'memory-shadow.jsonl'), 'utf8')
-        .trim()
-        .split('\n')
-        .map(line => JSON.parse(line) as { phase: string; characterId: string; asOfWorldSeq: number })
-      expect(shadow).toHaveLength(4)
-      expect(shadow.every(row => row.phase === 'automatic' && row.asOfWorldSeq > 0)).toBe(true)
       expect(schemas).toHaveLength(4)
       expect((schemas[0] as { oneOf?: unknown }).oneOf).toBeUndefined()
+      expect((schemas[0] as { properties: { decision: { enum: string[] } } }).properties.decision.enum).not.toContain(
+        'recall',
+      )
       expect(schemas[0]).toMatchObject({
         properties: {
           decision: { enum: expect.arrayContaining(['publish', 'perform']) },

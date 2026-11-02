@@ -28,7 +28,6 @@ import {
   WorldStore,
   WriterLeaseService,
 } from '@harness-world/store-sqlite'
-import type { CognitiveMemoryService, RecalledMemory } from '@harness-world/memory'
 import { actionObservations, movementRoute } from './action-observations.ts'
 import { SceneDecisionService } from './scene-decision.ts'
 import { characterExecutionResult, expressionAfterExecution } from './character-execution-result.ts'
@@ -43,8 +42,6 @@ export interface CharacterTurnRequest {
   readonly context: WorldJsonObject
   readonly continuation: boolean
   readonly canPerform?: boolean
-  readonly canRecall?: boolean
-  readonly recallEvidence?: WorldJsonObject
   readonly result?: WorldJsonObject
   readonly canContinueAfterPublish?: boolean
   readonly afterPublication?: boolean
@@ -52,16 +49,6 @@ export interface CharacterTurnRequest {
 }
 
 /** Optional experiment observation; never becomes part of the Character request or World Event. */
-export interface RecallShadowObservation {
-  readonly address: WorldAddress
-  readonly characterId: CharacterId
-  readonly asOfWorldSeq: number
-  readonly phase: 'automatic' | 'active'
-  readonly query: string
-  readonly keywordSourceIds: readonly string[]
-  readonly deliveredSourceIds: readonly string[]
-  readonly excludedSourceSeqs: readonly number[]
-}
 export interface CharacterTurnResult {
   readonly status: 'published' | 'abstained' | 'budget_exhausted' | 'interrupted' | 'inactive' | 'stale' | 'failed'
   readonly calls: number
@@ -114,13 +101,6 @@ function withAudienceHints(stimulus: readonly WorldJsonObject[], characterId: Ch
   })
 }
 
-function recalledSourceIds(memories: readonly RecalledMemory[]): string[] {
-  return memories.map(memory => {
-    const source = object(object(memory.metadata).source)
-    if (typeof source.sourceId !== 'string') throw new TypeError('recalled memory has no source ID')
-    return source.sourceId
-  })
-}
 function keys(value: WorldJsonObject, allowed: readonly string[]): void {
   if (Object.keys(value).some(key => !allowed.includes(key))) throw new TypeError('unexpected decision field')
 }
@@ -140,7 +120,6 @@ export class CharacterTurn {
     private readonly options: {
       readonly address: WorldAddress
       readonly store: WorldStore
-      readonly memory?: CognitiveMemoryService
       readonly leases: WriterLeaseService
       readonly availability: CharacterRuntimeAvailabilityService
       readonly rulebooks: RulebookRegistry
@@ -160,9 +139,8 @@ export class CharacterTurn {
       readonly executionResult?: (
         input: Parameters<typeof characterExecutionResult>[0],
       ) => ReturnType<typeof characterExecutionResult> & { readonly observationMetadata?: WorldJsonObject }
-      readonly onRecallShadow?: (observation: RecallShadowObservation) => void
       readonly onTrace?: (
-        kind: 'action' | 'turn' | 'recall',
+        kind: 'action' | 'turn',
         characterId: string,
         decisionId: string | null,
         data: WorldJsonObject,
@@ -256,7 +234,7 @@ export class CharacterTurn {
     options: {
       readonly signal?: AbortSignal
       readonly maxCalls?: 1 | 2 | 3
-      /** Strict decision-call ceiling, including the optional recall follow-up. */
+      /** Strict decision-call ceiling, including result-aware follow-ups. */
       readonly maxModelCalls?: number
       readonly onCommitted?: (asOfWorldSeq: number, headSeq: number) => void
       readonly stimulus?: readonly WorldJsonObject[]
@@ -283,7 +261,6 @@ export class CharacterTurn {
     let lease: ReturnType<WriterLeaseService['acquire']> | undefined
     let calls = 0
     let modelCallLimit = options.maxModelCalls ?? Infinity
-    let recalledThisActivation = false
     let performResult: WorldJsonObject | undefined
     let publicationFailure: WorldJsonObject | undefined
     let retriedPublication = false
@@ -372,12 +349,6 @@ export class CharacterTurn {
             (state !== undefined && state === this.#visibleState(characterId, current, canPerform))
           )
         }
-        const sourceTicks = new Map(history.map(event => [event.seq, event.tick]))
-        const withSourceAge = (memory: RecalledMemory) => {
-          const sourceTick = sourceTicks.get(memory.sourceMaxSeq)
-          if (sourceTick === undefined) throw new Error('memory source event is missing')
-          return { ...memory, sourceAgeTicks: head.tick - sourceTick }
-        }
         if (currentCharacterLifecycle(history, characterId) !== 'active') return done('inactive')
         const rules = this.options.rulebooks.resolve(
           this.#manifest.rulebook.rulebookId,
@@ -398,16 +369,6 @@ export class CharacterTurn {
           initialView ?? this.#view.rebuildFromEvents(this.options.address, characterId, head.headSeq, history)
         let scene = this.#scene.decideFromEvents(this.options.address, characterId, history, head.headSeq)
         const character = this.#manifest.characters.find(value => value.characterId === characterId)!
-        const recalled = this.options.memory?.prepareStimulus({
-          address: this.options.address,
-          roundId: brandId(`${ownerId}:${attemptId}:memory`, 'InteractionRoundId'),
-          participantId: characterId,
-          characterId,
-          asOfWorldSeq: head.headSeq,
-          stimulus: options.stimulus ?? [],
-          sceneCharacterIds: scene.observerIds,
-          correlationId: `character-turn-memory:${ownerId}:${attemptId}`,
-        })
         const afterSeq = this.options.shortTermAfterSeq?.(characterId)
         const ordered = view.observations.toSorted((left, right) => left.sourceSeq - right.sourceSeq)
         const recentObservations =
@@ -420,31 +381,11 @@ export class CharacterTurn {
               ? []
               : view.selfObservations.slice(-(this.options.recentSelfObservations ?? 8))
             : view.selfObservations.filter(record => record.sourceSeq > afterSeq)
-        const recentSourceSeqs = new Set(
-          [...recentObservations, ...recentSelfObservations].map(record => record.sourceSeq),
-        )
-        const olderMemories = recalled?.memoryRecall
-          .filter(memory => !recentSourceSeqs.has(memory.sourceMaxSeq) && !('projectionId' in object(memory.metadata)))
-          .map(withSourceAge)
-        if (recalled?.recallPlan !== undefined && recalled.recall !== undefined) {
-          const plan = recalled.recallPlan
-          this.options.onRecallShadow?.({
-            address: this.options.address,
-            characterId,
-            asOfWorldSeq: head.headSeq,
-            phase: 'automatic',
-            query: plan.schemaVersion === 'recall-query-plan/v2' ? plan.queryText : plan.query,
-            keywordSourceIds: recalled.recall.memories.map(memory => memory.sourceRef.sourceId),
-            deliveredSourceIds: recalledSourceIds(olderMemories ?? []),
-            excludedSourceSeqs: [...recentSourceSeqs],
-          })
-        }
         // Do not copy scene member records or other characters' anchors into a model request.
         let context: WorldJsonObject = {
           publicationCharacters: this.options.publicationCharacters ?? 2000,
           character: { ...character, locationId: view.locationId },
           stimulus: withAudienceHints(options.stimulus ?? [], characterId),
-          ...(olderMemories === undefined ? {} : { memories: olderMemories }),
           cognition: new CognitionProjectionRebuilder(this.options.store).rebuildCharacterAt(
             this.options.address,
             characterId,
@@ -510,13 +451,10 @@ export class CharacterTurn {
                 status: String(latestResult.status),
                 reason: typeof latestResult.reason === 'string' ? latestResult.reason : null,
               })
-        const canRecall =
-          remaining >= 3 && this.options.memory !== undefined && !recalledThisActivation && performResult === undefined
         const request: CharacterTurnRequest = {
           context,
           continuation: step !== 0 || publicationFailure !== undefined,
           canPerform,
-          canRecall,
           canExpressBeforeAction:
             canPerform && this.options.beforeActionExpression === true && context.activity === undefined,
           ...(continuing ? { canContinueAfterPublish, ...(afterPublication ? { afterPublication: true } : {}) } : {}),
@@ -543,58 +481,6 @@ export class CharacterTurn {
         modelFailure = 'invalid_output'
         let decision = object(raw)
         this.options.validateDecision?.(decision, request)
-        if (decision.decision === 'recall') {
-          keys(decision, ['decision', 'query'])
-          if (
-            !canRecall ||
-            typeof decision.query !== 'string' ||
-            decision.query.trim() !== decision.query ||
-            decision.query.length < 2 ||
-            decision.query.length > 120
-          )
-            throw new TypeError('invalid recall request')
-          recalledThisActivation = true
-          modelFailure = undefined // Memory integrity failures are not model output failures.
-          const alreadyVisible = new Set([
-            ...recentSourceSeqs,
-            ...(olderMemories ?? []).map(memory => memory.sourceMaxSeq),
-          ])
-          const keywordMemories = this.options.memory!.recall(
-            this.options.address,
-            characterId,
-            decision.query,
-            head.headSeq,
-          )
-          const memories = keywordMemories.filter(memory => !alreadyVisible.has(memory.sourceMaxSeq)).map(withSourceAge)
-          this.options.onRecallShadow?.({
-            address: this.options.address,
-            characterId,
-            asOfWorldSeq: head.headSeq,
-            phase: 'active',
-            query: decision.query,
-            keywordSourceIds: recalledSourceIds(keywordMemories),
-            deliveredSourceIds: recalledSourceIds(memories),
-            excludedSourceSeqs: [...alreadyVisible],
-          })
-          // A search result is a bounded, attributed selection of this character's sources, not a verdict.
-          const recallEvidence: WorldJsonObject = {
-            query: decision.query,
-            memories,
-            note: '仅是你可访问记忆中的相关证据；他人发言不证明其内容，未找到也不证明事件未发生。',
-          }
-          this.options.onTrace?.('recall', characterId, decisionId, { asOfWorldSeq: head.headSeq, ...recallEvidence })
-          if (calls >= modelCallLimit) return done('budget_exhausted')
-          calls += 1
-          modelFailure = 'provider_failed'
-          raw = await decide({ ...request, canRecall: false, recallEvidence })
-          modelFailure = undefined
-          signal.throwIfAborted()
-          if (!isCurrent()) return done('stale')
-          modelFailure = 'invalid_output'
-          decision = object(raw)
-          this.options.validateDecision?.(decision, request)
-          if (decision.decision === 'perform' && calls + 1 > modelCallLimit) return done('budget_exhausted')
-        }
         if (decision.decision === 'abstain') {
           keys(decision, ['decision'])
           return done('abstained')

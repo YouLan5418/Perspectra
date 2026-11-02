@@ -106,7 +106,7 @@ if (mode !== '--run') {
           recentObservations: 4, recentSelfObservations: 4,
           validateDecision: d => { if (d.decision === 'recall') throw new Error('active recall disabled consistently') },
           decide: async (r, signal) => {
-            const visible: CharacterTurnRequest = { ...r, canRecall: false, context: { ...r.context, memories } }
+            const visible: CharacterTurnRequest = { ...r, context: { ...r.context, memories } }
             if (JSON.stringify(visible).includes(privateText)) throw new Error('private evidence leaked')
             if (!r.continuation) {
               if (plain(visible) !== plain(expected)) throw new Error('nonmemory context differs')

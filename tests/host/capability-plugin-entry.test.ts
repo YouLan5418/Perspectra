@@ -55,7 +55,7 @@ export default function (ctx) {
         process.execPath,
         [
           ...(layout === 'source' ? ['--import', 'tsx', resolve('desktop/host/web-entry.ts')] : [entry]),
-          '--memory-native',
+          '--memory-none',
           '--pack',
           resolve('examples/world-packs/' + pack),
           '--data-dir',

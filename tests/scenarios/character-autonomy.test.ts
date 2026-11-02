@@ -414,25 +414,7 @@ it.each(['location', 'interaction', 'target'])(
   60_000,
 )
 
-it('includes recall and execution continuation in the strict autonomous call budget', async () => {
-  const f = await fixture(undefined, { autonomyNpcCalls: 3 })
-  f.setDecision(input =>
-    !context(input).autonomy
-      ? { decision: 'abstain' }
-      : input.continuation
-        ? publish('我准备好了。')
-        : input.recallEvidence
-          ? move('location:front-room')
-          : { decision: 'recall', query: '自己的安排' },
-  )
-  const state = await f.runtime.submit('你可以自己安排')
-  expect(state.error).toBe(false)
-  expect(autonomous(f.requests)).toHaveLength(3)
-  expect(state.debug.autonomy).toMatchObject({ autonomousCalls: 3 })
-  expect(currentLocation(f.events(), 'character:friend')).toBe('location:front-room')
-}, 60_000)
-
-it('with two calls disables recall and still reserves the result-aware continuation', async () => {
+it('with two calls still reserves the result-aware continuation', async () => {
   const f = await fixture(undefined, { autonomyNpcCalls: 2 })
   f.setDecision(input =>
     !context(input).autonomy
@@ -444,7 +426,6 @@ it('with two calls disables recall and still reserves the result-aware continuat
   const state = await f.runtime.submit('继续安排')
   expect(state.error).toBe(false)
   expect(autonomous(f.requests)).toHaveLength(2)
-  expect(autonomous(f.requests)[0]!.canRecall).toBe(false)
   expect(autonomous(f.requests)[1]!.result).toMatchObject({ status: 'accepted' })
   expect(state.debug.autonomy).toMatchObject({ autonomousCalls: 2 })
 }, 60_000)
@@ -505,7 +486,7 @@ it('keeps autonomous opportunity independent when an ordinary observer provider 
   expect(state.debug.autonomy).toMatchObject({ autonomousCalls: 1 })
 }, 60_000)
 
-it('shares dynamic slots with a foreground response, isolates private stimuli, and charges recall/perform/continuation only to autonomy', async () => {
+it('shares dynamic slots with a foreground response, isolates private stimuli, and charges perform/continuation only to autonomy', async () => {
   const f = await fixture(
     (role, pack) => {
       role.interactions = ['status:take']
@@ -514,7 +495,7 @@ it('shares dynamic slots with a foreground response, isolates private stimuli, a
       entities.entities[0].locationId = 'location:back-room'
       writeFileSync(join(pack, 'entities.json'), JSON.stringify(entities))
     },
-    { maximumNpcCalls: 2, autonomyNpcCalls: 3, autonomyReactionWaves: 0 },
+    { maximumNpcCalls: 2, autonomyNpcCalls: 2, autonomyReactionWaves: 0 },
   )
   const foreground = deferred(),
     autonomousContinuation = deferred(),
@@ -531,7 +512,7 @@ it('shares dynamic slots with a foreground response, isolates private stimuli, a
       await releaseAutonomous.promise
       return { decision: 'abstain' }
     }
-    return input.recallEvidence ? take() : { decision: 'recall', query: '自己的安排' }
+    return take()
   })
   const pending = f.runtime.submit(
     '/act speak {"text":"私语暗号霜叶","scope":"private","addresseeIds":["character:companion"]}',
@@ -543,14 +524,14 @@ it('shares dynamic slots with a foreground response, isolates private stimuli, a
     expect(state.canInterrupt).toBe(true)
     expect(state.transcript.some(line => line.text.includes('前台回复已经提交'))).toBe(true)
   })
-  expect(autonomous(f.requests)).toHaveLength(3)
+  expect(autonomous(f.requests)).toHaveLength(2)
   expect(JSON.stringify(autonomous(f.requests))).not.toContain('私语暗号霜叶')
   expect(context(autonomous(f.requests)[0]!).stimulus).toEqual([])
   releaseAutonomous.resolve()
   const state = await pending
   expect(state.error).toBe(false)
   expect(state.debug.activationCycle).toMatchObject({ calls: 1 })
-  expect(state.debug.autonomy).toMatchObject({ autonomousCalls: 3, reactionCalls: 0, terminalReason: 'quiescent' })
+  expect(state.debug.autonomy).toMatchObject({ autonomousCalls: 2, reactionCalls: 0, terminalReason: 'quiescent' })
   expect(currentEntityState(f.events(), 'entity:brass-key')?.holderId).toBe('character:friend')
 }, 60000)
 

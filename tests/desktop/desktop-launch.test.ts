@@ -49,7 +49,7 @@ describe('desktop launch boundary', () => {
       [
         ...(bundled ? [] : ['--import', 'tsx']),
         entry,
-        '--memory-native',
+        '--memory-none',
         '--pack',
         pack,
         '--data-dir',

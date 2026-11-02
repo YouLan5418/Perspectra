@@ -20,7 +20,6 @@ it('a newly reachable second sign creates separate evidence without changing the
     new CharacterTurn({
       address: f.address,
       store: f.store,
-      memory: f.memory,
       leases: f.leases,
       availability: f.availability,
       rulebooks: f.rules,

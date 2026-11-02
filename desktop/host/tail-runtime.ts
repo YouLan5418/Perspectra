@@ -422,7 +422,6 @@ export class TailRoundRuntime {
         logicalDirectory: this.options.dataDirectory,
         worldVersion: version,
         storyNodes: false,
-        memoryShadow: false,
       }
       this.#candidate = await this.factory(candidateOptions)
       this.#candidate.holdCognition()
@@ -546,7 +545,6 @@ export class TailRoundRuntime {
         logicalDirectory: this.options.dataDirectory,
         worldVersion: version,
         storyNodes: false,
-        memoryShadow: false,
       })
       this.#candidate.holdCognition()
       const opened = await this.#candidate.settleRound()
