@@ -1,3 +1,4 @@
+import { interactionName } from '../../desktop/lens/ids.ts'
 import { cpSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
@@ -103,3 +104,9 @@ it('keyless knowledge entries still get unique ids, and shared rules have a neut
   expect(rule.fields.some(f => f.key === 'onRoundEnd' || f.key === 'actors')).toBe(false)
   expect(item('rule:status:cook-simple').fields.some(f => f.key === 'onRoundEnd')).toBe(true)
 }, 60_000)
+
+it('interaction names never show the {item} placeholder', () => {
+  expect(interactionName('status:take', undefined, new Map([['status:take', '拿起{item}']]), new Map())).toBe(
+    '拿起物品',
+  )
+})

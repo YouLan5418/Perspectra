@@ -5,13 +5,14 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host 127.0.0.1",
-    "build": "vue-tsc --noEmit && vite build && vite build --config vite.creator.config.ts",
+    "build": "vue-tsc --noEmit && vite build && vite build --config vite.creator.config.ts && vite build --config vite.lens.config.ts",
     "typecheck": "vue-tsc --noEmit",
     "test": "vitest run",
     "preview": "vite preview --host 127.0.0.1",
     "tauri": "tauri",
     "desktop": "node scripts/desktop.mjs",
-    "creator:dev": "vite --host 127.0.0.1 --config vite.creator.config.ts"
+    "creator:dev": "vite --host 127.0.0.1 --config vite.creator.config.ts",
+    "lens:dev": "vite --host 127.0.0.1 --config vite.lens.config.ts"
   },
   "dependencies": {
     "@lucide/vue": "^1.52.0",

@@ -16,7 +16,8 @@ export function conditionItems(
 }
 
 /** An interaction's name for one character: a status operation's label, else the label of that character's own
- * binding of the definition, else the definition id. */
+ * binding of the definition, else the definition id. `{item}` in a label stands for the item it is used on, which
+ * only exists during play. */
 export function interactionName(
   definitionId: string,
   characterId: string | undefined,
@@ -24,7 +25,7 @@ export function interactionName(
   bindingLabels: ReadonlyMap<string, ReadonlyMap<string, string>>,
 ): string {
   return (
-    operationLabels.get(definitionId) ??
+    operationLabels.get(definitionId)?.replace('{item}', '物品') ??
     (characterId === undefined ? undefined : bindingLabels.get(characterId)?.get(definitionId)) ??
     definitionId
   )

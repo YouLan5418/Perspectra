@@ -2,9 +2,12 @@ import { beforeEach, expect, it, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 import type { LensSnapshot } from '../../../../desktop/lens/session.ts'
 
-const bridge = vi.hoisted(() => ({ lensRequest: vi.fn() }))
-vi.mock('@tauri-apps/api/core', () => ({ isTauri: () => true, invoke: vi.fn() }))
-vi.mock('../services/desktop.ts', () => ({ lensRequest: bridge.lensRequest }))
+const bridge = vi.hoisted(() => ({ lensRequest: vi.fn(), lensStatus: vi.fn() }))
+vi.mock('./api.ts', () => ({
+  lensConnected: () => true,
+  lensRequest: bridge.lensRequest,
+  lensStatus: bridge.lensStatus,
+}))
 import { conditionItems } from '../../../../desktop/lens/ids.ts'
 import { useLensStore } from './store.ts'
 
@@ -99,7 +102,7 @@ it('counts only open and changed requests', () => {
 it('surfaces a failed operation in error and clears busy', async () => {
   const store = useLensStore()
   bridge.lensRequest.mockRejectedValueOnce(new Error('世界包读不了'))
-  expect(await store.open('pack:test')).toBeUndefined()
+  await store.open()
   expect(store.error).toBe('世界包读不了')
   expect(store.busy).toBe(false)
   expect(store.snapshot).toBeNull()
@@ -124,49 +127,56 @@ it('sends the NPC plans before the step, and stops if the plans fail', async () 
 
 it('only the seen action moves the baseline', async () => {
   const store = useLensStore()
-  await store.open('pack:test')
+  await store.open()
   await store.reload()
   await store.setBaseline({ kind: 'checkpoint', name: '前' })
   await store.saveCheckpoint('前')
   await store.addRequest('character:a', '改')
-  await store.close()
   expect(sent()).not.toContain('lens-seen')
-  await store.open('pack:test')
   await store.markSeen()
   expect(sent().filter(operation => operation === 'lens-seen')).toHaveLength(1)
 })
 
-it('close clears local state, and a failed close is reported', async () => {
+it('reload retries after a failed open', async () => {
   const store = useLensStore()
-  await store.open('pack:test')
-  store.select('character:a')
-  await store.close()
-  expect(sent().at(-1)).toBe('lens-close')
+  bridge.lensRequest.mockRejectedValueOnce(new Error('worldpack.source.json 损坏'))
+  await store.open()
   expect(store.snapshot).toBeNull()
-  expect(store.selectedId).toBe('')
+  expect(store.error).toContain('损坏')
+  expect(await store.reload()).toBe(true)
+  expect(store.snapshot).not.toBeNull()
   expect(store.error).toBe('')
-
-  await store.open('pack:test')
-  bridge.lensRequest.mockRejectedValueOnce(new Error('后端没响应'))
-  await store.close()
-  expect(store.snapshot).toBeNull()
-  expect(store.error).toBe('关闭透视失败：后端没响应')
-  // Nothing open: closing again does not call the backend.
-  bridge.lensRequest.mockClear()
-  await store.close()
-  expect(sent()).toEqual([])
 })
 
-it('closing while the open is still in flight still closes the backend lens', async () => {
+it('polling shows that the pack changed, and reloading clears it', async () => {
   const store = useLensStore()
+  bridge.lensStatus.mockResolvedValue({ stale: true, watching: true })
+  await store.poll()
+  expect(store.stale).toBe(true)
+  await store.reload()
+  expect(store.stale).toBe(false)
+})
+
+it('a server that stopped answering is reported, and an answer clears it', async () => {
+  const store = useLensStore()
+  bridge.lensStatus.mockRejectedValueOnce(new TypeError('Failed to fetch'))
+  await store.poll()
+  expect(store.disconnected).toBe(true)
+  bridge.lensStatus.mockResolvedValueOnce({ stale: false, watching: true })
+  await store.poll()
+  expect(store.disconnected).toBe(false)
+})
+
+it('polling waits while an operation runs', async () => {
+  const store = useLensStore()
+  bridge.lensStatus.mockClear()
   let finish: (value: LensSnapshot) => void = () => undefined
   bridge.lensRequest.mockImplementationOnce(() => new Promise<LensSnapshot>(done => (finish = done)))
-  const opening = store.open('pack:test')
-  await store.close()
-  expect(sent()).toEqual(['lens-open', 'lens-close'])
+  const running = store.reload()
+  await store.poll()
+  expect(bridge.lensStatus).not.toHaveBeenCalled()
   finish(snapshot())
-  await opening
-  expect(store.snapshot).toBeNull()
+  await running
 })
 
 it('condition ids follow one shared rule', () => {

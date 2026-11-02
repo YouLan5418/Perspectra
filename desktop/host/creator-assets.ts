@@ -14,8 +14,19 @@ export function creatorAssetDirectory(): URL | null {
 
 /** Public build files only. Private creator data still requires the host token. */
 export function creatorAsset(request: IncomingMessage, response: ServerResponse, directory: URL | null): boolean {
+  return servePageAsset(request, response, directory, '/creator', '创作者页面')
+}
+
+/** One built page under `prefix`: its index and its `assets/` folder, nothing else. */
+export function servePageAsset(
+  request: IncomingMessage,
+  response: ServerResponse,
+  directory: URL | null,
+  prefix: string,
+  label: string,
+): boolean {
   const rawPath = (request.url ?? '/').split('?')[0]!
-  if (request.method !== 'GET' || (rawPath !== '/creator' && !rawPath.startsWith('/creator/'))) return false
+  if (request.method !== 'GET' || (rawPath !== prefix && !rawPath.startsWith(prefix + '/'))) return false
   headers(response, 'text/plain; charset=utf-8', true)
   const missing = () => {
     response.statusCode = 404
@@ -30,14 +41,14 @@ export function creatorAsset(request: IncomingMessage, response: ServerResponse,
   }
   if (path.includes('\\') || path.includes('\0') || path.split('/').some(part => part === '..' || part === '.'))
     return missing()
-  if (path === '/creator') {
+  if (path === prefix) {
     response.statusCode = 301
-    response.setHeader('location', '/creator/')
+    response.setHeader('location', prefix + '/')
     response.end()
     return true
   }
   const asset =
-    path === '/creator/' ? 'index.html' : path.startsWith('/creator/assets/') ? path.slice('/creator/'.length) : ''
+    path === prefix + '/' ? 'index.html' : path.startsWith(prefix + '/assets/') ? path.slice(prefix.length + 1) : ''
   const types: Record<string, string> = {
     '.html': 'text/html; charset=utf-8',
     '.js': 'text/javascript; charset=utf-8',
@@ -50,7 +61,7 @@ export function creatorAsset(request: IncomingMessage, response: ServerResponse,
   if (!asset || !contentType) return missing()
   if (!directory) {
     response.statusCode = 503
-    response.end('创作者页面未构建，请先构建启动器。')
+    response.end(label + '未构建，请先构建启动器。')
     return true
   }
   try {

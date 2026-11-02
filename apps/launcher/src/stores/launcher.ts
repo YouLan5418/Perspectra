@@ -14,6 +14,7 @@ import {
   coreRequest,
   openGame,
   openCreator as openCreatorPage,
+  openLensPage,
   packCover,
   listConnectionModels,
   setConnectionKey,
@@ -42,7 +43,7 @@ import {
 import { availableModel, historyTo } from '../domain.ts'
 import type { CoreStatus, GamePackage } from '../types.ts'
 
-export type DrawerSection = 'story' | 'model' | 'preset' | 'frontend' | 'play' | 'creator'
+export type DrawerSection = 'story' | 'model' | 'preset' | 'frontend' | 'play' | 'lens'
 export interface DrawerRow {
   id: DrawerSection
   group: '游玩' | '进阶'
@@ -351,6 +352,7 @@ export const useLauncherStore = defineStore('launcher', () => {
       play = currentPlaySettings.value
     const presetMode = presets.value.instances[selectedInstanceId.value]?.mode
     const sandboxed = summary.frontend === 'sandbox'
+    const lensBlocked = selectedPackage.value?.validation.status === 'blocked'
     return [
       {
         id: 'story',
@@ -385,12 +387,11 @@ export const useLauncherStore = defineStore('launcher', () => {
         action: '调整',
       },
       {
-        id: 'creator',
+        id: 'lens',
         group: '进阶',
-        label: '创作者工具',
-        summary: running.value ? '控制台 · 模型请求' : '启动游戏后可用',
+        label: '透视',
+        summary: lensBlocked ? '包校验失败，打开可查看原因' : '在浏览器里查看这个包的全部设置',
         action: '打开',
-        disabled: !running.value,
       },
     ]
   })
@@ -779,6 +780,18 @@ export const useLauncherStore = defineStore('launcher', () => {
       notice.value = error instanceof Error ? error.message : '创作者页面打开失败。'
     }
   }
+  async function openLens(packageId: string) {
+    if (!real) {
+      notice.value = '浏览器预览没有透视服务；可用 lens:dev 查看透视页面样例。'
+      return
+    }
+    try {
+      await openLensPage(packageId)
+      notice.value = '透视已在系统浏览器打开。'
+    } catch (error) {
+      notice.value = error instanceof Error ? error.message : '透视打开失败。'
+    }
+  }
   async function exportStory(nodeId: string, path: string): Promise<boolean> {
     if (!real) return false
     if (!(await action('story-export', { instanceId: selectedInstanceId.value, nodeId, path }))) return false
@@ -818,6 +831,7 @@ export const useLauncherStore = defineStore('launcher', () => {
     selectStoryline,
     forkStory,
     openCreator,
+    openLens,
     savePresetDrafts,
     libraryAction,
     presetCharacters,

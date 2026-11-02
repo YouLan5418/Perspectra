@@ -11,7 +11,7 @@ import FrontendAuthorizationDialog from './FrontendAuthorizationDialog.vue'
 import PlaySettingsDialog from './PlaySettingsDialog.vue'
 
 /** 本局抽屉：一列设置行，点进去在抽屉内部翻页；原对话框在这里只渲染内容。 */
-type Page = Exclude<DrawerSection, 'creator'> | 'import' | 'export'
+type Page = Exclude<DrawerSection, 'lens'> | 'import' | 'export'
 const props = defineProps<{ open: boolean; section: DrawerSection | null }>()
 const emit = defineEmits<{ close: [] }>()
 provide('launcher-embedded', true)
@@ -31,13 +31,13 @@ const groups = computed(() =>
 watch(
   () => [props.open, props.section] as const,
   ([open, section]) => {
-    if (open) page.value = section && section !== 'creator' ? section : null
+    if (open) page.value = section && section !== 'lens' ? section : null
   },
   { immediate: true },
 )
 function choose(id: DrawerSection) {
-  if (id === 'creator') {
-    void store.openCreator()
+  if (id === 'lens') {
+    void store.openLens(store.selectedPackageId)
     return
   }
   page.value = id

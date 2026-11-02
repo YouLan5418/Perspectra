@@ -9,7 +9,7 @@ let checked = 0
 const repositoryPath = file => relative(root, file).replaceAll('\\', '/')
 function walk(directory, visit, include) {
   for (const entry of readdirSync(directory, { withFileTypes: true })) {
-    if (['node_modules', 'dist', 'dist-creator', 'target', 'assets'].includes(entry.name)) continue
+    if (['node_modules', 'dist', 'dist-creator', 'dist-lens', 'target', 'assets'].includes(entry.name)) continue
     const file = join(directory, entry.name)
     if (entry.isDirectory()) {
       walk(file, visit, include)

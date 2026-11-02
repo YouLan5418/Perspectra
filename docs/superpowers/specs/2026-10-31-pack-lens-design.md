@@ -187,6 +187,8 @@ skill 增加一条工作方式：作者说“按清单改”时，先读清单�
 
 ## 11. 实现与设计的差异（2026-10-31）
 
+2026-11-01 用户决定：透视不再是 Launcher 窗口里的面板，改成独立的本机网页（`worldpack.cmd lens serve`，Launcher 入口打开同一个页面），校验失败的包也能打开并显示原因。第 4.1 节的入口描述以[当前作者指南](../../current/guides/pack-lens.md)为准。
+
 - 实现位置：`desktop/lens/`（推演、视图、比较、存储、脚本、CLI、会话）、`desktop/launcher-core.ts` 的 `lens-*` 操作、`apps/launcher/src/lens/`。作者指南见[包透视](../../current/guides/pack-lens.md)，代码说明见[创作者运行时](../../current/architecture/creator-runtime.md)。
 - CLI 命令名为 `worldpack.cmd lens view|requests|simulate`。`lens` 不走 `packages/world-pack` 的 CLI 进程，而是独立打包成 `runtime/lens.mjs`，由 `worldpack.cmd` 转发，因为它需要完整的宿主运行时。
 - 第 7.2 节的“复制给 AI”备用按钮在待改清单页，复制待改与已改动条目的可读文本（含“AI 不能关闭条目”的说明）。

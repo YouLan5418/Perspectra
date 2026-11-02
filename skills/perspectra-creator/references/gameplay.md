@@ -75,6 +75,7 @@ model-preset.json、role-presets.json 和 frontend/ 是宿主独立读取的扩�
 - `lens view <源目录>`：输出透视结果和相对作者“已看过”基准的改动；
 - `lens requests <源目录>`：输出作者待改清单里未关闭的条目（含位置和当时的值）；
 - `lens simulate <源目录> <脚本.json>`：用真实宿主运行时加桩模型跑推演脚本。脚本名可写路径，或 `.perspectra-lens/scenarios/` 下的文件名。
+- `lens serve <源目录> [--no-open]`：为作者打开透视网页，方便和你的窗口并排看。这条命令会一直运行，先输出一行含 `url` 的 JSON，要放在后台运行；改完包不用重开，页面会提示“包有改动”。页面地址含令牌，只交给作者，不写进交付文档或包里。
 
 推演脚本是 JSON，字段只有这些，写错的字段会报出路径：
 
