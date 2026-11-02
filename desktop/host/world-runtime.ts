@@ -102,9 +102,11 @@ import { DEFAULT_RUNTIME_TUNING, type RuntimeTuning } from './runtime-tuning.ts'
 import { PackModules, lockedPackAsset } from './pack-modules.ts'
 import { CapabilitySession, type CapabilityCatalog } from '../host-capabilities.ts'
 import { officialSeams, type HostSeams } from '../official-bundle.ts'
-import { normalizeSchedulerResult } from './scheduler-result.ts'
+import { normalizeSchedulerResult, trackSchedulerTurns } from './scheduler-result.ts'
 import { createWorldReader } from './world-reader.ts'
 import type { SchedulerInstance, SchedulerResult } from '@harness-world/plugin-sdk'
+
+const SCHEDULER_FAILED_NOTICE = '调度器插件出错，本轮角色反应已停止；玩家输入保留，可以继续行动。'
 
 export interface WorldHostOptions extends ModelOptions {
   readonly capabilities?: CapabilityCatalog
@@ -1603,7 +1605,11 @@ export class WorldHostCore implements HostRuntime {
     await closingCapabilities
     await closingMemory
     await this.#closeCore?.()
-    await Promise.resolve(this.#scheduler?.close?.()).catch(error => console.error('[调度器插件] 关闭失败：', error))
+    try {
+      await this.#scheduler?.close?.()
+    } catch (error) {
+      console.error('[调度器插件] 关闭失败：', error)
+    }
     await this.#shadow?.close()
     try {
       await this.#application.close()
@@ -1891,7 +1897,7 @@ export class WorldHostCore implements HostRuntime {
     this.#autonomyCycle = autonomy
     this.#reactionNotice(cycle)
     if (autonomy) this.#autonomyNotice(autonomy.terminalReason)
-    else if (!controller.signal.aborted) {
+    else if (!controller.signal.aborted && cycle.terminalReason !== 'plugin_failed') {
       const counts = new Map<CharacterId, number>()
       for (const activation of this.#activationCycle.activations)
         counts.set(activation.characterId, (counts.get(activation.characterId) ?? 0) + 1)
@@ -1930,11 +1936,15 @@ export class WorldHostCore implements HostRuntime {
   async #schedule(input: Omit<Parameters<typeof createSchedulerRound>[0], 'world'>): Promise<SchedulerResult> {
     const round = createSchedulerRound({ ...input, world: this.#worldReader() })
     if (this.#schedulerIsOfficial) return this.#scheduler.run(round)
+    const tracked = trackSchedulerTurns(round)
     try {
-      return normalizeSchedulerResult(await this.#scheduler.run(round))
+      return normalizeSchedulerResult(await this.#scheduler.run(tracked.round))
     } catch (error) {
       console.error('[调度器插件] 本轮调度失败：', error)
       return { calls: 0, wave: 0, terminalReason: 'plugin_failed', activations: [] }
+    } finally {
+      // The store closes after this returns, so nothing the scheduler left running may outlive it.
+      await tracked.settle()
     }
   }
 
@@ -1943,7 +1953,7 @@ export class WorldHostCore implements HostRuntime {
     const terminal = cycle.terminalReason
     if (terminal === 'plugin_failed') {
       this.#error = true
-      this.#notice = '调度器插件出错，本轮角色反应已停止；玩家输入保留，可以继续行动。'
+      this.#notice = SCHEDULER_FAILED_NOTICE
       return
     }
     if (terminal === 'failed' || terminal === 'interrupted') {
@@ -2067,7 +2077,10 @@ export class WorldHostCore implements HostRuntime {
     if (reason === 'failed' || reason === 'interrupted') {
       this.#error = true
       this.#notice = '玩家输入及已提交的角色行动保留；自主处理失败或超时，未完成的机会已丢弃，可以继续行动。'
-    } else if (reason !== 'quiescent') {
+    } else if (reason === 'plugin_failed') {
+      this.#error = true
+      this.#notice = SCHEDULER_FAILED_NOTICE
+    } else if (reason === 'call_limit' || reason === 'wave_limit' || reason === 'character_limit') {
       this.#notice = '自主行动或后续反应达到预算上限；已提交结果保留，未使用机会不积攒，可以继续行动。'
     }
   }

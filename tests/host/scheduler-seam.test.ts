@@ -40,7 +40,7 @@ function provider(
   }
 }
 
-async function start(scheduler: SeamProvider<SchedulerInstance>, dataDirectory?: string) {
+async function start(scheduler: SeamProvider<SchedulerInstance>, dataDirectory?: string, pack = 'dynamic-scheduling') {
   const root = dataDirectory ?? mkdtempSync(join(tmpdir(), 'perspectra-scheduler-seam-'))
   if (!dataDirectory) roots.push(root)
   const actors: string[] = []
@@ -66,7 +66,7 @@ async function start(scheduler: SeamProvider<SchedulerInstance>, dataDirectory?:
   await new Promise<void>(done => server.listen(0, '127.0.0.1', done))
   const runtime = await WorldHostRuntime.create({
     dataDirectory: root,
-    packPath: resolve('examples/world-packs/dynamic-scheduling'),
+    packPath: resolve('examples/world-packs', pack),
     models: fakeModels('http://127.0.0.1:' + (server.address() as { port: number }).port + '/v1/chat/completions'),
     timeoutMs: 5000,
     plugins: { scheduler },
@@ -246,4 +246,106 @@ it('aborts the round signal on pause', async () => {
   await runtime.pause()
   await submitting
   expect(aborted).toBe(true)
+})
+
+it('waits for turns a scheduler left running before it closes the round', async () => {
+  const rejections: unknown[] = []
+  const onRejection = (reason: unknown) => void rejections.push(reason)
+  process.on('unhandledRejection', onRejection)
+  let settled = false
+  try {
+    const { runtime } = await start(
+      provider(async round => {
+        const seqs = round
+          .observationsSince(round.afterSeq, round.headSeq())
+          .filter(observation => String(observation.characterId) === WITNESS)
+          .map(observation => observation.seq)
+        void round
+          .turn(WITNESS as never, { signal: round.signal, stimulusSeqs: seqs, maxCalls: 2 })
+          .catch(() => undefined)
+          .finally(() => {
+            settled = true
+          })
+        void round.turn(WITNESS as never, { signal: round.signal, stimulusSeqs: [-1], maxCalls: 2 })
+        return quiet
+      }),
+    )
+    await runtime.submit(MOVE)
+    expect(settled).toBe(true)
+    await new Promise(done => setTimeout(done, 20))
+    expect(rejections).toEqual([])
+    expect((await runtime.submit('还在吗？')).error).toBeFalsy()
+  } finally {
+    process.off('unhandledRejection', onRejection)
+  }
+})
+
+it('refuses a turn started after the scheduler returned', async () => {
+  let late: SchedulerRound | undefined
+  const { runtime } = await start(
+    provider(async round => {
+      late = round
+      return quiet
+    }),
+  )
+  await runtime.submit(MOVE)
+  await expect(
+    late!.turn(WITNESS as never, { signal: new AbortController().signal, stimulusSeqs: [], maxCalls: 2 }),
+  ).rejects.toThrow(TypeError)
+})
+
+it('still closes the world when the scheduler throws synchronously on close', async () => {
+  vi.spyOn(console, 'error').mockImplementation(() => {})
+  const { runtime, root } = await start(
+    provider(async () => quiet, {
+      open: async () => ({
+        run: async () => quiet,
+        close: () => {
+          throw new Error('close bug')
+        },
+      }),
+    }),
+  )
+  await runtime.close()
+  runtimes.length = 0
+  rmSync(root, { recursive: true, force: true })
+})
+
+it('keeps the plugin notice and skips autonomy when the scheduler throws in a pack with autonomous roles', async () => {
+  vi.spyOn(console, 'error').mockImplementation(() => {})
+  const { runtime, actors } = await start(
+    provider(async () => {
+      throw new Error('plugin bug')
+    }),
+    undefined,
+    'autonomy-scheduling',
+  )
+  const state = await runtime.submit('你好')
+  expect(state.error).toBe(true)
+  expect(state.notice).toContain('调度器插件')
+  expect(actors).toEqual([])
+})
+
+it('does not report an unknown reason as a budget limit in a pack with autonomous roles', async () => {
+  const { runtime } = await start(
+    provider(async () => ({ ...quiet, terminalReason: 'my_done' })),
+    undefined,
+    'autonomy-scheduling',
+  )
+  const state = await runtime.submit('你好')
+  expect(state.notice).not.toContain('预算上限')
+  expect(state.error).toBeFalsy()
+})
+
+it('treats an activation with a null result as an invalid result', async () => {
+  const { runtime } = await start(
+    provider(async () => ({
+      ...quiet,
+      terminalReason: 'failed',
+      activations: [{ characterId: WITNESS, result: null }],
+    })),
+  )
+  const state = await runtime.submit(MOVE)
+  expect(state.error).toBeFalsy()
+  expect(state.notice).toContain('本轮角色处理已结束')
 })
