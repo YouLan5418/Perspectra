@@ -71,7 +71,7 @@ Bundled CLI/Skill checks, host start/stop, default frontend comparison and offli
 
 ### Run from source
 
-Requires Node.js 22.19+ or 24+ and the repository-pinned pnpm version. Native launcher development additionally requires Rust/Cargo, Windows build tools, and a [Python/E5 memory environment](desktop/host/memory/README.md).
+Requires Node.js 22.19+ or 24+ and the repository-pinned pnpm version. Native launcher development additionally requires Rust/Cargo, Windows build tools, and a [Python/E5 memory environment](packages/official-memory-core/README.md).
 
 ```powershell
 corepack pnpm@11.7.0 install --frozen-lockfile

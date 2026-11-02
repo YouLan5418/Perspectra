@@ -13,7 +13,7 @@ export async function copyMemoryRuntime(runtime) {
     const destination = join(runtime, 'memory-core/python', folder)
     await mkdir(destination, { recursive: true })
     for (const file of files)
-      await cp(resolve('desktop/host/memory/python', folder, file), join(destination, file), {
+      await cp(resolve('packages/official-memory-core/python', folder, file), join(destination, file), {
         recursive: true,
         dereference: true,
         filter: path => !path.split(/[\\/]/).some(part => ['__pycache__', '.cache'].includes(part)),

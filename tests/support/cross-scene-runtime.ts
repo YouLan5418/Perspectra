@@ -1,3 +1,4 @@
+import { coreAdapter } from './core-adapter.ts'
 import { readFileSync, mkdirSync, existsSync, unlinkSync } from 'node:fs'
 import { resolve, join } from 'node:path'
 import {
@@ -26,8 +27,8 @@ import { SceneDecisionService } from '../../packages/application/src/scene-decis
 import { PackActivities } from '../../desktop/host/pack-activities.ts'
 import { playerTranscript } from '../../desktop/host/player-transcript.ts'
 import { saveStoryNode } from '../../desktop/story-nodes.ts'
-import { CoreMemoryAdapter, type MemoryContextBudget } from '../../desktop/host/memory/core-memory.ts'
-import type { CoreRunner } from '../../desktop/host/memory/python-worker.ts'
+import { CoreMemoryAdapter, type MemoryContextBudget } from '../../packages/official-memory-core/src/core-memory.ts'
+import type { CoreRunner } from '../../packages/official-memory-core/src/python-worker.ts'
 
 export async function crossSceneRuntime(
   dataDirectory: string,
@@ -100,7 +101,7 @@ export async function crossSceneRuntime(
   const memory = new AuthorizedSourceStore(join(dataDirectory, 'memory.sqlite'), store)
   const session = options.storyNodes ? new SessionDeliveryAdapter(join(dataDirectory, 'session.sqlite')) : undefined
   const memoryCore = options.memoryCoreRun
-    ? new CoreMemoryAdapter(dataDirectory, address, options.memoryCoreRun, options.memoryContextBudget, {
+    ? coreAdapter(dataDirectory, address, options.memoryCoreRun, options.memoryContextBudget, {
         run: options.memoryCoreBuildRun ?? options.memoryCoreRun,
       })
     : undefined

@@ -4,9 +4,9 @@
 
 | 内容 | 位置 |
 | --- | --- |
-| 角色快照、授权交付与后台整理 | [core-memory.ts](core-memory.ts) |
-| Python 解释器、单次请求与常驻 worker | [python-worker.ts](python-worker.ts) |
-| 授权名称来源 | [alias-history.ts](alias-history.ts) |
+| 角色快照、授权交付与后台整理 | [core-memory.ts](src/core-memory.ts) |
+| Python 解释器、单次请求与常驻 worker | [python-worker.ts](src/python-worker.ts) |
+| 授权名称来源 | [alias-history.ts](src/alias-history.ts) |
 | Python 请求、候选准入和极简交付 | [python/bridge](python/bridge) |
 | 检索、认识投影、vendor 和资产清单 | [python/core](python/core) |
 
@@ -14,8 +14,8 @@
 
 ```powershell
 python -m venv .tmp/hindsight-vector-venv
-& .tmp/hindsight-vector-venv/Scripts/python.exe -m pip install -r desktop/host/memory/python/core/requirements-vector.txt
-& .tmp/hindsight-vector-venv/Scripts/python.exe desktop/host/memory/python/core/setup-vector.py
+& .tmp/hindsight-vector-venv/Scripts/python.exe -m pip install -r packages/official-memory-core/python/core/requirements-vector.txt
+& .tmp/hindsight-vector-venv/Scripts/python.exe packages/official-memory-core/python/core/setup-vector.py
 ```
 
 `setup-vector.py` 会下载并校验固定 revision 的模型资产。`HCW_HINDSIGHT_PYTHON` 与 `HCW_HINDSIGHT_ONNX_DIR` 仍可指定现有环境和权重。游戏默认使用 Core；`--memory-native` 是显式的原生记忆选择。
@@ -27,7 +27,7 @@ python -m venv .tmp/hindsight-vector-venv
 历史对照与 Python 回归仍保存在 `experiments/activity-memory`、`experiments/hindsight-core`。从仓库根目录运行其中的离线测试时，显式给出当前实现和历史研究辅助模块的搜索路径：
 
 ```powershell
-$memoryTestPaths = @('desktop/host/memory/python/core', 'desktop/host/memory/python/bridge', 'experiments/activity-memory', 'experiments/hindsight-core') | ForEach-Object { (Resolve-Path -LiteralPath $_).Path }
+$memoryTestPaths = @('packages/official-memory-core/python/core', 'packages/official-memory-core/python/bridge', 'experiments/activity-memory', 'experiments/hindsight-core') | ForEach-Object { (Resolve-Path -LiteralPath $_).Path }
 $env:PYTHONPATH = $memoryTestPaths -join [IO.Path]::PathSeparator
 $env:PYTHONDONTWRITEBYTECODE = '1'
 & .tmp/hindsight-vector-venv/Scripts/python.exe -m unittest discover -s experiments/activity-memory -p test_candidate_admission.py

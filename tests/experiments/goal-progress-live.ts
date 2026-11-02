@@ -11,7 +11,7 @@ import type { CharacterTurnRequest } from '../../packages/application/src/charac
 import { WorldHostRuntime } from '../../desktop/host/world-runtime.ts'
 import { gatewayTurnCall } from '../../desktop/host/gateway-turn-call.ts'
 import { goalProgressPacks, goalProgressScenarios } from './goal-progress-content.ts'
-import { estimateContextTokens } from '../../desktop/host/memory/core-memory.ts'
+import { estimateContextTokens } from '../../packages/official-memory-core/src/core-memory.ts'
 import { playSettings } from '../../desktop/play-settings.ts'
 import { environmentRoleModels } from '../../desktop/model-connections.ts'
 

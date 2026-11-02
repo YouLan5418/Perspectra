@@ -35,7 +35,7 @@ const npc = brandId('character:npc', 'CharacterId')
 const bob = brandId('character:bob', 'CharacterId')
 const player = brandId('character:player', 'CharacterId')
 const question = '那件喝水用的器皿最初是谁收走的？鲍勃后来怎么说？请区分你看到的事和他声称的事。'
-const corePath = resolve('desktop/host/memory/python/core/core.py')
+const corePath = resolve('packages/official-memory-core/python/core/core.py')
 function core(input: WorldJsonObject): CoreResult {
   const run = spawnSync(process.env.HCW_HINDSIGHT_PYTHON || 'python', [corePath], {
     input: JSON.stringify(input), encoding: 'utf8', maxBuffer: 16 * 1024 * 1024, timeout: 180_000,

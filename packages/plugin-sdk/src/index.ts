@@ -106,6 +106,22 @@ export interface PlayerFeedApi {
 export interface WorldReader {
   readEvents(afterSeq: number, throughSeq: number, types?: readonly string[]): readonly WorldJsonObject[]
   characterObservations(characterId: CharacterId, throughSeq: number): readonly WorldJsonObject[]
+  head(): { readonly headSeq: number; readonly tick: number }
+  eventTicks(throughSeq: number): readonly { readonly seq: number; readonly tick: number }[]
+  /** What this character was allowed to experience, in order. `catchUp: false` reads what is already captured. */
+  authorizedSources(
+    characterId: CharacterId,
+    throughSeq: number,
+    options?: { readonly catchUp?: boolean },
+  ): readonly AuthorizedSource[]
+}
+/** One piece of a character's authorized experience, the material long-term memory is built from. */
+export interface AuthorizedSource {
+  readonly sourceId: string
+  readonly sourceHash: string
+  readonly epistemicKind: string
+  readonly sourceSeq: number
+  readonly text: string
 }
 export interface WorldServices {
   readonly address: WorldAddress

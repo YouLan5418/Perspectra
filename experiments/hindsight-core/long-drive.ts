@@ -97,7 +97,7 @@ const started: { turns: Array<Record<string, unknown>>; address?: WorldAddress }
   : { turns: [] }
 let shadow: Shadow | undefined = existsSync(shadowPath) ? JSON.parse(readFileSync(shadowPath, 'utf8')) as Shadow : undefined
 function core(input: WorldJsonObject): Record<string, unknown> {
-  const run = spawnSync(process.env.HCW_HINDSIGHT_PYTHON || 'python', [resolve('desktop/host/memory/python/core/core.py')], {
+  const run = spawnSync(process.env.HCW_HINDSIGHT_PYTHON || 'python', [resolve('packages/official-memory-core/python/core/core.py')], {
     input: JSON.stringify(input), encoding: 'utf8', maxBuffer: 32 * 1024 * 1024, timeout: 180_000,
     env: { ...process.env, PYTHONIOENCODING: 'utf-8' },
   })

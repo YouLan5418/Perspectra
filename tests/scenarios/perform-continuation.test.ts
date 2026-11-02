@@ -1,3 +1,4 @@
+import { coreAdapter } from '../support/core-adapter.ts'
 import Ajv from 'ajv'
 import { gatewayTurnCall } from '../../desktop/host/gateway-turn-call.ts'
 import { DatabaseSync } from 'node:sqlite'
@@ -14,7 +15,7 @@ import { DeterministicPresenter } from '@harness-world/presentation'
 import { playerTranscript } from '../../desktop/host/player-transcript.ts'
 import { projectPlayerView } from '../../desktop/host/frontend-adapter.ts'
 import type { HostState } from '../../desktop/host/http-server.ts'
-import { CoreMemoryAdapter } from '../../desktop/host/memory/core-memory.ts'
+import { CoreMemoryAdapter } from '../../packages/official-memory-core/src/core-memory.ts'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -1133,7 +1134,7 @@ it('preserves speech/narration alternation in one atomic publication, authorized
   }
   // Core receives the same authorized Source text, including the alternating order.
   const inputs: WorldJsonObject[] = []
-  const core = new CoreMemoryAdapter(f.directory, f.address, async input => {
+  const core = coreAdapter(f.directory, f.address, async input => {
     inputs.push(input)
     if (input.operation === 'build')
       return {

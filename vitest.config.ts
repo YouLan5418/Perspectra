@@ -16,6 +16,7 @@ export default defineConfig({
       '@harness-world/plugin-sdk': `${root}packages/plugin-sdk/src/index.ts`,
       '@harness-world/official-scheduler': `${root}packages/official-scheduler/src/index.ts`,
       '@harness-world/official-memory-none': `${root}packages/official-memory-none/src/index.ts`,
+      '@harness-world/official-memory-core': `${root}packages/official-memory-core/src/index.ts`,
       '@harness-world/kernel': `${root}packages/kernel/src/index.ts`,
       '@harness-world/memory': `${root}packages/memory/src/index.ts`,
       '@harness-world/presentation': `${root}packages/presentation/src/index.ts`,

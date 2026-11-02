@@ -1,7 +1,6 @@
 import { unlinkSync, appendFileSync, existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { randomUUID } from 'node:crypto'
-import { DatabaseSync } from 'node:sqlite'
 import {
   brandId,
   canonicalizeWorldJson,
@@ -11,8 +10,7 @@ import {
   type WorldJsonObject,
   type WorldJsonValue,
 } from '@harness-world/contracts'
-import { AuthorizedSourceStore } from '@harness-world/memory'
-import { WorldStore } from '@harness-world/store-sqlite'
+import type { WorldReader } from '@harness-world/plugin-sdk'
 import type { CharacterTurnRequest } from '@harness-world/application'
 import { identityEntry } from './alias-history.ts'
 import type { CoreRunner } from './python-worker.ts'
@@ -104,6 +102,7 @@ export class CoreMemoryAdapter {
   #startedAt: number | null = null
   #finishedAt: number | null = null
   constructor(
+    readonly world: WorldReader,
     readonly dataDirectory: string,
     readonly address: WorldAddress,
     readonly run: CoreRunner,
@@ -192,52 +191,28 @@ export class CoreMemoryAdapter {
     return entries
   }
   #snapshot(actor: string, catchUp = true): { scope: WorldJsonObject; sources: WorldJsonObject[]; tick: number } {
-    const store = new WorldStore(resolve(this.dataDirectory, 'world.sqlite'))
-    const memory = catchUp ? new AuthorizedSourceStore(resolve(this.dataDirectory, 'memory.sqlite'), store) : undefined
-    try {
-      const head = store.head(this.address)
-      memory?.catchUp(this.address, brandId(actor, 'CharacterId'), head.headSeq, 'web-core-memory')
-      // The host supplies timestamps only for the character's already authorized source rows.
-      const ticks = new Map(store.readEventTicks(this.address, head.headSeq).map(e => [e.seq, e.tick]))
-      const db = new DatabaseSync(resolve(this.dataDirectory, 'memory.sqlite'), { readOnly: true })
-      type Row = {
-        source_id: string
-        source_hash: string
-        epistemic_kind: string
-        source_seq: number
-        text_value: string
-      }
-      let rows: Row[]
-      try {
-        rows = db
-          .prepare(
-            'SELECT source_id,source_hash,epistemic_kind,source_seq,text_value FROM cognitive_memory_v2_sources WHERE namespace_key=? AND source_seq<=? ORDER BY source_seq,source_id',
-          )
-          .all(worldAddressKey(this.address) + '\u001f' + actor, head.headSeq) as Row[]
-      } finally {
-        db.close()
-      }
-      return {
-        scope: { worldAddress: { ...this.address }, characterId: actor, asOfWorldSeq: head.headSeq },
-        tick: head.tick,
-        sources: rows.map(r => {
-          const tick = ticks.get(r.source_seq)
-          if (tick === undefined) throw new Error('authorized source timestamp is missing')
-          return {
-            sourceId: r.source_id,
-            sourceHash: r.source_hash,
-            epistemicKind: r.epistemic_kind,
-            worldSeq: r.source_seq,
-            characterId: actor,
-            worldAddress: { ...this.address },
-            text: r.text_value,
-            knownTick: tick,
-          }
-        }),
-      }
-    } finally {
-      memory?.close()
-      store.close()
+    const head = this.world.head()
+    const characterId = brandId(actor, 'CharacterId')
+    const sources = this.world.authorizedSources(characterId, head.headSeq, { catchUp })
+    // The host supplies timestamps only for the character's already authorized source rows.
+    const ticks = new Map(this.world.eventTicks(head.headSeq).map(e => [e.seq, e.tick]))
+    return {
+      scope: { worldAddress: { ...this.address }, characterId: actor, asOfWorldSeq: head.headSeq },
+      tick: head.tick,
+      sources: sources.map(source => {
+        const tick = ticks.get(source.sourceSeq)
+        if (tick === undefined) throw new Error('authorized source timestamp is missing')
+        return {
+          sourceId: source.sourceId,
+          sourceHash: source.sourceHash,
+          epistemicKind: source.epistemicKind,
+          worldSeq: source.sourceSeq,
+          characterId: actor,
+          worldAddress: { ...this.address },
+          text: source.text,
+          knownTick: tick,
+        }
+      }),
     }
   }
   #validate(
@@ -493,22 +468,17 @@ export class CoreMemoryAdapter {
   }
   /** Names only, from this role's authorized views; no provider requests or future archive is copied. */
   snapshotAliases(actors: readonly string[]): WorldJsonObject {
-    const store = new WorldStore(resolve(this.dataDirectory, 'world.sqlite'))
-    try {
-      const head = store.head(this.address)
-      return Object.fromEntries(
-        actors.map(actor => {
-          const scope = { worldAddress: { ...this.address }, characterId: actor, asOfWorldSeq: head.headSeq }
-          const cached = this.#load(actor)
-          // Installed archives still require source-prefix validation. Names without an archive
-          // only need their role/world/prefix checks, not a rebuild of every authorized source.
-          if (cached) this.#validate(cached, this.#snapshot(actor))
-          return [actor, structuredClone(this.#restoreAliases(actor, scope, cached))]
-        }),
-      )
-    } finally {
-      store.close()
-    }
+    const head = this.world.head()
+    return Object.fromEntries(
+      actors.map(actor => {
+        const scope = { worldAddress: { ...this.address }, characterId: actor, asOfWorldSeq: head.headSeq }
+        const cached = this.#load(actor)
+        // Installed archives still require source-prefix validation. Names without an archive
+        // only need their role/world/prefix checks, not a rebuild of every authorized source.
+        if (cached) this.#validate(cached, this.#snapshot(actor))
+        return [actor, structuredClone(this.#restoreAliases(actor, scope, cached))]
+      }),
+    )
   }
   /** Copy only installed, authorized archives. Node creation never builds new memories. */
   snapshotArchives(actors: readonly string[]): WorldJsonObject {
@@ -774,5 +744,24 @@ export class CoreMemoryAdapter {
         ...this.#counts,
       })
     }
+  }
+}
+
+/** Install a shared node's archives into a directory the game has not opened; no model is called. */
+export async function importCoreArchives(
+  world: WorldReader,
+  directory: string,
+  address: WorldAddress,
+  archives: WorldJsonObject | undefined,
+  actors: readonly string[],
+): Promise<void> {
+  const memory = new CoreMemoryAdapter(world, directory, address, async () => {
+    throw new Error('import must not call a model')
+  })
+  try {
+    if (archives) memory.restoreArchives(archives, actors)
+    memory.snapshotAliases(actors)
+  } finally {
+    await memory.close()
   }
 }

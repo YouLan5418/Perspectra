@@ -1,4 +1,4 @@
-> 历史研究记录。默认 Core 记忆实现已迁至 `desktop/host/memory/`；当前安装、源码与发行路径见[Core 记忆说明](../../desktop/host/memory/README.md)。下文保留当时的实验状态与命令，不能作为现行入口说明。
+> 历史研究记录。默认 Core 记忆实现已迁至 `desktop/host/memory/`；当前安装、源码与发行路径见[Core 记忆说明](../../packages/official-memory-core/README.md)。下文保留当时的实验状态与命令，不能作为现行入口说明。
 
 # 记忆与认知实验
 
@@ -12,7 +12,7 @@
 
 ## 1. 当前入口
 
-当前 Python/E5 安装、环境变量、源码与发行目录以及离线回归命令统一见 [Core 记忆说明](../../desktop/host/memory/README.md)。从仓库根目录使用 `corepack pnpm@11.7.0 experience:web` 启动；历史实验输出仍使用新目录，私有 trace 只在本机审阅。
+当前 Python/E5 安装、环境变量、源码与发行目录以及离线回归命令统一见 [Core 记忆说明](../../packages/official-memory-core/README.md)。从仓库根目录使用 `corepack pnpm@11.7.0 experience:web` 启动；历史实验输出仍使用新目录，私有 trace 只在本机审阅。
 
 以下第 2—5 节描述当时实验状态与证据，保留其原始语境，不作为当前能力或发行验收承诺。
 
@@ -49,15 +49,15 @@ Core取消16/8截断；实验默认约170k估算上下文软触发，按完整�
 
 | 位置 | 职责 |
 | --- | --- |
-| `desktop/host/memory/core-memory.ts` | 网页角色授权、缓存、交付与引用检查 |
+| `packages/official-memory-core/src/core-memory.ts` | 网页角色授权、缓存、交付与引用检查 |
 | `desktop/host/world-runtime.ts` | 正常角色激活与Core开关接线 |
-| `desktop/host/memory/python/core` | 当前分层核心、本地编码器资产描述 |
-| `desktop/host/memory/python/bridge` | 当前Python桥、候选准入及极简交付 |
+| `packages/official-memory-core/python/core` | 当前分层核心、本地编码器资产描述 |
+| `packages/official-memory-core/python/bridge` | 当前Python桥、候选准入及极简交付 |
 | `scripts/memory-*.ts` | 独立对照的准备、执行和闭环驱动 |
 | `audit_*.py`、`test_*.py`、`reports/report-*.md` | 离线审计、回归及实验报告 |
 | `.tmp/<实验目录>` | 新世界、角色缓存、私有trace、实际模型返回与审计结果 |
 
-现行离线回归命令及必需的 `PYTHONPATH` 见 [Core 记忆说明](../../desktop/host/memory/README.md)。下列历史审计只复核已有记录，不调用模型：
+现行离线回归命令及必需的 `PYTHONPATH` 见 [Core 记忆说明](../../packages/official-memory-core/README.md)。下列历史审计只复核已有记录，不调用模型：
 
 ```powershell
 & .tmp/hindsight-vector-venv/Scripts/python.exe experiments/activity-memory/audit_normal_playtest.py .tmp/simple-memory-playtest-20261005-v3

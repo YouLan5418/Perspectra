@@ -19,7 +19,7 @@ process.env.HCW_HINDSIGHT_PYTHON ??= resolve(
   process.platform === 'win32' ? 'Scripts/python.exe' : 'bin/python',
 )
 process.env.HCW_HINDSIGHT_ONNX_DIR ??= resolve('.tmp/hindsight-e5-small')
-process.env.HCW_HINDSIGHT_CORE_DIR = resolve('desktop/host/memory/python/core')
+process.env.HCW_HINDSIGHT_CORE_DIR = resolve('packages/official-memory-core/python/core')
 process.env.HF_HUB_OFFLINE = '1'
 process.env.TRANSFORMERS_OFFLINE = '1'
 process.env.PYTHONDONTWRITEBYTECODE = '1'
@@ -38,14 +38,14 @@ const request = {
     observations: [],
   },
 }
-const source = await import(pathToFileURL(resolve('desktop/host/memory/python-worker.ts')).href)
+const source = await import(pathToFileURL(resolve('packages/official-memory-core/src/python-worker.ts')).href)
 delete process.env.PERSPECTRA_RUNTIME_ROOT
 assert.equal(
   (await source.coreRunner()(request, AbortSignal.timeout(30000))).archive.scope.characterId,
   'character:test',
 )
 await build({
-  entryPoints: ['desktop/host/memory/python-worker.ts'],
+  entryPoints: ['packages/official-memory-core/src/python-worker.ts'],
   outfile: join(runtime, 'worker-smoke.mjs'),
   bundle: true,
   platform: 'node',
@@ -84,7 +84,9 @@ for (const layout of ['source', 'bundled', 'portable']) {
     ...process.env,
     PERSPECTRA_RUNTIME_ROOT: runtimeRoot,
     HCW_HINDSIGHT_CORE_DIR:
-      layout === 'source' ? resolve('desktop/host/memory/python/core') : join(runtimeRoot, 'memory-core/python/core'),
+      layout === 'source'
+        ? resolve('packages/official-memory-core/python/core')
+        : join(runtimeRoot, 'memory-core/python/core'),
   }
   const entry = layout === 'portable' ? join(runtime, 'playtest.mjs') : resolve('dist/backend/playtest.mjs')
   const child = spawn(

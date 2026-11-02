@@ -19,7 +19,7 @@ import { projectPlayerView, FrontendActions } from '../../desktop/host/frontend-
 import { PackActivity, readActivityWorld } from '../../desktop/host/pack-activity.ts'
 import { PackActivities } from '../../desktop/host/pack-activities.ts'
 import { restoreStoryNode } from '../../desktop/story-nodes.ts'
-import type { CoreRunner } from '../../desktop/host/memory/python-worker.ts'
+import type { CoreRunner } from '../../packages/official-memory-core/src/python-worker.ts'
 import { createChatServer, fakeModels } from '../support/fake-provider.ts'
 
 const roots: string[] = [],

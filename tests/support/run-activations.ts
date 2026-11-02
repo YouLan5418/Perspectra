@@ -27,7 +27,7 @@ export function runActivations(input: {
       limits: limits ?? { maximumWaves: 3, maximumNpcCalls: 8, maximumCallsPerCharacter: 2 },
       allowConcurrent: locationId !== undefined,
       ...(locationId === undefined ? {} : { locationId }),
-      world: { readEvents: () => [], characterObservations: () => [] },
+      world: {} as never,
     }),
     {
       ...(maximumConcurrent === undefined ? {} : { maximumConcurrent }),

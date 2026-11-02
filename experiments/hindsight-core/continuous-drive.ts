@@ -15,7 +15,7 @@ import { characterVisibleItems } from '../../packages/application/src/character-
 import { WorldHostRuntime } from '../../desktop/host/world-runtime.ts'
 import { gatewayTurnCall } from '../../desktop/host/gateway-turn-call.ts'
 import { ensureRoomScenes } from './continuous-scene.ts'
-import { identityEntry, restoreAliasHistory } from '../../desktop/host/memory/alias-history.ts'
+import { identityEntry, restoreAliasHistory } from '../../packages/official-memory-core/src/alias-history.ts'
 import { repeatedPlayerStimulus } from './play-warning.ts'
 import type { CharacterTurnRequest } from '../../packages/application/src/character-turn.ts'
 

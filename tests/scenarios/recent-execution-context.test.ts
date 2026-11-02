@@ -8,7 +8,7 @@ import { currentEntityState } from '@harness-world/kernel'
 import { WorldHostRuntime } from '../../desktop/host/world-runtime.ts'
 import { restoreStoryNode } from '../../desktop/story-nodes.ts'
 import { playSettings } from '../../desktop/play-settings.ts'
-import type { CoreRunner } from '../../desktop/host/memory/python-worker.ts'
+import type { CoreRunner } from '../../packages/official-memory-core/src/python-worker.ts'
 import { createChatServer, fakeModels } from '../support/fake-provider.ts'
 
 it('keeps disabled requests unchanged and isolates private evidence across a real saved-node fork', async () => {

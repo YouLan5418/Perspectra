@@ -1,0 +1,11 @@
+{
+  "name": "@harness-world/official-memory-core",
+  "version": "0.3.5",
+  "private": true,
+  "type": "module",
+  "exports": "./src/index.ts",
+  "dependencies": {
+    "@harness-world/contracts": "workspace:*",
+    "@harness-world/plugin-sdk": "workspace:*"
+  }
+}

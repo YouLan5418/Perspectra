@@ -1,7 +1,7 @@
 import { rolePreset, rolePresetMapping } from '@harness-world/provider-chat'
 import { listenOnSafePort } from '../safe-port.ts'
 import { loadHostPlugins, type HostPlugins } from '../host-plugins.ts'
-import { coreMemoryProvider } from './memory/core-provider.ts'
+import { assembleCoreMemory } from '../official-bundle.ts'
 import { hostPluginSettings, pluginSecretValues } from '../host-plugin-settings.ts'
 import { readingPreferences, audioPreferences } from '../play-settings.ts'
 import { environmentRoleModels, runtimeRoleModels } from '../model-connections.ts'
@@ -97,7 +97,7 @@ async function main(): Promise<void> {
     launch.memoryCore
       ? {
           memory: () =>
-            coreMemoryProvider({
+            assembleCoreMemory({
               models,
               ...(launch.playSettings === undefined ? {} : { playSettings: launch.playSettings }),
             }),

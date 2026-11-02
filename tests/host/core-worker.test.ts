@@ -2,7 +2,7 @@ import { mkdtempSync, writeFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve, basename, sep } from 'node:path'
 import { afterEach, expect, it } from 'vitest'
-import { createCoreWorker } from '../../desktop/host/memory/python-worker.ts'
+import { createCoreWorker } from '../../packages/official-memory-core/src/python-worker.ts'
 
 const roots: string[] = []
 const workers: ReturnType<typeof createCoreWorker>[] = []

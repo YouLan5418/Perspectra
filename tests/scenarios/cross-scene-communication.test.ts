@@ -1,3 +1,4 @@
+import { coreAdapter } from '../support/core-adapter.ts'
 import { AuthorizedSourceStore } from '@harness-world/memory'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -7,7 +8,7 @@ import { afterEach, expect, it, vi } from 'vitest'
 import { brandId, resolutionAuthority, type WorldJsonObject } from '@harness-world/contracts'
 import { currentLocation } from '@harness-world/kernel'
 import { crossSceneRuntime } from '../support/cross-scene-runtime.ts'
-import { CoreMemoryAdapter } from '../../desktop/host/memory/core-memory.ts'
+import { CoreMemoryAdapter } from '../../packages/official-memory-core/src/core-memory.ts'
 import { gatewayTurnCall } from '../../desktop/host/gateway-turn-call.ts'
 
 const directories: string[] = [],
@@ -206,7 +207,7 @@ it('Core query sources preserve the medium and exclude unaddressed scene bystand
         }
       : { delivery: [], deliveryTrace: { delivered: [], activityCoverage: [] } }
   }
-  const core = new CoreMemoryAdapter(directory, r.address, run, undefined, { run })
+  const core = coreAdapter(directory, r.address, run, undefined, { run })
   try {
     for (const id of [companion, friend])
       r.memory.catchUp(r.address, brandId(id, 'CharacterId'), r.store.head(r.address).headSeq, 'sms-core')

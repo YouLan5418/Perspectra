@@ -54,7 +54,7 @@ Activity 处理之后可能再运行普通反应周期，因此普通反应周�
 
 ## 4. Core 记忆的其他可配置候选
 
-`desktop/host/memory/core-memory.ts` 已有创建选项，但 Launcher/网页 CLI 没有暴露：
+`packages/official-memory-core/src/core-memory.ts` 已有创建选项，但 Launcher/网页 CLI 没有暴露：
 
 - 上下文整理触发阈值：估算 170000 Token。
 - 一次整理的前缀目标：估算 120000 Token。

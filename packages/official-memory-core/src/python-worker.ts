@@ -3,7 +3,14 @@ import { existsSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import type { WorldJsonObject } from '@harness-world/contracts'
 import { corePythonRoot } from './python-paths.ts'
-import type { RuntimeModel } from '../../model-connections.ts'
+
+/** The memory model one worker talks to, as the entry assembled it. */
+interface RuntimeModel {
+  readonly protocol: string
+  readonly endpoint: string
+  readonly model: string
+  readonly apiKey?: string
+}
 
 export type CoreRunner = (input: WorldJsonObject, signal: AbortSignal) => Promise<WorldJsonObject>
 
@@ -26,7 +33,7 @@ export function assertCoreEnvironment(): void {
   const python = corePythonExecutable()
   if (!existsSync(python))
     throw new Error(
-      `Core 记忆所需的 Python 环境不存在：${python}。请按 desktop/host/memory/README.md 准备，或设置 HCW_HINDSIGHT_PYTHON；仅离线调试可改用原生记忆（--memory-native）。`,
+      `Core 记忆所需的 Python 环境不存在：${python}。请按 packages/official-memory-core/README.md 准备，或设置 HCW_HINDSIGHT_PYTHON；仅离线调试可改用原生记忆（--memory-native）。`,
     )
   const encoder = join(
     process.env.HCW_HINDSIGHT_ONNX_DIR ?? resolve('.tmp/hindsight-e5-small'),
@@ -34,7 +41,7 @@ export function assertCoreEnvironment(): void {
   )
   if (!existsSync(encoder))
     throw new Error(
-      `Core 记忆所需的 E5 编码器不存在：${encoder}。请运行 desktop/host/memory/python/core/setup-vector.py，或设置 HCW_HINDSIGHT_ONNX_DIR。`,
+      `Core 记忆所需的 E5 编码器不存在：${encoder}。请运行 packages/official-memory-core/python/core/setup-vector.py，或设置 HCW_HINDSIGHT_ONNX_DIR。`,
     )
 }
 

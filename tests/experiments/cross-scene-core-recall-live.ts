@@ -4,7 +4,7 @@ import { join, resolve } from 'node:path'
 import { createChatProvider, characterTurnCall, type ChatCall } from '@harness-world/provider-chat'
 import type { WorldJsonObject } from '@harness-world/contracts'
 import { crossSceneRuntime } from '../support/cross-scene-runtime.ts'
-import { coreRunner, createCoreWorker } from '../../desktop/host/memory/python-worker.ts'
+import { coreRunner, createCoreWorker } from '../../packages/official-memory-core/src/python-worker.ts'
 import { gatewayTurnCall } from '../../desktop/host/gateway-turn-call.ts'
 import { decideWithFormatRetry } from '../../desktop/host/decision-format.ts'
 

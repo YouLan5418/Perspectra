@@ -50,7 +50,7 @@ function check(file) {
   }
   if (
     path.startsWith('packages/official-') &&
-    /^import\s+(?!type\b)[^'"]*from\s+['"](?:@harness-world\/(?:application|store-sqlite|kernel)|[^'"]*\/desktop\/)/m.test(
+    /^import\s+(?!type\b)[^'"]*from\s+['"](?:@harness-world\/(?:application|store-sqlite|kernel|memory)|[^'"]*\/desktop\/)/m.test(
       source,
     )
   ) {

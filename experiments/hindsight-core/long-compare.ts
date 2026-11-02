@@ -45,7 +45,7 @@ writeFileSync(resolve(root, exploratory ? 'protocol-exploratory.json' : 'protoco
   exploratory, assessment: ['old reminder remembered', 'latest reminder remembered', 'old/current distinction',
     'private-source isolation', 'source traceability'] }, null, 2))
 function core(input: WorldJsonObject): Recall {
-  const run = spawnSync(process.env.HCW_HINDSIGHT_PYTHON || 'python', [resolve('desktop/host/memory/python/core/core.py')], {
+  const run = spawnSync(process.env.HCW_HINDSIGHT_PYTHON || 'python', [resolve('packages/official-memory-core/python/core/core.py')], {
     input: JSON.stringify(input), encoding:'utf8', maxBuffer:32*1024*1024, timeout:180_000,
     env:{...process.env, PYTHONIOENCODING:'utf-8'},
   })

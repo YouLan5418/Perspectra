@@ -4,7 +4,7 @@ import promises from 'node:fs/promises'
 import { syncBuiltinESMExports } from 'node:module'
 import { basename } from 'node:path'
 import { WorldHostRuntime } from '../../desktop/host/world-runtime.ts'
-import type { CoreRunner } from '../../desktop/host/memory/python-worker.ts'
+import type { CoreRunner } from '../../packages/official-memory-core/src/python-worker.ts'
 import { LauncherCore } from '../../desktop/launcher-core.ts'
 import { fakeModels } from './fake-provider.ts'
 

@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto'
 import { readFileSync, readdirSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { corePythonRoot } from './host/memory/python-paths.ts'
+import { corePythonRoot } from './official-bundle.ts'
 
 /** Executable identity only; no Git dependency, credentials or generic replay protocol. */
 export function tailRuntimeIdentity(): string {
@@ -30,7 +30,7 @@ export function tailRuntimeIdentity(): string {
       'desktop/host/world-runtime.ts',
       'desktop/host/decision-format.ts',
       'desktop/host/frontend-adapter.ts',
-      'desktop/host/memory/core-memory.ts',
+      'packages/official-memory-core/src/core-memory.ts',
       'desktop/host/runtime-tuning.ts',
       'desktop/host/pack-activity.ts',
       'desktop/host/pack-activities.ts',
@@ -41,9 +41,9 @@ export function tailRuntimeIdentity(): string {
       'desktop/host/pack-json-asset.ts',
       'desktop/host/gateway-turn-call.ts',
       'desktop/host/role-providers.ts',
-      'desktop/host/memory/python-worker.ts',
-      'desktop/host/memory/python-paths.ts',
-      'desktop/host/memory/alias-history.ts',
+      'packages/official-memory-core/src/python-worker.ts',
+      'packages/official-memory-core/src/python-paths.ts',
+      'packages/official-memory-core/src/alias-history.ts',
       'package.json',
       'pnpm-lock.yaml',
     ]) {

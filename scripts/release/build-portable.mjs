@@ -83,7 +83,7 @@ for (const [entry, file] of [
   for (const path of Object.keys(result.metafile.inputs)) inputs.add(resolve(path))
 }
 await copyMemoryRuntime(runtime)
-const assets = JSON.parse(await readFile('desktop/host/memory/python/core/e5-assets.json', 'utf8'))
+const assets = JSON.parse(await readFile('packages/official-memory-core/python/core/e5-assets.json', 'utf8'))
 for (const [file, expected] of Object.entries(assets.files)) {
   const source = resolve('.tmp/hindsight-e5-small', file),
     bytes = await readFile(source)
@@ -98,7 +98,10 @@ await cp(
 )
 await cp(resolve('.tmp/portable-release-assets/E5-MODEL-CARD.md'), join(output, 'licenses/E5-MODEL-CARD.md'))
 await cp(resolve('.tmp/portable-release-assets/E5-BASE-MODEL-CARD.md'), join(output, 'licenses/E5-BASE-MODEL-CARD.md'))
-await cp(resolve('desktop/host/memory/python/core/vendor/LICENSE'), join(output, 'licenses/HINDSIGHT-LICENSE.txt'))
+await cp(
+  resolve('packages/official-memory-core/python/core/vendor/LICENSE'),
+  join(output, 'licenses/HINDSIGHT-LICENSE.txt'),
+)
 const packages = new Map()
 for (const file of inputs) {
   if (!file.includes('node_modules')) continue

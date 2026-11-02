@@ -1,17 +1,29 @@
 import type { CharacterId, WorldJsonObject } from '@harness-world/contracts'
 import type { CharacterTurnRequest } from '@harness-world/application'
 import type { MemoryInstance, SeamProvider } from '@harness-world/plugin-sdk'
-import type { RuntimeRoleModels } from '../../model-connections.ts'
-import { playSettings, type PlaySettings } from '../../play-settings.ts'
 import { CoreMemoryAdapter, type MemoryBuildOptions, type MemoryContextBudget } from './core-memory.ts'
 import { assertCoreEnvironment, coreRunnerGroups, type CoreRunner, type MemoryRunners } from './python-worker.ts'
 
 export const CORE_MEMORY_ID = 'official-memory-core'
 
+/** The play settings Core reads. */
+export interface CoreMemorySettings {
+  readonly memoryTriggerTokens: number
+  readonly memoryCompactTokens: number
+  readonly memoryRecentTokens: number
+  readonly memoryMaxItems: number
+  readonly memoryMaxJsonChars: number
+}
+
+type MemoryModel = Parameters<ReturnType<typeof coreRunnerGroups>['runnersFor']>[0]
+
 /** Assembled by the entry that holds the model connections, so no plugin ever sees them. */
 export interface CoreProviderOptions {
-  readonly models: RuntimeRoleModels
-  readonly playSettings?: Partial<PlaySettings>
+  readonly models: {
+    readonly default: { readonly memory: MemoryModel }
+    readonly characters: Readonly<Record<string, { readonly memory: MemoryModel }>>
+  }
+  readonly settings: CoreMemorySettings
   readonly run?: CoreRunner
   readonly buildRun?: CoreRunner
   /** Starts the Core runners for one memory model; defaults to a lazy Python worker plus one-shot builds. */
@@ -31,7 +43,7 @@ export function coreMemoryProvider(options: CoreProviderOptions): SeamProvider<M
     version: '1.0.0',
     identity: { memoryContextBudget: (options.contextBudget ?? null) as WorldJsonObject | null },
     open: async world => {
-      const settings = playSettings(options.playSettings ?? {})
+      const { settings } = options
       const groups = coreRunnerGroups(world.instanceDirectory, options.runners)
       const shared =
         options.run === undefined || options.buildRun === undefined
@@ -43,6 +55,7 @@ export function coreMemoryProvider(options: CoreProviderOptions): SeamProvider<M
           : new Map<string, MemoryRunners>()
       let closing = false
       const adapter = new CoreMemoryAdapter(
+        world.world,
         world.instanceDirectory,
         world.address,
         options.run ?? shared!.recall,

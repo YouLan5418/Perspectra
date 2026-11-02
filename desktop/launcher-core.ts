@@ -49,7 +49,7 @@ import { interactionPackageDescription } from '@harness-world/contracts'
 import { createInstalledInteractionPackages } from '@harness-world/interactions-basic'
 import { preflightSave } from './save-preflight.ts'
 import { loadPackWeb } from './host/pack-frontend.ts'
-import { corePythonExecutable } from './host/memory/python-worker.ts'
+import { corePythonExecutable } from './official-bundle.ts'
 import { startLensServer, type LensServer } from './lens/server.ts'
 
 interface Pack {

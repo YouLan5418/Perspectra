@@ -1,3 +1,4 @@
+import { coreAdapter } from '../support/core-adapter.ts'
 import { createRuntimeWithCore } from '../support/core-memory-options.ts'
 import { type Server } from 'node:http'
 import { once } from 'node:events'
@@ -15,10 +16,10 @@ import {
   MEMORY_DELIVERY_BUDGET,
   estimateContextTokens,
   type MemoryContextBudget,
-} from '../../desktop/host/memory/core-memory.ts'
+} from '../../packages/official-memory-core/src/core-memory.ts'
 import { createHostServer } from '../../desktop/host/http-server.ts'
 import { parseHostLaunchArguments } from '../../desktop/host/launch-arguments.ts'
-import type { CoreRunner } from '../../desktop/host/memory/python-worker.ts'
+import type { CoreRunner } from '../../packages/official-memory-core/src/python-worker.ts'
 import { createChatServer, fakeModels } from '../support/fake-provider.ts'
 
 const roots: string[] = [],
@@ -117,7 +118,7 @@ describe('optional web Core memory', () => {
   it('projects a fresh authorized snapshot with one view build and propagates catch-up failure', async () => {
     const f = await fixture(async () => empty),
       before = f.head()
-    const adapter = new CoreMemoryAdapter(f.data, f.runtime.address, async () => {
+    const adapter = coreAdapter(f.data, f.runtime.address, async () => {
       throw new Error('no installed archive')
     })
     try {
@@ -167,7 +168,7 @@ describe('optional web Core memory', () => {
     const actor = 'character:claude',
       before = f.head(),
       beforeCalls = calls
-    const adapter = new CoreMemoryAdapter(f.data, f.runtime.address, async () => {
+    const adapter = coreAdapter(f.data, f.runtime.address, async () => {
       throw new Error('inspection must not call Core')
     })
     const catchUp = vi.spyOn(AuthorizedSourceStore.prototype, 'catchUp')
@@ -191,7 +192,7 @@ describe('optional web Core memory', () => {
   })
   it('snapshots authorized names without rebuilding unarchived sources and protects its aliases from callers', async () => {
     const f = await fixture(async () => empty)
-    const adapter = new CoreMemoryAdapter(f.data, f.runtime.address, async () => empty)
+    const adapter = coreAdapter(f.data, f.runtime.address, async () => empty)
     const seq = f.head(),
       actor = 'character:claude'
     const entry = {
@@ -222,7 +223,7 @@ describe('optional web Core memory', () => {
       people: [],
     }
     writeFileSync(join(f.data, 'memory-aliases.json'), JSON.stringify({ [actor]: [entry] }))
-    const adapter = new CoreMemoryAdapter(f.data, f.runtime.address, async () => empty)
+    const adapter = coreAdapter(f.data, f.runtime.address, async () => empty)
     expect(() => adapter.snapshotAliases([actor])).toThrow('authorized world or prefix')
     await adapter.close()
   })
@@ -272,7 +273,7 @@ describe('optional web Core memory', () => {
     for (const input of inputs)
       for (const source of input.sources as WorldJsonObject[])
         expect(source.characterId).toBe((input.scope as WorldJsonObject).characterId)
-    const adapter = new CoreMemoryAdapter(f.data, f.runtime.address, run)
+    const adapter = coreAdapter(f.data, f.runtime.address, run)
     await adapter.project(
       {
         context: {
@@ -301,7 +302,7 @@ describe('optional web Core memory', () => {
     expect(f.requests.every(r => Array.isArray((r.context as WorldJsonObject).memories))).toBe(true)
     expect(f.requests.every(r => !('canRecall' in r) && !('recallEvidence' in r))).toBe(true)
     // A restart reuses the same archives and restores only previously authorized identity entries.
-    const restarted = new CoreMemoryAdapter(f.data, f.runtime.address, run)
+    const restarted = coreAdapter(f.data, f.runtime.address, run)
     await restarted.refresh(['character:claude'], AbortSignal.timeout(2000), () => {})
     const refresh = inputs.at(-1)!
     expect(refresh.retainedPrefix).toBeDefined()
@@ -322,7 +323,7 @@ describe('optional web Core memory', () => {
     cached.index.scope.characterId = 'character:gpt'
     writeFileSync(path, JSON.stringify(cached))
     const before = calls
-    const adapter = new CoreMemoryAdapter(f.data, f.runtime.address, run)
+    const adapter = coreAdapter(f.data, f.runtime.address, run)
     await expect(
       adapter.project(
         { context: { character: { characterId: 'character:claude' }, scene: { people: [] } }, continuation: false },
@@ -346,7 +347,7 @@ describe('optional web Core memory', () => {
     const f = await fixture(run)
     await f.runtime.refreshMemory()
     await f.runtime.waitForMemory()
-    const adapter = new CoreMemoryAdapter(f.data, f.runtime.address, run)
+    const adapter = coreAdapter(f.data, f.runtime.address, run)
     await expect(
       adapter.project(
         { context: { character: { characterId: 'character:claude' }, scene: { people: [] } }, continuation: false },
@@ -378,7 +379,7 @@ describe('optional web Core memory', () => {
     const f = await fixture(run)
     await f.runtime.refreshMemory()
     await f.runtime.waitForMemory()
-    const adapter = new CoreMemoryAdapter(f.data, f.runtime.address, run)
+    const adapter = coreAdapter(f.data, f.runtime.address, run)
     const request = {
       context: { character: { characterId: 'character:claude' }, scene: { people: [] } },
       continuation: false,
@@ -401,7 +402,7 @@ describe('optional web Core memory', () => {
     const f = await fixture(run)
     await f.runtime.refreshMemory()
     await f.runtime.waitForMemory()
-    const adapter = new CoreMemoryAdapter(f.data, f.runtime.address, run)
+    const adapter = coreAdapter(f.data, f.runtime.address, run)
     const request = {
       context: { character: { characterId: 'character:claude' }, scene: { people: [] } },
       continuation: false,
@@ -449,7 +450,7 @@ describe('optional web Core memory', () => {
     await f.runtime.close()
     expect((await f.runtime.state()).memoryMaintenance!.cancelled).toBe(4)
     expect(f.head()).toBe(before)
-    const adapter = new CoreMemoryAdapter(f.data, f.runtime.address, run)
+    const adapter = coreAdapter(f.data, f.runtime.address, run)
     expect(adapter.archivePrefix('character:claude')).toBe(0)
   })
   it('keeps declared activity interaction usable while background builds are pending', async () => {
@@ -487,7 +488,7 @@ describe('optional web Core memory', () => {
     expect(state.memoryMaintenance!.completed).toBe(3)
     expect(state.memoryMaintenance!.failed).toBe(1)
     expect(readFileSync(path, 'utf8')).toBe('{broken')
-    const adapter = new CoreMemoryAdapter(f.data, f.runtime.address, async () => empty)
+    const adapter = coreAdapter(f.data, f.runtime.address, async () => empty)
     await expect(
       adapter.project(
         { context: { character: { characterId: 'character:claude' } }, continuation: false },
@@ -559,7 +560,7 @@ describe('optional web Core memory', () => {
     await f.runtime.submit('第一条。')
     await f.runtime.submit('第二条。')
     const request = hostRequest(f.data, 'character:claude')
-    const adapter = new CoreMemoryAdapter(f.data, f.runtime.address, run, {
+    const adapter = coreAdapter(f.data, f.runtime.address, run, {
       triggerTokens: 200_000,
       compactTokens: 150_000,
       minimumRecentTokens: 0,
@@ -615,7 +616,7 @@ describe('optional web Core memory', () => {
     await f.runtime.submit('第一条。')
     await f.runtime.submit('第二条。')
     const request = hostRequest(f.data)
-    const adapter = new CoreMemoryAdapter(f.data, f.runtime.address, run, { triggerTokens: 1000, compactTokens: 100 })
+    const adapter = coreAdapter(f.data, f.runtime.address, run, { triggerTokens: 1000, compactTokens: 100 })
     adapter.observeContext({ context: request.context as WorldJsonObject, continuation: false }, '旧'.repeat(1000))
     expect(adapter.hasPendingCompaction).toBe(true)
     await expect(adapter.compactPending(AbortSignal.timeout(2000), () => {})).rejects.toThrow('fixture failure')
@@ -669,7 +670,7 @@ describe('optional web Core memory', () => {
     await f.runtime.cancelMemory()
     release()
     await f.runtime.waitForMemory()
-    const adapter = new CoreMemoryAdapter(f.data, f.runtime.address, run)
+    const adapter = coreAdapter(f.data, f.runtime.address, run)
     expect(adapter.archivePrefix(String((buildInput!.scope as WorldJsonObject).characterId))).toBe(0)
   })
   it('freezes queued roles immediately, installs independent successes and keeps post-freeze events raw', async () => {
@@ -713,7 +714,7 @@ describe('optional web Core memory', () => {
         ),
       ).toBe(true)
     }
-    const adapter = new CoreMemoryAdapter(f.data, f.runtime.address, run)
+    const adapter = coreAdapter(f.data, f.runtime.address, run)
     expect(adapter.archivePrefix('character:claude')).toBe(frozen)
     expect(adapter.archivePrefix('character:glm')).toBe(0)
     expect((await f.runtime.state()).memoryMaintenance!.failed).toBe(1)
@@ -727,7 +728,7 @@ describe('optional web Core memory', () => {
   it('discards an older late result rather than replacing a newer archive', async () => {
     const gates = new Map<number, () => void>()
     const f = await fixture(async input => (input.operation === 'recall' ? empty : built(input)))
-    const adapter = new CoreMemoryAdapter(f.data, f.runtime.address, async input => {
+    const adapter = coreAdapter(f.data, f.runtime.address, async input => {
       const prefix = Number((input.scope as WorldJsonObject).asOfWorldSeq)
       await new Promise<void>(done => {
         gates.set(prefix, done)
@@ -755,7 +756,7 @@ describe('optional web Core memory', () => {
     await f.runtime.submit('旧档案之后的内容。')
     const context = f.requests.at(-1)!.context as WorldJsonObject
     const request = { context, continuation: false }
-    const adapter = new CoreMemoryAdapter(
+    const adapter = coreAdapter(
       f.data,
       f.runtime.address,
       async input => (input.operation === 'recall' ? empty : built(input)),
@@ -799,7 +800,7 @@ it("uses each character's own memory runner for recall and build", async () => {
     }
   const f = await fixture(runner(b))
   const own = runner(a)
-  const adapter = new CoreMemoryAdapter(f.data, f.runtime.address, runner(b), undefined, {
+  const adapter = coreAdapter(f.data, f.runtime.address, runner(b), undefined, {
     run: runner(b),
     runFor: actor => (actor === 'character:claude' ? { recall: own, build: own } : undefined),
   })

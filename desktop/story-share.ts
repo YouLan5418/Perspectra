@@ -18,7 +18,8 @@ import { SessionDeliveryAdapter, WorldOutbox, WorldStore } from '@harness-world/
 import { compileWorldPackSource, type CompiledWorldPackV5 } from '@harness-world/world-pack'
 import { createInstalledInteractionPackages } from '@harness-world/interactions-basic'
 import { interactionPackageDescription } from '@harness-world/contracts'
-import { CoreMemoryAdapter } from './host/memory/core-memory.ts'
+import { importCoreArchives } from './official-bundle.ts'
+import { createWorldReader } from './host/world-reader.ts'
 import { PackStatus } from './host/pack-status.ts'
 import { preflightSave } from './save-preflight.ts'
 import { readStoryNodes, restoreStoryNode, storyId, type StoryNode } from './story-nodes.ts'
@@ -186,18 +187,15 @@ async function validate(directory: string, node: StoryNode, packPath: string): P
     .map(character => character.characterId)
   if (Object.keys(aliases).some(actor => !actors.includes(actor as (typeof actors)[number])))
     throw new Error('身份历史包含游戏包之外的角色。')
-  const memory = new CoreMemoryAdapter(directory, address, async () => {
-    throw new Error('import must not call a model')
-  })
-  try {
-    if (node.files.includes('core-memory.json')) {
-      const archives = object(JSON.parse(readFileSync(join(directory, 'core-memory.json'), 'utf8')))
-      memory.restoreArchives(archives as WorldJsonObject, actors)
-    }
-    memory.snapshotAliases(actors)
-  } finally {
-    await memory.close()
-  }
+  await importCoreArchives(
+    createWorldReader(join(directory, 'world.sqlite'), address),
+    directory,
+    address,
+    node.files.includes('core-memory.json')
+      ? (object(JSON.parse(readFileSync(join(directory, 'core-memory.json'), 'utf8'))) as WorldJsonObject)
+      : undefined,
+    actors,
+  )
 }
 export async function exportStoryNode(
   source: string,

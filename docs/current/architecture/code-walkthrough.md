@@ -59,7 +59,7 @@ NPC 处理途中玩家也可以插话，规则见下一节末尾。
 
 [CharacterTurn](../../../packages/application/src/character-turn.ts)准备当前角色视图、场景、认知、授权观察、自身表达与可尝试操作。[CharacterViewBuilder](../../../packages/store-sqlite/src/character-view.ts)按角色和事件前缀重建信息。[上下文文本](../../../packages/provider-chat/src/character-context-text.ts)负责模型侧可读呈现，预设参与请求和输出处理。
 
-原生记忆由 [CognitiveMemoryService](../../../packages/memory/src/cognitive-context.ts)准备召回；Core 模式由 [CoreMemoryAdapter](../../../desktop/host/memory/core-memory.ts)投影请求，经 [Python 桥](../../../desktop/host/memory/python-worker.ts)调用记忆实现。Core 的 Retain／Group／Consolidate 是提炼、分组和形成认识，不是世界裁定。详见[认知与记忆](cognition-memory.md)。
+原生记忆由 [CognitiveMemoryService](../../../packages/memory/src/cognitive-context.ts)准备召回；Core 模式由 [CoreMemoryAdapter](../../../packages/official-memory-core/src/core-memory.ts)投影请求，经 [Python 桥](../../../packages/official-memory-core/src/python-worker.ts)调用记忆实现。Core 的 Retain／Group／Consolidate 是提炼、分组和形成认识，不是世界裁定。详见[认知与记忆](cognition-memory.md)。
 
 调用格式见 [character-turn-call.ts](../../../packages/provider-chat/src/character-turn-call.ts)，OpenAI 兼容与 Anthropic 协议的扁平 Schema 见 [gateway-turn-call.ts](../../../desktop/host/gateway-turn-call.ts)，实际发送经 [provider.ts](../../../packages/provider-chat/src/provider.ts) 交给 pi-ai。合法 JSON 仍需检查协议与行动资格。
 

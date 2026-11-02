@@ -1,3 +1,4 @@
+import { coreAdapter } from '../support/core-adapter.ts'
 import { createRuntimeWithCore } from '../support/core-memory-options.ts'
 import { spawn } from 'node:child_process'
 import type { Server } from 'node:http'
@@ -11,7 +12,7 @@ import { CharacterViewBuilder, WorldStore } from '@harness-world/store-sqlite'
 import { currentEntityState } from '@harness-world/kernel'
 import { brandId, type WorldJsonObject } from '@harness-world/contracts'
 import { WorldHostRuntime } from '../../desktop/host/world-runtime.ts'
-import type { CoreRunner } from '../../desktop/host/memory/python-worker.ts'
+import type { CoreRunner } from '../../packages/official-memory-core/src/python-worker.ts'
 import { knownTime, statusMarketWithoutRoundHook } from '../fixtures/status-market-no-hook.ts'
 import { readTailSelection } from '../../desktop/tail-storage.ts'
 import { readStoryNodes } from '../../desktop/story-nodes.ts'
@@ -468,7 +469,7 @@ it('does not install a completed background archive during a round and discards 
   await f.runtime.waitForMemory()
   expect(readdirSync(join(f.data, 'memory-core')).filter(n => n.endsWith('.json'))).toHaveLength(2)
 
-  const { CoreMemoryAdapter } = await import('../../desktop/host/memory/core-memory.ts')
+  const { CoreMemoryAdapter } = await import('../../packages/official-memory-core/src/core-memory.ts')
   let valid = true,
     releaseExpired!: () => void,
     expiredEntered!: () => void
@@ -483,7 +484,7 @@ it('does not install a completed background archive during a round and discards 
     join(f.data, 'memory-core', Buffer.from('character:companion').toString('base64url') + '.json'),
     'utf8',
   )
-  const adapter = new CoreMemoryAdapter(
+  const adapter = coreAdapter(
     f.data,
     f.runtime.address,
     async input => {

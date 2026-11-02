@@ -71,7 +71,7 @@ ZIP 为 521,587,384 字节，SHA-256：`bbfe12fda796d0288450b6e0285065cfeb0f84a8
 
 ### 从源码运行
 
-需要 Node.js 22.19+ 或 24+，使用仓库锁定的 pnpm。原生 Launcher 开发还需要 Rust/Cargo、Windows 构建工具和 [Python/E5 记忆环境](desktop/host/memory/README.md)。
+需要 Node.js 22.19+ 或 24+，使用仓库锁定的 pnpm。原生 Launcher 开发还需要 Rust/Cargo、Windows 构建工具和 [Python/E5 记忆环境](packages/official-memory-core/README.md)。
 
 ```powershell
 corepack pnpm@11.7.0 install --frozen-lockfile

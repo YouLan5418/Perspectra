@@ -72,7 +72,7 @@ WorldStore 的审计连接在创建、激活或分叉等实际审计操作时打
 
 ## 一次输入
 
-例如在源码仓库直接运行构建后的后端，宿主仍应找到源码 Python，而不是把 `.mjs` 扩展名当成安装包的证明。2026-10-21 核对：[游戏入口](../../../desktop/host/web-entry.ts)已使用正式宿主目录；Python worker 和末端回合身份共用[目录选择](../../../desktop/host/memory/python-paths.ts)，只在设置 `PERSPECTRA_RUNTIME_ROOT` 时读取安装目录。构建后端与便携包共用 Python 源码复制清单；具体布局与验证范围见 [Core 说明](../../../desktop/host/memory/README.md)。这次修复不改变角色协议、调度、记忆算法或世界提交。
+例如在源码仓库直接运行构建后的后端，宿主仍应找到源码 Python，而不是把 `.mjs` 扩展名当成安装包的证明。2026-10-21 核对：[游戏入口](../../../desktop/host/web-entry.ts)已使用正式宿主目录；Python worker 和末端回合身份共用[目录选择](../../../packages/official-memory-core/src/python-paths.ts)，只在设置 `PERSPECTRA_RUNTIME_ROOT` 时读取安装目录。构建后端与便携包共用 Python 源码复制清单；具体布局与验证范围见 [Core 说明](../../../packages/official-memory-core/README.md)。这次修复不改变角色协议、调度、记忆算法或世界提交。
 
 默认关闭的 recentExecutionEvidence 开关在已有记忆交付之后计算近期执行证据投影，再复用本次角色模型调用。没有新增规划阶段、调度机会、世界事件或持久化策略；关闭时不添加字段、提示或候选环境键。具体来源、预算和对照边界见[跨回合执行证据实验](../studies/goal-progress-context-20261013.md)。
 
@@ -130,7 +130,7 @@ Core 长期整理在排队前冻结授权 Source 前缀。后台运行期间前�
 
 运行中可保存连接、实例模型、预设、阅读／声音与游玩参数；当前子进程使用启动快照，下次启动才采用新设置。模型 Key 在 Rust 的启动／连接测试请求中读取，游戏入口启动时构造模型与记忆 runner，没有发现运行中的游戏重新读取连接或 Key。危险操作继续拒绝；撤销前端信任仍通过 IPC 立即生效。相关 HTTP、子进程与 Rust 校验测试通过，打包后无模型接口冒烟通过；新 Launcher UI 由另一分支交付，原生点击、真实模型体验与完整便携发行包尚未验收。
 
-核心实现入口：[网页宿主](../../../desktop/host/world-runtime.ts)、[Character Turn](../../../packages/application/src/character-turn.ts)、[网页玩家视图](../../../desktop/host/player-transcript.ts)、[Core 桥](../../../desktop/host/memory/core-memory.ts)。性能证据见[研究索引](../studies/ai-girls/README.md)。一次真实轨迹仍出现普通反应约 30 秒中断；增量显示没有消除整轮等待。
+核心实现入口：[网页宿主](../../../desktop/host/world-runtime.ts)、[Character Turn](../../../packages/application/src/character-turn.ts)、[网页玩家视图](../../../desktop/host/player-transcript.ts)、[Core 桥](../../../packages/official-memory-core/src/core-memory.ts)。性能证据见[研究索引](../studies/ai-girls/README.md)。一次真实轨迹仍出现普通反应约 30 秒中断；增量显示没有消除整轮等待。
 
 ## 玩家等待提示（2026-10-09）
 

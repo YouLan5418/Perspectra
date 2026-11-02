@@ -51,7 +51,7 @@ function setup() {
     signal: new AbortController().signal,
     limits: { maximumWaves: 3, maximumNpcCalls: 8, maximumCallsPerCharacter: 2 },
     allowConcurrent: true,
-    world: { readEvents: () => [], characterObservations: () => [] },
+    world: {} as never,
     autonomy: {
       turn: {
         run: async (_id: unknown, options: unknown) => {

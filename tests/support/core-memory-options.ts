@@ -1,4 +1,5 @@
-import { coreMemoryProvider, type CoreProviderOptions } from '../../desktop/host/memory/core-provider.ts'
+import { assembleCoreMemory } from '../../desktop/official-bundle.ts'
+import type { CoreProviderOptions } from '../../packages/official-memory-core/src/core-provider.ts'
 import { WorldHostRuntime, type WorldHostOptions } from '../../desktop/host/world-runtime.ts'
 
 export interface CoreTestOptions {
@@ -26,7 +27,7 @@ export function withCoreMemory(options: WorldHostOptions & CoreTestOptions): Wor
     ...rest,
     plugins: {
       ...rest.plugins,
-      memory: coreMemoryProvider({
+      memory: assembleCoreMemory({
         models: rest.models,
         ...(rest.playSettings === undefined ? {} : { playSettings: rest.playSettings }),
         ...(memoryCoreRun === undefined ? {} : { run: memoryCoreRun }),

@@ -1,4 +1,4 @@
-> 历史研究记录。默认 Core 记忆实现已迁至 `desktop/host/memory/`；当前安装、源码与发行路径见[Core 记忆说明](../../desktop/host/memory/README.md)。下文保留当时的实验状态与命令，不能作为现行入口说明。
+> 历史研究记录。默认 Core 记忆实现已迁至 `desktop/host/memory/`；当前安装、源码与发行路径见[Core 记忆说明](../../packages/official-memory-core/README.md)。下文保留当时的实验状态与命令，不能作为现行入口说明。
 
 # Hindsight Core 实验
 
@@ -31,7 +31,7 @@
 
 此目录的 TypeScript 驱动绑定旧实验 API，当前不再维护或提供可执行命令；旧类型配置已移除，不恢复 `experimentalCharacterRequest`、`releaseForExperimentalHost` 等退役接口。原命令与参数只在 [HISTORY](HISTORY.md) 中作为历史证据保存。
 
-当前安装、Core Python 回归与启动步骤统一见 [Core 记忆说明](../../desktop/host/memory/README.md)。`test_core.py` 等旧测试保留用于研究，不能直接作为现行默认验收。
+当前安装、Core Python 回归与启动步骤统一见 [Core 记忆说明](../../packages/official-memory-core/README.md)。`test_core.py` 等旧测试保留用于研究，不能直接作为现行默认验收。
 
 ## 报告与历史
 
