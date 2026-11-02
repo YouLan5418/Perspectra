@@ -88,7 +88,7 @@ corepack pnpm@11.7.0 experience:web `
   --data-dir .tmp/my-playtest
 ```
 
-These values are local examples; adjust them to your provider. If authentication is required, set `PERSPECTRA_MODEL_API_KEY` in the environment rather than committing credentials to the pack or repository. Open the full local URL printed by the process and do not share its session token. The source web entry uses Core memory by default, which requires Python/E5; use `--memory-native` explicitly for offline debugging.
+These values are local examples; adjust them to your provider. If authentication is required, set `PERSPECTRA_MODEL_API_KEY` in the environment rather than committing credentials to the pack or repository. Open the full local URL printed by the process and do not share its session token. The source web entry uses Core memory by default, which requires Python/E5; use `--memory-none` explicitly for offline development, in which case characters have no long-term memory.
 
 The model adapter goes through pi-ai and covers OpenAI-compatible, Anthropic Messages and Google Gemini protocols; DeepSeek and Ollama are configured as OpenAI-compatible addresses. See [model protocols](docs/current/model-protocols.md) (Chinese).
 

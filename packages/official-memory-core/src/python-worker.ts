@@ -33,7 +33,7 @@ export function assertCoreEnvironment(): void {
   const python = corePythonExecutable()
   if (!existsSync(python))
     throw new Error(
-      `Core 记忆所需的 Python 环境不存在：${python}。请按 packages/official-memory-core/README.md 准备，或设置 HCW_HINDSIGHT_PYTHON；仅离线调试可改用原生记忆（--memory-native）。`,
+      `Core 记忆所需的 Python 环境不存在：${python}。请按 packages/official-memory-core/README.md 准备，或设置 HCW_HINDSIGHT_PYTHON；仅离线开发可改用 --memory-none（角色没有长期记忆）。`,
     )
   const encoder = join(
     process.env.HCW_HINDSIGHT_ONNX_DIR ?? resolve('.tmp/hindsight-e5-small'),

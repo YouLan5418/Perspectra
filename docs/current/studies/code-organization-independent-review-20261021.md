@@ -18,7 +18,7 @@
 | WorldApplication 拆分 | [只读查询](../../../packages/application/src/world-read-queries.ts)、[管理操作](../../../packages/application/src/world-administration.ts)沿用分支访问与完整性守卫；这属于职责整理，不构成新的玩家权限接口 |
 | 旧 Reaction Cycle 删除 | [world-schema.ts](../../../packages/store-sqlite/src/world-schema.ts)的 v20 删除旧表，当前 NPC 激活走现行角色路径。曾运行旧 Cycle 的存档不再保证可用，这是分支记录中已明确接受的不兼容范围；本轮未操作历史存档 |
 | 宿主激活拆分 | [world-runtime.ts](../../../desktop/host/world-runtime.ts)仍先处理活动机会，再处理场景反应与自主机会；规则提交、权限投影和预算保持现行路径 |
-| Core 文件迁移与发行路径 | [Python 路径](../../../desktop/host/memory/python-paths.ts)区分源码与安装根，[复制脚本](../../../scripts/build/copy-memory-runtime.mjs)共用运行载荷；自动测试覆盖隔离布局，本轮进一步验证构建产物用真实 Core 重开 |
+| Core 文件迁移与发行路径 | [Python 路径](../../../packages/official-memory-core/src/python-paths.ts)区分源码与安装根，[复制脚本](../../../scripts/build/copy-memory-runtime.mjs)共用运行载荷；自动测试覆盖隔离布局，本轮进一步验证构建产物用真实 Core 重开 |
 | 格式化与 Launcher | 核对已修复的多语句 Vue 处理器、provider-chat 子路径导入；实际执行两次 Vite 构建，避免只依赖类型检查 |
 
 仍存在可选的进一步整理：玩家与 NPC 的 Authority 构造、提交编排未完全合并，WorldHostCore 和部分 schema 文件仍较大。这些不作为本轮必须扩大的实施范围。

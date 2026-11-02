@@ -4,7 +4,7 @@
 
 ## 已确认的问题
 
-Core 的 [utility_request](../../../desktop/host/memory/python/bridge/core_bridge.py) 对 OpenAI 兼容入口统一发送 `thinking: {type: disabled}`。普通角色 Provider 已有 Gemini 型号的思考强度映射，但 Python Core 未使用它。此请求对本机 Gemini 网关没有实现关闭思考。
+Core 的 [utility_request](../../../packages/official-memory-core/python/bridge/core_bridge.py) 对 OpenAI 兼容入口统一发送 `thinking: {type: disabled}`。普通角色 Provider 已有 Gemini 型号的思考强度映射，但 Python Core 未使用它。此请求对本机 Gemini 网关没有实现关闭思考。
 
 只读网关配置与实际 request_logs 表明：本机 thinking_budget.control_source 是 gateway，flash_tiered=-1。没有 reasoning_effort 的 Core 请求映射为 gemini-3.8-flash-tiered，上游 thinkingBudget=-1、includeThoughts=true，maxOutputTokens=65536。客户端发送的 max_tokens=2500 并未成为实际输出上限。不能把客户端参数已发送或已有单测通过当作服务端预算生效。
 
@@ -29,7 +29,7 @@ Core 的 [utility_request](../../../desktop/host/memory/python/bridge/core_bridg
 
 ## 并发条件与边界
 
-[Core 宿主](../../../desktop/host/memory/core-memory.ts)默认 roleConcurrency=2，[Python Retain](../../../desktop/host/memory/python/bridge/core_bridge.py)默认 retainConcurrency=2。当每角色有多个批次时，单实例可同时发出最多 4 个 Retain HTTP 请求；Group 与 Consolidate 每角色顺序执行。这些限制按实例／进程管理，没有共享的网关总限额，普通角色请求也不在这个 Core 限额中。
+[Core 宿主](../../../packages/official-memory-core/src/core-memory.ts)默认 roleConcurrency=2，[Python Retain](../../../packages/official-memory-core/python/bridge/core_bridge.py)默认 retainConcurrency=2。当每角色有多个批次时，单实例可同时发出最多 4 个 Retain HTTP 请求；Group 与 Consolidate 每角色顺序执行。这些限制按实例／进程管理，没有共享的网关总限额，普通角色请求也不在这个 Core 限额中。
 
 上一轮实验由本次调查者重叠启动了多个宿主，汇总已记录的 Core 请求实际峰值为 4。不能把这一组结果解释为“默认单实例双并发必然失败”。本轮双并发低思考小样本通过，说明降低到串行不是当前首要修正；没有证明高并发不会排队，也没有验证客户端超时后网关一定取消上游工作。
 
@@ -53,7 +53,7 @@ DeepSeek 的关闭思考请求与其他模型、原生协议的既有重试不�
 
 | 迁移前路径（上述提交） | 当前源码 |
 | --- | --- |
-| `experiments/activity-memory/core_bridge.py` | [core_bridge.py](../../../desktop/host/memory/python/bridge/core_bridge.py) |
+| `experiments/activity-memory/core_bridge.py` | [core_bridge.py](../../../packages/official-memory-core/python/bridge/core_bridge.py) |
 | `tests/experiments/core-utility-timing-probe.py` | [core-utility-timing-probe.py](../../../experiments/activity-memory/scripts/core-utility-timing-probe.py) |
 | `tests/experiments/core-utility-build-probe.py` | [core-utility-build-probe.py](../../../experiments/activity-memory/scripts/core-utility-build-probe.py) |
-| `tests/experiments/playtest-memory-core.ts` | [core-memory.ts](../../../desktop/host/memory/core-memory.ts) |
+| `tests/experiments/playtest-memory-core.ts` | [core-memory.ts](../../../packages/official-memory-core/src/core-memory.ts) |

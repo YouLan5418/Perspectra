@@ -23,7 +23,7 @@ corepack pnpm@11.7.0 experience:web --pack examples/world-packs/launcher-demo --
 
 先启动自己的模型服务。示例配置可按实际接口修改；源码网页没有内置默认地址，缺少 `PERSPECTRA_MODEL_ENDPOINT` 或 `PERSPECTRA_MODEL` 时直接报错。协议用 `PERSPECTRA_MODEL_PROTOCOL=openai|anthropic|google`（默认 openai），认证用进程环境 `PERSPECTRA_MODEL_API_KEY`，思考强度用 `PERSPECTRA_THINKING_LEVEL`，都不写入仓库。DeepSeek、Ollama 只是普通地址，见[模型接口协议](../model-protocols.md)。打开终端打印的完整回环地址，不公开其 token。
 
-源码网页默认 Core 记忆，启动前须准备 Python/E5，缺少时直接报错；离线调试可加 `--memory-native`。便携 Launcher 已打包 Core 运行依赖，仍需外部模型服务。[创作者试玩](creator-playtest.md) 说明两条路径的验收差异。
+源码网页默认 Core 记忆，启动前须准备 Python/E5，缺少时直接报错；离线开发可加 `--memory-none`，此时角色没有长期记忆。便携 Launcher 已打包 Core 运行依赖，仍需外部模型服务。[创作者试玩](creator-playtest.md) 说明两条路径的验收差异。
 
 ## 检查
 

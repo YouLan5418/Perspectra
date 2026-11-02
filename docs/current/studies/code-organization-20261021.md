@@ -9,10 +9,10 @@
 | 原问题与证据 | 本次处理 | 当前入口 |
 | --- | --- | --- |
 | 源码启动、桌面打包和便携脚本从 `tests/experiments` 加载宿主，生产相关静态导入集合为 27 个 TS 文件 | 迁移到现有 desktop 所有权下，统一修改源码、测试、构建与引用 | [宿主说明](../../../desktop/host/README.md)、[web-entry.ts](../../../desktop/host/web-entry.ts) |
-| 默认 Core 从 `experiments` 启动 Python，便携包复制其中实现 | 迁移 10 个运行模块、vendor、资产清单、准备脚本和依赖说明；Rust、worker、发行复制与校验同步 | [Core 说明](../../../desktop/host/memory/README.md)、[便携构建](../../../scripts/release/build-portable.mjs) |
+| 默认 Core 从 `experiments` 启动 Python，便携包复制其中实现 | 迁移 10 个运行模块、vendor、资产清单、准备脚本和依赖说明；Rust、worker、发行复制与校验同步 | [Core 说明](../../../packages/official-memory-core/README.md)、[便携构建](../../../scripts/release/build-portable.mjs) |
 | frontend 的公共视图文件引用宿主状态与运行接口 | 将投影和操作执行适配移入宿主；公共数据、请求校验与补丁仍由 frontend 提供 | [frontend-adapter.ts](../../../desktop/host/frontend-adapter.ts)、[公共视图](../../../packages/frontend/src/player-view.ts) |
 | `decideActivityFormat` 实际服务全部角色决策 | 从活动运行时拆出通用重试，改名为 `decideWithFormatRetry`；重试内容和预算逻辑保持一致 | [decision-format.ts](../../../desktop/host/decision-format.ts) |
-| `frozen/playtest/hindsight` 混淆正式职责 | 内部入口、宿主、网关适配、解释器和检查类型按职责更名；既有品牌 ID、外部 HTTP 路由、token header 和发行 `playtest.mjs` 文件名保留 | [world-runtime.ts](../../../desktop/host/world-runtime.ts)、[gateway-turn-call.ts](../../../desktop/host/gateway-turn-call.ts)、[python-worker.ts](../../../desktop/host/memory/python-worker.ts) |
+| `frozen/playtest/hindsight` 混淆正式职责 | 内部入口、宿主、网关适配、解释器和检查类型按职责更名；既有品牌 ID、外部 HTTP 路由、token header 和发行 `playtest.mjs` 文件名保留 | [world-runtime.ts](../../../desktop/host/world-runtime.ts)、[gateway-turn-call.ts](../../../desktop/host/gateway-turn-call.ts)、[python-worker.ts](../../../packages/official-memory-core/src/python-worker.ts) |
 | 创作者“变量”页展示状态真值，样例仍含情绪／信任值 | 改为状态导航与 `statusTruth`，样例使用客观状态，修正导出说明；活动内部变量保留 | [StatusView.vue](../../../apps/launcher/src/creator/StatusView.vue)、[接口文档](../creator-debug-api.md) |
 | 历史 JEV/Core 探针绑定固定记录，关系 spike 已退役 | 移入对应研究目录，注明外部调用／固定样本限制；冻结证据源码保持原样 | [JEV 历史脚本](../../../experiments/jev-narrative-auditor/scripts/README.md)、[Core 诊断](../../../experiments/activity-memory/scripts/README.md)、[关系原型](../../../experiments/character-relations/archive/README.md) |
 | 无引用的旧 `playtest-page.ts` 与实际宿主页并存 | 删除旧页；宿主测试移到 `tests/host`，零模型序章与专用角色卡切片准确命名 | [宿主页](../../../desktop/host/host-page.ts)、[宿主测试](../../../tests/host)、[离线序章](../../../tests/experiments/official-prologue-offline.ts) |
@@ -21,13 +21,13 @@
 
 ## 路径与运行时身份
 
-源码 Python 实现在 `desktop/host/memory/python/{core,bridge}`，发行位置为 `runtime/memory-core/python/{core,bridge}`。Python 的源码根目录回退随层级调整；发行时继续通过既有环境变量指定模型与缓存。头像和创作者资产的源码相对位置也已核对。
+源码 Python 实现在 `packages/official-memory-core/python/{core,bridge}`，发行位置为 `runtime/memory-core/python/{core,bridge}`。Python 的源码根目录回退随层级调整；发行时继续通过既有环境变量指定模型与缓存。头像和创作者资产的源码相对位置也已核对。
 
 [运行时身份](../../../desktop/tail-runtime-identity.ts)同步跟随新路径，并包含拆出的格式重试、前端适配与授权名称模块。改路径会改变身份；旧末端回合不能因此绕过环境一致性检查重新生成或切换候选。本次不新增旧候选迁移。故事节点、原始经历与记忆授权边界按现有回归分别验证，不把“身份改变”泛化为所有存档损坏。
 
 ## 验证方法与范围
 
-从仓库根目录运行；本机 Python/E5 环境准备见 [Core 说明](../../../desktop/host/memory/README.md)：
+从仓库根目录运行；本机 Python/E5 环境准备见 [Core 说明](../../../packages/official-memory-core/README.md)：
 
 ```powershell
 node scripts/check-host-boundaries.mjs
@@ -105,7 +105,7 @@ node scripts/docs/check-links.mjs
 
 **测试分层**（`6097aed`）。`tests/prototype` 按被测入口拆为 [tests/host](../../../tests/host)、[tests/desktop](../../../tests/desktop)、[tests/scenarios](../../../tests/scenarios)；根目录的 `p2/p4/p8/frozen-*` 集成测试移入 [tests/integration](../../../tests/integration) 并按行为命名。默认配置改名为 `vitest.regression.config.ts`，并纳入原先只在 `test:related` 中运行的 10 个集成测试文件（60 项，迁移前已确认全部通过）。
 
-**宿主拆分**（本提交）。模型与按角色预设的装配移到 [role-providers.ts](../../../desktop/host/role-providers.ts)，Core 记忆按模型分组的 runner 移到 [python-worker.ts](../../../desktop/host/memory/python-worker.ts)，散落在 5 处的默认模型与端点统一为 `provider-defaults.ts`（当时模块，2026-10-27 已删除；现改由[模型配置](../../../desktop/model-connections.ts)解析调用目标）。角色决策管线从构造函数中的闭包改为私有方法 `#decide`，逻辑原样搬移。`WorldHostCore` 构造函数由约 180 行降到约 75 行。
+**宿主拆分**（本提交）。模型与按角色预设的装配移到 [role-providers.ts](../../../desktop/host/role-providers.ts)，Core 记忆按模型分组的 runner 移到 [python-worker.ts](../../../packages/official-memory-core/src/python-worker.ts)，散落在 5 处的默认模型与端点统一为 `provider-defaults.ts`（当时模块，2026-10-27 已删除；现改由[模型配置](../../../desktop/model-connections.ts)解析调用目标）。角色决策管线从构造函数中的闭包改为私有方法 `#decide`，逻辑原样搬移。`WorldHostCore` 构造函数由约 180 行降到约 75 行。
 
 有意保留：
 - 调度（`#activateCharacters`、`#activateAutonomous`）和状态投影仍在 `WorldHostCore` 中。它们与大量可变运行状态交织，拆分需要配合真实试玩，本轮不动。

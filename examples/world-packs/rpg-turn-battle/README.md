@@ -11,7 +11,7 @@
 有开发环境且已配置可用模型连接时，也可从仓库根目录运行：
 
 ```powershell
-corepack pnpm@11.7.0 experience:web --memory-native --pack examples/world-packs/rpg-turn-battle --data-dir .tmp/rpg-turn-battle-manual-20261026
+corepack pnpm@11.7.0 experience:web --memory-none --pack examples/world-packs/rpg-turn-battle --data-dir .tmp/rpg-turn-battle-manual-20261026
 ```
 
 这里显式选择原生记忆，避免把 Core 环境安装混进战斗规则验证。默认模型连接仍按宿主配置读取；营地和战后的普通角色回应可能调用模型。每次重新测试单场遭遇，请使用新的数据目录，不覆盖历史试玩。

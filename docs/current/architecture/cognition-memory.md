@@ -1,5 +1,7 @@
 # 当前认知与记忆
 
+2026-11-02 记忆接缝：例如开发者想用自己的向量库让角色记住玩家，可以写插件替换 Core。原生召回已删除，Core 是官方记忆插件，长期记忆都经 `ctx.memory` 接入。下文带日期的旧记录描述当时的实现，提到“原生记忆”或 `--memory-native` 处不再适用。写法见[替换长期记忆](../guides/host-plugin-authoring.md#替换长期记忆)，这次改动的结果见[阶段 2 记录](../studies/2026-11-plugin-first-phase-2.md)。
+
 2026-10-30 读取复用：例如 NPC 接收新观察后，记忆追赶和角色准备都需要同一授权前缀，宿主单步内共享 WorldStore 已解析的事件；CharacterViewBuilder 对地址、角色、序号及不可变事件完全相同的视图复用投影并返回副本。全局原始历史只在宿主内部读取，交付仍经过原有角色过滤，不能因为共用前缀而把他人的私密观察放进角色上下文。操作结束清空读取范围，Core 档案、召回和持久化机制保留；45 步离线等价与未验收范围见[单步前缀记录](../studies/2026-10-30_event-prefix-reuse-report.md)。
 
 2026-10-22 核对物品来源：例如角色通过作者模板把摘要交给玩家，同场授权目击者从已提交的转移观察得知新持有人；角色只说“交给伊蕾了”不能生成该事实。拿／放／给现由各包 `scripts/status.js` 的 `status:take`／`status:drop`／`status:give` 裁定，沿用物品事件与授权观察进入原生／Core 记忆，不新增记忆来源或全局库存视图。状态 policy 的 `place` 只给行动者手里和脚下的物品，不能借它读取别人的私有库存；字段见[物品操作指南](../guides/activity-and-variables.md#对物品做的操作2026-10-22当前源码)。此次 hidden-cure-next D2 仅一次真实样本，实际交给了玩家而非伊蕾，不能证明接收对象选择或长期记忆已验收；测试和试玩边界见[项目状态](../PROJECT-STATE.md#验证到了哪一步)。
@@ -24,13 +26,22 @@
 
 > [工具耗时排查](../studies/core-utility-timing-20261010.md)确认 Python Core 的 thinking.disabled 未约束本机 Gemini 网关。按用户要求，当前 Gemini 的 OpenAI 兼容 Core 请求先发 reasoning_effort=low，仅超时后重试一次，移除该字段并改发 thinking.disabled；第二次失败停止。每次仍为 120 秒，并记录实际尝试的参数档位。非超时错误不触发这条回退；其他模型与原生协议沿用既有配置。客户端字段不证明网关真正关闭思考或执行输出上限。
 
-这是了解 Perspectra 当前记忆的首选入口。源码网页与 Launcher 现在默认都走下述简化 Core 路径；原生记忆只在显式 `--memory-native` 时使用，用于不装 Python 的离线调试。记忆路径已接入不表示全部长期角色体验均已验收。
+这是了解 Perspectra 当前记忆的首选入口。源码网页与 Launcher 默认都走下述简化 Core 路径；`--memory-none` 只用于不装 Python 的离线开发和测试，角色没有长期记忆。记忆路径已接入不表示全部长期角色体验均已验收。
 
-## 原生记忆（显式 --memory-native）
+## 记忆接缝
 
-默认路径仍由 CognitiveMemoryService / LocalMemoryStore 从当前角色授权观察 catch-up 到指定世界前缀。prepareStimulus 按刺激及场景线索准备召回材料，角色也可在允许的决策阶段主动 recall 一次，再自行回应。来源类型和引用随结果保留；未命中不代表没有发生。近期观察／自身表达沿原生窗口，不套用 Core 的宽窗口或后台参数。
+例如玩家上周说过妹妹怕黑，角色这周被问到时，宿主先准备好它有权知道的内容，再交给记忆实现决定放进哪些记忆。世界事实和“谁知道什么”由主干保证，“记住什么、怎么取回”由记忆实现决定。
 
-实现见[原生上下文服务](../../../packages/memory/src/cognitive-context.ts)与[本地记忆](../../../packages/memory/src/local-memory.ts)。以下 Source / Atom / Episode / Observation 分层、候选准入和极简 Delivery 描述当前默认 Core 路径；显式原生记忆不使用这套 Python 流程。
+| 部分 | 归谁 | 位置 |
+| --- | --- | --- |
+| 从角色授权观察捕获来源行 | 主干，不可替换 | [authorized-sources.ts](../../../packages/memory/src/authorized-sources.ts)，存在 `memory.sqlite` |
+| 打开实例、每次决策前调用 `project` | 宿主 | `MemoryInstance`（[plugin-sdk](../../../packages/plugin-sdk/src/index.ts)）、[world-runtime.ts](../../../desktop/host/world-runtime.ts) |
+| 默认长期记忆 | 官方插件，可替换 | [official-memory-core](../../../packages/official-memory-core/README.md) |
+| 不要长期记忆 | `--memory-none` | [official-memory-none](../../../packages/official-memory-none/src/index.ts) |
+
+`project` 收到这次决策的请求，返回可以改动 `context` 的新请求。第三方实现通过 `world.authorizedSources(角色, 截止序号)` 取来源，不需要自己判断授权。实现没有给 `shortTermAfterSeq` 时，角色只看到最近 16 条观察和 8 条自身表达。
+
+以下 Source / Atom / Episode / Observation 分层、候选准入和极简 Delivery 描述官方 Core；其他实现不必使用这套 Python 流程。
 
 ## 授权材料与分层整理
 
@@ -93,7 +104,7 @@ Claude 私下听到一句暗号后，模型历史仍包含原始话语、private
 
 调整前 `history` 排在第二位，它每次都会追加，导致其后约五千字符的稳定内容无法复用；`stimulus` 名义上最后写入，实际因对象键顺序停在场景之前。2026-10-24 用 deepseek-flash、本机《屋檐下的心动日程》与同一套 11 步对白做 A/B（新旧顺序各 2 局，其余完全相同）：实际缓存命中率 47.8% → 63.8%，每次调用未命中输入 token 3447 → 2436（约 −29%）；回复长度、套话与第一人称旁白无差异，两组角色都回应了最新输入。两组各出现叙事疏漏：旧顺序一次虚构“红茶已喝完”，新顺序一局中 Claude 写出尚未购买的黄铜书签，并两次以“他”指代屋主。样本小，未观察到系统性退化，也不能证明行为等价。
 
-`history` 是否只在末尾追加，取决于记忆模式。例如 GPT 已有 20 条经历时又听到一句话：Core 记忆（Launcher 默认）把记忆边界之后的经历全部放进 `history`，两次记忆整理之间只在末尾追加，整理后边界前移一次；本地记忆（`--memory-native`，离线调试用）只取最近 16 条观察与 8 条自我表达（[character-turn.ts](../../../packages/application/src/character-turn.ts) 的 `recentObservations` / `recentSelfObservations`），超出后每来一条新经历就从开头挤出最旧一条，`history` 整体前移，前缀从开头断开。2026-10-24 用固定回复模型让玩家连说 30 句验证：本地记忆下 GPT 的 `history` 停在 16 条，之后 17 次请求都从开头断开；Core 记忆下从 4 条增长到 33 条，29 次全部纯追加。上文 A/B 与早期试玩驱动使用本地记忆，较长的对局里观察到的约两成“开头不同”即来自这一滑动窗口，并非初始观察排序不稳定。本地记忆路径的这一缓存损失作为已知限制保留，未改动窗口规则。
+`history` 是否只在末尾追加，取决于记忆模式。例如 GPT 已有 20 条经历时又听到一句话：Core 记忆（Launcher 默认）把记忆边界之后的经历全部放进 `history`，两次记忆整理之间只在末尾追加，整理后边界前移一次；当时的本地记忆（现已删除；`--memory-none` 沿用同一窗口）只取最近 16 条观察与 8 条自我表达（[character-turn.ts](../../../packages/application/src/character-turn.ts) 的 `recentObservations` / `recentSelfObservations`），超出后每来一条新经历就从开头挤出最旧一条，`history` 整体前移，前缀从开头断开。2026-10-24 用固定回复模型让玩家连说 30 句验证：本地记忆下 GPT 的 `history` 停在 16 条，之后 17 次请求都从开头断开；Core 记忆下从 4 条增长到 33 条，29 次全部纯追加。上文 A/B 与早期试玩驱动使用本地记忆，较长的对局里观察到的约两成“开头不同”即来自这一滑动窗口，并非初始观察排序不稳定。本地记忆路径的这一缓存损失作为已知限制保留，未改动窗口规则。
 
 公开状态的变化（2026-10-25）：例如屋主在深夜说完“晚安”就结束今天，GPT 第二天清晨被自主行动唤起。以前她的刺激为空，最近的经历停在那句晚安，`knownStatus` 里的“清晨”只是一个状态值，她常常接着道晚安；不在同一房间的角色连推进时段的旁白都看不到。现在宿主在每次角色调用前，把她最近一次被提交的行动（`action.resolved` 的 `actorId` 是她；从未行动则以初始状态为准）时知道的公开状态，与现在知道的值比较，值不同的公开状态（`holderId` 为空且当前已确认）列为 `context.statusChanges`：`[{ key, label, from, to }]`，例如“天数 1→2、今日时段 深夜→清晨”，停电时还有“全屋供电 true→false”。只从已提交事件推导，不新增存储，重启或重新生成同一回合给出相同结果；它不授予新的知识，列出的都是她本来就能在 `knownStatus` 里看到的公开值。系统说明同步解释这个字段；自主行动提示保留“没有新消息不代表发生了你不知道的事”，并补充“statusChanges 里的变化已经发生，请按现在的时段与处境行动”。实现见 [pack-status.ts](../../../desktop/host/pack-status.ts) 的 `publicStatusChanges` 与 [world-runtime.ts](../../../desktop/host/world-runtime.ts)。
 

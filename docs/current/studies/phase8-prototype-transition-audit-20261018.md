@@ -47,7 +47,7 @@
 - [RoundCoordinator](../../../packages/application/src/round-coordinator.ts)：processCognitiveJobs、participant 模型处理、Reflection 与提交。
 - [新角色循环](../../../packages/application/src/character-turn.ts)、[新调度](../../../packages/official-scheduler/src/index.ts)：实际 NPC 决策与结果提交。
 - 旧 `packages/application/src/context-pipeline.ts`、`reaction-scheduler.ts`（第二步已删除，见 Git 调查基点）。
-- [Core 桥](../../../desktop/host/memory/core-memory.ts)：#snapshot、授权 Source 查询与 catchUpReceipt。
+- [Core 桥](../../../packages/official-memory-core/src/core-memory.ts)：#snapshot、授权 Source 查询与 catchUpReceipt。
 - [角色请求协议](../../../packages/provider-chat/src/character-turn-call.ts)、[认知初始事件编译](../../../packages/world-pack/src/compiler.ts)、旧 `packages/agents/src/reflection.ts`（第二步已删除）。
 
 ## 用运行追踪验证“装配但没用”和“确实还在运行”
@@ -348,5 +348,5 @@ Path P6（当时结论，已被第四步修正）：第三步短试玩不足以�
 | 迁移前路径（上述提交） | 当前源码 |
 | --- | --- |
 | `tests/experiments/playtest-frozen-runtime.ts` | [world-runtime.ts](../../../desktop/host/world-runtime.ts) |
-| `tests/experiments/playtest-memory-core.ts` | [core-memory.ts](../../../desktop/host/memory/core-memory.ts) |
+| `tests/experiments/playtest-memory-core.ts` | [core-memory.ts](../../../packages/official-memory-core/src/core-memory.ts) |
 | `tests/experiments/pack-activity.ts` | [pack-activity.ts](../../../desktop/host/pack-activity.ts) |

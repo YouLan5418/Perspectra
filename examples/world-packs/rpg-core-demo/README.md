@@ -11,7 +11,7 @@
 只从源码命令行启动网页：
 
 ```powershell
-corepack pnpm@11.7.0 experience:web --memory-native --pack examples/world-packs/rpg-core-demo --data-dir .tmp/rpg-core-demo-manual-20261026
+corepack pnpm@11.7.0 experience:web --memory-none --pack examples/world-packs/rpg-core-demo --data-dir .tmp/rpg-core-demo-manual-20261026
 ```
 
 重新试玩请使用新的数据目录。

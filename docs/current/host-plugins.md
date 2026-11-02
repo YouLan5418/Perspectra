@@ -1,6 +1,8 @@
 # 通过 Cordis 加载宿主插件
 
-2026-11-02 可替换模块：例如开发者不满意官方调度，可以写插件让急性子的角色总是抢先回应，玩家启用后立即替换官方实现。插件除了语音、BGM、异步能力和对白订阅，现在还能用 `ctx.scheduler` 替换角色调度。写法见[替换角色调度器](guides/host-plugin-authoring.md#替换角色调度器)。其他模块的替换尚未接通，进度见[设计](../superpowers/specs/2026-11-02-plugin-first-runtime-design.md)。下文“没有挂载世界内核、存储”的说法仍然成立：调度器能读事件和角色视图，但不能直接写入。
+2026-11-02 替换长期记忆：例如开发者想用自己的向量库，不想装 Python，可以用 `ctx.memory` 替换官方 Core。写法见[替换长期记忆](guides/host-plugin-authoring.md#替换长期记忆)。下文说插件没有记忆的地方已不成立：插件可以提供记忆实现，也能读授权来源，但不能直接写入世界。
+
+2026-11-02 可替换模块：例如开发者不满意官方调度，可以写插件让急性子的角色总是抢先回应，玩家启用后立即替换官方实现。插件除了语音、BGM、异步能力和对白订阅，现在还能用 `ctx.scheduler` 替换角色调度。写法见[替换角色调度器](guides/host-plugin-authoring.md#替换角色调度器)。记忆见上一条，其他模块的替换尚未接通，进度见[设计](../superpowers/specs/2026-11-02-plugin-first-runtime-design.md)。下文“没有挂载世界内核、存储”的说法仍然成立：调度器能读事件和角色视图，但不能直接写入。
 
 2026-10-26 插件清单与配置：例如你要用自己的语音服务。把语音插件加进启动器后，设置页显示它的名称“HTTP 语音合成”、作者、简介，声明使用“语音与背景音乐”，下方有“语音服务地址”和“API Key”两个输入框；不填地址就启动，这个插件会被跳过，启动器提示“请先填写：语音服务地址”。
 
@@ -81,7 +83,7 @@ export default function speechPlugin(ctx, config) {
 ## 装载、授权与退出
 
 - [LauncherCore](../../desktop/launcher-core.ts)只保存和传递插件选择，不在启动器后端导入插件。每次启动用 `PERSPECTRA_HOST_PLUGINS` 覆盖传入当前保存的列表。
-- [游戏入口](../../desktop/host/web-entry.ts)在创建世界运行时之前调用 [loadHostPlugins](../../desktop/host-plugins.ts)。装载器创建独立 Context，注册 `frontendServices`、按世界绑定的 `capabilities` 和只读的 `playerFeed`，再按列表顺序 `ctx.plugin()`。只提供有限角色请求回调，没有挂载世界内核、存储、记忆或原始 Context。
+- [游戏入口](../../desktop/host/web-entry.ts)在创建世界运行时之前调用 [loadHostPlugins](../../desktop/host-plugins.ts)。装载器创建独立 Context，注册 `frontendServices`、按世界绑定的 `capabilities` 和只读的 `playerFeed`，再按列表顺序 `ctx.plugin()`。只提供有限角色请求回调，没有挂载世界内核或存储写入，也不提供原始 Context。
 - 同时只允许一个合成服务与一个 BGM 服务，两者可以由同一个或不同插件注册。启用模块不存在或导出不合法（`import`）、初始化抛错或重复注册（`apply`）时，只跳过这一个插件：Cordis 撤销它已经用 `ctx.effect` 注册的服务，其他插件照常运行。详细错误带插件 ID 写入游戏进程的标准错误输出；`ready` 与 `startup-error` 消息只带 `{ id, reason }`，启动器据此在主界面和设置页提示，不显示模块异常正文。插件设置本身不合法（ID、路径格式）仍使整次启动失败。世界能否打开由包声明的必需能力决定：缺少时宿主抛出 `MissingCapabilityError`，启动器提示“世界包需要宿主能力 X”。被跳过的语音或 BGM 插件不阻止任何世界，只是没有对应服务。已知限制：Launcher 不保存游戏进程输出，玩家在界面上只看到插件 ID 与原因；插件作者需从命令行启动游戏查看详细错误。
 - 服务通过已有 `FrontendHostServices` 交给 [HTTP 宿主](../../desktop/host/http-server.ts)。模板声明的能力与实际安装服务共同决定是否授予 `speech`；合成前校验授权文本，合成后重验段落，候选替换后返回 409。未安装服务返回 404，合成失败返回 502。
 - 前端请求断开或服务注销会触发 abort。插件应把信号传给实际请求；即使插件忽略取消，注销后晚到的音频也会被拒绝。关闭游戏时释放插件及其 `ctx.effect()`，不为未完成音频增加恢复机制。
@@ -92,7 +94,7 @@ BGM 消费点是 `ctx.frontendServices.registerBgm({ tracks, selectTrack })`。�
 
 社区模板须声明 `bgm` 且宿主实际装有服务，才获得 `Perspectra.selectBgm(seq, segmentIndex, text)` 与 `Perspectra.getBgmAudio(id)`。前者走授权检查和候选替换重验，后者只读取插件已发布曲库，不接受文件路径，也不提供角色私有信息。默认舞台同曲不重启、循环播放、0.6 秒淡入淡出、音量及静音实时生效；过期异步结果被丢弃，页面退出时停止播放。
 
-同一装载入口可以加载其他可信 Cordis 插件，但 Live2D 渲染、任意前端脚本注入、通用插件设置面板与口型同步仍未接通。Cordis 负责生命周期与服务依赖；创作者能扩展的功能还取决于 Perspectra 已开放的消费接口。现有独立宿主 Context 没有提供世界内核、记忆、`ctx.tools` 或 `ctx.llm`，其他宿主的插件不能直接假定这些服务存在。当前不引入通用前端插件框架或新的世界事件。
+同一装载入口可以加载其他可信 Cordis 插件，但 Live2D 渲染、任意前端脚本注入、通用插件设置面板与口型同步仍未接通。Cordis 负责生命周期与服务依赖；创作者能扩展的功能还取决于 Perspectra 已开放的消费接口。现有独立宿主 Context 没有提供世界内核、`ctx.tools` 或 `ctx.llm`，其他宿主的插件不能直接假定这些服务存在。当前不引入通用前端插件框架或新的世界事件。
 
 ## 验证范围
 

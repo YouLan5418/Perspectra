@@ -88,7 +88,7 @@ corepack pnpm@11.7.0 experience:web `
   --data-dir .tmp/my-playtest
 ```
 
-地址与模型只是本机验证示例，请按自己的服务修改。如需认证，通过环境设置 `PERSPECTRA_MODEL_API_KEY`，不要写入世界包、脚本或仓库。打开终端打印的完整本机地址；其中的令牌不要公开分享。源码网页入口默认使用 Core 记忆，需准备 Python/E5；仅离线调试可显式加 `--memory-native`。
+地址与模型只是本机验证示例，请按自己的服务修改。如需认证，通过环境设置 `PERSPECTRA_MODEL_API_KEY`，不要写入世界包、脚本或仓库。打开终端打印的完整本机地址；其中的令牌不要公开分享。源码网页入口默认使用 Core 记忆，需准备 Python/E5；仅离线开发可显式加 `--memory-none`，此时角色没有长期记忆。
 
 模型适配经 pi-ai，支持 OpenAI 兼容、Anthropic Messages 与 Google Gemini 协议；DeepSeek、Ollama 按 OpenAI 兼容地址配置，见[模型接口协议](docs/current/model-protocols.md)。
 

@@ -1,4 +1,4 @@
-# Core 记忆宿主适配
+# 官方长期记忆（Core）
 
 角色召回一段经历时，宿主先按该角色的观察权限准备来源，再由 Python Core 检索与整理。Python 结果继续经过宿主的范围和前缀检查，不直接修改世界事实。
 
@@ -18,9 +18,9 @@ python -m venv .tmp/hindsight-vector-venv
 & .tmp/hindsight-vector-venv/Scripts/python.exe packages/official-memory-core/python/core/setup-vector.py
 ```
 
-`setup-vector.py` 会下载并校验固定 revision 的模型资产。`HCW_HINDSIGHT_PYTHON` 与 `HCW_HINDSIGHT_ONNX_DIR` 仍可指定现有环境和权重。游戏默认使用 Core；`--memory-native` 是显式的原生记忆选择。
+`setup-vector.py` 会下载并校验固定 revision 的模型资产。`HCW_HINDSIGHT_PYTHON` 与 `HCW_HINDSIGHT_ONNX_DIR` 仍可指定现有环境和权重。游戏默认使用 Core。`--memory-none` 不启动 Core，角色没有长期记忆，只用于离线开发和测试；第三方记忆插件也可以替换它，见[替换长期记忆](../../docs/current/guides/host-plugin-authoring.md#替换长期记忆)。
 
-在源码仓库根目录运行 TypeScript 入口或构建后的 `dist/backend/playtest.mjs` 时，不设置 `PERSPECTRA_RUNTIME_ROOT`，两者均使用源码 Python 目录。便携包设置该变量为 `runtime` 的绝对路径，Python 位于其下 `memory-core/python/{core,bridge}`；Rust 桥和发行验证另行设置包内 Python、模型与缓存目录。运行时身份与 Node worker 共用 [python-paths.ts](python-paths.ts)，缺失 Python 源文件仍直接失败，不因选择原生记忆跳过身份检查。
+在源码仓库根目录运行 TypeScript 入口或构建后的 `dist/backend/playtest.mjs` 时，不设置 `PERSPECTRA_RUNTIME_ROOT`，两者均使用源码 Python 目录。便携包设置该变量为 `runtime` 的绝对路径，Python 位于其下 `memory-core/python/{core,bridge}`；Rust 桥和发行验证另行设置包内 Python、模型与缓存目录。运行时身份与 Node worker 共用 [python-paths.ts](python-paths.ts)，缺失 Python 源文件仍直接失败；`--memory-none` 和第三方记忆不组装 Core，也就不需要这些文件。
 
 `desktop:build` 也复制这份 Python 源码到 `dist/backend/memory-core/python`；从该目录运行构建后的后端时将 `PERSPECTRA_RUNTIME_ROOT` 设置为 `dist/backend`。这一步不打包解释器或 E5。Python 模块内的仓库根目录回退只用于源码布局。
 

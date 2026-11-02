@@ -34,7 +34,7 @@ corepack pnpm@11.7.0 experience:web --pack examples/world-packs/launcher-demo --
 
 需要认证时仅在当前进程设置 `PERSPECTRA_MODEL_API_KEY`；非 OpenAI 兼容协议另设 `PERSPECTRA_MODEL_PROTOCOL`。打开终端打印的完整回环地址；其中 token 不对外分享。源码网页没有内置默认地址，Launcher 的模型连接是另一处配置来源。
 
-源码网页默认使用 Core 记忆，与 Launcher 一致；先按 [记忆实验说明](../../../experiments/activity-memory/README.md) 准备 Python/E5，缺少时启动直接报错。离线调试可加 `--memory-native`。原生记忆只取最近 16 条观察的滑动窗口，结果不代表玩家体验，不把不同模型和记忆路径混为同一验收结果。
+源码网页默认使用 Core 记忆，与 Launcher 一致；先按 [记忆实验说明](../../../experiments/activity-memory/README.md) 准备 Python/E5，缺少时启动直接报错。离线开发可加 `--memory-none`。此时角色没有长期记忆，只有最近 16 条观察的滑动窗口，结果不代表玩家体验，不把不同模型和记忆路径混为同一验收结果。
 
 ### 物品规则调试（2026-10-22，当前源码）
 

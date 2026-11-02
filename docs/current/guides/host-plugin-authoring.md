@@ -71,7 +71,7 @@ export default async function myBgm(ctx) {
 
 ## 宿主提供哪些接口
 
-2026-10-26 宿主 API 版本：例如你按当前宿主写好插件分享给别人，对方的 Perspectra 较旧、还没有 `ctx.playerFeed`。插件导出 `export const hostApi = '1.0'` 后，宿主在调用插件之前比较版本，不兼容就跳过并在启动器标出“宿主 API 版本不兼容或未声明”，而不是运行到一半报错。规则：主版本必须相同，宿主次版本不低于插件声明的次版本；当前宿主 API 为 `1.0`。没有导出 `hostApi` 的插件同样被跳过。所有接口类型集中在 [@harness-world/plugin-sdk](../../../packages/plugin-sdk/src/index.ts)：`HostServices` 列出插件能用的三个服务，`CapabilityProvider`、`PlayerFeedEvent` 等是参数与事件的形状；宿主的实现直接引用这些类型，接口改动会先在类型检查中暴露。该包目前只在本仓库内，尚未发布到 npm，也不随便携发行包附带；仓库外开发时可参照源码或复制其中的类型。
+2026-10-26 宿主 API 版本：例如你按当前宿主写好插件分享给别人，对方的 Perspectra 较旧、还没有 `ctx.playerFeed`。插件导出 `export const hostApi = '1.0'` 后，宿主在调用插件之前比较版本，不兼容就跳过并在启动器标出“宿主 API 版本不兼容或未声明”，而不是运行到一半报错。规则：主版本必须相同，宿主次版本不低于插件声明的次版本；当前宿主 API 为 `1.2`，`ctx.scheduler` 需要 `1.1`，`ctx.memory` 需要 `1.2`。没有导出 `hostApi` 的插件同样被跳过。所有接口类型集中在 [@harness-world/plugin-sdk](../../../packages/plugin-sdk/src/index.ts)：`HostServices` 列出插件能用的三个服务，`CapabilityProvider`、`PlayerFeedEvent` 等是参数与事件的形状；宿主的实现直接引用这些类型，接口改动会先在类型检查中暴露。该包目前只在本仓库内，尚未发布到 npm，也不随便携发行包附带；仓库外开发时可参照源码或复制其中的类型。
 
 目前使用项目依赖的 `@deepseek-ai/cordis@4.0.1`。装载器接受默认导出的函数、类或 `{ apply(ctx) {} }` 对象；资源注册用 `ctx.effect(() => register(...))`，退出时返回的注销函数随插件释放。外部文件入口必须是 `.mjs` 或可由 Node 按 ESM 解析的 `.js`，不直接执行 TypeScript。插件初始化抛错时只跳过这一个插件，已经通过 `ctx.effect` 注册的服务会被撤销，所以注册都应放进 `ctx.effect`；启动器设置页会标出上次被跳过的插件及原因；详细错误只输出到游戏进程的标准错误，调试时请从命令行启动游戏。加载入口见[宿主插件](../host-plugins.md)，类型定义见 [plugin-sdk](../../../packages/plugin-sdk/src/index.ts)。
 
@@ -123,6 +123,48 @@ export default function (ctx) {
 调度器抛错或返回非法结果时，这一轮反应结束，已提交的内容保留，玩家看到提示后可以继续。打开失败时改用官方调度。如果它忽略取消信号又一直不返回，这一轮会卡住，只能重启游戏。
 
 玩家移除插件后，同一个存档回到官方调度，已提交的世界事实不变。自动测试覆盖替换、异常和存档重开；真实模型下的体验尚未验收。
+
+## 替换长期记忆
+
+例如你想用自己的向量库让角色记住玩家说过的话，不想装 Python。插件向 `ctx.memory` 注册一个 Provider，官方 Core 就不再启动：
+
+```js
+export const hostApi = '1.2'
+
+export default function (ctx) {
+  ctx.effect(() =>
+    ctx.memory.register({
+      id: 'my-memory',
+      version: '1.0.0',
+      open: async world => ({
+        project: async (request, signal) => {
+          const characterId = request.context.character.characterId
+          const { headSeq } = world.world.head()
+          const sources = world.world.authorizedSources(characterId, headSeq)
+          return { ...request, context: { ...request.context, memories: await myRecall(sources, signal) } }
+        },
+      }),
+    }),
+  )
+}
+```
+
+- `open` 在每个世界实例打开时调用一次，包括重新生成的候选。每局数据放在 `world.dataDirectory` 下，那是这个插件在这个世界实例里的专属目录。
+- `project` 是唯一必需的方法，每次角色决策前调用，返回的 `context` 交给模型。放进 `memories` 的内容排在场景信息之前，也参与[按需知识](world-knowledge.md)的条件匹配；其他字段名也能送达，排在已知字段之后。角色提示不会解释这些内容，要让它们自己说得清楚。
+- `world.authorizedSources` 只返回这个角色有权知道的内容，每个世界实例的进度由宿主保存。
+- 没有实现 `shortTermAfterSeq` 时，角色只看到最近 16 条观察和 8 条自身表达；实现后，这个序号之后的经历全部放进 `history`。
+- 其他方法都可选：`startRefresh` 手动整理，`backgroundState` 显示进度，`snapshotArchives` / `restoreArchives` 随节点保存。类型见 [plugin-sdk](../../../packages/plugin-sdk/src/index.ts) 的 `MemoryInstance`。
+
+**由作者负责的部分。** `world.world` 还能读所有事件和任意角色的视图，只用 `authorizedSources` 才不会把一个角色的私有内容交给另一个角色。插件拿不到玩家的模型设置和 Key，要调用模型需要自己配置，费用和凭据由作者说明。
+
+| 情况 | 结果 |
+| --- | --- |
+| `open` 失败 | 世界不打开，错误里有插件 ID。不会悄悄换成别的记忆，否则玩家会以为角色失忆 |
+| `project` 抛错 | 这一轮角色处理失败并提示，已提交内容保留，下一轮可以继续 |
+| 没有实现 `snapshotArchives` / `restoreArchives` | 节点照常保存和恢复，只是不带这个插件的档案 |
+| 导入别人分享的故事节点 | 分享里的 Core 档案不会交给第三方记忆，角色从授权观察重新积累 |
+
+玩家移除插件后，同一个存档回到 Core，已提交的世界事实不变，插件自己的数据不会迁移给 Core。自动测试覆盖替换、异常和节点保存；还没有真实的第三方记忆插件在真实模型下试玩过。
 
 ## 自定义前端怎样使用
 

@@ -1,5 +1,7 @@
 # 目录与模块地图
 
+2026-11-02 核对记忆相关条目：`memory` 只保留授权来源捕获，Core 移到官方插件包，原生召回已删除。
+
 核对日期：2026-10-22。本次追加核对物品规则移至作者脚本后的职责与入口；此前宿主迁移、Core 资源和前端适配核对保留，其他机制的验证限制仍见对应章节。目录位置是导航线索，不代表其中的全部代码都由当前入口运行。从入口沿 import 和调用向下查；导出清单不等于调用清单。
 
 2026-10-24 补充根目录创作 Skill 及程序分发入口；没有新增 packages 包或宿主插件。离线程序验收和未通过门禁见[本轮记录](../studies/program-package-creator-skill-20261024.md)。
@@ -44,7 +46,9 @@
 | [official-scheduler](../../../packages/official-scheduler) | 官方调度器：谁在什么时候获得处理机会，以及串行、动态并发和上限 | [实现](../../../packages/official-scheduler/src/index.ts)；只依赖公开的 `plugin-sdk` 接口，由 [desktop/official-bundle.ts](../../../desktop/official-bundle.ts) 接入，玩家可用插件替换 |
 | [kernel](../../../packages/kernel) | 世界规则、行动裁定、场景事实读取与启动 | [规则注册](../../../packages/kernel/src/rulebook-registry.ts)、[世界启动](../../../packages/kernel/src/world-bootstrap.ts)；不负责角色写台词，也不承担提交流程 |
 | [store-sqlite](../../../packages/store-sqlite) | 事件存取、原子提交、角色视图和相关持久化 | [WorldStore](../../../packages/store-sqlite/src/world-store.ts)、[CharacterViewBuilder](../../../packages/store-sqlite/src/character-view.ts) |
-| [memory](../../../packages/memory) | 原生角色记忆与认知上下文 | [上下文服务](../../../packages/memory/src/cognitive-context.ts)、[本地记忆](../../../packages/memory/src/local-memory.ts)；Python Core 不在此包 |
+| [memory](../../../packages/memory) | 从角色授权观察捕获长期记忆来源；属于主干，不可替换 | [授权来源](../../../packages/memory/src/authorized-sources.ts)、[表结构与迁移](../../../packages/memory/src/memory-schema.ts) |
+| [official-memory-core](../../../packages/official-memory-core) | 官方长期记忆：Python Core 的检索、整理和交付 | [说明](../../../packages/official-memory-core/README.md)、[适配器](../../../packages/official-memory-core/src/core-memory.ts)；只依赖公开接口，由 [desktop/official-bundle.ts](../../../desktop/official-bundle.ts) 接入，玩家可用插件替换 |
+| [official-memory-none](../../../packages/official-memory-none) | 不提供长期记忆，只用于离线开发和测试 | [实现](../../../packages/official-memory-none/src/index.ts)；`--memory-none` 启用 |
 | [provider-chat](../../../packages/provider-chat) | 角色决策请求、经 pi-ai 的三协议调用、模型能力声明、预设和请求检查 | [角色协议](../../../packages/provider-chat/src/character-turn-call.ts)、[调用适配](../../../packages/provider-chat/src/provider.ts)、[模型声明](../../../packages/provider-chat/src/pi-model.ts)、[上下文文本](../../../packages/provider-chat/src/character-context-text.ts) |
 | [world-pack](../../../packages/world-pack) | 检查和编译作者的世界包 | [编译器](../../../packages/world-pack/src/compiler.ts)、[命令入口](../../../packages/world-pack/process/cli-entry.ts)；源包与 Manifest 版本不是同一个数字 |
 | [interaction-runtime](../../../packages/interaction-runtime) | 注册交互能力、校验定义与结果 | [注册](../../../packages/interaction-runtime/src/registry.ts)、[校验](../../../packages/interaction-runtime/src/validation.ts) |
@@ -64,11 +68,11 @@
 | 创作者页面的对话、轨迹、运行时间线、模型请求与详情 | apps/launcher/src/creator/store.ts、model.ts、timeline.ts、TimelineView.vue、source.ts | desktop/host/creator-inspection.ts、creator-history.ts、creator-records.ts；页面静态托管见 creator-assets.ts |
 | 模型连接、Key 与按角色模型 | desktop/model-connections.ts、apps/launcher 的 ModelSettingsDialog / ModelPicker | Rust 桥读取凭据；游戏进程启动时按角色构造决策与记忆调用 |
 | 游戏内对白与状态显示 | frontend/default-template.ts、player-transcript.ts | http-server.ts；社区模板另查包内 frontend/ |
-| 角色知道了秘密 | character-view.ts、character-turn.ts | 原生记忆或 core-memory.ts 的来源和交付 |
+| 角色知道了秘密 | character-view.ts、character-turn.ts | authorized-sources.ts 的来源、当前记忆实现的交付（默认 core-memory.ts） |
 | 模型格式错误 | provider-chat/character-turn-call.ts、gateway-turn-call.ts | character-turn.ts；活动另查 pack-activity.ts |
 | 移动或物品操作被拒绝 | kernel 裁定与交互定义 | 世界包绑定、当前视图、实际参数 |
 | 角色重复回应或没回应 | official-scheduler/src/index.ts、当前是否启用了第三方调度器 | 宿主预算、刺激与活动调度 |
-| 长期记忆遗漏或整理慢 | core-memory.ts、python-worker.ts | experiments/activity-memory 与 hindsight-core |
+| 长期记忆遗漏或整理慢 | official-memory-core 的 core-memory.ts、python-worker.ts，当前是否启用了第三方记忆 | experiments/activity-memory 与 hindsight-core |
 | 节点、分叉与分享 | desktop/story-nodes.ts、story-share.ts | LauncherCore 与节点记忆快照恢复 |
 | 末端回合重新生成 | tail-runtime.ts、desktop/tail-storage.ts | 宿主世界版本与后台任务取消 |
 

@@ -8,7 +8,7 @@
 - 没有长期档案时，身份快照只恢复／复制已经获得的授权别名，并校验角色、世界和事件前缀，避免为所有角色重建完整记忆源。已有长期档案仍执行完整来源校验。
 - 保留每回合数据库备份、权威事务、发表与观察分发、模型输出和 Rulebook 校验。未增加数据库或持久化协议。
 
-实现：[活动读取](../../../desktop/host/pack-activity.ts)、[身份快照](../../../desktop/host/memory/core-memory.ts)。这是源码实现，尚未重新构建便携发行包；test3 文件未修改。
+实现：[活动读取](../../../desktop/host/pack-activity.ts)、[身份快照](../../../packages/official-memory-core/src/core-memory.ts)。这是源码实现，尚未重新构建便携发行包；test3 文件未修改。
 
 ## 性能复测
 
@@ -62,7 +62,7 @@ Store 与调度基础回归 49 项、宿主等集成回归 156 项通过，覆�
 
 例如 GPT 发表固定序章台词前，需要构建授权上下文并捕获自身经历。一次角色视图构建原来分别读取场景／自身事件和观察投影，重复解析其中的观察、认识与目标；Core 快照的 `catchUp()` 又在完成同步后构建了一份未使用的返回视图。
 
-本轮[视图入口](../../../packages/store-sqlite/src/character-view.ts)一次读取两者需要的事件并集，内部[投影回放](../../../packages/store-sqlite/src/projection.ts)接收宿主已经读取的数据；原有独立 `ProjectionRebuilder` 入口沿用同一回放逻辑。remove 事件参与投影，场景／自身状态沿用原来的事件范围，保持角色创建判断。Core [快照入口](../../../desktop/host/memory/core-memory.ts)使用已有 `catchUpReceipt()`，捕获和校验继续执行，仅省去未使用的返回视图。没有增加跨调用缓存或变更协议；每次仍读取指定前缀，提交前的最新状态重校验保留。
+本轮[视图入口](../../../packages/store-sqlite/src/character-view.ts)一次读取两者需要的事件并集，内部[投影回放](../../../packages/store-sqlite/src/projection.ts)接收宿主已经读取的数据；原有独立 `ProjectionRebuilder` 入口沿用同一回放逻辑。remove 事件参与投影，场景／自身状态沿用原来的事件范围，保持角色创建判断。Core [快照入口](../../../packages/official-memory-core/src/core-memory.ts)使用已有 `catchUpReceipt()`，捕获和校验继续执行，仅省去未使用的返回视图。没有增加跨调用缓存或变更协议；每次仍读取指定前缀，提交前的最新状态重校验保留。
 
 对照复用上轮源码诊断的第 112 次操作前快照，将本轮修改前的三个源文件单独保存在 `.tmp/view-reuse-20261014/before/`，按同一 esbuild 配置分别生成前后 bundle，其他源码相同。Node 24.14.1、Core 开启但没有档案、整理阈值 1,000,000、禁止网络和模型调用。每次在新目录恢复，经完整 TailRound 操作；两版交替顺序运行，计时不含恢复、启动及 GUI。
 
@@ -88,7 +88,7 @@ Store 与调度基础回归 49 项、宿主等集成回归 156 项通过，覆�
 
 Claude 的 Core 快照已完成授权来源捕获后，原来为了补充每条来源的知晓时间，再读取并解析一次全部事件正文。普通动态角色准备同一份初始请求时，也重复读取完整历史、重建角色视图，分别供请求与 stale 基准使用。这轮只调整这两个重复读取点：
 
-- [WorldStore](../../../packages/store-sqlite/src/world-store.ts)增加 `readEventTicks(address, asOfSeq)`，只查询 `seq`／`tick`；完整事件和时间戳查询共用原来的分叉范围规则。[Core 快照](../../../desktop/host/memory/core-memory.ts)仍完整捕获、验证授权 Source，缺少时间戳继续报错；时间戳查询本身不读取或验证正文。
+- [WorldStore](../../../packages/store-sqlite/src/world-store.ts)增加 `readEventTicks(address, asOfSeq)`，只查询 `seq`／`tick`；完整事件和时间戳查询共用原来的分叉范围规则。[Core 快照](../../../packages/official-memory-core/src/core-memory.ts)仍完整捕获、验证授权 Source，缺少时间戳继续报错；时间戳查询本身不读取或验证正文。
 - [Character Turn](../../../packages/application/src/character-turn.ts)的初始 stale 基准复用当前步骤已读取的历史与 view。模型返回后和取得写租约后的状态检查仍读取新前缀，没有跨调用缓存；规则裁定、提交顺序和角色协议不变。
 
 修改前三个源文件、相同 esbuild 配置的前后 bundle 与三个对照脚本保存在 `.tmp/timestamp-preparation-20261014/`。Node 24.14.1，网络及真实模型调用为零；所有计时只代表本机相应范围。
@@ -117,4 +117,4 @@ Claude 的 Core 快照已完成授权来源捕获后，原来为了补充每条�
 | 迁移前路径（上述提交） | 当前源码 |
 | --- | --- |
 | `tests/experiments/pack-activity.ts` | [pack-activity.ts](../../../desktop/host/pack-activity.ts) |
-| `tests/experiments/playtest-memory-core.ts` | [core-memory.ts](../../../desktop/host/memory/core-memory.ts) |
+| `tests/experiments/playtest-memory-core.ts` | [core-memory.ts](../../../packages/official-memory-core/src/core-memory.ts) |
