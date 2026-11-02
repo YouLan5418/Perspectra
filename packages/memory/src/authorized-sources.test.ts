@@ -6,22 +6,52 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   brandId,
   hashWorldJson,
+  worldAddressKey,
   type CharacterId,
-  type RecallQueryPlan,
   type WorldAddress,
   type WorldEventDraft,
   type WorldJsonObject,
 } from '@harness-world/contracts'
 import { WorldStore } from '@harness-world/store-sqlite'
-import { CognitiveMemoryWorker } from './cognitive-context.ts'
-import { LocalMemoryStore } from './local-memory.ts'
+import { AuthorizedSourceStore } from './authorized-sources.ts'
+import { MEMORY_MIGRATIONS, MEMORY_APPLICATION_ID } from './memory-schema.ts'
+import { openMigratedDatabase } from '@harness-world/store-sqlite'
 
 const directories: string[] = []
+let lastMemoryPath = ''
+
+/** The captured rows mentioning `text`, as the columns a memory implementation can rely on. */
+function entries(characterId: CharacterId, text: string, asOfWorldSeq = 8, scope = address()) {
+  const db = new DatabaseSync(lastMemoryPath, { readOnly: true })
+  try {
+    const rows = db
+      .prepare(
+        'SELECT memory_kind, epistemic_kind, text_value, metadata_json FROM cognitive_memory_v2_sources WHERE namespace_key = ? AND source_seq <= ? ORDER BY source_seq, source_id',
+      )
+      .all(`${worldAddressKey(scope)}\u001f${characterId}`, asOfWorldSeq) as {
+      memory_kind: string
+      epistemic_kind: string
+      text_value: string
+      metadata_json: string
+    }[]
+    return rows
+      .filter(row => text.trim() !== '' && row.text_value.includes(text))
+      .map(row => ({
+        memoryKind: row.memory_kind,
+        epistemicKind: row.epistemic_kind,
+        text: row.text_value,
+        metadata: JSON.parse(row.metadata_json),
+      }))
+  } finally {
+    db.close()
+  }
+}
 
 function paths(): { readonly world: string; readonly memory: string } {
   const directory = mkdtempSync(join(tmpdir(), 'hcw-memory-v2-'))
   directories.push(directory)
-  return { world: join(directory, 'world.sqlite'), memory: join(directory, 'memory.sqlite') }
+  lastMemoryPath = join(directory, 'memory.sqlite')
+  return { world: join(directory, 'world.sqlite'), memory: lastMemoryPath }
 }
 
 afterEach(() => {
@@ -141,99 +171,10 @@ async function fixture() {
       data: { id: 'goal:station', characterId: alice, value: goalValue() },
     },
   ])
-  return { path, world, memory: new LocalMemoryStore(path.memory, world) }
-}
-
-function plan(
-  characterId: CharacterId,
-  query: string,
-  asOfWorldSeq = 8,
-  planId = `plan:${characterId}:${query}`,
-): RecallQueryPlan {
-  return {
-    schemaVersion: 'recall-query-plan/v1',
-    planId,
-    address: address(),
-    characterId,
-    asOfWorldSeq,
-    query,
-    limit: 10,
-    rankingAlgorithm: 'fts5-bm25-stable/v1',
-  }
+  return { path, world, memory: new AuthorizedSourceStore(path.memory, world) }
 }
 
 describe('Cognitive Memory v2', () => {
-  it('groups L1 Summaries by committed Round rather than by record count', async () => {
-    const path = paths()
-    const world = new WorldStore(path.world)
-    world.createBranch(address())
-    await commit(world, 'genesis', [
-      { eventType: 'character.created', eventVersion: 1, data: { characterId: alice, locationId: 'location:road' } },
-    ])
-    // Six Rounds, each closing with its Tick event and carrying exactly one visible Memory for Alice.
-    for (let round = 1; round <= 6; round += 1) {
-      await commit(world, `round-${round}`, [
-        {
-          eventType: 'observation.upsert',
-          eventVersion: 1,
-          data: {
-            id: `observation:alice:round-${round}`,
-            value: { observerId: alice, content: `第${round}件小事` },
-          },
-        },
-        {
-          eventType: 'world.tick-advanced',
-          eventVersion: 1,
-          data: { tick: round, roundId: `round:memory-v2:round-${round}` },
-        },
-      ])
-    }
-    const head = world.head(address())
-    const memory = new LocalMemoryStore(path.memory, world)
-    memory.catchUpV2(address(), alice, head.headSeq, 'catchup:rounds')
-    const summaries = memory.cognitiveSummaries(address(), alice)
-    // Four Rounds make one Summary, and the trailing two still make one instead of being discarded for
-    // being an incomplete group — which is what used to leave the newest Memories without any Summary.
-    expect(summaries).toHaveLength(2)
-    expect(summaries[0]!.extracts).toEqual([
-      '第 1 轮 ｜ 第1件小事',
-      '第 2 轮 ｜ 第2件小事',
-      '第 3 轮 ｜ 第3件小事',
-      '第 4 轮 ｜ 第4件小事',
-    ])
-    // The cut is a Round boundary, not a record boundary: the last Summary covers Rounds 5 and 6.
-    expect(summaries[1]!.extracts).toEqual(['第 5 轮 ｜ 第5件小事', '第 6 轮 ｜ 第6件小事'])
-    expect(summaries[1]!.sourceStartSeq).toBeGreaterThan(summaries[0]!.sourceEndSeq)
-    memory.close()
-    world.close()
-  })
-
-  it('fails closed when a Tick event cannot name the Round it closes', async () => {
-    const path = paths()
-    const world = new WorldStore(path.world)
-    world.createBranch(address())
-    await commit(world, 'genesis', [
-      { eventType: 'character.created', eventVersion: 1, data: { characterId: alice, locationId: 'location:road' } },
-    ])
-    await commit(world, 'bad-tick', [
-      {
-        eventType: 'observation.upsert',
-        eventVersion: 1,
-        data: {
-          id: 'observation:alice:bad-tick',
-          value: { observerId: alice, content: '仍然有一条经历' },
-        },
-      },
-      { eventType: 'world.tick-advanced', eventVersion: 1, data: { tick: 'soon' } },
-    ])
-    const memory = new LocalMemoryStore(path.memory, world)
-    expect(() => memory.catchUpV2(address(), alice, world.head(address()).headSeq, 'catchup:bad-tick')).toThrow(
-      'requires a non-negative integer tick',
-    )
-    memory.close()
-    world.close()
-  })
-
   it('keeps silent narration as attributed communication and only in the recipient memory', async () => {
     const path = paths()
     const world = new WorldStore(path.world)
@@ -257,10 +198,10 @@ describe('Cognitive Memory v2', () => {
         },
       },
     ])
-    const memory = new LocalMemoryStore(path.memory, world)
+    const memory = new AuthorizedSourceStore(path.memory, world)
     try {
-      memory.catchUpV2(address(), alice, 3, 'narration:alice')
-      const memories = memory.recallV2(plan(alice, '铜钥匙已经在我口袋里', 3)).memories
+      memory.catchUp(address(), alice, 3, 'narration:alice')
+      const memories = entries(alice, '铜钥匙已经在我口袋里', 3)
       expect(memories).toMatchObject([
         {
           memoryKind: 'communication',
@@ -269,8 +210,8 @@ describe('Cognitive Memory v2', () => {
           metadata: { speakerId: bob, narration: '铜钥匙已经在我口袋里。' },
         },
       ])
-      memory.catchUpV2(address(), bob, 3, 'narration:bob')
-      expect(memory.recallV2(plan(bob, '铜钥匙已经在我口袋里', 3)).memories).toEqual([])
+      memory.catchUp(address(), bob, 3, 'narration:bob')
+      expect(entries(bob, '铜钥匙已经在我口袋里', 3)).toEqual([])
       expect(world.readEvents(address()).some(event => event.eventType === 'entity.transferred')).toBe(false)
     } finally {
       memory.close()
@@ -330,9 +271,9 @@ describe('Cognitive Memory v2', () => {
         },
       },
     ])
-    const memory = new LocalMemoryStore(path.memory, world)
-    memory.catchUpV2(address(), alice, 4, 'catchup:manifestation:alice')
-    expect(memory.recallV2(plan(alice, '声音发颤', 4)).memories).toMatchObject([
+    const memory = new AuthorizedSourceStore(path.memory, world)
+    memory.catchUp(address(), alice, 4, 'catchup:manifestation:alice')
+    expect(entries(alice, '声音发颤', 4)).toMatchObject([
       {
         memoryKind: 'communication',
         epistemicKind: 'reported_speech',
@@ -340,16 +281,16 @@ describe('Cognitive Memory v2', () => {
         metadata: { manifestation: { characterId: bob } },
       },
     ])
-    expect(memory.recallV2(plan(alice, '抱起双臂', 4)).memories).toMatchObject([
+    expect(entries(alice, '抱起双臂', 4)).toMatchObject([
       {
         memoryKind: 'episodic',
         epistemicKind: 'direct_observation',
         text: 'character:bob appeared: 抱起双臂',
       },
     ])
-    memory.catchUpV2(address(), bob, 4, 'catchup:manifestation:bob')
-    expect(memory.recallV2(plan(bob, '声音发颤', 4)).memories).toEqual([])
-    expect(JSON.stringify(memory.recallV2(plan(alice, '声音发颤', 4)).memories)).not.toContain('jealousy')
+    memory.catchUp(address(), bob, 4, 'catchup:manifestation:bob')
+    expect(entries(bob, '声音发颤', 4)).toEqual([])
+    expect(JSON.stringify(entries(alice, '声音发颤', 4))).not.toContain('jealousy')
     memory.close()
     world.close()
   })
@@ -380,8 +321,8 @@ describe('Cognitive Memory v2', () => {
           },
         },
       ])
-      const memory = new LocalMemoryStore(path.memory, world)
-      expect(() => memory.catchUpV2(address(), alice, 2, `catchup:${suffix}`)).toThrow(message)
+      const memory = new AuthorizedSourceStore(path.memory, world)
+      expect(() => memory.catchUp(address(), alice, 2, `catchup:${suffix}`)).toThrow(message)
       memory.close()
       world.close()
     },
@@ -410,15 +351,15 @@ describe('Cognitive Memory v2', () => {
         },
       },
     ])
-    const memory = new LocalMemoryStore(path.memory, world)
-    memory.catchUpV2(address(), alice, 3, 'catchup:subjective-observations')
-    expect(memory.recallV2(plan(alice, 'Bob', 3)).memories).toMatchObject([
+    const memory = new AuthorizedSourceStore(path.memory, world)
+    memory.catchUp(address(), alice, 3, 'catchup:subjective-observations')
+    expect(entries(alice, 'Bob', 3)).toMatchObject([
       {
         memoryKind: 'episodic',
         epistemicKind: 'subjective_inference',
       },
     ])
-    expect(memory.recallV2(plan(alice, 'station', 3)).memories).toMatchObject([
+    expect(entries(alice, 'station', 3)).toMatchObject([
       {
         memoryKind: 'episodic',
         epistemicKind: 'self_intention',
@@ -428,13 +369,13 @@ describe('Cognitive Memory v2', () => {
     world.close()
   })
 
-  it('captures four source kinds, keeps reported speech subjective, and persists stable receipts and L1 extracts', async () => {
+  it('captures four source kinds, keeps reported speech subjective, and persists stable receipts', async () => {
     const { world, memory } = await fixture()
     const fullHistoryRead = vi.spyOn(world, 'readEvents').mockImplementation(() => {
       throw new Error('Cognitive Memory must use typed Event range reads')
     })
-    const first = new CognitiveMemoryWorker(memory).catchUp(address(), alice, 8)
-    const replay = memory.catchUpV2(address(), alice, 8, 'catchup:alice:replay')
+    const first = memory.catchUp(address(), alice, 8)
+    const replay = memory.catchUp(address(), alice, 8, 'catchup:alice:replay')
     expect(replay).toEqual(first)
     expect(first.watermark).toMatchObject({
       verifiedThroughSeq: 8,
@@ -442,53 +383,33 @@ describe('Cognitive Memory v2', () => {
       memoryEpoch: 1,
     })
     expect(first.capturedMemoryIds).toHaveLength(4)
-    expect(memory.cognitiveReceipt(first.receiptId)).toEqual(first)
-    expect(memory.cognitiveReceipt('missing')).toBeUndefined()
-
-    const communication = memory.recallV2(plan(alice, 'bridge'))
-    expect(communication.memories).toMatchObject([
+    expect(entries(alice, 'bridge')).toMatchObject([
       {
         memoryKind: 'communication',
         epistemicKind: 'reported_speech',
         text: 'character:bob said: the bridge is closed',
       },
     ])
-    expect(communication.receipt.selectedSourceRefs).toHaveLength(1)
-    expect(memory.recallV2(plan(alice, 'north')).memories[0]).toMatchObject({
+    expect(entries(alice, 'north')[0]).toMatchObject({
       memoryKind: 'belief',
       epistemicKind: 'subjective_inference',
     })
-    expect(memory.recallV2(plan(alice, 'station')).memories.some(value => value.memoryKind === 'intention')).toBe(true)
-    expect(memory.recallV2(plan(alice, '   ')).memories).toEqual([])
-    expect(memory.cognitiveSummaries(address(), alice)).toMatchObject([
-      {
-        schemaVersion: 'memory-l1/v1',
-        sourceStartSeq: 4,
-        sourceEndSeq: 8,
-        algorithmId: 'deterministic-rollup-l1/v2',
-      },
-    ])
-    // A captured speech reads as one Summary line: the speaker, then what was said.
-    expect(memory.cognitiveSummaries(address(), alice)[0]!.extracts.join('\n')).toContain(
-      'character:bob：the bridge is closed',
-    )
-
-    memory.catchUpV2(address(), bob, 8, 'catchup:bob')
-    expect(memory.recallV2(plan(bob, 'bridge')).memories).toEqual([])
-    expect(memory.recallV2(plan(bob, 'ticket')).memories).toMatchObject([
+    expect(entries(alice, 'station').some(value => value.memoryKind === 'intention')).toBe(true)
+    expect(entries(alice, '   ')).toEqual([])
+    memory.catchUp(address(), bob, 8, 'catchup:bob')
+    expect(entries(bob, 'bridge')).toEqual([])
+    expect(entries(bob, 'ticket')).toMatchObject([
       {
         memoryKind: 'episodic',
         epistemicKind: 'observed_action',
       },
     ])
-    memory.catchUpV2(address(), charlie, 8, 'catchup:charlie')
-    expect(memory.cognitiveSummaries(address(), charlie)).toEqual([])
     expect(fullHistoryRead).not.toHaveBeenCalled()
     memory.close()
     world.close()
   })
 
-  it('keeps fork, character, and future sources outside the selected namespace before ranking', async () => {
+  it('keeps fork, character, and future sources outside the selected namespace', async () => {
     const { world, memory } = await fixture()
     const child = address('child')
     world.forkBranch(address(), child, 8)
@@ -499,65 +420,53 @@ describe('Cognitive Memory v2', () => {
         data: { id: 'observation:future', value: { observerId: alice, content: 'FUTURE_CANARY' } },
       },
     ])
-    memory.catchUpV2(address(), alice, 9, 'catchup:parent')
-    memory.catchUpV2(child, alice, 8, 'catchup:child')
-    memory.catchUpV2(address(), bob, 9, 'catchup:bob')
-    expect(memory.recallV2({ ...plan(alice, 'FUTURE_CANARY', 9), address: address() }).memories).toHaveLength(1)
-    expect(memory.recallV2({ ...plan(alice, 'FUTURE_CANARY', 8), address: child }).memories).toEqual([])
-    expect(memory.recallV2(plan(bob, 'cold')).memories).toEqual([])
+    memory.catchUp(address(), alice, 9, 'catchup:parent')
+    memory.catchUp(child, alice, 8, 'catchup:child')
+    memory.catchUp(address(), bob, 9, 'catchup:bob')
+    expect(entries(alice, 'FUTURE_CANARY', 9)).toHaveLength(1)
+    expect(entries(alice, 'FUTURE_CANARY', 8, child)).toEqual([])
+    expect(entries(bob, 'cold', 9)).toEqual([])
     memory.close()
     world.close()
   })
 
   it('fails closed on backward, divergent, malformed, unverified, and conflicting derived state', async () => {
     const { path, world, memory } = await fixture()
-    expect(() => memory.catchUpV2(address(), alice, -1, 'negative')).toThrow(RangeError)
-    memory.catchUpV2(address(), alice, 8, 'catchup:base')
-    expect(() => memory.catchUpV2(address(), alice, 7, 'backward')).toThrow('cannot move backward')
-    expect(() => memory.recallV2(plan(bob, 'anything'))).toThrowError(
-      expect.objectContaining({
-        envelope: expect.objectContaining({ errorCode: 'MEMORY_CATCHUP_FAILED' }),
-      }),
-    )
-    for (const invalid of [
-      { ...plan(alice, 'x'), asOfWorldSeq: -1 },
-      { ...plan(alice, 'x'), limit: 0 },
-      { ...plan(alice, 'x'), rankingAlgorithm: 'unknown' },
-    ] as unknown as RecallQueryPlan[])
-      expect(() => memory.recallV2(invalid)).toThrow()
-
+    expect(() => memory.catchUp(address(), alice, -1, 'negative')).toThrow(RangeError)
+    memory.catchUp(address(), alice, 8, 'catchup:base')
+    expect(() => memory.catchUp(address(), alice, 7, 'backward')).toThrow('cannot move backward')
     const raw = new DatabaseSync(path.memory)
     raw.prepare(`UPDATE cognitive_memory_v2_namespaces SET source_map_hash = 'sha256:corrupt'`).run()
     raw.close()
-    expect(() => memory.catchUpV2(address(), alice, 8, 'watermark-diverged')).toThrow('source map diverged')
+    expect(() => memory.catchUp(address(), alice, 8, 'watermark-diverged')).toThrow('source map diverged')
     memory.close()
 
-    const repaired = new LocalMemoryStore(path.memory, world)
-    repaired.resetCognitiveNamespace(address(), alice)
-    repaired.catchUpV2(address(), alice, 8, 'recaptured')
+    const repaired = new AuthorizedSourceStore(path.memory, world)
+    repaired.reset(address(), alice)
+    repaired.catchUp(address(), alice, 8, 'recaptured')
     const sourceDamage = new DatabaseSync(path.memory)
     sourceDamage
       .prepare(`UPDATE cognitive_memory_v2_sources SET source_hash = 'sha256:corrupt' WHERE namespace_key LIKE ?`)
       .run(`%${alice}`)
     sourceDamage.close()
-    expect(() => repaired.catchUpV2(address(), alice, 8, 'source-diverged')).toThrow('divergent content')
+    expect(() => repaired.catchUp(address(), alice, 8, 'source-diverged')).toThrow('divergent content')
 
     const receiptDamage = new DatabaseSync(path.memory)
     receiptDamage.prepare(`UPDATE cognitive_memory_v2_receipts SET receipt_hash = 'sha256:corrupt'`).run()
     receiptDamage.close()
-    repaired.resetCognitiveNamespace(address(), alice)
-    const receipt = repaired.catchUpV2(address(), alice, 8, 'receipt-base')
+    repaired.reset(address(), alice)
+    const receipt = repaired.catchUp(address(), alice, 8, 'receipt-base')
     const conflicting = new DatabaseSync(path.memory)
     conflicting
       .prepare(`UPDATE cognitive_memory_v2_receipts SET receipt_hash = 'sha256:corrupt' WHERE receipt_id = ?`)
       .run(receipt.receiptId)
     conflicting.close()
-    expect(() => repaired.catchUpV2(address(), alice, 8, 'receipt-diverged')).toThrow('receipt diverged')
+    expect(() => repaired.catchUp(address(), alice, 8, 'receipt-diverged')).toThrow('receipt diverged')
     repaired.close()
     world.close()
   })
 
-  it('rejects malformed communication and episodic vocabularies and rolls back a damaged v2 reset', async () => {
+  it('rejects malformed communication and episodic vocabularies and rolls back a damaged reset', async () => {
     {
       const path = paths()
       const world = new WorldStore(path.world)
@@ -570,8 +479,8 @@ describe('Cognitive Memory v2', () => {
           data: { id: 'observation:self', value: { observerId: alice } },
         },
       ])
-      const memory = new LocalMemoryStore(path.memory, world)
-      expect(memory.catchUpV2(address(), alice, 2, 'content-fallback').capturedMemoryIds).toHaveLength(1)
+      const memory = new AuthorizedSourceStore(path.memory, world)
+      expect(memory.catchUp(address(), alice, 2, 'content-fallback').capturedMemoryIds).toHaveLength(1)
       memory.close()
       world.close()
     }
@@ -592,85 +501,85 @@ describe('Cognitive Memory v2', () => {
           data: { id: suffix === 'id' ? '' : `observation:${suffix}`, value },
         },
       ])
-      const memory = new LocalMemoryStore(path.memory, world)
-      expect(() => memory.catchUpV2(address(), alice, 2, `malformed:${suffix}`)).toThrow(message)
+      const memory = new AuthorizedSourceStore(path.memory, world)
+      expect(() => memory.catchUp(address(), alice, 2, `malformed:${suffix}`)).toThrow(message)
       memory.close()
       world.close()
     }
 
     const fixtureValue = await fixture()
-    fixtureValue.memory.catchUpV2(address(), alice, 8, 'reset:base')
+    fixtureValue.memory.catchUp(address(), alice, 8, 'reset:base')
     const raw = new DatabaseSync(fixtureValue.path.memory)
-    raw.exec('DROP TABLE cognitive_memory_v2_fts')
+    raw.exec('DROP TABLE cognitive_memory_v2_receipts')
     raw.close()
-    expect(() => fixtureValue.memory.resetCognitiveNamespace(address(), alice)).toThrow()
+    expect(() => fixtureValue.memory.reset(address(), alice)).toThrow()
     fixtureValue.memory.close()
     fixtureValue.world.close()
   })
 
-  it('increments memoryEpoch on rebuild and rejects a reused recall plan identity with different results', async () => {
+  it('increments memoryEpoch on rebuild', async () => {
     const { path, world, memory } = await fixture()
-    memory.catchUpV2(address(), alice, 8, 'epoch:first')
-    expect(memory.resetCognitiveNamespace(address(), alice)).toBe(2)
-    const second = memory.catchUpV2(address(), alice, 8, 'epoch:second')
+    memory.catchUp(address(), alice, 8, 'epoch:first')
+    expect(memory.reset(address(), alice)).toBe(2)
+    const second = memory.catchUp(address(), alice, 8, 'epoch:second')
     expect(second.watermark.memoryEpoch).toBe(2)
-    const basePlan = plan(alice, 'bridge', 8, 'plan:stable')
-    memory.recallV2(basePlan)
-    expect(memory.recallV2(basePlan).receipt.receiptHash).toBe(memory.recallV2(basePlan).receipt.receiptHash)
-    expect(() => memory.recallV2({ ...basePlan, query: 'station' })).toThrow('bound to another result')
     memory.close()
 
-    const unopened = new LocalMemoryStore(path.memory, world)
-    expect(unopened.resetCognitiveNamespace(address(), bob)).toBe(1)
-    expect(unopened.cognitiveWatermark(address(), bob)).toMatchObject({ memoryEpoch: 1, verifiedThroughSeq: 0 })
+    const unopened = new AuthorizedSourceStore(path.memory, world)
+    expect(unopened.reset(address(), bob)).toBe(1)
+    expect(unopened.watermark(address(), bob)).toMatchObject({ memoryEpoch: 1, verifiedThroughSeq: 0 })
     unopened.close()
     world.close()
   })
 
-  it('measures the Recall candidates a plan limit drops without writing any record', async () => {
-    const { path, world, memory } = await fixture()
-    await commit(
-      world,
-      'diagnostics',
-      Array.from({ length: 5 }, (_, index) => ({
-        eventType: 'observation.upsert',
-        eventVersion: 1,
-        data: { id: `observation:signal:${index}`, value: { observerId: alice, content: `signal relay ${index}` } },
-      })),
-    )
-    const asOf = world.head(address()).headSeq
-    memory.catchUpV2(address(), alice, asOf, 'diagnostics:alice')
-    const wide = plan(alice, 'signal', asOf, 'plan:diagnostics:wide')
-    expect(memory.recallV2(wide).memories).toHaveLength(5)
-    expect(memory.recallDiagnostics(wide)).toMatchObject({
-      schemaVersion: 'recall-candidates/v1',
-      matchedCount: 5,
-      limit: 10,
-    })
-    // The narrowed plan returns two of the five, which is exactly the gap the diagnostic reports.
-    const narrow = { ...wide, planId: 'plan:diagnostics:narrow', limit: 2 }
-    expect(memory.recallV2(narrow).memories).toHaveLength(2)
-    expect(memory.recallDiagnostics(narrow)).toMatchObject({ matchedCount: 5, limit: 2 })
-    // A query nothing matches, and a query with no terms, both report zero instead of failing.
-    expect(memory.recallDiagnostics({ ...narrow, planId: 'plan:diagnostics:none', query: 'absent' })).toMatchObject({
-      matchedCount: 0,
-    })
-    expect(memory.recallDiagnostics({ ...narrow, planId: 'plan:diagnostics:blank', query: '   ' })).toMatchObject({
-      matchedCount: 0,
-    })
-    // Counting is not a Recall: the two diagnostic calls above added no Recall receipt of their own.
-    const raw = new DatabaseSync(path.memory)
-    const receipts = raw.prepare('SELECT COUNT(*) AS total FROM cognitive_memory_v2_recall_receipts').get() as {
-      total: number
-    }
-    raw.close()
-    expect(receipts.total).toBe(2)
+  it('lists only this character, in order, up to the prefix asked for', async () => {
+    const { world, memory } = await fixture()
+    memory.catchUp(address(), alice, 8, 'sources:alice')
+    const all = memory.sources(address(), alice, 8)
+    expect(all.map(source => source.sourceSeq)).toEqual([...all.map(source => source.sourceSeq)].sort((a, b) => a - b))
+    expect(all.some(source => source.text.includes('the bridge is closed'))).toBe(true)
+    expect(memory.sources(address(), bob, 8)).toEqual([])
+    expect(memory.sources(address(), alice, 0)).toEqual([])
     memory.close()
-    const unopened = new LocalMemoryStore(path.memory, world)
-    expect(() =>
-      unopened.recallDiagnostics({ ...wide, planId: 'plan:diagnostics:behind', asOfWorldSeq: asOf + 1 }),
-    ).toThrow('has not reached the required as-of')
-    unopened.close()
+    world.close()
+  })
+
+  it('reads a memory database written by the previous version', async () => {
+    const { path, world, memory } = await fixture()
+    memory.close()
+    // The previous schema with one row of everything the migration removes, plus a source and a receipt it keeps.
+    rmSync(path.memory, { force: true })
+    const old = openMigratedDatabase(path.memory, MEMORY_APPLICATION_ID, MEMORY_MIGRATIONS.slice(0, -1))
+    const key = `${worldAddressKey(address())}\u001f${alice}`
+    old
+      .prepare('INSERT INTO cognitive_memory_v2_fts(namespace_key, memory_id, text_value) VALUES (?, ?, ?)')
+      .run(key, 'm', 'old')
+    old.close()
+    const reopened = new AuthorizedSourceStore(path.memory, world)
+    const receipt = reopened.catchUp(address(), alice, 8, 'after-migration')
+    expect(receipt.capturedMemoryIds).toHaveLength(4)
+    reopened.close()
+    const raw = new DatabaseSync(path.memory, { readOnly: true })
+    const tables = (raw.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").all() as { name: string }[]).map(
+      row => row.name,
+    )
+    raw.close()
+    expect(tables).toEqual(
+      expect.arrayContaining([
+        'cognitive_memory_v2_sources',
+        'cognitive_memory_v2_namespaces',
+        'cognitive_memory_v2_receipts',
+      ]),
+    )
+    for (const gone of [
+      'cognitive_memory_v2_fts',
+      'cognitive_memory_v2_terms',
+      'cognitive_memory_v2_summaries',
+      'cognitive_memory_v2_recall_receipts',
+      'memory_entries',
+      'cognitive_jobs',
+    ])
+      expect(tables).not.toContain(gone)
     world.close()
   })
 })

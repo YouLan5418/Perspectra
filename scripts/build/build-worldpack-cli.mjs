@@ -12,7 +12,6 @@ export async function buildWorldPackCli(output) {
     platform: 'node',
     target: 'node24',
     format: 'esm',
-    external: ['jieba-wasm'],
     legalComments: 'eof',
     metafile: true,
     banner: {
@@ -32,10 +31,6 @@ export async function buildWorldPackCli(output) {
     outfile: join(runtime, 'lens.mjs'),
   })
   await writeFile(join(runtime, 'lens.mjs'), lens.outputFiles[0].contents)
-  await cp('node_modules/jieba-wasm', join(runtime, 'node_modules/jieba-wasm'), {
-    recursive: true,
-    dereference: true,
-  })
   await cp('scripts/release/worldpack.cmd', join(output, 'worldpack.cmd'))
   await cp('scripts/release/CREATOR.zh-CN.md', join(output, '创作校验.md'))
   await cp('skills/perspectra-creator', join(output, 'skills/perspectra-creator'), {

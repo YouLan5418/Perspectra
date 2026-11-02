@@ -1,3 +1,4 @@
+import { sourcesMatching } from '../support/authorized-sources.ts'
 import type { Server } from 'node:http'
 import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -5,7 +6,7 @@ import { join, resolve } from 'node:path'
 import { randomUUID } from 'node:crypto'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { brandId, RECALL_KEYWORD_TOKENIZER_ID, type WorldJsonObject } from '@harness-world/contracts'
-import { CognitiveMemoryService } from '@harness-world/memory'
+import { AuthorizedSourceStore } from '@harness-world/memory'
 import { CharacterViewBuilder, WorldStore } from '@harness-world/store-sqlite'
 import { WorldHostRuntime, type WorldHostOptions } from '../../desktop/host/world-runtime.ts'
 import { createHostServer } from '../../desktop/host/http-server.ts'
@@ -464,15 +465,10 @@ describe('creator activity and host escape', () => {
     expect(f.inputs).toHaveLength(0)
     await f.runtime.escape()
     const store = new WorldStore(join(f.data, 'world.sqlite'))
-    const memory = new CognitiveMemoryService(
-      join(f.data, 'memory.sqlite'),
-      store,
-      undefined,
-      2,
-      RECALL_KEYWORD_TOKENIZER_ID,
-    )
+    const memory = new AuthorizedSourceStore(join(f.data, 'memory.sqlite'), store)
     try {
-      const recalled = memory.recall(
+      const recalled = sourcesMatching(
+        memory,
         f.runtime.address,
         brandId('character:gpt', 'CharacterId'),
         '偏小',
@@ -481,7 +477,8 @@ describe('creator activity and host escape', () => {
       expect(recalled.some(m => m.text.includes('猜了10') && m.text.includes('偏小'))).toBe(true)
       expect(JSON.stringify(recalled)).not.toContain('"answer"')
       expect(
-        memory.recall(
+        sourcesMatching(
+          memory,
           f.runtime.address,
           brandId('character:claude', 'CharacterId'),
           '偏小',
@@ -731,15 +728,10 @@ describe('script-defined participants and moderator judgement', () => {
     expect(end.transcript.some(line => line.text.includes('猜测 10 裁决为“猜中”'))).toBe(true)
     expect(end.availableActions?.some(a => a.actionType === 'move')).toBe(true)
     const store = new WorldStore(join(f.data, 'world.sqlite')),
-      memory = new CognitiveMemoryService(
-        join(f.data, 'memory.sqlite'),
-        store,
-        undefined,
-        2,
-        RECALL_KEYWORD_TOKENIZER_ID,
-      )
+      memory = new AuthorizedSourceStore(join(f.data, 'memory.sqlite'), store)
     try {
-      const recalled = memory.recall(
+      const recalled = sourcesMatching(
+        memory,
         f.runtime.address,
         brandId('character:gpt', 'CharacterId'),
         '裁决',

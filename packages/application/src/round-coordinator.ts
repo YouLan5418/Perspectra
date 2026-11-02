@@ -36,7 +36,7 @@ import {
   type RulebookResolution,
   type RulebookResolver,
 } from '@harness-world/kernel'
-import { type CognitiveMemoryService } from '@harness-world/memory'
+import { type AuthorizedSourceStore } from '@harness-world/memory'
 import {
   CharacterRuntimeAvailabilityService,
   RoundInbox,
@@ -113,7 +113,7 @@ export interface RoundCoordinatorOptions {
   readonly leaseTtlMs?: number
   readonly rulebooks?: RulebookRegistry
   readonly sceneDecision?: SceneDecisionService
-  readonly cognitiveMemory?: CognitiveMemoryService
+  readonly cognitiveMemory?: AuthorizedSourceStore
   readonly faultInjector?: FaultInjector
 }
 

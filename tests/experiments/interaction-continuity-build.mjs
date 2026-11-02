@@ -80,7 +80,7 @@ for(const arm of arms) {
   const {mode}=arm
   const used=new Set()
   const outfile=join(directory,mode+'.mjs')
-  await build({entryPoints:[entry],outfile,bundle:true,platform:'node',format:'esm',target:'node24',external:['jieba-wasm'],
+  await build({entryPoints:[entry],outfile,bundle:true,platform:'node',format:'esm',target:'node24',
     banner:{js:"import { createRequire as comparisonRequire } from 'node:module'; const require = comparisonRequire(import.meta.url);"},
     plugins:[{name:'comparison-sources',setup(builder){
       builder.onLoad({filter:/\.ts$/},args=>{

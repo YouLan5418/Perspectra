@@ -7,7 +7,7 @@ import { expect, it } from 'vitest'
 import { WorldApplication } from '@harness-world/application'
 import { brandId, hashWorldJson, type WorldEventDraft, type WorldJsonObject } from '@harness-world/contracts'
 import { CharacterViewBuilder, WorldStore } from '@harness-world/store-sqlite'
-import { CognitiveMemoryService } from '@harness-world/memory'
+import { AuthorizedSourceStore } from '@harness-world/memory'
 import { frozenIntentWorld } from '../fixtures/player-intent-world.ts'
 
 it.each(['direct', 'private'])(
@@ -45,7 +45,7 @@ it.each(['direct', 'private'])(
     })
     const secret = '拒绝投递的口令海棠7306'
     let store: WorldStore | undefined
-    let memory: CognitiveMemoryService | undefined
+    let memory: AuthorizedSourceStore | undefined
     try {
       app.activate(world)
       const submit = (text: string, key: string) =>
@@ -88,7 +88,7 @@ it.each(['direct', 'private'])(
       expect(JSON.stringify(view.observations)).not.toContain(secret)
       expect(events.filter(event => event.eventType === 'character.speak')).toHaveLength(1)
       const memoryPath = join(root, 'verification-memory.sqlite')
-      memory = new CognitiveMemoryService(memoryPath, store, undefined, 2)
+      memory = new AuthorizedSourceStore(memoryPath, store, undefined)
       for (const id of ['character:npc', 'character:bob']) {
         const caughtUp = memory.catchUp(
           world.manifest.address,

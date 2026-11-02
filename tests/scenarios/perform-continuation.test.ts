@@ -1,7 +1,7 @@
 import Ajv from 'ajv'
 import { gatewayTurnCall } from '../../desktop/host/gateway-turn-call.ts'
 import { DatabaseSync } from 'node:sqlite'
-import { CognitiveMemoryService } from '@harness-world/memory'
+import { AuthorizedSourceStore } from '@harness-world/memory'
 import { CharacterViewBuilder } from '@harness-world/store-sqlite'
 import {
   publicationSourceText,
@@ -1107,13 +1107,7 @@ it('preserves speech/narration alternation in one atomic publication, authorized
     { locale: 'zh-CN' },
   )
   expect(rendered.text).toContain(transcript.at(-1)!.text)
-  const memory = new CognitiveMemoryService(
-    join(f.directory, 'memory.sqlite'),
-    f.store,
-    undefined,
-    2,
-    RECALL_KEYWORD_TOKENIZER_ID,
-  )
+  const memory = new AuthorizedSourceStore(join(f.directory, 'memory.sqlite'), f.store)
   try {
     for (const actor of [npc, player, bob])
       memory.catchUp(f.address, actor, f.store.head(f.address).headSeq, 'ordered-expression-test')

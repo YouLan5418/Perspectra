@@ -13,7 +13,7 @@
     "format": "prettier --write \"packages/**/*.ts\" \"desktop/**/*.ts\" \"tests/**/*.ts\" \"scripts/**/*.{mjs,ts}\" \"apps/launcher/src/**/*.{ts,vue}\" \"apps/launcher/*.ts\" \"vitest*.ts\"",
     "format:check": "prettier --check \"packages/**/*.ts\" \"desktop/**/*.ts\" \"tests/**/*.ts\" \"scripts/**/*.{mjs,ts}\" \"apps/launcher/src/**/*.{ts,vue}\" \"apps/launcher/*.ts\" \"vitest*.ts\"",
     "test": "vitest run --config vitest.regression.config.ts",
-    "desktop:build": "esbuild desktop/host/web-entry.ts --bundle --platform=node --format=esm --target=node24 --external:jieba-wasm --outfile=dist/backend/playtest.mjs && node scripts/build/copy-frontend-assets.mjs",
+    "desktop:build": "esbuild desktop/host/web-entry.ts --bundle --platform=node --format=esm --target=node24 --outfile=dist/backend/playtest.mjs && node scripts/build/copy-frontend-assets.mjs",
     "worldpack": "node --import tsx packages/world-pack/process/cli-entry.ts",
     "preset:import": "node --import tsx packages/provider-chat/process/tavern-import.ts",
     "experience:web": "node --import tsx desktop/host/web-entry.ts",
@@ -25,8 +25,7 @@
     "launcher:check": "corepack pnpm@11.7.0 --filter @perspectra/launcher typecheck && corepack pnpm@11.7.0 --filter @perspectra/launcher test"
   },
   "dependencies": {
-    "@deepseek-ai/cordis": "4.0.1",
-    "jieba-wasm": "2.4.0"
+    "@deepseek-ai/cordis": "4.0.1"
   },
   "devDependencies": {
     "@types/node": "^22.20.0",

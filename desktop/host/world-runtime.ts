@@ -548,7 +548,6 @@ export class WorldHostCore implements HostRuntime {
       sessionPath: resolve(options.dataDirectory, 'session.sqlite'),
       memoryPath: resolve(options.dataDirectory, 'memory.sqlite'),
       contextPath: resolve(options.dataDirectory, 'context.sqlite'),
-      recallTokenizer: RECALL_KEYWORD_TOKENIZER_ID,
       // The world's model budget has to cover the interpreter's own output ceiling, or the Host refuses to
       // dispatch an interpretation at all: the profile states the ceiling, this is what pays for it.
       modelBudgetTokens: 8_192,

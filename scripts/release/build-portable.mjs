@@ -60,7 +60,6 @@ await cp(resolve('.tmp/hindsight-vector-venv/Lib/site-packages'), join(runtime, 
 })
 const cli = await buildWorldPackCli(output)
 const inputs = new Set(Object.keys(cli.metafile.inputs).map(path => resolve(path)))
-inputs.add(resolve('node_modules/jieba-wasm/package.json'))
 await cp(resolve('packages/frontend/assets'), join(runtime, 'frontend-assets'), { recursive: true })
 await cp(resolve('apps/launcher/dist-creator'), join(runtime, 'creator-assets'), { recursive: true })
 await cp(resolve('apps/launcher/dist-lens'), join(runtime, 'lens-assets'), { recursive: true })
@@ -75,7 +74,6 @@ for (const [entry, file] of [
     platform: 'node',
     target: 'node24',
     format: 'esm',
-    external: ['jieba-wasm'],
     legalComments: 'eof',
     metafile: true,
     banner: {

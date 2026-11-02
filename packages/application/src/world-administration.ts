@@ -8,7 +8,7 @@ import {
   type WorldAddress,
 } from '@harness-world/contracts'
 import { runtimeManifestFromStoredRecord } from '@harness-world/kernel'
-import { CognitiveMemoryService } from '@harness-world/memory'
+import { AuthorizedSourceStore } from '@harness-world/memory'
 import {
   BranchAdministration,
   BranchQuarantineService,
@@ -186,14 +186,10 @@ export class WorldAdministration {
                 address,
               })
             }
-            const memoryVersion = manifest.contentPack?.runtimeCapabilities.cognitiveMemoryVersion === 2 ? 2 : 1
-            const memory = new CognitiveMemoryService(
+            const memory = new AuthorizedSourceStore(
               this.#access.options.memoryPath,
               store,
               this.#access.options.faultInjector,
-              memoryVersion,
-              this.#access.options.recallTokenizer,
-              this.#access.options.recallDictionary ?? false,
             )
             try {
               memoryVerificationHash = memory.rebuildBranch(

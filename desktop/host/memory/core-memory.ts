@@ -11,7 +11,7 @@ import {
   type WorldJsonObject,
   type WorldJsonValue,
 } from '@harness-world/contracts'
-import { CognitiveMemoryService } from '@harness-world/memory'
+import { AuthorizedSourceStore } from '@harness-world/memory'
 import { WorldStore } from '@harness-world/store-sqlite'
 import type { CharacterTurnRequest } from '@harness-world/application'
 import { identityEntry } from './alias-history.ts'
@@ -193,18 +193,10 @@ export class CoreMemoryAdapter {
   }
   #snapshot(actor: string, catchUp = true): { scope: WorldJsonObject; sources: WorldJsonObject[]; tick: number } {
     const store = new WorldStore(resolve(this.dataDirectory, 'world.sqlite'))
-    const memory = catchUp
-      ? new CognitiveMemoryService(
-          resolve(this.dataDirectory, 'memory.sqlite'),
-          store,
-          undefined,
-          2,
-          RECALL_KEYWORD_TOKENIZER_ID,
-        )
-      : undefined
+    const memory = catchUp ? new AuthorizedSourceStore(resolve(this.dataDirectory, 'memory.sqlite'), store) : undefined
     try {
       const head = store.head(this.address)
-      memory?.catchUpReceipt(this.address, brandId(actor, 'CharacterId'), head.headSeq, 'web-core-memory')
+      memory?.catchUp(this.address, brandId(actor, 'CharacterId'), head.headSeq, 'web-core-memory')
       // The host supplies timestamps only for the character's already authorized source rows.
       const ticks = new Map(store.readEventTicks(this.address, head.headSeq).map(e => [e.seq, e.tick]))
       const db = new DatabaseSync(resolve(this.dataDirectory, 'memory.sqlite'), { readOnly: true })

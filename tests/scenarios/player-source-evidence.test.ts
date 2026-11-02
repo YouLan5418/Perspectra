@@ -7,7 +7,7 @@ import { expect, it } from 'vitest'
 import { WorldApplication } from '@harness-world/application'
 import { brandId, type WorldJsonObject, type WorldJsonValue } from '@harness-world/contracts'
 import { WorldStore, PlayerInputJobs } from '@harness-world/store-sqlite'
-import { CognitiveMemoryService } from '@harness-world/memory'
+import { AuthorizedSourceStore } from '@harness-world/memory'
 import { currentEntityState } from '@harness-world/kernel'
 import { frozenIntentWorld, intentFixtureProfile } from '../fixtures/player-intent-world.ts'
 
@@ -68,7 +68,7 @@ it('retains full addressed text in authorized context and captured memory withou
         expect((content.playerInput as WorldJsonObject).sourceSpans).toMatchObject([{ text }])
       }
       expect(currentEntityState(store.readEvents(world.manifest.address), 'entity:cup')?.holderId).toBe(null)
-      const memory = new CognitiveMemoryService(join(root, 'memory.sqlite'), store, undefined, 2)
+      const memory = new AuthorizedSourceStore(join(root, 'memory.sqlite'), store)
       try {
         memory.catchUp(
           world.manifest.address,

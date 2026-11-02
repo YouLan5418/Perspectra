@@ -7,7 +7,7 @@ import { basename, join, resolve, sep } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { WorldJsonObject } from '@harness-world/contracts'
 import { CharacterViewBuilder, WorldStore } from '@harness-world/store-sqlite'
-import { CognitiveMemoryService } from '@harness-world/memory'
+import { AuthorizedSourceStore } from '@harness-world/memory'
 import { WorldHostRuntime } from '../../desktop/host/world-runtime.ts'
 import {
   CoreMemoryAdapter,
@@ -147,7 +147,7 @@ describe('optional web Core memory', () => {
         'authorized source timestamp is missing',
       )
       const failure = new Error('memory prefix verification failed')
-      vi.spyOn(CognitiveMemoryService.prototype, 'catchUpReceipt').mockImplementation(() => {
+      vi.spyOn(AuthorizedSourceStore.prototype, 'catchUp').mockImplementation(() => {
         throw failure
       })
       await expect(adapter.project(request, AbortSignal.timeout(5000))).rejects.toThrow(failure)
@@ -170,8 +170,8 @@ describe('optional web Core memory', () => {
     const adapter = new CoreMemoryAdapter(f.data, f.runtime.address, async () => {
       throw new Error('inspection must not call Core')
     })
-    const catchUp = vi.spyOn(CognitiveMemoryService.prototype, 'catchUp')
-    const receipt = vi.spyOn(CognitiveMemoryService.prototype, 'catchUpReceipt')
+    const catchUp = vi.spyOn(AuthorizedSourceStore.prototype, 'catchUp')
+    const receipt = vi.spyOn(AuthorizedSourceStore.prototype, 'catchUp')
     const snapshot = adapter.inspectArchive(actor, 0, 1)
     expect(snapshot.archivePrefix).toBe(before)
     expect(snapshot.sections.sources?.items).toHaveLength(1)
@@ -200,7 +200,7 @@ describe('optional web Core memory', () => {
       people: [{ characterId: actor, name: 'Claude' }],
     }
     writeFileSync(join(f.data, 'memory-aliases.json'), JSON.stringify({ [actor]: [entry] }))
-    const catchUp = vi.spyOn(CognitiveMemoryService.prototype, 'catchUp')
+    const catchUp = vi.spyOn(AuthorizedSourceStore.prototype, 'catchUp')
     const first = adapter.snapshotAliases([actor])
     expect(first[actor]).toEqual([entry])
     expect(catchUp).not.toHaveBeenCalled()

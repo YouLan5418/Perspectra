@@ -17,7 +17,7 @@ import {
   CharacterViewBuilder,
   SessionDeliveryAdapter,
 } from '@harness-world/store-sqlite'
-import { CognitiveMemoryService } from '@harness-world/memory'
+import { AuthorizedSourceStore } from '@harness-world/memory'
 import { CharacterTurn, type CharacterTurnRequest } from '../../packages/application/src/character-turn.ts'
 import { runActivations } from './run-activations.ts'
 import { CrossSceneCommunication, communicationInstruction } from '../../desktop/host/pack-communication.ts'
@@ -97,13 +97,7 @@ export async function crossSceneRuntime(
     address,
     manifest.characters.map(c => ({ characterId: c.characterId, state: 'ready' as const })),
   )
-  const memory = new CognitiveMemoryService(
-    join(dataDirectory, 'memory.sqlite'),
-    store,
-    undefined,
-    2,
-    RECALL_KEYWORD_TOKENIZER_ID,
-  )
+  const memory = new AuthorizedSourceStore(join(dataDirectory, 'memory.sqlite'), store)
   const session = options.storyNodes ? new SessionDeliveryAdapter(join(dataDirectory, 'session.sqlite')) : undefined
   const memoryCore = options.memoryCoreRun
     ? new CoreMemoryAdapter(dataDirectory, address, options.memoryCoreRun, options.memoryContextBudget, {

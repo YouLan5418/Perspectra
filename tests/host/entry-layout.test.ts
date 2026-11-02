@@ -19,7 +19,6 @@ it('boots the built backend from a source checkout and an isolated installed lay
       platform: 'node',
       target: 'node24',
       format: 'esm',
-      external: ['jieba-wasm'],
       logLevel: 'silent',
     })
     await cp('packages/frontend/assets', join(directory, 'frontend-assets'), { recursive: true })

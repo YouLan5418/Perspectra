@@ -46,7 +46,6 @@ export default function (ctx) {
       platform: 'node',
       target: 'node24',
       format: 'esm',
-      external: ['jieba-wasm'],
       logLevel: 'silent',
     })
     await cp('packages/frontend/assets', join(directory, 'frontend-assets'), { recursive: true })

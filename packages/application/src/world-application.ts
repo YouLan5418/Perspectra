@@ -31,7 +31,7 @@ import {
   type PlayerActionInput,
   type RulebookRegistry,
 } from '@harness-world/kernel'
-import { CognitiveMemoryService } from '@harness-world/memory'
+import { AuthorizedSourceStore } from '@harness-world/memory'
 import { DeterministicPresenter } from '@harness-world/presentation'
 import {
   WorldRuntimeRegistry,
@@ -138,16 +138,6 @@ export interface WorldApplicationOptions {
   readonly interactionPackages?: readonly InteractionPackageImplementation[]
   readonly memoryPath?: string
   readonly contextPath?: string
-  /**
-   * Selects the versioned keyword Recall strategy for this instance, or leaves the frozen path in place
-   * when omitted. This is an explicit, recorded selection and not a silent upgrade: the effective
-   * strategy and tokenizer are written into every Recall receipt, so a rebuild that asked for a different
-   * one fails closed instead of quietly changing what a character is shown. It stays until a world can
-   * declare the strategy in its own content.
-   */
-  readonly recallTokenizer?: RecallTokenizerId
-  /** Whether the derived proper-noun dictionary participates in ranking; off unless a caller asks. */
-  readonly recallDictionary?: boolean
 }
 
 export interface SubmitTextRequest {
@@ -173,7 +163,7 @@ function validateApplicationManifest(
   address: WorldAddress,
   correlationId: string,
   memoryPath: string | undefined,
-): { readonly sceneEnabled: boolean; readonly contextEnabled: boolean; readonly memoryVersion: 1 | 2 } {
+): { readonly sceneEnabled: boolean; readonly contextEnabled: boolean } {
   const scenePolicy = manifest.plugins.find(plugin => plugin.pluginId === 'builtin:scene-decision')
   const contextPolicy = manifest.plugins.find(plugin => plugin.pluginId === 'builtin:agent-context')
   const unsupported =
@@ -199,9 +189,7 @@ function validateApplicationManifest(
     })
   }
   const contextEnabled = contextPolicy !== undefined
-  const memoryVersion =
-    manifest.contentPack?.runtimeCapabilities.cognitiveMemoryVersion === 2 ? (2 as const) : (1 as const)
-  return { sceneEnabled: scenePolicy !== undefined, contextEnabled, memoryVersion }
+  return { sceneEnabled: scenePolicy !== undefined, contextEnabled }
 }
 
 /** Real branch-owned Store aggregate; all handles close with its Cordis Fiber. */
@@ -264,9 +252,9 @@ export class BranchStoreComponent {
   }
 }
 
-/** Branch-owned authorized memory capture used by player commits and explicit recall. */
+/** Branch-owned authorized memory capture used by player commits. */
 export class BranchAgentComponent {
-  constructor(readonly cognitiveMemory?: CognitiveMemoryService) {}
+  constructor(readonly cognitiveMemory?: AuthorizedSourceStore) {}
   close(): void {
     this.cognitiveMemory?.close()
   }
@@ -299,7 +287,7 @@ export class WorldBranchComponentFactory implements BranchComponentFactory {
       this.options.outboxMaxAttempts ?? 12,
       this.options.faultInjector,
     )
-    let cognitiveMemory: CognitiveMemoryService | undefined
+    let cognitiveMemory: AuthorizedSourceStore | undefined
     try {
       const manifest = runtimeManifestFromStoredRecord(store.store.readManifest(scope.address))
       const policies = validateApplicationManifest(
@@ -310,14 +298,7 @@ export class WorldBranchComponentFactory implements BranchComponentFactory {
       )
       cognitiveMemory = !policies.contextEnabled
         ? undefined
-        : new CognitiveMemoryService(
-            this.options.memoryPath!,
-            store.store,
-            this.options.faultInjector,
-            policies.memoryVersion,
-            this.options.recallTokenizer,
-            this.options.recallDictionary ?? false,
-          )
+        : new AuthorizedSourceStore(this.options.memoryPath!, store.store, this.options.faultInjector)
       const agents = new BranchAgentComponent(cognitiveMemory)
       const presentation = new BranchPresentationComponent()
       const players = new Set(manifest.playerBindings.map(value => value.characterId))

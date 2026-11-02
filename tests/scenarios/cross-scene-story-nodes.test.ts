@@ -1,3 +1,4 @@
+import { sourcesMatching } from '../support/authorized-sources.ts'
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
@@ -124,10 +125,10 @@ it.each([false, true])(
     expect(JSON.stringify(child.view(friend).observations)).not.toContain('未来暗号鸢尾')
     const headSeq = child.store.head(child.address).headSeq
     expect(
-      JSON.stringify(child.memory.recall(child.address, brandId(friend, 'CharacterId'), '青灯', headSeq)),
+      JSON.stringify(sourcesMatching(child.memory, child.address, brandId(friend, 'CharacterId'), '青灯', headSeq)),
     ).toContain('青灯')
     expect(
-      JSON.stringify(child.memory.recall(child.address, brandId(friend, 'CharacterId'), '鸢尾', headSeq)),
+      JSON.stringify(sourcesMatching(child.memory, child.address, brandId(friend, 'CharacterId'), '鸢尾', headSeq)),
     ).not.toContain('未来暗号鸢尾')
     expect(JSON.stringify(child.view('character:companion').observations)).not.toContain(
       phone ? '远端私密山茶' : '节点前暗号青灯',
@@ -179,14 +180,19 @@ it.each([false, true])(
     expect(JSON.stringify(receiver.view(friend).observations)).not.toContain('未来暗号鸢尾')
     const headSeq = receiver.store.head(receiver.address).headSeq
     expect(
-      JSON.stringify(receiver.memory.recall(receiver.address, brandId(friend, 'CharacterId'), '青灯', headSeq)),
+      JSON.stringify(
+        sourcesMatching(receiver.memory, receiver.address, brandId(friend, 'CharacterId'), '青灯', headSeq),
+      ),
     ).toContain('青灯')
     expect(
-      JSON.stringify(receiver.memory.recall(receiver.address, brandId(friend, 'CharacterId'), '鸢尾', headSeq)),
+      JSON.stringify(
+        sourcesMatching(receiver.memory, receiver.address, brandId(friend, 'CharacterId'), '鸢尾', headSeq),
+      ),
     ).not.toContain('未来暗号鸢尾')
     expect(
       JSON.stringify(
-        receiver.memory.recall(
+        sourcesMatching(
+          receiver.memory,
           receiver.address,
           brandId('character:companion', 'CharacterId'),
           phone ? '山茶' : '青灯',

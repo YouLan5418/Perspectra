@@ -14,7 +14,7 @@ import {
 } from '@harness-world/contracts'
 import { createCoreRulebookRegistry, type CompiledWorldManifestV10 } from '@harness-world/kernel'
 import { WorldStore, WriterLeaseService, CharacterRuntimeAvailabilityService } from '@harness-world/store-sqlite'
-import { CognitiveMemoryService } from '@harness-world/memory'
+import { AuthorizedSourceStore } from '@harness-world/memory'
 import { SceneDecisionService } from '../../packages/application/src/scene-decision.ts'
 import { frozenInteractionWorld, basicInteractionPackage } from '../fixtures/frozen-interaction-world.ts'
 import { createNoticeBoardPackage, inspectId, boardText, privateText } from './notice-board-capability.ts'
@@ -143,13 +143,7 @@ export function openCapabilityWorld(
       roundId: brandId('genesis', 'InteractionRoundId'),
       correlationId: 'capability-experiment',
     })
-  const memory = new CognitiveMemoryService(
-    join(directory, 'memory.sqlite'),
-    store,
-    undefined,
-    2,
-    RECALL_KEYWORD_TOKENIZER_ID,
-  )
+  const memory = new AuthorizedSourceStore(join(directory, 'memory.sqlite'), store)
   const rules = createCoreRulebookRegistry({
     interactionPackages: [basicInteractionPackage, createNoticeBoardPackage(), ...extraPackages],
   })

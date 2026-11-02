@@ -186,17 +186,39 @@ const MEMORY_COGNITIVE_V2_DIGEST_SCHEMA = `
 DELETE FROM cognitive_memory_v2_summaries;
 `
 
-export const MEMORY_SCHEMA_VERSION = 8
+/**
+ * Characters' long-term memory moved to its implementation, so recall, summary and the first-generation tables
+ * have no reader. Source rows stay exactly as they are, which keeps existing saves and Core archives valid.
+ * Receipts are only compared with themselves and named summaries, so they are simply taken again.
+ */
+const MEMORY_AUTHORIZED_SOURCES_SCHEMA = `
+DROP TABLE cognitive_memory_v2_fts;
+DROP TABLE cognitive_memory_v2_summaries;
+DROP TABLE cognitive_memory_v2_recall_receipts;
+DROP TABLE cognitive_memory_v2_terms;
+DELETE FROM cognitive_memory_v2_receipts;
+DROP TABLE memory_sources;
+DROP TABLE memory_source_mappings;
+DROP TABLE memory_fts;
+DROP TABLE memory_entries;
+DROP TABLE memory_namespace_watermarks;
+DROP TABLE cognitive_jobs;
+`
+
+export const MEMORY_MIGRATIONS = [
+  { version: 1, sql: MEMORY_SCHEMA },
+  { version: 2, sql: MEMORY_RECONCILE_SCHEMA },
+  { version: 3, sql: MEMORY_COGNITIVE_JOB_SCHEMA },
+  { version: 4, sql: MEMORY_GOAL_SOURCE_SCHEMA },
+  { version: 5, sql: MEMORY_COGNITIVE_V2_SCHEMA },
+  { version: 6, sql: MEMORY_COGNITIVE_V2_KEYWORD_SCHEMA },
+  { version: 7, sql: MEMORY_COGNITIVE_V2_HYBRID_SCHEMA },
+  { version: 8, sql: MEMORY_COGNITIVE_V2_DIGEST_SCHEMA },
+  { version: 9, sql: MEMORY_AUTHORIZED_SOURCES_SCHEMA },
+]
+
+export const MEMORY_SCHEMA_VERSION = 9
 
 export function openMemoryDatabase(path: string): DatabaseSync {
-  return openMigratedDatabase(path, MEMORY_APPLICATION_ID, [
-    { version: 1, sql: MEMORY_SCHEMA },
-    { version: 2, sql: MEMORY_RECONCILE_SCHEMA },
-    { version: 3, sql: MEMORY_COGNITIVE_JOB_SCHEMA },
-    { version: 4, sql: MEMORY_GOAL_SOURCE_SCHEMA },
-    { version: 5, sql: MEMORY_COGNITIVE_V2_SCHEMA },
-    { version: 6, sql: MEMORY_COGNITIVE_V2_KEYWORD_SCHEMA },
-    { version: 7, sql: MEMORY_COGNITIVE_V2_HYBRID_SCHEMA },
-    { version: MEMORY_SCHEMA_VERSION, sql: MEMORY_COGNITIVE_V2_DIGEST_SCHEMA },
-  ])
+  return openMigratedDatabase(path, MEMORY_APPLICATION_ID, MEMORY_MIGRATIONS)
 }

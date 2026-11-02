@@ -6,7 +6,7 @@ import { createHash } from 'node:crypto'
 const root=resolve('.'),base=resolve('output/goal-progress');mkdirSync(base,{recursive:true})
 const directory=mkdtempSync(join(base,'comparison-')),sources={}
 const entry='tests/experiments/goal-progress-live.ts'
-await build({entryPoints:[entry],outfile:join(directory,'run.mjs'),bundle:true,platform:'node',format:'esm',target:'node24',external:['jieba-wasm'],
+await build({entryPoints:[entry],outfile:join(directory,'run.mjs'),bundle:true,platform:'node',format:'esm',target:'node24',
  banner:{js:"import { createRequire as goalRequire } from 'node:module'; const require = goalRequire(import.meta.url);"},
  plugins:[{name:'isolated-author-search',setup(builder){builder.onLoad({filter:/\.ts$/},args=>{
   const path=relative(root,args.path).split('\\').join('/'),source=readFileSync(args.path,'utf8')
