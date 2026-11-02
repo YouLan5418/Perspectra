@@ -19,7 +19,7 @@ import {
 } from '@harness-world/store-sqlite'
 import { CognitiveMemoryService } from '@harness-world/memory'
 import { CharacterTurn, type CharacterTurnRequest } from '../../packages/application/src/character-turn.ts'
-import { runCharacterActivations } from '../../packages/application/src/activation-cycle.ts'
+import { runActivations } from './run-activations.ts'
 import { CrossSceneCommunication, communicationInstruction } from '../../desktop/host/pack-communication.ts'
 import { CrossScenePhone, phoneCalls, type PhoneOperation } from './cross-scene-phone.ts'
 import { SceneDecisionService } from '../../packages/application/src/scene-decision.ts'
@@ -204,7 +204,7 @@ export async function crossSceneRuntime(
   const view = (id: string) =>
     new CharacterViewBuilder(store).rebuildAt(address, brandId(id, 'CharacterId'), store.head(address).headSeq)
   const react = async (sent: { afterSeq: number; status: string }, signal: AbortSignal) => {
-    const cycle = await runCharacterActivations({
+    const cycle = await runActivations({
       store,
       address,
       turn,

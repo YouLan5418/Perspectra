@@ -40,6 +40,22 @@ function check(file) {
   if (path.startsWith('packages/frontend/') && /from\s+['"][^'"]*\/desktop\//.test(source)) {
     errors.push(file + ': frontend contracts depend on the desktop host')
   }
+  // Replaceable means the host cannot know which implementation runs: only the default bundle names them.
+  if (
+    (path.startsWith('desktop/') || path.startsWith('packages/application/')) &&
+    path !== 'desktop/official-bundle.ts' &&
+    /from\s+['"]@harness-world\/official-/.test(source)
+  ) {
+    errors.push(file + ': only desktop/official-bundle.ts may import an official implementation')
+  }
+  if (
+    path.startsWith('packages/official-') &&
+    /^import\s+(?!type\b)[^'"]*from\s+['"](?:@harness-world\/(?:application|store-sqlite|kernel)|[^'"]*\/desktop\/)/m.test(
+      source,
+    )
+  ) {
+    errors.push(file + ': an official implementation may use only the public plugin surface at runtime')
+  }
   checkPackageImports(file, path, source)
 }
 // Sources reach another package only through its @harness-world entry; the launcher resolves the

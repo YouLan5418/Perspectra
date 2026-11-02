@@ -1,103 +1,58 @@
-import { publicationSegments } from '@harness-world/contracts'
-import {
-  brandId,
-  type CharacterId,
-  type WorldAddress,
-  type WorldJsonObject,
-  type WorldJsonValue,
-} from '@harness-world/contracts'
-import type { WorldStore } from '@harness-world/store-sqlite'
-import type { CharacterTurn, CharacterTurnResult } from './character-turn.ts'
+import type { CharacterId, WorldJsonValue } from '@harness-world/contracts'
+import type {
+  SchedulerActivation,
+  SchedulerCycle,
+  SchedulerInstance,
+  SchedulerResult,
+  SchedulerRound,
+  SchedulerTurnResult,
+  SeamProvider,
+} from '@harness-world/plugin-sdk'
+import type { ActivationLimits } from '@harness-world/plugin-sdk'
 
-/** Only `run` is used, so a Host may observe which roles are being processed. */
-export type ActivationTurn = Pick<CharacterTurn, 'run'>
-type Activation = { characterId: CharacterId; result: CharacterTurnResult }
-interface ActivationResult {
-  calls: number
-  wave: number
-  terminalReason: string
-  activations: Activation[]
+type Activation = SchedulerActivation
+type ActivationResult = SchedulerCycle
+type ScheduleOptions = { readonly maximumConcurrent?: number; readonly strictCallBudget?: boolean }
+
+/** The bounded scheduling players get unless a plugin replaces it. Unfinished activations need not survive. */
+export const officialSchedulerProvider: SeamProvider<SchedulerInstance> = {
+  id: 'official-scheduler',
+  version: '1.0.0',
+  open: async () => ({ run: round => runOfficialSchedule(round, { strictCallBudget: true }) }),
 }
-interface ActivationLimits {
-  readonly maximumWaves: number
-  readonly maximumNpcCalls: number
-  readonly maximumCallsPerCharacter: number
-  readonly reactionDeadlineSeconds?: number
-}
-interface CharacterActivationResult extends ActivationResult {
-  autonomy?: {
-    activations: Activation[]
-    autonomousCalls: number
-    reactionCalls: number
-    reactions: ActivationResult
-    terminalReason: string
-  }
-}
-/** Ephemeral, bounded scheduling; committed observations survive, unfinished activations need not. */
-export interface CharacterActivationInput {
-  store: WorldStore
-  address: WorldAddress
-  turn: ActivationTurn
-  afterSeq: number
-  characterIds: readonly CharacterId[]
-  signal: AbortSignal
-  presentCharacterIds?: () => readonly CharacterId[]
-  /** Optional decisions already handled elsewhere in the same player turn. */
-  initialCounts?: ReadonlyMap<CharacterId, number>
-  strictCallBudget?: boolean
-  /** Providing scene locations enables bounded dynamic dispatch across separate locations. */
-  locationId?: (characterId: CharacterId) => string | null
-  maximumConcurrent?: number
-  limits?: ActivationLimits
-  /** Explicit autonomous opportunities share the dispatcher, never expand observation permission. */
-  autonomy?: {
-    turn: ActivationTurn
-    roles: readonly { characterId: CharacterId; opportunities: number }[]
-    maximumNpcCalls: number
-    deadlineSeconds: number
-    reactionLimits: ActivationLimits
-  }
-}
-export async function runCharacterActivations(input: CharacterActivationInput): Promise<CharacterActivationResult> {
-  if (input.locationId) return runDynamicActivations(input)
-  const limits = input.limits ?? { maximumWaves: 3, maximumNpcCalls: 8, maximumCallsPerCharacter: 2 }
-  const signal = AbortSignal.any([input.signal, AbortSignal.timeout((limits.reactionDeadlineSeconds ?? 30) * 1_000)])
-  const activations: { characterId: CharacterId; result: CharacterTurnResult }[] = []
-  const counts = new Map<CharacterId, number>(input.initialCounts)
+
+export async function runOfficialSchedule(
+  round: SchedulerRound,
+  options: ScheduleOptions = {},
+): Promise<SchedulerResult> {
+  if (round.allowConcurrent) return runDynamicActivations(round, options)
+  const limits = round.limits
+  const signal = AbortSignal.any([round.signal, AbortSignal.timeout((limits.reactionDeadlineSeconds ?? 30) * 1_000)])
+  const activations: Activation[] = []
+  const counts = new Map<CharacterId, number>(round.initialCounts)
   const inactive = new Set<CharacterId>()
   let calls = 0,
     wave = 0,
     hitCharacterLimit = false
   const candidates = (afterSeq: number, rootStimulus = false) => {
-    const result = new Map<CharacterId, WorldJsonObject[]>()
-    const head = input.store.head(input.address).headSeq
-    for (const event of input.store.readEventsRange(input.address, afterSeq, head, ['observation.upsert'])) {
-      const value = (event.data as WorldJsonObject).value as WorldJsonObject
-      const content = value.content as WorldJsonObject | undefined
-      if (content === undefined || content.status !== 'accepted' || content.actorId === value.observerId) continue
-      const id = brandId(String(value.observerId), 'CharacterId')
-      if (!input.characterIds.includes(id) || inactive.has(id)) continue
-      const speech = content.speech as WorldJsonObject | undefined
-      if (
-        !rootStimulus &&
-        speech !== undefined &&
-        !publicationSegments(speech).some(segment => segment.type === 'speech' && segment.text.trim()) &&
-        !(speech.addresseeIds as string[] | undefined)?.includes(id)
-      )
-        continue
+    const result = new Map<CharacterId, number[]>()
+    for (const observation of round.observationsSince(afterSeq, round.headSeq())) {
+      const id = observation.characterId
+      if (!round.characterIds.includes(id) || inactive.has(id)) continue
+      if (!rootStimulus && !observation.substantive) continue
       const entries = result.get(id) ?? []
-      entries.push(value)
+      entries.push(observation.seq)
       result.set(id, entries)
     }
     return result
   }
-  let pending = candidates(input.afterSeq, true)
+  let pending = candidates(round.afterSeq, true)
   for (wave = 1; wave <= limits.maximumWaves && pending.size > 0; wave++) {
-    const before = input.store.head(input.address).headSeq
+    const before = round.headSeq()
     // Shuffle eligible roles, not observations or scripted Activity turns. Nearby roles get
     // the first opportunities; departure observers still receive their bounded reactions.
-    const present = new Set(input.presentCharacterIds?.() ?? input.characterIds)
-    const eligible = input.characterIds.filter(
+    const present = new Set(round.presentCharacterIds())
+    const eligible = round.characterIds.filter(
       id => pending.has(id) && (counts.get(id) ?? 0) < limits.maximumCallsPerCharacter,
     )
     const shuffle = (ids: CharacterId[]) => {
@@ -115,10 +70,10 @@ export async function runCharacterActivations(input: CharacterActivationInput): 
       if (signal.aborted) return { calls, wave, terminalReason: 'interrupted', activations }
       // Reserve the result-aware reply slot; a second operation is offered only with a third slot reserved.
       if (calls + 2 > limits.maximumNpcCalls) return { calls, wave, terminalReason: 'call_limit', activations }
-      const result = await input.turn.run(characterId, {
+      const result = await round.turn(characterId, {
         signal,
-        stimulus: pending.get(characterId)!,
-        ...(input.strictCallBudget ? { maxModelCalls: limits.maximumNpcCalls - calls } : {}),
+        stimulusSeqs: pending.get(characterId)!,
+        ...(options.strictCallBudget ? { maxModelCalls: limits.maximumNpcCalls - calls } : {}),
         maxCalls: calls + 3 <= limits.maximumNpcCalls ? 3 : 2,
       })
       calls += result.calls
@@ -149,27 +104,31 @@ export async function runCharacterActivations(input: CharacterActivationInput): 
 }
 
 /** Readiness follows committed observations rather than a barrier between whole waves. */
-async function runDynamicActivations(input: CharacterActivationInput): Promise<CharacterActivationResult> {
-  const limits = input.limits ?? { maximumWaves: 3, maximumNpcCalls: 8, maximumCallsPerCharacter: 2 }
+async function runDynamicActivations(round: SchedulerRound, options: ScheduleOptions): Promise<SchedulerResult> {
+  const limits = round.limits
   const controller = new AbortController()
-  const signal = AbortSignal.any([input.signal, controller.signal])
+  const signal = AbortSignal.any([round.signal, controller.signal])
   const ordinarySignal = AbortSignal.any([signal, AbortSignal.timeout((limits.reactionDeadlineSeconds ?? 30) * 1000)])
-  const autonomySignal = input.autonomy
-    ? AbortSignal.any([signal, AbortSignal.timeout(input.autonomy.deadlineSeconds * 1000)])
+  const autonomySignal = round.autonomy
+    ? AbortSignal.any([signal, AbortSignal.timeout(round.autonomy.deadlineSeconds * 1000)])
     : ordinarySignal
-  const concurrency = input.maximumConcurrent ?? 2
+  const concurrency = options.maximumConcurrent ?? 2
   if (!Number.isSafeInteger(concurrency) || concurrency < 1 || concurrency > 2)
     throw new RangeError('activation concurrency must be 1 or 2')
   type Kind = 'ordinary' | 'autonomous' | 'autonomyReaction'
-  type Continuation = NonNullable<NonNullable<Parameters<CharacterTurn['run']>[1]>['continuationOf']>
+  type Continuation = {
+    actionId: string
+    afterSeq?: number
+    action: { actionType: string; parameters: WorldJsonValue }
+  }
   type Pending = {
-    observations: { seq: number; value: WorldJsonObject; kind: Kind; depth: number }[]
+    observations: { seq: number; kind: Kind; depth: number }[]
     depths: Partial<Record<Kind, number>>
     continuationOf?: Continuation
     continuationKind?: Kind
   }
   type Job = { observations: Pending['observations']; kind: Kind; depth: number; continuationOf?: Continuation }
-  type Completed = { id: CharacterId; result: CharacterTurnResult } | { id: CharacterId; error: unknown }
+  type Completed = { id: CharacterId; result: SchedulerTurnResult } | { id: CharacterId; error: unknown }
   const phase = (phaseLimits: ActivationLimits, phaseSignal: AbortSignal) => ({
     limits: phaseLimits,
     signal: phaseSignal,
@@ -185,21 +144,21 @@ async function runDynamicActivations(input: CharacterActivationInput): Promise<C
   // These replace the three sequential stages; concurrency and scene exclusion remain shared.
   const phases = {
     ordinary: phase(limits, ordinarySignal),
-    autonomous: phase({ ...limits, maximumNpcCalls: input.autonomy?.maximumNpcCalls ?? 0 }, autonomySignal),
+    autonomous: phase({ ...limits, maximumNpcCalls: round.autonomy?.maximumNpcCalls ?? 0 }, autonomySignal),
     autonomyReaction: phase(
-      input.autonomy?.reactionLimits ?? { ...limits, maximumWaves: 0, maximumNpcCalls: 0 },
+      round.autonomy?.reactionLimits ?? { ...limits, maximumWaves: 0, maximumNpcCalls: 0 },
       autonomySignal,
     ),
   }
-  const opportunities = new Map(input.autonomy?.roles.map(role => [role.characterId, role.opportunities]) ?? [])
+  const opportunities = new Map(round.autonomy?.roles.map(role => [role.characterId, role.opportunities]) ?? [])
   const pending = new Map<CharacterId, Pending>(),
     consumed = new Map<CharacterId, number>()
-  const counts = new Map<CharacterId, number>(input.initialCounts),
+  const counts = new Map<CharacterId, number>(round.initialCounts),
     stopped = new Set<CharacterId>()
   const consecutiveStale = new Map<CharacterId, number>()
   const running = new Map<CharacterId, { promise: Promise<Completed>; job: Job; reserve: number }>()
   const completed: Completed[] = []
-  let cursor = input.afterSeq
+  let cursor = round.afterSeq
   let notify!: () => void, changed: Promise<void>
   const reset = () => {
     changed = new Promise<void>(done => {
@@ -216,32 +175,22 @@ async function runDynamicActivations(input: CharacterActivationInput): Promise<C
     pending.set(id, { ...existing, observations: existing?.observations ?? [], depths: { autonomous: 0 } })
   }
   const collect = (source: 'ordinary' | 'autonomyReaction', depth: number, root = false) => {
-    const head = input.store.head(input.address).headSeq
-    for (const event of input.store.readEventsRange(input.address, cursor, head, ['observation.upsert'])) {
-      const value = (event.data as WorldJsonObject).value as WorldJsonObject
-      const content = value.content as WorldJsonObject | undefined
-      if (!content || content.status !== 'accepted' || content.actorId === value.observerId) continue
-      const id = brandId(String(value.observerId), 'CharacterId')
+    const head = round.headSeq()
+    for (const observation of round.observationsSince(cursor, head)) {
+      const id = observation.characterId
       const autonomous = opportunities.has(id),
         kind = autonomous ? 'autonomous' : source,
         current = phases[kind]
       if (
-        (!autonomous && !input.characterIds.includes(id)) ||
+        (!autonomous && !round.characterIds.includes(id)) ||
         stopped.has(id) ||
         current.signal.aborted ||
         (!autonomous && source === 'autonomyReaction' && current.limits.maximumWaves === 0) ||
         (autonomous && (opportunities.get(id) ?? 0) <= 0) ||
-        event.seq <= (consumed.get(id) ?? input.afterSeq)
+        observation.seq <= (consumed.get(id) ?? round.afterSeq)
       )
         continue
-      const speech = content.speech as WorldJsonObject | undefined
-      if (
-        !root &&
-        speech &&
-        !publicationSegments(speech).some(s => s.type === 'speech' && s.text.trim()) &&
-        !(speech.addresseeIds as string[] | undefined)?.includes(id)
-      )
-        continue
+      if (!root && !observation.substantive) continue
       if (!autonomous && depth > current.limits.maximumWaves) {
         current.waveLimit = true
         continue
@@ -254,7 +203,7 @@ async function runDynamicActivations(input: CharacterActivationInput): Promise<C
       const nextDepth = autonomous ? 0 : depth
       pending.set(id, {
         ...existing,
-        observations: [...(existing?.observations ?? []), { seq: event.seq, value, kind, depth: nextDepth }],
+        observations: [...(existing?.observations ?? []), { seq: observation.seq, kind, depth: nextDepth }],
         depths: { ...existing?.depths, [kind]: Math.max(existing?.depths[kind] ?? nextDepth, nextDepth) },
       })
     }
@@ -263,7 +212,7 @@ async function runDynamicActivations(input: CharacterActivationInput): Promise<C
   }
   // Keep source sequences in the ephemeral queue, never add scheduling metadata to model stimuli.
   const discardConsumed = (id: CharacterId, through: number) => {
-    consumed.set(id, Math.max(consumed.get(id) ?? input.afterSeq, through))
+    consumed.set(id, Math.max(consumed.get(id) ?? round.afterSeq, through))
     const job = pending.get(id)
     if (!job) return
     job.observations = job.observations.filter(entry => entry.seq > through)
@@ -397,7 +346,7 @@ async function runDynamicActivations(input: CharacterActivationInput): Promise<C
           if (entry.continuationKind === kind || !Object.keys(entry.depths).length) pending.delete(id)
         }
       let started = false
-      const present = new Set(input.presentCharacterIds?.() ?? input.characterIds)
+      const present = new Set(round.presentCharacterIds())
       const eligible = [...pending.keys()].filter(id => !running.has(id) && !stopped.has(id))
       // Randomize within the current priority group at each dispatch, never the stimulus history.
       const order = eligible
@@ -418,10 +367,10 @@ async function runDynamicActivations(input: CharacterActivationInput): Promise<C
           current.characterLimit = true
           continue
         }
-        const location = input.locationId!(id)
+        const location = round.locationOf(id)
         if (
           (location === null && running.size > 0) ||
-          [...running.keys()].some(other => input.locationId!(other) === null || input.locationId!(other) === location)
+          [...running.keys()].some(other => round.locationOf(other) === null || round.locationOf(other) === location)
         )
           continue
         // At most one off-scene request; leave a slot for newly ready foreground reactions.
@@ -435,11 +384,11 @@ async function runDynamicActivations(input: CharacterActivationInput): Promise<C
         pending.delete(id)
         current.reserved += reserve
         current.wave = Math.max(current.wave, job.depth)
-        const turn = job.kind === 'autonomous' ? input.autonomy!.turn : input.turn
-        const promise = turn
-          .run(id, {
+        const promise = round
+          .turn(id, {
+            kind: job.kind === 'autonomous' ? 'autonomous' : 'reaction',
             signal: current.signal,
-            stimulus: job.observations.map(entry => entry.value),
+            stimulusSeqs: job.observations.map(entry => entry.seq),
             maxCalls: job.kind === 'autonomous' ? 2 : reserve === 3 ? 3 : 2,
             maxModelCalls: reserve,
             ...(job.continuationOf ? { continuationOf: job.continuationOf } : {}),
@@ -469,7 +418,7 @@ async function runDynamicActivations(input: CharacterActivationInput): Promise<C
     }
     if (signal.aborted) {
       phases.ordinary.interrupted = true
-      if (input.autonomy) phases.autonomous.interrupted = true
+      if (round.autonomy) phases.autonomous.interrupted = true
     }
     await Promise.all([...running.values()].map(task => task.promise))
     for (const completion of completed.splice(0)) {
@@ -483,7 +432,7 @@ async function runDynamicActivations(input: CharacterActivationInput): Promise<C
       reactions = outcome('autonomyReaction')
     return {
       ...ordinary,
-      ...(input.autonomy
+      ...(round.autonomy
         ? {
             autonomy: {
               activations: autonomous.activations,

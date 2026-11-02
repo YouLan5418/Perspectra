@@ -1,4 +1,7 @@
+import { officialSchedulerProvider } from '@harness-world/official-scheduler'
 import type { SchedulerInstance, SeamProvider } from '@harness-world/plugin-sdk'
+
+export { runOfficialSchedule } from '@harness-world/official-scheduler'
 
 /** The implementation in force for each replaceable seam. */
 export interface HostSeams {
@@ -7,13 +10,5 @@ export interface HostSeams {
 
 /** The default bundle, and the only production file allowed to import `packages/official-*`. */
 export function officialSeams(): HostSeams {
-  return {
-    scheduler: {
-      id: 'official-scheduler',
-      version: '1.0.0',
-      open: async () => {
-        throw new Error('official scheduler is not wired yet')
-      },
-    },
-  }
+  return { scheduler: officialSchedulerProvider }
 }

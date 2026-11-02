@@ -11,6 +11,7 @@
     "@harness-world/interactions-basic": "workspace:*",
     "@harness-world/kernel": "workspace:*",
     "@harness-world/memory": "workspace:*",
+    "@harness-world/plugin-sdk": "workspace:*",
     "@harness-world/presentation": "workspace:*",
     "@harness-world/runtime-cordis": "workspace:*",
     "@harness-world/store-sqlite": "workspace:*"

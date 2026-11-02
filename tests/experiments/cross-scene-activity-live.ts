@@ -3,7 +3,7 @@ import { appendFileSync, mkdirSync, writeFileSync } from 'node:fs'
 import { resolve, join } from 'node:path'
 import { brandId, type WorldJsonObject } from '@harness-world/contracts'
 import { createChatProvider, characterTurnCall, type ChatCall } from '@harness-world/provider-chat'
-import { runCharacterActivations } from '../../packages/application/src/activation-cycle.ts'
+import { runActivations } from '../support/run-activations.ts'
 import { gatewayTurnCall } from '../../desktop/host/gateway-turn-call.ts'
 import { crossSceneRuntime } from '../support/cross-scene-runtime.ts'
 import { CrossScenePhone, phoneCalls } from '../support/cross-scene-phone.ts'
@@ -44,7 +44,7 @@ try {
   const initial = structuredClone(runtime.activities!.current())!
   const before = runtime.store.head(runtime.address).headSeq
   await run('character:friend')
-  const cycle = await runCharacterActivations({ store: runtime.store, address: runtime.address, turn: runtime.turn,
+  const cycle = await runActivations({ store: runtime.store, address: runtime.address, turn: runtime.turn,
     afterSeq: before, characterIds: [brandId('character:companion', 'CharacterId'), brandId('character:friend', 'CharacterId')],
     signal: new AbortController().signal, limits: { maximumWaves: 3, maximumNpcCalls: 12, maximumCallsPerCharacter: 2, reactionDeadlineSeconds: 120 } })
   results.push({ phase, cycle }); assert(!['failed', 'interrupted'].includes(cycle.terminalReason), JSON.stringify(cycle))

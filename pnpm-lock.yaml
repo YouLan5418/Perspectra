@@ -130,6 +130,9 @@ importers:
       '@harness-world/memory':
         specifier: workspace:*
         version: link:../memory
+      '@harness-world/plugin-sdk':
+        specifier: workspace:*
+        version: link:../plugin-sdk
       '@harness-world/presentation':
         specifier: workspace:*
         version: link:../presentation
@@ -186,6 +189,15 @@ importers:
       jieba-wasm:
         specifier: 2.4.0
         version: 2.4.0
+
+  packages/official-scheduler:
+    dependencies:
+      '@harness-world/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      '@harness-world/plugin-sdk':
+        specifier: workspace:*
+        version: link:../plugin-sdk
 
   packages/plugin-sdk:
     dependencies:

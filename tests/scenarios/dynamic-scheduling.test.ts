@@ -6,7 +6,7 @@ import { afterEach, expect, it, vi } from 'vitest'
 import { currentLocation } from '@harness-world/kernel'
 import { WorldStore } from '@harness-world/store-sqlite'
 import type { WorldJsonObject } from '@harness-world/contracts'
-import { runCharacterActivations } from '../../packages/application/src/activation-cycle.ts'
+import { runActivations } from '../support/run-activations.ts'
 import { WorldHostRuntime } from '../../desktop/host/world-runtime.ts'
 import { readTailSelection } from '../../desktop/tail-storage.ts'
 import { FrontendActions, projectPlayerView } from '../../desktop/host/frontend-adapter.ts'
@@ -518,7 +518,7 @@ it('bounds repeated stale replanning for one character', async () => {
       return { status: 'stale', calls: 1, asOfWorldSeq: 1 }
     },
   } as never
-  const result = await runCharacterActivations({
+  const result = await runActivations({
     store,
     address: {} as never,
     turn,
@@ -579,7 +579,7 @@ it('keeps the deepest causal depth when observations for one actor arrive at dif
     [target, 'location:target'],
     [tail, 'location:tail'],
   ])
-  const result = await runCharacterActivations({
+  const result = await runActivations({
     store,
     address: {} as never,
     turn,
@@ -670,7 +670,7 @@ it('charges new autonomous observations to their reaction budget after older ord
       return { status: 'abstained', calls: 1, asOfWorldSeq: 3 }
     },
   } as never
-  const result = await runCharacterActivations({
+  const result = await runActivations({
     store,
     address: {} as never,
     turn,
@@ -722,7 +722,7 @@ it.each(['ordinary', 'autonomous'])(
       return { status: 'abstained', calls: 1, asOfWorldSeq: 1 }
     }
     const controller = new AbortController()
-    const result = await runCharacterActivations({
+    const result = await runActivations({
       store,
       address: {} as never,
       turn: { run: run('ordinary') } as never,

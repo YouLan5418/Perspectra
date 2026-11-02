@@ -44,7 +44,7 @@ import {
   characterVisibleItems,
   recentExecutionContext,
   rejectionReasonText,
-  runCharacterActivations,
+  createSchedulerRound,
   SceneDecisionService,
   WorldApplication,
   type ActivationTurn,
@@ -101,6 +101,9 @@ import { modelCharacters, playerTranscript, sceneChangedAt } from './player-tran
 import { DEFAULT_RUNTIME_TUNING, type RuntimeTuning } from './runtime-tuning.ts'
 import { PackModules, lockedPackAsset } from './pack-modules.ts'
 import { CapabilitySession, type CapabilityCatalog } from '../host-capabilities.ts'
+import { runOfficialSchedule } from '../official-bundle.ts'
+import { createWorldReader } from './world-reader.ts'
+import type { SchedulerResult } from '@harness-world/plugin-sdk'
 
 export interface WorldHostOptions extends ModelOptions {
   readonly capabilities?: CapabilityCatalog
@@ -434,7 +437,7 @@ export class WorldHostCore implements HostRuntime {
   #statusRoundError: string | undefined
   #autoStartError: string | undefined
   #knowledge: PackKnowledge | undefined
-  #activationCycle: Awaited<ReturnType<typeof runCharacterActivations>> | undefined
+  #activationCycle: SchedulerResult | undefined
   readonly #manifestVersion: number
   readonly #intentEnabled: boolean
   readonly #dataDirectory: string
@@ -1844,7 +1847,7 @@ export class WorldHostCore implements HostRuntime {
       !this.#activity?.current()?.game.active &&
       this.#options.publicationAudit === undefined
     const integratedAutonomy = dynamic && !this.#options.stagedAutonomy && due.length > 0
-    const { autonomy, ...cycle } = await runCharacterActivations({
+    const { autonomy, ...cycle } = await this.#schedule({
       store,
       address: this.#address,
       turn: this.#track(turn),
@@ -1855,9 +1858,8 @@ export class WorldHostCore implements HostRuntime {
       signal: controller.signal,
       presentCharacterIds: () =>
         (this.#currentScene?.recipients ?? []).map(person => brandId(person.id, 'CharacterId')),
-      ...(dynamic
-        ? { locationId: (id: CharacterId) => currentLocation(store.readEvents(this.#address), id) ?? null }
-        : {}),
+      allowConcurrent: dynamic,
+      locationId: (id: CharacterId) => currentLocation(store.readEvents(this.#address), id) ?? null,
       ...(integratedAutonomy
         ? {
             autonomy: {
@@ -1876,7 +1878,6 @@ export class WorldHostCore implements HostRuntime {
             },
           }
         : {}),
-      strictCallBudget: true,
       limits: this.#tuning,
     })
     this.#activationCycle = cycle
@@ -1891,8 +1892,13 @@ export class WorldHostCore implements HostRuntime {
     }
   }
 
+  #schedule(input: Omit<Parameters<typeof createSchedulerRound>[0], 'world'>): Promise<SchedulerResult> {
+    const world = createWorldReader(resolve(this.#dataDirectory, 'world.sqlite'), this.#address)
+    return runOfficialSchedule(createSchedulerRound({ ...input, world }), { strictCallBudget: true })
+  }
+
   /** Tell the player how the reaction cycle ended, without claiming more was committed than was. */
-  #reactionNotice(cycle: Awaited<ReturnType<typeof runCharacterActivations>>): void {
+  #reactionNotice(cycle: SchedulerResult): void {
     const terminal = cycle.terminalReason
     if (terminal === 'failed' || terminal === 'interrupted') {
       const failureStatus = terminal === 'interrupted' ? 'interrupted' : 'failed'
@@ -1969,7 +1975,7 @@ export class WorldHostCore implements HostRuntime {
       }
     }
     const autonomousCalls = settings.autonomyNpcCalls - this.#modelCallBudget.remaining
-    let reactions: Awaited<ReturnType<typeof runCharacterActivations>> | undefined
+    let reactions: SchedulerResult | undefined
     if (
       !signal.aborted &&
       !this.#paused &&
@@ -1979,7 +1985,7 @@ export class WorldHostCore implements HostRuntime {
     ) {
       this.#modelCallBudget = { remaining: settings.autonomyReactionCalls, exhausted: false }
       const active = this.#activity?.current()
-      reactions = await runCharacterActivations({
+      reactions = await this.#schedule({
         store,
         address: this.#address,
         turn: this.#track(createTurn()),
@@ -1990,11 +1996,10 @@ export class WorldHostCore implements HostRuntime {
             !due.some(role => role.characterId === id) && (!active?.game.active || !active.participants.includes(id)),
         ),
         presentCharacterIds: () => (this.#currentScene?.recipients ?? []).map(p => brandId(p.id, 'CharacterId')),
-        ...(!this.#options.serialScheduling && !active?.game.active && this.#options.publicationAudit === undefined
-          ? { locationId: (id: CharacterId) => currentLocation(store.readEvents(this.#address), id) ?? null }
-          : {}),
+        allowConcurrent:
+          !this.#options.serialScheduling && !active?.game.active && this.#options.publicationAudit === undefined,
+        locationId: (id: CharacterId) => currentLocation(store.readEvents(this.#address), id) ?? null,
         initialCounts: counts,
-        strictCallBudget: true,
         limits: {
           maximumWaves: settings.autonomyReactionWaves,
           maximumNpcCalls: settings.autonomyReactionCalls,

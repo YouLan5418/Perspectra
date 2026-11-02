@@ -14,6 +14,7 @@ export default defineConfig({
       '@harness-world/contracts': `${root}packages/contracts/src/index.ts`,
       '@harness-world/frontend': `${root}packages/frontend/src/index.ts`,
       '@harness-world/plugin-sdk': `${root}packages/plugin-sdk/src/index.ts`,
+      '@harness-world/official-scheduler': `${root}packages/official-scheduler/src/index.ts`,
       '@harness-world/kernel': `${root}packages/kernel/src/index.ts`,
       '@harness-world/memory': `${root}packages/memory/src/index.ts`,
       '@harness-world/presentation': `${root}packages/presentation/src/index.ts`,

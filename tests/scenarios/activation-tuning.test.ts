@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { brandId, type WorldAddress, type WorldEventDraft, type WorldJsonObject } from '@harness-world/contracts'
 import { WorldStore } from '@harness-world/store-sqlite'
-import { runCharacterActivations } from '../../packages/application/src/activation-cycle.ts'
+import { runActivations } from '../support/run-activations.ts'
 
 describe('prototype reaction tuning', () => {
   it('uses the configured call ceiling when offering an NPC activation', async () => {
@@ -32,7 +32,7 @@ describe('prototype reaction tuning', () => {
         return { calls: 2, status: 'published' as const }
       },
     }
-    const result = await runCharacterActivations({
+    const result = await runActivations({
       store: store as never,
       address,
       turn: turn as never,
@@ -84,7 +84,7 @@ it('shuffles present observers before off-scene observers and refreshes groups e
       return { calls: 1, status: 'published' as const }
     },
   }
-  const result = await runCharacterActivations({
+  const result = await runActivations({
     store: store as never,
     address,
     turn: turn as never,
@@ -125,7 +125,7 @@ it('allows a later-listed observer to receive the first bounded activation', asy
       return { calls: 2, status: 'published' as const }
     },
   }
-  const result = await runCharacterActivations({
+  const result = await runActivations({
     store: store as never,
     address,
     turn: turn as never,
@@ -192,7 +192,7 @@ it.each(['serial', 'dynamic'] as const)('collects only unconsumed branch observa
         return { calls: 1, status: 'abstained' as const, asOfWorldSeq: 5 }
       },
     }
-    const result = await runCharacterActivations({
+    const result = await runActivations({
       store,
       address: child,
       turn: turn as never,
