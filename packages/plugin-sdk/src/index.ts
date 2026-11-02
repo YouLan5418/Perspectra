@@ -18,7 +18,7 @@ import type {
 
 /** Major.minor. A new service or optional field raises the minor; any change a plugin could trip over
  * raises the major. A plugin exports `hostApi` with the lowest version it needs. */
-export const HOST_API_VERSION = '1.0'
+export const HOST_API_VERSION = '1.1'
 
 /** Same major, and this host's minor at least the one the plugin asks for. */
 export function hostApiCompatible(required: unknown, host: string = HOST_API_VERSION): boolean {
@@ -101,10 +101,121 @@ export interface PlayerFeedApi {
   subscribe(listener: (event: PlayerFeedEvent) => unknown): () => void
 }
 
+/** Read access the host grants a trusted plugin. It spans every character, so using it to feed one
+ * character another's observations is the plugin's own doing. */
+export interface WorldReader {
+  readEvents(afterSeq: number, throughSeq: number, types?: readonly string[]): readonly WorldJsonObject[]
+  characterObservations(characterId: CharacterId, throughSeq: number): readonly WorldJsonObject[]
+}
+export interface WorldServices {
+  readonly address: WorldAddress
+  readonly worldVersion: string
+  /** This plugin's own directory inside the instance's data. */
+  readonly dataDirectory: string
+  readonly world: WorldReader
+}
+/** Registered once per process; `open` runs once per world instance, including regeneration candidates. */
+export interface SeamProvider<Instance> {
+  readonly id: string
+  readonly version: string
+  open(world: WorldServices, signal: AbortSignal): Promise<Instance>
+}
+
+/** The player's settings. Advisory for a plugin: the host does not cap what it spends. */
+export interface ActivationLimits {
+  readonly maximumWaves: number
+  readonly maximumNpcCalls: number
+  readonly maximumCallsPerCharacter: number
+  readonly reactionDeadlineSeconds?: number
+}
+export interface AutonomyOpportunities {
+  readonly roles: readonly { readonly characterId: CharacterId; readonly opportunities: number }[]
+  readonly maximumNpcCalls: number
+  readonly deadlineSeconds: number
+  readonly reactionLimits: ActivationLimits
+}
+export interface SchedulerObservation {
+  readonly seq: number
+  readonly characterId: CharacterId
+  /** False when this observer only saw a silent performance not addressed to them. */
+  readonly substantive: boolean
+}
+export interface SchedulerTurnOptions {
+  readonly kind?: 'reaction' | 'autonomous'
+  readonly signal: AbortSignal
+  /** Must belong to this character; the host fetches their content. */
+  readonly stimulusSeqs: readonly number[]
+  readonly maxCalls: 1 | 2 | 3
+  readonly maxModelCalls?: number
+  readonly onCommitted?: (asOfWorldSeq: number, headSeq: number) => void
+  /** After a stale result: continue an action that already committed instead of repeating it. */
+  readonly continuationOf?: {
+    readonly actionId: string
+    readonly afterSeq?: number
+    readonly action: { readonly actionType: string; readonly parameters: WorldJsonValue }
+  }
+}
+export interface SchedulerTurnResult {
+  readonly status: 'published' | 'abstained' | 'budget_exhausted' | 'interrupted' | 'inactive' | 'stale' | 'failed'
+  readonly calls: number
+  readonly asOfWorldSeq?: number
+  readonly performResult?: WorldJsonObject
+  readonly failure?: 'provider_failed' | 'invalid_output' | 'preset_failed'
+}
+export interface SchedulerRound {
+  readonly characterIds: readonly CharacterId[]
+  readonly afterSeq: number
+  readonly signal: AbortSignal
+  readonly limits: ActivationLimits
+  /** False while the current play requires characters to be handled one at a time. */
+  readonly allowConcurrent: boolean
+  readonly initialCounts?: ReadonlyMap<CharacterId, number>
+  readonly autonomy?: AutonomyOpportunities
+  readonly world: WorldReader
+  headSeq(): number
+  /** Accepted observations of someone else's action, in commit order. */
+  observationsSince(afterSeq: number, throughSeq: number): readonly SchedulerObservation[]
+  presentCharacterIds(): readonly CharacterId[]
+  locationOf(id: CharacterId): string | null
+  /** Give one character an opportunity. Facts still commit through the host's normal checks. */
+  turn(id: CharacterId, options: SchedulerTurnOptions): Promise<SchedulerTurnResult>
+}
+export interface SchedulerActivation {
+  readonly characterId: CharacterId
+  readonly result: SchedulerTurnResult
+}
+export interface SchedulerCycle {
+  readonly calls: number
+  readonly wave: number
+  /** `failed`, `interrupted`, `call_limit`, `wave_limit` and `character_limit` have their own player notices. */
+  readonly terminalReason: string
+  readonly activations: readonly SchedulerActivation[]
+}
+export interface SchedulerResult extends SchedulerCycle {
+  readonly autonomy?: {
+    readonly activations: readonly SchedulerActivation[]
+    readonly autonomousCalls: number
+    readonly reactionCalls: number
+    readonly reactions: SchedulerCycle
+    readonly terminalReason: string
+  }
+}
+export interface SchedulerInstance {
+  run(round: SchedulerRound): Promise<SchedulerResult>
+  close?(): void | Promise<void>
+}
+/** `ctx.scheduler`: decides who gets an opportunity and when. Wrap `register` in `ctx.effect()`. */
+export interface SchedulerSlotApi {
+  /** Throws when another plugin already holds the seam. */
+  register(provider: SeamProvider<SchedulerInstance>): () => void
+  readonly current: SeamProvider<SchedulerInstance> | undefined
+}
+
 export interface HostServices {
   frontendServices: FrontendServicesApi
   capabilities: CapabilitiesApi
   playerFeed: PlayerFeedApi
+  scheduler: SchedulerSlotApi
 }
 
 declare module '@deepseek-ai/cordis' {

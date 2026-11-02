@@ -2,7 +2,8 @@ import { build } from 'esbuild'
 import { spawn } from 'node:child_process'
 import { once } from 'node:events'
 import { createChatServer } from '../support/fake-provider.ts'
-import { cp, mkdir, mkdtemp, rm } from 'node:fs/promises'
+import { cp, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import type { AddressInfo } from 'node:net'
 import type { PlayerView } from '@harness-world/frontend'
@@ -13,6 +14,20 @@ it('loads capability plugins through both source and bundled host entries and ex
     plugin = 'demo-device'
   await mkdir('.tmp', { recursive: true })
   const directory = await mkdtemp(resolve('.tmp/capability-plugin-entry-'))
+  // Outside the repository, where a bare import finds no node_modules; it fails to apply on a second Cordis.
+  const outside = await mkdtemp(join(tmpdir(), 'perspectra-plugin-entry-'))
+  const outsidePlugin = join(outside, 'host-cordis.mjs')
+  await writeFile(
+    outsidePlugin,
+    `import { Context, Service } from '@deepseek-ai/cordis'
+export const hostApi = '1.1'
+class Marker extends Service { constructor(ctx) { super(ctx, 'marker') } }
+export default function (ctx) {
+  if (!(ctx instanceof Context)) throw new Error('plugin received a second copy of Cordis')
+  new Marker(ctx)
+}
+`,
+  )
   const model = createChatServer((request, response) => {
     request.resume()
     request.on('end', () => {
@@ -62,6 +77,7 @@ it('loads capability plugins through both source and bundled host entries and ex
               { id: plugin, enabled: true, path: resolve('examples/host-plugins/' + plugin + '.mjs') },
               // A broken, unrelated plugin is skipped; the world still opens because it does not need it.
               { id: 'missing-file', enabled: true, path: join(directory, 'missing.mjs') },
+              { id: 'host-cordis', enabled: true, path: outsidePlugin },
             ]),
           },
         },
@@ -135,5 +151,6 @@ it('loads capability plugins through both source and bundled host entries and ex
     model.closeAllConnections()
     await new Promise<void>(done => model.close(() => done()))
     await rm(directory, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 })
+    await rm(outside, { recursive: true, force: true })
   }
 }, 90_000)

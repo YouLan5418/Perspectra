@@ -6,6 +6,8 @@ import { readPluginManifest } from './plugin-manifest-file.ts'
 import type { FrontendHostServices } from '@harness-world/frontend'
 import { validBgmTrack, type FrontendBgmPlugin, type FrontendBgmService } from '@harness-world/frontend'
 import { HostCapabilities, type CapabilityCatalog } from './host-capabilities.ts'
+import { officialSeams, type HostSeams } from './official-bundle.ts'
+import { installPluginResolver } from './plugin-resolve.ts'
 import {
   HOST_API_VERSION,
   hostApiCompatible,
@@ -13,6 +15,9 @@ import {
   type PlayerFeedApi,
   type PlayerFeedEvent,
   type PlayerFeedLine,
+  type SchedulerInstance,
+  type SchedulerSlotApi,
+  type SeamProvider,
 } from '@harness-world/plugin-sdk'
 
 // The SDK declares the services on Cordis' Context; the classes below must satisfy its interfaces.
@@ -69,6 +74,24 @@ export class PlayerFeed extends Service implements PlayerFeedApi {
           console.error('[玩家可见事件订阅] 监听器出错：', error)
         }
       })
+  }
+}
+
+/** One plugin at a time may replace the scheduler; whatever stays empty falls to the official bundle. */
+export class SchedulerSlot extends Service implements SchedulerSlotApi {
+  current: SeamProvider<SchedulerInstance> | undefined
+
+  constructor(ctx: Context) {
+    super(ctx, 'scheduler')
+  }
+
+  /** Own the returned disposer with the registering plugin's ctx.effect(). */
+  register(provider: SeamProvider<SchedulerInstance>): () => void {
+    if (this.current) throw new Error(`调度器已由 ${this.current.id} 提供`)
+    this.current = provider
+    return () => {
+      if (this.current === provider) this.current = undefined
+    }
   }
 }
 
@@ -168,6 +191,7 @@ export interface HostPlugins {
   readonly services: FrontendHostServices
   readonly capabilities: CapabilityCatalog
   readonly playerFeed: PlayerFeed
+  readonly seams: HostSeams
   readonly skipped: readonly SkippedHostPlugin[]
   close(): Promise<void>
 }
@@ -185,7 +209,9 @@ export async function loadHostPlugins(
   const services = new FrontendServices(root)
   const capabilities = new HostCapabilities(root)
   const playerFeed = new PlayerFeed(root)
+  const scheduler = new SchedulerSlot(root)
   const skipped: SkippedHostPlugin[] = []
+  installPluginResolver()
   for (const plugin of plugins) {
     if (!plugin.enabled) continue
     // Manifest and config are checked before the module is imported, so a misconfigured plugin runs no code.
@@ -241,5 +267,12 @@ export async function loadHostPlugins(
       skipped.push({ id: plugin.id, reason: 'apply' })
     }
   }
-  return { services, capabilities, playerFeed, skipped, close: () => root.fiber.dispose() }
+  return {
+    services,
+    capabilities,
+    playerFeed,
+    seams: { scheduler: scheduler.current ?? officialSeams().scheduler },
+    skipped,
+    close: () => root.fiber.dispose(),
+  }
 }

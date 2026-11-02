@@ -368,3 +368,60 @@ it('checks the manifest and config before importing, and hands the merged config
   expect(JSON.stringify(error.mock.calls)).not.toContain('fixture-secret')
   error.mockRestore()
 })
+
+// Written outside the repository: a bare '@deepseek-ai/cordis' cannot resolve there without the host's hook.
+async function writePlugin(id: string, source: string) {
+  const root = await mkdtemp(join(tmpdir(), 'perspectra-seam-plugin-'))
+  roots.push(root)
+  const path = join(root, `${id}.mjs`)
+  await writeFile(path, source)
+  return { id, path, enabled: true }
+}
+const schedulerPlugin = (id: string) => `
+  export const hostApi = '1.1'
+  export default function (ctx) {
+    ctx.effect(() => ctx.scheduler.register({ id: '${id}', version: '1.0.0', open: async () => ({
+      run: async () => ({ calls: 0, wave: 0, terminalReason: 'quiescent', activations: [] }),
+    }) }))
+  }
+`
+async function load(...settings: { id: string; path: string; enabled: boolean }[]) {
+  const plugins = await loadHostPlugins(settings)
+  sessions.push(plugins)
+  return plugins
+}
+
+it('fills an empty scheduler seam with the official provider', async () => {
+  const plugins = await load()
+  expect(plugins.seams.scheduler.id).toBe('official-scheduler')
+})
+
+it('lets a player plugin take the scheduler seam and skips a second one', async () => {
+  const plugins = await load(
+    await writePlugin('first', schedulerPlugin('first')),
+    await writePlugin('second', schedulerPlugin('second')),
+  )
+  expect(plugins.seams.scheduler.id).toBe('first')
+  expect(plugins.skipped).toEqual([{ id: 'second', reason: 'apply' }])
+})
+
+it('hands a plugin outside the repository the same Cordis the host runs', async () => {
+  const plugins = await load(
+    await writePlugin(
+      'classy',
+      `
+      import { Service } from '@deepseek-ai/cordis'
+      export const hostApi = '1.1'
+      class Marker extends Service { constructor(ctx) { super(ctx, 'marker') } }
+      export default function (ctx) {
+        new Marker(ctx)
+        ctx.effect(() => ctx.scheduler.register({ id: 'classy', version: '1.0.0', open: async () => ({
+          run: async () => ({ calls: 0, wave: 0, terminalReason: 'quiescent', activations: [] }),
+        }) }))
+      }
+    `,
+    ),
+  )
+  expect(plugins.skipped).toEqual([])
+  expect(plugins.seams.scheduler.id).toBe('classy')
+})
