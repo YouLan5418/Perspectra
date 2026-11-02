@@ -4,6 +4,8 @@
 
 > **物品规则现状（2026-10-22 核对）：** 例如角色拿起钥匙后交给同伴，由世界包的 `scripts/status.js` 声明目标与参数、裁定结果，宿主检查并提交物品变化和授权观察。拿／放／给已由[作者模板](../../examples/templates/item-rules.js)取代，使用 `status:take`／`status:drop`／`status:give`；旧 `base:take`／`base:drop`／`base:give` 及核心 home.ts、dinner.ts 已删除，基础交互只保留牵手与松手。玩家使用当前选项，交给是一个选项加接收者参数；旧 `/take`、`/give`、`/drop` 已删除，调试改用 `/status take@entity:xxx {}` 等。源码、自动测试场景和此次两个真实样本的边界见[物品指南](guides/activity-and-variables.md#作者物品规则的验证范围)。下文旧验收的 take／give／drop 指当时实现，不作为现行内置能力或新模板已重验的证明。
 
+> **插件方向（2026-11-02）：** 例如开发者可以写一个插件换掉官方调度器，玩家在 Launcher 中选用。下文“首轮不建设”的通用插件平台和第三方代码沙箱是当时的范围：前者已由[插件优先运行时](../superpowers/specs/2026-11-02-plugin-first-runtime-design.md)取代，后者仍然不做，第三方插件按可信代码处理。事件日志和原子提交不可替换；隔离与事实一致性由主干和官方插件保证，启用第三方插件后取决于其作者。实现进度以[当前架构](architecture/README.md)为准。
+
 | 属性 | 内容 |
 | --- | --- |
 | 文档版本 | 0.1 |

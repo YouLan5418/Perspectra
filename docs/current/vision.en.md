@@ -198,6 +198,8 @@ The main way to organize story and gameplay is the **activity**. A dinner, a dat
 
 State and operations a work needs can ship as world-pack plugins. Capabilities that connect external programs or services come from host plugins the player enables locally, and their results are still handed back to the work's rules. Different kinds of gameplay therefore do not all have to be built into the engine core.
 
+Going further, developers can replace the engine's official modules with plugins, such as the scheduler, and players choose which to use. The event log and atomic commits always stay with the engine's trunk.
+
 Creators provide the world's possibilities, constraints, and initial tensions. Players and characters shape what happens within them.
 
 ## 8. The player experience we want
