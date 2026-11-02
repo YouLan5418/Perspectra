@@ -1,6 +1,7 @@
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http'
 import type { WorldJsonObject } from '@harness-world/contracts'
 import type { RuntimeRoleModels } from '../model-connections.ts'
+import { listenOnSafePort } from '../safe-port.ts'
 
 /** The same shape a model's decision has: {decision:'abstain'}, publish or perform. */
 export type StubDecision = WorldJsonObject
@@ -54,10 +55,10 @@ export async function startStubModel(): Promise<StubModel> {
       }
     })
   })
-  await new Promise<void>(done => server.listen(0, '127.0.0.1', done))
+  const port = await listenOnSafePort(server)
   const target = {
     protocol: 'openai' as const,
-    endpoint: `http://127.0.0.1:${(server.address() as { port: number }).port}/v1/chat/completions`,
+    endpoint: `http://127.0.0.1:${port}/v1/chat/completions`,
     model: 'lens-stub',
   }
   return {

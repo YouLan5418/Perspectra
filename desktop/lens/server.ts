@@ -1,8 +1,8 @@
 import { randomBytes, timingSafeEqual } from 'node:crypto'
 import { existsSync, watch, type FSWatcher } from 'node:fs'
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http'
-import type { AddressInfo } from 'node:net'
 import { resolve } from 'node:path'
+import { listenOnSafePort } from '../safe-port.ts'
 import { headers } from '../host/http-server.ts'
 import { servePageAsset } from '../host/creator-assets.ts'
 import { LensSession, type LensSnapshot } from './session.ts'
@@ -178,11 +178,7 @@ export async function startLensServer(packPath: string, options: LensServerOptio
       else response.destroy()
     })
   })
-  await new Promise<void>((done, fail) => {
-    server.once('error', fail)
-    server.listen(0, '127.0.0.1', done)
-  })
-  const { port } = server.address() as AddressInfo
+  const port = await listenOnSafePort(server)
 
   return {
     packPath: root,

@@ -27,6 +27,7 @@ export default defineConfig({
   },
   test: {
     environment: 'node',
+    setupFiles: ['tests/support/vitest-setup.ts'],
     include: ['packages/**/*.test.ts', 'tests/**/*.test.ts'],
     // Windows CI runs the SQLite integration suites substantially slower under
     // V8 coverage. Keep correctness deadlines inside the tests themselves and

@@ -1,4 +1,5 @@
 import { rolePreset, rolePresetMapping } from '@harness-world/provider-chat'
+import { listenOnSafePort } from '../safe-port.ts'
 import { loadHostPlugins, type HostPlugins } from '../host-plugins.ts'
 import { coreMemoryProvider } from './memory/core-provider.ts'
 import { hostPluginSettings, pluginSecretValues } from '../host-plugin-settings.ts'
@@ -12,8 +13,6 @@ import { resolve } from 'node:path'
 import { parseAuditItems, type ShadowOptions } from './jev-shadow.ts'
 import { createClaimClassifier } from './jev-shadow-claims-client.ts'
 import { randomBytes } from 'node:crypto'
-import { once } from 'node:events'
-import type { AddressInfo } from 'node:net'
 import { parseHostLaunchArguments } from './launch-arguments.ts'
 import { WorldHostRuntime, isV5SourcePackDirectory } from './world-runtime.ts'
 import { createHostServer } from './http-server.ts'
@@ -241,14 +240,10 @@ async function main(): Promise<void> {
         })
     }
   })
-  server.listen(0, '127.0.0.1')
-  await once(server, 'listening')
-  const port = (server.address() as AddressInfo).port
+  const port = await listenOnSafePort(server)
   hostOrigin = 'http://127.0.0.1:' + port
   if (trustedAssets) {
-    trustedAssets.listen(0, '127.0.0.1')
-    await once(trustedAssets, 'listening')
-    policy.origin = 'http://127.0.0.1:' + (trustedAssets.address() as AddressInfo).port
+    policy.origin = 'http://127.0.0.1:' + (await listenOnSafePort(trustedAssets))
     policy.mode = 'trusted'
   }
   process.send?.({ type: 'ready', port, token, frontendMode: policy.mode, skippedPlugins: hostPlugins.skipped })
