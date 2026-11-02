@@ -85,7 +85,7 @@ node scripts/docs/check-links.mjs
 
 | 问题与证据 | 处理 |
 | --- | --- |
-| 角色回合主路径叫 `prototype-character-turn.ts`、`PrototypeCharacterTurn`、`runPrototypeActivations`，provider-chat 的请求构造叫 `prototypeTurnCall` | 改为 [character-turn.ts](../../../packages/application/src/character-turn.ts)、[activation-cycle.ts](../../../packages/application/src/activation-cycle.ts)、[character-turn-call.ts](../../../packages/provider-chat/src/character-turn-call.ts)；符号同步去掉 `Prototype` 前缀，写入租约的临时 owner 前缀改为 `character-turn:`。带日期的证据目录、历史报告和 archive 保持原名 |
+| 角色回合主路径叫 `prototype-character-turn.ts`、`PrototypeCharacterTurn`、`runPrototypeActivations`，provider-chat 的请求构造叫 `prototypeTurnCall` | 改为 [character-turn.ts](../../../packages/application/src/character-turn.ts)、[activation-cycle.ts](../../../packages/official-scheduler/src/index.ts)、[character-turn-call.ts](../../../packages/provider-chat/src/character-turn-call.ts)；符号同步去掉 `Prototype` 前缀，写入租约的临时 owner 前缀改为 `character-turn:`。带日期的证据目录、历史报告和 archive 保持原名 |
 | 宿主有 62 处 `../../packages/x/src/...` 深路径，其中 17 个包内文件未从入口导出；`packages/frontend` 没有 package.json | application 与 provider-chat 入口导出宿主实际使用的模块；frontend 成为 `@harness-world/frontend` 包；`desktop` 全部改用包名。launcher 的 tsconfig 只为类型检查增加同一映射，其运行时代码仍只直接引用浏览器安全的 preset 模块 |
 | 默认回归经 14 个文件依赖 `tests/experiments`，删除实验驱动会打破回归 | 共用场景、夹具与崩溃子进程移入 [tests/support](../../../tests/support/README.md)；`hidden-cure` 两个驱动拆出共享场景与玩家策略，真实模型 CLI 留在原处 |
 

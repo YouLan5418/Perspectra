@@ -235,7 +235,7 @@ scenarios/integration 会间接覆盖部分路径，但单元级不变量（不�
 ### P2-5 格式与 lint 缺口
 
 - **没有 formatter**：仓库无 prettier/biome/dprint 配置，只有 .editorconfig。
-- **风格摆动**：同一仓库里既有完全展开的代码，也有接近压缩的写法，例如 [character-turn.ts:420-531](../../../packages/application/src/character-turn.ts)（循环体几乎无空格）、[activation-cycle.ts:110-180](../../../packages/application/src/activation-cycle.ts)（单字母变量密集）、[services/desktop.ts:27-37](../../../apps/launcher/src/services/desktop.ts)（1 空格缩进）。
+- **风格摆动**：同一仓库里既有完全展开的代码，也有接近压缩的写法，例如 [character-turn.ts:420-531](../../../packages/application/src/character-turn.ts)（循环体几乎无空格）、[activation-cycle.ts:110-180](../../../packages/official-scheduler/src/index.ts)（单字母变量密集）、[services/desktop.ts:27-37](../../../apps/launcher/src/services/desktop.ts)（1 空格缩进）。
 - **lint 覆盖窄**：oxlint 默认规则、无配置文件、96 条规则；lint 脚本不含 apps/launcher、scripts、config；没有类型感知规则，any 与非空断言不会被拦截。
 - **显式 any**：约 80 处词法命中、38 个文件，其中 [runtime-cordis.ts:12-13](../../../packages/runtime-cordis/src/runtime.ts) 的公共接口直接使用 any。
 - **非空断言**：源码中形如 x! 的断言约 250 处，round-coordinator.ts 单文件 19 处，world-runtime.ts 12 处。多数处在不变量之后，但一旦不变量破坏，报错是 Cannot read properties of undefined，而不是领域错误。

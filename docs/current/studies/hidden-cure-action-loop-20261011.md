@@ -8,7 +8,7 @@
 
 复核旧记录 `output/hidden-cure/live-vuTX5e/{A,B,C}/record.json`，三组第 6–8 回合共 18 次 NPC 根调用，全部 `continuation=false`、`canPerform=true`，都有合法的 move 目的地。16 次选择 publish、2 次 abstain，没有 perform。A/C 的目的地包含教会与档案室，B 包含旅馆与教会。正常回合均 quiescent，未耗尽配置的自主预算；B6 是格式失败。
 
-[Character Turn](../../../packages/application/src/character-turn.ts)的 publish 提交后会结束本次激活。结果续写通常没有 perform；不能期待模型先说“准备出发”，宿主随后把这句话转成移动。[动态调度](../../../packages/application/src/activation-cycle.ts)给予自主角色每个机会一次重要操作及其结果续写，下一机会再决定下一步。它没有在普通发言之后无限追加行动机会，这属于当前有界设计。
+[Character Turn](../../../packages/application/src/character-turn.ts)的 publish 提交后会结束本次激活。结果续写通常没有 perform；不能期待模型先说“准备出发”，宿主随后把这句话转成移动。[动态调度](../../../packages/official-scheduler/src/index.ts)给予自主角色每个机会一次重要操作及其结果续写，下一机会再决定下一步。它没有在普通发言之后无限追加行动机会，这属于当前有界设计。
 
 发送给模型的系统说明已经要求重要移动/交互使用 perform。原后期记录证明的是“有权限、有机会，却选择表达”，不是移动不可用或调用额度不足。它也不证明模型永远无法行动：D2 以及本轮材料拿取都实际执行了。角色等待玩家答复也可能合理；没有新目标且合理等待的 abstain 不能一律算无意义沉默。
 
