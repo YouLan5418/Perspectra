@@ -1,0 +1,15 @@
+{
+  "name": "急性子调度器",
+  "version": "0.1.0",
+  "author": "Perspectra",
+  "description": "替换官方调度器的示例：让指定的角色总是抢先回应。只改变谁先获得机会，不替角色决定说什么。",
+  "services": ["scheduler"],
+  "config": {
+    "priority": {
+      "type": "string",
+      "title": "抢先回应的角色",
+      "description": "角色 ID，用英文逗号分隔，靠前的优先，例如 character:witness。",
+      "maxLength": 1024
+    }
+  }
+}

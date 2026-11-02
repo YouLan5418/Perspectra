@@ -98,7 +98,7 @@ WorldStore 的审计连接在创建、激活或分叉等实际审计操作时打
 
 玩家点击序章“继续”时，读取已初始化的数据库不再反复占用 SQLite 写锁。2026-10-14 核对的[连接初始化](../../../packages/store-sqlite/src/sqlite.ts)每次仍检查数据库标识和版本，仅在尚未使用 WAL 时设置日志模式；连接自己的 `synchronous=FULL`、外键和等待超时仍在打开时设置。标识与版本已匹配时不启动迁移事务；新数据库、未写入标识的数据库及版本升级继续原子初始化，错误标识、未来版本和迁移失败继续报错。2026-10-30 的分支复用延长常规阶段所用连接的生命，不改变这些配置、世界提交或回合备份。
 
-同一回合里，串行和动态调度的[候选收集](../../../packages/application/src/activation-cycle.ts)只读取上次消费序号之后、截至当前已提交头的 `observation.upsert`，复用已有 `readEventsRange`，避免先解析全量历史。分叉仍继承有效的父线前缀，不读取父线的后续事件；观察受众、因果深度、模型预算及提交前重校验保持原有规则。[局部优化实测](../studies/prologue-performance-20261010.md#两项局部优化2026-10-14)区分自动回归、无模型后端测量与尚未完成的真实体验验收。
+同一回合里，串行和动态调度的[候选收集](../../../packages/official-scheduler/src/index.ts)只读取上次消费序号之后、截至当前已提交头的 `observation.upsert`，复用已有 `readEventsRange`，避免先解析全量历史。分叉仍继承有效的父线前缀，不读取父线的后续事件；观察受众、因果深度、模型预算及提交前重校验保持原有规则。[局部优化实测](../studies/prologue-performance-20261010.md#两项局部优化2026-10-14)区分自动回归、无模型后端测量与尚未完成的真实体验验收。
 
 2026-10-30 核对角色视图读取：例如 Claude 处理自己听到的私语时，[CharacterViewBuilder](../../../packages/store-sqlite/src/character-view.ts)让场景、自身经历和[观察投影](../../../packages/store-sqlite/src/projection.ts)复用同一前缀的数据。独立入口读取所需事件；宿主单步内借用共享完整前缀。调用者已有事件时，rebuildFromEvents 筛选并复制所需事件，沿用同一投影逻辑。观察、认识、目标和可见性仍按角色筛选，remove 事件仍参与投影，其附加元数据不作为角色创建证据。不可变事件完全相同时，按地址、角色和序号复用已构建视图，返回副本，避免记忆追赶与刷新重复投影；每次构建仍核对世界头，旧前缀排除后续事件，不保留跨步历史缓存。Core 快照省去未使用返回视图的旧优化仍保留，见[记忆读取复用](cognition-memory.md#授权材料与分层整理)与[历史实测](../studies/prologue-performance-20261010.md#视图读取复用2026-10-14)。
 
@@ -138,7 +138,7 @@ Core 长期整理在排队前冻结授权 Source 前缀。后台运行期间前�
 
 例：玩家离开 B、C 所在的客厅去厨房找 A。A 回应后也走去客厅，厨房只剩玩家。此时 B、C 对“玩家离开”“A 到来”的反应仍在计算，但都发生在玩家场景之外。宿主据此把玩家视图显示为“可以回应”，不点名场外角色；玩家这时发言、点行动按钮或保存节点，会先取消这些未提交的场外计算再执行，已提交的观察和行动保留。若玩家场景内有角色正在处理，状态显示“正在回复中”，玩家可以等，也可以照常插话；默认舞台不显示处理者名字。
 
-实现上，运行时把交给 `runCharacterActivations` 的 `turn` 包一层，记录正在运行的角色，在 `state()` 中与当前场景成员比对，得到 `responders`（场内正在处理的角色名）和 `background`（只剩场外处理且允许插话）。默认舞台只用 `responders` 判断是否显示“正在回复中”，不显示名字：狼人杀这类隐藏回合里，夜里被激活的人名本身就是身份信息（2026-10-28）。想看具体是谁，用创作者页面。`projectPlayerView` 在 `background` 时输出 `ready`，不再透出 `canInterrupt` 和处理阶段文案。[TailRoundRuntime](../../../desktop/host/tail-runtime.ts) 的 `perform` 现在和发言共用同一中止入口；`background` 时保存节点也会先中止。中止信号会传到模型 HTTP 请求，取消不需要等模型返回。自动测试见 [dynamic-scheduling.test.ts](../../../tests/scenarios/dynamic-scheduling.test.ts)；2026-10-17 晚宴包真实模型试玩中，玩家反馈离场后等待明显缩短，未做计时对照；发行包未更新。已知限制：玩家行动较快时，场外连锁会被截短；刚完成一个场内角色、下一个尚未派发的瞬间，状态可能短暂显示为可回应。
+实现上，运行时把交给 `runOfficialSchedule` 的 `turn` 包一层，记录正在运行的角色，在 `state()` 中与当前场景成员比对，得到 `responders`（场内正在处理的角色名）和 `background`（只剩场外处理且允许插话）。默认舞台只用 `responders` 判断是否显示“正在回复中”，不显示名字：狼人杀这类隐藏回合里，夜里被激活的人名本身就是身份信息（2026-10-28）。想看具体是谁，用创作者页面。`projectPlayerView` 在 `background` 时输出 `ready`，不再透出 `canInterrupt` 和处理阶段文案。[TailRoundRuntime](../../../desktop/host/tail-runtime.ts) 的 `perform` 现在和发言共用同一中止入口；`background` 时保存节点也会先中止。中止信号会传到模型 HTTP 请求，取消不需要等模型返回。自动测试见 [dynamic-scheduling.test.ts](../../../tests/scenarios/dynamic-scheduling.test.ts)；2026-10-17 晚宴包真实模型试玩中，玩家反馈离场后等待明显缩短，未做计时对照；发行包未更新。已知限制：玩家行动较快时，场外连锁会被截短；刚完成一个场内角色、下一个尚未派发的瞬间，状态可能短暂显示为可回应。
 
 
 ## 角色思考强度

@@ -1,5 +1,7 @@
 # 通过 Cordis 加载宿主插件
 
+2026-11-02 可替换模块：例如开发者不满意官方调度，可以写插件让急性子的角色总是抢先回应，玩家启用后立即替换官方实现。插件除了语音、BGM、异步能力和对白订阅，现在还能用 `ctx.scheduler` 替换角色调度。写法见[替换角色调度器](guides/host-plugin-authoring.md#替换角色调度器)。其他模块的替换尚未接通，进度见[设计](../superpowers/specs/2026-11-02-plugin-first-runtime-design.md)。下文“没有挂载世界内核、存储”的说法仍然成立：调度器能读事件和角色视图，但不能直接写入。
+
 2026-10-26 插件清单与配置：例如你要用自己的语音服务。把语音插件加进启动器后，设置页显示它的名称“HTTP 语音合成”、作者、简介，声明使用“语音与背景音乐”，下方有“语音服务地址”和“API Key”两个输入框；不填地址就启动，这个插件会被跳过，启动器提示“请先填写：语音服务地址”。
 
 - **清单**：插件入口旁的 `<入口名>.plugin.json`，如 `http-speech.mjs` 配 `http-speech.plugin.json`。字段有 `name`、`version`、可选的 `author` / `description`、`services`（`frontendServices` / `capabilities` / `playerFeed` 中用到的项）和可选的 `config`。启动器读取它时不执行插件代码，这与 DSH 读取包元信息的做法相同。没有清单的插件照常加载，启动器显示“未提供插件清单”，插件收到空配置。`services` 是作者的声明，宿主不强制；插件仍是拥有本机权限的可信代码。

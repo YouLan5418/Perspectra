@@ -40,7 +40,8 @@
 | 包 | 通俗职责 | 阅读起点与注意事项 |
 | --- | --- | --- |
 | [contracts](../../../packages/contracts) | 共用数据类型、ID、动作与事件约定 | [ID](../../../packages/contracts/src/ids.ts)、[表达片段](../../../packages/contracts/src/expression.ts)；定义形状，不执行模型 |
-| [application](../../../packages/application) | 连接玩家输入、角色处理和世界执行 | [单角色处理](../../../packages/application/src/character-turn.ts)、[有界调度](../../../packages/application/src/activation-cycle.ts)、[WorldApplication](../../../packages/application/src/world-application.ts)（宿主只用其游玩方法；创作者与调试读取在 [`read`](../../../packages/application/src/world-read-queries.ts)，备份、分叉、维护与隔离恢复在 [`admin`](../../../packages/application/src/world-administration.ts)）；[RoundCoordinator](../../../packages/application/src/round-coordinator.ts) 是玩家行动的裁定与提交入口，旧 NPC Round／Reaction 执行已退役 |
+| [application](../../../packages/application) | 连接玩家输入、角色处理和世界执行 | [单角色处理](../../../packages/application/src/character-turn.ts)、[调度回合](../../../packages/application/src/scheduler-round.ts)、[有界调度](../../../packages/official-scheduler/src/index.ts)、[WorldApplication](../../../packages/application/src/world-application.ts)（宿主只用其游玩方法；创作者与调试读取在 [`read`](../../../packages/application/src/world-read-queries.ts)，备份、分叉、维护与隔离恢复在 [`admin`](../../../packages/application/src/world-administration.ts)）；[RoundCoordinator](../../../packages/application/src/round-coordinator.ts) 是玩家行动的裁定与提交入口，旧 NPC Round／Reaction 执行已退役 |
+| [official-scheduler](../../../packages/official-scheduler) | 官方调度器：谁在什么时候获得处理机会，以及串行、动态并发和上限 | [实现](../../../packages/official-scheduler/src/index.ts)；只依赖公开的 `plugin-sdk` 接口，由 [desktop/official-bundle.ts](../../../desktop/official-bundle.ts) 接入，玩家可用插件替换 |
 | [kernel](../../../packages/kernel) | 世界规则、行动裁定、场景事实读取与启动 | [规则注册](../../../packages/kernel/src/rulebook-registry.ts)、[世界启动](../../../packages/kernel/src/world-bootstrap.ts)；不负责角色写台词，也不承担提交流程 |
 | [store-sqlite](../../../packages/store-sqlite) | 事件存取、原子提交、角色视图和相关持久化 | [WorldStore](../../../packages/store-sqlite/src/world-store.ts)、[CharacterViewBuilder](../../../packages/store-sqlite/src/character-view.ts) |
 | [memory](../../../packages/memory) | 原生角色记忆与认知上下文 | [上下文服务](../../../packages/memory/src/cognitive-context.ts)、[本地记忆](../../../packages/memory/src/local-memory.ts)；Python Core 不在此包 |
@@ -49,7 +50,7 @@
 | [interaction-runtime](../../../packages/interaction-runtime) | 注册交互能力、校验定义与结果 | [注册](../../../packages/interaction-runtime/src/registry.ts)、[校验](../../../packages/interaction-runtime/src/validation.ts) |
 | [interactions-basic](../../../packages/interactions-basic) | 牵手与松手的内置规则 | [基础定义](../../../packages/interactions-basic/src/basic.ts)仅有 `base:hold-hand`、`base:end-contact`，须由世界包显式绑定。拿／放／给与料理／修理由各包 `scripts/status.js` 定义，经[状态桥](../../../desktop/host/pack-status.ts)裁定；旧物品规则与 home.ts、dinner.ts 已删除（2026-10-22） |
 | [frontend](../../../packages/frontend) | 公共玩家视图、客户端接口、默认情景舞台、本地阅读进度与可选语音／BGM 服务契约 | [公共数据](../../../packages/frontend/src/player-view.ts)、[客户端](../../../packages/frontend/src/client.ts)、[默认模板](../../../packages/frontend/src/default-template.ts)、[阅读游标](../../../packages/frontend/src/reading-playback.ts)、[语音接口](../../../packages/frontend/src/speech.ts)、[BGM 接口](../../../packages/frontend/src/bgm.ts)与[播放器](../../../packages/frontend/src/bgm-playback.ts) |
-| [plugin-sdk](../../../packages/plugin-sdk) | Cordis 宿主插件可依赖的服务类型、宿主 API 版本，以及插件清单与配置字段的格式 | [类型与版本](../../../packages/plugin-sdk/src/index.ts)；宿主的 [host-plugins.ts](../../../desktop/host-plugins.ts)、[host-capabilities.ts](../../../desktop/host-capabilities.ts) 实现这些接口。只有类型和版本比较，没有运行时服务；尚未发布到 npm |
+| [plugin-sdk](../../../packages/plugin-sdk) | Cordis 宿主插件可依赖的服务类型、可替换模块的接缝类型、宿主 API 版本，以及插件清单与配置字段的格式 | [类型与版本](../../../packages/plugin-sdk/src/index.ts)；宿主的 [host-plugins.ts](../../../desktop/host-plugins.ts)、[host-capabilities.ts](../../../desktop/host-capabilities.ts) 实现这些接口。只有类型和版本比较，没有运行时服务；尚未发布到 npm |
 | [agents](../../../packages/agents) | 玩家意图调用记录、共用库连接与历史玩家输入解析 | [导出入口](../../../packages/agents/src/index.ts)、[玩家调用记录](../../../packages/agents/src/player-intent-call.ts)、[连接](../../../packages/agents/src/context-database.ts)；旧 NPC Context、Reflection 和调用服务已移除，NPC 主循环在 application |
 | [presentation](../../../packages/presentation) | 把授权观察转成确定性的展示文本 | [Presenter](../../../packages/presentation/src/presenter.ts)；不是 Vue 界面或 NPC 决策器 |
 | [runtime-cordis](../../../packages/runtime-cordis) | Cordis 注册与分支资源生命周期 | [运行时](../../../packages/runtime-cordis/src/runtime.ts)；先了解游戏流程再读资源管理 |
@@ -66,7 +67,7 @@
 | 角色知道了秘密 | character-view.ts、character-turn.ts | 原生记忆或 core-memory.ts 的来源和交付 |
 | 模型格式错误 | provider-chat/character-turn-call.ts、gateway-turn-call.ts | character-turn.ts；活动另查 pack-activity.ts |
 | 移动或物品操作被拒绝 | kernel 裁定与交互定义 | 世界包绑定、当前视图、实际参数 |
-| 角色重复回应或没回应 | activation-cycle.ts | 宿主预算、刺激与活动调度 |
+| 角色重复回应或没回应 | official-scheduler/src/index.ts、当前是否启用了第三方调度器 | 宿主预算、刺激与活动调度 |
 | 长期记忆遗漏或整理慢 | core-memory.ts、python-worker.ts | experiments/activity-memory 与 hindsight-core |
 | 节点、分叉与分享 | desktop/story-nodes.ts、story-share.ts | LauncherCore 与节点记忆快照恢复 |
 | 末端回合重新生成 | tail-runtime.ts、desktop/tail-storage.ts | 宿主世界版本与后台任务取消 |

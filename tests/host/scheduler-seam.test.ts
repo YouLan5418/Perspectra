@@ -4,15 +4,19 @@ import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import type { SchedulerInstance, SchedulerRound, SeamProvider, WorldServices } from '@harness-world/plugin-sdk'
 import { afterEach, expect, it, vi } from 'vitest'
+import { loadHostPlugins, type HostPlugins } from '../../desktop/host-plugins.ts'
+import { officialSeams } from '../../desktop/official-bundle.ts'
 import { WorldHostRuntime } from '../../desktop/host/world-runtime.ts'
 import { createChatServer, fakeModels } from '../support/fake-provider.ts'
 
 const roots: string[] = [],
   servers: Server[] = [],
-  runtimes: WorldHostRuntime[] = []
+  runtimes: WorldHostRuntime[] = [],
+  sessions: HostPlugins[] = []
 afterEach(async () => {
   vi.restoreAllMocks()
   for (const runtime of runtimes.splice(0)) await runtime.close()
+  for (const session of sessions.splice(0)) await session.close()
   for (const server of servers.splice(0)) {
     server.closeAllConnections()
     await new Promise<void>(done => server.close(() => done()))
@@ -188,6 +192,58 @@ it('aborts the round signal when the game closes', async () => {
   await running
   await runtime.close()
   runtimes.length = 0
+  await submitting
+  expect(aborted).toBe(true)
+})
+
+const EXAMPLE = resolve('examples/host-plugins/impulsive-scheduler.mjs')
+
+async function loadExample(priority: string) {
+  const plugins = await loadHostPlugins([
+    { id: 'impulsive-scheduler', path: EXAMPLE, enabled: true, config: { priority } },
+  ])
+  sessions.push(plugins)
+  expect(plugins.skipped).toEqual([])
+  return plugins.seams.scheduler
+}
+
+it('lets the example plugin put impatient characters first', async () => {
+  const { runtime, actors } = await start(await loadExample(WITNESS))
+  const state = await runtime.submit(MOVE)
+  expect(state.error).toBeFalsy()
+  expect(actors[0]).toBe(WITNESS)
+  expect(new Set(actors).size).toBeGreaterThan(1)
+})
+
+it('reopens a save without the plugin under the official scheduler', async () => {
+  const first = await start(await loadExample(WITNESS))
+  const played = await first.runtime.submit(MOVE)
+  const transcript = played.transcript.map(line => [line.seq, line.text])
+  await first.runtime.close()
+  runtimes.length = 0
+  const reopened = await start(officialSeams().scheduler, first.root)
+  expect((await reopened.runtime.state()).transcript.map(line => [line.seq, line.text])).toEqual(transcript)
+  await reopened.runtime.submit('还有人吗？')
+  expect(reopened.actors.length).toBeGreaterThan(0)
+})
+
+it('aborts the round signal on pause', async () => {
+  let started!: () => void
+  const running = new Promise<void>(done => {
+    started = done
+  })
+  let aborted = false
+  const { runtime } = await start(
+    provider(async round => {
+      started()
+      await new Promise<void>(done => round.signal.addEventListener('abort', () => done(), { once: true }))
+      aborted = true
+      return quiet
+    }),
+  )
+  const submitting = runtime.submit(MOVE)
+  await running
+  await runtime.pause()
   await submitting
   expect(aborted).toBe(true)
 })

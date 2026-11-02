@@ -91,6 +91,39 @@ export default async function myBgm(ctx) {
 
 这些接口是 Perspectra 提供的服务，不是所有 Cordis 宿主共有的业务 API。插件可以自行使用 Node 能力，但世界玩法应通过现有作者规则和 Action / Rulebook / Event 路径扩展；不要直接改数据库或把配乐选择写成世界事实。当前没有任意前端脚本注入、通用插件设置面板、热更新或自动安装依赖。
 
+## 替换角色调度器
+
+例如你想让性格急躁的角色总是抢先回应。[impulsive-scheduler.mjs](../../../examples/host-plugins/impulsive-scheduler.mjs) 就是这样一个示例：在“抢先回应的角色”里填 `character:witness`，这个角色听见动静后最先获得机会。它说什么、要不要回应，仍由模型决定。
+
+插件向 `ctx.scheduler` 注册一个 Provider：
+
+```js
+export const hostApi = '1.1'
+
+export default function (ctx) {
+  ctx.effect(() =>
+    ctx.scheduler.register({
+      id: 'my-scheduler',
+      version: '1.0.0',
+      open: async world => ({ run: round => myRun(round) }),
+    }),
+  )
+}
+```
+
+- `open` 在每个世界实例打开时调用一次，包括重新生成的候选，所以不要把每局状态放在模块顶层。
+- `round.observationsSince(afterSeq, throughSeq)` 告诉你谁有新观察。`round.turn(id, { signal, stimulusSeqs, maxCalls })` 让角色处理一次。你只按序号指定观察，内容由宿主取出，序号不属于该角色时会被拒绝。
+- 返回 `{ calls, wave, terminalReason, activations }`。`failed`、`interrupted`、`call_limit`、`wave_limit`、`character_limit` 有各自的玩家提示，其他值都显示为本轮已结束。
+- 进阶接口 `onCommitted` 和 `continuationOf` 用于动态并发和过期重算，可参考[官方实现](../../../packages/official-scheduler/src/index.ts)。
+
+需要定义自己的服务时，可以 `import { Service } from '@deepseek-ai/cordis'`，宿主会把它指向自己运行的那一份，插件不用也不要自带。
+
+**由作者负责的部分。** `round.limits` 是玩家设置的上限，只作为建议传给你，宿主不做总量拦截，超出就要玩家多付模型费用。`world` 和 `round.world` 能读所有事件和任意角色的视图，把一个角色的私有内容交给另一个角色，隔离就破了。玩家启用插件即视为信任作者，宿主不做沙箱。活动进行中的出场顺序属于玩法，不交给调度器。
+
+调度器抛错或返回非法结果时，这一轮反应结束，已提交的内容保留，玩家看到提示后可以继续。打开失败时改用官方调度。如果它忽略取消信号又一直不返回，这一轮会卡住，只能重启游戏。
+
+玩家移除插件后，同一个存档回到官方调度，已提交的世界事实不变。自动测试覆盖替换、异常和存档重开；真实模型下的体验尚未验收。
+
 ## 自定义前端怎样使用
 
 自定义模板在 `manifest.json` 的 `capabilities` 中添加 `bgm`。只有宿主确实安装 BGM 服务时，初始化结果才包含这个能力；未声明能力的模板不能经桥调用音乐接口。
