@@ -98,6 +98,7 @@ async function main(): Promise<void> {
   const runtime = await WorldHostRuntime.create({
     capabilities: hostPlugins.capabilities,
     playerFeed: hostPlugins.playerFeed,
+    plugins: hostPlugins.seams,
     dataDirectory,
     models,
     packPath,

@@ -101,12 +101,15 @@ import { modelCharacters, playerTranscript, sceneChangedAt } from './player-tran
 import { DEFAULT_RUNTIME_TUNING, type RuntimeTuning } from './runtime-tuning.ts'
 import { PackModules, lockedPackAsset } from './pack-modules.ts'
 import { CapabilitySession, type CapabilityCatalog } from '../host-capabilities.ts'
-import { runOfficialSchedule } from '../official-bundle.ts'
+import { officialSeams, type HostSeams } from '../official-bundle.ts'
+import { normalizeSchedulerResult } from './scheduler-result.ts'
 import { createWorldReader } from './world-reader.ts'
-import type { SchedulerResult } from '@harness-world/plugin-sdk'
+import type { SchedulerInstance, SchedulerResult } from '@harness-world/plugin-sdk'
 
 export interface WorldHostOptions extends ModelOptions {
   readonly capabilities?: CapabilityCatalog
+  /** The implementation in force for each replaceable seam; defaults to the official bundle. */
+  readonly plugins?: HostSeams
   /** Receives the player's transcript after each projection; read-only, it cannot affect the world. */
   readonly playerFeed?: { publish(transcript: HostState['transcript']): void }
   readonly dataDirectory: string
@@ -438,6 +441,8 @@ export class WorldHostCore implements HostRuntime {
   #autoStartError: string | undefined
   #knowledge: PackKnowledge | undefined
   #activationCycle: SchedulerResult | undefined
+  #scheduler!: SchedulerInstance
+  #schedulerIsOfficial = true
   readonly #manifestVersion: number
   readonly #intentEnabled: boolean
   readonly #dataDirectory: string
@@ -765,6 +770,7 @@ export class WorldHostCore implements HostRuntime {
         ?.version === 'player-intent/v1'
     const runtime = new WorldHostCore(options, compiled, intentEnabled)
     try {
+      await runtime.#openScheduler()
       runtime.#packHash = pack.packHash
       runtime.#actionLabels = Object.fromEntries(
         [...pack.content.entities, ...pack.content.characters].flatMap(target =>
@@ -1597,6 +1603,7 @@ export class WorldHostCore implements HostRuntime {
     await closingCapabilities
     await closingMemory
     await this.#closeCore?.()
+    await Promise.resolve(this.#scheduler?.close?.()).catch(error => console.error('[调度器插件] 关闭失败：', error))
     await this.#shadow?.close()
     try {
       await this.#application.close()
@@ -1892,14 +1899,53 @@ export class WorldHostCore implements HostRuntime {
     }
   }
 
-  #schedule(input: Omit<Parameters<typeof createSchedulerRound>[0], 'world'>): Promise<SchedulerResult> {
-    const world = createWorldReader(resolve(this.#dataDirectory, 'world.sqlite'), this.#address)
-    return runOfficialSchedule(createSchedulerRound({ ...input, world }), { strictCallBudget: true })
+  /** Each world instance gets its own scheduler; one that cannot open must not keep the world from opening. */
+  async #openScheduler(): Promise<void> {
+    const official = officialSeams().scheduler
+    const provider = this.#options.plugins?.scheduler ?? official
+    const services = (id: string) => ({
+      address: this.#address,
+      worldVersion: this.#worldVersion,
+      dataDirectory: resolve(this.#dataDirectory, 'plugins', id),
+      world: this.#worldReader(),
+    })
+    const signal = AbortSignal.timeout(30_000)
+    this.#schedulerIsOfficial = provider === official
+    try {
+      this.#scheduler = await provider.open(services(provider.id), signal)
+    } catch (error) {
+      if (provider === official) throw error
+      console.error(`[调度器插件 ${provider.id}] 打开失败：`, error)
+      this.#scheduler = await official.open(services(official.id), signal)
+      this.#schedulerIsOfficial = true
+      this.#notice = `调度器插件 ${provider.id} 无法打开，已改用官方调度。`
+    }
+  }
+
+  #worldReader() {
+    return createWorldReader(resolve(this.#dataDirectory, 'world.sqlite'), this.#address)
+  }
+
+  /** A third-party scheduler failing costs the round's reactions, never what has been committed. */
+  async #schedule(input: Omit<Parameters<typeof createSchedulerRound>[0], 'world'>): Promise<SchedulerResult> {
+    const round = createSchedulerRound({ ...input, world: this.#worldReader() })
+    if (this.#schedulerIsOfficial) return this.#scheduler.run(round)
+    try {
+      return normalizeSchedulerResult(await this.#scheduler.run(round))
+    } catch (error) {
+      console.error('[调度器插件] 本轮调度失败：', error)
+      return { calls: 0, wave: 0, terminalReason: 'plugin_failed', activations: [] }
+    }
   }
 
   /** Tell the player how the reaction cycle ended, without claiming more was committed than was. */
   #reactionNotice(cycle: SchedulerResult): void {
     const terminal = cycle.terminalReason
+    if (terminal === 'plugin_failed') {
+      this.#error = true
+      this.#notice = '调度器插件出错，本轮角色反应已停止；玩家输入保留，可以继续行动。'
+      return
+    }
     if (terminal === 'failed' || terminal === 'interrupted') {
       const failureStatus = terminal === 'interrupted' ? 'interrupted' : 'failed'
       const activation =
