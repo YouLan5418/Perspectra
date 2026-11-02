@@ -1,3 +1,4 @@
+import { createRuntimeWithCore } from '../support/core-memory-options.ts'
 import { spawn } from 'node:child_process'
 import type { Server } from 'node:http'
 import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync, readdirSync } from 'node:fs'
@@ -102,7 +103,7 @@ async function fixture(core = false, build?: CoreRunner, playerFeed?: PlayerFeed
     ...(playerFeed ? { playerFeed } : {}),
   }
   const create = async () => {
-    const runtime = await WorldHostRuntime.create(options)
+    const runtime = await createRuntimeWithCore(options)
     runtimes.push(runtime)
     return runtime
   }

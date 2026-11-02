@@ -1,3 +1,4 @@
+import { createRuntimeWithCore } from './core-memory-options.ts'
 import fs from 'node:fs'
 import promises from 'node:fs/promises'
 import { syncBuiltinESMExports } from 'node:module'
@@ -84,9 +85,9 @@ const options = {
 }
 if (config.phase.startsWith('memory-')) {
   install()
-  await WorldHostRuntime.create(options)
+  await createRuntimeWithCore(options)
 } else if (config.phase.startsWith('save-')) {
-  const runtime = await WorldHostRuntime.create(options)
+  const runtime = await createRuntimeWithCore(options)
   install()
   await runtime.saveNode('强制终止中的节点')
 } else {

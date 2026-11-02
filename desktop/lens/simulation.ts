@@ -252,7 +252,6 @@ export class LensSimulation {
         packPath: copy,
         dataDirectory: join(root, 'data'),
         models: stub.models,
-        memoryCore: false,
         timeoutMs: 10_000,
       })
       const titles = new Map(

@@ -1,3 +1,4 @@
+import { createRuntimeWithCore } from '../support/core-memory-options.ts'
 import { createServer } from 'node:http'
 import { randomUUID } from 'node:crypto'
 import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs'
@@ -148,7 +149,7 @@ export async function playKnowledgeConditions(output: string) {
   await new Promise<void>(ready => relay.listen(0, '127.0.0.1', ready))
   let runtime: WorldHostRuntime | undefined, credentialLeaks = 0
   try {
-    runtime = await WorldHostRuntime.create({ models: environmentRoleModels({ PERSPECTRA_MODEL_ENDPOINT: 'http://127.0.0.1:' + (relay.address() as { port: number }).port + '/v1/chat/completions', PERSPECTRA_MODEL: MODEL, PERSPECTRA_MODEL_API_KEY: process.env.HCW_LOCAL_API_KEY }), packPath: pack, dataDirectory: resolve(run, 'world'), memoryCore: true, timeoutMs: 90000})
+    runtime = await createRuntimeWithCore({ models: environmentRoleModels({ PERSPECTRA_MODEL_ENDPOINT: 'http://127.0.0.1:' + (relay.address() as { port: number }).port + '/v1/chat/completions', PERSPECTRA_MODEL: MODEL, PERSPECTRA_MODEL_API_KEY: process.env.HCW_LOCAL_API_KEY }), packPath: pack, dataDirectory: resolve(run, 'world'), memoryCore: true, timeoutMs: 90000})
     const step = async (name: string, action: () => ReturnType<NonNullable<typeof runtime>['state']>) => {
       stage = name; const before = await runtime!.state(), started = performance.now(), state = await action()
       turns.push({ stage, durationMs: Math.round(performance.now() - started), error: state.error, notice: state.notice ?? null,

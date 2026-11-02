@@ -1,5 +1,6 @@
 import { rolePreset, rolePresetMapping } from '@harness-world/provider-chat'
 import { loadHostPlugins, type HostPlugins } from '../host-plugins.ts'
+import { coreMemoryProvider } from './memory/core-provider.ts'
 import { hostPluginSettings, pluginSecretValues } from '../host-plugin-settings.ts'
 import { readingPreferences, audioPreferences } from '../play-settings.ts'
 import { environmentRoleModels, runtimeRoleModels } from '../model-connections.ts'
@@ -94,6 +95,15 @@ async function main(): Promise<void> {
   hostPlugins = await loadHostPlugins(
     hostPluginSettings(JSON.parse(process.env.PERSPECTRA_HOST_PLUGINS ?? '[]')),
     pluginSecrets,
+    launch.memoryCore
+      ? {
+          memory: () =>
+            coreMemoryProvider({
+              models,
+              ...(launch.playSettings === undefined ? {} : { playSettings: launch.playSettings }),
+            }),
+        }
+      : {},
   )
   const runtime = await WorldHostRuntime.create({
     capabilities: hostPlugins.capabilities,
@@ -154,7 +164,6 @@ async function main(): Promise<void> {
     presetMapping: settings
       ? rolePresetMapping(mapping)
       : rolePresetMapping(JSON.parse(process.env.PERSPECTRA_ROLE_MAPPING ?? '{}')),
-    ...(launch.memoryCore ? { memoryCore: true } : {}),
     ...(launch.serialScheduling ? { serialScheduling: true } : {}),
     ...(launch.tuning === undefined ? {} : { tuning: launch.tuning }),
     ...(shadowAudit === undefined ? {} : { shadowAudit }),

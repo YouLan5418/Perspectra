@@ -18,7 +18,7 @@ import type {
 
 /** Major.minor. A new service or optional field raises the minor; any change a plugin could trip over
  * raises the major. A plugin exports `hostApi` with the lowest version it needs. */
-export const HOST_API_VERSION = '1.1'
+export const HOST_API_VERSION = '1.2'
 
 /** Same major, and this host's minor at least the one the plugin asks for. */
 export function hostApiCompatible(required: unknown, host: string = HOST_API_VERSION): boolean {
@@ -112,6 +112,8 @@ export interface WorldServices {
   readonly worldVersion: string
   /** This plugin's own directory inside the instance's data. */
   readonly dataDirectory: string
+  /** The world instance's own directory, for implementations that keep files beside its databases. */
+  readonly instanceDirectory: string
   readonly world: WorldReader
 }
 /** Registered once per process; `open` runs once per world instance, including regeneration candidates. */
@@ -119,6 +121,8 @@ export interface SeamProvider<Instance> {
   readonly id: string
   readonly version: string
   open(world: WorldServices, signal: AbortSignal): Promise<Instance>
+  /** Settings that make a regenerated round incomparable once they change. */
+  readonly identity?: WorldJsonObject
 }
 
 /** The player's settings. Advisory for a plugin: the host does not cap what it spends. */
@@ -211,11 +215,46 @@ export interface SchedulerSlotApi {
   readonly current: SeamProvider<SchedulerInstance> | undefined
 }
 
+/** What a memory implementation is handed of one character decision. */
+export interface MemoryRequest {
+  readonly context: WorldJsonObject
+  readonly decisionId?: string
+}
+/** Long-term memory for characters. Only `project` is required: it returns the request a character decides on,
+ * and what it adds is that character's to know. Everything else is optional; the host treats a missing method
+ * as nothing to do, and a save restored without archives simply starts from the recent window. */
+export interface MemoryInstance {
+  project<T extends MemoryRequest>(request: T, signal: AbortSignal): Promise<T>
+  observeContext?(request: MemoryRequest, promptText: string): void
+  recordDecision?(request: MemoryRequest, response: unknown): void
+  /** The sequence up to which this memory has taken over; the recent window starts after it. */
+  shortTermAfterSeq?(characterId: CharacterId): number
+  startPending?(): void
+  cancelBackground?(): void
+  waitForBackground?(): Promise<void>
+  backgroundState?(): WorldJsonObject
+  startRefresh?(characterIds: readonly CharacterId[]): void
+  inspect?(characterId: string, offset: number, limit: number): WorldJsonObject | undefined
+  snapshotAliases?(characterIds: readonly CharacterId[]): WorldJsonObject
+  snapshotArchives?(characterIds: readonly CharacterId[]): WorldJsonObject
+  restoreArchives?(archives: WorldJsonObject, characterIds: readonly CharacterId[]): void
+  holdInstallation?(): void
+  releaseInstallation?(): void
+  close?(): void | Promise<void>
+}
+/** `ctx.memory`: replaces the characters' long-term memory. Wrap `register` in `ctx.effect()`. */
+export interface MemorySlotApi {
+  /** Throws when another plugin already holds the seam. */
+  register(provider: SeamProvider<MemoryInstance>): () => void
+  readonly current: SeamProvider<MemoryInstance> | undefined
+}
+
 export interface HostServices {
   frontendServices: FrontendServicesApi
   capabilities: CapabilitiesApi
   playerFeed: PlayerFeedApi
   scheduler: SchedulerSlotApi
+  memory: MemorySlotApi
 }
 
 declare module '@deepseek-ai/cordis' {

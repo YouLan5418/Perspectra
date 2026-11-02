@@ -425,3 +425,35 @@ it('hands a plugin outside the repository the same Cordis the host runs', async 
   expect(plugins.skipped).toEqual([])
   expect(plugins.seams.scheduler.id).toBe('classy')
 })
+
+const memoryPlugin = (id: string) => `
+  export const hostApi = '1.2'
+  export default function (ctx) {
+    ctx.effect(() => ctx.memory.register({ id: '${id}', version: '1.0.0', open: async () => ({ project: async request => request }) }))
+  }
+`
+
+it('lets a player plugin take the memory seam over the default and skips a second one', async () => {
+  const official = {
+    id: 'official-default',
+    version: '1.0.0',
+    open: async () => ({ project: async <T>(request: T) => request }),
+  }
+  let assembled = 0
+  const assemble = () => {
+    assembled++
+    return official
+  }
+  const empty = await loadHostPlugins([], {}, { memory: assemble })
+  sessions.push(empty)
+  expect(empty.seams.memory?.id).toBe('official-default')
+  const taken = await loadHostPlugins(
+    [await writePlugin('mine', memoryPlugin('mine')), await writePlugin('other', memoryPlugin('other'))],
+    {},
+    { memory: assemble },
+  )
+  sessions.push(taken)
+  expect(taken.seams.memory?.id).toBe('mine')
+  expect(assembled).toBe(1)
+  expect(taken.skipped).toEqual([{ id: 'other', reason: 'apply' }])
+})

@@ -1,3 +1,4 @@
+import { createRuntimeWithCore } from '../support/core-memory-options.ts'
 import { type Server } from 'node:http'
 import { once } from 'node:events'
 import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
@@ -79,7 +80,7 @@ async function fixture(
   await once(provider, 'listening')
   const address = provider.address()
   if (!address || typeof address === 'string') throw new Error('no port')
-  const runtime = await WorldHostRuntime.create({
+  const runtime = await createRuntimeWithCore({
     dataDirectory: data,
     packPath: resolve('examples/world-packs/ai-girls-hosted-guess'),
     models: fakeModels(`http://127.0.0.1:${address.port}/v1/chat/completions`, 'openai', 'fixture'),
@@ -244,11 +245,11 @@ describe('optional web Core memory', () => {
       }
     vi.stubEnv('HCW_HINDSIGHT_PYTHON', join(root, 'missing-python.exe'))
     try {
-      await expect(WorldHostRuntime.create(options)).rejects.toThrow('Python 环境不存在')
+      await expect(createRuntimeWithCore(options)).rejects.toThrow('Python 环境不存在')
       writeFileSync(join(root, 'python.exe'), '')
       vi.stubEnv('HCW_HINDSIGHT_PYTHON', join(root, 'python.exe'))
       vi.stubEnv('HCW_HINDSIGHT_ONNX_DIR', join(root, 'no-e5'))
-      await expect(WorldHostRuntime.create(options)).rejects.toThrow('E5 编码器不存在')
+      await expect(createRuntimeWithCore(options)).rejects.toThrow('E5 编码器不存在')
       expect(readdirSync(root)).not.toContain('data')
     } finally {
       vi.unstubAllEnvs()
@@ -840,7 +841,7 @@ it('starts one Core runner per distinct memory model and never writes a key to t
     endpoint = `http://127.0.0.1:${port}/v1/chat/completions`
   const groups: { env: Record<string, string>; inputs: WorldJsonObject[]; closed: boolean }[] = []
   const strong = { protocol: 'openai' as const, endpoint, model: 'strong', apiKey: 'MEMORY_KEY_STRONG' }
-  const runtime = await WorldHostRuntime.create({
+  const runtime = await createRuntimeWithCore({
     dataDirectory: data,
     packPath: resolve('examples/world-packs/ai-girls-hosted-guess'),
     memoryCore: true,

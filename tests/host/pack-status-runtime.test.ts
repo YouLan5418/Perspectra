@@ -1,3 +1,4 @@
+import { createRuntimeWithCore } from '../support/core-memory-options.ts'
 import type { Server } from 'node:http'
 import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -240,7 +241,7 @@ async function fixture(
         }
       : { delivery: [], deliveryTrace: { delivered: [], activityCoverage: [] } }
   const create = async (dataDirectory = data) => {
-    const runtime = await WorldHostRuntime.create({
+    const runtime = await createRuntimeWithCore({
       ...options,
       dataDirectory,
       ...(dataDirectory === data ? {} : { memoryCore: true, memoryCoreRun: memory, memoryCoreBuildRun: memory }),

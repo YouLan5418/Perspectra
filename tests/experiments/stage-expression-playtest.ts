@@ -1,3 +1,4 @@
+import { createRuntimeWithCore } from '../support/core-memory-options.ts'
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
 import { isAbsolute, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -33,7 +34,7 @@ export async function playStageExpressions(output: string, pack: string, model: 
       character.expressions ? [[id, Object.keys(character.expressions)]] : [],
     ),
   )
-  const runtime = await WorldHostRuntime.create({
+  const runtime = await createRuntimeWithCore({
     models: environmentRoleModels({ PERSPECTRA_MODEL_ENDPOINT: 'https://api.deepseek.com/chat/completions', PERSPECTRA_MODEL: model, PERSPECTRA_MODEL_API_KEY: process.env.DEEPSEEK_API_KEY }),
     packPath: resolve(pack),
     dataDirectory,

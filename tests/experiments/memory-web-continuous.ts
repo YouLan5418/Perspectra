@@ -1,3 +1,4 @@
+import { createRuntimeWithCore } from '../support/core-memory-options.ts'
 /** Normal HTTP playtest, real provider, manual Memory refresh; no forced cognition or replayed choices. */
 import { randomBytes } from 'node:crypto'
 import { once } from 'node:events'
@@ -36,7 +37,7 @@ const measuredRun: import('../../desktop/host/memory/python-worker.ts').CoreRunn
     appendFileSync(path,JSON.stringify({input,result,durationMs:performance.now()-start})+'\n')
     return result
 }
-const runtime = await WorldHostRuntime.create({ models: environmentRoleModels({ PERSPECTRA_MODEL_ENDPOINT: process.env.HCW_LOCAL_ENDPOINT ?? 'http://127.0.0.1:8045/v1/chat/completions', PERSPECTRA_MODEL: model, PERSPECTRA_MODEL_API_KEY: process.env.HCW_LOCAL_API_KEY }), dataDirectory:root,
+const runtime = await createRuntimeWithCore({ models: environmentRoleModels({ PERSPECTRA_MODEL_ENDPOINT: process.env.HCW_LOCAL_ENDPOINT ?? 'http://127.0.0.1:8045/v1/chat/completions', PERSPECTRA_MODEL: model, PERSPECTRA_MODEL_API_KEY: process.env.HCW_LOCAL_API_KEY }), dataDirectory:root,
   packPath:resolve('examples/world-packs/prototype-g1'),
   ...(process.env.HCW_LOCAL_ENDPOINT ? { utilityEndpoint:process.env.HCW_LOCAL_ENDPOINT } : {}),
   timeoutMs:90000,tuning,memoryCore:true,memoryCoreRun:measuredRun,memoryCoreBuildRun:measuredRun })

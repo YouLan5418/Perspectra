@@ -1,3 +1,4 @@
+import { createRuntimeWithCore } from '../support/core-memory-options.ts'
 import { type Server } from 'node:http'
 import { randomUUID } from 'node:crypto'
 import { DatabaseSync } from 'node:sqlite'
@@ -110,7 +111,7 @@ async function fixture() {
     memoryCoreBuildRun: run,
   }
   const create = async (directory = data, extra: Partial<typeof options> = {}) => {
-    const runtime = await WorldHostRuntime.create({ ...options, ...extra, dataDirectory: directory })
+    const runtime = await createRuntimeWithCore({ ...options, ...extra, dataDirectory: directory })
     runtimes.push(runtime)
     return runtime
   }

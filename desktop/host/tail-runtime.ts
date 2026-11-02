@@ -230,8 +230,8 @@ export class TailRoundRuntime {
       ...(this.options.recentExecutionEvidence ? { recentExecutionEvidence: true } : {}),
       playSettings: this.options.playSettings ?? null,
       tuning: this.options.tuning ?? null,
-      memoryCore: !!this.options.memoryCore,
-      memoryContextBudget: this.options.memoryContextBudget ?? null,
+      memoryCore: this.options.plugins?.memory?.id === 'official-memory-core',
+      memoryContextBudget: this.options.plugins?.memory?.identity?.memoryContextBudget ?? null,
     })
   }
   async #run(input: TailRecord['input'], idempotencyKey?: string): Promise<HostState> {

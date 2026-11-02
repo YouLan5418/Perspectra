@@ -1,3 +1,4 @@
+import { createRuntimeWithCore } from '../support/core-memory-options.ts'
 import { spawn, type ChildProcess } from 'node:child_process'
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -78,7 +79,7 @@ async function fixture() {
     memoryCoreRun: run,
     memoryCoreBuildRun: run,
   }
-  const create = (dataDirectory = directory) => WorldHostRuntime.create({ ...options, dataDirectory })
+  const create = (dataDirectory = directory) => createRuntimeWithCore({ ...options, dataDirectory })
   const runtime = await create()
   let node
   try {

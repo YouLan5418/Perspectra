@@ -1,3 +1,4 @@
+import { createRuntimeWithCore } from '../support/core-memory-options.ts'
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
 import { isAbsolute, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -33,7 +34,7 @@ export async function playTavernSlice(packPath: string, output: string, model = 
   const dataDirectory = resolve(output), local = relative(resolve('.tmp'), dataDirectory)
   if (!local || local.startsWith('..') || isAbsolute(local) || existsSync(dataDirectory)) throw new TypeError('请使用 .tmp 内全新的数据目录')
   mkdirSync(dataDirectory, {recursive: true})
-  const runtime = await WorldHostRuntime.create({models: environmentRoleModels({ PERSPECTRA_MODEL_ENDPOINT: process.env.HCW_LOCAL_ENDPOINT ?? 'http://127.0.0.1:8045/v1/chat/completions', PERSPECTRA_MODEL: model, PERSPECTRA_MODEL_API_KEY: process.env.HCW_LOCAL_API_KEY }),packPath:resolve(packPath),dataDirectory,memoryCore:true,timeoutMs:60000})
+  const runtime = await createRuntimeWithCore({models: environmentRoleModels({ PERSPECTRA_MODEL_ENDPOINT: process.env.HCW_LOCAL_ENDPOINT ?? 'http://127.0.0.1:8045/v1/chat/completions', PERSPECTRA_MODEL: model, PERSPECTRA_MODEL_API_KEY: process.env.HCW_LOCAL_API_KEY }),packPath:resolve(packPath),dataDirectory,memoryCore:true,timeoutMs:60000})
   const turns: WorldJsonObject[] = []
   try {
     for (const [index,input] of inputs.entries()) {

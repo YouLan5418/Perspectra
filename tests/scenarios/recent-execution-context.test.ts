@@ -1,3 +1,4 @@
+import { createRuntimeWithCore } from '../support/core-memory-options.ts'
 import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
@@ -77,7 +78,7 @@ it('keeps disabled requests unchanged and isolates private evidence across a rea
   }
   let runtime: WorldHostRuntime | undefined
   try {
-    runtime = await WorldHostRuntime.create(options)
+    runtime = await createRuntimeWithCore(options)
     action = 'move'
     await runtime.submit('/act speak {"text":"普通基线机会","scope":"self"}')
     expect(requests.every(r => r.input.context.recentExecutionEvidence === undefined)).toBe(true)
@@ -87,7 +88,7 @@ it('keeps disabled requests unchanged and isolates private evidence across a rea
     const prefix = store.head(runtime.address).headSeq
     store.close()
     await runtime.close()
-    runtime = await WorldHostRuntime.create({ ...options, recentExecutionEvidence: true })
+    runtime = await createRuntimeWithCore({ ...options, recentExecutionEvidence: true })
     // The fixture author permits take; this remains a real Rulebook commit, not an injected possession event.
     action = 'take'
     await runtime.submit('/act speak {"text":"请自行处理眼前的物品。","scope":"scene_public"}')
@@ -100,7 +101,7 @@ it('keeps disabled requests unchanged and isolates private evidence across a rea
     runtime = undefined
     const child = join(root, 'child')
     restoreStoryNode(data, node.id, child, node.packHash)
-    runtime = await WorldHostRuntime.create({ ...options, dataDirectory: child, recentExecutionEvidence: true })
+    runtime = await createRuntimeWithCore({ ...options, dataDirectory: child, recentExecutionEvidence: true })
     requests.length = 0
     await runtime.submit('/act speak {"text":"私语隔离青松","scope":"private","addresseeIds":["character:companion"]}')
     const friend = requests.filter(r => r.input.context.character.characterId === 'character:friend')

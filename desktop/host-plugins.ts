@@ -12,6 +12,8 @@ import {
   HOST_API_VERSION,
   hostApiCompatible,
   type FrontendServicesApi,
+  type MemoryInstance,
+  type MemorySlotApi,
   type PlayerFeedApi,
   type PlayerFeedEvent,
   type PlayerFeedLine,
@@ -88,6 +90,23 @@ export class SchedulerSlot extends Service implements SchedulerSlotApi {
   /** Own the returned disposer with the registering plugin's ctx.effect(). */
   register(provider: SeamProvider<SchedulerInstance>): () => void {
     if (this.current) throw new Error(`调度器已由 ${this.current.id} 提供`)
+    this.current = provider
+    return () => {
+      if (this.current === provider) this.current = undefined
+    }
+  }
+}
+
+export class MemorySlot extends Service implements MemorySlotApi {
+  current: SeamProvider<MemoryInstance> | undefined
+
+  constructor(ctx: Context) {
+    super(ctx, 'memory')
+  }
+
+  /** Own the returned disposer with the registering plugin's ctx.effect(). */
+  register(provider: SeamProvider<MemoryInstance>): () => void {
+    if (this.current) throw new Error(`记忆已由 ${this.current.id} 提供`)
     this.current = provider
     return () => {
       if (this.current === provider) this.current = undefined
@@ -203,6 +222,9 @@ export async function loadHostPlugins(
   settings: HostPluginSettings[],
   /** Per plugin ID, secret field values the launcher read from the credential store. */
   secrets: Readonly<Record<string, Readonly<Record<string, string>>>> = {},
+  /** What fills a seam no plugin took and the bundle cannot assemble alone, such as Core with its models.
+   * Called only when needed: a player who replaced Core does not need its Python. */
+  defaults: { readonly memory?: () => SeamProvider<MemoryInstance> } = {},
 ): Promise<HostPlugins> {
   const plugins = hostPluginSettings(settings)
   const root = new Context()
@@ -210,6 +232,7 @@ export async function loadHostPlugins(
   const capabilities = new HostCapabilities(root)
   const playerFeed = new PlayerFeed(root)
   const scheduler = new SchedulerSlot(root)
+  const memory = new MemorySlot(root)
   const skipped: SkippedHostPlugin[] = []
   installPluginResolver()
   for (const plugin of plugins) {
@@ -267,11 +290,15 @@ export async function loadHostPlugins(
       skipped.push({ id: plugin.id, reason: 'apply' })
     }
   }
+  const chosenMemory = memory.current ?? defaults.memory?.()
   return {
     services,
     capabilities,
     playerFeed,
-    seams: { scheduler: scheduler.current ?? officialSeams().scheduler },
+    seams: {
+      scheduler: scheduler.current ?? officialSeams().scheduler,
+      ...(chosenMemory ? { memory: chosenMemory } : {}),
+    },
     skipped,
     close: () => root.fiber.dispose(),
   }

@@ -1,3 +1,4 @@
+import { createRuntimeWithCore } from '../support/core-memory-options.ts'
 import {
   cpSync,
   existsSync,
@@ -243,7 +244,7 @@ it('matches a plain host runtime', async () => {
   writeFileSync(prologue, readFileSync(prologue, 'utf8') + '\nglobalThis.activityScript.autoStart = undefined\n')
   const stub = await startStubModel()
   cleanups.push(() => stub.close())
-  const runtime = await WorldHostRuntime.create({
+  const runtime = await createRuntimeWithCore({
     packPath: pack,
     dataDirectory: join(root, 'data'),
     models: stub.models,

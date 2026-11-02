@@ -2,7 +2,7 @@ import type { PluginConfig, PluginConfigField, PluginManifest } from '@harness-w
 
 /** Browser-safe: the launcher page validates its form with the same rules the host applies at launch. */
 
-const SERVICES = ['frontendServices', 'capabilities', 'playerFeed', 'scheduler'] as const
+const SERVICES = ['frontendServices', 'capabilities', 'playerFeed', 'scheduler', 'memory'] as const
 const FIELD_NAME = /^[a-zA-Z][a-zA-Z0-9_]{0,39}$/u
 const text = (value: unknown, max: number) =>
   typeof value === 'string' && value.trim().length > 0 && value.length <= max

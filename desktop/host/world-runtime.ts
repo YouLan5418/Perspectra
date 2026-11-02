@@ -54,8 +54,6 @@ import {
 } from '@harness-world/application'
 import { saveStoryNode, readStoryNodes } from '../story-nodes.ts'
 import { existsSync, unlinkSync } from 'node:fs'
-import { CoreMemoryAdapter, type MemoryContextBudget, type MemoryBuildOptions } from './memory/core-memory.ts'
-import { assertCoreEnvironment, coreRunnerGroups, type CoreRunner, type MemoryRunners } from './memory/python-worker.ts'
 import { activityWorldFromEvents, type ActivityRequest, type ActivityWorld } from './pack-activity.ts'
 import { decideWithFormatRetry } from './decision-format.ts'
 import { PackActivities, type ActivityDefinitionView, type AutoStartEvaluation } from './pack-activities.ts'
@@ -104,14 +102,14 @@ import { CapabilitySession, type CapabilityCatalog } from '../host-capabilities.
 import { officialSeams, type HostSeams } from '../official-bundle.ts'
 import { normalizeSchedulerResult, trackSchedulerTurns } from './scheduler-result.ts'
 import { createWorldReader } from './world-reader.ts'
-import type { SchedulerInstance, SchedulerResult } from '@harness-world/plugin-sdk'
+import type { MemoryInstance, SchedulerInstance, SchedulerResult, WorldServices } from '@harness-world/plugin-sdk'
 
 const SCHEDULER_FAILED_NOTICE = '调度器插件出错，本轮角色反应已停止；玩家输入保留，可以继续行动。'
 
 export interface WorldHostOptions extends ModelOptions {
   readonly capabilities?: CapabilityCatalog
   /** The implementation in force for each replaceable seam; defaults to the official bundle. */
-  readonly plugins?: HostSeams
+  readonly plugins?: Partial<HostSeams>
   /** Receives the player's transcript after each projection; read-only, it cannot affect the world. */
   readonly playerFeed?: { publish(transcript: HostState['transcript']): void }
   readonly dataDirectory: string
@@ -125,13 +123,6 @@ export interface WorldHostOptions extends ModelOptions {
   readonly tuning?: RuntimeTuning
   readonly shadowAudit?: ShadowOptions
   readonly memoryShadow?: boolean
-  readonly memoryCore?: boolean
-  readonly memoryCoreRun?: CoreRunner
-  readonly memoryCoreBuildRun?: CoreRunner
-  /** Starts the Core runners for one memory model; defaults to a lazy Python worker plus one-shot builds. */
-  readonly memoryCoreRunners?: (environment: NodeJS.ProcessEnv) => MemoryRunners
-  readonly memoryBuildConcurrency?: Omit<MemoryBuildOptions, 'run'>
-  readonly memoryContextBudget?: MemoryContextBudget
   readonly storyNodes?: boolean
   readonly storyParentNodeId?: string
   readonly worldVersion?: string
@@ -331,7 +322,7 @@ export class WorldHostCore implements HostRuntime {
       }
       if (query.characterId !== undefined) {
         const id = query.characterId
-        const archive = this.#memoryCore?.inspectArchive(id, query.memoryOffset ?? 0, limit)
+        const archive = this.#memory?.inspect?.(id, query.memoryOffset ?? 0, limit)
         result.character = {
           id,
           currentView: new CharacterViewBuilder(store).rebuildAt(
@@ -343,11 +334,12 @@ export class WorldHostCore implements HostRuntime {
           contextNotice:
             'currentView 是当前授权视图；latestRequest 是启用采集后该角色最近一次实际请求，时刻可能早于当前世界。每角色保留最近一次，超出总容量会淘汰。',
           memory: {
-            mode: this.#memoryCore ? 'core' : 'native',
-            archivePrefix: archive?.archivePrefix ?? null,
-            sections: archive?.sections ?? {},
-            maintenance: archive?.maintenance ?? null,
-            notice: this.#memoryCore
+            mode: this.#memoryIsCore ? 'core' : 'native',
+            // The shape an implementation reports; the creator page only displays it.
+            archivePrefix: (archive?.archivePrefix ?? null) as number | null,
+            sections: (archive?.sections ?? {}) as never,
+            maintenance: (archive?.maintenance ?? null) as WorldJsonObject | null,
+            notice: this.#memoryIsCore
               ? '已安装档案分页，不触发整理或召回。本次实际召回见 latestRequest.contextParts 的 memories。'
               : '原生完整记忆档案尚未接入；授权经历见 currentView，本次召回见实际请求。',
           },
@@ -376,8 +368,8 @@ export class WorldHostCore implements HostRuntime {
   readonly #intentModel: string
   readonly #characterIds: readonly CharacterId[]
   readonly #effectivePresets: ReadonlyMap<string, RolePreset>
-  #memoryCore: CoreMemoryAdapter | undefined
-  #closeCore: (() => Promise<void>) | undefined
+  #memory: MemoryInstance | undefined
+  #memoryIsCore = false
   #activity: PackActivities | undefined
   #modules: PackModules | undefined
   #capabilities: CapabilitySession | undefined
@@ -545,37 +537,6 @@ export class WorldHostCore implements HostRuntime {
     this.#intentModel = models.intentModel
     this.#effectivePresets = effectivePresets
     this.#characterIds = characters.map(character => character.actorId)
-    if (options.memoryCore) {
-      const defaultMemory: RuntimeModel = options.models.default.memory
-      const groups = coreRunnerGroups(options.dataDirectory, options.memoryCoreRunners)
-      const shared =
-        options.memoryCoreRun === undefined || options.memoryCoreBuildRun === undefined
-          ? groups.runnersFor(defaultMemory)
-          : undefined
-      const own =
-        options.memoryCoreRun === undefined
-          ? new Map(Object.entries(options.models.characters).map(([id, role]) => [id, groups.runnersFor(role.memory)]))
-          : new Map<string, MemoryRunners>()
-      this.#closeCore = groups.close
-      this.#memoryCore = new CoreMemoryAdapter(
-        options.dataDirectory,
-        this.#address,
-        options.memoryCoreRun ?? shared!.recall,
-        options.memoryContextBudget ?? {
-          triggerTokens: settings.memoryTriggerTokens,
-          compactTokens: settings.memoryCompactTokens,
-          minimumRecentTokens: settings.memoryRecentTokens,
-        },
-        {
-          ...options.memoryBuildConcurrency,
-          run: options.memoryCoreBuildRun ?? shared!.build,
-          runFor: actor => own.get(actor),
-          worldVersion: this.#worldVersion,
-          versionValid: () => !this.#closing,
-        },
-        { maxItems: settings.memoryMaxItems, maxJsonChars: settings.memoryMaxJsonChars },
-      )
-    }
     this.#npcNames = characters.map(character => character.name)
     // The Host's interpretation profile is a contract with the world, and its deadline ceiling is part of
     // it: a longer call deadline is the adapter's business, not something to state in the profile.
@@ -612,7 +573,7 @@ export class WorldHostCore implements HostRuntime {
     signal: AbortSignal,
     reserveFormatRetry?: () => boolean,
   ): Promise<unknown> {
-    if (this.#memoryCore) request = await this.#memoryCore.project(request, signal)
+    if (this.#memory) request = await this.#memory.project(request, signal)
     if (this.#options.recentExecutionEvidence === true)
       request = { ...request, context: recentExecutionContext(request.context) }
     const character = request.context.character as WorldJsonObject
@@ -672,7 +633,7 @@ export class WorldHostCore implements HostRuntime {
       }
     }
     const prepared = await prepare(request)
-    this.#memoryCore?.observeContext(
+    this.#memory?.observeContext?.(
       request,
       prepared.messages.map(message => message.content).join('\n') +
         JSON.stringify(prepared.schema) +
@@ -716,7 +677,7 @@ export class WorldHostCore implements HostRuntime {
         source: simulated === undefined ? 'model' : 'script',
         value: raw as WorldJsonObject,
       })
-    this.#memoryCore?.recordDecision(request, raw)
+    this.#memory?.recordDecision?.(request, raw)
     signal.throwIfAborted()
     if (this.#closing || this.#abortedWork) throw new Error('角色任务世界版本已失效。')
     if (this.#options.publicationAudit === undefined) return raw
@@ -772,6 +733,7 @@ export class WorldHostCore implements HostRuntime {
         ?.version === 'player-intent/v1'
     const runtime = new WorldHostCore(options, compiled, intentEnabled)
     try {
+      await runtime.#openMemory()
       await runtime.#openScheduler()
       runtime.#packHash = pack.packHash
       runtime.#actionLabels = Object.fromEntries(
@@ -837,7 +799,7 @@ export class WorldHostCore implements HostRuntime {
       const rebuildPath = resolve(options.dataDirectory, 'rebuild-memory.json')
       if (existsSync(rebuildPath)) {
         const rebuild = JSON.parse(readFileSync(rebuildPath, 'utf8')) as { headSeq: number; packHash: string }
-        if (!runtime.#memoryCore || rebuild.packHash !== pack.packHash)
+        if (!runtime.#memory?.restoreArchives || rebuild.packHash !== pack.packHash)
           throw new Error('故事线记忆恢复需要原游戏包与 Core 记忆。')
         const head = await runtime.#application.head(runtime.#address)
         if (head.headSeq !== rebuild.headSeq) throw new Error('故事节点的世界前缀不一致。')
@@ -847,8 +809,8 @@ export class WorldHostCore implements HostRuntime {
         const archives = existsSync(memoryPath) ? (JSON.parse(readFileSync(memoryPath, 'utf8')) as WorldJsonObject) : {}
         if (!archives || typeof archives !== 'object' || Array.isArray(archives))
           throw new Error('故事节点记忆快照损坏。')
-        runtime.#memoryCore.restoreArchives(archives, runtime.#characterIds)
-        runtime.#memoryCore.snapshotAliases(runtime.#characterIds)
+        runtime.#memory.restoreArchives(archives, runtime.#characterIds)
+        runtime.#memory.snapshotAliases?.(runtime.#characterIds)
         unlinkSync(rebuildPath)
       }
       if (
@@ -897,7 +859,7 @@ export class WorldHostCore implements HostRuntime {
     return this.#packHash
   }
   validateCognition(): void {
-    this.#memoryCore?.snapshotAliases(this.#characterIds)
+    this.#memory?.snapshotAliases?.(this.#characterIds)
   }
   get address(): WorldAddress {
     return this.#address
@@ -953,7 +915,7 @@ export class WorldHostCore implements HostRuntime {
             ),
           }
         : {}),
-      ...(this.#memoryCore ? { memoryMaintenance: this.#memoryCore.backgroundState() } : {}),
+      ...(this.#memory?.backgroundState ? { memoryMaintenance: this.#memory.backgroundState() } : {}),
       ...(this.#activityView ? { activity: structuredClone(this.#activityView) } : {}),
       ...(this.#activityViews ? { activities: structuredClone(this.#activityViews) } : {}),
       ...(this.#statusBar ? { statusBar: structuredClone(this.#statusBar) } : {}),
@@ -1284,11 +1246,11 @@ export class WorldHostCore implements HostRuntime {
     this.#savingNode = true
     this.#beginWork()
     try {
-      this.#memoryCore?.cancelBackground()
-      await this.#memoryCore?.waitForBackground()
+      this.#memory?.cancelBackground?.()
+      await this.#memory?.waitForBackground?.()
       await this.#application.deliver(this.#address, 'story-node:deliver')
       await this.#application.release(this.#address)
-      const aliases = this.#memoryCore?.snapshotAliases(this.#characterIds) ?? {}
+      const aliases = this.#memory?.snapshotAliases?.(this.#characterIds) ?? {}
       return await saveStoryNode(
         this.#dataDirectory,
         this.#address,
@@ -1297,7 +1259,7 @@ export class WorldHostCore implements HostRuntime {
         aliases,
         this.#storyParentNodeId,
         this.#options.logicalDirectory,
-        this.#memoryCore?.snapshotArchives(this.#characterIds) ?? {},
+        this.#memory?.snapshotArchives?.(this.#characterIds) ?? {},
       )
     } finally {
       this.#savingNode = false
@@ -1361,11 +1323,11 @@ export class WorldHostCore implements HostRuntime {
   }
   holdCognition(): void {
     this.#roundHolds++
-    this.#memoryCore?.holdInstallation()
+    this.#memory?.holdInstallation?.()
   }
   releaseCognition(): void {
     this.#roundHolds = Math.max(0, this.#roundHolds - 1)
-    this.#memoryCore?.releaseInstallation()
+    this.#memory?.releaseInstallation?.()
   }
   #track(turn: ActivationTurn): ActivationTurn {
     return {
@@ -1393,24 +1355,24 @@ export class WorldHostCore implements HostRuntime {
   }
   async snapshotRound(target: string): Promise<void> {
     await this.settleRound()
-    const aliases = this.#memoryCore?.snapshotAliases(this.#characterIds) ?? {}
+    const aliases = this.#memory?.snapshotAliases?.(this.#characterIds) ?? {}
     await snapshotTail(this.#dataDirectory, target, this.#address, aliases)
     this.#records.snapshotBase(basename(target))
   }
   async refreshMemory(): Promise<HostState> {
     if (this.#savingNode || this.#closing) throw new HostBusyError('正在保存节点。')
-    if (!this.#memoryCore) throw new TypeError('本次运行没有开启 Core 记忆。')
-    this.#memoryCore.startRefresh(this.#characterIds)
+    if (!this.#memory?.startRefresh) throw new TypeError('本次运行没有开启 Core 记忆。')
+    this.#memory.startRefresh(this.#characterIds)
     this.#notice = '长期记忆已开始后台整理，可以继续游玩。'
     return this.state()
   }
   async cancelMemory(): Promise<HostState> {
-    this.#memoryCore?.cancelBackground()
+    this.#memory?.cancelBackground?.()
     this.#notice = '已取消未完成的后台整理；已安装档案和近期经历保留。'
     return this.state()
   }
   async waitForMemory(): Promise<void> {
-    await this.#memoryCore?.waitForBackground()
+    await this.#memory?.waitForBackground?.()
   }
   async escape(): Promise<HostState> {
     if (this.#savingNode || this.#closing) throw new HostBusyError('正在保存节点。')
@@ -1600,11 +1562,12 @@ export class WorldHostCore implements HostRuntime {
     const closingCapabilities = this.#capabilities?.close()
     this.#inspector.configure(false)
     this.#continuationController?.abort()
-    const closingMemory = this.#memoryCore?.close()
+    const closingMemory = (async () => this.#memory?.close?.())().catch(error =>
+      console.error('[记忆] 关闭失败：', error),
+    )
     await this.#workDone
     await closingCapabilities
     await closingMemory
-    await this.#closeCore?.()
     try {
       await this.#scheduler?.close?.()
     } catch (error) {
@@ -1701,7 +1664,7 @@ export class WorldHostCore implements HostRuntime {
       store.close()
       this.#continuationController = undefined
       this.#modelCallBudget = undefined
-      if (!this.#paused && !this.#escaping) this.#memoryCore?.startPending()
+      if (!this.#paused && !this.#escaping) this.#memory?.startPending?.()
     }
   }
 
@@ -1723,7 +1686,7 @@ export class WorldHostCore implements HostRuntime {
         store,
         leases,
         availability,
-        ...(this.#memoryCore === undefined ? { memory } : {}),
+        ...(this.#memory === undefined ? { memory } : {}),
         rulebooks: autonomous
           ? this.#autonomy!.rulebooks(base.resolve('builtin:speak-move', 2, 'autonomy', this.#address))
           : base,
@@ -1785,9 +1748,9 @@ export class WorldHostCore implements HostRuntime {
                   : (this.#status?.executionResult(input) ??
                     (this.#activity?.executionResult ?? characterExecutionResult)(input)),
             }),
-        ...(this.#memoryCore === undefined
+        ...(this.#memory?.shortTermAfterSeq === undefined
           ? {}
-          : { shortTermAfterSeq: (actor: CharacterId) => this.#memoryCore!.shortTermAfterSeq(actor) }),
+          : { shortTermAfterSeq: (actor: CharacterId) => this.#memory!.shortTermAfterSeq!(actor) }),
         recentObservations: this.#tuning.recentObservations,
         recentSelfObservations: this.#tuning.recentSelfObservations,
         ...(shadowFile === undefined
@@ -1905,24 +1868,41 @@ export class WorldHostCore implements HostRuntime {
     }
   }
 
+  #services(id: string): WorldServices {
+    return {
+      address: this.#address,
+      worldVersion: this.#worldVersion,
+      dataDirectory: resolve(this.#dataDirectory, 'plugins', id),
+      instanceDirectory: resolve(this.#dataDirectory),
+      world: this.#worldReader(),
+    }
+  }
+
+  /** A memory holds durable data, so one that cannot open stops the world rather than silently forgetting. */
+  async #openMemory(): Promise<void> {
+    const provider = this.#options.plugins?.memory
+    if (provider === undefined) return
+    this.#memoryIsCore = provider.id === 'official-memory-core'
+    try {
+      this.#memory = await provider.open(this.#services(provider.id), AbortSignal.timeout(30_000))
+    } catch (error) {
+      if (this.#memoryIsCore) throw error
+      throw new Error(`记忆插件 ${provider.id} 无法打开：${(error as Error).message}`, { cause: error })
+    }
+  }
+
   /** Each world instance gets its own scheduler; one that cannot open must not keep the world from opening. */
   async #openScheduler(): Promise<void> {
     const official = officialSeams().scheduler
     const provider = this.#options.plugins?.scheduler ?? official
-    const services = (id: string) => ({
-      address: this.#address,
-      worldVersion: this.#worldVersion,
-      dataDirectory: resolve(this.#dataDirectory, 'plugins', id),
-      world: this.#worldReader(),
-    })
     const signal = AbortSignal.timeout(30_000)
     this.#schedulerIsOfficial = provider === official
     try {
-      this.#scheduler = await provider.open(services(provider.id), signal)
+      this.#scheduler = await provider.open(this.#services(provider.id), signal)
     } catch (error) {
       if (provider === official) throw error
       console.error(`[调度器插件 ${provider.id}] 打开失败：`, error)
-      this.#scheduler = await official.open(services(official.id), signal)
+      this.#scheduler = await official.open(this.#services(official.id), signal)
       this.#schedulerIsOfficial = true
       this.#notice = `调度器插件 ${provider.id} 无法打开，已改用官方调度。`
     }
@@ -2294,7 +2274,7 @@ export class WorldHostCore implements HostRuntime {
       worldVersion: this.#worldVersion,
       manifestVersion: this.#manifestVersion,
       outputProtocol: 'perform/publish(segments)/abstain',
-      memoryMode: this.#memoryCore ? 'core' : 'native',
+      memoryMode: this.#memoryIsCore ? 'core' : 'native',
       activationCycle: this.#activationCycle ?? null,
       autonomy: this.#autonomyCycle ?? null,
       visibleSceneIds: view.scenes.map(scene => scene.sceneId),
@@ -2307,13 +2287,6 @@ export class WorldHostCore implements HostRuntime {
 /** Public runtime owns one logical storyline and its replaceable tail. */
 export class WorldHostRuntime extends TailRoundRuntime {
   static async create(options: WorldHostOptions): Promise<WorldHostRuntime> {
-    // Only the default runners start Python; injected runners (tests, studies) bring their own.
-    if (
-      options.memoryCore &&
-      options.memoryCoreRunners === undefined &&
-      (options.memoryCoreRun === undefined || options.memoryCoreBuildRun === undefined)
-    )
-      assertCoreEnvironment()
     return TailRoundRuntime.open(options, value => WorldHostCore.create(value))
   }
 }
