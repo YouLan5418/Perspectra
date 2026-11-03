@@ -497,3 +497,44 @@ it('lets the example channel hand back prose so that the host can retry', async 
     await new Promise<void>(done => server.close(() => done()))
   }
 })
+
+it('loads the locked-room example, whose rule refuses that room and removes it from the options', async () => {
+  const session = await loadHostPlugins([
+    {
+      id: 'locked-room',
+      enabled: true,
+      path: fileURLToPath(new URL('../../examples/host-plugins/locked-room.mjs', import.meta.url)),
+      config: { locationId: 'location:vault' },
+    },
+  ])
+  try {
+    expect(session.skipped).toEqual([])
+    const layer = await session.seams.rules![0]!.open({} as never, new AbortController().signal)
+    const move = (locationId: string) =>
+      ({ characterId: 'character:a', action: { actionType: 'move', parameters: { locationId } } }) as never
+    const next = vi.fn(() => ({ status: 'accepted', events: [] }) as never)
+    expect(layer.resolve!(move('location:vault'), next)).toMatchObject({
+      status: 'rejected',
+      reason: 'plugin:门锁着，进不去。',
+    })
+    expect(next).not.toHaveBeenCalled()
+    expect(layer.resolve!(move('location:hall'), next)).toMatchObject({ status: 'accepted' })
+    const offered = layer.affordances!(
+      { characterId: 'character:a' } as never,
+      () =>
+        [
+          {
+            actionType: 'move',
+            actionVersion: 1,
+            destinations: [
+              { locationId: 'location:vault', name: '金库' },
+              { locationId: 'location:hall', name: '大厅' },
+            ],
+          },
+        ] as never,
+    )
+    expect(offered[0]!.destinations).toEqual([{ locationId: 'location:hall', name: '大厅' }])
+  } finally {
+    await session.close()
+  }
+})

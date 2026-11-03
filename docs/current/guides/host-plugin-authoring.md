@@ -71,7 +71,7 @@ export default async function myBgm(ctx) {
 
 ## 宿主提供哪些接口
 
-2026-10-26 宿主 API 版本：例如你按当前宿主写好插件分享给别人，对方的 Perspectra 较旧、还没有 `ctx.playerFeed`。插件导出 `export const hostApi = '1.0'` 后，宿主在调用插件之前比较版本，不兼容就跳过并在启动器标出“宿主 API 版本不兼容或未声明”，而不是运行到一半报错。规则：主版本必须相同，宿主次版本不低于插件声明的次版本；当前宿主 API 为 `1.3`，`ctx.scheduler` 需要 `1.1`，`ctx.memory` 需要 `1.2`，`ctx.llm` 和 `ctx.decisions` 需要 `1.3`。没有导出 `hostApi` 的插件同样被跳过。所有接口类型集中在 [@harness-world/plugin-sdk](../../../packages/plugin-sdk/src/index.ts)：`HostServices` 列出插件能用的服务，`CapabilityProvider`、`PlayerFeedEvent` 等是参数与事件的形状；宿主的实现直接引用这些类型，接口改动会先在类型检查中暴露。该包目前只在本仓库内，尚未发布到 npm，也不随便携发行包附带；仓库外开发时可参照源码或复制其中的类型。
+2026-10-26 宿主 API 版本：例如你按当前宿主写好插件分享给别人，对方的 Perspectra 较旧、还没有 `ctx.playerFeed`。插件导出 `export const hostApi = '1.0'` 后，宿主在调用插件之前比较版本，不兼容就跳过并在启动器标出“宿主 API 版本不兼容或未声明”，而不是运行到一半报错。规则：主版本必须相同，宿主次版本不低于插件声明的次版本；当前宿主 API 为 `1.3`，`ctx.scheduler` 需要 `1.1`，`ctx.memory` 需要 `1.2`，`ctx.llm` 和 `ctx.decisions` 需要 `1.3`，`ctx.rules` 需要 `1.4`。没有导出 `hostApi` 的插件同样被跳过。所有接口类型集中在 [@harness-world/plugin-sdk](../../../packages/plugin-sdk/src/index.ts)：`HostServices` 列出插件能用的服务，`CapabilityProvider`、`PlayerFeedEvent` 等是参数与事件的形状；宿主的实现直接引用这些类型，接口改动会先在类型检查中暴露。该包目前只在本仓库内，尚未发布到 npm，也不随便携发行包附带；仓库外开发时可参照源码或复制其中的类型。
 
 目前使用项目依赖的 `@deepseek-ai/cordis@4.0.1`。装载器接受默认导出的函数、类或 `{ apply(ctx) {} }` 对象；资源注册用 `ctx.effect(() => register(...))`，退出时返回的注销函数随插件释放。外部文件入口必须是 `.mjs` 或可由 Node 按 ESM 解析的 `.js`，不直接执行 TypeScript。插件初始化抛错时只跳过这一个插件，已经通过 `ctx.effect` 注册的服务会被撤销，所以注册都应放进 `ctx.effect`；启动器设置页会标出上次被跳过的插件及原因；详细错误只输出到游戏进程的标准错误，调试时请从命令行启动游戏。加载入口见[宿主插件](../host-plugins.md)，类型定义见 [plugin-sdk](../../../packages/plugin-sdk/src/index.ts)。
 
@@ -236,6 +236,46 @@ export default function (ctx) {
 `open` 失败时世界不打开。`context` 或 `decide` 抛错时这一轮失败，提示里有插件 ID，已提交内容保留。[JEV 审计](../../../packages/official-jev-audit/src/index.ts) 是一个完整的官方例子。
 
 自动测试覆盖以上行为。`simple-llm` 经真实加载器在真实模型下跑过一次短局；`ctx.decisions` 还没有在真实模型下用第三方插件试过。
+
+## 增加世界规则
+
+例如你想让某个房间谁都进不去。[locked-room.mjs](../../../examples/host-plugins/locked-room.mjs) 是完整示例。插件向 `ctx.rules` 注册一层规则，可以注册多层，先注册的在最外面：
+
+```js
+export const hostApi = '1.4'
+
+export default function (ctx) {
+  ctx.effect(() =>
+    ctx.rules.register({
+      id: 'my-rules',
+      version: '1.0.0',
+      open: async world => ({
+        resolve: (context, next) =>
+          isForbidden(context.action)
+            ? { status: 'rejected', events: [], reason: 'plugin:门锁着，进不去。' }
+            : next(context),
+        affordances: (context, next) => next(context),
+      }),
+    }),
+  )
+}
+```
+
+- `resolve` 裁定一次行动。调用 `next` 交给里面的规则，或者自己拒绝。玩家、角色和活动里的行动都经过它。
+- `affordances` 决定可选项，比如把上锁的房间从目的地里去掉。角色的回答格式也按它生成，所以角色通常根本选不到。
+- `reason` 以 `plugin:` 开头时，后面的文字会原样读给玩家和角色听，否则只说“没有执行”。
+- 规则是同步的，不能在里面调用模型或网络，需要异步的用 `ctx.capabilities`。
+- 规则要是确定的，同样的输入给出同样的答案，重新生成依赖这一点，宿主不检查。
+- 通过时只能产出主干认识的事件，提交由宿主完成。一般直接返回 `next` 的结果就够了。
+
+| 情况 | 结果 |
+| --- | --- |
+| `open` 失败 | 世界不打开，错误里有插件 ID |
+| `resolve` 抛错 | 这次行动被拒绝，错误写到游戏进程的标准错误，世界不会卡住 |
+| `affordances` 抛错 | 可选项不变，错误同样写到标准错误 |
+| 换插件或升级插件版本 | 上一轮不能再重新生成，提示环境已改变 |
+
+世界包的活动和状态规则仍在包脚本里，不能用插件整个替换，想做新玩法请写包内脚本。
 
 ## 自定义前端怎样使用
 

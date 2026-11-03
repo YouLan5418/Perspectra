@@ -1,16 +1,9 @@
 import { RequestInspector, type ChatCallObservation, type ChatProvider } from '@harness-world/provider-chat'
 import { CreatorRecords, type CreatorRecordsQuery } from './creator-records.ts'
-import { creatorHistory, creatorHistoryQuery, type CreatorHistoryQuery } from './creator-history.ts'
+import { type CreatorHistoryQuery } from './creator-history.ts'
+import { type CreatorInspectionQuery, type CreatorInspectionSnapshot } from './creator-inspection.ts'
 import {
-  creatorInspectionQuery,
-  type CreatorInspectionQuery,
-  type CreatorInspectionSnapshot,
-} from './creator-inspection.ts'
-import {
-  currentCharacterLifecycle,
-  currentEntityState,
   currentLocation,
-  currentSceneStates,
   RulebookRegistry,
   type ActionAffordance,
   type CompiledWorldManifest,
@@ -27,12 +20,9 @@ import type { RuntimeRoleModels } from '../model-connections.ts'
 import { TailRoundRuntime } from './tail-runtime.ts'
 import { assertSettled, snapshotTail } from '../tail-storage.ts'
 import {
-  CharacterPresetError,
   CharacterTurn,
-  characterExecutionResult,
   characterVisibleItems,
   recentExecutionContext,
-  rejectionReasonText,
   createSchedulerRound,
   SceneDecisionService,
   WorldApplication,
@@ -58,40 +48,23 @@ import { routeGameplayInput } from './player-input.ts'
 import { projectStatus, withMessageActions } from './gameplay-projection.ts'
 import { runActivityChain } from './activity-round.ts'
 import { runAutonomousRound, type CallBudget } from './autonomy-round.ts'
-import {
-  autonomyNotice,
-  playerResolutionNotice,
-  reactionNotice,
-  SCHEDULER_FAILED_NOTICE,
-  type RoundStatus,
-} from './round-notices.ts'
+import { autonomyNotice, playerResolutionNotice, reactionNotice, type RoundStatus } from './round-notices.ts'
 export { providerFailureNotice } from './round-notices.ts'
 import { PackActivities, type ActivityDefinitionView, type AutoStartEvaluation } from './pack-activities.ts'
-import {
-  KNOWN_STATUS_NOTE,
-  PackStatus,
-  pauseRounds,
-  publicStatusChanges,
-  type StatusDefinition,
-  type StatusOperation,
-} from './pack-status.ts'
-import { PackKnowledge } from './pack-knowledge.ts'
-import { PackAutonomy, type AutonomousRole } from './pack-autonomy.ts'
-import { CrossSceneCommunication, communicationInstruction, loadCommunicationConfig } from './pack-communication.ts'
-import { appendFileSync, mkdirSync, readFileSync } from 'node:fs'
+import { pauseRounds, type StatusDefinition, type StatusOperation } from './pack-status.ts'
+import { type AutonomousRole } from './pack-autonomy.ts'
+import { mkdirSync, readFileSync } from 'node:fs'
 import { randomUUID } from 'node:crypto'
 import { resolve, relative, basename } from 'node:path'
 import {
   brandId,
   interactionPackageDescription,
-  RECALL_KEYWORD_TOKENIZER_ID,
   resolutionAuthority,
   type CharacterId,
   type CharacterView,
   type StoredWorldEvent,
   type WorldJsonObject,
   type WorldAddress,
-  type WorldJsonValue,
 } from '@harness-world/contracts'
 import { createInstalledInteractionPackages } from '@harness-world/interactions-basic'
 import {

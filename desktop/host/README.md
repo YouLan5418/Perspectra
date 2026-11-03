@@ -7,11 +7,14 @@
 | 源码与发行共用的游戏入口 | [web-entry.ts](web-entry.ts) |
 | HTTP、认证与前端服务 | [http-server.ts](http-server.ts)、[frontend-server.ts](frontend-server.ts)、[creator-assets.ts](creator-assets.ts) |
 | 世界装配、角色激活与故事线 | [world-runtime.ts](world-runtime.ts)、[tail-runtime.ts](tail-runtime.ts) |
+| 世界包的玩法模块（活动、状态、自主、短信、知识） | [world-gameplay.ts](world-gameplay.ts) 持有，[player-input.ts](player-input.ts) 分发输入，[gameplay-projection.ts](gameplay-projection.ts) 投影给玩家 |
+| 活动轮次、自主行动和结束提示 | [activity-round.ts](activity-round.ts)、[autonomy-round.ts](autonomy-round.ts)、[round-notices.ts](round-notices.ts) |
+| 规则层 | [rule-layers.ts](rule-layers.ts)：玩家、角色和活动共用的核心规则来源，插件的 `ctx.rules` 包在外面 |
 | 玩家公开视图与操作适配 | [frontend-adapter.ts](frontend-adapter.ts)；公共数据和请求形状在 [frontend](../../packages/frontend/src/player-view.ts) |
 | 模型连接与按角色预设 | 官方模型通道 [official-llm](../../packages/official-llm/src/index.ts)；默认模型与端点见 [provider-defaults.ts](../provider-defaults.ts) |
 | 角色决策 | [character-decision.ts](character-decision.ts)、[decision-format.ts](decision-format.ts) |
 | 默认 Core 记忆 | [official-memory-core](../../packages/official-memory-core/README.md) |
-| 创作者只读查询 | [creator-inspection.ts](creator-inspection.ts)、[creator-history.ts](creator-history.ts)、[creator-records.ts](creator-records.ts) |
+| 创作者只读查询 | [creator-queries.ts](creator-queries.ts)、[creator-inspection.ts](creator-inspection.ts)、[creator-history.ts](creator-history.ts)、[creator-records.ts](creator-records.ts) |
 | 可选 JEV 审计 | [official-jev-audit](../../packages/official-jev-audit/src/index.ts) |
 
 源码入口为 `corepack pnpm@11.7.0 experience:web --pack <世界包> --data-dir <新目录>`。发行时仍打包成 `playtest.mjs`；输出文件名与 HTTP 路径不因源码整理整体改名。创作者检查响应中的 `variables` 改为 `statusTruth`，第一方页面同步消费该字段。

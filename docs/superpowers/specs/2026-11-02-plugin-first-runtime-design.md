@@ -286,11 +286,15 @@ Python 目录和 `python-paths.ts`、发行脚本的路径随 `official-memory-c
 
 ### 6.4 `ctx.rules`
 
+> 2026-11-03 实施时调整：规则层可以叠加，包在核心规则外面，不是整条链替换，这样玩家、角色和活动都经过它。详见[阶段 4 计划](../plans/2026-11-03-plugin-first-phase-4-rules-split.md)。
+
 把 `#rulebooks` 的固定链改成服务：`resolve(context) → Rulebook`。官方实现保留 core → 短信 → 状态 → 活动的顺序。第三方可以包一层或整体替换。规则的产出仍交给 `RoundCoordinator` 提交。
 
 这也是“世界事实必须是通用事件”的落点：规则结果只能产出主干认识的事件类型。第一版不开放“插件自定义世界事实事件类型”。需要记自定义状态的，用现有 `status.updated` 或插件私有记录。
 
 ### 6.5 `ctx.gameplay`
+
+> 2026-11-03 经用户确认不做。摸底发现世界包脚本是写给这套实现的，替换后现有世界包会失效，也没有实际使用者。玩法模块留在宿主内，只按职责拆分。详见[摸底记录](../../current/studies/2026-11-plugin-first-phase-4-survey.md)。下面保留原始设计。
 
 把 `pack-activities`、`pack-activity`、`pack-status`、`pack-autonomy`、`pack-communication`、`pack-knowledge`、`pack-modules` 收拢到 `official-gameplay`。宿主只调用一组生命周期方法（开局、提交前、提交后、玩家操作、活动链、投影）。具体方法名在第 4 阶段根据实际调用点确定。
 

@@ -1,5 +1,7 @@
 # 通过 Cordis 加载宿主插件
 
+2026-11-03 世界规则：例如开发者想让某个房间谁都进不去，可以用 `ctx.rules`。写法见[增加世界规则](guides/host-plugin-authoring.md#增加世界规则)。
+
 2026-11-03 模型通道和决策：例如开发者想让角色走自己的本地模型，或在角色开口前加一段天气，可以用 `ctx.llm`、`ctx.decisions`。写法见[替换模型通道](guides/host-plugin-authoring.md#替换模型通道)和[加入角色决策](guides/host-plugin-authoring.md#加入角色决策)。下文说没有 `ctx.llm` 的地方已不成立。
 
 2026-11-02 替换长期记忆：例如开发者想用自己的向量库，不想装 Python，可以用 `ctx.memory` 替换官方 Core。写法见[替换长期记忆](guides/host-plugin-authoring.md#替换长期记忆)。下文说插件没有记忆的地方已不成立：插件可以提供记忆实现，也能读授权来源，但不能直接写入世界。

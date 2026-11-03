@@ -1,5 +1,7 @@
 # 当前运行时
 
+2026-11-03 规则层和内部拆分：例如开发者想让“上锁的房间”在所有世界都进不去，用 `ctx.rules` 包在核心规则外面，玩家和角色都受约束。核心规则现在在一个世界实例里只有一个来源（[rule-layers.ts](../../../desktop/host/rule-layers.ts)）。世界包的玩法模块留在宿主内，由 [world-gameplay.ts](../../../desktop/host/world-gameplay.ts) 持有，不能作为整体替换，因为世界包脚本就是写给它们的。轮次、输入分发、投影和创作者查询已移出 `world-runtime.ts`，行为不变。写法见[增加世界规则](../guides/host-plugin-authoring.md#增加世界规则)。
+
 2026-11-03 决策接缝：例如开发者想让角色走自己的本地模型，或在角色开口前加一段天气，可以用 `ctx.llm`、`ctx.decisions`。角色决策的公共部分在 [character-decision.ts](../../../desktop/host/character-decision.ts)，官方模型调用在 [official-llm](../../../packages/official-llm/src/index.ts)。官方组合下的模型请求与改动前逐字相同。写法见[替换模型通道](../guides/host-plugin-authoring.md#替换模型通道)。
 
 组件、事件前缀与授权视图的具体寿命、失效条件和维护要求集中在[运行时缓存设计](runtime-caches.md)（2026-10-30 核对）；本页说明整体调用流程。
