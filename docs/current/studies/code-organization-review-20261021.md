@@ -79,7 +79,7 @@
 | `playtest-server.ts` / `PlaytestState` | `desktop/host/http-server.ts` / `HostState` | 已改 |
 | `playtest-memory-core.ts` / `PlaytestMemoryCore` | `packages/official-memory-core/src/core-memory.ts` / `CoreMemoryAdapter` | 已改 |
 | `hindsight-python.ts` / `hindsightPython()` | `packages/official-memory-core/src/python-worker.ts` / `corePythonExecutable()` | 已改 |
-| `local-prototype-turn-call.ts` / `localPrototypeTurnCall` | `desktop/host/gateway-turn-call.ts` / `gatewayTurnCall` | 已改 |
+| `local-prototype-turn-call.ts` / `localPrototypeTurnCall` | `packages/official-llm/src/gateway-turn-call.ts` / `gatewayTurnCall` | 已改 |
 | `decideActivityFormat`（在 `pack-activity.ts`） | `desktop/host/decision-format.ts` / `decideWithFormatRetry` | 已拆出并改名 |
 | `creator-debug.ts` / `CreatorDebugSnapshot` | `desktop/host/creator-inspection.ts` / `CreatorInspectionSnapshot` | 已改（HTTP 路由 `/api/creator-debug` 有意保留） |
 | `variables`（创作者快照） | `statusTruth` | 已改 |
@@ -316,7 +316,7 @@ node scripts/docs/check-links.mjs
 - `tests/experiments/playtest-tail-runtime.ts` → `desktop/host/tail-runtime.ts`
 - `tests/experiments/playtest-server.ts` → `desktop/host/http-server.ts`
 - `tests/experiments/playtest-memory-core.ts` → `packages/official-memory-core/src/core-memory.ts`
-- `tests/experiments/local-prototype-turn-call.ts` → `desktop/host/gateway-turn-call.ts`
+- `tests/experiments/local-prototype-turn-call.ts` → `packages/official-llm/src/gateway-turn-call.ts`
 - `tests/experiments/pack-activity.ts` → `desktop/host/pack-activity.ts`
 - `tests/experiments/tavern-card-slice.ts` → `tests/experiments/tavern-black-shores-slice.ts`
 - `tests/experiments/core-utility-*.py` → `experiments/activity-memory/scripts/core-utility-*.py`

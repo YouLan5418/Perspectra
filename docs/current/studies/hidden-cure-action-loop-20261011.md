@@ -80,7 +80,7 @@ r6 玩家驱动又问了一次已实际完成的交付。两位 NPC 都正确指
 
 ## 格式失败的独立结论
 
-重放原 B6：缺少 addresseeIds 的 direct 输出通过 local 和 generic Schema；现有 `decideActivityFormat` 只调用一次便返回，因为 AJV 判合法。普通场景默认也没有接入活动修正器。[发送端](../../../desktop/host/gateway-turn-call.ts)的字段大多可选，[通用 Schema](../../../packages/provider-chat/src/character-turn-call.ts)也没有 direct/private 对非空接收者的条件约束；宿主随后严格拒绝，保护了信息范围。
+重放原 B6：缺少 addresseeIds 的 direct 输出通过 local 和 generic Schema；现有 `decideActivityFormat` 只调用一次便返回，因为 AJV 判合法。普通场景默认也没有接入活动修正器。[发送端](../../../packages/official-llm/src/gateway-turn-call.ts)的字段大多可选，[通用 Schema](../../../packages/provider-chat/src/character-turn-call.ts)也没有 direct/private 对非空接收者的条件约束；宿主随后严格拒绝，保护了信息范围。
 
 本轮两次遗漏 arguments 被 Rulebook 拒绝；D3 第二次 r4 和 E 第二次 r4 则把 scene_public 与非空 addresseeIds 混用，被宿主拒绝。它们不是同一种失败：前者留下 rejected 行动及反馈，后者没有提交非法表达。模型错误有偶发性，Schema 的结构性宽松也有可复现证据，不能只归咎模型或只靠现有 AJV 修正器解决。
 
@@ -134,4 +134,4 @@ r6 玩家驱动又问了一次已实际完成的交付。两位 NPC 都正确指
 
 | 迁移前路径（上述提交） | 当前源码 |
 | --- | --- |
-| `tests/experiments/local-prototype-turn-call.ts` | [gateway-turn-call.ts](../../../desktop/host/gateway-turn-call.ts) |
+| `tests/experiments/local-prototype-turn-call.ts` | [gateway-turn-call.ts](../../../packages/official-llm/src/gateway-turn-call.ts) |
