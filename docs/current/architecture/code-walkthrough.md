@@ -61,7 +61,7 @@ NPC 处理途中玩家也可以插话，规则见下一节末尾。
 
 长期记忆经 `ctx.memory` 接缝接入，官方实现是 Core：[CoreMemoryAdapter](../../../packages/official-memory-core/src/core-memory.ts)投影请求，经 [Python 桥](../../../packages/official-memory-core/src/python-worker.ts)调用记忆实现。Core 的 Retain／Group／Consolidate 是提炼、分组和形成认识，不是世界裁定。详见[认知与记忆](cognition-memory.md)。
 
-调用格式见 [character-turn-call.ts](../../../packages/provider-chat/src/character-turn-call.ts)，OpenAI 兼容与 Anthropic 协议的扁平 Schema 见 [gateway-turn-call.ts](../../../desktop/host/gateway-turn-call.ts)，实际发送经 [provider.ts](../../../packages/provider-chat/src/provider.ts) 交给 pi-ai。合法 JSON 仍需检查协议与行动资格。
+调用格式见 [character-turn-call.ts](../../../packages/provider-chat/src/character-turn-call.ts)，OpenAI 兼容与 Anthropic 协议的扁平 Schema 见 [gateway-turn-call.ts](../../../packages/official-llm/src/gateway-turn-call.ts)，实际发送经 [provider.ts](../../../packages/provider-chat/src/provider.ts) 交给 pi-ai。合法 JSON 仍需检查协议与行动资格。
 
 这是当前 publish 的决策格式示例，不是玩家命令：
 

@@ -271,6 +271,8 @@ Python 目录和 `python-paths.ts`、发行脚本的路径随 `official-memory-c
 
 ### 6.3 决策管道与 `ctx.llm`
 
+> 2026-11-03 实施时调整，经用户确认：决策接缝用 `ctx.decisions.register(provider)`，不用 Cordis 事件。Cordis 4.0.1 的 `next()` 不接受参数，也没有按世界实例的打开和关闭时机。预设留在 `official-llm` 内，`ctx.llm` 只要求 `send`。详见[阶段 3 计划](../plans/2026-11-03-plugin-first-phase-3-decision.md)。下面保留原始设计。
+
 `#decide` 拆成两个事件：
 
 - **`character/context`（waterfall）：** 插件依次为请求增加内容。官方监听器按现有顺序注册：记忆、最近执行证据、状态、设定、表情。

@@ -71,7 +71,7 @@ export default async function myBgm(ctx) {
 
 ## 宿主提供哪些接口
 
-2026-10-26 宿主 API 版本：例如你按当前宿主写好插件分享给别人，对方的 Perspectra 较旧、还没有 `ctx.playerFeed`。插件导出 `export const hostApi = '1.0'` 后，宿主在调用插件之前比较版本，不兼容就跳过并在启动器标出“宿主 API 版本不兼容或未声明”，而不是运行到一半报错。规则：主版本必须相同，宿主次版本不低于插件声明的次版本；当前宿主 API 为 `1.2`，`ctx.scheduler` 需要 `1.1`，`ctx.memory` 需要 `1.2`。没有导出 `hostApi` 的插件同样被跳过。所有接口类型集中在 [@harness-world/plugin-sdk](../../../packages/plugin-sdk/src/index.ts)：`HostServices` 列出插件能用的三个服务，`CapabilityProvider`、`PlayerFeedEvent` 等是参数与事件的形状；宿主的实现直接引用这些类型，接口改动会先在类型检查中暴露。该包目前只在本仓库内，尚未发布到 npm，也不随便携发行包附带；仓库外开发时可参照源码或复制其中的类型。
+2026-10-26 宿主 API 版本：例如你按当前宿主写好插件分享给别人，对方的 Perspectra 较旧、还没有 `ctx.playerFeed`。插件导出 `export const hostApi = '1.0'` 后，宿主在调用插件之前比较版本，不兼容就跳过并在启动器标出“宿主 API 版本不兼容或未声明”，而不是运行到一半报错。规则：主版本必须相同，宿主次版本不低于插件声明的次版本；当前宿主 API 为 `1.3`，`ctx.scheduler` 需要 `1.1`，`ctx.memory` 需要 `1.2`，`ctx.llm` 和 `ctx.decisions` 需要 `1.3`。没有导出 `hostApi` 的插件同样被跳过。所有接口类型集中在 [@harness-world/plugin-sdk](../../../packages/plugin-sdk/src/index.ts)：`HostServices` 列出插件能用的三个服务，`CapabilityProvider`、`PlayerFeedEvent` 等是参数与事件的形状；宿主的实现直接引用这些类型，接口改动会先在类型检查中暴露。该包目前只在本仓库内，尚未发布到 npm，也不随便携发行包附带；仓库外开发时可参照源码或复制其中的类型。
 
 目前使用项目依赖的 `@deepseek-ai/cordis@4.0.1`。装载器接受默认导出的函数、类或 `{ apply(ctx) {} }` 对象；资源注册用 `ctx.effect(() => register(...))`，退出时返回的注销函数随插件释放。外部文件入口必须是 `.mjs` 或可由 Node 按 ESM 解析的 `.js`，不直接执行 TypeScript。插件初始化抛错时只跳过这一个插件，已经通过 `ctx.effect` 注册的服务会被撤销，所以注册都应放进 `ctx.effect`；启动器设置页会标出上次被跳过的插件及原因；详细错误只输出到游戏进程的标准错误，调试时请从命令行启动游戏。加载入口见[宿主插件](../host-plugins.md)，类型定义见 [plugin-sdk](../../../packages/plugin-sdk/src/index.ts)。
 
@@ -169,6 +169,71 @@ export default function (ctx) {
 | 同时使用 `--memory-none` 和记忆插件 | 插件优先 |
 
 玩家移除插件后，同一个存档回到 Core，已提交的世界事实不变，插件自己的数据不会迁移给 Core。自动测试覆盖替换、异常、重新生成、节点恢复和分享导入，用的都是测试里的假实现；还没有真实的第三方记忆插件在真实模型下试玩过。
+
+## 替换模型通道
+
+例如你想让角色走自己的本地模型，或者加一层缓存。[simple-llm.mjs](../../../examples/host-plugins/simple-llm.mjs) 是完整示例，把决策发给任意 OpenAI 兼容地址。插件向 `ctx.llm` 注册一个 Provider，只需要写 `send`：
+
+```js
+export const hostApi = '1.3'
+
+export default function (ctx) {
+  ctx.effect(() =>
+    ctx.llm.register({
+      id: 'my-llm',
+      version: '1.0.0',
+      open: async world => ({
+        send: async (characterId, call, request, signal) => myModel(call.messages, call.schema, signal),
+      }),
+    }),
+  )
+}
+```
+
+- `send` 收到准备好的消息和回答格式，返回解析后的 JSON。宿主校验回答，格式不对时重试一次，再不对就不执行任何操作。
+- `prepare` 可选，用来换掉默认提示词。`display` 可选，用来调整玩家读到的文字。
+- 插件拿不到玩家的模型 Key，地址和凭据写在插件自己的配置里，见[插件清单](../host-plugins.md)。
+
+| 情况 | 结果 |
+| --- | --- |
+| `open` 失败 | 世界不打开，错误里有插件 ID。不会悄悄改用官方模型，否则玩家的故事会发到没想到的地方 |
+| `send` 抛错或超时 | 这一轮失败并提示，已提交内容保留，下一轮可以继续 |
+| 换插件或升级插件版本 | 上一轮不能再重新生成，提示环境已改变 |
+
+**换掉之后少了什么。** 玩家的预设（提示词、输出和显示规则）属于官方实现，第三方收到的是不带预设的默认消息。创作者页也看不到这条通道的请求详情。Core 的整理由 Python 调用模型，不走这个接缝。启动器的连接检查不变，仍要配一个模型连接。
+
+## 加入角色决策
+
+例如你想在角色开口前加一段“今天的天气”，或者检查回答后让角色重新说一次。`ctx.decisions` 可以注册多个实现，按加载顺序生效：
+
+```js
+export const hostApi = '1.3'
+
+export default function (ctx) {
+  ctx.effect(() =>
+    ctx.decisions.register({
+      id: 'my-weather',
+      version: '1.0.0',
+      open: async world => ({
+        context: async request => ({ ...request, context: { ...request.context, weather: '下雨' } }),
+        decide: async (request, next, signal) => {
+          const answer = await next(request)
+          return isFine(answer) ? answer : next({ ...request, context: { ...request.context, retry: true } })
+        },
+      }),
+    }),
+  )
+}
+```
+
+- `context` 给这个角色加内容，在记忆、状态和知识之后运行。你加的内容就是这个角色知道的，把别人的私有内容放进去，隔离就破了。
+- `decide` 包住整个决策，可以多次调用 `next`，也可以不调用，自己返回答案。答案同样要经过 `CharacterTurn` 校验，不能直接写入世界事实。
+- `serial: true` 让角色逐个处理，并关闭发布后继续行动。`committed(headSeq)` 在世界就绪时调用一次，之后每次提交调用一次。`debug()` 的内容并入状态的 debug。
+- `world.candidate` 为真时是重新生成的候选，会往外发请求、写日志的实现应该跳过。
+
+`open` 失败时世界不打开。`context` 或 `decide` 抛错时这一轮失败，已提交内容保留。[JEV 审计](../../../packages/official-jev-audit/src/index.ts) 是一个完整的官方例子。
+
+自动测试覆盖以上行为。`simple-llm` 经真实加载器在真实模型下跑过一次短局；`ctx.decisions` 还没有在真实模型下用第三方插件试过。
 
 ## 自定义前端怎样使用
 

@@ -46,6 +46,8 @@
 | [official-scheduler](../../../packages/official-scheduler) | 官方调度器：谁在什么时候获得处理机会，以及串行、动态并发和上限 | [实现](../../../packages/official-scheduler/src/index.ts)；只依赖公开的 `plugin-sdk` 接口，由 [desktop/official-bundle.ts](../../../desktop/official-bundle.ts) 接入，玩家可用插件替换 |
 | [kernel](../../../packages/kernel) | 世界规则、行动裁定、场景事实读取与启动 | [规则注册](../../../packages/kernel/src/rulebook-registry.ts)、[世界启动](../../../packages/kernel/src/world-bootstrap.ts)；不负责角色写台词，也不承担提交流程 |
 | [store-sqlite](../../../packages/store-sqlite) | 事件存取、原子提交、角色视图和相关持久化 | [WorldStore](../../../packages/store-sqlite/src/world-store.ts)、[CharacterViewBuilder](../../../packages/store-sqlite/src/character-view.ts) |
+| [official-llm](../../../packages/official-llm) | 官方模型通道：玩家预设、按角色选模型、网关格式和请求记录 | [实现](../../../packages/official-llm/src/index.ts)；玩家可用插件替换，替换后没有预设 |
+| [official-jev-audit](../../../packages/official-jev-audit) | 可选的 JEV 审计实验，作为决策实现接入，默认不启用 | [入口](../../../packages/official-jev-audit/src/index.ts)；`--jev-shadow` 启用影子审计 |
 | [memory](../../../packages/memory) | 从角色授权观察捕获长期记忆来源；属于主干，不可替换 | [授权来源](../../../packages/memory/src/authorized-sources.ts)、[表结构与迁移](../../../packages/memory/src/memory-schema.ts) |
 | [official-memory-core](../../../packages/official-memory-core) | 官方长期记忆：Python Core 的检索、整理和交付 | [说明](../../../packages/official-memory-core/README.md)、[适配器](../../../packages/official-memory-core/src/core-memory.ts)；只依赖公开接口，由 [desktop/official-bundle.ts](../../../desktop/official-bundle.ts) 接入，玩家可用插件替换 |
 | [official-memory-none](../../../packages/official-memory-none) | 不提供长期记忆，只用于离线开发和测试 | [实现](../../../packages/official-memory-none/src/index.ts)；`--memory-none` 启用 |
@@ -69,7 +71,7 @@
 | 模型连接、Key 与按角色模型 | desktop/model-connections.ts、apps/launcher 的 ModelSettingsDialog / ModelPicker | Rust 桥读取凭据；游戏进程启动时按角色构造决策与记忆调用 |
 | 游戏内对白与状态显示 | frontend/default-template.ts、player-transcript.ts | http-server.ts；社区模板另查包内 frontend/ |
 | 角色知道了秘密 | character-view.ts、character-turn.ts | authorized-sources.ts 的来源、当前记忆实现的交付（默认 core-memory.ts） |
-| 模型格式错误 | provider-chat/character-turn-call.ts、gateway-turn-call.ts | character-turn.ts；活动另查 pack-activity.ts |
+| 模型格式错误 | provider-chat/character-turn-call.ts、official-llm/src/gateway-turn-call.ts、当前是否启用了第三方模型通道 | character-turn.ts；活动另查 pack-activity.ts |
 | 移动或物品操作被拒绝 | kernel 裁定与交互定义 | 世界包绑定、当前视图、实际参数 |
 | 角色重复回应或没回应 | official-scheduler/src/index.ts、当前是否启用了第三方调度器 | 宿主预算、刺激与活动调度 |
 | 长期记忆遗漏或整理慢 | official-memory-core 的 core-memory.ts、python-worker.ts，当前是否启用了第三方记忆 | experiments/activity-memory 与 hindsight-core |

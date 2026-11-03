@@ -1,5 +1,7 @@
 # 通过 Cordis 加载宿主插件
 
+2026-11-03 模型通道和决策：例如开发者想让角色走自己的本地模型，或在角色开口前加一段天气，可以用 `ctx.llm`、`ctx.decisions`。写法见[替换模型通道](guides/host-plugin-authoring.md#替换模型通道)和[加入角色决策](guides/host-plugin-authoring.md#加入角色决策)。下文说没有 `ctx.llm` 的地方已不成立。
+
 2026-11-02 替换长期记忆：例如开发者想用自己的向量库，不想装 Python，可以用 `ctx.memory` 替换官方 Core。写法见[替换长期记忆](guides/host-plugin-authoring.md#替换长期记忆)。下文说插件没有记忆的地方已不成立：插件可以提供记忆实现，也能读授权来源，但不能直接写入世界。
 
 2026-11-02 可替换模块：例如开发者不满意官方调度，可以写插件让急性子的角色总是抢先回应，玩家启用后立即替换官方实现。插件除了语音、BGM、异步能力和对白订阅，现在还能用 `ctx.scheduler` 替换角色调度。写法见[替换角色调度器](guides/host-plugin-authoring.md#替换角色调度器)。记忆见上一条，其他模块的替换尚未接通，进度见[设计](../superpowers/specs/2026-11-02-plugin-first-runtime-design.md)。下文“没有挂载世界内核、存储”的说法仍然成立：调度器能读事件和角色视图，但不能直接写入。
@@ -94,7 +96,7 @@ BGM 消费点是 `ctx.frontendServices.registerBgm({ tracks, selectTrack })`。�
 
 社区模板须声明 `bgm` 且宿主实际装有服务，才获得 `Perspectra.selectBgm(seq, segmentIndex, text)` 与 `Perspectra.getBgmAudio(id)`。前者走授权检查和候选替换重验，后者只读取插件已发布曲库，不接受文件路径，也不提供角色私有信息。默认舞台同曲不重启、循环播放、0.6 秒淡入淡出、音量及静音实时生效；过期异步结果被丢弃，页面退出时停止播放。
 
-同一装载入口可以加载其他可信 Cordis 插件，但 Live2D 渲染、任意前端脚本注入、通用插件设置面板与口型同步仍未接通。Cordis 负责生命周期与服务依赖；创作者能扩展的功能还取决于 Perspectra 已开放的消费接口。现有独立宿主 Context 没有提供世界内核、`ctx.tools` 或 `ctx.llm`，其他宿主的插件不能直接假定这些服务存在。当前不引入通用前端插件框架或新的世界事件。
+同一装载入口可以加载其他可信 Cordis 插件，但 Live2D 渲染、任意前端脚本注入、通用插件设置面板与口型同步仍未接通。Cordis 负责生命周期与服务依赖；创作者能扩展的功能还取决于 Perspectra 已开放的消费接口。现有独立宿主 Context 没有提供世界内核或 `ctx.tools`，其他宿主的插件不能直接假定这些服务存在。当前不引入通用前端插件框架或新的世界事件。
 
 ## 验证范围
 
