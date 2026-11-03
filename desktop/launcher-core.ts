@@ -172,6 +172,8 @@ function startupFailure(data: Record<string, unknown>): string {
       ? data.missingCapability
       : undefined
   const skippedNote = skipped.length ? `本次加载失败已跳过的插件：${skipped.join('、')}。` : ''
+  if (typeof data.pluginRequirement === 'string' && data.pluginRequirement.length <= 2000)
+    return `${data.pluginRequirement}。${skippedNote}`
   if (missing)
     return `世界包需要宿主能力 ${missing}，但没有已启用的插件提供它。${skippedNote}请在设置中启用或修复对应插件后重试。`
   if (skipped.length) return `Core 初始化失败。${skippedNote}请检查包、存档、本机记忆依赖与这些插件文件。`

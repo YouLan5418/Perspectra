@@ -1,7 +1,7 @@
 import { expect, it } from 'vitest'
 import type { HostPluginSettings } from '../../../../desktop/host-plugin-settings.ts'
 import type { PluginManifestInfo } from '../core-types.ts'
-import { moduleRows, pickProvider } from './modules'
+import { filledPluginId, moduleRows, pickProvider } from './modules'
 
 const manifest = (name: string, ...services: string[]) =>
   ({ manifest: { name, version: '1.0.0', services } }) as unknown as PluginManifestInfo
@@ -48,4 +48,19 @@ it('disables the other providers when the player picks one', () => {
   expect(plugins.map(item => item.enabled)).toEqual([false, true, true])
   pickProvider(plugins, row(moduleRows(plugins, manifests), 'memory'), null)
   expect(plugins.map(item => item.enabled)).toEqual([false, false, true])
+})
+
+const NEW_ID = 'plugin-6f1c2a4e-1d0b-4c39-9a51-0d6c1b7e2f10'
+
+it('names a plugin that was just added after its manifest', () => {
+  expect(filledPluginId(NEW_ID, 'simple-llm', [])).toBe('simple-llm')
+})
+
+// Its secrets are stored under the saved id, and saving under another id deletes them.
+it('leaves the id of a saved plugin alone', () => {
+  expect(filledPluginId(NEW_ID, 'simple-llm', [NEW_ID])).toBe(NEW_ID)
+})
+
+it('leaves an id the player typed alone', () => {
+  expect(filledPluginId('my-voice', 'simple-llm', [])).toBe('my-voice')
 })

@@ -175,6 +175,30 @@ describe('launcher', () => {
     await expect(core.checkPackPlugins(core.snapshot().packs[0]!.path)).resolves.toBe('')
   })
 
+  // The launcher only sees the manifest; the game process finds out the plugin cannot load.
+  it('tells the player when the game process refuses a plugin the launcher could not judge', async () => {
+    const { core, instanceId } = await launcherWith(await packWith([{ id: 'needs-new-host', version: '^1.0.0' }]))
+    const directory = await mkdtemp(join(tmpdir(), 'perspectra-requires-plugin-'))
+    roots.push(directory)
+    const path = join(directory, 'needs-new-host.mjs')
+    await writeFile(path, `export const hostApi = '9.0'; export default () => {}`)
+    await writeFile(
+      join(directory, 'needs-new-host.plugin.json'),
+      JSON.stringify({ id: 'needs-new-host', name: '要新宿主', version: '1.0.0', services: [] }),
+    )
+    await core.handle({
+      operation: 'preferences',
+      theme: 'system',
+      largeText: false,
+      hostPlugins: [{ id: 'mine', path, enabled: true, config: {} }],
+    })
+    const failure = String(await core.handle({ operation: 'start', instanceId }).catch((error: Error) => error))
+    expect(failure).toContain('这个世界包需要的插件有问题')
+    expect(failure).toContain('needs-new-host')
+    expect(failure).not.toContain('Core 初始化失败')
+    expect(core.snapshot().core.state).toBe('idle')
+  }, 60_000)
+
   it('notes a missing optional plugin without refusing', async () => {
     const { core } = await launcherWith(await packWith([{ id: 'locked-room', version: '^0.1.0', optional: true }]))
     await expect(core.checkPackPlugins(core.snapshot().packs[0]!.path)).resolves.toContain('locked-room')

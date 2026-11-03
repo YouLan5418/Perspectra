@@ -89,3 +89,8 @@ export function pickProvider(plugins: HostPluginSettings[], row: ModuleRow, plug
     if (plugin) plugin.enabled = provider.pluginId === pluginId
   }
 }
+
+/** Fills in the manifest's id for a plugin just added. A saved plugin keeps its id: its secrets are stored under it. */
+export function filledPluginId(id: string, manifestId: string | undefined, savedIds: readonly string[]): string {
+  return manifestId && /^plugin-[0-9a-f-]+$/u.test(id) && !savedIds.includes(id) ? manifestId : id
+}

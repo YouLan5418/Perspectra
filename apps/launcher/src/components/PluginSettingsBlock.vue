@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onUnmounted, ref, watch } from 'vue'
 import { PLUGIN_SKIP_REASON, useLauncherStore } from '../stores/launcher.ts'
+import { filledPluginId } from '../stores/modules.ts'
 import type { HostPluginSettings } from '../../../../desktop/host-plugin-settings.ts'
 import type { PluginManifestInfo, PluginManifest } from '../core-types.ts'
 import { Button } from './ui/button/index.ts'
@@ -35,8 +36,12 @@ watch(
       if (props.plugin.path !== path) return
       info.value = result
       emit('inspected', result)
-      if ('manifest' in result && result.manifest.id && /^plugin-[0-9a-f-]+$/u.test(props.plugin.id))
-        props.plugin.id = result.manifest.id
+      if ('manifest' in result)
+        props.plugin.id = filledPluginId(
+          props.plugin.id,
+          result.manifest.id,
+          store.hostPlugins.map(saved => saved.id),
+        )
       if ('manifest' in result) void store.refreshPluginSecrets(props.plugin.id, secretFields(result.manifest))
     }, 300)
   },

@@ -59,6 +59,9 @@ export function checkPluginRequirements(
   })
 }
 
+/** Host-written, so unlike other startup errors its text may reach the player. */
+export class PluginRequirementError extends Error {}
+
 export function requirementMessage(problems: readonly RequirementProblem[]): string {
   return problems
     .map(problem =>
