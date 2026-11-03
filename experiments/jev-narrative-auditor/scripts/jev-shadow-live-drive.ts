@@ -4,7 +4,7 @@ import { resolve } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 import { setTimeout as delay } from 'node:timers/promises'
 import { currentEntityState, type RulebookEvent } from '@harness-world/kernel'
-import type { ShadowRecord } from '../../../desktop/host/jev-shadow.ts'
+import type { ShadowRecord } from '../../../packages/official-jev-audit/src/jev-shadow.ts'
 import type { HostState } from '../../../desktop/host/http-server.ts'
 
 // Calls the already-running real web host. No API keys or private agent contexts are read here.

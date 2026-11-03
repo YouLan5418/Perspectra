@@ -2,7 +2,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import type { StoredWorldEvent } from '@harness-world/contracts'
-import { JevShadow, type ShadowRecord } from '../../../desktop/host/jev-shadow.ts'
+import { JevShadow, type ShadowRecord } from '../../../packages/official-jev-audit/src/jev-shadow.ts'
 
 const source = resolve(process.argv[2] ?? ''), output = resolve(process.argv[3] ?? '')
 if (!process.argv[2] || !process.argv[3] || existsSync(output)) throw new Error('provide source live run and new output')
@@ -25,5 +25,5 @@ const result = results.find(r => r.publication?.seq === 265)!
 if (result.status !== 'UNCERTAIN' || result.claims.some(c => c.rootPublicationSeq !== null)) throw new Error('expected unresolved, rootless finding')
 if (before !== JSON.stringify(events)) throw new Error('events changed')
 writeFileSync(resolve(output, 'results.json'), JSON.stringify({ old, result }, null, 2))
-writeFileSync(resolve(output, 'reconciler-source.ts'), readFileSync('desktop/host/jev-shadow.ts'))
+writeFileSync(resolve(output, 'reconciler-source.ts'), readFileSync('packages/official-jev-audit/src/jev-shadow.ts'))
 console.log(JSON.stringify({ seq: 265, originalStatus: old.status, finalStatus: result.status, root: result.claims.map(c => c.rootPublicationSeq), newModelCalls: 0 }))

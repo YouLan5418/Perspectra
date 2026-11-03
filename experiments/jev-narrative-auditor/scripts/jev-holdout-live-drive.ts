@@ -1,12 +1,13 @@
 // 历史研究脚本；路径、样本和模型可能绑定原始记录，不属于游戏启动或默认验收。
+import { jevPublicationAudit, jevShadowAudit } from '../../../packages/official-jev-audit/src/index.ts'
 import { appendFileSync, existsSync, mkdirSync, writeFileSync } from 'node:fs'
 import { createHash } from 'node:crypto'
 import { resolve } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 import { currentEntityState } from '@harness-world/kernel'
 import { WorldHostRuntime } from '../../../desktop/host/world-runtime.ts'
-import { type ShadowRecord } from '../../../desktop/host/jev-shadow.ts'
-import { createClaimClassifier } from '../../../desktop/host/jev-shadow-claims-client.ts'
+import { type ShadowRecord } from '../../../packages/official-jev-audit/src/jev-shadow.ts'
+import { createClaimClassifier } from '../../../packages/official-jev-audit/src/jev-shadow-claims-client.ts'
 import { environmentRoleModels } from '../../../desktop/model-connections.ts'
 
 const mode = process.argv.includes('--correct') ? 'correct' : 'baseline'
@@ -17,7 +18,7 @@ if (!process.argv[2] || process.argv[2]!.startsWith('--') || existsSync(resolve(
 mkdirSync(directory,{recursive:true})
 const classify = createClaimClassifier(process.env.OPENROUTER_JEV_KEY ?? '')
 const records: ShadowRecord[] = []
-const interventions: import('../../../desktop/host/jev-publication-intervention.ts').InterventionRecord[] = []
+const interventions: import('../../../packages/official-jev-audit/src/jev-publication-intervention.ts').InterventionRecord[] = []
 const write = async (record: ShadowRecord) => { records.push(record);appendFileSync(resolve(directory,'jev-shadow.jsonl'),JSON.stringify(record)+'\n') }
 const items = [{entityId:'entity:pocket-watch',name:'铜怀表',aliases:['怀表']},{entityId:'entity:diary',name:'布面日记'}]
 function rows(path: string) {
@@ -30,7 +31,7 @@ let evidence: Record<string,unknown>
   const key=process.env.DEEPSEEK_API_KEY
   if(!key)throw new Error('DEEPSEEK_API_KEY missing')
   const runtime=await WorldHostRuntime.create({dataDirectory:directory,packPath:resolve('experiments/jev-narrative-auditor/holdout-2026-09-27/live-pack'),
-    models: environmentRoleModels({ PERSPECTRA_MODEL_ENDPOINT: 'https://api.deepseek.com/chat/completions', PERSPECTRA_MODEL: 'deepseek-flash', PERSPECTRA_MODEL_API_KEY: key }),shadowAudit:{items,classify,write},publicationAudit:{mode,items,classify,write:r=>{interventions.push(r);appendFileSync(resolve(directory,'interventions.jsonl'),JSON.stringify(r)+'\n')}}})
+    models: environmentRoleModels({ PERSPECTRA_MODEL_ENDPOINT: 'https://api.deepseek.com/chat/completions', PERSPECTRA_MODEL: 'deepseek-flash', PERSPECTRA_MODEL_API_KEY: key }), plugins: { decisions: [jevPublicationAudit({mode,items,classify,write:r=>{interventions.push(r);appendFileSync(resolve(directory,'interventions.jsonl'),JSON.stringify(r)+'\n')}}), jevShadowAudit({items,classify,write})] },})
   const prompts=[
     "雨还没停。你们看看铜怀表和布面日记，先聊聊哪件更能找到失主，不急着动它们。",
     "陆舟，你愿意拿起铜怀表看看背面的字吗？看完暂时替大家拿着。",

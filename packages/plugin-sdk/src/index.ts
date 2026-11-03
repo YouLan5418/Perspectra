@@ -130,6 +130,8 @@ export interface WorldServices {
   readonly dataDirectory: string
   /** The world instance's own directory, for implementations that keep files beside its databases. */
   readonly instanceDirectory: string
+  /** A regeneration candidate, not yet the world the player is on. Avoid side effects outside the instance. */
+  readonly candidate: boolean
   /** Who is in this world. Names only; nothing here is private to a character. */
   readonly cast: WorldCast
   readonly world: WorldReader
@@ -140,6 +142,7 @@ export interface WorldCast {
   /** The characters that decide through a model. */
   readonly characterIds: readonly CharacterId[]
   readonly characterNames: ReadonlyMap<string, string>
+  readonly entityIds: readonly string[]
   readonly locationNames: ReadonlyMap<string, string>
 }
 /** Registered once per process; `open` runs once per world instance, including regeneration candidates. */
@@ -313,6 +316,7 @@ export interface DecisionInstance {
   ): Promise<unknown>
   /** The host runs one character at a time and turns off follow-up publication while this is true. */
   readonly serial?: boolean
+  /** Called once when the world is ready, then after each commit. */
   committed?(headSeq: number): void
   /** Merged into the state's debug section. */
   debug?(): WorldJsonObject

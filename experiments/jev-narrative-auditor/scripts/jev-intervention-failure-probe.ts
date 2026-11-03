@@ -2,7 +2,7 @@
 import { readFileSync, mkdirSync, writeFileSync, existsSync, appendFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
-import { createClaimClassifier, type ClaimQuestion } from '../../../desktop/host/jev-shadow-claims-client.ts'
+import { createClaimClassifier, type ClaimQuestion } from '../../../packages/official-jev-audit/src/jev-shadow-claims-client.ts'
 const directory=resolve(process.argv[2]??'')
 if(!process.argv[2]||existsSync(resolve(directory,'fixture.json')))throw new Error('choose new directory')
 mkdirSync(directory,{recursive:true})

@@ -1,6 +1,13 @@
 import { expect, it } from 'vitest'
-import { auditBeforePublication, type InterventionRecord } from '../../desktop/host/jev-publication-intervention.ts'
-import type { ClaimAnswer, ClaimQuestion, ClaimKind } from '../../desktop/host/jev-shadow-claims-client.ts'
+import {
+  auditBeforePublication,
+  type InterventionRecord,
+} from '../../packages/official-jev-audit/src/jev-publication-intervention.ts'
+import type {
+  ClaimAnswer,
+  ClaimQuestion,
+  ClaimKind,
+} from '../../packages/official-jev-audit/src/jev-shadow-claims-client.ts'
 import type { StoredWorldEvent } from '@harness-world/contracts'
 import type { CharacterTurnRequest } from '../../packages/application/src/character-turn.ts'
 

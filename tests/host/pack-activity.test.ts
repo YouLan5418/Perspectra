@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { randomUUID } from 'node:crypto'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { jevPublicationAudit } from '../../packages/official-jev-audit/src/index.ts'
 import { brandId, RECALL_KEYWORD_TOKENIZER_ID, type WorldJsonObject } from '@harness-world/contracts'
 import { AuthorizedSourceStore } from '@harness-world/memory'
 import { CharacterViewBuilder, WorldStore } from '@harness-world/store-sqlite'
@@ -966,25 +967,29 @@ describe('activity simulated model responses', () => {
       'examples/world-packs/scripted-performance',
       'ollama',
       {
-        publicationAudit: {
-          mode: 'correct',
-          items: [{ entityId: 'entity:brass-key', name: '黄铜钥匙' }],
-          write: r => records.push(r),
-          classify: async q => ({
-            placement: { kind: 'NONE', probabilities: { NONE: 1 }, confidence: 1 },
-            model: 'fixture',
-            inputTokens: 1,
-            outputTokens: 1,
-            costUsd: 0,
-            claims: q.characters.map(c => ({
-              characterId: c.characterId,
-              kind: c.characterId === 'character:companion' ? 'OBJECTIVE_NOW' : 'NONE',
-              referenceSeq: null,
-              probabilities: { NONE: 1 },
-              referenceProbabilities: { NONE: 1 },
-              confidence: 1,
-            })),
-          }),
+        plugins: {
+          decisions: [
+            jevPublicationAudit({
+              mode: 'correct',
+              items: [{ entityId: 'entity:brass-key', name: '黄铜钥匙' }],
+              write: r => records.push(r),
+              classify: async q => ({
+                placement: { kind: 'NONE', probabilities: { NONE: 1 }, confidence: 1 },
+                model: 'fixture',
+                inputTokens: 1,
+                outputTokens: 1,
+                costUsd: 0,
+                claims: q.characters.map(c => ({
+                  characterId: c.characterId,
+                  kind: c.characterId === 'character:companion' ? 'OBJECTIVE_NOW' : 'NONE',
+                  referenceSeq: null,
+                  probabilities: { NONE: 1 },
+                  referenceProbabilities: { NONE: 1 },
+                  confidence: 1,
+                })),
+              }),
+            }),
+          ],
         },
       },
     )

@@ -1,7 +1,14 @@
 import { rolePreset, rolePresetMapping } from '@harness-world/provider-chat'
 import { listenOnSafePort } from '../safe-port.ts'
 import { loadHostPlugins, type HostPlugins } from '../host-plugins.ts'
-import { assembleCoreMemory } from '../official-bundle.ts'
+import {
+  assembleCoreMemory,
+  createClaimClassifier,
+  jevShadowAudit,
+  parseAuditItems,
+  takeClaimKey,
+  type ShadowOptions,
+} from '../official-bundle.ts'
 import { hostPluginSettings, pluginSecretValues } from '../host-plugin-settings.ts'
 import { readingPreferences, audioPreferences } from '../play-settings.ts'
 import { environmentRoleModels, runtimeRoleModels } from '../model-connections.ts'
@@ -10,8 +17,6 @@ import { createTrustedFrontendServer, type FrontendPolicy } from './frontend-ser
 import { readFileSync, mkdirSync } from 'node:fs'
 import { appendFile } from 'node:fs/promises'
 import { resolve } from 'node:path'
-import { parseAuditItems, type ShadowOptions } from './jev-shadow.ts'
-import { createClaimClassifier } from './jev-shadow-claims-client.ts'
 import { randomBytes } from 'node:crypto'
 import { parseHostLaunchArguments } from './launch-arguments.ts'
 import { WorldHostRuntime, isV5SourcePackDirectory } from './world-runtime.ts'
@@ -43,10 +48,11 @@ async function main(): Promise<void> {
   if (packPath === undefined || !isV5SourcePackDirectory(packPath)) {
     throw new Error('请通过 --pack 指定 worldpack-source/v5 世界源目录；旧 Pack 已不再由网页试玩入口运行')
   }
+  const claimKey = takeClaimKey(process.env)
   let shadowAudit: ShadowOptions | undefined
   if (launch.shadowConfigPath !== undefined) {
     const items = parseAuditItems(JSON.parse(readFileSync(resolve(launch.shadowConfigPath), 'utf8')))
-    const classify = createClaimClassifier(process.env.OPENROUTER_JEV_KEY ?? '')
+    const classify = createClaimClassifier(claimKey)
     mkdirSync(resolve(dataDirectory), { recursive: true })
     const logPath = resolve(dataDirectory, 'jev-shadow.jsonl')
     shadowAudit = {
@@ -107,7 +113,12 @@ async function main(): Promise<void> {
   const runtime = await WorldHostRuntime.create({
     capabilities: hostPlugins.capabilities,
     playerFeed: hostPlugins.playerFeed,
-    plugins: hostPlugins.seams,
+    plugins: shadowAudit
+      ? {
+          ...hostPlugins.seams,
+          decisions: [jevShadowAudit(shadowAudit), ...(hostPlugins.seams.decisions ?? [])],
+        }
+      : hostPlugins.seams,
     dataDirectory,
     models,
     packPath,
@@ -165,7 +176,6 @@ async function main(): Promise<void> {
       : rolePresetMapping(JSON.parse(process.env.PERSPECTRA_ROLE_MAPPING ?? '{}')),
     ...(launch.serialScheduling ? { serialScheduling: true } : {}),
     ...(launch.tuning === undefined ? {} : { tuning: launch.tuning }),
-    ...(shadowAudit === undefined ? {} : { shadowAudit }),
   })
   startupRuntime = runtime
   const token = randomBytes(32).toString('hex')

@@ -1,4 +1,5 @@
 // 历史研究脚本；路径、样本和模型可能绑定原始记录，不属于游戏启动或默认验收。
+import { jevShadowAudit } from '../../../packages/official-jev-audit/src/index.ts'
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { createHash } from 'node:crypto'
@@ -6,16 +7,16 @@ import { brandId, type StoredWorldEvent, type WorldAddress, type WorldJsonObject
 import { currentEntityState } from '@harness-world/kernel'
 import { WorldStore } from '@harness-world/store-sqlite'
 import { WorldHostRuntime } from '../../../desktop/host/world-runtime.ts'
-import { createClaimClassifier } from '../../../desktop/host/jev-shadow-claims-client.ts'
-import { JevShadow, type ShadowRecord } from '../../../desktop/host/jev-shadow.ts'
+import { createClaimClassifier } from '../../../packages/official-jev-audit/src/jev-shadow-claims-client.ts'
+import { JevShadow, type ShadowRecord } from '../../../packages/official-jev-audit/src/jev-shadow.ts'
 import { environmentRoleModels } from '../../../desktop/model-connections.ts'
 
 const directory = resolve(process.argv[2] ?? '')
 if (!process.argv[2] || existsSync(directory)) throw new Error('provide a new output directory')
 mkdirSync(directory, { recursive: true })
 const classify = createClaimClassifier(process.env.OPENROUTER_JEV_KEY ?? '')
-const sources = ['desktop/host/jev-shadow-claims-client.ts', 'packages/provider-chat/src/character-turn-call.ts',
-  'packages/application/src/character-execution-result.ts', 'desktop/host/jev-shadow-window.ts']
+const sources = ['packages/official-jev-audit/src/jev-shadow-claims-client.ts', 'packages/provider-chat/src/character-turn-call.ts',
+  'packages/application/src/character-execution-result.ts', 'packages/official-jev-audit/src/jev-shadow-window.ts']
 writeFileSync(resolve(directory, 'sources.json'), JSON.stringify(Object.fromEntries(sources.map(path => [path, readFileSync(path, 'utf8')])), null, 2))
 const address: WorldAddress = { tenantId: brandId('custody08', 'TenantId'), worldId: brandId('probe', 'WorldId'), branchId: brandId('main', 'BranchId') }
 const characters = [{ characterId: 'char:a', name: '林澄' }, { characterId: 'char:b', name: '陆遥' }]
@@ -88,8 +89,8 @@ if (process.argv.includes('--probe')) {
   const records: ShadowRecord[] = []
   const runtime = await WorldHostRuntime.create({ dataDirectory: resolve(directory, 'world'),
     packPath: resolve('experiments/jev-narrative-auditor/holdout-2026-09-27/live-pack'),
-    models: environmentRoleModels({ PERSPECTRA_MODEL_ENDPOINT: 'https://api.deepseek.com/chat/completions', PERSPECTRA_MODEL: 'deepseek-flash', PERSPECTRA_MODEL_API_KEY: key }), shadowAudit: { items: liveItems, classify,
-      write: async record => { records.push(record); appendFileSync(resolve(directory, 'jev-shadow.jsonl'), JSON.stringify(record) + '\n') } } })
+    models: environmentRoleModels({ PERSPECTRA_MODEL_ENDPOINT: 'https://api.deepseek.com/chat/completions', PERSPECTRA_MODEL: 'deepseek-flash', PERSPECTRA_MODEL_API_KEY: key }), plugins: { decisions: [jevShadowAudit({ items: liveItems, classify,
+      write: async record => { records.push(record); appendFileSync(resolve(directory, 'jev-shadow.jsonl'), JSON.stringify(record) + '\n') } })] }, })
   const action = (definition: string, recipientId?: string) => '/act interact ' + JSON.stringify({
     targetRef: { kind: 'entity', id: 'entity:diary' }, bindingId: `binding:diary-${definition}`,
     definitionRef: { id: `base:${definition}`, version: 1 }, arguments: recipientId ? { recipientId } : {},

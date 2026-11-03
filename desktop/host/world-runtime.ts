@@ -24,7 +24,7 @@ import {
   type ReadingPreferences,
   type AudioPreferences,
 } from '../play-settings.ts'
-import type { RuntimeModel, RuntimeRoleModels } from '../model-connections.ts'
+import type { RuntimeRoleModels } from '../model-connections.ts'
 import { TailRoundRuntime } from './tail-runtime.ts'
 import { assertSettled, snapshotTail } from '../tail-storage.ts'
 import {
@@ -57,8 +57,6 @@ import {
 import { PackKnowledge } from './pack-knowledge.ts'
 import { PackAutonomy, type AutonomousRole } from './pack-autonomy.ts'
 import { CrossSceneCommunication, communicationInstruction, loadCommunicationConfig } from './pack-communication.ts'
-import { auditBeforePublication, type InterventionOptions } from './jev-publication-intervention.ts'
-import { JevShadow, type ShadowOptions } from './jev-shadow.ts'
 import { appendFileSync, mkdirSync, readFileSync } from 'node:fs'
 import { randomUUID } from 'node:crypto'
 import { resolve, relative, basename } from 'node:path'
@@ -127,12 +125,10 @@ export interface WorldHostOptions extends Omit<ModelOptions, 'models' | 'playSet
   readonly stageExpressions?: Readonly<Record<string, readonly string[]>>
   readonly audio?: AudioPreferences
   readonly tuning?: RuntimeTuning
-  readonly shadowAudit?: ShadowOptions
   readonly storyNodes?: boolean
   readonly storyParentNodeId?: string
   readonly worldVersion?: string
   readonly logicalDirectory?: string
-  readonly publicationAudit?: InterventionOptions
   /** Experiment control for comparing the former wave scheduler with dynamic dispatch. */
   readonly serialScheduling?: boolean
   /** Measurement control: ordinary work stays dynamic, autonomy waits for it to finish. */
@@ -460,7 +456,6 @@ export class WorldHostCore implements HostRuntime {
   #statusTruth: HostState['statusTruth']
   #currentScene: NonNullable<HostState['world']['currentScene']> | undefined
   #debug: Record<string, unknown> = {}
-  #shadow: JevShadow | undefined
   #busy = false
   #allowInterruption = false
   /** Roles whose scheduled activation is running; only the host status reads it. */
@@ -625,22 +620,7 @@ export class WorldHostCore implements HostRuntime {
     const inner = async (visible: CharacterTurnRequest) => {
       const raw = await runDecision(parts, visible, signal, reserveFormatRetry)
       if (this.#closing || this.#abortedWork) throw new Error('角色任务世界版本已失效。')
-      if (this.#options.publicationAudit === undefined) return raw
-      const store = new WorldStore(resolve(this.#options.dataDirectory, 'world.sqlite'))
-      let history
-      try {
-        history = store.readEvents(this.#address)
-      } finally {
-        store.close()
-      }
-      return auditBeforePublication({
-        request: visible,
-        raw,
-        history,
-        options: this.#options.publicationAudit,
-        signal,
-        decide: revised => runDecision(parts, revised, signal, reserveFormatRetry),
-      })
+      return raw
     }
     return wrapDecision(this.#decisions, inner, signal)(request)
   }
@@ -767,34 +747,11 @@ export class WorldHostCore implements HostRuntime {
         readStoryNodes(options.logicalDirectory ?? options.dataDirectory).length === 0
       )
         await runtime.saveNode('首次保存节点')
-      if (options.shadowAudit !== undefined) {
-        if (
-          options.shadowAudit.items.some(
-            item => !compiled.manifest.entities.some(entity => entity.entityId === item.entityId),
-          )
-        ) {
-          throw new TypeError('shadow item is not declared in this Pack')
-        }
-        const head = await runtime.#application.head(runtime.#address)
-        runtime.#shadow = new JevShadow({
-          ...options.shadowAudit,
-          address: runtime.#address,
-          characters: compiled.manifest.characters.map(character => ({
-            characterId: character.characterId,
-            name: character.name,
-          })),
-          initialSeq: head.headSeq,
-          readEvents: asOfSeq => {
-            const store = new WorldStore(resolve(options.dataDirectory, 'world.sqlite'))
-            try {
-              return store.readEvents(runtime.#address, asOfSeq)
-            } finally {
-              store.close()
-            }
-          },
-        })
-      }
       runtime.#pluginsReady = true
+      if (runtime.#decisions.some(decision => decision.committed)) {
+        const { headSeq } = await runtime.#application.head(runtime.#address)
+        for (const decision of runtime.#decisions) decision.committed?.(headSeq)
+      }
       return runtime
     } catch (error) {
       await runtime.close()
@@ -890,7 +847,6 @@ export class WorldHostCore implements HostRuntime {
         ...(this.#status && Object.keys(this.#status.policyErrors).length
           ? { statusPolicyError: this.#status.policyErrors }
           : {}),
-        ...(this.#shadow === undefined ? {} : { shadowAudit: this.#shadow.stats() }),
         ...Object.assign({}, ...this.#decisions.map(decision => decision.debug?.())),
       },
     }
@@ -1535,7 +1491,6 @@ export class WorldHostCore implements HostRuntime {
         console.error('[决策插件] 关闭失败：', error)
       }
     }
-    await this.#shadow?.close()
     try {
       await this.#application.close()
     } finally {
@@ -1813,11 +1768,13 @@ export class WorldHostCore implements HostRuntime {
       worldVersion: this.#worldVersion,
       dataDirectory: resolve(this.#dataDirectory, 'plugins', id),
       instanceDirectory: resolve(this.#dataDirectory),
+      candidate: resolve(this.#options.logicalDirectory ?? this.#dataDirectory) !== resolve(this.#dataDirectory),
       cast: {
         playerId: String(this.#playerId),
         playerName: this.#playerName,
         characterIds: this.#characterIds,
         characterNames: this.#names,
+        entityIds: this.#entities.entities.map(entity => String(entity.entityId)),
         locationNames: this.#locationNames,
       },
       world: this.#worldReader(),
@@ -1860,7 +1817,7 @@ export class WorldHostCore implements HostRuntime {
   }
 
   get #serialDecisions(): boolean {
-    return this.#options.publicationAudit !== undefined || this.#decisions.some(decision => decision.serial)
+    return this.#decisions.some(decision => decision.serial)
   }
 
   /** A memory holds durable data, so one that cannot open stops the world rather than silently forgetting. */
@@ -2261,8 +2218,7 @@ export class WorldHostCore implements HostRuntime {
       autonomy: this.#autonomyCycle ?? null,
       visibleSceneIds: view.scenes.map(scene => scene.sceneId),
     }
-    this.#shadow?.observe(head.headSeq)
-    for (const decision of this.#decisions) decision.committed?.(head.headSeq)
+    if (this.#pluginsReady) for (const decision of this.#decisions) decision.committed?.(head.headSeq)
     this.publishPlayerFeed()
   }
 }

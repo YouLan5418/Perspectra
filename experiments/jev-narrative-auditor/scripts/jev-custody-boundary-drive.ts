@@ -1,4 +1,5 @@
 // 历史研究脚本；路径、样本和模型可能绑定原始记录，不属于游戏启动或默认验收。
+import { jevShadowAudit } from '../../../packages/official-jev-audit/src/index.ts'
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { createHash } from 'node:crypto'
@@ -9,8 +10,8 @@ import { PlayerInputJobs, WorldStore, type PlayerInputJob } from '@harness-world
 import { createChatProvider } from '@harness-world/provider-chat'
 import { preparePlayerIntent } from '../../../packages/application/src/player-intent-preparation.ts'
 import { WorldHostRuntime } from '../../../desktop/host/world-runtime.ts'
-import { createClaimClassifier } from '../../../desktop/host/jev-shadow-claims-client.ts'
-import type { ShadowRecord } from '../../../desktop/host/jev-shadow.ts'
+import { createClaimClassifier } from '../../../packages/official-jev-audit/src/jev-shadow-claims-client.ts'
+import type { ShadowRecord } from '../../../packages/official-jev-audit/src/jev-shadow.ts'
 import { environmentRoleModels } from '../../../desktop/model-connections.ts'
 
 const directory = resolve(process.argv[2] ?? '')
@@ -21,7 +22,7 @@ mkdirSync(directory, { recursive: true })
 const packPath = resolve('experiments/jev-narrative-auditor/holdout-2026-09-27/live-pack')
 const files = ['packages/application/src/player-intent-preparation.ts', 'packages/provider-chat/src/character-turn-call.ts',
   'packages/application/src/character-turn.ts', 'packages/contracts/src/player-submission.ts',
-  'packages/application/src/round-coordinator.ts', 'packages/memory/src/local-memory.ts', 'desktop/host/jev-shadow-window.ts']
+  'packages/application/src/round-coordinator.ts', 'packages/memory/src/local-memory.ts', 'packages/official-jev-audit/src/jev-shadow-window.ts']
 writeFileSync(resolve(directory, 'sources.json'), JSON.stringify(Object.fromEntries(files.map(path => [path, readFileSync(path, 'utf8')])), null, 2))
 const log = (file: string, value: unknown) => appendFileSync(resolve(directory, file), JSON.stringify(value) + '\n')
 const sha = (value: unknown) => createHash('sha256').update(JSON.stringify(value)).digest('hex')
@@ -125,9 +126,9 @@ if (process.argv.includes('--probe')) {
     return response
   }
   const runtime = await WorldHostRuntime.create({ dataDirectory: resolve(directory, 'world'), packPath,
-    models: environmentRoleModels({ PERSPECTRA_MODEL_ENDPOINT: 'https://api.deepseek.com/chat/completions', PERSPECTRA_MODEL: 'deepseek-flash', PERSPECTRA_MODEL_API_KEY: key }), shadowAudit: { items,
+    models: environmentRoleModels({ PERSPECTRA_MODEL_ENDPOINT: 'https://api.deepseek.com/chat/completions', PERSPECTRA_MODEL: 'deepseek-flash', PERSPECTRA_MODEL_API_KEY: key }), plugins: { decisions: [jevShadowAudit({ items,
       classify: createClaimClassifier(process.env.OPENROUTER_JEV_KEY ?? ''),
-      write: async record => { records.push(record); log('jev-shadow.jsonl', record) } } })
+      write: async record => { records.push(record); log('jev-shadow.jsonl', record) } })] }, })
   const store = new WorldStore(resolve(directory, 'world/world.sqlite'))
   const jobs = new PlayerInputJobs(resolve(directory, 'world/world.sqlite'))
   const read = () => store.readEvents(runtime.address)

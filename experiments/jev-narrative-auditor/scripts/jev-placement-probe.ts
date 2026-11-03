@@ -4,8 +4,8 @@ import { resolve } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 import { brandId, type StoredWorldEvent, type WorldJsonObject, type WorldAddress } from '@harness-world/contracts'
 import { currentEntityState } from '@harness-world/kernel'
-import { acquisitionWindow, holderEvidence, publicationWindow } from '../../../desktop/host/jev-shadow-window.ts'
-import { createClaimClassifier, type ClaimQuestion } from '../../../desktop/host/jev-shadow-claims-client.ts'
+import { acquisitionWindow, holderEvidence, publicationWindow } from '../../../packages/official-jev-audit/src/jev-shadow-window.ts'
+import { createClaimClassifier, type ClaimQuestion } from '../../../packages/official-jev-audit/src/jev-shadow-claims-client.ts'
 const directory=resolve(process.argv[2]??'')
 if(!process.argv[2]||existsSync(resolve(directory,'fixture.json')))throw new Error('choose new directory')
 mkdirSync(directory,{recursive:true})

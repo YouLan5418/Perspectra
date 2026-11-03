@@ -1,6 +1,6 @@
 import { expect, it, vi } from 'vitest'
 import { brandId, type StoredWorldEvent, type WorldAddress, type WorldJsonObject } from '@harness-world/contracts'
-import { JevShadow, parseAuditItems, type ShadowRecord } from '../../desktop/host/jev-shadow.ts'
+import { JevShadow, parseAuditItems, type ShadowRecord } from '../../packages/official-jev-audit/src/jev-shadow.ts'
 import {
   claimCriteria,
   claimRequest,
@@ -8,7 +8,7 @@ import {
   type ClaimAnswer,
   type ClaimKind,
   type ClaimQuestion,
-} from '../../desktop/host/jev-shadow-claims-client.ts'
+} from '../../packages/official-jev-audit/src/jev-shadow-claims-client.ts'
 
 const address: WorldAddress = {
   tenantId: brandId('t', 'TenantId'),

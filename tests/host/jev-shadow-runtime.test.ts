@@ -2,11 +2,16 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { afterEach, expect, it, vi } from 'vitest'
+import { jevShadowAudit } from '../../packages/official-jev-audit/src/index.ts'
 import { currentEntityState } from '@harness-world/kernel'
 import { WorldStore } from '@harness-world/store-sqlite'
 import { WorldHostRuntime } from '../../desktop/host/world-runtime.ts'
-import { type ShadowRecord } from '../../desktop/host/jev-shadow.ts'
-import { claimCriteria, type ClaimQuestion, type ClaimKind } from '../../desktop/host/jev-shadow-claims-client.ts'
+import { type ShadowRecord } from '../../packages/official-jev-audit/src/jev-shadow.ts'
+import {
+  claimCriteria,
+  type ClaimQuestion,
+  type ClaimKind,
+} from '../../packages/official-jev-audit/src/jev-shadow-claims-client.ts'
 import { createChatServer, fakeModels } from '../support/fake-provider.ts'
 
 afterEach(() => vi.restoreAllMocks())
@@ -75,34 +80,38 @@ it.each([0, 0.999])(
           models: fakeModels(`http://127.0.0.1:${port}/api/chat`, 'openai', 'fixture'),
           ...(enabled
             ? {
-                shadowAudit: {
-                  items: [{ entityId: 'entity:brass-key', name: '黄铜钥匙' }],
-                  classify: async (question: ClaimQuestion) => {
-                    questions.push(question)
-                    started()
-                    await blocked
-                    const kind: ClaimKind = question.publication.narration ? 'OBJECTIVE_NOW' : 'NONE'
-                    return {
-                      placement: { kind: 'NONE' as const, probabilities: { NONE: 1 }, confidence: 1 },
-                      model: 'fixture',
-                      inputTokens: 1,
-                      outputTokens: 1,
-                      costUsd: 0,
-                      claims: question.characters.map(c => ({
-                        characterId: c.characterId,
-                        kind: c.characterId === 'character:companion' ? kind : 'NONE',
-                        referenceSeq: null,
-                        confidence: 1,
-                        probabilities: Object.fromEntries(
-                          Object.keys(claimCriteria).map(label => [label, label === kind ? 1 : 0]),
-                        ),
-                        referenceProbabilities: { NONE: 1 },
-                      })),
-                    }
-                  },
-                  write: async (record: ShadowRecord) => {
-                    records.push(record)
-                  },
+                plugins: {
+                  decisions: [
+                    jevShadowAudit({
+                      items: [{ entityId: 'entity:brass-key', name: '黄铜钥匙' }],
+                      classify: async (question: ClaimQuestion) => {
+                        questions.push(question)
+                        started()
+                        await blocked
+                        const kind: ClaimKind = question.publication.narration ? 'OBJECTIVE_NOW' : 'NONE'
+                        return {
+                          placement: { kind: 'NONE' as const, probabilities: { NONE: 1 }, confidence: 1 },
+                          model: 'fixture',
+                          inputTokens: 1,
+                          outputTokens: 1,
+                          costUsd: 0,
+                          claims: question.characters.map(c => ({
+                            characterId: c.characterId,
+                            kind: c.characterId === 'character:companion' ? kind : 'NONE',
+                            referenceSeq: null,
+                            confidence: 1,
+                            probabilities: Object.fromEntries(
+                              Object.keys(claimCriteria).map(label => [label, label === kind ? 1 : 0]),
+                            ),
+                            referenceProbabilities: { NONE: 1 },
+                          })),
+                        }
+                      },
+                      write: async (record: ShadowRecord) => {
+                        records.push(record)
+                      },
+                    }),
+                  ],
                 },
               }
             : {}),

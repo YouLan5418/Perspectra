@@ -12,6 +12,14 @@ import type { RuntimeRoleModels } from './model-connections.ts'
 import { playSettings, type PlaySettings } from './play-settings.ts'
 
 export { officialMemoryNoneProvider } from '@harness-world/official-memory-none'
+export {
+  createClaimClassifier,
+  jevPublicationAudit,
+  jevShadowAudit,
+  parseAuditItems,
+  takeClaimKey,
+  type ShadowOptions,
+} from '@harness-world/official-jev-audit'
 export { officialLlmProvider, llmTimeoutMs, type ModelOptions } from '@harness-world/official-llm'
 export {
   CORE_MEMORY_ID,

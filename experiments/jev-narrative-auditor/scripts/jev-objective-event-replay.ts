@@ -1,7 +1,7 @@
 // 历史研究脚本；路径、样本和模型可能绑定原始记录，不属于游戏启动或默认验收。
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
-import type { HolderQuestion, Publication } from '../../../desktop/host/jev-shadow.ts'
+import type { HolderQuestion, Publication } from '../../../packages/official-jev-audit/src/jev-shadow.ts'
 
 interface Sample {
   id: string

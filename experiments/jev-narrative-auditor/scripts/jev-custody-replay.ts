@@ -4,9 +4,9 @@ import { resolve } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 import type { StoredWorldEvent, WorldJsonObject } from '@harness-world/contracts'
 import { currentEntityState } from '@harness-world/kernel'
-import { createClaimClassifier } from '../../../desktop/host/jev-shadow-claims-client.ts'
-import { acquisitionWindow, holderEvidence, reconcilePlacement } from '../../../desktop/host/jev-shadow-window.ts'
-import type { ShadowRecord } from '../../../desktop/host/jev-shadow.ts'
+import { createClaimClassifier } from '../../../packages/official-jev-audit/src/jev-shadow-claims-client.ts'
+import { acquisitionWindow, holderEvidence, reconcilePlacement } from '../../../packages/official-jev-audit/src/jev-shadow-window.ts'
+import type { ShadowRecord } from '../../../packages/official-jev-audit/src/jev-shadow.ts'
 
 const directory = resolve(process.argv[2] ?? '')
 if (!process.argv[2] || existsSync(directory)) throw new Error('provide new evidence directory')

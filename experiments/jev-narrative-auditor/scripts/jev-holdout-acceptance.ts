@@ -4,13 +4,13 @@ import { createHash } from 'node:crypto'
 import { resolve } from 'node:path'
 import { brandId, type StoredWorldEvent, type WorldAddress, type WorldJsonObject } from '@harness-world/contracts'
 import { currentEntityState } from '@harness-world/kernel'
-import { createClaimClassifier } from '../../../desktop/host/jev-shadow-claims-client.ts'
-import { JevShadow, type AuditCharacter, type AuditItem, type ShadowRecord } from '../../../desktop/host/jev-shadow.ts'
+import { createClaimClassifier } from '../../../packages/official-jev-audit/src/jev-shadow-claims-client.ts'
+import { JevShadow, type AuditCharacter, type AuditItem, type ShadowRecord } from '../../../packages/official-jev-audit/src/jev-shadow.ts'
 
 interface Expected { seq:number; conflict:boolean; status?:string; references?:number[]; root?:number|null }
 interface Fixture { id:string; group:'positive'|'negative'|'temporal'; items:AuditItem[]; characters:AuditCharacter[]; events:StoredWorldEvent[]; initialSeq:number; expected:Expected[] }
 const address:WorldAddress={tenantId:brandId('holdout','TenantId'),worldId:brandId('acceptance07','WorldId'),branchId:brandId('fixture','BranchId')}
-const sources=['desktop/host/jev-shadow-claims-client.ts','desktop/host/jev-shadow.ts','desktop/host/jev-shadow-window.ts','desktop/host/jev-publication-intervention.ts']
+const sources=['packages/official-jev-audit/src/jev-shadow-claims-client.ts','packages/official-jev-audit/src/jev-shadow.ts','packages/official-jev-audit/src/jev-shadow-window.ts','packages/official-jev-audit/src/jev-publication-intervention.ts']
 const sha=(s:string)=>createHash('sha256').update(s).digest('hex')
 const directory=resolve(process.argv[2]??'')
 if(!process.argv[2])throw new Error('provide fresh evidence directory')

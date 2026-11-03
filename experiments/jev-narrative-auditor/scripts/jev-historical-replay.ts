@@ -5,7 +5,7 @@ import { resolve } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 import { currentEntityState, type RulebookEvent } from '@harness-world/kernel'
 import { createHolderClassifier } from './jev-shadow-client.ts'
-import type { AuditItem, HolderQuestion, Publication } from '../../../desktop/host/jev-shadow.ts'
+import type { AuditItem, HolderQuestion, Publication } from '../../../packages/official-jev-audit/src/jev-shadow.ts'
 
 const folder = resolve('experiments/jev-narrative-auditor/historical-replay-2026-09-26')
 mkdirSync(folder, { recursive: true })

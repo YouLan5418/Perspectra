@@ -4,8 +4,8 @@ import { resolve } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 import { brandId, type StoredWorldEvent, type WorldJsonObject, type WorldAddress } from '@harness-world/contracts'
 import { currentEntityState, currentLocation } from '@harness-world/kernel'
-import { acquisitionWindow, holderEvidence, publicationWindow } from '../../../desktop/host/jev-shadow-window.ts'
-import { createClaimClassifier, type ClaimAnswer, type ClaimQuestion } from '../../../desktop/host/jev-shadow-claims-client.ts'
+import { acquisitionWindow, holderEvidence, publicationWindow } from '../../../packages/official-jev-audit/src/jev-shadow-window.ts'
+import { createClaimClassifier, type ClaimAnswer, type ClaimQuestion } from '../../../packages/official-jev-audit/src/jev-shadow-claims-client.ts'
 const directory=resolve(process.argv[2]??'')
 if(!process.argv[2]||existsSync(resolve(directory,'fixture.json')))throw new Error('choose new directory')
 mkdirSync(directory,{recursive:true})
@@ -53,7 +53,7 @@ else {
   }
 }
 writeFileSync(resolve(directory,'fixture.json'),JSON.stringify({repeat:3,fixtures},null,2)+'\n',{flag:'wx'})
-writeFileSync(resolve(directory,'classifier-source.ts'),readFileSync('desktop/host/jev-shadow-claims-client.ts'))
+writeFileSync(resolve(directory,'classifier-source.ts'),readFileSync('packages/official-jev-audit/src/jev-shadow-claims-client.ts'))
 const classify=createClaimClassifier(process.env.OPENROUTER_JEV_KEY??'')
 const results:Array<{id:string;group:string;repeat:number;expectedConflict:boolean;actualConflict:boolean|null;match:boolean|null;personConflicts:string[];placementConflict:boolean;answer?:ClaimAnswer;error?:string}>=[]
 for(const f of fixtures)for(let repeat=1;repeat<=3;repeat++){

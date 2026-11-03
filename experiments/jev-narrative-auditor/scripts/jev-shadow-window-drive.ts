@@ -1,4 +1,5 @@
 // 历史研究脚本；路径、样本和模型可能绑定原始记录，不属于游戏启动或默认验收。
+import { jevShadowAudit } from '../../../packages/official-jev-audit/src/index.ts'
 import { appendFileSync, existsSync, mkdirSync, writeFileSync } from 'node:fs'
 import { createHash } from 'node:crypto'
 import { resolve } from 'node:path'
@@ -6,8 +7,8 @@ import { DatabaseSync } from 'node:sqlite'
 import { brandId, type StoredWorldEvent, type WorldAddress, type WorldJsonObject } from '@harness-world/contracts'
 import { currentEntityState } from '@harness-world/kernel'
 import { WorldHostRuntime } from '../../../desktop/host/world-runtime.ts'
-import { JevShadow, type ShadowRecord } from '../../../desktop/host/jev-shadow.ts'
-import { createClaimClassifier } from '../../../desktop/host/jev-shadow-claims-client.ts'
+import { JevShadow, type ShadowRecord } from '../../../packages/official-jev-audit/src/jev-shadow.ts'
+import { createClaimClassifier } from '../../../packages/official-jev-audit/src/jev-shadow-claims-client.ts'
 import { environmentRoleModels } from '../../../desktop/model-connections.ts'
 
 const replay = process.argv.includes('--replay')
@@ -50,7 +51,7 @@ if (replay) {
   const key=process.env.DEEPSEEK_API_KEY
   if(!key)throw new Error('DEEPSEEK_API_KEY missing')
   const runtime=await WorldHostRuntime.create({dataDirectory:directory,packPath:resolve('examples/world-packs/prototype-g1'),
-    models: environmentRoleModels({ PERSPECTRA_MODEL_ENDPOINT: 'https://api.deepseek.com/chat/completions', PERSPECTRA_MODEL: 'deepseek-flash', PERSPECTRA_MODEL_API_KEY: key }),shadowAudit:{items,classify,write}})
+    models: environmentRoleModels({ PERSPECTRA_MODEL_ENDPOINT: 'https://api.deepseek.com/chat/completions', PERSPECTRA_MODEL: 'deepseek-flash', PERSPECTRA_MODEL_API_KEY: key }), plugins: { decisions: [jevShadowAudit({items,classify,write})] },})
   const prompts=[
     '桌上的黄铜钥匙看起来有什么特别？',
     '同行者，请帮我拿起黄铜钥匙，先保管一下。',

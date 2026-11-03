@@ -1,0 +1,12 @@
+{
+  "name": "@harness-world/official-jev-audit",
+  "version": "0.3.5",
+  "private": true,
+  "type": "module",
+  "exports": "./src/index.ts",
+  "dependencies": {
+    "@harness-world/contracts": "workspace:*",
+    "@harness-world/kernel": "workspace:*",
+    "@harness-world/plugin-sdk": "workspace:*"
+  }
+}

@@ -149,6 +149,7 @@ it('gives a model channel no model configuration', async () => {
   })
   expect(Object.keys(services!).sort()).toEqual([
     'address',
+    'candidate',
     'cast',
     'dataDirectory',
     'instanceDirectory',

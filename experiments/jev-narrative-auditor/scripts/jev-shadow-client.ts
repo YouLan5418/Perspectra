@@ -1,5 +1,5 @@
 // 历史研究脚本；路径、样本和模型可能绑定原始记录，不属于游戏启动或默认验收。
-import { holderCriteria, type HolderAnswer, type HolderQuestion } from '../../../desktop/host/jev-shadow.ts'
+import { holderCriteria, type HolderAnswer, type HolderQuestion } from '../../../packages/official-jev-audit/src/jev-shadow.ts'
 
 const record = (value: unknown): Record<string, unknown> => {
   if (value === null || typeof value !== 'object' || Array.isArray(value)) throw new TypeError('invalid Jev response')

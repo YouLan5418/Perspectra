@@ -50,6 +50,8 @@ function check(file) {
   }
   if (
     path.startsWith('packages/official-') &&
+    // The JEV experiment folds committed events with the kernel's pure readers; it adjudicates nothing.
+    !path.startsWith('packages/official-jev-audit/') &&
     /^import\s+(?!type\b)[^'"]*from\s+['"](?:@harness-world\/(?:application|store-sqlite|kernel|memory)|[^'"]*\/desktop\/)/m.test(
       source,
     )

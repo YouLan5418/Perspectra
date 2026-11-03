@@ -5,8 +5,8 @@ import { mkdirSync } from 'node:fs'
 import { appendFile } from 'node:fs/promises'
 import { resolve } from 'node:path'
 import { brandId, type StoredWorldEvent, type WorldAddress, type WorldJsonObject } from '@harness-world/contracts'
-import { createClaimClassifier } from '../../../desktop/host/jev-shadow-claims-client.ts'
-import { JevShadow, type ShadowRecord } from '../../../desktop/host/jev-shadow.ts'
+import { createClaimClassifier } from '../../../packages/official-jev-audit/src/jev-shadow-claims-client.ts'
+import { JevShadow, type ShadowRecord } from '../../../packages/official-jev-audit/src/jev-shadow.ts'
 
 const address: WorldAddress = { tenantId: brandId('synthetic', 'TenantId'), worldId: brandId('shadow-smoke', 'WorldId'), branchId: brandId('main', 'BranchId') }
 const characters = [{ characterId: 'char:a', name: '林澄' }, { characterId: 'char:b', name: '陆遥' }, { characterId: 'char:c', name: '新来者' }]

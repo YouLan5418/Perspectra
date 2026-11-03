@@ -408,7 +408,6 @@ export class TailRoundRuntime {
     this.#runtime.holdCognition()
     try {
       if ((await this.#runtime.state()).paused) throw new HostBusyError('请先恢复 NPC。')
-      if (this.options.publicationAudit) throw new TypeError('外部审计实验不支持隔离重新生成。')
       if (tail.environment !== (await this.#environment()))
         throw new TypeError('世界包、脚本、规则或模型环境已改变，拒绝重新生成。')
       const head = await this.#runtime.settleRound()
@@ -419,10 +418,9 @@ export class TailRoundRuntime {
         resolve(this.options.dataDirectory, directory),
       )
       this.#runtime.inheritCreatorBase(tail.base, directory)
-      const { shadowAudit: _shadow, ...isolatedOptions } = this.options
       const feed = this.#candidateFeed()
       const candidateOptions = {
-        ...isolatedOptions,
+        ...this.options,
         ...feed.options,
         dataDirectory: resolve(this.options.dataDirectory, directory),
         logicalDirectory: this.options.dataDirectory,
@@ -528,7 +526,6 @@ export class TailRoundRuntime {
     this.#runtime.holdCognition()
     try {
       if ((await this.#runtime.state()).paused) throw new HostBusyError('请先恢复 NPC。')
-      if (this.options.publicationAudit) throw new TypeError('外部审计实验不支持隔离候选切换。')
       if (tail.environment !== (await this.#environment())) throw new TypeError('环境已改变，拒绝切换候选。')
       const current = await this.#runtime.settleRound()
       if (current.headSeq !== tail.headSeq || current.tick !== tail.tick)
@@ -542,10 +539,9 @@ export class TailRoundRuntime {
       await this.#runtime.close()
       oldClosed = true
       flushTailData(this.dataDirectory)
-      const { shadowAudit: _shadow, ...options } = this.options
       const feed = this.#candidateFeed()
       this.#candidate = await this.factory({
-        ...options,
+        ...this.options,
         ...feed.options,
         dataDirectory: path,
         logicalDirectory: this.options.dataDirectory,
