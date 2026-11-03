@@ -31,6 +31,7 @@
 | 游戏页面怎样获授权 | [前端授权](../frontend-authorization.md) |
 | 默认舞台怎样播放对白和活动 | [默认情景舞台](../frontend-stage.md) |
 | 启动器怎样选择 Cordis 宿主插件、注册语音与 BGM 服务 | [宿主插件](../host-plugins.md)、[插件制作指南](../guides/host-plugin-authoring.md) |
+| 第三方插件能替换哪些模块，世界包怎样依赖插件 | [插件能替换什么](../guides/plugin-seams.md) |
 | 创作者用前端插件能做到什么、还缺什么 | [前端表现插件的能力边界](../studies/frontend-plugin-capability-boundary.md) |
 | 角色专属和角色组预设如何应用 | [预设说明](../model-presets.md) |
 | 模型服务如何接入 | [模型接口协议](../model-protocols.md) |

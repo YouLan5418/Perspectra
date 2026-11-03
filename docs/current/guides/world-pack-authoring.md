@@ -73,6 +73,7 @@ my-world/
 | 文件/清单字段 | 内容及注意点 |
 | --- | --- |
 | sourceSchemaVersion、packId、packVersion | v5 源版本、内容包身份、作者版本 |
+| requiresPlugins（可选） | 这个包需要玩家装哪些插件，例如 `[{ "id": "locked-room", "version": "^0.1.0" }]`，见[插件依赖](plugin-seams.md#世界包依赖插件时)。不写时包哈希不变 |
 | worldFile | 世界配置、初始事实与当前宿主 profile |
 | characterFiles | 角色 ID、人设、控制类型、初始位置与交互绑定 |
 | locationFiles / entityFiles | 地点与对象；定义不等于可绕过规则改变运行中位置/归属。物品可加可选的 `name`（如“玻璃蒸馏器”），玩家界面和角色收到的行动结果会用这个名字，而不是 `entity:distiller` |

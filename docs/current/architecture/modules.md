@@ -1,5 +1,7 @@
 # 目录与模块地图
 
+2026-11-03 阶段 5：未新增包。`desktop/plugin-requirements.ts` 检查世界包声明的插件，`desktop/host/plugin-set.ts` 记录存档实际生效的模块，`apps/launcher` 的插件页改为卡片式并列出模块。见[记录](../studies/2026-11-plugin-first-phase-5.md)。
+
 2026-11-03 核对：`desktop/host` 的文件分工见[宿主说明](../../../desktop/host/README.md)，玩法模块由 `world-gameplay.ts` 持有，核心规则来源在 `rule-layers.ts`。
 
 2026-11-02 核对记忆相关条目：`memory` 只保留授权来源捕获，Core 移到官方插件包，原生召回已删除。

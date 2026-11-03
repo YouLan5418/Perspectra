@@ -304,9 +304,13 @@ Python 目录和 `python-paths.ts`、发行脚本的路径随 `official-memory-c
 
 ### 6.6 舞台与 HTTP
 
+> 2026-11-03 阶段 5：插件路由没有做，用户确认现在没有实际插件需要。
+
 玩家投影和授权检查留在主干，继续用现有社区模板机制替换舞台。第一版只新增一项：插件可以注册 `/plugins/<插件 ID>/` 下的路由。
 
 ### 6.7 世界包依赖与存档
+
+> 2026-11-03 阶段 5：下面的“插件数据目录”和“插件私有记录”没有做，用户确认现在没有实际插件需要。其余已实现，记录见 [docs/current/studies/2026-11-plugin-first-phase-5.md](../../current/studies/2026-11-plugin-first-phase-5.md)。
 
 - **插件清单：** 增加稳定的 `id`。玩家当前手填的 ID 改为默认取清单中的值。无清单的插件仍可加载，但不能满足依赖。
 - **世界包声明：** `worldpack.source.json` 增加 `requiresPlugins: [{ id, version, optional? }]`，版本用 semver 范围。

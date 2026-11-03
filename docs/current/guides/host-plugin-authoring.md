@@ -1,5 +1,7 @@
 # 编写并加载自己的 Cordis 宿主插件
 
+2026-11-03：想先知道插件能替换什么、不能替换什么，看[总入口](plugin-seams.md)。世界包依赖插件的写法也在那里。
+
 2026-10-26：例如同伴操作外部设备，包内模块负责玩法规则，Cordis 插件通过 `ctx.capabilities.register` 提供异步原生能力。按世界创建会话、角色请求、完成后裁定及失败限制见[双入口指南](dual-plugin-entrypoints.md)。原生完整例子是 [demo-device.mjs](../../../examples/host-plugins/demo-device.mjs)，外部程序方向见 [RPG Maker](../../../examples/rpg-maker/README.md)。下方声音指南仍沿用原验收范围。
 
 2026-10-26 玩法补充：宿主插件不负责生成包的玩法规则。可复用的规则以作者工具形式分发，例如 [RPG Core 生成器](../../../examples/rpg-core/generate.mjs) 在创作时输出普通活动脚本，随包发布；同日删除的 `ctx.gameplay.registerActivity` 不再可用。说明见[示例包](../../../examples/world-packs/rpg-core-demo/README.md)与[实验记录](../studies/2026-10-26_cordis-rpg-core-prototype.md)。
@@ -10,7 +12,7 @@
 
 ## 先运行一个不需要音频文件的示例
 
-1. 在启动器“全局设置 → 插件”添加本地插件，ID 填 `demo-bgm`，文件选择 [demo-bgm.mjs](../../../examples/host-plugins/demo-bgm.mjs)的绝对路径。
+1. 在启动器“全局设置 → 插件”点“添加本地插件”，文件选择 [demo-bgm.mjs](../../../examples/host-plugins/demo-bgm.mjs)的绝对路径，插件 ID 没有自动填上就填 `demo-bgm`。
 2. 勾选加载，保存设置，下次启动游戏生效。
 3. 在默认舞台内点击一次，解锁浏览器声音。“设置 → 声音”中可关闭背景音乐、调整音量或静音。
 
@@ -52,6 +54,7 @@ export default async function myBgm(ctx) {
 
 ```json
 {
+  "id": "my-bgm",
   "name": "我的配乐",
   "version": "1.0.0",
   "author": "你的名字",
@@ -63,7 +66,7 @@ export default async function myBgm(ctx) {
 }
 ```
 
-插件函数的第二个参数就是玩家填写的值，已补上默认值：把上例的 `input.text.includes('争执')` 换成 `input.text.includes(config.tenseWord)`，函数签名写成 `myBgm(ctx, config)`。需要保存 API Key 之类的值时，给字段加 `"secret": true`，它会存进 Windows 凭据管理器而不是设置文件。字段格式和保存位置见[宿主插件](../host-plugins.md)。
+`id` 是可选的小写字母、数字和连字符，世界包声明依赖时按它匹配，想被依赖就要写。插件函数的第二个参数就是玩家填写的值，已补上默认值：把上例的 `input.text.includes('争执')` 换成 `input.text.includes(config.tenseWord)`，函数签名写成 `myBgm(ctx, config)`。需要保存 API Key 之类的值时，给字段加 `"secret": true`，它会存进 Windows 凭据管理器而不是设置文件。字段格式和保存位置见[宿主插件](../host-plugins.md)。
 
 将整个目录交给玩家，在 Launcher 添加 `my-bgm.mjs`，即可使用官方播放器。不要同时启用这个插件和示例 BGM；当前只允许一个插件决定配乐，但可以同时加载 TTS。
 

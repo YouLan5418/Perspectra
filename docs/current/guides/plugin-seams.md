@@ -1,0 +1,108 @@
+# 插件能替换什么
+
+核对日期：2026-11-03，宿主 API `1.4`。这是给插件作者的总入口，每一项的完整写法在[插件编写指南](host-plugin-authoring.md)。
+
+## 先看一个例子
+
+你想让某个房间谁都进不去。写一个文件 `locked-room.mjs`，放在任何地方：
+
+```js
+export const hostApi = '1.4'
+
+export default function (ctx, config) {
+  ctx.effect(() =>
+    ctx.rules.register({
+      id: 'locked-room',
+      version: '0.1.0',
+      open: async () => ({
+        resolve: (context, next) =>
+          context.action.actionType === 'move' && context.action.parameters?.locationId === config.locationId
+            ? { status: 'rejected', events: [], reason: 'plugin:门锁着，进不去。' }
+            : next(context),
+      }),
+    }),
+  )
+}
+```
+
+旁边放一份 `locked-room.plugin.json`，写上 `id`、`name`、`version`、`services` 和要玩家填的 `config`。玩家在启动器“全局设置 → 插件”添加这个文件，填好房间，启用。之后玩家走过去会被拒，读到“门锁着，进不去”，角色也一样。完整版本是 [locked-room.mjs](../../../examples/host-plugins/locked-room.mjs)。
+
+所有插件都这样：导出 `hostApi`，默认导出一个函数，通过 `ctx` 用服务，注册放进 `ctx.effect`。不用自己装 Cordis。
+
+## 五个可替换的模块
+
+`open` 在每个世界实例打开时调用一次，包括重新生成的候选，所以每局状态不要放在模块顶层。
+
+| 接缝 | 用来做什么 | 需要的 `hostApi` | 官方实现 | 多个插件同时启用 | `open` 失败时 |
+| --- | --- | --- | --- | --- | --- |
+| [`ctx.scheduler`](host-plugin-authoring.md#替换角色调度器) | 决定谁在什么时候获得处理机会 | `1.1` | `official-scheduler` | 只用一个 | 改用官方调度 |
+| [`ctx.memory`](host-plugin-authoring.md#替换长期记忆) | 整理角色的经历，在它决策时取回 | `1.2` | `official-memory-core` | 只用一个 | 世界不打开 |
+| [`ctx.llm`](host-plugin-authoring.md#替换模型通道) | 把角色的决策发给模型 | `1.3` | `official-llm` | 只用一个 | 世界不打开 |
+| [`ctx.decisions`](host-plugin-authoring.md#加入角色决策) | 给决策加内容，或包住整个决策 | `1.3` | 没有，默认为空 | 按加载顺序叠加 | 世界不打开 |
+| [`ctx.rules`](host-plugin-authoring.md#增加世界规则) | 在官方规则外再加一层裁定 | `1.4` | 没有，默认为空 | 先注册的在最外面 | 世界不打开 |
+
+只用一个的接缝，如果启用了多个提供它的插件，第一个生效，后面的注册失败、整个插件被跳过。玩家在插件页“模块”分组里能看到会生效的是哪个，也能选。
+
+运行中出错时：
+
+| 接缝 | 结果 |
+| --- | --- |
+| 调度器抛错或返回非法结果 | 这一轮反应结束，已提交内容保留 |
+| 记忆的 `project` 抛错 | 这一轮角色处理失败并提示 |
+| 模型的 `send` 抛错或超时 | 这一轮失败，提示里有插件 ID |
+| 决策的 `context`、`decide` 抛错 | 这一轮失败，提示里有插件 ID |
+| 规则的 `resolve` 抛错 | 这次行动被拒绝，世界不卡住 |
+| 规则的 `affordances` 抛错 | 可选项不变 |
+
+## 其他服务
+
+这些不替换任何东西，只是加功能。
+
+| 服务 | 用来做什么 | 例子 |
+| --- | --- | --- |
+| `ctx.capabilities` | 提供异步能力，比如设备或外部程序。世界包的脚本可以调用 | [demo-device.mjs](../../../examples/host-plugins/demo-device.mjs)、[双入口指南](dual-plugin-entrypoints.md) |
+| `ctx.frontendServices` | 语音和背景音乐 | [http-speech.mjs](../../../examples/host-plugins/http-speech.mjs)、[demo-bgm.mjs](../../../examples/host-plugins/demo-bgm.mjs) |
+| `ctx.playerFeed` | 只读订阅玩家看到的对话 | [transcript-file.mjs](../../../examples/host-plugins/transcript-file.mjs) |
+
+## 哪些不能替换
+
+- **事件日志和原子提交。** 模块只能提出结果，提交由宿主完成，只能产出主干认识的事件。
+- **授权视图。** 每个角色能看到什么由主干算。这不是说插件读不到别的角色：调度器和记忆插件能读任意角色的视图，把私有内容交给另一个角色，隔离就破了，这是作者的责任。
+- **插件装载本身，以及 `contracts`。**
+- **世界包的玩法。** 活动和状态规则在包脚本里，想做新玩法请写包内脚本。规则接缝管不到状态操作、活动操作和短信。
+
+## 世界包依赖插件时
+
+世界包可以在 `worldpack.source.json` 里声明需要哪些插件：
+
+```json
+"requiresPlugins": [
+  { "id": "locked-room", "version": "^0.1.0" },
+  { "id": "my-bgm", "version": ">=1.0.0", "optional": true }
+]
+```
+
+版本写 `1.2.3`（完全相同）、`^1.2.3` 或 `>=1.2.3`。启动器在开局前读取，不执行插件代码，一次列全缺失、没启用和版本不符的项目，然后拒绝开局。`optional` 的只提示，不拒绝。游戏进程启动时再查一次，所以配置无效或 `hostApi` 不兼容、被跳过的插件也算没生效。
+
+依赖按清单里的 `id` 匹配，所以**插件想被世界包依赖，清单就要写 `id`**。没有清单或清单没写 `id` 的插件照常加载，但满足不了依赖。
+
+不声明这个字段的世界包，哈希和以前完全一样。
+
+## 换了模块以后，存档会怎样
+
+每个存档目录有一份 `plugin-set.json`，记录上次实际生效的模块和版本。再次打开时如果不同，玩家会读到“这个存档使用的模块变了：长期记忆：a 1.0.0 → b 1.0.0。世界事实不受影响。”世界照常打开。文件损坏或缺失只是这次不提示。
+
+卸载插件后同一个存档能打开，已提交的世界事实不变。插件自己的数据不会迁移给官方实现，角色可能因此“失忆”。
+
+## 信任模型
+
+玩家启用插件就视为信任作者。插件和游戏进程权限相同，没有沙箱。插件拿不到玩家的模型 Key，要调用模型得自己配置，费用和凭据由作者说明。给调度器的玩家上限只是建议，宿主不拦。
+
+## 现在还没有
+
+- 插件自己的 HTTP 路由、写入事件日志的私有记录、随节点复制的插件数据目录。设计里提过，阶段 5 确认没有实际插件需要，所以没做。记忆插件用 `snapshotArchives` / `restoreArchives` 随节点保存。
+- `@harness-world/plugin-sdk` 还没发布到 npm，仓库外开发时参照[类型源码](../../../packages/plugin-sdk/src/index.ts)。
+
+## 验证范围
+
+官方实现和接缝都有自动测试和真实模型对比，记录在[阶段 1](../studies/2026-11-plugin-first-phase-1.md)到[阶段 5](../studies/2026-11-plugin-first-phase-5.md)。示例插件 `impulsive-scheduler`、`simple-llm`、`locked-room` 跑过真实模型。第三方的记忆插件和决策插件只用测试替身验证过，还没有真实插件试玩。
