@@ -130,7 +130,8 @@ export interface WorldServices {
   readonly dataDirectory: string
   /** The world instance's own directory, for implementations that keep files beside its databases. */
   readonly instanceDirectory: string
-  /** A regeneration candidate, not yet the world the player is on. Avoid side effects outside the instance. */
+  /** Opened as a regeneration candidate. Avoid side effects outside the instance. If the player selects it, this
+   * instance keeps running as is, and the next time the world opens it is no longer a candidate. */
   readonly candidate: boolean
   /** Who is in this world. Names only; nothing here is private to a character. */
   readonly cast: WorldCast
@@ -286,7 +287,9 @@ export interface LlmCall {
 }
 /** How characters reach a model. Only `send` is required. */
 export interface LlmInstance {
-  /** Send one call and return the parsed answer. The host validates it and retries once on bad format. */
+  /** Send one call and return the parsed answer. The host validates it and retries once on bad format, so hand
+   * back text you cannot parse; throw only when the call itself failed. Honor `signal`: when it fires the host
+   * stops waiting, and anything the call is still doing is yours to stop. */
   send(characterId: string, call: LlmCall, request: MemoryRequest, signal: AbortSignal): Promise<unknown>
   /** Replace the default prompt for this decision. Without it the host's default call is sent as is. */
   prepare?(characterId: string, request: MemoryRequest, signal: AbortSignal): Promise<LlmCall>
@@ -316,7 +319,7 @@ export interface DecisionInstance {
   ): Promise<unknown>
   /** The host runs one character at a time and turns off follow-up publication while this is true. */
   readonly serial?: boolean
-  /** Called once when the world is ready, then after each commit. */
+  /** Reports the head once when the world is ready, then on each refresh. It can skip commits and can repeat. */
   committed?(headSeq: number): void
   /** Merged into the state's debug section. */
   debug?(): WorldJsonObject

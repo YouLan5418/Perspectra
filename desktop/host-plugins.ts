@@ -274,6 +274,7 @@ export async function loadHostPlugins(
   const llm = new LlmSlot(root)
   const decisions = new DecisionRegistry(root)
   const skipped: SkippedHostPlugin[] = []
+  const llmPlugins = new Set<string>()
   installPluginResolver()
   for (const plugin of plugins) {
     if (!plugin.enabled) continue
@@ -281,6 +282,7 @@ export async function loadHostPlugins(
     let config: Readonly<Record<string, string | number | boolean>>
     try {
       const manifest = await readPluginManifest(plugin.path)
+      if (manifest?.services.includes('llm')) llmPlugins.add(plugin.id)
       try {
         config = resolvePluginConfig(manifest, plugin.config, secrets[plugin.id])
       } catch (error) {
@@ -331,6 +333,8 @@ export async function loadHostPlugins(
     }
   }
   const chosenMemory = memory.current ?? defaults.memory?.()
+  // The player chose where the story goes. A channel that failed to load must not quietly become the official one.
+  const lostChannel = llm.current ? undefined : skipped.find(plugin => llmPlugins.has(plugin.id))
   return {
     services,
     capabilities,
@@ -339,6 +343,19 @@ export async function loadHostPlugins(
       scheduler: scheduler.current ?? officialSeams().scheduler,
       ...(chosenMemory ? { memory: chosenMemory } : {}),
       ...(llm.current ? { llm: llm.current } : {}),
+      ...(lostChannel
+        ? {
+            llm: {
+              id: lostChannel.id,
+              version: '0.0.0',
+              open: async () => {
+                throw new Error(
+                  `已跳过（${lostChannel.reason}）。为避免对话发到别的模型，世界没有打开；请修复或停用这个插件。`,
+                )
+              },
+            },
+          }
+        : {}),
       ...(decisions.providers.length ? { decisions: decisions.providers } : {}),
     },
     skipped,

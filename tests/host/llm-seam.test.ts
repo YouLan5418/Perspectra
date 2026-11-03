@@ -183,3 +183,89 @@ it('refuses to regenerate a round after the model channel changed', async () => 
   const { runtime: same } = await reopen(original)
   await expect(same.regenerate(state.tailRound!.id!, 'llm-seam-same')).resolves.toBeDefined()
 })
+
+it('retries once when send hands back text it could not parse', async () => {
+  let sends = 0
+  const { runtime } = await start(
+    provider({
+      send: async () => {
+        sends++
+        return sends === 1 ? '我想先说几句，不是 JSON。' : SPEAK
+      },
+    }),
+    { serialScheduling: true },
+  )
+  const state = await runtime.submit('你好')
+  expect(sends).toBeGreaterThan(1)
+  expect(state.error).toBe(false)
+  expect(state.transcript.some(line => line.text.includes('走另一条路'))).toBe(true)
+})
+
+it('ends the round when send ignores the signal and never returns', { timeout: 30_000 }, async () => {
+  const { runtime } = await start(provider({ send: () => new Promise(() => {}) }), {
+    playSettings: { activationTimeoutSeconds: 5 },
+    serialScheduling: true,
+  })
+  const state = await runtime.submit('你好')
+  expect(state.notice).toContain('打断或超时')
+})
+
+it('names the plugin and logs the error when the channel fails', async () => {
+  const log = vi.spyOn(console, 'error').mockImplementation(() => {})
+  const { runtime } = await start(
+    provider(
+      {
+        send: async () => {
+          throw new Error('模型服务返回 401')
+        },
+      },
+      'broken-channel',
+    ),
+    { serialScheduling: true },
+  )
+  const state = await runtime.submit('你好')
+  expect(state.notice).toContain('broken-channel')
+  expect(state.notice).not.toContain('模型服务')
+  expect(log.mock.calls.flat().map(String).join(' ')).toContain('模型服务返回 401')
+})
+
+it('does not blame presets when a third-party prepare fails', async () => {
+  vi.spyOn(console, 'error').mockImplementation(() => {})
+  const { runtime } = await start(
+    provider(
+      {
+        prepare: async () => {
+          throw new Error('bad prompt')
+        },
+        send: async () => SPEAK,
+      },
+      'broken-prepare',
+    ),
+    { serialScheduling: true },
+  )
+  const state = await runtime.submit('你好')
+  expect(state.notice).toContain('broken-prepare')
+  expect(state.notice).not.toContain('预设')
+})
+
+it('marks only an unselected candidate, not the world the player keeps playing', async () => {
+  const seen: boolean[] = []
+  const channel: SeamProvider<LlmInstance> = {
+    id: 'watching-llm',
+    version: '1.0.0',
+    open: async world => {
+      seen.push(world.candidate)
+      return { send: async () => SPEAK }
+    },
+  }
+  const { runtime, root, models } = await start(channel)
+  expect(seen).toEqual([false])
+  const state = await runtime.submit(MOVE)
+  await runtime.regenerate(state.tailRound!.id!, 'llm-seam-candidate')
+  expect(seen).toContain(true)
+  await runtime.close()
+  runtimes.length = 0
+  seen.length = 0
+  await start(channel, { dataDirectory: root, models })
+  expect(seen).toEqual([false])
+})

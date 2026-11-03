@@ -457,3 +457,43 @@ it('lets a player plugin take the memory seam over the default and skips a secon
   expect(assembled).toBe(1)
   expect(taken.skipped).toEqual([{ id: 'other', reason: 'apply' }])
 })
+
+const SIMPLE_LLM = fileURLToPath(new URL('../../examples/host-plugins/simple-llm.mjs', import.meta.url))
+
+it('refuses to fall back to the official channel when a model channel plugin is skipped', async () => {
+  vi.spyOn(console, 'error').mockImplementation(() => {})
+  // Missing its required endpoint, so the plugin is skipped before it runs.
+  const session = await loadHostPlugins([{ id: 'simple-llm', enabled: true, path: SIMPLE_LLM, config: {} }])
+  try {
+    expect(session.skipped.map(plugin => plugin.id)).toEqual(['simple-llm'])
+    expect(session.seams.llm?.id).toBe('simple-llm')
+    await expect(session.seams.llm!.open({} as never, new AbortController().signal)).rejects.toThrow('已跳过')
+  } finally {
+    await session.close()
+  }
+})
+
+it('lets the example channel hand back prose so that the host can retry', async () => {
+  const server = createServer((request, response) => {
+    request.resume()
+    request.on('end', () => {
+      response.writeHead(200, { 'content-type': 'application/json' })
+      response.end(JSON.stringify({ choices: [{ message: { content: '这是一段散文，不是 JSON。' } }] }))
+    })
+  })
+  await new Promise<void>(done => server.listen(0, '127.0.0.1', done))
+  const endpoint = `http://127.0.0.1:${(server.address() as AddressInfo).port}/v1/chat/completions`
+  const session = await loadHostPlugins([
+    { id: 'simple-llm', enabled: true, path: SIMPLE_LLM, config: { endpoint, model: 'fixture' } },
+  ])
+  try {
+    const channel = await session.seams.llm!.open({} as never, new AbortController().signal)
+    await expect(
+      channel.send('character:a', { messages: [], schema: {} }, { context: {} }, new AbortController().signal),
+    ).resolves.toBe('这是一段散文，不是 JSON。')
+  } finally {
+    await session.close()
+    server.closeAllConnections()
+    await new Promise<void>(done => server.close(() => done()))
+  }
+})

@@ -203,3 +203,23 @@ it('reports commits and debug state', async () => {
   expect(heads).toEqual([...heads].sort((a, b) => a - b))
   expect((await runtime.state()).debug.testDecision).toMatchObject({ heads: heads.length })
 })
+
+it('names the implementation and logs when it fails, but not for a failure inside next', async () => {
+  const log = vi.spyOn(console, 'error').mockImplementation(() => {})
+  const { runtime } = await start(
+    [
+      provider(
+        {
+          decide: async () => {
+            throw new Error('decide bug')
+          },
+        },
+        'buggy-decision',
+      ),
+    ],
+    { serialScheduling: true },
+  )
+  const state = await runtime.submit('你好')
+  expect(state.notice).toContain('buggy-decision')
+  expect(log.mock.calls.flat().map(String).join(' ')).toContain('decide bug')
+})

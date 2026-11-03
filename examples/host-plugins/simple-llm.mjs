@@ -19,7 +19,12 @@ export default function simpleLlm(ctx, config) {
     })
     if (!response.ok) throw new Error('模型服务返回 ' + response.status)
     const text = (await response.json()).choices[0].message.content
-    return JSON.parse(text.slice(text.indexOf('{'), text.lastIndexOf('}') + 1))
+    // 解析不了就原样返回，宿主会判定格式无效并重试一次。只有传输失败才抛错。
+    try {
+      return JSON.parse(text.slice(text.indexOf('{'), text.lastIndexOf('}') + 1))
+    } catch {
+      return text
+    }
   }
   ctx.effect(() =>
     ctx.llm.register({

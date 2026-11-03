@@ -44,7 +44,14 @@ import {
 import { saveStoryNode, readStoryNodes } from '../story-nodes.ts'
 import { existsSync, unlinkSync } from 'node:fs'
 import { activityWorldFromEvents, type ActivityRequest, type ActivityWorld } from './pack-activity.ts'
-import { runDecision, wrapDecision, type DecisionParts } from './character-decision.ts'
+import {
+  guardedDecision,
+  guardedLlm,
+  runDecision,
+  wrapDecision,
+  type DecisionParts,
+  type ReportPluginFailure,
+} from './character-decision.ts'
 import { PackActivities, type ActivityDefinitionView, type AutoStartEvaluation } from './pack-activities.ts'
 import {
   KNOWN_STATUS_NOTE,
@@ -109,6 +116,8 @@ import type {
 const SCHEDULER_FAILED_NOTICE = '调度器插件出错，本轮角色反应已停止；玩家输入保留，可以继续行动。'
 
 export interface WorldHostOptions extends Omit<ModelOptions, 'models' | 'playSettings'> {
+  /** Opened as a regeneration candidate; told to plugins through WorldServices. */
+  readonly candidate?: boolean
   readonly models: RuntimeRoleModels
   readonly playSettings?: PlaySettings
   readonly capabilities?: CapabilityCatalog
@@ -467,6 +476,12 @@ export class WorldHostCore implements HostRuntime {
   #providerCalls = 0
   #lastCall: ChatCallObservation | null = null
   readonly #roleCalls = new Map<string, ChatCallObservation>()
+  /** Which plugin failed each character's latest decision, for the player's notice. */
+  readonly #pluginFailures = new Map<string, string>()
+  readonly #reportPlugin: ReportPluginFailure = (pluginId, request, error) => {
+    console.error(`[插件 ${pluginId}] 角色决策失败：`, error)
+    this.#pluginFailures.set(String((request.context.character as WorldJsonObject).characterId), pluginId)
+  }
   #lastPlayerIntent: string | null = null
   #rootBeforeSeq = 0
   #continuationController: AbortController | undefined
@@ -598,11 +613,13 @@ export class WorldHostCore implements HostRuntime {
       request = { ...request, context: { ...request.context, knowledge: this.#knowledge.select(request.context) } }
     const expressions = this.#options.stageExpressions?.[characterId]
     if (expressions?.length) request = { ...request, context: { ...request.context, expressions: [...expressions] } }
-    for (const decision of this.#decisions) if (decision.context) request = await decision.context(request, signal)
     this.#roleCalls.delete(characterId)
+    this.#pluginFailures.delete(characterId)
+    for (const decision of this.#decisions) if (decision.context) request = await decision.context(request, signal)
     const parts: DecisionParts = {
       llm: this.#llm,
       memory: this.#memory,
+      presetsPrepare: this.#options.plugins?.llm === undefined,
       simulate: visible => this.#activity?.simulate(visible),
       spendCall: () => {
         if (!this.#modelCallBudget) return
@@ -1768,7 +1785,7 @@ export class WorldHostCore implements HostRuntime {
       worldVersion: this.#worldVersion,
       dataDirectory: resolve(this.#dataDirectory, 'plugins', id),
       instanceDirectory: resolve(this.#dataDirectory),
-      candidate: resolve(this.#options.logicalDirectory ?? this.#dataDirectory) !== resolve(this.#dataDirectory),
+      candidate: this.#options.candidate === true,
       cast: {
         playerId: String(this.#playerId),
         playerName: this.#playerName,
@@ -1798,7 +1815,8 @@ export class WorldHostCore implements HostRuntime {
         },
       })
     try {
-      this.#llm = await provider.open(this.#services(provider.id), AbortSignal.timeout(30_000))
+      const opened = await provider.open(this.#services(provider.id), AbortSignal.timeout(30_000))
+      this.#llm = this.#options.plugins?.llm ? guardedLlm(opened, provider.id, this.#reportPlugin) : opened
     } catch (error) {
       if (this.#options.plugins?.llm === undefined) throw error
       throw new Error(`模型通道插件 ${provider.id} 无法打开：${(error as Error).message}`, { cause: error })
@@ -1809,7 +1827,8 @@ export class WorldHostCore implements HostRuntime {
   async #openDecisions(): Promise<void> {
     for (const provider of this.#options.plugins?.decisions ?? []) {
       try {
-        this.#decisions.push(await provider.open(this.#services(provider.id), AbortSignal.timeout(30_000)))
+        const opened = await provider.open(this.#services(provider.id), AbortSignal.timeout(30_000))
+        this.#decisions.push(guardedDecision(opened, provider.id, this.#reportPlugin))
       } catch (error) {
         throw new Error(`决策插件 ${provider.id} 无法打开：${(error as Error).message}`, { cause: error })
       }
@@ -1885,16 +1904,20 @@ export class WorldHostCore implements HostRuntime {
       const relevant = activation?.result
       const failedCall = activation === undefined ? undefined : this.#roleCalls.get(String(activation.characterId))
       const committed = relevant?.performResult !== undefined
+      const failedPlugin =
+        activation === undefined ? undefined : this.#pluginFailures.get(String(activation.characterId))
       const cause =
         terminal === 'interrupted'
           ? '角色处理被打断或超时'
-          : relevant?.failure === 'invalid_output'
-            ? '角色返回格式无效'
-            : relevant?.failure === 'preset_failed'
-              ? '角色预设处理失败，请检查提示节点与文本规则'
-              : relevant?.failure === 'provider_failed'
-                ? providerFailureNotice(failedCall?.status === 'failed' ? failedCall.httpStatus : undefined)
-                : '角色处理失败'
+          : failedPlugin !== undefined
+            ? `插件 ${failedPlugin} 出错，详情见游戏进程的输出`
+            : relevant?.failure === 'invalid_output'
+              ? '角色返回格式无效'
+              : relevant?.failure === 'preset_failed'
+                ? '角色预设处理失败，请检查提示节点与文本规则'
+                : relevant?.failure === 'provider_failed'
+                  ? providerFailureNotice(failedCall?.status === 'failed' ? failedCall.httpStatus : undefined)
+                  : '角色处理失败'
       this.#error = true
       this.#notice = `玩家输入已提交；${cause}。${
         committed

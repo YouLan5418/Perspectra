@@ -426,6 +426,7 @@ export class TailRoundRuntime {
         logicalDirectory: this.options.dataDirectory,
         worldVersion: version,
         storyNodes: false,
+        candidate: true,
       }
       this.#candidate = await this.factory(candidateOptions)
       this.#candidate.holdCognition()
@@ -541,6 +542,7 @@ export class TailRoundRuntime {
       flushTailData(this.dataDirectory)
       const feed = this.#candidateFeed()
       this.#candidate = await this.factory({
+        candidate: true,
         ...this.options,
         ...feed.options,
         dataDirectory: path,
