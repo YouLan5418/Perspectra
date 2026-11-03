@@ -48,13 +48,18 @@ onUnmounted(() => {
   if (noticeTimer) clearTimeout(noticeTimer)
 })
 /** A running game with skipped plugins stays playable; the notice stays until dismissed or the list changes. */
-const skippedNotice = computed(() =>
-  store.core.state === 'running' && store.skippedPlugins.length
+const skippedNotice = computed(() => {
+  if (store.core.state !== 'running') return ''
+  const skipped = store.skippedPlugins.length
     ? `以下宿主插件加载失败，本次已跳过：${store.skippedPlugins
         .map(plugin => `${plugin.id}（${PLUGIN_SKIP_REASON[plugin.reason]}）`)
         .join('、')}。游戏照常运行，依赖它们的功能不可用；可在设置中修复或停用。`
-    : '',
-)
+    : ''
+  const optional = store.optionalPluginNote
+    ? `这个世界包可以使用但没有生效的插件：${store.optionalPluginNote}。游戏照常运行。`
+    : ''
+  return [skipped, optional].filter(Boolean).join(' ')
+})
 const dismissedSkipped = ref('')
 const panel = ref<'settings' | 'package' | null>(null)
 /** 主屏状态标签直达对应行；“⋯”打开抽屉首页。 */

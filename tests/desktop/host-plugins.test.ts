@@ -16,6 +16,7 @@ import {
 } from '../../desktop/host-plugins.ts'
 import { hostPluginSettings } from '../../desktop/host-plugin-settings.ts'
 import { HOST_API_VERSION, hostApiCompatible } from '@harness-world/plugin-sdk'
+import { moduleRows } from '../../apps/launcher/src/stores/modules.ts'
 
 const roots: string[] = [],
   sessions: HostPlugins[] = []
@@ -536,5 +537,39 @@ it('loads the locked-room example, whose rule refuses that room and removes it f
     expect(offered[0]!.destinations).toEqual([{ locationId: 'location:hall', name: '大厅' }])
   } finally {
     await session.close()
+  }
+})
+
+it('agrees with the launcher on which plugin holds a seam taking one', async () => {
+  vi.spyOn(console, 'error').mockImplementation(() => {})
+  const root = await mkdtemp(join(tmpdir(), 'perspectra-two-schedulers-'))
+  const write = async (id: string) => {
+    await writeFile(
+      join(root, id + '.mjs'),
+      `export const hostApi = '1.4'\nexport default ctx => ctx.effect(() => ctx.scheduler.register({ id: '${id}', version: '1.0.0', open: async () => ({}) }))\n`,
+    )
+    await writeFile(
+      join(root, id + '.plugin.json'),
+      JSON.stringify({ id, name: id, version: '1.0.0', services: ['scheduler'] }),
+    )
+    return { id, enabled: true, path: join(root, id + '.mjs') }
+  }
+  const plugins = [await write('first'), await write('second')]
+  const session = await loadHostPlugins(plugins)
+  try {
+    const rows = moduleRows(
+      plugins,
+      Object.fromEntries(
+        plugins.map(plugin => [
+          plugin.id,
+          { manifest: { name: plugin.id, version: '1.0.0', services: ['scheduler'] } },
+        ]),
+      ) as never,
+    )
+    expect(rows.find(row => row.seam === 'scheduler')!.effective).toBe(session.seams.scheduler.id)
+    expect(session.skipped.map(plugin => plugin.id)).toEqual(['second'])
+  } finally {
+    await session.close()
+    await rm(root, { recursive: true, force: true })
   }
 })

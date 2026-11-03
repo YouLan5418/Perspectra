@@ -201,3 +201,32 @@ describe('game process', () => {
     }
   })
 })
+
+describe('python check', () => {
+  it('does not ask for Python when an enabled plugin provides memory', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'perspectra-memory-plugin-'))
+    roots.push(root)
+    const entry = join(root, 'memory.mjs')
+    await writeFile(entry, "export const hostApi = '1.4'\nexport default () => {}\n")
+    await writeFile(
+      join(root, 'memory.plugin.json'),
+      JSON.stringify({ id: 'memory', name: '记忆', version: '1.0.0', services: ['memory'] }),
+    )
+    const { core } = await launcherWith(resolve('examples/world-packs/dynamic-scheduling'))
+    await expect(core.needsCorePython()).resolves.toBe(true)
+    await core.handle({
+      operation: 'preferences',
+      theme: 'system',
+      largeText: false,
+      hostPlugins: [{ id: 'memory', path: entry, enabled: true }],
+    })
+    await expect(core.needsCorePython()).resolves.toBe(false)
+    await core.handle({
+      operation: 'preferences',
+      theme: 'system',
+      largeText: false,
+      hostPlugins: [{ id: 'memory', path: entry, enabled: false }],
+    })
+    await expect(core.needsCorePython()).resolves.toBe(true)
+  })
+})

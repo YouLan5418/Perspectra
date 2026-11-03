@@ -5,6 +5,7 @@ import { useLauncherStore } from '../stores/launcher.ts'
 import { chooseDataDirectory, dataLocation, type DataLocation } from '../services/desktop.ts'
 import { Button } from './ui/button/index.ts'
 import ModelSettingsDialog from './ModelSettingsDialog.vue'
+import ModuleSettingsBlock from './ModuleSettingsBlock.vue'
 import PluginSettingsBlock from './PluginSettingsBlock.vue'
 /** 全局设置窗口：浮在启动器上方。外观与阅读声音走草稿，“应用 / 保存”提交；模型接口沿用即时保存。 */
 const emit = defineEmits<{ close: [] }>()
@@ -177,6 +178,7 @@ function addPlugin() {
               选择插件文件后，这里会显示它旁边清单（与入口同名的
               .plugin.json）中的名称、作者、所用服务和配置项。密钥类配置保存在系统凭据管理器，不写入设置文件。
             </p>
+            <ModuleSettingsBlock />
             <PluginSettingsBlock
               v-for="(plugin, index) in store.preferencesDraft.hostPlugins"
               :key="index"
