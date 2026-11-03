@@ -53,6 +53,16 @@ import {
 } from './character-decision.ts'
 import { guardedRules, layeredCoreRules } from './rule-layers.ts'
 import { WorldGameplay } from './world-gameplay.ts'
+import { runActivityChain } from './activity-round.ts'
+import { runAutonomousRound, type CallBudget } from './autonomy-round.ts'
+import {
+  autonomyNotice,
+  playerResolutionNotice,
+  reactionNotice,
+  SCHEDULER_FAILED_NOTICE,
+  type RoundStatus,
+} from './round-notices.ts'
+export { providerFailureNotice } from './round-notices.ts'
 import { PackActivities, type ActivityDefinitionView, type AutoStartEvaluation } from './pack-activities.ts'
 import {
   KNOWN_STATUS_NOTE,
@@ -115,8 +125,6 @@ import type {
   WorldServices,
 } from '@harness-world/plugin-sdk'
 
-const SCHEDULER_FAILED_NOTICE = '调度器插件出错，本轮角色反应已停止；玩家输入保留，可以继续行动。'
-
 export interface WorldHostOptions extends Omit<ModelOptions, 'models' | 'playSettings'> {
   /** Opened as a regeneration candidate; told to plugins through WorldServices. */
   readonly candidate?: boolean
@@ -161,22 +169,6 @@ export function isV5SourcePackDirectory(packPath: string): boolean {
   } catch {
     return false
   }
-}
-
-/**
- * The endpoint's own refusal text may echo the request, so it never reaches the notice. The HTTP status
- * class is enough to name the likely cause, which is what a creator debugging their own preset needs.
- */
-export function providerFailureNotice(httpStatus: number | undefined): string {
-  if (httpStatus === undefined) return '角色模型服务未完成请求'
-  if (httpStatus === 400 || httpStatus === 422) {
-    return `角色模型请求被服务拒绝（HTTP ${httpStatus}）；请检查预设中的生成参数（如 frequencyPenalty、presencePenalty、stop）与模型标识是否被该服务支持`
-  }
-  if (httpStatus === 401 || httpStatus === 403)
-    return `角色模型服务拒绝认证（HTTP ${httpStatus}）；请在模型设置中检查该实例的凭证`
-  if (httpStatus === 404) return `角色模型服务找不到该模型（HTTP ${httpStatus}）；请检查模型标识`
-  if (httpStatus === 429) return `角色模型服务限流（HTTP ${httpStatus}）；请稍后重试或降低调用预算`
-  return `角色模型服务未完成请求（HTTP ${httpStatus}）`
 }
 
 /** Player submission commits first; ordinary NPC work then uses bounded dynamic dispatch. */
@@ -435,7 +427,14 @@ export class WorldHostCore implements HostRuntime {
   }
   /** The pack's SMS contacts; the rule wraps the core resolver anew for every resolver chain. */
   #autonomyCycle: Record<string, unknown> | undefined
-  #modelCallBudget: { remaining: number; exhausted: boolean } | undefined
+  readonly #callBudget: CallBudget = { current: undefined }
+  /** The round's notice and error flag, for the code that runs rounds outside this class. */
+  readonly #roundStatus: RoundStatus = {
+    set: (notice, error) => {
+      if (notice !== undefined) this.#notice = notice
+      if (error !== undefined) this.#error = error
+    },
+  }
   #activityView: WorldJsonObject | undefined
   #activityViews: WorldJsonObject[] | undefined
   /** Whether the last refresh allowed a wait; polling must not reopen the store to ask. */
@@ -603,12 +602,12 @@ export class WorldHostCore implements HostRuntime {
       presetsPrepare: this.#options.plugins?.llm === undefined,
       simulate: visible => this.#gameplay.activity?.simulate(visible),
       spendCall: () => {
-        if (!this.#modelCallBudget) return
-        if (this.#modelCallBudget.remaining <= 0) {
-          this.#modelCallBudget.exhausted = true
+        if (!this.#callBudget.current) return
+        if (this.#callBudget.current.remaining <= 0) {
+          this.#callBudget.current.exhausted = true
           throw new Error('自主处理模型调用预算已耗尽')
         }
-        this.#modelCallBudget.remaining--
+        this.#callBudget.current.remaining--
       },
       trace: (id, visible, source, raw) => {
         if (this.#inspector.enabled)
@@ -1009,7 +1008,14 @@ export class WorldHostCore implements HostRuntime {
         this.#lastPlayerIntent = 'clarification'
         return { accepted: false, react: false }
       }
-      const notice = this.#playerResolutionNotice(key, result.result.headSeq)
+      const notice = this.#intentEnabled
+        ? playerResolutionNotice(
+            resolve(this.#dataDirectory, 'world.sqlite'),
+            this.#address,
+            key,
+            result.result.headSeq,
+          )
+        : undefined
       return {
         accepted: result.result.status === 'accepted',
         react: true,
@@ -1341,69 +1347,6 @@ export class WorldHostCore implements HostRuntime {
     return this.submit(actionText(action))
   }
   /** The round result names only its first action; report any later player action rejected in the same commit. */
-  #playerResolutionNotice(idempotencyKey: string, headSeq: number): string | undefined {
-    if (!this.#intentEnabled) return undefined
-    const worldPath = resolve(this.#dataDirectory, 'world.sqlite')
-    const jobs = new PlayerInputJobs(worldPath)
-    const world = new WorldStore(worldPath)
-    try {
-      const validated = jobs.read(this.#address, idempotencyKey)?.records.validated as
-        | {
-            sourceText?: string
-            actions?: readonly { actionId: string; actionType: string }[]
-            sourceSpans?: readonly { actionId: string; endUtf16: number; text: string }[]
-          }
-        | undefined
-      if (validated?.actions === undefined) return undefined
-      const resolutions = new Map(
-        world
-          .readEvents(this.#address, headSeq)
-          .filter(
-            event => event.eventType === 'action.resolved' && (event.data as WorldJsonObject).sourceRole === 'player',
-          )
-          .map(event => {
-            const data = event.data as WorldJsonObject
-            return [data.actionId, data] as const
-          }),
-      )
-      const failed = validated.actions.filter(action => resolutions.get(action.actionId)?.accepted !== true)
-      const accepted = validated.actions.length - failed.length
-      const details = failed
-        .map(action => {
-          const quote = validated.sourceSpans
-            ?.filter(span => span.actionId === action.actionId)
-            .map(span => span.text)
-            .join('')
-          const reason = resolutions.get(action.actionId)?.reason
-          // Players read the shared plain-language wording; raw rejection codes stay out of the notice.
-          const explained = typeof reason === 'string' ? rejectionReasonText(reason)?.replace(/。$/u, '') : undefined
-          return `“${quote || action.actionType}”未执行${explained === undefined ? '' : `：${explained}`}`
-        })
-        .join('；')
-      const lastEnd = Math.max(0, ...(validated.sourceSpans ?? []).map(span => span.endUtf16))
-      const trailing = validated.sourceText?.slice(lastEnd).replace(/^[\s\p{P}]+|[\s\p{P}]+$/gu, '') ?? ''
-      const omitted =
-        trailing === ''
-          ? ''
-          : `句尾“${trailing.length > 80 ? `${trailing.slice(0, 80)}…` : trailing}”没有映射到本次动作或表达。`
-      if (failed.length === 0 && omitted === '') return undefined
-      const rejected =
-        failed.length === 0 ? '' : `${accepted > 0 ? '玩家输入已部分提交' : '玩家动作未成功'}：${details}。`
-      return `${rejected}${omitted}请以转录和当前场景为准。`
-    } finally {
-      world.close()
-      jobs.close()
-    }
-  }
-
-  /**
-   * What actually became of an input whose turn failed.
-   *
-   * A turn can fail after the input was durably recorded - a Host that lost its writer lease while the page
-   * sat idle, an interrupted process - and the durable input queue completes it later. Telling the player
-   * to say it another way then invites a second submission, and the world does the same thing twice; so the
-   * player is told the state instead. An input the world never received is the case where retrying is right.
-   */
   async #whatBecameOf(idempotencyKey: string): Promise<string> {
     const jobs = new PlayerInputJobs(resolve(this.#dataDirectory, 'world.sqlite'))
     try {
@@ -1522,10 +1465,20 @@ export class WorldHostCore implements HostRuntime {
             )
               // Activity owns its participants' opportunities; autonomy never takes over its turn.
               .filter(role => !active?.game.active || !active.participants.includes(role.characterId))
-      await this.#runActivityChain(store, turn)
+      await runActivityChain({
+        gameplay: this.#gameplay,
+        status: this.#roundStatus,
+        settings: this.#playSettings,
+        address: this.#address,
+        controller: this.#continuationController!,
+        store,
+        turn,
+        isPaused: () => this.#paused,
+        resultUnknown: () => this.#capabilities?.resultUnknown === true,
+      })
       this.#allowInterruption = !this.#gameplay.activity?.current()?.game.active
       if (activityOnly) {
-        await this.#activateAutonomous(store, createTurn, due, new Map())
+        await this.#autonomousRound(store, createTurn, due, new Map())
         return
       }
       await this.#runSceneReactions(store, turn, createTurn, due, active)
@@ -1535,7 +1488,7 @@ export class WorldHostCore implements HostRuntime {
       leases.close()
       store.close()
       this.#continuationController = undefined
-      this.#modelCallBudget = undefined
+      this.#callBudget.current = undefined
       if (!this.#paused && !this.#escaping) this.#memory?.startPending?.()
     }
   }
@@ -1590,54 +1543,6 @@ export class WorldHostCore implements HostRuntime {
     }
   }
 
-  /** Let the running activity hand opportunities to its participants until it stops, its budget ends or it times out. */
-  async #runActivityChain(store: WorldStore, turn: CharacterTurn): Promise<void> {
-    const controller = this.#continuationController!
-    let selected = this.#gameplay.activity?.schedule()
-    // Creator selects the next participant; the host bounds the entire chain.
-    const activitySignal = AbortSignal.any([
-      controller.signal,
-      AbortSignal.timeout(this.#playSettings.activityDeadlineSeconds * 1000),
-    ])
-    for (
-      let opportunity = 0;
-      opportunity < this.#playSettings.activityOpportunities &&
-      selected !== undefined &&
-      !activitySignal.aborted &&
-      !this.#paused;
-      opportunity++
-    ) {
-      const result = await turn.run(brandId(selected, 'CharacterId'), {
-        signal: activitySignal,
-        maxCalls: 2,
-        stimulus: new CharacterViewBuilder(store)
-          .rebuildAt(this.#address, brandId(selected, 'CharacterId'), store.head(this.#address).headSeq)
-          .observations.toSorted((left, right) => left.sourceSeq - right.sourceSeq)
-          .slice(-8)
-          .map(o => o.value as WorldJsonObject),
-      })
-      if (this.#capabilities?.resultUnknown) return
-      this.#error = result.failure !== undefined
-      this.#notice =
-        result.failure === undefined
-          ? result.status === 'abstained'
-            ? '角色本次没有提交操作，当前轮次保留；可以再次请求处理或逃生。'
-            : '角色处理已完成。'
-          : result.failure === 'invalid_output'
-            ? '角色返回格式无效，当前轮次没有推进；可重试或逃生。'
-            : '角色决策处理未完成，当前轮次没有推进；可重试或逃生。'
-      selected = activitySignal.aborted
-        ? undefined
-        : this.#gameplay.activity!.outcome(result as unknown as WorldJsonObject)
-      if (opportunity === this.#playSettings.activityOpportunities - 1 && selected !== undefined)
-        this.#notice = '本次活动处理达到宿主预算上限；已提交结果保留，可再次请求处理或逃生。'
-    }
-    if (activitySignal.aborted) {
-      this.#notice = '活动处理已取消或超时；已提交结果保留，未完成操作没有换手。'
-      this.#error = true
-    }
-  }
-
   /** One bounded wave cycle for everyone who observed the committed input, then any autonomy left due. */
   async #runSceneReactions(
     store: WorldStore,
@@ -1685,13 +1590,13 @@ export class WorldHostCore implements HostRuntime {
     })
     this.#activationCycle = cycle
     this.#autonomyCycle = autonomy
-    this.#reactionNotice(cycle)
-    if (autonomy) this.#autonomyNotice(autonomy.terminalReason)
+    reactionNotice(this.#roundStatus, cycle, this.#roleCalls, this.#pluginFailures)
+    if (autonomy) autonomyNotice(this.#roundStatus, autonomy.terminalReason)
     else if (!controller.signal.aborted && cycle.terminalReason !== 'plugin_failed') {
       const counts = new Map<CharacterId, number>()
       for (const activation of this.#activationCycle.activations)
         counts.set(activation.characterId, (counts.get(activation.characterId) ?? 0) + 1)
-      await this.#activateAutonomous(store, createTurn, due, counts)
+      await this.#autonomousRound(store, createTurn, due, counts)
     }
   }
 
@@ -1818,143 +1723,35 @@ export class WorldHostCore implements HostRuntime {
   }
 
   /** Tell the player how the reaction cycle ended, without claiming more was committed than was. */
-  #reactionNotice(cycle: SchedulerResult): void {
-    const terminal = cycle.terminalReason
-    if (terminal === 'plugin_failed') {
-      this.#error = true
-      this.#notice = SCHEDULER_FAILED_NOTICE
-      return
-    }
-    if (terminal === 'failed' || terminal === 'interrupted') {
-      const failureStatus = terminal === 'interrupted' ? 'interrupted' : 'failed'
-      const activation =
-        cycle.activations.find(activation => activation.result.status === failureStatus) ?? cycle.activations.at(-1)
-      const relevant = activation?.result
-      const failedCall = activation === undefined ? undefined : this.#roleCalls.get(String(activation.characterId))
-      const committed = relevant?.performResult !== undefined
-      const failedPlugin =
-        activation === undefined ? undefined : this.#pluginFailures.get(String(activation.characterId))
-      const cause =
-        terminal === 'interrupted'
-          ? '角色处理被打断或超时'
-          : failedPlugin !== undefined
-            ? `插件 ${failedPlugin} 出错，详情见游戏进程的输出`
-            : relevant?.failure === 'invalid_output'
-              ? '角色返回格式无效'
-              : relevant?.failure === 'preset_failed'
-                ? '角色预设处理失败，请检查提示节点与文本规则'
-                : relevant?.failure === 'provider_failed'
-                  ? providerFailureNotice(failedCall?.status === 'failed' ? failedCall.httpStatus : undefined)
-                  : '角色处理失败'
-      this.#error = true
-      this.#notice = `玩家输入已提交；${cause}。${
-        committed
-          ? '交互结果已提交，后续表达未完成；请看转录中的实际结果。可以继续行动，无需重发上一句。'
-          : '已经发表的回应保留；尚未完成的角色行动或表达没有提交。可以继续行动，无需重发上一句。'
-      }`
-    } else if (terminal === 'call_limit' || terminal === 'wave_limit' || terminal === 'character_limit') {
-      this.#notice = '玩家输入已提交；本轮角色反应达到预算上限，剩余反应没有继续执行。可以继续行动，无需重发上一句。'
-    } else {
-      this.#notice = '本轮角色处理已结束，可以继续行动；角色也可以选择不回应。'
-    }
-  }
-
-  async #activateAutonomous(
+  async #autonomousRound(
     store: WorldStore,
     createTurn: (autonomous?: boolean) => CharacterTurn,
     due: AutonomousRole[],
     counts: Map<CharacterId, number>,
   ): Promise<void> {
     if (!due.length || this.#paused || this.#abortedWork || !this.#continuationController) return
-    const settings = this.#playSettings
-    const signal = AbortSignal.any([
-      this.#continuationController.signal,
-      AbortSignal.timeout(settings.autonomyDeadlineSeconds * 1000),
-    ])
-    const before = store.head(this.#address).headSeq
-    const activations: { characterId: CharacterId; result: Awaited<ReturnType<CharacterTurn['run']>> }[] = []
-    this.#modelCallBudget = { remaining: settings.autonomyNpcCalls, exhausted: false }
-    let calls = 0,
-      reason = 'quiescent'
-    const turn = this.#track(createTurn(true))
-    outer: for (let opportunity = 0; opportunity < settings.autonomyOpportunities; opportunity++) {
-      for (const role of due) {
-        if (opportunity >= role.opportunities) continue
-        if (this.#paused || signal.aborted) {
-          reason = 'interrupted'
-          break outer
-        }
-        const remaining = Math.min(settings.autonomyNpcCalls - calls, this.#modelCallBudget.remaining)
-        if (remaining < 2) {
-          reason = 'call_limit'
-          break outer
-        }
-        const stimulus = new CharacterViewBuilder(store)
-          .rebuildAt(this.#address, role.characterId, store.head(this.#address).headSeq)
-          .observations.filter(o => o.sourceSeq > this.#rootBeforeSeq)
-          .map(o => o.value as WorldJsonObject)
-        const result = await turn.run(role.characterId, { signal, maxCalls: 2, maxModelCalls: remaining, stimulus })
-        calls += result.calls
-        activations.push({ characterId: role.characterId, result })
-        counts.set(role.characterId, (counts.get(role.characterId) ?? 0) + 1)
-        if (result.status === 'failed' || result.status === 'interrupted') {
-          reason = this.#modelCallBudget.exhausted ? 'call_limit' : result.status
-          break outer
-        }
-      }
-    }
-    const autonomousCalls = settings.autonomyNpcCalls - this.#modelCallBudget.remaining
-    let reactions: SchedulerResult | undefined
-    if (
-      !signal.aborted &&
-      !this.#paused &&
-      reason !== 'failed' &&
-      reason !== 'interrupted' &&
-      settings.autonomyReactionWaves > 0
-    ) {
-      this.#modelCallBudget = { remaining: settings.autonomyReactionCalls, exhausted: false }
-      const active = this.#gameplay.activity?.current()
-      reactions = await this.#schedule({
-        store,
-        address: this.#address,
-        turn: this.#track(createTurn()),
-        afterSeq: before,
-        signal,
-        characterIds: this.#characterIds.filter(
-          id =>
-            !due.some(role => role.characterId === id) && (!active?.game.active || !active.participants.includes(id)),
-        ),
-        presentCharacterIds: () => (this.#currentScene?.recipients ?? []).map(p => brandId(p.id, 'CharacterId')),
-        allowConcurrent: !this.#options.serialScheduling && !active?.game.active && !this.#serialDecisions,
-        locationId: (id: CharacterId) => currentLocation(store.readEvents(this.#address), id) ?? null,
-        initialCounts: counts,
-        limits: {
-          maximumWaves: settings.autonomyReactionWaves,
-          maximumNpcCalls: settings.autonomyReactionCalls,
-          maximumCallsPerCharacter: settings.maximumCallsPerCharacter,
-          reactionDeadlineSeconds: settings.autonomyDeadlineSeconds,
-        },
-      })
-      if (this.#modelCallBudget.exhausted) reason = 'call_limit'
-      else if (reactions.terminalReason !== 'quiescent') reason = reactions.terminalReason
-    }
-    if (signal.aborted) reason = 'interrupted'
-    const reactionCalls = reactions === undefined ? 0 : settings.autonomyReactionCalls - this.#modelCallBudget.remaining
-    this.#autonomyCycle = { activations, autonomousCalls, reactionCalls, reactions, terminalReason: reason }
-    this.#modelCallBudget = undefined
-    this.#autonomyNotice(reason)
-  }
-
-  #autonomyNotice(reason: string): void {
-    if (reason === 'failed' || reason === 'interrupted') {
-      this.#error = true
-      this.#notice = '玩家输入及已提交的角色行动保留；自主处理失败或超时，未完成的机会已丢弃，可以继续行动。'
-    } else if (reason === 'plugin_failed') {
-      this.#error = true
-      this.#notice = SCHEDULER_FAILED_NOTICE
-    } else if (reason === 'call_limit' || reason === 'wave_limit' || reason === 'character_limit') {
-      this.#notice = '自主行动或后续反应达到预算上限；已提交结果保留，未使用机会不积攒，可以继续行动。'
-    }
+    const { cycle, reason } = await runAutonomousRound({
+      gameplay: this.#gameplay,
+      settings: this.#playSettings,
+      address: this.#address,
+      controller: this.#continuationController,
+      budget: this.#callBudget,
+      store,
+      createTurn,
+      due,
+      counts,
+      rootBeforeSeq: this.#rootBeforeSeq,
+      characterIds: this.#characterIds,
+      serialScheduling: this.#options.serialScheduling === true,
+      isPaused: () => this.#paused,
+      serialDecisions: () => this.#serialDecisions,
+      recipients: () => this.#currentScene?.recipients ?? [],
+      track: turn => this.#track(turn),
+      schedule: input => this.#schedule(input),
+    })
+    this.#autonomyCycle = cycle
+    this.#callBudget.current = undefined
+    autonomyNotice(this.#roundStatus, reason)
   }
 
   /** What the player can see of the items now, as a character would: in hand, on the ground here, or in the
