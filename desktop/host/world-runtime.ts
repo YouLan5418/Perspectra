@@ -53,6 +53,9 @@ import {
 } from './character-decision.ts'
 import { guardedRules, layeredCoreRules } from './rule-layers.ts'
 import { WorldGameplay } from './world-gameplay.ts'
+import { creatorHistorySnapshot, creatorInspectionSnapshot, type CreatorQueryHost } from './creator-queries.ts'
+import { routeGameplayInput } from './player-input.ts'
+import { projectStatus, withMessageActions } from './gameplay-projection.ts'
 import { runActivityChain } from './activity-round.ts'
 import { runAutonomousRound, type CallBudget } from './autonomy-round.ts'
 import {
@@ -173,15 +176,6 @@ export function isV5SourcePackDirectory(packPath: string): boolean {
 
 /** Player submission commits first; ordinary NPC work then uses bounded dynamic dispatch. */
 /** `/status <operation>[@<item>] <json>`: a status operation, done to an item when one is named. */
-function statusCommand(text: string): { operation: string; targetId?: string; parameters: WorldJsonObject } {
-  const match = /^\/status ([a-z][a-z0-9-]*)(?:@(\S+))? (.+)$/su.exec(text)
-  if (match === null) throw new TypeError('状态命令格式无效')
-  return {
-    operation: match[1]!,
-    ...(match[2] === undefined ? {} : { targetId: match[2] }),
-    parameters: JSON.parse(match[3]!) as WorldJsonObject,
-  }
-}
 
 /** What one committed player input means for its turn: whether to go on, and whether anyone reacts. */
 interface InputOutcome {
@@ -206,153 +200,33 @@ export class WorldHostCore implements HostRuntime {
   inheritCreatorBase(baseId: string, branchId: string): void {
     this.#records.inheritBase(baseId, branchId)
   }
-  creatorHistory(input: CreatorHistoryQuery = {}) {
-    if (this.#closing) throw new TypeError('运行实例已关闭')
-    const query = creatorHistoryQuery(input as Record<string, unknown>)
-    if (query.characterId !== undefined && !this.#names.has(query.characterId)) throw new TypeError('未知角色')
-    const store = new WorldStore(resolve(this.#dataDirectory, 'world.sqlite'))
-    try {
-      if (
-        query.entityId !== undefined &&
-        currentEntityState(store.readEvents(this.#address), query.entityId) === undefined
-      )
-        throw new TypeError('未知物品')
-      return {
-        ...creatorHistory(store, this.#address, this.#worldVersion, query),
-        scope: structuredClone(this.#records.scope),
-      }
-    } finally {
-      store.close()
+  /** Read fresh for each query, so that it sees the world as it is now. */
+  #creatorQueryHost(): CreatorQueryHost {
+    return {
+      closing: this.#closing,
+      names: this.#names,
+      dataDirectory: this.#dataDirectory,
+      address: this.#address,
+      locationNames: this.#locationNames,
+      inspector: this.#inspector,
+      activationCycle: this.#activationCycle,
+      gameplay: this.#gameplay,
+      worldVersion: this.#worldVersion,
+      title: this.#title,
+      packHash: this.#packHash,
+      storyParentNodeId: this.#storyParentNodeId,
+      busy: this.#busy,
+      paused: this.#paused,
+      memory: this.#memory,
+      memoryIsCore: this.#memoryIsCore,
+      records: this.#records,
     }
   }
+  creatorHistory(input: CreatorHistoryQuery = {}) {
+    return creatorHistorySnapshot(this.#creatorQueryHost(), input)
+  }
   creatorInspection(input: CreatorInspectionQuery = {}): CreatorInspectionSnapshot {
-    if (this.#closing) throw new TypeError('运行实例已关闭')
-    const query = creatorInspectionQuery(input as Record<string, unknown>)
-    if (query.characterId !== undefined && !this.#names.has(query.characterId)) throw new TypeError('未知角色')
-    const store = new WorldStore(resolve(this.#dataDirectory, 'world.sqlite'))
-    try {
-      const head = store.head(this.#address),
-        events = store.readEvents(this.#address, head.headSeq)
-      if ((query.afterSeq ?? 0) > head.headSeq) throw new TypeError('查询游标超过当前世界时刻')
-      const scenes = currentSceneStates(events),
-        limit = query.limit ?? 50
-      const characters = [...this.#names].map(([id, name]) => {
-        const locationId = currentLocation(events, id) ?? null
-        return {
-          id,
-          name,
-          locationId,
-          locationName: locationId === null ? null : (this.#locationNames.get(locationId) ?? locationId),
-          sceneIds: scenes
-            .filter(scene => scene.lifecycle !== 'closed' && scene.participantIds.includes(id))
-            .map(scene => scene.sceneId),
-          lifecycle: currentCharacterLifecycle(events, id) ?? 'unknown',
-          lastMovementSeq:
-            events.findLast(
-              event => event.eventType === 'character.moved' && (event.data as WorldJsonObject).characterId === id,
-            )?.seq ?? null,
-          processing: {
-            transport: this.#inspector.status(id),
-            lastActivation:
-              this.#activationCycle?.activations.findLast(activation => activation.characterId === id)?.result ?? null,
-          },
-        }
-      })
-      const entityIds = [
-        ...new Set(
-          events
-            .filter(event => event.eventType === 'entity.upsert')
-            .map(event => String((event.data as WorldJsonObject).entityId)),
-        ),
-      ]
-      const entities = entityIds.map(id => {
-        const state = currentEntityState(events, id)!
-        const holderLocation = characters.find(character => character.id === state.holderId)?.locationId ?? null
-        // 状态更新的 upsert 常常只写 kind / locationId，名称取最近一次写明 name 的记录。
-        const named = events.findLast(
-          event =>
-            event.eventType === 'entity.upsert' &&
-            (event.data as WorldJsonObject).entityId === id &&
-            typeof (event.data as WorldJsonObject).name === 'string',
-        )
-        return {
-          id,
-          name: String((named?.data as WorldJsonObject | undefined)?.name ?? id),
-          state,
-          holderMeaning: 'custody' as const,
-          effectiveLocationId: state.locationId ?? holderLocation,
-          locationBasis:
-            state.locationId !== null
-              ? ('entity' as const)
-              : holderLocation !== null
-                ? ('holder' as const)
-                : ('unknown' as const),
-          lastChangeSeq: events.findLast(
-            event => event.eventType.startsWith('entity.') && (event.data as WorldJsonObject).entityId === id,
-          )!.seq,
-        }
-      })
-      const selectedEvents =
-        query.afterSeq === undefined
-          ? events.slice(-limit)
-          : events.filter(event => event.seq > query.afterSeq!).slice(0, limit)
-      const nextAfterSeq = selectedEvents.at(-1)?.seq ?? query.afterSeq ?? head.headSeq
-      // The creator sees true status values; players and roles only ever get their own known values.
-      const truth = this.#gameplay.status?.truth(events)
-      const result: CreatorInspectionSnapshot = {
-        capturedAt: new Date().toISOString(),
-        address: this.#address,
-        worldVersion: this.#worldVersion,
-        title: this.#title,
-        headSeq: head.headSeq,
-        tick: head.tick,
-        packHash: this.#packHash,
-        storyParentNodeId: this.#storyParentNodeId,
-        busy: this.#busy,
-        paused: this.#paused,
-        captureEnabled: this.#inspector.enabled,
-        characters,
-        entities,
-        statusTruth: truth ? { public: truth.public, characters: truth.characters } : null,
-        activities: this.#gameplay.activity?.debugStates(events) ?? [],
-        events: { items: selectedEvents, nextAfterSeq, hasMore: nextAfterSeq < head.headSeq },
-        limitations: [
-          'holderId 表示保管或携带，不证明法律所有权。',
-          '物品随保管者的位置是推导值，不表示精确物理位置。',
-          '事件中的 observation.upsert 记录实际信息接收者；对白的 addresseeIds 不等于全部观察者。',
-          '调用状态是传输证据，lastActivation 是最近已完成周期结果；未采集或正在调度时不推测角色意图。',
-          ...(truth ? ['状态为事件日志中的当前真实值；玩家和角色只看到各自上次确认的值。'] : []),
-        ],
-      }
-      if (query.characterId !== undefined) {
-        const id = query.characterId
-        const archive = this.#memory?.inspect?.(id, query.memoryOffset ?? 0, limit)
-        result.character = {
-          id,
-          currentView: new CharacterViewBuilder(store).rebuildAt(
-            this.#address,
-            brandId(id, 'CharacterId'),
-            head.headSeq,
-          ),
-          latestRequest: this.#inspector.latest(id),
-          contextNotice:
-            'currentView 是当前授权视图；latestRequest 是启用采集后该角色最近一次实际请求，时刻可能早于当前世界。每角色保留最近一次，超出总容量会淘汰。',
-          memory: {
-            mode: this.#memoryIsCore ? 'core' : 'none',
-            // The shape an implementation reports; the creator page only displays it.
-            archivePrefix: (archive?.archivePrefix ?? null) as number | null,
-            sections: (archive?.sections ?? {}) as never,
-            maintenance: (archive?.maintenance ?? null) as WorldJsonObject | null,
-            notice: this.#memoryIsCore
-              ? '已安装档案分页，不触发整理或召回。本次实际召回见 latestRequest.contextParts 的 memories。'
-              : '当前没有长期记忆档案；授权经历见 currentView。',
-          },
-        }
-      }
-      return structuredClone(result)
-    } finally {
-      store.close()
-    }
+    return creatorInspectionSnapshot(this.#creatorQueryHost(), input)
   }
   readonly #application: WorldApplication
   readonly #address
@@ -899,85 +773,19 @@ export class WorldHostCore implements HostRuntime {
   /** Commits one input without letting anyone react. `accepted` is false when the world refused or never took it. */
   async #commitInput(text: string, key: string, inActivity: boolean): Promise<InputOutcome> {
     await this.#application.yieldWriter(this.#address)
-    if (inActivity) {
-      // A refusal throws: an activity commits nothing for a rejected player action.
-      if (text.startsWith('/act ')) {
-        const match = /^\/act (speak|move|interact) (.+)$/u.exec(text)
-        if (match === null) throw new TypeError('动作命令格式无效')
-        const parameters = JSON.parse(match[2]!) as WorldJsonObject
-        await this.#gameplay.activity!.worldAction({ actionType: match[1]!, parameters }, key)
-      } else if (text.startsWith('/status ')) {
-        // During an activity a status operation is an ordinary interaction under the activity's policy.
-        const command = statusCommand(text)
-        await this.#gameplay.activity!.worldAction(
-          {
-            actionType: 'interact',
-            parameters: {
-              targetRef:
-                command.targetId === undefined
-                  ? { kind: 'character', id: this.#playerId }
-                  : { kind: 'entity', id: command.targetId },
-              bindingId: 'status',
-              definitionRef: { id: 'status:' + command.operation, version: 1 },
-              arguments: command.parameters,
-            },
-          },
-          key,
-        )
-      } else await this.#gameplay.activity!.speak(text, key)
-      this.#notice = '操作已提交；单纯对白不消耗游戏行动回合。'
-      return { accepted: true, react: true }
-    }
-    if (text.startsWith('/message ')) {
-      if (!this.#gameplay.communication) throw new TypeError('本包没有开启短信')
-      const message = JSON.parse(text.slice('/message '.length)) as WorldJsonObject
-      const recipientId = String(message.recipientId)
-      if (typeof message.text !== 'string' || !message.text.trim())
-        throw new TypeError(this.#gameplay.communication.medium + '内容不能为空')
-      if (message.text.length > this.#playSettings.publicationCharacters)
-        throw new RangeError(this.#gameplay.communication.medium + '太长了')
-      const path = resolve(this.#dataDirectory, 'world.sqlite')
-      const store = new WorldStore(path),
-        leases = new WriterLeaseService(path)
-      try {
-        // Only an active contact is offered; the rule would record anything else as a refused message.
-        if (
-          !this.#gameplay.communication
-            .options(store.readEvents(this.#address), this.#playerId)
-            .some(option => option.targetRef.id === recipientId)
-        )
-          throw new TypeError('不能给这个人发' + this.#gameplay.communication.medium)
-        await this.#gameplay.communication.send({
-          store,
-          leases,
-          address: this.#address,
-          manifest: this.#entities,
-          actorId: this.#playerId,
-          recipientId,
-          text: message.text,
-        })
-      } finally {
-        leases.close()
-        store.close()
-      }
-      this.#notice = this.#gameplay.communication.medium + '已发出，不代表对方已读或同意。'
-      return { accepted: true, react: true }
-    }
-    if (text.startsWith('/status ')) {
-      const command = statusCommand(text)
-      // A rejection throws with the reason; a retried request returns its original result and starts no round.
-      const changed = await this.#gameplay.status!.apply(
-        resolve(this.#dataDirectory, 'world.sqlite'),
-        this.#address,
-        this.#playerId,
-        command.operation,
-        command.parameters,
-        key,
-        command.targetId,
-      )
-      this.#notice = changed ? '状态操作已提交。' : '已返回原提交结果，没有再次执行。'
-      return { accepted: true, react: changed }
-    }
+    const routed = await routeGameplayInput({
+      gameplay: this.#gameplay,
+      status: this.#roundStatus,
+      worldPath: resolve(this.#dataDirectory, 'world.sqlite'),
+      address: this.#address,
+      playerId: this.#playerId,
+      manifest: this.#entities,
+      publicationCharacters: this.#playSettings.publicationCharacters,
+      text,
+      key,
+      inActivity,
+    })
+    if (routed) return routed
     this.#phaseLabel = text.startsWith('/') ? '正在执行命令' : '正在提交发言'
     this.#lastPlayerIntent = text.startsWith('/') ? 'command' : 'natural-language'
     try {
@@ -1889,31 +1697,17 @@ export class WorldHostCore implements HostRuntime {
           view.asOfWorldSeq,
         )
         if (this.#gameplay.status) {
-          // The player is offered status operations under the same rules as an NPC; a running activity's
-          // policy filter below applies to them as to any other interaction.
-          this.#availableActions = this.#gameplay.status.withOperations(
+          const projected = projectStatus(
+            this.#gameplay.status,
             this.#availableActions,
             events,
             this.#playerId,
-            this.#playerId,
+            this.#names,
           )
-          const named = <T extends { holderId: string | null }>(entry: T) =>
-            entry.holderId === null
-              ? entry
-              : {
-                  ...entry,
-                  holderName: this.#names.get(entry.holderId) ?? entry.holderId,
-                  ...(entry.holderId === this.#playerId ? { self: true } : {}),
-                }
+          this.#availableActions = projected.availableActions
           this.#transcript = this.#withPauses(this.#transcript, events)
-          // The bar shows what the author pinned; the stage lists the rest in its status drawer.
-          const pinned = new Set(this.#gameplay.status.statuses.filter(s => s.bar).map(s => s.key))
-          this.#statusBar = this.#gameplay.status
-            .known(events, this.#playerId)
-            .map(named)
-            .map(entry => (pinned.has(entry.key) ? { ...entry, pinned: true as const } : entry))
-          // Author opt-in only: these never enter any character's context.
-          this.#statusTruth = this.#gameplay.status.playerTruth(events).map(named)
+          this.#statusBar = projected.statusBar
+          this.#statusTruth = projected.statusTruth
         }
         this.#items = this.#visibleItems(events, scene.observerIds)
         this.#currentScene = {
@@ -1926,21 +1720,15 @@ export class WorldHostCore implements HostRuntime {
             .map(id => ({ id, name: this.#names.get(id) ?? id })),
           presentNpcNames: scene.observerIds.filter(id => id !== this.#playerId).map(id => this.#names.get(id) ?? id),
         }
-        if (this.#gameplay.communication) {
-          // The player writes the text in the form; the label names the contact, who may be anywhere.
-          const messages = this.#gameplay.communication
-            .options(events, this.#playerId, this.#playSettings.publicationCharacters)
-            .map(option => ({
-              ...option,
-              arguments: {},
-              label: '给 ' + (this.#names.get(option.targetRef.id) ?? option.targetRef.id) + ' 发' + option.medium,
-            }))
-          if (messages.length)
-            this.#availableActions = [
-              ...this.#availableActions,
-              { actionType: 'interact', actionVersion: 2, interactions: messages },
-            ]
-        }
+        if (this.#gameplay.communication)
+          this.#availableActions = withMessageActions(
+            this.#gameplay.communication,
+            this.#availableActions,
+            events,
+            this.#playerId,
+            this.#playSettings.publicationCharacters,
+            this.#names,
+          )
       } finally {
         availability.close()
       }
