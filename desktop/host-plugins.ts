@@ -17,6 +17,8 @@ import {
   type DecisionsApi,
   type LlmInstance,
   type LlmSlotApi,
+  type RulesApi,
+  type RulesInstance,
   type MemorySlotApi,
   type PlayerFeedApi,
   type PlayerFeedEvent,
@@ -152,6 +154,23 @@ export class DecisionRegistry extends Service implements DecisionsApi {
   }
 }
 
+export class RuleRegistry extends Service implements RulesApi {
+  providers: readonly SeamProvider<RulesInstance>[] = []
+
+  constructor(ctx: Context) {
+    super(ctx, 'rules')
+  }
+
+  /** Own the returned disposer with the registering plugin's ctx.effect(). */
+  register(provider: SeamProvider<RulesInstance>): () => void {
+    if (this.providers.some(other => other.id === provider.id)) throw new Error(`规则层 ${provider.id} 已注册`)
+    this.providers = [...this.providers, provider]
+    return () => {
+      this.providers = this.providers.filter(other => other !== provider)
+    }
+  }
+}
+
 /** Host-only presentation services; this context does not contain world runtime services. */
 export class FrontendServices extends Service implements FrontendHostServices, FrontendServicesApi {
   synthesizeSpeech: SpeechSynthesizer | undefined
@@ -273,6 +292,7 @@ export async function loadHostPlugins(
   const memory = new MemorySlot(root)
   const llm = new LlmSlot(root)
   const decisions = new DecisionRegistry(root)
+  const rules = new RuleRegistry(root)
   const skipped: SkippedHostPlugin[] = []
   const llmPlugins = new Set<string>()
   installPluginResolver()
@@ -357,6 +377,7 @@ export async function loadHostPlugins(
           }
         : {}),
       ...(decisions.providers.length ? { decisions: decisions.providers } : {}),
+      ...(rules.providers.length ? { rules: rules.providers } : {}),
     },
     skipped,
     close: () => root.fiber.dispose(),

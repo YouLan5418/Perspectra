@@ -3,6 +3,7 @@ import type {
   DecisionInstance,
   LlmInstance,
   MemoryInstance,
+  RulesInstance,
   SchedulerInstance,
   SeamProvider,
 } from '@harness-world/plugin-sdk'
@@ -46,6 +47,8 @@ export interface HostSeams {
   readonly llm?: SeamProvider<LlmInstance>
   /** Applied in order; the first is outermost. */
   readonly decisions?: readonly SeamProvider<DecisionInstance>[]
+  /** Layers around the official rules; the first is outermost. */
+  readonly rules?: readonly SeamProvider<RulesInstance>[]
 }
 
 /** The default bundle, and the only production file allowed to import `packages/official-*`. */

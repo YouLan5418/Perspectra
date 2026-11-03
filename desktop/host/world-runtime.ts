@@ -7,7 +7,6 @@ import {
   type CreatorInspectionSnapshot,
 } from './creator-inspection.ts'
 import {
-  createCoreRulebookRegistry,
   currentCharacterLifecycle,
   currentEntityState,
   currentLocation,
@@ -52,6 +51,7 @@ import {
   type DecisionParts,
   type ReportPluginFailure,
 } from './character-decision.ts'
+import { guardedRules, layeredCoreRules } from './rule-layers.ts'
 import { PackActivities, type ActivityDefinitionView, type AutoStartEvaluation } from './pack-activities.ts'
 import {
   KNOWN_STATUS_NOTE,
@@ -108,6 +108,7 @@ import type {
   DecisionInstance,
   LlmInstance,
   MemoryInstance,
+  RulesInstance,
   SchedulerInstance,
   SchedulerResult,
   WorldServices,
@@ -379,6 +380,8 @@ export class WorldHostCore implements HostRuntime {
   readonly #characterIds: readonly CharacterId[]
   #llm!: LlmInstance
   #decisions: DecisionInstance[] = []
+  #ruleLayers: RulesInstance[] = []
+  readonly #coreRegistry = layeredCoreRules(() => this.#ruleLayers)
   #memory: MemoryInstance | undefined
   #memoryIsCore = false
   #memoryId = ''
@@ -478,9 +481,9 @@ export class WorldHostCore implements HostRuntime {
   readonly #roleCalls = new Map<string, ChatCallObservation>()
   /** Which plugin failed each character's latest decision, for the player's notice. */
   readonly #pluginFailures = new Map<string, string>()
-  readonly #reportPlugin: ReportPluginFailure = (pluginId, request, error) => {
+  readonly #reportPlugin: ReportPluginFailure = (pluginId, characterId, error) => {
     console.error(`[插件 ${pluginId}] 角色决策失败：`, error)
-    this.#pluginFailures.set(String((request.context.character as WorldJsonObject).characterId), pluginId)
+    this.#pluginFailures.set(characterId, pluginId)
   }
   #lastPlayerIntent: string | null = null
   #rootBeforeSeq = 0
@@ -548,6 +551,7 @@ export class WorldHostCore implements HostRuntime {
     }
     this.#application = new WorldApplication({
       interactionPackages: createInstalledInteractionPackages(),
+      rulebooks: this.#coreRegistry,
       worldPath: resolve(options.dataDirectory, 'world.sqlite'),
       sessionPath: resolve(options.dataDirectory, 'session.sqlite'),
       memoryPath: resolve(options.dataDirectory, 'memory.sqlite'),
@@ -669,6 +673,7 @@ export class WorldHostCore implements HostRuntime {
     const runtime = new WorldHostCore(options, compiled, intentEnabled)
     try {
       await runtime.#openLlm()
+      await runtime.#openRules()
       await runtime.#openMemory()
       await runtime.#openDecisions()
       await runtime.#openScheduler()
@@ -721,6 +726,7 @@ export class WorldHostCore implements HostRuntime {
         runtime.#address,
         runtime.#playerId,
         runtime.#status,
+        runtime.#coreRules(),
       )
       if (modules)
         runtime.#activity?.setActionResolver((context, adjudicate) =>
@@ -1501,6 +1507,13 @@ export class WorldHostCore implements HostRuntime {
     } catch (error) {
       console.error('[模型通道插件] 关闭失败：', error)
     }
+    for (const layer of [...this.#ruleLayers].reverse()) {
+      try {
+        await layer.close?.()
+      } catch (error) {
+        console.error('[规则插件] 关闭失败：', error)
+      }
+    }
     for (const decision of [...this.#decisions].reverse()) {
       try {
         await decision.close?.()
@@ -1516,7 +1529,7 @@ export class WorldHostCore implements HostRuntime {
   }
 
   #coreRules(): RulebookRegistry {
-    return createCoreRulebookRegistry({ interactionPackages: createInstalledInteractionPackages() })
+    return this.#coreRegistry
   }
 
   /** Resolver chain: core, then the pack's SMS, then status operations, then the running activity's permissions. */
@@ -1820,6 +1833,18 @@ export class WorldHostCore implements HostRuntime {
     } catch (error) {
       if (this.#options.plugins?.llm === undefined) throw error
       throw new Error(`模型通道插件 ${provider.id} 无法打开：${(error as Error).message}`, { cause: error })
+    }
+  }
+
+  /** A rule the player chose must hold, so one that cannot open stops the world. */
+  async #openRules(): Promise<void> {
+    for (const provider of this.#options.plugins?.rules ?? []) {
+      try {
+        const opened = await provider.open(this.#services(provider.id), AbortSignal.timeout(30_000))
+        this.#ruleLayers.push(guardedRules(opened, provider.id, this.#reportPlugin))
+      } catch (error) {
+        throw new Error(`规则插件 ${provider.id} 无法打开：${(error as Error).message}`, { cause: error })
+      }
     }
   }
 

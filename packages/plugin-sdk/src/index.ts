@@ -1,3 +1,8 @@
+import type {
+  ActionAffordance,
+  RulebookResolution as RuleResolution,
+  RulebookResolutionContext as RuleContext,
+} from '@harness-world/kernel'
 import type { Context } from '@deepseek-ai/cordis'
 import type {
   CharacterId,
@@ -18,7 +23,7 @@ import type {
 
 /** Major.minor. A new service or optional field raises the minor; any change a plugin could trip over
  * raises the major. A plugin exports `hostApi` with the lowest version it needs. */
-export const HOST_API_VERSION = '1.3'
+export const HOST_API_VERSION = '1.4'
 
 /** Same major, and this host's minor at least the one the plugin asks for. */
 export function hostApiCompatible(required: unknown, host: string = HOST_API_VERSION): boolean {
@@ -307,6 +312,30 @@ export interface LlmSlotApi {
   readonly current: SeamProvider<LlmInstance> | undefined
 }
 
+export type {
+  ActionAffordance,
+  RulebookResolution as RuleResolution,
+  RulebookResolutionContext as RuleContext,
+} from '@harness-world/kernel'
+type AffordanceContext = Omit<RuleContext, 'action' | 'actionId'>
+
+/** One layer of rules around the official ones, for players, characters and activities alike. Rules decide
+ * synchronously and must be deterministic: regeneration relies on the same input giving the same answer. A
+ * resolution can only carry events the trunk already knows. */
+export interface RulesInstance {
+  resolve?(context: RuleContext, next: (context: RuleContext) => RuleResolution): RuleResolution
+  affordances?(
+    context: AffordanceContext,
+    next: (context: AffordanceContext) => readonly ActionAffordance[],
+  ): readonly ActionAffordance[]
+  close?(): void | Promise<void>
+}
+/** `ctx.rules`: any number of layers, the first registered outermost. Wrap `register` in `ctx.effect()`. */
+export interface RulesApi {
+  register(provider: SeamProvider<RulesInstance>): () => void
+  readonly providers: readonly SeamProvider<RulesInstance>[]
+}
+
 /** One way of taking part in every character decision. Everything is optional. */
 export interface DecisionInstance {
   /** Add to what this character knows before it decides. Runs after the host's own steps. */
@@ -339,6 +368,7 @@ export interface HostServices {
   memory: MemorySlotApi
   llm: LlmSlotApi
   decisions: DecisionsApi
+  rules: RulesApi
 }
 
 declare module '@deepseek-ai/cordis' {

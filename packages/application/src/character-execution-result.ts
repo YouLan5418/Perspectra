@@ -72,6 +72,8 @@ export function characterExecutionResult(input: {
 
 /** Plain-language text for a rejection code; undefined when the code has no reader-facing wording. */
 export function rejectionReasonText(reason: string | null): string | undefined {
+  // A plugin's rule writes its own wording, and says so with this prefix.
+  if (reason?.startsWith('plugin:')) return reason.slice('plugin:'.length)
   const descriptions: Record<string, string> = {
     SPEECH_RECIPIENT_UNREACHABLE:
       '指定对象中有人不在当前可交流范围，这次表达没有传达给任何收件人。你可以根据当前场景重新决定行动、表达或结束。',

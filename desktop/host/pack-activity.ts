@@ -247,6 +247,7 @@ export class PackActivity {
     readonly playerId: string,
     readonly key = 'default',
     readonly status?: PackStatus,
+    readonly coreRules?: RulebookRegistry,
   ) {
     this.#script = new Script(
       source +
@@ -338,6 +339,7 @@ export class PackActivity {
     entry = 'scripts/activity.js',
     key = 'default',
     status?: PackStatus,
+    coreRules?: RulebookRegistry,
   ) {
     const lock = pack.assets.find(a => a.path === entry)
     if (!lock) return undefined
@@ -355,7 +357,7 @@ export class PackActivity {
       'sha256:' + createHash('sha256').update(bytes).digest('hex') !== lock.contentHash
     )
       throw new TypeError('活动脚本与编译资产不一致')
-    return new PackActivity(bytes.toString('utf8'), worldPath, address, playerId, key, status)
+    return new PackActivity(bytes.toString('utf8'), worldPath, address, playerId, key, status, coreRules)
   }
   #call(method: string, args: unknown[]): unknown {
     const input = JSON.stringify(args)
@@ -698,12 +700,9 @@ export class PackActivity {
   rulebooks(external?: RulebookResolver): RulebookRegistry {
     const core =
       external ??
-      createCoreRulebookRegistry({ interactionPackages: createInstalledInteractionPackages() }).resolve(
-        'builtin:speak-move',
-        2,
-        'activity',
-        this.address,
-      )
+      (
+        this.coreRules ?? createCoreRulebookRegistry({ interactionPackages: createInstalledInteractionPackages() })
+      ).resolve('builtin:speak-move', 2, 'activity', this.address)
     // The host's own player actions get the same status operations as the runtime chain.
     const base = external ?? this.status?.resolver(core, this.worldPath, this.address, this.playerId) ?? core
     const resolver: RulebookResolver = {

@@ -238,6 +238,7 @@ export class TailRoundRuntime {
         ? { id: this.options.plugins.llm.id, version: this.options.plugins.llm.version }
         : null,
       decisionProviders: (this.options.plugins?.decisions ?? []).map(({ id, version }) => ({ id, version })),
+      ruleProviders: (this.options.plugins?.rules ?? []).map(({ id, version }) => ({ id, version })),
     })
   }
   async #run(input: TailRecord['input'], idempotencyKey?: string): Promise<HostState> {

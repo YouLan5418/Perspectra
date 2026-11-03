@@ -18,6 +18,7 @@ const SERVICE_LABELS: Record<PluginManifest['services'][number], string> = {
   memory: '替换角色记忆',
   llm: '替换角色模型通道（对话会发给插件指定的服务）',
   decisions: '参与角色决策',
+  rules: '增加世界规则',
 }
 
 const info = ref<PluginManifestInfo>()

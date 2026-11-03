@@ -67,7 +67,7 @@ export async function runDecision(
 }
 
 /** How a plugin's failure reaches the log and the player's notice. */
-export type ReportPluginFailure = (pluginId: string, request: MemoryRequest, error: unknown) => void
+export type ReportPluginFailure = (pluginId: string, characterId: string, error: unknown) => void
 
 /** Stops waiting when the signal fires, so a plugin that ignores it cannot hold the round open. */
 function untilAborted<T>(work: Promise<T>, signal: AbortSignal): Promise<T> {
@@ -85,7 +85,8 @@ function guard(id: string, report: ReportPluginFailure) {
     try {
       return await untilAborted(work(), signal)
     } catch (error) {
-      if (!signal.aborted && error !== passedOn?.()) report(id, request, error)
+      if (!signal.aborted && error !== passedOn?.())
+        report(id, String((request.context.character as WorldJsonObject).characterId), error)
       throw error
     }
   }

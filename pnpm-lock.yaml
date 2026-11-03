@@ -243,6 +243,9 @@ importers:
       '@harness-world/frontend':
         specifier: workspace:*
         version: link:../frontend
+      '@harness-world/kernel':
+        specifier: workspace:*
+        version: link:../kernel
 
   packages/presentation:
     dependencies:
