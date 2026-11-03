@@ -43,6 +43,7 @@ import {
 } from './character-decision.ts'
 import { guardedRules, layeredCoreRules } from './rule-layers.ts'
 import { WorldGameplay } from './world-gameplay.ts'
+import { pluginSetChanges, readPluginSet, writePluginSet } from './plugin-set.ts'
 import { creatorHistorySnapshot, creatorInspectionSnapshot, type CreatorQueryHost } from './creator-queries.ts'
 import { routeGameplayInput } from './player-input.ts'
 import { projectStatus, withMessageActions } from './gameplay-projection.ts'
@@ -218,6 +219,8 @@ export class WorldHostCore implements HostRuntime {
   readonly #intentModel: string
   readonly #characterIds: readonly CharacterId[]
   #llm!: LlmInstance
+  /** The modules actually in force, which can differ from what was asked for when a scheduler falls back. */
+  readonly #modulesInForce: Record<string, { id: string; version: string }[]> = {}
   readonly #gameplay: WorldGameplay
   #decisions: DecisionInstance[] = []
   #ruleLayers: RulesInstance[] = []
@@ -561,6 +564,7 @@ export class WorldHostCore implements HostRuntime {
         readStoryNodes(options.logicalDirectory ?? options.dataDirectory).length === 0
       )
         await runtime.saveNode('首次保存节点')
+      runtime.#notePluginSet()
       runtime.#pluginsReady = true
       if (runtime.#decisions.some(decision => decision.committed)) {
         const { headSeq } = await runtime.#application.head(runtime.#address)
@@ -1406,6 +1410,24 @@ export class WorldHostCore implements HostRuntime {
     }
   }
 
+  /** Tells the player when this save's modules changed since it last ran. Worth a notice, never worth refusing the
+   * save, and a candidate is not the save itself. */
+  #notePluginSet(): void {
+    if (this.#options.candidate) return
+    const directory = this.#options.logicalDirectory ?? this.#dataDirectory
+    const current = { seams: this.#modulesInForce }
+    const changes = pluginSetChanges(readPluginSet(directory), current)
+    if (changes.length)
+      this.#notice = [this.#notice, `这个存档使用的模块变了：${changes.join('；')}。世界事实不受影响。`]
+        .filter(Boolean)
+        .join(' ')
+    try {
+      writePluginSet(directory, current)
+    } catch (error) {
+      console.error('[模块记录] 写入失败：', error)
+    }
+  }
+
   /** A player's story must not silently go to a different model, so a channel that cannot open stops the world. */
   async #openLlm(): Promise<void> {
     const provider =
@@ -1424,6 +1446,7 @@ export class WorldHostCore implements HostRuntime {
       })
     try {
       const opened = await provider.open(this.#services(provider.id), AbortSignal.timeout(30_000))
+      this.#modulesInForce.llm = [{ id: provider.id, version: provider.version }]
       this.#llm = this.#options.plugins?.llm ? guardedLlm(opened, provider.id, this.#reportPlugin) : opened
     } catch (error) {
       if (this.#options.plugins?.llm === undefined) throw error
@@ -1437,6 +1460,7 @@ export class WorldHostCore implements HostRuntime {
       try {
         const opened = await provider.open(this.#services(provider.id), AbortSignal.timeout(30_000))
         this.#ruleLayers.push(guardedRules(opened, provider.id, this.#reportPlugin))
+        ;(this.#modulesInForce.rules ??= []).push({ id: provider.id, version: provider.version })
       } catch (error) {
         throw new Error(`规则插件 ${provider.id} 无法打开：${(error as Error).message}`, { cause: error })
       }
@@ -1449,6 +1473,7 @@ export class WorldHostCore implements HostRuntime {
       try {
         const opened = await provider.open(this.#services(provider.id), AbortSignal.timeout(30_000))
         this.#decisions.push(guardedDecision(opened, provider.id, this.#reportPlugin))
+        ;(this.#modulesInForce.decisions ??= []).push({ id: provider.id, version: provider.version })
       } catch (error) {
         throw new Error(`决策插件 ${provider.id} 无法打开：${(error as Error).message}`, { cause: error })
       }
@@ -1466,6 +1491,7 @@ export class WorldHostCore implements HostRuntime {
     this.#memoryId = provider.id
     try {
       this.#memory = await provider.open(this.#services(provider.id), AbortSignal.timeout(30_000))
+      this.#modulesInForce.memory = [{ id: provider.id, version: provider.version }]
     } catch (error) {
       if (this.#memoryIsCore) throw error
       throw new Error(`记忆插件 ${provider.id} 无法打开：${(error as Error).message}`, { cause: error })
@@ -1480,10 +1506,12 @@ export class WorldHostCore implements HostRuntime {
     this.#schedulerIsOfficial = provider === official
     try {
       this.#scheduler = await provider.open(this.#services(provider.id), signal)
+      this.#modulesInForce.scheduler = [{ id: provider.id, version: provider.version }]
     } catch (error) {
       if (provider === official) throw error
       console.error(`[调度器插件 ${provider.id}] 打开失败：`, error)
       this.#scheduler = await official.open(this.#services(official.id), signal)
+      this.#modulesInForce.scheduler = [{ id: official.id, version: official.version }]
       this.#schedulerIsOfficial = true
       this.#notice = `调度器插件 ${provider.id} 无法打开，已改用官方调度。`
     }
