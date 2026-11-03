@@ -14,6 +14,8 @@ export interface StoryNode {
   packHash: string
   parentNodeId: string | null
   files: string[]
+  /** The memory that wrote `core-memory.json`. Nodes older than this field came from Core. */
+  memoryProvider?: string
 }
 export function storyId(value: unknown): string {
   if (typeof value !== 'string' || !/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/.test(value))
@@ -46,6 +48,7 @@ export function readStoryNodes(directory: string): StoryNode[] {
         !Number.isSafeInteger(node.tick) ||
         node.tick < 0 ||
         !(node.parentNodeId === null || typeof node.parentNodeId === 'string') ||
+        !(node.memoryProvider === undefined || typeof node.memoryProvider === 'string') ||
         !Array.isArray(node.files) ||
         !node.files.includes('world.sqlite') ||
         !node.files.includes('memory-aliases.json') ||
@@ -68,6 +71,7 @@ export async function saveStoryNode(
   parentNodeId: string | null = null,
   logicalDirectory = directory,
   coreMemory: unknown = {},
+  memoryProvider?: string,
 ): Promise<StoryNode> {
   if (!title.trim() || title.length > 80) throw new TypeError('节点名称须为 1 至 80 个字符。')
   const root = join(logicalDirectory, 'story-nodes'),
@@ -102,6 +106,7 @@ export async function saveStoryNode(
       packHash,
       parentNodeId: nodes.at(-1)?.id ?? parentNodeId,
       files: [],
+      ...(memoryProvider === undefined ? {} : { memoryProvider }),
     }
     await backup(world, join(temporary, 'world.sqlite'))
   } finally {
@@ -136,6 +141,13 @@ export function restoreStoryNode(source: string, nodeId: string, target: string,
     if (!existsSync(join(origin, name))) throw new Error('完整节点文件缺失，拒绝恢复。')
   }
   for (const name of node.files) copyFileSync(join(origin, name), join(target, name))
-  writeFileSync(join(target, 'rebuild-memory.json'), JSON.stringify({ headSeq: node.headSeq, packHash }))
+  writeFileSync(
+    join(target, 'rebuild-memory.json'),
+    JSON.stringify({
+      headSeq: node.headSeq,
+      packHash,
+      ...(node.memoryProvider === undefined ? {} : { memoryProvider: node.memoryProvider }),
+    }),
+  )
   return node
 }

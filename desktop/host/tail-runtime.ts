@@ -230,7 +230,9 @@ export class TailRoundRuntime {
       ...(this.options.recentExecutionEvidence ? { recentExecutionEvidence: true } : {}),
       playSettings: this.options.playSettings ?? null,
       tuning: this.options.tuning ?? null,
-      memoryCore: this.options.plugins?.memory?.id === 'official-memory-core',
+      memoryProvider: this.options.plugins?.memory
+        ? { id: this.options.plugins.memory.id, version: this.options.plugins.memory.version }
+        : null,
       memoryContextBudget: this.options.plugins?.memory?.identity?.memoryContextBudget ?? null,
     })
   }

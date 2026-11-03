@@ -97,7 +97,7 @@ import { modelCharacters, playerTranscript, sceneChangedAt } from './player-tran
 import { DEFAULT_RUNTIME_TUNING, type RuntimeTuning } from './runtime-tuning.ts'
 import { PackModules, lockedPackAsset } from './pack-modules.ts'
 import { CapabilitySession, type CapabilityCatalog } from '../host-capabilities.ts'
-import { officialMemoryNoneProvider, officialSeams, type HostSeams } from '../official-bundle.ts'
+import { CORE_MEMORY_ID, officialMemoryNoneProvider, officialSeams, type HostSeams } from '../official-bundle.ts'
 import { normalizeSchedulerResult, trackSchedulerTurns } from './scheduler-result.ts'
 import { createWorldReader } from './world-reader.ts'
 import type { MemoryInstance, SchedulerInstance, SchedulerResult, WorldServices } from '@harness-world/plugin-sdk'
@@ -367,6 +367,7 @@ export class WorldHostCore implements HostRuntime {
   readonly #effectivePresets: ReadonlyMap<string, RolePreset>
   #memory: MemoryInstance | undefined
   #memoryIsCore = false
+  #memoryId = ''
   #activity: PackActivities | undefined
   #modules: PackModules | undefined
   #capabilities: CapabilitySession | undefined
@@ -792,19 +793,27 @@ export class WorldHostCore implements HostRuntime {
       await runtime.#refresh()
       const rebuildPath = resolve(options.dataDirectory, 'rebuild-memory.json')
       if (existsSync(rebuildPath)) {
-        const rebuild = JSON.parse(readFileSync(rebuildPath, 'utf8')) as { headSeq: number; packHash: string }
-        if (!runtime.#memory?.restoreArchives || rebuild.packHash !== pack.packHash)
-          throw new Error('故事线记忆恢复需要原游戏包与 Core 记忆。')
+        const rebuild = JSON.parse(readFileSync(rebuildPath, 'utf8')) as {
+          headSeq: number
+          packHash: string
+          memoryProvider?: string
+        }
+        if (rebuild.packHash !== pack.packHash) throw new Error('故事线记忆恢复需要原游戏包。')
         const head = await runtime.#application.head(runtime.#address)
         if (head.headSeq !== rebuild.headSeq) throw new Error('故事节点的世界前缀不一致。')
         // Restoring derived archives must not hold a world writer across file installation.
         await runtime.#application.release(runtime.#address)
-        const memoryPath = resolve(options.dataDirectory, 'core-memory.json')
-        const archives = existsSync(memoryPath) ? (JSON.parse(readFileSync(memoryPath, 'utf8')) as WorldJsonObject) : {}
-        if (!archives || typeof archives !== 'object' || Array.isArray(archives))
-          throw new Error('故事节点记忆快照损坏。')
-        runtime.#memory.restoreArchives(archives, runtime.#characterIds)
-        runtime.#memory.snapshotAliases?.(runtime.#characterIds)
+        if (runtime.#memory?.restoreArchives) {
+          const memoryPath = resolve(options.dataDirectory, 'core-memory.json')
+          // Archives only mean something to the memory that wrote them; another one starts without them.
+          const written = (rebuild.memoryProvider ?? CORE_MEMORY_ID) === runtime.#memoryId
+          const archives =
+            written && existsSync(memoryPath) ? (JSON.parse(readFileSync(memoryPath, 'utf8')) as WorldJsonObject) : {}
+          if (!archives || typeof archives !== 'object' || Array.isArray(archives))
+            throw new Error('故事节点记忆快照损坏。')
+          runtime.#memory.restoreArchives(archives, runtime.#characterIds)
+          runtime.#memory.snapshotAliases?.(runtime.#characterIds)
+        }
         unlinkSync(rebuildPath)
       }
       if (
@@ -1254,6 +1263,7 @@ export class WorldHostCore implements HostRuntime {
         this.#storyParentNodeId,
         this.#options.logicalDirectory,
         this.#memory?.snapshotArchives?.(this.#characterIds) ?? {},
+        this.#memoryId,
       )
     } finally {
       this.#savingNode = false
@@ -1857,7 +1867,8 @@ export class WorldHostCore implements HostRuntime {
   /** A memory holds durable data, so one that cannot open stops the world rather than silently forgetting. */
   async #openMemory(): Promise<void> {
     const provider = this.#options.plugins?.memory ?? officialMemoryNoneProvider
-    this.#memoryIsCore = provider.id === 'official-memory-core'
+    this.#memoryIsCore = provider.id === CORE_MEMORY_ID
+    this.#memoryId = provider.id
     try {
       this.#memory = await provider.open(this.#services(provider.id), AbortSignal.timeout(30_000))
     } catch (error) {

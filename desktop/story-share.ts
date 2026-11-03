@@ -18,7 +18,7 @@ import { SessionDeliveryAdapter, WorldOutbox, WorldStore } from '@harness-world/
 import { compileWorldPackSource, type CompiledWorldPackV5 } from '@harness-world/world-pack'
 import { createInstalledInteractionPackages } from '@harness-world/interactions-basic'
 import { interactionPackageDescription } from '@harness-world/contracts'
-import { importCoreArchives } from './official-bundle.ts'
+import { CORE_MEMORY_ID, importCoreArchives } from './official-bundle.ts'
 import { createWorldReader } from './host/world-reader.ts'
 import { PackStatus } from './host/pack-status.ts'
 import { preflightSave } from './save-preflight.ts'
@@ -65,7 +65,11 @@ function decode(path: string): { node: StoryNode; files: Record<string, Buffer> 
   const meta = object(raw.node),
     files = object(raw.files)
   if (
-    Object.keys(meta).sort().join(',') !== 'createdAt,files,headSeq,id,packHash,parentNodeId,tick,title' ||
+    Object.keys(meta)
+      .filter(key => key !== 'memoryProvider')
+      .sort()
+      .join(',') !== 'createdAt,files,headSeq,id,packHash,parentNodeId,tick,title' ||
+    !(meta.memoryProvider === undefined || typeof meta.memoryProvider === 'string') ||
     typeof meta.title !== 'string' ||
     !meta.title.trim() ||
     meta.title.length > 80 ||
@@ -191,7 +195,7 @@ async function validate(directory: string, node: StoryNode, packPath: string): P
     createWorldReader(join(directory, 'world.sqlite'), address),
     directory,
     address,
-    node.files.includes('core-memory.json')
+    node.files.includes('core-memory.json') && (node.memoryProvider ?? CORE_MEMORY_ID) === CORE_MEMORY_ID
       ? (object(JSON.parse(readFileSync(join(directory, 'core-memory.json'), 'utf8'))) as WorldJsonObject)
       : undefined,
     actors,

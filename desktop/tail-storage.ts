@@ -13,7 +13,7 @@ import {
   copyFileSync,
   realpathSync,
 } from 'node:fs'
-import { join, resolve } from 'node:path'
+import { dirname, join, resolve } from 'node:path'
 import { randomUUID, createHash } from 'node:crypto'
 import { backup, DatabaseSync } from 'node:sqlite'
 import { worldAddressKey, type WorldAddress } from '@harness-world/contracts'
@@ -191,7 +191,17 @@ export function assertSettled(directory: string, address: WorldAddress): { headS
   }
 }
 
-/** Backups include installed cognition, never live WAL main files or diagnostic traces. */
+/** A plugin's own files, relative to the instance directory with forward slashes. */
+function pluginFiles(directory: string, relative = 'plugins'): string[] {
+  const path = join(directory, relative)
+  if (!existsSync(path)) return []
+  return readdirSync(path, { withFileTypes: true }).flatMap(entry => {
+    const name = relative + '/' + entry.name
+    return entry.isDirectory() ? pluginFiles(directory, name) : entry.isFile() ? [name] : []
+  })
+}
+
+/** Backups include installed cognition and plugin data, never live WAL main files or diagnostic traces. */
 export async function snapshotTail(
   directory: string,
   target: string,
@@ -221,6 +231,11 @@ export async function snapshotTail(
       copyFileSync(join(core, name), join(target, 'memory-core', name))
       files.push('memory-core/' + name)
     }
+  for (const name of pluginFiles(directory)) {
+    mkdirSync(dirname(join(target, name)), { recursive: true })
+    copyFileSync(join(directory, name), join(target, name))
+    files.push(name)
+  }
   for (const name of files) flush(join(target, name))
   durableJson(join(target, 'snapshot.json'), {
     files: files.map(name => ({
@@ -240,6 +255,7 @@ export function flushTailData(directory: string): void {
   const core = join(directory, 'memory-core')
   if (existsSync(core))
     for (const name of readdirSync(core).filter(n => /^[A-Za-z0-9_-]+\.json$/.test(n))) flush(join(core, name))
+  for (const name of pluginFiles(directory)) flush(join(directory, name))
 }
 export function restoreTail(base: string, target: string): void {
   const manifest = JSON.parse(readFileSync(join(base, 'snapshot.json'), 'utf8')) as {
@@ -254,15 +270,18 @@ export function restoreTail(base: string, target: string): void {
   if (readdirSync(target).length) throw new Error('候选目录必须为空。')
   for (const file of manifest.files) {
     if (
-      !/^(world|session|memory|context)\.sqlite$|^memory-aliases\.json$|^memory-core\/[A-Za-z0-9_-]+\.json$/.test(
-        file.name,
+      !(
+        /^(world|session|memory|context)\.sqlite$|^memory-aliases\.json$|^memory-core\/[A-Za-z0-9_-]+\.json$/.test(
+          file.name,
+        ) ||
+        (/^plugins\/[^\\:]+$/.test(file.name) && !file.name.split('/').some(part => ['', '.', '..'].includes(part)))
       ) ||
       createHash('sha256')
         .update(readFileSync(join(base, file.name)))
         .digest('hex') !== file.digest
     )
       throw new Error('回合起点文件损坏。')
-    if (file.name.startsWith('memory-core/')) mkdirSync(join(target, 'memory-core'), { recursive: true })
+    mkdirSync(dirname(join(target, file.name)), { recursive: true })
     copyFileSync(join(base, file.name), join(target, file.name))
   }
 }
