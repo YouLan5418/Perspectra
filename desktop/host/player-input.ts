@@ -9,6 +9,7 @@ export interface GameplayInputOutcome {
   readonly react: boolean
 }
 
+/** `/status <operation>[@<item>] <json>`: a status operation, done to an item when one is named. */
 function statusCommand(text: string): { operation: string; targetId?: string; parameters: WorldJsonObject } {
   const match = /^\/status ([a-z][a-z0-9-]*)(?:@(\S+))? (.+)$/su.exec(text)
   if (match === null) throw new TypeError('状态命令格式无效')

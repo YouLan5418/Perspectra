@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from 'node:fs'
+import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import type { Server } from 'node:http'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
@@ -272,4 +272,24 @@ it('tells the player which plugin failed on their own action, then continues', a
   fail = false
   await runtime.submit(MOVE_FRONT)
   expect(moves()).toContain(FRONT)
+})
+
+it("reads a rule layer's refusal to the player inside an activity that allows moving", async () => {
+  const pack = mkdtempSync(join(tmpdir(), 'perspectra-rules-pack-'))
+  roots.push(pack)
+  cpSync(resolve('examples/world-packs/scripted-performance'), pack, { recursive: true })
+  const script = join(pack, 'scripts', 'activity.js')
+  writeFileSync(script, readFileSync(script, 'utf8').replace('move: false', 'move: true'))
+  const { runtime, moves } = await start([provider(locked(FRONT))], { decision: 'abstain' }, { packPath: pack })
+  const activity = ((await runtime.state()).activities as { activityKey: string }[])[0]!
+  await runtime.activityAction({
+    activityKey: activity.activityKey,
+    activityId: null,
+    revision: 0,
+    operation: 'start',
+    parameters: {},
+    requestId: 'rules-seam-move',
+  })
+  await expect(runtime.submit(MOVE_FRONT)).rejects.toThrow('门锁着')
+  expect(moves()).not.toContain(FRONT)
 })

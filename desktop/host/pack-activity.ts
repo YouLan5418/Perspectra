@@ -20,6 +20,7 @@ import {
   characterExecutionResult,
   characterVisibleItems,
   type CharacterTurnRequest,
+  rejectionReasonText,
 } from '@harness-world/application'
 import { createInstalledInteractionPackages } from '@harness-world/interactions-basic'
 import {
@@ -1400,10 +1401,12 @@ export class PackActivity {
       const result = this.resolveAction
         ? await this.resolveAction(context, () => rules.resolve(context))
         : rules.resolve(context)
-      // A rejected status operation tells the player its own reason; other rejections stay generic.
+      // A rejected status operation and a plugin's rule tell the player their own reason; others stay generic.
       if (result.status !== 'accepted')
         throw new TypeError(
-          this.status?.rejectionReason(result.events, this.playerId, result.reason) ?? '这次操作未被规则接受',
+          this.status?.rejectionReason(result.events, this.playerId, result.reason) ??
+            (result.reason?.startsWith('plugin:') ? rejectionReasonText(result.reason) : undefined) ??
+            '这次操作未被规则接受',
         )
       const scene = new SceneDecisionService(store, availability)
       const drafts: WorldEventDraft[] = [...result.events]

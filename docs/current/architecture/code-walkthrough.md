@@ -24,7 +24,7 @@ WorldApplication 负责玩家提交和授权记忆来源捕获；RoundCoordinato
 | --- | --- | --- |
 | [http-server.ts](../../../desktop/host/http-server.ts) | 玩家 API、请求校验、busy 与 actionId | 页面请求不能直接写库 |
 | [tail-runtime.ts](../../../desktop/host/tail-runtime.ts) | 正式玩家回合、完整起点与候选选择 | WorldHostRuntime 由 TailRoundRuntime 包装实际游戏 Core |
-| [world-runtime.ts](../../../desktop/host/world-runtime.ts) | WorldHostCore.submit、活动与 /act 分支 | 普通表达、明确操作、活动输入走不同分支 |
+| [world-runtime.ts](../../../desktop/host/world-runtime.ts)、[player-input.ts](../../../desktop/host/player-input.ts) | WorldHostCore.submit；活动、短信和状态命令的分发 | 普通表达、明确操作、活动输入走不同分支 |
 | [world-application.ts](../../../packages/application/src/world-application.ts) | 玩家输入与世界应用组合 | 宿主复用裁定和提交机制 |
 | [round-coordinator.ts](../../../packages/application/src/round-coordinator.ts)、[world-store.ts](../../../packages/store-sqlite/src/world-store.ts) | 玩家行动裁定、观察生成与事务提交 | 重要状态在这里成为已提交事实 |
 | [action-observations.ts](../../../packages/application/src/action-observations.ts) | 受众 → 观察事件与玩家投递 | 玩家与 NPC 两条提交路径共用，谁看到什么只在这里拼装 |

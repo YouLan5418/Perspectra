@@ -148,7 +148,6 @@ export function isV5SourcePackDirectory(packPath: string): boolean {
 }
 
 /** Player submission commits first; ordinary NPC work then uses bounded dynamic dispatch. */
-/** `/status <operation>[@<item>] <json>`: a status operation, done to an item when one is named. */
 
 /** What one committed player input means for its turn: whether to go on, and whether anyone reacts. */
 interface InputOutcome {
@@ -1127,7 +1126,14 @@ export class WorldHostCore implements HostRuntime {
     }
     return this.submit(actionText(action))
   }
-  /** The round result names only its first action; report any later player action rejected in the same commit. */
+  /**
+   * What actually became of an input whose turn failed.
+   *
+   * A turn can fail after the input was durably recorded - a Host that lost its writer lease while the page
+   * sat idle, an interrupted process - and the durable input queue completes it later. Telling the player
+   * to say it another way then invites a second submission, and the world does the same thing twice; so the
+   * player is told the state instead. An input the world never received is the case where retrying is right.
+   */
   async #whatBecameOf(idempotencyKey: string): Promise<string> {
     const jobs = new PlayerInputJobs(resolve(this.#dataDirectory, 'world.sqlite'))
     try {
@@ -1503,7 +1509,7 @@ export class WorldHostCore implements HostRuntime {
     }
   }
 
-  /** Tell the player how the reaction cycle ended, without claiming more was committed than was. */
+  /** Each due character's own opportunities, then what the round left for the player to read. */
   async #autonomousRound(
     store: WorldStore,
     createTurn: (autonomous?: boolean) => CharacterTurn,

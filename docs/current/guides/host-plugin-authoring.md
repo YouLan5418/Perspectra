@@ -71,7 +71,7 @@ export default async function myBgm(ctx) {
 
 ## 宿主提供哪些接口
 
-2026-10-26 宿主 API 版本：例如你按当前宿主写好插件分享给别人，对方的 Perspectra 较旧、还没有 `ctx.playerFeed`。插件导出 `export const hostApi = '1.0'` 后，宿主在调用插件之前比较版本，不兼容就跳过并在启动器标出“宿主 API 版本不兼容或未声明”，而不是运行到一半报错。规则：主版本必须相同，宿主次版本不低于插件声明的次版本；当前宿主 API 为 `1.3`，`ctx.scheduler` 需要 `1.1`，`ctx.memory` 需要 `1.2`，`ctx.llm` 和 `ctx.decisions` 需要 `1.3`，`ctx.rules` 需要 `1.4`。没有导出 `hostApi` 的插件同样被跳过。所有接口类型集中在 [@harness-world/plugin-sdk](../../../packages/plugin-sdk/src/index.ts)：`HostServices` 列出插件能用的服务，`CapabilityProvider`、`PlayerFeedEvent` 等是参数与事件的形状；宿主的实现直接引用这些类型，接口改动会先在类型检查中暴露。该包目前只在本仓库内，尚未发布到 npm，也不随便携发行包附带；仓库外开发时可参照源码或复制其中的类型。
+2026-10-26 宿主 API 版本：例如你按当前宿主写好插件分享给别人，对方的 Perspectra 较旧、还没有 `ctx.playerFeed`。插件导出 `export const hostApi = '1.0'` 后，宿主在调用插件之前比较版本，不兼容就跳过并在启动器标出“宿主 API 版本不兼容或未声明”，而不是运行到一半报错。规则：主版本必须相同，宿主次版本不低于插件声明的次版本；当前宿主 API 为 `1.4`，`ctx.scheduler` 需要 `1.1`，`ctx.memory` 需要 `1.2`，`ctx.llm` 和 `ctx.decisions` 需要 `1.3`，`ctx.rules` 需要 `1.4`。没有导出 `hostApi` 的插件同样被跳过。所有接口类型集中在 [@harness-world/plugin-sdk](../../../packages/plugin-sdk/src/index.ts)：`HostServices` 列出插件能用的服务，`CapabilityProvider`、`PlayerFeedEvent` 等是参数与事件的形状；宿主的实现直接引用这些类型，接口改动会先在类型检查中暴露。该包目前只在本仓库内，尚未发布到 npm，也不随便携发行包附带；仓库外开发时可参照源码或复制其中的类型。
 
 目前使用项目依赖的 `@deepseek-ai/cordis@4.0.1`。装载器接受默认导出的函数、类或 `{ apply(ctx) {} }` 对象；资源注册用 `ctx.effect(() => register(...))`，退出时返回的注销函数随插件释放。外部文件入口必须是 `.mjs` 或可由 Node 按 ESM 解析的 `.js`，不直接执行 TypeScript。插件初始化抛错时只跳过这一个插件，已经通过 `ctx.effect` 注册的服务会被撤销，所以注册都应放进 `ctx.effect`；启动器设置页会标出上次被跳过的插件及原因；详细错误只输出到游戏进程的标准错误，调试时请从命令行启动游戏。加载入口见[宿主插件](../host-plugins.md)，类型定义见 [plugin-sdk](../../../packages/plugin-sdk/src/index.ts)。
 
@@ -261,9 +261,11 @@ export default function (ctx) {
 }
 ```
 
-- `resolve` 裁定一次行动。调用 `next` 交给里面的规则，或者自己拒绝。玩家、角色和活动里的行动都经过它。
+- `resolve` 裁定一次行动。调用 `next` 交给里面的规则，或者自己拒绝。玩家和角色的发言、移动和核心互动都经过它，活动进行时也一样。
+- **状态操作（`/status`，包括一些包里的拿取和转交）、活动操作和短信不经过它**，它们有自己的规则，可选项也加在规则层外面。所以“禁止发短信”这样的规则现在写不出来。
 - `affordances` 决定可选项，比如把上锁的房间从目的地里去掉。角色的回答格式也按它生成，所以角色通常根本选不到。
-- `reason` 以 `plugin:` 开头时，后面的文字会原样读给玩家和角色听，否则只说“没有执行”。
+- `reason` 以 `plugin:` 开头时，后面的文字会原样读给玩家和角色听，否则只说“没有执行”。同场的人也可能读到，所以写中性的句子，不要写“你”。
+- **拒绝角色的发言会被当作这一轮失败**，玩家看到错误提示，其余角色也可能失去机会。目前只建议拒绝移动和互动。
 - 规则是同步的，不能在里面调用模型或网络，需要异步的用 `ctx.capabilities`。
 - 规则要是确定的，同样的输入给出同样的答案，重新生成依赖这一点，宿主不检查。
 - 通过时只能产出主干认识的事件，提交由宿主完成。一般直接返回 `next` 的结果就够了。

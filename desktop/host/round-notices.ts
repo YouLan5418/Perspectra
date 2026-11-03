@@ -28,6 +28,7 @@ export interface RoundStatus {
   set(notice: string | undefined, error: boolean | undefined): void
 }
 
+/** Tell the player how the reaction cycle ended, without claiming more was committed than was. */
 export function reactionNotice(
   status: RoundStatus,
   cycle: SchedulerResult,
@@ -91,6 +92,7 @@ export function autonomyNotice(status: RoundStatus, reason: string): void {
   }
 }
 
+/** The round result names only its first action; report any later player action rejected in the same commit. */
 export function playerResolutionNotice(
   worldPath: string,
   address: WorldAddress,
