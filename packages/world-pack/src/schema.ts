@@ -1986,6 +1986,9 @@ export function parseCompiledWorldPackV5(input: unknown, file = 'worldpack.json'
     content: parsedContent,
     assets,
     acceptanceAssertions,
+    ...(root.requiresPlugins === undefined
+      ? {}
+      : { requiresPlugins: pluginRequirements(root.requiresPlugins, file, '/requiresPlugins') }),
   }
 }
 

@@ -2,7 +2,7 @@ import { cp, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { compileWorldPackSource } from '@harness-world/world-pack'
+import { compileWorldPackSource, verifyCompiledWorldPackV5 } from '@harness-world/world-pack'
 import { interactionPackageDescription } from '@harness-world/contracts'
 import { createInstalledInteractionPackages } from '@harness-world/interactions-basic'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -117,6 +117,11 @@ describe('world packs', () => {
     const compiled = await compile(await packWith([{ id: 'locked-room', version: '^0.1.0' }]))
     expect(compiled.requiresPlugins).toEqual([{ id: 'locked-room', version: '^0.1.0' }])
     expect(compiled.packHash).not.toBe(DYNAMIC_HASH)
+  })
+
+  it('survives the check every world goes through when it opens', async () => {
+    const compiled = await compile(await packWith([{ id: 'locked-room', version: '^0.1.0' }]))
+    expect(verifyCompiledWorldPackV5(compiled).requiresPlugins).toEqual([{ id: 'locked-room', version: '^0.1.0' }])
   })
 
   it('rejects a malformed requiresPlugins when compiling', async () => {
