@@ -28,9 +28,11 @@ export function parsePluginManifest(value: unknown): PluginManifest {
   if (!value || typeof value !== 'object' || Array.isArray(value)) fail('须为 JSON 对象')
   const data = value as Record<string, unknown>
   const unknown = Object.keys(data).filter(
-    key => !['name', 'version', 'author', 'description', 'services', 'config'].includes(key),
+    key => !['id', 'name', 'version', 'author', 'description', 'services', 'config'].includes(key),
   )
   if (unknown.length) fail('不认识的字段 ' + unknown.join('、'))
+  if (data.id !== undefined && (typeof data.id !== 'string' || !/^[a-z0-9][a-z0-9-]{0,63}$/u.test(data.id)))
+    fail('id 须为小写字母、数字和连字符，最多 64 字符')
   if (!text(data.name, 80)) fail('name 须为 1–80 字')
   if (!text(data.version, 40)) fail('version 须为 1–40 字')
   if (data.author !== undefined && !text(data.author, 80)) fail('author 须为 1–80 字')
@@ -49,6 +51,7 @@ export function parsePluginManifest(value: unknown): PluginManifest {
     config = Object.fromEntries(entries.map(([name, field]) => [name, configField(name, field, fail)]))
   }
   return {
+    ...(data.id === undefined ? {} : { id: data.id as string }),
     name: String(data.name).trim(),
     version: String(data.version).trim(),
     ...(data.author === undefined ? {} : { author: String(data.author).trim() }),

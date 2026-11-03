@@ -1,9 +1,12 @@
 {
+  "id": "locked-room",
   "name": "上锁的房间",
   "version": "0.1.0",
   "author": "Perspectra",
   "description": "增加世界规则的示例：指定一个房间，玩家和角色都进不去，也不会出现在可选目的地里。",
-  "services": ["rules"],
+  "services": [
+    "rules"
+  ],
   "config": {
     "locationId": {
       "type": "string",

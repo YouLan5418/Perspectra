@@ -123,8 +123,16 @@ export const WORLD_PACK_CORE_PROFILES: WorldPackCoreProfiles = Object.freeze({
   presentation: Object.freeze({ profileId: 'builtin:deterministic-presentation', version: '1.0.0' }),
 })
 
+/** A plugin a world needs. `version` is `1.2.3`, `^1.2.3` or `>=1.2.3`. */
+export interface WorldPackPluginRequirement extends WorldJsonObject {
+  readonly id: string
+  readonly version: string
+  readonly optional?: boolean
+}
+
 /** The supported source manifest selects the world's interaction file. */
 export interface WorldPackSourceManifestV5 extends WorldJsonObject {
+  readonly requiresPlugins?: readonly WorldPackPluginRequirement[]
   readonly sourceSchemaVersion: typeof WORLD_PACK_SOURCE_SCHEMA_VERSION_V5
   readonly packId: WorldPackId
   readonly packVersion: string
@@ -472,6 +480,7 @@ export interface WorldPackCompileOptionsV5 {
 }
 
 export interface CompiledWorldPackV5 extends WorldJsonObject {
+  readonly requiresPlugins?: readonly WorldPackPluginRequirement[]
   readonly compiledSchemaVersion: typeof WORLD_PACK_COMPILED_SCHEMA_VERSION_V5
   readonly packId: WorldPackId
   readonly packVersion: string

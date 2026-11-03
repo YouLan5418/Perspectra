@@ -408,6 +408,8 @@ export type PluginConfigField = {
 /** Contents of `<entry>.plugin.json` beside the plugin file. The launcher reads it without running the
  * plugin. `services` is the author's statement shown to players; the host does not enforce it. */
 export interface PluginManifest {
+  /** Stable across versions; what a world pack names when it needs this plugin. */
+  readonly id?: string
   readonly name: string
   readonly version: string
   readonly author?: string

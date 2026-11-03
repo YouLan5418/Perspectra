@@ -1,6 +1,7 @@
 import { Context, Service, type Plugin } from '@deepseek-ai/cordis'
 import { pathToFileURL } from 'node:url'
 import { hostPluginSettings, type HostPluginSettings } from './host-plugin-settings.ts'
+import type { InstalledPlugin } from './plugin-requirements.ts'
 import { resolvePluginConfig } from './host-plugin-manifest.ts'
 import { readPluginManifest } from './plugin-manifest-file.ts'
 import type { FrontendHostServices } from '@harness-world/frontend'
@@ -269,6 +270,8 @@ export interface HostPlugins {
   readonly playerFeed: PlayerFeed
   readonly seams: HostSeams
   readonly skipped: readonly SkippedHostPlugin[]
+  /** Each enabled plugin as its manifest states it, in force unless it was skipped. */
+  readonly installed: readonly InstalledPlugin[]
   close(): Promise<void>
 }
 
@@ -295,6 +298,7 @@ export async function loadHostPlugins(
   const rules = new RuleRegistry(root)
   const skipped: SkippedHostPlugin[] = []
   const llmPlugins = new Set<string>()
+  const declared = new Map<string, { id?: string; version: string }>()
   installPluginResolver()
   for (const plugin of plugins) {
     if (!plugin.enabled) continue
@@ -303,6 +307,11 @@ export async function loadHostPlugins(
     try {
       const manifest = await readPluginManifest(plugin.path)
       if (manifest?.services.includes('llm')) llmPlugins.add(plugin.id)
+      if (manifest)
+        declared.set(plugin.id, {
+          ...(manifest.id === undefined ? {} : { id: manifest.id }),
+          version: manifest.version,
+        })
       try {
         config = resolvePluginConfig(manifest, plugin.config, secrets[plugin.id])
       } catch (error) {
@@ -380,6 +389,9 @@ export async function loadHostPlugins(
       ...(rules.providers.length ? { rules: rules.providers } : {}),
     },
     skipped,
+    installed: plugins
+      .filter(plugin => plugin.enabled)
+      .map(plugin => ({ ...declared.get(plugin.id), enabled: !skipped.some(item => item.id === plugin.id) })),
     close: () => root.fiber.dispose(),
   }
 }

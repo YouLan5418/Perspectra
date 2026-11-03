@@ -1,9 +1,12 @@
 {
+  "id": "simple-llm",
   "name": "简单模型通道",
   "version": "0.1.0",
   "author": "Perspectra",
   "description": "替换模型通道的示例：把角色决策发给任意 OpenAI 兼容地址。不带玩家的预设，也不影响 Core 的整理。",
-  "services": ["llm"],
+  "services": [
+    "llm"
+  ],
   "config": {
     "endpoint": {
       "type": "string",
@@ -12,7 +15,17 @@
       "required": true,
       "maxLength": 1024
     },
-    "model": { "type": "string", "title": "模型名", "required": true, "maxLength": 256 },
-    "apiKey": { "type": "string", "title": "API Key", "secret": true, "maxLength": 1024 }
+    "model": {
+      "type": "string",
+      "title": "模型名",
+      "required": true,
+      "maxLength": 256
+    },
+    "apiKey": {
+      "type": "string",
+      "title": "API Key",
+      "secret": true,
+      "maxLength": 1024
+    }
   }
 }

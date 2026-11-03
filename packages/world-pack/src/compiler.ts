@@ -31,6 +31,7 @@ import {
   WORLD_PACK_COMPILER_VERSION_V5,
   WORLD_PACK_LIMITS_PROFILE_V2,
   type CompiledWorldPackV5,
+  type WorldPackPluginRequirement,
   type WorldPackSourceManifestV5,
   type WorldPackCompileOptionsV5,
   type WorldPackCompiledContentV5,
@@ -104,6 +105,7 @@ interface UnsignedCompiledWorldPackV5 extends WorldJsonObject {
   readonly content: WorldPackCompiledContentV5
   readonly assets: readonly WorldPackAssetLock[]
   readonly acceptanceAssertions: readonly WorldPackAcceptanceAssertion[]
+  readonly requiresPlugins?: readonly WorldPackPluginRequirement[]
 }
 
 function packHashV5(unsigned: UnsignedCompiledWorldPackV5): WorldHash {
@@ -1022,6 +1024,7 @@ async function compileV5Source(
     content,
     assets,
     acceptanceAssertions,
+    ...(manifest.requiresPlugins === undefined ? {} : { requiresPlugins: manifest.requiresPlugins }),
   }
   const unsigned: UnsignedCompiledWorldPackV5 = {
     ...shared,

@@ -65,6 +65,8 @@ export interface CoreSnapshot {
   skippedPlugins?: { id: string; reason: 'manifest' | 'config' | 'import' | 'version' | 'apply'; detail?: string }[]
   /** Per saved plugin ID. */
   pluginManifests?: Record<string, PluginManifestInfo>
+  /** What a world pack would use but does not need, and is not in force. */
+  optionalPluginNote?: string
   core: {
     state: 'idle' | 'running' | 'error'
     mode: 'real'

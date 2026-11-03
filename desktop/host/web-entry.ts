@@ -10,6 +10,7 @@ import {
   type ShadowOptions,
 } from '../official-bundle.ts'
 import { hostPluginSettings, pluginSecretValues } from '../host-plugin-settings.ts'
+import { checkPluginRequirements, requirementMessage } from '../plugin-requirements.ts'
 import { readingPreferences, audioPreferences } from '../play-settings.ts'
 import { environmentRoleModels, runtimeRoleModels } from '../model-connections.ts'
 import { ModelPresets, packPreset } from '../model-presets.ts'
@@ -110,6 +111,12 @@ async function main(): Promise<void> {
         }
       : {},
   )
+  const pluginProblems = checkPluginRequirements(compiled.requiresPlugins ?? [], hostPlugins.installed)
+  if (pluginProblems.some(problem => !problem.optional))
+    throw new Error(
+      '这个世界包需要的插件有问题：' + requirementMessage(pluginProblems.filter(problem => !problem.optional)),
+    )
+  if (pluginProblems.length) console.error('世界包的可选插件没有生效：' + requirementMessage(pluginProblems))
   const runtime = await WorldHostRuntime.create({
     capabilities: hostPlugins.capabilities,
     playerFeed: hostPlugins.playerFeed,

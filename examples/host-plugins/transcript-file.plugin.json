@@ -1,9 +1,12 @@
 {
+  "id": "transcript-file",
   "name": "对白写入文件",
   "version": "0.2.0",
   "author": "Perspectra",
   "description": "把你能看到的对白同步写进一个文本文件，可作为直播软件的文字源。只读，不影响游戏。",
-  "services": ["playerFeed"],
+  "services": [
+    "playerFeed"
+  ],
   "config": {
     "file": {
       "type": "string",

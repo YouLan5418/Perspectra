@@ -68,6 +68,7 @@ import {
   WORLD_PACK_MANIFESTATION_SCHEMA_VERSION,
   type CompiledWorldPackV5,
   type WorldPackCompiledContentV5,
+  type WorldPackPluginRequirement,
   type WorldPackAcceptanceAssertion,
   type WorldPackAffectSourceV2,
   type WorldPackAssertionsSource,
@@ -334,6 +335,32 @@ function parseFact(value: unknown, file: string, at: string): WorldPackInitialFa
   }
 }
 
+/** The plugins a world declares it needs. Checked by the launcher and the game; plugin code never runs here. */
+function pluginRequirements(value: unknown, file: string, at: string): WorldPackPluginRequirement[] {
+  const entries = arrayAt(value, file, at).map((entry, index) => {
+    const where = `${at}/${index}`
+    const item = entry as Record<string, unknown>
+    if (!item || typeof item !== 'object' || Array.isArray(item))
+      failWorldPackContract('PACK_SOURCE_INVALID', file, where, 'must be an object')
+    exactKeys(item as never, ['id', 'version'], ['optional'], file, where)
+    const id = textAt(item.id, file, where + '/id')
+    if (!/^[a-z0-9][a-z0-9-]{0,63}$/u.test(id))
+      failWorldPackContract('PACK_SOURCE_INVALID', file, where + '/id', 'must be a plugin id')
+    const version = textAt(item.version, file, where + '/version')
+    if (!/^(?:\^|>=)?\d+\.\d+\.\d+$/u.test(version))
+      failWorldPackContract('PACK_SOURCE_INVALID', file, where + '/version', 'must be 1.2.3, ^1.2.3 or >=1.2.3')
+    if (item.optional !== undefined && typeof item.optional !== 'boolean')
+      failWorldPackContract('PACK_SOURCE_INVALID', file, where + '/optional', 'must be a boolean')
+    return { id, version, ...(item.optional === undefined ? {} : { optional: item.optional as boolean }) }
+  })
+  unique(
+    entries.map(entry => entry.id),
+    file,
+    at,
+  )
+  return entries
+}
+
 /** Parse the one supported v5 source manifest directly. */
 export function parseWorldPackSourceManifestV5(
   input: unknown,
@@ -366,7 +393,7 @@ export function parseWorldPackSourceManifestV5(
       'manifestationFile',
       'interactionFile',
     ],
-    [],
+    ['requiresPlugins'],
     file,
     '',
   )
@@ -417,6 +444,9 @@ export function parseWorldPackSourceManifestV5(
     reactionFile,
     manifestationFile,
     interactionFile,
+    ...(root.requiresPlugins === undefined
+      ? {}
+      : { requiresPlugins: pluginRequirements(root.requiresPlugins, file, '/requiresPlugins') }),
   }
 }
 
@@ -1819,7 +1849,7 @@ export function parseCompiledWorldPackV5(input: unknown, file = 'worldpack.json'
       'assets',
       'acceptanceAssertions',
     ],
-    [],
+    ['requiresPlugins'],
     file,
     '',
   )

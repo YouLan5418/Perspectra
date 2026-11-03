@@ -1,9 +1,12 @@
 {
+  "id": "impulsive-scheduler",
   "name": "急性子调度器",
   "version": "0.1.0",
   "author": "Perspectra",
   "description": "替换官方调度器的示例：让指定的角色总是抢先回应。只改变谁先获得机会，不替角色决定说什么。",
-  "services": ["scheduler"],
+  "services": [
+    "scheduler"
+  ],
   "config": {
     "priority": {
       "type": "string",

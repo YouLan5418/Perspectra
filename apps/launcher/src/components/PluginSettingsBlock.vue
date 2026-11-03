@@ -34,6 +34,8 @@ watch(
       const result = await store.inspectPlugin(path.trim())
       if (props.plugin.path !== path) return
       info.value = result
+      if ('manifest' in result && result.manifest.id && /^plugin-[0-9a-f-]+$/u.test(props.plugin.id))
+        props.plugin.id = result.manifest.id
       if ('manifest' in result) void store.refreshPluginSecrets(props.plugin.id, secretFields(result.manifest))
     }, 300)
   },

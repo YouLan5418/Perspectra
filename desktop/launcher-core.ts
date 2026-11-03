@@ -50,6 +50,7 @@ import { createInstalledInteractionPackages } from '@harness-world/interactions-
 import { preflightSave } from './save-preflight.ts'
 import { loadPackWeb } from './host/pack-frontend.ts'
 import { corePythonExecutable } from './official-bundle.ts'
+import { checkPluginRequirements, readPackRequirements, requirementMessage } from './plugin-requirements.ts'
 import { startLensServer, type LensServer } from './lens/server.ts'
 
 interface Pack {
@@ -242,6 +243,7 @@ export class LauncherCore {
   }
   /** From the most recent game launch, kept after it stops so settings can still point at the plugin. */
   #skippedPlugins: SkippedPlugin[] = []
+  #optionalPluginNote = ''
   /** Per saved plugin ID, re-read when settings are saved or a game starts. */
   #pluginManifests: Record<string, PluginManifestInfo> = {}
   async #readPluginManifests(): Promise<void> {
@@ -249,6 +251,19 @@ export class LauncherCore {
     this.#pluginManifests = Object.fromEntries(
       await Promise.all(plugins.map(async plugin => [plugin.id, await inspectPlugin(plugin.path)] as const)),
     )
+  }
+  /** Refuses when a required plugin is not in force, listing everything at once; returns what optional ones lack. */
+  async checkPackPlugins(packPath: string): Promise<string> {
+    await this.#readPluginManifests()
+    const installed = (this.#index.preferences.hostPlugins ?? []).map(plugin => {
+      const info = this.#pluginManifests[plugin.id]
+      const manifest = info && 'manifest' in info ? info.manifest : undefined
+      return { id: manifest?.id, version: manifest?.version, enabled: plugin.enabled }
+    })
+    const problems = checkPluginRequirements(await readPackRequirements(packPath), installed)
+    const required = problems.filter(problem => !problem.optional)
+    if (required.length) throw new Error('这个世界包需要的插件有问题：' + requirementMessage(required))
+    return requirementMessage(problems)
   }
   #frontends: Record<
     string,
@@ -611,6 +626,7 @@ export class LauncherCore {
       frontends: this.#frontends,
       dataDirectory: this.root,
       skippedPlugins: this.#skippedPlugins.map(plugin => ({ ...plugin })),
+      ...(this.#optionalPluginNote ? { optionalPluginNote: this.#optionalPluginNote } : {}),
       pluginManifests: structuredClone(this.#pluginManifests),
       core: this.#active
         ? {
@@ -903,6 +919,7 @@ export class LauncherCore {
         )!
         const pack = this.#index.packs.find(p => p.id === instance.packageId)!
         const source = this.#storyDirectory(instance, owner.id)
+        await this.checkPackPlugins(pack.path)
         const preflight = await preflightSave(pack.path, source)
         if (preflight.packHash !== instance.packHash) throw new Error('游戏包内容已变化。')
         const line: Storyline = {
@@ -1046,6 +1063,7 @@ export class LauncherCore {
             instances: this.#index.instances.map(i => (i.id === instance.id ? instance : i)),
           })
         }
+        this.#optionalPluginNote = await this.checkPackPlugins(pack.path)
         try {
           await access(corePythonExecutable())
         } catch (error) {

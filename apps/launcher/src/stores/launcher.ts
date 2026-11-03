@@ -92,6 +92,7 @@ export const useLauncherStore = defineStore('launcher', () => {
   const hostPlugins = ref<HostPluginSettings[]>([])
   const skippedPlugins = ref<NonNullable<CoreSnapshot['skippedPlugins']>>([])
   const pluginManifests = ref<NonNullable<CoreSnapshot['pluginManifests']>>({})
+  const optionalPluginNote = ref('')
   /** Secret values typed in settings and not yet saved, per plugin ID; '' clears the stored one. */
   const pluginSecretDrafts = ref<Record<string, Record<string, string>>>({})
   /** Secret fields the credential store holds, per plugin ID. */
@@ -448,6 +449,7 @@ export const useLauncherStore = defineStore('launcher', () => {
     hostPlugins.value = snapshot.preferences?.hostPlugins ?? []
     skippedPlugins.value = snapshot.skippedPlugins ?? []
     pluginManifests.value = snapshot.pluginManifests ?? {}
+    optionalPluginNote.value = snapshot.optionalPluginNote ?? ''
     packagePlaySettings.value = snapshot.playSettings ?? {}
     dataDirectory.value = snapshot.dataDirectory
     for (const [id, detail] of Object.entries(snapshot.packDetails ?? {})) if (!detail.hasCover) delete covers.value[id]
@@ -880,6 +882,7 @@ export const useLauncherStore = defineStore('launcher', () => {
     audio,
     hostPlugins,
     skippedPlugins,
+    optionalPluginNote,
     pluginManifests,
     pluginSecretDrafts,
     pluginSecretsStored,
