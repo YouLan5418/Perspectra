@@ -5,8 +5,7 @@ import { useLauncherStore } from '../stores/launcher.ts'
 import { chooseDataDirectory, dataLocation, type DataLocation } from '../services/desktop.ts'
 import { Button } from './ui/button/index.ts'
 import ModelSettingsDialog from './ModelSettingsDialog.vue'
-import ModuleSettingsBlock from './ModuleSettingsBlock.vue'
-import PluginSettingsBlock from './PluginSettingsBlock.vue'
+import PluginSettingsPage from './PluginSettingsPage.vue'
 /** 全局设置窗口：浮在启动器上方。外观与阅读声音走草稿，“应用 / 保存”提交；模型接口沿用即时保存。 */
 const emit = defineEmits<{ close: [] }>()
 provide('launcher-embedded', true)
@@ -67,9 +66,6 @@ function cancel() {
   if (store.preferencesDirty && !confirm('设置有未应用的修改，确定放弃？')) return
   store.resetPreferencesDraft()
   emit('close')
-}
-function addPlugin() {
-  store.preferencesDraft.hostPlugins.push({ id: `plugin-${crypto.randomUUID()}`, path: '', enabled: false })
 }
 </script>
 <template>
@@ -171,24 +167,7 @@ function addPlugin() {
             </section>
           </template>
           <template v-else-if="category === 'plugins'">
-            <p class="muted">
-              插件在下次启动游戏时加载。只添加你信任的本地插件；它们与游戏宿主拥有相同的本机访问权限。
-            </p>
-            <p class="muted">
-              选择插件文件后，这里会显示它旁边清单（与入口同名的
-              .plugin.json）中的名称、作者、所用服务和配置项。密钥类配置保存在系统凭据管理器，不写入设置文件。
-            </p>
-            <ModuleSettingsBlock />
-            <PluginSettingsBlock
-              v-for="(plugin, index) in store.preferencesDraft.hostPlugins"
-              :key="index"
-              :plugin="plugin"
-              :index="index"
-              @remove="store.preferencesDraft.hostPlugins.splice(index, 1)"
-            />
-            <Button variant="outline" :disabled="store.preferencesDraft.hostPlugins.length >= 16" @click="addPlugin"
-              >添加本地插件</Button
-            >
+            <PluginSettingsPage />
           </template>
           <template v-else-if="category === 'data'">
             <div class="settings-section">

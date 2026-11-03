@@ -7,7 +7,7 @@ import { Button } from './ui/button/index.ts'
 
 /** One saved plugin in settings: its file, what its manifest says it is and uses, and its config form. */
 const props = defineProps<{ plugin: HostPluginSettings; index: number }>()
-const emit = defineEmits<{ remove: [] }>()
+const emit = defineEmits<{ remove: []; inspected: [info: PluginManifestInfo] }>()
 const store = useLauncherStore()
 
 const SERVICE_LABELS: Record<PluginManifest['services'][number], string> = {
@@ -34,6 +34,7 @@ watch(
       const result = await store.inspectPlugin(path.trim())
       if (props.plugin.path !== path) return
       info.value = result
+      emit('inspected', result)
       if ('manifest' in result && result.manifest.id && /^plugin-[0-9a-f-]+$/u.test(props.plugin.id))
         props.plugin.id = result.manifest.id
       if ('manifest' in result) void store.refreshPluginSecrets(props.plugin.id, secretFields(result.manifest))
@@ -75,7 +76,7 @@ function secretStored(name: string) {
 </script>
 
 <template>
-  <section class="settings-block plugin-block">
+  <div class="plugin-block">
     <div class="form-field">
       <label :for="`plugin-id-${index}`">插件 ID</label
       ><input :id="`plugin-id-${index}`" v-model="plugin.id" maxlength="64" />
@@ -87,10 +88,9 @@ function secretStored(name: string) {
 
     <div v-if="manifest" class="plugin-manifest">
       <p class="plugin-title">
-        <strong>{{ manifest.name }}</strong> <span class="muted">v{{ manifest.version }}</span>
+        <span class="muted">版本 {{ manifest.version }}</span>
         <span v-if="manifest.author" class="muted"> · {{ manifest.author }}</span>
       </p>
-      <p v-if="manifest.description" class="muted">{{ manifest.description }}</p>
       <p class="plugin-services">
         <span class="muted">声明使用：</span>
         <span v-for="service in manifest.services" :key="service" class="plugin-service">{{
@@ -188,18 +188,22 @@ function secretStored(name: string) {
       上次启动时{{ PLUGIN_SKIP_REASON[skipped.reason] }}，已跳过<span v-if="skipped.detail">：{{ skipped.detail }}</span
       ><span v-else>。请检查插件文件，或取消勾选后重试。</span>
     </p>
-    <Button variant="outline" @click="emit('remove')">移除</Button>
-  </section>
+    <Button class="plugin-remove" variant="outline" @click="emit('remove')">移除</Button>
+  </div>
 </template>
 
 <style scoped>
+.plugin-block {
+  display: grid;
+  gap: 12px;
+}
+.plugin-remove {
+  justify-self: start;
+}
 .plugin-manifest,
 .plugin-config {
   display: grid;
-  gap: 6px;
-  padding: 10px 12px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
+  gap: 8px;
 }
 .plugin-manifest p,
 .plugin-config p {
@@ -237,7 +241,6 @@ function secretStored(name: string) {
   margin: 0;
   padding: 8px 10px;
   border-radius: 8px;
-  border-left: 3px solid var(--warning);
   background: var(--warning-bg);
   color: var(--foreground);
   font-size: 13px;

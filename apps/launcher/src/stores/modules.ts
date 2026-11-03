@@ -4,17 +4,38 @@ import type { HostPluginSettings } from '../../../../desktop/host-plugin-setting
 type ManifestInfo = { readonly manifest: { readonly name: string; readonly services: readonly string[] } } | object
 
 export const SEAMS = [
-  { seam: 'scheduler', label: '角色调度', single: true },
-  { seam: 'memory', label: '长期记忆', single: true },
-  { seam: 'llm', label: '模型通道', single: true },
-  { seam: 'decisions', label: '角色决策', single: false },
-  { seam: 'rules', label: '世界规则', single: false },
+  {
+    seam: 'scheduler',
+    label: '角色调度',
+    single: true,
+    description: '决定谁在什么时候获得处理机会。',
+    official: 'official-scheduler',
+  },
+  {
+    seam: 'memory',
+    label: '长期记忆',
+    single: true,
+    description: '整理角色的经历，在它决策时取回。',
+    official: 'official-memory-core',
+  },
+  {
+    seam: 'llm',
+    label: '模型通道',
+    single: true,
+    description: '把角色的决策发给模型，也管预设。',
+    official: 'official-llm',
+  },
+  { seam: 'decisions', label: '角色决策', single: false, description: '给决策加内容，或包住整个决策。', official: '' },
+  { seam: 'rules', label: '世界规则', single: false, description: '在官方规则外再加一层裁定。', official: '' },
 ] as const
 export type Seam = (typeof SEAMS)[number]['seam']
 
 export interface ModuleRow {
   readonly seam: Seam
   readonly label: string
+  readonly description: string
+  /** The id of whichever implementation is in force; empty when a stacking seam has none. */
+  readonly chip: string
   /** Only one plugin can hold this seam; the others stack. */
   readonly single: boolean
   readonly providers: readonly { readonly pluginId: string; readonly name: string; readonly enabled: boolean }[]
@@ -32,7 +53,7 @@ export function moduleRows(
   plugins: readonly HostPluginSettings[],
   manifests: Readonly<Record<string, ManifestInfo>>,
 ): ModuleRow[] {
-  return SEAMS.map(({ seam, label, single }) => {
+  return SEAMS.map(({ seam, label, single, description, official }) => {
     const providers = plugins.flatMap(plugin => {
       const manifest = manifestOf(manifests[plugin.id])
       return manifest?.services.includes(seam)
@@ -47,7 +68,17 @@ export function moduleRows(
       : single
         ? enabled[0]!.name
         : enabled.map(provider => provider.name).join('、')
-    return { seam, label, single, providers, effective, conflict: single && enabled.length > 1 }
+    const chip = enabled.map(provider => provider.pluginId).join('、') || official
+    return {
+      seam,
+      label,
+      description,
+      chip: single ? (enabled[0]?.pluginId ?? official) : chip,
+      single,
+      providers,
+      effective,
+      conflict: single && enabled.length > 1,
+    }
   })
 }
 

@@ -12,6 +12,8 @@ it('shows the official default when no plugin provides a seam', () => {
   const rows = moduleRows([plugin('tts')], { tts: manifest('语音', 'frontendServices') })
   expect(row(rows, 'scheduler')).toMatchObject({ effective: '官方默认', conflict: false, providers: [] })
   expect(row(rows, 'rules').effective).toBe('无')
+  expect(row(rows, 'scheduler').chip).toBe('official-scheduler')
+  expect(row(rows, 'rules').chip).toBe('')
 })
 
 it('shows the first enabled plugin as effective and marks a conflict', () => {
@@ -22,6 +24,7 @@ it('shows the first enabled plugin as effective and marks a conflict', () => {
   })
   expect(row(rows, 'memory')).toMatchObject({ effective: '乙', conflict: true })
   expect(row(rows, 'memory').providers).toHaveLength(3)
+  expect(row(rows, 'memory').chip).toBe('b')
 })
 
 it('stacks decisions and rules without a conflict', () => {
