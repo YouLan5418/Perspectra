@@ -1,10 +1,4 @@
-import {
-  characterTurnCall,
-  RequestInspector,
-  type ChatCall,
-  type ChatCallObservation,
-  type ChatProvider,
-} from '@harness-world/provider-chat'
+import { RequestInspector, type ChatCallObservation, type ChatProvider } from '@harness-world/provider-chat'
 import { CreatorRecords, type CreatorRecordsQuery } from './creator-records.ts'
 import { creatorHistory, creatorHistoryQuery, type CreatorHistoryQuery } from './creator-history.ts'
 import {
@@ -50,7 +44,7 @@ import {
 import { saveStoryNode, readStoryNodes } from '../story-nodes.ts'
 import { existsSync, unlinkSync } from 'node:fs'
 import { activityWorldFromEvents, type ActivityRequest, type ActivityWorld } from './pack-activity.ts'
-import { decideWithFormatRetry } from './decision-format.ts'
+import { runDecision, wrapDecision, type DecisionParts } from './character-decision.ts'
 import { PackActivities, type ActivityDefinitionView, type AutoStartEvaluation } from './pack-activities.ts'
 import {
   KNOWN_STATUS_NOTE,
@@ -106,6 +100,7 @@ import {
 import { normalizeSchedulerResult, trackSchedulerTurns } from './scheduler-result.ts'
 import { createWorldReader } from './world-reader.ts'
 import type {
+  DecisionInstance,
   LlmInstance,
   MemoryInstance,
   SchedulerInstance,
@@ -378,6 +373,7 @@ export class WorldHostCore implements HostRuntime {
   readonly #intentModel: string
   readonly #characterIds: readonly CharacterId[]
   #llm!: LlmInstance
+  #decisions: DecisionInstance[] = []
   #memory: MemoryInstance | undefined
   #memoryIsCore = false
   #memoryId = ''
@@ -607,78 +603,46 @@ export class WorldHostCore implements HostRuntime {
       request = { ...request, context: { ...request.context, knowledge: this.#knowledge.select(request.context) } }
     const expressions = this.#options.stageExpressions?.[characterId]
     if (expressions?.length) request = { ...request, context: { ...request.context, expressions: [...expressions] } }
+    for (const decision of this.#decisions) if (decision.context) request = await decision.context(request, signal)
     this.#roleCalls.delete(characterId)
-    const llm = this.#llm
-    const prepare = async (visible: CharacterTurnRequest): Promise<ChatCall> => {
-      try {
-        return llm.prepare
-          ? ((await llm.prepare(characterId, visible, signal)) as ChatCall)
-          : characterTurnCall(visible)
-      } catch (error) {
-        signal.throwIfAborted()
-        throw new CharacterPresetError('角色预设准备失败。', { cause: error })
-      }
-    }
-    const prepared = await prepare(request)
-    this.#memory?.observeContext?.(
-      request,
-      prepared.messages.map(message => message.content).join('\n') +
-        JSON.stringify(prepared.schema) +
-        (llm.promptText?.(characterId) ?? ''),
-    )
-    const simulated = this.#activity?.simulate(request)
-    const callProvider = async (call: typeof prepared) => {
-      signal.throwIfAborted()
-      if (this.#modelCallBudget) {
+    const parts: DecisionParts = {
+      llm: this.#llm,
+      memory: this.#memory,
+      simulate: visible => this.#activity?.simulate(visible),
+      spendCall: () => {
+        if (!this.#modelCallBudget) return
         if (this.#modelCallBudget.remaining <= 0) {
           this.#modelCallBudget.exhausted = true
           throw new Error('自主处理模型调用预算已耗尽')
         }
         this.#modelCallBudget.remaining--
-      }
-      return llm.send(characterId, call, request, signal)
-    }
-    // Preset output rules clean up model text. A scripted line is the author's exact text, which activity hooks
-    // check verbatim on publication, so it bypasses them.
-    const decide = async (call: typeof prepared) =>
-      (simulated !== undefined ? simulated : await callProvider(call)) as WorldJsonValue
-    const raw = await decideWithFormatRetry(
-      prepared,
-      decide,
-      signal,
-      characterTurnCall(request).schema,
-      request.context.activity === undefined && simulated === undefined
-        ? (reserveFormatRetry ?? (() => false))
-        : undefined,
-    )
-    if (this.#inspector.enabled)
-      this.#records.trace('decision', characterId, request.decisionId ?? null, {
-        source: simulated === undefined ? 'model' : 'script',
-        value: raw as WorldJsonObject,
-      })
-    this.#memory?.recordDecision?.(request, raw)
-    signal.throwIfAborted()
-    if (this.#closing || this.#abortedWork) throw new Error('角色任务世界版本已失效。')
-    if (this.#options.publicationAudit === undefined) return raw
-    const store = new WorldStore(resolve(this.#options.dataDirectory, 'world.sqlite'))
-    let history
-    try {
-      history = store.readEvents(this.#address)
-    } finally {
-      store.close()
-    }
-    return auditBeforePublication({
-      request,
-      raw,
-      history,
-      options: this.#options.publicationAudit,
-      signal,
-      decide: async revised => {
-        const call = await prepare(revised),
-          replacement = this.#activity?.simulate(revised)
-        return replacement === undefined ? await callProvider(call) : replacement
       },
-    })
+      trace: (id, visible, source, raw) => {
+        if (this.#inspector.enabled)
+          this.#records.trace('decision', id, visible.decisionId ?? null, { source, value: raw as WorldJsonObject })
+      },
+    }
+    const inner = async (visible: CharacterTurnRequest) => {
+      const raw = await runDecision(parts, visible, signal, reserveFormatRetry)
+      if (this.#closing || this.#abortedWork) throw new Error('角色任务世界版本已失效。')
+      if (this.#options.publicationAudit === undefined) return raw
+      const store = new WorldStore(resolve(this.#options.dataDirectory, 'world.sqlite'))
+      let history
+      try {
+        history = store.readEvents(this.#address)
+      } finally {
+        store.close()
+      }
+      return auditBeforePublication({
+        request: visible,
+        raw,
+        history,
+        options: this.#options.publicationAudit,
+        signal,
+        decide: revised => runDecision(parts, revised, signal, reserveFormatRetry),
+      })
+    }
+    return wrapDecision(this.#decisions, inner, signal)(request)
   }
 
   static async create(options: WorldHostOptions): Promise<WorldHostCore> {
@@ -709,6 +673,7 @@ export class WorldHostCore implements HostRuntime {
     try {
       await runtime.#openLlm()
       await runtime.#openMemory()
+      await runtime.#openDecisions()
       await runtime.#openScheduler()
       runtime.#packHash = pack.packHash
       runtime.#actionLabels = Object.fromEntries(
@@ -926,6 +891,7 @@ export class WorldHostCore implements HostRuntime {
           ? { statusPolicyError: this.#status.policyErrors }
           : {}),
         ...(this.#shadow === undefined ? {} : { shadowAudit: this.#shadow.stats() }),
+        ...Object.assign({}, ...this.#decisions.map(decision => decision.debug?.())),
       },
     }
   }
@@ -1562,6 +1528,13 @@ export class WorldHostCore implements HostRuntime {
     } catch (error) {
       console.error('[模型通道插件] 关闭失败：', error)
     }
+    for (const decision of [...this.#decisions].reverse()) {
+      try {
+        await decision.close?.()
+      } catch (error) {
+        console.error('[决策插件] 关闭失败：', error)
+      }
+    }
     await this.#shadow?.close()
     try {
       await this.#application.close()
@@ -1683,20 +1656,18 @@ export class WorldHostCore implements HostRuntime {
         continueAfterPublish:
           (this.#options.continueAfterPublish === true || this.#playSettings.continueAfterPublish === 1) &&
           !this.#activity?.current()?.game.active &&
-          this.#options.publicationAudit === undefined,
+          !this.#serialDecisions,
         beforeActionExpression:
           this.#options.beforeActionExpression === true &&
           !this.#activity?.current()?.game.active &&
-          this.#options.publicationAudit === undefined,
+          !this.#serialDecisions,
         onCommitted: async () => {
           this.#modules?.committed()
           await this.#projectCommitted(store)
         },
         onActionFailure: () => this.#modules?.failed(),
         allowUnrelatedCommits:
-          !this.#options.serialScheduling &&
-          !this.#activity?.current()?.game.active &&
-          this.#options.publicationAudit === undefined,
+          !this.#options.serialScheduling && !this.#activity?.current()?.game.active && !this.#serialDecisions,
         projectContext: (context: WorldJsonObject, canPerform: boolean) => {
           const activityContext = this.#activity?.projectContext(context, canPerform) ?? context
           const projected = this.#communication ? { ...activityContext, communicationInstruction } : activityContext
@@ -1789,10 +1760,7 @@ export class WorldHostCore implements HostRuntime {
     active: ReturnType<PackActivities['current']> | undefined,
   ): Promise<void> {
     const controller = this.#continuationController!
-    const dynamic =
-      !this.#options.serialScheduling &&
-      !this.#activity?.current()?.game.active &&
-      this.#options.publicationAudit === undefined
+    const dynamic = !this.#options.serialScheduling && !this.#activity?.current()?.game.active && !this.#serialDecisions
     const integratedAutonomy = dynamic && !this.#options.stagedAutonomy && due.length > 0
     const { autonomy, ...cycle } = await this.#schedule({
       store,
@@ -1878,6 +1846,21 @@ export class WorldHostCore implements HostRuntime {
       if (this.#options.plugins?.llm === undefined) throw error
       throw new Error(`模型通道插件 ${provider.id} 无法打开：${(error as Error).message}`, { cause: error })
     }
+  }
+
+  /** Whoever asked to take part in decisions expects to, so one that cannot open stops the world. */
+  async #openDecisions(): Promise<void> {
+    for (const provider of this.#options.plugins?.decisions ?? []) {
+      try {
+        this.#decisions.push(await provider.open(this.#services(provider.id), AbortSignal.timeout(30_000)))
+      } catch (error) {
+        throw new Error(`决策插件 ${provider.id} 无法打开：${(error as Error).message}`, { cause: error })
+      }
+    }
+  }
+
+  get #serialDecisions(): boolean {
+    return this.#options.publicationAudit !== undefined || this.#decisions.some(decision => decision.serial)
   }
 
   /** A memory holds durable data, so one that cannot open stops the world rather than silently forgetting. */
@@ -2034,8 +2017,7 @@ export class WorldHostCore implements HostRuntime {
             !due.some(role => role.characterId === id) && (!active?.game.active || !active.participants.includes(id)),
         ),
         presentCharacterIds: () => (this.#currentScene?.recipients ?? []).map(p => brandId(p.id, 'CharacterId')),
-        allowConcurrent:
-          !this.#options.serialScheduling && !active?.game.active && this.#options.publicationAudit === undefined,
+        allowConcurrent: !this.#options.serialScheduling && !active?.game.active && !this.#serialDecisions,
         locationId: (id: CharacterId) => currentLocation(store.readEvents(this.#address), id) ?? null,
         initialCounts: counts,
         limits: {
@@ -2280,6 +2262,7 @@ export class WorldHostCore implements HostRuntime {
       visibleSceneIds: view.scenes.map(scene => scene.sceneId),
     }
     this.#shadow?.observe(head.headSeq)
+    for (const decision of this.#decisions) decision.committed?.(head.headSeq)
     this.publishPlayerFeed()
   }
 }

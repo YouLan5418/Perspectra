@@ -13,6 +13,8 @@ import {
   hostApiCompatible,
   type FrontendServicesApi,
   type MemoryInstance,
+  type DecisionInstance,
+  type DecisionsApi,
   type LlmInstance,
   type LlmSlotApi,
   type MemorySlotApi,
@@ -129,6 +131,23 @@ export class LlmSlot extends Service implements LlmSlotApi {
     this.current = provider
     return () => {
       if (this.current === provider) this.current = undefined
+    }
+  }
+}
+
+export class DecisionRegistry extends Service implements DecisionsApi {
+  providers: readonly SeamProvider<DecisionInstance>[] = []
+
+  constructor(ctx: Context) {
+    super(ctx, 'decisions')
+  }
+
+  /** Own the returned disposer with the registering plugin's ctx.effect(). */
+  register(provider: SeamProvider<DecisionInstance>): () => void {
+    if (this.providers.some(other => other.id === provider.id)) throw new Error(`决策实现 ${provider.id} 已注册`)
+    this.providers = [...this.providers, provider]
+    return () => {
+      this.providers = this.providers.filter(other => other !== provider)
     }
   }
 }
@@ -253,6 +272,7 @@ export async function loadHostPlugins(
   const scheduler = new SchedulerSlot(root)
   const memory = new MemorySlot(root)
   const llm = new LlmSlot(root)
+  const decisions = new DecisionRegistry(root)
   const skipped: SkippedHostPlugin[] = []
   installPluginResolver()
   for (const plugin of plugins) {
@@ -319,6 +339,7 @@ export async function loadHostPlugins(
       scheduler: scheduler.current ?? officialSeams().scheduler,
       ...(chosenMemory ? { memory: chosenMemory } : {}),
       ...(llm.current ? { llm: llm.current } : {}),
+      ...(decisions.providers.length ? { decisions: decisions.providers } : {}),
     },
     skipped,
     close: () => root.fiber.dispose(),

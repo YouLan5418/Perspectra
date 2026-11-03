@@ -1,5 +1,11 @@
 import { officialSchedulerProvider } from '@harness-world/official-scheduler'
-import type { LlmInstance, MemoryInstance, SchedulerInstance, SeamProvider } from '@harness-world/plugin-sdk'
+import type {
+  DecisionInstance,
+  LlmInstance,
+  MemoryInstance,
+  SchedulerInstance,
+  SeamProvider,
+} from '@harness-world/plugin-sdk'
 
 import { coreMemoryProvider, type CoreProviderOptions } from '@harness-world/official-memory-core'
 import type { RuntimeRoleModels } from './model-connections.ts'
@@ -30,6 +36,8 @@ export interface HostSeams {
   readonly scheduler: SeamProvider<SchedulerInstance>
   readonly memory?: SeamProvider<MemoryInstance>
   readonly llm?: SeamProvider<LlmInstance>
+  /** Applied in order; the first is outermost. */
+  readonly decisions?: readonly SeamProvider<DecisionInstance>[]
 }
 
 /** The default bundle, and the only production file allowed to import `packages/official-*`. */
