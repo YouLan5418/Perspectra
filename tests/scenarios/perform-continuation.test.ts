@@ -1,6 +1,6 @@
 import { coreAdapter } from '../support/core-adapter.ts'
 import Ajv from 'ajv'
-import { gatewayTurnCall } from '../../desktop/host/gateway-turn-call.ts'
+import { gatewayTurnCall } from '../../packages/official-llm/src/gateway-turn-call.ts'
 import { DatabaseSync } from 'node:sqlite'
 import { AuthorizedSourceStore } from '@harness-world/memory'
 import { CharacterViewBuilder } from '@harness-world/store-sqlite'

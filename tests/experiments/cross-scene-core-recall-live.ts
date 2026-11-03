@@ -5,7 +5,7 @@ import { createChatProvider, characterTurnCall, type ChatCall } from '@harness-w
 import type { WorldJsonObject } from '@harness-world/contracts'
 import { crossSceneRuntime } from '../support/cross-scene-runtime.ts'
 import { coreRunner, createCoreWorker } from '../../packages/official-memory-core/src/python-worker.ts'
-import { gatewayTurnCall } from '../../desktop/host/gateway-turn-call.ts'
+import { gatewayTurnCall } from '../../packages/official-llm/src/gateway-turn-call.ts'
 import { decideWithFormatRetry } from '../../desktop/host/decision-format.ts'
 
 // Use only after the source experiment has stopped. Copy into a new directory, retaining its evidence.

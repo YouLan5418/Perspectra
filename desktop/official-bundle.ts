@@ -1,11 +1,12 @@
 import { officialSchedulerProvider } from '@harness-world/official-scheduler'
-import type { MemoryInstance, SchedulerInstance, SeamProvider } from '@harness-world/plugin-sdk'
+import type { LlmInstance, MemoryInstance, SchedulerInstance, SeamProvider } from '@harness-world/plugin-sdk'
 
 import { coreMemoryProvider, type CoreProviderOptions } from '@harness-world/official-memory-core'
 import type { RuntimeRoleModels } from './model-connections.ts'
 import { playSettings, type PlaySettings } from './play-settings.ts'
 
 export { officialMemoryNoneProvider } from '@harness-world/official-memory-none'
+export { officialLlmProvider, llmTimeoutMs, type ModelOptions } from '@harness-world/official-llm'
 export {
   CORE_MEMORY_ID,
   corePythonExecutable,
@@ -28,6 +29,7 @@ export function assembleCoreMemory(
 export interface HostSeams {
   readonly scheduler: SeamProvider<SchedulerInstance>
   readonly memory?: SeamProvider<MemoryInstance>
+  readonly llm?: SeamProvider<LlmInstance>
 }
 
 /** The default bundle, and the only production file allowed to import `packages/official-*`. */

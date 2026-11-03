@@ -234,6 +234,9 @@ export class TailRoundRuntime {
         ? { id: this.options.plugins.memory.id, version: this.options.plugins.memory.version }
         : null,
       memoryContextBudget: this.options.plugins?.memory?.identity?.memoryContextBudget ?? null,
+      llmProvider: this.options.plugins?.llm
+        ? { id: this.options.plugins.llm.id, version: this.options.plugins.llm.version }
+        : null,
     })
   }
   async #run(input: TailRecord['input'], idempotencyKey?: string): Promise<HostState> {

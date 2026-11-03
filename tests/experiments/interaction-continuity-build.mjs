@@ -20,7 +20,7 @@ const changed = [
   'packages/application/src/character-turn.ts',
   'packages/provider-chat/src/character-context-text.ts',
   'packages/provider-chat/src/character-turn-call.ts',
-  'desktop/host/gateway-turn-call.ts',
+  'packages/official-llm/src/gateway-turn-call.ts',
   'desktop/host/pack-activity.ts',
   'desktop/host/world-runtime.ts',
   'desktop/host/tail-runtime.ts',

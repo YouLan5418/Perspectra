@@ -7,7 +7,7 @@ import { restoreStoryNode } from '../../desktop/story-nodes.ts'
 import { exportStoryNode, importStoryNode } from '../../desktop/story-share.ts'
 import { crossSceneRuntime } from '../support/cross-scene-runtime.ts'
 import { CrossScenePhone } from '../support/cross-scene-phone.ts'
-import { gatewayTurnCall } from '../../desktop/host/gateway-turn-call.ts'
+import { gatewayTurnCall } from '../../packages/official-llm/src/gateway-turn-call.ts'
 import { decideWithFormatRetry } from '../../desktop/host/decision-format.ts'
 import { createCoreWorker, coreRunner } from '../../packages/official-memory-core/src/python-worker.ts'
 

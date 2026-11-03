@@ -9,7 +9,7 @@ import {
 import { parseHostLaunchArguments } from '../../desktop/host/launch-arguments.ts'
 import { characterTurnCall } from '@harness-world/provider-chat'
 import { parseExpressionSegments } from '@harness-world/contracts'
-import { gatewayTurnCall } from '../../desktop/host/gateway-turn-call.ts'
+import { gatewayTurnCall } from '../../packages/official-llm/src/gateway-turn-call.ts'
 it('validates local settings and rejects contradictory memory limits', () => {
   expect(playSettings({})).toEqual(DEFAULT_PLAY_SETTINGS)
   expect(playSettings({ maximumWaves: 5 }).maximumWaves).toBe(5)

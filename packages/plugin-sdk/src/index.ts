@@ -18,7 +18,7 @@ import type {
 
 /** Major.minor. A new service or optional field raises the minor; any change a plugin could trip over
  * raises the major. A plugin exports `hostApi` with the lowest version it needs. */
-export const HOST_API_VERSION = '1.2'
+export const HOST_API_VERSION = '1.3'
 
 /** Same major, and this host's minor at least the one the plugin asks for. */
 export function hostApiCompatible(required: unknown, host: string = HOST_API_VERSION): boolean {
@@ -130,7 +130,17 @@ export interface WorldServices {
   readonly dataDirectory: string
   /** The world instance's own directory, for implementations that keep files beside its databases. */
   readonly instanceDirectory: string
+  /** Who is in this world. Names only; nothing here is private to a character. */
+  readonly cast: WorldCast
   readonly world: WorldReader
+}
+export interface WorldCast {
+  readonly playerId: string
+  readonly playerName: string
+  /** The characters that decide through a model. */
+  readonly characterIds: readonly CharacterId[]
+  readonly characterNames: ReadonlyMap<string, string>
+  readonly locationNames: ReadonlyMap<string, string>
 }
 /** Registered once per process; `open` runs once per world instance, including regeneration candidates. */
 export interface SeamProvider<Instance> {
@@ -265,12 +275,39 @@ export interface MemorySlotApi {
   readonly current: SeamProvider<MemoryInstance> | undefined
 }
 
+/** One model call: the messages to send and the JSON Schema the answer must meet. Hand it back unchanged in
+ * `send`; the host's calls carry an extra inspection field for the request log. */
+export interface LlmCall {
+  readonly messages: readonly { readonly role: string; readonly content: string }[]
+  readonly schema: WorldJsonObject
+}
+/** How characters reach a model. Only `send` is required. */
+export interface LlmInstance {
+  /** Send one call and return the parsed answer. The host validates it and retries once on bad format. */
+  send(characterId: string, call: LlmCall, request: MemoryRequest, signal: AbortSignal): Promise<unknown>
+  /** Replace the default prompt for this decision. Without it the host's default call is sent as is. */
+  prepare?(characterId: string, request: MemoryRequest, signal: AbortSignal): Promise<LlmCall>
+  /** Extra text that counts against the character's context budget, such as a preset prompt. */
+  promptText?(characterId: string): string
+  /** Reshape what the player reads, such as preset display rules. */
+  display?<T>(view: T): Promise<T>
+  dispatch?(request: WorldJsonValue, profile: WorldJsonObject, signal: AbortSignal): Promise<WorldJsonValue>
+  close?(): void | Promise<void>
+}
+/** `ctx.llm`: replaces how characters reach a model. Wrap `register` in `ctx.effect()`. */
+export interface LlmSlotApi {
+  /** Throws when another plugin already holds the seam. */
+  register(provider: SeamProvider<LlmInstance>): () => void
+  readonly current: SeamProvider<LlmInstance> | undefined
+}
+
 export interface HostServices {
   frontendServices: FrontendServicesApi
   capabilities: CapabilitiesApi
   playerFeed: PlayerFeedApi
   scheduler: SchedulerSlotApi
   memory: MemorySlotApi
+  llm: LlmSlotApi
 }
 
 declare module '@deepseek-ai/cordis' {

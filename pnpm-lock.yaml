@@ -184,6 +184,18 @@ importers:
         specifier: workspace:*
         version: link:../store-sqlite
 
+  packages/official-llm:
+    dependencies:
+      '@harness-world/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      '@harness-world/plugin-sdk':
+        specifier: workspace:*
+        version: link:../plugin-sdk
+      '@harness-world/provider-chat':
+        specifier: workspace:*
+        version: link:../provider-chat
+
   packages/official-memory-core:
     dependencies:
       '@harness-world/contracts':

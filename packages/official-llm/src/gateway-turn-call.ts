@@ -2,10 +2,9 @@
 /* oxlint-disable unicorn/no-thenable */
 import type { WorldJsonObject } from '@harness-world/contracts'
 import { characterTurnCall } from '@harness-world/provider-chat'
-import type { CharacterTurnRequest } from '@harness-world/application'
 
 /** Local OpenAI/Anthropic gateways can treat a root oneOf as only its first choice. Host validation stays strict. */
-export function gatewayTurnCall(request: CharacterTurnRequest) {
+export function gatewayTurnCall(request: Parameters<typeof characterTurnCall>[0]) {
   const prepared = characterTurnCall(request)
   const beforeSchema = (prepared.schema.oneOf as WorldJsonObject[])
     .map(branch => (branch.properties as WorldJsonObject).before)

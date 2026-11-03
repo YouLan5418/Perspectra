@@ -1,7 +1,7 @@
 import { expect, it } from 'vitest'
 import { parseExpressionSegments } from '@harness-world/contracts'
 import { characterTurnCall } from '@harness-world/provider-chat'
-import { gatewayTurnCall } from '../../desktop/host/gateway-turn-call.ts'
+import { gatewayTurnCall } from '../../packages/official-llm/src/gateway-turn-call.ts'
 
 const context = (extra: object = {}) => ({
   character: { characterId: 'character:claude' },

@@ -255,6 +255,7 @@ it('gives a third-party provider no model configuration', async () => {
   })
   expect(Object.keys(services!).sort()).toEqual([
     'address',
+    'cast',
     'dataDirectory',
     'instanceDirectory',
     'world',

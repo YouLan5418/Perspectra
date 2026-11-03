@@ -1,6 +1,6 @@
 import Ajv from 'ajv'
 import { expect, it } from 'vitest'
-import { gatewayTurnCall } from '../../desktop/host/gateway-turn-call.ts'
+import { gatewayTurnCall } from '../../packages/official-llm/src/gateway-turn-call.ts'
 
 it('compiles a local tool schema when interactions share targets and bindings', () => {
   const interactions = ['take', 'inspect'].map(action => ({

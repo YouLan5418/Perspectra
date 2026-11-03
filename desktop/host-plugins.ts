@@ -13,6 +13,8 @@ import {
   hostApiCompatible,
   type FrontendServicesApi,
   type MemoryInstance,
+  type LlmInstance,
+  type LlmSlotApi,
   type MemorySlotApi,
   type PlayerFeedApi,
   type PlayerFeedEvent,
@@ -107,6 +109,23 @@ export class MemorySlot extends Service implements MemorySlotApi {
   /** Own the returned disposer with the registering plugin's ctx.effect(). */
   register(provider: SeamProvider<MemoryInstance>): () => void {
     if (this.current) throw new Error(`记忆已由 ${this.current.id} 提供`)
+    this.current = provider
+    return () => {
+      if (this.current === provider) this.current = undefined
+    }
+  }
+}
+
+export class LlmSlot extends Service implements LlmSlotApi {
+  current: SeamProvider<LlmInstance> | undefined
+
+  constructor(ctx: Context) {
+    super(ctx, 'llm')
+  }
+
+  /** Own the returned disposer with the registering plugin's ctx.effect(). */
+  register(provider: SeamProvider<LlmInstance>): () => void {
+    if (this.current) throw new Error(`模型通道已由 ${this.current.id} 提供`)
     this.current = provider
     return () => {
       if (this.current === provider) this.current = undefined
@@ -233,6 +252,7 @@ export async function loadHostPlugins(
   const playerFeed = new PlayerFeed(root)
   const scheduler = new SchedulerSlot(root)
   const memory = new MemorySlot(root)
+  const llm = new LlmSlot(root)
   const skipped: SkippedHostPlugin[] = []
   installPluginResolver()
   for (const plugin of plugins) {
@@ -298,6 +318,7 @@ export async function loadHostPlugins(
     seams: {
       scheduler: scheduler.current ?? officialSeams().scheduler,
       ...(chosenMemory ? { memory: chosenMemory } : {}),
+      ...(llm.current ? { llm: llm.current } : {}),
     },
     skipped,
     close: () => root.fiber.dispose(),

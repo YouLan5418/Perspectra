@@ -10,19 +10,41 @@ import {
   type RequestInspector,
   type RolePreset,
   type RolePresetMapping,
+  type ThinkingLevel,
 } from '@harness-world/provider-chat'
 import type { CharacterId } from '@harness-world/contracts'
-import type { PlaySettings } from '../play-settings.ts'
-import type { RuntimeModel, RuntimeRoleModels } from '../model-connections.ts'
+
+/** One resolved call target. The key is the only credential, and it stays inside this package's providers. */
+export interface LlmModel {
+  readonly protocol: ProviderProtocol
+  readonly endpoint: string
+  readonly model: string
+  readonly thinkingLevel?: ThinkingLevel
+  readonly apiKey?: string
+}
+interface LlmRoles {
+  readonly default: { readonly decision: LlmModel }
+  readonly characters: Readonly<Record<string, { readonly decision: LlmModel }>>
+}
+/** The play settings model calls read. */
+export interface LlmSettings {
+  readonly modelTimeoutSeconds: number
+  readonly publicationCharacters: number
+}
+/** How the host learns about calls for its debug state and failure notices. */
+export interface ChatObservers {
+  readonly onCall: (observation: ChatCallObservation) => void
+  readonly onRoleCall: (characterId: string, observation: ChatCallObservation) => void
+}
 
 /** How the Host reaches its models: resolved call targets, one default and optional per-character overrides. */
 export interface ModelOptions {
-  readonly models: RuntimeRoleModels
+  readonly models: LlmRoles
   readonly preset?: RolePreset
   readonly presetBaseSource?: PresetBaseSource
   readonly presetMapping?: RolePresetMapping
   readonly timeoutMs?: number
-  readonly playSettings?: PlaySettings
+  readonly playSettings?: object
 }
 
 export interface RoleProviders {
@@ -38,17 +60,21 @@ export interface RoleProviders {
   readonly presets: ReadonlyMap<string, RolePreset>
 }
 
+export function llmTimeoutMs(options: ModelOptions, settings: Pick<LlmSettings, 'modelTimeoutSeconds'>): number {
+  return options.timeoutMs ?? (options.playSettings ? settings.modelTimeoutSeconds * 1000 : 60_000)
+}
+
 export function createRoleProviders(
   options: ModelOptions,
-  settings: PlaySettings,
+  settings: Pick<LlmSettings, 'modelTimeoutSeconds'>,
   characters: readonly { readonly actorId: CharacterId }[],
   inspector: RequestInspector,
   onCall: (observation: ChatCallObservation) => void,
   onRoleCall: (characterId: string, observation: ChatCallObservation) => void,
 ): RoleProviders {
-  const timeoutMs = options.timeoutMs ?? (options.playSettings ? settings.modelTimeoutSeconds * 1000 : 60_000)
+  const timeoutMs = llmTimeoutMs(options, settings)
   const base = options.models.default.decision
-  const target = (own: RuntimeModel) => ({
+  const target = (own: LlmModel) => ({
     protocol: own.protocol,
     endpoint: new URL(own.endpoint),
     model: own.model,

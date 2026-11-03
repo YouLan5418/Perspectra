@@ -9,7 +9,7 @@ import { brandId, resolutionAuthority, type WorldJsonObject } from '@harness-wor
 import { currentLocation } from '@harness-world/kernel'
 import { crossSceneRuntime } from '../support/cross-scene-runtime.ts'
 import { CoreMemoryAdapter } from '../../packages/official-memory-core/src/core-memory.ts'
-import { gatewayTurnCall } from '../../desktop/host/gateway-turn-call.ts'
+import { gatewayTurnCall } from '../../packages/official-llm/src/gateway-turn-call.ts'
 
 const directories: string[] = [],
   runtimes: Awaited<ReturnType<typeof crossSceneRuntime>>[] = []

@@ -1,12 +1,9 @@
 import {
   characterTurnCall,
-  presetCall,
-  presetContext,
-  presetDisplay,
-  presetOutput,
   RequestInspector,
+  type ChatCall,
   type ChatCallObservation,
-  type RolePreset,
+  type ChatProvider,
 } from '@harness-world/provider-chat'
 import { CreatorRecords, type CreatorRecordsQuery } from './creator-records.ts'
 import { creatorHistory, creatorHistoryQuery, type CreatorHistoryQuery } from './creator-history.ts'
@@ -33,8 +30,7 @@ import {
   type ReadingPreferences,
   type AudioPreferences,
 } from '../play-settings.ts'
-import type { RuntimeModel } from '../model-connections.ts'
-import { createRoleProviders, type ModelOptions, type RoleProviders } from './role-providers.ts'
+import type { RuntimeModel, RuntimeRoleModels } from '../model-connections.ts'
 import { TailRoundRuntime } from './tail-runtime.ts'
 import { assertSettled, snapshotTail } from '../tail-storage.ts'
 import {
@@ -78,12 +74,13 @@ import {
   RECALL_KEYWORD_TOKENIZER_ID,
   resolutionAuthority,
   type CharacterId,
+  type CharacterView,
   type StoredWorldEvent,
   type WorldJsonObject,
   type WorldAddress,
+  type WorldJsonValue,
 } from '@harness-world/contracts'
 import { createInstalledInteractionPackages } from '@harness-world/interactions-basic'
-import { gatewayTurnCall } from './gateway-turn-call.ts'
 import {
   CharacterViewBuilder,
   CharacterRuntimeAvailabilityService,
@@ -97,14 +94,30 @@ import { modelCharacters, playerTranscript, sceneChangedAt } from './player-tran
 import { DEFAULT_RUNTIME_TUNING, type RuntimeTuning } from './runtime-tuning.ts'
 import { PackModules, lockedPackAsset } from './pack-modules.ts'
 import { CapabilitySession, type CapabilityCatalog } from '../host-capabilities.ts'
-import { CORE_MEMORY_ID, officialMemoryNoneProvider, officialSeams, type HostSeams } from '../official-bundle.ts'
+import {
+  CORE_MEMORY_ID,
+  llmTimeoutMs,
+  officialLlmProvider,
+  officialMemoryNoneProvider,
+  officialSeams,
+  type HostSeams,
+  type ModelOptions,
+} from '../official-bundle.ts'
 import { normalizeSchedulerResult, trackSchedulerTurns } from './scheduler-result.ts'
 import { createWorldReader } from './world-reader.ts'
-import type { MemoryInstance, SchedulerInstance, SchedulerResult, WorldServices } from '@harness-world/plugin-sdk'
+import type {
+  LlmInstance,
+  MemoryInstance,
+  SchedulerInstance,
+  SchedulerResult,
+  WorldServices,
+} from '@harness-world/plugin-sdk'
 
 const SCHEDULER_FAILED_NOTICE = '调度器插件出错，本轮角色反应已停止；玩家输入保留，可以继续行动。'
 
-export interface WorldHostOptions extends ModelOptions {
+export interface WorldHostOptions extends Omit<ModelOptions, 'models' | 'playSettings'> {
+  readonly models: RuntimeRoleModels
+  readonly playSettings?: PlaySettings
   readonly capabilities?: CapabilityCatalog
   /** The implementation in force for each replaceable seam; defaults to the official bundle. */
   readonly plugins?: Partial<HostSeams>
@@ -364,7 +377,7 @@ export class WorldHostCore implements HostRuntime {
   readonly #model: string
   readonly #intentModel: string
   readonly #characterIds: readonly CharacterId[]
-  readonly #effectivePresets: ReadonlyMap<string, RolePreset>
+  #llm!: LlmInstance
   #memory: MemoryInstance | undefined
   #memoryIsCore = false
   #memoryId = ''
@@ -466,7 +479,6 @@ export class WorldHostCore implements HostRuntime {
   #lastPlayerIntent: string | null = null
   #rootBeforeSeq = 0
   #continuationController: AbortController | undefined
-  readonly #models: RoleProviders
 
   private constructor(
     options: WorldHostOptions,
@@ -514,24 +526,9 @@ export class WorldHostCore implements HostRuntime {
     this.#entities = compiled.manifest
     this.#playerName = this.#names.get(this.#playerId) ?? this.#playerId
     const characters = modelCharacters(compiled.manifest, this.#playerId)
-    const models = createRoleProviders(
-      options,
-      settings,
-      characters,
-      this.#inspector,
-      observation => {
-        this.#providerCalls += 1
-        this.#lastCall = observation
-      },
-      (characterId, observation) => {
-        this.#roleCalls.set(characterId, observation)
-      },
-    )
-    this.#models = models
-    const { shared: provider, presets: effectivePresets, timeoutMs } = models
-    this.#model = models.model
-    this.#intentModel = models.intentModel
-    this.#effectivePresets = effectivePresets
+    this.#model = options.models.default.decision.model
+    this.#intentModel = this.#model
+    const timeoutMs = llmTimeoutMs(options, settings)
     this.#characterIds = characters.map(character => character.actorId)
     this.#npcNames = characters.map(character => character.name)
     // The Host's interpretation profile is a contract with the world, and its deadline ceiling is part of
@@ -557,9 +554,18 @@ export class WorldHostCore implements HostRuntime {
       // world that declared the legacy route simply keeps reading free text as speech.
       playerIntent: {
         profile: intentProfile,
-        dispatch: async (request, profile, signal) => await provider.dispatch(request, profile, signal),
+        dispatch: async (request, profile, signal) => {
+          if (!this.#llm.dispatch) throw new Error('当前模型通道不支持玩家意图解释。')
+          return (await this.#llm.dispatch(request, profile as unknown as WorldJsonObject, signal)) as Awaited<
+            ReturnType<ChatProvider['dispatch']>
+          >
+        },
       },
     })
+  }
+
+  #displayView(view: CharacterView): Promise<CharacterView> {
+    return this.#llm.display ? this.#llm.display(view) : Promise.resolve(view)
   }
 
   /** One character decision: authorized context projection, preset, model call, format retry and optional audit. */
@@ -602,26 +608,12 @@ export class WorldHostCore implements HostRuntime {
     const expressions = this.#options.stageExpressions?.[characterId]
     if (expressions?.length) request = { ...request, context: { ...request.context, expressions: [...expressions] } }
     this.#roleCalls.delete(characterId)
-    const roleProvider = this.#models.byCharacter.get(characterId)
-    if (!roleProvider) throw new TypeError('当前角色没有可调用的预设配置。')
-    const effectivePreset = this.#effectivePresets.get(characterId)
-    const prepare = async (visible: CharacterTurnRequest) => {
+    const llm = this.#llm
+    const prepare = async (visible: CharacterTurnRequest): Promise<ChatCall> => {
       try {
-        const projected = await presetContext(visible, effectivePreset!, String(this.#playerId), signal)
-        return presetCall(
-          this.#models.protocols.get(characterId) !== 'google'
-            ? gatewayTurnCall(projected)
-            : characterTurnCall(projected),
-          effectivePreset!,
-          projected,
-          this.#playerName,
-          {
-            character: this.#names.get(characterId) ?? characterId,
-            scene:
-              this.#locationNames.get(String((projected.context.scene as WorldJsonObject | undefined)?.locationId)) ??
-              String((projected.context.scene as WorldJsonObject | undefined)?.locationId ?? ''),
-          },
-        )
+        return llm.prepare
+          ? ((await llm.prepare(characterId, visible, signal)) as ChatCall)
+          : characterTurnCall(visible)
       } catch (error) {
         signal.throwIfAborted()
         throw new CharacterPresetError('角色预设准备失败。', { cause: error })
@@ -632,7 +624,7 @@ export class WorldHostCore implements HostRuntime {
       request,
       prepared.messages.map(message => message.content).join('\n') +
         JSON.stringify(prepared.schema) +
-        (effectivePreset?.prompt ?? ''),
+        (llm.promptText?.(characterId) ?? ''),
     )
     const simulated = this.#activity?.simulate(request)
     const callProvider = async (call: typeof prepared) => {
@@ -644,20 +636,12 @@ export class WorldHostCore implements HostRuntime {
         }
         this.#modelCallBudget.remaining--
       }
-      return roleProvider.decide(call, signal)
+      return llm.send(characterId, call, request, signal)
     }
     // Preset output rules clean up model text. A scripted line is the author's exact text, which activity hooks
     // check verbatim on publication, so it bypasses them.
     const decide = async (call: typeof prepared) =>
-      simulated !== undefined
-        ? simulated
-        : presetOutput(
-            await callProvider(call),
-            effectivePreset!,
-            signal,
-            request.context.expressionPolicy as WorldJsonObject | undefined,
-            this.#playSettings.publicationCharacters,
-          )
+      (simulated !== undefined ? simulated : await callProvider(call)) as WorldJsonValue
     const raw = await decideWithFormatRetry(
       prepared,
       decide,
@@ -692,12 +676,7 @@ export class WorldHostCore implements HostRuntime {
       decide: async revised => {
         const call = await prepare(revised),
           replacement = this.#activity?.simulate(revised)
-        return presetOutput(
-          replacement === undefined ? await callProvider(call) : replacement,
-          effectivePreset!,
-          signal,
-          revised.context.expressionPolicy as WorldJsonObject | undefined,
-        )
+        return replacement === undefined ? await callProvider(call) : replacement
       },
     })
   }
@@ -728,6 +707,7 @@ export class WorldHostCore implements HostRuntime {
         ?.version === 'player-intent/v1'
     const runtime = new WorldHostCore(options, compiled, intentEnabled)
     try {
+      await runtime.#openLlm()
       await runtime.#openMemory()
       await runtime.#openScheduler()
       runtime.#packHash = pack.packHash
@@ -932,7 +912,7 @@ export class WorldHostCore implements HostRuntime {
       debug: {
         ...this.#debug,
         worldVersion: this.#worldVersion,
-        provider: this.#models.protocol,
+        provider: this.#options.models.default.decision.protocol,
         model: this.#model,
         intentModel: this.#intentModel,
         providerCalls: this.#providerCalls,
@@ -1577,6 +1557,11 @@ export class WorldHostCore implements HostRuntime {
     } catch (error) {
       console.error('[调度器插件] 关闭失败：', error)
     }
+    try {
+      await this.#llm?.close?.()
+    } catch (error) {
+      console.error('[模型通道插件] 关闭失败：', error)
+    }
     await this.#shadow?.close()
     try {
       await this.#application.close()
@@ -1860,7 +1845,38 @@ export class WorldHostCore implements HostRuntime {
       worldVersion: this.#worldVersion,
       dataDirectory: resolve(this.#dataDirectory, 'plugins', id),
       instanceDirectory: resolve(this.#dataDirectory),
+      cast: {
+        playerId: String(this.#playerId),
+        playerName: this.#playerName,
+        characterIds: this.#characterIds,
+        characterNames: this.#names,
+        locationNames: this.#locationNames,
+      },
       world: this.#worldReader(),
+    }
+  }
+
+  /** A player's story must not silently go to a different model, so a channel that cannot open stops the world. */
+  async #openLlm(): Promise<void> {
+    const provider =
+      this.#options.plugins?.llm ??
+      officialLlmProvider({
+        ...this.#options,
+        settings: this.#playSettings,
+        inspector: this.#inspector,
+        onCall: observation => {
+          this.#providerCalls += 1
+          this.#lastCall = observation
+        },
+        onRoleCall: (characterId, observation) => {
+          this.#roleCalls.set(characterId, observation)
+        },
+      })
+    try {
+      this.#llm = await provider.open(this.#services(provider.id), AbortSignal.timeout(30_000))
+    } catch (error) {
+      if (this.#options.plugins?.llm === undefined) throw error
+      throw new Error(`模型通道插件 ${provider.id} 无法打开：${(error as Error).message}`, { cause: error })
     }
   }
 
@@ -2108,7 +2124,7 @@ export class WorldHostCore implements HostRuntime {
         head.headSeq,
       )
       this.#transcript = this.#withPauses(
-        playerTranscript(await presetDisplay(view, this.#effectivePresets), this.#names, this.#playerId, {
+        playerTranscript(await this.#displayView(view), this.#names, this.#playerId, {
           entityNames: this.#entityNames,
           locationNames: this.#locationNames,
         }),
@@ -2159,12 +2175,10 @@ export class WorldHostCore implements HostRuntime {
       this.#application.characterViewForPrincipal(this.#address, this.#principalId, this.#playerId),
       this.#application.head(this.#address),
     ])
-    this.#transcript = playerTranscript(
-      await presetDisplay(view, this.#effectivePresets),
-      this.#names,
-      this.#playerId,
-      { entityNames: this.#entityNames, locationNames: this.#locationNames },
-    )
+    this.#transcript = playerTranscript(await this.#displayView(view), this.#names, this.#playerId, {
+      entityNames: this.#entityNames,
+      locationNames: this.#locationNames,
+    })
     this.#availableActions = await this.#application.playerAffordancesForPrincipal(
       this.#address,
       this.#principalId,

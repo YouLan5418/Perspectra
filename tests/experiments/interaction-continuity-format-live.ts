@@ -3,7 +3,7 @@ import { mkdirSync, writeFileSync } from 'node:fs'
 import { resolve, join } from 'node:path'
 import { createChatProvider, characterTurnCall } from '@harness-world/provider-chat'
 import type { WorldJsonObject, WorldJsonValue } from '@harness-world/contracts'
-import { gatewayTurnCall } from '../../desktop/host/gateway-turn-call.ts'
+import { gatewayTurnCall } from '../../packages/official-llm/src/gateway-turn-call.ts'
 import { decideWithFormatRetry } from '../../desktop/host/decision-format.ts'
 import type { CharacterTurnRequest } from '../../packages/application/src/character-turn.ts'
 
