@@ -6,7 +6,13 @@ import { afterEach, expect, it } from 'vitest'
 import { compileWorldPackSource } from '@harness-world/world-pack'
 import { createInstalledInteractionPackages } from '@harness-world/interactions-basic'
 import { interactionPackageDescription, type WorldJsonObject } from '@harness-world/contracts'
-import { PackKnowledge } from '../../desktop/host/pack-knowledge.ts'
+import { KnowledgeSelection } from '@harness-world/official-knowledge'
+import { loadKnowledgeSource } from '../../desktop/host/knowledge-source.ts'
+import type { CompiledWorldPackV5 } from '@harness-world/world-pack'
+const loadKnowledge = (root: string, pack: CompiledWorldPackV5) => {
+  const source = loadKnowledgeSource(root, pack)
+  return source && KnowledgeSelection.parse(source.configuration, source.content)
+}
 import { WorldHostRuntime } from '../../desktop/host/world-runtime.ts'
 import { projectPlayerView } from '../../desktop/host/frontend-adapter.ts'
 import { createChatServer, fakeModels } from '../support/fake-provider.ts'
@@ -75,41 +81,41 @@ const contains = (properties: WorldJsonObject): WorldJsonObject => ({ type: 'arr
 
 it('checks knowledge audience, skips whole entries past the remaining budget and refuses entries larger than it', async () => {
   const f = await packFixture(),
-    knowledge = PackKnowledge.load(f.path, f.pack)!
+    knowledge = loadKnowledge(f.path, f.pack)!
   expect(JSON.stringify(knowledge.select(context('character:friend', '青竹 黑海岸')))).not.toContain('密约')
   expect(JSON.stringify(knowledge.select(context('character:friend')))).not.toContain('研究基地')
   expect(JSON.stringify(knowledge.select(context('character:companion', '黑海岸')))).toContain('密约')
   expect(JSON.stringify(knowledge.select(context('character:companion', '黑海岸')))).toContain('研究基地')
   // Each entry fits the budget alone; after the higher-priority secret (12) the lore (132) no longer does.
-  const limited = PackKnowledge.parse({ ...f.knowledgeConfig, maximumCharacters: 140 }, f.pack)
+  const limited = KnowledgeSelection.parse({ ...f.knowledgeConfig, maximumCharacters: 140 }, f.pack.content)
   const delivered = limited.select(context('character:companion', '黑海岸')).entries as WorldJsonObject[]
   expect(delivered.reduce((n, row) => n + String(row.content).length, 0)).toBeLessThanOrEqual(140)
   expect(JSON.stringify(delivered)).toContain('密约')
   expect(JSON.stringify(delivered)).not.toContain('研究基地')
   // An entry longer than the whole budget could never be injected: refused at load, naming the entry.
-  expect(() => PackKnowledge.parse({ ...f.knowledgeConfig, maximumCharacters: 100 }, f.pack)).toThrow(
+  expect(() => KnowledgeSelection.parse({ ...f.knowledgeConfig, maximumCharacters: 100 }, f.pack.content)).toThrow(
     '知识条目 document:lore 有 132 字符，超过每轮上限 maximumCharacters 100',
   )
   expect(() =>
-    PackKnowledge.parse(
+    KnowledgeSelection.parse(
       {
         ...f.knowledgeConfig,
         entries: [{ ...f.knowledgeConfig.entries[0], requireState: { id: 'trust', minimum: 52 } }],
       },
-      f.pack,
+      f.pack.content,
     ),
   ).toThrow('条目无效')
   writeFileSync(join(f.path, 'knowledge.json'), '{}')
-  expect(() => PackKnowledge.load(f.path, f.pack)).toThrow('编译包不一致')
+  expect(() => loadKnowledge(f.path, f.pack)).toThrow('编译包不一致')
 })
 
 it('gates knowledge by the receiver known nested state without exposing another role secrets', async () => {
   const f = await packFixture()
   const when = JSON.parse(readFileSync(resolve('examples/world-packs/status-market/knowledge.json'), 'utf8')).entries[0]
     .when
-  const knowledge = PackKnowledge.parse(
+  const knowledge = KnowledgeSelection.parse(
     { ...f.knowledgeConfig, entries: f.knowledgeConfig.entries.map(entry => ({ ...entry, constant: true, when })) },
-    f.pack,
+    f.pack.content,
   )
   const state = (actor: string, holderId: string, stage: string): WorldJsonObject => ({
     ...context(actor),
@@ -125,7 +131,10 @@ it('gates knowledge by the receiver known nested state without exposing another 
     '密约',
   )
   expect(() =>
-    PackKnowledge.parse({ ...f.knowledgeConfig, entries: [{ ...f.knowledgeConfig.entries[0], when: [] }] }, f.pack),
+    KnowledgeSelection.parse(
+      { ...f.knowledgeConfig, entries: [{ ...f.knowledgeConfig.entries[0], when: [] }] },
+      f.pack.content,
+    ),
   ).toThrow('条件')
 })
 
@@ -163,12 +172,12 @@ it('selects setting by current scene, items, activity, stimulus and known status
     },
     knownStatus: contains({ key: { const: 'money' }, holderId: { const: actor }, current: { const: true } }),
   }
-  const knowledge = PackKnowledge.parse(
+  const knowledge = KnowledgeSelection.parse(
     {
       ...f.knowledgeConfig,
       entries: f.knowledgeConfig.entries.map(entry => ({ ...entry, constant: true, when: fields(predicates) })),
     },
-    f.pack,
+    f.pack.content,
   )
   const selected = (value: WorldJsonObject) =>
     (knowledge.select(value).entries as WorldJsonObject[]).map(row => row.documentId)
@@ -200,9 +209,9 @@ it('does not expose unrelated context or let scene predicates widen a private do
     observations: [{ content: { locationId: 'location:back-room' } }],
   }
   const select = (when: WorldJsonObject) =>
-    PackKnowledge.parse(
+    KnowledgeSelection.parse(
       { ...f.knowledgeConfig, entries: f.knowledgeConfig.entries.map(entry => ({ ...entry, constant: true, when })) },
-      f.pack,
+      f.pack.content,
     ).select(request).entries
   expect(
     (select(fields({ locationId: { const: 'location:front-room' } })) as WorldJsonObject[]).map(row => row.documentId),
@@ -256,11 +265,13 @@ it('accepts a lorebook-sized pack: 600 entries, long keyword lists and a single 
     path,
     createInstalledInteractionPackages().map(interactionPackageDescription),
   )
-  const delivered = PackKnowledge.load(path, pack)!.select(context('character:friend', '提到巨型条目和条目599号'))
+  const delivered = loadKnowledge(path, pack)!.select(context('character:friend', '提到巨型条目和条目599号'))
     .entries as WorldJsonObject[]
   expect(delivered.map(row => row.documentId)).toEqual(['document:lore-0', 'document:lore-599'])
   expect(String(delivered[0]!.content)).toHaveLength(39_000)
-  expect(() => PackKnowledge.parse({ maximumCharacters: 65537, entries: [] }, pack)).toThrow('知识配置无效')
+  expect(() => KnowledgeSelection.parse({ maximumCharacters: 65537, entries: [] }, pack.content)).toThrow(
+    '知识配置无效',
+  )
 }, 30000)
 
 it.each(['ollama', 'local'] as const)(

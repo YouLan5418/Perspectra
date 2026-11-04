@@ -30,6 +30,8 @@ import {
   type SeamProvider,
   type CharacterLoopInstance,
   type CharacterLoopSlotApi,
+  type KnowledgeInstance,
+  type KnowledgeSlotApi,
 } from '@harness-world/plugin-sdk'
 
 // Cordis 4.0.1 exposes FiberState only as an ambient const enum in its declarations.
@@ -119,6 +121,20 @@ export class CharacterLoopSlot extends Service implements CharacterLoopSlotApi {
 
   register(provider: SeamProvider<CharacterLoopInstance>): () => void {
     if (this.current) throw new Error(`角色循环已由 ${this.current.id} 提供`)
+    this.current = provider
+    return () => {
+      if (this.current === provider) this.current = undefined
+    }
+  }
+}
+
+export class KnowledgeSlot extends Service implements KnowledgeSlotApi {
+  current: SeamProvider<KnowledgeInstance> | undefined
+  constructor(ctx: Context) {
+    super(ctx, 'knowledge')
+  }
+  register(provider: SeamProvider<KnowledgeInstance>): () => void {
+    if (this.current) throw new Error(`知识机制已由 ${this.current.id} 提供`)
     this.current = provider
     return () => {
       if (this.current === provider) this.current = undefined
@@ -326,6 +342,7 @@ export async function loadHostPlugins(
   const playerFeed = new PlayerFeed(root)
   const scheduler = new SchedulerSlot(root)
   const characterLoop = new CharacterLoopSlot(root)
+  const knowledge = new KnowledgeSlot(root)
   const memory = new MemorySlot(root)
   const llm = new LlmSlot(root)
   const decisions = new DecisionRegistry(root)
@@ -438,6 +455,7 @@ export async function loadHostPlugins(
     capabilities,
     playerFeed,
     seams: {
+      knowledge: knowledge.current!,
       scheduler: scheduler.current!,
       characterLoop: characterLoop.current!,
       ...(chosenMemory ? { memory: chosenMemory } : {}),

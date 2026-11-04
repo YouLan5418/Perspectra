@@ -1,3 +1,4 @@
+import { loadKnowledgeSource } from './knowledge-source.ts'
 import { composeWorldSeams, officialWorldOrder } from '../official-bundle.ts'
 import { RequestInspector, type ChatCallObservation, type ChatProvider } from '@harness-world/provider-chat'
 import { CreatorRecords, type CreatorRecordsQuery } from './creator-records.ts'
@@ -227,6 +228,8 @@ export class WorldHostCore implements HostRuntime {
   #model: string
   readonly #intentModel: string
   readonly #characterIds: readonly CharacterId[]
+  #knowledge!: import('@harness-world/plugin-sdk').KnowledgeInstance
+  #knowledgeSource: import('@harness-world/plugin-sdk').KnowledgeSource | undefined
   #llm!: LlmInstance
   /** The modules actually in force, which can differ from what was asked for when a scheduler falls back. */
   readonly #modulesInForce: Record<string, { id: string; version: string }[]> = {}
@@ -498,7 +501,9 @@ export class WorldHostCore implements HostRuntime {
         ?.version === 'player-intent/v1'
     const runtime = new WorldHostCore(options, compiled, intentEnabled)
     try {
+      runtime.#knowledgeSource = loadKnowledgeSource(options.packPath, pack)
       const open = {
+        knowledge: () => runtime.#openKnowledge(),
         llm: () => runtime.#openLlm(),
         rules: () => runtime.#openRules(),
         memory: () => runtime.#openMemory(),
@@ -1201,6 +1206,11 @@ export class WorldHostCore implements HostRuntime {
     } catch (error) {
       console.error('[模型通道插件] 关闭失败：', error)
     }
+    try {
+      await this.#knowledge?.close?.()
+    } catch (error) {
+      console.error('[知识机制] 关闭失败：', error)
+    }
     for (const layer of [...this.#ruleLayers].reverse()) {
       try {
         await layer.close?.()
@@ -1462,7 +1472,21 @@ export class WorldHostCore implements HostRuntime {
             : request,
         status: async request =>
           this.#gameplay.statusContext(request, String((request.context.character as WorldJsonObject).characterId)),
-        knowledge: async request => this.#gameplay.knowledgeContext(request),
+        knowledge: async request => {
+          try {
+            const selected = this.#knowledge.select(request.context)
+            return selected === undefined
+              ? request
+              : { ...request, context: { ...request.context, knowledge: selected } }
+          } catch (error) {
+            this.#reportPlugin(
+              this.#options.plugins!.knowledge!.id,
+              String((request.context.character as WorldJsonObject).characterId),
+              error,
+            )
+            throw error
+          }
+        },
         expressions: async request => {
           const characterId = String((request.context.character as WorldJsonObject).characterId)
           const expressions = this.#options.stageExpressions?.[characterId]
@@ -1590,6 +1614,23 @@ export class WorldHostCore implements HostRuntime {
 
   get #serialDecisions(): boolean {
     return this.#decisions.some(decision => decision.serial)
+  }
+
+  async #openKnowledge(): Promise<void> {
+    const provider = this.#options.plugins!.knowledge!
+    try {
+      this.#knowledge = await provider.open(
+        {
+          ...this.#services(provider.id),
+          ...(this.#knowledgeSource === undefined ? {} : { knowledgeSource: structuredClone(this.#knowledgeSource) }),
+        },
+        AbortSignal.timeout(30_000),
+      )
+      if (typeof this.#knowledge.select !== 'function') throw new TypeError('knowledge requires select')
+      this.#modulesInForce.knowledge = [{ id: provider.id, version: provider.version }]
+    } catch (error) {
+      throw new Error(`知识机制 ${provider.id} 无法打开：${(error as Error).message}`, { cause: error })
+    }
   }
 
   /** A memory holds durable data, so one that cannot open stops the world rather than silently forgetting. */

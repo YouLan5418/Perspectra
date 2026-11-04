@@ -43,7 +43,7 @@ export function tailRuntimeIdentity(): string {
       'desktop/host/pack-status.ts',
       'desktop/host/pack-autonomy.ts',
       'desktop/play-settings.ts',
-      'desktop/host/pack-knowledge.ts',
+      'desktop/host/knowledge-source.ts',
       'desktop/host/pack-json-asset.ts',
       'packages/official-llm/src/gateway-turn-call.ts',
       'packages/official-llm/src/role-providers.ts',

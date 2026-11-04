@@ -5,9 +5,11 @@ import { officialMemoryNoneProvider } from '@harness-world/official-memory-none'
 import type { Context } from '@deepseek-ai/cordis'
 import { officialSchedulerProvider } from '@harness-world/official-scheduler'
 import { officialCharacterLoopProvider } from '@harness-world/official-character-loop'
+import { officialKnowledgeProvider } from '@harness-world/official-knowledge'
 import type {
   DecisionInstance,
   CharacterLoopInstance,
+  KnowledgeInstance,
   LlmInstance,
   LlmTransportInstance,
   MemoryInstance,
@@ -50,6 +52,7 @@ export function assembleCoreMemory(
 
 /** The implementation in force for each replaceable seam. */
 export interface HostSeams {
+  readonly knowledge?: SeamProvider<KnowledgeInstance>
   readonly scheduler: SeamProvider<SchedulerInstance>
   readonly characterLoop?: SeamProvider<CharacterLoopInstance>
   readonly memory?: SeamProvider<MemoryInstance>
@@ -69,12 +72,21 @@ export function officialSeams(): HostSeams {
 }
 
 /** World opening order is composition policy, separate from Cordis inject and pack requirements. */
-export const officialWorldOrder = ['llm', 'rules', 'memory', 'decisions', 'scheduler', 'characterLoop'] as const
+export const officialWorldOrder = [
+  'llm',
+  'rules',
+  'memory',
+  'knowledge',
+  'decisions',
+  'scheduler',
+  'characterLoop',
+] as const
 
 /** Direct hosts and the plugin loader share the same default choices and decision ordering. */
 export function composeWorldSeams(plugins: Partial<HostSeams> = {}) {
   return {
     ...plugins,
+    knowledge: plugins.knowledge ?? officialKnowledgeProvider,
     scheduler: plugins.scheduler ?? officialSchedulerProvider,
     characterLoop: plugins.characterLoop ?? officialCharacterLoopProvider,
     memory: plugins.memory ?? officialMemoryNoneProvider,
@@ -85,6 +97,7 @@ export function composeWorldSeams(plugins: Partial<HostSeams> = {}) {
 
 /** Called after player plugins settle. Every default uses the same public registration API. */
 export function installOfficialBundle(ctx: Context, memory?: () => SeamProvider<MemoryInstance>): void {
+  if (!ctx.knowledge.current) ctx.effect(() => ctx.knowledge.register(officialKnowledgeProvider))
   if (!ctx.scheduler.current) ctx.effect(() => ctx.scheduler.register(officialSchedulerProvider))
   if (!ctx.characterLoop.current) ctx.effect(() => ctx.characterLoop.register(officialCharacterLoopProvider))
   if (!ctx.memory.current && memory) ctx.effect(() => ctx.memory.register(memory()))

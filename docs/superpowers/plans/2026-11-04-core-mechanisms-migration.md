@@ -1,6 +1,6 @@
 # 核心、Cordis 机制与脚本玩法迁移计划
 
-日期：2026-11-04。探查基线：`a924513e`，分支 `fix/activity-notice-and-revision`。依据[统一规范](../../current/architecture/plugin-standard.md)。状态：**源码探查与迁移计划，未开始迁移**。本次不修改运行时、目录、数据库或公开 API；文中的新位置和能力均为实施目标。
+日期：2026-11-04。探查基线：`a924513e`，分支 `fix/activity-notice-and-revision`。依据[统一规范](../../current/architecture/plugin-standard.md)。状态：**M0／M1 已实施，M2～M7 待实施**。本计划保留探查基线时的源码判断；当前成果与测试证据见[M0／M1 记录](../../current/studies/2026-11-core-migration-m01.md)。未注明完成的目录与能力仍为实施目标。
 
 例如料理比赛和 RPG 战斗可以共同使用状态、活动与交互机制，各自提供脚本规则；核心只确认调用者、授权范围和合法效果，并保存完整事实。移除这些玩法和非必要算法后，仍留下能管理实体、事件、权限、通用状态和提交的最小运行时。
 
@@ -18,7 +18,7 @@
 | [pack-activity.ts](../../../desktop/host/pack-activity.ts)，1525 行，apply、state、rulebooks、autoStartCandidate | 活动协议、public／private／internal、参与者、规则、VM、存储与开始／暂停等提交混合 | 活动计算迁机制，提交与授权边界留核心；旧脚本语义先保持 |
 | [pack-activities.ts](../../../desktop/host/pack-activities.ts)，379 行 | 资产发现、前台活动选择、快照缓存、自动开始和默认核心规则回退 | 活动目录／选择迁机制；默认规则与数据读取改为显式注入 |
 | [pack-communication.ts](../../../desktop/host/pack-communication.ts)，308 行，resolve、perform | 联系人规则和消息表达与玩家绑定检查、写租约、commitRound 混合 | 通信业务迁机制；收发授权与提交仍由核心能力执行 |
-| [pack-knowledge.ts](../../../desktop/host/pack-knowledge.ts)，141 行，parse、select | 读取包资产、选择设定材料；条件明确使用授权 context；依赖 pack-status 的 knownStatusView | 适合作为低风险首个迁移样本，先抽纯授权视图转换，避免拖入整个状态模块 |
+| [pack-knowledge.ts](https://github.com/YouLan5418/Perspectra/blob/40666bfa/desktop/host/pack-knowledge.ts)，141 行，parse、select | 读取包资产、选择设定材料；条件明确使用授权 context；依赖 pack-status 的 knownStatusView | 适合作为低风险首个迁移样本，先抽纯授权视图转换，避免拖入整个状态模块 |
 | [pack-autonomy.ts](../../../desktop/host/pack-autonomy.ts)，311 行 | 作者配置、到期机会与操作限制；认识状态／活动／短信操作名称 | 配置与合法选项迁机制，机会策略继续复用 scheduler；不再写另一套调度循环 |
 | [pack-modules.ts](../../../desktop/host/pack-modules.ts)，332 行 | 已有包内声明与同步脚本；statusSource 拼接基础状态与模块源码；异步 prepare 只拿已知值与 actorWorldView | 保留作者入口，分离装载／纯脚本适配和原生能力桥，不重造脚本协议 |
 | [CharacterTurn](../../../packages/application/src/character-turn.ts)，852 行；[RoundCoordinator](../../../packages/application/src/round-coordinator.ts)，1092 行 | 两条实际提交路径：角色循环能力与玩家回合；包含最新前缀、租约、规则和观察处理 | 都要保护；不能只迁 NPC 而遗留玩家／活动／短信专用写库路径 |
@@ -100,6 +100,7 @@
 - WorldApplication 的 DEFAULT_INTERACTION_PACKAGES 与宿主 rule-layers 的固定基础交互装配改为入口显式提供；复用已存在的 rulebooks／interactionPackages 注入点。
 - 最小入口与网页／Launcher 默认入口分别装配。最小入口不要求 models、Python、预设、舞台或具体内容包；默认入口的错误提示和必需依赖仍保持。
 - 当前 Store 要求 v10 Manifest、注册事件，基础规则名称与交互闭合也有约束。先用 M1 探针确认空或最小交互目录是否能满足当前格式；若不能，先记录最小放宽范围和数据需求，再定格式处理，不能直接跳过校验或预设升级新版本。
+- M1 探针发现：空交互目录可被 activate 提交，但读取时被 packages 的最小数量约束拒绝。M2 先统一激活／挂载校验和空选择语义，再验证无具体玩法；不得跳过校验。显式选择测试交互包时已可无模型／Python 打开、授权读取和重开；agent-context 仍要求授权来源 SQLite。
 - 不把 kernel、application 整包搬成插件，也不以“关闭默认插件”掩盖仍被静态导入的玩法实现。
 
 ### M3：迁现有状态能力

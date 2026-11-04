@@ -1,3 +1,4 @@
+import { knownStatusView } from '@harness-world/contracts'
 import Ajv, { type ValidateFunction } from 'ajv'
 import { createHash, randomUUID } from 'node:crypto'
 import { lstatSync, readFileSync, realpathSync } from 'node:fs'
@@ -209,20 +210,6 @@ export function pauseRounds(events: readonly (RulebookEvent & { seq: number })[]
     const source = statusData(event).source
     return source.kind === 'round' && source.pause === true ? [{ seq: event.seq, round: source.round }] : []
   })
-}
-
-/** Both author policy and knowledge conditions read this observer's known values, never global truth.
- * A reveal covers a whole status key: split data with different audiences into different keys. */
-export function knownStatusView(
-  entries: readonly KnownStatus[],
-  actorId: string,
-): StatusTruth & { self: Record<string, StatusValue> } {
-  const view: StatusTruth = { public: {}, characters: {} }
-  for (const entry of entries) {
-    const values = entry.holderId === null ? view.public : (view.characters[entry.holderId] ??= {})
-    values[entry.key] = structuredClone(entry.value)
-  }
-  return { ...view, self: view.characters[actorId] ?? {} }
 }
 
 /** Trusted author rules for adjudicated statuses. True values live only in `status.updated` events;

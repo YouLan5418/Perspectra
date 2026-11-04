@@ -14,7 +14,8 @@ import {
   type CapabilitySession,
 } from '../host-capabilities.ts'
 import { actorWorldView } from './pack-activity.ts'
-import { knownStatusView, type PackStatus } from './pack-status.ts'
+import type { PackStatus } from './pack-status.ts'
+import { knownStatusView } from '@harness-world/contracts'
 
 const object = (value: unknown): WorldJsonObject => {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new TypeError('Expected pack module object')

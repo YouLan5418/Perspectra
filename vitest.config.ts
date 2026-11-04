@@ -15,6 +15,7 @@ export default defineConfig({
       '@harness-world/frontend': `${root}packages/frontend/src/index.ts`,
       '@harness-world/plugin-sdk': `${root}packages/plugin-sdk/src/index.ts`,
       '@harness-world/official-character-loop': `${root}packages/official-character-loop/src/index.ts`,
+      '@harness-world/official-knowledge': `${root}packages/official-knowledge/src/index.ts`,
       '@harness-world/official-contexts': `${root}packages/official-contexts/src/index.ts`,
       '@harness-world/official-scheduler': `${root}packages/official-scheduler/src/index.ts`,
       '@harness-world/official-jev-audit': `${root}packages/official-jev-audit/src/index.ts`,

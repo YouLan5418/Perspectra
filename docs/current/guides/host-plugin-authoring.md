@@ -1,5 +1,15 @@
 # 编写并加载自己的 Cordis 宿主插件
 
+## 替换设定知识机制（2.5）
+
+例如开发者想改作者设定的排序而保留状态、记忆和模型预设，可通过 `ctx.effect(() => ctx.knowledge.register(provider))` 注册单例 Provider，清单 services 写 `knowledge`，模块声明 `hostApi = '2.5'`。
+
+`open(world, signal)` 返回 `{ select(context), close?() }`。只有所选知识 Provider 的 open 会获得可选的 `world.knowledgeSource`（配置与 documents／markdown 数据描述）；这是受信任机制的作者材料，不是角色模型请求，不包含整个编译包或数据库。select 是同步的纯材料选择，输入为当前角色授权 Context，返回 knowledge 对象或 undefined（本次不扩充）。它不执行行动、不提交事实，也不自动增加模型调用。
+
+官方实现按公开／角色私有受众、when 条件、关键词、priority 和整条字符预算筛选，标记 author_setting。替代实现仍应保持认知隔离；普通外部玩法脚本不会因此获得全量作者私有文档。原知识 context 步骤及替代决策步骤可通过同一 contextSources.knowledge 能力调用所选服务，不需要接管整个上下文组合。
+
+每个世界与候选独立 open/close；公开 identity 纳入重生与候选比较。打开失败不回退，选择失败提示真实机制 ID，玩家输入与先前提交内容保留。当前仍是可信原生插件，不提供恶意代码沙箱。
+
 2026-11-04 依赖就绪：插件可用 Cordis 的 `inject` 声明所需服务，提供者可以排在后面。宿主完成全部装载后核对状态，缺服务或互相等待的插件会被跳过，并列出未就绪的服务名。异步初始化仍保留设置列表中的注册优先级。该声明不替代世界包的 requiresPlugins，也不决定决策步骤顺序。见[默认组合与依赖诊断](../studies/2026-11-plugin-first-phase-11.md)。
 
 ## 替换角色执行循环（2.4）

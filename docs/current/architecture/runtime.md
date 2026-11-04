@@ -1,5 +1,7 @@
 # 当前运行时
 
+2026-11-04 M1：例如同行者听到“黑海岸”后收到相关设定，宿主先用 [knowledge-source](../../../desktop/host/knowledge-source.ts)验证配置资产，再把必要内容描述交给所选知识 Provider。`ctx.knowledge` 通过 Cordis 注册；默认组合在记忆之后、决策扩充之前打开它，knowledge context 步骤调用其 select。受众与条件筛选在 [official-knowledge](../../../packages/official-knowledge/src/selection.ts)，WorldGameplay 不再持有 PackKnowledge。候选世界独立 open/close，公开 identity 纳入重生环境比较。源码接通和最小启动探针不等于完整最小核心已完成，见[M0／M1 记录](../studies/2026-11-core-migration-m01.md)。
+
 2026-11-04 阶段 11：例如服务消费者排在提供者之前，加载器会在装载结束后再次核对 Cordis 就绪状态，未执行的插件不记为生效。官方默认选择、决策顺序和世界打开顺序集中到 [official-bundle](../../../desktop/official-bundle.ts)；加载器通过公开 register／effect 填充空位，直接宿主复用同一组合策略。模型凭证工厂仍按世界装配。源码与限制见[阶段 11 记录](../studies/2026-11-plugin-first-phase-11.md)。
 
 2026-11-04 阶段 10：例如角色先拿钥匙再决定如何回应，主干 [CharacterTurn](../../../packages/application/src/character-turn.ts)构造授权请求并裁定、提交申请；[official-character-loop](../../../packages/official-character-loop/src/index.ts)决定调用次数、是否续写及不可达发言的一次修正。第三方 `ctx.characterLoop` 使用同一组绑定当前 NPC 的 prepare/decide/submit 能力，没有存储、租约或 commitRound。请求与结果返回副本，准备过的申请只消费一次；取消、过期前缀、角色并发和激活结束后的调用由主干拒绝。循环自身失败保留已提交行动，不伪装成模型故障。世界、重生候选与节点重开独立 open/close，公开 identity 纳入候选环境比较。接口取舍见[设计记录](../../superpowers/specs/2026-11-04-character-loop.md)，验证与未验收范围见[阶段记录](../studies/2026-11-plugin-first-phase-10.md)。
@@ -44,7 +46,7 @@ WorldStore 的审计连接在创建、激活或分叉等实际审计操作时打
 
 例如两个角色先后私下查看钱包，先行动者的续写只能拿到自己那次查看的结果，不能拿到后行动者的余额。[角色回合](../../../packages/application/src/character-turn.ts)用该行动已有的事件引用限定结果读取前缀，当前场景和授权上下文仍按最新前缀生成；状态结果还核对行动者与操作。回合钩子只由新提交的玩家输入触发，同一输入的幂等重放或活动的 NPC 重试不触发。轮次从已有玩家提交推导，同次事务中的多个玩家动作只算一轮，快捷活动的开始与执行两次提交合算一轮；先前钩子返回 null 或失败仍计入已发生轮次，不写额外状态文件。自动回归覆盖并发私有结果隔离、输入重放和无状态提交后的轮次推进，尚未做这组修复的真实模型试玩。
 
-例如角色自己的委托记录进入 done 后，出现领奖选项，并收到领奖说明；其他角色没有观察到这份记录，就不会因此获得说明。状态值现支持带 Schema 的对象、数组，仍按状态键整体更新和告知。状态 policy 只收到由 knownStatus 生成的 `{ public, self, characters }`，在候选生成及提交前检查；resolve 才读取最新 truth 并裁定加钱与已领取标志。角色请求先装入 knownStatus，再由[知识选择器](../../../desktop/host/pack-knowledge.ts)按受众、when Schema、关键词和预算选择材料。条件不会直接调度角色或启动自动事件链。相关自动回归覆盖嵌套校验失败无提交、领奖去重、私有条件隔离，以及结构化状态随分叉和重新生成回滚；未做这组扩展的真实模型试玩，发行包未重建。
+例如角色自己的委托记录进入 done 后，出现领奖选项，并收到领奖说明；其他角色没有观察到这份记录，就不会因此获得说明。状态值现支持带 Schema 的对象、数组，仍按状态键整体更新和告知。状态 policy 只收到由 knownStatus 生成的 `{ public, self, characters }`，在候选生成及提交前检查；resolve 才读取最新 truth 并裁定加钱与已领取标志。角色请求先装入 knownStatus，再由[知识选择器](../../../packages/official-knowledge/src/selection.ts)按受众、when Schema、关键词和预算选择材料。条件不会直接调度角色或启动自动事件链。相关自动回归覆盖嵌套校验失败无提交、领奖去重、私有条件隔离，以及结构化状态随分叉和重新生成回滚；未做这组扩展的真实模型试玩，发行包未重建。
 
 2026-10-18：保留[原型遗留处理](../studies/phase8-prototype-transition-audit-20261018.md)的前两步。例如玩家说话后，RoundCoordinator 只裁定和提交玩家行动，NPC 由既有单角色循环处理；旧批量 participant、Reaction Worker、Director 模型、Context Pipeline、Reflection、Checkpoint 和 NPC Provider Call／Quality 已移除。保留玩家输入解释专用记录、授权 Source 捕获、原生认知任务及 Presenter；不改库结构或历史事件读取。2026-10-21 起旧 Reaction Cycle 的存储、门面 API 与提交拦截全部删除：world 库迁移 v20 删掉四张 Cycle 表。曾运行过 Cycle 的旧存档不再维护：其 bundle hash 覆盖了已删除的行，完整性检查会失败。Manifest 的 reactionPolicy 字段为保持哈希仍被编译和解析，运行时不读取。当前模型请求内容保持改前版本：第三步心理呈现调整因对照中的行动选择退化迹象已撤回。宿主目录整理与 Source／摘要解耦仍延期。
 

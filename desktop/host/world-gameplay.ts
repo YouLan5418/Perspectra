@@ -8,7 +8,6 @@ import type { CapabilitySession } from '../host-capabilities.ts'
 import { PackActivities } from './pack-activities.ts'
 import { PackAutonomy } from './pack-autonomy.ts'
 import { communicationInstruction, CrossSceneCommunication, loadCommunicationConfig } from './pack-communication.ts'
-import { PackKnowledge } from './pack-knowledge.ts'
 import type { PackModules } from './pack-modules.ts'
 import { KNOWN_STATUS_NOTE, PackStatus, publicStatusChanges } from './pack-status.ts'
 
@@ -28,7 +27,6 @@ export class WorldGameplay {
   autonomy: PackAutonomy | undefined
   communication: CrossSceneCommunication | undefined
   status: PackStatus | undefined
-  knowledge: PackKnowledge | undefined
 
   constructor(
     private readonly world: {
@@ -66,7 +64,6 @@ export class WorldGameplay {
       this.status!.externalActions = modules
     }
     await this.status?.ensureInitial(this.world.worldPath, this.world.address, this.world.playerId)
-    this.knowledge = PackKnowledge.load(input.packPath, pack)
     this.activity = PackActivities.load(
       input.packPath,
       pack,
@@ -130,12 +127,6 @@ export class WorldGameplay {
         },
       }
     }
-    return request
-  }
-
-  knowledgeContext<T extends MemoryRequest>(request: T): T {
-    if (this.knowledge)
-      request = { ...request, context: { ...request.context, knowledge: this.knowledge.select(request.context) } }
     return request
   }
 

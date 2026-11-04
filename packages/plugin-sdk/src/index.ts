@@ -23,7 +23,7 @@ import type {
 
 /** Major.minor. A new service or optional field raises the minor; any change a plugin could trip over
  * raises the major. A plugin exports `hostApi` with the lowest version it needs. */
-export const HOST_API_VERSION = '2.4'
+export const HOST_API_VERSION = '2.5'
 
 /** Same major, and this host's minor at least the one the plugin asks for. */
 export function hostApiCompatible(required: unknown, host: string = HOST_API_VERSION): boolean {
@@ -141,6 +141,8 @@ export interface WorldServices {
   /** Who is in this world. Names only; nothing here is private to a character. */
   readonly cast: WorldCast
   readonly world: WorldReader
+  /** Trusted author materials, supplied only to the selected knowledge provider; never a model-visible request. */
+  readonly knowledgeSource?: KnowledgeSource
   /** Authorized context projections, available equally to official and replacement decisions. */
   readonly contextSources?: DecisionContextSources
 }
@@ -420,6 +422,7 @@ export interface HostServices {
   frontendServices: FrontendServicesApi
   capabilities: CapabilitiesApi
   playerFeed: PlayerFeedApi
+  knowledge: KnowledgeSlotApi
   scheduler: SchedulerSlotApi
   characterLoop: CharacterLoopSlotApi
   memory: MemorySlotApi
@@ -525,4 +528,27 @@ export interface PluginManifest {
   readonly llmMode?: 'transport'
   readonly services: readonly (keyof HostServices)[]
   readonly config?: Readonly<Record<string, PluginConfigField>>
+}
+
+export interface KnowledgeContent {
+  readonly documents: readonly {
+    readonly documentId: string
+    readonly usage: string
+    readonly audience: string
+    readonly characterIds: readonly string[]
+    readonly contentRef: string
+  }[]
+  readonly markdown: readonly { readonly path: string; readonly text: string }[]
+}
+export interface KnowledgeSource {
+  readonly configuration: unknown
+  readonly content: KnowledgeContent
+}
+export interface KnowledgeInstance {
+  select(context: WorldJsonObject): WorldJsonObject | undefined
+  close?(): void | Promise<void>
+}
+export interface KnowledgeSlotApi {
+  register(provider: SeamProvider<KnowledgeInstance>): () => void
+  readonly current: SeamProvider<KnowledgeInstance> | undefined
 }

@@ -16,3 +16,5 @@ export * from './untrusted-json.ts'
 export * from './world-json.ts'
 export * from './interaction-definition.ts'
 export * from './interaction-schema.ts'
+
+export * from './known-status-view.ts'

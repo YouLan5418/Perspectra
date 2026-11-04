@@ -32,8 +32,12 @@ describe('desktop launch boundary', () => {
       await writeFile(
         pluginPath,
         `import { writeFileSync, appendFileSync } from 'node:fs';
-      export const hostApi = '2.4';
+      export const hostApi = '2.5';
       export default function(ctx) {
+        ctx.effect(() => ctx.knowledge.register({ id:'packaged-knowledge',version:'1.0.0',open:async()=>({
+          select:context=>{writeFileSync(new URL('./knowledge-ran', import.meta.url),context.character.characterId);return undefined},
+          close:()=>writeFileSync(new URL('./knowledge-closed', import.meta.url),'yes'),
+        }) }));
         ctx.effect(() => ctx.characterLoop.register({ id:'packaged-loop', version:'1.0.0', open:async()=>({
           run: async activation => {
             for (let step = 0; step < 2; step++) {
@@ -169,12 +173,14 @@ describe('desktop launch boundary', () => {
         expect(submitted.status).toBe(200)
         const actors = await readFile(join(pluginDirectory, 'loop-ran'), 'utf8')
         expect(actors).toContain('character:')
+        expect(await readFile(join(pluginDirectory, 'knowledge-ran'), 'utf8')).toContain('character:')
         if (packName === 'autonomy-scheduling') expect(actors).toContain('character:friend')
         child.send({ type: 'shutdown' })
         const exitCode = await new Promise<number | null>(resolveExit => child.once('exit', resolveExit))
         expect(exitCode).toBe(0)
         expect(await readFile(join(pluginDirectory, 'plugin-closed'), 'utf8')).toBe('yes')
         expect(await readFile(join(pluginDirectory, 'loop-closed'), 'utf8')).toBe('yes')
+        expect(await readFile(join(pluginDirectory, 'knowledge-closed'), 'utf8')).toBe('yes')
         expect((await preflightSave(pack, directory)).kind).toBe('resume')
         await expect(preflightSave(resolve('examples/world-packs/prototype-g1'), directory)).rejects.toThrow(
           '世界包与存档中的世界不一致',

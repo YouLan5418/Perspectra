@@ -7,6 +7,7 @@ const SERVICES = [
   'capabilities',
   'playerFeed',
   'scheduler',
+  'knowledge',
   'characterLoop',
   'llm',
   'decisions',

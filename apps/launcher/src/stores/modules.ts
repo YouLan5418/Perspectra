@@ -9,6 +9,13 @@ type ManifestInfo =
 
 export const SEAMS = [
   {
+    seam: 'knowledge',
+    label: '设定知识',
+    single: true,
+    description: '根据角色权限和当前情境选择作者设定。',
+    official: 'official-knowledge',
+  },
+  {
     seam: 'characterLoop',
     label: '角色执行循环',
     single: true,

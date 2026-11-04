@@ -208,6 +208,18 @@ importers:
         specifier: workspace:*
         version: link:../plugin-sdk
 
+  packages/official-knowledge:
+    dependencies:
+      '@harness-world/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      '@harness-world/plugin-sdk':
+        specifier: workspace:*
+        version: link:../plugin-sdk
+      ajv:
+        specifier: 8.17.1
+        version: 8.17.1
+
   packages/official-llm:
     dependencies:
       '@harness-world/contracts':

@@ -1,3 +1,4 @@
+import { knownStatusView } from '@harness-world/contracts'
 import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
@@ -6,7 +7,7 @@ import { interactionPackageDescription } from '@harness-world/contracts'
 import { createBasicInteractionPackage } from '@harness-world/interactions-basic'
 import type { RulebookEvent } from '@harness-world/kernel'
 import { compileWorldPackSource, type CompiledWorldPackV5 } from '@harness-world/world-pack'
-import { knownStatusView, PackStatus, type StatusEventData } from '../../desktop/host/pack-status.ts'
+import { PackStatus, type StatusEventData } from '../../desktop/host/pack-status.ts'
 
 const original = resolve('examples/world-packs/ai-girls-awaken-v10')
 const market = readFileSync(resolve('tests/fixtures/status-market.js'), 'utf8').replaceAll('\r\n', '\n')
