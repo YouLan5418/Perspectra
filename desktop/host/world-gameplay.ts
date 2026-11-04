@@ -1,3 +1,4 @@
+import type { MemoryRequest } from '@harness-world/plugin-sdk'
 import type { CharacterTurnRequest } from '@harness-world/application'
 import { characterExecutionResult } from '@harness-world/application'
 import type { CharacterId, WorldAddress, WorldJsonObject } from '@harness-world/contracts'
@@ -104,7 +105,7 @@ export class WorldGameplay {
   }
 
   /** What this character knows of the pack's state and author knowledge, ahead of a decision. */
-  decisionContext(request: CharacterTurnRequest, characterId: string): CharacterTurnRequest {
+  statusContext<T extends MemoryRequest>(request: T, characterId: string): T {
     if (this.status) {
       const store = new WorldStore(this.world.worldPath)
       let events
@@ -129,6 +130,10 @@ export class WorldGameplay {
         },
       }
     }
+    return request
+  }
+
+  knowledgeContext<T extends MemoryRequest>(request: T): T {
     if (this.knowledge)
       request = { ...request, context: { ...request.context, knowledge: this.knowledge.select(request.context) } }
     return request

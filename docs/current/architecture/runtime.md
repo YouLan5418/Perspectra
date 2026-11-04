@@ -1,5 +1,7 @@
 # 当前运行时
 
+2026-11-04 阶段 8：例如插件只想减少角色本次收到的设定，而保留记忆、状态和表情，现在可替换 `official-context-knowledge`，不用重写整条决策。默认扩充顺序由 [official-contexts](../../../packages/official-contexts/src/index.ts) 定义，经同一 decisions 生命周期执行。宿主提供公开 `contextSources`，复用原有授权选择；不直接传全量状态。源码选项 `plugins.decisionOrder` 可调整顺序或省略官方步骤，组合变化参与候选环境比较。基础上下文与玩法约束不在该列表中；阶段 9 的传输分离仍未实现。验证限制见[阶段 8 记录](../studies/2026-11-plugin-first-phase-8.md)。
+
 2026-11-04 调度接缝：例如同伴在普通聊天后自主行动，进入活动时又必须等到合法轮次，这两类处理机会与普通反应现在都交给同一个 `ctx.scheduler` 实例。[官方调度器](../../../packages/official-scheduler/src/index.ts)负责整合／分段选择，[自主策略](../../../packages/official-scheduler/src/autonomy.ts)与[活动策略](../../../packages/official-scheduler/src/activity.ts)负责循环、期限和官方预算。宿主的 [activity-round](../../../desktop/host/activity-round.ts) 只桥接合法下一参与者、真实 turn 和 outcome；[autonomy-round](../../../desktop/host/autonomy-round.ts)只整理当次到期机会。宿主不保留旧机会循环或全局调用预算，取消、失效世界检查、授权、裁定和原子提交仍由主干执行。接口升级为 2.0；请求对照、自动测试与真实体验的不同验收范围见[阶段 7 记录](../studies/2026-11-plugin-first-phase-7.md)。
 
 以下有界与次序策略均描述官方调度器。第三方收到的玩家预算只作建议，也可忽略自主或活动机会；插件不返回仍可能使本轮卡住。单独的外部 `requestCharacter` 仍是显式角色请求，不属于自动机会分配。角色内部循环目前仍由固定的 CharacterTurn 执行，尚未开放阶段 10 的循环替换。

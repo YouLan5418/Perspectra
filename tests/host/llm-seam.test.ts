@@ -151,6 +151,7 @@ it('gives a model channel no model configuration', async () => {
     'address',
     'candidate',
     'cast',
+    'contextSources',
     'dataDirectory',
     'instanceDirectory',
     'world',

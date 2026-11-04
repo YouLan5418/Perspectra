@@ -74,7 +74,7 @@ export default async function myBgm(ctx) {
 
 ## 宿主提供哪些接口
 
-当前宿主 API 为 `2.0`，插件须导出 `export const hostApi = '2.0'`。装载器在调用插件之前比较版本：主版本必须相同，宿主次版本不低于声明值；未声明或不兼容时跳过并提示。2.0 中，同一个调度器也负责自主和活动处理；旧 1.x 插件需核对接口并更新声明，不会自动回退到旧调度行为。其他服务的调用形状未在本次改变，但也须更新主版本声明。
+当前宿主 API 为 `2.1`（既有 2.0 插件仍兼容），插件须导出 `export const hostApi = '2.0'`。装载器在调用插件之前比较版本：主版本必须相同，宿主次版本不低于声明值；未声明或不兼容时跳过并提示。2.0 中，同一个调度器也负责自主和活动处理；旧 1.x 插件需核对接口并更新声明，不会自动回退到旧调度行为。其他服务的调用形状未在本次改变，但也须更新主版本声明。
 
 所有接口类型集中在 [@harness-world/plugin-sdk](../../../packages/plugin-sdk/src/index.ts)：`HostServices` 列出服务，`SchedulerRound` 等定义参数与事件形状。宿主直接引用这些类型。该包尚未发布到 npm，也不随便携包附带；仓库外开发时可参照源码或复制类型。
 
@@ -211,6 +211,16 @@ export default function (ctx) {
 | 换插件或升级插件版本 | 上一轮不能再重新生成，提示环境已改变 |
 
 **换掉之后少了什么。** 玩家的预设（提示词、输出和显示规则）属于官方实现，第三方收到的是不带预设的默认消息。创作者页也看不到这条通道的请求详情。Core 的整理由 Python 调用模型，不走这个接缝。启动器的连接检查不变，仍要配一个模型连接。
+
+## 组合官方上下文扩充（2.1）
+
+例如只想减少设定材料，可启用 [focused-knowledge](../../../examples/host-plugins/focused-knowledge.mjs)，它以 `official-context-knowledge` 为 ID 注册 decisions，替代该项默认实现。其余官方步骤仍执行，基础授权与活动约束仍在主干。
+
+默认顺序是 `official-context-memory`、`official-context-recent-execution`、`official-context-status`、`official-context-knowledge`、`official-context-expressions`；未指定位置的第三方步骤按加载顺序追加。同 ID 注册即明确替换；返回空实例可停用该项。配置影响行为时在 Provider 的公开 identity 中声明，勿写入凭证。
+
+每世界 `open(world)` 可读 `world.contextSources` 的 `memory`、`recentExecution`、`status`、`knowledge`、`expressions`。它们接收当前 request 与 signal，返回扩充后的 request。status 和 knowledge 复用当前角色授权选择，不返回完整真值；知识条件读取前面投影的已知状态。memory 只调用所选记忆 Provider 的 project，停用此步骤不卸载该记忆 Provider 或取消其后台整理。
+
+源码装配可通过 `HostSeams.decisionOrder` 明确有序 ID 列表；省略的官方项不再补回，未定位的第三方项追加。重复或未知 ID 拒绝打开。该设置尚无 Launcher 专用排序界面。顺序与第三方 ID/版本/identity 一起进入候选环境比较。请区分“只停用扩充”和“停用记忆服务”；不要让两个步骤重复调用 memory 投影。
 
 ## 加入角色决策
 

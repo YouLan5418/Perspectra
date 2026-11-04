@@ -1,4 +1,6 @@
-import { mkdtempSync, rmSync } from 'node:fs'
+import { officialContextOrder } from '../../desktop/official-bundle.ts'
+import { loadHostPlugins } from '../../desktop/host-plugins.ts'
+import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import type { Server } from 'node:http'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
@@ -56,8 +58,8 @@ async function start(decisions: readonly SeamProvider<DecisionInstance>[], extra
     packPath: resolve('examples/world-packs/dynamic-scheduling'),
     models: fakeModels('http://127.0.0.1:' + (server.address() as { port: number }).port + '/v1/chat/completions'),
     timeoutMs: 5000,
-    plugins: { decisions },
     ...extra,
+    plugins: { decisions, ...(extra.plugins as object) },
   })
   runtimes.push(runtime)
   return { runtime, contexts, root, timing }
@@ -222,4 +224,96 @@ it('names the implementation and logs when it fails, but not for a failure insid
   const state = await runtime.submit('你好')
   expect(state.notice).toContain('buggy-decision')
   expect(log.mock.calls.flat().map(String).join(' ')).toContain('decide bug')
+})
+
+it('replaces one official step while projecting memory exactly once per decision', async () => {
+  let projections = 0
+  const { runtime, contexts } = await start(
+    [
+      provider(
+        { context: async request => ({ ...request, context: { ...request.context, expressions: ['custom'] } }) },
+        'official-context-expressions',
+      ),
+    ],
+    {
+      serialScheduling: true,
+      stageExpressions: { 'character:friend': ['original'] },
+      plugins: {
+        memory: {
+          id: 'counted-memory',
+          version: '1.0.0',
+          open: async () => ({
+            project: async <T extends import('@harness-world/plugin-sdk').MemoryRequest>(request: T) => {
+              projections++
+              return { ...request, context: { ...request.context, recalled: true } }
+            },
+          }),
+        },
+      },
+    },
+  )
+  await runtime.submit('你好')
+  expect(contexts.length).toBeGreaterThan(0)
+  expect(projections).toBe(contexts.length)
+  expect(contexts.every(context => context.recalled && JSON.stringify(context.expressions) === '["custom"]')).toBe(true)
+})
+
+it('does not restore an omitted official step and rejects a changed order for old candidates', async () => {
+  const order = officialContextOrder.filter(id => id !== 'official-context-expressions')
+  const { runtime, contexts } = await start([], {
+    serialScheduling: true,
+    stageExpressions: { 'character:friend': ['original'] },
+    plugins: { decisionOrder: order },
+  })
+  const state = await runtime.submit('你好')
+  expect(contexts.length).toBeGreaterThan(0)
+  expect(contexts.every(context => context.expressions === undefined)).toBe(true)
+  order.reverse()
+  await expect(runtime.regenerate(state.tailRound!.id!, 'changed-order')).rejects.toThrow('环境')
+})
+
+it('runs the knowledge replacement example after authorized status without disclosing other purses', async () => {
+  const packRoot = mkdtempSync(join(tmpdir(), 'perspectra-knowledge-replacement-'))
+  roots.push(packRoot)
+  const packPath = join(packRoot, 'pack')
+  cpSync(resolve('examples/world-packs/status-market'), packPath, { recursive: true })
+  const file = join(packPath, 'knowledge.json')
+  const knowledge = JSON.parse(readFileSync(file, 'utf8'))
+  knowledge.entries[0].when = {
+    type: 'object',
+    required: ['self'],
+    properties: {
+      self: { type: 'object', required: ['money'], properties: { money: { const: 100 } } },
+    },
+  }
+  writeFileSync(file, JSON.stringify(knowledge))
+  const baseline = await start([], { packPath, serialScheduling: true })
+  await baseline.runtime.submit('今天集市有什么安排？')
+  expect(baseline.contexts.some(context => (context.knowledge as { entries: unknown[] }).entries.length > 0)).toBe(true)
+  const plugins = await loadHostPlugins([
+    {
+      id: 'focused-knowledge',
+      path: resolve('examples/host-plugins/focused-knowledge.mjs'),
+      enabled: true,
+      config: { maximumEntries: 0 },
+    },
+  ])
+  try {
+    expect(plugins.skipped).toEqual([])
+    const { runtime, contexts } = await start(plugins.seams.decisions ?? [], {
+      serialScheduling: true,
+      packPath,
+    })
+    await runtime.submit('今天集市有什么安排？')
+    expect(contexts.length).toBeGreaterThan(0)
+    for (const context of contexts) {
+      const actor = (context.character as { characterId: string }).characterId
+      const known = context.knownStatus as { key: string; holderId: string | null }[]
+      expect(known.filter(entry => entry.key === 'money').length).toBeGreaterThan(0)
+      expect(known.filter(entry => entry.key === 'money').every(entry => entry.holderId === actor)).toBe(true)
+      expect((context.knowledge as { entries: unknown[] }).entries).toEqual([])
+    }
+  } finally {
+    await plugins.close()
+  }
 })

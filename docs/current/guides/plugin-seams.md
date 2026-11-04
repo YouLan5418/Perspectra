@@ -1,6 +1,6 @@
 # 插件能替换什么
 
-核对日期：2026-11-04，宿主 API `2.0`。这是给插件作者的总入口，每一项的完整写法在[插件编写指南](host-plugin-authoring.md)。
+核对日期：2026-11-04，宿主 API `2.1`（2.0 插件仍兼容）。这是给插件作者的总入口，每一项的完整写法在[插件编写指南](host-plugin-authoring.md)。
 
 ## 先看一个例子
 
@@ -38,7 +38,7 @@ export default function (ctx, config) {
 | [`ctx.scheduler`](host-plugin-authoring.md#替换角色调度器) | 决定谁在什么时候获得处理机会 | `2.0` | `official-scheduler` | 只用一个 | 改用官方调度 |
 | [`ctx.memory`](host-plugin-authoring.md#替换长期记忆) | 整理角色的经历，在它决策时取回 | `2.0` | `official-memory-core` | 只用一个 | 世界不打开 |
 | [`ctx.llm`](host-plugin-authoring.md#替换模型通道) | 把角色的决策发给模型 | `2.0` | `official-llm` | 只用一个 | 世界不打开 |
-| [`ctx.decisions`](host-plugin-authoring.md#加入角色决策) | 给决策加内容，或包住整个决策 | `2.0` | 没有，默认为空 | 按加载顺序叠加 | 世界不打开 |
+| [`ctx.decisions`](host-plugin-authoring.md#加入角色决策) | 给决策加内容，或包住整个决策 | `2.0` | `official-contexts`，五项官方扩充 | 默认有序组合，第三方可同 ID 替换 | 世界不打开 |
 | [`ctx.rules`](host-plugin-authoring.md#增加世界规则) | 在官方规则外再加一层裁定 | `2.0` | 没有，默认为空 | 先注册的在最外面 | 世界不打开 |
 
 只用一个的接缝，如果启用了多个提供它的插件，第一个生效，后面的注册失败、整个插件被跳过。玩家在插件页“模块”分组里能看到会生效的是哪个，也能选。

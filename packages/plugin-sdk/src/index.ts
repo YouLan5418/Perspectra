@@ -23,7 +23,7 @@ import type {
 
 /** Major.minor. A new service or optional field raises the minor; any change a plugin could trip over
  * raises the major. A plugin exports `hostApi` with the lowest version it needs. */
-export const HOST_API_VERSION = '2.0'
+export const HOST_API_VERSION = '2.1'
 
 /** Same major, and this host's minor at least the one the plugin asks for. */
 export function hostApiCompatible(required: unknown, host: string = HOST_API_VERSION): boolean {
@@ -141,6 +141,15 @@ export interface WorldServices {
   /** Who is in this world. Names only; nothing here is private to a character. */
   readonly cast: WorldCast
   readonly world: WorldReader
+  /** Authorized context projections, available equally to official and replacement decisions. */
+  readonly contextSources?: DecisionContextSources
+}
+export interface DecisionContextSources {
+  memory<T extends MemoryRequest>(request: T, signal: AbortSignal): Promise<T>
+  recentExecution<T extends MemoryRequest>(request: T, signal: AbortSignal): Promise<T>
+  status<T extends MemoryRequest>(request: T, signal: AbortSignal): Promise<T>
+  knowledge<T extends MemoryRequest>(request: T, signal: AbortSignal): Promise<T>
+  expressions<T extends MemoryRequest>(request: T, signal: AbortSignal): Promise<T>
 }
 export interface WorldCast {
   readonly playerId: string
@@ -355,7 +364,7 @@ export interface RulesApi {
 
 /** One way of taking part in every character decision. Everything is optional. */
 export interface DecisionInstance {
-  /** Add to what this character knows before it decides. Runs after the host's own steps. */
+  /** Add to what this character knows before it decides. Runs in the selected composition order. */
   context?<T extends MemoryRequest>(request: T, signal: AbortSignal): Promise<T>
   /** Wrap the whole decision. May call `next` several times, or not at all. The answer is validated afterwards. */
   decide?<T extends MemoryRequest>(

@@ -2,7 +2,7 @@
 
 状态：待用户审阅。日期：2026-11-02。代码基线：`feat/lens-standalone` 工作区。本文只描述目标，尚未实施。
 
-> **2026-11-04 后续入口：** 上面的状态与下文“代码现状”保留起草时点，不代表当前进度。阶段 0～5 的实现与限制见[阶段 5 记录](../../current/studies/2026-11-plugin-first-phase-5.md)及其前序记录。进一步补全调度、决策组合、模型传输、角色循环和默认装配的范围见[后续实施方案](../plans/2026-11-04-plugin-first-next-seams.md)；用户已授权在独立工作树实施首批阶段 6、7，分别见[接缝修复记录](../../current/studies/2026-11-plugin-first-phase-6.md)与[完整调度记录](../../current/studies/2026-11-plugin-first-phase-7.md)。阶段 8～11 仍是后续目标，不能视为已实现。
+> **2026-11-04 后续入口：** 上面的状态与下文“代码现状”保留起草时点，不代表当前进度。阶段 0～5 的实现与限制见[阶段 5 记录](../../current/studies/2026-11-plugin-first-phase-5.md)及其前序记录。进一步补全调度、决策组合、模型传输、角色循环和默认装配的范围见[后续实施方案](../plans/2026-11-04-plugin-first-next-seams.md)；用户已授权在独立工作树实施首批阶段 6、7，分别见[接缝修复记录](../../current/studies/2026-11-plugin-first-phase-6.md)与[完整调度记录](../../current/studies/2026-11-plugin-first-phase-7.md)。阶段 8 的组合扩充也已接通，见[阶段 8 记录](../../current/studies/2026-11-plugin-first-phase-8.md)；阶段 9～11 仍是后续目标。
 
 ## 1. 一个例子
 

@@ -257,6 +257,7 @@ it('gives a third-party provider no model configuration', async () => {
     'address',
     'candidate',
     'cast',
+    'contextSources',
     'dataDirectory',
     'instanceDirectory',
     'world',

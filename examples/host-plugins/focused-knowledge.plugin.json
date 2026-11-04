@@ -1,0 +1,1 @@
+{"id":"focused-knowledge","name":"Focused knowledge","version":"0.1.0","description":"Keep only a few authorized knowledge entries while preserving other default context steps.","services":["decisions"],"config":{"maximumEntries":{"type":"integer","title":"Maximum entries","minimum":0,"maximum":20,"default":1}}}

@@ -1,3 +1,4 @@
+export { composeDecisions, officialContextOrder } from '@harness-world/official-contexts'
 import { officialSchedulerProvider } from '@harness-world/official-scheduler'
 import type {
   DecisionInstance,
@@ -45,7 +46,9 @@ export interface HostSeams {
   readonly scheduler: SeamProvider<SchedulerInstance>
   readonly memory?: SeamProvider<MemoryInstance>
   readonly llm?: SeamProvider<LlmInstance>
-  /** Applied in order; the first is outermost. */
+  /** Ordered context IDs; omitted official steps stay disabled. Defaults to the official order. */
+  readonly decisionOrder?: readonly string[]
+  /** Implementations to replace or append; decision wrappers apply with the first outermost. */
   readonly decisions?: readonly SeamProvider<DecisionInstance>[]
   /** Layers around the official rules; the first is outermost. */
   readonly rules?: readonly SeamProvider<RulesInstance>[]

@@ -1,3 +1,4 @@
+import { composeDecisions } from '../official-bundle.ts'
 import { RequestInspector, type ChatCallObservation, type ChatProvider } from '@harness-world/provider-chat'
 import { CreatorRecords, type CreatorRecordsQuery } from './creator-records.ts'
 import { type CreatorHistoryQuery } from './creator-history.ts'
@@ -441,14 +442,7 @@ export class WorldHostCore implements HostRuntime {
     reserveFormatRetry?: () => boolean,
     beforeModelCall?: () => void,
   ): Promise<unknown> {
-    if (this.#memory) request = await this.#memory.project(request, signal)
-    if (this.#options.recentExecutionEvidence === true)
-      request = { ...request, context: recentExecutionContext(request.context) }
-    const character = request.context.character as WorldJsonObject
-    const characterId = String(character.characterId)
-    request = this.#gameplay.decisionContext(request, characterId)
-    const expressions = this.#options.stageExpressions?.[characterId]
-    if (expressions?.length) request = { ...request, context: { ...request.context, expressions: [...expressions] } }
+    const characterId = String((request.context.character as WorldJsonObject).characterId)
     this.#roleCalls.delete(characterId)
     this.#pluginFailures.delete(characterId)
     for (const decision of this.#decisions) if (decision.context) request = await decision.context(request, signal)
@@ -1405,6 +1399,23 @@ export class WorldHostCore implements HostRuntime {
         locationNames: this.#locationNames,
       },
       world: this.#worldReader(),
+      contextSources: {
+        memory: (request, signal) => this.#memory?.project(request, signal) ?? Promise.resolve(request),
+        recentExecution: async request =>
+          this.#options.recentExecutionEvidence === true
+            ? { ...request, context: recentExecutionContext(request.context) }
+            : request,
+        status: async request =>
+          this.#gameplay.statusContext(request, String((request.context.character as WorldJsonObject).characterId)),
+        knowledge: async request => this.#gameplay.knowledgeContext(request),
+        expressions: async request => {
+          const characterId = String((request.context.character as WorldJsonObject).characterId)
+          const expressions = this.#options.stageExpressions?.[characterId]
+          return expressions?.length
+            ? { ...request, context: { ...request.context, expressions: [...expressions] } }
+            : request
+        },
+      },
     }
   }
 
@@ -1467,7 +1478,10 @@ export class WorldHostCore implements HostRuntime {
 
   /** Whoever asked to take part in decisions expects to, so one that cannot open stops the world. */
   async #openDecisions(): Promise<void> {
-    for (const provider of this.#options.plugins?.decisions ?? []) {
+    for (const provider of composeDecisions(
+      this.#options.plugins?.decisions ?? [],
+      this.#options.plugins?.decisionOrder,
+    )) {
       try {
         const opened = await provider.open(this.#services(provider.id), AbortSignal.timeout(30_000))
         this.#decisions.push(guardedDecision(opened, provider.id, this.#reportPlugin))
