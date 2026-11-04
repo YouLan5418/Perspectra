@@ -4,6 +4,7 @@ import { createServer, type Server } from 'node:http'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import type {
+  DecisionInstance,
   LlmCall,
   LlmInstance,
   LlmTransportCall,
@@ -389,6 +390,34 @@ it('records and names an HTTP 401 from the transport without falling back', asyn
   expect(state.error).toBe(true)
   expect(original.calls).toBe(0)
   expect(runtime.requestInspection().requests[0]).toMatchObject({ status: 'failed', httpStatus: 401, failure: 'http' })
+})
+
+it('does not blame the model when a decision plugin fails after a successful transport call', async () => {
+  vi.spyOn(console, 'error').mockImplementation(() => {})
+  const afterCheck: SeamProvider<DecisionInstance> = {
+    id: 'after-check',
+    version: '1.0.0',
+    open: async () => ({
+      decide: async (request, next) => {
+        await next(request)
+        throw new Error('my own bug')
+      },
+    }),
+  }
+  const { runtime } = await start(undefined, {
+    serialScheduling: true,
+    plugins: {
+      llmTransport: adapter({
+        model: 'working',
+        schemaMode: 'native',
+        send: async () => ({ value: { decision: 'abstain' }, httpStatus: 200 }),
+      }),
+      decisions: [afterCheck],
+    },
+  })
+  const state = await runtime.submit('你好')
+  expect(state.notice).toContain('插件 after-check 出错')
+  expect(state.notice).not.toContain('HTTP 200')
 })
 
 it('repairs one malformed transport response then preserves scripted publications outside output rules', async () => {
