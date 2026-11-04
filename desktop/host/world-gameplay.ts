@@ -79,7 +79,7 @@ export class WorldGameplay {
           context,
           this.world.worldPath,
           this.world.address,
-          AbortSignal.timeout(10000),
+          AbortSignal.any([AbortSignal.timeout(10000), this.activity!.signal]),
           adjudicate,
         ),
       )

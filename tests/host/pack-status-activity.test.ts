@@ -115,7 +115,15 @@ async function fixture() {
   const status = PackStatus.load(packPath, pack)!
   // The runtime's resolver chain, rebuilt here to ask what a non-player character would be offered;
   // the player's options are read from the runtime itself.
-  const activities = PackActivities.load(packPath, pack, worldPath, runtime.address, PLAYER, status)!
+  const activities = PackActivities.load(
+    packPath,
+    pack,
+    worldPath,
+    runtime.address,
+    PLAYER,
+    status,
+    createCoreRulebookRegistry({ interactionPackages: createInstalledInteractionPackages() }),
+  )!
   catalogs.push(activities)
   const core = createCoreRulebookRegistry({ interactionPackages: createInstalledInteractionPackages() }).resolve(
     'builtin:speak-move',

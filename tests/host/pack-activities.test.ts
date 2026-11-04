@@ -11,7 +11,7 @@ import { brandId, interactionPackageDescription, resolutionAuthority } from '@ha
 import { createInstalledInteractionPackages } from '@harness-world/interactions-basic'
 import { WorldBranchComponentFactory } from '@harness-world/application'
 import { compileWorldPackSource } from '@harness-world/world-pack'
-import type { CompiledWorldManifest } from '@harness-world/kernel'
+import { createCoreRulebookRegistry, type CompiledWorldManifest } from '@harness-world/kernel'
 import { WorldHostRuntime } from '../../desktop/host/world-runtime.ts'
 import type { HostState } from '../../desktop/host/http-server.ts'
 import { frontendActionRequest } from '../../packages/frontend/src/player-view.ts'
@@ -180,7 +180,15 @@ it('does not load world history for fixed-roster menus or absent automatic-start
       f.pack,
       createInstalledInteractionPackages().map(interactionPackageDescription),
     ),
-    catalog = PackActivities.load(f.pack, pack, join(f.data, 'world.sqlite'), f.runtime.address, 'character:player')!
+    catalog = PackActivities.load(
+      f.pack,
+      pack,
+      join(f.data, 'world.sqlite'),
+      f.runtime.address,
+      'character:player',
+      undefined,
+      createCoreRulebookRegistry({ interactionPackages: createInstalledInteractionPackages() }),
+    )!
   try {
     const reads = vi.spyOn(WorldStore.prototype, 'readEvents')
     expect(catalog.view('character:player')!.manualStart).not.toBe(false)
@@ -199,7 +207,15 @@ it('shares committed activity state, reads only the new prefix, and closes its r
       f.pack,
       createInstalledInteractionPackages().map(interactionPackageDescription),
     ),
-    catalog = PackActivities.load(f.pack, pack, join(f.data, 'world.sqlite'), f.runtime.address, 'character:player')!
+    catalog = PackActivities.load(
+      f.pack,
+      pack,
+      join(f.data, 'world.sqlite'),
+      f.runtime.address,
+      'character:player',
+      undefined,
+      createCoreRulebookRegistry({ interactionPackages: createInstalledInteractionPackages() }),
+    )!
   const beforeSeq = Number(active.debug.headSeq)
   try {
     const original = catalog.current()!,
@@ -399,6 +415,8 @@ it('selects a visible partner, isolates the bystander, and retains the selected 
     f.runtime.address,
     'character:player',
     'other',
+    undefined,
+    createCoreRulebookRegistry({ interactionPackages: createInstalledInteractionPackages() }),
   )
   const context = { character: { characterId: 'character:companion' }, affordances: [] }
   expect(activity.projectContext(context, true)).toEqual(context)
@@ -440,6 +458,8 @@ it('selects a visible partner, isolates the bystander, and retains the selected 
     f.runtime.address,
     'character:player',
     'other',
+    undefined,
+    createCoreRulebookRegistry({ interactionPackages: createInstalledInteractionPackages() }),
   )
   expect(() => malicious.schedule()).toThrow('未授权角色')
   const publicStart = f.events().length
@@ -524,6 +544,8 @@ it('lets only the selected invitee accept or decline and keeps invitation accept
     f.runtime.address,
     'character:player',
     'other',
+    undefined,
+    createCoreRulebookRegistry({ interactionPackages: createInstalledInteractionPackages() }),
   )
   const store = new WorldStore(join(f.data, 'world.sqlite'))
   try {
@@ -586,7 +608,15 @@ async function autoStartCatalog(hook: string) {
       f.pack,
       createInstalledInteractionPackages().map(interactionPackageDescription),
     ),
-    catalog = PackActivities.load(f.pack, pack, join(f.data, 'world.sqlite'), f.runtime.address, 'character:player')!
+    catalog = PackActivities.load(
+      f.pack,
+      pack,
+      join(f.data, 'world.sqlite'),
+      f.runtime.address,
+      'character:player',
+      undefined,
+      createCoreRulebookRegistry({ interactionPackages: createInstalledInteractionPackages() }),
+    )!
   catalogs.push(catalog)
   return { f, catalog }
 }
@@ -637,6 +667,8 @@ it('rejects bad label shapes', async () => {
       f.runtime.address,
       'character:player',
       'other',
+      undefined,
+      createCoreRulebookRegistry({ interactionPackages: createInstalledInteractionPackages() }),
     )
     expect(() => activity.autoStartCandidate(world)).toThrow('自动开始条件必须是 1–32 个布尔值或 [标签, 布尔值]')
   }
@@ -646,6 +678,8 @@ it('rejects bad label shapes', async () => {
     f.runtime.address,
     'character:player',
     'other',
+    undefined,
+    createCoreRulebookRegistry({ interactionPackages: createInstalledInteractionPackages() }),
   )
   expect(longest.autoStartCandidate(world)?.checks).toEqual([{ label: '长'.repeat(80), met: true }])
 })

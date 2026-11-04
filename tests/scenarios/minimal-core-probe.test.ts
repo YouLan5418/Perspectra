@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from 'node:fs'
+import { existsSync, mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { expect, it } from 'vitest'
@@ -8,13 +8,13 @@ import { WorldStore } from '@harness-world/store-sqlite'
 import { WorldBootstrap } from '@harness-world/kernel'
 import { frozenInteractionWorld, basicInteractionPackage } from '../fixtures/frozen-interaction-world.ts'
 
-// Temporary diagnostic for M2: replace this assertion when activation and read validation agree.
-it('reports the empty-catalog activation and mount inconsistency without bypassing validation', async () => {
+it('opens, reads and reopens an empty interaction selection without models, memory or gameplay packages', async () => {
   const root = mkdtempSync(join(tmpdir(), 'minimal-core-probe-'))
   const worldPath = join(root, 'world.sqlite')
   const original = frozenInteractionWorld()
   const manifest = {
     ...original.manifest,
+    plugins: [],
     interactionCatalog: { version: 'interaction-catalog/v3' as const, packages: [], definitions: [], bindings: [] },
   }
   const manifestHash = hashWorldJson('compiled-world-manifest', manifest)
@@ -30,12 +30,8 @@ it('reports the empty-catalog activation and mount inconsistency without bypassi
     genesisEvents,
     genesisHash: hashWorldJson('world-genesis-plan', genesisEvents),
   }
-  const app = new WorldApplication({
-    worldPath,
-    sessionPath: join(root, 'session.sqlite'),
-    memoryPath: join(root, 'sources.sqlite'),
-    interactionPackages: [],
-  })
+  const options = { worldPath, sessionPath: join(root, 'session.sqlite') }
+  let app = new WorldApplication(options)
   try {
     app.activate(compiled)
     const store = new WorldStore(worldPath)
@@ -45,9 +41,32 @@ it('reports the empty-catalog activation and mount inconsistency without bypassi
     } finally {
       store.close()
     }
-    await expect(app.head(manifest.address)).rejects.toThrow(
-      'interactionCatalog.packages is outside the frozen selection budget',
-    )
+    const before = await app.head(manifest.address)
+    const result = await app.submit(manifest.address, {
+      principalId: 'principal:player',
+      idempotencyKey: 'minimal:speak',
+      correlationId: 'minimal:speak',
+      action: { actionType: 'speak', parameters: { text: '最小运行时的公开发言。' } },
+    })
+    expect(result.status).toBe('accepted')
+    const head = await app.head(manifest.address)
+    expect(head.tick).toBe(before.tick + 1)
+    expect(
+      (
+        await app.characterViewForPrincipal(
+          manifest.address,
+          'principal:player',
+          manifest.playerBindings[0]!.characterId,
+        )
+      ).locationId,
+    ).toBe('location:room')
+    await expect(
+      app.characterViewForPrincipal(manifest.address, 'principal:intruder', manifest.playerBindings[0]!.characterId),
+    ).rejects.toThrow('principal is not bound')
+    await app.close()
+    app = new WorldApplication(options)
+    expect(await app.head(manifest.address)).toEqual(head)
+    expect(existsSync(join(root, 'sources.sqlite'))).toBe(false)
   } finally {
     await app.close()
     rmSync(root, { recursive: true, force: true })
@@ -61,7 +80,6 @@ it('still refuses a world selecting uninstalled interactions before genesis', as
     worldPath,
     sessionPath: join(root, 'session.sqlite'),
     memoryPath: join(root, 'sources.sqlite'),
-    interactionPackages: [],
   })
   const world = frozenInteractionWorld()
   try {

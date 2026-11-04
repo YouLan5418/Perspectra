@@ -5,7 +5,6 @@ import { lstatSync, readFileSync, realpathSync } from 'node:fs'
 import { relative, resolve, sep } from 'node:path'
 import { createContext, Script } from 'node:vm'
 import {
-  brandId,
   canonicalizeWorldJson,
   type WorldAddress,
   type WorldEventDraft,
@@ -24,7 +23,13 @@ import {
 } from '@harness-world/kernel'
 import { WorldStore, WriterLeaseService } from '@harness-world/store-sqlite'
 import type { CompiledWorldPackV5 } from '@harness-world/world-pack'
-import { characterExecutionResult } from '@harness-world/application'
+import {
+  characterExecutionResult,
+  executeWorldRound,
+  itemIsReachable,
+  adjudicateItemChanges,
+  type WorldRoundSnapshot,
+} from '@harness-world/application'
 import { activityProgress, actorWorldView } from './pack-activity.ts'
 import { CAPABILITY_PENDING, type CapabilityOutcome } from '../host-capabilities.ts'
 import type { ExternalStatusInput } from './pack-modules.ts'
@@ -630,7 +635,7 @@ export class PackStatus {
       locationId,
       items: ids.flatMap(id => {
         const item = currentEntityState(events, id)
-        return item !== undefined && this.#reachable(events, actorId, id, [])
+        return item !== undefined && itemIsReachable(events, actorId, id, [])
           ? [{ entityId: id, kind: item.kind, holderId: item.holderId, locationId: item.locationId }]
           : []
       }),
@@ -758,7 +763,7 @@ export class PackStatus {
       if (!sceneIds.includes(id))
         return { status: 'rejected', reason: '操作指定的角色不在你当前的场景里，什么都没有发生。' }
     }
-    if (input.targetId !== undefined && !this.#reachable(events, actorId, input.targetId, sceneIds))
+    if (input.targetId !== undefined && !itemIsReachable(events, actorId, input.targetId, sceneIds))
       return { status: 'rejected', reason: '这件物品不在你够得着的地方，什么都没有发生。' }
     const external = this.externalActions?.has(op.id)
       ? this.externalActions.outcome({
@@ -815,7 +820,16 @@ export class PackStatus {
       if (recipientIds.some(id => !sceneIds.includes(id))) throw new TypeError('结果接收者不在当前场景')
       observationScope = { scope: 'direct', recipientIds }
     }
-    const items = Object.hasOwn(result, 'items') ? this.#itemEvents(events, actorId, op.id, sceneIds, result.items) : []
+    const items = Object.hasOwn(result, 'items')
+      ? adjudicateItemChanges({
+          events,
+          actorId,
+          interactionId: PREFIX + op.id,
+          sceneIds,
+          entityIds: [...this.#entityNames.keys()],
+          value: result.items,
+        })
+      : []
     return {
       status: 'accepted',
       events: [{ eventType: 'status.updated', eventVersion: 1, data: data as unknown as WorldJsonObject }, ...items],
@@ -823,82 +837,6 @@ export class PackStatus {
       observationScope,
       sceneIds,
     }
-  }
-
-  /** An item is within reach when the actor holds it, it lies where the actor is, or someone in `present` holds it. */
-  #reachable(events: readonly RulebookEvent[], actorId: string, entityId: string, present: readonly string[]): boolean {
-    const item = currentEntityState(events, entityId)
-    if (item === undefined) return false
-    if (item.holderId !== null) return item.holderId === actorId || present.includes(item.holderId)
-    return item.locationId !== null && item.locationId === currentLocation(events, actorId)
-  }
-
-  /** The author's item changes as world events: a new kind keeps the item where it is, and at most one move
-   * goes to the actor or someone in its scene, or onto the floor where the actor stands. Any invalid entry
-   * is the author's fault and throws, so nothing of the result commits. */
-  #itemEvents(
-    events: readonly RulebookEvent[],
-    actorId: string,
-    operationId: string,
-    sceneIds: readonly string[],
-    value: unknown,
-  ): WorldEventDraft[] {
-    if (!Array.isArray(value) || value.length > 8) throw new TypeError('物品变化必须是至多 8 项的列表')
-    const drafts: WorldEventDraft[] = []
-    let moved = false
-    for (const entry of value) {
-      const change = object(entry, '物品变化')
-      exact(change, ['entityId'], ['kind', 'to'])
-      const entityId = text(change.entityId, '物品')
-      if (!this.#entityNames.has(entityId)) throw new TypeError('物品不存在：' + entityId)
-      if (!this.#reachable([...events, ...drafts] as RulebookEvent[], actorId, entityId, sceneIds))
-        throw new TypeError('物品不在行动者够得着的地方：' + entityId)
-      const before = currentEntityState([...events, ...drafts] as RulebookEvent[], entityId)!
-      if (Object.hasOwn(change, 'kind')) {
-        if (typeof change.kind !== 'string' || change.kind.trim() === '' || change.kind.length > 500)
-          throw new TypeError('物品外观必须是 1–500 字')
-        drafts.push({
-          eventType: 'entity.upsert',
-          eventVersion: 1,
-          data:
-            before.holderId === null
-              ? { entityId, locationId: before.locationId, kind: change.kind }
-              : { entityId, locationId: null, holderId: before.holderId, kind: change.kind },
-        })
-      }
-      if (Object.hasOwn(change, 'to')) {
-        if (moved) throw new TypeError('一次结果至多移动一件物品')
-        moved = true
-        const to = object(change.to, '物品去向')
-        let destination: { holderId: string | null; locationId: string | null }
-        if (Object.hasOwn(to, 'holderId')) {
-          exact(to, ['holderId'])
-          if (typeof to.holderId !== 'string' || !sceneIds.includes(to.holderId))
-            throw new TypeError('物品只能交给行动者或同场角色')
-          destination = { holderId: to.holderId, locationId: null }
-        } else {
-          exact(to, ['locationId'])
-          if (to.locationId !== currentLocation(events, actorId)) throw new TypeError('物品只能放在行动者所在的位置')
-          destination = { holderId: null, locationId: to.locationId as string }
-        }
-        if (destination.holderId === before.holderId && destination.locationId === before.locationId)
-          throw new TypeError('物品已经在那里')
-        drafts.push({
-          eventType: 'entity.transferred',
-          eventVersion: 1,
-          data: {
-            entityId,
-            characterId: actorId,
-            interactionId: PREFIX + operationId,
-            fromHolderId: before.holderId,
-            fromLocationId: before.locationId,
-            toHolderId: destination.holderId,
-            toLocationId: destination.locationId,
-          },
-        })
-      }
-    }
-    return drafts
   }
 
   /** Adds the status operations this actor may currently perform to its affordances: the actors rule and
@@ -949,7 +887,7 @@ export class PackStatus {
         // Offered only for what the actor holds or what lies where it is, narrowed by the author's policy.
         const narrowed = allowed.targets?.[op.id]
         return op.targets
-          .filter(id => this.#reachable(events, actor, id, []) && (narrowed === undefined || narrowed.includes(id)))
+          .filter(id => itemIsReachable(events, actor, id, []) && (narrowed === undefined || narrowed.includes(id)))
           .map(id => offer({ kind: 'entity', id }, this.#entityNames.get(id)))
       })
     if (!choices.length) return [...values]
@@ -1064,48 +1002,30 @@ export class PackStatus {
     return typeof description === 'string' ? { status: 'accepted', description } : characterExecutionResult(input)
   }
 
-  /** One host round under the writer lease; `build` sees the committed head and returns nothing to commit nothing.
-   * Resolves to whether a round was committed. */
+  /** Adjudication returns effects; the core owns fencing, freshness and the atomic round. */
   async #commitRound(
     worldPath: string,
     address: WorldAddress,
     owner: string,
     build: (
-      store: WorldStore,
-      head: { headSeq: number; tick: number },
+      snapshot: WorldRoundSnapshot,
     ) =>
       | { events: WorldEventDraft[]; authority: WorldJsonObject }
       | undefined
       | Promise<{ events: WorldEventDraft[]; authority: WorldJsonObject } | undefined>,
+    actorId?: string,
+    signal?: AbortSignal,
   ): Promise<boolean> {
     const store = new WorldStore(worldPath),
       leases = new WriterLeaseService(worldPath)
-    let lease: ReturnType<WriterLeaseService['acquire']> | undefined
     try {
-      lease = leases.acquire(address, owner, 180000)
-      const head = store.head(address),
-        round = await build(store, head)
-      if (!round) return false
-      await store.commitRound({
-        address,
-        transactionId: brandId(owner, 'TransactionId'),
-        roundId: brandId(owner, 'InteractionRoundId'),
-        expectedHeadSeq: head.headSeq,
-        expectedTick: head.tick,
-        nextTick: head.tick + 1,
-        events: [...round.events, { eventType: 'world.tick-advanced', eventVersion: 1, data: { tick: head.tick + 1 } }],
-        outbox: [],
-        writerFencingToken: lease.fencingToken,
-        correlationId: owner,
-        authority: round.authority,
-      })
-      this.externalActions?.committed()
-      return true
+      const committed = await executeWorldRound({ store, leases, address, owner, actorId, signal }, build)
+      if (committed) this.externalActions?.committed()
+      return committed !== undefined
     } catch (error) {
       this.externalActions?.failed()
       throw error
     } finally {
-      if (lease) leases.release(address, owner, lease.fencingToken)
       leases.close()
       store.close()
     }
@@ -1113,13 +1033,18 @@ export class PackStatus {
 
   /** Commits the initial values once, as their own round, when the world has no status event yet. */
   async ensureInitial(worldPath: string, address: WorldAddress, playerId: string): Promise<void> {
-    await this.#commitRound(worldPath, address, 'status-initial:' + randomUUID(), (store, head) =>
-      store.readEventsRange(address, 0, head.headSeq, ['status.updated']).length
-        ? undefined
-        : {
-            events: [this.initialEvent()],
-            authority: { actorId: playerId, source: 'status-initial', status: 'accepted' },
-          },
+    await this.#commitRound(
+      worldPath,
+      address,
+      'status-initial:' + randomUUID(),
+      ({ events }) =>
+        events.some(event => event.eventType === 'status.updated')
+          ? undefined
+          : {
+              events: [this.initialEvent()],
+              authority: { actorId: playerId, source: 'status-initial', status: 'accepted' },
+            },
+      playerId,
     )
   }
 
@@ -1139,89 +1064,93 @@ export class PackStatus {
     const owner = 'status:' + requestId,
       actionId = owner + ':action',
       request = { operation, parameters, ...(targetId === undefined ? {} : { targetId }) }
-    return this.#commitRound(worldPath, address, owner, async (store, head) => {
-      const prior = store.readRoundAuthority(address, brandId(owner, 'TransactionId'))
-      if (prior) {
-        const same = (value: unknown) => Buffer.from(canonicalizeWorldJson(value as WorldJsonObject)).toString('utf8')
-        if (same(prior.authority.request) !== same(request)) throw new TypeError('同一请求不能改变内容')
-        return undefined
-      }
-      const events = store.readEvents(address),
-        manifest = store.readManifest(address)!.manifest as CompiledWorldManifest
-      const input = {
-        worldPath,
-        address,
-        playerId,
-        manifest,
-        events,
-        asOfWorldSeq: head.headSeq,
-        actorId: playerId,
-        operationId: operation,
-        parameters,
-        ...(targetId === undefined ? {} : { targetId }),
-      }
-      let result = this.#adjudicate(input)
-      if (result.status === 'rejected' && result.reason === CAPABILITY_PENDING) {
-        const context: RulebookResolutionContext = {
-          manifest,
-          events,
-          characterId: playerId,
-          asOfWorldSeq: head.headSeq,
-          action: {
-            actionType: 'interact',
-            parameters: {
-              targetRef: { kind: 'character', id: playerId },
-              bindingId: 'status',
-              definitionRef: { id: PREFIX + operation, version: 1 },
-              arguments: parameters,
-            },
-          },
+    return this.#commitRound(
+      worldPath,
+      address,
+      owner,
+      async ({ head, prior, events, manifest }) => {
+        if (prior) {
+          const same = (value: unknown) => Buffer.from(canonicalizeWorldJson(value as WorldJsonObject)).toString('utf8')
+          if (same(prior.authority.request) !== same(request)) throw new TypeError('同一请求不能改变内容')
+          return undefined
         }
-        result = await this.externalActions!.execute(
-          { operation, actorId: playerId, parameters, asOfWorldSeq: head.headSeq },
-          context,
+        const input = {
           worldPath,
           address,
-          signal,
-          () => this.#adjudicate(input),
-        )
-      }
-      if (result.status === 'rejected') throw new TypeError(result.reason)
-      // Witnesses of a move keep track of who holds the item, as with the built-in rules.
-      const transfer = result.events.find(event => event.eventType === 'entity.transferred')
-      const scope = result.observationScope
-      const observerIds = scope.scope === 'direct' ? (scope.recipientIds ?? []).map(String) : result.sceneIds
-      return {
-        authority: { actorId: playerId, request, status: 'accepted' },
-        events: [
-          ...result.events,
-          ...observerIds.map(observerId => ({
-            eventType: 'observation.upsert',
-            eventVersion: 1,
-            data: {
-              id: actionId + ':' + observerId,
-              value: {
-                observerId,
-                actionId,
-                epistemicKind: 'observed_action',
-                content: {
-                  status: 'accepted',
-                  actionType: 'interact',
-                  actorId: playerId,
-                  resultDescription: result.description,
-                  ...(transfer === undefined ? {} : { interaction: transfer.data }),
-                },
+          playerId,
+          manifest,
+          events,
+          asOfWorldSeq: head.headSeq,
+          actorId: playerId,
+          operationId: operation,
+          parameters,
+          ...(targetId === undefined ? {} : { targetId }),
+        }
+        let result = this.#adjudicate(input)
+        if (result.status === 'rejected' && result.reason === CAPABILITY_PENDING) {
+          const context: RulebookResolutionContext = {
+            manifest,
+            events,
+            characterId: playerId,
+            asOfWorldSeq: head.headSeq,
+            action: {
+              actionType: 'interact',
+              parameters: {
+                targetRef: { kind: 'character', id: playerId },
+                bindingId: 'status',
+                definitionRef: { id: PREFIX + operation, version: 1 },
+                arguments: parameters,
               },
             },
-          })),
-          {
-            eventType: 'action.resolved',
-            eventVersion: 1,
-            data: { actorId: playerId, actionId, actionType: 'interact', accepted: true, sourceRole: 'player' },
-          },
-        ],
-      }
-    })
+          }
+          result = await this.externalActions!.execute(
+            { operation, actorId: playerId, parameters, asOfWorldSeq: head.headSeq },
+            context,
+            worldPath,
+            address,
+            signal,
+            () => this.#adjudicate(input),
+          )
+        }
+        if (result.status === 'rejected') throw new TypeError(result.reason)
+        // Witnesses of a move keep track of who holds the item, as with the built-in rules.
+        const transfer = result.events.find(event => event.eventType === 'entity.transferred')
+        const scope = result.observationScope
+        const observerIds = scope.scope === 'direct' ? (scope.recipientIds ?? []).map(String) : result.sceneIds
+        return {
+          authority: { actorId: playerId, request, status: 'accepted' },
+          events: [
+            ...result.events,
+            ...observerIds.map(observerId => ({
+              eventType: 'observation.upsert',
+              eventVersion: 1,
+              data: {
+                id: actionId + ':' + observerId,
+                value: {
+                  observerId,
+                  actionId,
+                  epistemicKind: 'observed_action',
+                  content: {
+                    status: 'accepted',
+                    actionType: 'interact',
+                    actorId: playerId,
+                    resultDescription: result.description,
+                    ...(transfer === undefined ? {} : { interaction: transfer.data }),
+                  },
+                },
+              },
+            })),
+            {
+              eventType: 'action.resolved',
+              eventVersion: 1,
+              data: { actorId: playerId, actionId, actionType: 'interact', accepted: true, sourceRole: 'player' },
+            },
+          ],
+        }
+      },
+      playerId,
+      signal,
+    )
   }
 
   /** Runs the optional `onRoundEnd` hook once after an accepted player input and commits its result as the
@@ -1234,8 +1163,7 @@ export class PackStatus {
     pause = false,
   ): Promise<{ ok: boolean; error?: string }> {
     let error: string | undefined
-    await this.#commitRound(worldPath, address, 'status-round:' + randomUUID(), store => {
-      const events = store.readEvents(address)
+    await this.#commitRound(worldPath, address, 'status-round:' + randomUUID(), ({ events }) => {
       // Counting starts from the latest recorded round, so a turn of several commits counted there stays one.
       const base = events.findLast(e => e.eventType === 'status.updated' && statusData(e).source.kind === 'round')
       const since = base === undefined ? 0 : base.seq,

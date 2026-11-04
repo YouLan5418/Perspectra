@@ -165,6 +165,38 @@ async function compile(options: SourceOptions = {}) {
   })
 }
 
+it('compiles and round-trips an explicit empty interaction selection without an installed package', async () => {
+  const root = await source({ bindings: [], definitions: [] })
+  await writeFile(
+    join(root, 'interactions.json'),
+    JSON.stringify({ schemaVersion: 'worldpack-interactions/v1', packages: [], definitions: [] }),
+  )
+  const pack = await compileWorldPackSource(root, [])
+  const decoded = parseCompiledWorldPackV5(
+    JSON.parse(Buffer.from(canonicalCompiledWorldPackBytes(pack)).toString('utf8')),
+  )
+  const spec = adaptCompiledWorldPack(decoded, {
+    address,
+    principalId: 'principal:player',
+    sessionId: brandId('session:empty', 'SessionId'),
+  })
+  expect(runtimeManifestFromStored(spec.manifest).interactionCatalog).toEqual({
+    version: 'interaction-catalog/v3',
+    packages: [],
+    definitions: [],
+    bindings: [],
+  })
+  await writeFile(
+    join(root, 'interactions.json'),
+    JSON.stringify({
+      schemaVersion: 'worldpack-interactions/v1',
+      packages: [],
+      definitions: [{ id: 'base:take', version: 1 }],
+    }),
+  )
+  await expect(compileWorldPackSource(root, packages)).rejects.toThrow('belongs to a package the world did not select')
+})
+
 describe('WorldPackCompilerV5', () => {
   it('compiles the upgraded model-girls world as a playable frozen world', async () => {
     const pack = (await compileWorldPackSource(
@@ -670,7 +702,7 @@ describe('Manifest v10 binding for a compiled worldpack/v5', () => {
           selection(draft).packages = []
         }),
       ),
-    ).toThrow(/outside the frozen selection budget/u)
+    ).toThrow(/cannot select definitions without packages/u)
     expect(() =>
       runtimeManifestFromStored(
         stored(draft => {

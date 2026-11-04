@@ -17,12 +17,12 @@ import {
 import { WorldStore, WriterLeaseService, CharacterRuntimeAvailabilityService } from '@harness-world/store-sqlite'
 import {
   SceneDecisionService,
+  executeWorldRound,
   characterExecutionResult,
   characterVisibleItems,
   type CharacterTurnRequest,
   rejectionReasonText,
 } from '@harness-world/application'
-import { createInstalledInteractionPackages } from '@harness-world/interactions-basic'
 import {
   currentLocation,
   createCoreRulebookRegistry,
@@ -223,6 +223,7 @@ export class PackActivity {
     return value
   }
   readonly #script: Script
+  signal: AbortSignal | undefined
   resolveAction:
     | ((
         context: RulebookResolutionContext,
@@ -701,9 +702,7 @@ export class PackActivity {
   rulebooks(external?: RulebookResolver): RulebookRegistry {
     const core =
       external ??
-      (
-        this.coreRules ?? createCoreRulebookRegistry({ interactionPackages: createInstalledInteractionPackages() })
-      ).resolve('builtin:speak-move', 2, 'activity', this.address)
+      (this.coreRules ?? createCoreRulebookRegistry()).resolve('builtin:speak-move', 2, 'activity', this.address)
     // The host's own player actions get the same status operations as the runtime chain.
     const base = external ?? this.status?.resolver(core, this.worldPath, this.address, this.playerId) ?? core
     const resolver: RulebookResolver = {
@@ -1098,215 +1097,218 @@ export class PackActivity {
       leases = new WriterLeaseService(this.worldPath),
       owner = 'activity:' + request.requestId
     const availability = new CharacterRuntimeAvailabilityService(this.worldPath)
-    let lease: ReturnType<WriterLeaseService['acquire']> | undefined
+    let retry = false
     try {
-      lease = leases.acquire(this.address, owner, 180000)
-      const head = store.head(this.address),
-        events = store.readEvents(this.address),
-        current = this.state(events)
-      const foreground = [...activityProgress(events).values()].find(state => state.game.active)
-      if (request.activityKey !== undefined && request.activityKey !== this.key) throw new TypeError('活动标识不匹配')
-      const input = { ...request, actorId: this.playerId }
-      const prior = events.findLast(
-        e => e.eventType === 'activity.updated' && object(e.data).requestId === request.requestId,
-      )
-      if (prior) {
-        if (json(object(object(prior.data).input)) !== json(input)) throw new TypeError('同一请求 ID 不能改变内容')
-        return false
-      }
-      const actionId = owner + ':action'
-      let state: ActivityState, description: string, drafts: WorldEventDraft[], observerIds: string[]
-      if (request.operation === 'start') {
-        if (foreground || current?.suspendedTurn !== undefined || request.activityId !== null || request.revision !== 0)
-          throw new TypeError('已有活动、存在暂停进度或开始请求失效')
-        if (this.participantSelection) exact(request.parameters, ['npcIds'])
-        else if (Object.keys(request.parameters).length) throw new TypeError('开始操作没有参数')
-        const npcIds = this.participantSelection ? strings(request.parameters.npcIds) : this.npcIds
-        if (!this.#validParticipants([this.playerId, ...npcIds]))
-          throw new TypeError('选择的活动参与者不符合人数或候选限制')
-        const manifest = store.readManifest(this.address)!.manifest as CompiledWorldManifest
-        if (
-          npcIds.some(
-            id =>
-              !manifest.characters.some(c => c.characterId === id) ||
-              manifest.playerBindings.some(b => b.characterId === id),
+      const committed = await executeWorldRound(
+        { store, leases, address: this.address, owner, actorId: this.playerId, signal: this.signal },
+        ({ head, events }) => {
+          const current = this.state(events)
+          const foreground = [...activityProgress(events).values()].find(state => state.game.active)
+          if (request.activityKey !== undefined && request.activityKey !== this.key)
+            throw new TypeError('活动标识不匹配')
+          const input = { ...request, actorId: this.playerId }
+          const prior = events.findLast(
+            e => e.eventType === 'activity.updated' && object(e.data).requestId === request.requestId,
           )
-        )
-          throw new TypeError('活动 NPC 未声明')
-        const scene = new SceneDecisionService(store, availability).decideFromEvents(
-          this.address,
-          brandId(this.playerId, 'CharacterId'),
-          events,
-          head.headSeq,
-        )
-        if (npcIds.some(id => !scene.observerIds.includes(brandId(id, 'CharacterId'))))
-          throw new TypeError('需要与游戏参与者在同一场景')
-        const participants = [this.playerId, ...npcIds]
-        state = {
-          id: 'activity:' + randomUUID(),
-          revision: 1,
-          participants,
-          game: this.#game(
-            this.#call('initialize', [
-              {
-                playerId: this.playerId,
-                npcIds,
-                world: this.#worldView(manifest, events, this.playerId, head.headSeq),
-                previous: current ? this.scoped(current, this.playerId) : null,
-              },
-            ]),
-            participants,
-          ),
-        }
-        description = this.title + '开始。'
-        observerIds = participants
-        drafts = [this.#event(state, description, this.playerId, actionId, 'start')]
-      } else if (['suspend', 'resume', 'abandon'].includes(request.operation)) {
-        if (
-          !current ||
-          current.id !== request.activityId ||
-          current.revision !== request.revision ||
-          Object.keys(request.parameters).length
-        )
-          throw new TypeError('活动控制请求已失效')
-        if (request.operation === 'suspend') {
-          this.#check(current, request.activityId, request.revision, this.playerId)
-          state = {
-            ...current,
-            revision: current.revision + 1,
-            suspendedTurn: current.game.turn!,
-            game: { ...current.game, active: false, turn: null },
+          if (prior) {
+            if (json(object(object(prior.data).input)) !== json(input)) throw new TypeError('同一请求 ID 不能改变内容')
+            return undefined
           }
-          description = this.title + '已暂停，进度保留，恢复自由互动。'
-        } else if (request.operation === 'abandon') {
-          if (current.suspendedTurn === undefined) throw new TypeError('只能放弃暂停中的活动')
-          const { suspendedTurn: _turn, ...saved } = current
-          state = {
-            ...saved,
-            revision: current.revision + 1,
-            game: { ...current.game, active: false, phase: 'host-aborted', turn: null },
-          }
-          description = this.title + '的暂停进度已放弃，已提交的经历仍保留。'
-        } else {
-          if (foreground || current.suspendedTurn === undefined)
-            throw new TypeError('请先暂停当前活动，或选择有暂停进度的活动')
-          const { suspendedTurn, ...saved } = current
-          state = {
-            ...saved,
-            revision: current.revision + 1,
-            game: { ...current.game, active: true, turn: suspendedTurn },
-          }
-          const manifest = store.readManifest(this.address)!.manifest as CompiledWorldManifest
-          const world = this.#worldView(manifest, events, this.playerId, head.headSeq)
-          const rejection = this.#call('resume', [this.scoped(state, this.playerId), world])
-          // A hook may accept remote continuation; without one, retain the original same-scene rule.
-          if (rejection !== null) {
-            const result = object(rejection)
-            exact(result, ['rejectReason'])
+          const actionId = owner + ':action'
+          let state: ActivityState, description: string, drafts: WorldEventDraft[], observerIds: string[]
+          if (request.operation === 'start') {
             if (
-              typeof result.rejectReason !== 'string' ||
-              !result.rejectReason.trim() ||
-              result.rejectReason.length > 2000
+              foreground ||
+              current?.suspendedTurn !== undefined ||
+              request.activityId !== null ||
+              request.revision !== 0
             )
-              throw new TypeError('活动恢复条件返回无效')
-            throw new TypeError(result.rejectReason)
+              throw new TypeError('已有活动、存在暂停进度或开始请求失效')
+            if (this.participantSelection) exact(request.parameters, ['npcIds'])
+            else if (Object.keys(request.parameters).length) throw new TypeError('开始操作没有参数')
+            const npcIds = this.participantSelection ? strings(request.parameters.npcIds) : this.npcIds
+            if (!this.#validParticipants([this.playerId, ...npcIds]))
+              throw new TypeError('选择的活动参与者不符合人数或候选限制')
+            const manifest = store.readManifest(this.address)!.manifest as CompiledWorldManifest
+            if (
+              npcIds.some(
+                id =>
+                  !manifest.characters.some(c => c.characterId === id) ||
+                  manifest.playerBindings.some(b => b.characterId === id),
+              )
+            )
+              throw new TypeError('活动 NPC 未声明')
+            const scene = new SceneDecisionService(store, availability).decideFromEvents(
+              this.address,
+              brandId(this.playerId, 'CharacterId'),
+              events,
+              head.headSeq,
+            )
+            if (npcIds.some(id => !scene.observerIds.includes(brandId(id, 'CharacterId'))))
+              throw new TypeError('需要与游戏参与者在同一场景')
+            const participants = [this.playerId, ...npcIds]
+            state = {
+              id: 'activity:' + randomUUID(),
+              revision: 1,
+              participants,
+              game: this.#game(
+                this.#call('initialize', [
+                  {
+                    playerId: this.playerId,
+                    npcIds,
+                    world: this.#worldView(manifest, events, this.playerId, head.headSeq),
+                    previous: current ? this.scoped(current, this.playerId) : null,
+                  },
+                ]),
+                participants,
+              ),
+            }
+            description = this.title + '开始。'
+            observerIds = participants
+            drafts = [this.#event(state, description, this.playerId, actionId, 'start')]
+          } else if (['suspend', 'resume', 'abandon'].includes(request.operation)) {
+            if (
+              !current ||
+              current.id !== request.activityId ||
+              current.revision !== request.revision ||
+              Object.keys(request.parameters).length
+            )
+              throw new TypeError('活动控制请求已失效')
+            if (request.operation === 'suspend') {
+              this.#check(current, request.activityId, request.revision, this.playerId)
+              state = {
+                ...current,
+                revision: current.revision + 1,
+                suspendedTurn: current.game.turn!,
+                game: { ...current.game, active: false, turn: null },
+              }
+              description = this.title + '已暂停，进度保留，恢复自由互动。'
+            } else if (request.operation === 'abandon') {
+              if (current.suspendedTurn === undefined) throw new TypeError('只能放弃暂停中的活动')
+              const { suspendedTurn: _turn, ...saved } = current
+              state = {
+                ...saved,
+                revision: current.revision + 1,
+                game: { ...current.game, active: false, phase: 'host-aborted', turn: null },
+              }
+              description = this.title + '的暂停进度已放弃，已提交的经历仍保留。'
+            } else {
+              if (foreground || current.suspendedTurn === undefined)
+                throw new TypeError('请先暂停当前活动，或选择有暂停进度的活动')
+              const { suspendedTurn, ...saved } = current
+              state = {
+                ...saved,
+                revision: current.revision + 1,
+                game: { ...current.game, active: true, turn: suspendedTurn },
+              }
+              const manifest = store.readManifest(this.address)!.manifest as CompiledWorldManifest
+              const world = this.#worldView(manifest, events, this.playerId, head.headSeq)
+              const rejection = this.#call('resume', [this.scoped(state, this.playerId), world])
+              // A hook may accept remote continuation; without one, retain the original same-scene rule.
+              if (rejection !== null) {
+                const result = object(rejection)
+                exact(result, ['rejectReason'])
+                if (
+                  typeof result.rejectReason !== 'string' ||
+                  !result.rejectReason.trim() ||
+                  result.rejectReason.length > 2000
+                )
+                  throw new TypeError('活动恢复条件返回无效')
+                throw new TypeError(result.rejectReason)
+              }
+              if (
+                this.#call('hasResume', []) !== true &&
+                state.participants.slice(1).some(id => !(world.characterIds as string[]).includes(id))
+              )
+                throw new TypeError('恢复活动需要与参与者在同一场景')
+              this.#game(state.game, state.participants)
+              description = this.title + '已恢复，继续此前进度。'
+            }
+            observerIds = [this.playerId]
+            drafts = [this.#event(state, description, this.playerId, actionId, request.operation)]
+          } else {
+            this.#check(current, request.activityId, request.revision, this.playerId)
+            if (request.operation === 'retry') {
+              if (Object.keys(request.parameters).length) throw new TypeError('重试没有参数')
+              retry = true
+              return undefined
+            }
+            if (!this.#validators.get(request.operation)?.(request.parameters)) throw new TypeError('游戏操作参数无效')
+            const manifest = store.readManifest(this.address)!
+            const rules = this.rulebooks().resolve('builtin:speak-move', 2, owner, this.address)
+            const resolution = rules.resolve({
+              manifest: manifest.manifest as CompiledWorldManifest,
+              manifestHash: manifest.manifestHash,
+              events,
+              characterId: this.playerId,
+              actionId,
+              asOfWorldSeq: head.headSeq,
+              resolutionAuthority: resolutionAuthority('player', 'standard'),
+              action: {
+                actionType: 'interact',
+                parameters: {
+                  targetRef: { kind: 'character', id: this.playerId },
+                  bindingId: current.id,
+                  definitionRef: { id: 'activity:' + request.operation, version: 1 },
+                  arguments: { activityId: current.id, revision: current.revision, ...request.parameters },
+                },
+              },
+            })
+            observerIds = [...(resolution.observationScope?.recipientIds ?? current.participants)]
+            drafts = [...resolution.events]
+            state = object(drafts[0]!.data).state as ActivityState
+            description = String(object(drafts[0]!.data).description)
           }
-          if (
-            this.#call('hasResume', []) !== true &&
-            state.participants.slice(1).some(id => !(world.characterIds as string[]).includes(id))
-          )
-            throw new TypeError('恢复活动需要与参与者在同一场景')
-          this.#game(state.game, state.participants)
-          description = this.title + '已恢复，继续此前进度。'
-        }
-        observerIds = [this.playerId]
-        drafts = [this.#event(state, description, this.playerId, actionId, request.operation)]
-      } else {
-        this.#check(current, request.activityId, request.revision, this.playerId)
-        if (request.operation === 'retry') {
-          if (Object.keys(request.parameters).length) throw new TypeError('重试没有参数')
-          return true
-        }
-        if (!this.#validators.get(request.operation)?.(request.parameters)) throw new TypeError('游戏操作参数无效')
-        const manifest = store.readManifest(this.address)!
-        const rules = this.rulebooks().resolve('builtin:speak-move', 2, owner, this.address)
-        const resolution = rules.resolve({
-          manifest: manifest.manifest as CompiledWorldManifest,
-          manifestHash: manifest.manifestHash,
-          events,
-          characterId: this.playerId,
-          actionId,
-          asOfWorldSeq: head.headSeq,
-          resolutionAuthority: resolutionAuthority('player', 'standard'),
-          action: {
-            actionType: 'interact',
-            parameters: {
-              targetRef: { kind: 'character', id: this.playerId },
-              bindingId: current.id,
-              definitionRef: { id: 'activity:' + request.operation, version: 1 },
-              arguments: { activityId: current.id, revision: current.revision, ...request.parameters },
+          if (auto && request.operation !== 'start') throw new TypeError('只有开始可以由宿主自动发出')
+          drafts[0] = {
+            ...drafts[0]!,
+            data: {
+              ...object(drafts[0]!.data),
+              requestId: request.requestId,
+              input,
+              ...(auto ? { source: 'auto' } : {}),
             },
-          },
-        })
-        observerIds = [...(resolution.observationScope?.recipientIds ?? current.participants)]
-        drafts = [...resolution.events]
-        state = object(drafts[0]!.data).state as ActivityState
-        description = String(object(drafts[0]!.data).description)
-      }
-      if (auto && request.operation !== 'start') throw new TypeError('只有开始可以由宿主自动发出')
-      drafts[0] = {
-        ...drafts[0]!,
-        data: { ...object(drafts[0]!.data), requestId: request.requestId, input, ...(auto ? { source: 'auto' } : {}) },
-      }
-      // An author's opening (the automatic notice first, then the declared opening) replaces the fixed line for
-      // the player alone; it is written from the player's side, so participants keep the fixed line.
-      const notice = request.operation === 'start' ? (auto?.notice ?? this.opening) : undefined
-      drafts.push(
-        ...(quiet
-          ? []
-          : notice === undefined
-            ? this.#observations(state, description, this.playerId, actionId, observerIds, request.operation)
-            : [
-                ...this.#observations(state, notice, this.playerId, actionId, [this.playerId], request.operation),
-                ...this.#observations(
-                  state,
-                  description,
-                  this.playerId,
-                  actionId,
-                  observerIds.filter(id => id !== this.playerId),
-                  request.operation,
-                ),
-              ]),
-        // A host-initiated start is direction, not a player action, so it never counts as a player round.
-        {
-          eventType: 'action.resolved',
-          eventVersion: 1,
-          data: {
-            actorId: this.playerId,
-            actionId,
-            actionType: 'interact',
-            accepted: true,
-            sourceRole: auto ? 'director' : 'player',
-          },
+          }
+          // An author's opening (the automatic notice first, then the declared opening) replaces the fixed line for
+          // the player alone; it is written from the player's side, so participants keep the fixed line.
+          const notice = request.operation === 'start' ? (auto?.notice ?? this.opening) : undefined
+          drafts.push(
+            ...(quiet
+              ? []
+              : notice === undefined
+                ? this.#observations(state, description, this.playerId, actionId, observerIds, request.operation)
+                : [
+                    ...this.#observations(state, notice, this.playerId, actionId, [this.playerId], request.operation),
+                    ...this.#observations(
+                      state,
+                      description,
+                      this.playerId,
+                      actionId,
+                      observerIds.filter(id => id !== this.playerId),
+                      request.operation,
+                    ),
+                  ]),
+            // A host-initiated start is direction, not a player action, so it never counts as a player round.
+            {
+              eventType: 'action.resolved',
+              eventVersion: 1,
+              data: {
+                actorId: this.playerId,
+                actionId,
+                actionType: 'interact',
+                accepted: true,
+                sourceRole: auto ? 'director' : 'player',
+              },
+            },
+          )
+          return {
+            events: drafts,
+            authority: { actorId: this.playerId, request: input, status: 'accepted' },
+          }
         },
-        { eventType: 'world.tick-advanced', eventVersion: 1, data: { tick: head.tick + 1 } },
       )
-      await store.commitRound({
-        address: this.address,
-        transactionId: brandId(owner, 'TransactionId'),
-        roundId: brandId(owner, 'InteractionRoundId'),
-        expectedHeadSeq: head.headSeq,
-        expectedTick: head.tick,
-        nextTick: head.tick + 1,
-        events: drafts,
-        outbox: [],
-        writerFencingToken: lease.fencingToken,
-        correlationId: owner,
-        authority: { actorId: this.playerId, request: input, status: 'accepted' },
-      })
-      return true
+      return retry || committed !== undefined
     } finally {
-      if (lease) leases.release(this.address, owner, lease.fencingToken)
       availability.close()
       leases.close()
       store.close()
@@ -1317,206 +1319,195 @@ export class PackActivity {
     const store = new WorldStore(this.worldPath),
       leases = new WriterLeaseService(this.worldPath),
       owner = 'escape:' + randomUUID()
-    let lease: ReturnType<WriterLeaseService['acquire']> | undefined
     try {
-      lease = leases.acquire(this.address, owner, 180000)
-      const head = store.head(this.address),
-        state = this.state(store.readEvents(this.address))
-      if (!state?.game.active) return
-      const next = {
-        ...state,
-        revision: state.revision + 1,
-        game: { ...state.game, active: false, phase: 'host-aborted', turn: null },
-      }
-      const description = '玩家使用宿主逃生按钮中止活动，已解除本活动的交互限制与调度。'
-      await store.commitRound({
-        address: this.address,
-        transactionId: brandId(owner, 'TransactionId'),
-        roundId: brandId(owner, 'InteractionRoundId'),
-        expectedHeadSeq: head.headSeq,
-        expectedTick: head.tick,
-        nextTick: head.tick + 1,
-        events: [
-          this.#event(next, description, this.playerId, owner, 'host-escape'),
-          ...this.#observations(next, description, this.playerId, owner),
-          { eventType: 'world.tick-advanced', eventVersion: 1, data: { tick: head.tick + 1 } },
-        ],
-        outbox: [],
-        writerFencingToken: lease.fencingToken,
-        correlationId: owner,
-        authority: { actorId: this.playerId, source: 'host-escape', status: 'accepted' },
-      })
+      await executeWorldRound(
+        { store, leases, address: this.address, owner, actorId: this.playerId, signal: this.signal },
+        ({ events }) => {
+          const state = this.state(events)
+          if (!state?.game.active) return
+          const next = {
+            ...state,
+            revision: state.revision + 1,
+            game: { ...state.game, active: false, phase: 'host-aborted', turn: null },
+          }
+          const description = '玩家使用宿主逃生按钮中止活动，已解除本活动的交互限制与调度。'
+          return {
+            events: [
+              this.#event(next, description, this.playerId, owner, 'host-escape'),
+              ...this.#observations(next, description, this.playerId, owner),
+            ],
+            authority: { actorId: this.playerId, source: 'host-escape', status: 'accepted' },
+          }
+        },
+      )
     } finally {
-      if (lease) leases.release(this.address, owner, lease.fencingToken)
       leases.close()
       store.close()
     }
   }
-  async speak(text: string, requestId: string): Promise<void> {
+  async speak(text: string, requestId: string, signal?: AbortSignal): Promise<void> {
     return this.worldAction(
       {
         actionType: 'speak',
         parameters: { text, scope: 'direct', addresseeIds: this.current()?.participants.slice(1) ?? [] },
       },
       requestId,
+      signal,
     )
   }
-  async worldAction(action: { actionType: string; parameters: WorldJsonObject }, requestId: string): Promise<void> {
+  async worldAction(
+    action: { actionType: string; parameters: WorldJsonObject },
+    requestId: string,
+    signal?: AbortSignal,
+  ): Promise<void> {
     const store = new WorldStore(this.worldPath),
       leases = new WriterLeaseService(this.worldPath),
       owner = 'activity-world:' + requestId
     const availability = new CharacterRuntimeAvailabilityService(this.worldPath)
-    let lease: ReturnType<WriterLeaseService['acquire']> | undefined
     try {
-      lease = leases.acquire(this.address, owner, 180000)
-      const head = store.head(this.address),
-        events = store.readEvents(this.address),
-        state = this.state(events)
-      if (!state?.game.active) throw new TypeError('活动已结束')
-      const prior = store.committedRound(this.address, brandId(owner, 'TransactionId'))
-      if (prior) {
-        const record = store.readRoundAuthority(this.address, brandId(owner, 'TransactionId'))!
-        if (json(object(record.authority.action)) !== json(action)) throw new TypeError('同一请求不能改变内容')
-        return
-      }
-      if (action.actionType === 'speak') {
-        const policy = this.policy(state, this.playerId)
-        this.checkExpression(policy, {
-          ...(Object.hasOwn(action.parameters, 'text') ? { speech: action.parameters.text } : {}),
-          ...(Object.hasOwn(action.parameters, 'narration') ? { narration: action.parameters.narration } : {}),
-        })
-      }
-      const manifest = store.readManifest(this.address)!,
-        rules = this.rulebooks().resolve('builtin:speak-move', 2, owner, this.address)
-      const context = {
-        manifest: manifest.manifest as CompiledWorldManifest,
-        manifestHash: manifest.manifestHash,
-        events,
-        characterId: this.playerId,
-        actionId: owner,
-        asOfWorldSeq: head.headSeq,
-        resolutionAuthority: resolutionAuthority('player', 'standard'),
-        action,
-      }
-      const result = this.resolveAction
-        ? await this.resolveAction(context, () => rules.resolve(context))
-        : rules.resolve(context)
-      // A rejected status operation and a plugin's rule tell the player their own reason; others stay generic.
-      if (result.status !== 'accepted')
-        throw new TypeError(
-          this.status?.rejectionReason(result.events, this.playerId, result.reason) ??
-            (result.reason?.startsWith('plugin:') ? rejectionReasonText(result.reason) : undefined) ??
-            '这次操作未被规则接受',
-        )
-      const scene = new SceneDecisionService(store, availability)
-      const drafts: WorldEventDraft[] = [...result.events]
-      if (action.actionType === 'move')
-        drafts.push(
-          ...scene.transitionForMove(
-            this.address,
+      const committed = await executeWorldRound(
+        {
+          store,
+          leases,
+          address: this.address,
+          owner,
+          actorId: this.playerId,
+          signal: AbortSignal.any([...(this.signal ? [this.signal] : []), ...(signal ? [signal] : [])]),
+        },
+        async ({ head, events, prior }) => {
+          const state = this.state(events)
+          if (!state?.game.active) throw new TypeError('活动已结束')
+          if (prior) {
+            if (json(object(prior.authority.action)) !== json(action)) throw new TypeError('同一请求不能改变内容')
+            return
+          }
+          if (action.actionType === 'speak') {
+            const policy = this.policy(state, this.playerId)
+            this.checkExpression(policy, {
+              ...(Object.hasOwn(action.parameters, 'text') ? { speech: action.parameters.text } : {}),
+              ...(Object.hasOwn(action.parameters, 'narration') ? { narration: action.parameters.narration } : {}),
+            })
+          }
+          const manifest = store.readManifest(this.address)!,
+            rules = this.rulebooks().resolve('builtin:speak-move', 2, owner, this.address)
+          const context = {
+            manifest: manifest.manifest as CompiledWorldManifest,
+            manifestHash: manifest.manifestHash,
             events,
-            brandId(this.playerId, 'CharacterId'),
-            String(action.parameters.locationId),
-            head.headSeq,
-          ),
-        )
-      const scope = result.observationScope
-      const audience = scene.audienceForAction(
-        this.address,
-        brandId(this.playerId, 'CharacterId'),
-        events,
-        head.headSeq,
-        {
-          scope: scope?.scope ?? 'scene_public',
-          ...(scope?.recipientIds === undefined
-            ? {}
-            : { recipientIds: scope.recipientIds.map(id => brandId(id, 'CharacterId')) }),
-        },
-      )
-      const speech =
-        action.actionType === 'speak' ? result.events.find(e => e.eventType === 'character.speak') : undefined
-      const outcome = {
-        manifest: manifest.manifest as CompiledWorldManifest,
-        events: [...events, ...result.events],
-        actorId: brandId(this.playerId, 'CharacterId'),
-        action,
-        status: result.status,
-        reason: null,
-      }
-      const description = (this.status?.executionResult(outcome) ?? this.executionResult(outcome)).description
-      for (const observerId of new Set([...audience.fullContentCharacterIds, this.playerId])) {
-        drafts.push({
-          eventType: 'observation.upsert',
-          eventVersion: 1,
-          data: {
-            id: owner + ':' + observerId,
-            value: {
-              observerId,
-              content: {
-                actorId: this.playerId,
-                status: 'accepted',
-                actionType: action.actionType,
-                resultDescription: description!,
-                ...(speech === undefined ? {} : { speech: speech.data }),
-                ...(result.events.find(e => e.eventType === 'entity.transferred')
-                  ? { interaction: result.events.find(e => e.eventType === 'entity.transferred')!.data }
-                  : {}),
-              },
-            },
-          },
-        })
-      }
-      for (const observerId of audience.occurrenceOnlyCharacterIds) {
-        drafts.push({
-          eventType: 'observation.upsert',
-          eventVersion: 1,
-          data: {
-            id: owner + ':' + observerId,
-            value: {
-              observerId,
-              content: {
-                actorId: this.playerId,
-                status: 'accepted',
-                actionType: 'private_interaction',
-                contentVisibility: 'occurrence_only',
-              },
-            },
-          },
-        })
-      }
-      drafts.push(
-        {
-          eventType: 'action.resolved',
-          eventVersion: 1,
-          data: {
-            actorId: this.playerId,
+            characterId: this.playerId,
             actionId: owner,
-            actionType: action.actionType,
-            accepted: true,
-            sourceRole: 'player',
-          },
+            asOfWorldSeq: head.headSeq,
+            resolutionAuthority: resolutionAuthority('player', 'standard'),
+            action,
+          }
+          const result = this.resolveAction
+            ? await this.resolveAction(context, () => rules.resolve(context))
+            : rules.resolve(context)
+          // A rejected status operation and a plugin's rule tell the player their own reason; others stay generic.
+          if (result.status !== 'accepted')
+            throw new TypeError(
+              this.status?.rejectionReason(result.events, this.playerId, result.reason) ??
+                (result.reason?.startsWith('plugin:') ? rejectionReasonText(result.reason) : undefined) ??
+                '这次操作未被规则接受',
+            )
+          const scene = new SceneDecisionService(store, availability)
+          const drafts: WorldEventDraft[] = [...result.events]
+          if (action.actionType === 'move')
+            drafts.push(
+              ...scene.transitionForMove(
+                this.address,
+                events,
+                brandId(this.playerId, 'CharacterId'),
+                String(action.parameters.locationId),
+                head.headSeq,
+              ),
+            )
+          const scope = result.observationScope
+          const audience = scene.audienceForAction(
+            this.address,
+            brandId(this.playerId, 'CharacterId'),
+            events,
+            head.headSeq,
+            {
+              scope: scope?.scope ?? 'scene_public',
+              ...(scope?.recipientIds === undefined
+                ? {}
+                : { recipientIds: scope.recipientIds.map(id => brandId(id, 'CharacterId')) }),
+            },
+          )
+          const speech =
+            action.actionType === 'speak' ? result.events.find(e => e.eventType === 'character.speak') : undefined
+          const outcome = {
+            manifest: manifest.manifest as CompiledWorldManifest,
+            events: [...events, ...result.events],
+            actorId: brandId(this.playerId, 'CharacterId'),
+            action,
+            status: result.status,
+            reason: null,
+          }
+          const description = (this.status?.executionResult(outcome) ?? this.executionResult(outcome)).description
+          for (const observerId of new Set([...audience.fullContentCharacterIds, this.playerId])) {
+            drafts.push({
+              eventType: 'observation.upsert',
+              eventVersion: 1,
+              data: {
+                id: owner + ':' + observerId,
+                value: {
+                  observerId,
+                  content: {
+                    actorId: this.playerId,
+                    status: 'accepted',
+                    actionType: action.actionType,
+                    resultDescription: description!,
+                    ...(speech === undefined ? {} : { speech: speech.data }),
+                    ...(result.events.find(e => e.eventType === 'entity.transferred')
+                      ? { interaction: result.events.find(e => e.eventType === 'entity.transferred')!.data }
+                      : {}),
+                  },
+                },
+              },
+            })
+          }
+          for (const observerId of audience.occurrenceOnlyCharacterIds) {
+            drafts.push({
+              eventType: 'observation.upsert',
+              eventVersion: 1,
+              data: {
+                id: owner + ':' + observerId,
+                value: {
+                  observerId,
+                  content: {
+                    actorId: this.playerId,
+                    status: 'accepted',
+                    actionType: 'private_interaction',
+                    contentVisibility: 'occurrence_only',
+                  },
+                },
+              },
+            })
+          }
+          drafts.push({
+            eventType: 'action.resolved',
+            eventVersion: 1,
+            data: {
+              actorId: this.playerId,
+              actionId: owner,
+              actionType: action.actionType,
+              accepted: true,
+              sourceRole: 'player',
+            },
+          })
+          return {
+            events: drafts,
+            authority: { actorId: this.playerId, action, status: 'accepted' },
+          }
         },
-        { eventType: 'world.tick-advanced', eventVersion: 1, data: { tick: head.tick + 1 } },
       )
-      await store.commitRound({
-        address: this.address,
-        transactionId: brandId(owner, 'TransactionId'),
-        roundId: brandId(owner, 'InteractionRoundId'),
-        expectedHeadSeq: head.headSeq,
-        expectedTick: head.tick,
-        nextTick: head.tick + 1,
-        events: drafts,
-        outbox: [],
-        writerFencingToken: lease.fencingToken,
-        correlationId: owner,
-        authority: { actorId: this.playerId, action, status: 'accepted' },
-      })
-      this.status?.externalActions?.committed()
+      if (committed) this.status?.externalActions?.committed()
     } catch (error) {
       this.status?.externalActions?.failed()
       throw error
     } finally {
-      if (lease) leases.release(this.address, owner, lease.fencingToken)
       availability.close()
       leases.close()
       store.close()

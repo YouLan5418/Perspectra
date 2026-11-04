@@ -20,7 +20,7 @@ import {
   type RulebookResolution,
 } from '@harness-world/kernel'
 import { WorldStore, WriterLeaseService } from '@harness-world/store-sqlite'
-import { characterExecutionResult } from '@harness-world/application'
+import { characterExecutionResult, executeWorldRound } from '@harness-world/application'
 
 const object = (value: WorldJsonValue | undefined): WorldJsonObject | undefined =>
   value !== null && typeof value === 'object' && !Array.isArray(value) ? (value as WorldJsonObject) : undefined
@@ -224,6 +224,7 @@ export class CrossSceneCommunication {
     recipientId: string
     text: string
     resolver?: RulebookResolver
+    signal?: AbortSignal
   }) {
     return this.perform({ ...input, parameters: this.parameters(input.recipientId, input.text) })
   }
@@ -235,74 +236,66 @@ export class CrossSceneCommunication {
     actorId: CharacterId
     parameters: WorldJsonObject
     resolver?: RulebookResolver
+    signal?: AbortSignal
   }) {
     if (!input.manifest.playerBindings.some(binding => binding.characterId === input.actorId))
       throw new TypeError('手动发送入口仅允许绑定玩家')
-    const owner = `message:${randomUUID()}`,
-      lease = input.leases.acquire(input.address, owner)
-    try {
-      const head = input.store.head(input.address),
-        roundId = brandId(owner, 'InteractionRoundId'),
-        actionId = `${owner}:action`
-      const action = { actionType: 'interact', parameters: input.parameters }
-      const result = (input.resolver ?? this).resolve({
-        manifest: input.manifest,
-        events: input.store.readEvents(input.address),
-        characterId: input.actorId,
-        asOfWorldSeq: head.headSeq,
-        actionId,
-        roundId,
-        action,
-        resolutionAuthority: resolutionAuthority('player', 'manual_player_immediate'),
-      })
-      const speech = result.events.find(e => e.eventType === 'character.speak')
-      await input.store.commitRound({
-        address: input.address,
-        transactionId: brandId(owner, 'TransactionId'),
-        roundId,
-        expectedHeadSeq: head.headSeq,
-        expectedTick: head.tick,
-        nextTick: head.tick + 1,
-        writerFencingToken: lease.fencingToken,
-        correlationId: owner,
-        authority: { actorId: input.actorId, action, status: result.status },
-        outbox: [],
-        events: [
-          ...result.events,
-          {
-            eventType: 'action.resolved',
-            eventVersion: 1,
-            data: {
-              roundId,
-              actionId,
-              actorId: input.actorId,
-              actionType: 'interact',
-              sourceRole: 'player',
-              accepted: result.status === 'accepted',
+    const owner = `message:${randomUUID()}`
+    let status: RulebookResolution['status'] = 'rejected'
+    const committed = await executeWorldRound(
+      { ...input, owner, leaseTtlMs: 30_000, tickRoundId: true },
+      ({ head, manifest, events }) => {
+        const roundId = brandId(owner, 'InteractionRoundId'),
+          actionId = `${owner}:action`
+        const action = { actionType: 'interact', parameters: input.parameters }
+        const result = (input.resolver ?? this).resolve({
+          manifest,
+          events,
+          characterId: input.actorId,
+          asOfWorldSeq: head.headSeq,
+          actionId,
+          roundId,
+          action,
+          resolutionAuthority: resolutionAuthority('player', 'manual_player_immediate'),
+        })
+        status = result.status
+        const speech = result.events.find(e => e.eventType === 'character.speak')
+        return {
+          authority: { actorId: input.actorId, action, status: result.status },
+          events: [
+            ...result.events,
+            {
+              eventType: 'action.resolved',
+              eventVersion: 1,
+              data: {
+                roundId,
+                actionId,
+                actorId: input.actorId,
+                actionType: 'interact',
+                sourceRole: 'player',
+                accepted: result.status === 'accepted',
+              },
             },
-          },
-          {
-            eventType: 'observation.upsert',
-            eventVersion: 1,
-            data: {
-              id: `${actionId}:sender`,
-              value: {
-                observerId: input.actorId,
-                content: {
-                  actorId: input.actorId,
-                  actionType: 'interact',
-                  status: result.status,
-                  ...(speech ? { speech: speech.data } : {}),
+            {
+              eventType: 'observation.upsert',
+              eventVersion: 1,
+              data: {
+                id: `${actionId}:sender`,
+                value: {
+                  observerId: input.actorId,
+                  content: {
+                    actorId: input.actorId,
+                    actionType: 'interact',
+                    status: result.status,
+                    ...(speech ? { speech: speech.data } : {}),
+                  },
                 },
               },
             },
-          },
-          { eventType: 'world.tick-advanced', eventVersion: 1, data: { tick: head.tick + 1, roundId } },
-        ],
-      })
-      return { afterSeq: head.headSeq, status: result.status }
-    } finally {
-      input.leases.release(input.address, owner, lease.fencingToken)
-    }
+          ],
+        }
+      },
+    )
+    return { afterSeq: committed!.afterSeq, status }
   }
 }

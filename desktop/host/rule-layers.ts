@@ -1,16 +1,15 @@
-import { createInstalledInteractionPackages } from '@harness-world/interactions-basic'
+import type { InteractionPackageImplementation } from '@harness-world/contracts'
 import { createCoreRulebookRegistry, RulebookRegistry, type RulebookResolver } from '@harness-world/kernel'
 import type { RulesInstance } from '@harness-world/plugin-sdk'
 import type { ReportPluginFailure } from './character-decision.ts'
 
 /** The one source of core rules in a world instance, for players, characters and activities alike. Plugin layers
  * are read on each call, so this can be handed out before they open. */
-export function layeredCoreRules(layers: () => readonly RulesInstance[]): RulebookRegistry {
-  const core = createCoreRulebookRegistry({ interactionPackages: createInstalledInteractionPackages() }).resolve(
-    'builtin:speak-move',
-    2,
-    'layered-core',
-  )
+export function layeredCoreRules(
+  layers: () => readonly RulesInstance[],
+  interactionPackages: readonly InteractionPackageImplementation[],
+): RulebookRegistry {
+  const core = createCoreRulebookRegistry({ interactionPackages }).resolve('builtin:speak-move', 2, 'layered-core')
   const resolver: RulebookResolver = {
     resolve: context =>
       layers().reduceRight<RulebookResolver['resolve']>(

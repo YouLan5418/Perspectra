@@ -393,7 +393,7 @@ function parseStoredInteractionSelection(root: Record<string, unknown>): void {
   const packages = jsonArrayAt(catalog.packages, `${path}.packages`).map((entry, index) =>
     implementationLockAt(entry, `${path}.packages[${index}]`),
   )
-  if (packages.length === 0 || packages.length > MAXIMUM_STORED_INTERACTION_PACKAGES)
+  if (packages.length > MAXIMUM_STORED_INTERACTION_PACKAGES)
     throw new TypeError(`${path}.packages is outside the frozen selection budget`)
   jsonUniqueAt(
     packages.map(entry => `${entry.ref.id}@${entry.ref.version}`),
@@ -409,6 +409,8 @@ function parseStoredInteractionSelection(root: Record<string, unknown>): void {
       implementationHash: jsonHashAt(row.implementationHash, `${at}.implementationHash`),
     }
   })
+  if (packages.length === 0 && definitions.length !== 0)
+    throw new TypeError(`${path} cannot select definitions without packages`)
   if (definitions.length > MAXIMUM_STORED_INTERACTION_DEFINITIONS)
     throw new TypeError(`${path}.definitions is outside the frozen selection budget`)
   jsonUniqueAt(

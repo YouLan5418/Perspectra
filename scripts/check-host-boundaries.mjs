@@ -49,6 +49,12 @@ function check(file) {
     errors.push(file + ': only desktop/official-bundle.ts may import an official implementation')
   }
   if (
+    /^packages\/(?:application|kernel|store-sqlite)\//.test(path) &&
+    /from\s+['"]@harness-world\/interactions-basic['"]/.test(source)
+  ) {
+    errors.push(file + ': core must receive its gameplay install from composition')
+  }
+  if (
     path.startsWith('packages/official-') &&
     // The JEV experiment folds committed events with the kernel's pure readers; it adjudicates nothing.
     !path.startsWith('packages/official-jev-audit/') &&

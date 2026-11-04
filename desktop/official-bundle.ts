@@ -1,3 +1,4 @@
+import { createInstalledInteractionPackages } from '@harness-world/interactions-basic'
 export { composeDecisions, officialContextOrder } from '@harness-world/official-contexts'
 import { composeDecisions } from '@harness-world/official-contexts'
 import { officialLlmProvider } from '@harness-world/official-llm'
@@ -38,6 +39,9 @@ export {
   corePythonRoot,
   importCoreArchives,
 } from '@harness-world/official-memory-core'
+
+/** The default gameplay install, explicitly supplied by desktop entry composition. */
+export const defaultInteractionPackages = createInstalledInteractionPackages
 
 /** Core with the model connections and settings only the entry holds. */
 export function assembleCoreMemory(

@@ -1,5 +1,7 @@
 # 当前运行时
 
+2026-11-04 M2：例如玩家状态操作等待外部设备时关闭世界，返回结果必须丢弃。状态、活动和通信的即时提交现复用核心 [executeWorldRound](../../../packages/application/src/world-round-execution.ts)，负责绑定玩家、租约、前缀、取消与原子提交；各宿主适配保留业务和受众检查。物品效果检查迁入 application。WorldApplication 不再隐式安装基础交互包，桌面默认组合显式提供；最小入口与验证边界见[M2 记录](../studies/2026-11-core-migration-m2.md)。
+
 2026-11-04 M1：例如同行者听到“黑海岸”后收到相关设定，宿主先用 [knowledge-source](../../../desktop/host/knowledge-source.ts)验证配置资产，再把必要内容描述交给所选知识 Provider。`ctx.knowledge` 通过 Cordis 注册；默认组合在记忆之后、决策扩充之前打开它，knowledge context 步骤调用其 select。受众与条件筛选在 [official-knowledge](../../../packages/official-knowledge/src/selection.ts)，WorldGameplay 不再持有 PackKnowledge。候选世界独立 open/close，公开 identity 纳入重生环境比较。源码接通和最小启动探针不等于完整最小核心已完成，见[M0／M1 记录](../studies/2026-11-core-migration-m01.md)。
 
 2026-11-04 阶段 11：例如服务消费者排在提供者之前，加载器会在装载结束后再次核对 Cordis 就绪状态，未执行的插件不记为生效。官方默认选择、决策顺序和世界打开顺序集中到 [official-bundle](../../../desktop/official-bundle.ts)；加载器通过公开 register／effect 填充空位，直接宿主复用同一组合策略。模型凭证工厂仍按世界装配。源码与限制见[阶段 11 记录](../studies/2026-11-plugin-first-phase-11.md)。

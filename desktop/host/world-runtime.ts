@@ -1,5 +1,5 @@
 import { loadKnowledgeSource } from './knowledge-source.ts'
-import { composeWorldSeams, officialWorldOrder } from '../official-bundle.ts'
+import { composeWorldSeams, officialWorldOrder, defaultInteractionPackages } from '../official-bundle.ts'
 import { RequestInspector, type ChatCallObservation, type ChatProvider } from '@harness-world/provider-chat'
 import { CreatorRecords, type CreatorRecordsQuery } from './creator-records.ts'
 import { type CreatorHistoryQuery } from './creator-history.ts'
@@ -76,7 +76,6 @@ import {
   type WorldJsonObject,
   type WorldAddress,
 } from '@harness-world/contracts'
-import { createInstalledInteractionPackages } from '@harness-world/interactions-basic'
 import {
   CharacterViewBuilder,
   CharacterRuntimeAvailabilityService,
@@ -236,7 +235,7 @@ export class WorldHostCore implements HostRuntime {
   readonly #gameplay: WorldGameplay
   #decisions: DecisionInstance[] = []
   #ruleLayers: RulesInstance[] = []
-  readonly #coreRegistry = layeredCoreRules(() => this.#ruleLayers)
+  readonly #coreRegistry = layeredCoreRules(() => this.#ruleLayers, defaultInteractionPackages())
   #memory: MemoryInstance | undefined
   #memoryIsCore = false
   #memoryId = ''
@@ -416,7 +415,7 @@ export class WorldHostCore implements HostRuntime {
       timeoutMs: Math.min(timeoutMs, 60_000),
     }
     this.#application = new WorldApplication({
-      interactionPackages: createInstalledInteractionPackages(),
+      interactionPackages: defaultInteractionPackages(),
       rulebooks: this.#coreRegistry,
       worldPath: resolve(options.dataDirectory, 'world.sqlite'),
       sessionPath: resolve(options.dataDirectory, 'session.sqlite'),
@@ -479,7 +478,7 @@ export class WorldHostCore implements HostRuntime {
     mkdirSync(resolve(options.dataDirectory), { recursive: true })
     const pack = (await compileWorldPackSource(
       resolve(options.packPath),
-      createInstalledInteractionPackages().map(interactionPackageDescription),
+      defaultInteractionPackages().map(interactionPackageDescription),
     )) as CompiledWorldPackV5
     const modules = PackModules.load(options.packPath, pack, options.capabilities)
     const statusSource = modules?.statusSource(
@@ -767,6 +766,7 @@ export class WorldHostCore implements HostRuntime {
       playerId: this.#playerId,
       manifest: this.#entities,
       publicationCharacters: this.#playSettings.publicationCharacters,
+      signal: this.#continuationController!.signal,
       text,
       key,
       inActivity,
@@ -828,6 +828,7 @@ export class WorldHostCore implements HostRuntime {
     this.#allowInterruption = false
     this.#autonomyCycle = undefined
     this.#abortedWork = false
+    this.#continuationController = new AbortController()
     this.#busy = true
     this.#phaseLabel = '正在提交操作'
     this.#workDone = new Promise<void>(done => {
@@ -1185,6 +1186,7 @@ export class WorldHostCore implements HostRuntime {
     const closingCapabilities = this.#capabilities?.close()
     this.#inspector.configure(false)
     this.#continuationController?.abort()
+    this.#gameplay.activity?.close()
     const closingMemory = (async () => this.#memory?.close?.())().catch(error =>
       console.error('[记忆] 关闭失败：', error),
     )

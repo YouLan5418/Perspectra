@@ -10,6 +10,7 @@ it('rejects experiment dependencies and package internals while allowing current
     for (const directory of [
       'desktop',
       'packages/frontend',
+      'packages/application',
       'apps/launcher/src',
       'apps/launcher/src-tauri/src',
       'scripts/release',
@@ -41,6 +42,17 @@ it('rejects experiment dependencies and package internals while allowing current
       spawnSync(process.execPath, [resolve('scripts/check-host-boundaries.mjs'), root], { encoding: 'utf8' }).status,
     ).toBe(1)
     writeFileSync(join(root, 'packages/frontend/player.ts'), 'export interface Player {}')
+    writeFileSync(
+      join(root, 'packages/application/world.ts'),
+      "import { install } from '@harness-world/interactions-basic'",
+    )
+    const implicitGameplay = spawnSync(process.execPath, [resolve('scripts/check-host-boundaries.mjs'), root], {
+      encoding: 'utf8',
+    })
+    expect(implicitGameplay.status).toBe(1)
+    expect(implicitGameplay.stderr).toContain('core must receive its gameplay install from composition')
+    writeFileSync(join(root, 'packages/application/world.ts'), 'export {}')
+
     writeFileSync(
       join(root, 'desktop/entry.ts'),
       "import { CharacterTurn } from '../packages/application/src/character-turn.ts'",

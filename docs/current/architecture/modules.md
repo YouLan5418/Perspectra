@@ -1,5 +1,7 @@
 # 目录与模块地图
 
+2026-11-04 M2：未新增包。application 移除 interactions-basic 依赖，接收显式安装；新增核心即时回合执行与物品效果检查，供宿主状态、活动和通信复用。默认交互由桌面组合及 CLI 进程入口提供；空选择最小运行与失败路径见[M2 记录](../studies/2026-11-core-migration-m2.md)。
+
 2026-11-04 M1：知识选择迁为 Cordis `knowledge` 服务，新增 official-knowledge；宿主只验证资产并提供数据描述。已知状态的纯转换函数抽入 contracts，知识机制不再运行时依赖 pack-status。最小核心探针及实际限制见[M0／M1 记录](../studies/2026-11-core-migration-m01.md)。
 
 2026-11-04 阶段 10：新增 official-character-loop，替代 CharacterTurn 内固定的次数与续写策略。主干保留授权请求与受控执行；官方与第三方都使用 plugin-sdk 的角色激活能力。
@@ -56,7 +58,7 @@
 | 包 | 通俗职责 | 阅读起点与注意事项 |
 | --- | --- | --- |
 | [contracts](../../../packages/contracts) | 共用数据类型、ID、动作与事件约定 | [ID](../../../packages/contracts/src/ids.ts)、[表达片段](../../../packages/contracts/src/expression.ts)；定义形状，不执行模型 |
-| [application](../../../packages/application) | 连接玩家输入、角色处理和世界执行 | [单角色处理](../../../packages/application/src/character-turn.ts)、[调度回合](../../../packages/application/src/scheduler-round.ts)、[有界调度](../../../packages/official-scheduler/src/index.ts)、[WorldApplication](../../../packages/application/src/world-application.ts)（宿主只用其游玩方法；创作者与调试读取在 [`read`](../../../packages/application/src/world-read-queries.ts)，备份、分叉、维护与隔离恢复在 [`admin`](../../../packages/application/src/world-administration.ts)）；[RoundCoordinator](../../../packages/application/src/round-coordinator.ts) 是玩家行动的裁定与提交入口，旧 NPC Round／Reaction 执行已退役 |
+| [application](../../../packages/application) | 连接玩家输入、角色处理和世界执行 | [单角色处理](../../../packages/application/src/character-turn.ts)、[调度回合](../../../packages/application/src/scheduler-round.ts)、[有界调度](../../../packages/official-scheduler/src/index.ts)、[WorldApplication](../../../packages/application/src/world-application.ts)（宿主只用其游玩方法；创作者与调试读取在 [`read`](../../../packages/application/src/world-read-queries.ts)，备份、分叉、维护与隔离恢复在 [`admin`](../../../packages/application/src/world-administration.ts)）；[即时执行](../../../packages/application/src/world-round-execution.ts)供状态／活动／通信宿主适配复用，[物品效果](../../../packages/application/src/item-effects.ts)负责合法物品变化；[RoundCoordinator](../../../packages/application/src/round-coordinator.ts) 是玩家行动的裁定与提交入口，旧 NPC Round／Reaction 执行已退役 |
 | [official-contexts](../../../packages/official-contexts) | 官方决策扩充、有序组合与交付步骤的记忆窗口声明；同 ID 替换、显式顺序停用 | [实现](../../../packages/official-contexts/src/index.ts)，通过公开 contextSources 读取授权投影 |
 | [official-knowledge](../../../packages/official-knowledge) | 作者设定的受众、条件、关键词和整条预算选择 | [选择器](../../../packages/official-knowledge/src/selection.ts)、[Provider](../../../packages/official-knowledge/src/index.ts)；资产校验由宿主 [knowledge-source](../../../desktop/host/knowledge-source.ts) 负责 |
 | [official-character-loop](../../../packages/official-character-loop) | 官方单角色执行策略：行动／表达续写、次数和发言修正 | [实现](../../../packages/official-character-loop/src/index.ts)只使用公开激活能力；[CharacterTurn](../../../packages/application/src/character-turn.ts)保留授权、规则、受众与原子提交 |

@@ -17,7 +17,6 @@ import {
   type WorldAddress,
   type WorldJsonValue,
 } from '@harness-world/contracts'
-import { createBasicInteractionPackage } from '@harness-world/interactions-basic'
 import {
   FrozenInteractionRulebook,
   WorldBootstrap,
@@ -105,14 +104,6 @@ function contextPathFor(options: Pick<WorldApplicationOptions, 'contextPath' | '
   return options.contextPath ?? (options.memoryPath === undefined ? undefined : `${options.memoryPath}.context.sqlite`)
 }
 
-/**
- * The first-batch trusted pack, installed unless a Host says otherwise. It is the Host's decision, not
- * the world's: a world names locks and can only select what the Host already installed.
- */
-const DEFAULT_INTERACTION_PACKAGES: readonly InteractionPackageImplementation[] = Object.freeze([
-  createBasicInteractionPackage(),
-])
-
 export interface WorldApplicationOptions {
   readonly playerIntent?: {
     readonly profile: PlayerIntentProfile
@@ -130,11 +121,7 @@ export interface WorldApplicationOptions {
   readonly leaseTtlMs?: number
   readonly faultInjector?: FaultInjector
   readonly rulebooks?: RulebookRegistry
-  /**
-   * The trusted interaction packages this Host installs. A v10 world selects among them by lock and can
-   * never add one, so a Host that installs nothing refuses to activate a v10 world rather than opening
-   * a world whose actions it cannot resolve. Omitted means the first-batch basic package.
-   */
+  /** Trusted packages explicitly installed by the host. Omitted means none; worlds may select only these. */
   readonly interactionPackages?: readonly InteractionPackageImplementation[]
   readonly memoryPath?: string
   readonly contextPath?: string
@@ -388,7 +375,7 @@ export class WorldApplication {
     }
     this.read = new WorldReadQueries(access)
     this.admin = new WorldAdministration(access)
-    this.#interactionPackages = options.interactionPackages ?? DEFAULT_INTERACTION_PACKAGES
+    this.#interactionPackages = options.interactionPackages ?? []
     this.#frozenInteractions = new FrozenInteractionRulebook(this.#interactionPackages)
     this.#rulebooks = options.rulebooks ?? createCoreRulebookRegistry({ frozenInteractions: this.#frozenInteractions })
     this.runtimeRegistry = new WorldRuntimeRegistry(

@@ -1,7 +1,6 @@
 import type { StoredWorldEvent, WorldAddress, WorldHash, WorldJsonObject } from '@harness-world/contracts'
 import type { CompiledWorldPackV5 } from '@harness-world/world-pack'
 import { WorldStore } from '@harness-world/store-sqlite'
-import { createInstalledInteractionPackages } from '@harness-world/interactions-basic'
 import {
   createCoreRulebookRegistry,
   RulebookRegistry,
@@ -51,6 +50,10 @@ export class PackActivities {
   readonly #entries = new Map<string, PackActivity>()
   #store: WorldStore | undefined
   #closed = false
+  readonly #lifetime = new AbortController()
+  get signal(): AbortSignal {
+    return this.#lifetime.signal
+  }
   #snapshot: { headSeq: number; eventHash: WorldHash | 'genesis'; events: readonly StoredWorldEvent[] } | undefined
   #selection:
     | { events: readonly RulebookEvent[]; entry: PackActivity | undefined; states: ReadonlyMap<string, ActivityState> }
@@ -87,6 +90,7 @@ export class PackActivities {
         status,
         coreRules,
       )!
+      activity.signal = catalog.signal
       activity.randomSource = () => catalog.#nextRandom()
       activity.readCurrent = () => catalog.#current(key)
       catalog.#entries.set(key, activity)
@@ -107,6 +111,7 @@ export class PackActivities {
   close(): void {
     if (this.#closed) return
     this.#closed = true
+    this.#lifetime.abort(new Error('Activity catalog is closed'))
     this.#store?.close()
     this.#store = undefined
     this.#snapshot = undefined
@@ -349,9 +354,7 @@ export class PackActivities {
   rulebooks(external?: RulebookResolver): RulebookRegistry {
     const base =
       external ??
-      (
-        this.coreRules ?? createCoreRulebookRegistry({ interactionPackages: createInstalledInteractionPackages() })
-      ).resolve('builtin:speak-move', 2, 'activities', this.address)
+      (this.coreRules ?? createCoreRulebookRegistry()).resolve('builtin:speak-move', 2, 'activities', this.address)
     const resolverFor = (events: readonly RulebookEvent[]) => {
       const entry = this.#selected(events)
       return entry?.state(events)?.game.active

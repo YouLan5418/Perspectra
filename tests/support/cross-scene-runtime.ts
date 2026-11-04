@@ -160,7 +160,17 @@ export async function crossSceneRuntime(
     : new CrossSceneCommunication(config, manifest, base)
   const playerId = brandId('character:player', 'CharacterId'),
     npcIds = manifest.characters.map(c => c.characterId).filter(id => id !== playerId)
-  const activities = options.activities ? PackActivities.load(packPath, pack, path, address, playerId) : undefined
+  const activities = options.activities
+    ? PackActivities.load(
+        packPath,
+        pack,
+        path,
+        address,
+        playerId,
+        undefined,
+        createCoreRulebookRegistry({ interactionPackages: installed }),
+      )
+    : undefined
   if (options.activities && !activities) throw new TypeError('组合实验缺少活动脚本')
   // Activity is the outer rule boundary: its existing policy checks precede communication execution.
   const rulebooks = activities?.rulebooks(communication.resolver()) ?? communication.registry()
