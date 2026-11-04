@@ -1,5 +1,7 @@
 # 当前运行时
 
+2026-11-04 阶段 11：例如服务消费者排在提供者之前，加载器会在装载结束后再次核对 Cordis 就绪状态，未执行的插件不记为生效。官方默认选择、决策顺序和世界打开顺序集中到 [official-bundle](../../../desktop/official-bundle.ts)；加载器通过公开 register／effect 填充空位，直接宿主复用同一组合策略。模型凭证工厂仍按世界装配。源码与限制见[阶段 11 记录](../studies/2026-11-plugin-first-phase-11.md)。
+
 2026-11-04 阶段 10：例如角色先拿钥匙再决定如何回应，主干 [CharacterTurn](../../../packages/application/src/character-turn.ts)构造授权请求并裁定、提交申请；[official-character-loop](../../../packages/official-character-loop/src/index.ts)决定调用次数、是否续写及不可达发言的一次修正。第三方 `ctx.characterLoop` 使用同一组绑定当前 NPC 的 prepare/decide/submit 能力，没有存储、租约或 commitRound。请求与结果返回副本，准备过的申请只消费一次；取消、过期前缀、角色并发和激活结束后的调用由主干拒绝。循环自身失败保留已提交行动，不伪装成模型故障。世界、重生候选与节点重开独立 open/close，公开 identity 纳入候选环境比较。接口取舍见[设计记录](../../superpowers/specs/2026-11-04-character-loop.md)，验证与未验收范围见[阶段记录](../studies/2026-11-plugin-first-phase-10.md)。
 
 2026-11-04 阶段 9：例如只换模型地址但保留角色预设，宿主现在可把 `ctx.llm.registerTransport` 注册的实例交给官方模型包装。[official-llm](../../../packages/official-llm/src/index.ts)保留预设组合与输出/展示，[transport](../../../packages/official-llm/src/transport.ts)执行标准调用、超时、检查和完成记录。完整通道替换保持原语义。世界实例记录官方包装与适配器组合，失败不回退；Core 记忆仍走原配置。当前玩家输入实际为确定性命令/发言解析，不因旧 Manifest 名称而误拒绝发送模式。验收范围见[阶段 9](../studies/2026-11-plugin-first-phase-9.md)。

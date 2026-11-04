@@ -1,4 +1,4 @@
-import { Context, Service, type Plugin } from '@deepseek-ai/cordis'
+import { Context, Service, type Fiber, type Plugin } from '@deepseek-ai/cordis'
 import { pathToFileURL } from 'node:url'
 import { hostPluginSettings, type HostPluginSettings } from './host-plugin-settings.ts'
 import type { InstalledPlugin } from './plugin-requirements.ts'
@@ -7,7 +7,7 @@ import { readPluginManifest } from './plugin-manifest-file.ts'
 import type { FrontendHostServices } from '@harness-world/frontend'
 import { validBgmTrack, type FrontendBgmPlugin, type FrontendBgmService } from '@harness-world/frontend'
 import { HostCapabilities, type CapabilityCatalog } from './host-capabilities.ts'
-import { officialSeams, type HostSeams } from './official-bundle.ts'
+import { installOfficialBundle, type HostSeams } from './official-bundle.ts'
 import { installPluginResolver } from './plugin-resolve.ts'
 import {
   HOST_API_VERSION,
@@ -31,6 +31,9 @@ import {
   type CharacterLoopInstance,
   type CharacterLoopSlotApi,
 } from '@harness-world/plugin-sdk'
+
+// Cordis 4.0.1 exposes FiberState only as an ambient const enum in its declarations.
+const CORDIS_ACTIVE = 2
 
 // The SDK declares the services on Cordis' Context; the classes below must satisfy its interfaces.
 export type { PlayerFeedEvent, PlayerFeedLine }
@@ -290,7 +293,7 @@ export interface SkippedHostPlugin {
   /** `manifest`: the sidecar `.plugin.json` is unreadable or invalid. `config`: saved values or secrets do
    * not fit it. `version`: the module's `hostApi` is missing or needs a newer host. */
   readonly reason: 'manifest' | 'config' | 'import' | 'version' | 'apply'
-  /** Host-written and player-facing, for `manifest` and `config` only; never module error text or a value. */
+  /** Host-written manifest, config or dependency diagnostic; never module error text or config values. */
   readonly detail?: string
 }
 
@@ -330,6 +333,7 @@ export async function loadHostPlugins(
   const skipped: SkippedHostPlugin[] = []
   const llmPlugins = new Set<string>()
   const declared = new Map<string, { id?: string; version: string }>()
+  const pending: { id: string; fiber: Fiber & PromiseLike<Fiber> }[] = []
   installPluginResolver()
   for (const plugin of plugins) {
     if (!plugin.enabled) continue
@@ -384,15 +388,48 @@ export async function loadHostPlugins(
       continue
     }
     const fiber = root.plugin(module.default as Plugin, structuredClone(config))
-    try {
-      await fiber
-    } catch (error) {
-      console.error(`[宿主插件 ${plugin.id}] 初始化失败，本次已跳过：`, error)
-      await fiber.dispose()
-      skipped.push({ id: plugin.id, reason: 'apply' })
+    pending.push({ id: plugin.id, fiber })
+    // Cordis await settles PENDING immediately; it does not wait for a missing inject service.
+    // Finish active setup in settings order so an async first registration retains its priority.
+    await fiber.await().catch(() => undefined)
+  }
+  // Recheck readiness after all registrations: later services may have activated earlier consumers.
+  const settle = async () => {
+    for (const entry of [...pending]) {
+      try {
+        await entry.fiber
+      } catch (error) {
+        console.error(`[宿主插件 ${entry.id}] 初始化失败，本次已跳过：`, error)
+        await entry.fiber.dispose()
+        skipped.push({ id: entry.id, reason: 'apply' })
+        pending.splice(pending.indexOf(entry), 1)
+      }
     }
   }
-  const chosenMemory = memory.current ?? defaults.memory?.()
+  await settle()
+  // Cordis owns dependency readiness. Report stable inactive fibers instead of claiming they ran.
+  while (pending.some(entry => entry.fiber.state !== CORDIS_ACTIVE)) {
+    for (const entry of [...pending]) {
+      if (entry.fiber.state === CORDIS_ACTIVE) continue
+      const missing = Object.keys(entry.fiber.inject).filter(name => !entry.fiber.ctx.get(name, false))
+      const detail = `缺少服务或存在循环依赖：${missing.join('、') || '服务未就绪'}`
+      console.error(`[宿主插件 ${entry.id}] ${detail}`)
+      await entry.fiber.dispose()
+      skipped.push({ id: entry.id, reason: 'apply', detail })
+      pending.splice(pending.indexOf(entry), 1)
+    }
+    await settle()
+  }
+  try {
+    installOfficialBundle(root, defaults.memory)
+  } catch (error) {
+    await root.fiber.dispose()
+    throw error
+  }
+  skipped.sort(
+    (a, b) => plugins.findIndex(plugin => plugin.id === a.id) - plugins.findIndex(plugin => plugin.id === b.id),
+  )
+  const chosenMemory = memory.current
   // The player chose where the story goes. A channel that failed to load must not quietly become the official one.
   const lostChannel =
     llm.current || llm.currentTransport ? undefined : skipped.find(plugin => llmPlugins.has(plugin.id))
@@ -401,8 +438,8 @@ export async function loadHostPlugins(
     capabilities,
     playerFeed,
     seams: {
-      scheduler: scheduler.current ?? officialSeams().scheduler,
-      characterLoop: characterLoop.current ?? officialSeams().characterLoop!,
+      scheduler: scheduler.current!,
+      characterLoop: characterLoop.current!,
       ...(chosenMemory ? { memory: chosenMemory } : {}),
       ...(llm.current ? { llm: llm.current } : {}),
       ...(llm.currentTransport ? { llmTransport: llm.currentTransport } : {}),

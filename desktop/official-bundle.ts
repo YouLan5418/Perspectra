@@ -1,4 +1,8 @@
 export { composeDecisions, officialContextOrder } from '@harness-world/official-contexts'
+import { composeDecisions } from '@harness-world/official-contexts'
+import { officialLlmProvider } from '@harness-world/official-llm'
+import { officialMemoryNoneProvider } from '@harness-world/official-memory-none'
+import type { Context } from '@deepseek-ai/cordis'
 import { officialSchedulerProvider } from '@harness-world/official-scheduler'
 import { officialCharacterLoopProvider } from '@harness-world/official-character-loop'
 import type {
@@ -62,4 +66,38 @@ export interface HostSeams {
 /** The default bundle, and the only production file allowed to import `packages/official-*`. */
 export function officialSeams(): HostSeams {
   return { scheduler: officialSchedulerProvider, characterLoop: officialCharacterLoopProvider }
+}
+
+/** World opening order is composition policy, separate from Cordis inject and pack requirements. */
+export const officialWorldOrder = ['llm', 'rules', 'memory', 'decisions', 'scheduler', 'characterLoop'] as const
+
+/** Direct hosts and the plugin loader share the same default choices and decision ordering. */
+export function composeWorldSeams(plugins: Partial<HostSeams> = {}) {
+  return {
+    ...plugins,
+    scheduler: plugins.scheduler ?? officialSchedulerProvider,
+    characterLoop: plugins.characterLoop ?? officialCharacterLoopProvider,
+    memory: plugins.memory ?? officialMemoryNoneProvider,
+    decisions: composeDecisions(plugins.decisions ?? [], plugins.decisionOrder),
+    rules: plugins.rules ?? [],
+  }
+}
+
+/** Called after player plugins settle. Every default uses the same public registration API. */
+export function installOfficialBundle(ctx: Context, memory?: () => SeamProvider<MemoryInstance>): void {
+  if (!ctx.scheduler.current) ctx.effect(() => ctx.scheduler.register(officialSchedulerProvider))
+  if (!ctx.characterLoop.current) ctx.effect(() => ctx.characterLoop.register(officialCharacterLoopProvider))
+  if (!ctx.memory.current && memory) ctx.effect(() => ctx.memory.register(memory()))
+  for (const provider of composeDecisions(ctx.decisions.providers)) {
+    if (!ctx.decisions.providers.some(current => current.id === provider.id))
+      ctx.effect(() => ctx.decisions.register(provider))
+  }
+}
+
+/** Credentials and observation callbacks are supplied by the entry, not exposed through WorldServices. */
+export function composeModelChannel(
+  options: Parameters<typeof officialLlmProvider>[0],
+  replacement?: SeamProvider<LlmInstance>,
+) {
+  return replacement ?? officialLlmProvider(options)
 }

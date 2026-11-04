@@ -1,4 +1,4 @@
-import { composeDecisions } from '../official-bundle.ts'
+import { composeWorldSeams, officialWorldOrder } from '../official-bundle.ts'
 import { RequestInspector, type ChatCallObservation, type ChatProvider } from '@harness-world/provider-chat'
 import { CreatorRecords, type CreatorRecordsQuery } from './creator-records.ts'
 import { type CreatorHistoryQuery } from './creator-history.ts'
@@ -92,8 +92,7 @@ import { CapabilitySession, type CapabilityCatalog } from '../host-capabilities.
 import {
   CORE_MEMORY_ID,
   llmTimeoutMs,
-  officialLlmProvider,
-  officialMemoryNoneProvider,
+  composeModelChannel,
   officialSeams,
   type HostSeams,
   type ModelOptions,
@@ -352,7 +351,7 @@ export class WorldHostCore implements HostRuntime {
     compiled: ReturnType<typeof adaptCompiledWorldPack>,
     intentEnabled: boolean,
   ) {
-    this.#options = options
+    this.#options = { ...options, plugins: composeWorldSeams(options.plugins) }
     this.#worldVersion = options.worldVersion ?? randomUUID()
     this.#address = compiled.manifest.address
     this.#dataDirectory = options.dataDirectory
@@ -499,12 +498,15 @@ export class WorldHostCore implements HostRuntime {
         ?.version === 'player-intent/v1'
     const runtime = new WorldHostCore(options, compiled, intentEnabled)
     try {
-      await runtime.#openLlm()
-      await runtime.#openRules()
-      await runtime.#openMemory()
-      await runtime.#openDecisions()
-      await runtime.#openScheduler()
-      await runtime.#openCharacterLoop()
+      const open = {
+        llm: () => runtime.#openLlm(),
+        rules: () => runtime.#openRules(),
+        memory: () => runtime.#openMemory(),
+        decisions: () => runtime.#openDecisions(),
+        scheduler: () => runtime.#openScheduler(),
+        characterLoop: () => runtime.#openCharacterLoop(),
+      }
+      for (const service of officialWorldOrder) await open[service]()
       runtime.#packHash = pack.packHash
       runtime.#actionLabels = Object.fromEntries(
         [...pack.content.entities, ...pack.content.characters].flatMap(target =>
@@ -1512,9 +1514,8 @@ export class WorldHostCore implements HostRuntime {
         )
           throw new TypeError('发送适配器须声明 model、schemaMode 与 send')
       }
-      const provider =
-        full ??
-        officialLlmProvider({
+      const provider = composeModelChannel(
+        {
           ...this.#options,
           settings: this.#playSettings,
           inspector: this.#inspector,
@@ -1534,7 +1535,9 @@ export class WorldHostCore implements HostRuntime {
           onRoleCall: (characterId, observation) => {
             this.#roleCalls.set(characterId, observation)
           },
-        })
+        },
+        full,
+      )
       const opened = await provider.open(this.#services(provider.id), AbortSignal.timeout(30_000))
       this.#modulesInForce.llm = [
         { id: provider.id, version: provider.version },
@@ -1567,10 +1570,7 @@ export class WorldHostCore implements HostRuntime {
 
   /** Whoever asked to take part in decisions expects to, so one that cannot open stops the world. */
   async #openDecisions(): Promise<void> {
-    for (const provider of composeDecisions(
-      this.#options.plugins?.decisions ?? [],
-      this.#options.plugins?.decisionOrder,
-    )) {
+    for (const provider of this.#options.plugins!.decisions!) {
       try {
         const opened = await provider.open(this.#services(provider.id), AbortSignal.timeout(30_000))
         if (
@@ -1594,7 +1594,7 @@ export class WorldHostCore implements HostRuntime {
 
   /** A memory holds durable data, so one that cannot open stops the world rather than silently forgetting. */
   async #openMemory(): Promise<void> {
-    const provider = this.#options.plugins?.memory ?? officialMemoryNoneProvider
+    const provider = this.#options.plugins!.memory!
     this.#memoryIsCore = provider.id === CORE_MEMORY_ID
     this.#memoryId = provider.id
     try {
@@ -1609,7 +1609,7 @@ export class WorldHostCore implements HostRuntime {
   /** Each world instance gets its own scheduler; one that cannot open must not keep the world from opening. */
   async #openScheduler(): Promise<void> {
     const official = officialSeams().scheduler
-    const provider = this.#options.plugins?.scheduler ?? official
+    const provider = this.#options.plugins!.scheduler!
     const signal = AbortSignal.timeout(30_000)
     this.#schedulerIsOfficial = provider === official
     try {
@@ -1626,7 +1626,7 @@ export class WorldHostCore implements HostRuntime {
   }
 
   async #openCharacterLoop(): Promise<void> {
-    const provider = this.#options.plugins?.characterLoop ?? officialSeams().characterLoop!
+    const provider = this.#options.plugins!.characterLoop!
     try {
       const opened = await provider.open(this.#services(provider.id), AbortSignal.timeout(30_000))
       this.#characterLoop = opened

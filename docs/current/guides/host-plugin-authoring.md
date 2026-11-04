@@ -1,5 +1,7 @@
 # 编写并加载自己的 Cordis 宿主插件
 
+2026-11-04 依赖就绪：插件可用 Cordis 的 `inject` 声明所需服务，提供者可以排在后面。宿主完成全部装载后核对状态，缺服务或互相等待的插件会被跳过，并列出未就绪的服务名。异步初始化仍保留设置列表中的注册优先级。该声明不替代世界包的 requiresPlugins，也不决定决策步骤顺序。见[默认组合与依赖诊断](../studies/2026-11-plugin-first-phase-11.md)。
+
 ## 替换角色执行循环（2.4）
 
 例如角色先申请拿钥匙，再看裁定结果说话。启用 [single-action-loop.mjs](../../../examples/host-plugins/single-action-loop.mjs)和旁边的清单，可将每次角色处理限制为一次操作、一次结果续写。它通过 `ctx.effect(() => ctx.characterLoop.register(provider))` 注册，不调用旧的 CharacterTurn.run。

@@ -1,5 +1,7 @@
 # 插件能替换什么
 
+2026-11-04 默认组合：第三方先注册，官方通过相同 register／effect 填充空位；打开顺序由组合声明。服务消费者可放在提供者前面，缺服务或互相等待时以 apply 原因显示未启动，不作为实际生效插件。requiresPlugins、Cordis inject 和 decisionOrder 是三种不同关系，详见[阶段 11](../studies/2026-11-plugin-first-phase-11.md)。
+
 核对日期：2026-11-04，宿主 API `2.4`（2.0～2.3 插件仍可加载；自定义记忆窗口见编写指南）。这是给插件作者的总入口，每一项的完整写法在[插件编写指南](host-plugin-authoring.md)。
 
 2.4 新增 `ctx.characterLoop`：例如只允许角色操作一次，再根据真实结果表达一次，可启用 [single-action-loop](../../../examples/host-plugins/single-action-loop.mjs)。官方循环也使用相同能力；授权上下文、受众、规则和提交仍在主干。写法见[角色执行循环](host-plugin-authoring.md#替换角色执行循环24)。
