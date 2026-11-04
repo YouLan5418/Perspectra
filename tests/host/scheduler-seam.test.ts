@@ -6,7 +6,9 @@ import type { SchedulerInstance, SchedulerRound, SeamProvider, WorldServices } f
 import { afterEach, expect, it, vi } from 'vitest'
 import { loadHostPlugins, type HostPlugins } from '../../desktop/host-plugins.ts'
 import { officialSeams } from '../../desktop/official-bundle.ts'
-import { WorldHostRuntime } from '../../desktop/host/world-runtime.ts'
+import { playSettings } from '../../desktop/play-settings.ts'
+import { restoreStoryNode } from '../../desktop/story-nodes.ts'
+import { WorldHostRuntime, type WorldHostOptions } from '../../desktop/host/world-runtime.ts'
 import { createChatServer, fakeModels } from '../support/fake-provider.ts'
 
 const roots: string[] = [],
@@ -40,7 +42,12 @@ function provider(
   }
 }
 
-async function start(scheduler: SeamProvider<SchedulerInstance>, dataDirectory?: string, pack = 'dynamic-scheduling') {
+async function start(
+  scheduler: SeamProvider<SchedulerInstance>,
+  dataDirectory?: string,
+  pack = 'dynamic-scheduling',
+  controls: Partial<WorldHostOptions> = {},
+) {
   const root = dataDirectory ?? mkdtempSync(join(tmpdir(), 'perspectra-scheduler-seam-'))
   if (!dataDirectory) roots.push(root)
   const actors: string[] = []
@@ -70,6 +77,7 @@ async function start(scheduler: SeamProvider<SchedulerInstance>, dataDirectory?:
     models: fakeModels('http://127.0.0.1:' + (server.address() as { port: number }).port + '/v1/chat/completions'),
     timeoutMs: 5000,
     plugins: { scheduler },
+    ...controls,
   })
   runtimes.push(runtime)
   return { runtime, actors, root }
@@ -90,6 +98,112 @@ it('runs the configured scheduler instead of the official one', async () => {
   const state = await runtime.submit(MOVE)
   expect(state.error).toBeFalsy()
   expect(new Set(actors)).toEqual(new Set([WITNESS]))
+})
+
+it('lets the same scheduler choose a single staged autonomous opportunity', async () => {
+  const phases: string[] = []
+  const { runtime, actors } = await start(
+    provider(async round => {
+      phases.push(round.phase ?? 'scene')
+      if (!round.autonomy) return quiet
+      const id = round.autonomy!.roles[0]!.characterId
+      const result = await round.turn(id, {
+        kind: 'autonomous',
+        signal: round.signal,
+        stimulusSeqs: round.observationSeqs(id, round.afterSeq, round.headSeq()),
+        maxCalls: 2,
+      })
+      return { ...quiet, calls: result.calls, activations: [{ characterId: id, result }] }
+    }),
+    undefined,
+    'autonomy-scheduling',
+    { serialScheduling: true },
+  )
+  const state = await runtime.submit('你好')
+  expect(state.error).toBe(false)
+  expect(phases).toEqual(['scene'])
+  expect(actors).toEqual(['character:friend'])
+})
+
+it('lets a scheduler defer an activity while refusing an illegal participant', async () => {
+  let activityRounds = 0
+  const { runtime, actors } = await start(
+    provider(async round => {
+      if (round.phase !== 'activity') return quiet
+      activityRounds++
+      expect(round.activity!.next()).toBe('character:companion')
+      await expect(
+        round.turn('character:friend' as never, {
+          signal: round.signal,
+          stimulusSeqs: [],
+          maxCalls: 2,
+        }),
+      ).rejects.toThrow('activity')
+      return quiet
+    }),
+    undefined,
+    'scripted-performance',
+  )
+  const state = await runtime.activityAction({
+    activityKey: 'default',
+    activityId: null,
+    revision: 0,
+    operation: 'start',
+    parameters: {},
+    requestId: 'scheduler-activity',
+  })
+  expect(activityRounds).toBe(1)
+  expect(state.activity?.game).toMatchObject({ phase: 'opening', turn: 'character:companion' })
+  expect(actors).toEqual([])
+})
+
+it('charges repeated decision middleware sends to the official staged budget', async () => {
+  const scheduler = officialSeams().scheduler
+  const { runtime, actors } = await start(scheduler, undefined, 'autonomy-scheduling', {
+    serialScheduling: true,
+    playSettings: playSettings({ autonomyNpcCalls: 2, autonomyOpportunities: 2, autonomyReactionWaves: 0 }),
+    plugins: {
+      scheduler,
+      decisions: [
+        {
+          id: 'retrying-decision',
+          version: '1.0.0',
+          open: async () => ({
+            decide: async (request, next) => {
+              if (!request.context.autonomy) return { decision: 'abstain' }
+              await next(request)
+              await next(request)
+              return next(request)
+            },
+          }),
+        },
+      ],
+    },
+  })
+  const state = await runtime.submit('你好')
+  expect(actors).toEqual(['character:friend', 'character:friend'])
+  expect(state.debug.autonomy).toMatchObject({ autonomousCalls: 2, terminalReason: 'call_limit' })
+})
+
+it('does not apply the official autonomous budget to a third-party scheduler', async () => {
+  const custom = provider(async round => {
+    if (!round.autonomy) return quiet
+    const id = round.autonomy!.roles[0]!.characterId
+    for (let n = 0; n < 3; n++)
+      await round.turn(id, {
+        kind: 'autonomous',
+        signal: round.signal,
+        maxCalls: 2,
+        stimulusSeqs: round.observationSeqs(id, round.afterSeq, round.headSeq()),
+      })
+    return quiet
+  })
+  const { runtime, actors } = await start(custom, undefined, 'autonomy-scheduling', {
+    serialScheduling: true,
+    playSettings: playSettings({ autonomyNpcCalls: 2, autonomyOpportunities: 1 }),
+  })
+  expect((await runtime.submit('你好')).error).toBe(false)
+  expect(actors).toEqual(['character:friend', 'character:friend', 'character:friend'])
 })
 
 it('keeps player input and continues the next round when the scheduler throws', async () => {
@@ -147,9 +261,37 @@ it('opens a separate instance for each regeneration candidate and closes it', as
   expect(before).toBeGreaterThan(0)
   await runtime.regenerate(state.tailRound!.id!, 'scheduler-seam-regeneration')
   expect(opened).toBeGreaterThan(before)
+  const regenerated = await runtime.state()
+  const beforeSelection = opened
+  await runtime.selectCandidate(regenerated.tailRound!.id!, state.tailRound!.candidateIds![0]!, 'scheduler-select')
+  expect(opened).toBeGreaterThan(beforeSelection)
   await runtime.close()
   runtimes.length = 0
   expect(closed).toBe(opened)
+})
+
+it('opens and closes an independent scheduler instance when restoring a story node', async () => {
+  const instances: { candidate: boolean; closed: boolean }[] = []
+  const scheduler = provider(async () => quiet, {
+    open: async world => {
+      const instance = { candidate: world.candidate, closed: false }
+      instances.push(instance)
+      return { run: async () => quiet, close: () => void (instance.closed = true) }
+    },
+  })
+  const { runtime, root } = await start(scheduler, undefined, 'dynamic-scheduling', { storyNodes: true })
+  await runtime.submit(MOVE)
+  const node = await runtime.saveNode('调度实例')
+  await runtime.close()
+  const before = instances.length
+  const target = mkdtempSync(join(tmpdir(), 'perspectra-scheduler-node-'))
+  roots.push(target)
+  restoreStoryNode(root, node.id, target, node.packHash)
+  const restored = await start(scheduler, target)
+  expect(instances.length).toBeGreaterThan(before)
+  expect(instances.slice(before).some(instance => !instance.candidate && !instance.closed)).toBe(true)
+  await restored.runtime.close()
+  expect(instances.every(instance => instance.closed)).toBe(true)
 })
 
 it('gives the plugin read access scoped to its own world', async () => {

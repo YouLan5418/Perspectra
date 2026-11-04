@@ -68,7 +68,7 @@ async function moduleFile(source: string) {
   roots.push(root)
   const path = join(root, 'plugin.mjs')
   // Plugins under test declare the current host API unless the test is about that declaration.
-  await writeFile(path, source.includes('hostApi') ? source : `export const hostApi = '1.0';\n${source}`)
+  await writeFile(path, source.includes('hostApi') ? source : `export const hostApi = '2.0';\n${source}`)
   return { root, path }
 }
 const paragraph = { seq: 7, segmentIndex: 0, text: '你好。', type: 'speech' as const }
@@ -296,6 +296,11 @@ it('skips plugins that need a newer host API or do not declare one, before their
     },
     { id: 'undeclared', path: await write('undeclared.mjs', body('undeclared-ran')), enabled: true },
     {
+      id: 'old-scheduler-api',
+      path: await write('old.mjs', `export const hostApi = '1.4';\n${body('old-ran')}`),
+      enabled: true,
+    },
+    {
       id: 'current',
       path: await write('current.mjs', `export const hostApi = '${HOST_API_VERSION}';\n${body('current-ran')}`),
       enabled: true,
@@ -305,9 +310,11 @@ it('skips plugins that need a newer host API or do not declare one, before their
   expect(session.skipped).toEqual([
     { id: 'newer', reason: 'version' },
     { id: 'undeclared', reason: 'version' },
+    { id: 'old-scheduler-api', reason: 'version' },
   ])
   await expect(readFile(join(root, 'newer-ran'), 'utf8')).rejects.toMatchObject({ code: 'ENOENT' })
   await expect(readFile(join(root, 'undeclared-ran'), 'utf8')).rejects.toMatchObject({ code: 'ENOENT' })
+  await expect(readFile(join(root, 'old-ran'), 'utf8')).rejects.toMatchObject({ code: 'ENOENT' })
   expect(await readFile(join(root, 'current-ran'), 'utf8')).toBe('ran')
   expect(error.mock.calls.some(([label]) => String(label).includes('（未声明 hostApi）'))).toBe(true)
   error.mockRestore()
@@ -323,7 +330,7 @@ it('checks the manifest and config before importing, and hands the merged config
       path,
       `import { writeFileSync } from 'node:fs';
       writeFileSync(new URL('./${name}-imported', import.meta.url), 'yes');
-      export const hostApi = '1.0';
+      export const hostApi = '2.0';
       export default function(ctx, config) { writeFileSync(new URL('./${name}-config', import.meta.url), JSON.stringify(config)) }`,
     )
     if (manifest !== undefined)
@@ -379,7 +386,7 @@ async function writePlugin(id: string, source: string) {
   return { id, path, enabled: true }
 }
 const schedulerPlugin = (id: string) => `
-  export const hostApi = '1.1'
+  export const hostApi = '2.0'
   export default function (ctx) {
     ctx.effect(() => ctx.scheduler.register({ id: '${id}', version: '1.0.0', open: async () => ({
       run: async () => ({ calls: 0, wave: 0, terminalReason: 'quiescent', activations: [] }),
@@ -412,7 +419,7 @@ it('hands a plugin outside the repository the same Cordis the host runs', async 
       'classy',
       `
       import { Service } from '@deepseek-ai/cordis'
-      export const hostApi = '1.1'
+      export const hostApi = '2.0'
       class Marker extends Service { constructor(ctx) { super(ctx, 'marker') } }
       export default function (ctx) {
         new Marker(ctx)
@@ -428,7 +435,7 @@ it('hands a plugin outside the repository the same Cordis the host runs', async 
 })
 
 const memoryPlugin = (id: string) => `
-  export const hostApi = '1.2'
+  export const hostApi = '2.0'
   export default function (ctx) {
     ctx.effect(() => ctx.memory.register({ id: '${id}', version: '1.0.0', open: async () => ({ project: async request => request }) }))
   }
@@ -546,7 +553,7 @@ it('agrees with the launcher on which plugin holds a seam taking one', async () 
   const write = async (id: string) => {
     await writeFile(
       join(root, id + '.mjs'),
-      `export const hostApi = '1.4'\nexport default ctx => ctx.effect(() => ctx.scheduler.register({ id: '${id}', version: '1.0.0', open: async () => ({}) }))\n`,
+      `export const hostApi = '2.0'\nexport default ctx => ctx.effect(() => ctx.scheduler.register({ id: '${id}', version: '1.0.0', open: async () => ({}) }))\n`,
     )
     await writeFile(
       join(root, id + '.plugin.json'),

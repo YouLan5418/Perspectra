@@ -127,6 +127,7 @@ export class CharacterTurn {
         request: CharacterTurnRequest,
         signal: AbortSignal,
         reserveFormatRetry?: () => boolean,
+        beforeModelCall?: () => void,
       ) => Promise<unknown>
       readonly projectContext?: (context: WorldJsonObject, canPerform: boolean) => WorldJsonObject
       /** Optional host executor. No SQLite transaction is open while it awaits external work. */
@@ -236,6 +237,7 @@ export class CharacterTurn {
       readonly maxCalls?: 1 | 2 | 3
       /** Strict decision-call ceiling, including result-aware follow-ups. */
       readonly maxModelCalls?: number
+      readonly beforeModelCall?: () => void
       readonly onCommitted?: (asOfWorldSeq: number, headSeq: number) => void
       readonly stimulus?: readonly WorldJsonObject[]
       readonly continuationOf?: {
@@ -286,13 +288,18 @@ export class CharacterTurn {
     const decide = (request: CharacterTurnRequest) => {
       decisionId = randomUUID()
       let repaired = false
-      return this.options.decide({ ...request, decisionId }, signal, () => {
-        signal.throwIfAborted()
-        if (repaired || calls >= modelCallLimit) return false
-        repaired = true
-        calls += 1
-        return true
-      })
+      return this.options.decide(
+        { ...request, decisionId },
+        signal,
+        () => {
+          signal.throwIfAborted()
+          if (repaired || calls >= modelCallLimit) return false
+          repaired = true
+          calls += 1
+          return true
+        },
+        options.beforeModelCall,
+      )
     }
     try {
       if (options.continuationOf !== undefined) {

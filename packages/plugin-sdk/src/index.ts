@@ -18,12 +18,12 @@ import type {
   FrontendSpeechInput,
 } from '@harness-world/frontend'
 
-/** What Cordis host plugins may rely on. The host implements these types; it never hands a plugin
- * character Context, memory, the world store or model credentials. */
+/** What Cordis host plugins may rely on. Implementations receive explicit read and execution
+ * capabilities, never the mutable world store or the player's model credentials. */
 
 /** Major.minor. A new service or optional field raises the minor; any change a plugin could trip over
  * raises the major. A plugin exports `hostApi` with the lowest version it needs. */
-export const HOST_API_VERSION = '1.4'
+export const HOST_API_VERSION = '2.0'
 
 /** Same major, and this host's minor at least the one the plugin asks for. */
 export function hostApiCompatible(required: unknown, host: string = HOST_API_VERSION): boolean {
@@ -169,6 +169,8 @@ export interface ActivationLimits {
   readonly reactionDeadlineSeconds?: number
 }
 export interface AutonomyOpportunities {
+  /** Official measurement preference; another scheduler may choose its own interleaving. */
+  readonly staged?: boolean
   readonly roles: readonly { readonly characterId: CharacterId; readonly opportunities: number }[]
   readonly maximumNpcCalls: number
   readonly deadlineSeconds: number
@@ -187,6 +189,8 @@ export interface SchedulerTurnOptions {
   readonly stimulusSeqs: readonly number[]
   readonly maxCalls: 1 | 2 | 3
   readonly maxModelCalls?: number
+  /** Optional scheduler-owned budget, invoked immediately before each actual model send, including retries. */
+  readonly beforeModelCall?: () => void
   readonly onCommitted?: (asOfWorldSeq: number, headSeq: number) => void
   /** After a stale result: continue an action that already committed instead of repeating it. */
   readonly continuationOf?: {
@@ -203,6 +207,7 @@ export interface SchedulerTurnResult {
   readonly failure?: 'provider_failed' | 'invalid_output' | 'preset_failed'
 }
 export interface SchedulerRound {
+  readonly phase: 'scene' | 'autonomy' | 'activity'
   readonly characterIds: readonly CharacterId[]
   readonly afterSeq: number
   readonly signal: AbortSignal
@@ -211,10 +216,19 @@ export interface SchedulerRound {
   readonly allowConcurrent: boolean
   readonly initialCounts?: ReadonlyMap<CharacterId, number>
   readonly autonomy?: AutonomyOpportunities
+  readonly activity?: {
+    readonly opportunities: number
+    readonly deadlineSeconds: number
+    /** The legal next participant, updated by the host after each real turn result. */
+    next(): CharacterId | undefined
+    resultUnknown(): boolean
+  }
   readonly world: WorldReader
   headSeq(): number
   /** Accepted observations of someone else's action, in commit order. */
   observationsSince(afterSeq: number, throughSeq: number): readonly SchedulerObservation[]
+  /** All observations in this character's authorized view, without the reaction-only substantive filter. */
+  observationSeqs(characterId: CharacterId, afterSeq: number, throughSeq: number): readonly number[]
   presentCharacterIds(): readonly CharacterId[]
   locationOf(id: CharacterId): string | null
   /** Give one character an opportunity. Facts still commit through the host's normal checks. */
@@ -236,7 +250,7 @@ export interface SchedulerResult extends SchedulerCycle {
     readonly activations: readonly SchedulerActivation[]
     readonly autonomousCalls: number
     readonly reactionCalls: number
-    readonly reactions: SchedulerCycle
+    readonly reactions?: SchedulerCycle
     readonly terminalReason: string
   }
 }

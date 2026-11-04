@@ -18,7 +18,7 @@
 - **交给插件**：启动游戏时，桌面壳只为已启用插件读取密钥，经 `PERSPECTRA_PLUGIN_SECRETS` 交给游戏进程；游戏入口读到后立即从环境中删除，再装载插件。装载器在导入模块前合并默认值、保存值和密钥并检查必填项，通过后作为 Cordis 的 `config` 传给插件：`export default function (ctx, config) {}`。清单无效或配置不符时只跳过这一个插件，原因分别为 `manifest` / `config`，启动器显示宿主写的说明（如缺哪一项），不显示配置值。
 - 源码：[清单格式与配置合并](../../desktop/host-plugin-manifest.ts)（启动器页面与宿主共用）、[读取清单文件](../../desktop/plugin-manifest-file.ts)、[凭据存储](../../apps/launcher/src-tauri/src/plugin_secrets.rs)、[设置页插件块](../../apps/launcher/src/components/PluginSettingsBlock.vue)。类型在 [plugin-sdk](../../packages/plugin-sdk/src/index.ts) 的 `PluginManifest`、`PluginConfigField`。自动测试覆盖清单解析、配置合并、导入前跳过、启动器保存校验、仅启用插件拿到密钥、密钥晚于设置保存，以及凭据清理规则；没有在 Tauri 桌面版里实际走过一遍保存密钥和启动的流程。
 
-2026-10-26 宿主 API 版本：每个插件模块须导出 `hostApi`（如 `'1.0'`），表示需要的最低宿主 API。装载器在调用插件前用 [plugin-sdk](../../packages/plugin-sdk/src/index.ts) 的 `hostApiCompatible` 比较，主版本不同、需要更高次版本或未声明时跳过，原因为 `version`，启动器显示“宿主 API 版本不兼容或未声明”。仓库示例插件均已声明 `1.0`；此前写好的本地插件需补上这一行。接口类型与版本规则见[插件编写指南](guides/host-plugin-authoring.md)。
+2026-11-04 宿主 API 为 `2.0`：每个插件模块须导出 `hostApi = '2.0'`。装载器在执行插件前比较主次版本，缺失、不兼容或要求更高次版本时跳过，原因为 `version`。本次主版本升级是因为调度器接管了自主和活动处理；旧 1.x 插件不会自动适配。仓库示例已更新，写法见[插件编写指南](guides/host-plugin-authoring.md)。这取代 2026-10-26 的 1.0 声明要求。
 
 2026-10-26 玩家可见事件订阅：例如主播想把对白同步到直播画面。启用 [transcript-file.mjs](../../examples/host-plugins/transcript-file.mjs) 并在设置里填写输出文件，文件会跟着玩家读到的对白更新，OBS 的文字源读取它即可。插件通过 `ctx.effect(() => ctx.playerFeed.subscribe(listener))` 订阅，收到的是宿主已经为玩家投影好的对话记录，与默认舞台的历史相同：没有角色 Context、心理、私有状态或其他角色的视角，监听器的返回值也不会回到世界。
 
@@ -46,7 +46,7 @@ RPG Maker [双端连接骨架](../../examples/rpg-maker/README.md)已注册 `rpg
 1. 打开全局设置的“插件”，点击“添加本地插件”。
 2. 填写本地 `.mjs` / `.js` 文件的绝对路径。清单写了 `id` 时，插件 ID 会自动填上；没写就自己填一个不重复的，例如 `tts`。
 3. 勾选“启动游戏时加载此插件”，点击“应用”或“保存”，下次启动游戏生效。
-4. 页面上方的“模块”分组列出角色调度、长期记忆、模型通道、角色决策和世界规则当前生效的实现。同一个模块启用了多个插件时，在这里选一个，其余的会被停用。
+4. 页面上方的“模块”分组列出角色调度、长期记忆、模型通道、角色决策和世界规则下次启动的预计组合；实际加载失败仍以启动后的提示为准。同一个模块启用了多个插件时，在这里选一个，其余的会被停用。
 
 插件选择保存在数据根目录的 `launcher.json` 的 `preferences.hostPlugins`，不进入世界包、存档或故事分享。默认列表为空，新添加的条目默认停用；停用条目不会被导入。移除条目只移除设置，不删除插件文件。最多配置 16 项。
 
@@ -61,7 +61,7 @@ RPG Maker [双端连接骨架](../../examples/rpg-maker/README.md)已注册 `rpg
 语音消费点是 `ctx.frontendServices.registerSpeech(synthesize)`，返回注销函数。插件通过 `ctx.effect()` 持有它，在 Cordis 释放插件时注销服务。参数和音频返回值沿用 [FrontendSpeechInput / FrontendSpeechAudio](../../packages/frontend/src/speech.ts)，不新增一套语音协议：
 
 ```js
-export const hostApi = '1.0'
+export const hostApi = '2.0'
 
 export default function speechPlugin(ctx, config) {
   const endpoint = new URL(config.endpoint);

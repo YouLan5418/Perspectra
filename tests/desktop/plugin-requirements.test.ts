@@ -244,7 +244,7 @@ describe('python check', () => {
     const root = await mkdtemp(join(tmpdir(), 'perspectra-memory-plugin-'))
     roots.push(root)
     const entry = join(root, 'memory.mjs')
-    await writeFile(entry, "export const hostApi = '1.4'\nexport default () => {}\n")
+    await writeFile(entry, "export const hostApi = '2.0'\nexport default () => {}\n")
     await writeFile(
       join(root, 'memory.plugin.json'),
       JSON.stringify({ id: 'memory', name: '记忆', version: '1.0.0', services: ['memory'] }),

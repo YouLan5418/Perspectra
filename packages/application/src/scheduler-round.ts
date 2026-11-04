@@ -7,13 +7,15 @@ import type {
   SchedulerRound,
   WorldReader,
 } from '@harness-world/plugin-sdk'
-import type { WorldStore } from '@harness-world/store-sqlite'
+import { CharacterViewBuilder, type WorldStore } from '@harness-world/store-sqlite'
 import type { CharacterTurn } from './character-turn.ts'
 
 /** Only `run` is used, so a Host may observe which roles are being processed. */
 export type ActivationTurn = Pick<CharacterTurn, 'run'>
 
 export interface SchedulerRoundInput {
+  readonly phase?: SchedulerRound['phase']
+  readonly activity?: SchedulerRound['activity']
   readonly store: WorldStore
   readonly address: WorldAddress
   readonly turn: ActivationTurn
@@ -42,17 +44,20 @@ export function createSchedulerRound(input: SchedulerRoundInput): SchedulerRound
   const seen = new Map<string, WorldJsonObject>()
   const key = (seq: number, observerId: unknown) => `${seq}\u001f${String(observerId)}`
   return {
+    phase: input.phase ?? 'scene',
     characterIds: input.characterIds,
     afterSeq: input.afterSeq,
     signal: input.signal,
     limits: input.limits,
     allowConcurrent: input.allowConcurrent,
     world: input.world,
+    ...(input.activity === undefined ? {} : { activity: input.activity }),
     ...(input.initialCounts === undefined ? {} : { initialCounts: input.initialCounts }),
     ...(autonomy === undefined
       ? {}
       : {
           autonomy: {
+            ...(autonomy.staged === undefined ? {} : { staged: autonomy.staged }),
             roles: autonomy.roles,
             maximumNpcCalls: autonomy.maximumNpcCalls,
             deadlineSeconds: autonomy.deadlineSeconds,
@@ -80,6 +85,14 @@ export function createSchedulerRound(input: SchedulerRoundInput): SchedulerRound
       return observations
     },
     presentCharacterIds: () => input.presentCharacterIds?.() ?? input.characterIds,
+    observationSeqs: (characterId, afterSeq, throughSeq) => {
+      const observations = new CharacterViewBuilder(store).rebuildAt(address, characterId, throughSeq).observations
+      for (const observation of observations)
+        seen.set(key(observation.sourceSeq, characterId), observation.value as WorldJsonObject)
+      return observations
+        .filter(observation => observation.sourceSeq > afterSeq)
+        .map(observation => observation.sourceSeq)
+    },
     locationOf: id => input.locationId?.(id) ?? null,
     turn: async (id, options) => {
       const stimulus = options.stimulusSeqs.map(seq => {

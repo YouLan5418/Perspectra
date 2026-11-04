@@ -1,6 +1,6 @@
 # 编写并加载自己的 Cordis 宿主插件
 
-2026-11-03：想先知道插件能替换什么、不能替换什么，看[总入口](plugin-seams.md)。世界包依赖插件的写法也在那里。
+2026-11-04：本次核对宿主 API 2.0 与完整调度接缝；下方声音等历史验收范围保留。想先知道插件能替换什么、不能替换什么，看[总入口](plugin-seams.md)。世界包依赖插件的写法也在那里。
 
 2026-10-26：例如同伴操作外部设备，包内模块负责玩法规则，Cordis 插件通过 `ctx.capabilities.register` 提供异步原生能力。按世界创建会话、角色请求、完成后裁定及失败限制见[双入口指南](dual-plugin-entrypoints.md)。原生完整例子是 [demo-device.mjs](../../../examples/host-plugins/demo-device.mjs)，外部程序方向见 [RPG Maker](../../../examples/rpg-maker/README.md)。下方声音指南仍沿用原验收范围。
 
@@ -28,7 +28,7 @@
 import { readFile } from 'node:fs/promises'
 
 // 必须声明：本插件需要的最低宿主 API 版本。
-export const hostApi = '1.0'
+export const hostApi = '2.0'
 
 export default async function myBgm(ctx) {
   const tracks = await Promise.all([
@@ -74,7 +74,9 @@ export default async function myBgm(ctx) {
 
 ## 宿主提供哪些接口
 
-2026-10-26 宿主 API 版本：例如你按当前宿主写好插件分享给别人，对方的 Perspectra 较旧、还没有 `ctx.playerFeed`。插件导出 `export const hostApi = '1.0'` 后，宿主在调用插件之前比较版本，不兼容就跳过并在启动器标出“宿主 API 版本不兼容或未声明”，而不是运行到一半报错。规则：主版本必须相同，宿主次版本不低于插件声明的次版本；当前宿主 API 为 `1.4`，`ctx.scheduler` 需要 `1.1`，`ctx.memory` 需要 `1.2`，`ctx.llm` 和 `ctx.decisions` 需要 `1.3`，`ctx.rules` 需要 `1.4`。没有导出 `hostApi` 的插件同样被跳过。所有接口类型集中在 [@harness-world/plugin-sdk](../../../packages/plugin-sdk/src/index.ts)：`HostServices` 列出插件能用的服务，`CapabilityProvider`、`PlayerFeedEvent` 等是参数与事件的形状；宿主的实现直接引用这些类型，接口改动会先在类型检查中暴露。该包目前只在本仓库内，尚未发布到 npm，也不随便携发行包附带；仓库外开发时可参照源码或复制其中的类型。
+当前宿主 API 为 `2.0`，插件须导出 `export const hostApi = '2.0'`。装载器在调用插件之前比较版本：主版本必须相同，宿主次版本不低于声明值；未声明或不兼容时跳过并提示。2.0 中，同一个调度器也负责自主和活动处理；旧 1.x 插件需核对接口并更新声明，不会自动回退到旧调度行为。其他服务的调用形状未在本次改变，但也须更新主版本声明。
+
+所有接口类型集中在 [@harness-world/plugin-sdk](../../../packages/plugin-sdk/src/index.ts)：`HostServices` 列出服务，`SchedulerRound` 等定义参数与事件形状。宿主直接引用这些类型。该包尚未发布到 npm，也不随便携包附带；仓库外开发时可参照源码或复制类型。
 
 目前使用项目依赖的 `@deepseek-ai/cordis@4.0.1`。装载器接受默认导出的函数、类或 `{ apply(ctx) {} }` 对象；资源注册用 `ctx.effect(() => register(...))`，退出时返回的注销函数随插件释放。外部文件入口必须是 `.mjs` 或可由 Node 按 ESM 解析的 `.js`，不直接执行 TypeScript。插件初始化抛错时只跳过这一个插件，已经通过 `ctx.effect` 注册的服务会被撤销，所以注册都应放进 `ctx.effect`；启动器设置页会标出上次被跳过的插件及原因；详细错误只输出到游戏进程的标准错误，调试时请从命令行启动游戏。加载入口见[宿主插件](../host-plugins.md)，类型定义见 [plugin-sdk](../../../packages/plugin-sdk/src/index.ts)。
 
@@ -101,7 +103,7 @@ export default async function myBgm(ctx) {
 插件向 `ctx.scheduler` 注册一个 Provider：
 
 ```js
-export const hostApi = '1.1'
+export const hostApi = '2.0'
 
 export default function (ctx) {
   ctx.effect(() =>
@@ -115,24 +117,27 @@ export default function (ctx) {
 ```
 
 - `open` 在每个世界实例打开时调用一次，包括重新生成的候选，所以不要把每局状态放在模块顶层。
+- `round.phase` 区分 `scene`、`autonomy` 与 `activity`。普通场景可能同时携带 `round.autonomy`：你的实现决定先后或交错执行；`autonomy.staged` 是官方分段选项，第三方可自行组织。活动后单独的自主机会使用 `autonomy` 阶段。
 - `round.observationsSince(afterSeq, throughSeq)` 告诉你谁有新观察。`round.turn(id, { signal, stimulusSeqs, maxCalls })` 让角色处理一次。你只按序号指定观察，内容由宿主取出，序号不属于该角色时会被拒绝。
+- `round.observationSeqs(id, afterSeq, throughSeq)` 返回该角色授权视图中的全部观察序号，顺序沿用视图，不保证数值递增。官方活动将它们排序后取最近 8 条；自主机会沿用视图顺序。自主处理用 `round.turn(id, { kind: 'autonomous', ... })`，合法行动继续由宿主裁定。
+- `round.activity.next()` 给出当前合法参与者；你可以不给机会、只处理一次或继续处理。每次 `turn` 前宿主重查参与者，完成后用真实结果推进活动。不能跳过法定次序、伪造 outcome，或同时执行两个活动参与者。`resultUnknown()` 为真时应停止。
 - 返回 `{ calls, wave, terminalReason, activations }`。`failed`、`interrupted`、`call_limit`、`wave_limit`、`character_limit` 有各自的玩家提示，其他值都显示为本轮已结束。
 - 进阶接口 `onCommitted` 和 `continuationOf` 用于动态并发和过期重算，可参考[官方实现](../../../packages/official-scheduler/src/index.ts)。
 
 需要定义自己的服务时，可以 `import { Service } from '@deepseek-ai/cordis'`，宿主会把它指向自己运行的那一份，插件不用也不要自带。
 
-**由作者负责的部分。** `round.limits` 是玩家设置的上限，只作为建议传给你，宿主不做总量拦截，超出就要玩家多付模型费用。`world` 和 `round.world` 能读所有事件和任意角色的视图，把一个角色的私有内容交给另一个角色，隔离就破了。玩家启用插件即视为信任作者，宿主不做沙箱。活动进行中的出场顺序属于玩法，不交给调度器。
+**由作者负责的部分。** `round.limits` 是玩家设置的上限，只作为建议传给你，宿主不做总量拦截，超出就要玩家多付模型费用。`world` 和 `round.world` 能读所有事件和任意角色的视图，把一个角色的私有内容交给另一个角色，隔离就破了。玩家启用插件即视为信任作者，宿主不做沙箱。活动中的合法参与者属于玩法；调度器决定是否提供机会，不改变玩法规定的合法顺序。`beforeModelCall` 是可选的本轮预算回调，在真实发送与格式重试前调用；官方分段自主调度用它计数，第三方不传时宿主不施加官方总量限制。`calls` 仍是角色决策计数，不等于任意决策插件实际发送的总次数。
 
 调度器抛错或返回非法结果时，这一轮反应结束，已提交的内容保留，玩家看到提示后可以继续。打开失败时改用官方调度。如果它忽略取消信号又一直不返回，这一轮会卡住，只能重启游戏。
 
-玩家移除插件后，同一个存档回到官方调度，已提交的世界事实不变。自动测试覆盖替换、异常和存档重开；真实模型下的体验尚未验收。
+玩家移除插件后，同一个存档回到官方调度，已提交的世界事实不变。自动测试覆盖替换、异常、候选与存档重开。阶段 7 的真实模型验收单独记录在[实施记录](../studies/2026-11-plugin-first-phase-7.md)，不能从单测推导。示例采用自主处理后不追加反应波的简化策略；官方实现保留原有后续反应。
 
 ## 替换长期记忆
 
 例如你想用自己的向量库让角色记住玩家说过的话，不想装 Python。插件向 `ctx.memory` 注册一个 Provider，官方 Core 就不再启动：
 
 ```js
-export const hostApi = '1.2'
+export const hostApi = '2.0'
 
 export default function (ctx) {
   ctx.effect(() =>
@@ -178,7 +183,7 @@ export default function (ctx) {
 例如你想让角色走自己的本地模型，或者加一层缓存。[simple-llm.mjs](../../../examples/host-plugins/simple-llm.mjs) 是完整示例，把决策发给任意 OpenAI 兼容地址。插件向 `ctx.llm` 注册一个 Provider，只需要写 `send`：
 
 ```js
-export const hostApi = '1.3'
+export const hostApi = '2.0'
 
 export default function (ctx) {
   ctx.effect(() =>
@@ -212,7 +217,7 @@ export default function (ctx) {
 例如你想在角色开口前加一段“今天的天气”，或者检查回答后让角色重新说一次。`ctx.decisions` 可以注册多个实现，按加载顺序生效：
 
 ```js
-export const hostApi = '1.3'
+export const hostApi = '2.0'
 
 export default function (ctx) {
   ctx.effect(() =>
@@ -245,7 +250,7 @@ export default function (ctx) {
 例如你想让某个房间谁都进不去。[locked-room.mjs](../../../examples/host-plugins/locked-room.mjs) 是完整示例。插件向 `ctx.rules` 注册一层规则，可以注册多层，先注册的在最外面：
 
 ```js
-export const hostApi = '1.4'
+export const hostApi = '2.0'
 
 export default function (ctx) {
   ctx.effect(() =>

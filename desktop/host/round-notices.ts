@@ -28,6 +28,31 @@ export interface RoundStatus {
   set(notice: string | undefined, error: boolean | undefined): void
 }
 
+/** Present the activity policy's result; wording and the player's transcript remain host-owned. */
+export function activityNotice(status: RoundStatus, cycle: SchedulerResult): void {
+  const last = cycle.activations.at(-1)?.result
+  if (cycle.terminalReason === 'result_unknown') return
+  if (cycle.terminalReason === 'plugin_failed') {
+    status.set(SCHEDULER_FAILED_NOTICE, true)
+    return
+  }
+  if (last)
+    status.set(
+      last.failure === undefined
+        ? last.status === 'abstained'
+          ? '角色本次没有提交操作，当前轮次保留；可以再次请求处理或逃生。'
+          : '角色处理已完成。'
+        : last.failure === 'invalid_output'
+          ? '角色返回格式无效，当前轮次没有推进；可重试或逃生。'
+          : '角色决策处理未完成，当前轮次没有推进；可重试或逃生。',
+      last.failure !== undefined,
+    )
+  if (cycle.terminalReason === 'opportunity_limit')
+    status.set('本次活动处理达到宿主预算上限；已提交结果保留，可再次请求处理或逃生。', undefined)
+  if (cycle.terminalReason === 'interrupted')
+    status.set('活动处理已取消或超时；已提交结果保留，未完成操作没有换手。', true)
+}
+
 /** Tell the player how the reaction cycle ended, without claiming more was committed than was. */
 export function reactionNotice(
   status: RoundStatus,

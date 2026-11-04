@@ -1,5 +1,5 @@
 // The lowest host API this plugin needs (packages/plugin-sdk); an older or newer-major host skips it.
-export const hostApi = '1.0'
+export const hostApi = '2.0'
 
 /** Optional bridge to a trusted HTTP service accepting FrontendSpeechInput and returning audio.
  * `config` comes from the launcher form declared in http-speech.plugin.json; apiKey is a secret field. */

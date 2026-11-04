@@ -47,9 +47,15 @@ import { pluginSetChanges, readPluginSet, writePluginSet } from './plugin-set.ts
 import { creatorHistorySnapshot, creatorInspectionSnapshot, type CreatorQueryHost } from './creator-queries.ts'
 import { routeGameplayInput } from './player-input.ts'
 import { projectStatus, withMessageActions } from './gameplay-projection.ts'
-import { runActivityChain } from './activity-round.ts'
-import { runAutonomousRound, type CallBudget } from './autonomy-round.ts'
-import { autonomyNotice, playerResolutionNotice, reactionNotice, type RoundStatus } from './round-notices.ts'
+import { createActivityRound } from './activity-round.ts'
+import { createAutonomyRound } from './autonomy-round.ts'
+import {
+  activityNotice,
+  autonomyNotice,
+  playerResolutionNotice,
+  reactionNotice,
+  type RoundStatus,
+} from './round-notices.ts'
 export { providerFailureNotice } from './round-notices.ts'
 import { PackActivities, type ActivityDefinitionView, type AutoStartEvaluation } from './pack-activities.ts'
 import { pauseRounds, type StatusDefinition, type StatusOperation } from './pack-status.ts'
@@ -99,6 +105,7 @@ import type {
   RulesInstance,
   SchedulerInstance,
   SchedulerResult,
+  SchedulerRound,
   WorldServices,
 } from '@harness-world/plugin-sdk'
 
@@ -276,7 +283,6 @@ export class WorldHostCore implements HostRuntime {
   }
   /** The pack's SMS contacts; the rule wraps the core resolver anew for every resolver chain. */
   #autonomyCycle: Record<string, unknown> | undefined
-  readonly #callBudget: CallBudget = { current: undefined }
   /** The round's notice and error flag, for the code that runs rounds outside this class. */
   readonly #roundStatus: RoundStatus = {
     set: (notice, error) => {
@@ -433,6 +439,7 @@ export class WorldHostCore implements HostRuntime {
     request: CharacterTurnRequest,
     signal: AbortSignal,
     reserveFormatRetry?: () => boolean,
+    beforeModelCall?: () => void,
   ): Promise<unknown> {
     if (this.#memory) request = await this.#memory.project(request, signal)
     if (this.#options.recentExecutionEvidence === true)
@@ -450,14 +457,7 @@ export class WorldHostCore implements HostRuntime {
       memory: this.#memory,
       presetsPrepare: this.#options.plugins?.llm === undefined,
       simulate: visible => this.#gameplay.activity?.simulate(visible),
-      spendCall: () => {
-        if (!this.#callBudget.current) return
-        if (this.#callBudget.current.remaining <= 0) {
-          this.#callBudget.current.exhausted = true
-          throw new Error('自主处理模型调用预算已耗尽')
-        }
-        this.#callBudget.current.remaining--
-      },
+      spendCall: beforeModelCall ?? (() => {}),
       trace: (id, visible, source, raw) => {
         if (this.#inspector.enabled)
           this.#records.trace('decision', id, visible.decisionId ?? null, { source, value: raw as WorldJsonObject })
@@ -1256,17 +1256,21 @@ export class WorldHostCore implements HostRuntime {
             )
               // Activity owns its participants' opportunities; autonomy never takes over its turn.
               .filter(role => !active?.game.active || !active.participants.includes(role.characterId))
-      await runActivityChain({
-        gameplay: this.#gameplay,
-        status: this.#roundStatus,
+      const activity = createActivityRound({
+        activity: this.#gameplay.activity,
         settings: this.#playSettings,
         address: this.#address,
-        controller: this.#continuationController!,
+        signal: this.#continuationController.signal,
         store,
-        turn,
-        isPaused: () => this.#paused,
+        turn: this.#track(turn),
+        world: this.#worldReader(),
         resultUnknown: () => this.#capabilities?.resultUnknown === true,
       })
+      if (activity) {
+        const result = await this.#scheduleRound(activity)
+        activityNotice(this.#roundStatus, result)
+        if (result.terminalReason === 'plugin_failed' || this.#capabilities?.resultUnknown) return
+      }
       this.#allowInterruption = !this.#gameplay.activity?.current()?.game.active
       if (activityOnly) {
         await this.#autonomousRound(store, createTurn, due, new Map())
@@ -1279,7 +1283,6 @@ export class WorldHostCore implements HostRuntime {
       leases.close()
       store.close()
       this.#continuationController = undefined
-      this.#callBudget.current = undefined
       if (!this.#paused && !this.#escaping) this.#memory?.startPending?.()
     }
   }
@@ -1303,7 +1306,8 @@ export class WorldHostCore implements HostRuntime {
         rulebooks: autonomous
           ? this.#gameplay.autonomy!.rulebooks(base.resolve('builtin:speak-move', 2, 'autonomy', this.#address))
           : base,
-        decide: (request, signal, reserveFormatRetry) => this.#decide(request, signal, reserveFormatRetry),
+        decide: (request, signal, reserveFormatRetry, beforeModelCall) =>
+          this.#decide(request, signal, reserveFormatRetry, beforeModelCall),
         onTrace: (kind, characterId, decisionId, data) => {
           if (this.#inspector.enabled) this.#records.trace(kind, characterId, decisionId, data)
         },
@@ -1345,7 +1349,6 @@ export class WorldHostCore implements HostRuntime {
     const controller = this.#continuationController!
     const dynamic =
       !this.#options.serialScheduling && !this.#gameplay.activity?.current()?.game.active && !this.#serialDecisions
-    const integratedAutonomy = dynamic && !this.#options.stagedAutonomy && due.length > 0
     const { autonomy, ...cycle } = await this.#schedule({
       store,
       address: this.#address,
@@ -1359,9 +1362,10 @@ export class WorldHostCore implements HostRuntime {
         (this.#currentScene?.recipients ?? []).map(person => brandId(person.id, 'CharacterId')),
       allowConcurrent: dynamic,
       locationId: (id: CharacterId) => currentLocation(store.readEvents(this.#address), id) ?? null,
-      ...(integratedAutonomy
+      ...(due.length > 0
         ? {
             autonomy: {
+              staged: this.#options.stagedAutonomy === true,
               turn: this.#track(createTurn(true)),
               roles: due.map(role => ({
                 characterId: role.characterId,
@@ -1383,12 +1387,6 @@ export class WorldHostCore implements HostRuntime {
     this.#autonomyCycle = autonomy
     reactionNotice(this.#roundStatus, cycle, this.#roleCalls, this.#pluginFailures)
     if (autonomy) autonomyNotice(this.#roundStatus, autonomy.terminalReason)
-    else if (!controller.signal.aborted && cycle.terminalReason !== 'plugin_failed') {
-      const counts = new Map<CharacterId, number>()
-      for (const activation of this.#activationCycle.activations)
-        counts.set(activation.characterId, (counts.get(activation.characterId) ?? 0) + 1)
-      await this.#autonomousRound(store, createTurn, due, counts)
-    }
   }
 
   #services(id: string): WorldServices {
@@ -1523,7 +1521,10 @@ export class WorldHostCore implements HostRuntime {
 
   /** A third-party scheduler failing costs the round's reactions, never what has been committed. */
   async #schedule(input: Omit<Parameters<typeof createSchedulerRound>[0], 'world'>): Promise<SchedulerResult> {
-    const round = createSchedulerRound({ ...input, world: this.#worldReader() })
+    return this.#scheduleRound(createSchedulerRound({ ...input, world: this.#worldReader() }))
+  }
+
+  async #scheduleRound(round: SchedulerRound): Promise<SchedulerResult> {
     if (this.#schedulerIsOfficial) return this.#scheduler.run(round)
     const tracked = trackSchedulerTurns(round)
     try {
@@ -1545,28 +1546,27 @@ export class WorldHostCore implements HostRuntime {
     counts: Map<CharacterId, number>,
   ): Promise<void> {
     if (!due.length || this.#paused || this.#abortedWork || !this.#continuationController) return
-    const { cycle, reason } = await runAutonomousRound({
-      gameplay: this.#gameplay,
-      settings: this.#playSettings,
-      address: this.#address,
-      controller: this.#continuationController,
-      budget: this.#callBudget,
-      store,
-      createTurn,
-      due,
-      counts,
-      rootBeforeSeq: this.#rootBeforeSeq,
-      characterIds: this.#characterIds,
-      serialScheduling: this.#options.serialScheduling === true,
-      isPaused: () => this.#paused,
-      serialDecisions: () => this.#serialDecisions,
-      recipients: () => this.#currentScene?.recipients ?? [],
-      track: turn => this.#track(turn),
-      schedule: input => this.#schedule(input),
-    })
-    this.#autonomyCycle = cycle
-    this.#callBudget.current = undefined
-    autonomyNotice(this.#roundStatus, reason)
+    const active = this.#gameplay.activity?.current()
+    const result = await this.#scheduleRound(
+      createAutonomyRound({
+        settings: this.#playSettings,
+        address: this.#address,
+        signal: this.#continuationController.signal,
+        store,
+        world: this.#worldReader(),
+        turn: this.#track(createTurn()),
+        autonomousTurn: this.#track(createTurn(true)),
+        due,
+        counts,
+        rootBeforeSeq: this.#rootBeforeSeq,
+        characterIds: this.#characterIds,
+        activeParticipants: active?.game.active ? active.participants : [],
+        allowConcurrent: !this.#options.serialScheduling && !active?.game.active && !this.#serialDecisions,
+        recipients: () => (this.#currentScene?.recipients ?? []).map(person => brandId(person.id, 'CharacterId')),
+      }),
+    )
+    this.#autonomyCycle = result.autonomy ?? { ...result }
+    autonomyNotice(this.#roundStatus, result.terminalReason)
   }
 
   /** What the player can see of the items now, as a character would: in hand, on the ground here, or in the

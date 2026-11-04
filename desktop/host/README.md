@@ -8,7 +8,7 @@
 | HTTP、认证与前端服务 | [http-server.ts](http-server.ts)、[frontend-server.ts](frontend-server.ts)、[creator-assets.ts](creator-assets.ts) |
 | 世界装配、角色激活与故事线 | [world-runtime.ts](world-runtime.ts)、[tail-runtime.ts](tail-runtime.ts) |
 | 世界包的玩法模块（活动、状态、自主、短信、知识） | [world-gameplay.ts](world-gameplay.ts) 持有，[player-input.ts](player-input.ts) 分发输入，[gameplay-projection.ts](gameplay-projection.ts) 投影给玩家 |
-| 活动轮次、自主行动和结束提示 | [activity-round.ts](activity-round.ts)、[autonomy-round.ts](autonomy-round.ts)、[round-notices.ts](round-notices.ts) |
+| 活动合法参与者与真实结果桥、自主机会投影和结束提示（循环策略在 official-scheduler） | [activity-round.ts](activity-round.ts)、[autonomy-round.ts](autonomy-round.ts)、[round-notices.ts](round-notices.ts) |
 | 规则层 | [rule-layers.ts](rule-layers.ts)：玩家、角色和活动共用的核心规则来源，插件的 `ctx.rules` 包在外面 |
 | 玩家公开视图与操作适配 | [frontend-adapter.ts](frontend-adapter.ts)；公共数据和请求形状在 [frontend](../../packages/frontend/src/player-view.ts) |
 | 模型连接与按角色预设 | 官方模型通道 [official-llm](../../packages/official-llm/src/index.ts)；默认模型与端点见 [provider-defaults.ts](../provider-defaults.ts) |

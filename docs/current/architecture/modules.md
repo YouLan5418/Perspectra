@@ -1,5 +1,7 @@
 # 目录与模块地图
 
+2026-11-04 核对调度职责：未新增包。`official-scheduler` 现负责普通、整合／分段自主及活动的机会策略；宿主辅助文件只准备机会与合法执行桥。其他条目的历史核对范围保留。
+
 2026-11-03 阶段 5：未新增包。`desktop/plugin-requirements.ts` 检查世界包声明的插件，`desktop/host/plugin-set.ts` 记录存档实际生效的模块，`apps/launcher` 的插件页改为卡片式并列出模块。见[记录](../studies/2026-11-plugin-first-phase-5.md)。
 
 2026-11-03 核对：`desktop/host` 的文件分工见[宿主说明](../../../desktop/host/README.md)，玩法模块由 `world-gameplay.ts` 持有，核心规则来源在 `rule-layers.ts`。
@@ -47,7 +49,7 @@
 | --- | --- | --- |
 | [contracts](../../../packages/contracts) | 共用数据类型、ID、动作与事件约定 | [ID](../../../packages/contracts/src/ids.ts)、[表达片段](../../../packages/contracts/src/expression.ts)；定义形状，不执行模型 |
 | [application](../../../packages/application) | 连接玩家输入、角色处理和世界执行 | [单角色处理](../../../packages/application/src/character-turn.ts)、[调度回合](../../../packages/application/src/scheduler-round.ts)、[有界调度](../../../packages/official-scheduler/src/index.ts)、[WorldApplication](../../../packages/application/src/world-application.ts)（宿主只用其游玩方法；创作者与调试读取在 [`read`](../../../packages/application/src/world-read-queries.ts)，备份、分叉、维护与隔离恢复在 [`admin`](../../../packages/application/src/world-administration.ts)）；[RoundCoordinator](../../../packages/application/src/round-coordinator.ts) 是玩家行动的裁定与提交入口，旧 NPC Round／Reaction 执行已退役 |
-| [official-scheduler](../../../packages/official-scheduler) | 官方调度器：谁在什么时候获得处理机会，以及串行、动态并发和上限 | [实现](../../../packages/official-scheduler/src/index.ts)；只依赖公开的 `plugin-sdk` 接口，由 [desktop/official-bundle.ts](../../../desktop/official-bundle.ts) 接入，玩家可用插件替换 |
+| [official-scheduler](../../../packages/official-scheduler) | 官方调度器：普通、整合／分段自主与活动处理的机会、串行／动态并发、期限和官方预算 | [实现](../../../packages/official-scheduler/src/index.ts)；只依赖公开的 `plugin-sdk` 接口，由 [desktop/official-bundle.ts](../../../desktop/official-bundle.ts) 接入，玩家可用插件替换 |
 | [kernel](../../../packages/kernel) | 世界规则、行动裁定、场景事实读取与启动 | [规则注册](../../../packages/kernel/src/rulebook-registry.ts)、[世界启动](../../../packages/kernel/src/world-bootstrap.ts)；不负责角色写台词，也不承担提交流程 |
 | [store-sqlite](../../../packages/store-sqlite) | 事件存取、原子提交、角色视图和相关持久化 | [WorldStore](../../../packages/store-sqlite/src/world-store.ts)、[CharacterViewBuilder](../../../packages/store-sqlite/src/character-view.ts) |
 | [official-llm](../../../packages/official-llm) | 官方模型通道：玩家预设、按角色选模型、网关格式和请求记录 | [实现](../../../packages/official-llm/src/index.ts)；玩家可用插件替换，替换后没有预设 |
@@ -77,7 +79,7 @@
 | 角色知道了秘密 | character-view.ts、character-turn.ts | authorized-sources.ts 的来源、当前记忆实现的交付（默认 core-memory.ts） |
 | 模型格式错误 | provider-chat/character-turn-call.ts、official-llm/src/gateway-turn-call.ts、当前是否启用了第三方模型通道 | character-turn.ts；活动另查 pack-activity.ts |
 | 移动或物品操作被拒绝 | kernel 裁定与交互定义 | 世界包绑定、当前视图、实际参数 |
-| 角色重复回应或没回应 | official-scheduler/src/index.ts、当前是否启用了第三方调度器 | 宿主预算、刺激与活动调度 |
+| 角色重复回应或没回应 | official-scheduler/src/index.ts、当前是否启用了第三方调度器 | 官方预算、授权刺激与活动合法参与者桥 |
 | 长期记忆遗漏或整理慢 | official-memory-core 的 core-memory.ts、python-worker.ts，当前是否启用了第三方记忆 | experiments/activity-memory 与 hindsight-core |
 | 节点、分叉与分享 | desktop/story-nodes.ts、story-share.ts | LauncherCore 与节点记忆快照恢复 |
 | 末端回合重新生成 | tail-runtime.ts、desktop/tail-storage.ts | 宿主世界版本与后台任务取消 |

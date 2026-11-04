@@ -2,7 +2,7 @@
 
 例如你让澄向一个外部设备打招呼：澄自己决定是否行动；设备确认后，包内规则才增加她自己的确认次数。旁观者看不到她的私有数值。设备只说“已排队”时，宿主只记录排队说明，不提交完成效果。[最小示例包](../../../examples/world-packs/plugin-capabilities-demo/README.md)可以复现这条链路。
 
-本指南核对 2026-10-26 实验分支。两种入口已经接入源码宿主和后端构建；复用现有状态、交互、角色回合与事件提交，没有新建存储或另一套角色协议。
+本指南核对 2026-10-26 实验分支。2026-11-04 仅更新示例的宿主 API 2.0 声明，能力与玩法语义不变。两种入口已经接入源码宿主和后端构建；复用现有状态、交互、角色回合与事件提交，没有新建存储或另一套角色协议。
 
 | 入口 | 谁分发、谁选择 | 可以做什么 |
 | --- | --- | --- |
@@ -51,7 +51,7 @@ hook 必须同步，单次执行限制 100ms，只传入可序列化数据。模
 [demo-device.mjs](../../../examples/host-plugins/demo-device.mjs)是完整示例。注册方式：
 
 ```js
-export const hostApi = '1.0'
+export const hostApi = '2.0'
 
 export default function myPlugin(ctx) {
   ctx.effect(() => ctx.capabilities.register({

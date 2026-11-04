@@ -1,6 +1,6 @@
 // 替换模型通道的示例：把宿主准备好的消息发给任意 OpenAI 兼容地址。
 // 只写 send。宿主负责提示词、校验回答和一次格式重试；不带玩家的预设。
-export const hostApi = '1.3'
+export const hostApi = '2.0'
 
 export default function simpleLlm(ctx, config) {
   const send = async (characterId, call, request, signal) => {

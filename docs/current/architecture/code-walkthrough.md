@@ -39,7 +39,7 @@ NPC 处理途中玩家也可以插话，规则见下一节末尾。
 
 ## 4. NPC 如何获得处理机会
 
-2026-11-02 补充：下面描述的是官方调度器。宿主现在经 `ctx.scheduler` 接缝调用它，[createSchedulerRound](../../../packages/application/src/scheduler-round.ts) 为每轮准备调度器能用的操作，第三方插件可以替换它，见[插件指南](../guides/host-plugin-authoring.md#替换角色调度器)。
+2026-11-04 补充：普通反应、自主及活动机会均经过同一调度接缝。整合或分段的选择也在官方实现内；宿主保留合法执行与结果桥。下面描述的是官方调度器。宿主现在经 `ctx.scheduler` 接缝调用它，[createSchedulerRound](../../../packages/application/src/scheduler-round.ts) 为每轮准备调度器能用的操作，第三方插件可以替换它，见[插件指南](../guides/host-plugin-authoring.md#替换角色调度器)。
 
 先看一个例子：玩家在客厅说“谁看见我的钥匙了？”。客厅里的 A、B 听见了，厨房里的 C 没听见。[runOfficialSchedule](../../../packages/official-scheduler/src/index.ts) 看到新提交的观察，给 A、B 各一次处理机会。A 回答“在桌上”，这句话又成了 B 的新观察，B 可能再回应一次——这就是“下一波”。到没人有新东西要处理，或者次数、时间用完，这一轮就停下。
 

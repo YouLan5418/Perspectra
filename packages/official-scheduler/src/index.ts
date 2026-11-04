@@ -9,6 +9,8 @@ import type {
   SeamProvider,
 } from '@harness-world/plugin-sdk'
 import type { ActivationLimits } from '@harness-world/plugin-sdk'
+import { runActivitySchedule } from './activity.ts'
+import { runAutonomousSchedule } from './autonomy.ts'
 
 type Activation = SchedulerActivation
 type ActivationResult = SchedulerCycle
@@ -17,7 +19,7 @@ type ScheduleOptions = { readonly maximumConcurrent?: number; readonly strictCal
 /** The bounded scheduling players get unless a plugin replaces it. Unfinished activations need not survive. */
 export const officialSchedulerProvider: SeamProvider<SchedulerInstance> = {
   id: 'official-scheduler',
-  version: '1.0.0',
+  version: '2.0.0',
   open: async () => ({ run: round => runOfficialSchedule(round, { strictCallBudget: true }) }),
 }
 
@@ -25,6 +27,24 @@ export async function runOfficialSchedule(
   round: SchedulerRound,
   options: ScheduleOptions = {},
 ): Promise<SchedulerResult> {
+  if (round.phase === 'activity') return runActivitySchedule(round)
+  if (round.phase === 'autonomy') return runAutonomousSchedule(round, next => runSceneSchedule(next, options))
+  if (round.autonomy && (!round.allowConcurrent || round.autonomy.staged)) {
+    const { autonomy: _autonomy, ...scene } = round
+    const ordinary = await runSceneSchedule(scene, options)
+    if (round.signal.aborted) return ordinary
+    const counts = new Map(round.initialCounts)
+    for (const activation of ordinary.activations)
+      counts.set(activation.characterId, (counts.get(activation.characterId) ?? 0) + 1)
+    const autonomous = await runAutonomousSchedule({ ...round, phase: 'autonomy', initialCounts: counts }, next =>
+      runSceneSchedule(next, options),
+    )
+    return { ...ordinary, ...(autonomous.autonomy === undefined ? {} : { autonomy: autonomous.autonomy }) }
+  }
+  return runSceneSchedule(round, options)
+}
+
+async function runSceneSchedule(round: SchedulerRound, options: ScheduleOptions): Promise<SchedulerResult> {
   if (round.allowConcurrent) return runDynamicActivations(round, options)
   const limits = round.limits
   const signal = AbortSignal.any([round.signal, AbortSignal.timeout((limits.reactionDeadlineSeconds ?? 30) * 1_000)])

@@ -20,7 +20,7 @@ it('loads capability plugins through both source and bundled host entries and ex
   await writeFile(
     outsidePlugin,
     `import { Context, Service } from '@deepseek-ai/cordis'
-export const hostApi = '1.1'
+export const hostApi = '2.0'
 class Marker extends Service { constructor(ctx) { super(ctx, 'marker') } }
 export default function (ctx) {
   if (!(ctx instanceof Context)) throw new Error('plugin received a second copy of Cordis')

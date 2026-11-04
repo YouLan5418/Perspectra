@@ -25,7 +25,9 @@ export function normalizeSchedulerResult(value: unknown): SchedulerResult {
   const result = cycle(value)
   if (!result) return invalid
   const autonomy = (value as SchedulerResult).autonomy
-  return autonomy !== undefined && cycle(autonomy) && cycle(autonomy.reactions) ? { ...result, autonomy } : result
+  return autonomy !== undefined && cycle(autonomy) && (autonomy.reactions === undefined || cycle(autonomy.reactions))
+    ? { ...result, autonomy }
+    : result
 }
 
 /** The official scheduler waits for its own turns; a plugin may not. `settle` cancels and waits for whatever
@@ -45,7 +47,9 @@ export function trackSchedulerTurns(round: SchedulerRound): { round: SchedulerRo
       signal: AbortSignal.any([round.signal, controller.signal]),
       turn: (id, options) => {
         if (!open) return handled(Promise.reject(new TypeError('this round has ended')))
-        const turn = handled(round.turn(id, options))
+        const turn = handled(
+          round.turn(id, { ...options, signal: AbortSignal.any([options.signal, round.signal, controller.signal]) }),
+        )
         running.push(turn)
         return turn
       },

@@ -2,7 +2,7 @@ import { appendFile, writeFile } from 'node:fs/promises'
 import { isAbsolute } from 'node:path'
 
 // The lowest host API this plugin needs (packages/plugin-sdk); an older or newer-major host skips it.
-export const hostApi = '1.0'
+export const hostApi = '2.0'
 
 /** Mirrors what the player can read into a text file, e.g. for an OBS text source or an external log.
  * It only listens: nothing written here reaches characters or the world. */
