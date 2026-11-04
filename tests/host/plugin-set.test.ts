@@ -159,3 +159,31 @@ it('reopens a save after its plugin was removed', async () => {
   expect(state.transcript).toEqual(before.transcript)
   expect((await reopened.submit('你好')).error).toBe(false)
 })
+
+it('rejects regeneration and old candidates when scheduler or public rule identity changed', async () => {
+  const root = newRoot()
+  const models = await serve()
+  const scheduler = {
+    id: 'quiet',
+    version: '1.0.0',
+    open: async () => ({ run: async () => ({ calls: 0, wave: 0, terminalReason: 'quiescent', activations: [] }) }),
+  }
+  const rules = (identity: object) => ({ id: 'configurable', version: '1.0.0', identity, open: async () => ({}) })
+  const first = await open(root, models, { scheduler, rules: [rules({ room: 'front', locked: true })] })
+  const state = await first.submit(MOVE)
+  const regenerated = await first.regenerate(state.tailRound!.id!, 'original-candidate')
+  const old = regenerated.tailRound!.candidateIds![0]!
+  await shut()
+  for (const plugins of [
+    { scheduler: { ...scheduler, version: '2.0.0' }, rules: [rules({ room: 'front', locked: true })] },
+    { scheduler, rules: [rules({ room: 'front', locked: false })] },
+  ]) {
+    const changed = await open(root, models, plugins)
+    const tail = (await changed.state()).tailRound!.id!
+    await expect(changed.regenerate(tail, 'changed-environment')).rejects.toThrow('环境')
+    await expect(changed.selectCandidate(tail, old, 'old-environment')).rejects.toThrow('环境')
+    await shut()
+  }
+  const same = await open(root, models, { scheduler, rules: [rules({ locked: true, room: 'front' })] })
+  await expect(same.regenerate((await same.state()).tailRound!.id!, 'same-environment')).resolves.toBeDefined()
+})

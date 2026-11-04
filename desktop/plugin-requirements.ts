@@ -22,15 +22,17 @@ export interface RequirementProblem {
 }
 
 function parts(version: string): readonly [number, number, number] | undefined {
-  const match = /^(\d+)\.(\d+)\.(\d+)(?:[-+].*)?$/u.exec(version.trim())
-  return match ? [Number(match[1]), Number(match[2]), Number(match[3])] : undefined
+  const match = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:\+[\da-zA-Z-]+(?:\.[\da-zA-Z-]+)*)?$/u.exec(version.trim())
+  if (!match) return undefined
+  const result = [Number(match[1]), Number(match[2]), Number(match[3])] as const
+  return result.every(Number.isSafeInteger) ? result : undefined
 }
 function atLeast(a: readonly number[], b: readonly number[]): boolean {
   for (let i = 0; i < 3; i++) if (a[i] !== b[i]) return a[i]! > b[i]!
   return true
 }
 
-/** Supports `1.2.3`, `^1.2.3` and `>=1.2.3`. Below 1.0 the caret holds the minor version, as semver does. */
+/** Stable releases only. A caret holds the first nonzero component; build metadata does not change precedence. */
 export function satisfiesVersion(version: string, range: string): boolean {
   const have = parts(version)
   const match = /^(\^|>=)?(.+)$/u.exec(range.trim())
@@ -39,7 +41,11 @@ export function satisfiesVersion(version: string, range: string): boolean {
   if (match![1] === undefined) return have.every((part, index) => part === want[index])
   if (!atLeast(have, want)) return false
   if (match![1] === '>=') return true
-  return want[0] === 0 ? have[0] === 0 && have[1] === want[1] : have[0] === want[0]
+  return want[0] !== 0
+    ? have[0] === want[0]
+    : want[1] !== 0
+      ? have[0] === 0 && have[1] === want[1]
+      : have.every((part, index) => part === want[index])
 }
 
 /** Every problem at once. A plugin without a manifest id cannot satisfy a requirement. */

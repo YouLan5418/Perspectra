@@ -59,6 +59,14 @@ async function launcherWith(pack: string) {
 }
 
 describe('version ranges', () => {
+  it('holds the first nonzero caret component and never treats prereleases as stable', () => {
+    expect(satisfiesVersion('0.0.1', '^0.0.1')).toBe(true)
+    expect(satisfiesVersion('0.0.9', '^0.0.1')).toBe(false)
+    expect(satisfiesVersion('1.2.3-beta.1', '1.2.3')).toBe(false)
+    expect(satisfiesVersion('1.2.3-beta.1', '>=1.2.0')).toBe(false)
+    expect(satisfiesVersion('1.2.3+build.7', '1.2.3')).toBe(true)
+  })
+
   it('accepts exact, caret and at-least ranges', () => {
     expect(satisfiesVersion('1.2.3', '1.2.3')).toBe(true)
     expect(satisfiesVersion('1.2.4', '1.2.3')).toBe(false)

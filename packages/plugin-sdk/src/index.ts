@@ -156,7 +156,8 @@ export interface SeamProvider<Instance> {
   readonly id: string
   readonly version: string
   open(world: WorldServices, signal: AbortSignal): Promise<Instance>
-  /** Settings that make a regenerated round incomparable once they change. */
+  /** Public, non-secret settings that make a regenerated round incomparable once they change.
+   * Object key order is ignored; the host never infers this from plugin config or credentials. */
   readonly identity?: WorldJsonObject
 }
 

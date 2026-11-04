@@ -38,10 +38,16 @@ export interface ModuleRow {
   readonly chip: string
   /** Only one plugin can hold this seam; the others stack. */
   readonly single: boolean
-  readonly providers: readonly { readonly pluginId: string; readonly name: string; readonly enabled: boolean }[]
-  /** What is in force, as the host decides it: the first enabled provider, in list order. */
+  readonly providers: readonly {
+    readonly pluginId: string
+    readonly name: string
+    readonly enabled: boolean
+    readonly effective: boolean
+  }[]
+  /** Predicted from manifests; apply failures are only known after launch. */
   readonly effective: string
-  /** More than one enabled for a seam that takes one: the host would skip all but the first. */
+  /** Plugins skipped as a whole when any of their single-provider seams conflict. */
+  readonly blocked: readonly string[]
   readonly conflict: boolean
 }
 
@@ -53,14 +59,26 @@ export function moduleRows(
   plugins: readonly HostPluginSettings[],
   manifests: Readonly<Record<string, ManifestInfo>>,
 ): ModuleRow[] {
+  const occupied = new Set<string>()
+  const accepted = new Set<string>()
+  for (const plugin of plugins) {
+    if (!plugin.enabled) continue
+    const manifest = manifestOf(manifests[plugin.id])
+    if (!manifest) continue
+    const singles = SEAMS.filter(item => item.single && manifest.services.includes(item.seam)).map(item => item.seam)
+    if (singles.some(seam => occupied.has(seam))) continue
+    accepted.add(plugin.id)
+    for (const seam of singles) occupied.add(seam)
+  }
   return SEAMS.map(({ seam, label, single, description, official }) => {
     const providers = plugins.flatMap(plugin => {
       const manifest = manifestOf(manifests[plugin.id])
       return manifest?.services.includes(seam)
-        ? [{ pluginId: plugin.id, name: manifest.name, enabled: plugin.enabled }]
+        ? [{ pluginId: plugin.id, name: manifest.name, enabled: plugin.enabled, effective: accepted.has(plugin.id) }]
         : []
     })
-    const enabled = providers.filter(provider => provider.enabled)
+    const enabled = providers.filter(provider => provider.effective)
+    const blocked = providers.filter(provider => provider.enabled && !provider.effective).map(provider => provider.name)
     const effective = !enabled.length
       ? single
         ? '官方默认'
@@ -77,7 +95,8 @@ export function moduleRows(
       single,
       providers,
       effective,
-      conflict: single && enabled.length > 1,
+      blocked,
+      conflict: blocked.length > 0,
     }
   })
 }

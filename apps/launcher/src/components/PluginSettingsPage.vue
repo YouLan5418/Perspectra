@@ -63,14 +63,14 @@ function toggle(key: string) {
   if (!expanded.delete(key)) expanded.add(key)
 }
 function selected(row: ModuleRow) {
-  return row.providers.find(provider => provider.enabled)?.pluginId ?? ''
+  return row.providers.find(provider => provider.effective)?.pluginId ?? ''
 }
 function choose(row: ModuleRow, value: string) {
   pickProvider(store.preferencesDraft.hostPlugins, row, value || null)
 }
 function moduleBadge(row: ModuleRow) {
   if (row.conflict) return { text: '有冲突', tone: 'warn' }
-  return row.providers.some(provider => provider.enabled)
+  return row.providers.some(provider => provider.effective)
     ? { text: '插件提供', tone: 'on' }
     : { text: row.single ? '官方' : '未使用', tone: 'off' }
 }
@@ -118,7 +118,9 @@ function remove(index: number) {
         <component :is="open.modules ? ChevronDown : ChevronRight" :size="16" aria-hidden="true" />
         <span>模块</span>
       </button>
-      <p class="muted plugin-group-note">游戏的每个部分现在由谁提供。官方实现可以被插件替换。</p>
+      <p class="muted plugin-group-note">
+        按清单预计下次启动使用的实现；实际能否加载会在启动时检查。官方实现可以被插件替换。
+      </p>
       <div v-show="open.modules" class="plugin-grid">
         <article v-for="row in visibleRows" :key="row.seam" class="plugin-card">
           <component
@@ -144,7 +146,7 @@ function remove(index: number) {
             >
           </component>
           <p v-if="row.conflict" class="plugin-warning" role="alert">
-            这个模块只能用一个。启用了多个时，只有第一个（{{ row.effective }}）生效，其余的不会加载。请选一个。
+            {{ row.blocked.join('、') }} 与其他插件存在单例模块冲突，预计整个插件会被跳过。请调整模块选择。
           </p>
           <div v-if="expanded.has(row.seam) || row.conflict" class="plugin-card-body">
             <div v-if="row.single" class="form-field">
@@ -162,7 +164,10 @@ function remove(index: number) {
             </div>
             <ul v-else class="plugin-provider-list">
               <li v-for="provider in row.providers" :key="provider.pluginId">
-                {{ provider.name }}<span class="muted">{{ provider.enabled ? '' : '（未启用）' }}</span>
+                {{ provider.name
+                }}<span class="muted">{{
+                  !provider.enabled ? '（未启用）' : provider.effective ? '' : '（预计跳过）'
+                }}</span>
               </li>
             </ul>
           </div>

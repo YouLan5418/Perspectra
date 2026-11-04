@@ -32,6 +32,18 @@ it('stacks decisions and rules without a conflict', () => {
   expect(row(rows, 'rules')).toMatchObject({ effective: '甲、乙', conflict: false })
 })
 
+it('excludes every service of a plugin blocked by a single-provider conflict', () => {
+  const rows = moduleRows([plugin('a'), plugin('b'), plugin('c')], {
+    a: manifest('甲', 'scheduler'),
+    b: manifest('乙', 'scheduler', 'memory', 'rules'),
+    c: manifest('丙', 'memory'),
+  })
+  expect(row(rows, 'scheduler').effective).toBe('甲')
+  expect(row(rows, 'memory').effective).toBe('丙')
+  expect(row(rows, 'rules').effective).toBe('无')
+  expect(row(rows, 'rules').conflict).toBe(true)
+})
+
 it('ignores a plugin whose manifest is missing or invalid', () => {
   const rows = moduleRows([plugin('a'), plugin('b')], { a: { missing: true }, b: { error: '坏了' } })
   expect(row(rows, 'memory').providers).toEqual([])

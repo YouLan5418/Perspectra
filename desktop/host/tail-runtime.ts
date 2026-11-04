@@ -12,7 +12,8 @@ import {
   type TailRecord,
   type TailSelection,
 } from '../tail-storage.ts'
-import { interactionPackageDescription, type WorldJsonObject } from '@harness-world/contracts'
+import { canonicalizeWorldJson, interactionPackageDescription, type WorldJsonObject } from '@harness-world/contracts'
+import type { SeamProvider } from '@harness-world/plugin-sdk'
 import { createInstalledInteractionPackages } from '@harness-world/interactions-basic'
 import { compileWorldPackSource } from '@harness-world/world-pack'
 import { actionText, HostBusyError, isWait, type HostAction, type HostState, type PlayerLine } from './http-server.ts'
@@ -211,6 +212,15 @@ export class TailRoundRuntime {
     // Call targets without their keys: a key change is not an environment change, a target change is.
     const target = ({ apiKey: _key, ...rest }: RuntimeModel) => rest
     const role = (r: RuntimeRole) => ({ decision: target(r.decision), memory: target(r.memory) })
+    const provider = (value: SeamProvider<unknown> | undefined) =>
+      value
+        ? {
+            id: value.id,
+            version: value.version,
+            identity:
+              value.identity === undefined ? null : Buffer.from(canonicalizeWorldJson(value.identity)).toString('utf8'),
+          }
+        : null
     return JSON.stringify({
       runtimeRevision,
       executable: loadedRuntimeIdentity,
@@ -230,15 +240,11 @@ export class TailRoundRuntime {
       ...(this.options.recentExecutionEvidence ? { recentExecutionEvidence: true } : {}),
       playSettings: this.options.playSettings ?? null,
       tuning: this.options.tuning ?? null,
-      memoryProvider: this.options.plugins?.memory
-        ? { id: this.options.plugins.memory.id, version: this.options.plugins.memory.version }
-        : null,
-      memoryContextBudget: this.options.plugins?.memory?.identity?.memoryContextBudget ?? null,
-      llmProvider: this.options.plugins?.llm
-        ? { id: this.options.plugins.llm.id, version: this.options.plugins.llm.version }
-        : null,
-      decisionProviders: (this.options.plugins?.decisions ?? []).map(({ id, version }) => ({ id, version })),
-      ruleProviders: (this.options.plugins?.rules ?? []).map(({ id, version }) => ({ id, version })),
+      schedulerProvider: provider(this.options.plugins?.scheduler),
+      memoryProvider: provider(this.options.plugins?.memory),
+      llmProvider: provider(this.options.plugins?.llm),
+      decisionProviders: (this.options.plugins?.decisions ?? []).map(provider),
+      ruleProviders: (this.options.plugins?.rules ?? []).map(provider),
     })
   }
   async #run(input: TailRecord['input'], idempotencyKey?: string): Promise<HostState> {
