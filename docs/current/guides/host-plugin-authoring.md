@@ -1,5 +1,34 @@
 # 编写并加载自己的 Cordis 宿主插件
 
+## 替换角色执行循环（2.4）
+
+例如角色先申请拿钥匙，再看裁定结果说话。启用 [single-action-loop.mjs](../../../examples/host-plugins/single-action-loop.mjs)和旁边的清单，可将每次角色处理限制为一次操作、一次结果续写。它通过 `ctx.effect(() => ctx.characterLoop.register(provider))` 注册，不调用旧的 CharacterTurn.run。
+
+Provider 的 `id`、`version`、公开 `identity` 与其他接缝含义相同；`open(world, signal)` 返回 `{ run(activation), close?() }`。每个世界、重生候选和节点重开都有独立实例。一次 run 的临时状态放在函数内，因为不同角色可能并发使用同一实例。打开失败会拒绝开世界，运行失败保留玩家输入与已提交行动。
+
+~~~js
+export const hostApi = '2.4'
+export default function(ctx) {
+  ctx.effect(() => ctx.characterLoop.register({
+    id: 'reply-once', version: '1.0.0',
+    open: async () => ({
+      async run(activation) {
+        activation.prepare({ canPerform: false, continuation: activation.continuation })
+        const result = await activation.submit(await activation.decide(() => false))
+        return result.decision === 'abstain' ? 'abstained'
+          : result.status === 'accepted' ? 'published' : 'failed'
+      },
+    }),
+  }))
+}
+~~~
+
+`prepare` 读取最新的授权请求，返回副本；`decide` 使用内部准备的请求，继续走现有 context／decide／模型通道。传给 decide 的回调决定是否允许一次格式修正，`calls` 包含该修正。`submit` 申请 publish／perform／abstain，主干检查参数、最新前缀、合法动作与真实受众，再原子提交。不能传 actor、World Event 或观察接收者。每次 prepare 最多 submit 一次，异步能力要逐个 await；结束后保存下来的能力失效。
+
+`maxCalls`、`maxModelCalls` 和 `continueAfterPublish` 是现有策略输入。第三方自己决定次数，官方实现遵守上限；声明 canPerform 只影响本次请求提供的选项，不能绕过活动和规则检查。`continuation` 表示宿主正在续写已提交行动，此时主干强制禁用新的 perform，并从已验证的日志结果继续，不重做原行动。`performResult` 是最近真实操作结果的副本。返回 published 没有成功发布支撑时会失败，返回值本身不写事件。
+
+宿主 API 2.4 为增量能力，2.0～2.3 插件仍可加载。源码和自动验证范围见[阶段 10 记录](../studies/2026-11-plugin-first-phase-10.md)，设计边界见[接口设计](../../superpowers/specs/2026-11-04-character-loop.md)。第三方是可信代码，预算、额外读权限与自然度仍由作者负责。
+
 2026-11-04：本次核对宿主 API 2.0 与完整调度接缝；下方声音等历史验收范围保留。想先知道插件能替换什么、不能替换什么，看[总入口](plugin-seams.md)。世界包依赖插件的写法也在那里。
 
 2026-10-26：例如同伴操作外部设备，包内模块负责玩法规则，Cordis 插件通过 `ctx.capabilities.register` 提供异步原生能力。按世界创建会话、角色请求、完成后裁定及失败限制见[双入口指南](dual-plugin-entrypoints.md)。原生完整例子是 [demo-device.mjs](../../../examples/host-plugins/demo-device.mjs)，外部程序方向见 [RPG Maker](../../../examples/rpg-maker/README.md)。下方声音指南仍沿用原验收范围。

@@ -28,6 +28,8 @@ import {
   type SchedulerInstance,
   type SchedulerSlotApi,
   type SeamProvider,
+  type CharacterLoopInstance,
+  type CharacterLoopSlotApi,
 } from '@harness-world/plugin-sdk'
 
 // The SDK declares the services on Cordis' Context; the classes below must satisfy its interfaces.
@@ -98,6 +100,22 @@ export class SchedulerSlot extends Service implements SchedulerSlotApi {
   /** Own the returned disposer with the registering plugin's ctx.effect(). */
   register(provider: SeamProvider<SchedulerInstance>): () => void {
     if (this.current) throw new Error(`调度器已由 ${this.current.id} 提供`)
+    this.current = provider
+    return () => {
+      if (this.current === provider) this.current = undefined
+    }
+  }
+}
+
+export class CharacterLoopSlot extends Service implements CharacterLoopSlotApi {
+  current: SeamProvider<CharacterLoopInstance> | undefined
+
+  constructor(ctx: Context) {
+    super(ctx, 'characterLoop')
+  }
+
+  register(provider: SeamProvider<CharacterLoopInstance>): () => void {
+    if (this.current) throw new Error(`角色循环已由 ${this.current.id} 提供`)
     this.current = provider
     return () => {
       if (this.current === provider) this.current = undefined
@@ -304,6 +322,7 @@ export async function loadHostPlugins(
   const capabilities = new HostCapabilities(root)
   const playerFeed = new PlayerFeed(root)
   const scheduler = new SchedulerSlot(root)
+  const characterLoop = new CharacterLoopSlot(root)
   const memory = new MemorySlot(root)
   const llm = new LlmSlot(root)
   const decisions = new DecisionRegistry(root)
@@ -383,6 +402,7 @@ export async function loadHostPlugins(
     playerFeed,
     seams: {
       scheduler: scheduler.current ?? officialSeams().scheduler,
+      characterLoop: characterLoop.current ?? officialSeams().characterLoop!,
       ...(chosenMemory ? { memory: chosenMemory } : {}),
       ...(llm.current ? { llm: llm.current } : {}),
       ...(llm.currentTransport ? { llmTransport: llm.currentTransport } : {}),

@@ -1,3 +1,4 @@
+import { officialCharacterLoop } from '@harness-world/official-character-loop'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -29,6 +30,7 @@ async function fixture() {
   await bringSecondBoard(f)
   await setupRead(f, secondBoardId)
   await new CharacterTurn({
+    loop: officialCharacterLoop,
     ...f,
     rulebooks: f.rules,
     projectContext: actionContext,
@@ -38,6 +40,7 @@ async function fixture() {
   for (let i = 0; i < 6; i++) await f.submitPlayer('聊聊电影。', 'gap-' + i)
   let request: CharacterTurnRequest | undefined
   await new CharacterTurn({
+    loop: officialCharacterLoop,
     ...f,
     rulebooks: f.rules,
     projectContext: actionContext,

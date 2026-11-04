@@ -1,7 +1,9 @@
 export { composeDecisions, officialContextOrder } from '@harness-world/official-contexts'
 import { officialSchedulerProvider } from '@harness-world/official-scheduler'
+import { officialCharacterLoopProvider } from '@harness-world/official-character-loop'
 import type {
   DecisionInstance,
+  CharacterLoopInstance,
   LlmInstance,
   LlmTransportInstance,
   MemoryInstance,
@@ -45,6 +47,7 @@ export function assembleCoreMemory(
 /** The implementation in force for each replaceable seam. */
 export interface HostSeams {
   readonly scheduler: SeamProvider<SchedulerInstance>
+  readonly characterLoop?: SeamProvider<CharacterLoopInstance>
   readonly memory?: SeamProvider<MemoryInstance>
   readonly llm?: SeamProvider<LlmInstance>
   readonly llmTransport?: SeamProvider<LlmTransportInstance>
@@ -58,5 +61,5 @@ export interface HostSeams {
 
 /** The default bundle, and the only production file allowed to import `packages/official-*`. */
 export function officialSeams(): HostSeams {
-  return { scheduler: officialSchedulerProvider }
+  return { scheduler: officialSchedulerProvider, characterLoop: officialCharacterLoopProvider }
 }

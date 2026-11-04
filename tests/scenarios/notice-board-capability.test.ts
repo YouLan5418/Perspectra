@@ -1,3 +1,4 @@
+import { officialCharacterLoop } from '@harness-world/official-character-loop'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -21,6 +22,7 @@ function setup() {
 }
 function turn(f: ReturnType<typeof setup>, decide: (r: CharacterTurnRequest) => Promise<unknown>) {
   return new CharacterTurn({
+    loop: officialCharacterLoop,
     address: f.address,
     store: f.store,
     leases: f.leases,

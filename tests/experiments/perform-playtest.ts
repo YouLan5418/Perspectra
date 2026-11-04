@@ -1,3 +1,4 @@
+import { officialCharacterLoop } from '@harness-world/official-character-loop'
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { brandId, hashWorldJson, type WorldEventDraft, type WorldJsonObject } from '@harness-world/contracts'
@@ -55,7 +56,7 @@ for (const scenario of ['success', 'rejected'] as const) {
       transactionId: brandId('transaction:genesis', 'TransactionId'), roundId: brandId('round:genesis', 'InteractionRoundId'),
       correlationId: 'perform-playtest' })
     let calls = 0
-    const turn = new CharacterTurn({ address, store, leases, availability,
+    const turn = new CharacterTurn({ loop: officialCharacterLoop, address, store, leases, availability,
       rulebooks: createCoreRulebookRegistry({ interactionPackages: [basicInteractionPackage] }),
       decide: async (request, signal) => {
         calls += 1

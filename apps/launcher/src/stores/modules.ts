@@ -9,6 +9,13 @@ type ManifestInfo =
 
 export const SEAMS = [
   {
+    seam: 'characterLoop',
+    label: '角色执行循环',
+    single: true,
+    description: '决定角色一次处理中怎样行动、表达和续写。',
+    official: 'official-character-loop',
+  },
+  {
     seam: 'scheduler',
     label: '角色调度',
     single: true,

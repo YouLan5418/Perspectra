@@ -1,3 +1,4 @@
+import { officialCharacterLoop } from '@harness-world/official-character-loop'
 import { createRuntimeWithCore } from '../support/core-memory-options.ts'
 import type { Server } from 'node:http'
 import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
@@ -300,6 +301,7 @@ it('interleaved private status operations keep each continuation bound to its ow
     started = done
   })
   const turn = new CharacterTurn({
+    loop: officialCharacterLoop,
     address,
     store,
     leases,

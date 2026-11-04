@@ -1,3 +1,4 @@
+import { officialCharacterLoop } from '@harness-world/official-character-loop'
 import { coreAdapter } from './core-adapter.ts'
 import { readFileSync, mkdirSync, existsSync, unlinkSync } from 'node:fs'
 import { resolve, join } from 'node:path'
@@ -165,6 +166,7 @@ export async function crossSceneRuntime(
   const rulebooks = activities?.rulebooks(communication.resolver()) ?? communication.registry()
   const resolver = rulebooks.resolve('builtin:speak-move', 2, 'communication-experiment', address)
   const turn = new CharacterTurn({
+    loop: officialCharacterLoop,
     address,
     store,
     leases,

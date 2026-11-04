@@ -1,3 +1,4 @@
+import { officialCharacterLoop } from '@harness-world/official-character-loop'
 /** Lab-only evidence acquisition. A staff reply is speech, a terminal read is display evidence. */
 import {
   brandId,
@@ -291,6 +292,7 @@ export function actionResult(input: Parameters<typeof noticeBoardResult>[0]): Wo
 /** Scripted setup reads are not autonomous choices. */
 export async function setupRead(f: ReturnType<typeof openActionWorld>, target: string) {
   const turn = new CharacterTurn({
+    loop: officialCharacterLoop,
     address: f.address,
     store: f.store,
     leases: f.leases,

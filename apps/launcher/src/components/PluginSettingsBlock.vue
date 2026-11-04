@@ -16,6 +16,7 @@ const SERVICE_LABELS: Record<PluginManifest['services'][number], string> = {
   capabilities: '外部能力（结果经世界包规则裁定）',
   playerFeed: '读取你能看到的对话',
   scheduler: '替换角色调度',
+  characterLoop: '替换角色执行循环',
   memory: '替换角色记忆',
   llm: '替换角色模型通道（对话会发给插件指定的服务）',
   decisions: '参与角色决策',

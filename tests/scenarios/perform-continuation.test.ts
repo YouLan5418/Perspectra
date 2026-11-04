@@ -1,3 +1,4 @@
+import { officialCharacterLoop } from '@harness-world/official-character-loop'
 import { coreAdapter } from '../support/core-adapter.ts'
 import Ajv from 'ajv'
 import { gatewayTurnCall } from '../../packages/official-llm/src/gateway-turn-call.ts'
@@ -203,6 +204,7 @@ function fixture(
     correlationId: 'test',
   })
   const turn = new CharacterTurn({
+    loop: officialCharacterLoop,
     ...limits,
     address,
     store,

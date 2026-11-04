@@ -22,6 +22,7 @@ import { TailRoundRuntime } from './tail-runtime.ts'
 import { assertSettled, snapshotTail } from '../tail-storage.ts'
 import {
   CharacterTurn,
+  CharacterLoopError,
   characterVisibleItems,
   recentExecutionContext,
   createSchedulerRound,
@@ -303,6 +304,7 @@ export class WorldHostCore implements HostRuntime {
   #autoStartError: string | undefined
   #activationCycle: SchedulerResult | undefined
   #scheduler!: SchedulerInstance
+  #characterLoop!: import('@harness-world/plugin-sdk').CharacterLoopInstance
   #schedulerIsOfficial = true
   readonly #manifestVersion: number
   readonly #intentEnabled: boolean
@@ -502,6 +504,7 @@ export class WorldHostCore implements HostRuntime {
       await runtime.#openMemory()
       await runtime.#openDecisions()
       await runtime.#openScheduler()
+      await runtime.#openCharacterLoop()
       runtime.#packHash = pack.packHash
       runtime.#actionLabels = Object.fromEntries(
         [...pack.content.entities, ...pack.content.characters].flatMap(target =>
@@ -1187,6 +1190,11 @@ export class WorldHostCore implements HostRuntime {
       console.error('[调度器插件] 关闭失败：', error)
     }
     try {
+      await this.#characterLoop?.close?.()
+    } catch (error) {
+      console.error('[角色循环插件] 关闭失败：', error)
+    }
+    try {
       await this.#llm?.close?.()
     } catch (error) {
       console.error('[模型通道插件] 关闭失败：', error)
@@ -1316,6 +1324,13 @@ export class WorldHostCore implements HostRuntime {
     return (autonomous = false) => {
       const base = this.#gameplay.rulebooks(path)
       return new CharacterTurn({
+        loop: this.#characterLoop,
+        onLoopFailure: (characterId, error) =>
+          this.#reportPlugin(
+            this.#options.plugins?.characterLoop?.id ?? officialSeams().characterLoop!.id,
+            characterId,
+            error,
+          ),
         publicationCharacters: this.#playSettings.publicationCharacters,
         activationTimeoutMs: this.#playSettings.activationTimeoutSeconds * 1000,
         address: this.#address,
@@ -1607,6 +1622,59 @@ export class WorldHostCore implements HostRuntime {
       this.#modulesInForce.scheduler = [{ id: official.id, version: official.version }]
       this.#schedulerIsOfficial = true
       this.#notice = `调度器插件 ${provider.id} 无法打开，已改用官方调度。`
+    }
+  }
+
+  async #openCharacterLoop(): Promise<void> {
+    const provider = this.#options.plugins?.characterLoop ?? officialSeams().characterLoop!
+    try {
+      const opened = await provider.open(this.#services(provider.id), AbortSignal.timeout(30_000))
+      this.#characterLoop = opened
+      if (typeof opened.run !== 'function') throw new TypeError('character loop requires run')
+      this.#modulesInForce.characterLoop = [{ id: provider.id, version: provider.version }]
+      this.#characterLoop = {
+        run: async activation => {
+          let passedOn: unknown
+          const capability = <T>(work: () => T): T => {
+            try {
+              return work()
+            } catch (error) {
+              passedOn = error
+              throw error
+            }
+          }
+          const asyncCapability = async <T>(work: () => Promise<T>): Promise<T> => {
+            try {
+              return await work()
+            } catch (error) {
+              passedOn = error
+              throw error
+            }
+          }
+          try {
+            return await opened.run({
+              ...activation,
+              get calls() {
+                return activation.calls
+              },
+              get performResult() {
+                return activation.performResult
+              },
+              prepare: options => capability(() => activation.prepare(options)),
+              decide: reserve => asyncCapability(() => activation.decide(reserve)),
+              submit: decision => asyncCapability(() => activation.submit(decision)),
+            })
+          } catch (error) {
+            if (!activation.signal.aborted && error !== passedOn) {
+              throw new CharacterLoopError('character loop failed', { cause: error })
+            }
+            throw error
+          }
+        },
+        ...(opened.close ? { close: () => opened.close!() } : {}),
+      }
+    } catch (error) {
+      throw new Error(`角色循环插件 ${provider.id} 无法打开：${(error as Error).message}`, { cause: error })
     }
   }
 

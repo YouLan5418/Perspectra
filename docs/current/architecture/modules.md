@@ -1,5 +1,7 @@
 # 目录与模块地图
 
+2026-11-04 阶段 10：新增 official-character-loop，替代 CharacterTurn 内固定的次数与续写策略。主干保留授权请求与受控执行；官方与第三方都使用 plugin-sdk 的角色激活能力。
+
 2026-11-04 阶段 9：未新增包。official-llm 复用独立预设解析，并增加发送适配器包装；plugin-sdk 的同一 llm 槽位可注册完整通道或发送实例，装载器和 Launcher 共用互斥规则。
 
 2026-11-04 阶段 8：新增 [official-contexts](../../../packages/official-contexts)，将记忆投影、近期执行证据、已知状态、设定与表情扩充注册为同一决策接缝的官方步骤。授权基础上下文、活动许可与提交仍属主干。
@@ -54,6 +56,7 @@
 | [contracts](../../../packages/contracts) | 共用数据类型、ID、动作与事件约定 | [ID](../../../packages/contracts/src/ids.ts)、[表达片段](../../../packages/contracts/src/expression.ts)；定义形状，不执行模型 |
 | [application](../../../packages/application) | 连接玩家输入、角色处理和世界执行 | [单角色处理](../../../packages/application/src/character-turn.ts)、[调度回合](../../../packages/application/src/scheduler-round.ts)、[有界调度](../../../packages/official-scheduler/src/index.ts)、[WorldApplication](../../../packages/application/src/world-application.ts)（宿主只用其游玩方法；创作者与调试读取在 [`read`](../../../packages/application/src/world-read-queries.ts)，备份、分叉、维护与隔离恢复在 [`admin`](../../../packages/application/src/world-administration.ts)）；[RoundCoordinator](../../../packages/application/src/round-coordinator.ts) 是玩家行动的裁定与提交入口，旧 NPC Round／Reaction 执行已退役 |
 | [official-contexts](../../../packages/official-contexts) | 官方决策扩充、有序组合与交付步骤的记忆窗口声明；同 ID 替换、显式顺序停用 | [实现](../../../packages/official-contexts/src/index.ts)，通过公开 contextSources 读取授权投影 |
+| [official-character-loop](../../../packages/official-character-loop) | 官方单角色执行策略：行动／表达续写、次数和发言修正 | [实现](../../../packages/official-character-loop/src/index.ts)只使用公开激活能力；[CharacterTurn](../../../packages/application/src/character-turn.ts)保留授权、规则、受众与原子提交 |
 | [official-scheduler](../../../packages/official-scheduler) | 官方调度器：普通、整合／分段自主与活动处理的机会、串行／动态并发、期限和官方预算 | [实现](../../../packages/official-scheduler/src/index.ts)；只依赖公开的 `plugin-sdk` 接口，由 [desktop/official-bundle.ts](../../../desktop/official-bundle.ts) 接入，玩家可用插件替换 |
 | [kernel](../../../packages/kernel) | 世界规则、行动裁定、场景事实读取与启动 | [规则注册](../../../packages/kernel/src/rulebook-registry.ts)、[世界启动](../../../packages/kernel/src/world-bootstrap.ts)；不负责角色写台词，也不承担提交流程 |
 | [store-sqlite](../../../packages/store-sqlite) | 事件存取、原子提交、角色视图和相关持久化 | [WorldStore](../../../packages/store-sqlite/src/world-store.ts)、[CharacterViewBuilder](../../../packages/store-sqlite/src/character-view.ts) |

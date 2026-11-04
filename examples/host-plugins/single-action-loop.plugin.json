@@ -1,0 +1,7 @@
+{
+  "id": "single-action-loop",
+  "name": "一次行动与续写",
+  "version": "1.0.0",
+  "description": "每次角色处理最多申请一次受控行动，再依据真实结果表达一次。",
+  "services": ["characterLoop"]
+}

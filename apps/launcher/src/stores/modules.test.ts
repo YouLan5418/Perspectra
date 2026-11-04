@@ -13,7 +13,21 @@ it('shows the official default when no plugin provides a seam', () => {
   expect(row(rows, 'scheduler')).toMatchObject({ effective: '官方默认', conflict: false, providers: [] })
   expect(row(rows, 'rules').effective).toBe('无')
   expect(row(rows, 'scheduler').chip).toBe('official-scheduler')
+  expect(row(rows, 'characterLoop').chip).toBe('official-character-loop')
   expect(row(rows, 'rules').chip).toBe('')
+})
+
+it('selects a character loop and excludes an entire conflicting plugin', () => {
+  const plugins = [plugin('first'), plugin('second')]
+  const manifests = {
+    first: manifest('一次续写', 'characterLoop'),
+    second: manifest('另一循环', 'characterLoop', 'rules'),
+  }
+  const rows = moduleRows(plugins, manifests)
+  expect(row(rows, 'characterLoop')).toMatchObject({ effective: '一次续写', conflict: true, chip: 'first' })
+  expect(row(rows, 'rules').effective).toBe('无')
+  pickProvider(plugins, row(rows, 'characterLoop'), 'second')
+  expect(row(moduleRows(plugins, manifests), 'characterLoop').chip).toBe('second')
 })
 
 it('shows the first enabled plugin as effective and marks a conflict', () => {

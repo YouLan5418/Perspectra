@@ -8,6 +8,7 @@ export interface PluginSetRecord {
 const FILE = 'plugin-set.json'
 const LABELS: Readonly<Record<string, string>> = {
   scheduler: '角色调度',
+  characterLoop: '角色执行循环',
   memory: '长期记忆',
   llm: '模型通道',
   decisions: '角色决策',

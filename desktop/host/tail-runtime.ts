@@ -241,6 +241,7 @@ export class TailRoundRuntime {
       playSettings: this.options.playSettings ?? null,
       tuning: this.options.tuning ?? null,
       schedulerProvider: provider(this.options.plugins?.scheduler),
+      characterLoopProvider: provider(this.options.plugins?.characterLoop),
       memoryProvider: provider(this.options.plugins?.memory),
       llmProvider: provider(this.options.plugins?.llm),
       llmTransportProvider: provider(this.options.plugins?.llmTransport),
