@@ -17,6 +17,7 @@ import {
   type DecisionInstance,
   type DecisionsApi,
   type LlmInstance,
+  type LlmTransportInstance,
   type LlmSlotApi,
   type RulesApi,
   type RulesInstance,
@@ -122,6 +123,7 @@ export class MemorySlot extends Service implements MemorySlotApi {
 }
 
 export class LlmSlot extends Service implements LlmSlotApi {
+  currentTransport: SeamProvider<LlmTransportInstance> | undefined
   current: SeamProvider<LlmInstance> | undefined
 
   constructor(ctx: Context) {
@@ -130,10 +132,20 @@ export class LlmSlot extends Service implements LlmSlotApi {
 
   /** Own the returned disposer with the registering plugin's ctx.effect(). */
   register(provider: SeamProvider<LlmInstance>): () => void {
-    if (this.current) throw new Error(`模型通道已由 ${this.current.id} 提供`)
+    if (this.current || this.currentTransport)
+      throw new Error(`模型通道已由 ${this.current?.id ?? this.currentTransport?.id} 提供`)
     this.current = provider
     return () => {
       if (this.current === provider) this.current = undefined
+    }
+  }
+
+  registerTransport(provider: SeamProvider<LlmTransportInstance>): () => void {
+    if (this.current || this.currentTransport)
+      throw new Error(`模型通道已由 ${this.current?.id ?? this.currentTransport?.id} 提供`)
+    this.currentTransport = provider
+    return () => {
+      if (this.currentTransport === provider) this.currentTransport = undefined
     }
   }
 }
@@ -363,7 +375,8 @@ export async function loadHostPlugins(
   }
   const chosenMemory = memory.current ?? defaults.memory?.()
   // The player chose where the story goes. A channel that failed to load must not quietly become the official one.
-  const lostChannel = llm.current ? undefined : skipped.find(plugin => llmPlugins.has(plugin.id))
+  const lostChannel =
+    llm.current || llm.currentTransport ? undefined : skipped.find(plugin => llmPlugins.has(plugin.id))
   return {
     services,
     capabilities,
@@ -372,6 +385,7 @@ export async function loadHostPlugins(
       scheduler: scheduler.current ?? officialSeams().scheduler,
       ...(chosenMemory ? { memory: chosenMemory } : {}),
       ...(llm.current ? { llm: llm.current } : {}),
+      ...(llm.currentTransport ? { llmTransport: llm.currentTransport } : {}),
       ...(lostChannel
         ? {
             llm: {

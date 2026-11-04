@@ -74,7 +74,7 @@ export default async function myBgm(ctx) {
 
 ## 宿主提供哪些接口
 
-当前宿主 API 为 `2.2`（既有 2.0、2.1 插件仍可加载），插件须导出 `export const hostApi = '2.0'`。装载器在调用插件之前比较版本：主版本必须相同，宿主次版本不低于声明值；未声明或不兼容时跳过并提示。2.0 中，同一个调度器也负责自主和活动处理；旧 1.x 插件需核对接口并更新声明，不会自动回退到旧调度行为。其他服务的调用形状未在本次改变，但也须更新主版本声明。
+当前宿主 API 为 `2.3`（既有 2.0、2.1 插件仍可加载），插件须导出 `export const hostApi = '2.0'`。装载器在调用插件之前比较版本：主版本必须相同，宿主次版本不低于声明值；未声明或不兼容时跳过并提示。2.0 中，同一个调度器也负责自主和活动处理；旧 1.x 插件需核对接口并更新声明，不会自动回退到旧调度行为。其他服务的调用形状未在本次改变，但也须更新主版本声明。
 
 所有接口类型集中在 [@harness-world/plugin-sdk](../../../packages/plugin-sdk/src/index.ts)：`HostServices` 列出服务，`SchedulerRound` 等定义参数与事件形状。宿主直接引用这些类型。该包尚未发布到 npm，也不随便携包附带；仓库外开发时可参照源码或复制类型。
 
@@ -177,6 +177,28 @@ export default function (ctx) {
 | 同时使用 `--memory-none` 和记忆插件 | 插件优先 |
 
 玩家移除插件后，同一个存档回到 Core，已提交的世界事实不变，插件自己的数据不会迁移给 Core。自动测试覆盖替换、异常、重新生成、节点恢复和分享导入，用的都是测试里的假实现；还没有真实的第三方记忆插件在真实模型下试玩过。
+
+## 只替换角色模型发送（2.3）
+
+例如玩家已经配置了角色预设、输入与历史处理、输出和展示规则，只想把角色请求发往另一个地址，可使用 [simple-transport.mjs](../../../examples/host-plugins/simple-transport.mjs)。原来的 simple-llm 是完整通道替换，继续保留，不会自动加上预设。
+
+插件导出 `hostApi = '2.3'`，通过 `ctx.llm.registerTransport(provider)` 注册。它与 `ctx.llm.register(provider)` 共用一个槽位、互斥；不要同时启用两个提供模型通道的插件。清单声明 `services: ['llm']` 与 `llmMode: 'transport'`，模块页据此显示“官方预设 + 插件名”。清单仍是预计组合，实际以装载结果为准。
+
+每世界 `open(world, signal)` 返回：
+
+- `model`：用于检查和调用记录的真实模型名。
+- `schemaMode`：`native` 保留原始分支 Schema，`gateway` 使用既有网关展开 Schema。由适配器声明，不取决于未使用的官方模型协议。
+- `send(characterId, call, signal)`：收到标准 `messages`、`schema`、`generation`。generation 包含玩家明确设置的 temperature、topP、frequencyPenalty、presencePenalty、maxOutputTokens、stop；未设置时由适配器或服务决定默认值。
+- 返回 `{ value, httpStatus? }`：value 为解析后的角色回答，解析不了的模型文字可原样返回，让现有流程做一次格式修正。网络失败应抛错；HTTP 拒绝可给 Error 附加数值 `httpStatus`，401 会显示认证提示。
+- 可选 `close()`：退出当前世界实例时清理，候选与重开使用独立实例。
+
+官方层负责预设节点、附加提示、输入/历史变换、输出和展示规则，以及取消、超时、一次格式修正和请求记录。脚本模拟不调用发送适配器，也不经过模型输出规则。检查器保存的是实际交给适配器的标准消息、Schema、生成参数及返回值，`body.transport` 标识此格式；不是适配器最终编码的 HTTP 报文。编码、附加协议字段和底层 usage 属于适配器，本阶段不捕获原始网络包或适配器的思考字段。
+
+适配器不会收到玩家原模型连接或 Key；自己的凭证使用清单 secret 字段，由凭据管理器传入。endpoint 与 identity 只填写可公开信息，不把凭证放进 URL 或 identity。模块记录保留官方包装与发送适配器两项；适配器 ID/版本/identity 变化会阻止旧候选重新生成或切换。
+
+该模式只替换角色决策发送。Core 继续走原来的记忆模型配置，不能靠启用适配器就宣称已替换 Core。当前玩家输入由确定性的命令/发言解析处理；`player-intent/v1` 是旧名称，不表示本次需要模型 dispatch。发送适配器不提供模型 dispatch，现有入口若请求它会明确报不支持，不会转发到原模型。原模型连接设置仍保留供 Core 等现有路径使用，不会被自动改写。
+
+源码、测试、短程真实试玩与发行限制见[阶段 9 记录](../studies/2026-11-plugin-first-phase-9.md)。
 
 ## 替换模型通道
 

@@ -30,8 +30,9 @@ describe('desktop launch boundary', () => {
     await writeFile(
       pluginPath,
       `import { writeFileSync } from 'node:fs';
-      export const hostApi = '2.0';
+      export const hostApi = '2.3';
       export default function(ctx) {
+        ctx.effect(() => ctx.llm.registerTransport({ id:'packaged-transport', version:'1.0.0', open:async()=>({ model:'packaged-fixture', schemaMode:'native', send:async()=>({value:{decision:'abstain'}}) }) }));
         ctx.effect(() => ctx.frontendServices.registerSpeech(async () => ({contentType:'audio/wav',bytes:new Uint8Array([1])})));
         ctx.effect(() => ctx.frontendServices.registerBgm({
           tracks: [{id:'calm',title:'日常',contentType:'audio/wav',bytes:new Uint8Array([82,73,70,70])}],
@@ -114,9 +115,11 @@ describe('desktop launch boundary', () => {
       expect(response.status).toBe(200)
       const state = (await response.json()) as {
         world: { title: string }
+        debug: { model: string }
         availableActions?: readonly { actionType: string }[]
       }
       expect(state.world.title).toBe('山脊上的两只手')
+      expect(state.debug.model).toBe('packaged-fixture')
       expect(state.availableActions?.map(value => value.actionType)).toContain('interact')
       const init = await (
         await fetch(`${origin}/frontend-api/v1/init`, { headers: { 'x-playtest-token': ready.token } })

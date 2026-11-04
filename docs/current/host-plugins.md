@@ -1,5 +1,7 @@
 # 通过 Cordis 加载宿主插件
 
+2026-11-04 阶段 9：当前 API 为 2.3，新增“保留官方预设，只替换角色发送”的模型模式。示例 [simple-transport](../../examples/host-plugins/simple-transport.mjs) 与原完整替换 simple-llm 并存，不能同时启用；模块页显示其预计模式。具体凭证、Core 与请求记录边界见[发送指南](guides/host-plugin-authoring.md#只替换角色模型发送23)。
+
 2026-11-04 修复补充：当前宿主 API 为 2.2；已有 2.0、2.1 插件仍可加载，自定义记忆步骤须明确配对交付和历史窗口。默认记忆步骤已处理；见[窗口转接示例](guides/host-plugin-authoring.md#替换记忆步骤时配对交付与窗口22)。存档提示把内部上下文步骤合并展示，原始记录保留逐项信息。
 
 2026-11-04 增量更新：宿主 API 已到 2.1，2.0 插件仍兼容；新增公开 contextSources 与官方扩充的组合替换，写法见[组合指南](guides/host-plugin-authoring.md#组合官方上下文扩充21)。下文 2.0 升级记录保留，当前最低兼容主版本仍为 2。

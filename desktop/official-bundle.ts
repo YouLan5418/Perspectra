@@ -3,6 +3,7 @@ import { officialSchedulerProvider } from '@harness-world/official-scheduler'
 import type {
   DecisionInstance,
   LlmInstance,
+  LlmTransportInstance,
   MemoryInstance,
   RulesInstance,
   SchedulerInstance,
@@ -46,6 +47,7 @@ export interface HostSeams {
   readonly scheduler: SeamProvider<SchedulerInstance>
   readonly memory?: SeamProvider<MemoryInstance>
   readonly llm?: SeamProvider<LlmInstance>
+  readonly llmTransport?: SeamProvider<LlmTransportInstance>
   /** Ordered context IDs; omitted official steps stay disabled. Defaults to the official order. */
   readonly decisionOrder?: readonly string[]
   /** Implementations to replace or append; decision wrappers apply with the first outermost. */

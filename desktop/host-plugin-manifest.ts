@@ -28,7 +28,7 @@ export function parsePluginManifest(value: unknown): PluginManifest {
   if (!value || typeof value !== 'object' || Array.isArray(value)) fail('须为 JSON 对象')
   const data = value as Record<string, unknown>
   const unknown = Object.keys(data).filter(
-    key => !['id', 'name', 'version', 'author', 'description', 'services', 'config'].includes(key),
+    key => !['id', 'name', 'version', 'author', 'description', 'services', 'config', 'llmMode'].includes(key),
   )
   if (unknown.length) fail('不认识的字段 ' + unknown.join('、'))
   if (data.id !== undefined && (typeof data.id !== 'string' || !/^[a-z0-9][a-z0-9-]{0,63}$/u.test(data.id)))
@@ -43,6 +43,8 @@ export function parsePluginManifest(value: unknown): PluginManifest {
     new Set(data.services).size !== data.services.length
   )
     fail('services 须列出 ' + SERVICES.join('、') + ' 中用到的项，不能重复')
+  if (data.llmMode !== undefined && (data.llmMode !== 'transport' || !(data.services as string[]).includes('llm')))
+    fail('llmMode 仅允许声明 llm 服务的插件填写 transport')
   let config: Record<string, PluginConfigField> | undefined
   if (data.config !== undefined) {
     if (!data.config || typeof data.config !== 'object' || Array.isArray(data.config)) fail('config 须为对象')
@@ -57,6 +59,7 @@ export function parsePluginManifest(value: unknown): PluginManifest {
     ...(data.author === undefined ? {} : { author: String(data.author).trim() }),
     ...(data.description === undefined ? {} : { description: String(data.description).trim() }),
     services: data.services as PluginManifest['services'],
+    ...(data.llmMode === 'transport' ? { llmMode: 'transport' as const } : {}),
     ...(config ? { config } : {}),
   }
 }

@@ -27,6 +27,19 @@ export function inspectResponse(value: unknown): InspectedResponse {
   const thought = (value: unknown, kind: 'text' | 'summary' = 'text') => {
     if (typeof value === 'string' && value.length) result.thinking.push({ kind, text: value })
   }
+  if (typeof value === 'string') text(value)
+  if (typeof root.decision === 'string')
+    text(
+      JSON.stringify(
+        Object.fromEntries(
+          Object.entries(root).filter(([key]) =>
+            ['decision', 'segments', 'scope', 'addresseeIds', 'actionType', 'parameters', 'query', 'before'].includes(
+              key,
+            ),
+          ),
+        ),
+      ),
+    )
   text(message.content)
   thought(message.reasoning_content ?? message.thinking ?? message.reasoning)
   for (const value of Array.isArray(message.tool_calls) ? message.tool_calls : []) {

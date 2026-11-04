@@ -1,0 +1,32 @@
+{
+  "id": "simple-transport",
+  "name": "保留官方预设的模型发送",
+  "version": "0.1.0",
+  "author": "Perspectra",
+  "description": "只替换角色决策发送，保留官方预设、输出和展示规则。Core 记忆仍使用其原有配置；不支持玩家意图 dispatch。",
+  "services": [
+    "llm"
+  ],
+  "config": {
+    "endpoint": {
+      "type": "string",
+      "title": "模型服务地址",
+      "description": "完整地址，例如 http://127.0.0.1:8045/v1/chat/completions。",
+      "required": true,
+      "maxLength": 1024
+    },
+    "model": {
+      "type": "string",
+      "title": "模型名",
+      "required": true,
+      "maxLength": 256
+    },
+    "apiKey": {
+      "type": "string",
+      "title": "API Key",
+      "secret": true,
+      "maxLength": 1024
+    }
+  },
+  "llmMode": "transport"
+}

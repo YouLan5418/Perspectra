@@ -1,6 +1,6 @@
 # 插件优先运行时后续实施方案
 
-日期：2026-11-04。源码基线：a8ffbf8。状态：用户已授权在独立工作树实施首批阶段 6、7。阶段 6 已提交，阶段 7 已完成源码、自动验证与短程真实对照；甜蜜日程单次无请求现象仍待复现，未宣称完整体验验收通过。阶段 8 已接通并完成自动验证与短程对照，见[阶段 8 记录](../../current/studies/2026-11-plugin-first-phase-8.md)；阶段 9～11 未实施。
+日期：2026-11-04。源码基线：a8ffbf8。状态：用户已授权在独立工作树实施首批阶段 6、7。阶段 6 已提交，阶段 7 已完成源码、自动验证与短程真实对照；甜蜜日程单次无请求现象仍待复现，未宣称完整体验验收通过。阶段 8 已接通并完成自动验证与短程对照，见[阶段 8 记录](../../current/studies/2026-11-plugin-first-phase-8.md)；阶段 9 发送适配器也已接通，见[阶段 9 记录](../../current/studies/2026-11-plugin-first-phase-9.md)；阶段 10～11 未实施。
 
 本文接续[第一轮插件优先设计](../specs/2026-11-02-plugin-first-runtime-design.md)与[阶段 5 记录](../../current/studies/2026-11-plugin-first-phase-5.md)。阶段 0～5 的历史验收不改写；本文未勾选的后续接口、文件名和包名仍为实施目标，不表示当前已经提供。首批证据见[阶段 6](../../current/studies/2026-11-plugin-first-phase-6.md)与[阶段 7](../../current/studies/2026-11-plugin-first-phase-7.md)。
 
@@ -175,13 +175,13 @@ identity 是插件作者明确声明的可公开、会影响执行行为的设�
 
 在现有 ctx.llm 内区分“完整模型通道”和“发送适配器”，后者由官方通道包装；不是再新增一个模型网关服务。完整替换仍保留，不能悄悄给旧的完整替换插件套上预设。
 
-- [ ] 从 official-llm 的 send 中分离实际传输调用与 presetOutput，prepare、promptText、display 仍可由官方提供。
-- [ ] 给传输适配器公开标准 LlmCall、返回值和取消接口，复用每世界 open/close。新传输的请求形状不能由一个没有实际被调用的官方模型协议配置决定。
-- [ ] 只读的请求检查和调用完成记录由官方包装层维护，记录发出的实际 messages/schema；不向适配器传递官方模型 Key 或整份模型连接。
-- [ ] 完整通道与发送适配器互斥；出现冲突时页面和加载器一致。适配器失效时不开世界或本轮明确失败，不能回退官方发送，把故事发到另一个地址。
-- [ ] 新模式下明确玩家意图 dispatch 与 Core 记忆仍走哪里；第一批只替换角色决策发送，不宣称它覆盖 Core。无法支持启用中的 dispatch 时在启动前报明原因。
-- [ ] 实际组合身份同时记录官方包装和发送适配器；配置 identity、候选比较和模块变化提示使用阶段 6 的机制。
-- [ ] 用 simple-llm 的发送部分作为示例：官方端点设为不可用，本地服务收到带预设的请求；输出规则、展示规则和创作者检查仍有效。
+- [x] 从 official-llm 的 send 中分离实际传输调用与 presetOutput，prepare、promptText、display 仍可由官方提供。
+- [x] 给传输适配器公开标准 LlmCall、返回值和取消接口，复用每世界 open/close。新传输的请求形状不能由一个没有实际被调用的官方模型协议配置决定。
+- [x] 只读的请求检查和调用完成记录由官方包装层维护，记录发出的实际 messages/schema；不向适配器传递官方模型 Key 或整份模型连接。
+- [x] 完整通道与发送适配器互斥；出现冲突时页面和加载器一致。适配器失效时不开世界或本轮明确失败，不能回退官方发送，把故事发到另一个地址。
+- [x] 新模式下明确玩家意图 dispatch 与 Core 记忆仍走哪里；第一批只替换角色决策发送，不宣称它覆盖 Core。源码复核确认当前玩家解析仅产生 directSubmission，并无启用中的模型 dispatch；不能因旧 Manifest 标记误拒绝启动。发送模式不提供模型 dispatch，调用它会明确拒绝。
+- [x] 实际组合身份同时记录官方包装和发送适配器；配置 identity、候选比较和模块变化提示使用阶段 6 的机制。
+- [x] 用 simple-llm 的发送部分作为示例：官方端点设为不可用，本地服务收到带预设的请求；输出规则、展示规则和创作者检查仍有效。
 
 主要文件：[official-llm](../../../packages/official-llm/src/index.ts)、[角色连接与预设](../../../packages/official-llm/src/role-providers.ts)、[决策发送](../../../desktop/host/character-decision.ts)、[host-plugins](../../../desktop/host-plugins.ts)、[模型接缝测试](../../../tests/host/llm-seam.test.ts)、[simple-llm](../../../examples/host-plugins/simple-llm.mjs)、Launcher 模块展示和 plugin-sdk。
 

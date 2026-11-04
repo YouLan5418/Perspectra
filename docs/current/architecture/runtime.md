@@ -1,8 +1,10 @@
 # 当前运行时
 
+2026-11-04 阶段 9：例如只换模型地址但保留角色预设，宿主现在可把 `ctx.llm.registerTransport` 注册的实例交给官方模型包装。[official-llm](../../../packages/official-llm/src/index.ts)保留预设组合与输出/展示，[transport](../../../packages/official-llm/src/transport.ts)执行标准调用、超时、检查和完成记录。完整通道替换保持原语义。世界实例记录官方包装与适配器组合，失败不回退；Core 记忆仍走原配置。当前玩家输入实际为确定性命令/发言解析，不因旧 Manifest 名称而误拒绝发送模式。验收范围见[阶段 9](../studies/2026-11-plugin-first-phase-9.md)。
+
 2026-11-04 接缝修复：记忆交付的源异常保留实际 Provider 归因，外层另抛异常时仍归到外层；自主后续反应沿用自主阶段声明的总时限，不再意外回落到 30 秒。调度器未给合法活动角色机会时明确提示等待，返回无效活动结果则报告错误，不自动改用官方实现。存档提示合并内部上下文步骤，文件仍保留逐项 ID/版本。历史窗口改由交付步骤声明，详见[修复记录](../studies/2026-11-plugin-first-regression-fixes.md)。
 
-2026-11-04 阶段 8：例如插件只想减少角色本次收到的设定，而保留记忆、状态和表情，现在可替换 `official-context-knowledge`，不用重写整条决策。默认扩充顺序由 [official-contexts](../../../packages/official-contexts/src/index.ts) 定义，经同一 decisions 生命周期执行。宿主提供公开 `contextSources`，复用原有授权选择；不直接传全量状态。源码选项 `plugins.decisionOrder` 可调整顺序或省略官方步骤，组合变化参与候选环境比较。基础上下文与玩法约束不在该列表中；阶段 9 的传输分离仍未实现。验证限制见[阶段 8 记录](../studies/2026-11-plugin-first-phase-8.md)。
+2026-11-04 阶段 8：例如插件只想减少角色本次收到的设定，而保留记忆、状态和表情，现在可替换 `official-context-knowledge`，不用重写整条决策。默认扩充顺序由 [official-contexts](../../../packages/official-contexts/src/index.ts) 定义，经同一 decisions 生命周期执行。宿主提供公开 `contextSources`，复用原有授权选择；不直接传全量状态。源码选项 `plugins.decisionOrder` 可调整顺序或省略官方步骤，组合变化参与候选环境比较。基础上下文与玩法约束不在该列表中；阶段 9 的传输分离也已接通，见上方补充。验证限制见[阶段 8 记录](../studies/2026-11-plugin-first-phase-8.md)。
 
 2026-11-04 调度接缝：例如同伴在普通聊天后自主行动，进入活动时又必须等到合法轮次，这两类处理机会与普通反应现在都交给同一个 `ctx.scheduler` 实例。[官方调度器](../../../packages/official-scheduler/src/index.ts)负责整合／分段选择，[自主策略](../../../packages/official-scheduler/src/autonomy.ts)与[活动策略](../../../packages/official-scheduler/src/activity.ts)负责循环、期限和官方预算。宿主的 [activity-round](../../../desktop/host/activity-round.ts) 只桥接合法下一参与者、真实 turn 和 outcome；[autonomy-round](../../../desktop/host/autonomy-round.ts)只整理当次到期机会。宿主不保留旧机会循环或全局调用预算，取消、失效世界检查、授权、裁定和原子提交仍由主干执行。接口升级为 2.0；请求对照、自动测试与真实体验的不同验收范围见[阶段 7 记录](../studies/2026-11-plugin-first-phase-7.md)。
 

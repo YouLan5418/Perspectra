@@ -78,7 +78,9 @@ export function reactionNotice(
       terminal === 'interrupted'
         ? '角色处理被打断或超时'
         : failedPlugin !== undefined
-          ? `插件 ${failedPlugin} 出错，详情见游戏进程的输出`
+          ? failedCall?.httpStatus !== undefined
+            ? `插件 ${failedPlugin}：${providerFailureNotice(failedCall.httpStatus)}`
+            : `插件 ${failedPlugin} 出错，详情见游戏进程的输出`
           : relevant?.failure === 'invalid_output'
             ? '角色返回格式无效'
             : relevant?.failure === 'preset_failed'

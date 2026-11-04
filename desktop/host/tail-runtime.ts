@@ -243,6 +243,7 @@ export class TailRoundRuntime {
       schedulerProvider: provider(this.options.plugins?.scheduler),
       memoryProvider: provider(this.options.plugins?.memory),
       llmProvider: provider(this.options.plugins?.llm),
+      llmTransportProvider: provider(this.options.plugins?.llmTransport),
       decisionOrder: this.options.plugins?.decisionOrder ?? null,
       decisionProviders: (this.options.plugins?.decisions ?? []).map(provider),
       ruleProviders: (this.options.plugins?.rules ?? []).map(provider),

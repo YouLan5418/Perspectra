@@ -117,7 +117,7 @@ export class RequestInspector {
       messages: [],
       contextParts: [],
       estimatedBodyTokens: estimateRequestTokens(serialized),
-      estimatedToolTokens: estimateRequestTokens(JSON.stringify(body.tools ?? body.format ?? {})),
+      estimatedToolTokens: estimateRequestTokens(JSON.stringify(body.tools ?? body.format ?? body.schema ?? {})),
     }
     // Retain at most four calls, each <= 1M UTF-16 characters. Oversized requests are explicit omissions.
     if (serialized.length > 1_000_000) request.omitted = '请求超过检查器保留上限；正文未捕获。'

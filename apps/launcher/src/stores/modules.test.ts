@@ -76,3 +76,13 @@ it('leaves the id of a saved plugin alone', () => {
 it('leaves an id the player typed alone', () => {
   expect(filledPluginId('my-voice', 'simple-llm', [])).toBe('my-voice')
 })
+
+it('shows official presets for a transport and conflicts it with a full channel', () => {
+  const transport = { manifest: { name: '发送适配器', services: ['llm'], llmMode: 'transport' as const } }
+  const rows = moduleRows([plugin('transport'), plugin('full')], { transport, full: manifest('完整通道', 'llm') })
+  expect(row(rows, 'llm').effective).toBe('官方预设 + 发送适配器')
+  expect(row(rows, 'llm').blocked).toEqual(['完整通道'])
+  const chosen = [plugin('transport'), plugin('full')]
+  pickProvider(chosen, row(rows, 'llm'), 'full')
+  expect(chosen.map(item => item.enabled)).toEqual([false, true])
+})

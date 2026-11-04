@@ -580,3 +580,17 @@ it('agrees with the launcher on which plugin holds a seam taking one', async () 
     await rm(root, { recursive: true, force: true })
   }
 })
+
+it.each([true, false])(
+  'keeps full-channel and transport registration mutually exclusive (transport first: %s)',
+  async transportFirst => {
+    const source = `export const hostApi = '2.3'; export default function(ctx) { ctx.effect(() => ctx.llm.registerTransport({ id:'transport', version:'1.0.0', open:async()=>({ model:'alternate', schemaMode:'native', send:async()=>({value:{decision:'abstain'}}) }) })) }`
+    const full = `export const hostApi = '2.0'; export default function(ctx) { ctx.effect(() => ctx.llm.register({ id:'full', version:'1.0.0', open:async()=>({send:async()=>({decision:'abstain'})}) })) }`
+    const a = await writePlugin('transport', source),
+      b = await writePlugin('full', full)
+    const session = await load(...(transportFirst ? [a, b] : [b, a]))
+    expect(session.skipped).toEqual([{ id: transportFirst ? 'full' : 'transport', reason: 'apply' }])
+    expect(session.seams.llmTransport?.id).toBe(transportFirst ? 'transport' : undefined)
+    expect(session.seams.llm?.id).toBe(transportFirst ? undefined : 'full')
+  },
+)

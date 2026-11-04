@@ -1,7 +1,11 @@
 import type { HostPluginSettings } from '../../../../desktop/host-plugin-settings.ts'
 
 /** The part of a plugin's manifest this needs; a missing or broken manifest has no `manifest`. */
-type ManifestInfo = { readonly manifest: { readonly name: string; readonly services: readonly string[] } } | object
+type ManifestInfo =
+  | {
+      readonly manifest: { readonly name: string; readonly services: readonly string[]; readonly llmMode?: 'transport' }
+    }
+  | object
 
 export const SEAMS = [
   {
@@ -84,7 +88,9 @@ export function moduleRows(
         ? '官方默认'
         : '无'
       : single
-        ? enabled[0]!.name
+        ? (seam === 'llm' && manifestOf(manifests[enabled[0]!.pluginId])?.llmMode === 'transport'
+            ? '官方预设 + '
+            : '') + enabled[0]!.name
         : enabled.map(provider => provider.name).join('、')
     const chip = enabled.map(provider => provider.pluginId).join('、') || official
     return {

@@ -64,6 +64,47 @@ export function llmTimeoutMs(options: ModelOptions, settings: Pick<LlmSettings, 
   return options.timeoutMs ?? (options.playSettings ? settings.modelTimeoutSeconds * 1000 : 60_000)
 }
 
+/** Resolve portrayal independently of a transport or any model credential. */
+export function resolveRolePresets(options: ModelOptions, characters: readonly { readonly actorId: CharacterId }[]) {
+  const mapping = rolePresetMapping(options.presetMapping ?? {})
+  if (
+    [...Object.keys(mapping.characters ?? {}), ...Object.keys(mapping.memberships ?? {})].some(
+      id => !characters.some(c => c.actorId === id),
+    )
+  )
+    throw new TypeError('预设引用了此包之外或不可调用的角色。')
+  const presets = new Map(
+    characters.map(c => [String(c.actorId), characterPreset(options.preset ?? {}, mapping, c.actorId)]),
+  )
+  const origins = new Map<string, NonNullable<ChatProviderOptions['presetOrigin']>>(
+    characters.map(c => {
+      const id = String(c.actorId)
+      return [
+        id,
+        Object.hasOwn(mapping.characters ?? {}, id)
+          ? { scope: 'character', characterId: id, name: '角色专属预设' }
+          : mapping.memberships?.[id]
+            ? {
+                scope: 'group',
+                characterId: id,
+                groupId: mapping.memberships[id]!,
+                name: mapping.groups![mapping.memberships[id]!]!.name,
+              }
+            : {
+                scope: 'base',
+                characterId: id,
+                name: '默认预设',
+                base: options.presetBaseSource ?? {
+                  mode: 'explicit',
+                  layers: [{ name: '运行配置', value: presets.get(id)! }],
+                },
+              },
+      ]
+    }),
+  )
+  return { presets, origins }
+}
+
 export function createRoleProviders(
   options: ModelOptions,
   settings: Pick<LlmSettings, 'modelTimeoutSeconds'>,
@@ -89,22 +130,12 @@ export function createRoleProviders(
     onCall,
   }
   const shared = createChatProvider(providerOptions)
-  const mapping = rolePresetMapping(options.presetMapping ?? {})
-  if (
-    [...Object.keys(mapping.characters ?? {}), ...Object.keys(mapping.memberships ?? {})].some(
-      id => !characters.some(c => c.actorId === id),
-    )
-  )
-    throw new TypeError('预设引用了此包之外或不可调用的角色。')
+  const { presets, origins } = resolveRolePresets(options, characters)
   const roleModels = options.models.characters
   if (Object.keys(roleModels).some(id => !characters.some(c => c.actorId === id)))
     throw new TypeError('模型配置引用了此包之外或不可调用的角色。')
-  // An override replaces the whole target, so the default key and thinking level never reach another provider.
   const decisionTarget = (id: string) => target(roleModels[id]?.decision ?? base)
   const protocols = new Map(characters.map(c => [String(c.actorId), decisionTarget(String(c.actorId)).protocol]))
-  const presets = new Map(
-    characters.map(c => [String(c.actorId), characterPreset(options.preset ?? {}, mapping, c.actorId)]),
-  )
   const byCharacter = new Map(
     characters.map(c => [
       String(c.actorId),
@@ -113,24 +144,7 @@ export function createRoleProviders(
         inspector,
         timeoutMs,
         preset: presets.get(c.actorId)!,
-        presetOrigin: Object.hasOwn(mapping.characters ?? {}, c.actorId)
-          ? { scope: 'character', characterId: String(c.actorId), name: '角色专属预设' }
-          : mapping.memberships?.[c.actorId]
-            ? {
-                scope: 'group',
-                characterId: String(c.actorId),
-                groupId: mapping.memberships[c.actorId]!,
-                name: mapping.groups![mapping.memberships[c.actorId]!]!.name,
-              }
-            : {
-                scope: 'base',
-                characterId: String(c.actorId),
-                name: '默认预设',
-                base: options.presetBaseSource ?? {
-                  mode: 'explicit',
-                  layers: [{ name: '运行配置', value: presets.get(c.actorId)! }],
-                },
-              },
+        presetOrigin: origins.get(String(c.actorId))!,
         onCall: observation => {
           onCall(observation)
           onRoleCall(String(c.actorId), observation)

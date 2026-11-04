@@ -1,5 +1,7 @@
 # 一次输入的代码路线
 
+2026-11-04 模型发送接缝：替换角色发送时从 `ctx.llm.registerTransport` 进入 host-plugins 的同一单例槽位，world-runtime 打开适配器后装配官方包装。prepare 仍经 presetContext/presetCall，send 经 transportSend 后执行 presetOutput，玩家读取经 presetDisplay。完整通道替换不被包装；Core 不走该适配器，详见[阶段 9](../studies/2026-11-plugin-first-phase-9.md)。
+
 核对日期：2026-10-22。本次补充物品操作的包内脚本装配；此前入口与宿主迁移核对保留，其他体验验证范围沿用各节记录。建议先读[入门说明](getting-started.md)。下面是关键控制点，省略底层辅助调用；看具体分支时再顺着源码展开。
 
 ## 1. 从哪里启动

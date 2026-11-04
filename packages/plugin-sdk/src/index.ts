@@ -23,7 +23,7 @@ import type {
 
 /** Major.minor. A new service or optional field raises the minor; any change a plugin could trip over
  * raises the major. A plugin exports `hostApi` with the lowest version it needs. */
-export const HOST_API_VERSION = '2.2'
+export const HOST_API_VERSION = '2.3'
 
 /** Same major, and this host's minor at least the one the plugin asks for. */
 export function hostApiCompatible(required: unknown, host: string = HOST_API_VERSION): boolean {
@@ -331,10 +331,36 @@ export interface LlmInstance {
   dispatch?(request: WorldJsonValue, profile: WorldJsonObject, signal: AbortSignal): Promise<WorldJsonValue>
   close?(): void | Promise<void>
 }
+/** Settings from the player's selected portrayal preset, never connection credentials. */
+export interface LlmGenerationSettings {
+  readonly temperature?: number
+  readonly topP?: number
+  readonly frequencyPenalty?: number
+  readonly presencePenalty?: number
+  readonly maxOutputTokens?: number
+  readonly stop?: readonly string[]
+}
+export interface LlmTransportCall extends LlmCall {
+  readonly generation: LlmGenerationSettings
+}
+export interface LlmTransportResponse {
+  readonly value: unknown
+  readonly httpStatus?: number
+}
+/** Character decisions only. Encoding, endpoint and its credentials belong to the adapter. */
+export interface LlmTransportInstance {
+  readonly model: string
+  /** native keeps root alternatives; gateway uses the existing flattened gateway schema. */
+  readonly schemaMode: 'native' | 'gateway'
+  send(characterId: string, call: LlmTransportCall, signal: AbortSignal): Promise<LlmTransportResponse>
+  close?(): void | Promise<void>
+}
 /** `ctx.llm`: replaces how characters reach a model. Wrap `register` in `ctx.effect()`. */
 export interface LlmSlotApi {
   /** Throws when another plugin already holds the seam. */
   register(provider: SeamProvider<LlmInstance>): () => void
+  registerTransport(provider: SeamProvider<LlmTransportInstance>): () => void
+  readonly currentTransport: SeamProvider<LlmTransportInstance> | undefined
   readonly current: SeamProvider<LlmInstance> | undefined
 }
 
@@ -442,6 +468,7 @@ export interface PluginManifest {
   readonly version: string
   readonly author?: string
   readonly description?: string
+  readonly llmMode?: 'transport'
   readonly services: readonly (keyof HostServices)[]
   readonly config?: Readonly<Record<string, PluginConfigField>>
 }

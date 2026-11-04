@@ -102,6 +102,7 @@ import { createWorldReader } from './world-reader.ts'
 import type {
   DecisionInstance,
   LlmInstance,
+  LlmTransportInstance,
   MemoryInstance,
   RulesInstance,
   SchedulerInstance,
@@ -223,7 +224,7 @@ export class WorldHostCore implements HostRuntime {
   readonly #playerName: string
   readonly #npcNames: readonly string[]
   readonly #locationNames: ReadonlyMap<string, string>
-  readonly #model: string
+  #model: string
   readonly #intentModel: string
   readonly #characterIds: readonly CharacterId[]
   #llm!: LlmInstance
@@ -1480,27 +1481,59 @@ export class WorldHostCore implements HostRuntime {
 
   /** A player's story must not silently go to a different model, so a channel that cannot open stops the world. */
   async #openLlm(): Promise<void> {
-    const provider =
-      this.#options.plugins?.llm ??
-      officialLlmProvider({
-        ...this.#options,
-        settings: this.#playSettings,
-        inspector: this.#inspector,
-        onCall: observation => {
-          this.#providerCalls += 1
-          this.#lastCall = observation
-        },
-        onRoleCall: (characterId, observation) => {
-          this.#roleCalls.set(characterId, observation)
-        },
-      })
+    const full = this.#options.plugins?.llm
+    const adapter = this.#options.plugins?.llmTransport
+    if (full && adapter) throw new TypeError('完整模型通道与发送适配器不能同时启用。')
+    let transport: LlmTransportInstance | undefined
     try {
+      if (adapter) {
+        transport = await adapter.open(this.#services(adapter.id), AbortSignal.timeout(30_000))
+        if (
+          !transport ||
+          typeof transport.model !== 'string' ||
+          !transport.model.trim() ||
+          !['native', 'gateway'].includes(transport.schemaMode) ||
+          typeof transport.send !== 'function'
+        )
+          throw new TypeError('发送适配器须声明 model、schemaMode 与 send')
+      }
+      const provider =
+        full ??
+        officialLlmProvider({
+          ...this.#options,
+          settings: this.#playSettings,
+          inspector: this.#inspector,
+          ...(adapter && transport
+            ? {
+                transport: {
+                  id: adapter.id,
+                  instance: transport,
+                  failure: (characterId: string, error: unknown) => this.#reportPlugin(adapter.id, characterId, error),
+                },
+              }
+            : {}),
+          onCall: observation => {
+            this.#providerCalls++
+            this.#lastCall = observation
+          },
+          onRoleCall: (characterId, observation) => {
+            this.#roleCalls.set(characterId, observation)
+          },
+        })
       const opened = await provider.open(this.#services(provider.id), AbortSignal.timeout(30_000))
-      this.#modulesInForce.llm = [{ id: provider.id, version: provider.version }]
-      this.#llm = this.#options.plugins?.llm ? guardedLlm(opened, provider.id, this.#reportPlugin) : opened
+      this.#modulesInForce.llm = [
+        { id: provider.id, version: provider.version },
+        ...(adapter ? [{ id: adapter.id, version: adapter.version }] : []),
+      ]
+      this.#llm = full ? guardedLlm(opened, provider.id, this.#reportPlugin) : opened
+      if (transport) this.#model = transport.model
     } catch (error) {
-      if (this.#options.plugins?.llm === undefined) throw error
-      throw new Error(`模型通道插件 ${provider.id} 无法打开：${(error as Error).message}`, { cause: error })
+      await transport?.close?.()
+      if (!full && !adapter) throw error
+      throw new Error(
+        `模型通道组合 ${full?.id ?? 'official-llm + ' + adapter!.id} 无法打开：${(error as Error).message}`,
+        { cause: error },
+      )
     }
   }
 
