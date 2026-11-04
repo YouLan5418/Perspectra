@@ -17,7 +17,12 @@ export const officialContextProviders: readonly SeamProvider<DecisionInstance>[]
   open: async world => {
     const sources = world.contextSources
     if (!sources) throw new TypeError('decision context sources unavailable')
-    return { context: (request, signal) => sources[source](request, signal) }
+    return {
+      context: (request, signal) => sources[source](request, signal),
+      ...(source === 'memory' && sources.memoryAfterSeq
+        ? { shortTermAfterSeq: sources.memoryAfterSeq.bind(sources) }
+        : {}),
+    }
   },
 }))
 

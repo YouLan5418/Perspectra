@@ -187,3 +187,20 @@ it('rejects regeneration and old candidates when scheduler or public rule identi
   const same = await open(root, models, { scheduler, rules: [rules({ locked: true, room: 'front' })] })
   await expect(same.regenerate((await same.state()).tailRound!.id!, 'same-environment')).resolves.toBeDefined()
 })
+
+it('summarizes internal context steps without hiding a changed combination', () => {
+  const entries = ['memory', 'recent-execution', 'status', 'knowledge', 'expressions'].map(name => ({
+    id: 'official-context-' + name,
+    version: '1.0.0',
+  }))
+  const before = { seams: { decisions: [] } }
+  const current = { seams: { decisions: entries } }
+  const notice = pluginSetChanges(before, current).join(' ')
+  expect(notice).toContain('上下文扩充')
+  expect(notice).not.toContain('official-context-')
+  const changed = {
+    seams: { decisions: entries.map((entry, n) => (n === 0 ? { ...entry, version: '1.1.0' } : entry)) },
+  }
+  expect(pluginSetChanges(current, changed)).toEqual(['角色决策：上下文扩充组合已调整'])
+  expect(current.seams.decisions).toHaveLength(5)
+})

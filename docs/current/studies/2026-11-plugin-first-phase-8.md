@@ -27,3 +27,8 @@
 后端构建与构建模式的 desktop-launch 启动回归（1 项）通过。没有重建完整便携发行包、操作 Tauri 或增加 Launcher 配置 UI；第三方示例完成源码自动测试，未做其真实模型长试玩。默认路径请求一致不证明第三方插件必然保护隔离；第三方仍是可信代码。
 
 本机证据在 `.tmp/plugin-first-next/phase8-*.log` 与 `.tmp/plugin-first-next/live/phase8-*.json`。没有记录请求头或密钥。阶段 9～11 尚未实施。
+
+
+## 提交后复核更正
+
+用户复核发现最终工作区的 official-bundle.ts 格式不合规，原交付漏验最终格式状态；记忆异常归因、自主反应时限与记忆窗口耦合也有遗漏。上面的历史验证不能据此作为最终状态已无问题的保证。修复与重新验证见[本轮记录](2026-11-plugin-first-regression-fixes.md)。

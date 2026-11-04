@@ -1,5 +1,7 @@
 # 当前认知与记忆
 
+2026-11-04 记忆替换修复：例如 Core 已归档旧约定，自定义步骤却没有交付档案，宿主现在不会继续按 Core 的边界裁掉近期上下文。历史窗口由实际交付的 DecisionInstance.shortTermAfterSeq 声明，默认官方记忆步骤配对 contextSources.memory 与 memoryAfterSeq；无声明时回到近期窗口并在必要时提示。后台 Core 继续运行不代表角色已经读到其档案。接口示例与旧 2.1 自定义步骤适配见[插件指南](../guides/host-plugin-authoring.md#替换记忆步骤时配对交付与窗口22)。
+
 2026-11-04 上下文组合：官方记忆投影现在是 `official-context-memory` 决策步骤，默认仍先于状态与设定。可单独替换或停用它；记忆 Provider 本身的整理、档案、来源授权和生命周期不变。组合与权限测试范围见[阶段 8](../studies/2026-11-plugin-first-phase-8.md)。
 
 2026-11-02 记忆接缝：例如开发者想用自己的向量库让角色记住玩家，可以写插件替换 Core。原生召回已删除，Core 是官方记忆插件，长期记忆都经 `ctx.memory` 接入。下文带日期的旧记录描述当时的实现，提到“原生记忆”或 `--memory-native` 处不再适用。写法见[替换长期记忆](../guides/host-plugin-authoring.md#替换长期记忆)，这次改动的结果见[阶段 2 记录](../studies/2026-11-plugin-first-phase-2.md)。
@@ -41,7 +43,7 @@
 | 默认长期记忆 | 官方插件，可替换 | [official-memory-core](../../../packages/official-memory-core/README.md) |
 | 不要长期记忆 | `--memory-none` | [official-memory-none](../../../packages/official-memory-none/src/index.ts) |
 
-`project` 收到这次决策的请求，返回可以改动 `context` 的新请求。第三方实现通过 `world.authorizedSources(角色, 截止序号)` 取来源，不需要自己判断授权。实现没有给 `shortTermAfterSeq` 时，角色只看到最近 16 条观察和 8 条自身表达。
+`project` 收到这次决策的请求，返回可以改动 `context` 的新请求。第三方实现通过 `world.authorizedSources(角色, 截止序号)` 取来源，不需要自己判断授权。当前由交付步骤转接 `shortTermAfterSeq`；没有步骤声明窗口时，角色只看到最近 16 条观察和 8 条自身表达。
 
 以下 Source / Atom / Episode / Observation 分层、候选准入和极简 Delivery 描述官方 Core；其他实现不必使用这套 Python 流程。
 

@@ -115,7 +115,7 @@ export function guardedLlm(instance: LlmInstance, id: string, report: ReportPlug
 /** A plugin's decision implementation, with its own failures named. A failure inside `next` is not the plugin's. */
 export function guardedDecision(instance: DecisionInstance, id: string, report: ReportPluginFailure): DecisionInstance {
   const guarded = guard(id, report)
-  const { serial, committed, debug, close } = instance
+  const { serial, committed, debug, close, shortTermAfterSeq } = instance
   return {
     ...(instance.context
       ? {
@@ -145,6 +145,7 @@ export function guardedDecision(instance: DecisionInstance, id: string, report: 
           },
         }
       : {}),
+    ...(shortTermAfterSeq ? { shortTermAfterSeq: shortTermAfterSeq.bind(instance) } : {}),
     ...(serial ? { serial } : {}),
     ...(committed ? { committed: committed.bind(instance) } : {}),
     ...(debug ? { debug: debug.bind(instance) } : {}),

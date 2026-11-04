@@ -63,7 +63,10 @@ export async function runAutonomousSchedule(
       signal,
       afterSeq: before,
       initialCounts: counts,
-      limits: autonomy.reactionLimits,
+      limits: {
+        ...autonomy.reactionLimits,
+        reactionDeadlineSeconds: autonomy.reactionLimits.reactionDeadlineSeconds ?? autonomy.deadlineSeconds,
+      },
       turn: (id, options) => round.turn(id, { ...options, beforeModelCall: spend }),
     })
     if (exhausted) reason = 'call_limit'

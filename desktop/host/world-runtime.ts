@@ -332,7 +332,11 @@ export class WorldHostCore implements HostRuntime {
   readonly #roleCalls = new Map<string, ChatCallObservation>()
   /** Which plugin failed each character's latest decision, for the player's notice. */
   readonly #pluginFailures = new Map<string, string>()
+  readonly #pluginFailureCauses = new Map<string, unknown>()
   readonly #reportPlugin: ReportPluginFailure = (pluginId, characterId, error) => {
+    // Preserve the source of this exception through context wrappers, but allow a new outer failure to replace it.
+    if (this.#pluginFailures.has(characterId) && this.#pluginFailureCauses.get(characterId) === error) return
+    this.#pluginFailureCauses.set(characterId, error)
     console.error(`[插件 ${pluginId}] 角色决策失败：`, error)
     this.#pluginFailures.set(characterId, pluginId)
   }
@@ -445,6 +449,7 @@ export class WorldHostCore implements HostRuntime {
     const characterId = String((request.context.character as WorldJsonObject).characterId)
     this.#roleCalls.delete(characterId)
     this.#pluginFailures.delete(characterId)
+    this.#pluginFailureCauses.delete(characterId)
     for (const decision of this.#decisions) if (decision.context) request = await decision.context(request, signal)
     const parts: DecisionParts = {
       llm: this.#llm,
@@ -1250,20 +1255,38 @@ export class WorldHostCore implements HostRuntime {
             )
               // Activity owns its participants' opportunities; autonomy never takes over its turn.
               .filter(role => !active?.game.active || !active.participants.includes(role.characterId))
+      let activityTurns = 0
+      const trackedActivityTurn = this.#track(turn)
       const activity = createActivityRound({
         activity: this.#gameplay.activity,
         settings: this.#playSettings,
         address: this.#address,
         signal: this.#continuationController.signal,
         store,
-        turn: this.#track(turn),
+        turn: {
+          run: (id, options) => {
+            activityTurns++
+            return trackedActivityTurn.run(id, options)
+          },
+        },
         world: this.#worldReader(),
         resultUnknown: () => this.#capabilities?.resultUnknown === true,
       })
       if (activity) {
         const result = await this.#scheduleRound(activity)
         activityNotice(this.#roundStatus, result)
-        if (result.terminalReason === 'plugin_failed' || this.#capabilities?.resultUnknown) return
+        if (
+          !this.#schedulerIsOfficial &&
+          activityTurns === 0 &&
+          activity.activity?.next() !== undefined &&
+          !this.#continuationController.signal.aborted &&
+          !['plugin_failed', 'plugin_invalid', 'interrupted', 'result_unknown'].includes(result.terminalReason)
+        ) {
+          this.#notice = '当前调度器本次未安排活动角色处理，活动停留在当前轮次；可再次请求处理或更换调度器。'
+          return
+        }
+        if (['plugin_failed', 'plugin_invalid'].includes(result.terminalReason) || this.#capabilities?.resultUnknown)
+          return
       }
       this.#allowInterruption = !this.#gameplay.activity?.current()?.game.active
       if (activityOnly) {
@@ -1288,6 +1311,7 @@ export class WorldHostCore implements HostRuntime {
     leases: WriterLeaseService,
     availability: CharacterRuntimeAvailabilityService,
   ): (autonomous?: boolean) => CharacterTurn {
+    const contextWindow = this.#decisions.find(decision => decision.shortTermAfterSeq)?.shortTermAfterSeq
     return (autonomous = false) => {
       const base = this.#gameplay.rulebooks(path)
       return new CharacterTurn({
@@ -1323,9 +1347,7 @@ export class WorldHostCore implements HostRuntime {
         projectContext: (context: WorldJsonObject, canPerform: boolean) =>
           this.#gameplay.projectContext(context, canPerform, autonomous),
         ...this.#gameplay.turnOptions(path),
-        ...(this.#memory?.shortTermAfterSeq === undefined
-          ? {}
-          : { shortTermAfterSeq: (actor: CharacterId) => this.#memory!.shortTermAfterSeq!(actor) }),
+        ...(contextWindow === undefined ? {} : { shortTermAfterSeq: contextWindow }),
         recentObservations: this.#tuning.recentObservations,
         recentSelfObservations: this.#tuning.recentSelfObservations,
       })
@@ -1371,6 +1393,7 @@ export class WorldHostCore implements HostRuntime {
                 maximumWaves: this.#playSettings.autonomyReactionWaves,
                 maximumNpcCalls: this.#playSettings.autonomyReactionCalls,
                 maximumCallsPerCharacter: this.#playSettings.maximumCallsPerCharacter,
+                reactionDeadlineSeconds: this.#playSettings.autonomyDeadlineSeconds,
               },
             },
           }
@@ -1400,7 +1423,21 @@ export class WorldHostCore implements HostRuntime {
       },
       world: this.#worldReader(),
       contextSources: {
-        memory: (request, signal) => this.#memory?.project(request, signal) ?? Promise.resolve(request),
+        memory: async (request, signal) => {
+          try {
+            if (!this.#memory) return request
+            return await this.#memory.project(request, signal)
+          } catch (error) {
+            if (!signal.aborted)
+              this.#reportPlugin(
+                this.#memoryId!,
+                String((request.context.character as WorldJsonObject).characterId),
+                error,
+              )
+            throw error
+          }
+        },
+        memoryAfterSeq: actor => this.#memory?.shortTermAfterSeq?.(actor),
         recentExecution: async request =>
           this.#options.recentExecutionEvidence === true
             ? { ...request, context: recentExecutionContext(request.context) }
@@ -1428,6 +1465,10 @@ export class WorldHostCore implements HostRuntime {
     const changes = pluginSetChanges(readPluginSet(directory), current)
     if (changes.length)
       this.#notice = [this.#notice, `这个存档使用的模块变了：${changes.join('；')}。世界事实不受影响。`]
+        .filter(Boolean)
+        .join(' ')
+    if (this.#memory?.shortTermAfterSeq && !this.#decisions.some(decision => decision.shortTermAfterSeq))
+      this.#notice = [this.#notice, '记忆扩充已被替换或停用，当前使用近期观察窗口；长期记忆交付由所选扩充实现负责。']
         .filter(Boolean)
         .join(' ')
     try {
@@ -1484,6 +1525,13 @@ export class WorldHostCore implements HostRuntime {
     )) {
       try {
         const opened = await provider.open(this.#services(provider.id), AbortSignal.timeout(30_000))
+        if (
+          opened.shortTermAfterSeq &&
+          ((!opened.context && !opened.decide) || this.#decisions.some(decision => decision.shortTermAfterSeq))
+        ) {
+          await opened.close?.()
+          throw new TypeError('a memory cutoff requires a single delivery implementation')
+        }
         this.#decisions.push(guardedDecision(opened, provider.id, this.#reportPlugin))
         ;(this.#modulesInForce.decisions ??= []).push({ id: provider.id, version: provider.version })
       } catch (error) {

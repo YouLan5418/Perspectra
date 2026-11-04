@@ -14,16 +14,26 @@ const LABELS: Readonly<Record<string, string>> = {
   rules: '世界规则',
 }
 
-const named = (entries: PluginSetRecord['seams'][string] | undefined) =>
-  entries?.length ? entries.map(entry => `${entry.id} ${entry.version}`).join('、') : '无'
+const named = (entries: PluginSetRecord['seams'][string] | undefined, seam: string) => {
+  if (!entries?.length) return '无'
+  const contexts = seam === 'decisions' ? entries.filter(entry => entry.id.startsWith('official-context-')) : []
+  const others = entries.filter(entry => !contexts.includes(entry)).map(entry => `${entry.id} ${entry.version}`)
+  return [...(contexts.length ? [`上下文扩充（${contexts.length}项）`] : []), ...others].join('、')
+}
 
 /** One line per module that differs. The first time a save opens there is nothing to compare with. */
 export function pluginSetChanges(previous: PluginSetRecord | undefined, current: PluginSetRecord): string[] {
   if (!previous) return []
   return Object.keys({ ...previous.seams, ...current.seams }).flatMap(seam => {
-    const before = named(previous.seams[seam]),
-      after = named(current.seams[seam])
-    return before === after ? [] : [`${LABELS[seam] ?? seam}：${before} → ${after}`]
+    if (
+      JSON.stringify((previous.seams[seam] ?? []).map(entry => [entry.id, entry.version])) ===
+      JSON.stringify((current.seams[seam] ?? []).map(entry => [entry.id, entry.version]))
+    )
+      return []
+    const before = named(previous.seams[seam], seam),
+      after = named(current.seams[seam], seam)
+    if (before === after && seam === 'decisions') return ['角色决策：上下文扩充组合已调整']
+    return [`${LABELS[seam] ?? seam}：${before} → ${after}`]
   })
 }
 

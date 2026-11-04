@@ -152,6 +152,7 @@ it('lets a scheduler defer an activity while refusing an illegal participant', a
     parameters: {},
     requestId: 'scheduler-activity',
   })
+  expect(state.notice).toContain('未安排活动角色处理')
   expect(activityRounds).toBe(1)
   expect(state.activity?.game).toMatchObject({ phase: 'opening', turn: 'character:companion' })
   expect(actors).toEqual([])
@@ -490,4 +491,24 @@ it('treats an activation with a null result as an invalid result', async () => {
   const state = await runtime.submit(MOVE)
   expect(state.error).toBeFalsy()
   expect(state.notice).toContain('本轮角色处理已结束')
+})
+
+it('reports an activity scheduler that returns no result instead of silently leaving it stuck', async () => {
+  const { runtime, actors } = await start(
+    provider(async round => (round.phase === 'activity' ? undefined : quiet)),
+    undefined,
+    'scripted-performance',
+  )
+  const state = await runtime.activityAction({
+    activityKey: 'default',
+    activityId: null,
+    revision: 0,
+    operation: 'start',
+    parameters: {},
+    requestId: 'unsupported-activity-phase',
+  })
+  expect(state.error).toBe(true)
+  expect(state.notice).toContain('调度器插件')
+  expect(state.activity?.game).toMatchObject({ phase: 'opening', turn: 'character:companion' })
+  expect(actors).toEqual([])
 })

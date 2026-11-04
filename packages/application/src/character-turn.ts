@@ -150,7 +150,7 @@ export class CharacterTurn {
       readonly onCommitted?: () => Promise<void>
       readonly onActionFailure?: () => void
       /** With Core, preserve the authorized tail after its successfully archived prefix. */
-      readonly shortTermAfterSeq?: (characterId: CharacterId) => number
+      readonly shortTermAfterSeq?: (characterId: CharacterId) => number | undefined
       readonly publicationCharacters?: number
       readonly activationTimeoutMs?: number
       readonly recentObservations?: number

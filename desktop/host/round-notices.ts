@@ -32,7 +32,7 @@ export interface RoundStatus {
 export function activityNotice(status: RoundStatus, cycle: SchedulerResult): void {
   const last = cycle.activations.at(-1)?.result
   if (cycle.terminalReason === 'result_unknown') return
-  if (cycle.terminalReason === 'plugin_failed') {
+  if (cycle.terminalReason === 'plugin_failed' || cycle.terminalReason === 'plugin_invalid') {
     status.set(SCHEDULER_FAILED_NOTICE, true)
     return
   }

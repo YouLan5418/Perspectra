@@ -2,8 +2,9 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import type { Server } from 'node:http'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
-import type { MemoryInstance, SeamProvider, WorldServices } from '@harness-world/plugin-sdk'
+import type { MemoryInstance, MemoryRequest, SeamProvider, WorldServices } from '@harness-world/plugin-sdk'
 import { afterEach, expect, it, vi } from 'vitest'
+import { officialContextOrder } from '../../desktop/official-bundle.ts'
 import { WorldHostRuntime } from '../../desktop/host/world-runtime.ts'
 import { restoreStoryNode } from '../../desktop/story-nodes.ts'
 import { exportStoryNode, importStoryNode } from '../../desktop/story-share.ts'
@@ -51,8 +52,8 @@ async function start(memory: SeamProvider<MemoryInstance>, extra: Record<string,
     packPath: resolve('examples/world-packs/dynamic-scheduling'),
     models,
     timeoutMs: 5000,
-    plugins: { memory },
     ...extra,
+    plugins: { memory, ...(extra.plugins as object) },
   })
   runtimes.push(runtime)
   return { runtime, contexts, root, models }
@@ -109,6 +110,8 @@ it('keeps player input and continues the next round when project throws', async 
   )
   const failed = await runtime.submit(MOVE)
   expect(failed.error).toBe(true)
+  expect(failed.notice).toContain('插件 test-memory 出错')
+  expect(failed.notice).not.toContain('official-context-memory')
   expect(failed.transcript.some(line => line.player)).toBe(true)
   fail = false
   const next = await runtime.submit('还在吗？')
@@ -264,4 +267,109 @@ it('gives a third-party provider no model configuration', async () => {
     'worldVersion',
   ])
   expect(JSON.stringify(services)).not.toContain('apiKey')
+})
+
+for (const mode of ['omitted', 'replaced'] as const) {
+  it(`keeps the recent window when memory expansion is ${mode}`, async () => {
+    const memory = provider({ project: async request => request, shortTermAfterSeq: () => 1_000_000 })
+    const { runtime, contexts } = await start(memory, {
+      serialScheduling: true,
+      plugins:
+        mode === 'omitted'
+          ? { decisionOrder: officialContextOrder.filter(id => id !== 'official-context-memory') }
+          : { decisions: [{ id: 'official-context-memory', version: '1.1.0', open: async () => ({}) }] },
+    })
+    expect((await runtime.state()).notice).toContain('近期观察')
+    await runtime.submit('请记住，约好的暗号是蓝色风铃。')
+    expect(contexts.length).toBeGreaterThan(0)
+    expect(contexts.some(context => JSON.stringify(context.history).includes('蓝色风铃'))).toBe(true)
+  })
+}
+
+it('lets a replacement explicitly pair archived delivery with its cutoff', async () => {
+  let projected = 0
+  const memory = provider({
+    project: async request => {
+      projected++
+      return { ...request, context: { ...request.context, archiveReminder: '蓝色风铃' } }
+    },
+    shortTermAfterSeq: () => 1_000_000,
+  })
+  const { runtime, contexts } = await start(memory, {
+    serialScheduling: true,
+    plugins: {
+      decisions: [
+        {
+          id: 'official-context-memory',
+          version: '1.1.0',
+          open: async (world: WorldServices) => ({
+            context: world.contextSources!.memory,
+            shortTermAfterSeq: world.contextSources!.memoryAfterSeq,
+          }),
+        },
+      ],
+    },
+  })
+  await runtime.submit('还记得暗号吗？')
+  expect(contexts.length).toBeGreaterThan(0)
+  expect(projected).toBe(contexts.length)
+  expect(
+    contexts.every(context => context.archiveReminder === '蓝色风铃' && (context.history as unknown[]).length === 0),
+  ).toBe(true)
+})
+
+it('attributes a new wrapper failure to the wrapper after it catches a memory failure', async () => {
+  vi.spyOn(console, 'error').mockImplementation(() => {})
+  const memory = provider({
+    project: async () => {
+      throw new Error('inner memory failure')
+    },
+  })
+  const { runtime } = await start(memory, {
+    serialScheduling: true,
+    plugins: {
+      decisions: [
+        {
+          id: 'official-context-memory',
+          version: '1.1.0',
+          open: async (world: WorldServices) => ({
+            context: async <T extends MemoryRequest>(request: T, signal: AbortSignal) => {
+              try {
+                await world.contextSources!.memory(request, signal)
+              } catch {
+                throw new Error('replacement failure')
+              }
+              return request
+            },
+          }),
+        },
+      ],
+    },
+  })
+  const state = await runtime.submit(MOVE)
+  expect(state.notice).toContain('插件 official-context-memory 出错')
+})
+
+it('closes a newly opened implementation when two steps claim the memory cutoff', async () => {
+  let closed = 0
+  await expect(
+    start(provider(passthrough), {
+      plugins: {
+        decisions: [
+          {
+            id: 'second-memory-window',
+            version: '1.0.0',
+            open: async () => ({
+              context: async <T extends MemoryRequest>(request: T) => request,
+              shortTermAfterSeq: () => 0,
+              close: () => {
+                closed++
+              },
+            }),
+          },
+        ],
+      },
+    }),
+  ).rejects.toThrow('memory cutoff')
+  expect(closed).toBe(1)
 })

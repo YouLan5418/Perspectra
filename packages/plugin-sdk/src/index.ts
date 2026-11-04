@@ -23,7 +23,7 @@ import type {
 
 /** Major.minor. A new service or optional field raises the minor; any change a plugin could trip over
  * raises the major. A plugin exports `hostApi` with the lowest version it needs. */
-export const HOST_API_VERSION = '2.1'
+export const HOST_API_VERSION = '2.2'
 
 /** Same major, and this host's minor at least the one the plugin asks for. */
 export function hostApiCompatible(required: unknown, host: string = HOST_API_VERSION): boolean {
@@ -145,6 +145,8 @@ export interface WorldServices {
   readonly contextSources?: DecisionContextSources
 }
 export interface DecisionContextSources {
+  /** Pair with memory() when the selected context step restores this archived prefix. */
+  memoryAfterSeq?(characterId: CharacterId): number | undefined
   memory<T extends MemoryRequest>(request: T, signal: AbortSignal): Promise<T>
   recentExecution<T extends MemoryRequest>(request: T, signal: AbortSignal): Promise<T>
   status<T extends MemoryRequest>(request: T, signal: AbortSignal): Promise<T>
@@ -364,6 +366,8 @@ export interface RulesApi {
 
 /** One way of taking part in every character decision. Everything is optional. */
 export interface DecisionInstance {
+  /** Exclude this prefix only when this instance delivers its archived memory. Without a hook, use the recent window. */
+  shortTermAfterSeq?(characterId: CharacterId): number | undefined
   /** Add to what this character knows before it decides. Runs in the selected composition order. */
   context?<T extends MemoryRequest>(request: T, signal: AbortSignal): Promise<T>
   /** Wrap the whole decision. May call `next` several times, or not at all. The answer is validated afterwards. */

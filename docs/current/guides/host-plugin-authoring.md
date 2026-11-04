@@ -74,7 +74,7 @@ export default async function myBgm(ctx) {
 
 ## 宿主提供哪些接口
 
-当前宿主 API 为 `2.1`（既有 2.0 插件仍兼容），插件须导出 `export const hostApi = '2.0'`。装载器在调用插件之前比较版本：主版本必须相同，宿主次版本不低于声明值；未声明或不兼容时跳过并提示。2.0 中，同一个调度器也负责自主和活动处理；旧 1.x 插件需核对接口并更新声明，不会自动回退到旧调度行为。其他服务的调用形状未在本次改变，但也须更新主版本声明。
+当前宿主 API 为 `2.2`（既有 2.0、2.1 插件仍可加载），插件须导出 `export const hostApi = '2.0'`。装载器在调用插件之前比较版本：主版本必须相同，宿主次版本不低于声明值；未声明或不兼容时跳过并提示。2.0 中，同一个调度器也负责自主和活动处理；旧 1.x 插件需核对接口并更新声明，不会自动回退到旧调度行为。其他服务的调用形状未在本次改变，但也须更新主版本声明。
 
 所有接口类型集中在 [@harness-world/plugin-sdk](../../../packages/plugin-sdk/src/index.ts)：`HostServices` 列出服务，`SchedulerRound` 等定义参数与事件形状。宿主直接引用这些类型。该包尚未发布到 npm，也不随便携包附带；仓库外开发时可参照源码或复制类型。
 
@@ -160,7 +160,7 @@ export default function (ctx) {
 - `open` 在每个世界实例打开时调用一次，包括重新生成的候选。每局数据放在 `world.dataDirectory` 下，那是这个插件在这个世界实例里的专属目录，目录要自己创建。新世界在 `open` 时可能还没激活，不要在 `open` 里读世界，等 `project` 时再读。
 - `project` 是唯一必需的方法，每次角色决策前调用，返回的 `context` 交给模型。放进 `memories` 的内容排在场景信息之前，也参与[按需知识](world-knowledge.md)的条件匹配；其他字段名也能送达，排在已知字段之后。角色提示不会解释这些内容，要让它们自己说得清楚。
 - `world.authorizedSources` 只返回这个角色有权知道的内容，每个世界实例的进度由宿主保存。
-- 没有实现 `shortTermAfterSeq` 时，角色只看到最近 16 条观察和 8 条自身表达；实现后，这个序号之后的经历全部放进 `history`。
+- 记忆 Provider 的 `shortTermAfterSeq` 现在由实际执行交付的决策步骤转接。默认官方记忆步骤自动转接；自定义步骤须按下方 2.2 接口明确配对。没有步骤提供截断回调时，使用最近 16 条观察和 8 条自身表达；不会仅因 Core 还开着就裁掉归档前缀。
 - 其他方法都可选：`startRefresh` 手动整理，`backgroundState` 显示进度，`snapshotArchives` / `restoreArchives` 随节点保存。类型见 [plugin-sdk](../../../packages/plugin-sdk/src/index.ts) 的 `MemoryInstance`。
 
 **由作者负责的部分。** `world.world` 还能读所有事件和任意角色的视图，只用 `authorizedSources` 才不会把一个角色的私有内容交给另一个角色。插件拿不到玩家的模型设置和 Key，要调用模型需要自己配置，费用和凭据由作者说明。
@@ -221,6 +221,27 @@ export default function (ctx) {
 每世界 `open(world)` 可读 `world.contextSources` 的 `memory`、`recentExecution`、`status`、`knowledge`、`expressions`。它们接收当前 request 与 signal，返回扩充后的 request。status 和 knowledge 复用当前角色授权选择，不返回完整真值；知识条件读取前面投影的已知状态。memory 只调用所选记忆 Provider 的 project，停用此步骤不卸载该记忆 Provider 或取消其后台整理。
 
 源码装配可通过 `HostSeams.decisionOrder` 明确有序 ID 列表；省略的官方项不再补回，未定位的第三方项追加。重复或未知 ID 拒绝打开。该设置尚无 Launcher 专用排序界面。顺序与第三方 ID/版本/identity 一起进入候选环境比较。请区分“只停用扩充”和“停用记忆服务”；不要让两个步骤重复调用 memory 投影。
+
+### 替换记忆步骤时配对交付与窗口（2.2）
+
+例如你只想在 Core 的交付结果后补一句提醒，替换步骤应同时保留交付和窗口；否则 Core 即使仍在后台整理，也不能证明本轮角色收到了档案。新增接口要求插件声明 `hostApi = '2.2'`：
+
+```js
+export const hostApi = '2.2'
+export default function (ctx) {
+  ctx.effect(() => ctx.decisions.register({
+    id: 'official-context-memory', version: '1.0.0',
+    open: async world => ({
+      context: (request, signal) => world.contextSources.memory(request, signal),
+      shortTermAfterSeq: id => world.contextSources.memoryAfterSeq?.(id),
+    }),
+  }))
+}
+```
+
+`DecisionInstance.shortTermAfterSeq` 表示这个实例负责交付被裁去前缀的归档。最多一个步骤声明该回调，且它须有 context 或 decide 实现。也可用自己的交付与边界；第三方代码仍由玩家信任。没有提供回调时回到近期观察窗口，宿主不会暗中恢复默认记忆步骤；若记忆 Provider 仍提供归档边界，打开实例时会提示长期记忆交付由所选扩充负责。近期窗口不等于完整长期记忆，自定义步骤仍需明确选择是否交付档案。
+
+此规则也适用于旧 2.1 的自定义记忆步骤：它们可以加载，但要保留 Core 的归档后窗口，需要按 2.2 明确转接。其他 2.1 步骤无需改动。
 
 ## 加入角色决策
 
