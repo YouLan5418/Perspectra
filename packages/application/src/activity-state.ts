@@ -246,13 +246,17 @@ export class ActivityStateRules {
   }
 }
 
+/** The author's "when" list, shared by automatic activities and pacing beats. */
+export function parseAutoStartConditions(when: unknown): AutoStartCheck[] {
+  if (!Array.isArray(when) || when.length === 0 || when.length > 32) throw new TypeError(AUTO_START_CONDITIONS)
+  return when.map(autoStartCheck)
+}
+
 export function parseActivityAutoStart(output: unknown, selection: ActivityStateRules['participantSelection']) {
   if (output === null) return undefined
   const result = object(output)
   exact(result, ['when', ...['npcIds', 'notice', 'sceneNotice'].filter(key => Object.hasOwn(result, key))])
-  if (!Array.isArray(result.when) || result.when.length === 0 || result.when.length > 32)
-    throw new TypeError(AUTO_START_CONDITIONS)
-  const checks = result.when.map(autoStartCheck)
+  const checks = parseAutoStartConditions(result.when)
   if (Object.hasOwn(result, 'npcIds') !== !!selection)
     throw new TypeError(selection ? '玩家选人活动自动开始须指定 npcIds' : '固定参与者活动自动开始不能指定 npcIds')
   if (

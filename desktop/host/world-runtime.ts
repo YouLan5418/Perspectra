@@ -626,12 +626,14 @@ export class WorldHostCore implements HostRuntime {
         )
       runtime.#gameplay.pacing =
         runtime.#pacing && (runtime.#pacing.managedActivities.length || runtime.#pacing.beats.length)
-          ? new PacingRuntime(
-              runtime.#pacing,
-              resolve(runtime.#dataDirectory, 'world.sqlite'),
-              runtime.#address,
-              runtime.#gameplay.activity,
-            )
+          ? new PacingRuntime({
+              mechanism: runtime.#pacing,
+              worldPath: resolve(runtime.#dataDirectory, 'world.sqlite'),
+              address: runtime.#address,
+              playerId: String(runtime.#playerId),
+              activities: runtime.#gameplay.activity,
+              status: runtime.#gameplay.status,
+            })
           : undefined
       await runtime.#refresh()
       const rebuildPath = resolve(options.dataDirectory, 'rebuild-memory.json')
@@ -986,11 +988,11 @@ export class WorldHostCore implements HostRuntime {
     )
       return
     await this.#application.yieldWriter(this.#address)
-    let started = false
+    let started = false,
+      beatFrom: number | undefined
     try {
-      started = this.#gameplay.pacing
-        ? (await this.#gameplay.pacing.endOfRound(this.#rootBeforeSeq)).started
-        : await this.#gameplay.activity!.autoStart()
+      if (this.#gameplay.pacing) ({ started, beatFrom } = await this.#gameplay.pacing.endOfRound(this.#rootBeforeSeq))
+      else started = await this.#gameplay.activity!.autoStart()
       this.#autoStartError = undefined
     } catch (error: unknown) {
       if (!(error instanceof TypeError) && !(error instanceof RangeError)) throw error
@@ -998,6 +1000,17 @@ export class WorldHostCore implements HostRuntime {
     }
     // The participants get the same chance to react to the opening as after a manual start.
     if (started) await this.#activateCharacters(true)
+    if (beatFrom !== undefined) {
+      // Show what happened before anyone spends a model call on it; only this beat's observations wake characters.
+      const store = new WorldStore(resolve(this.#dataDirectory, 'world.sqlite'))
+      try {
+        await this.#projectCommitted(store)
+      } finally {
+        store.close()
+      }
+      this.#rootBeforeSeq = beatFrom
+      await this.#activateCharacters(false)
+    }
   }
   /** The status hook runs once per accepted player round, recording (not retrying) a failure. */
   async #endStatusRound(pause = false): Promise<void> {

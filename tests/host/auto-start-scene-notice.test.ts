@@ -66,9 +66,9 @@ const told = (contents: readonly WorldJsonObject[]) => contents.filter(content =
 
 it('tells participants and bystanders the event, but not those elsewhere', async () => {
   const present = await world(`notice: '轰隆！', sceneNotice: '${THUNDER}'`, true)
-  expect(told(present.seen(COMPANION))).toEqual([{ eventNotice: THUNDER }])
+  expect(told(present.seen(COMPANION))).toEqual([{ status: 'accepted', eventNotice: THUNDER }])
   expect(present.seen(COMPANION).map(content => content.resultDescription)).toContain('轮流猜数字开始。')
-  expect(told(present.seen(FRIEND))).toEqual([{ eventNotice: THUNDER }])
+  expect(told(present.seen(FRIEND))).toEqual([{ status: 'accepted', eventNotice: THUNDER }])
   const away = await world(`sceneNotice: '${THUNDER}'`, false)
   expect(told(away.seen(COMPANION))).toHaveLength(1)
   expect(told(away.seen(FRIEND))).toEqual([])
@@ -105,7 +105,7 @@ it('reaches the characters in their next request, not attached to the player', a
   const stimulus = obj(JSON.parse(request!).context).stimulus as unknown as { content: WorldJsonObject }[]
   const line = stimulus.find(item => item.content?.eventNotice === THUNDER)!
   // It reads as something noticed: no actor, so nobody is said to have caused it.
-  expect(line.content).toEqual({ eventNotice: THUNDER })
+  expect(line.content).toEqual({ status: 'accepted', eventNotice: THUNDER })
 })
 
 it('rejects an empty or overlong scene text', async () => {

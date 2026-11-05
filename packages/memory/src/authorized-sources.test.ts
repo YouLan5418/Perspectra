@@ -369,6 +369,47 @@ describe('Cognitive Memory v2', () => {
     world.close()
   })
 
+  it('remembers an author stimulus as noticed or as a thought, never one for the other', async () => {
+    const path = paths()
+    const world = new WorldStore(path.world)
+    world.createBranch(address())
+    await commit(world, 'beat-stimuli', [
+      { eventType: 'character.created', eventVersion: 1, data: { characterId: alice, locationId: 'location:road' } },
+      {
+        eventType: 'observation.upsert',
+        eventVersion: 1,
+        data: {
+          id: 'beat:1:rent:stimulus:0',
+          value: {
+            observerId: alice,
+            actionId: 'beat:1:rent',
+            epistemicKind: 'direct_observation',
+            content: { status: 'accepted', perceived: 'a rent notice under the door' },
+          },
+        },
+      },
+      {
+        eventType: 'observation.upsert',
+        eventVersion: 1,
+        data: {
+          id: 'beat:1:rent:stimulus:1',
+          value: {
+            observerId: alice,
+            actionId: 'beat:1:rent',
+            epistemicKind: 'subjective_inference',
+            content: { status: 'accepted', innerThought: 'maybe the rent was mine to pay' },
+          },
+        },
+      },
+    ])
+    const memory = new AuthorizedSourceStore(path.memory, world)
+    memory.catchUp(address(), alice, 3, 'catchup:beat-stimuli')
+    expect(entries(alice, 'under the door', 3)).toMatchObject([{ epistemicKind: 'direct_observation' }])
+    expect(entries(alice, 'mine to pay', 3)).toMatchObject([{ epistemicKind: 'subjective_inference' }])
+    memory.close()
+    world.close()
+  })
+
   it('captures four source kinds, keeps reported speech subjective, and persists stable receipts', async () => {
     const { world, memory } = await fixture()
     const fullHistoryRead = vi.spyOn(world, 'readEvents').mockImplementation(() => {

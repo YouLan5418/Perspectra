@@ -1,6 +1,7 @@
 import { expect, it } from 'vitest'
 import type { RoundCountEvent, WorldJsonObject } from '@harness-world/contracts'
-import { pacingHistory } from './pacing-state.ts'
+import type { CompiledWorldManifest, RulebookEvent } from '@harness-world/kernel'
+import { beatStimulusTargets, pacingHistory, parseBeatResult } from './pacing-state.ts'
 
 let seq = 0
 const event = (eventType: string, data: WorldJsonObject, transactionId = 'tx:' + seq): RoundCountEvent => ({
@@ -68,4 +69,22 @@ it('reads the current round with the turn in progress counted once', () => {
   seq = 0
   const events = [player(), player(), player()]
   expect(pacingHistory(events, 1, scope).round).toBe(2)
+})
+
+it('offers only active characters other than the player as stimulus targets', () => {
+  const manifest = {
+    characters: [{ characterId: 'p' }, { characterId: 'a' }, { characterId: 'gone' }],
+  } as unknown as CompiledWorldManifest
+  const events = [
+    { eventType: 'character.lifecycle-changed', data: { characterId: 'gone', lifecycleState: 'departed' } },
+  ] as unknown as RulebookEvent[]
+  expect(beatStimulusTargets(manifest, events, 'p')).toEqual(['a'])
+})
+
+it('reads a beat with nothing to say as a recorded beat with no effects', () => {
+  expect(parseBeatResult({}, ['a'], 'p')).toEqual({ changes: [], reveals: [], stimuli: [] })
+  expect(() => parseBeatResult({ say: 'x' }, ['a'], 'p')).toThrow('未知字段')
+  expect(() =>
+    parseBeatResult({ stimuli: [{ characterId: 'gone', kind: 'thought', text: '想' }] }, ['a'], 'p'),
+  ).toThrow('已声明且活跃')
 })

@@ -18,6 +18,8 @@ export type StatusSource =
   | { kind: 'activity'; activityKey: string; actorId: string }
   /** `pause` marks a round the player let pass without saying or doing anything. */
   | { kind: 'round'; round: number; pause?: true }
+  /** Something the author's pacing script made happen; also its record, even with no changes. */
+  | { kind: 'beat'; beatId: string }
 /** `description` is the author's result text for an operation; round and initial events have none. */
 export interface StatusEventData {
   source: StatusSource

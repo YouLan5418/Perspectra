@@ -139,7 +139,7 @@ export function sceneEventObservations(input: {
     eventVersion: 1,
     data: {
       id: `${input.actionId}:scene:${observerId}`,
-      value: { observerId, actionId: input.actionId, content: { eventNotice: input.text } },
+      value: { observerId, actionId: input.actionId, content: { status: 'accepted', eventNotice: input.text } },
     },
   }))
 }

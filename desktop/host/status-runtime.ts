@@ -436,6 +436,24 @@ export class StatusRuntime {
     }
   }
 
+  beatResult(
+    events: readonly RulebookEvent[],
+    beatId: string,
+    changes: readonly StatusChange[],
+    reveals: readonly unknown[],
+  ): StatusEventData {
+    return this.#state.beatResult(events, beatId, changes, reveals)
+  }
+  /** A pacing beat is a system round: no actor, built by the caller from the snapshot. */
+  commitBeat(
+    worldPath: string,
+    address: WorldAddress,
+    owner: string,
+    build: (snapshot: WorldRoundSnapshot) => { events: WorldEventDraft[]; authority: WorldJsonObject } | undefined,
+  ): Promise<boolean> {
+    return this.#commitRound(worldPath, address, owner, build)
+  }
+
   /** Commits the initial values once, as their own round, when the world has no status event yet. */
   async ensureInitial(worldPath: string, address: WorldAddress, playerId: string): Promise<void> {
     await this.#commitRound(
