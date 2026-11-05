@@ -1,10 +1,10 @@
 import type { RulebookEvent } from '@harness-world/kernel'
-import type { CrossSceneCommunication } from './pack-communication.ts'
-import type { PackStatus } from './pack-status.ts'
+import type { CommunicationRuntime } from './communication-runtime.ts'
+import type { StatusRuntime } from './status-runtime.ts'
 
 /** What the player sees of the pack's status: operations under the same rules as an NPC, the bar and the drawer. */
 export function projectStatus<A>(
-  status: PackStatus,
+  status: StatusRuntime,
   availableActions: A,
   events: readonly RulebookEvent[],
   playerId: string,
@@ -39,7 +39,7 @@ export function projectStatus<A>(
 
 /** The player writes the text in the form; the label names the contact, who may be anywhere. */
 export function withMessageActions<A extends readonly unknown[]>(
-  communication: CrossSceneCommunication,
+  communication: CommunicationRuntime,
   availableActions: A,
   events: readonly RulebookEvent[],
   playerId: string,

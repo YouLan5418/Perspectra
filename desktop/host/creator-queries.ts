@@ -17,7 +17,8 @@ import {
   type CreatorInspectionSnapshot,
 } from './creator-inspection.ts'
 import type { CreatorRecords } from './creator-records.ts'
-import type { WorldGameplay } from './world-gameplay.ts'
+import type { StatusTruth } from '@harness-world/contracts'
+import type { RulebookEvent } from '@harness-world/kernel'
 
 /** What the queries read of the world instance, taken fresh for each query. */
 export interface CreatorQueryHost {
@@ -35,7 +36,8 @@ export interface CreatorQueryHost {
   readonly activationCycle: SchedulerResult | undefined
   readonly inspector: RequestInspector
   readonly records: CreatorRecords
-  readonly gameplay: WorldGameplay
+  statusTruth(events: readonly RulebookEvent[]): StatusTruth | undefined
+  activityStates(events: readonly RulebookEvent[]): readonly WorldJsonObject[]
   readonly memory: MemoryInstance | undefined
   readonly memoryIsCore: boolean
 }
@@ -136,7 +138,7 @@ export function creatorInspectionSnapshot(
         : events.filter(event => event.seq > query.afterSeq!).slice(0, limit)
     const nextAfterSeq = selectedEvents.at(-1)?.seq ?? query.afterSeq ?? head.headSeq
     // The creator sees true status values; players and roles only ever get their own known values.
-    const truth = host.gameplay.status?.truth(events)
+    const truth = host.statusTruth(events)
     const result: CreatorInspectionSnapshot = {
       capturedAt: new Date().toISOString(),
       address: host.address,
@@ -152,7 +154,7 @@ export function creatorInspectionSnapshot(
       characters,
       entities,
       statusTruth: truth ? { public: truth.public, characters: truth.characters } : null,
-      activities: host.gameplay.activity?.debugStates(events) ?? [],
+      activities: [...host.activityStates(events)],
       events: { items: selectedEvents, nextAfterSeq, hasMore: nextAfterSeq < head.headSeq },
       limitations: [
         'holderId 表示保管或携带，不证明法律所有权。',

@@ -1,97 +1,62 @@
-import type { StoredWorldEvent, WorldAddress, WorldHash, WorldJsonObject } from '@harness-world/contracts'
-import type { CompiledWorldPackV5 } from '@harness-world/world-pack'
+import type {
+  StoredWorldEvent,
+  WorldAddress,
+  WorldHash,
+  WorldJsonObject,
+  ActivityRequest,
+  ActivityState,
+  AutoStartEvaluation,
+  ActivityDefinitionView,
+} from '@harness-world/contracts'
+import type { ActivitiesInstance } from '@harness-world/plugin-sdk'
 import { WorldStore } from '@harness-world/store-sqlite'
-import { createInstalledInteractionPackages } from '@harness-world/interactions-basic'
-import {
-  createCoreRulebookRegistry,
-  RulebookRegistry,
-  type RulebookEvent,
-  type RulebookResolver,
-} from '@harness-world/kernel'
-import {
-  PackActivity,
-  activityProgress,
-  readActivityWorld,
-  type ActivityRequest,
-  type ActivityState,
-  type ActivityWorld,
-  type AutoStartCheck,
-} from './pack-activity.ts'
-import { characterExecutionResult } from '@harness-world/application'
-import type { PackStatus } from './pack-status.ts'
-
-/** One activity's automatic-start checks for the pack lens; null checks: not checked this time, see `skipped`. */
-export interface AutoStartEvaluation {
-  readonly activityKey: string
-  readonly title: string
-  readonly checks: readonly AutoStartCheck[] | null
-  readonly started: boolean
-  /** Why checks are null without an error: an activity runs in the foreground, this one holds paused progress,
-   * or its hook returned null. */
-  readonly skipped?: 'running' | 'paused' | 'none'
-  /** The hook's failure message; a round still throws it, evaluation only reports it. */
-  readonly error?: string
-}
-
-/** One activity as the author declared it, for the pack lens. */
-export interface ActivityDefinitionView {
-  readonly activityKey: string
-  readonly title: string
-  readonly opening: string | undefined
-  readonly npcIds: readonly string[]
-  readonly participantSelection:
-    | { readonly min: number; readonly max: number; readonly candidates?: string[] }
-    | undefined
-  readonly hasAutoStart: boolean
-  readonly operations: readonly { readonly id: string; readonly label: string }[]
-}
-
+import { RulebookRegistry, type RulebookEvent, type RulebookResolver } from '@harness-world/kernel'
+import { characterExecutionResult, activityProgress } from '@harness-world/application'
+import { ActivityRuntime } from './activity-runtime.ts'
+import { readActivityWorld, type ActivityWorld } from './activity-world.ts'
+import type { StatusRuntime } from './status-runtime.ts'
 /** One foreground activity, with independent progress in the existing world event log. */
-export class PackActivities {
-  readonly #entries = new Map<string, PackActivity>()
+export class ActivitiesRuntime {
+  readonly #entries = new Map<string, ActivityRuntime>()
   #store: WorldStore | undefined
   #closed = false
+  readonly #lifetime = new AbortController()
+  get signal(): AbortSignal {
+    return this.#lifetime.signal
+  }
   #snapshot: { headSeq: number; eventHash: WorldHash | 'genesis'; events: readonly StoredWorldEvent[] } | undefined
   #selection:
-    | { events: readonly RulebookEvent[]; entry: PackActivity | undefined; states: ReadonlyMap<string, ActivityState> }
+    | {
+        events: readonly RulebookEvent[]
+        entry: ActivityRuntime | undefined
+        states: ReadonlyMap<string, ActivityState>
+      }
     | undefined
   private constructor(
     readonly worldPath: string,
     readonly address: WorldAddress,
     readonly playerId: string,
-    readonly coreRules?: RulebookRegistry,
+    readonly coreRules: RulebookRegistry,
+    readonly mechanism: ActivitiesInstance,
   ) {}
-  static load(
-    packPath: string,
-    pack: CompiledWorldPackV5,
+  static open(
+    mechanism: ActivitiesInstance,
     worldPath: string,
     address: WorldAddress,
     playerId: string,
-    status?: PackStatus,
-    coreRules?: RulebookRegistry,
-  ): PackActivities | undefined {
-    const catalog = new PackActivities(worldPath, address, playerId, coreRules)
-    for (const asset of pack.assets) {
-      const match = /^scripts\/activities\/([a-z][a-z0-9-]{0,40})\.js$/u.exec(asset.path)
-      if (asset.path !== 'scripts/activity.js' && !match) continue
-      const key = match?.[1] ?? 'default'
-      if (catalog.#entries.has(key)) throw new TypeError('重复的活动标识：' + key)
-      const activity = PackActivity.load(
-        packPath,
-        pack,
-        worldPath,
-        address,
-        playerId,
-        asset.path,
-        key,
-        status,
-        coreRules,
-      )!
+    status: StatusRuntime | undefined,
+    coreRules: RulebookRegistry,
+  ): ActivitiesRuntime | undefined {
+    if (!mechanism.entries.length) return undefined
+    const catalog = new ActivitiesRuntime(worldPath, address, playerId, coreRules, mechanism)
+    for (const entry of mechanism.entries) {
+      if (catalog.#entries.has(entry.key)) throw new TypeError('重复的活动标识：' + entry.key)
+      const activity = new ActivityRuntime(entry, worldPath, address, playerId, entry.key, status, coreRules)
+      activity.signal = catalog.signal
       activity.randomSource = () => catalog.#nextRandom()
-      activity.readCurrent = () => catalog.#current(key)
-      catalog.#entries.set(key, activity)
+      activity.readCurrent = () => catalog.#current(entry.key)
+      catalog.#entries.set(entry.key, activity)
     }
-    if (!catalog.#entries.size) return undefined
     try {
       catalog.#selected() // Validate stored activities and the single-foreground invariant on open.
       return catalog
@@ -107,6 +72,7 @@ export class PackActivities {
   close(): void {
     if (this.#closed) return
     this.#closed = true
+    this.#lifetime.abort(new Error('Activity catalog is closed'))
     this.#store?.close()
     this.#store = undefined
     this.#snapshot = undefined
@@ -134,10 +100,10 @@ export class PackActivities {
     this.#snapshot = { headSeq, eventHash, events }
     return events
   }
-  #selected(events = this.#events()): PackActivity | undefined {
+  #selected(events = this.#events()): ActivityRuntime | undefined {
     if (this.#selection?.events === events) return this.#selection.entry
     const progress = activityProgress(events)
-    let foreground: PackActivity | undefined
+    let foreground: ActivityRuntime | undefined
     for (const [key, state] of progress) {
       const entry = this.#entries.get(key)
       if (!entry) throw new TypeError('存档活动未安装：' + key)
@@ -145,11 +111,13 @@ export class PackActivities {
       if (state.game.active) foreground = entry
     }
     const latest = events.findLast(event => event.eventType === 'activity.updated')
-    const entry =
-      foreground ??
-      (latest
-        ? this.#entries.get(String((latest.data as WorldJsonObject).activityKey ?? 'default'))
-        : this.#entries.values().next().value)
+    const key = this.mechanism.select(
+      [...progress].map(([key, state]) => ({ key, active: state.game.active })),
+      latest ? String((latest.data as WorldJsonObject).activityKey ?? 'default') : undefined,
+    )
+    const entry = key === undefined ? undefined : this.#entries.get(key)
+    if ((key !== undefined && !entry) || (foreground && foreground !== entry))
+      throw new TypeError('活动选择必须保持已提交的前台活动')
     this.#selection = { events, entry, states: progress }
     return entry
   }
@@ -161,7 +129,7 @@ export class PackActivities {
     const entry = this.#selected()
     return structuredClone(entry ? this.#selection!.states.get(entry.key) : undefined)
   }
-  setActionResolver(resolve: NonNullable<PackActivity['resolveAction']>): void {
+  setActionResolver(resolve: NonNullable<ActivityRuntime['resolveAction']>): void {
     for (const activity of this.#entries.values()) activity.resolveAction = resolve
   }
   debugStates(events: readonly RulebookEvent[]): WorldJsonObject[] {
@@ -215,17 +183,28 @@ export class PackActivities {
     this.#randomValues.push(value)
     return value
   }
-  /** After a player round: start at most one activity whose author conditions all hold. The most conditions
-   * win; a tie draws from the round random. Returns whether a start was committed. */
+  /** After a player round, lend only eligible candidates to the selection mechanism and start at most one.
+   * Random draws stay in the existing round record. Returns whether a start was committed. */
   async autoStart(): Promise<boolean> {
     const { evaluations, met, error } = this.#evaluateAutoStart()
     this.#lastAutoStart = evaluations
     if (error) throw error
     if (!met.length) return false
-    const most = Math.max(...met.map(candidate => candidate.conditions)),
-      tied = met.filter(candidate => candidate.conditions === most)
-    const chosen =
-      tied.length === 1 ? tied[0]! : tied[Math.min(tied.length - 1, Math.floor(this.#nextRandom() * tied.length))]!
+    let active = true
+    let key: string | undefined
+    try {
+      key = this.mechanism.chooseAutoStart(
+        met.map(candidate => ({ key: candidate.key, conditions: candidate.conditions })),
+        () => {
+          if (!active) throw new Error('Activity random capability has ended')
+          return this.#nextRandom()
+        },
+      )
+    } finally {
+      active = false
+    }
+    const chosen = met.find(candidate => candidate.key === key)
+    if (!chosen) throw new TypeError('自动开始选择了条件未满足的活动')
     const store = new WorldStore(this.worldPath)
     let headSeq: number
     try {
@@ -273,7 +252,10 @@ export class PackActivities {
   #evaluateAutoStart() {
     const entries = [...this.#entries].filter(([, entry]) => entry.hasAutoStart)
     const evaluations: AutoStartEvaluation[] = [],
-      met: (NonNullable<ReturnType<PackActivity['autoStartCandidate']>> & { key: string; entry: PackActivity })[] = []
+      met: (NonNullable<ReturnType<ActivityRuntime['autoStartCandidate']>> & {
+        key: string
+        entry: ActivityRuntime
+      })[] = []
     let error: Error | undefined
     // A running foreground activity skips every start check, as rounds always have.
     const skipped = entries.length === 0 || this.current()?.game.active === true
@@ -316,42 +298,38 @@ export class PackActivities {
   async escape(): Promise<void> {
     await this.#selected()?.escape()
   }
-  async speak(...args: Parameters<PackActivity['speak']>): Promise<void> {
+  async speak(...args: Parameters<ActivityRuntime['speak']>): Promise<void> {
     const entry = this.#selected()
     if (!entry) throw new TypeError('没有运行中的活动')
     await entry.speak(...args)
   }
-  async worldAction(...args: Parameters<PackActivity['worldAction']>): Promise<void> {
+  async worldAction(...args: Parameters<ActivityRuntime['worldAction']>): Promise<void> {
     const entry = this.#selected()
     if (!entry) throw new TypeError('没有运行中的活动')
     await entry.worldAction(...args)
   }
-  projectContext(...args: Parameters<PackActivity['projectContext']>) {
+  projectContext(...args: Parameters<ActivityRuntime['projectContext']>) {
     return this.#selected()?.projectContext(...args) ?? args[0]
   }
-  validateDecision(...args: Parameters<PackActivity['validateDecision']>): void {
+  validateDecision(...args: Parameters<ActivityRuntime['validateDecision']>): void {
     this.#selected()?.validateDecision(...args)
   }
-  simulate(...args: Parameters<PackActivity['simulate']>) {
+  simulate(...args: Parameters<ActivityRuntime['simulate']>) {
     return this.#selected()?.simulate(...args)
   }
-  filterAffordances(...args: Parameters<PackActivity['filterAffordances']>) {
+  filterAffordances(...args: Parameters<ActivityRuntime['filterAffordances']>) {
     return this.#selected()?.filterAffordances(...args) ?? [...args[0]]
   }
   schedule() {
     return this.#selected()?.schedule()
   }
-  outcome(...args: Parameters<PackActivity['outcome']>) {
+  outcome(...args: Parameters<ActivityRuntime['outcome']>) {
     return this.#selected()?.outcome(...args)
   }
   executionResult = (...args: Parameters<typeof characterExecutionResult>) =>
     this.#selected()?.executionResult(...args) ?? characterExecutionResult(...args)
   rulebooks(external?: RulebookResolver): RulebookRegistry {
-    const base =
-      external ??
-      (
-        this.coreRules ?? createCoreRulebookRegistry({ interactionPackages: createInstalledInteractionPackages() })
-      ).resolve('builtin:speak-move', 2, 'activities', this.address)
+    const base = external ?? this.coreRules.resolve('builtin:speak-move', 2, 'activities', this.address)
     const resolverFor = (events: readonly RulebookEvent[]) => {
       const entry = this.#selected(events)
       return entry?.state(events)?.game.active

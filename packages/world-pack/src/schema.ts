@@ -1247,8 +1247,6 @@ export function parseWorldPackInteractionsSource(
   const definitions = arrayAt(root.definitions, file, '/definitions').map((entry, index) =>
     identity(entry, `/definitions/${index}`),
   )
-  if (packages.length === 0)
-    failWorldPackContract('PACK_SOURCE_INVALID', file, '/packages', 'must select at least one package')
   if (packages.length > MAX_INTERACTION_PACKAGES) {
     failWorldPackContract(
       'PACK_LIMIT_EXCEEDED',
@@ -1515,8 +1513,6 @@ export function parseInteractionCatalogV3(input: unknown, file = 'worldpack.json
   const packages = arrayAt(root.packages, file, '/packages').map((entry, index) =>
     implementationLockAt(entry, file, `/packages/${index}`),
   )
-  if (packages.length === 0)
-    failWorldPackContract('PACK_SOURCE_INVALID', file, '/packages', 'must select at least one package')
   if (packages.length > MAX_INTERACTION_PACKAGES) {
     failWorldPackContract(
       'PACK_LIMIT_EXCEEDED',

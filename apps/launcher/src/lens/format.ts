@@ -1,5 +1,5 @@
 import type { LensRequestState, LensRequestView } from '../../../../desktop/lens/store.ts'
-import type { AutoStartEvaluation } from '../../../../desktop/host/pack-activities.ts'
+import type { AutoStartEvaluation } from '@harness-world/contracts'
 import type { LensField, LensItem, LensSection, LensSource } from '../../../../desktop/lens/view.ts'
 import { conditionItems } from '../../../../desktop/lens/ids.ts'
 

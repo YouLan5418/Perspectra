@@ -1,3 +1,4 @@
+import { createRoleplayCore } from '../support/roleplay-runtime.ts'
 import { afterEach, expect, it, vi } from 'vitest'
 import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
@@ -5,7 +6,7 @@ import { tmpdir } from 'node:os'
 import { brandId, type WorldJsonObject } from '@harness-world/contracts'
 import { CharacterViewBuilder, WorldStore } from '@harness-world/store-sqlite'
 import { currentEntityState } from '@harness-world/kernel'
-import { PackActivity } from '../../desktop/host/pack-activity.ts'
+import { ActivityRuntime, activityFromSource } from '../support/activity-runtime.ts'
 import { WorldHostCore } from '../../desktop/host/world-runtime.ts'
 import { FrontendActions, projectPlayerView } from '../../desktop/host/frontend-adapter.ts'
 import { fakeModels } from '../support/fake-provider.ts'
@@ -54,7 +55,7 @@ async function fixture(menu = false, kitchen = false, noCooker = false, extra: W
     timeoutMs: 1000,
     ...extra,
   }
-  const runtime = await WorldHostCore.create(options)
+  const runtime = await createRoleplayCore(options)
   runtimes.push(runtime)
   const events = () => {
     const store = new WorldStore(join(data, 'world.sqlite'))
@@ -78,7 +79,7 @@ async function fixture(menu = false, kitchen = false, noCooker = false, extra: W
 it('reuses activity state only at the same committed head and isolates returned copies', async () => {
   const f = await fixture()
   await f.activate()
-  const activity = new PackActivity(
+  const activity = activityFromSource(
     readFileSync(resolve('examples/world-packs/model-girls-official/scripts/activity.js'), 'utf8'),
     join(f.data, 'world.sqlite'),
     f.runtime.address,
@@ -137,7 +138,7 @@ it('atomically commits the scripted player question and cursor, hides its source
   await expect(f.runtime.perform(next.action)).rejects.toThrow('失效')
   const before = events.length
   await f.runtime.close()
-  const restored = await WorldHostCore.create(f.options)
+  const restored = await createRoleplayCore(f.options)
   runtimes.push(restored)
   expect(f.events()).toHaveLength(before)
   expect(((await restored.state()).activity!.game as WorldJsonObject).public).toMatchObject({ index: 8 })
@@ -311,7 +312,7 @@ it('serves committed activity views without reopening a writer during snapshot p
   const f = await fixture()
   await f.activate()
   const before = await f.runtime.state()
-  const spy = vi.spyOn(PackActivity.prototype, 'current').mockImplementation(() => {
+  const spy = vi.spyOn(ActivityRuntime.prototype, 'current').mockImplementation(() => {
     throw new Error('database is locked')
   })
   const state = await f.runtime.state()
@@ -324,9 +325,9 @@ it('serves committed activity views without reopening a writer during snapshot p
 it('publishes a fixed beat with a Core-sized authorized context, and bounds oversized simulation input', async () => {
   const f = await fixture()
   await f.activate()
-  const original = PackActivity.prototype.simulate
+  const original = ActivityRuntime.prototype.simulate
   let size = 70000
-  vi.spyOn(PackActivity.prototype, 'simulate').mockImplementation(function (this: PackActivity, request) {
+  vi.spyOn(ActivityRuntime.prototype, 'simulate').mockImplementation(function (this: ActivityRuntime, request) {
     return original.call(this, { ...request, context: { ...request.context, authorizedHistory: 'x'.repeat(size) } })
   })
   const first = await f.operation('继续')

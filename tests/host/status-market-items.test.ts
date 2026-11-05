@@ -1,5 +1,6 @@
+import { createRoleplayCore } from '../support/roleplay-runtime.ts'
 import { afterEach, expect, it } from 'vitest'
-import { cpSync, mkdtempSync, rmSync } from 'node:fs'
+import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { tmpdir } from 'node:os'
 import { brandId, interactionPackageDescription, type WorldJsonObject } from '@harness-world/contracts'
@@ -9,7 +10,7 @@ import { currentEntityState } from '@harness-world/kernel'
 import { WorldStore } from '@harness-world/store-sqlite'
 import { WorldHostCore } from '../../desktop/host/world-runtime.ts'
 import { projectPlayerView } from '../../desktop/host/frontend-adapter.ts'
-import { PackStatus } from '../../desktop/host/pack-status.ts'
+import { loadStatus } from '../support/status-runtime.ts'
 import { fakeModels } from '../support/fake-provider.ts'
 
 // The market sample takes, drops and hands over its thermos with the author's script template only: the pack
@@ -28,7 +29,7 @@ async function fixture() {
     data = join(root, 'data')
   cpSync(resolve('examples/world-packs/status-market'), pack, { recursive: true })
   // No usable provider: only the player's adjudicated actions change the world.
-  const runtime = await WorldHostCore.create({
+  const runtime = await createRoleplayCore({
     packPath: pack,
     dataDirectory: data,
     models: fakeModels('http://127.0.0.1:1/api/chat', 'openai', 'unused'),
@@ -93,7 +94,7 @@ it('tells an actor whose item operation the author refused where the item still 
     f.packPath,
     createInstalledInteractionPackages().map(interactionPackageDescription),
   )) as CompiledWorldPackV5
-  const status = PackStatus.load(f.packPath, pack)!
+  const status = loadStatus(f.packPath, pack)!
   const refused = (actorId: string, operation: string) =>
     status.executionResult({
       manifest: adaptCompiledWorldPack(pack, {
@@ -154,4 +155,26 @@ it('lists the items the player can see: on the ground here, in hand, then with w
   })
   // The player saw the handover, so it knows who holds the thermos now.
   expect(await items()).toEqual([{ id: 'entity:thermos', name: '保温杯', where: 'with', holderName: '同行者' }])
+})
+
+it('reports a failing author script as a refused request, as activity and communication mechanisms do', async () => {
+  const f = await fixture()
+  await f.runtime.close()
+  const script = join(f.packPath, 'scripts/status.js')
+  writeFileSync(
+    script,
+    readFileSync(script, 'utf8') + `\n;statusScript.resolve = () => { throw new Error('作者脚本出错') }\n`,
+  )
+  const runtime = await createRoleplayCore({
+    packPath: f.packPath,
+    dataDirectory: join(f.packPath, '..', 'failing-data'),
+    models: fakeModels('http://127.0.0.1:1/api/chat', 'openai', 'unused'),
+    timeoutMs: 1000,
+  })
+  runtimes.push(runtime)
+  const take = projectPlayerView(await runtime.state()).actions.find(a => a.label === '拿起保温杯')!
+  const failure = await runtime.perform(take.action).catch((error: unknown) => error)
+  // The HTTP layer answers a TypeError with its message, and anything else with an opaque 500.
+  expect(failure).toBeInstanceOf(TypeError)
+  expect((failure as Error).message).toContain('作者脚本出错')
 })

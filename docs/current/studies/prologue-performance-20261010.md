@@ -8,7 +8,7 @@
 - 没有长期档案时，身份快照只恢复／复制已经获得的授权别名，并校验角色、世界和事件前缀，避免为所有角色重建完整记忆源。已有长期档案仍执行完整来源校验。
 - 保留每回合数据库备份、权威事务、发表与观察分发、模型输出和 Rulebook 校验。未增加数据库或持久化协议。
 
-实现：[活动读取](../../../desktop/host/pack-activity.ts)、[身份快照](../../../packages/official-memory-core/src/core-memory.ts)。这是源码实现，尚未重新构建便携发行包；test3 文件未修改。
+实现：[活动读取](https://github.com/YouLan5418/Perspectra/blob/36d3efd8/desktop/host/pack-activity.ts)、[身份快照](../../../packages/official-memory-core/src/core-memory.ts)。这是源码实现，尚未重新构建便携发行包；test3 文件未修改。
 
 ## 性能复测
 
@@ -116,5 +116,5 @@ Claude 的 Core 快照已完成授权来源捕获后，原来为了补充每条�
 
 | 迁移前路径（上述提交） | 当前源码 |
 | --- | --- |
-| `tests/experiments/pack-activity.ts` | [pack-activity.ts](../../../desktop/host/pack-activity.ts) |
+| `tests/experiments/pack-activity.ts` | [pack-activity.ts](https://github.com/YouLan5418/Perspectra/blob/36d3efd8/desktop/host/pack-activity.ts) |
 | `tests/experiments/playtest-memory-core.ts` | [core-memory.ts](../../../packages/official-memory-core/src/core-memory.ts) |

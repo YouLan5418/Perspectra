@@ -1,7 +1,8 @@
+import { assembleRoleplay, type WorldComposition } from '../official-bundle.ts'
 import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import type { HostState } from '../host/http-server.ts'
-import type { AutoStartEvaluation } from '../host/pack-activities.ts'
+import type { AutoStartEvaluation } from '@harness-world/contracts'
 import { diffLensViews, type LensChange } from './diff.ts'
 import { applyScenario, parseScenario } from './scenario.ts'
 import {
@@ -47,12 +48,19 @@ export class LensSession {
     private readonly store: LensStore,
     private view: LensView,
     private simulation: LensSimulation,
+    private readonly composition: WorldComposition,
   ) {}
 
-  static async open(packPath: string): Promise<LensSession> {
-    const simulation = await LensSimulation.open(packPath)
+  static async open(packPath: string, composition: WorldComposition = assembleRoleplay()): Promise<LensSession> {
+    const simulation = await LensSimulation.open(packPath, {}, composition)
     try {
-      return new LensSession(packPath, new LensStore(packPath), await buildLensView(packPath, simulation), simulation)
+      return new LensSession(
+        packPath,
+        new LensStore(packPath),
+        await buildLensView(packPath, simulation),
+        simulation,
+        composition,
+      )
     } catch (error) {
       await simulation.close()
       throw error
@@ -94,7 +102,7 @@ export class LensSession {
 
   /** Opens the replacement first, so a start that fails leaves the current simulation in place. */
   async #replaceSimulation(start: LensStart): Promise<LensSimulation> {
-    const next = await LensSimulation.open(this.packPath, start)
+    const next = await LensSimulation.open(this.packPath, start, this.composition)
     const old = this.simulation
     this.simulation = next
     this.#trace = []
@@ -109,7 +117,7 @@ export class LensSession {
   /** Reads the pack again and starts the simulation over from the current start. The baseline does not move. */
   reload(): Promise<LensSnapshot> {
     return this.#run(async () => {
-      const opening = await LensSimulation.open(this.packPath)
+      const opening = await LensSimulation.open(this.packPath, {}, this.composition)
       let view: LensView
       try {
         view = await buildLensView(this.packPath, opening)

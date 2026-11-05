@@ -19,8 +19,8 @@ import {
   type FrontendSpeechAudio,
 } from '@harness-world/frontend'
 import { HOST_ACTIVITY_PAGE } from './host-page.ts'
-import type { ActivityRequest } from './pack-activity.ts'
-import type { KnownStatus, PlayerTruthStatus } from './pack-status.ts'
+import type { ActivityRequest } from '@harness-world/contracts'
+import type { KnownStatus, PlayerTruthStatus } from '@harness-world/contracts'
 import { timingSafeEqual } from 'node:crypto'
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http'
 import type { PackWeb, StageBox, StageConfig, StageMarks } from './pack-frontend.ts'

@@ -16,11 +16,15 @@ import { DatabaseSync } from 'node:sqlite'
 import { brandId, type WorldAddress, type WorldJsonObject } from '@harness-world/contracts'
 import { SessionDeliveryAdapter, WorldOutbox, WorldStore } from '@harness-world/store-sqlite'
 import { compileWorldPackSource, type CompiledWorldPackV5 } from '@harness-world/world-pack'
-import { createInstalledInteractionPackages } from '@harness-world/interactions-basic'
 import { interactionPackageDescription } from '@harness-world/contracts'
 import { CORE_MEMORY_ID, importCoreArchives } from './official-bundle.ts'
 import { createWorldReader } from './host/world-reader.ts'
-import { PackStatus } from './host/pack-status.ts'
+import { StatusState } from '@harness-world/application'
+import { loadStatusSource } from './host/status-source.ts'
+import { assembleRoleplay, type WorldComposition } from './official-bundle.ts'
+import { createWorldCast } from './host/world-cast.ts'
+import { modelCharacters } from './host/player-transcript.ts'
+import type { CompiledWorldManifest } from '@harness-world/kernel'
 import { preflightSave } from './save-preflight.ts'
 import { readStoryNodes, restoreStoryNode, storyId, type StoryNode } from './story-nodes.ts'
 
@@ -111,7 +115,12 @@ function decode(path: string): { node: StoryNode; files: Record<string, Buffer> 
   return { node: meta as unknown as StoryNode, files: decoded }
 }
 /** Validate a disposable copy, never migrate or write the sender's immutable node. */
-async function validate(directory: string, node: StoryNode, packPath: string): Promise<void> {
+async function validate(
+  directory: string,
+  node: StoryNode,
+  packPath: string,
+  composition: WorldComposition,
+): Promise<void> {
   for (const name of node.files.filter(name => name.endsWith('.sqlite'))) {
     const db = new DatabaseSync(join(directory, name), { readOnly: true })
     try {
@@ -182,9 +191,47 @@ async function validate(directory: string, node: StoryNode, packPath: string): P
   }
   const pack = (await compileWorldPackSource(
     packPath,
-    createInstalledInteractionPackages().map(interactionPackageDescription),
+    composition.interactionPackages.map(interactionPackageDescription),
   )) as CompiledWorldPackV5
-  PackStatus.load(packPath, pack)
+  const statusSource = loadStatusSource(packPath, pack)
+  if (statusSource) {
+    const provider = composition.mechanisms.status
+    if (!provider) throw new TypeError('分享预检需要所选状态机制')
+    const store = new WorldStore(join(directory, 'world.sqlite'))
+    let manifest: CompiledWorldManifest
+    try {
+      manifest = store.readManifest(address)!.manifest as CompiledWorldManifest
+    } finally {
+      store.close()
+    }
+    const playerId = String(pack.content.playerSlots[0]!.characterId)
+    const instance = await provider.open(
+      {
+        address,
+        worldVersion: 'share-preflight',
+        candidate: true,
+        dataDirectory: join(directory, 'plugins', provider.id),
+        instanceDirectory: directory,
+        cast: createWorldCast(
+          manifest,
+          playerId,
+          modelCharacters(manifest, brandId(playerId, 'CharacterId')).map(character => character.actorId),
+        ),
+        world: createWorldReader(join(directory, 'world.sqlite'), address),
+        statusSource,
+      },
+      AbortSignal.timeout(30_000),
+    )
+    try {
+      new StatusState(
+        instance.definition,
+        pack.content.characters.map(character => character.characterId),
+        pack.content.entities ?? [],
+      )
+    } finally {
+      await instance.close?.()
+    }
+  }
   const aliases = object(JSON.parse(readFileSync(join(directory, 'memory-aliases.json'), 'utf8')))
   const actors = pack.content.characters
     .filter(character => character.controllerClass !== 'manual' && (character.lifecycle ?? 'active') === 'active')
@@ -206,6 +253,7 @@ export async function exportStoryNode(
   nodeId: string,
   destination: string,
   packPath: string,
+  composition: WorldComposition = assembleRoleplay(),
 ): Promise<void> {
   if (extname(destination) !== '.perspectra-story') throw new Error('导出文件须使用 .perspectra-story 扩展名。')
   const original = readStoryNodes(source).find(node => node.id === storyId(nodeId))
@@ -224,7 +272,7 @@ export async function exportStoryNode(
   try {
     mkdirSync(check)
     for (const name of node.files) writeFileSync(join(check, name), Buffer.from(files[name]!, 'base64'))
-    await validate(check, node, packPath)
+    await validate(check, node, packPath, composition)
     writeFileSync(temporary, JSON.stringify({ kind: 'perspectra-story-node', node, files }), { flag: 'wx' })
     renameSync(temporary, destination)
   } finally {
@@ -238,6 +286,7 @@ export async function importStoryNode(
   instancesRoot: string,
   packPath: string,
   packHash: string,
+  composition: WorldComposition = assembleRoleplay(),
 ): Promise<{ id: string; node: StoryNode }> {
   const shared = decode(path)
   if (shared.node.packHash !== packHash) throw new Error('故事线需要内容完全相同的游戏包；请先载入对应游戏包。')
@@ -254,7 +303,7 @@ export async function importStoryNode(
     const check = join(temporary, '.check')
     mkdirSync(check)
     for (const name of node.files) writeFileSync(join(check, name), shared.files[name]!)
-    await validate(check, node, packPath)
+    await validate(check, node, packPath, composition)
     rmSync(check, { recursive: true, force: true })
     writeFileSync(join(nodeRoot, 'node.json'), JSON.stringify(node))
     restoreStoryNode(temporary, node.id, join(temporary, '.runtime'), packHash)

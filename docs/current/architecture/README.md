@@ -1,5 +1,27 @@
 # 当前代码技术文档
 
+2026-11-05 M7：核心拒绝与已提交事实矛盾的物品和位置效果；最小核心、默认 RP、狼人杀、RPG、状态市场和原生能力组合已有验收场景。真实模型与发行验证及其限制见[M7 记录](../studies/2026-11-core-migration-m7.md)。
+
+2026-11-05 M6：SDK 按机制分组、根入口不变；默认 RP 显式组合，核心不补玩法，透视起点与分享预检使用所选状态机制。统一入口见[机制契约](mechanism-contracts.md)，验证见[M6 记录](../studies/2026-11-core-migration-m6.md)。
+
+2026-11-05 M5：通信计算已迁入 official-communication；自主配置、计数与许可已并入 official-scheduler，分别通过 ctx.communication／ctx.autonomy 替换，核心仍复核发送者、收件权限与行动范围。见[M5 记录](../studies/2026-11-core-migration-m5.md)。
+
+2026-11-05 M4：活动脚本与选择策略已迁为 Cordis `ctx.activities`，核心保留参与者／私有状态检查，宿主保留随机记录、授权读取和执行适配，见[M4 记录](../studies/2026-11-core-migration-m4.md)。
+
+2026-11-05 M3：状态脚本与包内模块解释已迁为 Cordis `ctx.status`；StatusState 在核心检查值、归属、告知并生成授权投影，StatusRuntime 与 PackModules 负责宿主执行和原生能力桥。旧 pack-status.ts 已删除，实际边界和验证见[M3 记录](../studies/2026-11-core-migration-m3.md)。
+
+2026-11-04 M2：空交互目录的激活／读取不一致已修复；WorldApplication 去除隐式玩法安装，状态／活动／通信共享核心即时提交，物品效果检查迁入 application。最小无模型入口及验证范围见[M2 记录](../studies/2026-11-core-migration-m2.md)。
+
+2026-11-04 M0／M1：知识选择已迁为 Cordis 内部机制；当时最小核心探针发现空交互目录存在激活与挂载校验不一致（已于 M2 修复），尚未达到无具体玩法的最小运行时目标。基线、知识接口与验证范围见[本轮记录](../studies/2026-11-core-migration-m01.md)。
+
+后续开发统一遵循[核心与插件规范](plugin-standard.md)：核心保留事实与权限边界，内部机制使用 Cordis，外部玩法通过脚本等形式组合机制。该规范包含目录、接口、生命周期和现有实现差距；不表示代码已全部迁移。[两项暂缓需求](plugin-layering-direction.md)继续暂停。
+
+源码探查后的[分批迁移计划](../../superpowers/plans/2026-11-04-core-mechanisms-migration.md)列出了具体耦合、目标归属、M0～M7 顺序和验收入口；M0～M7 已接通。
+
+2026-11-04：阶段 11 已集中默认组合和服务打开顺序，补齐缺失／循环等待的服务诊断；玩法迁移按实际替代需求保留，见[阶段记录](../studies/2026-11-plugin-first-phase-11.md)。
+
+2026-11-04：阶段 10 将单角色循环策略开放为 `ctx.characterLoop`，官方与第三方使用同一组授权执行能力。入口与提交边界见[运行时](runtime.md)，验证限制见[阶段记录](../studies/2026-11-plugin-first-phase-10.md)。
+
 这套文档解释当前目录的实际代码，面向有一点 Agent 基础的读者。Perspectra 是玩家推动的多角色扮演原型：模型决定角色怎么回应，程序维护授权信息和已裁定的重要状态。部分代码仍使用 Cordis World 名称。
 
 ## 推荐阅读顺序

@@ -1,3 +1,4 @@
+import { createRoleplayCore } from '../support/roleplay-runtime.ts'
 /**
  * Two live werewolf games through the real host and a real model: the player plays from its own view with
  * simple choices, every NPC is a model. Writes a readable transcript and the raw records to a new directory.
@@ -9,7 +10,6 @@ import { join, resolve } from 'node:path'
 import { randomUUID } from 'node:crypto'
 import { brandId, type WorldJsonObject } from '@harness-world/contracts'
 import { CharacterViewBuilder, WorldStore } from '@harness-world/store-sqlite'
-import { WorldHostCore } from '../../desktop/host/world-runtime.ts'
 import { playSettings } from '../../desktop/play-settings.ts'
 import { environmentRoleModels } from '../../desktop/model-connections.ts'
 
@@ -33,7 +33,7 @@ const NAME: Record<string, string> = {
 const transcript = (line: string) => (appendFileSync(join(root, 'transcript.md'), line + '\n'), console.log(line))
 type Game = { active: boolean; phase: string; turn: string | null; public: WorldJsonObject; private: WorldJsonObject }
 
-const runtime = await WorldHostCore.create({
+const runtime = await createRoleplayCore({
   packPath: resolve('examples/world-packs/model-girls-werewolf'),
   dataDirectory: data,
   models,

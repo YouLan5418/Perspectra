@@ -44,6 +44,8 @@ Perspectra 定位为以角色为中心的 AI 原生游戏引擎，融合 Galgame
 
 例外：用户已批准[插件优先运行时](docs/superpowers/specs/2026-11-02-plugin-first-runtime-design.md)，按其范围切分可替换接缝不算主动引入插件层。设计之外的新抽象仍适用上面的约束。
 
+阶段 11 后，用户确认以[核心与插件统一规范](docs/current/architecture/plugin-standard.md)作为后续开发方向：目标是玩法可组合，不是全部代码插件化。世界事件、原子提交、认知隔离、授权视图、存档分支一致性、插件生命周期与权限保留在核心；内部机制插件使用 Cordis，外部玩法通过公开机制接口用脚本等形式组合，具体内容归世界包。实现和默认组合分开，不把具体玩法继续塞入宿主。规范中的目标与差距不表示迁移已完成。剧情导演（扰动器＋节拍器）及通用外部插件持久化世界状态仍仅记录、暂不实施，见[暂缓需求](docs/current/architecture/plugin-layering-direction.md)。
+
 ## 3. 事实边界与叙事自由
 
 World Event Log 是已提交权威世界事实的来源。模型输出只能提出行动，不能直接修改权威世界状态。

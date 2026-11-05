@@ -100,7 +100,11 @@ describe('World Pack creator CLI', () => {
       inspection: { packId: 'pack:hand-in-hand' },
     })
     expect(
-      parsed(await executeWorldPackCli(['activate', artifact, '--data-dir', join(root, 'runtime')])),
+      parsed(
+        await executeWorldPackCli(['activate', artifact, '--data-dir', join(root, 'runtime')], {
+          interactionImplementations: [createBasicInteractionPackage()],
+        }),
+      ),
     ).toMatchObject({ command: 'activate', status: 'activated' })
     await expect(executeWorldPackCli(['validate', source])).rejects.toThrow(/is not installed by the Host/u)
 

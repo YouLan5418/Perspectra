@@ -23,15 +23,68 @@ async function freshDirectory(): Promise<string> {
 }
 
 describe('desktop launch boundary', () => {
-  it('starts a local world, serves authorized state, closes, and refuses another pack for that save', async () => {
-    const directory = await freshDirectory()
-    const pluginDirectory = await freshDirectory(),
-      pluginPath = join(pluginDirectory, 'speech.mjs')
-    await writeFile(
-      pluginPath,
-      `import { writeFileSync } from 'node:fs';
-      export const hostApi = '2.3';
+  it.each(['hand-in-hand', 'autonomy-scheduling', 'scripted-performance', 'cross-scene-sms'])(
+    'starts %s with an external character loop, serves authorized state and closes',
+    async packName => {
+      const directory = await freshDirectory()
+      const pluginDirectory = await freshDirectory(),
+        pluginPath = join(pluginDirectory, 'speech.mjs')
+      await writeFile(
+        pluginPath,
+        `import { writeFileSync, appendFileSync } from 'node:fs';
+      import { Script, createContext } from 'node:vm';
+      export const hostApi = '2.8';
       export default function(ctx) {
+        ctx.effect(()=>ctx.communication.register({id:'packaged-communication',version:'1.0.0',open:async world=>{
+          writeFileSync(new URL('./communication-ran',import.meta.url),world.communicationSource?'config':'none');
+          const parameters=(id,text)=>({targetRef:{kind:'character',id},bindingId:'experiment:message',definitionRef:{id:'experiment:message',version:1},arguments:{text}});
+          return {definition:world.communicationSource?.config,instruction:'测试通信',parameters,options:input=>input.recipientIds.map(id=>({...parameters(id,''),medium:'短信',argumentSchema:{type:'object',additionalProperties:false,required:['text'],properties:{text:{type:'string',minLength:1,maxLength:input.publicationCharacters}}}})),prepare:input=>{writeFileSync(new URL('./communication-prepared',import.meta.url),JSON.stringify(input));return {text:input.text,description:'发送者的陈述'}},describeDelivery:()=> '已投递',close:()=>writeFileSync(new URL('./communication-closed',import.meta.url),'yes')};
+        }}));
+        ctx.effect(()=>ctx.autonomy.register({id:'packaged-autonomy',version:'1.0.0',open:async world=>{
+          writeFileSync(new URL('./autonomy-ran',import.meta.url),world.autonomySource?'config':'none');
+          const roles=world.autonomySource?.config.characters??[];
+          return {roles,instruction:'测试自主',due:input=>input.actions.some(action=>action.seq>input.afterSeq)?roles.map(role=>role.characterId):[],permits:()=>true,close:()=>writeFileSync(new URL('./autonomy-closed',import.meta.url),'yes')};
+        }}));
+        ctx.effect(() => ctx.activities.register({id:'packaged-activities',version:'1.0.0',open:async world=>{
+          writeFileSync(new URL('./activities-ran',import.meta.url),world.activitySource?'script':'none');
+          const entries=(world.activitySource?.entries??[]).map(source=>{
+            const call=(method,args,random)=>JSON.parse(new Script(source.source+';if(__method==="initialize")Math.random=__random;JSON.stringify(__method==="definition"?activityScript.definition:__method==="hasAutoStart"?activityScript.autoStart!==undefined:__method==="hasResume"?typeof activityScript.resume==="function":typeof activityScript[__method]==="function"?activityScript[__method](...__args):null)').runInContext(createContext({__method:method,__args:args,__random:random})));
+            return {key:source.key,definition:call('definition',[]),hasAutoStart:call('hasAutoStart',[])===true,hasResume:()=>call('hasResume',[]),
+              initialize:(input,random)=>call('initialize',[input],random),policy:(...args)=>call('policy',args),resolve:(...args)=>call('resolve',args),
+              published:(...args)=>call('onPublished',args),resume:(...args)=>call('resume',args),autoStart:(...args)=>call('autoStart',args),
+              simulate:(...args)=>call('simulate',args),schedule:(...args)=>call('schedule',args),outcome:(...args)=>call('onOutcome',args)};
+          });
+          return {entries,select:(progress,latest)=>progress.find(item=>item.active)?.key??latest??entries[0]?.key,
+            chooseAutoStart:(candidates,random)=>{const most=Math.max(...candidates.map(item=>item.conditions)),tied=candidates.filter(item=>item.conditions===most);return tied.length===1?tied[0].key:tied[Math.floor(random()*tied.length)]?.key},
+            close:()=>writeFileSync(new URL('./activities-closed',import.meta.url),'yes')};
+        }}));
+        ctx.effect(() => ctx.status.register({id:'packaged-status',version:'1.0.0',open:async world=>{
+          writeFileSync(new URL('./status-ran', import.meta.url),world.statusSource?'script':'none');
+          if(world.statusSource?.modules.length)throw new Error('fixture has no modules');
+          const call=(method,args)=>world.statusSource?JSON.parse(new Script(world.statusSource.script+';JSON.stringify(__method==="definition"?statusScript.definition:__method==="hasRoundHook"?typeof statusScript.onRoundEnd==="function":typeof statusScript[__method]==="function"?statusScript[__method](...__args):null)').runInContext(createContext({__method:method,__args:args}))):undefined;
+          return {definition:call('definition',[]),hasRoundHook:call('hasRoundHook',[])===true,moduleDefinitions:[],
+          initialize:ids=>call('initialize',[ids]),policy:(known,actor,place)=>call('policy',[known,actor,place]),
+          resolve:input=>call('resolve',[input.truth,input.actorId,input.operation,input.parameters,input.world,input.targetId,input.external]),
+          endRound:(truth,round)=>call('onRoundEnd',[truth,round]),prepareModule:()=>{throw new Error('no modules')},
+          close:()=>writeFileSync(new URL('./status-closed', import.meta.url),'yes')};
+        }}));
+        ctx.effect(() => ctx.knowledge.register({ id:'packaged-knowledge',version:'1.0.0',open:async()=>({
+          select:context=>{writeFileSync(new URL('./knowledge-ran', import.meta.url),context.character.characterId);return undefined},
+          close:()=>writeFileSync(new URL('./knowledge-closed', import.meta.url),'yes'),
+        }) }));
+        ctx.effect(() => ctx.characterLoop.register({ id:'packaged-loop', version:'1.0.0', open:async()=>({
+          run: async activation => {
+            for (let step = 0; step < 2; step++) {
+              activation.prepare({canPerform:step === 0 && !activation.continuation,continuation:activation.continuation || step > 0});
+              const result = await activation.submit(await activation.decide(() => false));
+              appendFileSync(new URL('./loop-ran', import.meta.url), activation.characterId + '\\n');
+              if (result.decision === 'abstain') return 'abstained';
+              if (result.decision === 'publish') return result.status === 'accepted' ? 'published' : 'failed';
+            }
+            return 'budget_exhausted';
+          },
+          close: () => writeFileSync(new URL('./loop-closed', import.meta.url), 'yes'),
+        }) }));
         ctx.effect(() => ctx.llm.registerTransport({ id:'packaged-transport', version:'1.0.0', open:async()=>({ model:'packaged-fixture', schemaMode:'native', send:async()=>({value:{decision:'abstain'}}) }) }));
         ctx.effect(() => ctx.frontendServices.registerSpeech(async () => ({contentType:'audio/wav',bytes:new Uint8Array([1])})));
         ctx.effect(() => ctx.frontendServices.registerBgm({
@@ -40,109 +93,159 @@ describe('desktop launch boundary', () => {
         }));
         ctx.effect(() => () => writeFileSync(new URL('./plugin-closed', import.meta.url), 'yes'));
       }`,
-    )
-    const pack = resolve('examples/world-packs/hand-in-hand')
-    expect((await preflightSave(pack, directory)).kind).toBe('new')
-    const bundled = process.env.HCW_TEST_DESKTOP_BUNDLE === '1'
-    const entry = bundled ? resolve('dist/backend/playtest.mjs') : resolve('desktop/host/web-entry.ts')
-    const child = spawn(
-      process.execPath,
-      [
-        ...(bundled ? [] : ['--import', 'tsx']),
-        entry,
-        '--memory-none',
-        '--pack',
-        pack,
-        '--data-dir',
-        directory,
-        '--tuning',
-        JSON.stringify({
-          maximumWaves: 1,
-          maximumNpcCalls: 2,
-          maximumCallsPerCharacter: 1,
-          reactionDeadlineSeconds: 15,
-          recentObservations: 4,
-          recentSelfObservations: 0,
-        }),
-      ],
-      {
-        cwd: resolve('.'),
-        stdio: ['ignore', 'pipe', 'pipe', 'ipc'],
-        windowsHide: true,
-        env: {
-          ...process.env,
-          PERSPECTRA_ROLE_MODELS: undefined,
-          PERSPECTRA_MODEL_KEYS: undefined,
-          PERSPECTRA_MODEL_ENDPOINT: 'http://127.0.0.1:9/v1/chat/completions',
-          PERSPECTRA_MODEL: 'fixture',
-          PERSPECTRA_HOST_PLUGINS: JSON.stringify([
-            { id: 'tts', path: pluginPath, enabled: true },
-            { id: 'disabled', path: join(pluginDirectory, 'not-installed.mjs'), enabled: false },
-          ]),
-        },
-      },
-    )
-    let stderr = ''
-    child.stderr?.on('data', chunk => {
-      stderr += String(chunk)
-    })
-    try {
-      const ready = await new Promise<{ port: number; token: string }>((resolveReady, rejectReady) => {
-        const timeout = setTimeout(() => rejectReady(new Error(`startup timeout: ${stderr}`)), 30_000)
-        child.on('message', value => {
-          if (
-            value &&
-            typeof value === 'object' &&
-            'type' in value &&
-            value.type === 'ready' &&
-            'port' in value &&
-            'token' in value &&
-            typeof value.port === 'number' &&
-            typeof value.token === 'string'
-          ) {
-            clearTimeout(timeout)
-            resolveReady({ port: value.port, token: value.token })
-          }
-        })
-        child.once('exit', code => {
-          clearTimeout(timeout)
-          rejectReady(new Error(`exit ${code}: ${stderr}`))
-        })
-      })
-      const origin = `http://127.0.0.1:${ready.port}`
-      expect((await fetch(`${origin}/api/state`)).status).toBe(401)
-      const response = await fetch(`${origin}/api/state`, { headers: { 'x-playtest-token': ready.token } })
-      expect(response.status).toBe(200)
-      const state = (await response.json()) as {
-        world: { title: string }
-        debug: { model: string }
-        availableActions?: readonly { actionType: string }[]
-      }
-      expect(state.world.title).toBe('山脊上的两只手')
-      expect(state.debug.model).toBe('packaged-fixture')
-      expect(state.availableActions?.map(value => value.actionType)).toContain('interact')
-      const init = await (
-        await fetch(`${origin}/frontend-api/v1/init`, { headers: { 'x-playtest-token': ready.token } })
-      ).json()
-      expect(init.capabilities).toContain('speech')
-      expect(init.capabilities).toContain('bgm')
-      const music = await fetch(`${origin}/frontend-api/v1/bgm/audio`, {
-        method: 'POST',
-        headers: { 'x-playtest-token': ready.token, 'content-type': 'application/json' },
-        body: JSON.stringify({ id: 'calm' }),
-      })
-      expect(music.status).toBe(200)
-      expect(new Uint8Array(await music.arrayBuffer())).toEqual(new Uint8Array([82, 73, 70, 70]))
-      child.send({ type: 'shutdown' })
-      const exitCode = await new Promise<number | null>(resolveExit => child.once('exit', resolveExit))
-      expect(exitCode).toBe(0)
-      expect(await readFile(join(pluginDirectory, 'plugin-closed'), 'utf8')).toBe('yes')
-      expect((await preflightSave(pack, directory)).kind).toBe('resume')
-      await expect(preflightSave(resolve('examples/world-packs/prototype-g1'), directory)).rejects.toThrow(
-        '世界包与存档中的世界不一致',
       )
-    } finally {
-      if (child.exitCode === null && child.signalCode === null) child.kill()
-    }
-  }, 45_000)
+      const pack = resolve('examples/world-packs', packName)
+      expect((await preflightSave(pack, directory)).kind).toBe('new')
+      const bundled = process.env.HCW_TEST_DESKTOP_BUNDLE === '1'
+      const entry = bundled ? resolve('dist/backend/playtest.mjs') : resolve('desktop/host/web-entry.ts')
+      const child = spawn(
+        process.execPath,
+        [
+          ...(bundled ? [] : ['--import', 'tsx']),
+          entry,
+          '--memory-none',
+          '--pack',
+          pack,
+          '--data-dir',
+          directory,
+          '--tuning',
+          JSON.stringify({
+            maximumWaves: 1,
+            maximumNpcCalls: 2,
+            maximumCallsPerCharacter: 1,
+            reactionDeadlineSeconds: 15,
+            recentObservations: 4,
+            recentSelfObservations: 0,
+          }),
+        ],
+        {
+          cwd: resolve('.'),
+          stdio: ['ignore', 'pipe', 'pipe', 'ipc'],
+          windowsHide: true,
+          env: {
+            ...process.env,
+            PERSPECTRA_ROLE_MODELS: undefined,
+            PERSPECTRA_MODEL_KEYS: undefined,
+            PERSPECTRA_MODEL_ENDPOINT: 'http://127.0.0.1:9/v1/chat/completions',
+            PERSPECTRA_MODEL: 'fixture',
+            PERSPECTRA_HOST_PLUGINS: JSON.stringify([
+              { id: 'tts', path: pluginPath, enabled: true },
+              { id: 'disabled', path: join(pluginDirectory, 'not-installed.mjs'), enabled: false },
+            ]),
+          },
+        },
+      )
+      let stderr = ''
+      child.stderr?.on('data', chunk => {
+        stderr += String(chunk)
+      })
+      try {
+        const ready = await new Promise<{ port: number; token: string }>((resolveReady, rejectReady) => {
+          const timeout = setTimeout(() => rejectReady(new Error(`startup timeout: ${stderr}`)), 30_000)
+          child.on('message', value => {
+            if (
+              value &&
+              typeof value === 'object' &&
+              'type' in value &&
+              value.type === 'ready' &&
+              'port' in value &&
+              'token' in value &&
+              typeof value.port === 'number' &&
+              typeof value.token === 'string'
+            ) {
+              clearTimeout(timeout)
+              resolveReady({ port: value.port, token: value.token })
+            }
+          })
+          child.once('exit', code => {
+            clearTimeout(timeout)
+            rejectReady(new Error(`exit ${code}: ${stderr}`))
+          })
+        })
+        const origin = `http://127.0.0.1:${ready.port}`
+        expect((await fetch(`${origin}/api/state`)).status).toBe(401)
+        const response = await fetch(`${origin}/api/state`, { headers: { 'x-playtest-token': ready.token } })
+        expect(response.status).toBe(200)
+        const state = (await response.json()) as {
+          world: { title: string }
+          debug: { model: string }
+          availableActions?: readonly { actionType: string }[]
+        }
+        expect(state.world.title.length).toBeGreaterThan(0)
+        if (packName === 'hand-in-hand') expect(state.world.title).toBe('山脊上的两只手')
+        expect(state.debug.model).toBe('packaged-fixture')
+        if (packName === 'hand-in-hand')
+          expect(state.availableActions?.map(value => value.actionType)).toContain('interact')
+        const init = await (
+          await fetch(`${origin}/frontend-api/v1/init`, { headers: { 'x-playtest-token': ready.token } })
+        ).json()
+        expect(init.capabilities).toContain('speech')
+        expect(init.capabilities).toContain('bgm')
+        const music = await fetch(`${origin}/frontend-api/v1/bgm/audio`, {
+          method: 'POST',
+          headers: { 'x-playtest-token': ready.token, 'content-type': 'application/json' },
+          body: JSON.stringify({ id: 'calm' }),
+        })
+        expect(music.status).toBe(200)
+        expect(new Uint8Array(await music.arrayBuffer())).toEqual(new Uint8Array([82, 73, 70, 70]))
+        const submitted = await fetch(`${origin}/api/${packName === 'scripted-performance' ? 'activity' : 'submit'}`, {
+          method: 'POST',
+          headers: { 'x-playtest-token': ready.token, 'content-type': 'application/json' },
+          body: JSON.stringify(
+            packName === 'scripted-performance'
+              ? {
+                  activityKey: 'default',
+                  activityId: null,
+                  revision: 0,
+                  operation: 'start',
+                  parameters: {},
+                  requestId: 'packaged-loop',
+                }
+              : {
+                  text:
+                    packName === 'cross-scene-sms'
+                      ? '/message ' + JSON.stringify({ recipientId: 'character:companion', text: '构建后短信' })
+                      : '你好。',
+                },
+          ),
+        })
+        expect(submitted.status).toBe(200)
+        if (packName === 'cross-scene-sms')
+          expect(JSON.parse(await readFile(join(pluginDirectory, 'communication-prepared'), 'utf8'))).toMatchObject({
+            actorId: 'character:player',
+            recipientId: 'character:companion',
+            text: '构建后短信',
+          })
+        const actors = await readFile(join(pluginDirectory, 'loop-ran'), 'utf8')
+        expect(actors).toContain('character:')
+        expect(await readFile(join(pluginDirectory, 'communication-ran'), 'utf8')).toBe(
+          packName === 'cross-scene-sms' ? 'config' : 'none',
+        )
+        expect(await readFile(join(pluginDirectory, 'autonomy-ran'), 'utf8')).toBe(
+          packName === 'autonomy-scheduling' ? 'config' : 'none',
+        )
+        expect(await readFile(join(pluginDirectory, 'activities-ran'), 'utf8')).toMatch(/^(script|none)$/u)
+        expect(await readFile(join(pluginDirectory, 'status-ran'), 'utf8')).toMatch(/^(script|none)$/u)
+        expect(await readFile(join(pluginDirectory, 'knowledge-ran'), 'utf8')).toContain('character:')
+        if (packName === 'autonomy-scheduling') expect(actors).toContain('character:friend')
+        child.send({ type: 'shutdown' })
+        const exitCode = await new Promise<number | null>(resolveExit => child.once('exit', resolveExit))
+        expect(exitCode).toBe(0)
+        expect(await readFile(join(pluginDirectory, 'plugin-closed'), 'utf8')).toBe('yes')
+        expect(await readFile(join(pluginDirectory, 'loop-closed'), 'utf8')).toBe('yes')
+        expect(await readFile(join(pluginDirectory, 'knowledge-closed'), 'utf8')).toBe('yes')
+        expect(await readFile(join(pluginDirectory, 'communication-closed'), 'utf8')).toBe('yes')
+        expect(await readFile(join(pluginDirectory, 'autonomy-closed'), 'utf8')).toBe('yes')
+        expect(await readFile(join(pluginDirectory, 'activities-closed'), 'utf8')).toBe('yes')
+        expect(await readFile(join(pluginDirectory, 'status-closed'), 'utf8')).toBe('yes')
+        expect((await preflightSave(pack, directory)).kind).toBe('resume')
+        await expect(preflightSave(resolve('examples/world-packs/prototype-g1'), directory)).rejects.toThrow(
+          '世界包与存档中的世界不一致',
+        )
+      } finally {
+        if (child.exitCode === null && child.signalCode === null) child.kill()
+      }
+    },
+    45_000,
+  )
 })

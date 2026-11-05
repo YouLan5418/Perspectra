@@ -1,4 +1,14 @@
-import { composeDecisions } from '../official-bundle.ts'
+import { createWorldCast } from './world-cast.ts'
+import { AutonomyRuntime } from './autonomy-runtime.ts'
+import { CommunicationRuntime } from './communication-runtime.ts'
+import { guardedCommunication, guardedAutonomy, mechanismFailure } from './gameplay-services.ts'
+import { loadAutonomySource, loadCommunicationSource } from './gameplay-source.ts'
+import { guardedActivities } from './activity-service.ts'
+import { loadActivitySource } from './activity-source.ts'
+import { loadStatusSource } from './status-source.ts'
+import { StatusRuntime } from './status-runtime.ts'
+import { loadKnowledgeSource } from './knowledge-source.ts'
+import { assembleRoleplay, officialWorldOrder, type WorldComposition } from '../official-bundle.ts'
 import { RequestInspector, type ChatCallObservation, type ChatProvider } from '@harness-world/provider-chat'
 import { CreatorRecords, type CreatorRecordsQuery } from './creator-records.ts'
 import { type CreatorHistoryQuery } from './creator-history.ts'
@@ -22,6 +32,7 @@ import { TailRoundRuntime } from './tail-runtime.ts'
 import { assertSettled, snapshotTail } from '../tail-storage.ts'
 import {
   CharacterTurn,
+  CharacterLoopError,
   characterVisibleItems,
   recentExecutionContext,
   createSchedulerRound,
@@ -33,7 +44,8 @@ import {
 } from '@harness-world/application'
 import { saveStoryNode, readStoryNodes } from '../story-nodes.ts'
 import { existsSync, unlinkSync } from 'node:fs'
-import { activityWorldFromEvents, type ActivityRequest, type ActivityWorld } from './pack-activity.ts'
+import { activityWorldFromEvents, type ActivityWorld } from './activity-world.ts'
+import type { ActivityRequest } from '@harness-world/contracts'
 import {
   guardedDecision,
   guardedLlm,
@@ -43,7 +55,7 @@ import {
   type ReportPluginFailure,
 } from './character-decision.ts'
 import { guardedRules, layeredCoreRules } from './rule-layers.ts'
-import { WorldGameplay } from './world-gameplay.ts'
+import { WorldAdapters } from './world-adapters.ts'
 import { pluginSetChanges, readPluginSet, writePluginSet } from './plugin-set.ts'
 import { creatorHistorySnapshot, creatorInspectionSnapshot, type CreatorQueryHost } from './creator-queries.ts'
 import { routeGameplayInput } from './player-input.ts'
@@ -58,9 +70,11 @@ import {
   type RoundStatus,
 } from './round-notices.ts'
 export { providerFailureNotice } from './round-notices.ts'
-import { PackActivities, type ActivityDefinitionView, type AutoStartEvaluation } from './pack-activities.ts'
-import { pauseRounds, type StatusDefinition, type StatusOperation } from './pack-status.ts'
-import { type AutonomousRole } from './pack-autonomy.ts'
+import { ActivitiesRuntime } from './activities-runtime.ts'
+import type { ActivityDefinitionView, AutoStartEvaluation } from '@harness-world/contracts'
+import { pauseRounds } from '@harness-world/application'
+import type { StatusDefinition, StatusOperation } from '@harness-world/contracts'
+import type { AutonomousRole } from '@harness-world/contracts'
 import { mkdirSync, readFileSync } from 'node:fs'
 import { randomUUID } from 'node:crypto'
 import { resolve, relative, basename } from 'node:path'
@@ -74,7 +88,6 @@ import {
   type WorldJsonObject,
   type WorldAddress,
 } from '@harness-world/contracts'
-import { createInstalledInteractionPackages } from '@harness-world/interactions-basic'
 import {
   CharacterViewBuilder,
   CharacterRuntimeAvailabilityService,
@@ -86,17 +99,9 @@ import { adaptCompiledWorldPack, compileWorldPackSource, type CompiledWorldPackV
 import { actionText, HostBusyError, isWait, type HostAction, type HostRuntime, type HostState } from './http-server.ts'
 import { modelCharacters, playerTranscript, sceneChangedAt } from './player-transcript.ts'
 import { DEFAULT_RUNTIME_TUNING, type RuntimeTuning } from './runtime-tuning.ts'
-import { PackModules, lockedPackAsset } from './pack-modules.ts'
+import { PackModules } from './pack-modules.ts'
 import { CapabilitySession, type CapabilityCatalog } from '../host-capabilities.ts'
-import {
-  CORE_MEMORY_ID,
-  llmTimeoutMs,
-  officialLlmProvider,
-  officialMemoryNoneProvider,
-  officialSeams,
-  type HostSeams,
-  type ModelOptions,
-} from '../official-bundle.ts'
+import { CORE_MEMORY_ID, llmTimeoutMs, type HostSeams, type ModelOptions } from '../official-bundle.ts'
 import { normalizeSchedulerResult, trackSchedulerTurns } from './scheduler-result.ts'
 import { createWorldReader } from './world-reader.ts'
 import type {
@@ -119,6 +124,8 @@ export interface WorldHostOptions extends Omit<ModelOptions, 'models' | 'playSet
   readonly capabilities?: CapabilityCatalog
   /** The implementation in force for each replaceable seam; defaults to the official bundle. */
   readonly plugins?: Partial<HostSeams>
+  /** Complete entry selection; omitted optional mechanisms stay disabled. Do not combine with plugins. */
+  readonly composition?: WorldComposition
   /** Receives the player's transcript after each projection; read-only, it cannot affect the world. */
   readonly playerFeed?: { publish(transcript: HostState['transcript']): void }
   readonly dataDirectory: string
@@ -144,6 +151,8 @@ export interface WorldHostOptions extends Omit<ModelOptions, 'models' | 'playSet
   /** Read-only recent execution presentation; no planning calls or persistent strategy. */
   readonly recentExecutionEvidence?: boolean
 }
+
+export type WorldHostCoreOptions = WorldHostOptions & { readonly composition: WorldComposition }
 
 /** Whether a Pack directory is a v5 source, which is the one this runtime plays. */
 export function isV5SourcePackDirectory(packPath: string): boolean {
@@ -192,7 +201,8 @@ export class WorldHostCore implements HostRuntime {
       locationNames: this.#locationNames,
       inspector: this.#inspector,
       activationCycle: this.#activationCycle,
-      gameplay: this.#gameplay,
+      statusTruth: events => this.#gameplay.status?.truth(events),
+      activityStates: events => this.#gameplay.activity?.debugStates(events) ?? [],
       worldVersion: this.#worldVersion,
       title: this.#title,
       packHash: this.#packHash,
@@ -227,13 +237,23 @@ export class WorldHostCore implements HostRuntime {
   #model: string
   readonly #intentModel: string
   readonly #characterIds: readonly CharacterId[]
+  #status!: import('@harness-world/plugin-sdk').StatusInstance
+  #communication!: import('@harness-world/plugin-sdk').CommunicationInstance
+  #autonomy!: import('@harness-world/plugin-sdk').AutonomyInstance
+  #communicationSource: import('@harness-world/plugin-sdk').CommunicationSource | undefined
+  #autonomySource: import('@harness-world/plugin-sdk').AutonomySource | undefined
+  #activities!: import('@harness-world/plugin-sdk').ActivitiesInstance
+  #activitySource: import('@harness-world/plugin-sdk').ActivitySource | undefined
+  #statusSource: import('@harness-world/plugin-sdk').StatusSource | undefined
+  #knowledge!: import('@harness-world/plugin-sdk').KnowledgeInstance
+  #knowledgeSource: import('@harness-world/plugin-sdk').KnowledgeSource | undefined
   #llm!: LlmInstance
   /** The modules actually in force, which can differ from what was asked for when a scheduler falls back. */
   readonly #modulesInForce: Record<string, { id: string; version: string }[]> = {}
-  readonly #gameplay: WorldGameplay
+  readonly #gameplay: WorldAdapters
   #decisions: DecisionInstance[] = []
   #ruleLayers: RulesInstance[] = []
-  readonly #coreRegistry = layeredCoreRules(() => this.#ruleLayers)
+  readonly #coreRegistry: RulebookRegistry
   #memory: MemoryInstance | undefined
   #memoryIsCore = false
   #memoryId = ''
@@ -303,6 +323,7 @@ export class WorldHostCore implements HostRuntime {
   #autoStartError: string | undefined
   #activationCycle: SchedulerResult | undefined
   #scheduler!: SchedulerInstance
+  #characterLoop!: import('@harness-world/plugin-sdk').CharacterLoopInstance
   #schedulerIsOfficial = true
   readonly #manifestVersion: number
   readonly #intentEnabled: boolean
@@ -346,11 +367,12 @@ export class WorldHostCore implements HostRuntime {
   #continuationController: AbortController | undefined
 
   private constructor(
-    options: WorldHostOptions,
+    options: WorldHostCoreOptions,
     compiled: ReturnType<typeof adaptCompiledWorldPack>,
     intentEnabled: boolean,
   ) {
-    this.#options = options
+    this.#options = { ...options, plugins: options.composition.mechanisms }
+    this.#coreRegistry = layeredCoreRules(() => this.#ruleLayers, options.composition.interactionPackages)
     this.#worldVersion = options.worldVersion ?? randomUUID()
     this.#address = compiled.manifest.address
     this.#dataDirectory = options.dataDirectory
@@ -378,7 +400,7 @@ export class WorldHostCore implements HostRuntime {
     if (binding === undefined) throw new TypeError('world Pack has no PlayerBinding')
     this.#principalId = binding.principalId
     this.#playerId = binding.characterId
-    this.#gameplay = new WorldGameplay({
+    this.#gameplay = new WorldAdapters({
       address: this.#address,
       playerId: this.#playerId,
       worldPath: resolve(options.dataDirectory, 'world.sqlite'),
@@ -412,7 +434,7 @@ export class WorldHostCore implements HostRuntime {
       timeoutMs: Math.min(timeoutMs, 60_000),
     }
     this.#application = new WorldApplication({
-      interactionPackages: createInstalledInteractionPackages(),
+      interactionPackages: options.composition.interactionPackages,
       rulebooks: this.#coreRegistry,
       worldPath: resolve(options.dataDirectory, 'world.sqlite'),
       sessionPath: resolve(options.dataDirectory, 'session.sqlite'),
@@ -471,18 +493,17 @@ export class WorldHostCore implements HostRuntime {
     return wrapDecision(this.#decisions, inner, signal)(request)
   }
 
-  static async create(options: WorldHostOptions): Promise<WorldHostCore> {
+  static async create(options: WorldHostCoreOptions): Promise<WorldHostCore> {
+    if (!options.composition?.mechanisms.scheduler || !options.composition.mechanisms.characterLoop)
+      throw new TypeError('世界组合必须明确提供 scheduler 和 characterLoop')
+    if (!options.composition.mechanisms.llm && !options.composition.modelChannel)
+      throw new TypeError('世界组合必须明确提供模型通道或模型装配器')
     mkdirSync(resolve(options.dataDirectory), { recursive: true })
     const pack = (await compileWorldPackSource(
       resolve(options.packPath),
-      createInstalledInteractionPackages().map(interactionPackageDescription),
+      options.composition.interactionPackages.map(interactionPackageDescription),
     )) as CompiledWorldPackV5
     const modules = PackModules.load(options.packPath, pack, options.capabilities)
-    const statusSource = modules?.statusSource(
-      pack.assets.some(asset => asset.path === 'scripts/status.js')
-        ? lockedPackAsset(options.packPath, pack, 'scripts/status.js')
-        : undefined,
-    )
     const compiled = adaptCompiledWorldPack(pack, {
       address: {
         tenantId: brandId('tenant:web-playtest', 'TenantId'),
@@ -497,11 +518,25 @@ export class WorldHostCore implements HostRuntime {
         ?.version === 'player-intent/v1'
     const runtime = new WorldHostCore(options, compiled, intentEnabled)
     try {
-      await runtime.#openLlm()
-      await runtime.#openRules()
-      await runtime.#openMemory()
-      await runtime.#openDecisions()
-      await runtime.#openScheduler()
+      runtime.#communicationSource = loadCommunicationSource(options.packPath, pack)
+      runtime.#autonomySource = loadAutonomySource(options.packPath, pack)
+      runtime.#activitySource = loadActivitySource(options.packPath, pack)
+      runtime.#knowledgeSource = loadKnowledgeSource(options.packPath, pack)
+      runtime.#statusSource = loadStatusSource(options.packPath, pack, modules?.sources)
+      const open = {
+        knowledge: () => runtime.#openKnowledge(),
+        status: () => runtime.#openStatus(),
+        activities: () => runtime.#openActivities(),
+        communication: () => runtime.#openCommunication(),
+        autonomy: () => runtime.#openAutonomy(),
+        llm: () => runtime.#openLlm(),
+        rules: () => runtime.#openRules(),
+        memory: () => runtime.#openMemory(),
+        decisions: () => runtime.#openDecisions(),
+        scheduler: () => runtime.#openScheduler(),
+        characterLoop: () => runtime.#openCharacterLoop(),
+      }
+      for (const service of officialWorldOrder) await open[service]()
       runtime.#packHash = pack.packHash
       runtime.#actionLabels = Object.fromEntries(
         [...pack.content.entities, ...pack.content.characters].flatMap(target =>
@@ -511,7 +546,27 @@ export class WorldHostCore implements HostRuntime {
         ),
       )
       runtime.#storyParentNodeId = options.storyParentNodeId ?? null
-      runtime.#gameplay.prepare(options.packPath, pack, compiled.manifest)
+      runtime.#gameplay.communication =
+        runtime.#communication?.definition === undefined
+          ? undefined
+          : new CommunicationRuntime(
+              runtime.#communication,
+              compiled.manifest,
+              runtime.#coreRules().resolve('builtin:speak-move', 2, 'communication', runtime.#address),
+            )
+      runtime.#gameplay.autonomy =
+        runtime.#autonomySource === undefined
+          ? undefined
+          : new AutonomyRuntime(runtime.#autonomy!, runtime.#autonomySource, String(runtime.#playerId))
+      const status =
+        runtime.#statusSource === undefined
+          ? undefined
+          : new StatusRuntime(
+              runtime.#status,
+              pack.content.characters.map(character => character.characterId),
+              pack.content.entities ?? [],
+            )
+      if (modules && status) modules.describe(status)
       runtime.#application.activate(compiled)
       runtime.#gameplay.modules = modules
       if (modules) {
@@ -525,13 +580,33 @@ export class WorldHostCore implements HostRuntime {
           ? await options.capabilities.attach(scope, modules.requirements)
           : await CapabilitySession.open(scope, modules.requirements, new Map(), () => {})
       }
-      await runtime.#gameplay.load({
-        packPath: options.packPath,
-        pack,
-        modules,
-        statusSource,
-        capabilities: runtime.#capabilities,
-      })
+      runtime.#gameplay.status = status
+      if (modules) {
+        modules.bind(status!, runtime.#capabilities!)
+        status!.externalActions = modules
+      }
+      await status?.ensureInitial(resolve(runtime.#dataDirectory, 'world.sqlite'), runtime.#address, runtime.#playerId)
+      runtime.#gameplay.activity =
+        runtime.#activities === undefined
+          ? undefined
+          : ActivitiesRuntime.open(
+              runtime.#activities,
+              resolve(runtime.#dataDirectory, 'world.sqlite'),
+              runtime.#address,
+              runtime.#playerId,
+              status,
+              runtime.#coreRules(),
+            )
+      if (modules)
+        runtime.#gameplay.activity?.setActionResolver((context, adjudicate) =>
+          modules.resolveAction(
+            context,
+            resolve(runtime.#dataDirectory, 'world.sqlite'),
+            runtime.#address,
+            AbortSignal.any([AbortSignal.timeout(10000), runtime.#gameplay.activity!.signal]),
+            adjudicate,
+          ),
+        )
       await runtime.#refresh()
       const rebuildPath = resolve(options.dataDirectory, 'rebuild-memory.json')
       if (existsSync(rebuildPath)) {
@@ -757,6 +832,7 @@ export class WorldHostCore implements HostRuntime {
       playerId: this.#playerId,
       manifest: this.#entities,
       publicationCharacters: this.#playSettings.publicationCharacters,
+      signal: this.#continuationController!.signal,
       text,
       key,
       inActivity,
@@ -818,6 +894,7 @@ export class WorldHostCore implements HostRuntime {
     this.#allowInterruption = false
     this.#autonomyCycle = undefined
     this.#abortedWork = false
+    this.#continuationController = new AbortController()
     this.#busy = true
     this.#phaseLabel = '正在提交操作'
     this.#workDone = new Promise<void>(done => {
@@ -1175,6 +1252,7 @@ export class WorldHostCore implements HostRuntime {
     const closingCapabilities = this.#capabilities?.close()
     this.#inspector.configure(false)
     this.#continuationController?.abort()
+    this.#gameplay.activity?.close()
     const closingMemory = (async () => this.#memory?.close?.())().catch(error =>
       console.error('[记忆] 关闭失败：', error),
     )
@@ -1187,9 +1265,39 @@ export class WorldHostCore implements HostRuntime {
       console.error('[调度器插件] 关闭失败：', error)
     }
     try {
+      await this.#characterLoop?.close?.()
+    } catch (error) {
+      console.error('[角色循环插件] 关闭失败：', error)
+    }
+    try {
       await this.#llm?.close?.()
     } catch (error) {
       console.error('[模型通道插件] 关闭失败：', error)
+    }
+    try {
+      await this.#knowledge?.close?.()
+    } catch (error) {
+      console.error('[知识机制] 关闭失败：', error)
+    }
+    for (const [name, instance] of [
+      ['通信', this.#communication],
+      ['自主', this.#autonomy],
+    ] as const) {
+      try {
+        await instance?.close?.()
+      } catch (error) {
+        console.error(`[${name}机制] 关闭失败：`, error)
+      }
+    }
+    try {
+      await this.#activities?.close?.()
+    } catch (error) {
+      console.error('[活动机制] 关闭失败：', error)
+    }
+    try {
+      await this.#status?.close?.()
+    } catch (error) {
+      console.error('[状态机制] 关闭失败：', error)
     }
     for (const layer of [...this.#ruleLayers].reverse()) {
       try {
@@ -1316,6 +1424,9 @@ export class WorldHostCore implements HostRuntime {
     return (autonomous = false) => {
       const base = this.#gameplay.rulebooks(path)
       return new CharacterTurn({
+        loop: this.#characterLoop,
+        onLoopFailure: (characterId, error) =>
+          this.#reportPlugin(this.#options.plugins!.characterLoop!.id, characterId, error),
         publicationCharacters: this.#playSettings.publicationCharacters,
         activationTimeoutMs: this.#playSettings.activationTimeoutSeconds * 1000,
         address: this.#address,
@@ -1361,7 +1472,7 @@ export class WorldHostCore implements HostRuntime {
     turn: CharacterTurn,
     createTurn: (autonomous?: boolean) => CharacterTurn,
     due: AutonomousRole[],
-    active: ReturnType<PackActivities['current']> | undefined,
+    active: ReturnType<ActivitiesRuntime['current']> | undefined,
   ): Promise<void> {
     const controller = this.#continuationController!
     const dynamic =
@@ -1414,14 +1525,7 @@ export class WorldHostCore implements HostRuntime {
       dataDirectory: resolve(this.#dataDirectory, 'plugins', id),
       instanceDirectory: resolve(this.#dataDirectory),
       candidate: this.#options.candidate === true,
-      cast: {
-        playerId: String(this.#playerId),
-        playerName: this.#playerName,
-        characterIds: this.#characterIds,
-        characterNames: this.#names,
-        entityIds: this.#entities.entities.map(entity => String(entity.entityId)),
-        locationNames: this.#locationNames,
-      },
+      cast: createWorldCast(this.#entities, String(this.#playerId), this.#characterIds),
       world: this.#worldReader(),
       contextSources: {
         memory: async (request, signal) => {
@@ -1445,7 +1549,21 @@ export class WorldHostCore implements HostRuntime {
             : request,
         status: async request =>
           this.#gameplay.statusContext(request, String((request.context.character as WorldJsonObject).characterId)),
-        knowledge: async request => this.#gameplay.knowledgeContext(request),
+        knowledge: async request => {
+          try {
+            const selected = this.#knowledge?.select(request.context)
+            return selected === undefined
+              ? request
+              : { ...request, context: { ...request.context, knowledge: selected } }
+          } catch (error) {
+            this.#reportPlugin(
+              this.#options.plugins!.knowledge!.id,
+              String((request.context.character as WorldJsonObject).characterId),
+              error,
+            )
+            throw error
+          }
+        },
         expressions: async request => {
           const characterId = String((request.context.character as WorldJsonObject).characterId)
           const expressions = this.#options.stageExpressions?.[characterId]
@@ -1499,7 +1617,7 @@ export class WorldHostCore implements HostRuntime {
       }
       const provider =
         full ??
-        officialLlmProvider({
+        this.#options.composition!.modelChannel!({
           ...this.#options,
           settings: this.#playSettings,
           inspector: this.#inspector,
@@ -1552,10 +1670,7 @@ export class WorldHostCore implements HostRuntime {
 
   /** Whoever asked to take part in decisions expects to, so one that cannot open stops the world. */
   async #openDecisions(): Promise<void> {
-    for (const provider of composeDecisions(
-      this.#options.plugins?.decisions ?? [],
-      this.#options.plugins?.decisionOrder,
-    )) {
+    for (const provider of this.#options.plugins!.decisions ?? []) {
       try {
         const opened = await provider.open(this.#services(provider.id), AbortSignal.timeout(30_000))
         if (
@@ -1577,9 +1692,155 @@ export class WorldHostCore implements HostRuntime {
     return this.#decisions.some(decision => decision.serial)
   }
 
+  async #openCommunication(): Promise<void> {
+    const provider = this.#options.plugins!.communication!
+    if (!provider) {
+      if (this.#communicationSource !== undefined) throw new TypeError('世界声明的 communication 需要对应机制')
+      return
+    }
+    try {
+      this.#communication = await provider.open(
+        {
+          ...this.#services(provider.id),
+          ...(this.#communicationSource === undefined
+            ? {}
+            : { communicationSource: structuredClone(this.#communicationSource) }),
+        },
+        AbortSignal.timeout(30_000),
+      )
+      this.#communication = guardedCommunication(
+        this.#communication,
+        this.#communicationSource !== undefined,
+        provider.id,
+        this.#reportPlugin,
+      )
+      this.#modulesInForce.communication = [{ id: provider.id, version: provider.version }]
+    } catch (cause) {
+      throw new Error(`通信机制 ${provider.id} 无法打开：${cause instanceof Error ? cause.message : String(cause)}`, {
+        cause,
+      })
+    }
+  }
+  async #openAutonomy(): Promise<void> {
+    const provider = this.#options.plugins!.autonomy!
+    if (!provider) {
+      if (this.#autonomySource !== undefined) throw new TypeError('世界声明的 autonomy 需要对应机制')
+      return
+    }
+    try {
+      this.#autonomy = await provider.open(
+        {
+          ...this.#services(provider.id),
+          ...(this.#autonomySource === undefined ? {} : { autonomySource: structuredClone(this.#autonomySource) }),
+        },
+        AbortSignal.timeout(30_000),
+      )
+      this.#autonomy = guardedAutonomy(
+        this.#autonomy,
+        this.#autonomySource !== undefined,
+        provider.id,
+        this.#reportPlugin,
+      )
+      this.#modulesInForce.autonomy = [{ id: provider.id, version: provider.version }]
+    } catch (cause) {
+      throw new Error(`自主机制 ${provider.id} 无法打开：${cause instanceof Error ? cause.message : String(cause)}`, {
+        cause,
+      })
+    }
+  }
+  async #openActivities(): Promise<void> {
+    const provider = this.#options.plugins!.activities!
+    if (!provider) {
+      if (this.#activitySource !== undefined) throw new TypeError('世界声明的 activities 需要对应机制')
+      return
+    }
+    try {
+      this.#activities = await provider.open(
+        {
+          ...this.#services(provider.id),
+          ...(this.#activitySource === undefined ? {} : { activitySource: structuredClone(this.#activitySource) }),
+        },
+        AbortSignal.timeout(30_000),
+      )
+      this.#activities = guardedActivities(this.#activities, this.#activitySource, provider.id, this.#reportPlugin)
+      this.#modulesInForce.activities = [{ id: provider.id, version: provider.version }]
+    } catch (cause) {
+      throw new Error(`活动机制 ${provider.id} 无法打开：${cause instanceof Error ? cause.message : String(cause)}`, {
+        cause,
+      })
+    }
+  }
+
+  async #openStatus(): Promise<void> {
+    const provider = this.#options.plugins!.status!
+    if (!provider) {
+      if (this.#statusSource !== undefined) throw new TypeError('世界声明的 status 需要对应机制')
+      return
+    }
+    try {
+      const instance = await provider.open(
+        {
+          ...this.#services(provider.id),
+          ...(this.#statusSource === undefined ? {} : { statusSource: structuredClone(this.#statusSource) }),
+        },
+        AbortSignal.timeout(30_000),
+      )
+      this.#status = instance
+      for (const method of ['initialize', 'policy', 'resolve', 'endRound', 'prepareModule'] as const)
+        if (typeof instance[method] !== 'function') throw new TypeError('status requires ' + method)
+      if (!Array.isArray(instance.moduleDefinitions) || typeof instance.hasRoundHook !== 'boolean')
+        throw new TypeError('status metadata is invalid')
+      if ((this.#statusSource === undefined) !== (instance.definition === undefined))
+        throw new TypeError('status implementation must match the world declared source')
+      const guard = <T>(actorId: string, work: () => T): T => {
+        try {
+          return structuredClone(work())
+        } catch (cause) {
+          this.#reportPlugin(provider.id, actorId, cause)
+          throw mechanismFailure(`状态机制 ${provider.id}`, cause)
+        }
+      }
+      this.#status = {
+        definition: structuredClone(instance.definition),
+        hasRoundHook: instance.hasRoundHook,
+        moduleDefinitions: structuredClone(instance.moduleDefinitions),
+        initialize: ids => guard(String(this.#playerId), () => instance.initialize(ids)),
+        policy: (known, actorId, place) => guard(actorId, () => instance.policy(known, actorId, place)),
+        resolve: input => guard(input.actorId, () => instance.resolve(input)),
+        endRound: (truth, round) => guard(String(this.#playerId), () => instance.endRound(truth, round)),
+        prepareModule: (...args) => guard(args[2], () => instance.prepareModule(...args)),
+        ...(instance.close ? { close: () => instance.close!() } : {}),
+      }
+      this.#modulesInForce.status = [{ id: provider.id, version: provider.version }]
+    } catch (error) {
+      throw new Error(`状态机制 ${provider.id} 无法打开：${error instanceof Error ? error.message : String(error)}`, {
+        cause: error,
+      })
+    }
+  }
+
+  async #openKnowledge(): Promise<void> {
+    const provider = this.#options.plugins!.knowledge!
+    if (!provider) return
+    try {
+      this.#knowledge = await provider.open(
+        {
+          ...this.#services(provider.id),
+          ...(this.#knowledgeSource === undefined ? {} : { knowledgeSource: structuredClone(this.#knowledgeSource) }),
+        },
+        AbortSignal.timeout(30_000),
+      )
+      if (typeof this.#knowledge.select !== 'function') throw new TypeError('knowledge requires select')
+      this.#modulesInForce.knowledge = [{ id: provider.id, version: provider.version }]
+    } catch (error) {
+      throw new Error(`知识机制 ${provider.id} 无法打开：${(error as Error).message}`, { cause: error })
+    }
+  }
+
   /** A memory holds durable data, so one that cannot open stops the world rather than silently forgetting. */
   async #openMemory(): Promise<void> {
-    const provider = this.#options.plugins?.memory ?? officialMemoryNoneProvider
+    const provider = this.#options.plugins!.memory!
+    if (!provider) return
     this.#memoryIsCore = provider.id === CORE_MEMORY_ID
     this.#memoryId = provider.id
     try {
@@ -1593,20 +1854,73 @@ export class WorldHostCore implements HostRuntime {
 
   /** Each world instance gets its own scheduler; one that cannot open must not keep the world from opening. */
   async #openScheduler(): Promise<void> {
-    const official = officialSeams().scheduler
-    const provider = this.#options.plugins?.scheduler ?? official
+    const official = this.#options.composition!.fallbackScheduler
+    const provider = this.#options.plugins!.scheduler!
     const signal = AbortSignal.timeout(30_000)
     this.#schedulerIsOfficial = provider === official
     try {
       this.#scheduler = await provider.open(this.#services(provider.id), signal)
       this.#modulesInForce.scheduler = [{ id: provider.id, version: provider.version }]
     } catch (error) {
-      if (provider === official) throw error
+      if (!official || provider === official) throw error
       console.error(`[调度器插件 ${provider.id}] 打开失败：`, error)
       this.#scheduler = await official.open(this.#services(official.id), signal)
       this.#modulesInForce.scheduler = [{ id: official.id, version: official.version }]
       this.#schedulerIsOfficial = true
       this.#notice = `调度器插件 ${provider.id} 无法打开，已改用官方调度。`
+    }
+  }
+
+  async #openCharacterLoop(): Promise<void> {
+    const provider = this.#options.plugins!.characterLoop!
+    try {
+      const opened = await provider.open(this.#services(provider.id), AbortSignal.timeout(30_000))
+      this.#characterLoop = opened
+      if (typeof opened.run !== 'function') throw new TypeError('character loop requires run')
+      this.#modulesInForce.characterLoop = [{ id: provider.id, version: provider.version }]
+      this.#characterLoop = {
+        run: async activation => {
+          let passedOn: unknown
+          const capability = <T>(work: () => T): T => {
+            try {
+              return work()
+            } catch (error) {
+              passedOn = error
+              throw error
+            }
+          }
+          const asyncCapability = async <T>(work: () => Promise<T>): Promise<T> => {
+            try {
+              return await work()
+            } catch (error) {
+              passedOn = error
+              throw error
+            }
+          }
+          try {
+            return await opened.run({
+              ...activation,
+              get calls() {
+                return activation.calls
+              },
+              get performResult() {
+                return activation.performResult
+              },
+              prepare: options => capability(() => activation.prepare(options)),
+              decide: reserve => asyncCapability(() => activation.decide(reserve)),
+              submit: decision => asyncCapability(() => activation.submit(decision)),
+            })
+          } catch (error) {
+            if (!activation.signal.aborted && error !== passedOn) {
+              throw new CharacterLoopError('character loop failed', { cause: error })
+            }
+            throw error
+          }
+        },
+        ...(opened.close ? { close: () => opened.close!() } : {}),
+      }
+    } catch (error) {
+      throw new Error(`角色循环插件 ${provider.id} 无法打开：${(error as Error).message}`, { cause: error })
     }
   }
 
@@ -1868,6 +2182,10 @@ export class WorldHostCore implements HostRuntime {
 /** Public runtime owns one logical storyline and its replaceable tail. */
 export class WorldHostRuntime extends TailRoundRuntime {
   static async create(options: WorldHostOptions): Promise<WorldHostRuntime> {
-    return TailRoundRuntime.open(options, value => WorldHostCore.create(value))
+    if (options.composition && options.plugins) throw new TypeError('请在 composition 内选择机制，不要同时传 plugins')
+    const composition = options.composition ?? assembleRoleplay(options.plugins)
+    return TailRoundRuntime.open({ ...options, composition, plugins: composition.mechanisms }, value =>
+      WorldHostCore.create({ ...value, composition: value.composition! }),
+    )
   }
 }

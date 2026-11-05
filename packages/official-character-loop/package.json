@@ -1,0 +1,10 @@
+{
+  "name": "@harness-world/official-character-loop",
+  "version": "0.3.5",
+  "private": true,
+  "type": "module",
+  "exports": "./src/index.ts",
+  "dependencies": {
+    "@harness-world/plugin-sdk": "workspace:*"
+  }
+}

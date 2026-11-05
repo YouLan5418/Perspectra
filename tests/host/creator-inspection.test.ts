@@ -1,10 +1,10 @@
+import { createRoleplayCore } from '../support/roleplay-runtime.ts'
 import { afterEach, expect, it } from 'vitest'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { once } from 'node:events'
 import type { AddressInfo } from 'node:net'
-import { WorldHostCore } from '../../desktop/host/world-runtime.ts'
 import { createHostServer } from '../../desktop/host/http-server.ts'
 import { creatorInspectionQuery } from '../../desktop/host/creator-inspection.ts'
 import { RequestInspector } from '../../packages/provider-chat/src/request-inspector.ts'
@@ -19,7 +19,7 @@ async function fixture(utilityEndpoint?: string) {
   cleanups.push(async () => {
     rmSync(root, { recursive: true, force: true })
   })
-  const runtime = await WorldHostCore.create({
+  const runtime = await createRoleplayCore({
     packPath: resolve('examples/world-packs/prototype-g1'),
     dataDirectory: root,
     models: fakeModels(utilityEndpoint ?? 'http://127.0.0.1:9/v1/chat/completions', 'openai', 'test'),

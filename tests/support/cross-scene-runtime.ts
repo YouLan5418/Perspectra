@@ -1,3 +1,4 @@
+import { officialCharacterLoop } from '@harness-world/official-character-loop'
 import { coreAdapter } from './core-adapter.ts'
 import { readFileSync, mkdirSync, existsSync, unlinkSync } from 'node:fs'
 import { resolve, join } from 'node:path'
@@ -21,10 +22,10 @@ import {
 import { AuthorizedSourceStore } from '@harness-world/memory'
 import { CharacterTurn, type CharacterTurnRequest } from '../../packages/application/src/character-turn.ts'
 import { runActivations } from './run-activations.ts'
-import { CrossSceneCommunication, communicationInstruction } from '../../desktop/host/pack-communication.ts'
+import { CrossSceneCommunication, communicationInstruction } from './cross-scene-communication.ts'
 import { CrossScenePhone, phoneCalls, type PhoneOperation } from './cross-scene-phone.ts'
 import { SceneDecisionService } from '../../packages/application/src/scene-decision.ts'
-import { PackActivities } from '../../desktop/host/pack-activities.ts'
+import { loadActivities } from './activity-runtime.ts'
 import { playerTranscript } from '../../desktop/host/player-transcript.ts'
 import { saveStoryNode } from '../../desktop/story-nodes.ts'
 import { CoreMemoryAdapter, type MemoryContextBudget } from '../../packages/official-memory-core/src/core-memory.ts'
@@ -159,12 +160,23 @@ export async function crossSceneRuntime(
     : new CrossSceneCommunication(config, manifest, base)
   const playerId = brandId('character:player', 'CharacterId'),
     npcIds = manifest.characters.map(c => c.characterId).filter(id => id !== playerId)
-  const activities = options.activities ? PackActivities.load(packPath, pack, path, address, playerId) : undefined
+  const activities = options.activities
+    ? loadActivities(
+        packPath,
+        pack,
+        path,
+        address,
+        playerId,
+        undefined,
+        createCoreRulebookRegistry({ interactionPackages: installed }),
+      )
+    : undefined
   if (options.activities && !activities) throw new TypeError('组合实验缺少活动脚本')
   // Activity is the outer rule boundary: its existing policy checks precede communication execution.
   const rulebooks = activities?.rulebooks(communication.resolver()) ?? communication.registry()
   const resolver = rulebooks.resolve('builtin:speak-move', 2, 'communication-experiment', address)
   const turn = new CharacterTurn({
+    loop: officialCharacterLoop,
     address,
     store,
     leases,

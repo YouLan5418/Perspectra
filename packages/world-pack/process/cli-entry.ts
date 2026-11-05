@@ -14,7 +14,8 @@ import { rolePreset, importPresets, PRESET_FORMAT, PRESET_SCHEMA_VERSION } from 
 
 // The trusted packages this Host installs, which a `worldpack-source/v5` Pack selects from. The library
 // stays content-agnostic; the process entry is what knows the install.
-const interactionPackages = createInstalledInteractionPackages().map(interactionPackageDescription)
+const interactionImplementations = createInstalledInteractionPackages()
+const interactionPackages = interactionImplementations.map(interactionPackageDescription)
 
 try {
   const args = process.argv.slice(2)
@@ -57,7 +58,7 @@ try {
       ).toString('utf8')}\n`,
     )
   } else {
-    process.stdout.write(await executeWorldPackCli(args, { interactionPackages }))
+    process.stdout.write(await executeWorldPackCli(args, { interactionPackages, interactionImplementations }))
   }
 } catch (error: unknown) {
   const envelope = worldPackCliErrorEnvelope(error, process.argv.slice(2))

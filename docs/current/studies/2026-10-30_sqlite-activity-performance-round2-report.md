@@ -10,7 +10,7 @@
 | --- | --- | --- |
 | E1：同一 Core 末段操作完整读取 10 次／14809 行，范围读取 12 次／5139 行 | 相同已提交前缀被反复解析，视图没有借用已读历史 | [CharacterViewBuilder](../../../packages/store-sqlite/src/character-view.ts)新增 rebuildFromEvents，与独立读取共用投影；[CharacterTurn](../../../packages/application/src/character-turn.ts)和玩家即时投影使用已经读过的事件 |
 | E2：准备到取得写租约之间世界头未变，仍再次读取同一历史 | 一次决策内可以复用同一份已读前缀 | 租约内仍核对 headSeq 和 eventHash，改变时重新读取；stale 检查、外部动作等待后的重查保留 |
-| E3：没有 autoStart 的官方序章仍为自动开始与菜单读取三次完整历史 | 可选 hook 缺失时仍准备了不需要的参数 | [活动桥](../../../desktop/host/pack-activity.ts)加载时探测 hook 是否声明，[活动目录](../../../desktop/host/pack-activities.ts)按需准备世界；玩家菜单借用该次刷新已有前缀 |
+| E3：没有 autoStart 的官方序章仍为自动开始与菜单读取三次完整历史 | 可选 hook 缺失时仍准备了不需要的参数 | [活动桥](https://github.com/YouLan5418/Perspectra/blob/36d3efd8/desktop/host/pack-activity.ts)加载时探测 hook 是否声明，[活动目录](https://github.com/YouLan5418/Perspectra/blob/36d3efd8/desktop/host/pack-activities.ts)按需准备世界；玩家菜单借用该次刷新已有前缀 |
 | E4：修改后完整读取 6 次／8882 行，范围读取 10 次／3533 行，连接 75 → 66 | 该样本的解码事件总行数减少约 37.8% | 只采用独立插桩的计数，耗时另做无插桩对照 |
 
 E1、E4 是同一正式快照恢复后的 Core 第 112 次操作，连接数包括世界、会话、记忆和备份连接；不能与首轮原生记忆常规步骤的 72 次混为同一口径。插桩只记录调用位置、行数和连接数，不保存角色请求或私密上下文。

@@ -2,7 +2,7 @@ import { WriterLeaseService } from '@harness-world/store-sqlite'
 import { WorldStore } from '@harness-world/store-sqlite'
 import type { CharacterId, WorldAddress, WorldJsonObject } from '@harness-world/contracts'
 import type { RoundStatus } from './round-notices.ts'
-import type { WorldGameplay } from './world-gameplay.ts'
+import type { WorldAdapters } from './world-adapters.ts'
 
 export interface GameplayInputOutcome {
   readonly accepted: boolean
@@ -23,15 +23,16 @@ function statusCommand(text: string): { operation: string; targetId?: string; pa
 /** Input that belongs to the pack's modules: anything during an activity, messages and status commands. Anything else
  * returns undefined and goes to the world as ordinary player input. */
 export async function routeGameplayInput(input: {
-  readonly gameplay: WorldGameplay
+  readonly gameplay: WorldAdapters
   readonly status: RoundStatus
   readonly worldPath: string
   readonly address: WorldAddress
   readonly playerId: CharacterId
-  readonly manifest: Parameters<NonNullable<WorldGameplay['communication']>['send']>[0]['manifest']
+  readonly manifest: Parameters<NonNullable<WorldAdapters['communication']>['send']>[0]['manifest']
   readonly publicationCharacters: number
   readonly text: string
   readonly key: string
+  readonly signal?: AbortSignal
   readonly inActivity: boolean
 }): Promise<GameplayInputOutcome | undefined> {
   const { gameplay, status, worldPath, address, playerId, manifest, publicationCharacters, text, key, inActivity } =
@@ -42,7 +43,7 @@ export async function routeGameplayInput(input: {
       const match = /^\/act (speak|move|interact) (.+)$/u.exec(text)
       if (match === null) throw new TypeError('动作命令格式无效')
       const parameters = JSON.parse(match[2]!) as WorldJsonObject
-      await gameplay.activity!.worldAction({ actionType: match[1]!, parameters }, key)
+      await gameplay.activity!.worldAction({ actionType: match[1]!, parameters }, key, input.signal)
     } else if (text.startsWith('/status ')) {
       // During an activity a status operation is an ordinary interaction under the activity's policy.
       const command = statusCommand(text)
@@ -60,8 +61,9 @@ export async function routeGameplayInput(input: {
           },
         },
         key,
+        input.signal,
       )
-    } else await gameplay.activity!.speak(text, key)
+    } else await gameplay.activity!.speak(text, key, input.signal)
     status.set('操作已提交；单纯对白不消耗游戏行动回合。', undefined)
     return { accepted: true, react: true }
   }
@@ -91,6 +93,7 @@ export async function routeGameplayInput(input: {
         actorId: playerId,
         recipientId,
         text: message.text,
+        ...(input.signal ? { signal: input.signal } : {}),
       })
     } finally {
       leases.close()
@@ -110,6 +113,7 @@ export async function routeGameplayInput(input: {
       command.parameters,
       key,
       command.targetId,
+      input.signal,
     )
     status.set(changed ? '状态操作已提交。' : '已返回原提交结果，没有再次执行。', undefined)
     return { accepted: true, react: changed }

@@ -9,6 +9,48 @@ type ManifestInfo =
 
 export const SEAMS = [
   {
+    seam: 'communication',
+    label: '通信规则',
+    single: true,
+    description: '计算联系人消息与选项，投递权限和提交由核心检查。',
+    official: 'official-communication',
+  },
+  {
+    seam: 'autonomy',
+    label: '自主策略',
+    single: true,
+    description: '解释自主配置、筛选机会并收窄行动，复用现有角色调度。',
+    official: 'official-autonomy',
+  },
+  {
+    seam: 'activities',
+    label: '活动规则',
+    single: true,
+    description: '计算活动脚本与候选选择，由核心检查参与者和提交。',
+    official: 'official-activities',
+  },
+  {
+    seam: 'status',
+    label: '状态规则',
+    single: true,
+    description: '解释现有状态与包内玩法脚本，结果由核心校验并提交。',
+    official: 'official-status',
+  },
+  {
+    seam: 'knowledge',
+    label: '设定知识',
+    single: true,
+    description: '根据角色权限和当前情境选择作者设定。',
+    official: 'official-knowledge',
+  },
+  {
+    seam: 'characterLoop',
+    label: '角色执行循环',
+    single: true,
+    description: '决定角色一次处理中怎样行动、表达和续写。',
+    official: 'official-character-loop',
+  },
+  {
     seam: 'scheduler',
     label: '角色调度',
     single: true,

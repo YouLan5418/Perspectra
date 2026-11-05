@@ -1,3 +1,4 @@
+import { createRoleplayCore } from '../support/roleplay-runtime.ts'
 /** Live scheduling acceptance: record real responses on the baseline, replay them after migration,
  * then run `live` on the new runtime. Uses fresh data only; never saves headers or credentials.
  * Usage: record|replay|live <case> <new evidence file>; endpoint/model come from PERSPECTRA_MODEL_*.
@@ -95,7 +96,7 @@ let runtime: WorldHostCore | undefined
 const states: unknown[] = []
 const started = performance.now()
 try {
-  runtime = await WorldHostCore.create({
+  runtime = await createRoleplayCore({
     packPath: resolve('examples/world-packs', packs[scenario!]!),
     dataDirectory: data,
     models,

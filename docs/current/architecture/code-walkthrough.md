@@ -1,5 +1,11 @@
 # 一次输入的代码路线
 
+2026-11-05 M5：例如后室同伴收到玩家短信后，自主处理自己的目标。通信选项与消息计算由 ctx.communication 提供，自主配置、触发频率和许可由 ctx.autonomy 提供；两者不直接提交事件。CommunicationRules 与执行适配绑定真实收发者，AutonomyRuntime 提取交易摘要并检查声明范围，机会继续交现有 scheduler／characterLoop。源码与验证边界见[M5 记录](../studies/2026-11-core-migration-m5.md)。
+
+2026-11-05 M4：例如猜数字与 RPG 战斗共用活动机制，各自保留包内脚本。`ctx.activities` 选择独立的解释器与候选策略；宿主 ActivityRuntime／ActivitiesRuntime 只准备授权输入并调用核心执行。参与者、private／internal 隔离、前台唯一性和随机回放继续受检查。旧活动 VM 已迁至 official-activities；源码、自动验证与体验限制见[M4 记录](../studies/2026-11-core-migration-m4.md)。
+
+2026-11-04 M2：核心 WorldApplication 的交互安装列表省略时为空，默认桌面组合负责显式提供。状态、活动、通信的即时回合经 [executeWorldRound](../../../packages/application/src/world-round-execution.ts)统一提交；NPC 与玩家收件箱路径保持各自准入和观察处理。见[M2 记录](../studies/2026-11-core-migration-m2.md)。
+
 2026-11-04 模型发送接缝：替换角色发送时从 `ctx.llm.registerTransport` 进入 host-plugins 的同一单例槽位，world-runtime 打开适配器后装配官方包装。prepare 仍经 presetContext/presetCall，send 经 transportSend 后执行 presetOutput，玩家读取经 presetDisplay。完整通道替换不被包装；Core 不走该适配器，详见[阶段 9](../studies/2026-11-plugin-first-phase-9.md)。
 
 核对日期：2026-10-22。本次补充物品操作的包内脚本装配；此前入口与宿主迁移核对保留，其他体验验证范围沿用各节记录。建议先读[入门说明](getting-started.md)。下面是关键控制点，省略底层辅助调用；看具体分支时再顺着源码展开。
@@ -14,7 +20,7 @@ package.json 的 experience:web 指向 [web-entry.ts](../../../desktop/host/web-
 
 [宿主](../../../desktop/host/world-runtime.ts)检查源目录为 worldpack-source/v5，调用 [compileWorldPackSource](../../../packages/world-pack/src/compiler.ts)，用已安装的基础交互能力编译并适配世界。角色处理代码检查激活后的运行时 Manifest 为 v10。源包 v5 和 Manifest v10 描述不同层次，不是版本冲突。
 
-例如角色要把钥匙交给同伴，拿取与交给来自这个包已登记的 `scripts/status.js`，不在基础交互定义里。宿主加载[状态桥](../../../desktop/host/pack-status.ts)，按作者操作与 policy 提供 `status:take`／`status:give` 等候选，执行时重查并裁定物品结果；基础包只剩牵手与松手。完整调用和验证边界见[运行时](runtime.md)与[物品指南](../guides/activity-and-variables.md#作者物品规则的验证范围)。
+例如角色要把钥匙交给同伴，拿取与交给来自这个包已登记的 `scripts/status.js`，不在基础交互定义里。宿主加载[状态桥](../../../desktop/host/status-runtime.ts)，按作者操作与 policy 提供 `status:take`／`status:give` 等候选，执行时重查并裁定物品结果；基础包只剩牵手与松手。完整调用和验证边界见[运行时](runtime.md)与[物品指南](../guides/activity-and-variables.md#作者物品规则的验证范围)。
 
 宿主组合 WorldApplication、模型适配、预设及可选 Core 桥。设定里的初始位置用于启动；之后的位置从当前事件前缀的视图读取。“前缀”就是截至某条已提交事件的世界记录，避免混用不同时间的状态。
 
@@ -51,7 +57,7 @@ NPC 处理途中玩家也可以插话，规则见下一节末尾。
 
 以下情况不走并发，改为逐个串行：启动时加了 `--serial-scheduling`、活动正在指定参与者、或启用了发布审计（2026-10-19 起包变量已退役，不再是串行条件）。细节和边界见[动态调度实验](../studies/dynamic-scheduling-20261011.md)。
 
-**角色自主行动。** 世界包可以声明某些角色到时间会主动做点什么。[PackAutonomy](../../../desktop/host/pack-autonomy.ts) 在玩家每次成功提交后算出谁“到点了”，把它们和普通反应放进同一个 runOfficialSchedule，共用并发和提交队列，但调用预算和时限分开算。被唤醒只是多一次处理机会，不会让角色多知道任何东西。实现见[接入记录](../studies/autonomy-dynamic-dispatch-20261011.md)，作者怎么声明见[创作者运行时](creator-runtime.md#关键角色自主行动2026-10-11实验分支)。
+**角色自主行动。** 世界包可以声明某些角色到时间会主动做点什么。[AutonomyRuntime](../../../desktop/host/autonomy-runtime.ts) 在玩家成功提交后提取交易摘要，交给 [AutonomyPolicy](../../../packages/official-scheduler/src/autonomy-policy.ts) 计算谁“到点了”，再复核合法角色与范围，把机会和普通反应交给同一个 runOfficialSchedule，共用并发和提交队列，但调用预算和时限分开算。被唤醒只是多一次处理机会，不会让角色多知道任何东西。实现见[接入记录](../studies/autonomy-dynamic-dispatch-20261011.md)，作者怎么声明见[创作者运行时](creator-runtime.md#关键角色自主行动2026-10-11实验分支)。
 
 **玩家插话。** 只要宿主公开的 `canInterrupt` 为真，玩家就能在 NPC 处理途中继续说话或点行动按钮。[TailRoundRuntime](../../../desktop/host/tail-runtime.ts) 会取消旧回合还没提交的 NPC 计算，已经提交的保留。如果只剩玩家场景外的角色在处理，页面直接显示可以回应；场内仍在处理的角色列在 `responders` 里。活动进行中不开放插话。见[运行时](runtime.md)。
 
@@ -91,7 +97,7 @@ perform 请求经过 Rulebook；[character-execution-result.ts](../../../package
 
 | 分支 | 说明 | 代码与详细文档 |
 | --- | --- | --- |
-| 包内活动 | 独立玩法选择、暂停／继续、策略、操作、结果与参与者调度 | [PackActivities](../../../desktop/host/pack-activities.ts)、[PackActivity](../../../desktop/host/pack-activity.ts)、[受控交互](controlled-interaction.md) |
+| 包内活动 | 独立玩法选择、暂停／继续、策略、操作、结果与参与者调度 | [ActivitiesRuntime](../../../desktop/host/activities-runtime.ts)、[ActivityRuntime](../../../desktop/host/activity-runtime.ts)、[受控交互](controlled-interaction.md) |
 | 预设 | 实例默认、角色组、专属与请求／输出／显示处理 | [preset-runtime.ts](../../../packages/provider-chat/src/preset-runtime.ts)、[预设说明](../model-presets.md) |
 | 社区前端 | 默认沙箱，授权后受信任模式；公共玩家接口 | [授权实现](../../../desktop/frontend-authorization.ts)、[资产服务](../../../desktop/host/frontend-server.ts)、[授权说明](../frontend-authorization.md) |
 | 故事线 | 完整节点、独立分叉与单节点文件分享 | [story-nodes.ts](../../../desktop/story-nodes.ts)、[story-share.ts](../../../desktop/story-share.ts)、[使用边界](../storylines.md) |

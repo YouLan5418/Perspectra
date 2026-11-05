@@ -1,34 +1,24 @@
+import { isMessageAction } from '@harness-world/contracts'
 import type { MemoryRequest } from '@harness-world/plugin-sdk'
 import type { CharacterTurnRequest } from '@harness-world/application'
 import { characterExecutionResult } from '@harness-world/application'
 import type { CharacterId, WorldAddress, WorldJsonObject } from '@harness-world/contracts'
 import { RulebookRegistry, type RulebookResolution, type RulebookResolutionContext } from '@harness-world/kernel'
 import { WorldStore } from '@harness-world/store-sqlite'
-import type { CapabilitySession } from '../host-capabilities.ts'
-import { PackActivities } from './pack-activities.ts'
-import { PackAutonomy } from './pack-autonomy.ts'
-import { communicationInstruction, CrossSceneCommunication, loadCommunicationConfig } from './pack-communication.ts'
-import { PackKnowledge } from './pack-knowledge.ts'
+import { ActivitiesRuntime } from './activities-runtime.ts'
+import { AutonomyRuntime } from './autonomy-runtime.ts'
+import { CommunicationRuntime } from './communication-runtime.ts'
 import type { PackModules } from './pack-modules.ts'
-import { KNOWN_STATUS_NOTE, PackStatus, publicStatusChanges } from './pack-status.ts'
+import type { StatusRuntime } from './status-runtime.ts'
+import { KNOWN_STATUS_NOTE, publicStatusChanges } from '@harness-world/application'
 
-export interface LoadedPack {
-  readonly packPath: string
-  readonly pack: Parameters<typeof PackAutonomy.load>[1]
-  readonly modules: PackModules | undefined
-  readonly statusSource: string | undefined
-  readonly capabilities: CapabilitySession | undefined
-}
-
-/** The pack-script modules of one world instance. They stay in the host: a world pack's scripts are written for them,
- * so they are not a replaceable seam. Rules are, through `ctx.rules`. */
-export class WorldGameplay {
-  activity: PackActivities | undefined
+/** Host rule and context projections over already assembled execution adapters. No mechanism selection. */
+export class WorldAdapters {
+  activity: ActivitiesRuntime | undefined
   modules: PackModules | undefined
-  autonomy: PackAutonomy | undefined
-  communication: CrossSceneCommunication | undefined
-  status: PackStatus | undefined
-  knowledge: PackKnowledge | undefined
+  autonomy: AutonomyRuntime | undefined
+  communication: CommunicationRuntime | undefined
+  status: StatusRuntime | undefined
 
   constructor(
     private readonly world: {
@@ -38,55 +28,6 @@ export class WorldGameplay {
       readonly coreRules: () => RulebookRegistry
     },
   ) {}
-
-  /** What has to exist before the world is activated. */
-  prepare(
-    packPath: string,
-    pack: LoadedPack['pack'],
-    manifest: ConstructorParameters<typeof CrossSceneCommunication>[1],
-  ): void {
-    const input = { packPath }
-    this.autonomy = PackAutonomy.load(input.packPath, pack, this.world.playerId)
-    const communication = loadCommunicationConfig(input.packPath, pack)
-    if (communication !== undefined)
-      this.communication = new CrossSceneCommunication(
-        communication,
-        manifest,
-        this.world.coreRules().resolve('builtin:speak-move', 2, 'communication', this.world.address),
-      )
-  }
-
-  /** The rest, once the world is active. */
-  async load(input: LoadedPack): Promise<void> {
-    const { pack, modules, statusSource } = input
-    this.status =
-      statusSource === undefined ? PackStatus.load(input.packPath, pack) : PackStatus.fromSource(statusSource, pack)
-    if (modules) {
-      modules.bind(this.status!, input.capabilities!)
-      this.status!.externalActions = modules
-    }
-    await this.status?.ensureInitial(this.world.worldPath, this.world.address, this.world.playerId)
-    this.knowledge = PackKnowledge.load(input.packPath, pack)
-    this.activity = PackActivities.load(
-      input.packPath,
-      pack,
-      this.world.worldPath,
-      this.world.address,
-      this.world.playerId,
-      this.status,
-      this.world.coreRules(),
-    )
-    if (modules)
-      this.activity?.setActionResolver((context, adjudicate) =>
-        modules.resolveAction(
-          context,
-          this.world.worldPath,
-          this.world.address,
-          AbortSignal.timeout(10000),
-          adjudicate,
-        ),
-      )
-  }
 
   /** Resolver chain: core, then the pack's SMS, then status operations, then the running activity's permissions. */
   rulebooks(worldPath: string): RulebookRegistry {
@@ -133,21 +74,16 @@ export class WorldGameplay {
     return request
   }
 
-  knowledgeContext<T extends MemoryRequest>(request: T): T {
-    if (this.knowledge)
-      request = { ...request, context: { ...request.context, knowledge: this.knowledge.select(request.context) } }
-    return request
-  }
-
   projectContext(context: WorldJsonObject, canPerform: boolean, autonomous: boolean): WorldJsonObject {
     const activityContext = this.activity?.projectContext(context, canPerform) ?? context
-    const projected = this.communication ? { ...activityContext, communicationInstruction } : activityContext
+    const projected = this.communication
+      ? { ...activityContext, communicationInstruction: this.communication.instruction }
+      : activityContext
     return autonomous
       ? {
           ...projected,
           autonomy: {
-            instruction:
-              '现在是你自主处理自身目标的机会。依据自己的目标、经历和眼前情况决定是否行动；可以表达或 abstain。没有新消息不代表发生了你不知道的事；但 context.statusChanges 里的变化已经发生，例如时间已经推进，请按现在的时段与处境行动，不要接着已经过去的对话收尾。',
+            instruction: this.autonomy!.instruction,
           },
         }
       : projected
@@ -175,7 +111,7 @@ export class WorldGameplay {
         ? {}
         : {
             executionResult: (input: Parameters<typeof characterExecutionResult>[0]) =>
-              (input.action.parameters as WorldJsonObject).bindingId === 'experiment:message'
+              isMessageAction(input.action.parameters) && this.communication !== undefined
                 ? this.communication!.executionResult(input)
                 : (this.status?.executionResult(input) ??
                   (this.activity?.executionResult ?? characterExecutionResult)(input)),

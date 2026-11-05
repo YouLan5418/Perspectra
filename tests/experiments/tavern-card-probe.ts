@@ -83,7 +83,7 @@ console.log(`卡名：${data.name ?? '(无)'}  作者：${data.creator ?? '(无)
 
 // ── 1. 世界书 ────────────────────────────────────────────────
 // documents 与文件数上限见 packages/world-pack/src/schema.ts（MAX_DOCUMENTS / MAX_EXPLICIT_FILES），
-// 交付预算与整条投递规则见 desktop/host/pack-knowledge.ts（maximumCharacters ≤ 65536，整条超出即跳过）。
+// 交付预算与整条投递规则见 packages/official-knowledge/src/selection.ts（maximumCharacters ≤ 65536，整条超出即跳过）。
 console.log('\n【世界书 → documents.json + knowledge.json】')
 const size = (entry: CardEntry): number => entry.content?.length ?? 0
 const enabled = entries.filter(entry => entry.enabled !== false)

@@ -13,8 +13,8 @@
 | Store、收件箱、投递、记忆等分支组件 | WorldApplication 挂载的同地址 Cordis 分支，可跨阶段、跨步保留 | 正式 release、关闭或恢复失败后 dispose | 连接句柄与服务对象驻留更久；空闲不自动淘汰 |
 | 完整事件前缀 | WorldStore.withEventReadCache 的一次操作等待链 | 操作完成或失败时停用并清空 | 首次读取仍为 O(n)，前缀驻留到步末，增加冻结和筛选 |
 | 已构建的角色视图 | CharacterViewBuilder 的弱键缓存，依附不可变事件对象 | 事件对象不再持有后可回收；不按地址长期保存“最新视图” | 缓存投影及返回副本占用内存；仍要核对事件身份和复制结果 |
-| 各活动最新状态 | PackActivities 当前实例，只保留每个活动最近的完整更新 | 追加时补读；头回退或同序号 Hash 改变时重读，目录关闭时清空 | 保留活动状态；首次恢复仍需读历史 |
-| 活动目录的世界库连接 | PackActivities 当前实例，跨步保留一个只读用途的 WorldStore | WorldHostCore.close 在 `application.close()` 的 finally 中关闭 | 在 Windows 上，未关闭的句柄会阻止删除或替换实例目录 |
+| 各活动最新状态 | ActivitiesRuntime 当前实例，只保留每个活动最近的完整更新 | 追加时补读；头回退或同序号 Hash 改变时重读，目录关闭时清空 | 保留活动状态；首次恢复仍需读历史 |
+| 活动目录的世界库连接 | ActivitiesRuntime 当前实例，跨步保留一个只读用途的 WorldStore | WorldHostCore.close 在 `application.close()` 的 finally 中关闭 | 在 Windows 上，未关闭的句柄会阻止删除或替换实例目录 |
 
 活动目录在读取范围内取得的事件也是深冻结对象，并跨步保存在 `#snapshot` 中；由它们派生的活动状态同样不可修改，`current()`、`view()` 对外返回副本。WorldHostCore.close 只用 finally 保护了 `application.close()` 一步，如果前面关闭记忆、Core 或 shadow 时先抛错，活动连接会留到进程结束。以后调整关闭流程时，应把 `this.#activity?.close()` 放到整个关闭序列的最外层 finally。
 

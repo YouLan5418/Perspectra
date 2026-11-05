@@ -4,7 +4,7 @@ import type { CharacterId, WorldAddress } from '@harness-world/contracts'
 import type { SchedulerRound, WorldReader } from '@harness-world/plugin-sdk'
 import type { WorldStore } from '@harness-world/store-sqlite'
 import type { PlaySettings } from '../play-settings.ts'
-import type { AutonomousRole } from './pack-autonomy.ts'
+import type { AutonomousRole } from '@harness-world/contracts'
 
 /** Project declared autonomous opportunities; the configured scheduler owns consuming and budgeting them. */
 export function createAutonomyRound(input: {

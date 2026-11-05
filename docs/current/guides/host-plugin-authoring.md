@@ -1,5 +1,127 @@
 # 编写并加载自己的 Cordis 宿主插件
 
+2026-11-05 M6：先按[共同契约](../architecture/mechanism-contracts.md)区分核心、内部机制、包内脚本与交付适配。API 仍为 2.8，SDK 根导出不变，不导入内部文件作为未发布子路径。显式组合、透视与分享选择见[装配说明](../architecture/mechanism-contracts.md#5-默认组合与显式停用)。
+
+## 替换通信与自主策略（2.8）
+
+例如后室角色收到短信后主动整理工作：`ctx.communication` 计算消息选项和文本，`ctx.autonomy` 解释自主配置、频率和许可，既有 `ctx.scheduler`／`ctx.characterLoop` 消费机会。两个新槽位分别用 `ctx.effect(() => ctx.communication.register(provider))` 和 `ctx.effect(() => ctx.autonomy.register(provider))` 注册；清单 services 写相应名称，模块 `hostApi = '2.8'`。2.0～2.7 插件仍可加载。
+
+普通玩法仍写 communication.json／autonomy.json。官方通信位于 official-communication，自主策略位于已有 official-scheduler 包（Provider ID 为 official-autonomy），不增加另一个调度循环、队列或通用持久状态接口。原生机制是可信代码；以下是默认调用边界，不是恶意插件沙箱。
+
+通信 `open(world, signal)` 返回 CommunicationInstance，只有选中 Provider 获得可选 communicationSource.config（锁定 JSON）。definition 必须与资产存在性一致，仍为 medium／contacts；核心检查角色身份、联系人、自发消息限制和有限文本。
+
+| 通信接口 | 输入、输出与检查 |
+| --- | --- |
+| definition／instruction | 联系人和媒介声明，以及角色指引；声明经核心检查，指引最多 4000 字符 |
+| parameters(recipientId, text) | 返回既有消息信封；手动入口要求收件人、正文与原请求完全绑定，不能转给另一个联系人 |
+| options({actorId, recipientIds, publicationCharacters}) | 只得到当前有效、已授权联系人的 ID，返回既有选项；核心拒绝越权联系人和无效参数 |
+| prepare({actorId, recipientId, text, publicationCharacters}) | 核心先验证信封、发送者、联系人和当前生命周期；返回 `{text, description}` 或 `{rejectReason}`。正文仍受实际发送长度限制，不接受 sender、recipient、events 等额外字段 |
+| describeDelivery(status) | accepted／rejected 的结果说明，最多 2000 字符；说明本身不改变事实 |
+
+准备输入不含世界真值、远端场景、角色私有上下文或事务。发送者与收件人由核心绑定；speech 和收件观察由核心构造，一起提交。远程消息只证明发送者作出陈述，不授予物理在场、移动、物品或远端交互资格。普通 publish 仍是本地表达。活动期间的通信仍受既有活动许可和玩家管理入口限制。
+
+自主 `open` 返回 AutonomyInstance，只有所选 Provider 获得可选 autonomySource：锁定 config 与公开 characterIds／locationIds／targetIds／definitionIds。roles 为规范化 AutonomousRole，必须是已声明 NPC，频率与机会仍为 1～100，地点／目标和触发形状经核心复核；没有资产必须为空 roles。
+
+| 自主接口 | 输入、输出与检查 |
+| --- | --- |
+| roles／instruction | 配置声明与角色自主指引；核心固定身份及声明范围上限，指引最多 4000 字符 |
+| due({actions, afterSeq}) | 收到已提交玩家交易摘要：transactionId／seq、pause、actionType 和可选 definitionId／activityKey／operation；不包含消息正文、状态真值或其他角色私有上下文。返回所选角色 ID，不能重复或超出声明角色 |
+| permits({characterId, locationId, actionType, parameters}) | 同步返回布尔值，进一步收窄选项和行动；true 不能突破已声明地点／目标／交互范围，基础世界规则与结果范围仍重查 |
+
+官方频率按匹配的玩家交易去重计数，静观计入，失败行动、NPC ticks 和活动管理操作不计入；节点与重生从当前分支事件重算。宿主过滤未 active／不在允许地点的角色与活动参与者，并按声明顺序交付选中的机会。没有完整原始日志交给 due，也不让计算自己打开提交事务。
+
+两种机制方法均同步，输入和结果复制；close 可异步，每世界／候选独立实例。ID、version、公开 identity 参与候选环境比较。打开失败不回退，计算失败提示 Provider ID；非法消息提案不提交，自主计算失败保留此前已提交玩家行动。关闭和取消继续使用现有宿主与执行器生命周期。官方机会预算、串行／并发与续写仍属于 scheduler／characterLoop；可信第三方调度器的预算语义保持。
+
+验证记录与限制见[M5 记录](../studies/2026-11-core-migration-m5.md)。电话仍是实验路径；本批没有加入生产电话协议，也没有实施剧情导演或通用外部插件状态。
+
+## 替换活动机制（2.7）
+
+例如猜数字与 RPG 战斗可继续使用各自包内脚本，同时换用同一个活动解释器或候选选择策略。可信原生机制通过 `ctx.effect(() => ctx.activities.register(provider))` 注册单例，清单 services 写 `activities`，模块声明 `hostApi = '2.7'`；2.0～2.6 插件仍可加载。普通玩法作者继续使用 scripts/activity.js 或 scripts/activities/<key>.js，不使用 Cordis。
+
+`open(world, signal)` 每世界／候选返回 ActivitiesInstance。只有所选 Provider 获得可选 `world.activitySource.entries`：锁定资产的 key、entry 路径和 source 文本；没有活动资产时 entries 必须为空，有资产时必须精确匹配声明的 key。打开错误拒绝世界，不回退解释器。没有新增脚本、事件或存档格式。
+
+| 接口 | 输入与结果 |
+| --- | --- |
+| entries | 每活动的 key、definition、hasAutoStart 与计算方法；声明仍由核心规范化、检查 |
+| initialize(input, random) | 接收宿主确认的玩家、NPC 等初始化数据，返回既有 game；核心检查参与者、turn、public／private／internal 形状 |
+| policy(scoped, actorId) | 仅收到公开状态与当前参与者自己的 private，不含 internal 或其他角色 private；返回既有许可 |
+| resolve(state, actorId, operation, parameters, world, truth) | 可信规则计算得到完整活动状态、真实 actor、授权场景与状态真值，返回候选结果；不能直接提交 |
+| published／resume／autoStart／simulate | 对应原 onPublished／resume／autoStart／simulate 钩子；resume 使用玩家作用域和授权 world，simulate 只得到当前角色授权请求；autoStart 为可信条件规则，可读 truth 与玩家授权 world |
+| schedule(state)／outcome(result, state) | 可信调度规则得到完整活动状态，可返回 wait 或参与者 activate；核心拒绝玩家与未参与角色的激活 |
+| hasResume() | 对应脚本是否具备 resume 钩子的检查 |
+| select(progress, latestKey) | 只接收 key／active 摘要和最近活动 key；须保留已提交的前台活动，否则只能返回已安装 key 或 undefined |
+| chooseAutoStart(candidates, random) | 只接收全部条件满足、可开始的 key／条件数；非空时必须选其中一个，宿主每轮至多执行一次开始 |
+| close() | 可选，释放本世界或候选资源 |
+
+所有计算方法同步返回数据。宿主复制输入和返回值，计算不拿到活动宿主对象、缓存、事务、原生会话或数据库写入句柄。初始化与候选选择所用 random 属于现有回合记录，调用返回后失效；不要用自己的随机源取代它，否则重生无法保持一致。官方默认仍采用最多条件优先、平局随机，并保留当前前台／最近／首项的选择顺序。
+
+活动启动、暂停、继续、放弃、逃生、操作 Schema、真实参与者和前缀复核仍沿核心执行；活动提出的状态变化复用 M3 StatusRuntime 与 StatusState，不维护第二份 truth。非法提案不提交；开始已提交后调度失败，保留合法开始。TypeError／RangeError 在自动开场逐项检查中作为原有可报告错误，其他机制故障沿异常路径中止；诊断带 Provider ID 和活动 key。每世界与候选独立 open／close，ID、version、公开 identity 参与环境比较。
+
+这不提供通用外部插件持久状态，也不引入剧情导演。实现与自动验证范围见[M4 记录](../studies/2026-11-core-migration-m4.md)。
+
+## 替换状态脚本机制（2.6）
+
+例如想使用另一种解释器执行已有玩法脚本，可通过 `ctx.effect(() => ctx.status.register(provider))` 注册单例，清单 services 写 `status`，模块声明 `hostApi = '2.6'`。这面向可信原生机制开发者；普通玩法仍使用包内 scripts/status.js、plugins.json 和 plugins/*.js。
+
+`open(world, signal)` 每世界返回 StatusInstance，只在这里获得可选 `world.statusSource`：资产校验后的基础脚本文本、模块文本／角色范围，以及宿主裁定的不可用能力 ID。它不包含数据库、模型凭证或原生能力会话；其他机制的 open 不自动获得这些文本。open 可能早于世界激活，不应依赖世界读取已经可用。
+
+| 接口 | 输入与结果 |
+| --- | --- |
+| definition／hasRoundHook／moduleDefinitions | 既有脚本声明与元数据，交核心检查；没有状态资产时 definition 必须为 undefined |
+| initialize(characterIds) | 返回既有 public／characters／reveals 初始值，核心检查声明完整性与归属，初始化只提交一次 |
+| policy(known, actorId, place) | 只收到当前角色已知状态与可见位置／物品，返回操作许可和可选的物品收窄 |
+| resolve(input) | 可信裁定获得当前 truth、真实 actorId、操作／参数、授权 world、目标与已确认外部结果；返回候选 changes／reveals／description／audience／items，或 rejectReason |
+| endRound(truth, round) | 返回既有轮末状态结果或 null；轮次计数由宿主确定，告知权限仍由核心检查 |
+| prepareModule(moduleId, known, actorId, operation, parameters, world) | 用授权数据生成原生能力参数；不执行原生能力，不获得全量 truth |
+| close() | 可选，关闭世界或候选时释放机制资源 |
+
+所有计算接口同步返回数据，不返回 WorldEvent 或提交回调。原生能力的异步等待、queued／completed、取消和结果未知仍由能力桥处理。核心复制返回的数据，再核验类型、Schema、活动范围、告知对象与真实值、物品去向和真实执行者，沿既有事务提交。脚本返回的 reveal 不携带自行伪造的值。
+
+打开失败不回退；机制执行异常提示实际 Provider ID。policy 失败沿原路径隐藏该角色状态选项并显示诊断；轮末错误保留已提交玩家行动，故障钩子不补跑。替代实现返回非法候选时仍拒绝，不能用解释器替换绕开核心检查。每世界和候选独立 open／close，ID／version／公开 identity 参与重生环境比较。
+
+这不是通用插件状态注册：仍绑定世界包已声明的状态资产和既有 status.updated，不开放任意 Cordis 插件自行挂载持久状态。没有新增事件、存档或脚本格式。源码、测试和发布限制见[M3 记录](../studies/2026-11-core-migration-m3.md)。
+
+## 替换设定知识机制（2.5）
+
+例如开发者想改作者设定的排序而保留状态、记忆和模型预设，可通过 `ctx.effect(() => ctx.knowledge.register(provider))` 注册单例 Provider，清单 services 写 `knowledge`，模块声明 `hostApi = '2.5'`。
+
+`open(world, signal)` 返回 `{ select(context), close?() }`。只有所选知识 Provider 的 open 会获得可选的 `world.knowledgeSource`（配置与 documents／markdown 数据描述）；这是受信任机制的作者材料，不是角色模型请求，不包含整个编译包或数据库。select 是同步的纯材料选择，输入为当前角色授权 Context，返回 knowledge 对象或 undefined（本次不扩充）。它不执行行动、不提交事实，也不自动增加模型调用。
+
+官方实现按公开／角色私有受众、when 条件、关键词、priority 和整条字符预算筛选，标记 author_setting。替代实现仍应保持认知隔离；普通外部玩法脚本不会因此获得全量作者私有文档。原知识 context 步骤及替代决策步骤可通过同一 contextSources.knowledge 能力调用所选服务，不需要接管整个上下文组合。
+
+每个世界与候选独立 open/close；公开 identity 纳入重生与候选比较。打开失败不回退，选择失败提示真实机制 ID，玩家输入与先前提交内容保留。当前仍是可信原生插件，不提供恶意代码沙箱。
+
+2026-11-04 依赖就绪：插件可用 Cordis 的 `inject` 声明所需服务，提供者可以排在后面。宿主完成全部装载后核对状态，缺服务或互相等待的插件会被跳过，并列出未就绪的服务名。异步初始化仍保留设置列表中的注册优先级。该声明不替代世界包的 requiresPlugins，也不决定决策步骤顺序。见[默认组合与依赖诊断](../studies/2026-11-plugin-first-phase-11.md)。
+
+## 替换角色执行循环（2.4）
+
+例如角色先申请拿钥匙，再看裁定结果说话。启用 [single-action-loop.mjs](../../../examples/host-plugins/single-action-loop.mjs)和旁边的清单，可将每次角色处理限制为一次操作、一次结果续写。它通过 `ctx.effect(() => ctx.characterLoop.register(provider))` 注册，不调用旧的 CharacterTurn.run。
+
+Provider 的 `id`、`version`、公开 `identity` 与其他接缝含义相同；`open(world, signal)` 返回 `{ run(activation), close?() }`。每个世界、重生候选和节点重开都有独立实例。一次 run 的临时状态放在函数内，因为不同角色可能并发使用同一实例。打开失败会拒绝开世界，运行失败保留玩家输入与已提交行动。
+
+~~~js
+export const hostApi = '2.4'
+export default function(ctx) {
+  ctx.effect(() => ctx.characterLoop.register({
+    id: 'reply-once', version: '1.0.0',
+    open: async () => ({
+      async run(activation) {
+        activation.prepare({ canPerform: false, continuation: activation.continuation })
+        const result = await activation.submit(await activation.decide(() => false))
+        return result.decision === 'abstain' ? 'abstained'
+          : result.status === 'accepted' ? 'published' : 'failed'
+      },
+    }),
+  }))
+}
+~~~
+
+`prepare` 读取最新的授权请求，返回副本；`decide` 使用内部准备的请求，继续走现有 context／decide／模型通道。传给 decide 的回调决定是否允许一次格式修正，`calls` 包含该修正。`submit` 申请 publish／perform／abstain，主干检查参数、最新前缀、合法动作与真实受众，再原子提交。不能传 actor、World Event 或观察接收者。每次 prepare 最多 submit 一次，异步能力要逐个 await；结束后保存下来的能力失效。
+
+`maxCalls`、`maxModelCalls` 和 `continueAfterPublish` 是现有策略输入。第三方自己决定次数，官方实现遵守上限；声明 canPerform 只影响本次请求提供的选项，不能绕过活动和规则检查。`continuation` 表示宿主正在续写已提交行动，此时主干强制禁用新的 perform，并从已验证的日志结果继续，不重做原行动。`performResult` 是最近真实操作结果的副本。返回 published 没有成功发布支撑时会失败，返回值本身不写事件。
+
+宿主 API 2.4 为增量能力，2.0～2.3 插件仍可加载。源码和自动验证范围见[阶段 10 记录](../studies/2026-11-plugin-first-phase-10.md)，设计边界见[接口设计](../../superpowers/specs/2026-11-04-character-loop.md)。第三方是可信代码，预算、额外读权限与自然度仍由作者负责。
+
 2026-11-04：本次核对宿主 API 2.0 与完整调度接缝；下方声音等历史验收范围保留。想先知道插件能替换什么、不能替换什么，看[总入口](plugin-seams.md)。世界包依赖插件的写法也在那里。
 
 2026-10-26：例如同伴操作外部设备，包内模块负责玩法规则，Cordis 插件通过 `ctx.capabilities.register` 提供异步原生能力。按世界创建会话、角色请求、完成后裁定及失败限制见[双入口指南](dual-plugin-entrypoints.md)。原生完整例子是 [demo-device.mjs](../../../examples/host-plugins/demo-device.mjs)，外部程序方向见 [RPG Maker](../../../examples/rpg-maker/README.md)。下方声音指南仍沿用原验收范围。

@@ -1,7 +1,24 @@
+import type { InteractionPackageImplementation } from '@harness-world/contracts'
+import { officialCommunicationProvider } from '@harness-world/official-communication'
+import { officialActivitiesProvider } from '@harness-world/official-activities'
+import { officialStatusProvider } from '@harness-world/official-status'
+import { createInstalledInteractionPackages } from '@harness-world/interactions-basic'
 export { composeDecisions, officialContextOrder } from '@harness-world/official-contexts'
-import { officialSchedulerProvider } from '@harness-world/official-scheduler'
+import { composeDecisions } from '@harness-world/official-contexts'
+import { officialLlmProvider } from '@harness-world/official-llm'
+import { officialMemoryNoneProvider } from '@harness-world/official-memory-none'
+import type { Context } from '@deepseek-ai/cordis'
+import { officialSchedulerProvider, officialAutonomyProvider } from '@harness-world/official-scheduler'
+import { officialCharacterLoopProvider } from '@harness-world/official-character-loop'
+import { officialKnowledgeProvider } from '@harness-world/official-knowledge'
 import type {
   DecisionInstance,
+  CharacterLoopInstance,
+  KnowledgeInstance,
+  StatusInstance,
+  ActivitiesInstance,
+  AutonomyInstance,
+  CommunicationInstance,
   LlmInstance,
   LlmTransportInstance,
   MemoryInstance,
@@ -31,6 +48,9 @@ export {
   importCoreArchives,
 } from '@harness-world/official-memory-core'
 
+/** The default gameplay install, explicitly supplied by desktop entry composition. */
+export const defaultInteractionPackages = createInstalledInteractionPackages
+
 /** Core with the model connections and settings only the entry holds. */
 export function assembleCoreMemory(
   options: Omit<CoreProviderOptions, 'models' | 'settings'> & {
@@ -44,7 +64,13 @@ export function assembleCoreMemory(
 
 /** The implementation in force for each replaceable seam. */
 export interface HostSeams {
+  readonly knowledge?: SeamProvider<KnowledgeInstance>
+  readonly status?: SeamProvider<StatusInstance>
+  readonly activities?: SeamProvider<ActivitiesInstance>
+  readonly communication?: SeamProvider<CommunicationInstance>
+  readonly autonomy?: SeamProvider<AutonomyInstance>
   readonly scheduler: SeamProvider<SchedulerInstance>
+  readonly characterLoop?: SeamProvider<CharacterLoopInstance>
   readonly memory?: SeamProvider<MemoryInstance>
   readonly llm?: SeamProvider<LlmInstance>
   readonly llmTransport?: SeamProvider<LlmTransportInstance>
@@ -56,7 +82,81 @@ export interface HostSeams {
   readonly rules?: readonly SeamProvider<RulesInstance>[]
 }
 
+/** Explicit entry composition. An omitted optional mechanism stays absent in this selection. */
+export interface WorldComposition {
+  readonly interactionPackages: readonly InteractionPackageImplementation[]
+  readonly mechanisms: HostSeams
+  readonly modelChannel?: typeof composeModelChannel
+  readonly fallbackScheduler?: SeamProvider<SchedulerInstance>
+}
+
+/** The standard RP install chosen by desktop/Lens entry points, never by WorldHostCore. */
+export function assembleRoleplay(plugins: Partial<HostSeams> = {}): WorldComposition {
+  return {
+    interactionPackages: defaultInteractionPackages(),
+    mechanisms: composeWorldSeams(plugins),
+    modelChannel: composeModelChannel,
+    fallbackScheduler: officialSchedulerProvider,
+  }
+}
+
 /** The default bundle, and the only production file allowed to import `packages/official-*`. */
 export function officialSeams(): HostSeams {
-  return { scheduler: officialSchedulerProvider }
+  return { scheduler: officialSchedulerProvider, characterLoop: officialCharacterLoopProvider }
+}
+
+/** World opening order is composition policy, separate from Cordis inject and pack requirements. */
+export const officialWorldOrder = [
+  'llm',
+  'rules',
+  'memory',
+  'knowledge',
+  'status',
+  'activities',
+  'communication',
+  'autonomy',
+  'decisions',
+  'scheduler',
+  'characterLoop',
+] as const
+
+/** Direct hosts and the plugin loader share the same default choices and decision ordering. */
+export function composeWorldSeams(plugins: Partial<HostSeams> = {}) {
+  return {
+    ...plugins,
+    knowledge: plugins.knowledge ?? officialKnowledgeProvider,
+    status: plugins.status ?? officialStatusProvider,
+    activities: plugins.activities ?? officialActivitiesProvider,
+    communication: plugins.communication ?? officialCommunicationProvider,
+    autonomy: plugins.autonomy ?? officialAutonomyProvider,
+    scheduler: plugins.scheduler ?? officialSchedulerProvider,
+    characterLoop: plugins.characterLoop ?? officialCharacterLoopProvider,
+    memory: plugins.memory ?? officialMemoryNoneProvider,
+    decisions: composeDecisions(plugins.decisions ?? [], plugins.decisionOrder),
+    rules: plugins.rules ?? [],
+  }
+}
+
+/** Called after player plugins settle. Every default uses the same public registration API. */
+export function installOfficialBundle(ctx: Context, memory?: () => SeamProvider<MemoryInstance>): void {
+  if (!ctx.communication.current) ctx.effect(() => ctx.communication.register(officialCommunicationProvider))
+  if (!ctx.autonomy.current) ctx.effect(() => ctx.autonomy.register(officialAutonomyProvider))
+  if (!ctx.activities.current) ctx.effect(() => ctx.activities.register(officialActivitiesProvider))
+  if (!ctx.status.current) ctx.effect(() => ctx.status.register(officialStatusProvider))
+  if (!ctx.knowledge.current) ctx.effect(() => ctx.knowledge.register(officialKnowledgeProvider))
+  if (!ctx.scheduler.current) ctx.effect(() => ctx.scheduler.register(officialSchedulerProvider))
+  if (!ctx.characterLoop.current) ctx.effect(() => ctx.characterLoop.register(officialCharacterLoopProvider))
+  if (!ctx.memory.current && memory) ctx.effect(() => ctx.memory.register(memory()))
+  for (const provider of composeDecisions(ctx.decisions.providers)) {
+    if (!ctx.decisions.providers.some(current => current.id === provider.id))
+      ctx.effect(() => ctx.decisions.register(provider))
+  }
+}
+
+/** Credentials and observation callbacks are supplied by the entry, not exposed through WorldServices. */
+export function composeModelChannel(
+  options: Parameters<typeof officialLlmProvider>[0],
+  replacement?: SeamProvider<LlmInstance>,
+) {
+  return replacement ?? officialLlmProvider(options)
 }

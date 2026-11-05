@@ -4,11 +4,11 @@ import { createSchedulerRound, type ActivationTurn } from '@harness-world/applic
 import type { SchedulerRound, WorldReader } from '@harness-world/plugin-sdk'
 import type { WorldStore } from '@harness-world/store-sqlite'
 import type { PlaySettings } from '../play-settings.ts'
-import type { PackActivities } from './pack-activities.ts'
+import type { ActivitiesRuntime } from './activities-runtime.ts'
 
 /** Bind activity opportunities to the current legal participant. Scheduling policy lives in the provider. */
 export function createActivityRound(input: {
-  readonly activity: PackActivities | undefined
+  readonly activity: ActivitiesRuntime | undefined
   readonly settings: PlaySettings
   readonly address: WorldAddress
   readonly signal: AbortSignal

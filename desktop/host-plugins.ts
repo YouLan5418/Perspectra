@@ -1,4 +1,4 @@
-import { Context, Service, type Plugin } from '@deepseek-ai/cordis'
+import { Context, Service, type Fiber, type Plugin } from '@deepseek-ai/cordis'
 import { pathToFileURL } from 'node:url'
 import { hostPluginSettings, type HostPluginSettings } from './host-plugin-settings.ts'
 import type { InstalledPlugin } from './plugin-requirements.ts'
@@ -7,7 +7,7 @@ import { readPluginManifest } from './plugin-manifest-file.ts'
 import type { FrontendHostServices } from '@harness-world/frontend'
 import { validBgmTrack, type FrontendBgmPlugin, type FrontendBgmService } from '@harness-world/frontend'
 import { HostCapabilities, type CapabilityCatalog } from './host-capabilities.ts'
-import { officialSeams, type HostSeams } from './official-bundle.ts'
+import { installOfficialBundle, type HostSeams } from './official-bundle.ts'
 import { installPluginResolver } from './plugin-resolve.ts'
 import {
   HOST_API_VERSION,
@@ -28,7 +28,22 @@ import {
   type SchedulerInstance,
   type SchedulerSlotApi,
   type SeamProvider,
+  type CharacterLoopInstance,
+  type CharacterLoopSlotApi,
+  type KnowledgeInstance,
+  type KnowledgeSlotApi,
+  type StatusInstance,
+  type StatusSlotApi,
+  type ActivitiesSlotApi,
+  type CommunicationSlotApi,
+  type CommunicationInstance,
+  type AutonomySlotApi,
+  type AutonomyInstance,
+  type ActivitiesInstance,
 } from '@harness-world/plugin-sdk'
+
+// Cordis 4.0.1 exposes FiberState only as an ambient const enum in its declarations.
+const CORDIS_ACTIVE = 2
 
 // The SDK declares the services on Cordis' Context; the classes below must satisfy its interfaces.
 export type { PlayerFeedEvent, PlayerFeedLine }
@@ -98,6 +113,92 @@ export class SchedulerSlot extends Service implements SchedulerSlotApi {
   /** Own the returned disposer with the registering plugin's ctx.effect(). */
   register(provider: SeamProvider<SchedulerInstance>): () => void {
     if (this.current) throw new Error(`调度器已由 ${this.current.id} 提供`)
+    this.current = provider
+    return () => {
+      if (this.current === provider) this.current = undefined
+    }
+  }
+}
+
+export class CharacterLoopSlot extends Service implements CharacterLoopSlotApi {
+  current: SeamProvider<CharacterLoopInstance> | undefined
+
+  constructor(ctx: Context) {
+    super(ctx, 'characterLoop')
+  }
+
+  register(provider: SeamProvider<CharacterLoopInstance>): () => void {
+    if (this.current) throw new Error(`角色循环已由 ${this.current.id} 提供`)
+    this.current = provider
+    return () => {
+      if (this.current === provider) this.current = undefined
+    }
+  }
+}
+
+export class KnowledgeSlot extends Service implements KnowledgeSlotApi {
+  current: SeamProvider<KnowledgeInstance> | undefined
+  constructor(ctx: Context) {
+    super(ctx, 'knowledge')
+  }
+  register(provider: SeamProvider<KnowledgeInstance>): () => void {
+    if (this.current) throw new Error(`知识机制已由 ${this.current.id} 提供`)
+    this.current = provider
+    return () => {
+      if (this.current === provider) this.current = undefined
+    }
+  }
+}
+
+export class StatusSlot extends Service implements StatusSlotApi {
+  current: SeamProvider<StatusInstance> | undefined
+  constructor(ctx: Context) {
+    super(ctx, 'status')
+  }
+  register(provider: SeamProvider<StatusInstance>): () => void {
+    if (this.current) throw new Error(`状态机制已由 ${this.current.id} 提供`)
+    this.current = provider
+    return () => {
+      if (this.current === provider) this.current = undefined
+    }
+  }
+}
+
+export class ActivitiesSlot extends Service implements ActivitiesSlotApi {
+  current: SeamProvider<ActivitiesInstance> | undefined
+  constructor(ctx: Context) {
+    super(ctx, 'activities')
+  }
+  register(provider: SeamProvider<ActivitiesInstance>): () => void {
+    if (this.current) throw new Error(`活动机制已由 ${this.current.id} 提供`)
+    this.current = provider
+    return () => {
+      if (this.current === provider) this.current = undefined
+    }
+  }
+}
+
+export class CommunicationSlot extends Service implements CommunicationSlotApi {
+  current: SeamProvider<CommunicationInstance> | undefined
+  constructor(ctx: Context) {
+    super(ctx, 'communication')
+  }
+  register(provider: SeamProvider<CommunicationInstance>): () => void {
+    if (this.current) throw new Error(`通信机制已由 ${this.current.id} 提供`)
+    this.current = provider
+    return () => {
+      if (this.current === provider) this.current = undefined
+    }
+  }
+}
+
+export class AutonomySlot extends Service implements AutonomySlotApi {
+  current: SeamProvider<AutonomyInstance> | undefined
+  constructor(ctx: Context) {
+    super(ctx, 'autonomy')
+  }
+  register(provider: SeamProvider<AutonomyInstance>): () => void {
+    if (this.current) throw new Error(`自主策略已由 ${this.current.id} 提供`)
     this.current = provider
     return () => {
       if (this.current === provider) this.current = undefined
@@ -272,7 +373,7 @@ export interface SkippedHostPlugin {
   /** `manifest`: the sidecar `.plugin.json` is unreadable or invalid. `config`: saved values or secrets do
    * not fit it. `version`: the module's `hostApi` is missing or needs a newer host. */
   readonly reason: 'manifest' | 'config' | 'import' | 'version' | 'apply'
-  /** Host-written and player-facing, for `manifest` and `config` only; never module error text or a value. */
+  /** Host-written manifest, config or dependency diagnostic; never module error text or config values. */
   readonly detail?: string
 }
 
@@ -304,6 +405,12 @@ export async function loadHostPlugins(
   const capabilities = new HostCapabilities(root)
   const playerFeed = new PlayerFeed(root)
   const scheduler = new SchedulerSlot(root)
+  const characterLoop = new CharacterLoopSlot(root)
+  const knowledge = new KnowledgeSlot(root)
+  const status = new StatusSlot(root)
+  const activities = new ActivitiesSlot(root)
+  const communication = new CommunicationSlot(root)
+  const autonomy = new AutonomySlot(root)
   const memory = new MemorySlot(root)
   const llm = new LlmSlot(root)
   const decisions = new DecisionRegistry(root)
@@ -311,6 +418,7 @@ export async function loadHostPlugins(
   const skipped: SkippedHostPlugin[] = []
   const llmPlugins = new Set<string>()
   const declared = new Map<string, { id?: string; version: string }>()
+  const pending: { id: string; fiber: Fiber & PromiseLike<Fiber> }[] = []
   installPluginResolver()
   for (const plugin of plugins) {
     if (!plugin.enabled) continue
@@ -365,15 +473,48 @@ export async function loadHostPlugins(
       continue
     }
     const fiber = root.plugin(module.default as Plugin, structuredClone(config))
-    try {
-      await fiber
-    } catch (error) {
-      console.error(`[宿主插件 ${plugin.id}] 初始化失败，本次已跳过：`, error)
-      await fiber.dispose()
-      skipped.push({ id: plugin.id, reason: 'apply' })
+    pending.push({ id: plugin.id, fiber })
+    // Cordis await settles PENDING immediately; it does not wait for a missing inject service.
+    // Finish active setup in settings order so an async first registration retains its priority.
+    await fiber.await().catch(() => undefined)
+  }
+  // Recheck readiness after all registrations: later services may have activated earlier consumers.
+  const settle = async () => {
+    for (const entry of [...pending]) {
+      try {
+        await entry.fiber
+      } catch (error) {
+        console.error(`[宿主插件 ${entry.id}] 初始化失败，本次已跳过：`, error)
+        await entry.fiber.dispose()
+        skipped.push({ id: entry.id, reason: 'apply' })
+        pending.splice(pending.indexOf(entry), 1)
+      }
     }
   }
-  const chosenMemory = memory.current ?? defaults.memory?.()
+  await settle()
+  // Cordis owns dependency readiness. Report stable inactive fibers instead of claiming they ran.
+  while (pending.some(entry => entry.fiber.state !== CORDIS_ACTIVE)) {
+    for (const entry of [...pending]) {
+      if (entry.fiber.state === CORDIS_ACTIVE) continue
+      const missing = Object.keys(entry.fiber.inject).filter(name => !entry.fiber.ctx.get(name, false))
+      const detail = `缺少服务或存在循环依赖：${missing.join('、') || '服务未就绪'}`
+      console.error(`[宿主插件 ${entry.id}] ${detail}`)
+      await entry.fiber.dispose()
+      skipped.push({ id: entry.id, reason: 'apply', detail })
+      pending.splice(pending.indexOf(entry), 1)
+    }
+    await settle()
+  }
+  try {
+    installOfficialBundle(root, defaults.memory)
+  } catch (error) {
+    await root.fiber.dispose()
+    throw error
+  }
+  skipped.sort(
+    (a, b) => plugins.findIndex(plugin => plugin.id === a.id) - plugins.findIndex(plugin => plugin.id === b.id),
+  )
+  const chosenMemory = memory.current
   // The player chose where the story goes. A channel that failed to load must not quietly become the official one.
   const lostChannel =
     llm.current || llm.currentTransport ? undefined : skipped.find(plugin => llmPlugins.has(plugin.id))
@@ -382,7 +523,13 @@ export async function loadHostPlugins(
     capabilities,
     playerFeed,
     seams: {
-      scheduler: scheduler.current ?? officialSeams().scheduler,
+      knowledge: knowledge.current!,
+      status: status.current!,
+      activities: activities.current!,
+      communication: communication.current!,
+      autonomy: autonomy.current!,
+      scheduler: scheduler.current!,
+      characterLoop: characterLoop.current!,
       ...(chosenMemory ? { memory: chosenMemory } : {}),
       ...(llm.current ? { llm: llm.current } : {}),
       ...(llm.currentTransport ? { llmTransport: llm.currentTransport } : {}),

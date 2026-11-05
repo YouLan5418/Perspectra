@@ -118,9 +118,6 @@ importers:
       '@harness-world/contracts':
         specifier: workspace:*
         version: link:../contracts
-      '@harness-world/interactions-basic':
-        specifier: workspace:*
-        version: link:../interactions-basic
       '@harness-world/kernel':
         specifier: workspace:*
         version: link:../kernel
@@ -139,6 +136,9 @@ importers:
       '@harness-world/store-sqlite':
         specifier: workspace:*
         version: link:../store-sqlite
+      ajv:
+        specifier: 8.17.1
+        version: 8.17.1
 
   packages/contracts: {}
 
@@ -184,6 +184,30 @@ importers:
         specifier: workspace:*
         version: link:../store-sqlite
 
+  packages/official-activities:
+    dependencies:
+      '@harness-world/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      '@harness-world/plugin-sdk':
+        specifier: workspace:*
+        version: link:../plugin-sdk
+
+  packages/official-character-loop:
+    dependencies:
+      '@harness-world/plugin-sdk':
+        specifier: workspace:*
+        version: link:../plugin-sdk
+
+  packages/official-communication:
+    dependencies:
+      '@harness-world/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      '@harness-world/plugin-sdk':
+        specifier: workspace:*
+        version: link:../plugin-sdk
+
   packages/official-contexts:
     dependencies:
       '@harness-world/plugin-sdk':
@@ -201,6 +225,18 @@ importers:
       '@harness-world/plugin-sdk':
         specifier: workspace:*
         version: link:../plugin-sdk
+
+  packages/official-knowledge:
+    dependencies:
+      '@harness-world/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      '@harness-world/plugin-sdk':
+        specifier: workspace:*
+        version: link:../plugin-sdk
+      ajv:
+        specifier: 8.17.1
+        version: 8.17.1
 
   packages/official-llm:
     dependencies:
@@ -230,6 +266,15 @@ importers:
         version: link:../plugin-sdk
 
   packages/official-scheduler:
+    dependencies:
+      '@harness-world/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      '@harness-world/plugin-sdk':
+        specifier: workspace:*
+        version: link:../plugin-sdk
+
+  packages/official-status:
     dependencies:
       '@harness-world/contracts':
         specifier: workspace:*

@@ -54,6 +54,7 @@ describe('an independent pack on the interaction path', () => {
     const root = mkdtempSync(join(tmpdir(), 'hand-in-hand-'))
     const worldPath = join(root, 'world.sqlite')
     const app = new WorldApplication({
+      interactionPackages: [createBasicInteractionPackage()],
       worldPath,
       sessionPath: join(root, 'session.sqlite'),
       memoryPath: join(root, 'memory.sqlite'),

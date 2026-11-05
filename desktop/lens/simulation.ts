@@ -12,13 +12,13 @@ import {
 import { tmpdir } from 'node:os'
 import { join, relative, resolve } from 'node:path'
 import { interactionPackageDescription, type WorldJsonObject } from '@harness-world/contracts'
-import { createInstalledInteractionPackages } from '@harness-world/interactions-basic'
 import { WorldStore } from '@harness-world/store-sqlite'
 import { compileWorldPackSource, type CompiledWorldPackV5 } from '@harness-world/world-pack'
 import { actionText, WAIT_ACTION, type HostAction, type HostState } from '../host/http-server.ts'
-import type { ActivityRequest } from '../host/pack-activity.ts'
-import type { AutoStartEvaluation } from '../host/pack-activities.ts'
-import { PackStatus } from '../host/pack-status.ts'
+import type { ActivityRequest } from '@harness-world/contracts'
+import type { AutoStartEvaluation } from '@harness-world/contracts'
+import { StatusState } from '@harness-world/application'
+import { assembleRoleplay, type WorldComposition } from '../official-bundle.ts'
 import { WorldHostRuntime } from '../host/world-runtime.ts'
 import { startStubModel, type StubDecision, type StubModel } from './stub-model.ts'
 import { activityScriptPath, interactionName } from './ids.ts'
@@ -112,21 +112,6 @@ function rewriteCopy(copy: string, pack: CompiledWorldPackV5, start: LensStart):
     if (!characterIds.has(characterId)) throw new TypeError(`起点 scenes：未知角色 ${characterId}`)
     if (!scenes.has(sceneId)) throw new TypeError(`起点 scenes.${characterId}：未知场景 ${sceneId}`)
   }
-  const status = start.status
-  if (status) {
-    const statuses = PackStatus.load(copy, pack)?.statuses
-    if (!statuses) throw new TypeError('起点 status：本包没有状态脚本')
-    const check = (values: WorldJsonObject, owner: 'public' | 'character', field: string) => {
-      for (const key of Object.keys(values))
-        if (!statuses.some(s => s.key === key && s.owner === owner))
-          throw new TypeError(`起点 ${field}：未知状态 ${key}`)
-    }
-    check(status.public ?? {}, 'public', 'status.public')
-    for (const [characterId, values] of Object.entries(status.characters ?? {})) {
-      if (!characterIds.has(characterId)) throw new TypeError(`起点 status.characters：未知角色 ${characterId}`)
-      check(values, 'character', 'status.characters.' + characterId)
-    }
-  }
   for (const key of start.skipAutoStart ?? [])
     if (!pack.assets.some(asset => asset.path === activityScriptPath(key)))
       throw new TypeError(`起点 skipAutoStart：未知活动 ${key}`)
@@ -158,25 +143,70 @@ function rewriteCopy(copy: string, pack: CompiledWorldPackV5, start: LensStart):
       writeFileSync(join(copy, file), JSON.stringify(document, null, 2))
     }
   }
-  if (status)
-    appendFileSync(
-      join(copy, 'scripts/status.js'),
-      `
-;(() => {
-  const start = ${JSON.stringify(status)}
-  const initialize = globalThis.statusScript.initialize
-  globalThis.statusScript.initialize = function (...args) {
-    const result = initialize.apply(this, args)
-    Object.assign(result.public, start.public ?? {})
-    for (const [id, values] of Object.entries(start.characters ?? {}))
-      result.characters[id] = Object.assign(result.characters[id] ?? {}, values)
-    return result
-  }
-})()
-`,
-    )
   for (const key of start.skipAutoStart ?? [])
     appendFileSync(join(copy, activityScriptPath(key)), '\nglobalThis.activityScript.autoStart = undefined\n')
+}
+
+/** Apply simulation opening data to the selected mechanism, then use the ordinary core initializer. */
+function openingComposition(
+  composition: WorldComposition,
+  pack: CompiledWorldPackV5,
+  start: LensStart,
+): WorldComposition {
+  if (!start.status) return composition
+  const provider = composition.mechanisms.status,
+    values = structuredClone(start.status)
+  if (!provider) throw new TypeError('起点 status：本包没有状态机制')
+  return {
+    ...composition,
+    mechanisms: {
+      ...composition.mechanisms,
+      status: {
+        ...provider,
+        open: async (world, signal) => {
+          const instance = await provider.open(world, signal)
+          try {
+            if (instance.definition === undefined) throw new TypeError('起点 status：本包没有状态脚本')
+            const characterIds = pack.content.characters.map(character => String(character.characterId))
+            const statuses = new StatusState(instance.definition, characterIds, pack.content.entities ?? []).statuses
+            const check = (entries: WorldJsonObject, owner: 'public' | 'character', field: string) => {
+              for (const key of Object.keys(entries))
+                if (!statuses.some(status => status.key === key && status.owner === owner))
+                  throw new TypeError(`起点 ${field}：未知状态 ${key}`)
+            }
+            check(values.public ?? {}, 'public', 'status.public')
+            for (const [id, entries] of Object.entries(values.characters ?? {})) {
+              if (!characterIds.includes(id)) throw new TypeError(`起点 status.characters：未知角色 ${id}`)
+              check(entries, 'character', 'status.characters.' + id)
+            }
+            return {
+              definition: instance.definition,
+              hasRoundHook: instance.hasRoundHook,
+              moduleDefinitions: instance.moduleDefinitions,
+              initialize: ids => {
+                const result = structuredClone(instance.initialize(ids)) as {
+                  public: Record<string, unknown>
+                  characters: Record<string, Record<string, unknown>>
+                }
+                Object.assign(result.public, values.public ?? {})
+                for (const [id, entries] of Object.entries(values.characters ?? {}))
+                  Object.assign((result.characters[id] ??= {}), entries)
+                return result
+              },
+              policy: (...args) => instance.policy(...args),
+              resolve: input => instance.resolve(input),
+              endRound: (...args) => instance.endRound(...args),
+              prepareModule: (...args) => instance.prepareModule(...args),
+              ...(instance.close ? { close: () => instance.close!() } : {}),
+            }
+          } catch (error) {
+            await instance.close?.()
+            throw error
+          }
+        },
+      },
+    },
+  }
 }
 
 function npcDecision(plan: LensNpcPlan | undefined): StubDecision {
@@ -233,7 +263,11 @@ export class LensSimulation {
     }
   }
 
-  static async open(packPath: string, start: LensStart = {}): Promise<LensSimulation> {
+  static async open(
+    packPath: string,
+    start: LensStart = {},
+    composition: WorldComposition = assembleRoleplay(),
+  ): Promise<LensSimulation> {
     const source = resolve(packPath)
     sweepStaleLensCopies()
     const root = mkdtempSync(join(tmpdir(), COPY_PREFIX)),
@@ -244,7 +278,7 @@ export class LensSimulation {
       cpSync(source, copy, { recursive: true, filter: path => relative(source, path) !== LENS_DIRECTORY })
       const pack = (await compileWorldPackSource(
         copy,
-        createInstalledInteractionPackages().map(interactionPackageDescription),
+        composition.interactionPackages.map(interactionPackageDescription),
       )) as CompiledWorldPackV5
       rewriteCopy(copy, pack, start)
       stub = await startStubModel()
@@ -253,6 +287,7 @@ export class LensSimulation {
         dataDirectory: join(root, 'data'),
         models: stub.models,
         timeoutMs: 10_000,
+        composition: openingComposition(composition, pack, start),
       })
       const titles = new Map(
         ((await runtime.state()).activities ?? []).map(a => [String(a.activityKey), String(a.title)] as const),

@@ -1,6 +1,6 @@
 // Check maintained production sources, and keep the default regression independent of experiment drivers.
 // Frozen experiment captures are outside this boundary.
-import { readdirSync, readFileSync } from 'node:fs'
+import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { dirname, join, relative, resolve } from 'node:path'
 
 const root = resolve(process.argv[2] ?? '.')
@@ -49,6 +49,12 @@ function check(file) {
     errors.push(file + ': only desktop/official-bundle.ts may import an official implementation')
   }
   if (
+    /^packages\/(?:application|kernel|store-sqlite)\//.test(path) &&
+    /from\s+['"]@harness-world\/interactions-basic['"]/.test(source)
+  ) {
+    errors.push(file + ': core must receive its gameplay install from composition')
+  }
+  if (
     path.startsWith('packages/official-') &&
     // The JEV experiment folds committed events with the kernel's pure readers; it adjudicates nothing.
     !path.startsWith('packages/official-jev-audit/') &&
@@ -57,6 +63,14 @@ function check(file) {
     )
   ) {
     errors.push(file + ': an official implementation may use only the public plugin surface at runtime')
+  }
+  if (
+    path.startsWith('packages/plugin-sdk/') &&
+    /^import\s+(?!type\b)[^'";]*from\s+['"](?:@harness-world\/(?:official-|application|store-sqlite|memory)|[^'"]*\/desktop\/)/m.test(
+      source,
+    )
+  ) {
+    errors.push(file + ': plugin SDK contracts must not import implementations at runtime')
   }
   checkPackageImports(file, path, source)
 }
@@ -69,6 +83,8 @@ function checkPackageImports(file, path, source) {
   const ownPackage = path.match(/^packages\/([^/]+)\//)?.[1]
   const plainNode = path.endsWith('.mjs')
   for (const { typeOnly, target } of relativeImports(file, source)) {
+    if (['application', 'kernel', 'store-sqlite'].includes(ownPackage) && target.startsWith('desktop/'))
+      errors.push(file + ': core must not depend on host adapters')
     const targetPackage = target.match(/^packages\/([^/]+)\/src\//)?.[1]
     if (targetPackage === undefined || targetPackage === ownPackage) continue
     if (plainNode && (typeOnly || releaseScriptModules.test(target))) continue
@@ -86,6 +102,21 @@ for (const directory of [
 ]) {
   walk(join(root, directory), check, production)
 }
+const authorPacks = join(root, 'examples/world-packs')
+if (existsSync(authorPacks))
+  walk(
+    authorPacks,
+    file => {
+      const source = readFileSync(file, 'utf8')
+      if (
+        /(?:from\s*|import\s*\(|require\s*\()\s*['"](?:@harness-world\/plugin-sdk|@deepseek-ai\/cordis)(?:['"/])/u.test(
+          source,
+        )
+      )
+        errors.push(file + ': world-pack scripts use author hooks, not the native SDK')
+    },
+    file => /\/(?:scripts|plugins)\/.+\.js$/u.test(repositoryPath(file)),
+  )
 check(join(root, 'package.json'))
 // Live drivers may reuse regression support, never the other way round.
 walk(

@@ -1,3 +1,4 @@
+import { createRoleplayCore } from '../support/roleplay-runtime.ts'
 import { type Server } from 'node:http'
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -6,7 +7,6 @@ import { createContext, Script } from 'node:vm'
 import { afterEach, describe, expect, it } from 'vitest'
 import { brandId, type WorldJsonObject } from '@harness-world/contracts'
 import { CharacterViewBuilder, WorldStore } from '@harness-world/store-sqlite'
-import { WorldHostCore } from '../../desktop/host/world-runtime.ts'
 import { playSettings } from '../../desktop/play-settings.ts'
 import { projectPlayerView } from '../../desktop/host/frontend-adapter.ts'
 import { createChatServer, fakeModels } from '../support/fake-provider.ts'
@@ -390,7 +390,7 @@ async function host(options: { talkOnly?: boolean } = {}) {
   })
   cleanup.push(() => new Promise<void>(done => (server.closeAllConnections(), server.close(() => done()))))
   await new Promise<void>(done => server.listen(0, '127.0.0.1', done))
-  const runtime = await WorldHostCore.create({
+  const runtime = await createRoleplayCore({
     packPath: resolve('examples/world-packs/model-girls-werewolf'),
     dataDirectory: data,
     models: fakeModels('http://127.0.0.1:' + (server.address() as { port: number }).port + '/v1/chat/completions'),

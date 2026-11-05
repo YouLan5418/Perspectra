@@ -1,3 +1,4 @@
+import { officialCharacterLoop } from '@harness-world/official-character-loop'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -29,6 +30,7 @@ function setup(fault?: Parameters<typeof openActionWorld>[2]) {
 it('exposes both acquisition choices and both destinations without disclosing hidden response text', async () => {
   const f = setup()
   const turn = new CharacterTurn({
+    loop: officialCharacterLoop,
     ...f,
     projectContext: actionContext,
     executionResult: actionResult,
@@ -53,6 +55,7 @@ it.each([
   const f = setup()
   let calls = 0
   const turn = new CharacterTurn({
+    loop: officialCharacterLoop,
     ...f,
     rulebooks: f.rules,
     executionResult: actionResult,
@@ -85,6 +88,7 @@ it.each([
 it('speech promising to ask staff does not call the capability or produce its reply', async () => {
   const f = setup(),
     turn = new CharacterTurn({
+      loop: officialCharacterLoop,
       ...f,
       rulebooks: f.rules,
       decide: async () => ({ decision: 'publish', segments: [{ type: 'speech', text: '我去问问工作人员。' }] }),
@@ -96,6 +100,7 @@ it('forged arguments produce no acquired evidence', async () => {
   const f = setup(),
     d = evidenceDecision()
   const turn = new CharacterTurn({
+    loop: officialCharacterLoop,
     ...f,
     rulebooks: f.rules,
     executionResult: actionResult,
@@ -110,6 +115,7 @@ it('forged arguments produce no acquired evidence', async () => {
 it('a stale acquisition after moving is rejected without a Source', async () => {
   const f = setup()
   const turn = new CharacterTurn({
+    loop: officialCharacterLoop,
     ...f,
     rulebooks: f.rules,
     executionResult: actionResult,
@@ -120,6 +126,7 @@ it('a stale acquisition after moving is rejected without a Source', async () => 
   })
   expect((await turn.run(npc)).performResult?.status).toBe('accepted')
   const stale = new CharacterTurn({
+    loop: officialCharacterLoop,
     ...f,
     rulebooks: f.rules,
     executionResult: actionResult,
@@ -138,6 +145,7 @@ it('an interrupted commit rolls back the acquired Source with the accepted actio
   const before = f.store.head(f.address)
   armed = true
   const turn = new CharacterTurn({
+    loop: officialCharacterLoop,
     ...f,
     rulebooks: f.rules,
     executionResult: actionResult,

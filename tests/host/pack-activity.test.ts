@@ -12,7 +12,7 @@ import { CharacterViewBuilder, WorldStore } from '@harness-world/store-sqlite'
 import { WorldHostRuntime, type WorldHostOptions } from '../../desktop/host/world-runtime.ts'
 import { createHostServer } from '../../desktop/host/http-server.ts'
 import { characterRequestText } from '../../packages/provider-chat/src/character-context-text.ts'
-import type { ActivityRequest } from '../../desktop/host/pack-activity.ts'
+import type { ActivityRequest } from '@harness-world/contracts'
 import { createChatServer, fakeModels } from '../support/fake-provider.ts'
 
 const roots: string[] = [],

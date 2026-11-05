@@ -1,3 +1,4 @@
+import { createRoleplayCore } from '../support/roleplay-runtime.ts'
 import { type Server } from 'node:http'
 import { afterEach, expect, it } from 'vitest'
 import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
@@ -10,7 +11,7 @@ import { WorldStore } from '@harness-world/store-sqlite'
 import { currentEntityState, currentLocation } from '@harness-world/kernel'
 import { WorldHostCore } from '../../desktop/host/world-runtime.ts'
 import { projectPlayerView } from '../../desktop/host/frontend-adapter.ts'
-import { PackStatus } from '../../desktop/host/pack-status.ts'
+import { loadStatus } from '../support/status-runtime.ts'
 import { createChatServer, fakeModels } from '../support/fake-provider.ts'
 
 const roots: string[] = [],
@@ -72,7 +73,7 @@ async function fixture(
     pack,
     createInstalledInteractionPackages().map(interactionPackageDescription),
   )
-  const status = PackStatus.load(pack, compiled)!
+  const status = loadStatus(pack, compiled)!
   // Context of every character request, in call order, for tests that check what a character was told.
   const contexts: WorldJsonObject[] = []
   const server = createChatServer((request, response) => {
@@ -121,7 +122,7 @@ async function fixture(
   servers.push(server)
   await new Promise<void>(done => server.listen(0, '127.0.0.1', done))
   const port = (server.address() as { port: number }).port
-  const runtime = await WorldHostCore.create({
+  const runtime = await createRoleplayCore({
     packPath: pack,
     dataDirectory: data,
     models: fakeModels('http://127.0.0.1:' + port + '/v1/chat/completions', 'openai', 'fixture'),

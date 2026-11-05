@@ -472,3 +472,5 @@ async function runDynamicActivations(round: SchedulerRound, options: ScheduleOpt
     for (const source of new Set([signal, ordinarySignal, autonomySignal])) source.removeEventListener('abort', wake)
   }
 }
+
+export { AutonomyPolicy, officialAutonomyProvider, autonomyInstruction } from './autonomy-policy.ts'

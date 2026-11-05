@@ -6,7 +6,13 @@ import { afterEach, expect, it } from 'vitest'
 import { interactionPackageDescription, type WorldJsonObject } from '@harness-world/contracts'
 import { createInstalledInteractionPackages } from '@harness-world/interactions-basic'
 import { compileWorldPackSource } from '@harness-world/world-pack'
-import { PackKnowledge } from '../../desktop/host/pack-knowledge.ts'
+import { KnowledgeSelection } from '@harness-world/official-knowledge'
+import { loadKnowledgeSource } from '../../desktop/host/knowledge-source.ts'
+import type { CompiledWorldPackV5 } from '@harness-world/world-pack'
+const loadKnowledge = (root: string, pack: CompiledWorldPackV5) => {
+  const source = loadKnowledgeSource(root, pack)
+  return source && KnowledgeSelection.parse(source.configuration, source.content)
+}
 
 const roots: string[] = []
 afterEach(() => {
@@ -57,7 +63,7 @@ const run = (...args: string[]) =>
 
 it('splits an entry the host would refuse into ordered parts that load and rejoin to the original text', async () => {
   const path = fixture()
-  await expect(compile(path).then(pack => PackKnowledge.load(path, pack))).rejects.toThrow('document:lore')
+  await expect(compile(path).then(pack => loadKnowledge(path, pack))).rejects.toThrow('document:lore')
 
   const preview = run(path, '--dry-run')
   expect(preview.status).toBe(0)
@@ -77,7 +83,7 @@ it('splits an entry the host would refuse into ordered parts that load and rejoi
   expect(readFileSync(join(path, 'lore.md'), 'utf8')).toBe('黑海岸是一处研究基地。'.repeat(10) + '\n\n')
 
   const pack = await compile(path)
-  const knowledge = PackKnowledge.load(path, pack)!
+  const knowledge = loadKnowledge(path, pack)!
   const entries = JSON.parse(readFileSync(join(path, 'knowledge.json'), 'utf8')).entries as WorldJsonObject[]
   expect(entries.map(entry => entry.documentId)).toEqual([...parts.map(part => part.documentId), 'document:note'])
   expect(entries.slice(0, parts.length).every(entry => JSON.stringify(entry.keywords) === '["黑海岸"]')).toBe(true)

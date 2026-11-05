@@ -90,7 +90,7 @@ Get-Content .tmp/phase8-prototype-audit/result.json
 
 Evidence E3：[原型契约](../prototype-contract.md) 顶部仍保留 Proposed、首次交付未实现等起始文字，后面又追加多轮进展，末段还保留旧的 G0～G4 未通过状态；[G1/G2 记录](../../archive/prototype-g1-g4/PROTOTYPE-G1-G2-ACCEPTANCE.md) 仍列 G2-1 格式修正待办。
 
-Evidence E4：当前 PrototypeCharacterTurn 已提供 reserveFormatRetry，宿主调用 [decideActivityFormat](../../../desktop/host/pack-activity.ts) 在预算内进行格式修正；[当前架构入口](../architecture/README.md) 已解释新的实际调用链与发行范围。
+Evidence E4：当前 PrototypeCharacterTurn 已提供 reserveFormatRetry，宿主调用 [decideActivityFormat](https://github.com/YouLan5418/Perspectra/blob/36d3efd8/desktop/host/pack-activity.ts) 在预算内进行格式修正；[当前架构入口](../architecture/README.md) 已解释新的实际调用链与发行范围。
 
 Finding F2（E3、E4）：一些历史“未完成”只是记录没有跟随实现收口，不能继续作为当前待办；另一些确实是更新回路或默认入口没接上。仅按旧清单补功能，会误把已经改道的设计重新装回当前运行时。有界非法输出诊断的完整 G2 验收本次未逐项复核，不在此宣布通过。
 
@@ -349,4 +349,4 @@ Path P6（当时结论，已被第四步修正）：第三步短试玩不足以�
 | --- | --- |
 | `tests/experiments/playtest-frozen-runtime.ts` | [world-runtime.ts](../../../desktop/host/world-runtime.ts) |
 | `tests/experiments/playtest-memory-core.ts` | [core-memory.ts](../../../packages/official-memory-core/src/core-memory.ts) |
-| `tests/experiments/pack-activity.ts` | [pack-activity.ts](../../../desktop/host/pack-activity.ts) |
+| `tests/experiments/pack-activity.ts` | [pack-activity.ts](https://github.com/YouLan5418/Perspectra/blob/36d3efd8/desktop/host/pack-activity.ts) |

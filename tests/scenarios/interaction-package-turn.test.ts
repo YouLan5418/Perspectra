@@ -1,3 +1,4 @@
+import { officialCharacterLoop } from '@harness-world/official-character-loop'
 import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
@@ -69,6 +70,7 @@ it('executes the exact offered definition, then publishes freely from its commit
     const rules = createCoreRulebookRegistry({ interactionPackages: [installed] })
     let calls = 0
     const turn = new CharacterTurn({
+      loop: officialCharacterLoop,
       address: world.manifest.address,
       store,
       leases,

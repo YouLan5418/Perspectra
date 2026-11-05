@@ -1,3 +1,4 @@
+import { officialCharacterLoop } from '@harness-world/official-character-loop'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -27,13 +28,17 @@ it('resumes committed second inspection once with its actual evidence and does n
     executionResult: noticeBoardResult,
   }
   try {
-    await new CharacterTurn({ ...options, decide: async () => inspectDecision() }).run(npc, { maxCalls: 1 })
-    await bringSecondBoard(f)
-    const before = f.store.head(f.address).headSeq
-    const result = await new CharacterTurn({ ...options, decide: async () => inspectDecision(secondBoardId) }).run(
+    await new CharacterTurn({ loop: officialCharacterLoop, ...options, decide: async () => inspectDecision() }).run(
       npc,
       { maxCalls: 1 },
     )
+    await bringSecondBoard(f)
+    const before = f.store.head(f.address).headSeq
+    const result = await new CharacterTurn({
+      loop: officialCharacterLoop,
+      ...options,
+      decide: async () => inspectDecision(secondBoardId),
+    }).run(npc, { maxCalls: 1 })
     expect(result).toMatchObject({ status: 'budget_exhausted', calls: 1, performResult: { status: 'accepted' } })
     const source = f
       .sources()
@@ -46,6 +51,7 @@ it('resumes committed second inspection once with its actual evidence and does n
     }
     let calls = 0
     const resumed = await new CharacterTurn({
+      loop: officialCharacterLoop,
       ...options,
       decide: async request => {
         calls++
@@ -71,6 +77,7 @@ it('resumes committed second inspection once with its actual evidence and does n
     expect(f.sources(player).some(s => s.source_id === source.source_id)).toBe(false)
     const head = f.store.head(f.address).headSeq
     const missing = await new CharacterTurn({
+      loop: officialCharacterLoop,
       ...options,
       decide: async () => {
         throw new Error('must not call')

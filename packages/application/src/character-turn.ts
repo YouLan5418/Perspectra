@@ -1,3 +1,9 @@
+import type {
+  CharacterLoopActivation,
+  CharacterLoopInstance,
+  CharacterLoopPreparation,
+  CharacterLoopSubmission,
+} from '@harness-world/plugin-sdk'
 import { characterVisibleItems } from './character-visible-items.ts'
 import { randomUUID } from 'node:crypto'
 import {
@@ -35,6 +41,7 @@ import { characterExecutionResult, expressionAfterExecution } from './character-
 /** A returned payload failed format validation, rather than a transport failure. */
 export class InvalidCharacterOutputError extends TypeError {}
 export class CharacterPresetError extends Error {}
+export class CharacterLoopError extends Error {}
 
 export interface CharacterTurnRequest {
   /** Host diagnostic correlation only; not included in model-visible context. */
@@ -60,6 +67,14 @@ export interface CharacterTurnResult {
 
 // Turns sharing one store may compute independently, but serialize their complete commit/projection.
 // Nothing here survives a process or becomes part of the world's durable protocol.
+const activeCharacters = new WeakMap<WorldStore, Set<CharacterId>>()
+
+class ActivationStopped extends Error {
+  constructor(readonly status: 'stale' | 'inactive') {
+    super(status)
+  }
+}
+
 const commits = new WeakMap<WorldStore, Promise<void>>()
 async function commitInOrder<T>(store: WorldStore, work: () => Promise<T>): Promise<T> {
   const previous = commits.get(store) ?? Promise.resolve()
@@ -110,7 +125,6 @@ function keys(value: WorldJsonObject, allowed: readonly string[]): void {
  * Intermediate model work is ephemeral; a committed operation is never rolled back for a failed reply.
  */
 export class CharacterTurn {
-  readonly #active = new Set<CharacterId>()
   readonly #manifest: CompiledWorldManifest
   readonly #manifestHash
   readonly #scene: SceneDecisionService
@@ -118,6 +132,8 @@ export class CharacterTurn {
 
   constructor(
     private readonly options: {
+      readonly loop: CharacterLoopInstance
+      readonly onLoopFailure?: (characterId: CharacterId, error: unknown) => void
       readonly address: WorldAddress
       readonly store: WorldStore
       readonly leases: WriterLeaseService
@@ -247,29 +263,29 @@ export class CharacterTurn {
       }
     } = {},
   ): Promise<CharacterTurnResult> {
-    if (this.#active.has(characterId)) throw new Error('character turn is busy')
+    const active = activeCharacters.get(this.options.store) ?? new Set<CharacterId>()
+    activeCharacters.set(this.options.store, active)
+    if (active.has(characterId)) throw new Error('character turn is busy')
     if (
       !this.#manifest.characters.some(character => character.characterId === characterId) ||
       this.#manifest.playerBindings.some(binding => binding.characterId === characterId)
     ) {
       throw new TypeError('activation requires a declared NPC')
     }
-    this.#active.add(characterId)
+    active.add(characterId)
     const ownerId = `character-turn:${randomUUID()}`
-    const signal =
-      options.signal === undefined
-        ? AbortSignal.timeout(this.options.activationTimeoutMs ?? 120_000)
-        : AbortSignal.any([options.signal, AbortSignal.timeout(this.options.activationTimeoutMs ?? 120_000)])
+    const lifetime = new AbortController()
+    const signal = AbortSignal.any([
+      lifetime.signal,
+      AbortSignal.timeout(this.options.activationTimeoutMs ?? 120_000),
+      ...(options.signal ? [options.signal] : []),
+    ])
     let lease: ReturnType<WriterLeaseService['acquire']> | undefined
     let calls = 0
-    let modelCallLimit = options.maxModelCalls ?? Infinity
     let performResult: WorldJsonObject | undefined
     let publicationFailure: WorldJsonObject | undefined
-    let retriedPublication = false
     let modelFailure: CharacterTurnResult['failure']
     let asOfWorldSeq: number | undefined
-    let performedAttempts = 0,
-      afterPublication = false
     let attempt = 0
     let decisionId: string | null = null
     const done = (status: CharacterTurnResult['status']): CharacterTurnResult => {
@@ -285,21 +301,31 @@ export class CharacterTurn {
         ...(performResult === undefined ? {} : { performResult }),
       }
     }
-    const decide = (request: CharacterTurnRequest) => {
-      decisionId = randomUUID()
-      let repaired = false
-      return this.options.decide(
-        { ...request, decisionId },
-        signal,
-        () => {
-          signal.throwIfAborted()
-          if (repaired || calls >= modelCallLimit) return false
-          repaired = true
-          calls += 1
-          return true
-        },
-        options.beforeModelCall,
-      )
+    let closed = false
+    let busy = false
+    let pendingOperation: Promise<unknown> | undefined
+    let pendingRequest: CharacterTurnRequest | undefined
+    let pendingSubmit: ((raw: unknown) => Promise<CharacterLoopSubmission>) | undefined
+    let published = false
+    const assertLive = () => {
+      signal.throwIfAborted()
+      if (closed) throw new Error('character activation has ended')
+    }
+    const exclusive = <T>(work: () => Promise<T>): Promise<T> => {
+      assertLive()
+      if (busy) throw new Error('character activation operation is busy')
+      busy = true
+      const pending = (async () => {
+        try {
+          return await work()
+        } finally {
+          busy = false
+        }
+      })()
+      pendingOperation = pending
+      // The host also awaits abandoned work before releasing its store handles.
+      void pending.catch(() => undefined)
+      return pending
     }
     try {
       if (options.continuationOf !== undefined) {
@@ -323,22 +349,13 @@ export class CharacterTurn {
           eventRefs: [prior.seq],
         }
       }
-      const maxCalls = options.continuationOf === undefined ? (options.maxCalls ?? 2) : 2
-      const continuing =
-        this.options.continueAfterPublish === true && options.continuationOf === undefined && maxCalls >= 2
-      const maximumSteps = continuing ? 3 : maxCalls
-      for (let step = options.continuationOf === undefined ? 0 : 1; step < maximumSteps; step += 1) {
+      const prepare = (settings: CharacterLoopPreparation): CharacterTurnRequest => {
+        assertLive()
+        if (busy) throw new Error('character activation operation is busy')
+        modelFailure = undefined
+        const { canContinueAfterPublish, afterPublication } = settings
+        const canPerform = settings.canPerform && options.continuationOf === undefined
         const attemptId = attempt++
-        signal.throwIfAborted()
-        if (calls >= modelCallLimit) return done('budget_exhausted')
-        const remaining = modelCallLimit - calls
-        const canPerform =
-          remaining >= 2 &&
-          options.continuationOf === undefined &&
-          (continuing
-            ? performedAttempts < maxCalls - 1 && step < maximumSteps - 1
-            : step === 0 || (step === 1 && maxCalls === 3))
-        const canContinueAfterPublish = continuing && step === 0 && remaining >= 3
         let head = this.options.store.head(this.options.address)
         asOfWorldSeq = head.headSeq
         let history = this.options.store.readEvents(this.options.address, head.headSeq)
@@ -356,7 +373,7 @@ export class CharacterTurn {
             (state !== undefined && state === this.#visibleState(characterId, current, canPerform))
           )
         }
-        if (currentCharacterLifecycle(history, characterId) !== 'active') return done('inactive')
+        if (currentCharacterLifecycle(history, characterId) !== 'active') throw new ActivationStopped('inactive')
         const rules = this.options.rulebooks.resolve(
           this.#manifest.rulebook.rulebookId,
           this.#manifest.rulebook.version,
@@ -440,8 +457,6 @@ export class CharacterTurn {
             })),
         }
         context = this.options.projectContext?.(context, canPerform) ?? context
-        calls += 1
-        modelFailure = 'provider_failed'
         const latestResult = publicationFailure ?? performResult
         const resultEventRefs = latestResult?.eventRefs
         const resultSeq = Array.isArray(resultEventRefs) ? resultEventRefs.at(-1) : undefined
@@ -460,11 +475,13 @@ export class CharacterTurn {
               })
         const request: CharacterTurnRequest = {
           context,
-          continuation: step !== 0 || publicationFailure !== undefined,
+          continuation:
+            settings.continuation || options.continuationOf !== undefined || publicationFailure !== undefined,
           canPerform,
           canExpressBeforeAction:
             canPerform && this.options.beforeActionExpression === true && context.activity === undefined,
-          ...(continuing ? { canContinueAfterPublish, ...(afterPublication ? { afterPublication: true } : {}) } : {}),
+          ...(canContinueAfterPublish === undefined ? {} : { canContinueAfterPublish }),
+          ...(afterPublication ? { afterPublication: true } : {}),
           ...(visibleResult === undefined
             ? {}
             : {
@@ -480,287 +497,356 @@ export class CharacterTurn {
                 },
               }),
         }
-        let raw = await decide(request)
-        modelFailure = undefined
-        let controlledCommitted = false
-        signal.throwIfAborted()
-        if (!isCurrent()) return done('stale')
-        modelFailure = 'invalid_output'
-        let decision = object(raw)
-        this.options.validateDecision?.(decision, request)
-        if (decision.decision === 'abstain') {
-          keys(decision, ['decision'])
-          return done('abstained')
-        }
-        let action: { actionType: string; parameters: WorldJsonValue }
-        let beforeAction: { actionType: string; parameters: WorldJsonValue } | undefined
-        let rejectedPublication: WorldJsonObject | undefined
-        const publication = (expression: WorldJsonObject) => {
-          keys(expression, ['segments', 'scope', 'addresseeIds'])
-          const segments = parseExpressionSegments(expression.segments, this.options.publicationCharacters ?? 2000)
-          const addresseeIds = expression.addresseeIds ?? []
-          if (
-            !Array.isArray(addresseeIds) ||
-            new Set(addresseeIds).size !== addresseeIds.length ||
-            addresseeIds.some(
-              id =>
-                typeof id !== 'string' ||
-                id === characterId ||
-                !this.#manifest.characters.some(character => character.characterId === id),
-            )
-          ) {
-            throw new TypeError('addressee must be another declared character')
+        pendingRequest = request
+        pendingSubmit = async (raw: unknown): Promise<CharacterLoopSubmission> => {
+          let controlledCommitted = false
+          assertLive()
+          if (!isCurrent()) throw new ActivationStopped('stale')
+          modelFailure = 'invalid_output'
+          const decision = object(structuredClone(raw))
+          this.options.validateDecision?.(decision, request)
+          if (decision.decision === 'abstain') {
+            keys(decision, ['decision'])
+            modelFailure = undefined
+            return { decision: 'abstain', status: 'accepted', controlledCommitted: false, publicationRejected: false }
           }
-          const scope = expression.scope ?? (addresseeIds.length === 0 ? 'scene_public' : 'direct')
-          if (
-            typeof scope !== 'string' ||
-            !['scene_public', 'direct', 'private', 'self'].includes(scope) ||
-            (scope === 'direct' || scope === 'private' ? addresseeIds.length === 0 : addresseeIds.length !== 0)
-          ) {
-            throw new TypeError('publication scope and addressees do not match')
-          }
-          return { actionType: 'speak', parameters: { segments, scope, addresseeIds } }
-        }
-        if (decision.decision === 'publish') {
-          keys(decision, ['decision', 'segments', 'scope', 'addresseeIds'])
-          const { decision: _decision, ...expression } = decision
-          action = publication(expression)
-        } else if (decision.decision === 'perform' && canPerform) {
-          if (calls + 1 > modelCallLimit) return done('budget_exhausted')
-          keys(decision, ['decision', 'actionType', 'parameters', 'before'])
-          if (decision.actionType !== 'move' && decision.actionType !== 'interact')
-            throw new TypeError('unsupported operation')
-          const parameters = object(decision.parameters)
-          keys(
-            parameters,
-            decision.actionType === 'move' ? ['locationId'] : ['targetRef', 'bindingId', 'definitionRef', 'arguments'],
-          )
-          action = { actionType: decision.actionType, parameters }
-          if (decision.before !== undefined) {
-            if (!request.canExpressBeforeAction) throw new TypeError('pre-action expression unavailable')
-            beforeAction = publication(object(decision.before))
-          }
-        } else throw new TypeError('operation budget exhausted; publish or abstain only')
-        modelFailure = undefined
-        const committed = await commitInOrder(this.options.store, async () => {
-          signal.throwIfAborted()
-          if (!isCurrent()) return false
-          lease = this.options.leases.acquire(this.options.address, ownerId, 30_000)
-          try {
-            let ownPrefix: number | undefined
-            let lastStatus: 'accepted' | 'rejected' = 'rejected'
-            const actions = beforeAction === undefined ? [action] : [beforeAction, action]
-            for (const [index, action] of actions.entries()) {
-              signal.throwIfAborted()
-              // Resolve and grant audiences at the latest prefix, never at a speculative model prefix.
-              const latest = this.options.store.head(this.options.address)
-              if (latest.headSeq !== head.headSeq || latest.eventHash !== head.eventHash)
-                history = this.options.store.readEvents(this.options.address, latest.headSeq)
-              head = latest
-              // The head may advance between the earlier freshness check and acquiring the lease.
-              // Recheck while holding the lease before using the latest prefix to resolve this output.
-              if (ownPrefix === undefined ? !isCurrent() : head.headSeq !== ownPrefix) return false
-              ruleContext = { ...ruleContext, events: history, asOfWorldSeq: head.headSeq }
-              scene = this.#scene.decideFromEvents(this.options.address, characterId, history, head.headSeq)
-              this.options.validateDecision?.(decision, request)
-              const roundId = brandId(
-                `${ownerId}:${attemptId}${beforeAction !== undefined && index === 0 ? ':before' : ''}`,
-                'InteractionRoundId',
+          let action: { actionType: string; parameters: WorldJsonValue }
+          let beforeAction: { actionType: string; parameters: WorldJsonValue } | undefined
+          let rejectedPublication: WorldJsonObject | undefined
+          const publication = (expression: WorldJsonObject) => {
+            keys(expression, ['segments', 'scope', 'addresseeIds'])
+            const segments = parseExpressionSegments(expression.segments, this.options.publicationCharacters ?? 2000)
+            const addresseeIds = expression.addresseeIds ?? []
+            if (
+              !Array.isArray(addresseeIds) ||
+              new Set(addresseeIds).size !== addresseeIds.length ||
+              addresseeIds.some(
+                id =>
+                  typeof id !== 'string' ||
+                  id === characterId ||
+                  !this.#manifest.characters.some(character => character.characterId === id),
               )
-              const actionId = `${roundId}:action`
-              const actionStartedAt = new Date().toISOString(),
-                actionStarted = performance.now()
-              const actionContext = { ...ruleContext, action, roundId, actionId }
-              const resolve = () => rules.resolve(actionContext)
-              const resolution = this.options.resolveAction
-                ? await this.options.resolveAction(actionContext, signal, resolve)
-                : resolve()
-              signal.throwIfAborted()
-              if (this.options.store.head(this.options.address).headSeq !== head.headSeq)
-                throw new Error('World changed while awaiting an external action; do not repeat the external effect')
-              if (action.actionType === 'speak' && resolution.reason === 'SPEECH_RECIPIENT_UNREACHABLE') {
-                rejectedPublication = { action, status: resolution.status, reason: resolution.reason }
-              }
-              const events: WorldEventDraft[] = [...resolution.events]
-              if (resolution.status === 'accepted' && action.actionType === 'move') {
-                events.push(
-                  ...this.#scene.transitionForMove(
-                    this.options.address,
-                    history,
-                    characterId,
-                    object(action.parameters).locationId as string,
-                    head.headSeq,
-                  ),
+            ) {
+              throw new TypeError('addressee must be another declared character')
+            }
+            const scope = expression.scope ?? (addresseeIds.length === 0 ? 'scene_public' : 'direct')
+            if (
+              typeof scope !== 'string' ||
+              !['scene_public', 'direct', 'private', 'self'].includes(scope) ||
+              (scope === 'direct' || scope === 'private' ? addresseeIds.length === 0 : addresseeIds.length !== 0)
+            ) {
+              throw new TypeError('publication scope and addressees do not match')
+            }
+            return { actionType: 'speak', parameters: { segments, scope, addresseeIds } }
+          }
+          if (decision.decision === 'publish') {
+            keys(decision, ['decision', 'segments', 'scope', 'addresseeIds'])
+            const { decision: _decision, ...expression } = decision
+            action = publication(expression)
+          } else if (decision.decision === 'perform' && canPerform) {
+            keys(decision, ['decision', 'actionType', 'parameters', 'before'])
+            if (decision.actionType !== 'move' && decision.actionType !== 'interact')
+              throw new TypeError('unsupported operation')
+            const parameters = object(decision.parameters)
+            keys(
+              parameters,
+              decision.actionType === 'move'
+                ? ['locationId']
+                : ['targetRef', 'bindingId', 'definitionRef', 'arguments'],
+            )
+            action = { actionType: decision.actionType, parameters }
+            if (decision.before !== undefined) {
+              if (!request.canExpressBeforeAction) throw new TypeError('pre-action expression unavailable')
+              beforeAction = publication(object(decision.before))
+            }
+          } else throw new TypeError('operation budget exhausted; publish or abstain only')
+          modelFailure = undefined
+          const committed = await commitInOrder(this.options.store, async () => {
+            assertLive()
+            if (!isCurrent()) return false
+            lease = this.options.leases.acquire(this.options.address, ownerId, 30_000)
+            try {
+              let ownPrefix: number | undefined
+              let lastStatus: 'accepted' | 'rejected' = 'rejected'
+              const actions = beforeAction === undefined ? [action] : [beforeAction, action]
+              for (const [index, action] of actions.entries()) {
+                assertLive()
+                // Resolve and grant audiences at the latest prefix, never at a speculative model prefix.
+                const latest = this.options.store.head(this.options.address)
+                if (latest.headSeq !== head.headSeq || latest.eventHash !== head.eventHash)
+                  history = this.options.store.readEvents(this.options.address, latest.headSeq)
+                head = latest
+                // The head may advance between the earlier freshness check and acquiring the lease.
+                // Recheck while holding the lease before using the latest prefix to resolve this output.
+                if (ownPrefix === undefined ? !isCurrent() : head.headSeq !== ownPrefix) return false
+                ruleContext = { ...ruleContext, events: history, asOfWorldSeq: head.headSeq }
+                scene = this.#scene.decideFromEvents(this.options.address, characterId, history, head.headSeq)
+                this.options.validateDecision?.(decision, request)
+                const roundId = brandId(
+                  `${ownerId}:${attemptId}${beforeAction !== undefined && index === 0 ? ':before' : ''}`,
+                  'InteractionRoundId',
                 )
-              }
-              events.push({
-                eventType: 'action.resolved',
-                eventVersion: 1,
-                data: {
+                const actionId = `${roundId}:action`
+                const actionStartedAt = new Date().toISOString(),
+                  actionStarted = performance.now()
+                const actionContext = { ...ruleContext, action, roundId, actionId }
+                const resolve = () => rules.resolve(actionContext)
+                const resolution = this.options.resolveAction
+                  ? await this.options.resolveAction(actionContext, signal, resolve)
+                  : resolve()
+                assertLive()
+                if (this.options.store.head(this.options.address).headSeq !== head.headSeq)
+                  throw new Error('World changed while awaiting an external action; do not repeat the external effect')
+                if (action.actionType === 'speak' && resolution.reason === 'SPEECH_RECIPIENT_UNREACHABLE') {
+                  rejectedPublication = { action, status: resolution.status, reason: resolution.reason }
+                }
+                const events: WorldEventDraft[] = [...resolution.events]
+                if (resolution.status === 'accepted' && action.actionType === 'move') {
+                  events.push(
+                    ...this.#scene.transitionForMove(
+                      this.options.address,
+                      history,
+                      characterId,
+                      object(action.parameters).locationId as string,
+                      head.headSeq,
+                    ),
+                  )
+                }
+                events.push({
+                  eventType: 'action.resolved',
+                  eventVersion: 1,
+                  data: {
+                    roundId,
+                    actionId,
+                    participantId: ownerId,
+                    actorId: characterId,
+                    actionType: action.actionType,
+                    sourceRole: 'agent',
+                    order: 0,
+                    accepted: resolution.status === 'accepted',
+                    reason: resolution.reason ?? null,
+                  },
+                })
+                const audience = this.#scene.audienceForAction(
+                  this.options.address,
+                  characterId,
+                  history,
+                  head.headSeq,
+                  {
+                    scope: resolution.observationScope?.scope ?? 'scene_public',
+                    ...(resolution.observationScope?.recipientIds === undefined
+                      ? {}
+                      : {
+                          recipientIds: resolution.observationScope.recipientIds.map(id => brandId(id, 'CharacterId')),
+                        }),
+                  },
+                )
+                const speech = resolution.events.find(event => event.eventType === 'character.speak')
+                const transfer = resolution.events.find(event => event.eventType === 'entity.transferred')
+                const relations = characterRelationObservations(history, resolution.events)
+                // The same move reaches both scenes, but neither scene alone grants the whole route.
+                const route = movementRoute(
+                  this.#scene,
+                  this.options.address,
+                  resolution.events.find(event => event.eventType === 'character.moved'),
+                  { events: history, asOfSeq: head.headSeq },
+                  { events: [...history, ...events], asOfSeq: head.headSeq + events.length },
+                )
+                const arrived =
+                  route === undefined
+                    ? []
+                    : this.#scene.audienceForAction(
+                        this.options.address,
+                        characterId,
+                        [...history, ...events],
+                        head.headSeq + events.length,
+                      ).fullContentCharacterIds
+                const feedback = (this.options.executionResult ?? characterExecutionResult)({
+                  manifest: this.#manifest,
+                  events: [...history, ...resolution.events],
+                  actorId: characterId,
+                  action,
+                  status: resolution.status,
+                  reason: resolution.reason ?? null,
+                })
+                const observed = actionObservations({
                   roundId,
                   actionId,
-                  participantId: ownerId,
                   actorId: characterId,
                   actionType: action.actionType,
-                  sourceRole: 'agent',
-                  order: 0,
-                  accepted: resolution.status === 'accepted',
-                  reason: resolution.reason ?? null,
-                },
-              })
-              const audience = this.#scene.audienceForAction(this.options.address, characterId, history, head.headSeq, {
-                scope: resolution.observationScope?.scope ?? 'scene_public',
-                ...(resolution.observationScope?.recipientIds === undefined
-                  ? {}
-                  : {
-                      recipientIds: resolution.observationScope.recipientIds.map(id => brandId(id, 'CharacterId')),
-                    }),
-              })
-              const speech = resolution.events.find(event => event.eventType === 'character.speak')
-              const transfer = resolution.events.find(event => event.eventType === 'entity.transferred')
-              const relations = characterRelationObservations(history, resolution.events)
-              // The same move reaches both scenes, but neither scene alone grants the whole route.
-              const route = movementRoute(
-                this.#scene,
-                this.options.address,
-                resolution.events.find(event => event.eventType === 'character.moved'),
-                { events: history, asOfSeq: head.headSeq },
-                { events: [...history, ...events], asOfSeq: head.headSeq + events.length },
-              )
-              const arrived =
-                route === undefined
-                  ? []
-                  : this.#scene.audienceForAction(
-                      this.options.address,
-                      characterId,
-                      [...history, ...events],
-                      head.headSeq + events.length,
-                    ).fullContentCharacterIds
-              const feedback = (this.options.executionResult ?? characterExecutionResult)({
-                manifest: this.#manifest,
-                events: [...history, ...resolution.events],
-                actorId: characterId,
-                action,
-                status: resolution.status,
-                reason: resolution.reason ?? null,
-              })
-              const observed = actionObservations({
-                roundId,
-                actionId,
-                actorId: characterId,
-                actionType: action.actionType,
-                status: resolution.status,
-                audience: {
-                  fullContentCharacterIds: [...audience.fullContentCharacterIds, ...arrived, characterId],
-                  occurrenceOnlyCharacterIds: audience.occurrenceOnlyCharacterIds,
-                },
-                ...(route === undefined ? {} : { route }),
-                shared: {
-                  ...('observationMetadata' in feedback && feedback.observationMetadata !== undefined
-                    ? { resultMetadata: feedback.observationMetadata }
-                    : {}),
-                  ...(speech === undefined ? {} : { speech: speech.data }),
-                  ...(transfer === undefined ? {} : { interaction: transfer.data }),
-                  ...(relations.length === 0 ? {} : { relations }),
-                },
-                perObserver: observerId => ({
-                  resultDescription: String(feedback.description).replaceAll(
-                    '你',
-                    observerId === characterId ? '你' : '行动者',
-                  ),
-                }),
-                playerBindings: this.#manifest.playerBindings,
-              })
-              events.push(...observed.events)
-              const outbox = observed.outbox
-              events.push({ eventType: 'world.tick-advanced', eventVersion: 1, data: { tick: head.tick + 1, roundId } })
-              await this.options.store.commitRound({
-                address: this.options.address,
-                transactionId: brandId(`${roundId}:commit`, 'TransactionId'),
-                roundId,
-                expectedHeadSeq: head.headSeq,
-                expectedTick: head.tick,
-                nextTick: head.tick + 1,
-                events,
-                outbox,
-                writerFencingToken: lease.fencingToken,
-                correlationId: ownerId,
-                // This experiment does not fabricate a legacy batch Authority or provider-replay receipt.
-                authority: {
-                  actorId: characterId,
-                  actionId,
-                  action,
                   status: resolution.status,
-                  reason: resolution.reason ?? null,
-                  resolutionAuthority: ruleContext.resolutionAuthority,
-                },
-              })
-              if (action.actionType !== 'speak') {
-                controlledCommitted = true
-                performResult = {
-                  operationId: actionId,
-                  action,
-                  status: resolution.status,
-                  reason: resolution.reason ?? null,
-                  eventRefs: resolution.events.map((_, index) => head.headSeq + index + 1),
+                  audience: {
+                    fullContentCharacterIds: [...audience.fullContentCharacterIds, ...arrived, characterId],
+                    occurrenceOnlyCharacterIds: audience.occurrenceOnlyCharacterIds,
+                  },
+                  ...(route === undefined ? {} : { route }),
+                  shared: {
+                    ...('observationMetadata' in feedback && feedback.observationMetadata !== undefined
+                      ? { resultMetadata: feedback.observationMetadata }
+                      : {}),
+                    ...(speech === undefined ? {} : { speech: speech.data }),
+                    ...(transfer === undefined ? {} : { interaction: transfer.data }),
+                    ...(relations.length === 0 ? {} : { relations }),
+                  },
+                  perObserver: observerId => ({
+                    resultDescription: String(feedback.description).replaceAll(
+                      '你',
+                      observerId === characterId ? '你' : '行动者',
+                    ),
+                  }),
+                  playerBindings: this.#manifest.playerBindings,
+                })
+                events.push(...observed.events)
+                const outbox = observed.outbox
+                events.push({
+                  eventType: 'world.tick-advanced',
+                  eventVersion: 1,
+                  data: { tick: head.tick + 1, roundId },
+                })
+                await this.options.store.commitRound({
+                  address: this.options.address,
+                  transactionId: brandId(`${roundId}:commit`, 'TransactionId'),
+                  roundId,
+                  expectedHeadSeq: head.headSeq,
+                  expectedTick: head.tick,
+                  nextTick: head.tick + 1,
+                  events,
+                  outbox,
+                  writerFencingToken: lease.fencingToken,
+                  correlationId: ownerId,
+                  // This experiment does not fabricate a legacy batch Authority or provider-replay receipt.
+                  authority: {
+                    actorId: characterId,
+                    actionId,
+                    action,
+                    status: resolution.status,
+                    reason: resolution.reason ?? null,
+                    resolutionAuthority: ruleContext.resolutionAuthority,
+                  },
+                })
+                if (action.actionType !== 'speak') {
+                  controlledCommitted = true
+                  performResult = {
+                    operationId: actionId,
+                    action,
+                    status: resolution.status,
+                    reason: resolution.reason ?? null,
+                    eventRefs: resolution.events.map((_, index) => head.headSeq + index + 1),
+                  }
                 }
+                ownPrefix = this.options.store.head(this.options.address).headSeq
+                this.options.onTrace?.('action', characterId, decisionId, {
+                  actionId,
+                  action: action as unknown as WorldJsonObject,
+                  status: resolution.status,
+                  reason: resolution.reason ?? null,
+                  afterSeq: head.headSeq,
+                  headSeq: ownPrefix,
+                  startedAt: actionStartedAt,
+                  durationMs: Math.round(performance.now() - actionStarted),
+                  eventRefs: events.map((_, index) => head.headSeq + index + 1),
+                })
+                await this.options.onCommitted?.()
+                options.onCommitted?.(asOfWorldSeq!, ownPrefix)
+                lastStatus = resolution.status
+                if (resolution.status !== 'accepted' && action.actionType === 'speak') return resolution.status
               }
-              ownPrefix = this.options.store.head(this.options.address).headSeq
-              this.options.onTrace?.('action', characterId, decisionId, {
-                actionId,
-                action: action as unknown as WorldJsonObject,
-                status: resolution.status,
-                reason: resolution.reason ?? null,
-                afterSeq: head.headSeq,
-                headSeq: ownPrefix,
-                startedAt: actionStartedAt,
-                durationMs: Math.round(performance.now() - actionStarted),
-                eventRefs: events.map((_, index) => head.headSeq + index + 1),
-              })
-              await this.options.onCommitted?.()
-              options.onCommitted?.(asOfWorldSeq!, ownPrefix)
-              lastStatus = resolution.status
-              if (resolution.status !== 'accepted' && action.actionType === 'speak') return resolution.status
+              return lastStatus
+            } finally {
+              this.options.leases.release(this.options.address, ownerId, lease.fencingToken)
+              lease = undefined
             }
-            return lastStatus
-          } finally {
-            this.options.leases.release(this.options.address, ownerId, lease.fencingToken)
-            lease = undefined
-          }
-        })
-        if (committed === false) return done('stale')
-        if (rejectedPublication !== undefined && !retriedPublication && calls < (options.maxModelCalls ?? maxCalls)) {
-          retriedPublication = true
-          modelCallLimit = options.maxModelCalls ?? maxCalls
+          })
+          if (committed === false) throw new ActivationStopped('stale')
           publicationFailure = rejectedPublication
-          // Retry one failed publication using the existing step and remaining model budget.
-          step -= 1
-          continue
-        }
-        if (beforeAction !== undefined && !controlledCommitted) return done('failed')
-        if (action.actionType === 'speak') {
-          if (committed === 'accepted' && canContinueAfterPublish && modelCallLimit - calls >= 2) {
-            afterPublication = true
-            continue
+          if (controlledCommitted) publicationFailure = undefined
+          if (action.actionType === 'speak' && committed === 'accepted') published = true
+          return {
+            decision: action.actionType === 'speak' ? 'publish' : 'perform',
+            status: committed,
+            controlledCommitted,
+            publicationRejected: rejectedPublication !== undefined,
           }
-          return done(committed === 'accepted' ? 'published' : 'failed')
         }
-        performedAttempts += 1
-        publicationFailure = undefined
-        afterPublication = false
+        return structuredClone(request)
       }
-      return done('budget_exhausted')
+      const activation: CharacterLoopActivation = {
+        characterId,
+        signal,
+        maxCalls: options.maxCalls ?? 2,
+        maxModelCalls: options.maxModelCalls ?? Infinity,
+        continuation: options.continuationOf !== undefined,
+        continueAfterPublish: this.options.continueAfterPublish === true,
+        get calls() {
+          return calls
+        },
+        get performResult() {
+          return performResult === undefined ? undefined : structuredClone(performResult)
+        },
+        prepare,
+        decide: reserveFormatRetry =>
+          exclusive(async () => {
+            if (!pendingRequest) throw new Error('prepare a character request before deciding')
+            const request = structuredClone(pendingRequest)
+            decisionId = randomUUID()
+            let repaired = false
+            calls += 1
+            modelFailure = 'provider_failed'
+            const raw = await this.options.decide(
+              { ...request, decisionId },
+              signal,
+              () => {
+                assertLive()
+                if (repaired || reserveFormatRetry?.() === false) return false
+                repaired = true
+                calls += 1
+                return true
+              },
+              options.beforeModelCall,
+            )
+            modelFailure = undefined
+            assertLive()
+            return raw
+          }),
+        submit: raw =>
+          exclusive(async () => {
+            if (!pendingSubmit) throw new Error('prepare a character request before submitting')
+            const submit = pendingSubmit
+            pendingSubmit = undefined
+            pendingRequest = undefined
+            return submit(raw)
+          }),
+      }
+      const status = await this.options.loop.run(activation)
+      if (busy) throw new CharacterLoopError('character loop returned with unfinished work')
+      assertLive()
+      if (
+        !['published', 'abstained', 'budget_exhausted', 'failed'].includes(status) ||
+        (status === 'published' && !published)
+      )
+        throw new CharacterLoopError('character loop returned an unsupported or uncommitted result')
+      return done(status)
     } catch (error) {
       this.options.onActionFailure?.()
       if (signal.aborted) return done('interrupted')
+      if (error instanceof ActivationStopped) return done(error.status)
+      if (error instanceof CharacterLoopError) {
+        modelFailure = undefined
+        this.options.onLoopFailure?.(characterId, error.cause ?? error)
+        return done('failed')
+      }
       if (error instanceof InvalidCharacterOutputError) modelFailure = 'invalid_output'
       if (error instanceof CharacterPresetError) modelFailure = 'preset_failed'
       // Storage, lease, context and Rulebook faults remain visible to the caller.
       if (modelFailure === undefined) throw error
       return { ...done('failed'), failure: modelFailure }
     } finally {
+      closed = true
+      lifetime.abort(new Error('character activation has ended'))
+      await pendingOperation?.catch(() => undefined)
       if (lease !== undefined) this.options.leases.release(this.options.address, ownerId, lease.fencingToken)
-      this.#active.delete(characterId)
+      active.delete(characterId)
+      if (active.size === 0) activeCharacters.delete(this.options.store)
     }
   }
 }

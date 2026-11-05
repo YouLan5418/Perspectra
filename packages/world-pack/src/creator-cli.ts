@@ -7,6 +7,7 @@ import {
   createErrorEnvelope,
   deterministicId,
   type InteractionPackageDescription,
+  type InteractionPackageImplementation,
   WorldError,
   type ErrorEnvelope,
   type WorldJsonObject,
@@ -74,7 +75,11 @@ function localAddress(packId: string, packVersion: string) {
   }
 }
 
-async function activate(compiledPackPath: string, dataDirectoryInput: string): Promise<WorldJsonObject> {
+async function activate(
+  compiledPackPath: string,
+  dataDirectoryInput: string,
+  interactionPackages: readonly InteractionPackageImplementation[] = [],
+): Promise<WorldJsonObject> {
   const pack = await readCompiledPack(compiledPackPath)
   const dataDirectory = resolve(dataDirectoryInput)
   const databaseDirectory = join(dataDirectory, 'data')
@@ -90,7 +95,7 @@ async function activate(compiledPackPath: string, dataDirectoryInput: string): P
     principalId: 'principal:local-player',
     sessionId: brandId('session:local-player', 'SessionId'),
   })
-  const application = new WorldApplication(paths)
+  const application = new WorldApplication({ ...paths, interactionPackages })
   try {
     const result = application.activate(compiled)
     return {
@@ -113,6 +118,8 @@ async function activate(compiledPackPath: string, dataDirectoryInput: string): P
  */
 export interface WorldPackCliOptions {
   readonly interactionPackages?: readonly InteractionPackageDescription[]
+  /** Executable install for activate; compile and validate need only the descriptions above. */
+  readonly interactionImplementations?: readonly InteractionPackageImplementation[]
 }
 
 /** Execute one local creator command and return one canonical JSON line. */
@@ -167,7 +174,9 @@ export async function executeWorldPackCli(args: readonly string[], options: Worl
       report: await new WorldPackTestRunner().run(invocation.sourceDirectory, options.interactionPackages),
     })
   }
-  return output(await activate(invocation.compiledPackPath, invocation.dataDirectory))
+  return output(
+    await activate(invocation.compiledPackPath, invocation.dataDirectory, options.interactionImplementations),
+  )
 }
 
 /** Normalize creator-facing failures to the same canonical ErrorEnvelope used by other local entrypoints. */

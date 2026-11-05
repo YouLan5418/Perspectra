@@ -1,5 +1,11 @@
 # 通过 Cordis 加载宿主插件
 
+2026-11-05 状态机制：API `2.6` 新增 `ctx.status`，官方状态／包内模块解释迁入 official-status；核心保留值、告知与效果检查。见[编写说明](guides/host-plugin-authoring.md#替换状态脚本机制26)，已有玩法脚本继续适用。
+
+2026-11-04 知识机制：宿主 API `2.5` 新增 `ctx.knowledge`，按当前角色的授权上下文选择作者设定。官方选择器已迁入 official-knowledge；资产校验仍由宿主完成。替换、权限与生命周期见[编写说明](guides/host-plugin-authoring.md#替换设定知识机制25)，验证范围见[M0／M1 记录](studies/2026-11-core-migration-m01.md)。
+
+2026-11-04 角色执行循环：宿主 API `2.4` 新增 `ctx.characterLoop`。例如作者只允许一次操作和一次结果续写，可用 [single-action-loop](../../examples/host-plugins/single-action-loop.mjs)替换官方循环。它决定激活内部如何调用；谁先获得机会仍属调度器。主干继续生成授权上下文、检查受众、裁定并提交事实。入口、故障与生命周期见[接缝指南](guides/plugin-seams.md)和[编写说明](guides/host-plugin-authoring.md#替换角色执行循环24)。下文保留历史 API 的日期范围。
+
 2026-11-04 阶段 9：当前 API 为 2.3，新增“保留官方预设，只替换角色发送”的模型模式。示例 [simple-transport](../../examples/host-plugins/simple-transport.mjs) 与原完整替换 simple-llm 并存，不能同时启用；模块页显示其预计模式。具体凭证、Core 与请求记录边界见[发送指南](guides/host-plugin-authoring.md#只替换角色模型发送23)。
 
 2026-11-04 修复补充：当前宿主 API 为 2.2；已有 2.0、2.1 插件仍可加载，自定义记忆步骤须明确配对交付和历史窗口。默认记忆步骤已处理；见[窗口转接示例](guides/host-plugin-authoring.md#替换记忆步骤时配对交付与窗口22)。存档提示把内部上下文步骤合并展示，原始记录保留逐项信息。

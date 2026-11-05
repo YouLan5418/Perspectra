@@ -1,6 +1,6 @@
+import { createRoleplayCore } from './roleplay-runtime.ts'
 import { cpSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
-import { WorldHostCore } from '../../desktop/host/world-runtime.ts'
 import { fakeModels } from './fake-provider.ts'
 
 export const nextRoot = resolve('examples/world-packs/hidden-cure-next')
@@ -75,7 +75,7 @@ export function buildNextPacks() {
  * observation or NPC choice. */
 export async function prepareTakenRecord(packPath: string, dataDirectory: string) {
   mkdirSync(dataDirectory, { recursive: true })
-  const runtime = await WorldHostCore.create({
+  const runtime = await createRoleplayCore({
     packPath,
     dataDirectory,
     models: fakeModels('http://127.0.0.1:1/api/chat', 'openai', 'unused'),

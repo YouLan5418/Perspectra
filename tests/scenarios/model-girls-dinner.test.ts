@@ -1,3 +1,4 @@
+import { createRoleplayCore } from '../support/roleplay-runtime.ts'
 import { afterEach, expect, it } from 'vitest'
 import { cpSync, mkdtempSync, rmSync } from 'node:fs'
 import { join, resolve } from 'node:path'
@@ -23,7 +24,7 @@ async function fixture() {
     data = join(root, 'data')
   cpSync(resolve('examples/world-packs/model-girls-dinner-v2'), pack, { recursive: true })
   // No usable provider: NPC turns fail fast, so only the player's adjudicated actions change the world.
-  const runtime = await WorldHostCore.create({
+  const runtime = await createRoleplayCore({
     packPath: pack,
     dataDirectory: data,
     models: fakeModels('http://127.0.0.1:1/api/chat', 'openai', 'unused'),

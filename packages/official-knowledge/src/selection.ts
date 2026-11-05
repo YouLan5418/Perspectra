@@ -1,15 +1,13 @@
 import type { WorldJsonObject } from '@harness-world/contracts'
 import Ajv, { type ValidateFunction } from 'ajv'
-import type { CompiledWorldPackV5 } from '@harness-world/world-pack'
-import { packJsonAsset } from './pack-json-asset.ts'
-import { knownStatusView, type KnownStatus } from './pack-status.ts'
+import type { KnowledgeContent } from '@harness-world/plugin-sdk'
+import { knownStatusView, type KnownStatusEntry } from '@harness-world/contracts'
 
 /** Sized for imported Tavern lorebooks: hundreds of entries, long keyword lists, and entries near 40k characters. */
 const MAX_ENTRIES = 4096,
   MAX_KEYWORDS = 256,
   MAX_KEYWORD_LENGTH = 512,
-  MAX_CHARACTERS = 65536,
-  MAX_CONFIG_BYTES = 1024 * 1024
+  MAX_CHARACTERS = 65536
 interface KnowledgeEntry {
   documentId: string
   keywords: string[]
@@ -18,14 +16,14 @@ interface KnowledgeEntry {
   when?: WorldJsonObject
 }
 /** Author knowledge is separate from lived memory. Conditions read only the receiver's authorized context. */
-export class PackKnowledge {
+export class KnowledgeSelection {
   private constructor(
-    readonly pack: CompiledWorldPackV5,
+    readonly content: KnowledgeContent,
     readonly entries: readonly KnowledgeEntry[],
     readonly maximumCharacters: number,
     readonly conditions: ReadonlyMap<string, ValidateFunction>,
   ) {}
-  static parse(value: unknown, pack: CompiledWorldPackV5): PackKnowledge {
+  static parse(value: unknown, content: KnowledgeContent): KnowledgeSelection {
     const root = value as { maximumCharacters: number; entries: KnowledgeEntry[] }
     if (
       !root ||
@@ -54,7 +52,7 @@ export class PackKnowledge {
         (!entry.constant && !entry.keywords.length)
       )
         throw new TypeError('知识条目无效')
-      const document = pack.content.documents.find(row => row.documentId === entry.documentId)
+      const document = content.documents.find(row => row.documentId === entry.documentId)
       if (
         !document ||
         !['world_context', 'portrayal'].includes(document.usage) ||
@@ -78,22 +76,18 @@ export class PackKnowledge {
     // select() injects whole entries only, so one longer than the per-turn budget would never be injected.
     // Refuse it here rather than drop it silently at every turn.
     for (const entry of root.entries) {
-      const document = pack.content.documents.find(row => row.documentId === entry.documentId)!
-      const length = pack.content.markdown.find(row => row.path === document.contentRef)?.text.length ?? 0
+      const document = content.documents.find(row => row.documentId === entry.documentId)!
+      const length = content.markdown.find(row => row.path === document.contentRef)?.text.length ?? 0
       if (length > root.maximumCharacters)
         throw new TypeError(
           `知识条目 ${entry.documentId} 有 ${length} 字符，超过每轮上限 maximumCharacters ${root.maximumCharacters}，永远不会被注入。请拆成多条带关键词的条目，或调高 maximumCharacters（最多 ${MAX_CHARACTERS}）。`,
         )
     }
-    return new PackKnowledge(pack, root.entries, root.maximumCharacters, conditions)
-  }
-  static load(root: string, pack: CompiledWorldPackV5): PackKnowledge | undefined {
-    const value = packJsonAsset(root, pack, 'knowledge.json', MAX_CONFIG_BYTES)
-    return value === undefined ? undefined : this.parse(value, pack)
+    return new KnowledgeSelection(content, root.entries, root.maximumCharacters, conditions)
   }
   select(context: WorldJsonObject): WorldJsonObject {
     const actor = String((context.character as WorldJsonObject).characterId)
-    const knownStatus = (context.knownStatus ?? []) as unknown as readonly KnownStatus[]
+    const knownStatus = (context.knownStatus ?? []) as unknown as readonly KnownStatusEntry[]
     // Explicit fields only: never spread the request, world truth or previously injected knowledge.
     const conditionView = {
       ...knownStatusView(knownStatus, actor),
@@ -121,11 +115,11 @@ export class PackKnowledge {
     for (const entry of [...this.entries].sort(
       (a, b) => b.priority - a.priority || a.documentId.localeCompare(b.documentId),
     )) {
-      const document = this.pack.content.documents.find(row => row.documentId === entry.documentId)!
+      const document = this.content.documents.find(row => row.documentId === entry.documentId)!
       if (document.audience !== 'public' && !document.characterIds.some(id => id === actor)) continue
       if (this.conditions.has(entry.documentId) && !this.conditions.get(entry.documentId)!(conditionView)) continue
       if (!entry.constant && !entry.keywords.some(key => scan.includes(key.toLocaleLowerCase()))) continue
-      const text = this.pack.content.markdown.find(row => row.path === document.contentRef)!.text
+      const text = this.content.markdown.find(row => row.path === document.contentRef)!.text
       // Whole entries only: do not silently turn a truncated rule or secret into different content.
       if (text.length > remaining) continue
       entries.push({ documentId: document.documentId, content: text })

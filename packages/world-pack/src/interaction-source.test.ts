@@ -179,7 +179,7 @@ describe('interaction source rejection', () => {
       packages,
       definitions,
     })
-    expect(() => parseWorldPackInteractionsSource(selection([], []))).toThrow(/at least one package/u)
+    expect(parseWorldPackInteractionsSource(selection([], []))).toEqual({ ...selection([], []), relationBindings: [] })
     expect(() =>
       parseWorldPackInteractionsSource(
         selection(
@@ -225,7 +225,7 @@ describe('interaction source rejection', () => {
     expect(() => parseInteractionCatalogV3(catalog({ version: 'interaction-catalog/v2' }))).toThrow(
       /interaction-catalog\/v3/u,
     )
-    expect(() => parseInteractionCatalogV3(catalog({}))).toThrow(/at least one package/u)
+    expect(parseInteractionCatalogV3(catalog({}))).toEqual(catalog({}))
     expect(() =>
       parseInteractionCatalogV3(
         catalog({

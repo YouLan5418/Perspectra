@@ -1,7 +1,17 @@
 // JSON Schema conditionals use a data property named `then`, not a Promise method.
 /* oxlint-disable unicorn/no-thenable */
-import type { WorldJsonObject } from '@harness-world/contracts'
+import type { WorldJsonObject, WorldJsonValue } from '@harness-world/contracts'
 import { characterTurnCall } from '@harness-world/provider-chat'
+
+/** Equal bounds avoid this gateway returning a single numeric const or enum as a string. Host validation stays strict. */
+function equalBounds(value: WorldJsonValue): WorldJsonValue {
+  if (Array.isArray(value)) return value.map(equalBounds)
+  if (value === null || typeof value !== 'object') return value
+  const { const: constant, enum: choices, ...fields } = value as WorldJsonObject
+  const only = Array.isArray(choices) && choices.length === 1 ? choices[0] : constant
+  if (typeof only === 'number') return { ...fields, minimum: only, maximum: only }
+  return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, equalBounds(item as WorldJsonValue)]))
+}
 
 /** Local OpenAI/Anthropic gateways can treat a root oneOf as only its first choice. Host validation stays strict. */
 export function gatewayTurnCall(request: Parameters<typeof characterTurnCall>[0]) {
@@ -109,7 +119,9 @@ export function gatewayTurnCall(request: Parameters<typeof characterTurnCall>[0]
                       ((c.argumentSchema as WorldJsonObject).required as string[]).includes(field),
                   ),
                 ),
-                properties: Object.assign({}, ...choices.map(c => (c.argumentSchema as WorldJsonObject).properties)),
+                properties: equalBounds(
+                  Object.assign({}, ...choices.map(c => (c.argumentSchema as WorldJsonObject).properties)),
+                ),
               }
             : { type: 'object' },
         }),

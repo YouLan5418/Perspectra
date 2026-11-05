@@ -1,3 +1,4 @@
+import { officialCharacterLoop } from '@harness-world/official-character-loop'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -18,6 +19,7 @@ it('a newly reachable second sign creates separate evidence without changing the
     f = openConflictingBoardWorld(directory)
   const inspect = async (target: string) =>
     new CharacterTurn({
+      loop: officialCharacterLoop,
       address: f.address,
       store: f.store,
       leases: f.leases,

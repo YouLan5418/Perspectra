@@ -129,7 +129,7 @@ class CoreRulebookResolver implements RulebookResolver {
 export interface CoreRulebookOptions {
   /**
    * The trusted interaction packages the Host installs. A world selects among them and can never add
-   * one, so an empty list is a valid Host: every v10 world then fails closed at activation.
+   * one. An empty list serves worlds with an empty selection; any uninstalled selection fails closed.
    */
   readonly interactionPackages?: readonly InteractionPackageImplementation[]
   /**

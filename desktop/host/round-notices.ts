@@ -39,7 +39,7 @@ export function activityNotice(status: RoundStatus, cycle: SchedulerResult): voi
   if (last)
     status.set(
       last.failure === undefined
-        ? last.status === 'abstained'
+        ? last.status === 'abstained' && last.performResult?.status !== 'accepted'
           ? '角色本次没有提交操作，当前轮次保留；可以再次请求处理或逃生。'
           : '角色处理已完成。'
         : last.failure === 'invalid_output'

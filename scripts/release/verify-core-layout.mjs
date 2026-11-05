@@ -38,14 +38,18 @@ const request = {
     observations: [],
   },
 }
-const source = await import(pathToFileURL(resolve('packages/official-memory-core/src/python-worker.ts')).href)
+const source = await import('@harness-world/official-memory-core')
 delete process.env.PERSPECTRA_RUNTIME_ROOT
 assert.equal(
   (await source.coreRunner()(request, AbortSignal.timeout(30000))).archive.scope.characterId,
   'character:test',
 )
 await build({
-  entryPoints: ['packages/official-memory-core/src/python-worker.ts'],
+  stdin: {
+    contents: "export { coreRunner } from '@harness-world/official-memory-core'",
+    resolveDir: resolve('.'),
+    sourcefile: 'memory-layout-entry.ts',
+  },
   outfile: join(runtime, 'worker-smoke.mjs'),
   bundle: true,
   platform: 'node',

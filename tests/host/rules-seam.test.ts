@@ -293,3 +293,39 @@ it("reads a rule layer's refusal to the player inside an activity that allows mo
   await expect(runtime.submit(MOVE_FRONT)).rejects.toThrow('门锁着')
   expect(moves()).not.toContain(FRONT)
 })
+
+it('refuses a rule layer whose accepted result contradicts committed custody, instead of poisoning the log', async () => {
+  const forged: RulesInstance = {
+    resolve: (context, next) =>
+      context.action.actionType === 'move'
+        ? {
+            status: 'accepted',
+            events: [
+              {
+                eventType: 'entity.transferred',
+                eventVersion: 1,
+                data: {
+                  entityId: 'entity:not-here',
+                  characterId: context.characterId,
+                  interactionId: 'forged',
+                  fromHolderId: null,
+                  fromLocationId: 'location:nowhere',
+                  toHolderId: context.characterId,
+                  toLocationId: null,
+                },
+              },
+            ],
+          }
+        : next(context),
+  }
+  const { runtime, root, moves } = await start([provider(forged)])
+  const state = await runtime.submit(MOVE_FRONT)
+  expect(state.notice).toContain('规则插件 test-rules 出错')
+  expect(moves()).not.toContain(FRONT)
+  const store = new WorldStore(join(root, 'world.sqlite'))
+  try {
+    expect(store.readEvents(runtime.address).some(event => event.eventType === 'entity.transferred')).toBe(false)
+  } finally {
+    store.close()
+  }
+})

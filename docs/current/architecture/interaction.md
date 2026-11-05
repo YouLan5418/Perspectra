@@ -1,5 +1,9 @@
 # 当前 Interaction
 
+2026-11-05 M5：例如后室同伴收到玩家短信后，自主处理自己的目标。通信选项与消息计算由 ctx.communication 提供，自主配置、触发频率和许可由 ctx.autonomy 提供；两者不直接提交事件。CommunicationRules 与执行适配绑定真实收发者，AutonomyRuntime 提取交易摘要并检查声明范围，机会继续交现有 scheduler／characterLoop。源码与验证边界见[M5 记录](../studies/2026-11-core-migration-m5.md)。
+
+2026-11-04 M2：例如作者只需要实体与普通发言，可显式选择空交互目录；源包、编译目录和存档读取均允许它，未安装的非空选择仍拒绝。核心应用不自动补基础交互，默认桌面组合显式提供。物品变更由核心 [item-effects](../../../packages/application/src/item-effects.ts)校验后提交，具体玩法仍来自作者规则；范围见[M2 记录](../studies/2026-11-core-migration-m2.md)。
+
 2026-10-22 核对：例如玩家选择“把钥匙交给”，再在“交给谁”中选择汤汤。这是一个物品选项加 `recipientId` 参数；每个接收者不再单独占一个选项。拿起、放下、交给以及料理／修理都由各包的 `scripts/status.js` 裁定，宿主不再安装旧的三种物品规则；标准写法见[作者模板](../../../examples/templates/item-rules.js)和[物品操作接口](../guides/activity-and-variables.md#对物品做的操作2026-10-22当前源码)。候选按作者 policy 筛选，执行前重新检查，成功后才提交权威物品变化与授权观察。下列带日期的验收记录保留当时的入口和选项形态。
 
 2026-10-21：玩家一个回合 = 一次表达 + 至多一个行动。例如玩家在输入框写“这个给你。”，再点“把 钥匙 交给 汤汤”：两者作为同一回合提交，先说后做（也可选先做后说），角色只反应一次，且同时看到这句话和交接结果；以前要分两回合，NPC 会先对一句空话作出反应。两步仍各自走原有裁定与提交（发言是 `/act speak`，行动是 `/act` 或 `/status`），不是一次原子提交：先说的话在后面的行动被拒绝时照样成立，并照常得到反应；选了先做后说时，行动被拒绝就不再说这句话。整个回合在[末端回合重新生成](../tail-round-regeneration.md)里记为一次输入，重新生成时两步一起重演。入口在[末端回合运行时](../../../desktop/host/tail-runtime.ts)的 `perform(action, line)` 和[宿主](../../../desktop/host/world-runtime.ts)的 `turn(texts)`。
@@ -10,7 +14,7 @@
 
 2026-10-18：已撤销最初花房实验的信任数值交互、事件及面板。角色对他人的态度、同意和情感不由外加分数或门槛裁定；依据人设、预设、记忆与对话历史自主表达。客观玩法效果继续通过现有交互／规则／事件提交，变量不会因为一句情感叙述自动改变。边界例子见[世界设定指南](../guides/world-knowledge.md#3-客观变量与角色态度的边界)。
 
-> [跨场景短信实验](../studies/cross-scene-communication-20261010.md)通过独立安装的 `experiment:message` 交互投递自由正文；[电话实验](../studies/cross-scene-phone-20261010.md)用独立绑定裁定呼叫、接听、通话和挂断。普通 publish 仍只面向现场授权受众。2026-10-25 起短信规则移入[宿主](../../../desktop/host/pack-communication.ts)：包根目录有 `communication.json` 时默认宿主安装它，玩家行动里出现“给 X 发短信”（正文在表单里填），NPC 的规则链为 core → 短信 → 状态 → 活动，自主行动可在 `autonomy.json` 里列出 `experiment:message`。玩家短信走独立提交（同 `/status`），活动进行中不能发。电话实验仍未加入默认宿主。作者 argumentSchema 提供动态正文；本地模型参数 Schema 的必填项取实际候选契约的共同字段，不再默认要求活动专用字段。
+> [跨场景短信实验](../studies/cross-scene-communication-20261010.md)通过独立安装的 `experiment:message` 交互投递自由正文；[电话实验](../studies/cross-scene-phone-20261010.md)用独立绑定裁定呼叫、接听、通话和挂断。普通 publish 仍只面向现场授权受众。2026-10-25 起默认宿主支持短信；M5 的[消息计算](../../../packages/official-communication/src/index.ts)与[宿主执行适配](../../../desktop/host/communication-runtime.ts)已分开：包根目录有 `communication.json` 时默认宿主安装它，玩家行动里出现“给 X 发短信”（正文在表单里填），NPC 的规则链为 core → 短信 → 状态 → 活动，自主行动可在 `autonomy.json` 里列出 `experiment:message`。玩家短信走独立提交（同 `/status`），活动进行中不能发。电话实验仍未加入默认宿主。作者 argumentSchema 提供动态正文；本地模型参数 Schema 的必填项取实际候选契约的共同字段，不再默认要求活动专用字段。
 
 > [活动组合实验](../studies/cross-scene-activity-20261010.md)由活动策略先裁定通信定义是否允许，再执行通信规则；接收消息不改变游戏回合，也不自动授权发送或接听。
 

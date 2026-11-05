@@ -10,12 +10,15 @@ it('rejects experiment dependencies and package internals while allowing current
     for (const directory of [
       'desktop',
       'packages/frontend',
+      'packages/application',
       'apps/launcher/src',
       'apps/launcher/src-tauri/src',
       'scripts/release',
       'scripts/build',
       'tests/scenarios',
       'tests/experiments',
+      'packages/plugin-sdk',
+      'examples/world-packs/sample/scripts',
     ]) {
       mkdirSync(join(root, directory), { recursive: true })
     }
@@ -41,6 +44,35 @@ it('rejects experiment dependencies and package internals while allowing current
       spawnSync(process.execPath, [resolve('scripts/check-host-boundaries.mjs'), root], { encoding: 'utf8' }).status,
     ).toBe(1)
     writeFileSync(join(root, 'packages/frontend/player.ts'), 'export interface Player {}')
+    writeFileSync(
+      join(root, 'packages/application/world.ts'),
+      "import { install } from '@harness-world/interactions-basic'",
+    )
+    const implicitGameplay = spawnSync(process.execPath, [resolve('scripts/check-host-boundaries.mjs'), root], {
+      encoding: 'utf8',
+    })
+    expect(implicitGameplay.status).toBe(1)
+    expect(implicitGameplay.stderr).toContain('core must receive its gameplay install from composition')
+    writeFileSync(join(root, 'packages/application/world.ts'), 'export {}')
+    writeFileSync(join(root, 'packages/application/world.ts'), "import type { Host } from '../../desktop/entry.ts'")
+    expect(
+      spawnSync(process.execPath, [resolve('scripts/check-host-boundaries.mjs'), root], { encoding: 'utf8' }).stderr,
+    ).toContain('core must not depend on host adapters')
+    writeFileSync(join(root, 'packages/application/world.ts'), 'export {}')
+    writeFileSync(join(root, 'packages/plugin-sdk/contract.ts'), "import { Factory } from '@harness-world/application'")
+    expect(
+      spawnSync(process.execPath, [resolve('scripts/check-host-boundaries.mjs'), root], { encoding: 'utf8' }).stderr,
+    ).toContain('plugin SDK contracts must not import implementations')
+    writeFileSync(join(root, 'packages/plugin-sdk/contract.ts'), 'export interface Contract {}')
+    writeFileSync(
+      join(root, 'examples/world-packs/sample/scripts/rules.js'),
+      "import { Service } from '@deepseek-ai/cordis'",
+    )
+    expect(
+      spawnSync(process.execPath, [resolve('scripts/check-host-boundaries.mjs'), root], { encoding: 'utf8' }).stderr,
+    ).toContain('world-pack scripts use author hooks')
+    writeFileSync(join(root, 'examples/world-packs/sample/scripts/rules.js'), 'globalThis.activityScript = {}')
+
     writeFileSync(
       join(root, 'desktop/entry.ts'),
       "import { CharacterTurn } from '../packages/application/src/character-turn.ts'",
