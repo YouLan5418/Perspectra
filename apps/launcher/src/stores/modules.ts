@@ -9,6 +9,20 @@ type ManifestInfo =
 
 export const SEAMS = [
   {
+    seam: 'communication',
+    label: '通信规则',
+    single: true,
+    description: '计算联系人消息与选项，投递权限和提交由核心检查。',
+    official: 'official-communication',
+  },
+  {
+    seam: 'autonomy',
+    label: '自主策略',
+    single: true,
+    description: '解释自主配置、筛选机会并收窄行动，复用现有角色调度。',
+    official: 'official-autonomy',
+  },
+  {
     seam: 'activities',
     label: '活动规则',
     single: true,

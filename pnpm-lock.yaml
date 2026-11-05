@@ -199,6 +199,15 @@ importers:
         specifier: workspace:*
         version: link:../plugin-sdk
 
+  packages/official-communication:
+    dependencies:
+      '@harness-world/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      '@harness-world/plugin-sdk':
+        specifier: workspace:*
+        version: link:../plugin-sdk
+
   packages/official-contexts:
     dependencies:
       '@harness-world/plugin-sdk':

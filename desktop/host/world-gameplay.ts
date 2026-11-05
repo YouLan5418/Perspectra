@@ -1,4 +1,11 @@
-import type { ActivitiesInstance, MemoryRequest } from '@harness-world/plugin-sdk'
+import { isMessageAction } from '@harness-world/contracts'
+import type {
+  ActivitiesInstance,
+  AutonomyInstance,
+  AutonomySource,
+  CommunicationInstance,
+  MemoryRequest,
+} from '@harness-world/plugin-sdk'
 import type { CharacterTurnRequest } from '@harness-world/application'
 import { characterExecutionResult } from '@harness-world/application'
 import type { CharacterId, WorldAddress, WorldJsonObject } from '@harness-world/contracts'
@@ -6,15 +13,13 @@ import { RulebookRegistry, type RulebookResolution, type RulebookResolutionConte
 import { WorldStore } from '@harness-world/store-sqlite'
 import type { CapabilitySession } from '../host-capabilities.ts'
 import { ActivitiesRuntime } from './activities-runtime.ts'
-import { PackAutonomy } from './pack-autonomy.ts'
-import { communicationInstruction, CrossSceneCommunication, loadCommunicationConfig } from './pack-communication.ts'
+import { AutonomyRuntime } from './autonomy-runtime.ts'
+import { CommunicationRuntime } from './communication-runtime.ts'
 import type { PackModules } from './pack-modules.ts'
 import type { StatusRuntime } from './status-runtime.ts'
 import { KNOWN_STATUS_NOTE, publicStatusChanges } from '@harness-world/application'
 
 export interface LoadedPack {
-  readonly packPath: string
-  readonly pack: Parameters<typeof PackAutonomy.load>[1]
   readonly modules: PackModules | undefined
   readonly status: StatusRuntime | undefined
   readonly activities: ActivitiesInstance
@@ -25,8 +30,8 @@ export interface LoadedPack {
 export class WorldGameplay {
   activity: ActivitiesRuntime | undefined
   modules: PackModules | undefined
-  autonomy: PackAutonomy | undefined
-  communication: CrossSceneCommunication | undefined
+  autonomy: AutonomyRuntime | undefined
+  communication: CommunicationRuntime | undefined
   status: StatusRuntime | undefined
 
   constructor(
@@ -40,19 +45,20 @@ export class WorldGameplay {
 
   /** What has to exist before the world is activated. */
   prepare(
-    packPath: string,
-    pack: LoadedPack['pack'],
-    manifest: ConstructorParameters<typeof CrossSceneCommunication>[1],
+    communication: CommunicationInstance,
+    autonomy: AutonomyInstance,
+    source: AutonomySource | undefined,
+    manifest: ConstructorParameters<typeof CommunicationRuntime>[1],
   ): void {
-    const input = { packPath }
-    this.autonomy = PackAutonomy.load(input.packPath, pack, this.world.playerId)
-    const communication = loadCommunicationConfig(input.packPath, pack)
-    if (communication !== undefined)
-      this.communication = new CrossSceneCommunication(
-        communication,
-        manifest,
-        this.world.coreRules().resolve('builtin:speak-move', 2, 'communication', this.world.address),
-      )
+    this.autonomy = source === undefined ? undefined : new AutonomyRuntime(autonomy, source, this.world.playerId)
+    this.communication =
+      communication.definition === undefined
+        ? undefined
+        : new CommunicationRuntime(
+            communication,
+            manifest,
+            this.world.coreRules().resolve('builtin:speak-move', 2, 'communication', this.world.address),
+          )
   }
 
   /** The rest, once the world is active. */
@@ -131,13 +137,14 @@ export class WorldGameplay {
 
   projectContext(context: WorldJsonObject, canPerform: boolean, autonomous: boolean): WorldJsonObject {
     const activityContext = this.activity?.projectContext(context, canPerform) ?? context
-    const projected = this.communication ? { ...activityContext, communicationInstruction } : activityContext
+    const projected = this.communication
+      ? { ...activityContext, communicationInstruction: this.communication.instruction }
+      : activityContext
     return autonomous
       ? {
           ...projected,
           autonomy: {
-            instruction:
-              '现在是你自主处理自身目标的机会。依据自己的目标、经历和眼前情况决定是否行动；可以表达或 abstain。没有新消息不代表发生了你不知道的事；但 context.statusChanges 里的变化已经发生，例如时间已经推进，请按现在的时段与处境行动，不要接着已经过去的对话收尾。',
+            instruction: this.autonomy!.instruction,
           },
         }
       : projected
@@ -165,7 +172,7 @@ export class WorldGameplay {
         ? {}
         : {
             executionResult: (input: Parameters<typeof characterExecutionResult>[0]) =>
-              (input.action.parameters as WorldJsonObject).bindingId === 'experiment:message'
+              isMessageAction(input.action.parameters) && this.communication !== undefined
                 ? this.communication!.executionResult(input)
                 : (this.status?.executionResult(input) ??
                   (this.activity?.executionResult ?? characterExecutionResult)(input)),

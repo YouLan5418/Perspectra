@@ -22,7 +22,7 @@ import {
 import { AuthorizedSourceStore } from '@harness-world/memory'
 import { CharacterTurn, type CharacterTurnRequest } from '../../packages/application/src/character-turn.ts'
 import { runActivations } from './run-activations.ts'
-import { CrossSceneCommunication, communicationInstruction } from '../../desktop/host/pack-communication.ts'
+import { CrossSceneCommunication, communicationInstruction } from './cross-scene-communication.ts'
 import { CrossScenePhone, phoneCalls, type PhoneOperation } from './cross-scene-phone.ts'
 import { SceneDecisionService } from '../../packages/application/src/scene-decision.ts'
 import { loadActivities } from './activity-runtime.ts'

@@ -1,3 +1,4 @@
+import { officialCommunicationProvider } from '@harness-world/official-communication'
 import { officialActivitiesProvider } from '@harness-world/official-activities'
 import { StatusScripts, officialStatusProvider } from '@harness-world/official-status'
 import { createInstalledInteractionPackages } from '@harness-world/interactions-basic'
@@ -6,7 +7,7 @@ import { composeDecisions } from '@harness-world/official-contexts'
 import { officialLlmProvider } from '@harness-world/official-llm'
 import { officialMemoryNoneProvider } from '@harness-world/official-memory-none'
 import type { Context } from '@deepseek-ai/cordis'
-import { officialSchedulerProvider } from '@harness-world/official-scheduler'
+import { officialSchedulerProvider, officialAutonomyProvider } from '@harness-world/official-scheduler'
 import { officialCharacterLoopProvider } from '@harness-world/official-character-loop'
 import { officialKnowledgeProvider } from '@harness-world/official-knowledge'
 import type {
@@ -15,6 +16,8 @@ import type {
   KnowledgeInstance,
   StatusInstance,
   ActivitiesInstance,
+  AutonomyInstance,
+  CommunicationInstance,
   LlmInstance,
   LlmTransportInstance,
   MemoryInstance,
@@ -63,6 +66,8 @@ export interface HostSeams {
   readonly knowledge?: SeamProvider<KnowledgeInstance>
   readonly status?: SeamProvider<StatusInstance>
   readonly activities?: SeamProvider<ActivitiesInstance>
+  readonly communication?: SeamProvider<CommunicationInstance>
+  readonly autonomy?: SeamProvider<AutonomyInstance>
   readonly scheduler: SeamProvider<SchedulerInstance>
   readonly characterLoop?: SeamProvider<CharacterLoopInstance>
   readonly memory?: SeamProvider<MemoryInstance>
@@ -89,6 +94,8 @@ export const officialWorldOrder = [
   'knowledge',
   'status',
   'activities',
+  'communication',
+  'autonomy',
   'decisions',
   'scheduler',
   'characterLoop',
@@ -101,6 +108,8 @@ export function composeWorldSeams(plugins: Partial<HostSeams> = {}) {
     knowledge: plugins.knowledge ?? officialKnowledgeProvider,
     status: plugins.status ?? officialStatusProvider,
     activities: plugins.activities ?? officialActivitiesProvider,
+    communication: plugins.communication ?? officialCommunicationProvider,
+    autonomy: plugins.autonomy ?? officialAutonomyProvider,
     scheduler: plugins.scheduler ?? officialSchedulerProvider,
     characterLoop: plugins.characterLoop ?? officialCharacterLoopProvider,
     memory: plugins.memory ?? officialMemoryNoneProvider,
@@ -111,6 +120,8 @@ export function composeWorldSeams(plugins: Partial<HostSeams> = {}) {
 
 /** Called after player plugins settle. Every default uses the same public registration API. */
 export function installOfficialBundle(ctx: Context, memory?: () => SeamProvider<MemoryInstance>): void {
+  if (!ctx.communication.current) ctx.effect(() => ctx.communication.register(officialCommunicationProvider))
+  if (!ctx.autonomy.current) ctx.effect(() => ctx.autonomy.register(officialAutonomyProvider))
   if (!ctx.activities.current) ctx.effect(() => ctx.activities.register(officialActivitiesProvider))
   if (!ctx.status.current) ctx.effect(() => ctx.status.register(officialStatusProvider))
   if (!ctx.knowledge.current) ctx.effect(() => ctx.knowledge.register(officialKnowledgeProvider))

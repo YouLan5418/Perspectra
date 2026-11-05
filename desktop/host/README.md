@@ -10,6 +10,7 @@
 | 世界包的玩法模块（活动、状态、自主、短信） | [world-gameplay.ts](world-gameplay.ts) 持有，[player-input.ts](player-input.ts) 分发输入，[gameplay-projection.ts](gameplay-projection.ts) 投影给玩家 |
 | 设定知识素材适配（选择规则在 official-knowledge） | [knowledge-source.ts](knowledge-source.ts) 校验并提供数据，宿主通过 Cordis knowledge 实例选择 |
 | 活动资产、授权读取与执行适配（计算在 official-activities） | [activity-source.ts](activity-source.ts)、[activity-world.ts](activity-world.ts)、[activity-runtime.ts](activity-runtime.ts)、[activities-runtime.ts](activities-runtime.ts)，见[M4](../../docs/current/studies/2026-11-core-migration-m4.md) |
+| 通信／自主资产和执行适配（计算在官方机制） | [gameplay-source.ts](gameplay-source.ts)、[communication-runtime.ts](communication-runtime.ts)、[autonomy-runtime.ts](autonomy-runtime.ts)，核心检查在 application，见[M5](../../docs/current/studies/2026-11-core-migration-m5.md) |
 | 状态与模块资产／执行适配（解释在 official-status） | [status-source.ts](status-source.ts)、[status-runtime.ts](status-runtime.ts)、[pack-modules.ts](pack-modules.ts)；核心声明与告知检查在 [StatusState](../../packages/application/src/status-state.ts)，见[M3](../../docs/current/studies/2026-11-core-migration-m3.md) |
 | 状态／活动／通信的核心即时执行 | [executeWorldRound](../../packages/application/src/world-round-execution.ts) 统一租约、前缀、取消与原子提交；业务适配仍在本目录，见[M2 记录](../../docs/current/studies/2026-11-core-migration-m2.md) |
 | 活动合法参与者与真实结果桥、自主机会投影和结束提示（循环策略在 official-scheduler） | [activity-round.ts](activity-round.ts)、[autonomy-round.ts](autonomy-round.ts)、[round-notices.ts](round-notices.ts) |

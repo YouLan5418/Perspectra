@@ -244,6 +244,8 @@ export class TailRoundRuntime {
       knowledgeProvider: provider(this.options.plugins?.knowledge),
       statusProvider: provider(this.options.plugins?.status),
       activitiesProvider: provider(this.options.plugins?.activities),
+      communicationProvider: provider(this.options.plugins?.communication),
+      autonomyProvider: provider(this.options.plugins?.autonomy),
       characterLoopProvider: provider(this.options.plugins?.characterLoop),
       memoryProvider: provider(this.options.plugins?.memory),
       llmProvider: provider(this.options.plugins?.llm),

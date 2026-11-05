@@ -1,6 +1,6 @@
 # 核心、Cordis 机制与脚本玩法迁移计划
 
-日期：2026-11-04。探查基线：`a924513e`，分支 `fix/activity-notice-and-revision`。依据[统一规范](../../current/architecture/plugin-standard.md)。状态：**M0～M4 已实施，M5～M7 待实施**。本计划保留探查基线时的源码判断；当前成果与测试证据见[M0／M1 记录](../../current/studies/2026-11-core-migration-m01.md)、[M2 记录](../../current/studies/2026-11-core-migration-m2.md)、[M3 记录](../../current/studies/2026-11-core-migration-m3.md)与[M4 记录](../../current/studies/2026-11-core-migration-m4.md)。未注明完成的目录与能力仍为实施目标。
+日期：2026-11-04。探查基线：`a924513e`，分支 `fix/activity-notice-and-revision`。依据[统一规范](../../current/architecture/plugin-standard.md)。状态：**M0～M5 已实施，M6～M7 待实施**。本计划保留探查基线时的源码判断；当前成果与测试证据见[M0／M1 记录](../../current/studies/2026-11-core-migration-m01.md)、[M2 记录](../../current/studies/2026-11-core-migration-m2.md)、[M3 记录](../../current/studies/2026-11-core-migration-m3.md)、[M4 记录](../../current/studies/2026-11-core-migration-m4.md)与[M5 记录](../../current/studies/2026-11-core-migration-m5.md)。未注明完成的目录与能力仍为实施目标。
 
 例如料理比赛和 RPG 战斗可以共同使用状态、活动与交互机制，各自提供脚本规则；核心只确认调用者、授权范围和合法效果，并保存完整事实。移除这些玩法和非必要算法后，仍留下能管理实体、事件、权限、通用状态和提交的最小运行时。
 
@@ -17,9 +17,9 @@
 | [pack-status.ts](https://github.com/YouLan5418/Perspectra/blob/a924513e/desktop/host/pack-status.ts)，1326 行，adjudicate、itemEvents、commitRound、apply、endRound | Schema、VM、规则、物品合法性、观察与独立写租约／提交在同一类；活动通过 activityEvent 复用状态变化 | 先区分核心检查与效果提交，再抽状态脚本机制；不能直接移动整类 |
 | [pack-activity.ts](https://github.com/YouLan5418/Perspectra/blob/a924513e/desktop/host/pack-activity.ts)，1525 行，apply、state、rulebooks、autoStartCandidate | 活动协议、public／private／internal、参与者、规则、VM、存储与开始／暂停等提交混合 | 活动计算迁机制，提交与授权边界留核心；旧脚本语义先保持 |
 | [pack-activities.ts](https://github.com/YouLan5418/Perspectra/blob/a924513e/desktop/host/pack-activities.ts)，379 行 | 资产发现、前台活动选择、快照缓存、自动开始和默认核心规则回退 | 活动目录／选择迁机制；默认规则与数据读取改为显式注入 |
-| [pack-communication.ts](../../../desktop/host/pack-communication.ts)，308 行，resolve、perform | 联系人规则和消息表达与玩家绑定检查、写租约、commitRound 混合 | 通信业务迁机制；收发授权与提交仍由核心能力执行 |
+| [pack-communication.ts](https://github.com/YouLan5418/Perspectra/blob/a924513e/desktop/host/pack-communication.ts)，308 行，resolve、perform | 联系人规则和消息表达与玩家绑定检查、写租约、commitRound 混合 | 通信业务迁机制；收发授权与提交仍由核心能力执行 |
 | [pack-knowledge.ts](https://github.com/YouLan5418/Perspectra/blob/40666bfa/desktop/host/pack-knowledge.ts)，141 行，parse、select | 读取包资产、选择设定材料；条件明确使用授权 context；依赖 pack-status 的 knownStatusView | 适合作为低风险首个迁移样本，先抽纯授权视图转换，避免拖入整个状态模块 |
-| [pack-autonomy.ts](../../../desktop/host/pack-autonomy.ts)，311 行 | 作者配置、到期机会与操作限制；认识状态／活动／短信操作名称 | 配置与合法选项迁机制，机会策略继续复用 scheduler；不再写另一套调度循环 |
+| [pack-autonomy.ts](https://github.com/YouLan5418/Perspectra/blob/a924513e/desktop/host/pack-autonomy.ts)，311 行 | 作者配置、到期机会与操作限制；认识状态／活动／短信操作名称 | 配置与合法选项迁机制，机会策略继续复用 scheduler；不再写另一套调度循环 |
 | [pack-modules.ts](../../../desktop/host/pack-modules.ts)，332 行 | 已有包内声明与同步脚本；statusSource 拼接基础状态与模块源码；异步 prepare 只拿已知值与 actorWorldView | 保留作者入口，分离装载／纯脚本适配和原生能力桥，不重造脚本协议 |
 | [CharacterTurn](../../../packages/application/src/character-turn.ts)，852 行；[RoundCoordinator](../../../packages/application/src/round-coordinator.ts)，1092 行 | 两条实际提交路径：角色循环能力与玩家回合；包含最新前缀、租约、规则和观察处理 | 都要保护；不能只迁 NPC 而遗留玩家／活动／短信专用写库路径 |
 | [WorldApplication](../../../packages/application/src/world-application.ts)，1066 行；[rulebook-registry](../../../packages/kernel/src/rulebook-registry.ts) | application 隐式安装 createBasicInteractionPackage；内核有可注入 RulebookRegistry，但默认注册 builtin:speak-move | 默认玩法选择移到组合；复用已有注入点，不先升级世界格式 |
@@ -129,6 +129,8 @@ M4 实际切分：official-activities 通过 Cordis 解释活动脚本并提供�
 - 通信的联系人、消息参数、规则与文案迁到内部机制；真实发送者、收件权限、观察和提交由核心复核。不得用 narration 或私聊地址绕过远程通信授权。
 - 自主配置保留 everyPlayerTurns、triggers、机会数和允许操作语义；纯配置读取和限制形成机制，调度预算、顺序与续写仍消费现有 scheduler／characterLoop。
 - 操作标识如 experiment:message、activity:、status: 的识别集中在相关适配／契约，逐步退出核心通用执行路径，不能散落为各层的隐式分支。
+
+M5 实际切分：通信选项、参数和消息计算进入 official-communication／ctx.communication；核心 CommunicationRules 保留联系人声明、消息信封、真实发件人和观察事实，CommunicationRuntime 只绑定执行。自主配置解析、频率计数、许可与指引并入已有 official-scheduler 包，通过 ctx.autonomy 独立注册；AutonomyRuntime 只读取已提交交易摘要、复核角色与行动范围并接入原调度器。没有第二个自主调度循环、队列或真值存储，旧 pack-communication.ts／pack-autonomy.ts 已删除。详见 M5 记录。
 
 ### M6：统一作者面与装配
 

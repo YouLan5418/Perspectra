@@ -16,7 +16,7 @@ import { compileWorldPackSource } from '@harness-world/world-pack'
 import { createInstalledInteractionPackages } from '@harness-world/interactions-basic'
 import { interactionPackageDescription } from '@harness-world/contracts'
 import { playSettings } from '../../desktop/play-settings.ts'
-import { PackAutonomy } from '../../desktop/host/pack-autonomy.ts'
+import { loadAutonomy, parseAutonomy } from '../support/autonomy-runtime.ts'
 import { WorldHostRuntime, type WorldHostOptions } from '../../desktop/host/world-runtime.ts'
 import { projectPlayerView } from '../../desktop/host/frontend-adapter.ts'
 import { WAIT_ACTION } from '../../desktop/host/http-server.ts'
@@ -386,7 +386,7 @@ it.each(['location', 'interaction', 'target'])(
       f.pack,
       createInstalledInteractionPackages().map(interactionPackageDescription),
     )
-    const policy = PackAutonomy.load(f.pack, compiled, 'character:player')!
+    const policy = loadAutonomy(f.pack, compiled, 'character:player')!
     const base = createCoreRulebookRegistry({ interactionPackages: createInstalledInteractionPackages() })
     const rules = policy
       .rulebooks(base.resolve('builtin:speak-move', 2, 'test', f.runtime.address))
@@ -706,8 +706,8 @@ it('rejects invalid creator declarations and ignores an unregistered local auton
     { unknown: 1 },
   ]) {
     expect(() =>
-      PackAutonomy.parse({ characters: [{ ...value.characters[0], ...patch }] }, pack, 'character:player'),
+      parseAutonomy({ characters: [{ ...value.characters[0], ...patch }] }, pack, 'character:player'),
     ).toThrow()
   }
-  expect(PackAutonomy.load(packPath, { ...pack, assets: [] }, 'character:player')).toBeUndefined()
+  expect(loadAutonomy(packPath, { ...pack, assets: [] }, 'character:player')).toBeUndefined()
 })

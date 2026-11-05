@@ -35,6 +35,10 @@ import {
   type StatusInstance,
   type StatusSlotApi,
   type ActivitiesSlotApi,
+  type CommunicationSlotApi,
+  type CommunicationInstance,
+  type AutonomySlotApi,
+  type AutonomyInstance,
   type ActivitiesInstance,
 } from '@harness-world/plugin-sdk'
 
@@ -167,6 +171,34 @@ export class ActivitiesSlot extends Service implements ActivitiesSlotApi {
   }
   register(provider: SeamProvider<ActivitiesInstance>): () => void {
     if (this.current) throw new Error(`活动机制已由 ${this.current.id} 提供`)
+    this.current = provider
+    return () => {
+      if (this.current === provider) this.current = undefined
+    }
+  }
+}
+
+export class CommunicationSlot extends Service implements CommunicationSlotApi {
+  current: SeamProvider<CommunicationInstance> | undefined
+  constructor(ctx: Context) {
+    super(ctx, 'communication')
+  }
+  register(provider: SeamProvider<CommunicationInstance>): () => void {
+    if (this.current) throw new Error(`通信机制已由 ${this.current.id} 提供`)
+    this.current = provider
+    return () => {
+      if (this.current === provider) this.current = undefined
+    }
+  }
+}
+
+export class AutonomySlot extends Service implements AutonomySlotApi {
+  current: SeamProvider<AutonomyInstance> | undefined
+  constructor(ctx: Context) {
+    super(ctx, 'autonomy')
+  }
+  register(provider: SeamProvider<AutonomyInstance>): () => void {
+    if (this.current) throw new Error(`自主策略已由 ${this.current.id} 提供`)
     this.current = provider
     return () => {
       if (this.current === provider) this.current = undefined
@@ -377,6 +409,8 @@ export async function loadHostPlugins(
   const knowledge = new KnowledgeSlot(root)
   const status = new StatusSlot(root)
   const activities = new ActivitiesSlot(root)
+  const communication = new CommunicationSlot(root)
+  const autonomy = new AutonomySlot(root)
   const memory = new MemorySlot(root)
   const llm = new LlmSlot(root)
   const decisions = new DecisionRegistry(root)
@@ -492,6 +526,8 @@ export async function loadHostPlugins(
       knowledge: knowledge.current!,
       status: status.current!,
       activities: activities.current!,
+      communication: communication.current!,
+      autonomy: autonomy.current!,
       scheduler: scheduler.current!,
       characterLoop: characterLoop.current!,
       ...(chosenMemory ? { memory: chosenMemory } : {}),

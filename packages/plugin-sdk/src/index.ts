@@ -23,7 +23,7 @@ import type {
 
 /** Major.minor. A new service or optional field raises the minor; any change a plugin could trip over
  * raises the major. A plugin exports `hostApi` with the lowest version it needs. */
-export const HOST_API_VERSION = '2.7'
+export const HOST_API_VERSION = '2.8'
 
 /** Same major, and this host's minor at least the one the plugin asks for. */
 export function hostApiCompatible(required: unknown, host: string = HOST_API_VERSION): boolean {
@@ -147,6 +147,9 @@ export interface WorldServices {
   readonly statusSource?: StatusSource
   /** Locked activity texts, supplied only to the selected activities provider. */
   readonly activitySource?: ActivitySource
+  /** Locked configuration and public identifiers, only for the selected mechanism. */
+  readonly communicationSource?: CommunicationSource
+  readonly autonomySource?: AutonomySource
   /** Authorized context projections, available equally to official and replacement decisions. */
   readonly contextSources?: DecisionContextSources
 }
@@ -429,6 +432,8 @@ export interface HostServices {
   knowledge: KnowledgeSlotApi
   status: StatusSlotApi
   activities: ActivitiesSlotApi
+  communication: CommunicationSlotApi
+  autonomy: AutonomySlotApi
   scheduler: SchedulerSlotApi
   characterLoop: CharacterLoopSlotApi
   memory: MemorySlotApi
@@ -657,4 +662,63 @@ export interface ActivitiesInstance {
 export interface ActivitiesSlotApi {
   register(provider: SeamProvider<ActivitiesInstance>): () => void
   readonly current: SeamProvider<ActivitiesInstance> | undefined
+}
+
+export interface CommunicationSource {
+  readonly config: unknown
+}
+export interface CommunicationInstance {
+  readonly definition: unknown
+  readonly instruction: string
+  parameters(recipientId: string, text: string): WorldJsonObject
+  options(input: {
+    readonly actorId: string
+    readonly recipientIds: readonly string[]
+    readonly publicationCharacters: number
+  }): readonly WorldJsonObject[]
+  prepare(input: {
+    readonly actorId: string
+    readonly recipientId: string
+    readonly text: string
+    readonly publicationCharacters: number
+  }): unknown
+  describeDelivery(status: 'accepted' | 'rejected'): string
+  close?(): void | Promise<void>
+}
+export interface CommunicationSlotApi {
+  register(provider: SeamProvider<CommunicationInstance>): () => void
+  readonly current: SeamProvider<CommunicationInstance> | undefined
+}
+export interface AutonomySource {
+  readonly config: unknown
+  readonly characterIds: readonly string[]
+  readonly locationIds: readonly string[]
+  readonly targetIds: readonly string[]
+  readonly definitionIds: readonly string[]
+}
+/** Accepted player transactions only, with operation identities resolved by the host. No private contexts. */
+export interface AutonomyAction {
+  readonly transactionId: string
+  readonly seq: number
+  readonly pause: boolean
+  readonly actionType?: string
+  readonly definitionId?: string
+  readonly activityKey?: string
+  readonly operation?: string
+}
+export interface AutonomyInstance {
+  readonly roles: readonly import('@harness-world/contracts').AutonomousRole[]
+  readonly instruction: string
+  due(input: { readonly actions: readonly AutonomyAction[]; readonly afterSeq: number }): readonly string[]
+  permits(input: {
+    readonly characterId: string
+    readonly locationId: string | null
+    readonly actionType: string
+    readonly parameters: WorldJsonObject
+  }): boolean
+  close?(): void | Promise<void>
+}
+export interface AutonomySlotApi {
+  register(provider: SeamProvider<AutonomyInstance>): () => void
+  readonly current: SeamProvider<AutonomyInstance> | undefined
 }

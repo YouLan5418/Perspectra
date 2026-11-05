@@ -1,5 +1,37 @@
 # 编写并加载自己的 Cordis 宿主插件
 
+## 替换通信与自主策略（2.8）
+
+例如后室角色收到短信后主动整理工作：`ctx.communication` 计算消息选项和文本，`ctx.autonomy` 解释自主配置、频率和许可，既有 `ctx.scheduler`／`ctx.characterLoop` 消费机会。两个新槽位分别用 `ctx.effect(() => ctx.communication.register(provider))` 和 `ctx.effect(() => ctx.autonomy.register(provider))` 注册；清单 services 写相应名称，模块 `hostApi = '2.8'`。2.0～2.7 插件仍可加载。
+
+普通玩法仍写 communication.json／autonomy.json。官方通信位于 official-communication，自主策略位于已有 official-scheduler 包（Provider ID 为 official-autonomy），不增加另一个调度循环、队列或通用持久状态接口。原生机制是可信代码；以下是默认调用边界，不是恶意插件沙箱。
+
+通信 `open(world, signal)` 返回 CommunicationInstance，只有选中 Provider 获得可选 communicationSource.config（锁定 JSON）。definition 必须与资产存在性一致，仍为 medium／contacts；核心检查角色身份、联系人、自发消息限制和有限文本。
+
+| 通信接口 | 输入、输出与检查 |
+| --- | --- |
+| definition／instruction | 联系人和媒介声明，以及角色指引；声明经核心检查，指引最多 4000 字符 |
+| parameters(recipientId, text) | 返回既有消息信封；手动入口要求收件人、正文与原请求完全绑定，不能转给另一个联系人 |
+| options({actorId, recipientIds, publicationCharacters}) | 只得到当前有效、已授权联系人的 ID，返回既有选项；核心拒绝越权联系人和无效参数 |
+| prepare({actorId, recipientId, text, publicationCharacters}) | 核心先验证信封、发送者、联系人和当前生命周期；返回 `{text, description}` 或 `{rejectReason}`。正文仍受实际发送长度限制，不接受 sender、recipient、events 等额外字段 |
+| describeDelivery(status) | accepted／rejected 的结果说明，最多 2000 字符；说明本身不改变事实 |
+
+准备输入不含世界真值、远端场景、角色私有上下文或事务。发送者与收件人由核心绑定；speech 和收件观察由核心构造，一起提交。远程消息只证明发送者作出陈述，不授予物理在场、移动、物品或远端交互资格。普通 publish 仍是本地表达。活动期间的通信仍受既有活动许可和玩家管理入口限制。
+
+自主 `open` 返回 AutonomyInstance，只有所选 Provider 获得可选 autonomySource：锁定 config 与公开 characterIds／locationIds／targetIds／definitionIds。roles 为规范化 AutonomousRole，必须是已声明 NPC，频率与机会仍为 1～100，地点／目标和触发形状经核心复核；没有资产必须为空 roles。
+
+| 自主接口 | 输入、输出与检查 |
+| --- | --- |
+| roles／instruction | 配置声明与角色自主指引；核心固定身份及声明范围上限，指引最多 4000 字符 |
+| due({actions, afterSeq}) | 收到已提交玩家交易摘要：transactionId／seq、pause、actionType 和可选 definitionId／activityKey／operation；不包含消息正文、状态真值或其他角色私有上下文。返回所选角色 ID，不能重复或超出声明角色 |
+| permits({characterId, locationId, actionType, parameters}) | 同步返回布尔值，进一步收窄选项和行动；true 不能突破已声明地点／目标／交互范围，基础世界规则与结果范围仍重查 |
+
+官方频率按匹配的玩家交易去重计数，静观计入，失败行动、NPC ticks 和活动管理操作不计入；节点与重生从当前分支事件重算。宿主过滤未 active／不在允许地点的角色与活动参与者，并按声明顺序交付选中的机会。没有完整原始日志交给 due，也不让计算自己打开提交事务。
+
+两种机制方法均同步，输入和结果复制；close 可异步，每世界／候选独立实例。ID、version、公开 identity 参与候选环境比较。打开失败不回退，计算失败提示 Provider ID；非法消息提案不提交，自主计算失败保留此前已提交玩家行动。关闭和取消继续使用现有宿主与执行器生命周期。官方机会预算、串行／并发与续写仍属于 scheduler／characterLoop；可信第三方调度器的预算语义保持。
+
+验证记录与限制见[M5 记录](../studies/2026-11-core-migration-m5.md)。电话仍是实验路径；本批没有加入生产电话协议，也没有实施剧情导演或通用外部插件状态。
+
 ## 替换活动机制（2.7）
 
 例如猜数字与 RPG 战斗可继续使用各自包内脚本，同时换用同一个活动解释器或候选选择策略。可信原生机制通过 `ctx.effect(() => ctx.activities.register(provider))` 注册单例，清单 services 写 `activities`，模块声明 `hostApi = '2.7'`；2.0～2.6 插件仍可加载。普通玩法作者继续使用 scripts/activity.js 或 scripts/activities/<key>.js，不使用 Cordis。

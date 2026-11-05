@@ -1,3 +1,5 @@
+import { guardedCommunication, guardedAutonomy } from './gameplay-services.ts'
+import { loadAutonomySource, loadCommunicationSource } from './gameplay-source.ts'
 import { guardedActivities } from './activity-service.ts'
 import { loadActivitySource } from './activity-source.ts'
 import { loadStatusSource } from './status-source.ts'
@@ -69,7 +71,7 @@ import type { ActivitiesRuntime } from './activities-runtime.ts'
 import type { ActivityDefinitionView, AutoStartEvaluation } from '@harness-world/contracts'
 import { pauseRounds } from '@harness-world/application'
 import type { StatusDefinition, StatusOperation } from '@harness-world/contracts'
-import { type AutonomousRole } from './pack-autonomy.ts'
+import type { AutonomousRole } from '@harness-world/contracts'
 import { mkdirSync, readFileSync } from 'node:fs'
 import { randomUUID } from 'node:crypto'
 import { resolve, relative, basename } from 'node:path'
@@ -235,6 +237,10 @@ export class WorldHostCore implements HostRuntime {
   readonly #intentModel: string
   readonly #characterIds: readonly CharacterId[]
   #status!: import('@harness-world/plugin-sdk').StatusInstance
+  #communication!: import('@harness-world/plugin-sdk').CommunicationInstance
+  #autonomy!: import('@harness-world/plugin-sdk').AutonomyInstance
+  #communicationSource: import('@harness-world/plugin-sdk').CommunicationSource | undefined
+  #autonomySource: import('@harness-world/plugin-sdk').AutonomySource | undefined
   #activities!: import('@harness-world/plugin-sdk').ActivitiesInstance
   #activitySource: import('@harness-world/plugin-sdk').ActivitySource | undefined
   #statusSource: import('@harness-world/plugin-sdk').StatusSource | undefined
@@ -506,6 +512,8 @@ export class WorldHostCore implements HostRuntime {
         ?.version === 'player-intent/v1'
     const runtime = new WorldHostCore(options, compiled, intentEnabled)
     try {
+      runtime.#communicationSource = loadCommunicationSource(options.packPath, pack)
+      runtime.#autonomySource = loadAutonomySource(options.packPath, pack)
       runtime.#activitySource = loadActivitySource(options.packPath, pack)
       runtime.#knowledgeSource = loadKnowledgeSource(options.packPath, pack)
       runtime.#statusSource = loadStatusSource(options.packPath, pack, modules?.sources)
@@ -513,6 +521,8 @@ export class WorldHostCore implements HostRuntime {
         knowledge: () => runtime.#openKnowledge(),
         status: () => runtime.#openStatus(),
         activities: () => runtime.#openActivities(),
+        communication: () => runtime.#openCommunication(),
+        autonomy: () => runtime.#openAutonomy(),
         llm: () => runtime.#openLlm(),
         rules: () => runtime.#openRules(),
         memory: () => runtime.#openMemory(),
@@ -530,7 +540,7 @@ export class WorldHostCore implements HostRuntime {
         ),
       )
       runtime.#storyParentNodeId = options.storyParentNodeId ?? null
-      runtime.#gameplay.prepare(options.packPath, pack, compiled.manifest)
+      runtime.#gameplay.prepare(runtime.#communication, runtime.#autonomy, runtime.#autonomySource, compiled.manifest)
       const status =
         runtime.#statusSource === undefined
           ? undefined
@@ -554,8 +564,6 @@ export class WorldHostCore implements HostRuntime {
           : await CapabilitySession.open(scope, modules.requirements, new Map(), () => {})
       }
       await runtime.#gameplay.load({
-        packPath: options.packPath,
-        pack,
         modules,
         status,
         capabilities: runtime.#capabilities,
@@ -1233,6 +1241,16 @@ export class WorldHostCore implements HostRuntime {
     } catch (error) {
       console.error('[知识机制] 关闭失败：', error)
     }
+    for (const [name, instance] of [
+      ['通信', this.#communication],
+      ['自主', this.#autonomy],
+    ] as const) {
+      try {
+        await instance?.close?.()
+      } catch (error) {
+        console.error(`[${name}机制] 关闭失败：`, error)
+      }
+    }
     try {
       await this.#activities?.close?.()
     } catch (error) {
@@ -1648,6 +1666,54 @@ export class WorldHostCore implements HostRuntime {
     return this.#decisions.some(decision => decision.serial)
   }
 
+  async #openCommunication(): Promise<void> {
+    const provider = this.#options.plugins!.communication!
+    try {
+      this.#communication = await provider.open(
+        {
+          ...this.#services(provider.id),
+          ...(this.#communicationSource === undefined
+            ? {}
+            : { communicationSource: structuredClone(this.#communicationSource) }),
+        },
+        AbortSignal.timeout(30_000),
+      )
+      this.#communication = guardedCommunication(
+        this.#communication,
+        this.#communicationSource !== undefined,
+        provider.id,
+        this.#reportPlugin,
+      )
+      this.#modulesInForce.communication = [{ id: provider.id, version: provider.version }]
+    } catch (cause) {
+      throw new Error(`通信机制 ${provider.id} 无法打开：${cause instanceof Error ? cause.message : String(cause)}`, {
+        cause,
+      })
+    }
+  }
+  async #openAutonomy(): Promise<void> {
+    const provider = this.#options.plugins!.autonomy!
+    try {
+      this.#autonomy = await provider.open(
+        {
+          ...this.#services(provider.id),
+          ...(this.#autonomySource === undefined ? {} : { autonomySource: structuredClone(this.#autonomySource) }),
+        },
+        AbortSignal.timeout(30_000),
+      )
+      this.#autonomy = guardedAutonomy(
+        this.#autonomy,
+        this.#autonomySource !== undefined,
+        provider.id,
+        this.#reportPlugin,
+      )
+      this.#modulesInForce.autonomy = [{ id: provider.id, version: provider.version }]
+    } catch (cause) {
+      throw new Error(`自主机制 ${provider.id} 无法打开：${cause instanceof Error ? cause.message : String(cause)}`, {
+        cause,
+      })
+    }
+  }
   async #openActivities(): Promise<void> {
     const provider = this.#options.plugins!.activities!
     try {

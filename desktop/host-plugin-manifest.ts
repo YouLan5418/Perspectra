@@ -10,6 +10,8 @@ const SERVICES = [
   'knowledge',
   'status',
   'activities',
+  'communication',
+  'autonomy',
   'characterLoop',
   'llm',
   'decisions',

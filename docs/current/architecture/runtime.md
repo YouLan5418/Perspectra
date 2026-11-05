@@ -1,5 +1,7 @@
 # 当前运行时
 
+2026-11-05 M5：例如后室同伴收到玩家短信后，自主处理自己的目标。通信选项与消息计算由 ctx.communication 提供，自主配置、触发频率和许可由 ctx.autonomy 提供；两者不直接提交事件。CommunicationRules 与执行适配绑定真实收发者，AutonomyRuntime 提取交易摘要并检查声明范围，机会继续交现有 scheduler／characterLoop。源码与验证边界见[M5 记录](../studies/2026-11-core-migration-m5.md)。
+
 2026-11-05 M4：例如猜数字与 RPG 战斗共用活动机制，各自保留包内脚本。`ctx.activities` 选择独立的解释器与候选策略；宿主 ActivityRuntime／ActivitiesRuntime 只准备授权输入并调用核心执行。参与者、private／internal 隔离、前台唯一性和随机回放继续受检查。旧活动 VM 已迁至 official-activities；源码、自动验证与体验限制见[M4 记录](../studies/2026-11-core-migration-m4.md)。
 
 2026-11-05 M3：例如更换状态解释器后，非法余额和越权告知仍不能提交。`ctx.status` 通过 [official-status](../../../packages/official-status/src/index.ts)解释状态与模块脚本；[StatusState](../../../packages/application/src/status-state.ts)保留事实校验和授权投影，[StatusRuntime](../../../desktop/host/status-runtime.ts)准备合法操作并沿核心提交。每世界独立实例，源码与构建验证见[M3 记录](../studies/2026-11-core-migration-m3.md)。
@@ -20,7 +22,7 @@
 
 2026-11-04 调度接缝：例如同伴在普通聊天后自主行动，进入活动时又必须等到合法轮次，这两类处理机会与普通反应现在都交给同一个 `ctx.scheduler` 实例。[官方调度器](../../../packages/official-scheduler/src/index.ts)负责整合／分段选择，[自主策略](../../../packages/official-scheduler/src/autonomy.ts)与[活动策略](../../../packages/official-scheduler/src/activity.ts)负责循环、期限和官方预算。宿主的 [activity-round](../../../desktop/host/activity-round.ts) 只桥接合法下一参与者、真实 turn 和 outcome；[autonomy-round](../../../desktop/host/autonomy-round.ts)只整理当次到期机会。宿主不保留旧机会循环或全局调用预算，取消、失效世界检查、授权、裁定和原子提交仍由主干执行。接口升级为 2.0；请求对照、自动测试与真实体验的不同验收范围见[阶段 7 记录](../studies/2026-11-plugin-first-phase-7.md)。
 
-以下有界与次序策略均描述官方调度器。第三方收到的玩家预算只作建议，也可忽略自主或活动机会；插件不返回仍可能使本轮卡住。单独的外部 `requestCharacter` 仍是显式角色请求，不属于自动机会分配。角色内部循环目前仍由固定的 CharacterTurn 执行，尚未开放阶段 10 的循环替换。
+以下有界与次序策略均描述官方调度器。第三方收到的玩家预算只作建议，也可忽略自主或活动机会；插件不返回仍可能使本轮卡住。单独的外部 `requestCharacter` 仍是显式角色请求，不属于自动机会分配。角色激活由核心 CharacterTurn 准备受控能力，循环算法已在阶段 10 经 ctx.characterLoop 开放替换。
 
 2026-11-03 规则层和内部拆分：例如开发者想让“上锁的房间”在所有世界都进不去，用 `ctx.rules` 包在核心规则外面，玩家和角色的发言、移动和核心互动都受约束；状态操作、活动操作和短信有自己的规则，不经过它。核心规则现在在一个世界实例里只有一个来源（[rule-layers.ts](../../../desktop/host/rule-layers.ts)）。世界包的玩法模块留在宿主内，由 [world-gameplay.ts](../../../desktop/host/world-gameplay.ts) 持有，不能作为整体替换，因为世界包脚本就是写给它们的。轮次、输入分发、投影和创作者查询已移出 `world-runtime.ts`，行为不变。写法见[增加世界规则](../guides/host-plugin-authoring.md#增加世界规则)。
 

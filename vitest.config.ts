@@ -16,6 +16,7 @@ export default defineConfig({
       '@harness-world/plugin-sdk': `${root}packages/plugin-sdk/src/index.ts`,
       '@harness-world/official-character-loop': `${root}packages/official-character-loop/src/index.ts`,
       '@harness-world/official-knowledge': `${root}packages/official-knowledge/src/index.ts`,
+      '@harness-world/official-communication': `${root}packages/official-communication/src/index.ts`,
       '@harness-world/official-activities': `${root}packages/official-activities/src/index.ts`,
       '@harness-world/official-status': `${root}packages/official-status/src/index.ts`,
       '@harness-world/official-contexts': `${root}packages/official-contexts/src/index.ts`,

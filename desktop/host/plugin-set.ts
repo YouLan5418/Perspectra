@@ -11,6 +11,8 @@ const LABELS: Readonly<Record<string, string>> = {
   knowledge: '设定知识',
   status: '状态规则',
   activities: '活动规则',
+  communication: '通信规则',
+  autonomy: '自主策略',
   characterLoop: '角色执行循环',
   memory: '长期记忆',
   llm: '模型通道',

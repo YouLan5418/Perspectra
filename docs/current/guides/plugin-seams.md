@@ -1,5 +1,7 @@
 # 插件能替换什么
 
+2026-11-05 M5：API 2.8 新增 `ctx.communication` 和 `ctx.autonomy`；通信事实与自主行动仍经核心检查，机会调度继续使用既有 scheduler。见[M5 记录](../studies/2026-11-core-migration-m5.md)。
+
 2026-11-05 M4：API 2.7 新增 `ctx.activities`，活动计算与选择已独立；参与者、隐私、随机记录和提交仍由核心／宿主检查。见[M4 记录](../studies/2026-11-core-migration-m4.md)。
 
 2026-11-05 M3：API 2.6 新增 `ctx.status`，解释既有状态和包内玩法脚本；值、告知权限、物品与提交仍由核心检查。普通玩法作者继续写脚本，不需要编写 Cordis 插件。见[状态机制](host-plugin-authoring.md#替换状态脚本机制26)与[M3 记录](../studies/2026-11-core-migration-m3.md)。
@@ -8,7 +10,7 @@
 
 2026-11-04 默认组合：第三方先注册，官方通过相同 register／effect 填充空位；打开顺序由组合声明。服务消费者可放在提供者前面，缺服务或互相等待时以 apply 原因显示未启动，不作为实际生效插件。requiresPlugins、Cordis inject 和 decisionOrder 是三种不同关系，详见[阶段 11](../studies/2026-11-plugin-first-phase-11.md)。
 
-核对日期：2026-11-05，宿主 API `2.7`（2.0～2.6 插件仍可加载；自定义记忆窗口见编写指南）。这是给插件作者的总入口，每一项的完整写法在[插件编写指南](host-plugin-authoring.md)。
+核对日期：2026-11-05，宿主 API `2.8`（2.0～2.7 插件仍可加载；自定义记忆窗口见编写指南）。这是给插件作者的总入口，每一项的完整写法在[插件编写指南](host-plugin-authoring.md)。
 
 2.4 新增 `ctx.characterLoop`：例如只允许角色操作一次，再根据真实结果表达一次，可启用 [single-action-loop](../../../examples/host-plugins/single-action-loop.mjs)。官方循环也使用相同能力；授权上下文、受众、规则和提交仍在主干。写法见[角色执行循环](host-plugin-authoring.md#替换角色执行循环24)。
 
@@ -41,13 +43,15 @@ export default function (ctx, config) {
 
 所有插件都这样：导出 `hostApi`，默认导出一个函数，通过 `ctx` 用服务，注册放进 `ctx.effect`。不用自己装 Cordis。
 
-## 九个可替换的模块
+## 十一个可替换的模块
 
 `open` 在每个世界实例打开时调用一次，包括重新生成的候选，所以每局状态不要放在模块顶层。2.0 的调度接缝同时覆盖普通反应、自主机会和活动处理，官方实现也走相同入口。1.x 插件会因主版本不兼容被跳过，需要适配并更新声明；没有旧接口兼容分支。
 
 | 接缝 | 用来做什么 | 需要的 `hostApi` | 官方实现 | 多个插件同时启用 | `open` 失败时 |
 | --- | --- | --- | --- | --- | --- |
 | [`ctx.scheduler`](host-plugin-authoring.md#替换角色调度器) | 决定谁在什么时候获得处理机会 | `2.0` | `official-scheduler` | 只用一个 | 改用官方调度 |
+| [`ctx.communication`](host-plugin-authoring.md#替换通信与自主策略28) | 消息参数、选项与文本计算 | `2.8` | `official-communication` | 只用一个 | 世界不打开 |
+| [`ctx.autonomy`](host-plugin-authoring.md#替换通信与自主策略28) | 自主配置、频率和许可 | `2.8` | `official-autonomy`（位于 official-scheduler 包） | 只用一个 | 世界不打开 |
 | [`ctx.activities`](host-plugin-authoring.md#替换活动机制27) | 活动脚本计算与候选选择 | `2.7` | `official-activities` | 只用一个 | 世界不打开 |
 | [`ctx.status`](host-plugin-authoring.md#替换状态脚本机制26) | 解释既有状态与包内模块脚本 | `2.6` | `official-status` | 只用一个 | 世界不打开 |
 | [`ctx.knowledge`](host-plugin-authoring.md#替换设定知识机制25) | 按角色权限与情境选择作者设定 | `2.5` | `official-knowledge` | 只用一个 | 世界不打开 |
@@ -117,7 +121,7 @@ export default function (ctx, config) {
 
 卸载插件后同一个存档能打开，已提交的世界事实不变。插件自己的数据不会迁移给官方实现，角色可能因此“失忆”。
 
-打开存档与重演旧回合是两件事：重新生成或切换旧候选会比较九个接缝的 ID、版本和公开 `identity`，包括叠加顺序。插件可以用 `identity` 声明会改变执行的非敏感设置；对象键顺序不影响比较，凭证不能放在里面。宿主不猜测未声明的插件配置变化，也不把这类配置自动复制到存档。旧回合环境不一致时拒绝重演，仍可继续新的玩家输入。
+打开存档与重演旧回合是两件事：重新生成或切换旧候选会比较十一个接缝的 ID、版本和公开 `identity`，包括叠加顺序。插件可以用 `identity` 声明会改变执行的非敏感设置；对象键顺序不影响比较，凭证不能放在里面。宿主不猜测未声明的插件配置变化，也不把这类配置自动复制到存档。旧回合环境不一致时拒绝重演，仍可继续新的玩家输入。
 
 ## 信任模型
 

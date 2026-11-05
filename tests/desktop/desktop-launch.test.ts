@@ -23,7 +23,7 @@ async function freshDirectory(): Promise<string> {
 }
 
 describe('desktop launch boundary', () => {
-  it.each(['hand-in-hand', 'autonomy-scheduling', 'scripted-performance'])(
+  it.each(['hand-in-hand', 'autonomy-scheduling', 'scripted-performance', 'cross-scene-sms'])(
     'starts %s with an external character loop, serves authorized state and closes',
     async packName => {
       const directory = await freshDirectory()
@@ -33,8 +33,18 @@ describe('desktop launch boundary', () => {
         pluginPath,
         `import { writeFileSync, appendFileSync } from 'node:fs';
       import { Script, createContext } from 'node:vm';
-      export const hostApi = '2.7';
+      export const hostApi = '2.8';
       export default function(ctx) {
+        ctx.effect(()=>ctx.communication.register({id:'packaged-communication',version:'1.0.0',open:async world=>{
+          writeFileSync(new URL('./communication-ran',import.meta.url),world.communicationSource?'config':'none');
+          const parameters=(id,text)=>({targetRef:{kind:'character',id},bindingId:'experiment:message',definitionRef:{id:'experiment:message',version:1},arguments:{text}});
+          return {definition:world.communicationSource?.config,instruction:'测试通信',parameters,options:input=>input.recipientIds.map(id=>({...parameters(id,''),medium:'短信',argumentSchema:{type:'object',additionalProperties:false,required:['text'],properties:{text:{type:'string',minLength:1,maxLength:input.publicationCharacters}}}})),prepare:input=>{writeFileSync(new URL('./communication-prepared',import.meta.url),JSON.stringify(input));return {text:input.text,description:'发送者的陈述'}},describeDelivery:()=> '已投递',close:()=>writeFileSync(new URL('./communication-closed',import.meta.url),'yes')};
+        }}));
+        ctx.effect(()=>ctx.autonomy.register({id:'packaged-autonomy',version:'1.0.0',open:async world=>{
+          writeFileSync(new URL('./autonomy-ran',import.meta.url),world.autonomySource?'config':'none');
+          const roles=world.autonomySource?.config.characters??[];
+          return {roles,instruction:'测试自主',due:input=>input.actions.some(action=>action.seq>input.afterSeq)?roles.map(role=>role.characterId):[],permits:()=>true,close:()=>writeFileSync(new URL('./autonomy-closed',import.meta.url),'yes')};
+        }}));
         ctx.effect(() => ctx.activities.register({id:'packaged-activities',version:'1.0.0',open:async world=>{
           writeFileSync(new URL('./activities-ran',import.meta.url),world.activitySource?'script':'none');
           const entries=(world.activitySource?.entries??[]).map(source=>{
@@ -191,12 +201,29 @@ describe('desktop launch boundary', () => {
                   parameters: {},
                   requestId: 'packaged-loop',
                 }
-              : { text: '你好。' },
+              : {
+                  text:
+                    packName === 'cross-scene-sms'
+                      ? '/message ' + JSON.stringify({ recipientId: 'character:companion', text: '构建后短信' })
+                      : '你好。',
+                },
           ),
         })
         expect(submitted.status).toBe(200)
+        if (packName === 'cross-scene-sms')
+          expect(JSON.parse(await readFile(join(pluginDirectory, 'communication-prepared'), 'utf8'))).toMatchObject({
+            actorId: 'character:player',
+            recipientId: 'character:companion',
+            text: '构建后短信',
+          })
         const actors = await readFile(join(pluginDirectory, 'loop-ran'), 'utf8')
         expect(actors).toContain('character:')
+        expect(await readFile(join(pluginDirectory, 'communication-ran'), 'utf8')).toBe(
+          packName === 'cross-scene-sms' ? 'config' : 'none',
+        )
+        expect(await readFile(join(pluginDirectory, 'autonomy-ran'), 'utf8')).toBe(
+          packName === 'autonomy-scheduling' ? 'config' : 'none',
+        )
         expect(await readFile(join(pluginDirectory, 'activities-ran'), 'utf8')).toMatch(/^(script|none)$/u)
         expect(await readFile(join(pluginDirectory, 'status-ran'), 'utf8')).toMatch(/^(script|none)$/u)
         expect(await readFile(join(pluginDirectory, 'knowledge-ran'), 'utf8')).toContain('character:')
@@ -207,6 +234,8 @@ describe('desktop launch boundary', () => {
         expect(await readFile(join(pluginDirectory, 'plugin-closed'), 'utf8')).toBe('yes')
         expect(await readFile(join(pluginDirectory, 'loop-closed'), 'utf8')).toBe('yes')
         expect(await readFile(join(pluginDirectory, 'knowledge-closed'), 'utf8')).toBe('yes')
+        expect(await readFile(join(pluginDirectory, 'communication-closed'), 'utf8')).toBe('yes')
+        expect(await readFile(join(pluginDirectory, 'autonomy-closed'), 'utf8')).toBe('yes')
         expect(await readFile(join(pluginDirectory, 'activities-closed'), 'utf8')).toBe('yes')
         expect(await readFile(join(pluginDirectory, 'status-closed'), 'utf8')).toBe('yes')
         expect((await preflightSave(pack, directory)).kind).toBe('resume')

@@ -1,5 +1,7 @@
 # 一次输入的代码路线
 
+2026-11-05 M5：例如后室同伴收到玩家短信后，自主处理自己的目标。通信选项与消息计算由 ctx.communication 提供，自主配置、触发频率和许可由 ctx.autonomy 提供；两者不直接提交事件。CommunicationRules 与执行适配绑定真实收发者，AutonomyRuntime 提取交易摘要并检查声明范围，机会继续交现有 scheduler／characterLoop。源码与验证边界见[M5 记录](../studies/2026-11-core-migration-m5.md)。
+
 2026-11-05 M4：例如猜数字与 RPG 战斗共用活动机制，各自保留包内脚本。`ctx.activities` 选择独立的解释器与候选策略；宿主 ActivityRuntime／ActivitiesRuntime 只准备授权输入并调用核心执行。参与者、private／internal 隔离、前台唯一性和随机回放继续受检查。旧活动 VM 已迁至 official-activities；源码、自动验证与体验限制见[M4 记录](../studies/2026-11-core-migration-m4.md)。
 
 2026-11-04 M2：核心 WorldApplication 的交互安装列表省略时为空，默认桌面组合负责显式提供。状态、活动、通信的即时回合经 [executeWorldRound](../../../packages/application/src/world-round-execution.ts)统一提交；NPC 与玩家收件箱路径保持各自准入和观察处理。见[M2 记录](../studies/2026-11-core-migration-m2.md)。
@@ -55,7 +57,7 @@ NPC 处理途中玩家也可以插话，规则见下一节末尾。
 
 以下情况不走并发，改为逐个串行：启动时加了 `--serial-scheduling`、活动正在指定参与者、或启用了发布审计（2026-10-19 起包变量已退役，不再是串行条件）。细节和边界见[动态调度实验](../studies/dynamic-scheduling-20261011.md)。
 
-**角色自主行动。** 世界包可以声明某些角色到时间会主动做点什么。[PackAutonomy](../../../desktop/host/pack-autonomy.ts) 在玩家每次成功提交后算出谁“到点了”，把它们和普通反应放进同一个 runOfficialSchedule，共用并发和提交队列，但调用预算和时限分开算。被唤醒只是多一次处理机会，不会让角色多知道任何东西。实现见[接入记录](../studies/autonomy-dynamic-dispatch-20261011.md)，作者怎么声明见[创作者运行时](creator-runtime.md#关键角色自主行动2026-10-11实验分支)。
+**角色自主行动。** 世界包可以声明某些角色到时间会主动做点什么。[AutonomyRuntime](../../../desktop/host/autonomy-runtime.ts) 在玩家成功提交后提取交易摘要，交给 [AutonomyPolicy](../../../packages/official-scheduler/src/autonomy-policy.ts) 计算谁“到点了”，再复核合法角色与范围，把机会和普通反应交给同一个 runOfficialSchedule，共用并发和提交队列，但调用预算和时限分开算。被唤醒只是多一次处理机会，不会让角色多知道任何东西。实现见[接入记录](../studies/autonomy-dynamic-dispatch-20261011.md)，作者怎么声明见[创作者运行时](creator-runtime.md#关键角色自主行动2026-10-11实验分支)。
 
 **玩家插话。** 只要宿主公开的 `canInterrupt` 为真，玩家就能在 NPC 处理途中继续说话或点行动按钮。[TailRoundRuntime](../../../desktop/host/tail-runtime.ts) 会取消旧回合还没提交的 NPC 计算，已经提交的保留。如果只剩玩家场景外的角色在处理，页面直接显示可以回应；场内仍在处理的角色列在 `responders` 里。活动进行中不开放插话。见[运行时](runtime.md)。
 
