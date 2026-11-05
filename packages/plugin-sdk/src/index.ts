@@ -23,7 +23,7 @@ import type {
 
 /** Major.minor. A new service or optional field raises the minor; any change a plugin could trip over
  * raises the major. A plugin exports `hostApi` with the lowest version it needs. */
-export const HOST_API_VERSION = '2.6'
+export const HOST_API_VERSION = '2.7'
 
 /** Same major, and this host's minor at least the one the plugin asks for. */
 export function hostApiCompatible(required: unknown, host: string = HOST_API_VERSION): boolean {
@@ -145,6 +145,8 @@ export interface WorldServices {
   readonly knowledgeSource?: KnowledgeSource
   /** Locked status/module texts and resolved availability, supplied only to the selected status provider. */
   readonly statusSource?: StatusSource
+  /** Locked activity texts, supplied only to the selected activities provider. */
+  readonly activitySource?: ActivitySource
   /** Authorized context projections, available equally to official and replacement decisions. */
   readonly contextSources?: DecisionContextSources
 }
@@ -426,6 +428,7 @@ export interface HostServices {
   playerFeed: PlayerFeedApi
   knowledge: KnowledgeSlotApi
   status: StatusSlotApi
+  activities: ActivitiesSlotApi
   scheduler: SchedulerSlotApi
   characterLoop: CharacterLoopSlotApi
   memory: MemorySlotApi
@@ -597,4 +600,61 @@ export interface StatusInstance {
 export interface StatusSlotApi {
   register(provider: SeamProvider<StatusInstance>): () => void
   readonly current: SeamProvider<StatusInstance> | undefined
+}
+
+export interface ActivitySource {
+  readonly entries: readonly { readonly key: string; readonly entry: string; readonly source: string }[]
+}
+/** Data computation only. Scoped policy/simulation inputs and trusted adjudication inputs stay distinct. */
+export interface ActivityInstance {
+  readonly key: string
+  readonly definition: unknown
+  readonly hasAutoStart: boolean
+  hasResume(): boolean
+  /** Random draws are recorded by the core and expire when this synchronous call returns. */
+  initialize(input: WorldJsonObject, random: () => number): unknown
+  /** Participant public state and this actor's private state only; never internal or other private values. */
+  policy(scoped: WorldJsonObject, actorId: string): unknown
+  resolve(
+    state: import('@harness-world/contracts').ActivityState,
+    actorId: string,
+    operation: string,
+    parameters: WorldJsonObject,
+    world: WorldJsonObject,
+    truth: import('@harness-world/contracts').StatusTruth | null,
+  ): unknown
+  published(
+    state: import('@harness-world/contracts').ActivityState,
+    actorId: string,
+    publication: WorldJsonValue | null,
+  ): unknown
+  resume(scoped: WorldJsonObject, world: WorldJsonObject): unknown
+  autoStart(
+    truth: import('@harness-world/contracts').StatusTruth | null,
+    world: WorldJsonObject,
+    previous: WorldJsonObject | null,
+  ): unknown
+  simulate(request: MemoryRequest): unknown
+  /** Trusted rule input includes internal state. The core validates the proposed participant activation. */
+  schedule(state: import('@harness-world/contracts').ActivityState): unknown
+  outcome(result: WorldJsonObject, state: import('@harness-world/contracts').ActivityState): unknown
+}
+export interface ActivitiesInstance {
+  readonly entries: readonly ActivityInstance[]
+  /** Must keep any committed active foreground and return an installed key or undefined. */
+  select(
+    progress: readonly { readonly key: string; readonly active: boolean }[],
+    latestKey: string | undefined,
+  ): string | undefined
+  /** Receives only eligible candidates; choose one key. Random expires after this synchronous call. */
+  chooseAutoStart(
+    candidates: readonly { readonly key: string; readonly conditions: number }[],
+    random: () => number,
+  ): string | undefined
+  close?(): void | Promise<void>
+}
+
+export interface ActivitiesSlotApi {
+  register(provider: SeamProvider<ActivitiesInstance>): () => void
+  readonly current: SeamProvider<ActivitiesInstance> | undefined
 }

@@ -12,7 +12,7 @@ import {
   type CapabilityRequirement,
   type CapabilitySession,
 } from '../host-capabilities.ts'
-import { actorWorldView } from './pack-activity.ts'
+import { actorWorldView } from './activity-world.ts'
 import type { StatusRuntime } from './status-runtime.ts'
 import { knownStatusView } from '@harness-world/contracts'
 

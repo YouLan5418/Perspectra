@@ -1,3 +1,4 @@
+import { officialActivitiesProvider } from '@harness-world/official-activities'
 import { StatusScripts, officialStatusProvider } from '@harness-world/official-status'
 import { createInstalledInteractionPackages } from '@harness-world/interactions-basic'
 export { composeDecisions, officialContextOrder } from '@harness-world/official-contexts'
@@ -13,6 +14,7 @@ import type {
   CharacterLoopInstance,
   KnowledgeInstance,
   StatusInstance,
+  ActivitiesInstance,
   LlmInstance,
   LlmTransportInstance,
   MemoryInstance,
@@ -60,6 +62,7 @@ export function assembleCoreMemory(
 export interface HostSeams {
   readonly knowledge?: SeamProvider<KnowledgeInstance>
   readonly status?: SeamProvider<StatusInstance>
+  readonly activities?: SeamProvider<ActivitiesInstance>
   readonly scheduler: SeamProvider<SchedulerInstance>
   readonly characterLoop?: SeamProvider<CharacterLoopInstance>
   readonly memory?: SeamProvider<MemoryInstance>
@@ -85,6 +88,7 @@ export const officialWorldOrder = [
   'memory',
   'knowledge',
   'status',
+  'activities',
   'decisions',
   'scheduler',
   'characterLoop',
@@ -96,6 +100,7 @@ export function composeWorldSeams(plugins: Partial<HostSeams> = {}) {
     ...plugins,
     knowledge: plugins.knowledge ?? officialKnowledgeProvider,
     status: plugins.status ?? officialStatusProvider,
+    activities: plugins.activities ?? officialActivitiesProvider,
     scheduler: plugins.scheduler ?? officialSchedulerProvider,
     characterLoop: plugins.characterLoop ?? officialCharacterLoopProvider,
     memory: plugins.memory ?? officialMemoryNoneProvider,
@@ -106,6 +111,7 @@ export function composeWorldSeams(plugins: Partial<HostSeams> = {}) {
 
 /** Called after player plugins settle. Every default uses the same public registration API. */
 export function installOfficialBundle(ctx: Context, memory?: () => SeamProvider<MemoryInstance>): void {
+  if (!ctx.activities.current) ctx.effect(() => ctx.activities.register(officialActivitiesProvider))
   if (!ctx.status.current) ctx.effect(() => ctx.status.register(officialStatusProvider))
   if (!ctx.knowledge.current) ctx.effect(() => ctx.knowledge.register(officialKnowledgeProvider))
   if (!ctx.scheduler.current) ctx.effect(() => ctx.scheduler.register(officialSchedulerProvider))

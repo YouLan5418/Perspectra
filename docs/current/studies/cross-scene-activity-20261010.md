@@ -8,7 +8,7 @@
 
 组合前，独立通信规则直接裁定自己的绑定，活动 Context 又会过滤交互；如果直接拼接，可能出现模型看不到通信选项但直接提交却绕过活动限制的情况。组合入口将活动规则置于通信规则外层：活动先验证参与者及操作许可，通过后才执行通信。普通活动操作仍由活动脚本裁定。
 
-[PackActivity](../../../desktop/host/pack-activity.ts)与[PackActivities](../../../desktop/host/pack-activities.ts)的 rulebooks 允许实验入口传入已有通信 resolver；默认调用不传该参数，沿用原来的基础规则。手动玩家通信与 NPC 行动使用同一组合规则。手动入口补充提交前缀 asOfWorldSeq，供原有活动世界视图检查使用。
+[PackActivity](https://github.com/YouLan5418/Perspectra/blob/36d3efd8/desktop/host/pack-activity.ts)与[PackActivities](https://github.com/YouLan5418/Perspectra/blob/36d3efd8/desktop/host/pack-activities.ts)的 rulebooks 允许实验入口传入已有通信 resolver；默认调用不传该参数，沿用原来的基础规则。手动玩家通信与 NPC 行动使用同一组合规则。手动入口补充提交前缀 asOfWorldSeq，供原有活动世界视图检查使用。
 
 | 情况 | 已验证行为 |
 | --- | --- |
@@ -60,5 +60,5 @@ node --import tsx tests/experiments/cross-scene-activity-live.ts output/experime
 
 | 迁移前路径（上述提交） | 当前源码 |
 | --- | --- |
-| `tests/experiments/pack-activity.ts` | [pack-activity.ts](../../../desktop/host/pack-activity.ts) |
-| `tests/experiments/pack-activities.ts` | [pack-activities.ts](../../../desktop/host/pack-activities.ts) |
+| `tests/experiments/pack-activity.ts` | [pack-activity.ts](https://github.com/YouLan5418/Perspectra/blob/36d3efd8/desktop/host/pack-activity.ts) |
+| `tests/experiments/pack-activities.ts` | [pack-activities.ts](https://github.com/YouLan5418/Perspectra/blob/36d3efd8/desktop/host/pack-activities.ts) |

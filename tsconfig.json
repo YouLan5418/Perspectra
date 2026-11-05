@@ -24,6 +24,7 @@
       "@harness-world/plugin-sdk": ["./packages/plugin-sdk/src/index.ts"],
       "@harness-world/official-character-loop": ["./packages/official-character-loop/src/index.ts"],
       "@harness-world/official-knowledge": ["./packages/official-knowledge/src/index.ts"],
+      "@harness-world/official-activities": ["./packages/official-activities/src/index.ts"],
       "@harness-world/official-status": ["./packages/official-status/src/index.ts"],
       "@harness-world/official-contexts": ["./packages/official-contexts/src/index.ts"],
       "@harness-world/official-scheduler": ["./packages/official-scheduler/src/index.ts"],

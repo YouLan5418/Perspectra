@@ -9,6 +9,7 @@ const SERVICES = [
   'scheduler',
   'knowledge',
   'status',
+  'activities',
   'characterLoop',
   'llm',
   'decisions',

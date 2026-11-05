@@ -1,5 +1,7 @@
 # 当前运行时
 
+2026-11-05 M4：例如猜数字与 RPG 战斗共用活动机制，各自保留包内脚本。`ctx.activities` 选择独立的解释器与候选策略；宿主 ActivityRuntime／ActivitiesRuntime 只准备授权输入并调用核心执行。参与者、private／internal 隔离、前台唯一性和随机回放继续受检查。旧活动 VM 已迁至 official-activities；源码、自动验证与体验限制见[M4 记录](../studies/2026-11-core-migration-m4.md)。
+
 2026-11-05 M3：例如更换状态解释器后，非法余额和越权告知仍不能提交。`ctx.status` 通过 [official-status](../../../packages/official-status/src/index.ts)解释状态与模块脚本；[StatusState](../../../packages/application/src/status-state.ts)保留事实校验和授权投影，[StatusRuntime](../../../desktop/host/status-runtime.ts)准备合法操作并沿核心提交。每世界独立实例，源码与构建验证见[M3 记录](../studies/2026-11-core-migration-m3.md)。
 
 2026-11-04 M2：例如玩家状态操作等待外部设备时关闭世界，返回结果必须丢弃。状态、活动和通信的即时提交现复用核心 [executeWorldRound](../../../packages/application/src/world-round-execution.ts)，负责绑定玩家、租约、前缀、取消与原子提交；各宿主适配保留业务和受众检查。物品效果检查迁入 application。WorldApplication 不再隐式安装基础交互包，桌面默认组合显式提供；最小入口与验证边界见[M2 记录](../studies/2026-11-core-migration-m2.md)。

@@ -1,5 +1,30 @@
 # 编写并加载自己的 Cordis 宿主插件
 
+## 替换活动机制（2.7）
+
+例如猜数字与 RPG 战斗可继续使用各自包内脚本，同时换用同一个活动解释器或候选选择策略。可信原生机制通过 `ctx.effect(() => ctx.activities.register(provider))` 注册单例，清单 services 写 `activities`，模块声明 `hostApi = '2.7'`；2.0～2.6 插件仍可加载。普通玩法作者继续使用 scripts/activity.js 或 scripts/activities/<key>.js，不使用 Cordis。
+
+`open(world, signal)` 每世界／候选返回 ActivitiesInstance。只有所选 Provider 获得可选 `world.activitySource.entries`：锁定资产的 key、entry 路径和 source 文本；没有活动资产时 entries 必须为空，有资产时必须精确匹配声明的 key。打开错误拒绝世界，不回退解释器。没有新增脚本、事件或存档格式。
+
+| 接口 | 输入与结果 |
+| --- | --- |
+| entries | 每活动的 key、definition、hasAutoStart 与计算方法；声明仍由核心规范化、检查 |
+| initialize(input, random) | 接收宿主确认的玩家、NPC 等初始化数据，返回既有 game；核心检查参与者、turn、public／private／internal 形状 |
+| policy(scoped, actorId) | 仅收到公开状态与当前参与者自己的 private，不含 internal 或其他角色 private；返回既有许可 |
+| resolve(state, actorId, operation, parameters, world, truth) | 可信规则计算得到完整活动状态、真实 actor、授权场景与状态真值，返回候选结果；不能直接提交 |
+| published／resume／autoStart／simulate | 对应原 onPublished／resume／autoStart／simulate 钩子；resume 使用玩家作用域和授权 world，simulate 只得到当前角色授权请求；autoStart 为可信条件规则，可读 truth 与玩家授权 world |
+| schedule(state)／outcome(result, state) | 可信调度规则得到完整活动状态，可返回 wait 或参与者 activate；核心拒绝玩家与未参与角色的激活 |
+| hasResume() | 对应脚本是否具备 resume 钩子的检查 |
+| select(progress, latestKey) | 只接收 key／active 摘要和最近活动 key；须保留已提交的前台活动，否则只能返回已安装 key 或 undefined |
+| chooseAutoStart(candidates, random) | 只接收全部条件满足、可开始的 key／条件数；非空时必须选其中一个，宿主每轮至多执行一次开始 |
+| close() | 可选，释放本世界或候选资源 |
+
+所有计算方法同步返回数据。宿主复制输入和返回值，计算不拿到活动宿主对象、缓存、事务、原生会话或数据库写入句柄。初始化与候选选择所用 random 属于现有回合记录，调用返回后失效；不要用自己的随机源取代它，否则重生无法保持一致。官方默认仍采用最多条件优先、平局随机，并保留当前前台／最近／首项的选择顺序。
+
+活动启动、暂停、继续、放弃、逃生、操作 Schema、真实参与者和前缀复核仍沿核心执行；活动提出的状态变化复用 M3 StatusRuntime 与 StatusState，不维护第二份 truth。非法提案不提交；开始已提交后调度失败，保留合法开始。TypeError／RangeError 在自动开场逐项检查中作为原有可报告错误，其他机制故障沿异常路径中止；诊断带 Provider ID 和活动 key。每世界与候选独立 open／close，ID、version、公开 identity 参与环境比较。
+
+这不提供通用外部插件持久状态，也不引入剧情导演。实现与自动验证范围见[M4 记录](../studies/2026-11-core-migration-m4.md)。
+
 ## 替换状态脚本机制（2.6）
 
 例如想使用另一种解释器执行已有玩法脚本，可通过 `ctx.effect(() => ctx.status.register(provider))` 注册单例，清单 services 写 `status`，模块声明 `hostApi = '2.6'`。这面向可信原生机制开发者；普通玩法仍使用包内 scripts/status.js、plugins.json 和 plugins/*.js。

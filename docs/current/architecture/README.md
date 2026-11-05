@@ -1,5 +1,7 @@
 # 当前代码技术文档
 
+2026-11-05 M4：活动脚本与选择策略已迁为 Cordis `ctx.activities`，核心保留参与者／私有状态检查，宿主保留随机记录、授权读取和执行适配，见[M4 记录](../studies/2026-11-core-migration-m4.md)。
+
 2026-11-05 M3：状态脚本与包内模块解释已迁为 Cordis `ctx.status`；StatusState 在核心检查值、归属、告知并生成授权投影，StatusRuntime 与 PackModules 负责宿主执行和原生能力桥。旧 pack-status.ts 已删除，实际边界和验证见[M3 记录](../studies/2026-11-core-migration-m3.md)。
 
 2026-11-04 M2：空交互目录的激活／读取不一致已修复；WorldApplication 去除隐式玩法安装，状态／活动／通信共享核心即时提交，物品效果检查迁入 application。最小无模型入口及验证范围见[M2 记录](../studies/2026-11-core-migration-m2.md)。
@@ -8,7 +10,7 @@
 
 后续开发统一遵循[核心与插件规范](plugin-standard.md)：核心保留事实与权限边界，内部机制使用 Cordis，外部玩法通过脚本等形式组合机制。该规范包含目录、接口、生命周期和现有实现差距；不表示代码已全部迁移。[两项暂缓需求](plugin-layering-direction.md)继续暂停。
 
-源码探查后的[分批迁移计划](../../superpowers/plans/2026-11-04-core-mechanisms-migration.md)列出了具体耦合、目标归属、M0～M7 顺序和验收入口；M0～M3 已接通，M4～M7 尚待实施。
+源码探查后的[分批迁移计划](../../superpowers/plans/2026-11-04-core-mechanisms-migration.md)列出了具体耦合、目标归属、M0～M7 顺序和验收入口；M0～M4 已接通，M5～M7 尚待实施。
 
 2026-11-04：阶段 11 已集中默认组合和服务打开顺序，补齐缺失／循环等待的服务诊断；玩法迁移按实际替代需求保留，见[阶段记录](../studies/2026-11-plugin-first-phase-11.md)。
 

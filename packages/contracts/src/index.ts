@@ -19,3 +19,4 @@ export * from './interaction-schema.ts'
 
 export * from './known-status-view.ts'
 export * from './status.ts'
+export * from './activity.ts'

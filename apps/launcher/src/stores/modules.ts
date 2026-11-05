@@ -9,6 +9,13 @@ type ManifestInfo =
 
 export const SEAMS = [
   {
+    seam: 'activities',
+    label: '活动规则',
+    single: true,
+    description: '计算活动脚本与候选选择，由核心检查参与者和提交。',
+    official: 'official-activities',
+  },
+  {
     seam: 'status',
     label: '状态规则',
     single: true,

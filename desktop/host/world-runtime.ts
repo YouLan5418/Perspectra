@@ -1,3 +1,5 @@
+import { guardedActivities } from './activity-service.ts'
+import { loadActivitySource } from './activity-source.ts'
 import { loadStatusSource } from './status-source.ts'
 import { StatusRuntime } from './status-runtime.ts'
 import { loadKnowledgeSource } from './knowledge-source.ts'
@@ -37,7 +39,8 @@ import {
 } from '@harness-world/application'
 import { saveStoryNode, readStoryNodes } from '../story-nodes.ts'
 import { existsSync, unlinkSync } from 'node:fs'
-import { activityWorldFromEvents, type ActivityRequest, type ActivityWorld } from './pack-activity.ts'
+import { activityWorldFromEvents, type ActivityWorld } from './activity-world.ts'
+import type { ActivityRequest } from '@harness-world/contracts'
 import {
   guardedDecision,
   guardedLlm,
@@ -62,7 +65,8 @@ import {
   type RoundStatus,
 } from './round-notices.ts'
 export { providerFailureNotice } from './round-notices.ts'
-import { PackActivities, type ActivityDefinitionView, type AutoStartEvaluation } from './pack-activities.ts'
+import type { ActivitiesRuntime } from './activities-runtime.ts'
+import type { ActivityDefinitionView, AutoStartEvaluation } from '@harness-world/contracts'
 import { pauseRounds } from '@harness-world/application'
 import type { StatusDefinition, StatusOperation } from '@harness-world/contracts'
 import { type AutonomousRole } from './pack-autonomy.ts'
@@ -231,6 +235,8 @@ export class WorldHostCore implements HostRuntime {
   readonly #intentModel: string
   readonly #characterIds: readonly CharacterId[]
   #status!: import('@harness-world/plugin-sdk').StatusInstance
+  #activities!: import('@harness-world/plugin-sdk').ActivitiesInstance
+  #activitySource: import('@harness-world/plugin-sdk').ActivitySource | undefined
   #statusSource: import('@harness-world/plugin-sdk').StatusSource | undefined
   #knowledge!: import('@harness-world/plugin-sdk').KnowledgeInstance
   #knowledgeSource: import('@harness-world/plugin-sdk').KnowledgeSource | undefined
@@ -500,11 +506,13 @@ export class WorldHostCore implements HostRuntime {
         ?.version === 'player-intent/v1'
     const runtime = new WorldHostCore(options, compiled, intentEnabled)
     try {
+      runtime.#activitySource = loadActivitySource(options.packPath, pack)
       runtime.#knowledgeSource = loadKnowledgeSource(options.packPath, pack)
       runtime.#statusSource = loadStatusSource(options.packPath, pack, modules?.sources)
       const open = {
         knowledge: () => runtime.#openKnowledge(),
         status: () => runtime.#openStatus(),
+        activities: () => runtime.#openActivities(),
         llm: () => runtime.#openLlm(),
         rules: () => runtime.#openRules(),
         memory: () => runtime.#openMemory(),
@@ -551,6 +559,7 @@ export class WorldHostCore implements HostRuntime {
         modules,
         status,
         capabilities: runtime.#capabilities,
+        activities: runtime.#activities,
       })
       await runtime.#refresh()
       const rebuildPath = resolve(options.dataDirectory, 'rebuild-memory.json')
@@ -1225,6 +1234,11 @@ export class WorldHostCore implements HostRuntime {
       console.error('[知识机制] 关闭失败：', error)
     }
     try {
+      await this.#activities?.close?.()
+    } catch (error) {
+      console.error('[活动机制] 关闭失败：', error)
+    }
+    try {
       await this.#status?.close?.()
     } catch (error) {
       console.error('[状态机制] 关闭失败：', error)
@@ -1406,7 +1420,7 @@ export class WorldHostCore implements HostRuntime {
     turn: CharacterTurn,
     createTurn: (autonomous?: boolean) => CharacterTurn,
     due: AutonomousRole[],
-    active: ReturnType<PackActivities['current']> | undefined,
+    active: ReturnType<ActivitiesRuntime['current']> | undefined,
   ): Promise<void> {
     const controller = this.#continuationController!
     const dynamic =
@@ -1632,6 +1646,25 @@ export class WorldHostCore implements HostRuntime {
 
   get #serialDecisions(): boolean {
     return this.#decisions.some(decision => decision.serial)
+  }
+
+  async #openActivities(): Promise<void> {
+    const provider = this.#options.plugins!.activities!
+    try {
+      this.#activities = await provider.open(
+        {
+          ...this.#services(provider.id),
+          ...(this.#activitySource === undefined ? {} : { activitySource: structuredClone(this.#activitySource) }),
+        },
+        AbortSignal.timeout(30_000),
+      )
+      this.#activities = guardedActivities(this.#activities, this.#activitySource, provider.id, this.#reportPlugin)
+      this.#modulesInForce.activities = [{ id: provider.id, version: provider.version }]
+    } catch (cause) {
+      throw new Error(`活动机制 ${provider.id} 无法打开：${cause instanceof Error ? cause.message : String(cause)}`, {
+        cause,
+      })
+    }
   }
 
   async #openStatus(): Promise<void> {

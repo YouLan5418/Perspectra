@@ -1,5 +1,7 @@
 # 当前创作者运行时
 
+2026-11-05 M4：例如猜数字与 RPG 战斗共用活动机制，各自保留包内脚本。`ctx.activities` 选择独立的解释器与候选策略；宿主 ActivityRuntime／ActivitiesRuntime 只准备授权输入并调用核心执行。参与者、private／internal 隔离、前台唯一性和随机回放继续受检查。旧活动 VM 已迁至 official-activities；源码、自动验证与体验限制见[M4 记录](../studies/2026-11-core-migration-m4.md)。
+
 2026-11-05 M3：状态／包内模块脚本格式不变，脚本解释及组合迁入官方 Cordis 状态机制；核心检查初始值、变化、告知与物品。prepare 只见授权数据，原生异步执行仍归宿主能力桥，queued 不代表已完成。见[M3 记录](../studies/2026-11-core-migration-m3.md)。
 
 2026-11-04 M2：状态、活动和通信脚本的格式与规则含义保持；宿主把其合法结果交给核心即时提交，玩家绑定、取消、最新前缀和原子提交集中处理。物品可达性与去向检查进入 application，状态 reveal 检查仍保留在宿主侧，后续再拆 Cordis 机制。见[M2 记录](../studies/2026-11-core-migration-m2.md)。
@@ -91,7 +93,7 @@ Interaction 定义和绑定提供玩法可选行为，规则负责重要状态�
 
 ## 包内活动
 
-例如作者可以固定与同行者猜数字，也可以让玩家选择邀请留守者约会；被邀请者自己通过操作接受或拒绝。当前活动桥位于实验宿主。可信本地脚本声明 title、operations，以及固定 npcIds 或动态 participants（player-select、人数与可选候选白名单），可选 opening 作为玩家看到的开场文案（参与者仍收到固定开场行）；initialize 收到本次实际选定的 npcIds，policy 决定各主体表达／操作许可，resolve 同步裁定。`schedule(state)` 与 `onOutcome(result, state)` 接收完整已提交活动状态，包括 internal 和所有参与者的 private，只返回 wait 或一次参与角色激活，不把这些输入传给角色或前端。policy、resume 仍读取对应主体的授权视图。可选 simulate(request) 只接收本次角色的授权请求，为该角色提供局部固定演出决策，null 表示调用真实模型；不因此获得完整活动状态，仅替换响应来源，不改变预设输出处理、格式校验、Rulebook、事务提交或观察分发。源码见[活动桥](../../../desktop/host/pack-activity.ts)。
+例如作者可以固定与同行者猜数字，也可以让玩家选择邀请留守者约会；被邀请者自己通过操作接受或拒绝。当前活动桥位于实验宿主。可信本地脚本声明 title、operations，以及固定 npcIds 或动态 participants（player-select、人数与可选候选白名单），可选 opening 作为玩家看到的开场文案（参与者仍收到固定开场行）；initialize 收到本次实际选定的 npcIds，policy 决定各主体表达／操作许可，resolve 同步裁定。`schedule(state)` 与 `onOutcome(result, state)` 接收完整已提交活动状态，包括 internal 和所有参与者的 private，只返回 wait 或一次参与角色激活，不把这些输入传给角色或前端。policy、resume 仍读取对应主体的授权视图。可选 simulate(request) 只接收本次角色的授权请求，为该角色提供局部固定演出决策，null 表示调用真实模型；不因此获得完整活动状态，仅替换响应来源，不改变预设输出处理、格式校验、Rulebook、事务提交或观察分发。源码见[活动桥](../../../desktop/host/activity-runtime.ts)。
 
 每场最多 8 个 NPC，玩家身份由宿主绑定，开始时参与者须存在且属于玩家当前授权场景；动态名单开始后固定，暂停与恢复保留同一名单。状态 public 只在参与者间共享，private 仅给对应角色，internal 不进入角色视图；脚本不能直接写世界或调用模型。活动结果按参与者或 self 投递，非参与者不获得活动视图、许可限制或活动调度资格，仍按普通交流和行动的观察权限知情。结果范围 self 只限制结果收件人，不能补救把秘密写进 public 的错误。接口例子和旁观者边界见[活动指南](../guides/activity-and-variables.md)。
 
@@ -107,7 +109,7 @@ Interaction 定义和绑定提供玩法可选行为，规则负责重要状态�
 
 例如作者想知道“深夜冰箱”为什么没触发：把起点设成“傍晚，玩家走进厨房”，推演逐步列出玩家移动被规则接受、自动事件检查里“时段是深夜”为 ✘，角色没有被叫醒，回合结束钩子推进了时间；作者不必开游戏，也不必读脚本。
 
-[desktop/lens](../../../desktop/lens) 把世界包源目录变成只读视图，并在一份临时副本上启动**真实的** [WorldHostRuntime](../../../desktop/host/world-runtime.ts)，只做两处替换：数据目录是临时目录，模型是[桩](../../../desktop/lens/stub-model.ts)（角色默认弃权，或照推演计划说话、尝试行动，仍经规则裁定）。没有另写一套简化规则；起点（状态初始值、场景位置、跳过的自动开场活动）是在运行时启动前改写临时副本里的初始数据，不在运行中途写入事实。宿主为此新增了只读接口：[PackActivities](../../../desktop/host/pack-activities.ts) 报告每个 autoStart 活动的逐条检查（`lastAutoStart` 取最近一轮，`evaluateAutoStart` 按已提交状态重算且不开始任何活动）和活动声明，没有检查结果时用 `skipped` 说明原因（有活动在进行、活动有暂停进度、hook 返回 null）；PackActivity 接受 `when` 里的 `[标签, 布尔值]`，标签不改变触发语义。
+[desktop/lens](../../../desktop/lens) 把世界包源目录变成只读视图，并在一份临时副本上启动**真实的** [WorldHostRuntime](../../../desktop/host/world-runtime.ts)，只做两处替换：数据目录是临时目录，模型是[桩](../../../desktop/lens/stub-model.ts)（角色默认弃权，或照推演计划说话、尝试行动，仍经规则裁定）。没有另写一套简化规则；起点（状态初始值、场景位置、跳过的自动开场活动）是在运行时启动前改写临时副本里的初始数据，不在运行中途写入事实。宿主为此新增了只读接口：[ActivitiesRuntime](../../../desktop/host/activities-runtime.ts) 报告每个 autoStart 活动的逐条检查（`lastAutoStart` 取最近一轮，`evaluateAutoStart` 按已提交状态重算且不开始任何活动）和活动声明，没有检查结果时用 `skipped` 说明原因（有活动在进行、活动有暂停进度、hook 返回 null）；ActivityRuntime 接受 `when` 里的 `[标签, 布尔值]`，标签不改变触发语义。
 
 文件分工：[view.ts](../../../desktop/lens/view.ts) 生成按分类、有稳定 id 的条目列表，[diff.ts](../../../desktop/lens/diff.ts) 按条目比较，[store.ts](../../../desktop/lens/store.ts) 在包源目录的 `.perspectra-lens/` 里保存“已看过”快照、命名对比点、待改清单与推演脚本，[scenario.ts](../../../desktop/lens/scenario.ts) 解析并执行推演脚本，[session.ts](../../../desktop/lens/session.ts) 把一次打开的视图、基准、清单与一个推演串行起来，供 [LauncherCore](../../../desktop/launcher-core.ts) 的 `lens-*` 操作和 [Launcher 透视窗口](../../../apps/launcher/src/lens/LensWindow.vue)使用；[cli.ts](../../../desktop/lens/cli.ts) 是 AI 用的只读命令行（`worldpack.cmd lens view|requests|simulate`）。只有窗口的“已看过”能移动基准，只有窗口能新增或关闭待改条目。
 
@@ -128,15 +130,15 @@ Interaction 定义和绑定提供玩法可选行为，规则负责重要状态�
 
 Launcher 游戏库（2026-10-16）界面配色由全局设置的主题色决定（樱色默认，另有灯火、月夜、森林；保存在 launcher.json 的 preferences.palette，经 PERSPECTRA_PALETTE 传给游戏进程）（2026-10-22 起主题色设置已删除：官方舞台和宿主外壳改为黑白、跟随系统；启动器保留原默认配色；旧 launcher.json 里的 palette 读取时忽略、下次保存时去掉。），以世界包封面作为首屏：在包根目录放 `cover.webp`、`cover.png` 或 `cover.jpg`（≤4 MB，建议 16:9 横图、主体偏右，左下留给标题），[launcher-core](../../../desktop/launcher-core.ts) 载入或启动时读取，经单独的 `pack-cover` 请求交给页面，不随 2.5 秒快照轮询重复传输；简介取 `world.json` 的 `description`。封面不进入编译产物，也不改变包 Hash。缺少封面时启动器按标题首字生成排版封面。（2026-10-17 改版后封面铺满整个窗口，“游玩准备”与折叠的“引擎与创作者工具”已由本局抽屉取代，见[首轮真实 Core 接入](../launcher-core-integration.md)顶部说明。）已用浏览器 Mock 与 `launcher-core` 测试核对；Tauri 真机窗口与发行包未验收。
 
-实现：[活动桥](../../../desktop/host/pack-activity.ts)、[活动选择](../../../desktop/host/pack-activities.ts)、[World Pack 工具](../../../packages/world-pack)、[主持示例](../../../examples/world-packs/ai-girls-hosted-guess)。当前不承诺任意玩法零宿主改动、多活动并行或不可信脚本沙箱。短冒烟不等于长试玩验收。
+实现：[活动桥](../../../desktop/host/activity-runtime.ts)、[活动选择](../../../desktop/host/activities-runtime.ts)、[World Pack 工具](../../../packages/world-pack)、[主持示例](../../../examples/world-packs/ai-girls-hosted-guess)。当前不承诺任意玩法零宿主改动、多活动并行或不可信脚本沙箱。短冒烟不等于长试玩验收。
 
 ### 多个独立玩法，一次运行一个（2026-10-10）
 
 例如玩家暂停猜数字、讨论周末计划、再回来继续猜：assetFiles 可登记 scripts/activities/guess.js 与 scripts/activities/weekend.js，每场各有状态、参与者和操作。它替代原先整个包只能使用一套活动的约束，没有新增并行调度。原 scripts/activity.js 作为 default 活动继续使用。
 
-2026-10-21：例如回报巡查后弭弗在场，就自动开始“名单”剧情。活动脚本可写可选的 `autoStart(truth, world, previous)`，返回 `when` 布尔数组（全真才满足，长度即条件数目）、可选 `npcIds` 与只给玩家的 `notice`（替换玩家看到的固定开场行，参与者仍收到固定行）。[宿主](../../../desktop/host/world-runtime.ts)在被接受的玩家回合依次完成角色反应和 `onRoundEnd` 后检查一次；没有活动运行时，条件数目最多的候选开始，平局从本轮随机记录中抽取，重新生成按记录回放。开始复用玩家开始路径，事件带 `source: 'auto'`、action.resolved 为 `sourceRole: 'director'`，不计玩家回合；每轮至多一场，不连锁。脚本或开始校验失败不提交，记 `debug.autoStartError`。2026-10-24 起，写了 `autoStart` 的活动只在条件全部满足时列出手动“开始”，[活动桥](../../../desktop/host/pack-activity.ts)对手动开始请求按同一条件重查；暂停后的继续不受影响。活动仍不能移动角色。作者接口见[活动指南](../guides/activity-and-variables.md#按条件自动开始2026-10-21当前源码)；自动测试已覆盖，另有一次 8 回合 DeepSeek 短试玩确认了触发时机、提示投递与轮次计数，发行包未重建。
+2026-10-21：例如回报巡查后弭弗在场，就自动开始“名单”剧情。活动脚本可写可选的 `autoStart(truth, world, previous)`，返回 `when` 布尔数组（全真才满足，长度即条件数目）、可选 `npcIds` 与只给玩家的 `notice`（替换玩家看到的固定开场行，参与者仍收到固定行）。[宿主](../../../desktop/host/world-runtime.ts)在被接受的玩家回合依次完成角色反应和 `onRoundEnd` 后检查一次；没有活动运行时，条件数目最多的候选开始，平局从本轮随机记录中抽取，重新生成按记录回放。开始复用玩家开始路径，事件带 `source: 'auto'`、action.resolved 为 `sourceRole: 'director'`，不计玩家回合；每轮至多一场，不连锁。脚本或开始校验失败不提交，记 `debug.autoStartError`。2026-10-24 起，写了 `autoStart` 的活动只在条件全部满足时列出手动“开始”，[活动桥](../../../desktop/host/activity-runtime.ts)对手动开始请求按同一条件重查；暂停后的继续不受影响。活动仍不能移动角色。作者接口见[活动指南](../guides/activity-and-variables.md#按条件自动开始2026-10-21当前源码)；自动测试已覆盖，另有一次 8 回合 DeepSeek 短试玩确认了触发时机、提示投递与轮次计数，发行包未重建。
 
-PackActivities 选择唯一正在运行的 PackActivity，只向该活动交付角色请求、许可和调度；没有 active 时使用普通规则。活动事件以 activityKey 区分，暂停保留进度并关闭 active，旧操作因身份／revision 或非 active 被拒绝。开始／继续在写入租约内检查没有另一 active；状态、玩家管理观察和世界 tick 同事务提交。继续使用当前授权 world 检查作者 resume 条件；没有 hook 时要求同场。暂停／恢复不改真实世界位置或物品，不续跑未提交计算。放弃暂停进度和前台逃生保留已提交经历，其他暂停活动不变。
+ActivitiesRuntime 选择唯一正在运行的 ActivityRuntime，只向该活动交付角色请求、许可和调度；没有 active 时使用普通规则。活动事件以 activityKey 区分，暂停保留进度并关闭 active，旧操作因身份／revision 或非 active 被拒绝。开始／继续在写入租约内检查没有另一 active；状态、玩家管理观察和世界 tick 同事务提交。继续使用当前授权 world 检查作者 resume 条件；没有 hook 时要求同场。暂停／恢复不改真实世界位置或物品，不续跑未提交计算。放弃暂停进度和前台逃生保留已提交经历，其他暂停活动不变。
 
 完整节点通过原世界数据库保存全部活动进度。作者 hook、公开 SDK 字段及操作步骤见[活动指南](../guides/activity-and-variables.md#多活动选择与暂停2026-10-10当前源码)，样例见[多活动包](../../../examples/world-packs/multiple-activities/README.md)。测试覆盖切换、隔离、条件拒绝、事务失败及分叉；真实模型体验与既有便携包包含情况另行报告。
 
@@ -163,9 +165,9 @@ NPC 固定台词发表时，可选 `onPublished(state, actorId, expression)` 返
 
 ### 活动状态读取与连接复用（2026-10-30）
 
-例如同一句固定对白在准备、格式校验和提交后刷新中多次读取活动状态，宿主的 PackActivities 现在复用一个世界库连接与一份活动进度缓存，替代活动目录和各 PackActivity 分别打开数据库、回读活动历史。每次读取仍核对最新世界头；首次读取既有活动事件，之后只查询上一提交序号之后的 `activity.updated`，每个活动只保留最新完整状态。所有返回值仍是独立副本；失败提交不会提前推进缓存。
+例如同一句固定对白在准备、格式校验和提交后刷新中多次读取活动状态，宿主的 ActivitiesRuntime 现在复用一个世界库连接与一份活动进度缓存，替代活动目录和各 ActivityRuntime 分别打开数据库、回读活动历史。每次读取仍核对最新世界头；首次读取既有活动事件，之后只查询上一提交序号之后的 `activity.updated`，每个活动只保留最新完整状态。所有返回值仍是独立副本；失败提交不会提前推进缓存。
 
-缓存和连接只属于当前活动目录，在 WorldHostCore 关闭时释放；节点恢复、重新生成和候选切换建立独立实例，不跨实例复用。规则裁定继续使用传入的正式事件前缀，不从缓存写入世界。单独构造的 PackActivity 保留原来的局部读取方式。角色授权上下文、模型决策和运行可用性没有加入跨调用缓存。
+缓存和连接只属于当前活动目录，在 WorldHostCore 关闭时释放；节点恢复、重新生成和候选切换建立独立实例，不跨实例复用。规则裁定继续使用传入的正式事件前缀，不从缓存写入世界。单独构造的 ActivityRuntime 保留原来的局部读取方式。角色授权上下文、模型决策和运行可用性没有加入跨调用缓存。
 
 第二轮在脚本加载时探测是否声明 autoStart；没有 hook 的固定名单活动不再为菜单和自动开始准备世界历史，动态选人仍读取授权场景，声明了 hook 的条件仍按当前状态重新计算，不缓存条件结果。玩家刷新可以把已经读取的同一前缀交给活动菜单，共用该次刷新内的授权世界投影；如果目录头已改变，则重新读取。该复用不会跨回合缓存角色视图或扩大 script 的信息接收范围。
 

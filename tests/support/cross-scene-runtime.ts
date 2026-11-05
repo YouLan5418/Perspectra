@@ -25,7 +25,7 @@ import { runActivations } from './run-activations.ts'
 import { CrossSceneCommunication, communicationInstruction } from '../../desktop/host/pack-communication.ts'
 import { CrossScenePhone, phoneCalls, type PhoneOperation } from './cross-scene-phone.ts'
 import { SceneDecisionService } from '../../packages/application/src/scene-decision.ts'
-import { PackActivities } from '../../desktop/host/pack-activities.ts'
+import { loadActivities } from './activity-runtime.ts'
 import { playerTranscript } from '../../desktop/host/player-transcript.ts'
 import { saveStoryNode } from '../../desktop/story-nodes.ts'
 import { CoreMemoryAdapter, type MemoryContextBudget } from '../../packages/official-memory-core/src/core-memory.ts'
@@ -161,7 +161,7 @@ export async function crossSceneRuntime(
   const playerId = brandId('character:player', 'CharacterId'),
     npcIds = manifest.characters.map(c => c.characterId).filter(id => id !== playerId)
   const activities = options.activities
-    ? PackActivities.load(
+    ? loadActivities(
         packPath,
         pack,
         path,

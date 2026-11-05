@@ -46,7 +46,7 @@
 | 同一文件的目标错误、满血治疗、空药水、MP 不足、旧版本与非本人回合拒绝 | 菜单可见性和执行权限需要分别验证 | 回合由 policy 筛选，目标与资源由 resolve 重查；失败事件数不变 |
 | 注入非法 HP 返回值后，事件总数、活动版本和所有状态不变 | 状态校验失败不会留下已推进的战斗进度 | 沿用现有活动与状态的原子提交 |
 | provider 返回防御 / 弃权的用例 | 模型不执行操作时，回合可能停住；重试也不保证推进 | 接受此原型限制，使用现有重试 / 暂停 / 逃生，不强制模型替代行动 |
-| [活动桥](../../../desktop/host/pack-activity.ts)、[状态桥](https://github.com/YouLan5418/Perspectra/blob/a9ab9ade/desktop/host/pack-status.ts)、[活动调度](../../../desktop/host/world-runtime.ts) | 同步脚本可裁定游戏，但不应承担异步模型或动画循环 | 继续复用现有角色模型与前端 SDK，不给脚本添加外部运行时 |
+| [活动桥](https://github.com/YouLan5418/Perspectra/blob/36d3efd8/desktop/host/pack-activity.ts)、[状态桥](https://github.com/YouLan5418/Perspectra/blob/a9ab9ade/desktop/host/pack-status.ts)、[活动调度](../../../desktop/host/world-runtime.ts) | 同步脚本可裁定游戏，但不应承担异步模型或动画循环 | 继续复用现有角色模型与前端 SDK，不给脚本添加外部运行时 |
 
 ## 复现与检查
 

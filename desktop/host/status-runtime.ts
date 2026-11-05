@@ -34,7 +34,8 @@ import {
   adjudicateItemChanges,
   type WorldRoundSnapshot,
 } from '@harness-world/application'
-import { activityProgress, actorWorldView } from './pack-activity.ts'
+import { activityProgress } from '@harness-world/application'
+import { actorWorldView } from './activity-world.ts'
 import { CAPABILITY_PENDING, type CapabilityOutcome } from '../host-capabilities.ts'
 import type { ExternalStatusInput } from './pack-modules.ts'
 const PREFIX = 'status:',

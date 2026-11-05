@@ -16,8 +16,8 @@ import { WorldHostRuntime } from '../../desktop/host/world-runtime.ts'
 import type { HostState } from '../../desktop/host/http-server.ts'
 import { frontendActionRequest } from '../../packages/frontend/src/player-view.ts'
 import { projectPlayerView, FrontendActions } from '../../desktop/host/frontend-adapter.ts'
-import { PackActivity, readActivityWorld } from '../../desktop/host/pack-activity.ts'
-import { PackActivities } from '../../desktop/host/pack-activities.ts'
+import { ActivityRuntime, activityFromSource, readActivityWorld } from '../support/activity-runtime.ts'
+import { loadActivities, type ActivitiesRuntime } from '../support/activity-runtime.ts'
 import { restoreStoryNode } from '../../desktop/story-nodes.ts'
 import type { CoreRunner } from '../../packages/official-memory-core/src/python-worker.ts'
 import { createChatServer, fakeModels } from '../support/fake-provider.ts'
@@ -25,7 +25,7 @@ import { createChatServer, fakeModels } from '../support/fake-provider.ts'
 const roots: string[] = [],
   servers: Server[] = [],
   runtimes: WorldHostRuntime[] = [],
-  catalogs: PackActivities[] = []
+  catalogs: ActivitiesRuntime[] = []
 afterEach(async () => {
   vi.restoreAllMocks()
   for (const catalog of catalogs.splice(0)) catalog.close()
@@ -180,7 +180,7 @@ it('does not load world history for fixed-roster menus or absent automatic-start
       f.pack,
       createInstalledInteractionPackages().map(interactionPackageDescription),
     ),
-    catalog = PackActivities.load(
+    catalog = loadActivities(
       f.pack,
       pack,
       join(f.data, 'world.sqlite'),
@@ -207,7 +207,7 @@ it('shares committed activity state, reads only the new prefix, and closes its r
       f.pack,
       createInstalledInteractionPackages().map(interactionPackageDescription),
     ),
-    catalog = PackActivities.load(
+    catalog = loadActivities(
       f.pack,
       pack,
       join(f.data, 'world.sqlite'),
@@ -409,7 +409,7 @@ it('selects a visible partner, isolates the bystander, and retains the selected 
   expect(JSON.stringify(f.inputs)).not.toContain('internal-secret')
   expect(newObservations().map(value => value.observerId)).not.toContain('character:companion')
   const source = readFileSync(join(f.pack, 'scripts/activities/other.js'), 'utf8')
-  const activity = new PackActivity(
+  const activity = activityFromSource(
     source,
     join(f.data, 'world.sqlite'),
     f.runtime.address,
@@ -452,7 +452,7 @@ it('selects a visible partner, isolates the bystander, and retains the selected 
   expect(outsiderView.id).toBeNull()
   expect(outsiderView.game).toBeUndefined()
   expect(outsiderView.participantSelection).toBeUndefined()
-  const malicious = new PackActivity(
+  const malicious = activityFromSource(
     source + "\nactivityScript.schedule=()=>({kind:'activate',characterId:'character:companion'});",
     join(f.data, 'world.sqlite'),
     f.runtime.address,
@@ -538,7 +538,7 @@ it('lets only the selected invitee accept or decline and keeps invitation accept
     '未被允许',
   )
   const source = readFileSync(join(f.pack, 'scripts/activities/other.js'), 'utf8')
-  const activity = new PackActivity(
+  const activity = activityFromSource(
     source,
     join(f.data, 'world.sqlite'),
     f.runtime.address,
@@ -589,7 +589,7 @@ it('skips other activities’ start checks while one runs and offers the same st
   const idle = projectPlayerView(await f.runtime.state()).actions.find(action => action.label === '开始 other')!
   let state = await choose(f.runtime, '开始 guess')
   // While guess runs, no surface lists other's start, so its candidates and start conditions are not computed.
-  const checks = vi.spyOn(PackActivity.prototype, 'autoStartCandidate')
+  const checks = vi.spyOn(ActivityRuntime.prototype, 'autoStartCandidate')
   state = await f.runtime.activityAction(request(state, 'guess', 'guess', { value: 1 }))
   expect(checks).not.toHaveBeenCalled()
   expect(progress(state, 'other').participantSelection).toBeUndefined()
@@ -608,7 +608,7 @@ async function autoStartCatalog(hook: string) {
       f.pack,
       createInstalledInteractionPackages().map(interactionPackageDescription),
     ),
-    catalog = PackActivities.load(
+    catalog = loadActivities(
       f.pack,
       pack,
       join(f.data, 'world.sqlite'),
@@ -661,7 +661,7 @@ it('rejects bad label shapes', async () => {
     source = readFileSync(join(f.pack, 'scripts/activities/other.js'), 'utf8'),
     world = readActivityWorld(worldPath, f.runtime.address)
   for (const when of [[['', true]], [['A']], [['A', 1]], [['长'.repeat(81), true]]]) {
-    const activity = new PackActivity(
+    const activity = activityFromSource(
       source + '\nactivityScript.autoStart = () => ({ when: ' + JSON.stringify(when) + ' });\n',
       worldPath,
       f.runtime.address,
@@ -672,7 +672,7 @@ it('rejects bad label shapes', async () => {
     )
     expect(() => activity.autoStartCandidate(world)).toThrow('自动开始条件必须是 1–32 个布尔值或 [标签, 布尔值]')
   }
-  const longest = new PackActivity(
+  const longest = activityFromSource(
     source + "\nactivityScript.autoStart = () => ({ when: [['" + '长'.repeat(80) + "', true]] });\n",
     worldPath,
     f.runtime.address,

@@ -119,7 +119,7 @@
 
 ### 多局与记忆
 
-每局是一个新的活动实例，从开始菜单再开一局。脚本不声明 `autoStart`，这样手动开始不受条件限制，每次开始都会生成新的活动 ID（[pack-activity.ts](../../../desktop/host/pack-activity.ts) 的 `#manualStartAllowed` 与 `apply`）。跨局记忆依赖现有路径：活动结果描述和场景对白进入参与者记忆，这一点猜数包已经验证过。
+每局是一个新的活动实例，从开始菜单再开一局。脚本不声明 `autoStart`，这样手动开始不受条件限制，每次开始都会生成新的活动 ID（[pack-activity.ts](https://github.com/YouLan5418/Perspectra/blob/36d3efd8/desktop/host/pack-activity.ts) 的 `#manualStartAllowed` 与 `apply`）。跨局记忆依赖现有路径：活动结果描述和场景对白进入参与者记忆，这一点猜数包已经验证过。
 
 ## 验证
 

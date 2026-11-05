@@ -10,14 +10,14 @@ import { createCoreRulebookRegistry, type CompiledWorldManifest } from '@harness
 import { compileWorldPackSource, type CompiledWorldPackV5 } from '@harness-world/world-pack'
 import { WorldStore } from '@harness-world/store-sqlite'
 import { WorldHostRuntime } from '../../desktop/host/world-runtime.ts'
-import { PackActivities } from '../../desktop/host/pack-activities.ts'
+import { loadActivities, type ActivitiesRuntime } from '../support/activity-runtime.ts'
 import { loadStatus, type KnownStatus } from '../support/status-runtime.ts'
 import { projectPlayerView } from '../../desktop/host/frontend-adapter.ts'
 import { createChatServer, fakeModels } from '../support/fake-provider.ts'
 
 const roots: string[] = [],
   runtimes: WorldHostRuntime[] = [],
-  catalogs: PackActivities[] = [],
+  catalogs: ActivitiesRuntime[] = [],
   servers: Server[] = []
 afterEach(async () => {
   for (const runtime of runtimes.splice(0)) await runtime.close()
@@ -115,7 +115,7 @@ async function fixture() {
   const status = loadStatus(packPath, pack)!
   // The runtime's resolver chain, rebuilt here to ask what a non-player character would be offered;
   // the player's options are read from the runtime itself.
-  const activities = PackActivities.load(
+  const activities = loadActivities(
     packPath,
     pack,
     worldPath,

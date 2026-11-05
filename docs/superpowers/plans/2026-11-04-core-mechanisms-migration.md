@@ -1,6 +1,6 @@
 # 核心、Cordis 机制与脚本玩法迁移计划
 
-日期：2026-11-04。探查基线：`a924513e`，分支 `fix/activity-notice-and-revision`。依据[统一规范](../../current/architecture/plugin-standard.md)。状态：**M0～M3 已实施，M4～M7 待实施**。本计划保留探查基线时的源码判断；当前成果与测试证据见[M0／M1 记录](../../current/studies/2026-11-core-migration-m01.md)、[M2 记录](../../current/studies/2026-11-core-migration-m2.md)与[M3 记录](../../current/studies/2026-11-core-migration-m3.md)。未注明完成的目录与能力仍为实施目标。
+日期：2026-11-04。探查基线：`a924513e`，分支 `fix/activity-notice-and-revision`。依据[统一规范](../../current/architecture/plugin-standard.md)。状态：**M0～M4 已实施，M5～M7 待实施**。本计划保留探查基线时的源码判断；当前成果与测试证据见[M0／M1 记录](../../current/studies/2026-11-core-migration-m01.md)、[M2 记录](../../current/studies/2026-11-core-migration-m2.md)、[M3 记录](../../current/studies/2026-11-core-migration-m3.md)与[M4 记录](../../current/studies/2026-11-core-migration-m4.md)。未注明完成的目录与能力仍为实施目标。
 
 例如料理比赛和 RPG 战斗可以共同使用状态、活动与交互机制，各自提供脚本规则；核心只确认调用者、授权范围和合法效果，并保存完整事实。移除这些玩法和非必要算法后，仍留下能管理实体、事件、权限、通用状态和提交的最小运行时。
 
@@ -15,8 +15,8 @@
 | [world-runtime.ts](../../../desktop/host/world-runtime.ts)，1941 行，create、构造函数、endPlayerRound、turnFactory | 同时持有模型、游戏包编译、具体玩法、角色激活、节点与玩家投影；固定地装配 PackModules 和基础交互包 | 保留宿主运行／交付，逐项退出具体机制选择与玩法调用 |
 | [world-gameplay.ts](../../../desktop/host/world-gameplay.ts)，185 行 | 聚合状态、活动、通信、知识、自主；固定 `builtin:speak-move` 包装链；statusContext 自己打开数据库 | 过渡装配点，不升级为包含全部方法的公共 ctx.gameplay |
 | [pack-status.ts](https://github.com/YouLan5418/Perspectra/blob/a924513e/desktop/host/pack-status.ts)，1326 行，adjudicate、itemEvents、commitRound、apply、endRound | Schema、VM、规则、物品合法性、观察与独立写租约／提交在同一类；活动通过 activityEvent 复用状态变化 | 先区分核心检查与效果提交，再抽状态脚本机制；不能直接移动整类 |
-| [pack-activity.ts](../../../desktop/host/pack-activity.ts)，1525 行，apply、state、rulebooks、autoStartCandidate | 活动协议、public／private／internal、参与者、规则、VM、存储与开始／暂停等提交混合 | 活动计算迁机制，提交与授权边界留核心；旧脚本语义先保持 |
-| [pack-activities.ts](../../../desktop/host/pack-activities.ts)，379 行 | 资产发现、前台活动选择、快照缓存、自动开始和默认核心规则回退 | 活动目录／选择迁机制；默认规则与数据读取改为显式注入 |
+| [pack-activity.ts](https://github.com/YouLan5418/Perspectra/blob/a924513e/desktop/host/pack-activity.ts)，1525 行，apply、state、rulebooks、autoStartCandidate | 活动协议、public／private／internal、参与者、规则、VM、存储与开始／暂停等提交混合 | 活动计算迁机制，提交与授权边界留核心；旧脚本语义先保持 |
+| [pack-activities.ts](https://github.com/YouLan5418/Perspectra/blob/a924513e/desktop/host/pack-activities.ts)，379 行 | 资产发现、前台活动选择、快照缓存、自动开始和默认核心规则回退 | 活动目录／选择迁机制；默认规则与数据读取改为显式注入 |
 | [pack-communication.ts](../../../desktop/host/pack-communication.ts)，308 行，resolve、perform | 联系人规则和消息表达与玩家绑定检查、写租约、commitRound 混合 | 通信业务迁机制；收发授权与提交仍由核心能力执行 |
 | [pack-knowledge.ts](https://github.com/YouLan5418/Perspectra/blob/40666bfa/desktop/host/pack-knowledge.ts)，141 行，parse、select | 读取包资产、选择设定材料；条件明确使用授权 context；依赖 pack-status 的 knownStatusView | 适合作为低风险首个迁移样本，先抽纯授权视图转换，避免拖入整个状态模块 |
 | [pack-autonomy.ts](../../../desktop/host/pack-autonomy.ts)，311 行 | 作者配置、到期机会与操作限制；认识状态／活动／短信操作名称 | 配置与合法选项迁机制，机会策略继续复用 scheduler；不再写另一套调度循环 |
@@ -121,6 +121,8 @@ M3 实际切分：核心 StatusState 保留声明、值、告知和授权投影�
 - 从 PackActivities 抽出资产目录与机制选择，核心规则由组合提供，删除 createInstalledInteractionPackages 的内部回退。
 - 保持状态轮末后才检查自动开始、每轮最多一场、已有前台活动不被打断、暂停进度保留；继续用现有随机记录与重生路径。
 - 当前自动开始的候选选择语义保持，不趁此加入剧情导演。
+
+M4 实际切分：official-activities 通过 Cordis 解释活动脚本并提供前台／自动开始选择；宿主只提供锁定文本、授权输入、候选和已记录随机数。核心 ActivityStateRules 保留参与者、public／private／internal 形状与授权投影，这是不可替换的事实与隐私边界；原计划将 state／game 校验整体归机制的表述据此收窄。ActivityRuntime／ActivitiesRuntime 继续负责绑定执行、前缀缓存、活动状态与状态规则的合法组合，不向插件暴露整类。旧两个 pack-activity 文件与隐式默认规则回退已删除，详见 M4 记录。
 
 ### M5：迁通信及自主配置
 

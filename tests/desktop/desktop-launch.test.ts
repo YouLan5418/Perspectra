@@ -33,8 +33,21 @@ describe('desktop launch boundary', () => {
         pluginPath,
         `import { writeFileSync, appendFileSync } from 'node:fs';
       import { Script, createContext } from 'node:vm';
-      export const hostApi = '2.6';
+      export const hostApi = '2.7';
       export default function(ctx) {
+        ctx.effect(() => ctx.activities.register({id:'packaged-activities',version:'1.0.0',open:async world=>{
+          writeFileSync(new URL('./activities-ran',import.meta.url),world.activitySource?'script':'none');
+          const entries=(world.activitySource?.entries??[]).map(source=>{
+            const call=(method,args,random)=>JSON.parse(new Script(source.source+';if(__method==="initialize")Math.random=__random;JSON.stringify(__method==="definition"?activityScript.definition:__method==="hasAutoStart"?activityScript.autoStart!==undefined:__method==="hasResume"?typeof activityScript.resume==="function":typeof activityScript[__method]==="function"?activityScript[__method](...__args):null)').runInContext(createContext({__method:method,__args:args,__random:random})));
+            return {key:source.key,definition:call('definition',[]),hasAutoStart:call('hasAutoStart',[])===true,hasResume:()=>call('hasResume',[]),
+              initialize:(input,random)=>call('initialize',[input],random),policy:(...args)=>call('policy',args),resolve:(...args)=>call('resolve',args),
+              published:(...args)=>call('onPublished',args),resume:(...args)=>call('resume',args),autoStart:(...args)=>call('autoStart',args),
+              simulate:(...args)=>call('simulate',args),schedule:(...args)=>call('schedule',args),outcome:(...args)=>call('onOutcome',args)};
+          });
+          return {entries,select:(progress,latest)=>progress.find(item=>item.active)?.key??latest??entries[0]?.key,
+            chooseAutoStart:(candidates,random)=>{const most=Math.max(...candidates.map(item=>item.conditions)),tied=candidates.filter(item=>item.conditions===most);return tied.length===1?tied[0].key:tied[Math.floor(random()*tied.length)]?.key},
+            close:()=>writeFileSync(new URL('./activities-closed',import.meta.url),'yes')};
+        }}));
         ctx.effect(() => ctx.status.register({id:'packaged-status',version:'1.0.0',open:async world=>{
           writeFileSync(new URL('./status-ran', import.meta.url),world.statusSource?'script':'none');
           if(world.statusSource?.modules.length)throw new Error('fixture has no modules');
@@ -184,6 +197,7 @@ describe('desktop launch boundary', () => {
         expect(submitted.status).toBe(200)
         const actors = await readFile(join(pluginDirectory, 'loop-ran'), 'utf8')
         expect(actors).toContain('character:')
+        expect(await readFile(join(pluginDirectory, 'activities-ran'), 'utf8')).toMatch(/^(script|none)$/u)
         expect(await readFile(join(pluginDirectory, 'status-ran'), 'utf8')).toMatch(/^(script|none)$/u)
         expect(await readFile(join(pluginDirectory, 'knowledge-ran'), 'utf8')).toContain('character:')
         if (packName === 'autonomy-scheduling') expect(actors).toContain('character:friend')
@@ -193,6 +207,7 @@ describe('desktop launch boundary', () => {
         expect(await readFile(join(pluginDirectory, 'plugin-closed'), 'utf8')).toBe('yes')
         expect(await readFile(join(pluginDirectory, 'loop-closed'), 'utf8')).toBe('yes')
         expect(await readFile(join(pluginDirectory, 'knowledge-closed'), 'utf8')).toBe('yes')
+        expect(await readFile(join(pluginDirectory, 'activities-closed'), 'utf8')).toBe('yes')
         expect(await readFile(join(pluginDirectory, 'status-closed'), 'utf8')).toBe('yes')
         expect((await preflightSave(pack, directory)).kind).toBe('resume')
         await expect(preflightSave(resolve('examples/world-packs/prototype-g1'), directory)).rejects.toThrow(

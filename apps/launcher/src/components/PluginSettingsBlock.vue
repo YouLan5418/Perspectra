@@ -18,6 +18,7 @@ const SERVICE_LABELS: Record<PluginManifest['services'][number], string> = {
   scheduler: '替换角色调度',
   knowledge: '替换设定知识选择',
   status: '替换状态脚本机制',
+  activities: '替换活动脚本与选择机制',
   characterLoop: '替换角色执行循环',
   memory: '替换角色记忆',
   llm: '替换角色模型通道（对话会发给插件指定的服务）',

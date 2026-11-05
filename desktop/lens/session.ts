@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import type { HostState } from '../host/http-server.ts'
-import type { AutoStartEvaluation } from '../host/pack-activities.ts'
+import type { AutoStartEvaluation } from '@harness-world/contracts'
 import { diffLensViews, type LensChange } from './diff.ts'
 import { applyScenario, parseScenario } from './scenario.ts'
 import {

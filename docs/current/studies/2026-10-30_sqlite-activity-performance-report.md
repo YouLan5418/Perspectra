@@ -6,8 +6,8 @@
 
 | 证据 | 发现 | 修改路径 |
 | --- | --- | --- |
-| E1：原生记忆的常规序章推进打开 146 个连接，其中世界库 88、审计库 45、会话库 6、记忆库 7 | 普通读取反复初始化审计库；活动目录和单活动分别打开世界库 | [WorldStore](../../../packages/store-sqlite/src/world-store.ts)按需创建审计连接；[PackActivities](../../../desktop/host/pack-activities.ts)复用目录所属的世界库连接 |
-| E2：缓存命中时查询当前活动 100 次，原来仍打开 400 个连接；修改后没有新连接或事件重读 | 两层状态缓存没有复用读取入口 | 目录维护已提交前缀和各活动最新完整状态，[PackActivity](../../../desktop/host/pack-activity.ts)通过目录读取当前状态；返回值仍独立复制 |
+| E1：原生记忆的常规序章推进打开 146 个连接，其中世界库 88、审计库 45、会话库 6、记忆库 7 | 普通读取反复初始化审计库；活动目录和单活动分别打开世界库 | [WorldStore](../../../packages/store-sqlite/src/world-store.ts)按需创建审计连接；[PackActivities](https://github.com/YouLan5418/Perspectra/blob/36d3efd8/desktop/host/pack-activities.ts)复用目录所属的世界库连接 |
+| E2：缓存命中时查询当前活动 100 次，原来仍打开 400 个连接；修改后没有新连接或事件重读 | 两层状态缓存没有复用读取入口 | 目录维护已提交前缀和各活动最新完整状态，[PackActivity](https://github.com/YouLan5418/Perspectra/blob/36d3efd8/desktop/host/pack-activity.ts)通过目录读取当前状态；返回值仍独立复制 |
 | E3：世界头改变后，原来从序号零读取全部活动更新 | 活动状态重读量随活动历史增长 | 首次恢复读取既有活动更新，之后只查询上一前缀之后的 `activity.updated`；每个活动只保留最新事件 |
 | E4：同一第 112 次操作前快照的八组交替测量，中位数从 2511 ms 降到 1976 ms | 本机完整末端回合等待减少约 21.3%，仍有明显波动 | 保留完整备份、记忆捕获、规则和提交，测量外层 WorldHostRuntime.activityAction |
 

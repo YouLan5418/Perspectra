@@ -1,5 +1,7 @@
 # 目录与模块地图
 
+2026-11-05 M4：新增 [official-activities](../../../packages/official-activities)，通过 ctx.activities 解释活动脚本、选择前台与自动开始候选。核心 [ActivityStateRules](../../../packages/application/src/activity-state.ts)保留参与者与私有状态校验；宿主 activity-source／activity-world／ActivityRuntime／ActivitiesRuntime 负责资产、授权读取和执行适配。旧 pack-activity.ts／pack-activities.ts 已删除，见[M4 记录](../studies/2026-11-core-migration-m4.md)。
+
 2026-11-05 M3：新增 official-status，负责既有状态与包内模块解释；核心 application 新增 StatusState，保留声明／值／告知核验及授权投影。宿主 status-source 负责资产，status-runtime 负责执行适配，PackModules 不再执行 VM。旧 pack-status.ts 已删除，见[M3 记录](../studies/2026-11-core-migration-m3.md)。
 
 2026-11-04 M2：未新增包。application 移除 interactions-basic 依赖，接收显式安装；新增核心即时回合执行与物品效果检查，供宿主状态、活动和通信复用。默认交互由桌面组合及 CLI 进程入口提供；空选择最小运行与失败路径见[M2 记录](../studies/2026-11-core-migration-m2.md)。
@@ -62,6 +64,7 @@
 | [contracts](../../../packages/contracts) | 共用数据类型、ID、动作与事件约定 | [ID](../../../packages/contracts/src/ids.ts)、[表达片段](../../../packages/contracts/src/expression.ts)；定义形状，不执行模型 |
 | [application](../../../packages/application) | 连接玩家输入、角色处理和世界执行 | [单角色处理](../../../packages/application/src/character-turn.ts)、[调度回合](../../../packages/application/src/scheduler-round.ts)、[有界调度](../../../packages/official-scheduler/src/index.ts)、[WorldApplication](../../../packages/application/src/world-application.ts)（宿主只用其游玩方法；创作者与调试读取在 [`read`](../../../packages/application/src/world-read-queries.ts)，备份、分叉、维护与隔离恢复在 [`admin`](../../../packages/application/src/world-administration.ts)）；[StatusState](../../../packages/application/src/status-state.ts)维护既有状态事实与授权投影；[即时执行](../../../packages/application/src/world-round-execution.ts)供状态／活动／通信宿主适配复用，[物品效果](../../../packages/application/src/item-effects.ts)负责合法物品变化；[RoundCoordinator](../../../packages/application/src/round-coordinator.ts) 是玩家行动的裁定与提交入口，旧 NPC Round／Reaction 执行已退役 |
 | [official-contexts](../../../packages/official-contexts) | 官方决策扩充、有序组合与交付步骤的记忆窗口声明；同 ID 替换、显式顺序停用 | [实现](../../../packages/official-contexts/src/index.ts)，通过公开 contextSources 读取授权投影 |
+| [official-activities](../../../packages/official-activities) | 活动脚本同步计算及前台／自动开始选择 | [机制](../../../packages/official-activities/src/index.ts)；核心 ActivityStateRules 校验，宿主执行与随机记录不下放 |
 | [official-status](../../../packages/official-status) | 状态和包内模块的同步脚本解释，返回候选数据 | [解释器](../../../packages/official-status/src/index.ts)、[源码组合](../../../packages/official-status/src/modules.ts)；核心 [StatusState](../../../packages/application/src/status-state.ts)校验声明、值和告知，宿主能力桥执行原生请求 |
 | [official-knowledge](../../../packages/official-knowledge) | 作者设定的受众、条件、关键词和整条预算选择 | [选择器](../../../packages/official-knowledge/src/selection.ts)、[Provider](../../../packages/official-knowledge/src/index.ts)；资产校验由宿主 [knowledge-source](../../../desktop/host/knowledge-source.ts) 负责 |
 | [official-character-loop](../../../packages/official-character-loop) | 官方单角色执行策略：行动／表达续写、次数和发言修正 | [实现](../../../packages/official-character-loop/src/index.ts)只使用公开激活能力；[CharacterTurn](../../../packages/application/src/character-turn.ts)保留授权、规则、受众与原子提交 |
@@ -93,7 +96,7 @@
 | 模型连接、Key 与按角色模型 | desktop/model-connections.ts、apps/launcher 的 ModelSettingsDialog / ModelPicker | Rust 桥读取凭据；游戏进程启动时按角色构造决策与记忆调用 |
 | 游戏内对白与状态显示 | frontend/default-template.ts、player-transcript.ts | http-server.ts；社区模板另查包内 frontend/ |
 | 角色知道了秘密 | character-view.ts、character-turn.ts | authorized-sources.ts 的来源、当前记忆实现的交付（默认 core-memory.ts） |
-| 模型格式错误 | provider-chat/character-turn-call.ts、official-llm/src/gateway-turn-call.ts、当前是否启用了第三方模型通道 | character-turn.ts；活动另查 pack-activity.ts |
+| 模型格式错误 | provider-chat/character-turn-call.ts、official-llm/src/gateway-turn-call.ts、当前是否启用了第三方模型通道 | character-turn.ts；活动另查 activity-runtime.ts |
 | 移动或物品操作被拒绝 | kernel 裁定与交互定义 | 世界包绑定、当前视图、实际参数 |
 | 角色重复回应或没回应 | official-scheduler/src/index.ts、当前是否启用了第三方调度器 | 官方预算、授权刺激与活动合法参与者桥 |
 | 长期记忆遗漏或整理慢 | official-memory-core 的 core-memory.ts、python-worker.ts，当前是否启用了第三方记忆 | experiments/activity-memory 与 hindsight-core |

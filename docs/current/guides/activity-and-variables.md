@@ -1,5 +1,7 @@
 # 创作者：活动与状态
 
+2026-11-05 M4：以下活动脚本格式保持，默认由 Cordis official-activities 解释，状态由 official-status 解释。参与者、private／internal 隔离和提交仍由核心／宿主检查；替换机制面见[活动机制 2.7](host-plugin-authoring.md#替换活动机制27)，迁移范围见[M4 记录](../studies/2026-11-core-migration-m4.md)。
+
 2026-11-05 M3：本指南的脚本格式继续适用。状态和模块脚本现由 Cordis official-status 解释；值、告知、物品与提交仍由核心校验。无须把普通玩法脚本改成 Cordis 插件，分层与验证见[M3 记录](../studies/2026-11-core-migration-m3.md)。
 
 2026-10-26：可用[包内插件模块](dual-plugin-entrypoints.md)组合现有状态与操作，并声明所需的本地 Cordis 异步能力。规则仍通过同一状态／交互裁定，活动 policy 继续限制模块操作；外部只确认排队时不修改数值。它补充原脚本入口，不要求重写活动或状态文件。
@@ -18,7 +20,7 @@
 
 ## 2. 活动生命周期
 
-固定入口为 `globalThis.activityScript`。定义和 hook 的完整形式以 [演示脚本](../../../examples/world-packs/launcher-demo/scripts/activity.js) 与 [当前活动桥](../../../desktop/host/pack-activity.ts) 为准。
+固定入口为 `globalThis.activityScript`。定义和 hook 的完整形式以 [演示脚本](../../../examples/world-packs/launcher-demo/scripts/activity.js) 与 [当前活动桥](../../../desktop/host/activity-runtime.ts) 为准。
 
 | 部分 | 职责 |
 | --- | --- |

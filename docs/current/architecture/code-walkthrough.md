@@ -1,5 +1,7 @@
 # 一次输入的代码路线
 
+2026-11-05 M4：例如猜数字与 RPG 战斗共用活动机制，各自保留包内脚本。`ctx.activities` 选择独立的解释器与候选策略；宿主 ActivityRuntime／ActivitiesRuntime 只准备授权输入并调用核心执行。参与者、private／internal 隔离、前台唯一性和随机回放继续受检查。旧活动 VM 已迁至 official-activities；源码、自动验证与体验限制见[M4 记录](../studies/2026-11-core-migration-m4.md)。
+
 2026-11-04 M2：核心 WorldApplication 的交互安装列表省略时为空，默认桌面组合负责显式提供。状态、活动、通信的即时回合经 [executeWorldRound](../../../packages/application/src/world-round-execution.ts)统一提交；NPC 与玩家收件箱路径保持各自准入和观察处理。见[M2 记录](../studies/2026-11-core-migration-m2.md)。
 
 2026-11-04 模型发送接缝：替换角色发送时从 `ctx.llm.registerTransport` 进入 host-plugins 的同一单例槽位，world-runtime 打开适配器后装配官方包装。prepare 仍经 presetContext/presetCall，send 经 transportSend 后执行 presetOutput，玩家读取经 presetDisplay。完整通道替换不被包装；Core 不走该适配器，详见[阶段 9](../studies/2026-11-plugin-first-phase-9.md)。
@@ -93,7 +95,7 @@ perform 请求经过 Rulebook；[character-execution-result.ts](../../../package
 
 | 分支 | 说明 | 代码与详细文档 |
 | --- | --- | --- |
-| 包内活动 | 独立玩法选择、暂停／继续、策略、操作、结果与参与者调度 | [PackActivities](../../../desktop/host/pack-activities.ts)、[PackActivity](../../../desktop/host/pack-activity.ts)、[受控交互](controlled-interaction.md) |
+| 包内活动 | 独立玩法选择、暂停／继续、策略、操作、结果与参与者调度 | [ActivitiesRuntime](../../../desktop/host/activities-runtime.ts)、[ActivityRuntime](../../../desktop/host/activity-runtime.ts)、[受控交互](controlled-interaction.md) |
 | 预设 | 实例默认、角色组、专属与请求／输出／显示处理 | [preset-runtime.ts](../../../packages/provider-chat/src/preset-runtime.ts)、[预设说明](../model-presets.md) |
 | 社区前端 | 默认沙箱，授权后受信任模式；公共玩家接口 | [授权实现](../../../desktop/frontend-authorization.ts)、[资产服务](../../../desktop/host/frontend-server.ts)、[授权说明](../frontend-authorization.md) |
 | 故事线 | 完整节点、独立分叉与单节点文件分享 | [story-nodes.ts](../../../desktop/story-nodes.ts)、[story-share.ts](../../../desktop/story-share.ts)、[使用边界](../storylines.md) |

@@ -19,7 +19,7 @@ import { compileWorldPackSource } from '@harness-world/world-pack'
 import { actionText, HostBusyError, isWait, type HostAction, type HostState, type PlayerLine } from './http-server.ts'
 import type { WorldHostOptions, WorldHostCore } from './world-runtime.ts'
 import type { RuntimeModel, RuntimeRole } from '../model-connections.ts'
-import type { ActivityRequest } from './pack-activity.ts'
+import type { ActivityRequest } from '@harness-world/contracts'
 
 type Factory = (options: WorldHostOptions) => Promise<WorldHostCore>
 
@@ -243,6 +243,7 @@ export class TailRoundRuntime {
       schedulerProvider: provider(this.options.plugins?.scheduler),
       knowledgeProvider: provider(this.options.plugins?.knowledge),
       statusProvider: provider(this.options.plugins?.status),
+      activitiesProvider: provider(this.options.plugins?.activities),
       characterLoopProvider: provider(this.options.plugins?.characterLoop),
       memoryProvider: provider(this.options.plugins?.memory),
       llmProvider: provider(this.options.plugins?.llm),

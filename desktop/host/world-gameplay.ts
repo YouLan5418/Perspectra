@@ -1,11 +1,11 @@
-import type { MemoryRequest } from '@harness-world/plugin-sdk'
+import type { ActivitiesInstance, MemoryRequest } from '@harness-world/plugin-sdk'
 import type { CharacterTurnRequest } from '@harness-world/application'
 import { characterExecutionResult } from '@harness-world/application'
 import type { CharacterId, WorldAddress, WorldJsonObject } from '@harness-world/contracts'
 import { RulebookRegistry, type RulebookResolution, type RulebookResolutionContext } from '@harness-world/kernel'
 import { WorldStore } from '@harness-world/store-sqlite'
 import type { CapabilitySession } from '../host-capabilities.ts'
-import { PackActivities } from './pack-activities.ts'
+import { ActivitiesRuntime } from './activities-runtime.ts'
 import { PackAutonomy } from './pack-autonomy.ts'
 import { communicationInstruction, CrossSceneCommunication, loadCommunicationConfig } from './pack-communication.ts'
 import type { PackModules } from './pack-modules.ts'
@@ -17,12 +17,13 @@ export interface LoadedPack {
   readonly pack: Parameters<typeof PackAutonomy.load>[1]
   readonly modules: PackModules | undefined
   readonly status: StatusRuntime | undefined
+  readonly activities: ActivitiesInstance
   readonly capabilities: CapabilitySession | undefined
 }
 
 /** Transitional host assembly of gameplay adapters; script computation is provided by mechanisms. */
 export class WorldGameplay {
-  activity: PackActivities | undefined
+  activity: ActivitiesRuntime | undefined
   modules: PackModules | undefined
   autonomy: PackAutonomy | undefined
   communication: CrossSceneCommunication | undefined
@@ -56,16 +57,15 @@ export class WorldGameplay {
 
   /** The rest, once the world is active. */
   async load(input: LoadedPack): Promise<void> {
-    const { pack, modules } = input
+    const { modules } = input
     this.status = input.status
     if (modules) {
       modules.bind(this.status!, input.capabilities!)
       this.status!.externalActions = modules
     }
     await this.status?.ensureInitial(this.world.worldPath, this.world.address, this.world.playerId)
-    this.activity = PackActivities.load(
-      input.packPath,
-      pack,
+    this.activity = ActivitiesRuntime.open(
+      input.activities,
       this.world.worldPath,
       this.world.address,
       this.world.playerId,
