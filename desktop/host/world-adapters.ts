@@ -18,6 +18,7 @@ export class WorldAdapters {
   modules: PackModules | undefined
   autonomy: AutonomyRuntime | undefined
   communication: CommunicationRuntime | undefined
+  pacing: import('./pacing-runtime.ts').PacingRuntime | undefined
   status: StatusRuntime | undefined
 
   constructor(

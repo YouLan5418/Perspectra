@@ -17,6 +17,7 @@ import { guardedActivities } from './activity-service.ts'
 import { loadActivitySource } from './activity-source.ts'
 import { loadStatusSource } from './status-source.ts'
 import { loadPacingSource } from './pacing-source.ts'
+import { PacingRuntime } from './pacing-runtime.ts'
 import { StatusRuntime } from './status-runtime.ts'
 import { loadKnowledgeSource } from './knowledge-source.ts'
 import { assembleRoleplay, officialWorldOrder, type WorldComposition } from '../official-bundle.ts'
@@ -214,6 +215,7 @@ export class WorldHostCore implements HostRuntime {
       activationCycle: this.#activationCycle,
       statusTruth: events => this.#gameplay.status?.truth(events),
       activityStates: events => this.#gameplay.activity?.debugStates(events) ?? [],
+      pacing: () => this.#gameplay.pacing?.lastDecision ?? null,
       worldVersion: this.#worldVersion,
       title: this.#title,
       packHash: this.#packHash,
@@ -622,6 +624,15 @@ export class WorldHostCore implements HostRuntime {
             adjudicate,
           ),
         )
+      runtime.#gameplay.pacing =
+        runtime.#pacing && (runtime.#pacing.managedActivities.length || runtime.#pacing.beats.length)
+          ? new PacingRuntime(
+              runtime.#pacing,
+              resolve(runtime.#dataDirectory, 'world.sqlite'),
+              runtime.#address,
+              runtime.#gameplay.activity,
+            )
+          : undefined
       await runtime.#refresh()
       const rebuildPath = resolve(options.dataDirectory, 'rebuild-memory.json')
       if (existsSync(rebuildPath)) {
@@ -966,11 +977,20 @@ export class WorldHostCore implements HostRuntime {
   }
   /** Script and start-validation failures are recorded, not retried, and commit nothing; storage faults still throw. */
   async #autoStartActivity(): Promise<void> {
-    if (!this.#gameplay.activity || this.#escaping || this.#closing || this.#paused || this.#abortedWork) return
+    if (
+      (!this.#gameplay.activity && !this.#gameplay.pacing) ||
+      this.#escaping ||
+      this.#closing ||
+      this.#paused ||
+      this.#abortedWork
+    )
+      return
     await this.#application.yieldWriter(this.#address)
     let started = false
     try {
-      started = await this.#gameplay.activity.autoStart()
+      started = this.#gameplay.pacing
+        ? (await this.#gameplay.pacing.endOfRound(this.#rootBeforeSeq)).started
+        : await this.#gameplay.activity!.autoStart()
       this.#autoStartError = undefined
     } catch (error: unknown) {
       if (!(error instanceof TypeError) && !(error instanceof RangeError)) throw error
@@ -1076,9 +1096,10 @@ export class WorldHostCore implements HostRuntime {
   }
   beginRoundRandom(values?: readonly number[]): void {
     this.#gameplay.activity?.beginRoundRandom(values)
+    this.#gameplay.pacing?.beginRoundRandom(values)
   }
   roundRandom(): number[] {
-    return this.#gameplay.activity?.roundRandom() ?? []
+    return this.#gameplay.activity?.roundRandom() ?? this.#gameplay.pacing?.roundRandom() ?? []
   }
   holdCognition(): void {
     this.#roundHolds++
