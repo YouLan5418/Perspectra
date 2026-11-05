@@ -159,3 +159,35 @@ it('opens and closes the selected status provider for share preflight without a 
   await f.runtime.close()
   expect(opened.every(entry => entry.closed)).toBe(true)
 })
+
+it('closes a selected mechanism that opens but fails validation, and names it in the error', async () => {
+  const standard = assembleRoleplay()
+  let closed = false
+  const broken: SeamProvider<StatusInstance> = {
+    id: 'broken-status',
+    version: '1.0.0',
+    open: async () =>
+      ({
+        definition: {},
+        close: () => {
+          closed = true
+        },
+      }) as unknown as StatusInstance,
+  }
+  await expect(
+    start({ ...standard, mechanisms: { ...standard.mechanisms, status: broken } }, pack(true)),
+  ).rejects.toThrow('状态机制 broken-status 无法打开：status requires initialize')
+  expect(closed).toBe(true)
+})
+it('refuses a knowledge mechanism without select but does not require knowledge for a world', async () => {
+  const standard = assembleRoleplay()
+  await expect(
+    start({
+      ...standard,
+      mechanisms: {
+        ...standard.mechanisms,
+        knowledge: { id: 'broken-knowledge', version: '1.0.0', open: async () => ({}) as never },
+      },
+    }),
+  ).rejects.toThrow('知识机制 broken-knowledge 无法打开：knowledge requires select')
+})

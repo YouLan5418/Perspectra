@@ -1,4 +1,4 @@
-import type { AutonomyInstance, CommunicationInstance } from '@harness-world/plugin-sdk'
+import type { AutonomyInstance, CommunicationInstance, StatusInstance } from '@harness-world/plugin-sdk'
 
 /** Names the failing mechanism and keeps the error class: a TypeError or RangeError refuses this one request and
  * reaches the player with its message, anything else is an internal failure. */
@@ -74,6 +74,39 @@ export function guardedAutonomy(
       if (typeof value !== 'boolean') throw new TypeError('自主许可必须是布尔值')
       return value
     },
+    ...(instance.close ? { close: () => instance.close!() } : {}),
+  }
+}
+export function guardedStatus(
+  instance: StatusInstance,
+  hasSource: boolean,
+  id: string,
+  playerId: string,
+  report: (id: string, actorId: string, error: unknown) => void,
+): StatusInstance {
+  for (const method of ['initialize', 'policy', 'resolve', 'endRound', 'prepareModule'] as const)
+    if (typeof instance[method] !== 'function') throw new TypeError('status requires ' + method)
+  if (!Array.isArray(instance.moduleDefinitions) || typeof instance.hasRoundHook !== 'boolean')
+    throw new TypeError('status metadata is invalid')
+  if (hasSource === (instance.definition === undefined))
+    throw new TypeError('status implementation must match the world declared source')
+  const guard = <T>(actorId: string, work: () => T): T => {
+    try {
+      return structuredClone(work())
+    } catch (cause) {
+      report(id, actorId, cause)
+      throw mechanismFailure(`状态机制 ${id}`, cause)
+    }
+  }
+  return {
+    definition: structuredClone(instance.definition),
+    hasRoundHook: instance.hasRoundHook,
+    moduleDefinitions: structuredClone(instance.moduleDefinitions),
+    initialize: ids => guard(playerId, () => instance.initialize(ids)),
+    policy: (known, actorId, place) => guard(actorId, () => instance.policy(known, actorId, place)),
+    resolve: input => guard(input.actorId, () => instance.resolve(input)),
+    endRound: (truth, round) => guard(playerId, () => instance.endRound(truth, round)),
+    prepareModule: (...args) => guard(args[2], () => instance.prepareModule(...args)),
     ...(instance.close ? { close: () => instance.close!() } : {}),
   }
 }

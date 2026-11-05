@@ -1,7 +1,15 @@
 import { createWorldCast } from './world-cast.ts'
 import { AutonomyRuntime } from './autonomy-runtime.ts'
 import { CommunicationRuntime } from './communication-runtime.ts'
-import { guardedCommunication, guardedAutonomy, mechanismFailure } from './gameplay-services.ts'
+import { guardedCommunication, guardedAutonomy, guardedStatus } from './gameplay-services.ts'
+import type {
+  ActivitiesInstance,
+  AutonomyInstance,
+  CommunicationInstance,
+  KnowledgeInstance,
+  SeamProvider,
+  StatusInstance,
+} from '@harness-world/plugin-sdk'
 import { loadAutonomySource, loadCommunicationSource } from './gameplay-source.ts'
 import { guardedActivities } from './activity-service.ts'
 import { loadActivitySource } from './activity-source.ts'
@@ -237,15 +245,15 @@ export class WorldHostCore implements HostRuntime {
   #model: string
   readonly #intentModel: string
   readonly #characterIds: readonly CharacterId[]
-  #status!: import('@harness-world/plugin-sdk').StatusInstance
-  #communication!: import('@harness-world/plugin-sdk').CommunicationInstance
-  #autonomy!: import('@harness-world/plugin-sdk').AutonomyInstance
+  #status!: StatusInstance
+  #communication!: CommunicationInstance
+  #autonomy!: AutonomyInstance
   #communicationSource: import('@harness-world/plugin-sdk').CommunicationSource | undefined
   #autonomySource: import('@harness-world/plugin-sdk').AutonomySource | undefined
-  #activities!: import('@harness-world/plugin-sdk').ActivitiesInstance
+  #activities!: ActivitiesInstance
   #activitySource: import('@harness-world/plugin-sdk').ActivitySource | undefined
   #statusSource: import('@harness-world/plugin-sdk').StatusSource | undefined
-  #knowledge!: import('@harness-world/plugin-sdk').KnowledgeInstance
+  #knowledge!: KnowledgeInstance
   #knowledgeSource: import('@harness-world/plugin-sdk').KnowledgeSource | undefined
   #llm!: LlmInstance
   /** The modules actually in force, which can differ from what was asked for when a scheduler falls back. */
@@ -1692,152 +1700,103 @@ export class WorldHostCore implements HostRuntime {
     return this.#decisions.some(decision => decision.serial)
   }
 
-  async #openCommunication(): Promise<void> {
-    const provider = this.#options.plugins!.communication!
+  /** One selected mechanism for this world: pass its declared source, validate it, and close it if that fails. */
+  async #openMechanism<T>(input: {
+    readonly name: 'communication' | 'autonomy' | 'activities' | 'status' | 'knowledge'
+    readonly label: string
+    readonly sourceKey: string
+    readonly source: object | undefined
+    /** A world that declares this source cannot run without the mechanism. */
+    readonly required: boolean
+    /** Assigned twice: the raw instance first, so a failing guard still leaves it to be closed. */
+    readonly assign: (instance: T) => void
+    readonly guard: (instance: T, id: string) => T
+  }): Promise<void> {
+    const { name, source } = input
+    const provider = this.#options.plugins![name] as unknown as SeamProvider<T> | undefined
     if (!provider) {
-      if (this.#communicationSource !== undefined) throw new TypeError('世界声明的 communication 需要对应机制')
+      if (input.required && source !== undefined) throw new TypeError(`世界声明的 ${name} 需要对应机制`)
       return
     }
     try {
-      this.#communication = await provider.open(
+      const opened = await provider.open(
         {
           ...this.#services(provider.id),
-          ...(this.#communicationSource === undefined
-            ? {}
-            : { communicationSource: structuredClone(this.#communicationSource) }),
+          ...(source === undefined ? {} : { [input.sourceKey]: structuredClone(source) }),
         },
         AbortSignal.timeout(30_000),
       )
-      this.#communication = guardedCommunication(
-        this.#communication,
-        this.#communicationSource !== undefined,
-        provider.id,
-        this.#reportPlugin,
-      )
-      this.#modulesInForce.communication = [{ id: provider.id, version: provider.version }]
+      input.assign(opened)
+      input.assign(input.guard(opened, provider.id))
+      this.#modulesInForce[name] = [{ id: provider.id, version: provider.version }]
     } catch (cause) {
-      throw new Error(`通信机制 ${provider.id} 无法打开：${cause instanceof Error ? cause.message : String(cause)}`, {
-        cause,
-      })
+      throw new Error(
+        `${input.label}机制 ${provider.id} 无法打开：${cause instanceof Error ? cause.message : String(cause)}`,
+        { cause },
+      )
     }
   }
-  async #openAutonomy(): Promise<void> {
-    const provider = this.#options.plugins!.autonomy!
-    if (!provider) {
-      if (this.#autonomySource !== undefined) throw new TypeError('世界声明的 autonomy 需要对应机制')
-      return
-    }
-    try {
-      this.#autonomy = await provider.open(
-        {
-          ...this.#services(provider.id),
-          ...(this.#autonomySource === undefined ? {} : { autonomySource: structuredClone(this.#autonomySource) }),
-        },
-        AbortSignal.timeout(30_000),
-      )
-      this.#autonomy = guardedAutonomy(
-        this.#autonomy,
-        this.#autonomySource !== undefined,
-        provider.id,
-        this.#reportPlugin,
-      )
-      this.#modulesInForce.autonomy = [{ id: provider.id, version: provider.version }]
-    } catch (cause) {
-      throw new Error(`自主机制 ${provider.id} 无法打开：${cause instanceof Error ? cause.message : String(cause)}`, {
-        cause,
-      })
-    }
+  #openCommunication(): Promise<void> {
+    return this.#openMechanism<CommunicationInstance>({
+      name: 'communication',
+      label: '通信',
+      sourceKey: 'communicationSource',
+      source: this.#communicationSource,
+      required: true,
+      assign: instance => (this.#communication = instance),
+      guard: (instance, id) =>
+        guardedCommunication(instance, this.#communicationSource !== undefined, id, this.#reportPlugin),
+    })
   }
-  async #openActivities(): Promise<void> {
-    const provider = this.#options.plugins!.activities!
-    if (!provider) {
-      if (this.#activitySource !== undefined) throw new TypeError('世界声明的 activities 需要对应机制')
-      return
-    }
-    try {
-      this.#activities = await provider.open(
-        {
-          ...this.#services(provider.id),
-          ...(this.#activitySource === undefined ? {} : { activitySource: structuredClone(this.#activitySource) }),
-        },
-        AbortSignal.timeout(30_000),
-      )
-      this.#activities = guardedActivities(this.#activities, this.#activitySource, provider.id, this.#reportPlugin)
-      this.#modulesInForce.activities = [{ id: provider.id, version: provider.version }]
-    } catch (cause) {
-      throw new Error(`活动机制 ${provider.id} 无法打开：${cause instanceof Error ? cause.message : String(cause)}`, {
-        cause,
-      })
-    }
+  #openAutonomy(): Promise<void> {
+    return this.#openMechanism<AutonomyInstance>({
+      name: 'autonomy',
+      label: '自主',
+      sourceKey: 'autonomySource',
+      source: this.#autonomySource,
+      required: true,
+      assign: instance => (this.#autonomy = instance),
+      guard: (instance, id) => guardedAutonomy(instance, this.#autonomySource !== undefined, id, this.#reportPlugin),
+    })
+  }
+  #openActivities(): Promise<void> {
+    return this.#openMechanism<ActivitiesInstance>({
+      name: 'activities',
+      label: '活动',
+      sourceKey: 'activitySource',
+      source: this.#activitySource,
+      required: true,
+      assign: instance => (this.#activities = instance),
+      guard: (instance, id) => guardedActivities(instance, this.#activitySource, id, this.#reportPlugin),
+    })
+  }
+  #openStatus(): Promise<void> {
+    return this.#openMechanism<StatusInstance>({
+      name: 'status',
+      label: '状态',
+      sourceKey: 'statusSource',
+      source: this.#statusSource,
+      required: true,
+      assign: instance => (this.#status = instance),
+      guard: (instance, id) =>
+        guardedStatus(instance, this.#statusSource !== undefined, id, String(this.#playerId), this.#reportPlugin),
+    })
+  }
+  #openKnowledge(): Promise<void> {
+    return this.#openMechanism<KnowledgeInstance>({
+      name: 'knowledge',
+      label: '知识',
+      sourceKey: 'knowledgeSource',
+      source: this.#knowledgeSource,
+      required: false,
+      assign: instance => (this.#knowledge = instance),
+      guard: instance => {
+        if (typeof instance.select !== 'function') throw new TypeError('knowledge requires select')
+        return instance
+      },
+    })
   }
 
-  async #openStatus(): Promise<void> {
-    const provider = this.#options.plugins!.status!
-    if (!provider) {
-      if (this.#statusSource !== undefined) throw new TypeError('世界声明的 status 需要对应机制')
-      return
-    }
-    try {
-      const instance = await provider.open(
-        {
-          ...this.#services(provider.id),
-          ...(this.#statusSource === undefined ? {} : { statusSource: structuredClone(this.#statusSource) }),
-        },
-        AbortSignal.timeout(30_000),
-      )
-      this.#status = instance
-      for (const method of ['initialize', 'policy', 'resolve', 'endRound', 'prepareModule'] as const)
-        if (typeof instance[method] !== 'function') throw new TypeError('status requires ' + method)
-      if (!Array.isArray(instance.moduleDefinitions) || typeof instance.hasRoundHook !== 'boolean')
-        throw new TypeError('status metadata is invalid')
-      if ((this.#statusSource === undefined) !== (instance.definition === undefined))
-        throw new TypeError('status implementation must match the world declared source')
-      const guard = <T>(actorId: string, work: () => T): T => {
-        try {
-          return structuredClone(work())
-        } catch (cause) {
-          this.#reportPlugin(provider.id, actorId, cause)
-          throw mechanismFailure(`状态机制 ${provider.id}`, cause)
-        }
-      }
-      this.#status = {
-        definition: structuredClone(instance.definition),
-        hasRoundHook: instance.hasRoundHook,
-        moduleDefinitions: structuredClone(instance.moduleDefinitions),
-        initialize: ids => guard(String(this.#playerId), () => instance.initialize(ids)),
-        policy: (known, actorId, place) => guard(actorId, () => instance.policy(known, actorId, place)),
-        resolve: input => guard(input.actorId, () => instance.resolve(input)),
-        endRound: (truth, round) => guard(String(this.#playerId), () => instance.endRound(truth, round)),
-        prepareModule: (...args) => guard(args[2], () => instance.prepareModule(...args)),
-        ...(instance.close ? { close: () => instance.close!() } : {}),
-      }
-      this.#modulesInForce.status = [{ id: provider.id, version: provider.version }]
-    } catch (error) {
-      throw new Error(`状态机制 ${provider.id} 无法打开：${error instanceof Error ? error.message : String(error)}`, {
-        cause: error,
-      })
-    }
-  }
-
-  async #openKnowledge(): Promise<void> {
-    const provider = this.#options.plugins!.knowledge!
-    if (!provider) return
-    try {
-      this.#knowledge = await provider.open(
-        {
-          ...this.#services(provider.id),
-          ...(this.#knowledgeSource === undefined ? {} : { knowledgeSource: structuredClone(this.#knowledgeSource) }),
-        },
-        AbortSignal.timeout(30_000),
-      )
-      if (typeof this.#knowledge.select !== 'function') throw new TypeError('knowledge requires select')
-      this.#modulesInForce.knowledge = [{ id: provider.id, version: provider.version }]
-    } catch (error) {
-      throw new Error(`知识机制 ${provider.id} 无法打开：${(error as Error).message}`, { cause: error })
-    }
-  }
-
-  /** A memory holds durable data, so one that cannot open stops the world rather than silently forgetting. */
   async #openMemory(): Promise<void> {
     const provider = this.#options.plugins!.memory!
     if (!provider) return
