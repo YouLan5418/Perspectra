@@ -127,7 +127,8 @@ export function statusObservationScope(
   exact(named, ['characters'])
   const recipientIds = strings(named.characters, '结果接收者')
   if (recipientIds.some(id => !sceneIds.includes(id))) throw new TypeError('结果接收者不在当前场景')
-  return { scope: 'direct', recipientIds }
+  // The actor always learns its own result, so telling nobody else means telling only the actor.
+  return { scope: 'direct', recipientIds: recipientIds.length ? recipientIds : [actorId] }
 }
 
 /** The choices one actor sees: the actors rule, activity scoping and, for items, what it can reach. */

@@ -163,7 +163,7 @@ Activity 收紧局部玩法许可；默认由模型决定扮演内容，作者�
 resolve 返回两种结果之一：
 
 - `{ rejectReason }`：操作根本不成立（参数不对、目标不对）。什么都不提交，也不告知任何值。
-- `{ changes, reveals, description, audience, items? }`：被接受的结果。changes 是 `{ holderId, key, value }`（公共状态 holderId 为 null）；description 是结果文字；audience 为 `'self'`、`'scene'` 或 `{ characters: [...] }`；可选 items 是物品外观／去向结果，见下文。
+- `{ changes, reveals, description, audience, items? }`：被接受的结果。changes 是 `{ holderId, key, value }`（公共状态 holderId 为 null）；description 是结果文字；audience 为 `'self'`、`'scene'` 或 `{ characters: [...] }`。行动者总能收到自己的结果，所以空列表等于 `'self'`，列出别人时行动者也会收到；可选 items 是物品外观／去向结果，见下文。
 
 **失败不等于拒绝。** 余额不足、偷窃被发现这类玩法失败，应作为被接受的结果返回：changes 为空或只含部分变化，照常带上 reveals 和 description，角色才能通过失败得知真实值。
 

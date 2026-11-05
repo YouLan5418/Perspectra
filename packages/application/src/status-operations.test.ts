@@ -116,6 +116,11 @@ it('maps audiences to observation scopes inside the actor scene', () => {
     scope: 'direct',
     recipientIds: ['character:npc'],
   })
+  // The actor always learns its own result, so telling nobody else is the same as telling only the actor.
+  expect(statusObservationScope({ characters: [] }, 'character:player', scene)).toEqual({
+    scope: 'direct',
+    recipientIds: ['character:player'],
+  })
   expect(() => statusObservationScope({ characters: ['character:away'] }, 'character:player', scene)).toThrow(
     '不在当前场景',
   )
