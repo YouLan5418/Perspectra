@@ -1111,6 +1111,10 @@ export class WorldHostCore implements HostRuntime {
     this.#gameplay.activity?.beginRoundRandom(values)
     this.#gameplay.pacing?.beginRoundRandom(values)
   }
+  /** Why the last round did or did not bring an event; for the creator's tools only. */
+  pacingDecision() {
+    return this.#gameplay.pacing?.lastDecision ?? null
+  }
   roundRandom(): number[] {
     return this.#gameplay.activity?.roundRandom() ?? this.#gameplay.pacing?.roundRandom() ?? []
   }

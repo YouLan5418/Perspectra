@@ -122,6 +122,9 @@ export class TailRoundRuntime {
   supportsHistoryRestore(): boolean {
     return this.#runtime.supportsHistoryRestore()
   }
+  pacingDecision() {
+    return this.#runtime.pacingDecision()
+  }
   autoStartEvaluations(mode: 'last' | 'now') {
     return this.#runtime.autoStartEvaluations(mode)
   }
