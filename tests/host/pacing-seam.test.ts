@@ -30,7 +30,7 @@ const script = (
   beats = `{ knock: { when: () => [true], apply: () => ({ changes: [], reveals: [] }) } }`,
 ) => `globalThis.pacingScript = { definition: ${JSON.stringify(definition)}, beats: ${beats} }`
 
-function pack(pacing: string | undefined, base = 'rpg-turn-battle') {
+function pack(pacing: string | undefined, base = 'rpg-turn-battle', onlyPacing = false) {
   const root = mkdtempSync(join(tmpdir(), 'pacing-seam-'))
   cleanups.push(() => rmSync(root, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 }))
   const path = join(root, 'pack')
@@ -40,6 +40,7 @@ function pack(pacing: string | undefined, base = 'rpg-turn-battle') {
     writeFileSync(join(path, 'scripts/pacing.js'), pacing)
     const file = join(path, 'worldpack.source.json'),
       manifest = JSON.parse(readFileSync(file, 'utf8'))
+    if (onlyPacing) manifest.assetFiles = []
     manifest.assetFiles.push('scripts/pacing.js')
     writeFileSync(file, JSON.stringify(manifest))
   }
@@ -154,14 +155,15 @@ it('refuses an activity that has no start condition', async () => {
 })
 
 it('refuses beats in a world with no status declaration', async () => {
-  const { path, root } = pack(script({ ...good, stagnation: undefined, activities: {} }), 'rainy-road-companions')
+  const { path, root } = pack(script({ ...good, stagnation: undefined, activities: {} }), 'rpg-turn-battle', true)
   await expect(open(path, root)).rejects.toThrow('需要状态声明')
 })
 
 it('allows pacing only activities in a world with no status declaration', async () => {
   const { path, root } = pack(
     `globalThis.pacingScript = { definition: ${JSON.stringify({ ...good, stagnation: undefined, activities: {}, beats: {} })}, beats: {} }`,
-    'rainy-road-companions',
+    'rpg-turn-battle',
+    true,
   )
   await expect(open(path, root)).resolves.toBeDefined()
 })

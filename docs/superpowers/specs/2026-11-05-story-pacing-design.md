@@ -128,7 +128,7 @@ globalThis.pacingScript = {
 5. 停滞程度 `s`：无进展回合数超过 `afterRounds` 后，从 0 线性升到 1（再过 `afterRounds` 回合到顶）。
 6. `t' = min(1, t + s × maxTensionBoost)`，介入概率 `p = chance + s × (maxChance − chance)`。
 7. 抽随机数，大于等于 `p`：不发生。
-8. 上次是 high 且仍在 `recoveryRounds` 内：去掉 high 候选。没有候选就不发生。
+8. 上次是 high，且距今小于 high 的冷却加 `recoveryRounds`：去掉 high 候选，其他强度可以先回来。没有候选就不发生。
 9. 按权重抽一个：low 为 `1 − t'`，medium 为 `1 − |2t' − 1|`，high 为 `t'`，每项至少 0.05。
 
 未发生时不写入任何事件。公式是起点，试玩后再调。
