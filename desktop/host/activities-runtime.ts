@@ -11,9 +11,13 @@ import type {
 import type { ActivitiesInstance } from '@harness-world/plugin-sdk'
 import { WorldStore } from '@harness-world/store-sqlite'
 import { RulebookRegistry, type RulebookEvent, type RulebookResolver } from '@harness-world/kernel'
-import { characterExecutionResult, activityProgress } from '@harness-world/application'
+import {
+  characterExecutionResult,
+  activityProgress,
+  readActivityWorld,
+  type ActivityWorld,
+} from '@harness-world/application'
 import { ActivityRuntime } from './activity-runtime.ts'
-import { readActivityWorld, type ActivityWorld } from './activity-world.ts'
 import type { StatusRuntime } from './status-runtime.ts'
 /** One foreground activity, with independent progress in the existing world event log. */
 export class ActivitiesRuntime {
@@ -51,10 +55,11 @@ export class ActivitiesRuntime {
     const catalog = new ActivitiesRuntime(worldPath, address, playerId, coreRules, mechanism)
     for (const entry of mechanism.entries) {
       if (catalog.#entries.has(entry.key)) throw new TypeError('重复的活动标识：' + entry.key)
-      const activity = new ActivityRuntime(entry, worldPath, address, playerId, entry.key, status, coreRules)
-      activity.signal = catalog.signal
-      activity.randomSource = () => catalog.#nextRandom()
-      activity.readCurrent = () => catalog.#current(entry.key)
+      const activity = new ActivityRuntime(entry, worldPath, address, playerId, entry.key, status, coreRules, {
+        randomSource: () => catalog.#nextRandom(),
+        readCurrent: () => catalog.#current(entry.key),
+        signal: catalog.signal,
+      })
       catalog.#entries.set(entry.key, activity)
     }
     try {

@@ -42,6 +42,8 @@ export interface ActionObservationInput {
   /** Clauses whose wording or presence depends on who is observing. */
   readonly perObserver?: (observerId: CharacterId) => WorldJsonObject
   readonly playerBindings: readonly { readonly characterId: CharacterId; readonly sessionId: SessionId }[]
+  /** Immediate rounds keep their own stable observation IDs. */
+  readonly observationId?: (observerId: CharacterId) => string
 }
 
 /**
@@ -103,11 +105,13 @@ export function actionObservations(input: ActionObservationInput): {
           ...input.shared,
           ...routeClause(input.route, observerId, input.actorId),
         }
-    const observationId = deterministicId('observation:scene-result', {
-      roundId: input.roundId,
-      actionId: input.actionId,
-      observerId,
-    })
+    const observationId =
+      input.observationId?.(observerId) ??
+      deterministicId('observation:scene-result', {
+        roundId: input.roundId,
+        actionId: input.actionId,
+        observerId,
+      })
     const value = { observerId, actionId: input.actionId, content }
     events.push({ eventType: 'observation.upsert', eventVersion: 1, data: { id: observationId, value } })
     for (const binding of input.playerBindings.filter(entry => entry.characterId === observerId)) {

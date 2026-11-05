@@ -36,7 +36,7 @@
 | [decisions](../../../packages/plugin-sdk/src/decisions.ts) | 授权上下文扩充或决策包装 | 最终角色输出和行动照常复核；公开 ContextSources 调用所选机制 |
 | [knowledge](../../../packages/plugin-sdk/src/knowledge.ts) | 当前角色授权 Context，选择作者材料 | 官方保持文档受众与条件范围；缺席时不扩充，不用全量真值代替 |
 | [status](../../../packages/plugin-sdk/src/status.ts) | policy／prepareModule 只见已知值；可信 resolve／轮末可见 truth，返回候选 | 声明、Schema、归属、告知、物品与真实执行者；异步原生执行和结果未知留宿主 |
-| [activities](../../../packages/plugin-sdk/src/activities.ts) | policy／simulate 使用角色作用域；可信规则和调度可见完整活动状态；选择只见摘要 | private／internal 隔离、参与者、唯一前台、合法开始、随机记录、状态联动和原子提交 |
+| [activities](../../../packages/plugin-sdk/src/activities.ts) | policy／simulate 使用角色作用域；可信规则和调度可见完整活动状态；选择只见摘要 | private／internal 隔离、参与者、唯一前台、合法开始、开始／暂停／恢复／放弃／逃生的状态迁移、随机记录、状态联动和原子提交 |
 | [communication](../../../packages/plugin-sdk/src/communication.ts) | 已授权联系人摘要、真实 actor／recipient／text，返回消息候选 | 信封和手动请求绑定、生命周期、收件权限、实际发送者与观察事实；不授予远端物理资格 |
 | [autonomy](../../../packages/plugin-sdk/src/autonomy.ts) | 已提交交易摘要计算到期角色；许可钩子收窄行动 | 声明身份、范围、机会、实际地点和效果；继续消费同一 scheduler／characterLoop |
 

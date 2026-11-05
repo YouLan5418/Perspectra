@@ -35,6 +35,12 @@ it('rejects experiment dependencies and package internals while allowing current
       expect(result.status).toBe(1)
       expect(result.stderr).toContain('production source depends on an experiment path')
     }
+    writeFileSync(join(root, 'desktop/entry.ts'), 'await store.commitRound(request)')
+    const directCommit = spawnSync(process.execPath, [resolve('scripts/check-host-boundaries.mjs'), root], {
+      encoding: 'utf8',
+    })
+    expect(directCommit.status).toBe(1)
+    expect(directCommit.stderr).toContain('the host commits only through the core execution path')
     writeFileSync(join(root, 'desktop/entry.ts'), "join(repository, 'desktop', 'host', 'web-entry.ts')")
     writeFileSync(
       join(root, 'packages/frontend/player.ts'),

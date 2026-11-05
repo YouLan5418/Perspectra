@@ -44,7 +44,6 @@ export function tailRuntimeIdentity(): string {
       'desktop/host/activity-service.ts',
       'desktop/host/activities-runtime.ts',
       'desktop/host/activity-source.ts',
-      'desktop/host/activity-world.ts',
       'desktop/host/status-runtime.ts',
       'desktop/host/status-source.ts',
       'desktop/host/pack-modules.ts',

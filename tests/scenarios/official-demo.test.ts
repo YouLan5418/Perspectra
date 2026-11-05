@@ -5,15 +5,18 @@ import { join, resolve } from 'node:path'
 import { tmpdir } from 'node:os'
 import { brandId, type WorldJsonObject } from '@harness-world/contracts'
 import { CharacterViewBuilder, WorldStore } from '@harness-world/store-sqlite'
-import { currentEntityState } from '@harness-world/kernel'
-import { ActivityRuntime, activityFromSource } from '../support/activity-runtime.ts'
+import { createCoreRulebookRegistry, currentEntityState } from '@harness-world/kernel'
+import { ActivitiesScripts } from '@harness-world/official-activities'
+import { ActivityRuntime, ActivitiesRuntime } from '../support/activity-runtime.ts'
 import { WorldHostCore } from '../../desktop/host/world-runtime.ts'
 import { FrontendActions, projectPlayerView } from '../../desktop/host/frontend-adapter.ts'
 import { fakeModels } from '../support/fake-provider.ts'
 const roots: string[] = [],
-  runtimes: WorldHostCore[] = []
+  runtimes: WorldHostCore[] = [],
+  catalogs: ActivitiesRuntime[] = []
 afterEach(async () => {
   vi.restoreAllMocks()
+  for (const catalog of catalogs.splice(0)) catalog.close()
   for (const r of runtimes.splice(0)) await r.close()
   for (const p of roots.splice(0)) rmSync(p, { recursive: true, force: true })
 })
@@ -79,12 +82,23 @@ async function fixture(menu = false, kitchen = false, noCooker = false, extra: W
 it('reuses activity state only at the same committed head and isolates returned copies', async () => {
   const f = await fixture()
   await f.activate()
-  const activity = activityFromSource(
-    readFileSync(resolve('examples/world-packs/model-girls-official/scripts/activity.js'), 'utf8'),
+  const activity = ActivitiesRuntime.open(
+    new ActivitiesScripts({
+      entries: [
+        {
+          key: 'default',
+          entry: 'scripts/activity.js',
+          source: readFileSync(resolve('examples/world-packs/model-girls-official/scripts/activity.js'), 'utf8'),
+        },
+      ],
+    }),
     join(f.data, 'world.sqlite'),
     f.runtime.address,
     'character:player',
-  )
+    undefined,
+    createCoreRulebookRegistry(),
+  )!
+  catalogs.push(activity)
   const before = activity.current()!,
     index = before.game.public.index
   Object.assign(before.game.public, { index: 999 })
@@ -94,7 +108,7 @@ it('reuses activity state only at the same committed head and isolates returned 
   await f.operation('继续')
   read.mockClear()
   expect(activity.current()!.game.public.index).toBe(Number(index) + 1)
-  expect(read).toHaveBeenCalledWith(f.runtime.address, 0, expect.any(Number), ['activity.updated'])
+  expect(read).toHaveBeenCalledWith(f.runtime.address, expect.any(Number), expect.any(Number), ['activity.updated'])
   read.mockClear()
   expect(activity.current()!.game.public.index).toBe(Number(index) + 1)
   expect(read).not.toHaveBeenCalled()

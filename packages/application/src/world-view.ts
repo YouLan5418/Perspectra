@@ -1,8 +1,26 @@
-import { brandId, type WorldAddress, type WorldJsonObject } from '@harness-world/contracts'
+import { brandId, type StatusTruth, type WorldAddress, type WorldJsonObject } from '@harness-world/contracts'
 import { currentLocation, type CompiledWorldManifest, type RulebookEvent } from '@harness-world/kernel'
-import { SceneDecisionService, characterVisibleItems } from '@harness-world/application'
+import { characterVisibleItems } from './character-visible-items.ts'
+import { SceneDecisionService } from './scene-decision.ts'
 import { WorldStore, CharacterRuntimeAvailabilityService } from '@harness-world/store-sqlite'
-import type { StatusRuntime } from './status-runtime.ts'
+
+/** Anything that can fold status truth from a prefix. */
+export interface StatusTruthReader {
+  truth(events: readonly RulebookEvent[]): StatusTruth
+}
+
+/** Short-lived scene readers for one authorized projection; never held across asynchronous work. */
+export function withSceneDecisions<T>(worldPath: string, work: (scene: SceneDecisionService) => T): T {
+  const store = new WorldStore(worldPath),
+    availability = new CharacterRuntimeAvailabilityService(worldPath)
+  try {
+    return work(new SceneDecisionService(store, availability))
+  } finally {
+    availability.close()
+    store.close()
+  }
+}
+
 /** Actor-scoped facts from the same candidate prefix; never a global inventory.
  * Shared by activity and status script hooks as their `world` argument. */
 export function actorWorldView(
@@ -14,19 +32,12 @@ export function actorWorldView(
   asOfWorldSeq: number | undefined,
 ): WorldJsonObject {
   if (asOfWorldSeq === undefined) throw new TypeError('活动世界视图缺少提交前缀')
-  const store = new WorldStore(worldPath),
-    availability = new CharacterRuntimeAvailabilityService(worldPath)
-  try {
-    const actor = brandId(actorId, 'CharacterId')
-    const scene = new SceneDecisionService(store, availability).decideFromEvents(address, actor, events, asOfWorldSeq)
-    return {
-      locationId: currentLocation(events, actorId) ?? null,
-      characterIds: [...scene.observerIds],
-      items: characterVisibleItems(manifest, events, actor, scene.observerIds),
-    }
-  } finally {
-    availability.close()
-    store.close()
+  const actor = brandId(actorId, 'CharacterId')
+  const scene = withSceneDecisions(worldPath, service => service.decideFromEvents(address, actor, events, asOfWorldSeq))
+  return {
+    locationId: currentLocation(events, actorId) ?? null,
+    characterIds: [...scene.observerIds],
+    items: characterVisibleItems(manifest, events, actor, scene.observerIds),
   }
 }
 
@@ -37,7 +48,7 @@ export interface ActivityWorld {
   readonly events: readonly RulebookEvent[]
   readonly manifest: CompiledWorldManifest
   worldView(actorId: string): WorldJsonObject
-  truth(status: StatusRuntime | undefined): import('@harness-world/contracts').StatusTruth | null
+  truth(status: StatusTruthReader | undefined): StatusTruth | null
 }
 export function readActivityWorld(worldPath: string, address: WorldAddress): ActivityWorld {
   const store = new WorldStore(worldPath)
@@ -61,7 +72,7 @@ export function activityWorldFromEvents(
   manifest: CompiledWorldManifest,
 ): ActivityWorld {
   const views = new Map<string, WorldJsonObject>()
-  const truths = new Map<StatusRuntime | undefined, import('@harness-world/contracts').StatusTruth | null>()
+  const truths = new Map<StatusTruthReader | undefined, StatusTruth | null>()
   return {
     headSeq,
     events,

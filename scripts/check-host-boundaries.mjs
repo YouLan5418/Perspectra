@@ -72,6 +72,9 @@ function check(file) {
   ) {
     errors.push(file + ': plugin SDK contracts must not import implementations at runtime')
   }
+  if (path.startsWith('desktop/') && /\.commitRound\(/.test(source)) {
+    errors.push(file + ': the host commits only through the core execution path')
+  }
   checkPackageImports(file, path, source)
 }
 // Sources reach another package only through its @harness-world entry; the launcher resolves the
