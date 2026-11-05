@@ -2,6 +2,7 @@ import type { InteractionPackageImplementation } from '@harness-world/contracts'
 import { officialCommunicationProvider } from '@harness-world/official-communication'
 import { officialActivitiesProvider } from '@harness-world/official-activities'
 import { officialStatusProvider } from '@harness-world/official-status'
+import { officialPacingProvider } from '@harness-world/official-pacing'
 import { createInstalledInteractionPackages } from '@harness-world/interactions-basic'
 export { composeDecisions, officialContextOrder } from '@harness-world/official-contexts'
 import { composeDecisions } from '@harness-world/official-contexts'
@@ -18,6 +19,7 @@ import type {
   StatusInstance,
   ActivitiesInstance,
   AutonomyInstance,
+  PacingInstance,
   CommunicationInstance,
   LlmInstance,
   LlmTransportInstance,
@@ -69,6 +71,7 @@ export interface HostSeams {
   readonly activities?: SeamProvider<ActivitiesInstance>
   readonly communication?: SeamProvider<CommunicationInstance>
   readonly autonomy?: SeamProvider<AutonomyInstance>
+  readonly pacing?: SeamProvider<PacingInstance>
   readonly scheduler: SeamProvider<SchedulerInstance>
   readonly characterLoop?: SeamProvider<CharacterLoopInstance>
   readonly memory?: SeamProvider<MemoryInstance>
@@ -115,6 +118,7 @@ export const officialWorldOrder = [
   'activities',
   'communication',
   'autonomy',
+  'pacing',
   'decisions',
   'scheduler',
   'characterLoop',
@@ -129,6 +133,7 @@ export function composeWorldSeams(plugins: Partial<HostSeams> = {}) {
     activities: plugins.activities ?? officialActivitiesProvider,
     communication: plugins.communication ?? officialCommunicationProvider,
     autonomy: plugins.autonomy ?? officialAutonomyProvider,
+    pacing: plugins.pacing ?? officialPacingProvider,
     scheduler: plugins.scheduler ?? officialSchedulerProvider,
     characterLoop: plugins.characterLoop ?? officialCharacterLoopProvider,
     memory: plugins.memory ?? officialMemoryNoneProvider,
@@ -141,6 +146,7 @@ export function composeWorldSeams(plugins: Partial<HostSeams> = {}) {
 export function installOfficialBundle(ctx: Context, memory?: () => SeamProvider<MemoryInstance>): void {
   if (!ctx.communication.current) ctx.effect(() => ctx.communication.register(officialCommunicationProvider))
   if (!ctx.autonomy.current) ctx.effect(() => ctx.autonomy.register(officialAutonomyProvider))
+  if (!ctx.pacing.current) ctx.effect(() => ctx.pacing.register(officialPacingProvider))
   if (!ctx.activities.current) ctx.effect(() => ctx.activities.register(officialActivitiesProvider))
   if (!ctx.status.current) ctx.effect(() => ctx.status.register(officialStatusProvider))
   if (!ctx.knowledge.current) ctx.effect(() => ctx.knowledge.register(officialKnowledgeProvider))

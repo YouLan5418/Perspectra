@@ -23,6 +23,13 @@ export const SEAMS = [
     official: 'official-autonomy',
   },
   {
+    seam: 'pacing',
+    label: '剧情节奏',
+    single: true,
+    description: '决定这一轮是否发生节拍或事件，数值和提交由核心检查。',
+    official: 'official-pacing',
+  },
+  {
     seam: 'activities',
     label: '活动规则',
     single: true,

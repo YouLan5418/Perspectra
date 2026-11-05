@@ -50,6 +50,8 @@ export interface WorldServices {
   /** Locked configuration and public identifiers, only for the selected mechanism. */
   readonly communicationSource?: CommunicationSource
   readonly autonomySource?: AutonomySource
+  /** The locked pacing script, supplied only to the selected pacing provider. */
+  readonly pacingSource?: import('./pacing.ts').PacingSource
   /** Authorized context projections, available equally to official and replacement decisions. */
   readonly contextSources?: DecisionContextSources
 }

@@ -1,12 +1,14 @@
 import { createWorldCast } from './world-cast.ts'
 import { AutonomyRuntime } from './autonomy-runtime.ts'
 import { CommunicationRuntime } from './communication-runtime.ts'
-import { guardedCommunication, guardedAutonomy, guardedStatus } from './gameplay-services.ts'
+import { guardedCommunication, guardedAutonomy, guardedPacing, guardedStatus } from './gameplay-services.ts'
 import type {
   ActivitiesInstance,
   AutonomyInstance,
   CommunicationInstance,
   KnowledgeInstance,
+  PacingInstance,
+  PacingSource,
   SeamProvider,
   StatusInstance,
 } from '@harness-world/plugin-sdk'
@@ -14,6 +16,7 @@ import { loadAutonomySource, loadCommunicationSource } from './gameplay-source.t
 import { guardedActivities } from './activity-service.ts'
 import { loadActivitySource } from './activity-source.ts'
 import { loadStatusSource } from './status-source.ts'
+import { loadPacingSource } from './pacing-source.ts'
 import { StatusRuntime } from './status-runtime.ts'
 import { loadKnowledgeSource } from './knowledge-source.ts'
 import { assembleRoleplay, officialWorldOrder, type WorldComposition } from '../official-bundle.ts'
@@ -248,6 +251,8 @@ export class WorldHostCore implements HostRuntime {
   #status!: StatusInstance
   #communication!: CommunicationInstance
   #autonomy!: AutonomyInstance
+  #pacing: PacingInstance | undefined
+  #pacingSource: PacingSource | undefined
   #communicationSource: import('@harness-world/plugin-sdk').CommunicationSource | undefined
   #autonomySource: import('@harness-world/plugin-sdk').AutonomySource | undefined
   #activities!: ActivitiesInstance
@@ -531,12 +536,14 @@ export class WorldHostCore implements HostRuntime {
       runtime.#activitySource = loadActivitySource(options.packPath, pack)
       runtime.#knowledgeSource = loadKnowledgeSource(options.packPath, pack)
       runtime.#statusSource = loadStatusSource(options.packPath, pack, modules?.sources)
+      runtime.#pacingSource = loadPacingSource(options.packPath, pack)
       const open = {
         knowledge: () => runtime.#openKnowledge(),
         status: () => runtime.#openStatus(),
         activities: () => runtime.#openActivities(),
         communication: () => runtime.#openCommunication(),
         autonomy: () => runtime.#openAutonomy(),
+        pacing: () => runtime.#openPacing(),
         llm: () => runtime.#openLlm(),
         rules: () => runtime.#openRules(),
         memory: () => runtime.#openMemory(),
@@ -1290,6 +1297,7 @@ export class WorldHostCore implements HostRuntime {
     for (const [name, instance] of [
       ['通信', this.#communication],
       ['自主', this.#autonomy],
+      ['节奏', this.#pacing],
     ] as const) {
       try {
         await instance?.close?.()
@@ -1702,7 +1710,7 @@ export class WorldHostCore implements HostRuntime {
 
   /** One selected mechanism for this world: pass its declared source, validate it, and close it if that fails. */
   async #openMechanism<T>(input: {
-    readonly name: 'communication' | 'autonomy' | 'activities' | 'status' | 'knowledge'
+    readonly name: 'communication' | 'autonomy' | 'activities' | 'status' | 'knowledge' | 'pacing'
     readonly label: string
     readonly sourceKey: string
     readonly source: object | undefined
@@ -1757,6 +1765,27 @@ export class WorldHostCore implements HostRuntime {
       required: true,
       assign: instance => (this.#autonomy = instance),
       guard: (instance, id) => guardedAutonomy(instance, this.#autonomySource !== undefined, id, this.#reportPlugin),
+    })
+  }
+  #openPacing(): Promise<void> {
+    return this.#openMechanism<PacingInstance>({
+      name: 'pacing',
+      label: '节奏',
+      sourceKey: 'pacingSource',
+      source: this.#pacingSource,
+      required: true,
+      assign: instance => (this.#pacing = instance),
+      guard: (instance, id) =>
+        guardedPacing(instance, {
+          hasSource: this.#pacingSource !== undefined,
+          id,
+          hasStatus: this.#statusSource !== undefined,
+          statusKeys: ((this.#status?.definition as { statuses?: { key: string }[] } | undefined)?.statuses ?? []).map(
+            status => status.key,
+          ),
+          activities: this.#activities,
+          report: this.#reportPlugin,
+        }),
     })
   }
   #openActivities(): Promise<void> {
