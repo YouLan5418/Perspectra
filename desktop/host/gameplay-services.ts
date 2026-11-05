@@ -1,5 +1,14 @@
 import type { AutonomyInstance, CommunicationInstance } from '@harness-world/plugin-sdk'
 
+/** Names the failing mechanism and keeps the error class: a TypeError or RangeError refuses this one request and
+ * reaches the player with its message, anything else is an internal failure. */
+export function mechanismFailure(label: string, cause: unknown): Error {
+  const message = `${label} 执行失败：${cause instanceof Error ? cause.message : String(cause)}`
+  if (cause instanceof TypeError) return new TypeError(message, { cause })
+  if (cause instanceof RangeError) return new RangeError(message, { cause })
+  return new Error(message, { cause })
+}
+
 /** Native mechanisms are trusted, but computation receives copies rather than host-owned objects. */
 function computationGuard(id: string, report: (id: string, actorId: string, error: unknown) => void) {
   return <A extends unknown[], R>(work: (...args: A) => R) =>
@@ -8,10 +17,7 @@ function computationGuard(id: string, report: (id: string, actorId: string, erro
         return structuredClone(work(...structuredClone(args)))
       } catch (cause) {
         report(id, 'gameplay', cause)
-        const message = `机制 ${id} 执行失败：${cause instanceof Error ? cause.message : String(cause)}`
-        if (cause instanceof TypeError) throw new TypeError(message, { cause })
-        if (cause instanceof RangeError) throw new RangeError(message, { cause })
-        throw new Error(message, { cause })
+        throw mechanismFailure(`机制 ${id}`, cause)
       }
     }
 }

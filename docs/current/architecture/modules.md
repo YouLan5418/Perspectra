@@ -1,5 +1,7 @@
 # 目录与模块地图
 
+2026-11-05 M7：未新增包。application 的 item-effects 新增 assertPhysicalEffects，供即时回合和规则插件层使用；机制失败的错误类别由宿主 gameplay-services 统一保留。见[M7 记录](../studies/2026-11-core-migration-m7.md)。
+
 2026-11-05 M6：plugin-sdk 按职责拆成内部模块并保留根导出；WorldAdapters 只投影规则和上下文，原 WorldGameplay 装配已退出。默认 RP 位于 assembleRoleplay，显式组合的缺席机制不补回。见[共同契约](mechanism-contracts.md)与[M6 记录](../studies/2026-11-core-migration-m6.md)。
 
 2026-11-05 M5：新增 [official-communication](../../../packages/official-communication) 计算消息与选项；自主配置、频率与许可并入已有 official-scheduler，经独立 ctx.autonomy 注册。核心 CommunicationRules／autonomy-state 保留身份与权限边界，宿主负责执行和交易摘要。见[M5 记录](../studies/2026-11-core-migration-m5.md)。

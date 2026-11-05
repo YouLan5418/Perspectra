@@ -1,6 +1,6 @@
 # 内部机制与外部玩法的共同契约
 
-核对日期：2026-11-05，M6。API 仍为 2.8，本批只整理类型与装配，不改变脚本、事件、世界库或角色输出格式。
+核对日期：2026-11-05，M7。API 仍为 2.8，不改变脚本、事件、世界库或角色输出格式。
 
 例如料理活动中的角色尝试拿锅：活动机制决定当前允许哪些操作，状态／交互机制计算候选结果；核心重查真实执行者、可见范围、锅的位置与归属后才提交。作者可以更换活动规则或组合不同脚本，不能靠一句旁白或机制返回值直接写入世界事实。
 
@@ -32,7 +32,7 @@
 | [characterLoop](../../../packages/plugin-sdk/src/character-loop.ts) | 当前激活的 prepare／decide／submit 能力 | 不允许伪造 actor、前缀或受众；续写真实结果，能力结束后失效 |
 | [memory](../../../packages/plugin-sdk/src/memory.ts) | 授权角色请求，返回记忆投影；可声明实际记忆窗口 | 角色经验来源与结果投影；文件快照沿已有记忆协议 |
 | [llm](../../../packages/plugin-sdk/src/llm.ts) | 最终授权请求与模型调用；完整通道或发送适配二选一 | 凭证由入口配置；输出仍经格式、许可与规则检查，失败不改投其他模型 |
-| [rules](../../../packages/plugin-sdk/src/rules.ts) | 基础规则层的前缀、行动与 next | 提案只能含核心认识的事实；真实提交仍由核心负责 |
+| [rules](../../../packages/plugin-sdk/src/rules.ts) | 基础规则层的前缀、行动与 next | 提案只能含核心认识的事实，与已提交托管或位置矛盾的效果按插件出错拒绝；真实提交仍由核心负责 |
 | [decisions](../../../packages/plugin-sdk/src/decisions.ts) | 授权上下文扩充或决策包装 | 最终角色输出和行动照常复核；公开 ContextSources 调用所选机制 |
 | [knowledge](../../../packages/plugin-sdk/src/knowledge.ts) | 当前角色授权 Context，选择作者材料 | 官方保持文档受众与条件范围；缺席时不扩充，不用全量真值代替 |
 | [status](../../../packages/plugin-sdk/src/status.ts) | policy／prepareModule 只见已知值；可信 resolve／轮末可见 truth，返回候选 | 声明、Schema、归属、告知、物品与真实执行者；异步原生执行和结果未知留宿主 |
@@ -61,7 +61,7 @@
 
 [assembleRoleplay](../../../desktop/official-bundle.ts)是桌面入口明确选择的默认 RP 安装，包含交互实现、机制、模型装配器和原有调度失败回退。`WorldHostRuntime.create` 未提供 composition 时选择此组合；`WorldHostCore.create` 必须接收完整 composition，不补玩法。
 
-显式 composition 的 mechanisms 就是实际选择。省略 knowledge／memory 等可选机制后，回合和重生都不补回默认。包声明了状态、活动、通信或自主资产却省略对应机制，会在激活前报错；scheduler、characterLoop 与模型通道／模型装配器为此宿主的必要能力。WorldApplication 的无具体玩法入口另有 M2 基础，完整最小核心验收仍属 M7。
+显式 composition 的 mechanisms 就是实际选择。省略 knowledge／memory 等可选机制后，回合和重生都不补回默认。包声明了状态、活动、通信或自主资产却省略对应机制，会在激活前报错；scheduler、characterLoop 与模型通道／模型装配器为此宿主的必要能力。WorldApplication 的无具体玩法入口是最小核心，验收见[M7 记录](../studies/2026-11-core-migration-m7.md)。
 
 不要同时传 composition 和 plugins。plugins 是默认 RP 入口的覆盖列表；显式组合在 mechanisms 中选择最终 Provider，决策与规则列表也不再二次填充。示例：
 
@@ -88,4 +88,4 @@ world-pack 库仍接收公开安装目录；CLI 进程显式选基础交互，�
 
 选中模型、记忆、状态、活动、知识、通信、自主和角色循环打开失败明确拒绝；不悄悄换解释器。调度失败回退是组合显式选择的策略，自定义组合未提供 fallbackScheduler 时不补官方实现。计算异常按实际 Provider 归因，非法候选不提交；先前已成功的玩家行动或活动开始仍成立，不能用失败回滚已发布的事实。
 
-源码、自动化、真实模型体验与完整发行分别记录。M6 的证据与已知失败见[M6 记录](../studies/2026-11-core-migration-m6.md)。剧情导演和通用外部插件持久状态继续暂停；本页不把 M7 的整体验收目标当作已经完成。
+源码、自动化、真实模型体验与完整发行分别记录。M6 的证据见[M6 记录](../studies/2026-11-core-migration-m6.md)，整体验收及其限制见[M7 记录](../studies/2026-11-core-migration-m7.md)。剧情导演和通用外部插件持久状态继续暂停。

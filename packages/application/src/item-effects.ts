@@ -1,5 +1,10 @@
 import type { WorldEventDraft } from '@harness-world/contracts'
-import { currentEntityState, currentLocation, type RulebookEvent } from '@harness-world/kernel'
+import {
+  currentEntityState,
+  currentLocation,
+  type CompiledWorldManifest,
+  type RulebookEvent,
+} from '@harness-world/kernel'
 
 function object(value: unknown, what: string): Record<string, unknown> {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new TypeError(what + '必须是对象')
@@ -26,6 +31,62 @@ export function itemIsReachable(
   if (item === undefined) return false
   if (item.holderId !== null) return item.holderId === actorId || present.includes(item.holderId)
   return item.locationId !== null && item.locationId === currentLocation(events, actorId)
+}
+
+/** The physical facts a candidate may state, checked in order against the prefix it would extend. A contradicting
+ * custody event in the log would make every later fold of that entity throw, so it must never get there. */
+export function assertPhysicalEffects(input: {
+  readonly manifest: Pick<CompiledWorldManifest, 'characters' | 'locations' | 'entities'>
+  readonly events: readonly RulebookEvent[]
+  readonly drafts: readonly WorldEventDraft[]
+  /** The bound actor of an immediate round; only they can walk. Omitted for a rule layer's own proposal. */
+  readonly actorId?: string | undefined
+}): void {
+  const applied: RulebookEvent[] = [...input.events]
+  const character = (id: unknown): void => {
+    if (!input.manifest.characters.some(row => row.characterId === id))
+      throw new TypeError('physical effect names an undeclared character: ' + String(id))
+  }
+  const location = (id: unknown): void => {
+    if (!input.manifest.locations.some(row => row.locationId === id))
+      throw new TypeError('physical effect names an undeclared location: ' + String(id))
+  }
+  const custody = (entityId: string, why: string): TypeError =>
+    new TypeError(`effect on ${entityId} contradicts committed custody: ${why}`)
+  for (const draft of input.drafts) {
+    const data = (draft.data ?? {}) as Record<string, unknown>
+    const entityId = String(data.entityId)
+    if (draft.eventType === 'character.moved') {
+      character(data.characterId)
+      location(data.toLocationId)
+      if (input.actorId !== undefined && data.characterId !== input.actorId)
+        throw new TypeError('an immediate round moves only its bound player')
+      if ((currentLocation(applied, String(data.characterId)) ?? null) !== data.fromLocationId)
+        throw new TypeError('character.moved does not start from the current location')
+    } else if (draft.eventType === 'entity.transferred' || draft.eventType === 'entity.taken') {
+      const before = currentEntityState(applied, entityId)
+      if (before === undefined) throw custody(entityId, 'it does not exist')
+      character(data.characterId)
+      if (typeof data.toHolderId === 'string') character(data.toHolderId)
+      if (typeof data.toLocationId === 'string') location(data.toLocationId)
+      try {
+        currentEntityState([...applied, draft as RulebookEvent], entityId)
+      } catch {
+        throw custody(entityId, `it is at ${before.holderId ?? before.locationId}`)
+      }
+    } else if (draft.eventType === 'entity.upsert') {
+      const before = currentEntityState(applied, entityId)
+      if (before === undefined && !input.manifest.entities.some(row => row.entityId === entityId))
+        throw custody(entityId, 'it is not declared')
+      const after = currentEntityState([...applied, draft as RulebookEvent], entityId)!
+      // Changing how an item looks never moves it; moves are recorded as transfers, with their witnesses.
+      if (before && (before.holderId !== after.holderId || before.locationId !== after.locationId))
+        throw custody(entityId, 'an upsert cannot move it')
+      if (after.holderId !== null) character(after.holderId)
+      else location(after.locationId)
+    }
+    applied.push(draft as RulebookEvent)
+  }
 }
 
 /** Validate all requested item effects before returning any facts to commit. */

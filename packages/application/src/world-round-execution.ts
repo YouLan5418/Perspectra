@@ -9,6 +9,7 @@ import {
 } from '@harness-world/contracts'
 import { runtimeManifestFromStored, type CompiledWorldManifest } from '@harness-world/kernel'
 import { type WorldStore, type WriterLeaseService } from '@harness-world/store-sqlite'
+import { assertPhysicalEffects } from './item-effects.ts'
 
 /** A committed prefix supplied to host adjudication, with no database or write capability. */
 export interface WorldRoundSnapshot {
@@ -50,18 +51,20 @@ export async function executeWorldRound(
     const manifest = runtimeManifestFromStored(record.manifest)
     if (input.actorId !== undefined && !manifest.playerBindings.some(row => row.characterId === input.actorId))
       throw new TypeError('immediate player round requires a bound player')
-    const effects = await adjudicate({
+    const snapshot: WorldRoundSnapshot = {
       head,
       manifest,
       manifestHash: record.manifestHash,
       events: store.readEvents(address, head.headSeq),
       prior: store.readRoundAuthority(address, brandId(owner, 'TransactionId')),
-    })
+    }
+    const effects = await adjudicate(snapshot)
     input.signal?.throwIfAborted()
     if (effects === undefined) return undefined
     if (input.actorId !== undefined && effects.authority.actorId !== input.actorId)
       throw new TypeError('round authority actor does not match its bound player')
     const characters = new Set(manifest.characters.map(row => String(row.characterId)))
+    assertPhysicalEffects({ manifest, events: snapshot.events, drafts: effects.events, actorId: input.actorId })
     for (const event of effects.events) {
       if (event.eventType === 'world.tick-advanced') throw new TypeError('round tick is owned by the core')
       if (

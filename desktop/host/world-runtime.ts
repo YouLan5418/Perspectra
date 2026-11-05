@@ -1,7 +1,7 @@
 import { createWorldCast } from './world-cast.ts'
 import { AutonomyRuntime } from './autonomy-runtime.ts'
 import { CommunicationRuntime } from './communication-runtime.ts'
-import { guardedCommunication, guardedAutonomy } from './gameplay-services.ts'
+import { guardedCommunication, guardedAutonomy, mechanismFailure } from './gameplay-services.ts'
 import { loadAutonomySource, loadCommunicationSource } from './gameplay-source.ts'
 import { guardedActivities } from './activity-service.ts'
 import { loadActivitySource } from './activity-source.ts'
@@ -1797,10 +1797,7 @@ export class WorldHostCore implements HostRuntime {
           return structuredClone(work())
         } catch (cause) {
           this.#reportPlugin(provider.id, actorId, cause)
-          throw new Error(
-            `状态机制 ${provider.id} 执行失败：${cause instanceof Error ? cause.message : String(cause)}`,
-            { cause },
-          )
+          throw mechanismFailure(`状态机制 ${provider.id}`, cause)
         }
       }
       this.#status = {

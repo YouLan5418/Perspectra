@@ -1,6 +1,6 @@
 # 核心、Cordis 机制与脚本玩法迁移计划
 
-日期：2026-11-04。探查基线：`a924513e`，分支 `fix/activity-notice-and-revision`。依据[统一规范](../../current/architecture/plugin-standard.md)。状态：**M0～M6 已实施，M7 待实施**。本计划保留探查基线时的源码判断；当前成果与测试证据见[M0／M1 记录](../../current/studies/2026-11-core-migration-m01.md)、[M2 记录](../../current/studies/2026-11-core-migration-m2.md)、[M3 记录](../../current/studies/2026-11-core-migration-m3.md)、[M4 记录](../../current/studies/2026-11-core-migration-m4.md)、[M5 记录](../../current/studies/2026-11-core-migration-m5.md)与[M6 记录](../../current/studies/2026-11-core-migration-m6.md)。未注明完成的目录与能力仍为实施目标。
+日期：2026-11-04。探查基线：`a924513e`，分支 `fix/activity-notice-and-revision`。依据[统一规范](../../current/architecture/plugin-standard.md)。状态：**M0～M7 已实施**。本计划保留探查基线时的源码判断；当前成果与测试证据见[M0／M1 记录](../../current/studies/2026-11-core-migration-m01.md)、[M2 记录](../../current/studies/2026-11-core-migration-m2.md)、[M3 记录](../../current/studies/2026-11-core-migration-m3.md)、[M4 记录](../../current/studies/2026-11-core-migration-m4.md)、[M5 记录](../../current/studies/2026-11-core-migration-m5.md)、[M6 记录](../../current/studies/2026-11-core-migration-m6.md)与[M7 记录](../../current/studies/2026-11-core-migration-m7.md)。未注明完成的目录与能力仍为实施目标。
 
 例如料理比赛和 RPG 战斗可以共同使用状态、活动与交互机制，各自提供脚本规则；核心只确认调用者、授权范围和合法效果，并保存完整事实。移除这些玩法和非必要算法后，仍留下能管理实体、事件、权限、通用状态和提交的最小运行时。
 
@@ -150,6 +150,8 @@ M6 实际收口：SDK 内部分组但保持根导出，未新增脚本 SDK／npm
 最小核心不加载官方模型、Core 记忆、默认 RP 或具体活动脚本，验证实体／事件／授权／通用状态操作及保存分支；非法调用者、非法效果、失效前缀与取消后提交必须拒绝。物理位置和物品归属仍来自已提交事实。
 
 默认 RP、狼人杀与 RPG 分别使用同一组公开机制。不能靠给核心重新塞一个“测试专用玩法分支”通过最小验收，也不能把会话能显示当成所有玩法已经可组合。
+
+M7 实际结果：审查修复状态脚本错误类别回归，并让核心拒绝与已提交托管矛盾的物理效果；最小核心、五种玩法组合、存档恢复、真实模型与发行验证分别记录，限制见 M7 记录。
 
 ## 6. 验证清单
 

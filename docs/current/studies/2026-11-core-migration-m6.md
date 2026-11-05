@@ -1,6 +1,6 @@
 # M6：作者契约与默认装配收口
 
-日期：2026-11-05；分支 `fix/activity-notice-and-revision`；上一批 M5 为 `91292dbf`。依据[迁移计划](../../superpowers/plans/2026-11-04-core-mechanisms-migration.md)与[统一规范](../architecture/plugin-standard.md)。本批完成 M6，M7 整体验收待实施。
+日期：2026-11-05；分支 `fix/activity-notice-and-revision`；上一批 M5 为 `91292dbf`。依据[迁移计划](../../superpowers/plans/2026-11-04-core-mechanisms-migration.md)与[统一规范](../architecture/plugin-standard.md)。本批完成 M6，整体验收见[M7 记录](2026-11-core-migration-m7.md)；M7 审查修复了 M3 引入的状态错误类别回归。
 
 例如作者给料理活动换一个状态解释器，透视起点校验和初始化也应使用它；开发者明确省略知识或长期记忆时，核心不能在下一轮或重生时把默认机制装回。本批处理这些具体装配问题，并把分散的身份、输入、权限、状态、失败与生命周期说明统一到[共同契约](../architecture/mechanism-contracts.md)。
 

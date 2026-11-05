@@ -1,4 +1,5 @@
 import type { ActivitiesInstance, ActivityInstance, ActivitySource } from '@harness-world/plugin-sdk'
+import { mechanismFailure } from './gameplay-services.ts'
 
 /** Copy calculation inputs and proposals; the mechanism never receives a live host state object. */
 export function guardedActivities(
@@ -20,10 +21,7 @@ export function guardedActivities(
       return structuredClone(work())
     } catch (cause) {
       report(providerId, key, cause)
-      const message = `活动机制 ${providerId}（${key}）执行失败：${cause instanceof Error ? cause.message : String(cause)}`
-      if (cause instanceof RangeError) throw new RangeError(message, { cause })
-      if (cause instanceof TypeError) throw new TypeError(message, { cause })
-      throw new Error(message, { cause })
+      throw mechanismFailure(`活动机制 ${providerId}（${key}）`, cause)
     }
   }
   const entries = instance.entries.map((entry): ActivityInstance => {
