@@ -68,4 +68,4 @@ gemini-3.8-flash 经本机 8045 网关，驱动 [m7-composition-live](../../../t
 - 官方机制仍然薄，这是有意的。
 - 通信、自主和知识没有动。
 - `world-runtime.ts` 其余部分没有拆，application 对 plugin-sdk 的类型依赖没有处理。
-- 按 AGENTS，本轮未请独立审查代理，只做了作者自查。
+- 本轮没有独立审查，只做了作者自查；作者自查比独立审查弱。
