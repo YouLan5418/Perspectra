@@ -28,6 +28,15 @@ import {
   activityStrings as strings,
   activityJson as json,
   parseActivityAutoStart,
+  abandonedActivity,
+  activityOutcomeObservations,
+  activityResultMetadata,
+  activityUpdatedEvent,
+  checkActivityRequest,
+  escapedActivity,
+  resumedActivity,
+  startedActivity,
+  suspendedActivity,
   actorWorldView,
   immediateActionDrafts,
   readActivityWorld,
@@ -232,21 +241,6 @@ export class ActivityRuntime {
         : { id: null, revision: 0 }),
     }
   }
-  #check(
-    state: ActivityState | undefined,
-    id: unknown,
-    revision: unknown,
-    actorId: string,
-  ): asserts state is ActivityState {
-    if (
-      !state?.game.active ||
-      state.id !== id ||
-      state.revision !== revision ||
-      !state.participants.includes(actorId)
-    ) {
-      throw new TypeError('活动请求已失效，请刷新；这次没有执行')
-    }
-  }
   projectContext(context: WorldJsonObject, canPerform: boolean): WorldJsonObject {
     const state = this.current(),
       actorId = String(object(context.character).characterId)
@@ -282,7 +276,7 @@ export class ActivityRuntime {
     if (anchor === undefined) {
       if (!request.continuation || state.game.active || ended?.id !== state.id || ended.lifecycle !== 'ended')
         return undefined
-    } else this.#check(state, object(anchor).id, object(anchor).revision, actor)
+    } else checkActivityRequest(state, object(anchor).id, object(anchor).revision, actor)
     const output = this.#mechanism.simulate(request)
     return output === null ? undefined : (output as WorldJsonValue)
   }
@@ -326,7 +320,7 @@ export class ActivityRuntime {
     const actor = String(object(request.context.character).characterId),
       snapshot = object(anchor),
       state = this.current()
-    this.#check(state, snapshot.id, snapshot.revision, actor)
+    checkActivityRequest(state, snapshot.id, snapshot.revision, actor)
     const policy = this.policy(state, actor)
     if (decision.decision === 'publish') {
       if (Object.keys(decision).some(k => !['decision', 'segments', 'scope', 'addresseeIds'].includes(k)))
@@ -381,7 +375,7 @@ export class ActivityRuntime {
       exact(definition, ['id', 'version'])
       const args = object(p.arguments),
         target = object(p.targetRef)
-      this.#check(state, args.activityId, args.revision, actor)
+      checkActivityRequest(state, args.activityId, args.revision, actor)
       if (
         p.bindingId !== state.id ||
         json(target) !== json({ kind: 'character', id: actor }) ||
@@ -531,11 +525,7 @@ export class ActivityRuntime {
     actionId: string,
     operation: string,
   ): WorldEventDraft {
-    return {
-      eventType: 'activity.updated',
-      eventVersion: 1,
-      data: { activityKey: this.key, state, description, actorId, actionId, operation },
-    }
+    return activityUpdatedEvent({ key: this.key, state, description, actorId, actionId, operation })
   }
   #worldView(
     manifest: CompiledWorldManifest,
@@ -578,27 +568,6 @@ export class ActivityRuntime {
       store.close()
     }
   }
-  #resultMetadata(state: ActivityState, operation: string): WorldJsonObject {
-    return {
-      activity: {
-        id: state.id,
-        revision: state.revision,
-        phase: state.game.phase,
-        round: state.game.round,
-        active: state.game.active,
-        lifecycle:
-          operation === 'suspend'
-            ? 'suspended'
-            : operation === 'resume'
-              ? 'resumed'
-              : operation === 'start'
-                ? 'started'
-                : state.game.active
-                  ? 'updated'
-                  : 'ended',
-      },
-    }
-  }
   executionResult = (input: Parameters<typeof characterExecutionResult>[0]) => {
     const parameters = object(input.action.parameters)
     if (String(object(parameters.definitionRef ?? {}).id).startsWith('activity:') && input.status === 'accepted') {
@@ -608,7 +577,7 @@ export class ActivityRuntime {
         return {
           status: 'accepted' as const,
           description: String(data.description),
-          observationMetadata: this.#resultMetadata(this.state([latest])!, String(data.operation)),
+          observationMetadata: activityResultMetadata(this.state([latest])!, String(data.operation)),
         }
       }
     }
@@ -651,26 +620,8 @@ export class ActivityRuntime {
     actionId: string,
     observerIds = state.participants,
     operation = state.revision === 1 ? 'start' : 'result',
-  ): WorldEventDraft[] {
-    return observerIds.map(observerId => ({
-      eventType: 'observation.upsert',
-      eventVersion: 1,
-      data: {
-        id: actionId + ':' + observerId,
-        value: {
-          observerId,
-          actionId,
-          epistemicKind: 'observed_action',
-          content: {
-            status: 'accepted',
-            actionType: 'interact',
-            actorId: actor,
-            resultDescription: description,
-            resultMetadata: this.#resultMetadata(state, operation),
-          },
-        },
-      },
-    }))
+  ): readonly WorldEventDraft[] {
+    return activityOutcomeObservations({ state, description, actorId: actor, actionId, observerIds, operation })
   }
   /** The author's start condition after a player round. Only reads truth and the player's authorized facts;
    * undefined when this script declares no condition, already runs, or holds paused progress for the player. */
@@ -776,9 +727,8 @@ export class ActivityRuntime {
             if (npcIds.some(id => !scene.observerIds.includes(brandId(id, 'CharacterId'))))
               throw new TypeError('需要与游戏参与者在同一场景')
             const participants = [this.playerId, ...npcIds]
-            state = {
+            state = startedActivity({
               id: 'activity:' + randomUUID(),
-              revision: 1,
               participants,
               game: this.#rules.game(
                 this.#initialize({
@@ -789,7 +739,7 @@ export class ActivityRuntime {
                 }),
                 participants,
               ),
-            }
+            })
             description = this.title + '开始。'
             observerIds = participants
             drafts = [this.#event(state, description, this.playerId, actionId, 'start')]
@@ -802,32 +752,16 @@ export class ActivityRuntime {
             )
               throw new TypeError('活动控制请求已失效')
             if (request.operation === 'suspend') {
-              this.#check(current, request.activityId, request.revision, this.playerId)
-              state = {
-                ...current,
-                revision: current.revision + 1,
-                suspendedTurn: current.game.turn!,
-                game: { ...current.game, active: false, turn: null },
-              }
+              checkActivityRequest(current, request.activityId, request.revision, this.playerId)
+              state = suspendedActivity(current)
               description = this.title + '已暂停，进度保留，恢复自由互动。'
             } else if (request.operation === 'abandon') {
-              if (current.suspendedTurn === undefined) throw new TypeError('只能放弃暂停中的活动')
-              const { suspendedTurn: _turn, ...saved } = current
-              state = {
-                ...saved,
-                revision: current.revision + 1,
-                game: { ...current.game, active: false, phase: 'host-aborted', turn: null },
-              }
+              state = abandonedActivity(current)
               description = this.title + '的暂停进度已放弃，已提交的经历仍保留。'
             } else {
               if (foreground || current.suspendedTurn === undefined)
                 throw new TypeError('请先暂停当前活动，或选择有暂停进度的活动')
-              const { suspendedTurn, ...saved } = current
-              state = {
-                ...saved,
-                revision: current.revision + 1,
-                game: { ...current.game, active: true, turn: suspendedTurn },
-              }
+              state = resumedActivity(current)
               const manifest = store.readManifest(this.address)!.manifest as CompiledWorldManifest
               const world = this.#worldView(manifest, events, this.playerId, head.headSeq)
               const rejection = this.#mechanism.resume(this.scoped(state, this.playerId), world)
@@ -854,7 +788,7 @@ export class ActivityRuntime {
             observerIds = [this.playerId]
             drafts = [this.#event(state, description, this.playerId, actionId, request.operation)]
           } else {
-            this.#check(current, request.activityId, request.revision, this.playerId)
+            checkActivityRequest(current, request.activityId, request.revision, this.playerId)
             if (request.operation === 'retry') {
               if (Object.keys(request.parameters).length) throw new TypeError('重试没有参数')
               retry = true
@@ -953,11 +887,7 @@ export class ActivityRuntime {
         ({ events }) => {
           const state = this.state(events)
           if (!state?.game.active) return
-          const next = {
-            ...state,
-            revision: state.revision + 1,
-            game: { ...state.game, active: false, phase: 'host-aborted', turn: null },
-          }
+          const next = escapedActivity(state)
           const description = '玩家使用宿主逃生按钮中止活动，已解除本活动的交互限制与调度。'
           return {
             events: [

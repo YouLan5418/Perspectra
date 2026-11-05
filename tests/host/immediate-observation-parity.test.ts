@@ -53,7 +53,8 @@ async function world() {
     events()
       .filter(e => e.eventType === 'character.speak')
       .map(e => e.data)
-  return { runtime, seenBy, lines }
+  const updates = () => events().filter(e => e.eventType === 'activity.updated').length
+  return { runtime, seenBy, lines, updates }
 }
 const move = (locationId: string) => `/act move ${JSON.stringify({ locationId })}`
 
@@ -92,4 +93,31 @@ it('a retried line during an activity is not said twice', async () => {
   await f.runtime.submit('我猜五十。', 'retry-line')
   await f.runtime.submit('我猜五十。', 'retry-line')
   expect(f.lines().filter(line => obj(line).text === '我猜五十。')).toHaveLength(1)
+})
+
+it('a retried activity operation runs once, and the same request cannot change its content', async () => {
+  const f = await world()
+  await f.runtime.activityAction({
+    activityKey: 'guess',
+    activityId: null,
+    revision: 0,
+    operation: 'start',
+    parameters: {},
+    requestId: 'op-start',
+  })
+  const game = obj((await f.runtime.state()).activities!.find(a => a.activityKey === 'guess'))
+  const request = {
+    activityKey: 'guess',
+    activityId: String(game.id),
+    revision: Number(game.revision),
+    operation: 'guess',
+    parameters: { value: 50 },
+    requestId: 'op-guess',
+  }
+  await f.runtime.activityAction(request)
+  const after = f.updates()
+  await f.runtime.activityAction(request)
+  expect(f.updates()).toBe(after)
+  await expect(f.runtime.activityAction({ ...request, parameters: { value: 60 } })).rejects.toThrow('不能改变内容')
+  expect(f.updates()).toBe(after)
 })
