@@ -57,7 +57,9 @@ export function immediateActionDrafts(input: {
     route === undefined
       ? []
       : scene.audienceForAction(address, actorId, after.events, after.asOfSeq).fullContentCharacterIds
-  const speech = result.events.find(event => event.eventType === 'character.speak')
+  // A line carried by an interaction, such as a scripted player line, has its own observations.
+  const speech =
+    action.actionType === 'speak' ? result.events.find(event => event.eventType === 'character.speak') : undefined
   const transfer = result.events.find(event => event.eventType === 'entity.transferred')
   const relations = characterRelationObservations(events, result.events)
   const observed = actionObservations({

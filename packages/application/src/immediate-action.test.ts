@@ -121,3 +121,15 @@ it('tells those left behind where the actor came from, and the actor the whole r
     toLocationId: 'location:next',
   })
 })
+
+it('does not repeat a line that an interaction carried with its own observations', () => {
+  const speak: WorldEventDraft = {
+    eventType: 'character.speak',
+    eventVersion: 1,
+    data: { characterId: PLAYER, text: '脚本替玩家说的话', scope: 'scene_public', addresseeIds: [] },
+  }
+  const scripted = observations(fixture()({ status: 'accepted', events: [speak] }))
+  expect(scripted.get(PLAYER)).not.toHaveProperty('speech')
+  const said = observations(fixture()({ status: 'accepted', events: [speak] }, 'speak', { text: '脚本替玩家说的话' }))
+  expect(said.get(NPC)?.speech).toEqual(speak.data)
+})
