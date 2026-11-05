@@ -6,7 +6,8 @@ import { afterEach, expect, it, vi } from 'vitest'
 import { startLensServer, type LensServer } from '../../desktop/lens/server.ts'
 import type { LensSnapshot } from '../../desktop/lens/session.ts'
 
-const SWEET = resolve('examples/world-packs/model-girls-sweet-days')
+import { sweetWithoutPacing } from '../support/sweet-without-pacing.ts'
+const SWEET = sweetWithoutPacing()
 const roots: string[] = []
 const servers: LensServer[] = []
 afterEach(async () => {

@@ -16,13 +16,14 @@ import { join, resolve } from 'node:path'
 import { afterEach, expect, it } from 'vitest'
 import type { WorldJsonObject } from '@harness-world/contracts'
 import { WorldStore } from '@harness-world/store-sqlite'
+import { sweetWithoutPacing } from '../support/sweet-without-pacing.ts'
 import { LensSimulation, sweepStaleLensCopies, type LensStart } from '../../desktop/lens/simulation.ts'
 import { applyScenario } from '../../desktop/lens/scenario.ts'
 import { startStubModel } from '../../desktop/lens/stub-model.ts'
 import { WorldHostRuntime } from '../../desktop/host/world-runtime.ts'
 import type { HostAction, HostState } from '../../desktop/host/http-server.ts'
 
-const PACK = resolve('examples/world-packs/model-girls-sweet-days')
+const PACK = sweetWithoutPacing()
 const PLAYER = 'character:player',
   DEEPSEEK = 'character:deepseek'
 const cleanups: (() => Promise<void> | void)[] = []

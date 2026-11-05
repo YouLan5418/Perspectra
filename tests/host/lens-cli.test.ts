@@ -6,7 +6,8 @@ import { afterEach, beforeAll, expect, it } from 'vitest'
 import { LensStore } from '../../desktop/lens/store.ts'
 import type { LensItem, LensView } from '../../desktop/lens/view.ts'
 
-const SOURCE = resolve('examples/world-packs/model-girls-sweet-days')
+import { sweetWithoutPacing } from '../support/sweet-without-pacing.ts'
+const SOURCE = sweetWithoutPacing()
 const CLI = resolve('desktop/lens/cli.ts')
 const roots: string[] = []
 afterEach(() => {

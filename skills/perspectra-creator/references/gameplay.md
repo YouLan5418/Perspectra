@@ -41,6 +41,16 @@ changes 是 `{ holderId, key, value }`，整体替换该键（公共状态 holde
 
 细节以目标程序附带的同版本说明或可运行源包为准；字段对不上时用 Launcher 新实例实际加载检查，不猜字段声称已接通。
 
+## 剧情节奏
+
+想控制事件疏密、让小事随时发生时，写 `scripts/pacing.js` 并登记进 assetFiles，定义 `globalThis.pacingScript = { definition, beats }`。definition 含 cycleRounds、chance、cooldownRounds（low/medium/high）、recoveryRounds，可选 stagnation、activities、beats；每个活动或节拍写 `{ intensity }`。未列入 activities 的活动照旧按 autoStart 发生并优先，序章和结局不要交给节奏。一轮最多发生一件事，手动开始不受冷却限制。
+
+节拍 `{ when(truth, world), apply(truth, world) }`：when 的格式同 autoStart 的条件，不要用随机；apply 返回 changes、reveals、notice（给玩家）、sceneNotice（给在场的人）、stimuli（只给被点名的角色）。world 比玩家视角多一张 places（每个角色的位置）。写了节拍的包必须有状态声明。节拍不能移动角色或物品。
+
+stimuli 每条 `{ characterId, kind: 'perception' | 'thought', text }`，最多 8 条，每条 1–500 字，对象不能是玩家。只写她察觉到什么、想起什么，不写她该怎么做：“你看见门缝里那张催租单”，不要写“请主动向屋主提起房租”。程序不判断文字是不是指令，写成指令角色就会照本宣科。文字不证明状态变化，要改数值写进 changes。
+
+推演结果每步带 `pacing`，`reason.why` 说明这轮为什么发生或没发生。完整说明见当前源码的 docs/current/guides/story-pacing.md。
+
 ## 角色自主与短信
 
 玩家不在身边时，可以让角色自己决定要不要行动。在 assetFiles 登记 `autonomy.json`：

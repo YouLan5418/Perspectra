@@ -41,6 +41,7 @@
     "scripts/activities/blackout-comfort.js",
     "scripts/activities/jealousy-moment.js",
     "scripts/activities/starlight-finale.js",
+    "scripts/pacing.js",
     "autonomy.json"
   ],
   "assertionFiles": [
