@@ -1,3 +1,4 @@
+import { createRoleplayCore } from '../support/roleplay-runtime.ts'
 import { afterEach, expect, it, vi } from 'vitest'
 import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
@@ -54,7 +55,7 @@ async function fixture(menu = false, kitchen = false, noCooker = false, extra: W
     timeoutMs: 1000,
     ...extra,
   }
-  const runtime = await WorldHostCore.create(options)
+  const runtime = await createRoleplayCore(options)
   runtimes.push(runtime)
   const events = () => {
     const store = new WorldStore(join(data, 'world.sqlite'))
@@ -137,7 +138,7 @@ it('atomically commits the scripted player question and cursor, hides its source
   await expect(f.runtime.perform(next.action)).rejects.toThrow('失效')
   const before = events.length
   await f.runtime.close()
-  const restored = await WorldHostCore.create(f.options)
+  const restored = await createRoleplayCore(f.options)
   runtimes.push(restored)
   expect(f.events()).toHaveLength(before)
   expect(((await restored.state()).activity!.game as WorldJsonObject).public).toMatchObject({ index: 8 })

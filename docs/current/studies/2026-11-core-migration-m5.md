@@ -17,7 +17,7 @@
 | [gameplay-services](../../../desktop/host/gameplay-services.ts) | 检查实例契约、复制输入和结果、归因机制异常；没有配置不能无声明安装通信或自主状态 |
 | [CommunicationRuntime](../../../desktop/host/communication-runtime.ts) | 绑定基础规则、真实输入与 executeWorldRound，保留手动入口的玩家绑定、观察和原子提交 |
 | [AutonomyRuntime](../../../desktop/host/autonomy-runtime.ts) | 从已提交事件／Authority 提取去重交易摘要，检查选中角色、生命周期、地点、行动与实际效果边界，将机会交现有调度器 |
-| [WorldGameplay](../../../desktop/host/world-gameplay.ts)／默认组合／Launcher | 接收选中实例并装配执行适配；不再读取配置或制造默认机制，模块页展示所选服务 |
+| [WorldGameplay](https://github.com/YouLan5418/Perspectra/blob/91292dbf/desktop/host/world-gameplay.ts)／默认组合／Launcher | 接收选中实例并装配执行适配；不再读取配置或制造默认机制，模块页展示所选服务 |
 
 旧 pack-communication.ts 与 pack-autonomy.ts 已删除，不保留并行生产实现。自主策略并入已有 official-scheduler 包，没有另建 scheduler 包或自主执行循环；ctx.autonomy 是配置／纯策略的独立选择，与 ctx.scheduler 的机会消耗分开。预算、动态并发、分段测量控制、角色续写均复用原路径。
 

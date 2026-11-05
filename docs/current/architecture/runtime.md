@@ -1,5 +1,7 @@
 # 当前运行时
 
+2026-11-05 M6：默认 RP 经 assembleRoleplay 明确选择，WorldHostCore 只接收完整组合；所选交互目录贯穿编译、规则和候选比较。WorldAdapters 不装配机制，透视起点和分享预检使用所选状态服务。见[共同契约](mechanism-contracts.md)和[M6 记录](../studies/2026-11-core-migration-m6.md)。
+
 2026-11-05 M5：例如后室同伴收到玩家短信后，自主处理自己的目标。通信选项与消息计算由 ctx.communication 提供，自主配置、触发频率和许可由 ctx.autonomy 提供；两者不直接提交事件。CommunicationRules 与执行适配绑定真实收发者，AutonomyRuntime 提取交易摘要并检查声明范围，机会继续交现有 scheduler／characterLoop。源码与验证边界见[M5 记录](../studies/2026-11-core-migration-m5.md)。
 
 2026-11-05 M4：例如猜数字与 RPG 战斗共用活动机制，各自保留包内脚本。`ctx.activities` 选择独立的解释器与候选策略；宿主 ActivityRuntime／ActivitiesRuntime 只准备授权输入并调用核心执行。参与者、private／internal 隔离、前台唯一性和随机回放继续受检查。旧活动 VM 已迁至 official-activities；源码、自动验证与体验限制见[M4 记录](../studies/2026-11-core-migration-m4.md)。
@@ -8,7 +10,7 @@
 
 2026-11-04 M2：例如玩家状态操作等待外部设备时关闭世界，返回结果必须丢弃。状态、活动和通信的即时提交现复用核心 [executeWorldRound](../../../packages/application/src/world-round-execution.ts)，负责绑定玩家、租约、前缀、取消与原子提交；各宿主适配保留业务和受众检查。物品效果检查迁入 application。WorldApplication 不再隐式安装基础交互包，桌面默认组合显式提供；最小入口与验证边界见[M2 记录](../studies/2026-11-core-migration-m2.md)。
 
-2026-11-04 M1：例如同行者听到“黑海岸”后收到相关设定，宿主先用 [knowledge-source](../../../desktop/host/knowledge-source.ts)验证配置资产，再把必要内容描述交给所选知识 Provider。`ctx.knowledge` 通过 Cordis 注册；默认组合在记忆之后、决策扩充之前打开它，knowledge context 步骤调用其 select。受众与条件筛选在 [official-knowledge](../../../packages/official-knowledge/src/selection.ts)，WorldGameplay 不再持有 PackKnowledge。候选世界独立 open/close，公开 identity 纳入重生环境比较。源码接通和最小启动探针不等于完整最小核心已完成，见[M0／M1 记录](../studies/2026-11-core-migration-m01.md)。
+2026-11-04 M1：例如同行者听到“黑海岸”后收到相关设定，宿主先用 [knowledge-source](../../../desktop/host/knowledge-source.ts)验证配置资产，再把必要内容描述交给所选知识 Provider。`ctx.knowledge` 通过 Cordis 注册；默认组合在记忆之后、决策扩充之前打开它，knowledge context 步骤调用其 select。受众与条件筛选在 [official-knowledge](../../../packages/official-knowledge/src/selection.ts)，WorldAdapters 不再持有 PackKnowledge。候选世界独立 open/close，公开 identity 纳入重生环境比较。源码接通和最小启动探针不等于完整最小核心已完成，见[M0／M1 记录](../studies/2026-11-core-migration-m01.md)。
 
 2026-11-04 阶段 11：例如服务消费者排在提供者之前，加载器会在装载结束后再次核对 Cordis 就绪状态，未执行的插件不记为生效。官方默认选择、决策顺序和世界打开顺序集中到 [official-bundle](../../../desktop/official-bundle.ts)；加载器通过公开 register／effect 填充空位，直接宿主复用同一组合策略。模型凭证工厂仍按世界装配。源码与限制见[阶段 11 记录](../studies/2026-11-plugin-first-phase-11.md)。
 
@@ -24,7 +26,7 @@
 
 以下有界与次序策略均描述官方调度器。第三方收到的玩家预算只作建议，也可忽略自主或活动机会；插件不返回仍可能使本轮卡住。单独的外部 `requestCharacter` 仍是显式角色请求，不属于自动机会分配。角色激活由核心 CharacterTurn 准备受控能力，循环算法已在阶段 10 经 ctx.characterLoop 开放替换。
 
-2026-11-03 规则层和内部拆分：例如开发者想让“上锁的房间”在所有世界都进不去，用 `ctx.rules` 包在核心规则外面，玩家和角色的发言、移动和核心互动都受约束；状态操作、活动操作和短信有自己的规则，不经过它。核心规则现在在一个世界实例里只有一个来源（[rule-layers.ts](../../../desktop/host/rule-layers.ts)）。世界包的玩法模块留在宿主内，由 [world-gameplay.ts](../../../desktop/host/world-gameplay.ts) 持有，不能作为整体替换，因为世界包脚本就是写给它们的。轮次、输入分发、投影和创作者查询已移出 `world-runtime.ts`，行为不变。写法见[增加世界规则](../guides/host-plugin-authoring.md#增加世界规则)。
+2026-11-03 规则层和内部拆分：例如开发者想让“上锁的房间”在所有世界都进不去，用 `ctx.rules` 包在核心规则外面，玩家和角色的发言、移动和核心互动都受约束；状态操作、活动操作和短信有自己的规则，不经过它。核心规则现在在一个世界实例里只有一个来源（[rule-layers.ts](../../../desktop/host/rule-layers.ts)）。世界包的玩法模块留在宿主内，由 [world-gameplay.ts](../../../desktop/host/world-adapters.ts) 持有，不能作为整体替换，因为世界包脚本就是写给它们的。轮次、输入分发、投影和创作者查询已移出 `world-runtime.ts`，行为不变。写法见[增加世界规则](../guides/host-plugin-authoring.md#增加世界规则)。
 
 2026-11-03 决策接缝：例如开发者想让角色走自己的本地模型，或在角色开口前加一段天气，可以用 `ctx.llm`、`ctx.decisions`。角色决策的公共部分在 [character-decision.ts](../../../desktop/host/character-decision.ts)，官方模型调用在 [official-llm](../../../packages/official-llm/src/index.ts)。官方组合下的模型请求与改动前逐字相同。写法见[替换模型通道](../guides/host-plugin-authoring.md#替换模型通道)。
 

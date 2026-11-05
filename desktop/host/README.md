@@ -7,7 +7,7 @@
 | 源码与发行共用的游戏入口 | [web-entry.ts](web-entry.ts) |
 | HTTP、认证与前端服务 | [http-server.ts](http-server.ts)、[frontend-server.ts](frontend-server.ts)、[creator-assets.ts](creator-assets.ts) |
 | 世界装配、角色激活与故事线 | [world-runtime.ts](world-runtime.ts)、[tail-runtime.ts](tail-runtime.ts) |
-| 世界包的玩法模块（活动、状态、自主、短信） | [world-gameplay.ts](world-gameplay.ts) 持有，[player-input.ts](player-input.ts) 分发输入，[gameplay-projection.ts](gameplay-projection.ts) 投影给玩家 |
+| 世界包的玩法模块（活动、状态、自主、短信） | [world-adapters.ts](world-adapters.ts) 持有，[player-input.ts](player-input.ts) 分发输入，[gameplay-projection.ts](gameplay-projection.ts) 投影给玩家 |
 | 设定知识素材适配（选择规则在 official-knowledge） | [knowledge-source.ts](knowledge-source.ts) 校验并提供数据，宿主通过 Cordis knowledge 实例选择 |
 | 活动资产、授权读取与执行适配（计算在 official-activities） | [activity-source.ts](activity-source.ts)、[activity-world.ts](activity-world.ts)、[activity-runtime.ts](activity-runtime.ts)、[activities-runtime.ts](activities-runtime.ts)，见[M4](../../docs/current/studies/2026-11-core-migration-m4.md) |
 | 通信／自主资产和执行适配（计算在官方机制） | [gameplay-source.ts](gameplay-source.ts)、[communication-runtime.ts](communication-runtime.ts)、[autonomy-runtime.ts](autonomy-runtime.ts)，核心检查在 application，见[M5](../../docs/current/studies/2026-11-core-migration-m5.md) |

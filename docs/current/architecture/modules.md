@@ -1,5 +1,7 @@
 # 目录与模块地图
 
+2026-11-05 M6：plugin-sdk 按职责拆成内部模块并保留根导出；WorldAdapters 只投影规则和上下文，原 WorldGameplay 装配已退出。默认 RP 位于 assembleRoleplay，显式组合的缺席机制不补回。见[共同契约](mechanism-contracts.md)与[M6 记录](../studies/2026-11-core-migration-m6.md)。
+
 2026-11-05 M5：新增 [official-communication](../../../packages/official-communication) 计算消息与选项；自主配置、频率与许可并入已有 official-scheduler，经独立 ctx.autonomy 注册。核心 CommunicationRules／autonomy-state 保留身份与权限边界，宿主负责执行和交易摘要。见[M5 记录](../studies/2026-11-core-migration-m5.md)。
 
 2026-11-05 M4：新增 [official-activities](../../../packages/official-activities)，通过 ctx.activities 解释活动脚本、选择前台与自动开始候选。核心 [ActivityStateRules](../../../packages/application/src/activity-state.ts)保留参与者与私有状态校验；宿主 activity-source／activity-world／ActivityRuntime／ActivitiesRuntime 负责资产、授权读取和执行适配。旧 pack-activity.ts／pack-activities.ts 已删除，见[M4 记录](../studies/2026-11-core-migration-m4.md)。
@@ -84,7 +86,7 @@
 | [interaction-runtime](../../../packages/interaction-runtime) | 注册交互能力、校验定义与结果 | [注册](../../../packages/interaction-runtime/src/registry.ts)、[校验](../../../packages/interaction-runtime/src/validation.ts) |
 | [interactions-basic](../../../packages/interactions-basic) | 牵手与松手的内置规则 | [基础定义](../../../packages/interactions-basic/src/basic.ts)仅有 `base:hold-hand`、`base:end-contact`，须由世界包显式绑定。拿／放／给与料理／修理由各包 `scripts/status.js` 定义，经[状态桥](../../../desktop/host/status-runtime.ts)裁定；旧物品规则与 home.ts、dinner.ts 已删除（2026-10-22） |
 | [frontend](../../../packages/frontend) | 公共玩家视图、客户端接口、默认情景舞台、本地阅读进度与可选语音／BGM 服务契约 | [公共数据](../../../packages/frontend/src/player-view.ts)、[客户端](../../../packages/frontend/src/client.ts)、[默认模板](../../../packages/frontend/src/default-template.ts)、[阅读游标](../../../packages/frontend/src/reading-playback.ts)、[语音接口](../../../packages/frontend/src/speech.ts)、[BGM 接口](../../../packages/frontend/src/bgm.ts)与[播放器](../../../packages/frontend/src/bgm-playback.ts) |
-| [plugin-sdk](../../../packages/plugin-sdk) | Cordis 宿主插件可依赖的服务类型、可替换模块的接缝类型、宿主 API 版本，以及插件清单与配置字段的格式 | [类型与版本](../../../packages/plugin-sdk/src/index.ts)；宿主的 [host-plugins.ts](../../../desktop/host-plugins.ts)、[host-capabilities.ts](../../../desktop/host-capabilities.ts) 实现这些接口。只有类型和版本比较，没有运行时服务；尚未发布到 npm |
+| [plugin-sdk](../../../packages/plugin-sdk) | Cordis 宿主插件可依赖的服务类型、可替换模块的接缝类型、宿主 API 版本，以及插件清单与配置字段的格式 | [根导出](../../../packages/plugin-sdk/src/index.ts)、[世界能力](../../../packages/plugin-sdk/src/world.ts)、[注册与清单](../../../packages/plugin-sdk/src/host.ts)、[版本](../../../packages/plugin-sdk/src/version.ts)，其余分组见[共同契约](mechanism-contracts.md)；宿主的 [host-plugins.ts](../../../desktop/host-plugins.ts)、[host-capabilities.ts](../../../desktop/host-capabilities.ts) 实现这些接口。只有类型和版本比较，没有运行时服务；尚未发布到 npm |
 | [agents](../../../packages/agents) | 玩家意图调用记录、共用库连接与历史玩家输入解析 | [导出入口](../../../packages/agents/src/index.ts)、[玩家调用记录](../../../packages/agents/src/player-intent-call.ts)、[连接](../../../packages/agents/src/context-database.ts)；旧 NPC Context、Reflection 和调用服务已移除，NPC 主循环在 application |
 | [presentation](../../../packages/presentation) | 把授权观察转成确定性的展示文本 | [Presenter](../../../packages/presentation/src/presenter.ts)；不是 Vue 界面或 NPC 决策器 |
 | [runtime-cordis](../../../packages/runtime-cordis) | Cordis 注册与分支资源生命周期 | [运行时](../../../packages/runtime-cordis/src/runtime.ts)；先了解游戏流程再读资源管理 |

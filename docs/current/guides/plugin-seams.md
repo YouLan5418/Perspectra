@@ -1,5 +1,7 @@
 # 插件能替换什么
 
+2026-11-05 M6：接口、输入权限、状态、错误和生命周期统一见[机制契约](../architecture/mechanism-contracts.md)。默认 RP 与显式组合分开，省略的可选机制不再被核心补回，API 仍为 2.8。
+
 2026-11-05 M5：API 2.8 新增 `ctx.communication` 和 `ctx.autonomy`；通信事实与自主行动仍经核心检查，机会调度继续使用既有 scheduler。见[M5 记录](../studies/2026-11-core-migration-m5.md)。
 
 2026-11-05 M4：API 2.7 新增 `ctx.activities`，活动计算与选择已独立；参与者、隐私、随机记录和提交仍由核心／宿主检查。见[M4 记录](../studies/2026-11-core-migration-m4.md)。

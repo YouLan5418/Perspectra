@@ -1,6 +1,7 @@
+import type { InteractionPackageImplementation } from '@harness-world/contracts'
 import { officialCommunicationProvider } from '@harness-world/official-communication'
 import { officialActivitiesProvider } from '@harness-world/official-activities'
-import { StatusScripts, officialStatusProvider } from '@harness-world/official-status'
+import { officialStatusProvider } from '@harness-world/official-status'
 import { createInstalledInteractionPackages } from '@harness-world/interactions-basic'
 export { composeDecisions, officialContextOrder } from '@harness-world/official-contexts'
 import { composeDecisions } from '@harness-world/official-contexts'
@@ -81,6 +82,24 @@ export interface HostSeams {
   readonly rules?: readonly SeamProvider<RulesInstance>[]
 }
 
+/** Explicit entry composition. An omitted optional mechanism stays absent in this selection. */
+export interface WorldComposition {
+  readonly interactionPackages: readonly InteractionPackageImplementation[]
+  readonly mechanisms: HostSeams
+  readonly modelChannel?: typeof composeModelChannel
+  readonly fallbackScheduler?: SeamProvider<SchedulerInstance>
+}
+
+/** The standard RP install chosen by desktop/Lens entry points, never by WorldHostCore. */
+export function assembleRoleplay(plugins: Partial<HostSeams> = {}): WorldComposition {
+  return {
+    interactionPackages: defaultInteractionPackages(),
+    mechanisms: composeWorldSeams(plugins),
+    modelChannel: composeModelChannel,
+    fallbackScheduler: officialSchedulerProvider,
+  }
+}
+
 /** The default bundle, and the only production file allowed to import `packages/official-*`. */
 export function officialSeams(): HostSeams {
   return { scheduler: officialSchedulerProvider, characterLoop: officialCharacterLoopProvider }
@@ -141,7 +160,3 @@ export function composeModelChannel(
 ) {
   return replacement ?? officialLlmProvider(options)
 }
-
-/** Explicit official interpretation for read-only creator/import preflight; game worlds use the registered service. */
-export const createDefaultStatusScripts = (source: import('@harness-world/plugin-sdk').StatusSource | undefined) =>
-  new StatusScripts(source)

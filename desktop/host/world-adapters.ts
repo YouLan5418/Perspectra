@@ -1,17 +1,10 @@
 import { isMessageAction } from '@harness-world/contracts'
-import type {
-  ActivitiesInstance,
-  AutonomyInstance,
-  AutonomySource,
-  CommunicationInstance,
-  MemoryRequest,
-} from '@harness-world/plugin-sdk'
+import type { MemoryRequest } from '@harness-world/plugin-sdk'
 import type { CharacterTurnRequest } from '@harness-world/application'
 import { characterExecutionResult } from '@harness-world/application'
 import type { CharacterId, WorldAddress, WorldJsonObject } from '@harness-world/contracts'
 import { RulebookRegistry, type RulebookResolution, type RulebookResolutionContext } from '@harness-world/kernel'
 import { WorldStore } from '@harness-world/store-sqlite'
-import type { CapabilitySession } from '../host-capabilities.ts'
 import { ActivitiesRuntime } from './activities-runtime.ts'
 import { AutonomyRuntime } from './autonomy-runtime.ts'
 import { CommunicationRuntime } from './communication-runtime.ts'
@@ -19,15 +12,8 @@ import type { PackModules } from './pack-modules.ts'
 import type { StatusRuntime } from './status-runtime.ts'
 import { KNOWN_STATUS_NOTE, publicStatusChanges } from '@harness-world/application'
 
-export interface LoadedPack {
-  readonly modules: PackModules | undefined
-  readonly status: StatusRuntime | undefined
-  readonly activities: ActivitiesInstance
-  readonly capabilities: CapabilitySession | undefined
-}
-
-/** Transitional host assembly of gameplay adapters; script computation is provided by mechanisms. */
-export class WorldGameplay {
+/** Host rule and context projections over already assembled execution adapters. No mechanism selection. */
+export class WorldAdapters {
   activity: ActivitiesRuntime | undefined
   modules: PackModules | undefined
   autonomy: AutonomyRuntime | undefined
@@ -42,53 +28,6 @@ export class WorldGameplay {
       readonly coreRules: () => RulebookRegistry
     },
   ) {}
-
-  /** What has to exist before the world is activated. */
-  prepare(
-    communication: CommunicationInstance,
-    autonomy: AutonomyInstance,
-    source: AutonomySource | undefined,
-    manifest: ConstructorParameters<typeof CommunicationRuntime>[1],
-  ): void {
-    this.autonomy = source === undefined ? undefined : new AutonomyRuntime(autonomy, source, this.world.playerId)
-    this.communication =
-      communication.definition === undefined
-        ? undefined
-        : new CommunicationRuntime(
-            communication,
-            manifest,
-            this.world.coreRules().resolve('builtin:speak-move', 2, 'communication', this.world.address),
-          )
-  }
-
-  /** The rest, once the world is active. */
-  async load(input: LoadedPack): Promise<void> {
-    const { modules } = input
-    this.status = input.status
-    if (modules) {
-      modules.bind(this.status!, input.capabilities!)
-      this.status!.externalActions = modules
-    }
-    await this.status?.ensureInitial(this.world.worldPath, this.world.address, this.world.playerId)
-    this.activity = ActivitiesRuntime.open(
-      input.activities,
-      this.world.worldPath,
-      this.world.address,
-      this.world.playerId,
-      this.status,
-      this.world.coreRules(),
-    )
-    if (modules)
-      this.activity?.setActionResolver((context, adjudicate) =>
-        modules.resolveAction(
-          context,
-          this.world.worldPath,
-          this.world.address,
-          AbortSignal.any([AbortSignal.timeout(10000), this.activity!.signal]),
-          adjudicate,
-        ),
-      )
-  }
 
   /** Resolver chain: core, then the pack's SMS, then status operations, then the running activity's permissions. */
   rulebooks(worldPath: string): RulebookRegistry {

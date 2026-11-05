@@ -11,7 +11,7 @@
 | `ctx.rules` | 新增，可叠加，包在核心规则外面，宿主 API 升到 `1.4` |
 | 核心规则来源 | 以前玩家、角色和活动各建一份，现在一个世界实例只有一份（[rule-layers.ts](../../../desktop/host/rule-layers.ts)）。只包角色那一份的话，玩家还是走得进上锁的房间 |
 | 拒绝说明 | `reason` 以 `plugin:` 开头时原样读给玩家和角色 |
-| 玩法模块 | 由 [world-gameplay.ts](../../../desktop/host/world-gameplay.ts) 持有，每个世界实例一个，留在宿主内 |
+| 玩法模块 | 由 [world-gameplay.ts](https://github.com/YouLan5418/Perspectra/blob/91292dbf/desktop/host/world-gameplay.ts) 持有，每个世界实例一个，留在宿主内 |
 | 拆出的文件 | `activity-round`、`autonomy-round`、`round-notices`、`player-input`、`gameplay-projection`、`creator-queries` |
 | 没做的 | `ctx.gameplay` 和 `official-gameplay`，原因见摸底记录 |
 

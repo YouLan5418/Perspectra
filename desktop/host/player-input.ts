@@ -2,7 +2,7 @@ import { WriterLeaseService } from '@harness-world/store-sqlite'
 import { WorldStore } from '@harness-world/store-sqlite'
 import type { CharacterId, WorldAddress, WorldJsonObject } from '@harness-world/contracts'
 import type { RoundStatus } from './round-notices.ts'
-import type { WorldGameplay } from './world-gameplay.ts'
+import type { WorldAdapters } from './world-adapters.ts'
 
 export interface GameplayInputOutcome {
   readonly accepted: boolean
@@ -23,12 +23,12 @@ function statusCommand(text: string): { operation: string; targetId?: string; pa
 /** Input that belongs to the pack's modules: anything during an activity, messages and status commands. Anything else
  * returns undefined and goes to the world as ordinary player input. */
 export async function routeGameplayInput(input: {
-  readonly gameplay: WorldGameplay
+  readonly gameplay: WorldAdapters
   readonly status: RoundStatus
   readonly worldPath: string
   readonly address: WorldAddress
   readonly playerId: CharacterId
-  readonly manifest: Parameters<NonNullable<WorldGameplay['communication']>['send']>[0]['manifest']
+  readonly manifest: Parameters<NonNullable<WorldAdapters['communication']>['send']>[0]['manifest']
   readonly publicationCharacters: number
   readonly text: string
   readonly key: string

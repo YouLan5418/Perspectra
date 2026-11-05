@@ -1,5 +1,7 @@
 # 编写并加载自己的 Cordis 宿主插件
 
+2026-11-05 M6：先按[共同契约](../architecture/mechanism-contracts.md)区分核心、内部机制、包内脚本与交付适配。API 仍为 2.8，SDK 根导出不变，不导入内部文件作为未发布子路径。显式组合、透视与分享选择见[装配说明](../architecture/mechanism-contracts.md#5-默认组合与显式停用)。
+
 ## 替换通信与自主策略（2.8）
 
 例如后室角色收到短信后主动整理工作：`ctx.communication` 计算消息选项和文本，`ctx.autonomy` 解释自主配置、频率和许可，既有 `ctx.scheduler`／`ctx.characterLoop` 消费机会。两个新槽位分别用 `ctx.effect(() => ctx.communication.register(provider))` 和 `ctx.effect(() => ctx.autonomy.register(provider))` 注册；清单 services 写相应名称，模块 `hostApi = '2.8'`。2.0～2.7 插件仍可加载。

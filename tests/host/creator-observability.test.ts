@@ -1,3 +1,4 @@
+import { createRoleplayCore } from '../support/roleplay-runtime.ts'
 import { afterEach, expect, it } from 'vitest'
 import { once } from 'node:events'
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
@@ -5,7 +6,7 @@ import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import type { AddressInfo } from 'node:net'
 import { randomUUID } from 'node:crypto'
-import { WorldHostCore, type WorldHostOptions } from '../../desktop/host/world-runtime.ts'
+import { type WorldHostOptions } from '../../desktop/host/world-runtime.ts'
 import { createHostServer } from '../../desktop/host/http-server.ts'
 import { CreatorRecords } from '../../desktop/host/creator-records.ts'
 import { RequestInspector } from '../../packages/provider-chat/src/request-inspector.ts'
@@ -55,7 +56,7 @@ async function fixture(extra: Partial<WorldHostOptions> = {}) {
     ),
     ...extra,
   }
-  const runtime = await WorldHostCore.create(options)
+  const runtime = await createRoleplayCore(options)
   cleanups.push(() => runtime.close())
   return { root, runtime, options }
 }
@@ -108,13 +109,13 @@ it('keeps complete captured requests after recent-call eviction, disable and res
   runtime.requestInspection(false)
   expect(runtime.creatorRecords({ kind: 'request' }).total).toBe(page.total)
   await runtime.close()
-  const restored = await WorldHostCore.create({ ...options, dataDirectory: root })
+  const restored = await createRoleplayCore({ ...options, dataDirectory: root })
   cleanups.push(() => restored.close())
   expect(restored.requestInspection().enabled).toBe(false)
   expect(restored.creatorRecords({ recordId: captured.id }).record).toEqual(captured)
   restored.requestInspection(true)
   await restored.close()
-  const enabled = await WorldHostCore.create(options)
+  const enabled = await createRoleplayCore(options)
   cleanups.push(() => enabled.close())
   expect(enabled.requestInspection().enabled).toBe(true)
 })

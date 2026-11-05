@@ -1,3 +1,4 @@
+import { createRoleplayCore } from '../support/roleplay-runtime.ts'
 import { type Server } from 'node:http'
 import { afterEach, expect, it } from 'vitest'
 import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
@@ -7,7 +8,6 @@ import { interactionPackageDescription, type WorldJsonObject } from '@harness-wo
 import { createInstalledInteractionPackages } from '@harness-world/interactions-basic'
 import { compileWorldPackSource } from '@harness-world/world-pack'
 import { WorldStore } from '@harness-world/store-sqlite'
-import { WorldHostCore } from '../../desktop/host/world-runtime.ts'
 import { loadStatus } from '../support/status-runtime.ts'
 import { createChatServer, fakeModels } from '../support/fake-provider.ts'
 
@@ -114,7 +114,7 @@ async function fixture() {
   })
   cleanup.push(() => new Promise<void>(done => (server.closeAllConnections(), server.close(() => done()))))
   await new Promise<void>(done => server.listen(0, '127.0.0.1', done))
-  const runtime = await WorldHostCore.create({
+  const runtime = await createRoleplayCore({
     packPath: pack,
     dataDirectory: data,
     models: fakeModels(

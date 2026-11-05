@@ -28,7 +28,7 @@
 | 知识 | WorldGameplay、contextSources.knowledge、官方／focused-knowledge 决策步骤 | 已能替换材料选择步骤；没有替换知识存储与包协议的实际需求 |
 | 自主配置 | PackAutonomy、机会桥、scheduler 与行动限制 | 已能替换机会策略；没有替换作者配置协议的实际需求 |
 
-依据[WorldGameplay](../../../desktop/host/world-gameplay.ts)及已有示例核对。本轮交付默认组合与依赖诊断；没有迁出这些玩法，不宣称整个默认游戏的玩法已全部插件化。未来每迁一项仍需实际替代者、兼容范围和独立验收。
+依据[WorldGameplay](https://github.com/YouLan5418/Perspectra/blob/91292dbf/desktop/host/world-gameplay.ts)及已有示例核对。本轮交付默认组合与依赖诊断；没有迁出这些玩法，不宣称整个默认游戏的玩法已全部插件化。未来每迁一项仍需实际替代者、兼容范围和独立验收。
 
 ## 验证
 

@@ -1,13 +1,13 @@
+import { createRoleplayCore } from '../support/roleplay-runtime.ts'
 import assert from 'node:assert/strict'
 import type { WorldJsonObject } from '@harness-world/contracts'
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
-import { WorldHostCore } from '../../desktop/host/world-runtime.ts'
 import { WorldStore } from '@harness-world/store-sqlite'
 import { projectPlayerView } from '../../desktop/host/frontend-adapter.ts'
 import { environmentRoleModels } from '../../desktop/model-connections.ts'
 const root=resolve('.tmp/official-demo-'+Date.now());mkdirSync(root,{recursive:true})
-const runtime=await WorldHostCore.create({models: environmentRoleModels({ PERSPECTRA_MODEL_ENDPOINT: 'http://127.0.0.1:1/api/chat', PERSPECTRA_MODEL: 'unused' }),packPath:resolve('examples/world-packs/model-girls-official'),dataDirectory:root,timeoutMs:1000})
+const runtime=await createRoleplayCore({models: environmentRoleModels({ PERSPECTRA_MODEL_ENDPOINT: 'http://127.0.0.1:1/api/chat', PERSPECTRA_MODEL: 'unused' }),packPath:resolve('examples/world-packs/model-girls-official'),dataDirectory:root,timeoutMs:1000})
 try{
  let state=await runtime.state();const start=projectPlayerView(state).actions.find(a=>a.label.startsWith('开始 '));
  assert.ok(start);state=await runtime.perform(start.action);

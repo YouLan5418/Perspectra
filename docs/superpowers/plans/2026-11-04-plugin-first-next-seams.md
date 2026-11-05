@@ -25,7 +25,7 @@
 | [决策准备](../../../desktop/host/world-runtime.ts)先固定执行记忆、状态、知识、表情，再执行第三方 context | 插件可以追加内容，难以替换或重排官方扩充步骤 | 阶段 8：组合官方决策步骤 |
 | [官方模型通道](../../../packages/official-llm/src/index.ts)同时负责预设和发送 | 只想换发送方式，也必须接管预设和显示处理 | 阶段 9：分离发送适配器 |
 | [CharacterTurn](../../../packages/application/src/character-turn.ts)同时包含循环策略与授权、裁定、提交 | 直接搬到插件会把主干检查一起搬走；单纯代理 run 也不能算开放执行循环 | 阶段 10：先分离执行能力，再开放循环 |
-| [WorldGameplay](../../../desktop/host/world-gameplay.ts)认识固定的状态、活动、通信等实现 | 默认游戏还不能完全由服务组合装配 | 阶段 11：在具体使用场景下逐项迁移 |
+| [WorldGameplay](https://github.com/YouLan5418/Perspectra/blob/91292dbf/desktop/host/world-gameplay.ts)认识固定的状态、活动、通信等实现 | 默认游戏还不能完全由服务组合装配 | 阶段 11：在具体使用场景下逐项迁移 |
 
 前 3 项来自本轮审查的本机复现，其余来自源码调用关系。当前已有的自动测试和历史真实模型对比只能说明对应版本、场景的结果，不能代替后续重构验收。
 
@@ -167,7 +167,7 @@ identity 是插件作者明确声明的可公开、会影响执行行为的设�
 - [x] 第三方示例替换一项知识扩充，在保留其余官方步骤的情况下改变可见材料，并证明其他角色的私有状态没有进入请求。
 - [x] context／decide 失败仍报告对应实现，玩家输入和已提交行动保留；候选和关闭生命周期无新增全局状态。
 
-主要影响：[world-runtime](../../../desktop/host/world-runtime.ts)、[world-gameplay](../../../desktop/host/world-gameplay.ts)、[character-decision](../../../desktop/host/character-decision.ts)、[official-bundle](../../../desktop/official-bundle.ts)、[决策接缝测试](../../../tests/host/decision-seam.test.ts)、plugin-sdk 与新增的官方扩充包。
+主要影响：[world-runtime](../../../desktop/host/world-runtime.ts)、[world-gameplay](https://github.com/YouLan5418/Perspectra/blob/91292dbf/desktop/host/world-gameplay.ts)、[character-decision](../../../desktop/host/character-decision.ts)、[official-bundle](../../../desktop/official-bundle.ts)、[决策接缝测试](../../../tests/host/decision-seam.test.ts)、plugin-sdk 与新增的官方扩充包。
 
 完成条件：宿主不再手写官方扩充调用顺序；开发者替换一个步骤不需要接管整条决策。模块地图和认知、作者文档据实际能力更新。
 

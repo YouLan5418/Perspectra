@@ -1,3 +1,4 @@
+import { createRoleplayCore } from '../support/roleplay-runtime.ts'
 import { type Server } from 'node:http'
 import { afterEach, expect, it } from 'vitest'
 import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
@@ -121,7 +122,7 @@ async function fixture(
   servers.push(server)
   await new Promise<void>(done => server.listen(0, '127.0.0.1', done))
   const port = (server.address() as { port: number }).port
-  const runtime = await WorldHostCore.create({
+  const runtime = await createRoleplayCore({
     packPath: pack,
     dataDirectory: data,
     models: fakeModels('http://127.0.0.1:' + port + '/v1/chat/completions', 'openai', 'fixture'),

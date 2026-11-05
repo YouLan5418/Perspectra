@@ -14,7 +14,6 @@ import {
 } from '../tail-storage.ts'
 import { canonicalizeWorldJson, interactionPackageDescription, type WorldJsonObject } from '@harness-world/contracts'
 import type { SeamProvider } from '@harness-world/plugin-sdk'
-import { createInstalledInteractionPackages } from '@harness-world/interactions-basic'
 import { compileWorldPackSource } from '@harness-world/world-pack'
 import { actionText, HostBusyError, isWait, type HostAction, type HostState, type PlayerLine } from './http-server.ts'
 import type { WorldHostOptions, WorldHostCore } from './world-runtime.ts'
@@ -205,7 +204,7 @@ export class TailRoundRuntime {
   async #environment(): Promise<string> {
     const pack = await compileWorldPackSource(
       resolve(this.options.packPath),
-      createInstalledInteractionPackages().map(interactionPackageDescription),
+      this.options.composition!.interactionPackages.map(interactionPackageDescription),
     )
     if (pack.packHash !== this.#runtime.packHash) throw new TypeError('世界包环境已改变，请结束并重新启动。')
     if (tailRuntimeIdentity() !== loadedRuntimeIdentity) throw new TypeError('运行代码已改变，请结束并重新启动。')
@@ -226,7 +225,7 @@ export class TailRoundRuntime {
       executable: loadedRuntimeIdentity,
       packHash: pack.packHash,
       assets: pack.assets,
-      interaction: createInstalledInteractionPackages().map(interactionPackageDescription),
+      interaction: this.options.composition!.interactionPackages.map(interactionPackageDescription),
       models: {
         default: role(this.options.models.default),
         characters: Object.fromEntries(Object.entries(this.options.models.characters).map(([id, r]) => [id, role(r)])),

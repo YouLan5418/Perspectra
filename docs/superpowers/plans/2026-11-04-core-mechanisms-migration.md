@@ -1,6 +1,6 @@
 # 核心、Cordis 机制与脚本玩法迁移计划
 
-日期：2026-11-04。探查基线：`a924513e`，分支 `fix/activity-notice-and-revision`。依据[统一规范](../../current/architecture/plugin-standard.md)。状态：**M0～M5 已实施，M6～M7 待实施**。本计划保留探查基线时的源码判断；当前成果与测试证据见[M0／M1 记录](../../current/studies/2026-11-core-migration-m01.md)、[M2 记录](../../current/studies/2026-11-core-migration-m2.md)、[M3 记录](../../current/studies/2026-11-core-migration-m3.md)、[M4 记录](../../current/studies/2026-11-core-migration-m4.md)与[M5 记录](../../current/studies/2026-11-core-migration-m5.md)。未注明完成的目录与能力仍为实施目标。
+日期：2026-11-04。探查基线：`a924513e`，分支 `fix/activity-notice-and-revision`。依据[统一规范](../../current/architecture/plugin-standard.md)。状态：**M0～M6 已实施，M7 待实施**。本计划保留探查基线时的源码判断；当前成果与测试证据见[M0／M1 记录](../../current/studies/2026-11-core-migration-m01.md)、[M2 记录](../../current/studies/2026-11-core-migration-m2.md)、[M3 记录](../../current/studies/2026-11-core-migration-m3.md)、[M4 记录](../../current/studies/2026-11-core-migration-m4.md)、[M5 记录](../../current/studies/2026-11-core-migration-m5.md)与[M6 记录](../../current/studies/2026-11-core-migration-m6.md)。未注明完成的目录与能力仍为实施目标。
 
 例如料理比赛和 RPG 战斗可以共同使用状态、活动与交互机制，各自提供脚本规则；核心只确认调用者、授权范围和合法效果，并保存完整事实。移除这些玩法和非必要算法后，仍留下能管理实体、事件、权限、通用状态和提交的最小运行时。
 
@@ -13,7 +13,7 @@
 | 源码证据 | 已确认的耦合／可复用点 | 迁移判断 |
 | --- | --- | --- |
 | [world-runtime.ts](../../../desktop/host/world-runtime.ts)，1941 行，create、构造函数、endPlayerRound、turnFactory | 同时持有模型、游戏包编译、具体玩法、角色激活、节点与玩家投影；固定地装配 PackModules 和基础交互包 | 保留宿主运行／交付，逐项退出具体机制选择与玩法调用 |
-| [world-gameplay.ts](../../../desktop/host/world-gameplay.ts)，185 行 | 聚合状态、活动、通信、知识、自主；固定 `builtin:speak-move` 包装链；statusContext 自己打开数据库 | 过渡装配点，不升级为包含全部方法的公共 ctx.gameplay |
+| [world-gameplay.ts](https://github.com/YouLan5418/Perspectra/blob/91292dbf/desktop/host/world-gameplay.ts)，185 行 | 聚合状态、活动、通信、知识、自主；固定 `builtin:speak-move` 包装链；statusContext 自己打开数据库 | 过渡装配点，不升级为包含全部方法的公共 ctx.gameplay |
 | [pack-status.ts](https://github.com/YouLan5418/Perspectra/blob/a924513e/desktop/host/pack-status.ts)，1326 行，adjudicate、itemEvents、commitRound、apply、endRound | Schema、VM、规则、物品合法性、观察与独立写租约／提交在同一类；活动通过 activityEvent 复用状态变化 | 先区分核心检查与效果提交，再抽状态脚本机制；不能直接移动整类 |
 | [pack-activity.ts](https://github.com/YouLan5418/Perspectra/blob/a924513e/desktop/host/pack-activity.ts)，1525 行，apply、state、rulebooks、autoStartCandidate | 活动协议、public／private／internal、参与者、规则、VM、存储与开始／暂停等提交混合 | 活动计算迁机制，提交与授权边界留核心；旧脚本语义先保持 |
 | [pack-activities.ts](https://github.com/YouLan5418/Perspectra/blob/a924513e/desktop/host/pack-activities.ts)，379 行 | 资产发现、前台活动选择、快照缓存、自动开始和默认核心规则回退 | 活动目录／选择迁机制；默认规则与数据读取改为显式注入 |
@@ -142,6 +142,8 @@ M5 实际切分：通信选项、参数和消息计算进入 official-communicat
 - 随实际依赖调整[生产边界检查](../../../scripts/check-host-boundaries.mjs)和[对应测试](../../../tests/host/boundaries.test.ts)：核心不导入具体官方机制，机制不运行时导入宿主／数据库私有实现，脚本不依赖原生 SDK。不能为了把旧类移进 official-* 而直接放宽禁止项；例外必须说明真实职责并缩小到具体能力。
 - examples/world-packs 承载玩法和内容，examples/host-plugins 承载原生适配示例。迁移已存在源码时同步改相关测试、Skill 和导航，不强制建立尚无装载需求的新安装目录。
 - 将默认基础交互、模型、记忆、活动等组成明确的默认 RP 组合；核心入口不再自动补具体玩法。必要机制缺失时明确失败，可选机制停用后不补回。
+
+M6 实际收口：SDK 内部分组但保持根导出，未新增脚本 SDK／npm 子路径或版本。assembleRoleplay 显式选择默认 RP，WorldHostCore 接收完整组合，WorldAdapters 不再装配机制；缺席可选机制不补回，必要机制缺失报错。Lens 起点初始化和分享声明预检均经所选状态 Provider 与同一核心校验。作者格式不变，CLI／发布脚本仍消费公共安装契约；强化生产与作者脚本静态边界。共同契约、测试和发行限制见 M6 记录。
 
 ### M7：按目标验收，不按包数验收
 
