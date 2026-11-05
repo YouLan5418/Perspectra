@@ -28,6 +28,12 @@ import {
   activityStrings as strings,
   activityJson as json,
   parseActivityAutoStart,
+  activityOperationOptions,
+  checkActivityExpression,
+  filterActivityAffordances,
+  parseActivityOperationResult,
+  parseActivityPlan,
+  validateActivityDecision,
   abandonedActivity,
   activityOutcomeObservations,
   activityResultMetadata,
@@ -51,35 +57,16 @@ import {
   type CompiledWorldManifest,
 } from '@harness-world/kernel'
 import type { StatusRuntime } from './status-runtime.ts'
+/** What the catalog lends each activity: one round's random sequence, the live committed prefix and its lifetime. */
+export interface ActivityBindings {
+  readonly randomSource: () => number
+  readonly readCurrent: () => ActivityState | undefined
+  readonly signal?: AbortSignal
+}
 /** Authorizes activity inputs and checks proposals before the existing core execution path. */
 export class ActivityRuntime {
-  #currentState: { headSeq: number; state: ActivityState | undefined } | undefined
-  /** The catalog owns the live-prefix cache; standalone activities retain their local reader. */
-  readCurrent: (() => ActivityState | undefined) | undefined
-  #randomValues: number[] = []
-  #randomReplay: readonly number[] | undefined
-  #randomCursor = 0
-  beginRoundRandom(values?: readonly number[]): void {
-    this.#randomValues = []
-    this.#randomReplay = values
-    this.#randomCursor = 0
-  }
-  roundRandom(): number[] {
-    return [...this.#randomValues]
-  }
-  /** Set by ActivitiesRuntime so all scripts of one pack record into a single round sequence. */
-  randomSource: (() => number) | undefined
-  #initialRandom(): number {
-    if (this.randomSource !== undefined) return this.randomSource()
-    const value = this.#randomReplay === undefined ? Math.random() : this.#randomReplay[this.#randomCursor]
-    if (value === undefined) throw new TypeError('活动初始化随机记录不足。')
-    this.#randomCursor++
-    this.#randomValues.push(value)
-    return value
-  }
   readonly #mechanism: ActivityInstance
   readonly #rules: ActivityStateRules
-  signal: AbortSignal | undefined
   resolveAction:
     | ((
         context: RulebookResolutionContext,
@@ -105,6 +92,10 @@ export class ActivityRuntime {
   get operationLabels(): readonly { readonly id: string; readonly label: string }[] {
     return this.#rules.operations.map(op => ({ id: op.id, label: op.label }))
   }
+  readonly #bindings: ActivityBindings
+  get signal(): AbortSignal | undefined {
+    return this.#bindings.signal
+  }
   constructor(
     mechanism: ActivityInstance,
     readonly worldPath: string,
@@ -113,11 +104,11 @@ export class ActivityRuntime {
     readonly key: string,
     readonly status: StatusRuntime | undefined,
     readonly coreRules: RulebookRegistry,
+    bindings: ActivityBindings,
   ) {
     this.#mechanism = mechanism
+    this.#bindings = bindings
     this.#rules = new ActivityStateRules(mechanism.definition, playerId, key)
-    // Validate restored committed state without publishing internal/private game data.
-    this.current()
   }
   state(events: readonly RulebookEvent[]) {
     return this.#rules.state(events)
@@ -127,28 +118,15 @@ export class ActivityRuntime {
     try {
       return this.#mechanism.initialize(input, () => {
         if (!active) throw new Error('Activity random capability has ended')
-        return this.#initialRandom()
+        return this.#bindings.randomSource()
       })
     } finally {
       active = false
     }
   }
   current(): ActivityState | undefined {
-    if (this.readCurrent) return structuredClone(this.readCurrent())
-    const store = new WorldStore(this.worldPath)
-    try {
-      const headSeq = store.head(this.address).headSeq
-      if (this.#currentState?.headSeq !== headSeq) {
-        // Activity state only depends on activity.updated. Reuse one validated prefix,
-        // and check the live head on every read, including after a failed publication.
-        const state = this.state(store.readEventsRange(this.address, 0, headSeq, ['activity.updated']))
-        this.#currentState = { headSeq, state }
-      }
-      // Callers and creator hooks must not mutate the cached committed state.
-      return structuredClone(this.#currentState.state)
-    } finally {
-      store.close()
-    }
+    // Callers and creator hooks must not mutate the cached committed state.
+    return structuredClone(this.#bindings.readCurrent())
   }
   scoped(state: ActivityState, actorId: string): WorldJsonObject {
     return this.#rules.scoped(state, actorId)
@@ -157,25 +135,7 @@ export class ActivityRuntime {
     return this.#rules.policy(this.#mechanism.policy(this.scoped(state, actorId), actorId))
   }
   options(state: ActivityState, actorId: string): WorldJsonObject[] {
-    const policy = this.policy(state, actorId)
-    return this.#rules.operations
-      .filter(op => policy.operations.includes(op.id) && (!op.requiresTurn || state.game.turn === actorId))
-      .map(op => ({
-        label: op.label,
-        targetRef: { kind: 'character', id: actorId },
-        bindingId: state.id,
-        definitionRef: { id: 'activity:' + op.id, version: 1 },
-        arguments: { activityId: state.id, revision: state.revision },
-        argumentSchema: {
-          ...op.schema,
-          required: ['activityId', 'revision', ...((op.schema.required as string[]) ?? [])],
-          properties: {
-            ...object(op.schema.properties ?? {}),
-            activityId: { const: state.id, type: 'string' },
-            revision: { const: state.revision, type: 'integer' },
-          },
-        },
-      }))
+    return activityOperationOptions(state, this.policy(state, actorId), this.#rules.operations, actorId)
   }
   /**
    * `shared.state` is this activity's committed state from a prefix the caller already read. `shared.world` lends
@@ -286,33 +246,12 @@ export class ActivityRuntime {
     actorId: string,
     canPerform = true,
   ): ActionAffordance[] {
-    const policy = this.policy(state, actorId)
-    const result: ActionAffordance[] = base.flatMap(a =>
-      a.actionType === 'move'
-        ? policy.move && canPerform
-          ? [a]
-          : []
-        : a.actionType === 'interact'
-          ? [
-              {
-                ...a,
-                interactions: canPerform
-                  ? (a.interactions ?? []).filter(i => policy.interactions.includes(String(object(i.definitionRef).id)))
-                  : [],
-              },
-            ]
-          : a.actionType === 'speak' && (policy.speech !== 'none' || policy.narration)
-            ? [a]
-            : [],
+    return filterActivityAffordances(
+      base,
+      this.policy(state, actorId),
+      canPerform ? this.options(state, actorId) : [],
+      canPerform,
     )
-    const choices = canPerform ? this.options(state, actorId) : []
-    if (choices.length) result.push({ actionType: 'interact', actionVersion: 2, interactions: choices })
-    // One interact entry: wire builders intentionally select a single affordance per action type.
-    const interactions = result.filter(a => a.actionType === 'interact').flatMap(a => a.interactions ?? [])
-    return [
-      ...result.filter(a => a.actionType !== 'interact'),
-      ...(interactions.length ? [{ actionType: 'interact', actionVersion: 2, interactions }] : []),
-    ]
   }
   validateDecision(decision: WorldJsonObject, request: CharacterTurnRequest): void {
     const anchor = request.context.activity
@@ -321,28 +260,7 @@ export class ActivityRuntime {
       snapshot = object(anchor),
       state = this.current()
     checkActivityRequest(state, snapshot.id, snapshot.revision, actor)
-    const policy = this.policy(state, actor)
-    if (decision.decision === 'publish') {
-      if (Object.keys(decision).some(k => !['decision', 'segments', 'scope', 'addresseeIds'].includes(k)))
-        throw new TypeError('非法混合输出整包拒绝')
-      checkExpressionPolicy(
-        parseExpressionSegments(decision.segments, Number(request.context.publicationCharacters ?? 2000)),
-        policy,
-      )
-    } else if (decision.decision === 'perform') {
-      if (Object.keys(decision).sort().join(',') !== 'actionType,decision,parameters')
-        throw new TypeError('非法混合输出整包拒绝')
-    }
-  }
-  checkExpression(policy: Policy, parameters: WorldJsonObject): void {
-    if (
-      (!policy.narration && Object.hasOwn(parameters, 'narration')) ||
-      (policy.speech === 'none' && Object.hasOwn(parameters, 'speech')) ||
-      (policy.speech === 'choices' &&
-        Object.hasOwn(parameters, 'speech') &&
-        !policy.speechChoices.includes(String(parameters.speech)))
-    )
-      throw new TypeError('当前表达不在创作者许可内')
+    validateActivityDecision(decision, this.policy(state, actor), Number(request.context.publicationCharacters ?? 2000))
   }
   rulebooks(external?: RulebookResolver): RulebookRegistry {
     const core = external ?? this.coreRules.resolve('builtin:speak-move', 2, 'activity', this.address)
@@ -390,32 +308,13 @@ export class ActivityRuntime {
       const { activityId: _id, revision: _revision, ...parameters } = args
       if (!this.#rules.validArguments(operation, parameters)) throw new TypeError('游戏操作参数无效')
       const world = this.#worldView(context.manifest, context.events, actor, context.asOfWorldSeq)
-      const resolved = object(
+      const resolved = parseActivityOperationResult(
         this.#mechanism.resolve(state, actor, operation, parameters, world, this.status?.truth(context.events) ?? null),
+        this.#rules,
+        state,
       )
-      if (Object.hasOwn(resolved, 'rejectReason')) {
-        exact(resolved, ['rejectReason'])
-        if (
-          typeof resolved.rejectReason !== 'string' ||
-          !resolved.rejectReason.trim() ||
-          resolved.rejectReason.length > 2000
-        )
-          throw new TypeError('活动拒绝说明无效')
-        throw new TypeError(resolved.rejectReason)
-      }
-      exact(resolved, [
-        'game',
-        'description',
-        'audience',
-        ...['playerExpression', 'status'].filter(k => Object.hasOwn(resolved, k)),
-      ])
-      if (
-        typeof resolved.description !== 'string' ||
-        resolved.description.length > 2000 ||
-        !['participants', 'self'].includes(String(resolved.audience))
-      )
-        throw new TypeError('游戏结果无效')
-      const next = { ...state, revision: state.revision + 1, game: this.#rules.game(resolved.game, state.participants) }
+      if ('rejected' in resolved) throw new TypeError(resolved.rejected)
+      const { next } = resolved
       const update = this.#event(next, resolved.description, actor, context.actionId ?? '', operation)
       // Status changes commit with the activity update or not at all; reveals reach only the actor's scene.
       const status: WorldEventDraft[] = []
@@ -437,7 +336,7 @@ export class ActivityRuntime {
         const content = expression[field]
         if (typeof content !== 'string' || !content.trim() || content.length > 2000)
           throw new TypeError('脚本玩家表达无效')
-        this.checkExpression(policy, field === 'text' ? { speech: content } : { narration: content })
+        checkActivityExpression(policy, field === 'text' ? { speech: content } : { narration: content })
         const actionId = (context.actionId ?? '') + ':scripted-player'
         const speech = base.resolve({
           ...context,
@@ -492,7 +391,7 @@ export class ActivityRuntime {
         }
         if (p.segments !== undefined)
           checkExpressionPolicy(parseExpressionSegments(p.segments, context.publicationCharacters ?? 2000), policy)
-        else this.checkExpression(policy, expression)
+        else checkActivityExpression(policy, expression)
       } else if (action.actionType === 'move') {
         if (!policy.move) throw new TypeError('活动期间禁止移动')
       } else if (action.actionType !== 'interact' || !policy.interactions.includes(String(definition?.id))) {
@@ -584,22 +483,7 @@ export class ActivityRuntime {
     return characterExecutionResult(input)
   }
   #plan(value: unknown): string | undefined {
-    const plan = object(value)
-    if (plan.kind === 'wait') {
-      exact(plan, ['kind'])
-      return undefined
-    }
-    exact(plan, ['kind', 'characterId'])
-    const state = this.current()
-    if (
-      plan.kind !== 'activate' ||
-      typeof plan.characterId !== 'string' ||
-      plan.characterId === this.playerId ||
-      !state?.game.active ||
-      !state.participants.includes(plan.characterId)
-    )
-      throw new TypeError('调度请求了未授权角色')
-    return plan.characterId
+    return parseActivityPlan(value, this.current(), this.playerId)
   }
   // Scheduling sees the whole committed state, internal included: a game may keep whose hidden turn it is
   // out of every participant's view and still decide whom to activate. Only an activation leaves the script.
@@ -941,7 +825,7 @@ export class ActivityRuntime {
           }
           if (action.actionType === 'speak') {
             const policy = this.policy(state, this.playerId)
-            this.checkExpression(policy, {
+            checkActivityExpression(policy, {
               ...(Object.hasOwn(action.parameters, 'text') ? { speech: action.parameters.text } : {}),
               ...(Object.hasOwn(action.parameters, 'narration') ? { narration: action.parameters.narration } : {}),
             })

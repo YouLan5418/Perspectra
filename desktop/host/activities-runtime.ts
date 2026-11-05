@@ -55,10 +55,11 @@ export class ActivitiesRuntime {
     const catalog = new ActivitiesRuntime(worldPath, address, playerId, coreRules, mechanism)
     for (const entry of mechanism.entries) {
       if (catalog.#entries.has(entry.key)) throw new TypeError('重复的活动标识：' + entry.key)
-      const activity = new ActivityRuntime(entry, worldPath, address, playerId, entry.key, status, coreRules)
-      activity.signal = catalog.signal
-      activity.randomSource = () => catalog.#nextRandom()
-      activity.readCurrent = () => catalog.#current(entry.key)
+      const activity = new ActivityRuntime(entry, worldPath, address, playerId, entry.key, status, coreRules, {
+        randomSource: () => catalog.#nextRandom(),
+        readCurrent: () => catalog.#current(entry.key),
+        signal: catalog.signal,
+      })
       catalog.#entries.set(entry.key, activity)
     }
     try {
