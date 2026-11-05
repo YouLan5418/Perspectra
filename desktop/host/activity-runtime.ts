@@ -36,6 +36,7 @@ import {
   validateActivityDecision,
   abandonedActivity,
   activityOutcomeObservations,
+  sceneEventObservations,
   activityResultMetadata,
   activityUpdatedEvent,
   checkActivityRequest,
@@ -509,10 +510,15 @@ export class ActivityRuntime {
   }
   /** The author's start condition after a player round. Only reads truth and the player's authorized facts;
    * undefined when this script declares no condition, already runs, or holds paused progress for the player. */
-  autoStartCandidate(
-    snapshot?: ActivityWorld,
-  ):
-    | { conditions: number; met: boolean; checks: AutoStartCheck[]; parameters: WorldJsonObject; notice?: string }
+  autoStartCandidate(snapshot?: ActivityWorld):
+    | {
+        conditions: number
+        met: boolean
+        checks: AutoStartCheck[]
+        parameters: WorldJsonObject
+        notice?: string
+        sceneNotice?: string
+      }
     | undefined {
     if (!this.hasAutoStart) return undefined
     snapshot ??= readActivityWorld(this.worldPath, this.address)
@@ -535,7 +541,11 @@ export class ActivityRuntime {
     }
   }
   /** `quiet` marks the start a quick operation makes on the player's behalf: it writes no opening line. */
-  async apply(request: ActivityRequest, auto?: { notice?: string }, quiet = false): Promise<boolean> {
+  async apply(
+    request: ActivityRequest,
+    auto?: { notice?: string; sceneNotice?: string },
+    quiet = false,
+  ): Promise<boolean> {
     if (request.operation === 'start' && auto === undefined && this.autoStartCandidate()?.met === false)
       throw new TypeError('这场活动的开始条件尚未满足')
     if (request.activityId === null && this.#rules.operations.some(op => op.quick && op.id === request.operation)) {
@@ -717,7 +727,24 @@ export class ActivityRuntime {
           }
           // An author's opening (the automatic notice first, then the declared opening) replaces the fixed line for
           // the player alone; it is written from the player's side, so participants keep the fixed line.
-          const notice = request.operation === 'start' ? (auto?.notice ?? this.opening) : undefined
+          const sceneNotice = request.operation === 'start' ? auto?.sceneNotice : undefined
+          const notice = request.operation === 'start' ? (auto?.notice ?? this.opening ?? sceneNotice) : undefined
+          // Everyone else present learns what happened, apart from the activity's own result line.
+          const witnesses =
+            sceneNotice === undefined
+              ? []
+              : [
+                  ...new Set([
+                    ...observerIds,
+                    ...new SceneDecisionService(store, availability).audienceForAction(
+                      this.address,
+                      brandId(this.playerId, 'CharacterId'),
+                      events,
+                      head.headSeq,
+                      { scope: 'scene_public' },
+                    ).fullContentCharacterIds,
+                  ]),
+                ].filter(id => id !== this.playerId)
           drafts.push(
             ...(quiet
               ? []
@@ -734,6 +761,7 @@ export class ActivityRuntime {
                       request.operation,
                     ),
                   ]),
+            ...sceneEventObservations({ actionId, observerIds: witnesses, text: sceneNotice ?? '' }),
             // A host-initiated start is direction, not a player action, so it never counts as a player round.
             {
               eventType: 'action.resolved',

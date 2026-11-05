@@ -249,7 +249,7 @@ export class ActivityStateRules {
 export function parseActivityAutoStart(output: unknown, selection: ActivityStateRules['participantSelection']) {
   if (output === null) return undefined
   const result = object(output)
-  exact(result, ['when', ...['npcIds', 'notice'].filter(key => Object.hasOwn(result, key))])
+  exact(result, ['when', ...['npcIds', 'notice', 'sceneNotice'].filter(key => Object.hasOwn(result, key))])
   if (!Array.isArray(result.when) || result.when.length === 0 || result.when.length > 32)
     throw new TypeError(AUTO_START_CONDITIONS)
   const checks = result.when.map(autoStartCheck)
@@ -260,11 +260,17 @@ export function parseActivityAutoStart(output: unknown, selection: ActivityState
     (typeof result.notice !== 'string' || !result.notice.trim() || result.notice.length > 500)
   )
     throw new TypeError('自动开始提示必须是 1–500 字符')
+  if (
+    Object.hasOwn(result, 'sceneNotice') &&
+    (typeof result.sceneNotice !== 'string' || !result.sceneNotice.trim() || result.sceneNotice.length > 500)
+  )
+    throw new TypeError('自动开始的在场提示必须是 1–500 字符')
   return {
     conditions: checks.length,
     met: checks.every(check => check.met),
     checks,
     parameters: selection ? { npcIds: strings(result.npcIds) } : {},
     ...(typeof result.notice === 'string' ? { notice: result.notice } : {}),
+    ...(typeof result.sceneNotice === 'string' ? { sceneNotice: result.sceneNotice } : {}),
   }
 }

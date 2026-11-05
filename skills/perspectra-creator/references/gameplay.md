@@ -22,6 +22,7 @@
 - definition.operations 每项 `{ id, label, schema, targets?, characterParameters?, actors?, activities? }`，最多 32 项；schema 是封闭对象。targets 列出作用的物品，label 可写 `{item}` 替换成物品名；actors 为 player/npc/any。
 - initialize(characterIds) 返回 `{ public, characters, reveals? }`，恰好包含声明的状态，characters 列出全部角色。角色私有状态默认告知本人，公共状态除非 alwaysKnown 否则谁也不知道。
 - policy(known, actorId, place) 可选，返回 `{ operations: [...], targets?: { 操作ID: [物品ID] } }`；known 是 `{ public, self, characters }` 已知值，place 是 `{ locationId, items }`。选项可见不代表执行必定成功。
+- 活动的 autoStart 可返回可选 `sceneNotice`（1–500 字），写给在场所有人；`notice` 只给玩家。不写时其他角色不知道事件内容，只知道活动开始了。
 - resolve(truth, actorId, operationId, parameters, world, targetId) 重查规则；返回 `{ changes, reveals, description, audience, items? }`，或仅返回 `{ rejectReason }`。audience 为 'self'、'scene' 或 `{ characters: [...] }`；行动者总能收到自己的结果，所以空列表等于 'self'，列出别人时行动者也会收到。
 - onRoundEnd(truth, round) 可选，每个玩家回合结束后调用一次，返回 null 或 `{ changes, reveals }`，适合推进游戏时间。
 

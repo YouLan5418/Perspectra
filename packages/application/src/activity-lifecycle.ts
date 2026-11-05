@@ -127,3 +127,19 @@ export function activityOutcomeObservations(input: {
     observationId: observerId => `${actionId}:${observerId}`,
   }).events
 }
+
+/** Something that happened around those present. No actor: nobody here did it, and it reads as what they noticed. */
+export function sceneEventObservations(input: {
+  readonly actionId: string
+  readonly observerIds: readonly string[]
+  readonly text: string
+}): readonly WorldEventDraft[] {
+  return input.observerIds.map(observerId => ({
+    eventType: 'observation.upsert',
+    eventVersion: 1,
+    data: {
+      id: `${input.actionId}:scene:${observerId}`,
+      value: { observerId, actionId: input.actionId, content: { eventNotice: input.text } },
+    },
+  }))
+}

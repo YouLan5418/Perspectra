@@ -227,7 +227,10 @@ export class ActivitiesRuntime {
         parameters: chosen.parameters,
         requestId: 'auto-start:' + chosen.key + ':' + headSeq,
       },
-      chosen.notice === undefined ? {} : { notice: chosen.notice },
+      {
+        ...(chosen.notice === undefined ? {} : { notice: chosen.notice }),
+        ...(chosen.sceneNotice === undefined ? {} : { sceneNotice: chosen.sceneNotice }),
+      },
     )
     this.#lastAutoStart = evaluations.map(item => (item.activityKey === chosen.key ? { ...item, started } : item))
     return started
