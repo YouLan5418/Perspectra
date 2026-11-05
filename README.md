@@ -182,3 +182,7 @@ corepack pnpm@11.7.0 launcher:check
 | 开发约束 | [AGENTS.md](AGENTS.md) |
 
 文档中的历史“已完成”只表示当时版本；当前行为应以现行文档、源码与真实验收为准。
+
+## 许可证
+
+除另有标注外，本项目原创源代码采用 [GNU Affero General Public License v3.0（AGPL-3.0-only）](LICENSE) 许可证（仅第 3 版）。第三方代码、依赖和美术素材遵循其各自的许可证或权利说明。
