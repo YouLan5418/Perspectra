@@ -1,5 +1,7 @@
 # 当前创作者运行时
 
+2026-11-05 M3：状态／包内模块脚本格式不变，脚本解释及组合迁入官方 Cordis 状态机制；核心检查初始值、变化、告知与物品。prepare 只见授权数据，原生异步执行仍归宿主能力桥，queued 不代表已完成。见[M3 记录](../studies/2026-11-core-migration-m3.md)。
+
 2026-11-04 M2：状态、活动和通信脚本的格式与规则含义保持；宿主把其合法结果交给核心即时提交，玩家绑定、取消、最新前缀和原子提交集中处理。物品可达性与去向检查进入 application，状态 reveal 检查仍保留在宿主侧，后续再拆 Cordis 机制。见[M2 记录](../studies/2026-11-core-migration-m2.md)。
 
 2026-11-03 插件依赖：例如世界包要靠 `locked-room` 才讲得通，可以在清单写 `requiresPlugins`，缺插件时启动器开局前拒绝并列全原因。它和 `plugins.json` 的 `capabilities.required` 并存：前者说需要某个插件，后者说需要某种能力。写法见[插件能替换什么](../guides/plugin-seams.md#世界包依赖插件时)。

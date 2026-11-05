@@ -1,8 +1,7 @@
 import { createHash } from 'node:crypto'
 import { lstatSync, readFileSync, realpathSync } from 'node:fs'
 import { relative, resolve } from 'node:path'
-import { Script, createContext } from 'node:vm'
-import { canonicalizeWorldJson, type WorldJsonObject, type WorldJsonValue } from '@harness-world/contracts'
+import { canonicalizeWorldJson, type WorldJsonObject } from '@harness-world/contracts'
 import type { RulebookResolution, RulebookResolutionContext } from '@harness-world/kernel'
 import type { CompiledWorldPackV5 } from '@harness-world/world-pack'
 import {
@@ -14,7 +13,7 @@ import {
   type CapabilitySession,
 } from '../host-capabilities.ts'
 import { actorWorldView } from './pack-activity.ts'
-import type { PackStatus } from './pack-status.ts'
+import type { StatusRuntime } from './status-runtime.ts'
 import { knownStatusView } from '@harness-world/contracts'
 
 const object = (value: unknown): WorldJsonObject => {
@@ -47,11 +46,11 @@ export class PackModules {
   readonly characters = new Set<string>()
   private readonly modules: Module[] = []
   private readonly external = new Map<string, ExternalAction>()
-  private readonly unavailable = new Set<string>()
   private staged: (ExternalStatusInput & { outcome: CapabilityOutcome }) | undefined
   private session: CapabilitySession | undefined
-  private status: PackStatus | undefined
+  private status: StatusRuntime | undefined
   private awaitingCommit = false
+  private catalog: CapabilityCatalog | undefined
 
   static load(packPath: string, pack: CompiledWorldPackV5, catalog?: CapabilityCatalog): PackModules | undefined {
     if (!pack.assets.some(asset => asset.path === 'plugins.json')) return undefined
@@ -65,6 +64,7 @@ export class PackModules {
     const result = new PackModules(),
       ids = new Set<string>(),
       requirements = new Map<string, CapabilityRequirement>()
+    result.catalog = catalog
     for (const value of declaration.modules) {
       const item = object(value)
       if (
@@ -116,7 +116,43 @@ export class PackModules {
           .find(provider => provider.id === typed.id && provider.version === typed.version)
         if (!installed && typed.required) throw new MissingCapabilityError(typed.id + '@' + typed.version)
       }
-      module.definition = object(callModule(module.source, 'definition', []))
+      module.characters.forEach(id => result.characters.add(id))
+      result.modules.push(module)
+    }
+    result.requirements.push(
+      ...[...requirements.values()].map(requirement => ({
+        ...requirement,
+        characters: [
+          ...new Set(
+            result.modules
+              .filter(module => module.requirements.some(r => r.id === requirement.id))
+              .flatMap(module => module.characters),
+          ),
+        ],
+      })),
+    )
+    return result
+  }
+
+  /** Locked module texts plus resolved availability; no script is executed by this adapter. */
+  get sources(): readonly import('@harness-world/plugin-sdk').StatusModuleSource[] {
+    return this.modules.map(module => ({
+      id: module.id,
+      source: module.source,
+      characters: [...module.characters],
+      unavailableCapabilities: module.requirements
+        .filter(
+          requirement =>
+            !this.catalog
+              ?.list()
+              .some(provider => provider.id === requirement.id && provider.version === requirement.version),
+        )
+        .map(requirement => requirement.id),
+    }))
+  }
+  describe(status: StatusRuntime): void {
+    for (const module of this.modules) {
+      module.definition = object(status.moduleDefinitions.find(row => row.id === module.id)?.definition)
       const statuses = module.definition.statuses,
         actions = module.definition.actions
       if (
@@ -139,71 +175,19 @@ export class PackModules {
           const requirement = module.requirements.find(requirement => requirement.id === action.capability)
           if (!requirement || typeof action.method !== 'string')
             throw new TypeError('Module action uses an undeclared capability')
-          const installed = catalog
+          const installed = this.catalog
             ?.list()
             .find(provider => provider.id === requirement.id && provider.version === requirement.version)
           if (installed && !installed.methods[action.method])
             throw new TypeError('Module action uses an undeclared capability method')
-          if (!installed) result.unavailable.add(operation)
-          result.external.set(operation, { module, action, localId: id })
+          this.external.set(operation, { module, action, localId: id })
         }
       }
-      module.characters.forEach(id => result.characters.add(id))
-      result.modules.push(module)
     }
-    result.requirements.push(
-      ...[...requirements.values()].map(requirement => ({
-        ...requirement,
-        characters: [
-          ...new Set(
-            result.modules
-              .filter(module => module.requirements.some(r => r.id === requirement.id))
-              .flatMap(module => module.characters),
-          ),
-        ],
-      })),
-    )
-    return result
-  }
-
-  /** One generated status bundle replaces fixed-file-only registration, without another state store. */
-  statusSource(base?: string): string {
-    const missing = [...this.unavailable]
-    return `const base = (() => { ${base ?? 'globalThis.statusScript = null;'}; return globalThis.statusScript; })();
-const modules = [${this.modules.map(module => `(() => { ${module.source}; return {id:${JSON.stringify(module.id)}, characters:${JSON.stringify(module.characters)}, plugin:globalThis.packPlugin}; })()`).join(',')}];
-const unavailable = ${JSON.stringify(missing)};
-globalThis.statusScript = {
- definition: { statuses: [...(base?.definition.statuses ?? []), ...modules.flatMap(m=>m.plugin.definition.statuses)],
-   operations: [...(base?.definition.operations ?? []), ...modules.flatMap(m=>m.plugin.definition.actions.map(a=>{
-     const {capability,method,...op}=a; return {...op,id:m.id+'-'+a.id}; }))] },
- initialize(ids) {
-   const out={public:{},characters:Object.fromEntries(ids.map(id=>[id,{}])),reveals:[]};
-   for(const script of [base,...modules.map(m=>m.plugin)].filter(Boolean)) {
-     const initial=script.initialize(ids);
-     for(const [key,value] of Object.entries(initial.public)) {if(key in out.public) throw new Error('Duplicate status');out.public[key]=value;}
-     for(const id of ids) for(const [key,value] of Object.entries(initial.characters[id])) {if(key in out.characters[id]) throw new Error('Duplicate status');out.characters[id][key]=value;}
-     out.reveals.push(...(initial.reveals??[]));
-   } return out;
- },
- policy(view,actor,world) {
-   const original=base?.policy?.(view,actor,world);
-   const operations=[...(original?.operations??base?.definition.operations.map(o=>o.id)??[])];
-   for(const m of modules) if(m.characters.includes(actor)) {
-     const offered=m.plugin.policy(view,actor,world).operations;
-     for(const id of offered) if(!m.plugin.definition.actions.some(a=>a.id===id)) throw new Error('Undeclared module action');
-     operations.push(...offered.map(id=>m.id+'-'+id).filter(id=>!unavailable.includes(id)));
-   } return {...(original??{}),operations};
- },
- resolve(truth,actor,operation,args,world,target,result) {
-   for(const m of modules) for(const a of m.plugin.definition.actions) if(operation===m.id+'-'+a.id)
-     return m.plugin.resolve(truth,actor,a.id,args,world,target,result);
-   return base.resolve(truth,actor,operation,args,world,target);
- },
- onRoundEnd(...args) {return base?.onRoundEnd?.(...args)??null;}
-};`
-  }
-  bind(status: PackStatus, session: CapabilitySession): void {
     this.status = status
+  }
+  bind(status: StatusRuntime, session: CapabilitySession): void {
+    if (this.status !== status) this.describe(status)
     this.session = session
   }
   has(operation: string): boolean {
@@ -246,13 +230,14 @@ globalThis.statusScript = {
     )
     const known = knownStatusView(this.status.known(context.events, input.actorId), input.actorId)
     const args = object(
-      callModule(entry.module.source, 'prepare', [
+      this.status.prepareModule(
+        entry.module.id,
         known as unknown as WorldJsonObject,
         input.actorId,
         entry.localId,
         input.parameters,
         world,
-      ]),
+      ),
     )
     const outcome = await this.session.invoke(
       String(entry.action.capability),
@@ -317,17 +302,4 @@ export function lockedPackAsset(packPath: string, pack: CompiledWorldPackV5, ent
   )
     throw new TypeError('Pack plugin asset differs from the compiled asset')
   return bytes.toString('utf8')
-}
-
-function callModule(source: string, method: string, args: readonly WorldJsonValue[]): unknown {
-  const context = createContext(
-    { __method: method, __args: JSON.stringify(args) },
-    { codeGeneration: { strings: false, wasm: false }, microtaskMode: 'afterEvaluate' },
-  )
-  const output: unknown = new Script(
-    source +
-      '\nJSON.stringify(__method === "definition" ? packPlugin.definition : packPlugin[__method](...JSON.parse(__args)))',
-  ).runInContext(context, { timeout: 100 })
-  if (typeof output !== 'string' || output.length > 65536) throw new TypeError('Pack module must return bounded JSON')
-  return JSON.parse(output)
 }

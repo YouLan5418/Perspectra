@@ -10,7 +10,7 @@ import type { RulebookEvent } from '@harness-world/kernel'
 import type { CompiledWorldPackV5 } from '@harness-world/world-pack'
 import { createHostServer, type HostRuntime, type HostState } from '../../desktop/host/http-server.ts'
 import { loadPackWeb } from '../../desktop/host/pack-frontend.ts'
-import { PackStatus } from '../../desktop/host/pack-status.ts'
+import { statusFromSource } from '../support/status-runtime.ts'
 import { playerViewPatch } from '../../packages/frontend/src/player-view.ts'
 import { FrontendActions, projectPlayerView } from '../../desktop/host/frontend-adapter.ts'
 
@@ -571,7 +571,7 @@ it('delivers explicit player feedback and pushes changes even while busy remains
 const PLAYER = 'character:player',
   THIEF = 'character:companion'
 function theft() {
-  const status = PackStatus.parse(readFileSync(resolve('tests/fixtures/status-market.js'), 'utf8'), {
+  const status = statusFromSource(readFileSync(resolve('tests/fixtures/status-market.js'), 'utf8'), {
     content: { characters: [{ characterId: PLAYER }, { characterId: THIEF }] },
   } as unknown as CompiledWorldPackV5)
   // The thief takes 30 and only it learns the new balances; the player still holds the initial 100.

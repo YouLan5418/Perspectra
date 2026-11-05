@@ -9,6 +9,7 @@ const FILE = 'plugin-set.json'
 const LABELS: Readonly<Record<string, string>> = {
   scheduler: '角色调度',
   knowledge: '设定知识',
+  status: '状态规则',
   characterLoop: '角色执行循环',
   memory: '长期记忆',
   llm: '模型通道',

@@ -9,24 +9,24 @@ import { PackActivities } from './pack-activities.ts'
 import { PackAutonomy } from './pack-autonomy.ts'
 import { communicationInstruction, CrossSceneCommunication, loadCommunicationConfig } from './pack-communication.ts'
 import type { PackModules } from './pack-modules.ts'
-import { KNOWN_STATUS_NOTE, PackStatus, publicStatusChanges } from './pack-status.ts'
+import type { StatusRuntime } from './status-runtime.ts'
+import { KNOWN_STATUS_NOTE, publicStatusChanges } from '@harness-world/application'
 
 export interface LoadedPack {
   readonly packPath: string
   readonly pack: Parameters<typeof PackAutonomy.load>[1]
   readonly modules: PackModules | undefined
-  readonly statusSource: string | undefined
+  readonly status: StatusRuntime | undefined
   readonly capabilities: CapabilitySession | undefined
 }
 
-/** The pack-script modules of one world instance. They stay in the host: a world pack's scripts are written for them,
- * so they are not a replaceable seam. Rules are, through `ctx.rules`. */
+/** Transitional host assembly of gameplay adapters; script computation is provided by mechanisms. */
 export class WorldGameplay {
   activity: PackActivities | undefined
   modules: PackModules | undefined
   autonomy: PackAutonomy | undefined
   communication: CrossSceneCommunication | undefined
-  status: PackStatus | undefined
+  status: StatusRuntime | undefined
 
   constructor(
     private readonly world: {
@@ -56,9 +56,8 @@ export class WorldGameplay {
 
   /** The rest, once the world is active. */
   async load(input: LoadedPack): Promise<void> {
-    const { pack, modules, statusSource } = input
-    this.status =
-      statusSource === undefined ? PackStatus.load(input.packPath, pack) : PackStatus.fromSource(statusSource, pack)
+    const { pack, modules } = input
+    this.status = input.status
     if (modules) {
       modules.bind(this.status!, input.capabilities!)
       this.status!.externalActions = modules

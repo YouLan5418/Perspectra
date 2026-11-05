@@ -32,8 +32,19 @@ describe('desktop launch boundary', () => {
       await writeFile(
         pluginPath,
         `import { writeFileSync, appendFileSync } from 'node:fs';
-      export const hostApi = '2.5';
+      import { Script, createContext } from 'node:vm';
+      export const hostApi = '2.6';
       export default function(ctx) {
+        ctx.effect(() => ctx.status.register({id:'packaged-status',version:'1.0.0',open:async world=>{
+          writeFileSync(new URL('./status-ran', import.meta.url),world.statusSource?'script':'none');
+          if(world.statusSource?.modules.length)throw new Error('fixture has no modules');
+          const call=(method,args)=>world.statusSource?JSON.parse(new Script(world.statusSource.script+';JSON.stringify(__method==="definition"?statusScript.definition:__method==="hasRoundHook"?typeof statusScript.onRoundEnd==="function":typeof statusScript[__method]==="function"?statusScript[__method](...__args):null)').runInContext(createContext({__method:method,__args:args}))):undefined;
+          return {definition:call('definition',[]),hasRoundHook:call('hasRoundHook',[])===true,moduleDefinitions:[],
+          initialize:ids=>call('initialize',[ids]),policy:(known,actor,place)=>call('policy',[known,actor,place]),
+          resolve:input=>call('resolve',[input.truth,input.actorId,input.operation,input.parameters,input.world,input.targetId,input.external]),
+          endRound:(truth,round)=>call('onRoundEnd',[truth,round]),prepareModule:()=>{throw new Error('no modules')},
+          close:()=>writeFileSync(new URL('./status-closed', import.meta.url),'yes')};
+        }}));
         ctx.effect(() => ctx.knowledge.register({ id:'packaged-knowledge',version:'1.0.0',open:async()=>({
           select:context=>{writeFileSync(new URL('./knowledge-ran', import.meta.url),context.character.characterId);return undefined},
           close:()=>writeFileSync(new URL('./knowledge-closed', import.meta.url),'yes'),
@@ -173,6 +184,7 @@ describe('desktop launch boundary', () => {
         expect(submitted.status).toBe(200)
         const actors = await readFile(join(pluginDirectory, 'loop-ran'), 'utf8')
         expect(actors).toContain('character:')
+        expect(await readFile(join(pluginDirectory, 'status-ran'), 'utf8')).toMatch(/^(script|none)$/u)
         expect(await readFile(join(pluginDirectory, 'knowledge-ran'), 'utf8')).toContain('character:')
         if (packName === 'autonomy-scheduling') expect(actors).toContain('character:friend')
         child.send({ type: 'shutdown' })
@@ -181,6 +193,7 @@ describe('desktop launch boundary', () => {
         expect(await readFile(join(pluginDirectory, 'plugin-closed'), 'utf8')).toBe('yes')
         expect(await readFile(join(pluginDirectory, 'loop-closed'), 'utf8')).toBe('yes')
         expect(await readFile(join(pluginDirectory, 'knowledge-closed'), 'utf8')).toBe('yes')
+        expect(await readFile(join(pluginDirectory, 'status-closed'), 'utf8')).toBe('yes')
         expect((await preflightSave(pack, directory)).kind).toBe('resume')
         await expect(preflightSave(resolve('examples/world-packs/prototype-g1'), directory)).rejects.toThrow(
           '世界包与存档中的世界不一致',

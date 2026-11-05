@@ -18,3 +18,4 @@ export * from './interaction-definition.ts'
 export * from './interaction-schema.ts'
 
 export * from './known-status-view.ts'
+export * from './status.ts'

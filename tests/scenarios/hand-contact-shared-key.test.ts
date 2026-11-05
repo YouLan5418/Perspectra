@@ -4,7 +4,7 @@ import { join, resolve } from 'node:path'
 import { expect, it } from 'vitest'
 import { brandId, interactionPackageDescription, resolutionAuthority } from '@harness-world/contracts'
 import { compileWorldPackSource, type CompiledWorldPackV5 } from '@harness-world/world-pack'
-import { PackStatus } from '../../desktop/host/pack-status.ts'
+import { loadStatus } from '../support/status-runtime.ts'
 import {
   createCoreRulebookRegistry,
   currentCharacterRelations,
@@ -207,7 +207,7 @@ it('closes the frozen G1 combination: hand contact, shared key, two NPCs and two
         'test',
         runtime.address,
       )
-      const rules = PackStatus.load(packPath, pack)!.resolver(
+      const rules = loadStatus(packPath, pack)!.resolver(
         core,
         resolve(root, 'world.sqlite'),
         runtime.address,

@@ -136,6 +136,9 @@ importers:
       '@harness-world/store-sqlite':
         specifier: workspace:*
         version: link:../store-sqlite
+      ajv:
+        specifier: 8.17.1
+        version: 8.17.1
 
   packages/contracts: {}
 
@@ -245,6 +248,15 @@ importers:
         version: link:../plugin-sdk
 
   packages/official-scheduler:
+    dependencies:
+      '@harness-world/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      '@harness-world/plugin-sdk':
+        specifier: workspace:*
+        version: link:../plugin-sdk
+
+  packages/official-status:
     dependencies:
       '@harness-world/contracts':
         specifier: workspace:*

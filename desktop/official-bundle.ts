@@ -1,3 +1,4 @@
+import { StatusScripts, officialStatusProvider } from '@harness-world/official-status'
 import { createInstalledInteractionPackages } from '@harness-world/interactions-basic'
 export { composeDecisions, officialContextOrder } from '@harness-world/official-contexts'
 import { composeDecisions } from '@harness-world/official-contexts'
@@ -11,6 +12,7 @@ import type {
   DecisionInstance,
   CharacterLoopInstance,
   KnowledgeInstance,
+  StatusInstance,
   LlmInstance,
   LlmTransportInstance,
   MemoryInstance,
@@ -57,6 +59,7 @@ export function assembleCoreMemory(
 /** The implementation in force for each replaceable seam. */
 export interface HostSeams {
   readonly knowledge?: SeamProvider<KnowledgeInstance>
+  readonly status?: SeamProvider<StatusInstance>
   readonly scheduler: SeamProvider<SchedulerInstance>
   readonly characterLoop?: SeamProvider<CharacterLoopInstance>
   readonly memory?: SeamProvider<MemoryInstance>
@@ -81,6 +84,7 @@ export const officialWorldOrder = [
   'rules',
   'memory',
   'knowledge',
+  'status',
   'decisions',
   'scheduler',
   'characterLoop',
@@ -91,6 +95,7 @@ export function composeWorldSeams(plugins: Partial<HostSeams> = {}) {
   return {
     ...plugins,
     knowledge: plugins.knowledge ?? officialKnowledgeProvider,
+    status: plugins.status ?? officialStatusProvider,
     scheduler: plugins.scheduler ?? officialSchedulerProvider,
     characterLoop: plugins.characterLoop ?? officialCharacterLoopProvider,
     memory: plugins.memory ?? officialMemoryNoneProvider,
@@ -101,6 +106,7 @@ export function composeWorldSeams(plugins: Partial<HostSeams> = {}) {
 
 /** Called after player plugins settle. Every default uses the same public registration API. */
 export function installOfficialBundle(ctx: Context, memory?: () => SeamProvider<MemoryInstance>): void {
+  if (!ctx.status.current) ctx.effect(() => ctx.status.register(officialStatusProvider))
   if (!ctx.knowledge.current) ctx.effect(() => ctx.knowledge.register(officialKnowledgeProvider))
   if (!ctx.scheduler.current) ctx.effect(() => ctx.scheduler.register(officialSchedulerProvider))
   if (!ctx.characterLoop.current) ctx.effect(() => ctx.characterLoop.register(officialCharacterLoopProvider))
@@ -118,3 +124,7 @@ export function composeModelChannel(
 ) {
   return replacement ?? officialLlmProvider(options)
 }
+
+/** Explicit official interpretation for read-only creator/import preflight; game worlds use the registered service. */
+export const createDefaultStatusScripts = (source: import('@harness-world/plugin-sdk').StatusSource | undefined) =>
+  new StatusScripts(source)

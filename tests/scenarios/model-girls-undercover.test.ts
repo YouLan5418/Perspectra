@@ -8,7 +8,7 @@ import { createInstalledInteractionPackages } from '@harness-world/interactions-
 import { compileWorldPackSource } from '@harness-world/world-pack'
 import { WorldStore } from '@harness-world/store-sqlite'
 import { WorldHostCore } from '../../desktop/host/world-runtime.ts'
-import { PackStatus } from '../../desktop/host/pack-status.ts'
+import { loadStatus } from '../support/status-runtime.ts'
 import { createChatServer, fakeModels } from '../support/fake-provider.ts'
 
 const HEROINES = ['character:gpt', 'character:claude', 'character:deepseek']
@@ -65,7 +65,7 @@ async function fixture() {
     pack,
     createInstalledInteractionPackages().map(interactionPackageDescription),
   )
-  const status = PackStatus.load(pack, compiled)!
+  const status = loadStatus(pack, compiled)!
 
   // What each heroine was shown, by character.
   const seen: { self: string; text: string }[] = []

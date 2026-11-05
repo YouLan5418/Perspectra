@@ -12,7 +12,7 @@ import { compileWorldPackSource } from '@harness-world/world-pack'
 import { WorldStore } from '@harness-world/store-sqlite'
 import { WorldHostRuntime } from '../../desktop/host/world-runtime.ts'
 import { projectPlayerView } from '../../desktop/host/frontend-adapter.ts'
-import { PackStatus } from '../../desktop/host/pack-status.ts'
+import { loadStatus } from '../support/status-runtime.ts'
 import { createChatServer, fakeModels } from '../support/fake-provider.ts'
 
 const { renderActivityFile, HOST_SOURCE_LIMIT } = (await import(
@@ -58,7 +58,7 @@ async function fixture(modify?: (config: MutableObject) => void) {
     files.packPath,
     createInstalledInteractionPackages().map(interactionPackageDescription),
   )
-  const status = PackStatus.load(files.packPath, compiled)!
+  const status = loadStatus(files.packPath, compiled)!
   const requests: WorldJsonObject[] = []
   let mode: 'fire' | 'guard' | 'abstain' = 'fire'
   const server = createChatServer((request, response) => {

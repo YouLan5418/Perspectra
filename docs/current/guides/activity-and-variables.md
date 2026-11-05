@@ -1,5 +1,7 @@
 # 创作者：活动与状态
 
+2026-11-05 M3：本指南的脚本格式继续适用。状态和模块脚本现由 Cordis official-status 解释；值、告知、物品与提交仍由核心校验。无须把普通玩法脚本改成 Cordis 插件，分层与验证见[M3 记录](../studies/2026-11-core-migration-m3.md)。
+
 2026-10-26：可用[包内插件模块](dual-plugin-entrypoints.md)组合现有状态与操作，并声明所需的本地 Cordis 异步能力。规则仍通过同一状态／交互裁定，活动 policy 继续限制模块操作；外部只确认排队时不修改数值。它补充原脚本入口，不要求重写活动或状态文件。
 
 2026-10-26 新增[包内回合战斗示例](../../../examples/world-packs/rpg-turn-battle/README.md)：玩家与同伴轮流攻击守卫，支持 HP / MP、治疗、防御、药水与胜败奖励；只新增包内容，未修改宿主。完整宿主自动化通过，真实模型与浏览器体验未验收，边界见[评估记录](../studies/2026-10-26_gameplay-rpg-report.md)。
@@ -141,7 +143,7 @@ Activity 收紧局部玩法许可；默认由模型决定扮演内容，作者�
 
 例如玩家钱袋里有 100。同行者趁人多执行“偷窃”，作者脚本裁定成功：真实余额变成 70，结果只告诉同行者。玩家的状态栏和角色上下文仍是 100，但立刻标为“上次确认”（current=false）：玩家知道钱袋有了变化，却不知道现在是多少、是谁动的。执行“查看钱包”或付账后，才看到 70。旁边的留守者从头到尾不知道两人的余额。完整样例见 [集市钱袋](../../../examples/world-packs/status-market/README.md)。
 
-状态是作者用代码声明、经过裁定的常驻客观值：金钱、HP、游戏时间、剧情阶段等。真实值只以 `status.updated` 世界事件提交，和对话、行动走同一次原子提交；每个观察者（NPC 与玩家相同）只知道告知过自己的值。它替代了已退役的包变量（`scripts/variables.js`、`pack-variables.json`、`/vars` 已删除）。实现在 [状态桥](../../../desktop/host/pack-status.ts)，设计见[状态栏设计](../../superpowers/specs/2026-10-18-status-bar-design.md)。
+状态是作者用代码声明、经过裁定的常驻客观值：金钱、HP、游戏时间、剧情阶段等。真实值只以 `status.updated` 世界事件提交，和对话、行动走同一次原子提交；每个观察者（NPC 与玩家相同）只知道告知过自己的值。它替代了已退役的包变量（`scripts/variables.js`、`pack-variables.json`、`/vars` 已删除）。实现在 [状态桥](../../../desktop/host/status-runtime.ts)，设计见[状态栏设计](../../superpowers/specs/2026-10-18-status-bar-design.md)。
 
 ### 作者写什么
 

@@ -14,7 +14,7 @@ import { createCoreRulebookRegistry, currentEntityState, RulebookRegistry } from
 import { CharacterTurn, type CharacterTurnResult } from '../../packages/application/src/character-turn.ts'
 import { characterExecutionResult } from '../../packages/application/src/character-execution-result.ts'
 import { WorldHostRuntime } from '../../desktop/host/world-runtime.ts'
-import { PackStatus, type KnownStatus } from '../../desktop/host/pack-status.ts'
+import { loadStatus, type KnownStatus } from '../support/status-runtime.ts'
 import type { CoreRunner } from '../../packages/official-memory-core/src/python-worker.ts'
 import { restoreStoryNode } from '../../desktop/story-nodes.ts'
 import { projectPlayerView } from '../../desktop/host/frontend-adapter.ts'
@@ -268,7 +268,7 @@ async function fixture(
     requests,
     events,
     statusEvents,
-    status: PackStatus.load(packPath, pack)!,
+    status: loadStatus(packPath, pack)!,
     setDecision: (fn: Decide) => {
       decide = fn
     },

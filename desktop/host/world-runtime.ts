@@ -1,3 +1,5 @@
+import { loadStatusSource } from './status-source.ts'
+import { StatusRuntime } from './status-runtime.ts'
 import { loadKnowledgeSource } from './knowledge-source.ts'
 import { composeWorldSeams, officialWorldOrder, defaultInteractionPackages } from '../official-bundle.ts'
 import { RequestInspector, type ChatCallObservation, type ChatProvider } from '@harness-world/provider-chat'
@@ -61,7 +63,8 @@ import {
 } from './round-notices.ts'
 export { providerFailureNotice } from './round-notices.ts'
 import { PackActivities, type ActivityDefinitionView, type AutoStartEvaluation } from './pack-activities.ts'
-import { pauseRounds, type StatusDefinition, type StatusOperation } from './pack-status.ts'
+import { pauseRounds } from '@harness-world/application'
+import type { StatusDefinition, StatusOperation } from '@harness-world/contracts'
 import { type AutonomousRole } from './pack-autonomy.ts'
 import { mkdirSync, readFileSync } from 'node:fs'
 import { randomUUID } from 'node:crypto'
@@ -87,7 +90,7 @@ import { adaptCompiledWorldPack, compileWorldPackSource, type CompiledWorldPackV
 import { actionText, HostBusyError, isWait, type HostAction, type HostRuntime, type HostState } from './http-server.ts'
 import { modelCharacters, playerTranscript, sceneChangedAt } from './player-transcript.ts'
 import { DEFAULT_RUNTIME_TUNING, type RuntimeTuning } from './runtime-tuning.ts'
-import { PackModules, lockedPackAsset } from './pack-modules.ts'
+import { PackModules } from './pack-modules.ts'
 import { CapabilitySession, type CapabilityCatalog } from '../host-capabilities.ts'
 import {
   CORE_MEMORY_ID,
@@ -227,6 +230,8 @@ export class WorldHostCore implements HostRuntime {
   #model: string
   readonly #intentModel: string
   readonly #characterIds: readonly CharacterId[]
+  #status!: import('@harness-world/plugin-sdk').StatusInstance
+  #statusSource: import('@harness-world/plugin-sdk').StatusSource | undefined
   #knowledge!: import('@harness-world/plugin-sdk').KnowledgeInstance
   #knowledgeSource: import('@harness-world/plugin-sdk').KnowledgeSource | undefined
   #llm!: LlmInstance
@@ -481,11 +486,6 @@ export class WorldHostCore implements HostRuntime {
       defaultInteractionPackages().map(interactionPackageDescription),
     )) as CompiledWorldPackV5
     const modules = PackModules.load(options.packPath, pack, options.capabilities)
-    const statusSource = modules?.statusSource(
-      pack.assets.some(asset => asset.path === 'scripts/status.js')
-        ? lockedPackAsset(options.packPath, pack, 'scripts/status.js')
-        : undefined,
-    )
     const compiled = adaptCompiledWorldPack(pack, {
       address: {
         tenantId: brandId('tenant:web-playtest', 'TenantId'),
@@ -501,8 +501,10 @@ export class WorldHostCore implements HostRuntime {
     const runtime = new WorldHostCore(options, compiled, intentEnabled)
     try {
       runtime.#knowledgeSource = loadKnowledgeSource(options.packPath, pack)
+      runtime.#statusSource = loadStatusSource(options.packPath, pack, modules?.sources)
       const open = {
         knowledge: () => runtime.#openKnowledge(),
+        status: () => runtime.#openStatus(),
         llm: () => runtime.#openLlm(),
         rules: () => runtime.#openRules(),
         memory: () => runtime.#openMemory(),
@@ -521,6 +523,15 @@ export class WorldHostCore implements HostRuntime {
       )
       runtime.#storyParentNodeId = options.storyParentNodeId ?? null
       runtime.#gameplay.prepare(options.packPath, pack, compiled.manifest)
+      const status =
+        runtime.#statusSource === undefined
+          ? undefined
+          : new StatusRuntime(
+              runtime.#status,
+              pack.content.characters.map(character => character.characterId),
+              pack.content.entities ?? [],
+            )
+      if (modules && status) modules.describe(status)
       runtime.#application.activate(compiled)
       runtime.#gameplay.modules = modules
       if (modules) {
@@ -538,7 +549,7 @@ export class WorldHostCore implements HostRuntime {
         packPath: options.packPath,
         pack,
         modules,
-        statusSource,
+        status,
         capabilities: runtime.#capabilities,
       })
       await runtime.#refresh()
@@ -1213,6 +1224,11 @@ export class WorldHostCore implements HostRuntime {
     } catch (error) {
       console.error('[知识机制] 关闭失败：', error)
     }
+    try {
+      await this.#status?.close?.()
+    } catch (error) {
+      console.error('[状态机制] 关闭失败：', error)
+    }
     for (const layer of [...this.#ruleLayers].reverse()) {
       try {
         await layer.close?.()
@@ -1616,6 +1632,53 @@ export class WorldHostCore implements HostRuntime {
 
   get #serialDecisions(): boolean {
     return this.#decisions.some(decision => decision.serial)
+  }
+
+  async #openStatus(): Promise<void> {
+    const provider = this.#options.plugins!.status!
+    try {
+      const instance = await provider.open(
+        {
+          ...this.#services(provider.id),
+          ...(this.#statusSource === undefined ? {} : { statusSource: structuredClone(this.#statusSource) }),
+        },
+        AbortSignal.timeout(30_000),
+      )
+      this.#status = instance
+      for (const method of ['initialize', 'policy', 'resolve', 'endRound', 'prepareModule'] as const)
+        if (typeof instance[method] !== 'function') throw new TypeError('status requires ' + method)
+      if (!Array.isArray(instance.moduleDefinitions) || typeof instance.hasRoundHook !== 'boolean')
+        throw new TypeError('status metadata is invalid')
+      if ((this.#statusSource === undefined) !== (instance.definition === undefined))
+        throw new TypeError('status implementation must match the world declared source')
+      const guard = <T>(actorId: string, work: () => T): T => {
+        try {
+          return structuredClone(work())
+        } catch (cause) {
+          this.#reportPlugin(provider.id, actorId, cause)
+          throw new Error(
+            `状态机制 ${provider.id} 执行失败：${cause instanceof Error ? cause.message : String(cause)}`,
+            { cause },
+          )
+        }
+      }
+      this.#status = {
+        definition: structuredClone(instance.definition),
+        hasRoundHook: instance.hasRoundHook,
+        moduleDefinitions: structuredClone(instance.moduleDefinitions),
+        initialize: ids => guard(String(this.#playerId), () => instance.initialize(ids)),
+        policy: (known, actorId, place) => guard(actorId, () => instance.policy(known, actorId, place)),
+        resolve: input => guard(input.actorId, () => instance.resolve(input)),
+        endRound: (truth, round) => guard(String(this.#playerId), () => instance.endRound(truth, round)),
+        prepareModule: (...args) => guard(args[2], () => instance.prepareModule(...args)),
+        ...(instance.close ? { close: () => instance.close!() } : {}),
+      }
+      this.#modulesInForce.status = [{ id: provider.id, version: provider.version }]
+    } catch (error) {
+      throw new Error(`状态机制 ${provider.id} 无法打开：${error instanceof Error ? error.message : String(error)}`, {
+        cause: error,
+      })
+    }
   }
 
   async #openKnowledge(): Promise<void> {

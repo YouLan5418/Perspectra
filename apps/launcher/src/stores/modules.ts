@@ -9,6 +9,13 @@ type ManifestInfo =
 
 export const SEAMS = [
   {
+    seam: 'status',
+    label: '状态规则',
+    single: true,
+    description: '解释现有状态与包内玩法脚本，结果由核心校验并提交。',
+    official: 'official-status',
+  },
+  {
     seam: 'knowledge',
     label: '设定知识',
     single: true,

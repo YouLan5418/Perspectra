@@ -20,7 +20,9 @@ import { createInstalledInteractionPackages } from '@harness-world/interactions-
 import { interactionPackageDescription } from '@harness-world/contracts'
 import { CORE_MEMORY_ID, importCoreArchives } from './official-bundle.ts'
 import { createWorldReader } from './host/world-reader.ts'
-import { PackStatus } from './host/pack-status.ts'
+import { StatusState } from '@harness-world/application'
+import { loadStatusSource } from './host/status-source.ts'
+import { createDefaultStatusScripts } from './official-bundle.ts'
 import { preflightSave } from './save-preflight.ts'
 import { readStoryNodes, restoreStoryNode, storyId, type StoryNode } from './story-nodes.ts'
 
@@ -184,7 +186,13 @@ async function validate(directory: string, node: StoryNode, packPath: string): P
     packPath,
     createInstalledInteractionPackages().map(interactionPackageDescription),
   )) as CompiledWorldPackV5
-  PackStatus.load(packPath, pack)
+  const statusSource = loadStatusSource(packPath, pack)
+  if (statusSource)
+    new StatusState(
+      createDefaultStatusScripts(statusSource).definition,
+      pack.content.characters.map(c => c.characterId),
+      pack.content.entities ?? [],
+    )
   const aliases = object(JSON.parse(readFileSync(join(directory, 'memory-aliases.json'), 'utf8')))
   const actors = pack.content.characters
     .filter(character => character.controllerClass !== 'manual' && (character.lifecycle ?? 'active') === 'active')

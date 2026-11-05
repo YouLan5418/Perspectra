@@ -115,17 +115,18 @@
 | 默认组合与注册 | [official-bundle](../../../desktop/official-bundle.ts)、[加载器](../../../desktop/host-plugins.ts) | 已有 Cordis 服务与默认组合，继续保持机制实现与组合分离 |
 | 调度、角色循环、记忆与模型 | `packages/official-*`，见[模块地图](modules.md) | 作为内部策略机制维护；不是把其算法固化进核心 |
 | 授权与行动提交 | [CharacterTurn](../../../packages/application/src/character-turn.ts)、[RoundCoordinator](../../../packages/application/src/round-coordinator.ts)、[即时执行](../../../packages/application/src/world-round-execution.ts) | NPC／收件箱路径保留，M2 将状态／活动／通信即时提交及物品效果检查归入核心；业务适配继续拆分 |
-| 活动、状态、通信、自主配置 | WorldGameplay 及其 `pack-*` 实现仍在宿主 | 按本规范逐项划分机制、适配与玩法；尚未迁为完整的 Cordis 机制层 |
+| 活动、通信、自主配置 | WorldGameplay 及其 `pack-*` 实现仍在宿主 | 按本规范逐项划分机制、适配与玩法；尚未迁为完整的 Cordis 机制层 |
+| 状态与包内模块解释 | [official-status](../../../packages/official-status/src/index.ts)、`ctx.status`；[StatusState](../../../packages/application/src/status-state.ts)保留核心检查 | M3 已迁，宿主 StatusRuntime／PackModules 只提供授权输入与执行桥；见[M3 记录](../studies/2026-11-core-migration-m3.md) |
 | 知识选择 | [official-knowledge](../../../packages/official-knowledge/src/index.ts)、`ctx.knowledge`；宿主只保留资产适配 | M1 已迁为 Cordis 服务，按授权上下文筛选；见[M0／M1 记录](../studies/2026-11-core-migration-m01.md)，未做真实模型体验验收 |
 | 包内玩法组合 | [PackModules](../../../desktop/host/pack-modules.ts)、包内活动／状态脚本 | 复用已有入口，统一它们的依赖、权限、错误与生命周期说明；不直接再造一套格式 |
 | 外部原生插件 | `.mjs`、现有宿主 SDK | 保留实际兼容面，与面向创作者的脚本玩法入口分清 |
-| 移除官方能力后的最小核心 | WorldApplication 已移除隐式玩法安装，空选择可无模型／记忆启动；网页默认仍选模型、记忆与玩法 | M2 验证最小装配基础，通用状态、分支与完整玩法组合最终验收仍属 M3～M7 |
+| 移除官方能力后的最小核心 | WorldApplication 已移除隐式玩法安装，空选择可无模型／记忆启动；网页默认仍选模型、记忆与玩法 | M2 验证最小装配基础，状态已在 M3 拆分；分支与完整玩法组合最终验收仍待后续批次 |
 
 既有 SDK 对可信原生插件暴露了跨角色读取等特权；这是当前信任模型，不等于普通脚本应获得同样的输入。接口整理需逐项核对，不能仅在文档里宣称已经收紧。
 
 ## 9. 后续整理与验收顺序
 
-源码探查结果与具体批次见[迁移计划](../../superpowers/plans/2026-11-04-core-mechanisms-migration.md)。M0～M2 已接通，M3～M7 仍为目标，不能据此认定对应包和接口已经存在。
+源码探查结果与具体批次见[迁移计划](../../superpowers/plans/2026-11-04-core-mechanisms-migration.md)。M0～M3 已接通，M4～M7 仍为目标，不能据此认定对应包和接口已经存在。
 
 先按模块列出职责、消费者、状态和依赖，再逐项确定“核心／内部机制／玩法／内容／适配”的归属；依据本规范补齐契约，发现公开能力缺口后才做对应拆分。每一项以一个实际玩法消费者验证，避免为追求目录完整一次性公开大量宿主方法。
 
@@ -137,7 +138,7 @@
 - 关闭、取消、切换候选、保存和恢复遵守机制契约，不能串世界或串分支。
 - 保留角色主体性，依据真实模型试玩单独评估体验，不能用目录数、接口数或测试数量替代。
 
-以上仍是整体验收目标。当前完成知识机制、核心即时执行和显式最小装配基础，尚未达到完整最小核心；实际范围见[M2 记录](../studies/2026-11-core-migration-m2.md)，未发布发行包。
+以上仍是整体验收目标。当前完成知识机制、核心即时执行和显式最小装配基础，尚未达到完整最小核心；实际范围见[M3 记录](../studies/2026-11-core-migration-m3.md)，未发布发行包。
 
 ## 10. 两项待办继续暂停
 

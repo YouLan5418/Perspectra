@@ -11,7 +11,7 @@ import { compileWorldPackSource, type CompiledWorldPackV5 } from '@harness-world
 import { WorldStore } from '@harness-world/store-sqlite'
 import { WorldHostRuntime } from '../../desktop/host/world-runtime.ts'
 import { PackActivities } from '../../desktop/host/pack-activities.ts'
-import { PackStatus, type KnownStatus } from '../../desktop/host/pack-status.ts'
+import { loadStatus, type KnownStatus } from '../support/status-runtime.ts'
 import { projectPlayerView } from '../../desktop/host/frontend-adapter.ts'
 import { createChatServer, fakeModels } from '../support/fake-provider.ts'
 
@@ -112,7 +112,7 @@ async function fixture() {
       store.close()
     }
   }
-  const status = PackStatus.load(packPath, pack)!
+  const status = loadStatus(packPath, pack)!
   // The runtime's resolver chain, rebuilt here to ask what a non-player character would be offered;
   // the player's options are read from the runtime itself.
   const activities = PackActivities.load(

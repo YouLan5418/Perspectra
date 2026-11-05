@@ -6,6 +6,7 @@
   "exports": "./src/index.ts",
   "dependencies": {
     "@deepseek-ai/cordis": "4.0.1",
+    "ajv": "8.17.1",
     "@harness-world/agents": "workspace:*",
     "@harness-world/contracts": "workspace:*",
     "@harness-world/kernel": "workspace:*",

@@ -1,5 +1,27 @@
 # 编写并加载自己的 Cordis 宿主插件
 
+## 替换状态脚本机制（2.6）
+
+例如想使用另一种解释器执行已有玩法脚本，可通过 `ctx.effect(() => ctx.status.register(provider))` 注册单例，清单 services 写 `status`，模块声明 `hostApi = '2.6'`。这面向可信原生机制开发者；普通玩法仍使用包内 scripts/status.js、plugins.json 和 plugins/*.js。
+
+`open(world, signal)` 每世界返回 StatusInstance，只在这里获得可选 `world.statusSource`：资产校验后的基础脚本文本、模块文本／角色范围，以及宿主裁定的不可用能力 ID。它不包含数据库、模型凭证或原生能力会话；其他机制的 open 不自动获得这些文本。open 可能早于世界激活，不应依赖世界读取已经可用。
+
+| 接口 | 输入与结果 |
+| --- | --- |
+| definition／hasRoundHook／moduleDefinitions | 既有脚本声明与元数据，交核心检查；没有状态资产时 definition 必须为 undefined |
+| initialize(characterIds) | 返回既有 public／characters／reveals 初始值，核心检查声明完整性与归属，初始化只提交一次 |
+| policy(known, actorId, place) | 只收到当前角色已知状态与可见位置／物品，返回操作许可和可选的物品收窄 |
+| resolve(input) | 可信裁定获得当前 truth、真实 actorId、操作／参数、授权 world、目标与已确认外部结果；返回候选 changes／reveals／description／audience／items，或 rejectReason |
+| endRound(truth, round) | 返回既有轮末状态结果或 null；轮次计数由宿主确定，告知权限仍由核心检查 |
+| prepareModule(moduleId, known, actorId, operation, parameters, world) | 用授权数据生成原生能力参数；不执行原生能力，不获得全量 truth |
+| close() | 可选，关闭世界或候选时释放机制资源 |
+
+所有计算接口同步返回数据，不返回 WorldEvent 或提交回调。原生能力的异步等待、queued／completed、取消和结果未知仍由能力桥处理。核心复制返回的数据，再核验类型、Schema、活动范围、告知对象与真实值、物品去向和真实执行者，沿既有事务提交。脚本返回的 reveal 不携带自行伪造的值。
+
+打开失败不回退；机制执行异常提示实际 Provider ID。policy 失败沿原路径隐藏该角色状态选项并显示诊断；轮末错误保留已提交玩家行动，故障钩子不补跑。替代实现返回非法候选时仍拒绝，不能用解释器替换绕开核心检查。每世界和候选独立 open／close，ID／version／公开 identity 参与重生环境比较。
+
+这不是通用插件状态注册：仍绑定世界包已声明的状态资产和既有 status.updated，不开放任意 Cordis 插件自行挂载持久状态。没有新增事件、存档或脚本格式。源码、测试和发布限制见[M3 记录](../studies/2026-11-core-migration-m3.md)。
+
 ## 替换设定知识机制（2.5）
 
 例如开发者想改作者设定的排序而保留状态、记忆和模型预设，可通过 `ctx.effect(() => ctx.knowledge.register(provider))` 注册单例 Provider，清单 services 写 `knowledge`，模块声明 `hostApi = '2.5'`。

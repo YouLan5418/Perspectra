@@ -17,7 +17,7 @@ import {
   type AutoStartCheck,
 } from './pack-activity.ts'
 import { characterExecutionResult } from '@harness-world/application'
-import type { PackStatus } from './pack-status.ts'
+import type { StatusRuntime } from './status-runtime.ts'
 
 /** One activity's automatic-start checks for the pack lens; null checks: not checked this time, see `skipped`. */
 export interface AutoStartEvaluation {
@@ -70,7 +70,7 @@ export class PackActivities {
     worldPath: string,
     address: WorldAddress,
     playerId: string,
-    status?: PackStatus,
+    status?: StatusRuntime,
     coreRules?: RulebookRegistry,
   ): PackActivities | undefined {
     const catalog = new PackActivities(worldPath, address, playerId, coreRules)

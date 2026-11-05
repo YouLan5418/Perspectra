@@ -1,5 +1,7 @@
 # 当前运行时
 
+2026-11-05 M3：例如更换状态解释器后，非法余额和越权告知仍不能提交。`ctx.status` 通过 [official-status](../../../packages/official-status/src/index.ts)解释状态与模块脚本；[StatusState](../../../packages/application/src/status-state.ts)保留事实校验和授权投影，[StatusRuntime](../../../desktop/host/status-runtime.ts)准备合法操作并沿核心提交。每世界独立实例，源码与构建验证见[M3 记录](../studies/2026-11-core-migration-m3.md)。
+
 2026-11-04 M2：例如玩家状态操作等待外部设备时关闭世界，返回结果必须丢弃。状态、活动和通信的即时提交现复用核心 [executeWorldRound](../../../packages/application/src/world-round-execution.ts)，负责绑定玩家、租约、前缀、取消与原子提交；各宿主适配保留业务和受众检查。物品效果检查迁入 application。WorldApplication 不再隐式安装基础交互包，桌面默认组合显式提供；最小入口与验证边界见[M2 记录](../studies/2026-11-core-migration-m2.md)。
 
 2026-11-04 M1：例如同行者听到“黑海岸”后收到相关设定，宿主先用 [knowledge-source](../../../desktop/host/knowledge-source.ts)验证配置资产，再把必要内容描述交给所选知识 Provider。`ctx.knowledge` 通过 Cordis 注册；默认组合在记忆之后、决策扩充之前打开它，knowledge context 步骤调用其 select。受众与条件筛选在 [official-knowledge](../../../packages/official-knowledge/src/selection.ts)，WorldGameplay 不再持有 PackKnowledge。候选世界独立 open/close，公开 identity 纳入重生环境比较。源码接通和最小启动探针不等于完整最小核心已完成，见[M0／M1 记录](../studies/2026-11-core-migration-m01.md)。
@@ -38,13 +40,13 @@ WorldStore 的审计连接在创建、激活或分叉等实际审计操作时打
 
 2026-10-23 核对默认舞台：例如玩家拿起保温杯后，物品提示与状态抽屉随授权快照更新；在设置中调字号、外观立即生效，点“保存进度”打开节点名称弹框。宿主将 `items`、`statusBar`、`statusTruth`、`responders` 与现有字段一起转发；场景只增加已知当前位置 ID，供包内背景匹配。设置在宿主的浏览器站点存储，保存复用现有 `/api/story-save`；两种桥操作仅允许官方默认舞台，不给社区前端增加管理权限。声音通过已有 `speech` 注入点播放，不新增合成器。美术资源、设置范围、验证边界见[默认界面指南](../guides/web-ui.md#官方默认界面布局)。未修改角色 Context、规则提交、世界事实或节点格式，未重建发行包。
 
-2026-10-22 核对物品链路：例如角色选择拿起摘要，再把它交给在场角色，[状态桥](../../../desktop/host/pack-status.ts)先用包内 `policy(known, actorId, place)` 筛选目标，执行时重查许可与可达性，再调用 `resolve(truth, actorId, operationId, parameters, world, targetId)`。作者返回 `items` 改外观或去向；宿主校验后生成 `entity.upsert`／`entity.transferred`，与本次行动的对白、状态结果和授权观察原子提交。玩家附带的一句话仍按[同回合表达与行动](interaction.md)的先后顺序分别提交，不因此合并成一个事务。
+2026-10-22 核对物品链路：例如角色选择拿起摘要，再把它交给在场角色，[状态桥](../../../desktop/host/status-runtime.ts)先用包内 `policy(known, actorId, place)` 筛选目标，执行时重查许可与可达性，再调用 `resolve(truth, actorId, operationId, parameters, world, targetId)`。作者返回 `items` 改外观或去向；宿主校验后生成 `entity.upsert`／`entity.transferred`，与本次行动的对白、状态结果和授权观察原子提交。玩家附带的一句话仍按[同回合表达与行动](interaction.md)的先后顺序分别提交，不因此合并成一个事务。
 
 拿起／放下／交给由各 v5 示例包的 `scripts/status.js` 提供，标准写法在[作者模板](../../../examples/templates/item-rules.js)；宿主基础交互只保留牵手与松手，旧料理／修理模块也已删除。活动与自主许可引用 `status:take` 等 ID。相关自动测试场景已核对，本次未重跑；本次真实模型证据仅限《赔罪晚宴》A 路线和 hidden-cure-next D2，后者交给了玩家而非伊蕾，见[项目状态](../PROJECT-STATE.md#验证到了哪一步)。下列旧日期实验保留当时结论，不能视为作者模板已重验。
 
 2026-10-19 知识筛选扩展：每次角色请求装入已有授权活动与已知状态后，知识 when 除状态值外，还可检查接收者、当前位置、场景人物、当前／旧物品、本次激活刺激、本人活动与状态 current。活动视图增加稳定 activityKey；仍在 Core／原生记忆交付后、预设准备前选择材料，不新增模型阶段、世界读取或调度机会。[Core／DeepSeek 短试玩](../studies/knowledge-conditions-deepseek-playtest-20261019.md)的 39 次请求全部成功且交付符合预期；源码模式验证不代表 Launcher 人工操作或发行包已验收。字段、自动回归与未验收范围见[世界设定指南](../guides/world-knowledge.md)。
 
-2026-10-19：例如同行者偷走玩家 30 金币后，玩家状态栏仍显示“余额 100（上次确认）”，查看钱包后才变成 70。包可以登记 `scripts/status.js` 声明经裁定的常驻状态，[PackStatus](../../../desktop/host/pack-status.ts) 在新世界首次打开时提交初始 `status.updated`；NPC 的状态操作作为 `interact` 候选经 Rulebook 裁定，玩家用 `/status <操作> <JSON>` 走同一裁定并单独成轮；每次玩家输入被受理且角色反应结束后运行一次可选的每轮钩子（活动中的输入同样）。包变量（`scripts/variables.js`、`pack-variables.json`、`/vars`）已删除，原先因包变量关闭的动态调度、continueAfterPublish 与 beforeActionExpression 门槛一并去掉，下文相应位置已注明。`status.updated` 登记进全局事件清单，所有旧存档打开时报错，需要新建。作者契约与限制见[活动与状态指南](../guides/activity-and-variables.md#3-状态2026-10-19当前源码)。源码与自动测试已接通，未做真实模型试玩，发行包未重建。
+2026-10-19：例如同行者偷走玩家 30 金币后，玩家状态栏仍显示“余额 100（上次确认）”，查看钱包后才变成 70。包可以登记 `scripts/status.js` 声明经裁定的常驻状态，[StatusRuntime](../../../desktop/host/status-runtime.ts) 在新世界首次打开时提交初始 `status.updated`；NPC 的状态操作作为 `interact` 候选经 Rulebook 裁定，玩家用 `/status <操作> <JSON>` 走同一裁定并单独成轮；每次玩家输入被受理且角色反应结束后运行一次可选的每轮钩子（活动中的输入同样）。包变量（`scripts/variables.js`、`pack-variables.json`、`/vars`）已删除，原先因包变量关闭的动态调度、continueAfterPublish 与 beforeActionExpression 门槛一并去掉，下文相应位置已注明。`status.updated` 登记进全局事件清单，所有旧存档打开时报错，需要新建。作者契约与限制见[活动与状态指南](../guides/activity-and-variables.md#3-状态2026-10-19当前源码)。源码与自动测试已接通，未做真实模型试玩，发行包未重建。
 
 例如两个角色先后私下查看钱包，先行动者的续写只能拿到自己那次查看的结果，不能拿到后行动者的余额。[角色回合](../../../packages/application/src/character-turn.ts)用该行动已有的事件引用限定结果读取前缀，当前场景和授权上下文仍按最新前缀生成；状态结果还核对行动者与操作。回合钩子只由新提交的玩家输入触发，同一输入的幂等重放或活动的 NPC 重试不触发。轮次从已有玩家提交推导，同次事务中的多个玩家动作只算一轮，快捷活动的开始与执行两次提交合算一轮；先前钩子返回 null 或失败仍计入已发生轮次，不写额外状态文件。自动回归覆盖并发私有结果隔离、输入重放和无状态提交后的轮次推进，尚未做这组修复的真实模型试玩。
 

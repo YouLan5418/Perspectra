@@ -9,7 +9,7 @@ import { currentEntityState } from '@harness-world/kernel'
 import { WorldStore } from '@harness-world/store-sqlite'
 import { WorldHostCore } from '../../desktop/host/world-runtime.ts'
 import { projectPlayerView } from '../../desktop/host/frontend-adapter.ts'
-import { PackStatus } from '../../desktop/host/pack-status.ts'
+import { loadStatus } from '../support/status-runtime.ts'
 import { fakeModels } from '../support/fake-provider.ts'
 
 // The market sample takes, drops and hands over its thermos with the author's script template only: the pack
@@ -93,7 +93,7 @@ it('tells an actor whose item operation the author refused where the item still 
     f.packPath,
     createInstalledInteractionPackages().map(interactionPackageDescription),
   )) as CompiledWorldPackV5
-  const status = PackStatus.load(f.packPath, pack)!
+  const status = loadStatus(f.packPath, pack)!
   const refused = (actorId: string, operation: string) =>
     status.executionResult({
       manifest: adaptCompiledWorldPack(pack, {

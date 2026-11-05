@@ -18,7 +18,9 @@ import { compileWorldPackSource, type CompiledWorldPackV5 } from '@harness-world
 import { actionText, WAIT_ACTION, type HostAction, type HostState } from '../host/http-server.ts'
 import type { ActivityRequest } from '../host/pack-activity.ts'
 import type { AutoStartEvaluation } from '../host/pack-activities.ts'
-import { PackStatus } from '../host/pack-status.ts'
+import { StatusState } from '@harness-world/application'
+import { loadStatusSource } from '../host/status-source.ts'
+import { createDefaultStatusScripts } from '../official-bundle.ts'
 import { WorldHostRuntime } from '../host/world-runtime.ts'
 import { startStubModel, type StubDecision, type StubModel } from './stub-model.ts'
 import { activityScriptPath, interactionName } from './ids.ts'
@@ -114,7 +116,15 @@ function rewriteCopy(copy: string, pack: CompiledWorldPackV5, start: LensStart):
   }
   const status = start.status
   if (status) {
-    const statuses = PackStatus.load(copy, pack)?.statuses
+    const source = loadStatusSource(copy, pack)
+    const statuses =
+      source === undefined
+        ? undefined
+        : new StatusState(
+            createDefaultStatusScripts(source).definition,
+            pack.content.characters.map(c => c.characterId),
+            pack.content.entities ?? [],
+          ).statuses
     if (!statuses) throw new TypeError('起点 status：本包没有状态脚本')
     const check = (values: WorldJsonObject, owner: 'public' | 'character', field: string) => {
       for (const key of Object.keys(values))

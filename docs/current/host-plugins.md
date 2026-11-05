@@ -1,5 +1,7 @@
 # 通过 Cordis 加载宿主插件
 
+2026-11-05 状态机制：API `2.6` 新增 `ctx.status`，官方状态／包内模块解释迁入 official-status；核心保留值、告知与效果检查。见[编写说明](guides/host-plugin-authoring.md#替换状态脚本机制26)，已有玩法脚本继续适用。
+
 2026-11-04 知识机制：宿主 API `2.5` 新增 `ctx.knowledge`，按当前角色的授权上下文选择作者设定。官方选择器已迁入 official-knowledge；资产校验仍由宿主完成。替换、权限与生命周期见[编写说明](guides/host-plugin-authoring.md#替换设定知识机制25)，验证范围见[M0／M1 记录](studies/2026-11-core-migration-m01.md)。
 
 2026-11-04 角色执行循环：宿主 API `2.4` 新增 `ctx.characterLoop`。例如作者只允许一次操作和一次结果续写，可用 [single-action-loop](../../examples/host-plugins/single-action-loop.mjs)替换官方循环。它决定激活内部如何调用；谁先获得机会仍属调度器。主干继续生成授权上下文、检查受众、裁定并提交事实。入口、故障与生命周期见[接缝指南](guides/plugin-seams.md)和[编写说明](guides/host-plugin-authoring.md#替换角色执行循环24)。下文保留历史 API 的日期范围。

@@ -1,5 +1,7 @@
 # 包内插件与 Cordis 宿主能力
 
+2026-11-05 M3：packPlugin 的源码组合与 prepare 解释现由所选 `ctx.status` 机制完成；PackModules 保留依赖与原生能力桥，核心仍校验并提交效果。现有文件、参数与 queued／completed 含义不变，见[M3 记录](../studies/2026-11-core-migration-m3.md)。
+
 2026-11-04 分层规范：内部机制统一使用 Cordis；外部玩法可以使用包内声明和脚本组合这些机制，原生 `.mjs` 扩展是另一类适配入口。下文描述已有双入口的实际接口，不表示活动等机制已全部迁移，见[统一规范](../architecture/plugin-standard.md)。
 
 例如你让澄向一个外部设备打招呼：澄自己决定是否行动；设备确认后，包内规则才增加她自己的确认次数。旁观者看不到她的私有数值。设备只说“已排队”时，宿主只记录排队说明，不提交完成效果。[最小示例包](../../../examples/world-packs/plugin-capabilities-demo/README.md)可以复现这条链路。

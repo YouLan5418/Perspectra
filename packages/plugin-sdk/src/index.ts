@@ -23,7 +23,7 @@ import type {
 
 /** Major.minor. A new service or optional field raises the minor; any change a plugin could trip over
  * raises the major. A plugin exports `hostApi` with the lowest version it needs. */
-export const HOST_API_VERSION = '2.5'
+export const HOST_API_VERSION = '2.6'
 
 /** Same major, and this host's minor at least the one the plugin asks for. */
 export function hostApiCompatible(required: unknown, host: string = HOST_API_VERSION): boolean {
@@ -143,6 +143,8 @@ export interface WorldServices {
   readonly world: WorldReader
   /** Trusted author materials, supplied only to the selected knowledge provider; never a model-visible request. */
   readonly knowledgeSource?: KnowledgeSource
+  /** Locked status/module texts and resolved availability, supplied only to the selected status provider. */
+  readonly statusSource?: StatusSource
   /** Authorized context projections, available equally to official and replacement decisions. */
   readonly contextSources?: DecisionContextSources
 }
@@ -423,6 +425,7 @@ export interface HostServices {
   capabilities: CapabilitiesApi
   playerFeed: PlayerFeedApi
   knowledge: KnowledgeSlotApi
+  status: StatusSlotApi
   scheduler: SchedulerSlotApi
   characterLoop: CharacterLoopSlotApi
   memory: MemorySlotApi
@@ -551,4 +554,47 @@ export interface KnowledgeInstance {
 export interface KnowledgeSlotApi {
   register(provider: SeamProvider<KnowledgeInstance>): () => void
   readonly current: SeamProvider<KnowledgeInstance> | undefined
+}
+
+export interface StatusModuleSource {
+  readonly id: string
+  readonly source: string
+  readonly characters: readonly string[]
+  readonly unavailableCapabilities: readonly string[]
+}
+export interface StatusSource {
+  readonly script?: string
+  readonly modules: readonly StatusModuleSource[]
+}
+export interface StatusInstance {
+  /** Undefined only when the world has no declared status script or modules. */
+  readonly definition: unknown
+  readonly hasRoundHook: boolean
+  readonly moduleDefinitions: readonly { readonly id: string; readonly definition: WorldJsonObject }[]
+  initialize(characterIds: readonly string[]): unknown
+  policy(known: WorldJsonObject, actorId: string, place: WorldJsonObject): unknown
+  resolve(input: {
+    readonly truth: import('@harness-world/contracts').StatusTruth
+    readonly actorId: string
+    readonly operation: string
+    readonly parameters: WorldJsonObject
+    readonly world: WorldJsonObject
+    readonly targetId: string | null
+    readonly external: WorldJsonValue | null
+  }): unknown
+  endRound(truth: import('@harness-world/contracts').StatusTruth, round: number): unknown
+  prepareModule(
+    moduleId: string,
+    known: WorldJsonObject,
+    actorId: string,
+    operation: string,
+    parameters: WorldJsonObject,
+    world: WorldJsonObject,
+  ): unknown
+  close?(): void | Promise<void>
+}
+
+export interface StatusSlotApi {
+  register(provider: SeamProvider<StatusInstance>): () => void
+  readonly current: SeamProvider<StatusInstance> | undefined
 }

@@ -1,3 +1,5 @@
+import type { SeamProvider, StatusInstance } from '@harness-world/plugin-sdk'
+import { StatusScripts } from '@harness-world/official-status'
 import { Context } from '@deepseek-ai/cordis'
 import { type Server } from 'node:http'
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
@@ -11,7 +13,7 @@ import { compileWorldPackSource } from '@harness-world/world-pack'
 import { WorldStore } from '@harness-world/store-sqlite'
 import { WorldHostRuntime } from '../../desktop/host/world-runtime.ts'
 import { projectPlayerView } from '../../desktop/host/frontend-adapter.ts'
-import { PackStatus } from '../../desktop/host/pack-status.ts'
+import { statusFromSource } from '../support/status-runtime.ts'
 import { PackModules } from '../../desktop/host/pack-modules.ts'
 import {
   HostCapabilities,
@@ -49,7 +51,13 @@ function files(modify?: (path: string) => void) {
   return { packPath, dataDirectory }
 }
 
-async function fixture(options: { provider?: CapabilityProvider; modify?: (path: string) => void } = {}) {
+async function fixture(
+  options: {
+    provider?: CapabilityProvider
+    status?: SeamProvider<StatusInstance>
+    modify?: (path: string) => void
+  } = {},
+) {
   const paths = files(options.modify),
     root = new Context()
   contexts.push(root)
@@ -75,7 +83,7 @@ async function fixture(options: { provider?: CapabilityProvider; modify?: (path:
     createInstalledInteractionPackages().map(interactionPackageDescription),
   )
   const modules = PackModules.load(paths.packPath, compiled, catalog)!
-  const status = PackStatus.fromSource(modules.statusSource(), compiled)
+  const status = statusFromSource({ modules: modules.sources }, compiled)
   const requests: WorldJsonObject[] = []
   let mode: 'perform' | 'abstain' = 'abstain'
   const server = createChatServer((request, response) => {
@@ -111,6 +119,7 @@ async function fixture(options: { provider?: CapabilityProvider; modify?: (path:
   const runtime = await WorldHostRuntime.create({
     ...paths,
     capabilities: catalog,
+    ...(options.status ? { plugins: { status: options.status } } : {}),
     models: fakeModels(
       'http://127.0.0.1:' + (server.address() as { port: number }).port + '/api/chat',
       'openai',
@@ -458,3 +467,27 @@ it('loads the shipped RPG Maker pack adapter and commits only the actor-scoped o
   expect(f.truth().characters[ALLY]!['rm-view']).toEqual({})
   expect((await f.view()).scene!.locationId).not.toBe('7')
 }, 60_000)
+
+it('prepares native actions through the selected status mechanism using authorized values', async () => {
+  let calls = 0
+  const f = await fixture({
+    status: {
+      id: 'module-status',
+      version: '1.0.0',
+      open: async world => {
+        const instance = new StatusScripts(world.statusSource),
+          prepare = instance.prepareModule.bind(instance)
+        instance.prepareModule = (...args) => {
+          calls++
+          const known = args[1]
+          expect(Object.keys(known.characters as Record<string, unknown>)).toEqual([args[2]])
+          return prepare(...args)
+        }
+        return instance
+      },
+    },
+  })
+  await f.act('请求设备确认')
+  expect(calls).toBe(1)
+  expect(f.truth().characters[PLAYER]!['greetings-count']).toBe(1)
+})

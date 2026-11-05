@@ -8,6 +8,7 @@ const SERVICES = [
   'playerFeed',
   'scheduler',
   'knowledge',
+  'status',
   'characterLoop',
   'llm',
   'decisions',

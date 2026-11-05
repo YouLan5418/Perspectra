@@ -10,7 +10,7 @@ import { compileWorldPackSource } from '@harness-world/world-pack'
 import { WorldStore } from '@harness-world/store-sqlite'
 import { WorldHostRuntime } from '../../desktop/host/world-runtime.ts'
 import { projectPlayerView } from '../../desktop/host/frontend-adapter.ts'
-import { PackStatus } from '../../desktop/host/pack-status.ts'
+import { loadStatus } from '../support/status-runtime.ts'
 import { createChatServer, fakeModels } from '../support/fake-provider.ts'
 
 const PLAYER = 'character:player',
@@ -43,7 +43,7 @@ async function fixture(fault = false) {
     packPath,
     createInstalledInteractionPackages().map(interactionPackageDescription),
   )
-  const status = PackStatus.load(packPath, compiled)!
+  const status = loadStatus(packPath, compiled)!
   const requests: WorldJsonObject[] = []
   let tactics: 'guard' | 'abstain' = 'guard'
   const server = createChatServer((request, response) => {

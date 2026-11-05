@@ -34,7 +34,8 @@ import {
   type CompiledWorldManifest,
 } from '@harness-world/kernel'
 import type { CompiledWorldPackV5 } from '@harness-world/world-pack'
-import { SCRIPT_SOURCE_LIMIT, type PackStatus } from './pack-status.ts'
+import { SCRIPT_SOURCE_LIMIT } from '@harness-world/contracts'
+import type { StatusRuntime } from './status-runtime.ts'
 
 /** Actor-scoped facts from the same candidate prefix; never a global inventory.
  * Shared by activity and status script hooks as their `world` argument. */
@@ -70,7 +71,7 @@ export interface ActivityWorld {
   readonly events: readonly RulebookEvent[]
   readonly manifest: CompiledWorldManifest
   worldView(actorId: string): WorldJsonObject
-  truth(status: PackStatus | undefined): unknown
+  truth(status: StatusRuntime | undefined): unknown
 }
 export function readActivityWorld(worldPath: string, address: WorldAddress): ActivityWorld {
   const store = new WorldStore(worldPath)
@@ -94,7 +95,7 @@ export function activityWorldFromEvents(
   manifest: CompiledWorldManifest,
 ): ActivityWorld {
   const views = new Map<string, WorldJsonObject>()
-  const truths = new Map<PackStatus | undefined, unknown>()
+  const truths = new Map<StatusRuntime | undefined, unknown>()
   return {
     headSeq,
     events,
@@ -248,7 +249,7 @@ export class PackActivity {
     readonly address: WorldAddress,
     readonly playerId: string,
     readonly key = 'default',
-    readonly status?: PackStatus,
+    readonly status?: StatusRuntime,
     readonly coreRules?: RulebookRegistry,
   ) {
     this.#script = new Script(
@@ -340,7 +341,7 @@ export class PackActivity {
     playerId: string,
     entry = 'scripts/activity.js',
     key = 'default',
-    status?: PackStatus,
+    status?: StatusRuntime,
     coreRules?: RulebookRegistry,
   ) {
     const lock = pack.assets.find(a => a.path === entry)

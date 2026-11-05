@@ -1,6 +1,6 @@
 # 核心、Cordis 机制与脚本玩法迁移计划
 
-日期：2026-11-04。探查基线：`a924513e`，分支 `fix/activity-notice-and-revision`。依据[统一规范](../../current/architecture/plugin-standard.md)。状态：**M0～M2 已实施，M3～M7 待实施**。本计划保留探查基线时的源码判断；当前成果与测试证据见[M0／M1 记录](../../current/studies/2026-11-core-migration-m01.md)与[M2 记录](../../current/studies/2026-11-core-migration-m2.md)。未注明完成的目录与能力仍为实施目标。
+日期：2026-11-04。探查基线：`a924513e`，分支 `fix/activity-notice-and-revision`。依据[统一规范](../../current/architecture/plugin-standard.md)。状态：**M0～M3 已实施，M4～M7 待实施**。本计划保留探查基线时的源码判断；当前成果与测试证据见[M0／M1 记录](../../current/studies/2026-11-core-migration-m01.md)、[M2 记录](../../current/studies/2026-11-core-migration-m2.md)与[M3 记录](../../current/studies/2026-11-core-migration-m3.md)。未注明完成的目录与能力仍为实施目标。
 
 例如料理比赛和 RPG 战斗可以共同使用状态、活动与交互机制，各自提供脚本规则；核心只确认调用者、授权范围和合法效果，并保存完整事实。移除这些玩法和非必要算法后，仍留下能管理实体、事件、权限、通用状态和提交的最小运行时。
 
@@ -14,7 +14,7 @@
 | --- | --- | --- |
 | [world-runtime.ts](../../../desktop/host/world-runtime.ts)，1941 行，create、构造函数、endPlayerRound、turnFactory | 同时持有模型、游戏包编译、具体玩法、角色激活、节点与玩家投影；固定地装配 PackModules 和基础交互包 | 保留宿主运行／交付，逐项退出具体机制选择与玩法调用 |
 | [world-gameplay.ts](../../../desktop/host/world-gameplay.ts)，185 行 | 聚合状态、活动、通信、知识、自主；固定 `builtin:speak-move` 包装链；statusContext 自己打开数据库 | 过渡装配点，不升级为包含全部方法的公共 ctx.gameplay |
-| [pack-status.ts](../../../desktop/host/pack-status.ts)，1326 行，adjudicate、itemEvents、commitRound、apply、endRound | Schema、VM、规则、物品合法性、观察与独立写租约／提交在同一类；活动通过 activityEvent 复用状态变化 | 先区分核心检查与效果提交，再抽状态脚本机制；不能直接移动整类 |
+| [pack-status.ts](https://github.com/YouLan5418/Perspectra/blob/a924513e/desktop/host/pack-status.ts)，1326 行，adjudicate、itemEvents、commitRound、apply、endRound | Schema、VM、规则、物品合法性、观察与独立写租约／提交在同一类；活动通过 activityEvent 复用状态变化 | 先区分核心检查与效果提交，再抽状态脚本机制；不能直接移动整类 |
 | [pack-activity.ts](../../../desktop/host/pack-activity.ts)，1525 行，apply、state、rulebooks、autoStartCandidate | 活动协议、public／private／internal、参与者、规则、VM、存储与开始／暂停等提交混合 | 活动计算迁机制，提交与授权边界留核心；旧脚本语义先保持 |
 | [pack-activities.ts](../../../desktop/host/pack-activities.ts)，379 行 | 资产发现、前台活动选择、快照缓存、自动开始和默认核心规则回退 | 活动目录／选择迁机制；默认规则与数据读取改为显式注入 |
 | [pack-communication.ts](../../../desktop/host/pack-communication.ts)，308 行，resolve、perform | 联系人规则和消息表达与玩家绑定检查、写租约、commitRound 混合 | 通信业务迁机制；收发授权与提交仍由核心能力执行 |
@@ -112,6 +112,8 @@
 - PackModules.statusSource 的源码拼接先作为现有格式适配保留，分离出明确的解析与调用边界；不在迁移中顺手增加模块自己的回合钩子或异步脚本协议。
 - execute／resolveAction 保留 prepare 只见授权值、结果暂存、queued 不算 completed、外部结果未知停止和 committed／failed 的清理语义。
 
+M3 实际切分：核心 StatusState 保留声明、值、告知和授权投影；official-status 通过 Cordis 解释脚本、组合包内模块；StatusRuntime 与 PackModules 只准备合法输入和执行结果。旧 pack-status.ts 及宿主模块 VM 已删除，验证范围见 M3 记录。
+
 ### M4：迁活动，不把活动对象变成宿主接口
 
 - activity 的 state／game 校验、脚本操作、schedule／onOutcome、policy、活动规则包装属于机制；活动开始等执行仍走核心绑定的能力。
@@ -182,4 +184,4 @@
 - 最小入口探针只能通过绕过事件／Manifest 校验启动。
 - 新旧模型请求差异无法解释，或真实试玩出现明显回归。
 
-原计划编写时仅完成探查；当前 M0～M2 的实际范围见开头记录，之后批次尚未实施，也不解除[两项暂缓需求](../../current/architecture/plugin-layering-direction.md#4-已记录暂不实现的两个需求)。旧“插件优先阶段 0～11”保留为历史实施记录；之后迁移按本计划和统一规范核对，不重复执行已完成阶段。
+原计划编写时仅完成探查；当前 M0～M3 的实际范围见开头记录，之后批次尚未实施，也不解除[两项暂缓需求](../../current/architecture/plugin-layering-direction.md#4-已记录暂不实现的两个需求)。旧“插件优先阶段 0～11”保留为历史实施记录；之后迁移按本计划和统一规范核对，不重复执行已完成阶段。

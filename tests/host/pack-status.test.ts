@@ -7,7 +7,7 @@ import { interactionPackageDescription } from '@harness-world/contracts'
 import { createBasicInteractionPackage } from '@harness-world/interactions-basic'
 import type { RulebookEvent } from '@harness-world/kernel'
 import { compileWorldPackSource, type CompiledWorldPackV5 } from '@harness-world/world-pack'
-import { PackStatus, type StatusEventData } from '../../desktop/host/pack-status.ts'
+import { statusFromSource, loadStatus, type StatusEventData } from '../support/status-runtime.ts'
 
 const original = resolve('examples/world-packs/ai-girls-awaken-v10')
 const market = readFileSync(resolve('tests/fixtures/status-market.js'), 'utf8').replaceAll('\r\n', '\n')
@@ -47,7 +47,7 @@ const withDefinition = (edit: (definition: string) => string) =>
 
 describe('pack status', () => {
   it('validates nested records and arrays, reveals whole values and preserves independent snapshots', () => {
-    const status = PackStatus.parse(quests, pack),
+    const status = statusFromSource(quests, pack),
       initial = status.initialEvent()
     const value = { market: { stage: 'done', notes: ['领取委托', '完成演示流程'] } }
     const data: StatusEventData = {
@@ -94,7 +94,7 @@ describe('pack status', () => {
     const script = `globalThis.statusScript = { definition: { statuses: [
       { key: 'data', label: '记录', type: 'object', owner: 'public', schema: { type: 'object' } }
     ], operations: [] }, initialize(ids) { return { public: { data: {} }, characters: Object.fromEntries(ids.map(id => [id, {}])) } } }`
-    const status = PackStatus.parse(script, pack),
+    const status = statusFromSource(script, pack),
       initial = status.initialEvent()
     let deep: Record<string, unknown> = {}
     for (let i = 0; i < 18; i++) deep = { next: deep }
@@ -120,7 +120,7 @@ describe('pack status', () => {
     )}, operations: [] },
       initialize(ids) { return { public: Object.fromEntries(${JSON.stringify(keys)}.map(key => [key, {}])),
         characters: Object.fromEntries(ids.map(id => [id, {}])) } } }`
-    const status = PackStatus.parse(script, pack),
+    const status = statusFromSource(script, pack),
       initial = status.initialEvent()
     const fill = (count: number): StatusEventData => ({
       source: { kind: 'round', round: 1 },
@@ -136,7 +136,7 @@ describe('pack status', () => {
   })
 
   it('operation policy sees only known state, including last confirmed values', () => {
-    const status = PackStatus.parse(quests, pack),
+    const status = statusFromSource(quests, pack),
       initial = status.initialEvent()
     const ids = (events: RulebookEvent[]) =>
       status
@@ -161,18 +161,18 @@ describe('pack status', () => {
   })
 
   it('loads only a registered, unmodified status script', () => {
-    expect(PackStatus.load(original, plain)).toBeUndefined()
-    expect(PackStatus.load(packPath, pack)?.statuses.map(s => s.key)).toEqual(['money', 'time', 'hp'])
+    expect(loadStatus(original, plain)).toBeUndefined()
+    expect(loadStatus(packPath, pack)?.statuses.map(s => s.key)).toEqual(['money', 'time', 'hp'])
     writeFileSync(join(packPath, 'scripts/status.js'), market + '\n// edited', 'utf8')
     try {
-      expect(() => PackStatus.load(packPath, pack)).toThrow(/编译/u)
+      expect(() => loadStatus(packPath, pack)).toThrow(/编译/u)
     } finally {
       writeFileSync(join(packPath, 'scripts/status.js'), market, 'utf8')
     }
   })
 
   it('parses the market fixture and rejects unknown keys, bad types and duplicate ids', () => {
-    const status = PackStatus.parse(market, pack)
+    const status = statusFromSource(market, pack)
     expect(status.statuses.map(s => [s.key, s.type, s.owner])).toEqual([
       ['money', 'number', 'character'],
       ['time', 'number', 'public'],
@@ -204,12 +204,12 @@ describe('pack status', () => {
       ),
     ]) {
       expect(broken).not.toBe(market)
-      expect(() => PackStatus.parse(broken, pack)).toThrow()
+      expect(() => statusFromSource(broken, pack)).toThrow()
     }
   })
 
   it('folds truth from initial and later events', () => {
-    const status = PackStatus.parse(market, pack),
+    const status = statusFromSource(market, pack),
       initial = status.initialEvent()
     expect(initial.eventType).toBe('status.updated')
     const ids = pack.content.characters.map(c => c.characterId)
@@ -232,7 +232,7 @@ describe('pack status', () => {
   })
 
   it('owner learns initial private values; others see nothing', () => {
-    const status = PackStatus.parse(market, pack),
+    const status = statusFromSource(market, pack),
       events = [status.initialEvent()]
     const gpt = status.known(events, 'character:gpt')
     expect(gpt.filter(k => k.key !== 'time')).toEqual([
@@ -243,7 +243,7 @@ describe('pack status', () => {
   })
 
   it('a theft leaves the victim with the old value marked current:false', () => {
-    const status = PackStatus.parse(market, pack)
+    const status = statusFromSource(market, pack)
     const theft = event({
       source: { kind: 'operation', operation: 'steal', actorId: 'character:gpt' },
       changes: [
@@ -271,16 +271,16 @@ describe('pack status', () => {
   })
 
   it('playerTruth is off by default and, when declared, exposes only those statuses for every holder', () => {
-    expect(PackStatus.parse(market, pack).playerTruth([PackStatus.parse(market, pack).initialEvent()])).toEqual([])
+    expect(statusFromSource(market, pack).playerTruth([statusFromSource(market, pack).initialEvent()])).toEqual([])
     expect(() =>
-      PackStatus.parse(
+      statusFromSource(
         market.replace("key: 'money', label: '余额',", "key: 'money', label: '余额', playerTruth: 'yes',"),
         pack,
       ),
     ).toThrow('playerTruth 必须是布尔值')
     const opted = market.replace("key: 'money', label: '余额',", "key: 'money', label: '余额', playerTruth: true,")
     expect(opted).not.toBe(market)
-    const status = PackStatus.parse(opted, pack)
+    const status = statusFromSource(opted, pack)
     const theft = event({
       source: { kind: 'operation', operation: 'steal', actorId: 'character:gpt' },
       changes: [
@@ -304,7 +304,7 @@ describe('pack status', () => {
   })
 
   it('alwaysKnown time is visible to everyone without reveals', () => {
-    const status = PackStatus.parse(market, pack)
+    const status = statusFromSource(market, pack)
     const events = [
       status.initialEvent(),
       event({
@@ -326,7 +326,7 @@ describe('pack status', () => {
   })
 
   it('validate rejects a reveal to an observer outside the scene', () => {
-    const status = PackStatus.parse(market, pack),
+    const status = statusFromSource(market, pack),
       events = [status.initialEvent()]
     const data: StatusEventData = {
       source: { kind: 'operation', operation: 'check-purse', actorId: 'character:gpt' },
@@ -342,7 +342,7 @@ describe('pack status', () => {
   })
 
   it('validate rejects undeclared keys, wrong types, mismatched holders and stale reveal values', () => {
-    const status = PackStatus.parse(market, pack),
+    const status = statusFromSource(market, pack),
       events = [status.initialEvent()],
       scene = ['character:gpt']
     const source = { kind: 'operation', operation: 'buy', actorId: 'character:gpt' } as const
@@ -374,7 +374,7 @@ describe('pack status', () => {
   })
 
   it('validate rejects an operation-sourced change to an activity-scoped status', () => {
-    const status = PackStatus.parse(market, pack),
+    const status = statusFromSource(market, pack),
       events = [status.initialEvent()],
       scene = ['character:gpt']
     const change = { holderId: 'character:gpt', key: 'hp', value: 25 }
@@ -408,7 +408,7 @@ describe('pack status', () => {
   })
 
   it('an activity status result gets host-filled reveals and throws on author faults', () => {
-    const status = PackStatus.parse(market, pack),
+    const status = statusFromSource(market, pack),
       events = [status.initialEvent()],
       scene = ['character:gpt', 'character:claude']
     const hit = {
@@ -458,7 +458,7 @@ describe('pack status', () => {
 it('accepts status scripts up to 256 KiB, including the source composed with pack modules, and rejects larger', () => {
   // A comment pads the real market rules; the whole source runs on every call, so its size is what is bounded.
   const padded = (bytes: number) => market + '\n//' + 'x'.repeat(bytes - Buffer.byteLength(market) - 3)
-  expect(PackStatus.fromSource(padded(100 * 1024), pack).statuses.length).toBeGreaterThan(0)
-  expect(PackStatus.fromSource(padded(256 * 1024), pack).statuses.length).toBeGreaterThan(0)
-  expect(() => PackStatus.fromSource(padded(256 * 1024 + 1), pack)).toThrow('状态脚本过长')
+  expect(statusFromSource(padded(100 * 1024), pack).statuses.length).toBeGreaterThan(0)
+  expect(statusFromSource(padded(256 * 1024), pack).statuses.length).toBeGreaterThan(0)
+  expect(() => statusFromSource(padded(256 * 1024 + 1), pack)).toThrow('状态脚本过长')
 })

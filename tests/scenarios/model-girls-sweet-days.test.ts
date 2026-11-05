@@ -10,7 +10,7 @@ import { WorldStore } from '@harness-world/store-sqlite'
 import { currentEntityState, currentLocation } from '@harness-world/kernel'
 import { WorldHostCore } from '../../desktop/host/world-runtime.ts'
 import { projectPlayerView } from '../../desktop/host/frontend-adapter.ts'
-import { PackStatus } from '../../desktop/host/pack-status.ts'
+import { loadStatus } from '../support/status-runtime.ts'
 import { createChatServer, fakeModels } from '../support/fake-provider.ts'
 
 const roots: string[] = [],
@@ -72,7 +72,7 @@ async function fixture(
     pack,
     createInstalledInteractionPackages().map(interactionPackageDescription),
   )
-  const status = PackStatus.load(pack, compiled)!
+  const status = loadStatus(pack, compiled)!
   // Context of every character request, in call order, for tests that check what a character was told.
   const contexts: WorldJsonObject[] = []
   const server = createChatServer((request, response) => {
