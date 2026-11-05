@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto'
 import {
   brandId,
   canonicalizeWorldJson,
+  playerRoundNumber,
   knownStatusView,
   type WorldAddress,
   type WorldEventDraft,
@@ -32,7 +33,6 @@ import {
   parseStatusOperationResult,
   statusObservationScope,
   statusOperationChoices,
-  statusRoundNumber,
   type StatusOffers,
   characterExecutionResult,
   executeWorldRound,
@@ -553,7 +553,7 @@ export class StatusRuntime {
   ): Promise<{ ok: boolean; error?: string }> {
     let error: string | undefined
     await this.#commitRound(worldPath, address, 'status-round:' + randomUUID(), ({ events }) => {
-      const { round, turnCommits } = statusRoundNumber(events, turnStartSeq, pause)
+      const { round, turnCommits } = playerRoundNumber(events, turnStartSeq, pause)
       // Folding stored events stays outside the catch: corrupt history must surface, not read as a hook failure.
       const truth = this.truth(events)
       let data: StatusEventData | undefined
