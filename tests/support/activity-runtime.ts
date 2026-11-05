@@ -7,7 +7,7 @@ import { ActivitiesRuntime } from '../../desktop/host/activities-runtime.ts'
 import { loadActivitySource } from '../../desktop/host/activity-source.ts'
 import type { StatusRuntime } from '../../desktop/host/status-runtime.ts'
 export { ActivityRuntime, ActivitiesRuntime }
-export { readActivityWorld } from '../../desktop/host/activity-world.ts'
+export { readActivityWorld } from '@harness-world/application'
 export function activityFromSource(
   source: string,
   worldPath: string,

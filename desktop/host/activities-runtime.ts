@@ -11,9 +11,13 @@ import type {
 import type { ActivitiesInstance } from '@harness-world/plugin-sdk'
 import { WorldStore } from '@harness-world/store-sqlite'
 import { RulebookRegistry, type RulebookEvent, type RulebookResolver } from '@harness-world/kernel'
-import { characterExecutionResult, activityProgress } from '@harness-world/application'
+import {
+  characterExecutionResult,
+  activityProgress,
+  readActivityWorld,
+  type ActivityWorld,
+} from '@harness-world/application'
 import { ActivityRuntime } from './activity-runtime.ts'
-import { readActivityWorld, type ActivityWorld } from './activity-world.ts'
 import type { StatusRuntime } from './status-runtime.ts'
 /** One foreground activity, with independent progress in the existing world event log. */
 export class ActivitiesRuntime {

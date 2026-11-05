@@ -15,7 +15,12 @@ import {
   type RulebookResolution,
 } from '@harness-world/kernel'
 import { WorldStore, WriterLeaseService } from '@harness-world/store-sqlite'
-import { CommunicationRules, characterExecutionResult, executeWorldRound } from '@harness-world/application'
+import {
+  actionObservations,
+  CommunicationRules,
+  characterExecutionResult,
+  executeWorldRound,
+} from '@harness-world/application'
 import type { CommunicationInstance } from '@harness-world/plugin-sdk'
 /** Bind computed message proposals to real contacts and the core execution path. */
 export class CommunicationRuntime {
@@ -152,22 +157,17 @@ export class CommunicationRuntime {
                 accepted: result.status === 'accepted',
               },
             },
-            {
-              eventType: 'observation.upsert',
-              eventVersion: 1,
-              data: {
-                id: `${actionId}:sender`,
-                value: {
-                  observerId: input.actorId,
-                  content: {
-                    actorId: input.actorId,
-                    actionType: 'interact',
-                    status: result.status,
-                    ...(speech ? { speech: speech.data } : {}),
-                  },
-                },
-              },
-            },
+            ...actionObservations({
+              roundId,
+              actionId,
+              actorId: input.actorId,
+              actionType: 'interact',
+              status: result.status === 'accepted' ? 'accepted' : 'rejected',
+              audience: { fullContentCharacterIds: [input.actorId], occurrenceOnlyCharacterIds: [] },
+              shared: speech ? { speech: speech.data } : {},
+              playerBindings: [],
+              observationId: () => `${actionId}:sender`,
+            }).events,
           ],
         }
       },

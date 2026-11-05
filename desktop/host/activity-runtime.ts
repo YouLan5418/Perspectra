@@ -28,6 +28,10 @@ import {
   activityStrings as strings,
   activityJson as json,
   parseActivityAutoStart,
+  actorWorldView,
+  immediateActionDrafts,
+  readActivityWorld,
+  type ActivityWorld,
 } from '@harness-world/application'
 import {
   RulebookRegistry,
@@ -38,7 +42,6 @@ import {
   type CompiledWorldManifest,
 } from '@harness-world/kernel'
 import type { StatusRuntime } from './status-runtime.ts'
-import { actorWorldView, readActivityWorld, type ActivityWorld } from './activity-world.ts'
 /** Authorizes activity inputs and checks proposals before the existing core execution path. */
 export class ActivityRuntime {
   #currentState: { headSeq: number; state: ActivityState | undefined } | undefined
@@ -1035,33 +1038,6 @@ export class ActivityRuntime {
                 (result.reason?.startsWith('plugin:') ? rejectionReasonText(result.reason) : undefined) ??
                 '这次操作未被规则接受',
             )
-          const scene = new SceneDecisionService(store, availability)
-          const drafts: WorldEventDraft[] = [...result.events]
-          if (action.actionType === 'move')
-            drafts.push(
-              ...scene.transitionForMove(
-                this.address,
-                events,
-                brandId(this.playerId, 'CharacterId'),
-                String(action.parameters.locationId),
-                head.headSeq,
-              ),
-            )
-          const scope = result.observationScope
-          const audience = scene.audienceForAction(
-            this.address,
-            brandId(this.playerId, 'CharacterId'),
-            events,
-            head.headSeq,
-            {
-              scope: scope?.scope ?? 'scene_public',
-              ...(scope?.recipientIds === undefined
-                ? {}
-                : { recipientIds: scope.recipientIds.map(id => brandId(id, 'CharacterId')) }),
-            },
-          )
-          const speech =
-            action.actionType === 'speak' ? result.events.find(e => e.eventType === 'character.speak') : undefined
           const outcome = {
             manifest: manifest.manifest as CompiledWorldManifest,
             events: [...events, ...result.events],
@@ -1071,56 +1047,17 @@ export class ActivityRuntime {
             reason: null,
           }
           const description = (this.status?.executionResult(outcome) ?? this.executionResult(outcome)).description
-          for (const observerId of new Set([...audience.fullContentCharacterIds, this.playerId])) {
-            drafts.push({
-              eventType: 'observation.upsert',
-              eventVersion: 1,
-              data: {
-                id: owner + ':' + observerId,
-                value: {
-                  observerId,
-                  content: {
-                    actorId: this.playerId,
-                    status: 'accepted',
-                    actionType: action.actionType,
-                    resultDescription: description!,
-                    ...(speech === undefined ? {} : { speech: speech.data }),
-                    ...(result.events.find(e => e.eventType === 'entity.transferred')
-                      ? { interaction: result.events.find(e => e.eventType === 'entity.transferred')!.data }
-                      : {}),
-                  },
-                },
-              },
-            })
-          }
-          for (const observerId of audience.occurrenceOnlyCharacterIds) {
-            drafts.push({
-              eventType: 'observation.upsert',
-              eventVersion: 1,
-              data: {
-                id: owner + ':' + observerId,
-                value: {
-                  observerId,
-                  content: {
-                    actorId: this.playerId,
-                    status: 'accepted',
-                    actionType: 'private_interaction',
-                    contentVisibility: 'occurrence_only',
-                  },
-                },
-              },
-            })
-          }
-          drafts.push({
-            eventType: 'action.resolved',
-            eventVersion: 1,
-            data: {
-              actorId: this.playerId,
-              actionId: owner,
-              actionType: action.actionType,
-              accepted: true,
-              sourceRole: 'player',
-            },
+          const drafts = immediateActionDrafts({
+            scene: new SceneDecisionService(store, availability),
+            address: this.address,
+            manifest: manifest.manifest as CompiledWorldManifest,
+            events,
+            headSeq: head.headSeq,
+            actorId: brandId(this.playerId, 'CharacterId'),
+            actionId: owner,
+            action,
+            result,
+            description: String(description),
           })
           return {
             events: drafts,

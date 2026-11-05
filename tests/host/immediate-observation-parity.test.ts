@@ -49,7 +49,11 @@ async function world() {
       .filter(v => v.observerId === observerId && obj(v.content).actionType === 'move')
       .map(v => obj(v.content))
       .at(-1)
-  return { runtime, seenBy }
+  const lines = () =>
+    events()
+      .filter(e => e.eventType === 'character.speak')
+      .map(e => e.data)
+  return { runtime, seenBy, lines }
 }
 const move = (locationId: string) => `/act move ${JSON.stringify({ locationId })}`
 
@@ -60,7 +64,7 @@ it('an ordinary move tells each witness the part of the route they saw', async (
   expect(f.seenBy(FRIEND)?.movement).toMatchObject({ toLocationId: BACK })
 })
 
-it.fails('a move during an activity tells witnesses the same route', async () => {
+it('a move during an activity tells witnesses the same route', async () => {
   const f = await world()
   await f.runtime.activityAction({
     activityKey: 'guess',
@@ -73,4 +77,19 @@ it.fails('a move during an activity tells witnesses the same route', async () =>
   await f.runtime.submit(move(BACK))
   expect(f.seenBy(COMPANION)?.movement).toMatchObject({ fromLocationId: FRONT })
   expect(f.seenBy(FRIEND)?.movement).toMatchObject({ toLocationId: BACK })
+})
+
+it('a retried line during an activity is not said twice', async () => {
+  const f = await world()
+  await f.runtime.activityAction({
+    activityKey: 'guess',
+    activityId: null,
+    revision: 0,
+    operation: 'start',
+    parameters: {},
+    requestId: 'retry-start',
+  })
+  await f.runtime.submit('我猜五十。', 'retry-line')
+  await f.runtime.submit('我猜五十。', 'retry-line')
+  expect(f.lines().filter(line => obj(line).text === '我猜五十。')).toHaveLength(1)
 })

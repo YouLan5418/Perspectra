@@ -44,7 +44,7 @@ import {
 } from '@harness-world/application'
 import { saveStoryNode, readStoryNodes } from '../story-nodes.ts'
 import { existsSync, unlinkSync } from 'node:fs'
-import { activityWorldFromEvents, type ActivityWorld } from './activity-world.ts'
+import { activityWorldFromEvents, type ActivityWorld } from '@harness-world/application'
 import type { ActivityRequest } from '@harness-world/contracts'
 import {
   guardedDecision,

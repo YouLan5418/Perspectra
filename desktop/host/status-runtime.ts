@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import {
+  brandId,
   canonicalizeWorldJson,
   knownStatusView,
   type WorldAddress,
@@ -32,10 +33,12 @@ import {
   executeWorldRound,
   itemIsReachable,
   adjudicateItemChanges,
+  actorWorldView,
+  immediateActionDrafts,
+  withSceneDecisions,
   type WorldRoundSnapshot,
 } from '@harness-world/application'
 import { activityProgress } from '@harness-world/application'
-import { actorWorldView } from './activity-world.ts'
 import { CAPABILITY_PENDING, type CapabilityOutcome } from '../host-capabilities.ts'
 import type { ExternalStatusInput } from './pack-modules.ts'
 const PREFIX = 'status:',
@@ -585,39 +588,23 @@ export class StatusRuntime {
           )
         }
         if (result.status === 'rejected') throw new TypeError(result.reason)
-        // Witnesses of a move keep track of who holds the item, as with the built-in rules.
-        const transfer = result.events.find(event => event.eventType === 'entity.transferred')
-        const scope = result.observationScope
-        const observerIds = scope.scope === 'direct' ? (scope.recipientIds ?? []).map(String) : result.sceneIds
+        const accepted = result
         return {
           authority: { actorId: playerId, request, status: 'accepted' },
-          events: [
-            ...result.events,
-            ...observerIds.map(observerId => ({
-              eventType: 'observation.upsert',
-              eventVersion: 1,
-              data: {
-                id: actionId + ':' + observerId,
-                value: {
-                  observerId,
-                  actionId,
-                  epistemicKind: 'observed_action',
-                  content: {
-                    status: 'accepted',
-                    actionType: 'interact',
-                    actorId: playerId,
-                    resultDescription: result.description,
-                    ...(transfer === undefined ? {} : { interaction: transfer.data }),
-                  },
-                },
-              },
-            })),
-            {
-              eventType: 'action.resolved',
-              eventVersion: 1,
-              data: { actorId: playerId, actionId, actionType: 'interact', accepted: true, sourceRole: 'player' },
-            },
-          ],
+          events: withSceneDecisions(worldPath, scene =>
+            immediateActionDrafts({
+              scene,
+              address,
+              manifest,
+              events,
+              headSeq: head.headSeq,
+              actorId: brandId(playerId, 'CharacterId'),
+              actionId,
+              action: { actionType: 'interact', parameters },
+              result: { status: 'accepted', events: accepted.events, observationScope: accepted.observationScope },
+              description: accepted.description,
+            }),
+          ),
         }
       },
       playerId,
