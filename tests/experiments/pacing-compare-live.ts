@@ -184,6 +184,11 @@ async function run(name: string, pacing: boolean): Promise<WorldJsonObject> {
       log(`\n## 第 ${round} 轮\n\n玩家：${line}`)
       try {
         let state = await runtime.submit(line)
+        // A failed model call leaves the round silent; count it, or a gateway outage reads as quiet characters.
+        if (state.error) {
+          failures++
+          log(`- 〔角色处理失败〕${state.notice}`)
+        }
         show(round)
         decisions.push({ round, decision: runtime.pacingDecision() })
         log(`  - （决策）${JSON.stringify(obj(runtime.pacingDecision() ?? {}).reason ?? null)}`)

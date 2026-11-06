@@ -100,19 +100,23 @@ globalThis.pacingScript = {
         ['玩家在家', atHome(world.locationId)],
         ['付得起', truth.characters['character:player'].money >= 30],
       ],
-      apply: truth => ({
+      apply: (truth, world) => ({
         changes: [
           { holderId: 'character:player', key: 'money', value: truth.characters['character:player'].money - 30 },
         ],
         reveals: [{ observerId: 'character:player', holderId: 'character:player', key: 'money' }],
         notice: '手机震了一下：这个月的水电费自动扣了 30 元。',
-        stimuli: [
-          {
-            characterId: 'character:claude',
-            kind: 'perception',
-            text: '你路过时瞥见屋主低头看了一眼手机，屏幕上是一条扣费提醒。',
-          },
-        ],
+        // 只有在屋主身边的人才可能瞥见；不在场时不给她这段察觉，否则她会记住一件没发生过的事。
+        stimuli:
+          world.places['character:claude'] === world.locationId
+            ? [
+                {
+                  characterId: 'character:claude',
+                  kind: 'perception',
+                  text: '你瞥见屋主低头看了一眼手机，屏幕上是一条扣费提醒。',
+                },
+              ]
+            : [],
       }),
     },
   },

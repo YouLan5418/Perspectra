@@ -10,6 +10,7 @@ import { compileWorldPackSource } from '@harness-world/world-pack'
 import { WorldStore } from '@harness-world/store-sqlite'
 import { currentEntityState, currentLocation } from '@harness-world/kernel'
 import { WorldHostCore } from '../../desktop/host/world-runtime.ts'
+import { PacingScript } from '../../packages/official-pacing/src/index.ts'
 import { projectPlayerView } from '../../desktop/host/frontend-adapter.ts'
 import { loadStatus } from '../support/status-runtime.ts'
 import { createChatServer, fakeModels } from '../support/fake-provider.ts'
@@ -864,4 +865,26 @@ it('lets the prologue come first whatever the draw says', async () => {
   })
   expect(kinds[0]).toBe('prologue')
   expect(kinds).not.toContain('beat')
+})
+
+it('lets Claude notice the bill only when she is where the player is', () => {
+  const script = new PacingScript({
+    script: readFileSync(resolve('examples/world-packs/model-girls-sweet-days/scripts/pacing.js'), 'utf8'),
+  })
+  const truth = { public: { day: 1, slot: '午后' }, characters: { 'character:player': { money: 100 } } }
+  const bill = (claude: string) =>
+    script.apply(
+      'utility-bill',
+      {
+        truth,
+        world: {
+          locationId: 'location:entrance-shop',
+          characterIds: [],
+          places: { 'character:player': 'location:entrance-shop', 'character:claude': claude },
+        },
+      } as never,
+      () => 0,
+    ) as { stimuli: unknown[] }
+  expect(bill('location:living-room').stimuli).toEqual([])
+  expect(bill('location:entrance-shop').stimuli).toHaveLength(1)
 })
