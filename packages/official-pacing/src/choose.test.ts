@@ -156,3 +156,46 @@ it('never breaks a cooldown or recovery over a long run', () => {
   expect(counts.storm).toBeGreaterThan(0)
   expect(fired.length).toBeGreaterThan(500)
 })
+
+const spaced = parsePacingDefinition({
+  cycleRounds: 16,
+  chance: 1,
+  cooldownRounds: { low: 0, medium: 0, high: 0 },
+  recoveryRounds: 0,
+  repeatAfterRounds: 6,
+  beats: { knock: { intensity: 'low' }, rent: { intensity: 'low', repeatAfterRounds: 12 } },
+})
+const chooseSpaced = (candidates: readonly PacingCandidate[], at: PacingHistory, random: () => number) =>
+  choosePaced(spaced, { candidates, history: at, random })
+
+it('leaves out an event that happened too recently, and picks among the rest', () => {
+  const at = history({ round: 20, fired: [{ kind: 'beat', key: 'knock', round: 16 }] })
+  const result = chooseSpaced([knock, rent], at, draws(0, 0))
+  expect(result).toMatchObject({ kind: 'beat', key: 'rent', reason: { why: 'chosen', repeated: ['knock'] } })
+})
+
+it('stays out without drawing when every ready event happened too recently', () => {
+  const random = draws()
+  const at = history({ round: 20, fired: [{ kind: 'beat', key: 'knock', round: 18 }] })
+  expect(chooseSpaced([knock], at, random)).toMatchObject({ kind: 'none', reason: { why: 'repeated' } })
+  expect(random.used()).toBe(0)
+})
+
+it("uses an event's own gap over the default, and lets it back once the gap has passed", () => {
+  const recently = history({ round: 20, fired: [{ kind: 'beat', key: 'rent', round: 10 }] })
+  expect(chooseSpaced([rent], recently, draws())).toMatchObject({ reason: { why: 'repeated' } })
+  const later = history({ round: 22, fired: [{ kind: 'beat', key: 'rent', round: 10 }] })
+  expect(chooseSpaced([rent], later, draws(0, 0))).toMatchObject({ kind: 'beat', key: 'rent' })
+})
+
+it('refuses a negative gap', () => {
+  expect(() =>
+    parsePacingDefinition({
+      cycleRounds: 16,
+      chance: 1,
+      cooldownRounds: { low: 0, medium: 0, high: 0 },
+      recoveryRounds: 0,
+      beats: { knock: { intensity: 'low', repeatAfterRounds: -1 } },
+    }),
+  ).toThrow('repeatAfterRounds')
+})

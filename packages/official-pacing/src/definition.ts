@@ -13,6 +13,10 @@ export interface PacingDefinition {
   }
   readonly activities: Readonly<Record<string, PacingIntensity>>
   readonly beats: Readonly<Record<string, PacingIntensity>>
+  /** How many rounds the same activity or beat waits before it may come again; 0 lets it repeat at once. */
+  readonly repeatAfterRounds: number
+  /** Per-event overrides of that gap, keyed `activity:<key>` or `beat:<key>`. */
+  readonly repeatAfter: Readonly<Record<string, number>>
 }
 
 function object(value: unknown, field: string): Record<string, unknown> {
@@ -39,14 +43,24 @@ function names(value: unknown, field: string): string[] {
     throw new TypeError(`节奏配置 ${field} 必须是字符串列表`)
   return value as string[]
 }
-function intensities(value: unknown, field: string): Record<string, PacingIntensity> {
+function intensities(
+  value: unknown,
+  field: 'activities' | 'beats',
+  repeatAfter: Record<string, number>,
+): Record<string, PacingIntensity> {
   const result: Record<string, PacingIntensity> = {}
   for (const [key, entry] of Object.entries(object(value ?? {}, field))) {
     const row = object(entry, `${field}.${key}`)
-    exact(row, `${field}.${key}`, ['intensity'])
+    exact(row, `${field}.${key}`, ['intensity'], ['repeatAfterRounds'])
     if (row.intensity !== 'low' && row.intensity !== 'medium' && row.intensity !== 'high')
       throw new TypeError(`节奏配置 ${field}.${key}.intensity 必须是 low、medium 或 high`)
     result[key] = row.intensity
+    if (row.repeatAfterRounds !== undefined)
+      repeatAfter[(field === 'activities' ? 'activity:' : 'beat:') + key] = rounds(
+        row.repeatAfterRounds,
+        `${field}.${key}.repeatAfterRounds`,
+        0,
+      )
   }
   return result
 }
@@ -58,9 +72,10 @@ export function parsePacingDefinition(value: unknown): PacingDefinition {
     root,
     'definition',
     ['cycleRounds', 'chance', 'cooldownRounds', 'recoveryRounds'],
-    ['stagnation', 'activities', 'beats'],
+    ['stagnation', 'activities', 'beats', 'repeatAfterRounds'],
   )
   const cooldown = object(root.cooldownRounds, 'cooldownRounds')
+  const repeatAfter: Record<string, number> = {}
   exact(cooldown, 'cooldownRounds', ['low', 'medium', 'high'])
   const chance = share(root.chance, 'chance')
   let stagnation: PacingDefinition['stagnation']
@@ -91,7 +106,10 @@ export function parsePacingDefinition(value: unknown): PacingDefinition {
     },
     recoveryRounds: rounds(root.recoveryRounds, 'recoveryRounds', 0),
     ...(stagnation === undefined ? {} : { stagnation }),
-    activities: intensities(root.activities, 'activities'),
-    beats: intensities(root.beats, 'beats'),
+    activities: intensities(root.activities, 'activities', repeatAfter),
+    beats: intensities(root.beats, 'beats', repeatAfter),
+    repeatAfterRounds:
+      root.repeatAfterRounds === undefined ? 0 : rounds(root.repeatAfterRounds, 'repeatAfterRounds', 0),
+    repeatAfter,
   }
 }

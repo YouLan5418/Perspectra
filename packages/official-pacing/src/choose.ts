@@ -37,6 +37,16 @@ export function choosePaced(
   const none = (why: string): PacingChoice => ({ kind: 'none', reason: { round, tension, stagnation, chance, why } })
 
   if (!candidates.length) return none('no-candidates')
+  // The same thing again too soon reads as a script; it waits its own gap, with no draw spent on it.
+  const gap = (candidate: PacingCandidate) =>
+    definition.repeatAfter[candidate.kind + ':' + candidate.key] ?? definition.repeatAfterRounds
+  const repeated = candidates.filter(candidate => {
+    const same = history.fired.findLast(event => event.kind === candidate.kind && event.key === candidate.key)
+    return same !== undefined && round - same.round < gap(candidate)
+  })
+  const fresh = candidates.filter(candidate => !repeated.includes(candidate))
+  const noted = repeated.length ? { repeated: repeated.map(candidate => candidate.key) } : {}
+  if (!fresh.length) return { kind: 'none', reason: { round, tension, stagnation, chance, why: 'repeated', ...noted } }
   const last = history.fired.findLast(event => intensityOf(event) !== undefined)
   const lastIntensity = last && intensityOf(last)
   const since = last ? round - last.round : Infinity
@@ -44,7 +54,7 @@ export function choosePaced(
   if (random() >= chance) return none('not-this-round')
   // Recovery follows the high event's own cooldown: other events may return first, another high one may not.
   const recovering = lastIntensity === 'high' && since < definition.cooldownRounds.high + definition.recoveryRounds
-  const open = recovering ? candidates.filter(candidate => intensityOf(candidate) !== 'high') : candidates
+  const open = recovering ? fresh.filter(candidate => intensityOf(candidate) !== 'high') : fresh
   if (!open.length) return none('recovering')
   const weights = open.map(candidate => {
     const intensity = intensityOf(candidate)
@@ -57,6 +67,6 @@ export function choosePaced(
   return {
     kind: chosen.kind,
     key: chosen.key,
-    reason: { round, tension, stagnation, chance, why: 'chosen' },
+    reason: { round, tension, stagnation, chance, why: 'chosen', ...noted },
   }
 }

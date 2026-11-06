@@ -24,29 +24,32 @@ globalThis.pacingScript = {
   definition: {
     cycleRounds: 16,
     chance: 0.35,
-    cooldownRounds: { low: 2, medium: 4, high: 8 },
-    recoveryRounds: 3,
+    cooldownRounds: { low: 3, medium: 5, high: 10 },
+    recoveryRounds: 4,
+    repeatAfterRounds: 10,
     stagnation: {
-      afterRounds: 6,
+      afterRounds: 10,
       progress: { statuses: ['mood-note'], activities: ['game-battle'] },
-      maxChance: 0.8,
-      maxTensionBoost: 0.4,
+      maxChance: 0.55,
+      maxTensionBoost: 0.3,
     },
     activities: { 'blackout-comfort': { intensity: 'high' } },
-    beats: { 'utility-bill': { intensity: 'medium' } },
+    beats: { 'utility-bill': { intensity: 'medium', repeatAfterRounds: 24 } },
   },
   beats: {
     'utility-bill': {
       when: (truth, world) => [['付得起', truth.characters['character:player'].money >= 30]],
-      apply: truth => ({
+      apply: (truth, world) => ({
         changes: [
           { holderId: 'character:player', key: 'money', value: truth.characters['character:player'].money - 30 },
         ],
         reveals: [{ observerId: 'character:player', holderId: 'character:player', key: 'money' }],
         notice: '手机震了一下：这个月的水电费自动扣了 30 元。',
-        stimuli: [
-          { characterId: 'character:claude', kind: 'perception', text: '你瞥见屋主低头看了一眼手机上的扣费提醒。' },
-        ],
+        // 只有在屋主身边才可能瞥见。
+        stimuli:
+          world.places['character:claude'] === world.locationId
+            ? [{ characterId: 'character:claude', kind: 'perception', text: '你瞥见屋主低头看了一眼手机上的扣费提醒。' }]
+            : [],
       }),
     },
   },
@@ -61,6 +64,7 @@ globalThis.pacingScript = {
 | `chance` | 每轮介入的基础概率 |
 | `cooldownRounds` | 上次事件后要隔几轮，按那次的强度取值 |
 | `recoveryRounds` | 高强度事件冷却结束后，再等几轮才允许下一个高强度事件；其他强度可以先回来 |
+| `repeatAfterRounds` | 可选，默认 0。同一个活动或节拍至少隔几轮才会再来；单个活动或节拍里也可以写，覆盖这个默认值 |
 | `stagnation` | 可选。`progress` 声明什么算进展：状态值变化或活动结束。超过 `afterRounds` 没有进展，介入概率和紧张度逐步上升 |
 | `activities` | 交给节奏管理的活动。它们的 `autoStart` 条件仍然生效 |
 | `beats` | 节拍及其强度。声明了就必须有实现，有实现就必须声明，否则打不开 |
@@ -81,7 +85,7 @@ globalThis.pacingScript = {
 
 一个节拍是一次原子提交：任何一处不合法，整个节拍都不发生，原因显示在创作者查询和包透视里，下一轮照常。节拍不能移动角色或物品；需要时用活动或状态操作。
 
-一次性节拍要在 `when` 里自己判断，比如用一个状态记录。可重复是默认。
+一次性节拍要在 `when` 里自己判断，比如用一个状态记录。可重复是默认，但要设 `repeatAfterRounds`：真实试玩里，同一张水电单一局出现 7 次，角色每次都说差不多的话，读起来像在念台词。
 
 ## 4. 怎么写察觉和念头
 
@@ -99,6 +103,8 @@ globalThis.pacingScript = {
 
 文字也不证明状态变化：写“扣了 30 元”不会扣钱，要写进 `changes`。
 
+察觉要和她的处境相符。程序不检查文字和位置是否矛盾：写“你瞥见屋主看手机”，却在她不在屋主身边时也发给她，她就会记住一件没发生过的事。用 `world.places` 判断她在不在场。
+
 ## 5. 怎么检查
 
 用[包透视](pack-lens.md)推演，每一步的结果都带 `pacing`，能看到这一轮的紧张度、概率和原因：
@@ -107,6 +113,7 @@ globalThis.pacingScript = {
 | --- | --- |
 | `no-candidates` | 没有满足条件的事情 |
 | `cooling` | 还在冷却 |
+| `repeated` | 满足条件的事情都刚发生过，还没到各自的再次间隔；`repeated` 字段列出它们 |
 | `not-this-round` | 抽签决定这轮不介入 |
 | `recovering` | 只剩高强度候选，还在恢复期 |
 | `chosen` | 发生了，`key` 是哪一件 |

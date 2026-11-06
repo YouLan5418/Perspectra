@@ -20,16 +20,18 @@ globalThis.pacingScript = {
   definition: {
     cycleRounds: 16,
     chance: 0.35,
-    cooldownRounds: { low: 2, medium: 4, high: 8 },
-    recoveryRounds: 3,
+    cooldownRounds: { low: 3, medium: 5, high: 10 },
+    recoveryRounds: 4,
+    // 同一件事至少隔这么多回合才会再来，避免同一句话反复出现。
+    repeatAfterRounds: 10,
     stagnation: {
-      afterRounds: 6,
+      afterRounds: 10,
       progress: {
         statuses: ['mood-note'],
         activities: ['game-battle', 'undercover', 'midnight-fridge', 'secret-notebook', 'blackout-comfort', 'jealousy-moment'],
       },
-      maxChance: 0.8,
-      maxTensionBoost: 0.4,
+      maxChance: 0.55,
+      maxTensionBoost: 0.3,
     },
     activities: {
       'midnight-fridge': { intensity: 'medium' },
@@ -40,9 +42,9 @@ globalThis.pacingScript = {
     beats: {
       'rain-on-window': { intensity: 'low' },
       'street-food-smell': { intensity: 'low' },
-      'unticked-plan': { intensity: 'low' },
-      'doorbell-notice': { intensity: 'medium' },
-      'utility-bill': { intensity: 'medium' },
+      'unticked-plan': { intensity: 'low', repeatAfterRounds: 12 },
+      'doorbell-notice': { intensity: 'medium', repeatAfterRounds: 16 },
+      'utility-bill': { intensity: 'medium', repeatAfterRounds: 24 },
     },
   },
   beats: {
