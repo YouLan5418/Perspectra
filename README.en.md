@@ -4,13 +4,36 @@
 
 **A character-centered, AI-native game engine.**
 
-In Perspectra, every AI character has their own knowledge, experiences and goals, and decides for themselves what to say and do. Important world facts are kept by rules instead of relying on the model to remember them. Creators organize story and gameplay with rules and activities, bringing the character interaction of visual novels (Galgame), the exploration and rules of RPGs, and the daily life and management of life-simulation games (SLG) into one persistent world.
+You share a world with a few AI characters. Each one is played by the model on its own, knows only what it has seen and heard, and decides for itself what to say and do. Who holds the keys and who went into which room is recorded by the program, not left for the model to remember. Creators write people, places, rules and events as a "world pack", without changing the program. This brings the character interaction of visual novels (Galgame), the exploration and rules of RPGs, and the daily life and management of life-simulation games (SLG) into one persistent world.
 
 > **Let models play the characters, let the system maintain the world, let players participate in the game, and let creators define what is possible.**
 
 **[Product vision](docs/current/vision.en.md)** · [Current implementation and validation status](docs/current/PROJECT-STATE.en.md) · [Architecture documentation](docs/current/architecture/README.md) (Chinese)
 
 The project is in **early public testing**. It is suitable for trying the prototype, creating small content packs, and validating gameplay mechanisms, and is not yet recommended for large projects that need long-term stability. The project was previously named Cordis World; some code, commands and historical documents still use the old name.
+
+## An example: who saw the keys?
+
+The player asks in the living room, "Has anyone seen my keys?" A and B, in the living room, hear it. C, in the kitchen, does not, and C has just slipped the keys into a pocket.
+
+![One question, two ways: common AI roleplay puts everything into one shared chat log; Perspectra records facts in the world and gives each character only what it can see](docs/current/assets/readme/keys.en.svg)
+
+In Perspectra, A may guess "on the table" and C may keep quiet, but the keys stay where they are, whoever says what. The round then goes on like this:
+
+![What happens in a round: the player acts, rules check and record it, it reaches those present, each character decides, their actions are checked again, the round ends](docs/current/assets/readme/round.en.svg)
+
+### A few terms
+
+| Term | Meaning |
+| --- | --- |
+| World pack | Everything in one work: cast, places, items, rule scripts, activities and the stage UI. Written by creators, no code changes needed |
+| Activity | A stretch of play with its own rules, such as a dinner, a game of werewolf or a turn-based fight. Afterwards play returns to normal |
+| Story pacing | How often small events and surprises come, set by the creator: a doorbell, rain at the window. Players can switch it off in game |
+| Check (adjudication) | The program decides by the rules whether an action works. Only checked results change the world |
+| Mechanism | Replaceable parts such as scheduling, memory, the character loop and story pacing. Official defaults ship; players can swap in plugins |
+| Host, core | The host assembles a game; the core keeps world facts and makes sure each character sees only what it may. The core is not replaceable |
+| Launcher, stage | The launcher is the desktop app for works, saves and models; the game itself is played on the "stage" page in your browser |
+| Core memory | Characters' long-term memory, run as a Python subprocess. Not the same thing as LauncherCore, the desktop backend |
 
 ## Why Perspectra
 
@@ -42,7 +65,9 @@ For example, a character may say "the key is in my hand". The line was really sp
 
 **Autonomous actions.** The scheduler gives characters opportunities to act, within limits on count and time; characters decide whether to respond, act or stay silent. Creators can let key characters pursue their own goals while the player is elsewhere, and some packs offer a "wait" action that lets a round pass. [Creator runtime](docs/current/architecture/creator-runtime.md) (Chinese)
 
-**Plugins.** World-pack plugins ship with a work and define its own state and operations. Local host plugins are enabled by the player in the launcher and connect external programs or services; their results are still handed back to the work's rules. [Two plugin entry points](docs/current/guides/dual-plugin-entrypoints.md) (Chinese)
+**Story pacing.** Creators can set how often events come: cooldowns, a rising and falling rhythm, and how long before the same thing may happen again. They can also write "beats": a utility bill slipped under the door (and the money really goes), or something a character notices or a thought that crosses her mind. These are only new stimuli; the character may ignore them. Players can switch pacing off in game. [Story pacing](docs/current/guides/story-pacing.md) (Chinese)
+
+**Plugins.** Mechanisms such as scheduling, memory, the character loop and story pacing can each be swapped for a third-party plugin in the launcher. Host plugins provide services such as speech, BGM and external devices. World packs can also bring their own modules and stage UI. Plugins only compute results; world facts are still committed by the core. [Plugin seams](docs/current/guides/plugin-seams.md) · [Two plugin entry points](docs/current/guides/dual-plugin-entrypoints.md) (Chinese)
 
 ## Playtests so far
 
@@ -120,7 +145,7 @@ The bundled `skills/perspectra-creator` combines original world creation, static
 
 `test` compiles and adapts only (`assertionsExecuted: 0`). After static checks pass, create a new launcher instance to verify actual gameplay.
 
-[World Pack v5 creator guide](docs/current/guides/world-pack-authoring.md) · [Activities and state](docs/current/guides/activity-and-variables.md) · [Creator runtime](docs/current/architecture/creator-runtime.md) · [Two plugin entry points](docs/current/guides/dual-plugin-entrypoints.md) (Chinese)
+[World Pack v5 creator guide](docs/current/guides/world-pack-authoring.md) · [Activities and state](docs/current/guides/activity-and-variables.md) · [Story pacing](docs/current/guides/story-pacing.md) · [Creator runtime](docs/current/architecture/creator-runtime.md) · [Two plugin entry points](docs/current/guides/dual-plugin-entrypoints.md) (Chinese)
 
 ## Features at a glance
 
@@ -131,7 +156,8 @@ The bundled `skills/perspectra-creator` combines original world creation, static
 | World state and interactions | Tracked state is committed only after rule adjudication | [Interactions](docs/current/architecture/interaction.md) |
 | Activities | Start conditions, participants, phases, temporary rules, information scope and resolution; one at a time | [Activities and state](docs/current/guides/activity-and-variables.md) |
 | Autonomous actions | Bounded reactions and off-scene opportunities, decided by the characters | [Creator runtime](docs/current/architecture/creator-runtime.md) |
-| Plugins | World-pack plugins and local host plugins | [Two plugin entry points](docs/current/guides/dual-plugin-entrypoints.md) |
+| Story pacing | Event density, beats that change values, something noticed or thought for a character; players can switch it off | [Story pacing](docs/current/guides/story-pacing.md) |
+| Plugins | Replaceable mechanisms, host service plugins, world-pack modules and stage UI | [Plugin seams](docs/current/guides/plugin-seams.md) |
 | Storylines | Save checkpoints with contemporary memory, branch and continue, export/import single nodes; regenerate the latest round | [Storylines](docs/current/storylines.md) |
 | Character presets | Global defaults, pack recommendations, instance overrides, character groups and per-character settings | [Presets](docs/current/model-presets.md) |
 | Custom frontends | HTML/CSS/JavaScript through a public player interface; sandboxed by default, with an explicitly authorized trusted mode | [Frontend guide](docs/current/guides/web-ui.md) |
@@ -146,6 +172,7 @@ These paths are wired into the runtime, but passing automated checks or short lo
 - Knowledge isolation controls the information the program supplies; it cannot guarantee a model never misreads information or fabricates details. **Free text can still claim an unadjudicated change, and that claim may affect what other characters believe.** An untouched database does not mean the narrative contradiction is resolved.
 - Only one activity runs at a time, a paused activity does not advance in the background, and activities cannot move characters directly. Activities isolate activity information, not sound: non-participants in the same scene still hear public speech.
 - Autonomous actions happen inside player-driven rounds; there is no world that keeps running in the background on real time.
+- Story pacing has only been compared in scripted real-model runs; how dense events should be still needs human playtesting. What a creator writes as something noticed or a thought is not checked by the program: written as an instruction, or at odds with where the character is, it makes characters recite it or remember things that never happened.
 - Long-term recall can deliver irrelevant memories. Background consolidation, large-context performance and sustained character quality need further testing.
 - A trusted-mode frontend can reach external networks, and remote content it loads may change without changing the pack's checksum. Only trust sources you understand. A trusted frontend still gets no Core tokens, model credentials, private character contexts or database access.
 - The portable build has not completed testing on a clean Windows machine, long-duration stability checks, or the complete native folder-picker flow. There is no code signing, automatic updater or guaranteed cross-version save migration.
@@ -168,6 +195,12 @@ corepack pnpm@11.7.0 launcher:check
 ```
 
 Automated checks verify specific mechanism boundaries, not the quality of real-model play. `launcher:dev` displays a mock UI and cannot start the real Core.
+
+### How the code is layered
+
+![Code layers: world packs, replaceable mechanisms, host and core; the launcher, stage, model service and long-term memory run in separate processes](docs/current/assets/readme/layers.en.svg)
+
+Read the code from the top down: world-pack scripts are interpreted by `packages/official-*`, `desktop/host` binds the results to real characters, and `packages/application` with `packages/store-sqlite` commits them. The images are drawn by `node scripts/docs/readme-diagrams.mjs`. Each module's job is listed in the [module map](docs/current/architecture/modules.md) (Chinese).
 
 | Topic | Document |
 | --- | --- |

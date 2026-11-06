@@ -4,13 +4,36 @@
 
 **以角色为中心的 AI 原生游戏引擎。**
 
-在 Perspectra 里，每个 AI 角色都有自己的认知、经历和目标，会自己决定说什么、做什么；世界的重要事实由规则维护，不靠模型记住；创作者用规则和活动组织剧情与玩法，把 Galgame 的人物互动、RPG 的探索与规则、生活模拟 SLG 的日常与经营放进同一个持续存在的世界。
+你和几个 AI 角色待在同一个世界里。每个角色由模型单独扮演，只知道自己看到、听到的事，自己决定说什么、做什么；钥匙在谁手里、谁去了哪个房间，由程序记录，不靠模型记住。创作者用“世界包”写人物、地点、规则和事件，不需要改程序。这样可以把 Galgame 的人物互动、RPG 的规则与探索、生活模拟 SLG 的日常与经营放进同一个持续存在的世界。
 
 > **让模型负责扮演角色，让系统负责维护世界，让玩家真正参与游戏，让创作者定义游戏的可能性。**
 
 **[产品愿景](docs/current/vision.md)** · [当前实现与验证状态](docs/current/PROJECT-STATE.md) · [代码技术文档](docs/current/architecture/README.md)
 
 项目仍处于早期公开测试阶段，适合**试玩、小型内容创作、玩法验证和机制测试**，暂不建议用于需要长期维护的大型正式项目。原项目名为 Cordis World，部分代码、命令和历史文档仍保留旧名称。
+
+## 一个例子：谁看见了钥匙？
+
+玩家在客厅问了一句“谁看见我的钥匙了？”。客厅里的 A、B 听见了，厨房里的 C 没听见；而 C 刚才悄悄把钥匙放进了口袋。
+
+![同一个问题，两种处理方式：常见 AI 角色扮演把所有内容放进一段共享的聊天记录；Perspectra 由世界记录事实，每个角色只看到自己能看到的](docs/current/assets/readme/keys.zh.svg)
+
+在 Perspectra 里，A 可能凭印象答“在桌上”，C 可以选择隐瞒，但钥匙的去向不会因为谁说错了话而改变。这一轮接下来是这样推进的：
+
+![一轮里发生了什么：玩家行动，规则裁定并记录，按位置分发，角色各自决定，角色的行动再经裁定，回合结束](docs/current/assets/readme/round.zh.svg)
+
+### 几个常用名词
+
+| 名词 | 意思 |
+| --- | --- |
+| 世界包 | 一部作品的全部内容：人物、地点、物品、规则脚本、活动和舞台界面。作者写，不需要改程序 |
+| 活动 | 有自己规则的一段玩法，比如一顿晚餐、一局狼人杀、一场回合战斗。结束后回到普通互动 |
+| 剧情节奏 | 由作者设定的小插曲和突发事件的疏密，比如门铃响了、窗外下雨，可以在游戏里关掉 |
+| 裁定 | 程序按规则判断一次行动是否成立。只有通过裁定的结果才会改变世界 |
+| 机制 | 调度、记忆、角色循环、剧情节奏等可替换的部分。官方提供默认实现，玩家可以换成插件 |
+| 宿主、核心 | 宿主把一局游戏装配起来；核心保存世界事实、保证角色只看到自己能看到的。核心不可替换 |
+| Launcher、舞台 | Launcher 是桌面启动器，管理作品、存档和模型；游戏本身在浏览器里的“舞台”页面里玩 |
+| Core 记忆 | 角色的长期记忆，用 Python 子进程实现；和桌面后端 LauncherCore 不是一回事 |
 
 ## 为什么做 Perspectra
 
@@ -42,7 +65,9 @@ Perspectra 的基本思路是**以角色为主体，以世界为载体，以规�
 
 **角色自主行动。** 调度系统给予角色处理机会，并限制次数和时间；角色自己决定回应、行动还是沉默。作者可以让关键角色在玩家不在场时按自己的目标行动，部分世界包还提供“静观”，让玩家主动让一轮过去。[创作者运行时](docs/current/architecture/creator-runtime.md)
 
-**插件。** 世界包插件随作品提供，定义作品自己的状态和操作；本地宿主插件由玩家在 Launcher 启用，连接外部程序或服务，结果仍交回作品规则处理。[两种插件入口](docs/current/guides/dual-plugin-entrypoints.md)
+**剧情节奏。** 作者可以控制事件来得多密：冷却、起伏周期、同一件事至少隔多久再来。也可以写“节拍”：门缝里塞进一张水电单（真的扣钱），或者给某个角色一个她察觉到的事、心里冒出的念头。这些只是新的刺激，角色可以不理。玩家可以在游戏里关掉。[剧情节奏](docs/current/guides/story-pacing.md)
+
+**插件。** 调度、记忆、角色循环、剧情节奏等机制都可以在 Launcher 里换成第三方插件；宿主插件提供语音、BGM、外部设备等服务；世界包还可以自带模块和舞台界面。插件只计算结果，世界事实仍由核心提交。[插件接口](docs/current/guides/plugin-seams.md) · [两种插件入口](docs/current/guides/dual-plugin-entrypoints.md)
 
 ## 试玩进展
 
@@ -120,7 +145,7 @@ World Pack v5 描述角色、初始认知、地点、物品、场景、玩家槽
 
 `test` 只编译适配，`assertionsExecuted: 0`；静态通过后仍需在 Launcher 新建实例做真实玩法验收。
 
-[World Pack v5 创作指南](docs/current/guides/world-pack-authoring.md) · [活动与状态](docs/current/guides/activity-and-variables.md) · [创作者运行时](docs/current/architecture/creator-runtime.md) · [两种插件入口](docs/current/guides/dual-plugin-entrypoints.md)
+[World Pack v5 创作指南](docs/current/guides/world-pack-authoring.md) · [活动与状态](docs/current/guides/activity-and-variables.md) · [剧情节奏](docs/current/guides/story-pacing.md) · [创作者运行时](docs/current/architecture/creator-runtime.md) · [两种插件入口](docs/current/guides/dual-plugin-entrypoints.md)
 
 ## 功能一览
 
@@ -131,7 +156,8 @@ World Pack v5 描述角色、初始认知、地点、物品、场景、玩家槽
 | 世界状态与交互 | 明确追踪的状态经过规则裁定后提交 | [Interaction](docs/current/architecture/interaction.md) |
 | 活动 | 开始条件、参与者、阶段、临时规则、信息范围与结算；一次运行一场 | [活动与状态](docs/current/guides/activity-and-variables.md) |
 | 角色自主行动 | 有界的反应与场外行动机会，由角色自己决定 | [创作者运行时](docs/current/architecture/creator-runtime.md) |
-| 插件 | 世界包插件与本地宿主插件 | [两种插件入口](docs/current/guides/dual-plugin-entrypoints.md) |
+| 剧情节奏 | 事件疏密、节拍改数值、给角色察觉或念头；玩家可在游戏里关掉 | [剧情节奏](docs/current/guides/story-pacing.md) |
+| 插件 | 可替换的机制、宿主服务插件、世界包模块与舞台界面 | [插件接口](docs/current/guides/plugin-seams.md) |
 | 故事线 | 保存节点及当时记忆、分叉续玩、单节点导出导入；最近一回合可重新生成 | [故事线](docs/current/storylines.md) |
 | 角色预设 | 全局默认、包推荐、实例覆盖、角色组和角色专属配置 | [预设说明](docs/current/model-presets.md) |
 | 自定义前端 | HTML/CSS/JavaScript 与公共玩家接口，默认沙箱，可显式授权受信任模式 | [前端创作指南](docs/current/guides/web-ui.md) |
@@ -146,6 +172,7 @@ World Pack v5 描述角色、初始认知、地点、物品、场景、玩家槽
 - 认知隔离保证程序提供的信息范围，不保证模型永远正确理解信息或从不虚构细节。**自由文本仍可能作出未经裁定的状态变化声明，并影响其他角色的理解**；数据库没有越权变化，不代表叙事上的矛盾已经解决。
 - 活动一次只运行一场，暂停的活动不会在后台推进，活动也不能直接移动角色；活动隔离的是活动信息，同场非参与者仍能听到公开发言。
 - 角色自主行动发生在玩家推进的回合内，还没有按现实时间在后台持续运行的世界。
+- 剧情节奏只经过真实模型的脚本化对照，事件多密才合适还要靠真人试玩判断。作者写的察觉和念头不经过程序检查，写成指令或与角色处境矛盾时，角色会照本宣科或记住没发生过的事。
 - 长期记忆可能交付无关认识；后台整理和大上下文的容量、性能与角色体验仍需更多测试。
 - 受信任模式的前端可以访问外部网络，它加载的远程内容可能在游戏包摘要不变的情况下发生变化；请只授权自己认可的来源。受信任前端仍拿不到 Core 令牌、模型密钥、角色私有上下文或数据库权限。
 - 便携版尚未完成干净 Windows 环境、长时间稳定性和原生目录选择器完整流程验收；没有代码签名、自动更新或跨版本存档迁移保证。
@@ -168,6 +195,12 @@ corepack pnpm@11.7.0 launcher:check
 ```
 
 自动测试验证机制边界，不能替代真实模型试玩。只浏览 Mock 界面的命令为 `launcher:dev`，它不能启动真实 Core。
+
+### 代码怎么分层
+
+![代码分层：世界包、可替换的机制、宿主、核心；另有启动器、舞台、模型服务和长期记忆在不同进程里运行](docs/current/assets/readme/layers.zh.svg)
+
+读代码时可以从上往下看：世界包里的脚本由 `packages/official-*` 解释，`desktop/host` 把结果绑定到真实角色，最后由 `packages/application` 和 `packages/store-sqlite` 提交。图由 `node scripts/docs/readme-diagrams.mjs` 生成。各模块的职责见[模块地图](docs/current/architecture/modules.md)。
 
 | 想了解什么 | 入口 |
 | --- | --- |
