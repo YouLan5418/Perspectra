@@ -40,6 +40,8 @@ export interface PlayerView {
     /** The player's chosen appearance for the stage; absent means follow the system. */
     appearance?: 'system' | 'light' | 'dark'
   }
+  /** Present only when the world has story pacing: whether it may bring events and beats. The player's switch. */
+  pacing?: { enabled: boolean }
   tailRound?: {
     candidateIds?: readonly string[]
     candidateIndex?: number
@@ -142,7 +144,7 @@ export function playerViewPatch(before: PlayerView, after: PlayerView): Record<s
 export interface FrontendActionRequest {
   requestId: string
   actionId: string
-  operation: 'speak' | 'perform' | 'regenerate' | 'selectCandidate' | 'cancelRegeneration'
+  operation: 'speak' | 'perform' | 'regenerate' | 'selectCandidate' | 'cancelRegeneration' | 'setPacing'
   payload: Record<string, unknown>
 }
 export function frontendActionRequest(value: unknown, maximumCharacters = 2000): FrontendActionRequest {
@@ -154,7 +156,9 @@ export function frontendActionRequest(value: unknown, maximumCharacters = 2000):
     !/^[a-zA-Z0-9:-]{1,100}$/.test(r.requestId) ||
     typeof r.actionId !== 'string' ||
     !/^[a-zA-Z0-9:-]{1,100}$/.test(r.actionId) ||
-    !['speak', 'perform', 'regenerate', 'selectCandidate', 'cancelRegeneration'].includes(String(r.operation)) ||
+    !['speak', 'perform', 'regenerate', 'selectCandidate', 'cancelRegeneration', 'setPacing'].includes(
+      String(r.operation),
+    ) ||
     !r.payload ||
     typeof r.payload !== 'object' ||
     Array.isArray(r.payload)
@@ -168,6 +172,16 @@ export function frontendActionRequest(value: unknown, maximumCharacters = 2000):
       operation: 'speak',
       payload: speech(payload, maximumCharacters),
     }
+  if (r.operation === 'setPacing') {
+    if (Object.keys(payload).join(',') !== 'enabled' || typeof payload.enabled !== 'boolean')
+      throw new TypeError('剧情节奏开关只接受 enabled: true 或 false')
+    return {
+      requestId: r.requestId,
+      actionId: r.actionId,
+      operation: 'setPacing',
+      payload: { enabled: payload.enabled },
+    }
+  }
   if (r.operation === 'cancelRegeneration') {
     if (Object.keys(payload).length) throw new TypeError('取消不接受额外参数')
     return { requestId: r.requestId, actionId: r.actionId, operation: 'cancelRegeneration', payload: {} }

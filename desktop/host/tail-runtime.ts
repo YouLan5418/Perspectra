@@ -1,3 +1,4 @@
+import { readPacingPreference } from './pacing-preference.ts'
 import { tailRuntimeIdentity } from '../tail-runtime-identity.ts'
 import { randomUUID } from 'node:crypto'
 import { join, resolve } from 'node:path'
@@ -124,6 +125,20 @@ export class TailRoundRuntime {
   }
   pacingDecision() {
     return this.#runtime.pacingDecision()
+  }
+  async setPacing(enabled: boolean): Promise<HostState> {
+    if (this.#closed || this.#regenerating || this.#interrupting) throw new HostBusyError('请等待世界切换完成。')
+    await this.#runtime.setPacing(enabled)
+    return this.state()
+  }
+  /** A replayed candidate ran with its round's recorded switch; once installed, the player's choice applies again. */
+  async #keepPacingChoice(): Promise<void> {
+    if (this.#runtime.pacingEnabled === readPacingPreference(this.options.dataDirectory)) return
+    try {
+      await this.#runtime.setPacing(readPacingPreference(this.options.dataDirectory), false)
+    } catch (error) {
+      if (!(error instanceof TypeError)) throw error
+    }
   }
   autoStartEvaluations(mode: 'last' | 'now') {
     return this.#runtime.autoStartEvaluations(mode)
@@ -272,6 +287,7 @@ export class TailRoundRuntime {
       if (this.supportsHistoryRestore())
         await this.#runtime.snapshotRound(join(this.options.dataDirectory, '.tail', 'bases', base))
       this.#runtime.beginRoundRandom()
+      const pacingOff = !this.#runtime.pacingEnabled
       const result =
         'text' in input
           ? await this.#runtime.submit(input.text, idempotencyKey)
@@ -290,6 +306,7 @@ export class TailRoundRuntime {
             environment,
             ...head,
             activityRandom: this.#runtime.roundRandom(),
+            ...(pacingOff ? { pacing: false as const } : {}),
             selected: roundId,
             candidates: [{ id: roundId, directory: this.#selection.directory, ...head }],
           },
@@ -444,6 +461,7 @@ export class TailRoundRuntime {
         worldVersion: version,
         storyNodes: false,
         candidate: true,
+        pacingEnabled: tail.pacing !== false,
       }
       this.#candidate = await this.factory(candidateOptions)
       this.#candidate.holdCognition()
@@ -488,6 +506,7 @@ export class TailRoundRuntime {
       selected = true // no awaits between the durable commit point and installing the matching runtime
       this.#runtime = this.#candidate
       this.#candidate = undefined
+      await this.#keepPacingChoice()
       feed.open()
       this.#runtime.publishPlayerFeed()
       this.#regenerating = false

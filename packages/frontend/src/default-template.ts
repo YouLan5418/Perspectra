@@ -65,6 +65,7 @@ export const DEFAULT_PAGE = String.raw`<!doctype html>
         <p id="bgm-notice" class="hint" role="status"></p>
       </fieldset>
       <fieldset><legend>外观</legend><div class="appearance-options" role="group" aria-label="界面外观"><label><input type="radio" name="appearance" value="system"><span>跟随系统</span></label><label><input type="radio" name="appearance" value="light"><span>浅色</span></label><label><input type="radio" name="appearance" value="dark"><span>深色</span></label></div></fieldset>
+      <fieldset id="pacing-settings" hidden><legend>剧情</legend><label class="setting-check"><span>剧情节奏<small>关闭后不再插入小插曲；突发事件只按各自的条件发生，不再调节疏密。从下一轮起生效。</small></span><input id="setting-pacing" type="checkbox" role="switch"></label><p id="pacing-notice" class="hint" role="status"></p></fieldset>
       <section id="plugin-settings" hidden aria-label="插件设置"></section>
       <fieldset><legend>故事进度</legend><p class="hint">保存此刻的故事，在启动器中继续。</p><button id="stage-save" class="save-entry" type="button" disabled>保存进度 <span aria-hidden="true">↗</span></button><p id="save-unavailable" class="hint" hidden>当前运行时不支持保存进度。</p></fieldset>
       <p id="settings-notice" class="hint" role="status">设置仅影响本机显示，即时生效。</p>
@@ -215,7 +216,10 @@ export const DEFAULT_SCRIPT = String.raw`(() => {
  function bottom(){history.scrollTop=history.scrollHeight;node('latest').hidden=true}
  history.onscroll=()=>{node('latest').hidden=history.scrollHeight-history.scrollTop-history.clientHeight<70};
  node('latest').onclick=bottom;
+ let pacingPending=false;
  function render(view){
+   node('pacing-settings').hidden=!view.pacing;
+   if(view.pacing&&!pacingPending)node('setting-pacing').checked=view.pacing.enabled;
    waitOption=view.actions.find(option=>option.id==='wait');
    view={...view,history:view.history.filter(line=>!line.pause),actions:view.actions.filter(option=>option!==waitOption)};
    if(posting&&pending?.method==='speak'&&view.canInterrupt&&view.history.filter(line=>line.player).length>submittedPlayers){
@@ -565,6 +569,12 @@ export const DEFAULT_SCRIPT = String.raw`(() => {
    changePreference(key,event.target.checked);
  };
  for(const radio of document.querySelectorAll('input[name="appearance"]'))radio.onchange=()=>changePreference('appearance',radio.value);
+ // Story pacing is the world's, not this screen's: the host keeps the choice and applies it from the next round.
+ node('setting-pacing').onchange=async event=>{
+   const enabled=event.target.checked;pacingPending=true;node('pacing-notice').textContent='';
+   try{const view=await api.setPacing(enabled);node('pacing-notice').textContent=enabled?'已开启，从下一轮起生效。':'已关闭，从下一轮起生效。';pacingPending=false;render(view)}
+   catch(error){event.target.checked=!enabled;pacingPending=false;node('pacing-notice').textContent=error.message}
+ };
  async function unlockVoice(){
    if((!hasSpeech||!preferences.voiceEnabled)&&(!hasBgm||!node('setting-bgm').checked)||audioContext?.state==='running')return;
    try{audioContext=audioContext||new AudioContext();await audioContext.resume();voiceKey='';playVoice();playBgm()}catch(error){node('voice-notice').textContent='无法开启声音：'+error.message}

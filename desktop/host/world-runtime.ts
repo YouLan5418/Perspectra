@@ -18,6 +18,7 @@ import { loadActivitySource } from './activity-source.ts'
 import { loadStatusSource } from './status-source.ts'
 import { loadPacingSource } from './pacing-source.ts'
 import { PacingRuntime } from './pacing-runtime.ts'
+import { readPacingPreference, writePacingPreference } from './pacing-preference.ts'
 import { StatusRuntime } from './status-runtime.ts'
 import { loadKnowledgeSource } from './knowledge-source.ts'
 import { assembleRoleplay, officialWorldOrder, type WorldComposition } from '../official-bundle.ts'
@@ -153,6 +154,8 @@ export interface WorldHostOptions extends Omit<ModelOptions, 'models' | 'playSet
   readonly storyParentNodeId?: string
   readonly worldVersion?: string
   readonly logicalDirectory?: string
+  /** Replays a round with the pacing switch it was played with; otherwise the player's kept choice. */
+  readonly pacingEnabled?: boolean
   /** Experiment control for comparing the former wave scheduler with dynamic dispatch. */
   readonly serialScheduling?: boolean
   /** Measurement control: ordinary work stays dynamic, autonomy waits for it to finish. */
@@ -357,6 +360,7 @@ export class WorldHostCore implements HostRuntime {
   #currentScene: NonNullable<HostState['world']['currentScene']> | undefined
   #debug: Record<string, unknown> = {}
   #busy = false
+  #pacingEnabled = true
   #allowInterruption = false
   /** Roles whose scheduled activation is running; only the host status reads it. */
   readonly #running = new Map<string, number>()
@@ -635,6 +639,9 @@ export class WorldHostCore implements HostRuntime {
               status: runtime.#gameplay.status,
             })
           : undefined
+      if (runtime.#gameplay.pacing)
+        runtime.#pacingEnabled =
+          options.pacingEnabled ?? readPacingPreference(options.logicalDirectory ?? options.dataDirectory)
       await runtime.#refresh()
       const rebuildPath = resolve(options.dataDirectory, 'rebuild-memory.json')
       if (existsSync(rebuildPath)) {
@@ -711,6 +718,7 @@ export class WorldHostCore implements HostRuntime {
       transcript: this.#transcript,
       items: this.#items,
       ...(this.#waitable ? { canWait: true } : {}),
+      ...(this.#gameplay.pacing ? { pacing: { enabled: this.#pacingEnabled } } : {}),
       playerSettings: {
         inputCharacters: this.#playSettings.playerInputCharacters,
         reading: this.#options.reading ?? DEFAULT_READING,
@@ -991,8 +999,10 @@ export class WorldHostCore implements HostRuntime {
     let started = false,
       beatFrom: number | undefined
     try {
-      if (this.#gameplay.pacing) ({ started, beatFrom } = await this.#gameplay.pacing.endOfRound(this.#rootBeforeSeq))
-      else started = await this.#gameplay.activity!.autoStart()
+      if (this.#gameplay.pacing && this.#pacingEnabled)
+        ({ started, beatFrom } = await this.#gameplay.pacing.endOfRound(this.#rootBeforeSeq))
+      // Switched off, the world is as if it had no pacing script: activities keep their own conditions.
+      else started = (await this.#gameplay.activity?.autoStart()) ?? false
       this.#autoStartError = undefined
     } catch (error: unknown) {
       if (!(error instanceof TypeError) && !(error instanceof RangeError)) throw error
@@ -1110,6 +1120,18 @@ export class WorldHostCore implements HostRuntime {
   beginRoundRandom(values?: readonly number[]): void {
     this.#gameplay.activity?.beginRoundRandom(values)
     this.#gameplay.pacing?.beginRoundRandom(values)
+  }
+  get pacingEnabled(): boolean {
+    return this.#pacingEnabled
+  }
+  /** The player's switch. It applies from the next round's end, never to one in progress. `keep` is false when a
+   * replay or a reopened candidate takes the choice from its record rather than the player. */
+  async setPacing(enabled: boolean, keep = true): Promise<HostState> {
+    if (!this.#gameplay.pacing) throw new TypeError('当前世界没有剧情节奏可开关')
+    if (keep && (this.#busy || this.#escaping)) throw new HostBusyError('请等待本轮结束后再切换剧情节奏。')
+    this.#pacingEnabled = enabled
+    if (keep) writePacingPreference(this.#options.logicalDirectory ?? this.#options.dataDirectory, enabled)
+    return this.state()
   }
   /** Why the last round did or did not bring an event; for the creator's tools only. */
   pacingDecision() {

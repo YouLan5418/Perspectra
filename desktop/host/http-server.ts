@@ -101,6 +101,8 @@ export interface HostState {
     readonly canRegenerate: boolean
     readonly regenerating: boolean
   }
+  /** Present only when the world has story pacing. */
+  readonly pacing?: { readonly enabled: boolean }
   readonly playerSettings?: {
     inputCharacters: number
     reading: import('../play-settings.ts').ReadingPreferences
@@ -160,6 +162,7 @@ export interface HostRuntime {
   selectCandidate?(tailId: string, candidateId: string, requestId: string): Promise<HostState>
   regenerate?(tailId: string, requestId: string): Promise<HostState>
   cancelRegeneration?(): Promise<HostState>
+  setPacing?(enabled: boolean): Promise<HostState>
   requestInspection?(enabled?: boolean): InspectorSnapshot
   creatorInspection?(query?: CreatorInspectionQuery): CreatorInspectionSnapshot
   creatorRecords?(query?: CreatorRecordsQuery): CreatorRecordsSnapshot

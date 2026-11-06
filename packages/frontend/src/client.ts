@@ -46,6 +46,7 @@ export const FRONTEND_SDK = String.raw`/** API v1: the only connection is a host
     regenerate:(tailId,actionId=id())=>request('regenerate',{tailId},actionId),
     selectCandidate:(tailId,candidateId,actionId=id())=>request('selectCandidate',{tailId,candidateId},actionId),
     cancelRegeneration:(actionId=id())=>request('cancelRegeneration',{},actionId),
+    setPacing:(enabled,actionId=id())=>request('setPacing',{enabled},actionId),
     // extra: { arguments } for the option's argumentSchema, { say, order } for a line said in the same turn.
     perform:(optionId,actionId=id(),npcIds,extra={})=>request('perform',{optionId,...(npcIds===undefined?{}:{npcIds}),...extra},actionId),
     resource:path=>request('resource',{path}),
