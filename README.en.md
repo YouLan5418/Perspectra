@@ -182,3 +182,7 @@ Automated checks verify specific mechanism boundaries, not the quality of real-m
 | Development constraints | [AGENTS.md](AGENTS.md) (Chinese) |
 
 Historical statements that a feature was "complete" apply to the version documented at the time. Current behavior should be established from maintained docs, source and relevant validation.
+
+## License
+
+Unless otherwise stated, the original source code of this project is licensed under the [GNU Affero General Public License v3.0 (AGPL-3.0-only)](LICENSE). Third-party code, dependencies, and artwork remain subject to their respective licenses or rights notices.
