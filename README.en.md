@@ -75,26 +75,9 @@ Short real-model playtests have covered daily life in a shared home, a dinner pa
 
 This design has a cost. Each character calls the model separately, and one round often takes several calls, so cost and waiting time are higher than with a single generation. In earlier playtests, ordinary dialogue rounds took 5–37 seconds and rounds with off-scene character actions took 19–47 seconds; one three-character contest used 61 model calls and about 280k tokens over 24 turns.
 
-## Start playing
+## Run from source
 
-### Windows x64 program pre-release
-
-**0.3.1-test1** (2026-10-24, candidate4) ships the program and creator tools, **without demo packs**. It includes the current default stage, updated launcher icon, Node, Python, Core memory dependencies, offline E5, WebView2 and the C++ runtime. Provide your own model service and a complete v5 source pack.
-
-[Download program ZIP](https://github.com/YouLan5418/Perspectra/releases/download/v0.3.1-test1/Perspectra-0.3.1-win-x64-candidate4.zip) · [Pre-release](https://github.com/YouLan5418/Perspectra/releases/tag/v0.3.1-test1) · [SHA-256](https://github.com/YouLan5418/Perspectra/releases/download/v0.3.1-test1/Perspectra-0.3.1-win-x64-candidate4.zip.sha256) · [Acceptance record](https://github.com/YouLan5418/Perspectra/releases/download/v0.3.1-test1/acceptance.zh-CN.md) (Chinese)
-
-ZIP: 521,587,384 bytes. SHA-256: `bbfe12fda796d0288450b6e0285065cfeb0f84a86944d25ce719c9b4504c70ce`.
-
-1. Fully extract the archive and run `Perspectra.exe`. Keep `runtime` beside it.
-2. Open Settings → Model connections, configure your connection and model, and test it. This sends a small request and only checks connectivity.
-3. Load a separately obtained or newly created `worldpack-source/v5` directory, create an instance and start. Gameplay opens in your default browser.
-4. Save progress after the current operation finishes; stop the game before branching or exporting. Connection keys use Windows Credential Manager, not pack/save files. Stop the game and exit the launcher before backing up data.
-
-Bundled CLI/Skill checks, host start/stop, default frontend comparison and offline encoding passed. Clean Windows, complete native UI operation and sustained live-model play remain untested. Existing formatting failures, one unstable activity test and historical documentation links are recorded in the bundled acceptance report. `build-info.json` has `sourceDirty=true`; GitHub's automatic source archive does not reproduce that uncommitted build workspace.
-
-[Historical test3](https://github.com/YouLan5418/Perspectra/releases/tag/v0.1.0-test3), built on 2026-10-09 with old demo content, remains available. Its evidence does not establish acceptance of this new program.
-
-### Run from source
+There is no program package to download at the moment. The earlier pre-release was built long ago and is behind the current code; please run from source.
 
 Requires Node.js 22.19+ or 24+ and the repository-pinned pnpm version. Native launcher development additionally requires Rust/Cargo, Windows build tools, and a [Python/E5 memory environment](packages/official-memory-core/README.md).
 
@@ -135,12 +118,12 @@ Examples to start from:
 
 ### Creator Skill and command-line tools
 
-The bundled `skills/perspectra-creator` combines original world creation, static Tavern PNG/JSON card extraction and migration, and native model preset creation. Copy the whole folder into your AI tool's Skill directory and give it the Perspectra installation path and your request; it uses the bundled Node/Python. Original card scripts, HTML, EJS and regex settings are reviewed as data only, and the gameplay they need is rewritten.
+The repository's `skills/perspectra-creator` combines original world creation, static Tavern PNG/JSON card extraction and migration, and native model preset creation. Copy the whole folder into your AI tool's skill directory and tell it where the repository is and what you want to make. Scripts, HTML, EJS and regex from original cards are reviewed only as data; any gameplay they need is rewritten. Check a world pack from the repository root:
 
 ```powershell
-& 'D:\Perspectra\worldpack.cmd' validate 'D:\My Game'
-& 'D:\Perspectra\worldpack.cmd' test 'D:\My Game'
-& 'D:\Perspectra\worldpack.cmd' preset validate 'D:\My Game\model-preset.json' --pack
+corepack pnpm@11.7.0 worldpack validate 'D:\My Game'
+corepack pnpm@11.7.0 worldpack test 'D:\My Game'
+corepack pnpm@11.7.0 worldpack preset validate 'D:\My Game\model-preset.json' --pack
 ```
 
 `test` compiles and adapts only (`assertionsExecuted: 0`). After static checks pass, create a new launcher instance to verify actual gameplay.
@@ -175,15 +158,14 @@ These paths are wired into the runtime, but passing automated checks or short lo
 - Story pacing has only been compared in scripted real-model runs; how dense events should be still needs human playtesting. What a creator writes as something noticed or a thought is not checked by the program: written as an instruction, or at odds with where the character is, it makes characters recite it or remember things that never happened.
 - Long-term recall can deliver irrelevant memories. Background consolidation, large-context performance and sustained character quality need further testing.
 - A trusted-mode frontend can reach external networks, and remote content it loads may change without changing the pack's checksum. Only trust sources you understand. A trusted frontend still gets no Core tokens, model credentials, private character contexts or database access.
-- The portable build has not completed testing on a clean Windows machine, long-duration stability checks, or the complete native folder-picker flow. There is no code signing, automatic updater or guaranteed cross-version save migration.
 
-See the [program package acceptance record](docs/current/studies/program-package-creator-skill-20261024.md) (Chinese) and [project status](docs/current/PROJECT-STATE.en.md) for evidence.
+See [project status](docs/current/PROJECT-STATE.en.md) for the evidence.
 
 ## Feedback
 
 Please use [GitHub Issues](https://github.com/YouLan5418/Perspectra/issues) to report bugs, design concerns and player experiences. Feedback on character naturalness, unintended knowledge, meaningful long-term recall, contradictions between narration and world state, and whether rules actually improve gameplay is especially useful.
 
-Include the version, Windows environment, pack and frontend mode, model and protocol, minimum steps to reproduce, expected vs. observed behavior, and error text or redacted screenshots. A [feedback template](scripts/release/feedback-template.zh-CN.md) is available in Chinese.
+Include the commit you ran (`git rev-parse --short HEAD`), Windows environment, pack and frontend mode, model and protocol, minimum steps to reproduce, expected vs. observed behavior, and error text or redacted screenshots. A [feedback template](scripts/release/feedback-template.zh-CN.md) is available in Chinese.
 
 **Never publish API keys, raw model requests, complete databases, or private character logs.** Request traces can contain private character contexts.
 

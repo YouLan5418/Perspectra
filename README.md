@@ -75,26 +75,9 @@ Perspectra 的基本思路是**以角色为主体，以世界为载体，以规�
 
 这种方式也有代价：每个角色需要单独调用模型，一轮互动往往会调用多次，成本和等待时间都比单次生成高。在之前的试玩中，普通对话每轮要等 5～37 秒，有角色在场外行动的回合要等 19～47 秒；一次三角色博弈实验的 24 个回合共调用模型 61 次，约 28 万 token。
 
-## 开始试玩
+## 从源码运行
 
-### Windows x64 程序预发行版
-
-当前预发行版为 **0.3.1-test1**（2026-10-24，candidate4）：只发布 Perspectra 程序与创作工具，**不附带试玩包**。包含当前默认舞台、新启动器图标、自带 Node／Python、Core 记忆依赖、离线 E5、WebView2 和 C++ 运行库；玩家仍需自己的模型服务与完整的 v5 作品源目录。
-
-[下载程序 ZIP](https://github.com/YouLan5418/Perspectra/releases/download/v0.3.1-test1/Perspectra-0.3.1-win-x64-candidate4.zip) · [预发行页面](https://github.com/YouLan5418/Perspectra/releases/tag/v0.3.1-test1) · [SHA-256](https://github.com/YouLan5418/Perspectra/releases/download/v0.3.1-test1/Perspectra-0.3.1-win-x64-candidate4.zip.sha256) · [随包验收记录](https://github.com/YouLan5418/Perspectra/releases/download/v0.3.1-test1/acceptance.zh-CN.md)
-
-ZIP 为 521,587,384 字节，SHA-256：`bbfe12fda796d0288450b6e0285065cfeb0f84a86944d25ce719c9b4504c70ce`。
-
-1. 完整解压，运行 `Perspectra.exe`，保留同目录的 `runtime`。
-2. 点右上角 ⚙，在“模型接口”配置连接与模型，测试接口。测试会发送少量请求，只证明接口能响应。
-3. 另行取得或创作完整的 `worldpack-source/v5` 源目录，在 Launcher 载入、创建实例并开始，游戏在系统默认浏览器中打开。
-4. 等待当前行动完成后保存进度，结束游戏后可从节点分叉或导出存档。API Key 按连接存入 Windows 凭据管理器，不写入作品或存档；备份前结束游戏并退出 Launcher。
-
-本次已检查随包 CLI／Skill、宿主启停、默认前端比对和离线编码；干净 Windows、原生界面完整流程和真实模型连续试玩尚未完成。既有全仓格式问题、一次活动测试不稳定及历史文档断链见随包验收记录。`build-info.json` 的 `sourceDirty=true`，GitHub 自动源码归档不等同于该次未提交构建工作区。
-
-[旧 test3 预发行版](https://github.com/YouLan5418/Perspectra/releases/tag/v0.1.0-test3)保留为 2026-10-09 的历史构建，含旧试玩内容；它的验收不代表新程序已完成真实体验验收。
-
-### 从源码运行
+目前没有可下载的程序包。之前的预发行版打包得较早，已经落后于现在的代码，请从源码运行。
 
 需要 Node.js 22.19+ 或 24+，使用仓库锁定的 pnpm。原生 Launcher 开发还需要 Rust/Cargo、Windows 构建工具和 [Python/E5 记忆环境](packages/official-memory-core/README.md)。
 
@@ -135,12 +118,12 @@ World Pack v5 描述角色、初始认知、地点、物品、场景、玩家槽
 
 ### 创作 Skill 与命令行工具
 
-随包 `skills/perspectra-creator` 整合原创世界包、酒馆 PNG／JSON 卡静态提取与迁移，以及原生模型预设创作。把整个目录复制到所用 AI 工具的 Skill 目录，告诉它 Perspectra 解压位置与创作需求即可；它使用程序自带 Node／Python。原卡脚本、HTML、EJS 与正则只作为数据审阅，所需玩法另行重写。
+仓库里的 `skills/perspectra-creator` 整合原创世界包、酒馆 PNG／JSON 卡静态提取与迁移，以及原生模型预设创作。把整个目录复制到所用 AI 工具的 Skill 目录，告诉它仓库位置与创作需求即可。原卡脚本、HTML、EJS 与正则只作为数据审阅，所需玩法另行重写。在仓库根目录运行世界包检查：
 
 ```powershell
-& 'D:\Perspectra\worldpack.cmd' validate 'D:\我的游戏'
-& 'D:\Perspectra\worldpack.cmd' test 'D:\我的游戏'
-& 'D:\Perspectra\worldpack.cmd' preset validate 'D:\我的游戏\model-preset.json' --pack
+corepack pnpm@11.7.0 worldpack validate 'D:\我的游戏'
+corepack pnpm@11.7.0 worldpack test 'D:\我的游戏'
+corepack pnpm@11.7.0 worldpack preset validate 'D:\我的游戏\model-preset.json' --pack
 ```
 
 `test` 只编译适配，`assertionsExecuted: 0`；静态通过后仍需在 Launcher 新建实例做真实玩法验收。
@@ -175,15 +158,14 @@ World Pack v5 描述角色、初始认知、地点、物品、场景、玩家槽
 - 剧情节奏只经过真实模型的脚本化对照，事件多密才合适还要靠真人试玩判断。作者写的察觉和念头不经过程序检查，写成指令或与角色处境矛盾时，角色会照本宣科或记住没发生过的事。
 - 长期记忆可能交付无关认识；后台整理和大上下文的容量、性能与角色体验仍需更多测试。
 - 受信任模式的前端可以访问外部网络，它加载的远程内容可能在游戏包摘要不变的情况下发生变化；请只授权自己认可的来源。受信任前端仍拿不到 Core 令牌、模型密钥、角色私有上下文或数据库权限。
-- 便携版尚未完成干净 Windows 环境、长时间稳定性和原生目录选择器完整流程验收；没有代码签名、自动更新或跨版本存档迁移保证。
 
-验证证据见[程序包验收记录](docs/current/studies/program-package-creator-skill-20261024.md)和[项目状态](docs/current/PROJECT-STATE.md)。
+验证证据见[项目状态](docs/current/PROJECT-STATE.md)。
 
 ## 反馈问题与体验
 
 欢迎在 [GitHub Issues](https://github.com/YouLan5418/Perspectra/issues) 提交 Bug、设计问题和体验反馈。我们尤其希望了解：角色是否自然、是否知道了不该知道的信息、记忆是否改善连续互动、世界状态与叙事是否矛盾，以及规则是否帮助了玩法。
 
-反馈请提供测试版本、Windows 环境、使用的游戏包和前端模式、模型标识与接口类型、最短复现步骤、预期与实际结果，以及遮挡私人信息后的截图。可参考[反馈模板](scripts/release/feedback-template.zh-CN.md)。
+反馈请提供所用代码的提交号（`git rev-parse --short HEAD`）、Windows 环境、使用的游戏包和前端模式、模型标识与接口类型、最短复现步骤、预期与实际结果，以及遮挡私人信息后的截图。可参考[反馈模板](scripts/release/feedback-template.zh-CN.md)。
 
 **不要公开 API Key、原始模型请求、完整数据库或角色私密日志。** 实际模型请求窗口包含私有角色上下文，只用于自己调试。
 
