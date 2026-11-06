@@ -104,6 +104,7 @@ const { url } = await api.resource("assets/banner.svg");
 | getHistory | 同一公开转录，不含角色私有 Context |
 | speak | 玩家发言或已有显式命令；仍走既有 Core 输入边界 |
 | perform | `perform(optionId, actionId, npcIds?, extra?)`。引用当前 optionId；宿主提供固定参数并裁定。动态活动开始选项可传 npcIds 选人；带 `argumentSchema` 的选项用 `extra.arguments` 填写开放字段（不能覆盖固定字段）；`extra.say`（与 speak 相同的 text、narration、scope、addresseeIds）加 `extra.order`（`before` 默认／`after`）让一句话和这个行动成为同一回合。活动管理选项不接受 say |
+| setPacing | `setPacing(enabled, actionId?)`，需要 perform 能力。世界有剧情节奏时，视图带 `pacing: { enabled }`，没有时不带这个字段，调用会被拒绝。从下一轮起生效，本轮进行中会被拒绝 |
 | subscribe | 公共视图变化，含 historyAppend；断连后重新获取快照 |
 | resource | 当前包内已加载前端素材 URL |
 

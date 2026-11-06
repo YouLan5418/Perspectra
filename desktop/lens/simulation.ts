@@ -63,6 +63,8 @@ export interface LensStepTrace {
   readonly step: LensStep
   readonly lines: readonly LensTraceLine[]
   readonly autoStart: readonly AutoStartEvaluation[]
+  /** Why pacing did or did not bring something at the last round's end. */
+  readonly pacing?: WorldJsonObject
   /** Non-player characters that had a chance this step: asked by the stub model, or with an action.resolved or
    * speak event (an abstaining character leaves no event). */
   readonly activated: readonly string[]
@@ -382,6 +384,7 @@ export class LensSimulation {
       ...this.#lines(events, before),
     ]
     const autoStart = this.#runtime.autoStartEvaluations('last')
+    const pacing = this.#runtime.pacingDecision()
     const activated = new Set([...this.#asked].filter(id => id !== this.#playerId))
     for (const event of events)
       if (event.seq > before) {
@@ -399,6 +402,7 @@ export class LensSimulation {
       step: structuredClone(step),
       lines,
       autoStart: autoStart === previousAutoStart ? [] : autoStart,
+      ...(pacing === null ? {} : { pacing }),
       activated: [...activated],
       ...(error === undefined ? {} : { error }),
     }
@@ -446,7 +450,13 @@ export class LensSimulation {
           return text
         })
         if (!later) continue
-        if (object(data.source).kind === 'round')
+        if (object(data.source).kind === 'beat')
+          lines.push({
+            kind: 'status',
+            text: `节拍 ${show(object(data.source).beatId)}：${described.join('；') || '无变化'}`,
+            seq,
+          })
+        else if (object(data.source).kind === 'round')
           lines.push({ kind: 'round-hook', text: '回合结束：' + (described.join('；') || '无变化'), seq })
         else for (const text of described) lines.push({ kind: 'status', text: '状态 ' + text, seq })
         continue

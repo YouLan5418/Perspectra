@@ -1,7 +1,6 @@
 import type { StatusOperation, WorldJsonObject } from '@harness-world/contracts'
-import type { RulebookEvent, RulebookResolution } from '@harness-world/kernel'
+import type { RulebookResolution } from '@harness-world/kernel'
 import {
-  statusData,
   statusExact as exact,
   statusObject as object,
   statusStrings as strings,
@@ -173,43 +172,4 @@ export function statusOperationChoices(input: {
         .filter(id => input.isReachable(id) && (narrowed === undefined || narrowed.includes(id)))
         .map(id => offer({ kind: 'entity', id }, input.entityName(id)))
     })
-}
-
-/** Which round the player has reached, from committed events. Multiple player actions in one transaction are one
- * input; NPC actions and hook commits do not count, and a round whose hook returned nothing or failed still does. */
-export function statusRoundNumber(
-  events: readonly (RulebookEvent & { readonly seq: number; readonly transactionId: string })[],
-  turnStartSeq: number,
-  pause: boolean,
-): { readonly round: number; readonly turnCommits: number } {
-  // Counting starts from the latest recorded round, so a turn of several commits counted there stays one.
-  const base = events.findLast(e => e.eventType === 'status.updated' && statusData(e).source.kind === 'round')
-  const since = base === undefined ? 0 : base.seq,
-    baseSource = base === undefined ? undefined : statusData(base).source
-  const recorded = baseSource?.kind === 'round' ? baseSource.round : 0
-  const player = events.filter(
-    e => e.seq > since && e.eventType === 'action.resolved' && object(e.data).sourceRole === 'player',
-  )
-  const playerRounds = new Set(player.filter(e => e.seq <= turnStartSeq).map(e => e.transactionId))
-  // This turn is one round however many commits it took, such as a line said with an action.
-  const thisTurn = new Set(player.filter(e => e.seq > turnStartSeq).map(e => e.transactionId))
-  // A quick activity action starts and executes in two host commits for one player request.
-  const starts = new Map<string, (typeof events)[number]>()
-  for (const event of events) {
-    if (event.seq <= since || event.eventType !== 'activity.updated') continue
-    const data = object(event.data)
-    if (typeof data.requestId !== 'string') continue
-    if (data.operation === 'start') starts.set(data.requestId, event)
-    else {
-      const start = starts.get(data.requestId + ':start')
-      if (start && object(object(start.data).state).id === object(data.state).id) {
-        playerRounds.delete(start.transactionId)
-        thisTurn.delete(start.transactionId)
-      }
-    }
-  }
-  return {
-    round: recorded + playerRounds.size + (pause ? 1 : Math.min(thisTurn.size, 1)),
-    turnCommits: thisTurn.size,
-  }
 }

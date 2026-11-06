@@ -59,6 +59,9 @@ export function playerTranscript(
         typeof speech?.narration === 'string' && speech.narration.length > 0
           ? speech.narration
           : manifestationText(content?.manifestation)
+      // Something that happened around the player: nobody here did it.
+      if (typeof content?.eventNotice === 'string')
+        return [{ seq: observation.sourceSeq, speaker: '旁白', text: content.eventNotice, player: false }]
       if (content?.status !== 'accepted') return []
       if (
         typeof speech?.characterId !== 'string' ||

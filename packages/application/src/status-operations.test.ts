@@ -1,13 +1,11 @@
 import { expect, it, vi } from 'vitest'
 import type { StatusOperation, WorldJsonObject } from '@harness-world/contracts'
-import type { RulebookEvent } from '@harness-world/kernel'
 import {
   admitStatusOperation,
   parseStatusOffers,
   parseStatusOperationResult,
   statusObservationScope,
   statusOperationChoices,
-  statusRoundNumber,
 } from './status-operations.ts'
 
 const schema = { type: 'object', additionalProperties: false, properties: {} } as WorldJsonObject
@@ -144,53 +142,5 @@ it('offers only reachable, narrowed, in-scope operations with item labels', () =
     targetRef: { kind: 'entity', id: 'entity:cup' },
     bindingId: 'status',
     definitionRef: { id: 'status:take', version: 1 },
-  })
-})
-
-const event = (seq: number, transactionId: string, eventType: string, data: WorldJsonObject) =>
-  ({ seq, transactionId, eventType, eventVersion: 1, data }) as unknown as RulebookEvent & {
-    seq: number
-    transactionId: string
-  }
-const player = (seq: number, transactionId: string) =>
-  event(seq, transactionId, 'action.resolved', { sourceRole: 'player' })
-const round = (seq: number, value: number, pause = false) =>
-  event(seq, 'round:' + seq, 'status.updated', {
-    source: { kind: 'round', round: value, ...(pause ? { pause: true } : {}) },
-    changes: [],
-    reveals: [],
-  })
-
-it('counts a turn of several commits, a pause and earlier inputs as the player would', () => {
-  expect(statusRoundNumber([], 0, false)).toEqual({ round: 0, turnCommits: 0 })
-  expect(statusRoundNumber([player(1, 'a')], 0, false)).toEqual({ round: 1, turnCommits: 1 })
-  // A line said with an action is one turn however many commits it took.
-  expect(statusRoundNumber([player(1, 'a'), player(2, 'b')], 0, false)).toEqual({ round: 1, turnCommits: 2 })
-  // Earlier inputs whose hook returned nothing still count; the pause adds this round.
-  expect(statusRoundNumber([player(1, 'a')], 1, true)).toEqual({ round: 2, turnCommits: 0 })
-  // Counting starts after the last recorded round, and NPC actions never count.
-  expect(
-    statusRoundNumber(
-      [player(1, 'a'), round(2, 5), event(3, 'n', 'action.resolved', { sourceRole: 'agent' }), player(4, 'b')],
-      3,
-      false,
-    ),
-  ).toEqual({ round: 6, turnCommits: 1 })
-})
-
-it('counts a quick activity action, a start and an operation in two commits, once', () => {
-  const start = event(1, 'start', 'activity.updated', {
-    requestId: 'q:start',
-    operation: 'start',
-    state: { id: 'activity:1' },
-  })
-  const applied = event(3, 'apply', 'activity.updated', {
-    requestId: 'q',
-    operation: 'fish',
-    state: { id: 'activity:1' },
-  })
-  expect(statusRoundNumber([start, player(2, 'start'), applied, player(4, 'apply')], 0, false)).toEqual({
-    round: 1,
-    turnCommits: 1,
   })
 })

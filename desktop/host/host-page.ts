@@ -212,7 +212,7 @@ iframe{
           if(!init.canSave||Object.keys(r.payload).join(',')!=='title'||typeof r.payload.title!=='string'||r.payload.title.length>80)throw new Error('保存请求无效');
           const result=await api('/api/story-save',{title:r.payload.title});reply({ok:true,result:result.node});return;
         }
-        const grant={view:'view',history:'history',speak:'speak',perform:'perform',regenerate:'regenerate',selectCandidate:'regenerate',cancelRegeneration:'regenerate',resource:'resources',synthesizeSpeech:'speech',selectBgm:'bgm',getBgmAudio:'bgm'}[r.method];
+        const grant={view:'view',history:'history',speak:'speak',perform:'perform',regenerate:'regenerate',selectCandidate:'regenerate',cancelRegeneration:'regenerate',setPacing:'perform',resource:'resources',synthesizeSpeech:'speech',selectBgm:'bgm',getBgmAudio:'bgm'}[r.method];
         if(!grant||!init.capabilities.includes(grant))throw new Error('前端没有该能力');
         if(['view','history'].includes(r.method)){
           if(Object.keys(r.payload).length)throw new Error('查询不接受额外参数');

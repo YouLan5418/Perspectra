@@ -38,6 +38,8 @@ export interface CreatorQueryHost {
   readonly records: CreatorRecords
   statusTruth(events: readonly RulebookEvent[]): StatusTruth | undefined
   activityStates(events: readonly RulebookEvent[]): readonly WorldJsonObject[]
+  /** Why the last round did or did not bring an event; creator only. */
+  pacing(): WorldJsonObject | null
   readonly memory: MemoryInstance | undefined
   readonly memoryIsCore: boolean
 }
@@ -155,6 +157,7 @@ export function creatorInspectionSnapshot(
       entities,
       statusTruth: truth ? { public: truth.public, characters: truth.characters } : null,
       activities: [...host.activityStates(events)],
+      pacing: host.pacing(),
       events: { items: selectedEvents, nextAfterSeq, hasMore: nextAfterSeq < head.headSeq },
       limitations: [
         'holderId 表示保管或携带，不证明法律所有权。',

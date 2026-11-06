@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto'
 import {
   brandId,
   canonicalizeWorldJson,
+  playerRoundNumber,
   knownStatusView,
   type WorldAddress,
   type WorldEventDraft,
@@ -32,7 +33,6 @@ import {
   parseStatusOperationResult,
   statusObservationScope,
   statusOperationChoices,
-  statusRoundNumber,
   type StatusOffers,
   characterExecutionResult,
   executeWorldRound,
@@ -436,6 +436,24 @@ export class StatusRuntime {
     }
   }
 
+  beatResult(
+    events: readonly RulebookEvent[],
+    beatId: string,
+    changes: readonly StatusChange[],
+    reveals: readonly unknown[],
+  ): StatusEventData {
+    return this.#state.beatResult(events, beatId, changes, reveals)
+  }
+  /** A pacing beat is a system round: no actor, built by the caller from the snapshot. */
+  commitBeat(
+    worldPath: string,
+    address: WorldAddress,
+    owner: string,
+    build: (snapshot: WorldRoundSnapshot) => { events: WorldEventDraft[]; authority: WorldJsonObject } | undefined,
+  ): Promise<boolean> {
+    return this.#commitRound(worldPath, address, owner, build)
+  }
+
   /** Commits the initial values once, as their own round, when the world has no status event yet. */
   async ensureInitial(worldPath: string, address: WorldAddress, playerId: string): Promise<void> {
     await this.#commitRound(
@@ -553,7 +571,7 @@ export class StatusRuntime {
   ): Promise<{ ok: boolean; error?: string }> {
     let error: string | undefined
     await this.#commitRound(worldPath, address, 'status-round:' + randomUUID(), ({ events }) => {
-      const { round, turnCommits } = statusRoundNumber(events, turnStartSeq, pause)
+      const { round, turnCommits } = playerRoundNumber(events, turnStartSeq, pause)
       // Folding stored events stays outside the catch: corrupt history must surface, not read as a hook failure.
       const truth = this.truth(events)
       let data: StatusEventData | undefined

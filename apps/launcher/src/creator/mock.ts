@@ -873,6 +873,7 @@ export function mockDebug(characterId?: string): CreatorInspectionSnapshot {
   const selected = characters.find(character => character.id === characterId)
   return {
     capturedAt: new Date().toISOString(),
+    pacing: null,
     address,
     worldVersion: '0.1.0-preview',
     title: '雪夜旅店',

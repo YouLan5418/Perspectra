@@ -18,6 +18,7 @@ export * from './interaction-definition.ts'
 export * from './interaction-schema.ts'
 
 export * from './known-status-view.ts'
+export * from './round-count.ts'
 export * from './status.ts'
 export * from './activity.ts'
 export * from './gameplay.ts'

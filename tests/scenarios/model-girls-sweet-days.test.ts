@@ -10,6 +10,7 @@ import { compileWorldPackSource } from '@harness-world/world-pack'
 import { WorldStore } from '@harness-world/store-sqlite'
 import { currentEntityState, currentLocation } from '@harness-world/kernel'
 import { WorldHostCore } from '../../desktop/host/world-runtime.ts'
+import { PacingScript } from '../../packages/official-pacing/src/index.ts'
 import { projectPlayerView } from '../../desktop/host/frontend-adapter.ts'
 import { loadStatus } from '../support/status-runtime.ts'
 import { createChatServer, fakeModels } from '../support/fake-provider.ts'
@@ -34,12 +35,20 @@ async function fixture(
   decision: WorldJsonObject = { decision: 'abstain' },
   includePrologue = false,
   battleAgent = false,
+  pacing = false,
 ) {
   const root = mkdtempSync(join(tmpdir(), 'model-girls-sweet-days-'))
   roots.push(root)
   const pack = join(root, 'pack'),
     data = join(root, 'data')
   cpSync(resolve('examples/world-packs/model-girls-sweet-days'), pack, { recursive: true })
+  // These cases pin each event's own conditions, so pacing's draws stay out unless a case is about them.
+  if (!pacing) {
+    const sourcePath = join(pack, 'worldpack.source.json')
+    const source = JSON.parse(readFileSync(sourcePath, 'utf8'))
+    source.assetFiles = source.assetFiles.filter((asset: string) => asset !== 'scripts/pacing.js')
+    writeFileSync(sourcePath, JSON.stringify(source))
+  }
   if (!includePrologue) {
     const sourcePath = join(pack, 'worldpack.source.json')
     const source = JSON.parse(readFileSync(sourcePath, 'utf8'))
@@ -824,4 +833,58 @@ it('texts DeepSeek in another room, wakes only her, and delivers her text reply 
   const lines = (await f.runtime.state()).transcript.map(line => line.text)
   expect(lines.some(text => text.includes('好呀，我傍晚在门口等你'))).toBe(true)
   expect(currentLocation(f.events(), 'character:deepseek')).toBe('location:kitchen')
+})
+
+it('opens with its pacing, and brings a beat on the recorded draw', async () => {
+  const f = await fixture(undefined, { decision: 'abstain' }, false, false, true)
+  f.runtime.beginRoundRandom([0, 0])
+  await f.runtime.submit('今天有什么安排？')
+  const beats = f.events().filter(e => {
+    const data = e.data as WorldJsonObject
+    return e.eventType === 'status.updated' && (data.source as WorldJsonObject).kind === 'beat'
+  })
+  expect(beats).toHaveLength(1)
+  expect(f.runtime.creatorInspection().pacing).toMatchObject({ kind: 'beat', reason: { why: 'chosen' } })
+})
+
+it('lets the prologue come first whatever the draw says', async () => {
+  const f = await fixture(
+    { 'character:claude': 'location:living-room', 'character:deepseek': 'location:living-room' },
+    { decision: 'abstain' },
+    true,
+    false,
+    true,
+  )
+  f.runtime.beginRoundRandom([0, 0])
+  await f.runtime.submit('这是怎么回事？')
+  const kinds = f.events().flatMap(e => {
+    const data = e.data as WorldJsonObject
+    if (e.eventType === 'activity.updated' && data.operation === 'start') return [data.activityKey]
+    if (e.eventType === 'status.updated' && (data.source as WorldJsonObject).kind === 'beat') return ['beat']
+    return []
+  })
+  expect(kinds[0]).toBe('prologue')
+  expect(kinds).not.toContain('beat')
+})
+
+it('lets Claude notice the bill only when she is where the player is', () => {
+  const script = new PacingScript({
+    script: readFileSync(resolve('examples/world-packs/model-girls-sweet-days/scripts/pacing.js'), 'utf8'),
+  })
+  const truth = { public: { day: 1, slot: '午后' }, characters: { 'character:player': { money: 100 } } }
+  const bill = (claude: string) =>
+    script.apply(
+      'utility-bill',
+      {
+        truth,
+        world: {
+          locationId: 'location:entrance-shop',
+          characterIds: [],
+          places: { 'character:player': 'location:entrance-shop', 'character:claude': claude },
+        },
+      } as never,
+      () => 0,
+    ) as { stimuli: unknown[] }
+  expect(bill('location:living-room').stimuli).toEqual([])
+  expect(bill('location:entrance-shop').stimuli).toHaveLength(1)
 })

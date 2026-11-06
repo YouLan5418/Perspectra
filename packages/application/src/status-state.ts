@@ -358,6 +358,9 @@ export class StatusState {
     else if (source.kind === 'round') {
       exact(source, ['kind', 'round'], ['pause'])
       if (Object.hasOwn(source, 'pause') && source.pause !== true) throw new TypeError('状态来源无效')
+    } else if (source.kind === 'beat') {
+      exact(source, ['kind', 'beatId'])
+      if (typeof source.beatId !== 'string' || !source.beatId) throw new TypeError('状态来源无效')
     } else throw new TypeError('状态来源无效')
     // The initial event carries every value of every character, so only results are bounded.
     if (
@@ -462,6 +465,27 @@ export class StatusState {
     }
     this.validate(events, data, sceneIds)
     return { eventType: 'status.updated', eventVersion: 1, data: data as unknown as WorldJsonObject }
+  }
+
+  /** A beat has no actor and so no scene: it may tell any declared character. The host fills the values. */
+  beatResult(
+    events: readonly RulebookEvent[],
+    beatId: string,
+    changes: readonly StatusChange[],
+    reveals: readonly unknown[],
+  ): StatusEventData {
+    const reveal = this.#revealAfter(events, changes)
+    const data: StatusEventData = {
+      source: { kind: 'beat', beatId },
+      changes: [...changes],
+      reveals: reveals.map(value => {
+        const r = object(value, '状态告知')
+        exact(r, ['observerId', 'holderId', 'key'])
+        return reveal(r.observerId, r.holderId, r.key)
+      }),
+    }
+    this.validate(events, data, this.#characterIds)
+    return data
   }
 
   roundResult(events: readonly RulebookEvent[], output: unknown, round: number): StatusEventData | undefined {

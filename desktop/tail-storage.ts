@@ -38,6 +38,8 @@ export interface TailRecord {
   headSeq: number
   tick: number
   activityRandom: number[]
+  /** Recorded only when the round was played with story pacing switched off. */
+  pacing?: false
   candidates?: TailCandidate[]
   selected?: string
 }
@@ -58,6 +60,7 @@ export function readTailSelection(root: string): TailSelection | undefined {
         !Number.isSafeInteger(value.tail.tick) ||
         !Array.isArray(value.tail.activityRandom) ||
         value.tail.activityRandom.some(n => typeof n !== 'number' || n < 0 || n >= 1) ||
+        (value.tail.pacing !== undefined && value.tail.pacing !== false) ||
         !value.tail.input ||
         Object.keys(value.tail.input).length !== 1 ||
         !(

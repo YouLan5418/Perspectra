@@ -13,6 +13,7 @@ const LABELS: Readonly<Record<string, string>> = {
   activities: '活动规则',
   communication: '通信规则',
   autonomy: '自主策略',
+  pacing: '剧情节奏',
   characterLoop: '角色执行循环',
   memory: '长期记忆',
   llm: '模型通道',

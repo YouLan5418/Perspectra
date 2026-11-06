@@ -19,6 +19,11 @@ import {
 } from '@harness-world/application'
 import { ActivityRuntime } from './activity-runtime.ts'
 import type { StatusRuntime } from './status-runtime.ts'
+/** An activity whose author conditions all hold, ready to start. */
+export type AutoStartCandidate = NonNullable<ReturnType<ActivityRuntime['autoStartCandidate']>> & {
+  readonly key: string
+  readonly entry: ActivityRuntime
+}
 /** One foreground activity, with independent progress in the existing world event log. */
 export class ActivitiesRuntime {
   readonly #entries = new Map<string, ActivityRuntime>()
@@ -191,10 +196,22 @@ export class ActivitiesRuntime {
   /** After a player round, lend only eligible candidates to the selection mechanism and start at most one.
    * Random draws stay in the existing round record. Returns whether a start was committed. */
   async autoStart(): Promise<boolean> {
+    const met = this.autoStartCandidates()
+    return met.length ? this.startChosen(met) : false
+  }
+  /** One recorded draw of this round, for a mechanism that decides alongside the activities. */
+  drawRandom(): number {
+    return this.#nextRandom()
+  }
+  /** The activities whose author conditions all hold now. A failing hook throws after recording its evaluation. */
+  autoStartCandidates(): readonly AutoStartCandidate[] {
     const { evaluations, met, error } = this.#evaluateAutoStart()
     this.#lastAutoStart = evaluations
     if (error) throw error
-    if (!met.length) return false
+    return met
+  }
+  /** The activity mechanism's own choice among these. */
+  async startChosen(met: readonly AutoStartCandidate[]): Promise<boolean> {
     let active = true
     let key: string | undefined
     try {
@@ -210,6 +227,9 @@ export class ActivitiesRuntime {
     }
     const chosen = met.find(candidate => candidate.key === key)
     if (!chosen) throw new TypeError('自动开始选择了条件未满足的活动')
+    return this.startAuto(chosen)
+  }
+  async startAuto(chosen: AutoStartCandidate): Promise<boolean> {
     const store = new WorldStore(this.worldPath)
     let headSeq: number
     try {
@@ -227,9 +247,14 @@ export class ActivitiesRuntime {
         parameters: chosen.parameters,
         requestId: 'auto-start:' + chosen.key + ':' + headSeq,
       },
-      chosen.notice === undefined ? {} : { notice: chosen.notice },
+      {
+        ...(chosen.notice === undefined ? {} : { notice: chosen.notice }),
+        ...(chosen.sceneNotice === undefined ? {} : { sceneNotice: chosen.sceneNotice }),
+      },
     )
-    this.#lastAutoStart = evaluations.map(item => (item.activityKey === chosen.key ? { ...item, started } : item))
+    this.#lastAutoStart = this.#lastAutoStart.map(item =>
+      item.activityKey === chosen.key ? { ...item, started } : item,
+    )
     return started
   }
   #lastAutoStart: readonly AutoStartEvaluation[] = []
@@ -257,10 +282,7 @@ export class ActivitiesRuntime {
   #evaluateAutoStart() {
     const entries = [...this.#entries].filter(([, entry]) => entry.hasAutoStart)
     const evaluations: AutoStartEvaluation[] = [],
-      met: (NonNullable<ReturnType<ActivityRuntime['autoStartCandidate']>> & {
-        key: string
-        entry: ActivityRuntime
-      })[] = []
+      met: AutoStartCandidate[] = []
     let error: Error | undefined
     // A running foreground activity skips every start check, as rounds always have.
     const skipped = entries.length === 0 || this.current()?.game.active === true

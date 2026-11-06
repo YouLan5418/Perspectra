@@ -7,6 +7,7 @@ import type { StatusSlotApi } from './status.ts'
 import type { ActivitiesSlotApi } from './activities.ts'
 import type { CommunicationSlotApi } from './communication.ts'
 import type { AutonomySlotApi } from './autonomy.ts'
+import type { PacingSlotApi } from './pacing.ts'
 import type { SchedulerSlotApi } from './scheduler.ts'
 import type { CharacterLoopSlotApi } from './character-loop.ts'
 import type { MemorySlotApi } from './memory.ts'
@@ -23,6 +24,7 @@ export interface HostServices {
   activities: ActivitiesSlotApi
   communication: CommunicationSlotApi
   autonomy: AutonomySlotApi
+  pacing: PacingSlotApi
   scheduler: SchedulerSlotApi
   characterLoop: CharacterLoopSlotApi
   memory: MemorySlotApi

@@ -39,6 +39,8 @@ import {
   type CommunicationInstance,
   type AutonomySlotApi,
   type AutonomyInstance,
+  type PacingSlotApi,
+  type PacingInstance,
   type ActivitiesInstance,
 } from '@harness-world/plugin-sdk'
 
@@ -199,6 +201,20 @@ export class AutonomySlot extends Service implements AutonomySlotApi {
   }
   register(provider: SeamProvider<AutonomyInstance>): () => void {
     if (this.current) throw new Error(`自主策略已由 ${this.current.id} 提供`)
+    this.current = provider
+    return () => {
+      if (this.current === provider) this.current = undefined
+    }
+  }
+}
+
+export class PacingSlot extends Service implements PacingSlotApi {
+  current: SeamProvider<PacingInstance> | undefined
+  constructor(ctx: Context) {
+    super(ctx, 'pacing')
+  }
+  register(provider: SeamProvider<PacingInstance>): () => void {
+    if (this.current) throw new Error(`剧情节奏已由 ${this.current.id} 提供`)
     this.current = provider
     return () => {
       if (this.current === provider) this.current = undefined
@@ -411,6 +427,7 @@ export async function loadHostPlugins(
   const activities = new ActivitiesSlot(root)
   const communication = new CommunicationSlot(root)
   const autonomy = new AutonomySlot(root)
+  const pacing = new PacingSlot(root)
   const memory = new MemorySlot(root)
   const llm = new LlmSlot(root)
   const decisions = new DecisionRegistry(root)
@@ -528,6 +545,7 @@ export async function loadHostPlugins(
       activities: activities.current!,
       communication: communication.current!,
       autonomy: autonomy.current!,
+      pacing: pacing.current!,
       scheduler: scheduler.current!,
       characterLoop: characterLoop.current!,
       ...(chosenMemory ? { memory: chosenMemory } : {}),

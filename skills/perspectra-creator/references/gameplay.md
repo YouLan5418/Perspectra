@@ -22,6 +22,7 @@
 - definition.operations 每项 `{ id, label, schema, targets?, characterParameters?, actors?, activities? }`，最多 32 项；schema 是封闭对象。targets 列出作用的物品，label 可写 `{item}` 替换成物品名；actors 为 player/npc/any。
 - initialize(characterIds) 返回 `{ public, characters, reveals? }`，恰好包含声明的状态，characters 列出全部角色。角色私有状态默认告知本人，公共状态除非 alwaysKnown 否则谁也不知道。
 - policy(known, actorId, place) 可选，返回 `{ operations: [...], targets?: { 操作ID: [物品ID] } }`；known 是 `{ public, self, characters }` 已知值，place 是 `{ locationId, items }`。选项可见不代表执行必定成功。
+- 活动的 autoStart 可返回可选 `sceneNotice`（1–500 字），写给在场所有人；`notice` 只给玩家。不写时其他角色不知道事件内容，只知道活动开始了。
 - resolve(truth, actorId, operationId, parameters, world, targetId) 重查规则；返回 `{ changes, reveals, description, audience, items? }`，或仅返回 `{ rejectReason }`。audience 为 'self'、'scene' 或 `{ characters: [...] }`；行动者总能收到自己的结果，所以空列表等于 'self'，列出别人时行动者也会收到。
 - onRoundEnd(truth, round) 可选，每个玩家回合结束后调用一次，返回 null 或 `{ changes, reveals }`，适合推进游戏时间。
 
@@ -39,6 +40,16 @@ changes 是 `{ holderId, key, value }`，整体替换该键（公共状态 holde
 可见范围：public 是参与者共享，不是全世界公开；private 每人只拿到自己的一份，玩家那份会显示在玩家的活动卡片上；internal 不进任何角色视图。active、phase、turn、round 每个参与者都看得到，所以隐藏回合（比如夜里轮到谁）不能写在 turn 里：公开 turn 停在一个不变的中性值，真实行动者记在 internal，并在本人 private 里标“轮到你”，相关操作 `requiresTurn: false`，resolve 自己核对，schedule 读 internal 叫醒对的人。这样做只让其他角色不知道轮到谁；默认舞台只显示“正在回复”，但公共 PlayerView 的 `responders` 仍列出正在处理的角色，活动 revision 也随夜间操作增加，所以不要对玩家宣称接口层面已隐藏。活动不能移动角色、不会自动暂停正在运行的活动，也不替角色决定是否接受邀请或怎样行动。
 
 细节以目标程序附带的同版本说明或可运行源包为准；字段对不上时用 Launcher 新实例实际加载检查，不猜字段声称已接通。
+
+## 剧情节奏
+
+想控制事件疏密、让小事随时发生时，写 `scripts/pacing.js` 并登记进 assetFiles，定义 `globalThis.pacingScript = { definition, beats }`。definition 含 cycleRounds、chance、cooldownRounds（low/medium/high）、recoveryRounds，可选 repeatAfterRounds、stagnation、activities、beats；每个活动或节拍写 `{ intensity, repeatAfterRounds? }`。可重复的节拍一定要设再次间隔，否则同一件事会反复出现，角色的回应也会越来越像念台词。未列入 activities 的活动照旧按 autoStart 发生并优先，序章和结局不要交给节奏。一轮最多发生一件事，手动开始不受冷却限制。
+
+节拍 `{ when(truth, world), apply(truth, world) }`：when 的格式同 autoStart 的条件，不要用随机；apply 返回 changes、reveals、notice（给玩家）、sceneNotice（给在场的人）、stimuli（只给被点名的角色）。world 比玩家视角多一张 places（每个角色的位置）。写了节拍的包必须有状态声明。节拍不能移动角色或物品。
+
+stimuli 每条 `{ characterId, kind: 'perception' | 'thought', text }`，最多 8 条，每条 1–500 字，对象不能是玩家。只写她察觉到什么、想起什么，不写她该怎么做：“你看见门缝里那张催租单”，不要写“请主动向屋主提起房租”。程序不判断文字是不是指令，写成指令角色就会照本宣科。文字不证明状态变化，要改数值写进 changes。察觉要和她的位置相符，用 world.places 判断她在不在场，否则她会记住没发生过的事。
+
+推演结果每步带 `pacing`，`reason.why` 说明这轮为什么发生或没发生。完整说明见当前源码的 docs/current/guides/story-pacing.md。
 
 ## 角色自主与短信
 

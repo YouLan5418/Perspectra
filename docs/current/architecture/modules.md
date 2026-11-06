@@ -1,5 +1,7 @@
 # 目录与模块地图
 
+2026-11-05 起伏器：新增 [official-pacing](../../../packages/official-pacing)，通过 ctx.pacing 解释世界包的 scripts/pacing.js 并决定这一轮是否发生节拍或事件。
+
 2026-11-05 下沉：未新增包。application 新增 immediate-action、world-view、status-operations、activity-lifecycle、activity-projection；desktop/host/activity-world 已移入 world-view，适配器保留绑定与执行。见[下沉记录](../studies/2026-11-host-adapter-sinking.md)。
 
 2026-11-05 M7：未新增包。application 的 item-effects 新增 assertPhysicalEffects，供即时回合和规则插件层使用；机制失败的错误类别由宿主 gameplay-services 统一保留。见[M7 记录](../studies/2026-11-core-migration-m7.md)。

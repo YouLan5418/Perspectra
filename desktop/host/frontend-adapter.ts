@@ -257,6 +257,7 @@ export function projectPlayerView(state: HostState): PlayerView {
     status: state.busy && !background ? 'busy' : state.error ? 'error' : state.paused ? 'paused' : 'ready',
     ...(state.canInterrupt === undefined || background ? {} : { canInterrupt: state.canInterrupt }),
     ...(state.busy && !background && state.responders?.length ? { responders: [...state.responders] } : {}),
+    ...(state.pacing ? { pacing: { enabled: state.pacing.enabled } } : {}),
     ...(state.playerSettings
       ? {
           settings: {
@@ -337,6 +338,10 @@ export class FrontendActions {
     }
     if (this.#requests.size >= 4096) throw new RangeError('本会话操作数量达到上限，请保存后重新启动')
     const result = Promise.resolve().then(async () => {
+      if (request.operation === 'setPacing') {
+        if (!this.runtime.setPacing) throw new TypeError('当前世界没有剧情节奏可开关')
+        return projectPlayerView(await this.runtime.setPacing(request.payload.enabled as boolean))
+      }
       if (request.operation === 'cancelRegeneration') {
         if (!this.runtime.cancelRegeneration) throw new TypeError('取消不可用')
         return projectPlayerView(await this.runtime.cancelRegeneration())

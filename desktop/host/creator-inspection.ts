@@ -39,6 +39,8 @@ export interface CreatorInspectionSnapshot {
     locationBasis: 'entity' | 'holder' | 'unknown'
     lastChangeSeq: number
   }[]
+  /** Why the last round did or did not bring an event. */
+  pacing: WorldJsonObject | null
   statusTruth: { public: WorldJsonObject; characters: Record<string, WorldJsonObject> } | null
   activities: WorldJsonObject[]
   events: { items: StoredWorldEvent[]; nextAfterSeq: number; hasMore: boolean }

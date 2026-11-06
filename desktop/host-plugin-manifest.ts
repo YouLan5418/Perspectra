@@ -12,6 +12,7 @@ const SERVICES = [
   'activities',
   'communication',
   'autonomy',
+  'pacing',
   'characterLoop',
   'llm',
   'decisions',

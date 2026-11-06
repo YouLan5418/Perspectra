@@ -1,4 +1,11 @@
-import type { AutonomyInstance, CommunicationInstance, StatusInstance } from '@harness-world/plugin-sdk'
+import type {
+  ActivitiesInstance,
+  AutonomyInstance,
+  CommunicationInstance,
+  PacingCandidate,
+  PacingInstance,
+  StatusInstance,
+} from '@harness-world/plugin-sdk'
 
 /** Names the failing mechanism and keeps the error class: a TypeError or RangeError refuses this one request and
  * reaches the player with its message, anything else is an internal failure. */
@@ -107,6 +114,58 @@ export function guardedStatus(
     resolve: input => guard(input.actorId, () => instance.resolve(input)),
     endRound: (truth, round) => guard(playerId, () => instance.endRound(truth, round)),
     prepareModule: (...args) => guard(args[2], () => instance.prepareModule(...args)),
+    ...(instance.close ? { close: () => instance.close!() } : {}),
+  }
+}
+/** Checks what a pacing mechanism claims against what the world actually declares, then copies its inputs and outputs. */
+export function guardedPacing(
+  instance: PacingInstance,
+  world: {
+    readonly hasSource: boolean
+    readonly id: string
+    readonly hasStatus: boolean
+    readonly statusKeys: readonly string[]
+    readonly activities: ActivitiesInstance | undefined
+    readonly report: (id: string, actorId: string, error: unknown) => void
+  },
+): PacingInstance {
+  for (const method of ['intensity', 'checks', 'choose', 'apply'] as const)
+    if (typeof instance[method] !== 'function') throw new TypeError('pacing requires ' + method)
+  const { id, report, activities } = world
+  if (!world.hasSource && (instance.managedActivities.length || instance.beats.length))
+    throw new TypeError('节奏机制必须匹配世界声明的脚本')
+  if (instance.beats.length && !world.hasStatus) throw new TypeError('写了节拍的世界包需要状态声明')
+  for (const key of [...instance.managedActivities, ...instance.progress.activities]) {
+    const entry = activities?.entries.find(row => row.key === key)
+    if (!entry) throw new TypeError('节奏配置列出了未声明的活动：' + key)
+    if (instance.managedActivities.includes(key) && !entry.hasAutoStart)
+      throw new TypeError('节奏管理的活动必须写 autoStart：' + key)
+  }
+  for (const key of instance.progress.statuses)
+    if (!world.statusKeys.includes(key)) throw new TypeError('节奏配置列出了未声明的状态：' + key)
+  const guard = <T>(work: () => T): T => {
+    try {
+      return structuredClone(work())
+    } catch (cause) {
+      report(id, 'pacing', cause)
+      throw mechanismFailure(`节奏机制 ${id}`, cause)
+    }
+  }
+  return {
+    managedActivities: [...instance.managedActivities],
+    beats: [...instance.beats],
+    progress: structuredClone(instance.progress),
+    intensity: (candidate: PacingCandidate) => guard(() => instance.intensity(candidate)),
+    checks: (beatId, input) => guard(() => instance.checks(beatId, structuredClone(input))),
+    choose: input =>
+      guard(() =>
+        instance.choose({
+          candidates: structuredClone(input.candidates),
+          history: structuredClone(input.history),
+          random: input.random,
+        }),
+      ),
+    apply: (beatId, input, random) => guard(() => instance.apply(beatId, structuredClone(input), random)),
     ...(instance.close ? { close: () => instance.close!() } : {}),
   }
 }
