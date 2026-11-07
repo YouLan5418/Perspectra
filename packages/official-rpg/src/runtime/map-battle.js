@@ -364,8 +364,10 @@ function installMap(config) {
           if (victim.team === 'enemy' && victim.hp <= 0 && from > 0) descriptions.push(enemyLine(victim, 'defeated'))
         }
       }
+      // Only the party members here fight: one who is elsewhere gets no turn, is not targeted and does not count.
+      const here = unit => unit.team === 'enemy' || present.includes(unit.id)
       const outcome = () =>
-        !units.some(unit => unit.team === 'party' && unit.hp > 0)
+        !units.some(unit => unit.team === 'party' && here(unit) && unit.hp > 0)
           ? 'defeat'
           : !units.some(unit => unit.team === 'enemy' && unit.hp > 0)
             ? 'victory'
@@ -377,24 +379,27 @@ function installMap(config) {
         )
         if (!used) return reject('你没有学会这个技能。')
         const victim = units.find(unit => unit.name === parameters.target)
+        // The cue's own skill at its own moment. Simulate always performs an unsaid, usable cue, so the model acts here
+        // only once the cue was found unusable (noted); then her action is her own and carries no scripted line.
         const scripted =
           cueNow &&
           cueNow.skill === used.id &&
           (!cueNow.target || enemyName(cueNow.target) === parameters.target) &&
-          !pub.said.includes(cueNow.index)
+          !pub.said.includes(cueNow.index) &&
+          !pub.noted.includes(cueNow.index)
         // The author's skill for this moment cannot be used: nothing happens, the reason is shown, her model decides.
-        if (scripted && !pub.noted.includes(cueNow.index) && unavailable(cueNow, game)) {
+        if (scripted && unavailable(cueNow, game)) {
           noteUnavailable(game, cueNow, notes)
           return finalize()
         }
-        if (!victim || victim.hp <= 0 || (used.kind === 'heal') !== (victim.team === 'party'))
+        if (!victim || !here(victim) || victim.hp <= 0 || (used.kind === 'heal') !== (victim.team === 'party'))
           return reject('这个技能不能对该目标使用。')
         for (const key of Object.keys(used.cost)) {
           if (own.stats[key] < used.cost[key]) return reject(statLabel(key) + '不足，什么都没有发生。')
         }
         const targets =
           used.scope === 'all'
-            ? units.filter(unit => unit.hp > 0 && (used.kind === 'heal') === (unit.team === 'party'))
+            ? units.filter(unit => here(unit) && unit.hp > 0 && (used.kind === 'heal') === (unit.team === 'party'))
             : [victim]
         if (used.kind === 'heal' && targets.every(unit => unit.hp === unit.maxHp))
           return reject('目标生命已满，不消耗魔力。')
@@ -432,7 +437,7 @@ function installMap(config) {
           pub.cursor = (pub.cursor + 1) % pub.order.length
           if (pub.cursor === 0) game.round += 1
           const next = units.find(unit => unit.id === pub.order[pub.cursor])
-          if (!next || next.hp <= 0) continue
+          if (!next || next.hp <= 0 || !here(next)) continue
           if (next.team === 'party') {
             game.turn = next.id
             noteUnavailable(game, turnCue(next.id, game.round), notes)
@@ -441,7 +446,7 @@ function installMap(config) {
           next.guarded = false
           const enemy = enemies.find(e => e.id === next.id)
           const used = enemy.skills.map(skillById).find(skill => skill.kind === 'damage')
-          const standing = units.filter(unit => unit.team === 'party' && unit.hp > 0)
+          const standing = units.filter(unit => unit.team === 'party' && here(unit) && unit.hp > 0)
           if (!used || !standing.length) {
             next.guarded = true
             descriptions.push(next.name + '采取防御。')
@@ -464,7 +469,9 @@ function installMap(config) {
             out.items = config.drops.map(entityId => ({ entityId, to: { locationId: config.locationId } }))
             descriptions.push('有东西掉在了地上。')
           }
-          queue(game, 'aftermath', cuesFor('enemy-defeated'), afterVictory)
+          // A scripted skill that ended the fight still owes its line: the activity stays open until she says it.
+          const owed = pub.lastCue !== null && cueAt(pub.lastCue).say ? [cueAt(pub.lastCue)] : []
+          queue(game, 'aftermath', owed.concat(cuesFor('enemy-defeated')), afterVictory)
         } else if (result === 'defeat') {
           finish(game, 'defeat', '战斗失败')
           descriptions.push('队伍全部倒下，战斗失败。')
@@ -511,7 +518,8 @@ function installMap(config) {
       if (!game.active || game.turn !== actorId) return null
       if (CUE_PHASES.includes(game.phase)) {
         const cue = cueAt(pub.pending[0])
-        if (!cue || cue.characterId !== actorId || cue.skill) return null
+        // After victory a skill cue in the queue is the line its finishing skill still owes.
+        if (!cue || cue.characterId !== actorId || (cue.skill && game.phase !== 'aftermath')) return null
         pub.pending.shift()
         pub.said.push(cue.index)
         return nextAfterCue(game)
@@ -543,21 +551,9 @@ function installMap(config) {
       if (request.continuation) {
         const result = request.result
         if (!result || result.status !== 'accepted' || !result.action) return null
-        const args = result.action.parameters.arguments || {}
-        let cue
-        if (activity) cue = cueAt(activity.game.public.lastCue)
-        else {
-          // The skill ended the battle; find her cue from what she just did.
-          const meta = (result.observationMetadata && result.observationMetadata.activity) || {}
-          cue = cues.find(
-            c =>
-              c.characterId === me &&
-              c.skill &&
-              skillById(c.skill).name === args.skill &&
-              (!c.target || enemyName(c.target) === args.target) &&
-              (c.when === 'encounter' ? meta.round <= 2 : c.round === meta.round || c.round === meta.round - 1),
-          )
-        }
+        // Only the action just performed from a cue carries its line; the resolve recorded that in lastCue. A battle the
+        // scripted skill won stays open for the line; one it lost or fled has ended, and the line is dropped.
+        const cue = activity ? cueAt(activity.game.public.lastCue) : undefined
         return cue && cue.characterId === me && cue.skill && cue.say ? publish(cue.say) : null
       }
       if (!activity || !activity.game.active || activity.game.turn !== me) return null
@@ -568,7 +564,9 @@ function installMap(config) {
         : game.phase === 'fighting'
           ? turnCue(me, game.round)
           : undefined
-      if (!cue || cue.characterId !== me || pub.said.includes(cue.index)) return null
+      if (!cue || cue.characterId !== me) return null
+      if (game.phase === 'aftermath' && cue.skill) return publish(cue.say)
+      if (pub.said.includes(cue.index)) return null
       if (!cue.skill) return publish(cue.say)
       // A skill the battle already found unusable is not forced. Before the first result the party's numbers are
       // not in the activity yet; the resolve then records why the skill cannot be used and her model takes over.

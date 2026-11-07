@@ -201,4 +201,28 @@ describe('generateMapActivities', () => {
     expect(fight.game).toMatchObject({ active: true, phase: 'fighting', turn: PLAYER })
     expect(fight.description).toContain('遗迹守卫说：「擅入者，止步。」')
   })
+
+  it('a party member who is not at the battle gets no turn, is not targeted and does not count against defeat', () => {
+    const script = hooks(generate(c => (c.maps[0].scripted = []))[0]!.source)
+    const game = script.initialize({
+      playerId: PLAYER,
+      npcIds: [CHENG],
+      world: world('location:ruin-1', 1),
+      previous: null,
+    })
+    const alone = world('location:ruin-1', 1, [PLAYER])
+    const state = { id: 'activity:1', revision: 1, participants: [PLAYER, CHENG], game }
+    const guarded = script.resolve(state, PLAYER, 'guard', {}, alone, truth())
+    expect(guarded.game).toMatchObject({ active: true, turn: PLAYER, round: 2 })
+    expect(guarded.description).toContain('遗迹守卫使用普通攻击，玩家生命')
+    expect(guarded.description).not.toContain('澄')
+    expect(script.resolve(state, PLAYER, 'skill', { skill: '治疗术', target: '澄' }, alone, truth()).rejectReason).toBe(
+      '这个技能不能对该目标使用。',
+    )
+    const weak = truth()
+    weak.characters[PLAYER]!['rpg-hp'] = 1
+    const lost = script.resolve(state, PLAYER, 'guard', {}, alone, weak)
+    expect(lost.game).toMatchObject({ active: false, phase: 'defeat' })
+    expect(lost.moves).toEqual([{ characterId: PLAYER, locationId: 'location:living-room' }])
+  })
 })

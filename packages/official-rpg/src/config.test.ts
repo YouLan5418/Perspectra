@@ -114,6 +114,12 @@ describe('parseRpgConfig', () => {
     ).toBe(true)
   })
 
+  it('a drop must start in the vault and drop on one map only', () => {
+    expect(messageFor(c => (c.maps[0].drops = ['entity:iron-sword']))).toMatch(/^maps\[0\]\.drops\[0\]：.*vault/u)
+    expect(messageFor(c => (c.maps[1].drops = ['entity:iron-key']))).toMatch(/^maps\[1\]\.drops\[0\]：.*另一处/u)
+    expect(messageFor(c => delete c.vault)).toMatch(/^maps\[0\]\.drops\[0\]：.*vault/u)
+  })
+
   it('names an unknown root field without a leading dot', () => {
     expect(messageFor(c => (c.foo = 1)).startsWith('foo：')).toBe(true)
   })

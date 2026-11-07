@@ -232,4 +232,43 @@ describe('RPG map activities', () => {
     expect(await strike(false)).toContain('玩家使用普通攻击，遗迹守卫生命 50 → 39。')
     expect(await strike(true)).toContain('玩家使用普通攻击，遗迹守卫生命 50 → 42。')
   })
+
+  it('her line follows only the scripted skill: once when it ends the battle, never after her own matching skill', async () => {
+    const lines = (f: RpgFixture) =>
+      f.events().filter(e => e.eventType === 'character.speak' && data(e).characterId === CHENG)
+    // The scripted fire finishes the guard: the battle stays open for her line, then ends.
+    const finishing = await fixture({ config: c => (c.enemies.golem.hp = 10) })
+    await finishing.move(RUIN1)
+    expect(lines(finishing).map(e => JSON.stringify(e.data))).toEqual([expect.stringContaining('小心，它的护甲很硬！')])
+    expect(latest(finishing, 'rpg-map-ruin-1').game).toMatchObject({ active: false, phase: 'victory' })
+
+    // The scripted fire leaves the guard standing; later her own fire ends the battle and nothing scripted follows.
+    const own = await fixture({ config: c => (c.enemies.golem.hp = 28), decide: chengUses('火球术') })
+    await own.move(RUIN1)
+    expect(lines(own)).toHaveLength(1)
+    await act(own, 'guard')
+    const state = latest(own, 'rpg-map-ruin-1')
+    expect(state.game).toMatchObject({ active: false, phase: 'victory' })
+    expect(state.game.public.lastResult).toContain('澄使用火球术，遗迹守卫生命 14 → 0。')
+    expect(lines(own)).toHaveLength(1)
+  })
+
+  it('a character knows her own battle numbers only in the dungeon, and they match the battle summary', async () => {
+    const known = (input: WorldJsonObject, key: string) =>
+      ((input.context as Json).knownStatus as Json[] | undefined)?.find(e => e.holderId === CHENG && e.key === key)
+    const home = await fixture({ places: { [CHENG]: HOME }, config: c => (c.maps[0].scripted = []) })
+    await home.runtime.submit('/act speak {"text":"澄，在吗？","scope":"scene_public"}')
+    const atHome = home.inputs.filter(i => ((i.context as Json).character as Json).characterId === CHENG)
+    expect(atHome.length).toBeGreaterThan(0)
+    for (const input of atHome) expect(known(input, 'rpg-hp')).toBeUndefined()
+
+    const f = await fixture({ config: c => (c.maps[0].scripted = []), decide: chengUses('普通攻击') })
+    await f.move(RUIN1)
+    await act(f, 'guard') // Cheng strikes; the guard then hits her, the lowest.
+    await act(f, 'guard')
+    const asked = f.inputs.filter(i => (i.context as Json).activity && !i.continuation)
+    const last = asked.at(-1)!
+    expect(known(last, 'rpg-hp')).toMatchObject({ value: 22, current: true })
+    expect(((last.context as Json).activity as Json).game.public['队伍']).toContain('澄：生命 22/30')
+  })
 })

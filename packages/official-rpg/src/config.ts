@@ -271,6 +271,16 @@ export function parseRpgConfig(value: unknown, pack: RpgPackIds): RpgConfig {
   }
 
   const vault = root.vault === undefined ? undefined : location(root.vault, 'vault')
+  // A drop waits in the vault until a victory moves it onto its map, so it can drop only once and on one map.
+  const dropped = new Set<string>()
+  const dropOf = (id: unknown, path: string) => {
+    const name = entity(id, path)
+    if (vault === undefined) fail(path, '掉落物需要配置 vault 作为存放地点')
+    if (pack.entityLocations[name] !== vault) fail(path, `掉落物 ${name} 需要一开始放在 vault ${String(vault)}`)
+    if (dropped.has(name)) fail(path, `掉落物 ${name} 已经是另一处的掉落`)
+    dropped.add(name)
+    return name
+  }
 
   const maps = list(root.maps ?? [], 'maps').map((row, i): RpgMap => {
     const path = `maps[${i}]`
@@ -292,7 +302,7 @@ export function parseRpgConfig(value: unknown, pack: RpgPackIds): RpgConfig {
       ...(m.engage === undefined ? {} : { engage: oneOf(m.engage, `${path}.engage`, ['on-enter', 'optional']) }),
       ...(m.drops === undefined
         ? {}
-        : { drops: list(m.drops, `${path}.drops`).map((id, j) => entity(id, `${path}.drops[${j}]`)) }),
+        : { drops: list(m.drops, `${path}.drops`).map((id, j) => dropOf(id, `${path}.drops[${j}]`)) }),
       ...(m.chest === undefined ? {} : { chest: chestAt(m.chest, m.locationId, `${path}.chest`) }),
       ...(m.exits === undefined
         ? {}

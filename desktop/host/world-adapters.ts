@@ -12,6 +12,9 @@ import type { PackModules } from './pack-modules.ts'
 import type { StatusRuntime } from './status-runtime.ts'
 import { KNOWN_STATUS_NOTE, publicStatusChanges } from '@harness-world/application'
 
+/** The events that place a character, which `StatusState.known` reads for statuses limited to locations. */
+const LOCATION_EVENTS: readonly string[] = ['character.created', 'character.upsert', 'character.moved']
+
 /** Host rule and context projections over already assembled execution adapters. No mechanism selection. */
 export class WorldAdapters {
   activity: ActivitiesRuntime | undefined
@@ -55,13 +58,24 @@ export class WorldAdapters {
         events = store.readEventsRange(this.world.address, 0, store.head(this.world.address).headSeq, [
           'status.updated',
           'action.resolved',
+          ...LOCATION_EVENTS,
         ])
       } finally {
         store.close()
       }
       const updates = events.filter(event => event.eventType === 'status.updated')
-      const known = this.status.known(updates, characterId)
-      const statusChanges = publicStatusChanges(this.status, updates, events, characterId, known)
+      // A status shown only at some locations needs to know where she is now.
+      const known = this.status.known(
+        events.filter(event => event.eventType !== 'action.resolved'),
+        characterId,
+      )
+      const statusChanges = publicStatusChanges(
+        this.status,
+        updates,
+        events.filter(event => !LOCATION_EVENTS.includes(event.eventType)),
+        characterId,
+        known,
+      )
       request = {
         ...request,
         context: {
