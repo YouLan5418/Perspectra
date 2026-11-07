@@ -55,7 +55,7 @@ description: 为 Perspectra 创作与修改世界游玩包和原生模型预设�
 
 1. 运行 `worldpack.cmd lens requests '<源目录>'`，读出未关闭条目：作者原话、条目在游戏里的叫法、文件与位置（JSON Pointer，或脚本 hook 与条件标签）、创建时的值。清单为空就如实告诉作者。
 2. 逐条修改源目录，不改作者没圈的东西；条件写 `[标签, 布尔值]`，让透视能逐条显示。
-3. 运行 `validate`，再为相关条目写或复用推演脚本（格式见[玩法扩展](references/gameplay.md#包透视与推演脚本)，存进 `<源目录>/.perspectra-lens/scenarios/`），运行 `lens simulate '<源目录>' '<脚本>'`，核对 `expectations` 和各步 `error`。
+3. 运行 `validate`，再为相关条目写或复用推演脚本（格式见[玩法扩展](references/gameplay.md#包透视与推演脚本)，存进 `<源目录>/.perspectra-lens/scenarios/`），运行 `lens simulate '<源目录>' '<脚本>'`。退出码 2 或 `passed: false` 表示没通过；逐条核对 `expectations`、各步 `error`、`plan` 行和 `unusedNpcPlans`。
 4. 交付说明逐条对应清单 id：改了什么、在哪个文件、哪个推演脚本验证了什么、哪里没验证。
 5. **清单条目由作者在透视页面里关闭，你不关闭也无法关闭。** 改完的条目会显示“已改动，待确认”。`lens` 命令全部只读，不会移动作者的“已看过”基准。
 

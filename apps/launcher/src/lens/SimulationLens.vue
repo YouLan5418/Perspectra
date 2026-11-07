@@ -56,9 +56,11 @@ const KIND: Record<LensTraceLine['kind'], string> = {
   status: '状态',
   'round-hook': '回合钩子',
   activity: '活动',
+  plan: '计划',
 }
 const TONE: Partial<Record<LensTraceLine['kind'], string>> = {
   rejected: 'danger',
+  plan: 'warn',
   status: 'warn',
   'round-hook': 'warn',
 }

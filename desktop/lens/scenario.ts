@@ -1,6 +1,14 @@
 import type { WorldJsonObject } from '@harness-world/contracts'
-import type { HostAction, HostState } from '../host/http-server.ts'
-import { LensSimulation, type LensNpcPlan, type LensStart, type LensStep, type LensStepTrace } from './simulation.ts'
+import type { HostState } from '../host/http-server.ts'
+import {
+  LensSimulation,
+  matchAction,
+  UnmatchedAction,
+  type LensNpcPlan,
+  type LensStart,
+  type LensStep,
+  type LensStepTrace,
+} from './simulation.ts'
 
 export interface LensScenarioExpect {
   readonly started?: string
@@ -28,7 +36,11 @@ export interface LensExpectation {
 }
 export interface LensScenarioResult {
   readonly title: string
+  /** False when a step errored or an expectation failed; the CLI then exits with 2. */
+  readonly passed: boolean
   readonly steps: readonly (LensStepTrace & { readonly expectations?: readonly LensExpectation[] })[]
+  /** Per character, NPC plans no chance used: she never got, or never could use, the chance the author meant. */
+  readonly unusedNpcPlans?: Record<string, number>
 }
 
 type Json = Record<string, unknown>
@@ -70,11 +82,18 @@ function parsePlan(value: unknown, path: string): LensNpcPlan {
     only(plan, path, ['kind', 'text'])
     text(plan.text, `${path}.text`)
   } else if (plan.kind === 'perform') {
-    only(plan, path, ['kind', 'action'])
-    const action = record(plan.action, `${path}.action`)
-    if (action.actionType !== 'move' && action.actionType !== 'interact')
-      fail(`${path}.action.actionType`, '需要是 move 或 interact')
-    record(action.parameters, `${path}.action.parameters`)
+    const forms = (['move', 'interact', 'action'] as const).filter(key => plan[key] !== undefined)
+    if (forms.length !== 1) fail(path, '需要恰好写明一种行动：move、interact 或 action')
+    const form = forms[0]!
+    only(plan, path, ['kind', form, ...(form === 'interact' ? ['target', 'arguments'] : [])])
+    if (form === 'action') {
+      const action = record(plan.action, `${path}.action`)
+      if (action.actionType !== 'move' && action.actionType !== 'interact')
+        fail(`${path}.action.actionType`, '需要是 move 或 interact')
+      record(action.parameters, `${path}.action.parameters`)
+    } else text(plan[form], `${path}.${form}`)
+    if (plan.target !== undefined) text(plan.target, `${path}.target`)
+    if (plan.arguments !== undefined) record(plan.arguments, `${path}.arguments`)
   } else fail(`${path}.kind`, '需要是 abstain、say 或 perform')
   return plan as unknown as LensNpcPlan
 }
@@ -126,53 +145,23 @@ export function parseScenario(value: unknown): LensScenario {
   return scenario as unknown as LensScenario
 }
 
-class Unmatched extends Error {}
-
-/** Finds the offered option for a step in the current state; throws Unmatched, listing what is offered. */
+/** Finds the offered option for a step in the current state; throws UnmatchedAction, listing what is offered. */
 function resolve(step: LensScenarioStep, state: HostState): LensStep {
-  const actions = state.availableActions ?? []
   if ('say' in step) return { kind: 'say', text: step.say }
   if ('wait' in step) return { kind: 'wait' }
-  if ('move' in step) {
-    const destinations = actions.filter(a => a.actionType === 'move').flatMap(a => a.destinations ?? [])
-    if (!destinations.some(d => d.locationId === step.move))
-      throw new Unmatched(
-        `找不到可去的地点 ${step.move}；当前可去：${destinations.map(d => d.locationId).join('、') || '（无）'}`,
-      )
-    return { kind: 'action', action: { actionType: 'move', parameters: { locationId: step.move } } }
-  }
+  if ('move' in step) return { kind: 'action', action: matchAction({ move: step.move }, state.availableActions ?? []) }
   if ('interact' in step) {
-    const options = actions.filter(a => a.actionType === 'interact').flatMap(a => a.interactions ?? [])
-    const idOf = (option: WorldJsonObject) => (option.definitionRef as WorldJsonObject | undefined)?.id
-    const targetOf = (option: WorldJsonObject) => (option.targetRef as WorldJsonObject | undefined)?.id
-    const candidates = options.filter(
-      option => idOf(option) === step.interact && (step.target === undefined || targetOf(option) === step.target),
-    )
-    if (candidates.length > 1) {
-      const targets = candidates.map(option => String(targetOf(option) ?? '（无目标）'))
-      throw new Unmatched(`交互 ${step.interact} 有多个目标，请用 target 指定其一：${targets.join('、')}`)
+    const { interact, target, arguments: values } = step
+    const spec = {
+      interact,
+      ...(target === undefined ? {} : { target }),
+      ...(values === undefined ? {} : { arguments: values }),
     }
-    const found = candidates[0]
-    if (!found) {
-      const ids = [...new Set(options.map(option => String(idOf(option))))]
-      throw new Unmatched(
-        `找不到交互 ${step.interact}${step.target === undefined ? '' : `（目标 ${step.target}）`}；当前可用的交互：${ids.join('、') || '（无）'}`,
-      )
-    }
-    const action: HostAction = {
-      actionType: 'interact',
-      parameters: {
-        targetRef: found.targetRef!,
-        bindingId: found.bindingId!,
-        definitionRef: found.definitionRef!,
-        arguments: step.arguments ?? found.arguments ?? {},
-      },
-    }
-    return { kind: 'action', action }
+    return { kind: 'action', action: matchAction(spec, state.availableActions ?? []) }
   }
   const view = (state.activities ?? []).find(a => a.activityKey === step.activity)
   if (!view)
-    throw new Unmatched(
+    throw new UnmatchedAction(
       `找不到活动 ${step.activity}；当前活动：${(state.activities ?? []).map(a => String(a.activityKey)).join('、') || '（无）'}`,
     )
   return {
@@ -255,7 +244,7 @@ export async function applyScenario(sim: LensSimulation, scenario: LensScenario)
     try {
       trace = await sim.step(resolve(scenarioStep, await sim.state()))
     } catch (cause) {
-      if (!(cause instanceof Unmatched)) throw cause
+      if (!(cause instanceof UnmatchedAction)) throw cause
       trace = {
         index: position,
         step: asked(scenarioStep),
@@ -269,7 +258,14 @@ export async function applyScenario(sim: LensSimulation, scenario: LensScenario)
     steps.push(expectations ? { ...trace, expectations } : trace)
     if (trace.error !== undefined) break
   }
-  return { title: scenario.title, steps }
+  const passed = steps.every(step => step.error === undefined && (step.expectations ?? []).every(e => e.ok))
+  const leftover = sim.leftoverPlans()
+  return {
+    title: scenario.title,
+    passed,
+    steps,
+    ...(Object.keys(leftover).length ? { unusedNpcPlans: leftover } : {}),
+  }
 }
 
 export async function runScenario(packPath: string, scenario: LensScenario): Promise<LensScenarioResult> {

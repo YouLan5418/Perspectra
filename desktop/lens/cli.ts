@@ -65,8 +65,14 @@ async function run(args: readonly string[]): Promise<unknown> {
   } catch (error) {
     throw new CliError('SCENARIO_INVALID', `推演脚本无效（${file}）：${(error as Error).message}`)
   }
-  return runScenario(packPath, scenario)
+  const result = await runScenario(packPath, scenario)
+  // The result still goes to stdout; 2 tells a caller that only reads the exit code the scenario did not pass.
+  if (!result.passed) exitCode = 2
+  return result
 }
+
+/** 0 passed, 1 the command failed (stderr), 2 a simulated scenario ran but did not pass (stdout). */
+let exitCode = 0
 
 const flush = (stream: NodeJS.WriteStream, text: string) => new Promise<void>(done => stream.write(text, () => done()))
 
@@ -99,7 +105,6 @@ async function serve(args: readonly string[]): Promise<void> {
   await server.close()
 }
 
-let exitCode = 0
 try {
   const args = process.argv.slice(2)
   if (args[0] === 'serve') await serve(args.slice(1))

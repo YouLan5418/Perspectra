@@ -32,17 +32,93 @@ export interface LensStart {
   /** Activity keys whose autoStart is removed for this simulation. */
   readonly skipAutoStart?: readonly string[]
 }
+/** An action named the way the game names it; matched against what is offered at that moment. */
+export type LensActionSpec =
+  | { readonly move: string }
+  | { readonly interact: string; readonly target?: string; readonly arguments?: WorldJsonObject }
+/** `action` is the exact shape the page copies from an offered option; `move` / `interact` are the short forms. */
 export type LensNpcPlan =
   | { readonly kind: 'abstain' }
   | { readonly kind: 'say'; readonly text: string }
-  | { readonly kind: 'perform'; readonly action: HostAction }
+  | ({ readonly kind: 'perform' } & ({ readonly action: HostAction } | LensActionSpec))
+
+/** What a character or the player is offered: the host's available actions or a character context's affordances. */
+type Offered = readonly {
+  readonly actionType: string
+  readonly interactions?: readonly WorldJsonObject[]
+  readonly destinations?: readonly { readonly locationId: string }[]
+}[]
+export class UnmatchedAction extends Error {}
+
+const refId = (value: unknown) => (value as WorldJsonObject | undefined)?.id
+/** Builds the request for an offered option; throws UnmatchedAction listing what is offered instead. */
+export function matchAction(spec: LensActionSpec, offered: Offered): HostAction {
+  if ('move' in spec) {
+    const destinations = offered.filter(a => a.actionType === 'move').flatMap(a => a.destinations ?? [])
+    if (!destinations.some(d => d.locationId === spec.move))
+      throw new UnmatchedAction(
+        `找不到可去的地点 ${spec.move}；当前可去：${destinations.map(d => d.locationId).join('、') || '（无）'}`,
+      )
+    return { actionType: 'move', parameters: { locationId: spec.move } }
+  }
+  const options = offered.filter(a => a.actionType === 'interact').flatMap(a => a.interactions ?? [])
+  const candidates = options.filter(
+    option =>
+      refId(option.definitionRef) === spec.interact &&
+      (spec.target === undefined || refId(option.targetRef) === spec.target),
+  )
+  if (candidates.length > 1) {
+    const targets = candidates.map(option => String(refId(option.targetRef) ?? '（无目标）'))
+    throw new UnmatchedAction(`交互 ${spec.interact} 有多个目标，请用 target 指定其一：${targets.join('、')}`)
+  }
+  const found = candidates[0]
+  if (!found) {
+    const ids = [...new Set(options.map(option => String(refId(option.definitionRef))))]
+    throw new UnmatchedAction(
+      `找不到交互 ${spec.interact}${spec.target === undefined ? '' : `（目标 ${spec.target}）`}；当前可用的交互：${ids.join('、') || '（无）'}`,
+    )
+  }
+  return {
+    actionType: 'interact',
+    parameters: {
+      ...(found.targetRef === undefined ? {} : { targetRef: found.targetRef }),
+      bindingId: found.bindingId!,
+      definitionRef: found.definitionRef!,
+      arguments: spec.arguments ?? (found.arguments as WorldJsonObject | undefined) ?? {},
+    },
+  }
+}
+
+/** The short form of any perform plan, so the exact `action` form is checked against the offer the same way. */
+function planSpec(plan: Extract<LensNpcPlan, { kind: 'perform' }>): LensActionSpec {
+  if (!('action' in plan)) return plan
+  const parameters = plan.action.parameters
+  if (plan.action.actionType === 'move') return { move: String(parameters.locationId) }
+  const target = refId(parameters.targetRef)
+  return {
+    interact: String(refId(parameters.definitionRef)),
+    ...(typeof target === 'string' ? { target } : {}),
+    ...(parameters.arguments === undefined ? {} : { arguments: parameters.arguments as WorldJsonObject }),
+  }
+}
 export type LensStep =
   | { readonly kind: 'say'; readonly text: string }
   | { readonly kind: 'action'; readonly action: HostAction }
   | { readonly kind: 'activity'; readonly request: Omit<ActivityRequest, 'requestId'> }
   | { readonly kind: 'wait' }
 export interface LensTraceLine {
-  readonly kind: 'input' | 'resolved' | 'rejected' | 'moved' | 'speech' | 'item' | 'status' | 'round-hook' | 'activity'
+  /** `plan`: a scripted NPC plan that could not run as written this time; the line says why. */
+  readonly kind:
+    | 'input'
+    | 'resolved'
+    | 'rejected'
+    | 'moved'
+    | 'speech'
+    | 'item'
+    | 'status'
+    | 'round-hook'
+    | 'activity'
+    | 'plan'
   readonly actorId?: string
   /** Set on `activity` lines: the activity the committed event belongs to. */
   readonly activityKey?: string
@@ -211,12 +287,6 @@ function openingComposition(
   }
 }
 
-function npcDecision(plan: LensNpcPlan | undefined): StubDecision {
-  if (!plan || plan.kind === 'abstain') return { decision: 'abstain' }
-  if (plan.kind === 'say') return { decision: 'publish', segments: [{ type: 'speech', text: plan.text }] }
-  return { decision: 'perform', actionType: plan.action.actionType, parameters: plan.action.parameters }
-}
-
 function inputText(step: LensStep): string {
   if (step.kind === 'say') return `输入：说「${step.text}」`
   if (step.kind === 'action') return '输入：' + actionText(step.action)
@@ -237,6 +307,7 @@ export class LensSimulation {
   #labels: ReturnType<typeof interactionLabels> | undefined
   #plans = new Map<string, LensNpcPlan[]>()
   #asked = new Set<string>()
+  #notes: Omit<LensTraceLine, 'seq'>[] = []
   #steps = 0
   #closing: Promise<void> | undefined
 
@@ -259,10 +330,47 @@ export class LensSimulation {
       ...(pack.content.entities ?? []).map(e => [e.entityId, e.name ?? e.entityId] as const),
     ])
     this.#activityTitles = activityTitles
-    stub.decide = characterId => {
+    stub.decide = (characterId, input) => {
       this.#asked.add(characterId)
-      return npcDecision(this.#plans.get(characterId)?.shift())
+      return this.#decide(characterId, input)
     }
+  }
+
+  /** The next plan as a model decision. A plan that cannot run as written abstains and leaves a `plan` line, so
+   * nothing the author scripted disappears without a trace. */
+  #decide(characterId: string, input: WorldJsonObject): StubDecision {
+    const queue = this.#plans.get(characterId)
+    const plan = queue?.[0]
+    if (!plan) return { decision: 'abstain' }
+    const name = this.#name(characterId)
+    if (plan.kind === 'perform' && input.canPerform === false) {
+      // The follow-up after her own action allows only words; the action waits for her next chance.
+      this.#notes.push({
+        kind: 'plan',
+        actorId: characterId,
+        text: `${name} 刚完成一次行动，这次跟进机会只能说话或弃权；计划里的下一个行动留到下一次机会`,
+      })
+      return { decision: 'abstain' }
+    }
+    queue.shift()
+    if (plan.kind === 'abstain') return { decision: 'abstain' }
+    if (plan.kind === 'say') return { decision: 'publish', segments: [{ type: 'speech', text: plan.text }] }
+    const offered = ((input.context as WorldJsonObject | undefined)?.affordances ?? []) as Offered
+    try {
+      const action = matchAction(planSpec(plan), offered)
+      return { decision: 'perform', actionType: action.actionType, parameters: action.parameters }
+    } catch (cause) {
+      if (!(cause instanceof UnmatchedAction)) throw cause
+      this.#notes.push({ kind: 'plan', actorId: characterId, text: `${name} 的计划行动这次用不上：${cause.message}` })
+      return { decision: 'abstain' }
+    }
+  }
+
+  /** Plans no chance used up, per character; an unused plan usually means she never got the chance the author meant. */
+  leftoverPlans(): Record<string, number> {
+    return Object.fromEntries(
+      [...this.#plans].filter(([, list]) => list.length > 0).map(([id, list]) => [id, list.length]),
+    )
   }
 
   static async open(
@@ -365,6 +473,7 @@ export class LensSimulation {
     const before = this.#read().at(-1)?.seq ?? 0
     let error: string | undefined
     this.#asked = new Set()
+    this.#notes = []
     // The host refreshes its last evaluations only when a round commits; autoStart() assigns a new array, so an
     // unchanged reference means this step ran no check and must not repeat the previous step's (e.g. `started`).
     const previousAutoStart = this.#runtime.autoStartEvaluations('last')
@@ -382,6 +491,7 @@ export class LensSimulation {
     const lines = [
       { kind: 'input' as const, actorId: this.#playerId, text: inputText(step), seq: before },
       ...this.#lines(events, before),
+      ...this.#notes.map(note => ({ ...note, seq: events.at(-1)?.seq ?? before })),
     ]
     const autoStart = this.#runtime.autoStartEvaluations('last')
     const pacing = this.#runtime.pacingDecision()

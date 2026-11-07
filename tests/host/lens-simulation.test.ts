@@ -18,7 +18,7 @@ import type { WorldJsonObject } from '@harness-world/contracts'
 import { WorldStore } from '@harness-world/store-sqlite'
 import { sweetWithoutPacing } from '../support/sweet-without-pacing.ts'
 import { LensSimulation, sweepStaleLensCopies, type LensStart } from '../../desktop/lens/simulation.ts'
-import { applyScenario } from '../../desktop/lens/scenario.ts'
+import { applyScenario, parseScenario } from '../../desktop/lens/scenario.ts'
 import { startStubModel } from '../../desktop/lens/stub-model.ts'
 import { WorldHostRuntime } from '../../desktop/host/world-runtime.ts'
 import type { HostAction, HostState } from '../../desktop/host/http-server.ts'
@@ -117,6 +117,72 @@ it('npc plan is consumed then abstains', async () => {
       chances.push(trace.lines.some(line => line.kind === 'speech' && line.text.includes('测试台词')))
   }
   expect(chances).toEqual([true, false])
+}, 120_000)
+
+// Walkthrough 2026-11-07: [take, eat] in one round ran take, then eat vanished without a trace, because the follow-up
+// after her own action may only speak; the scenario still exited 0 with a failed expectation.
+it('an npc action planned for the follow-up waits for her next chance and says so', async () => {
+  const lens = await open(PACK, { skipAutoStart: ['prologue'] })
+  // One activation allows at most two controlled actions, so the third move must wait for another activation.
+  lens.setNpcPlans({
+    [DEEPSEEK]: [
+      { kind: 'perform', move: 'location:kitchen' },
+      { kind: 'perform', move: 'location:living-room' },
+      { kind: 'perform', move: 'location:kitchen' },
+    ],
+  })
+  const movesPerStep: number[] = []
+  let deferred = false
+  for (let i = 0; i < 8 && movesPerStep.reduce((a, b) => a + b, 0) < 3; i++) {
+    const trace = await lens.step({ kind: 'say', text: '大家好，DeepSeek 你在吗？' })
+    expect(trace.error).toBeUndefined()
+    movesPerStep.push(trace.lines.filter(line => line.kind === 'moved' && line.actorId === DEEPSEEK).length)
+    if (trace.lines.some(line => line.kind === 'plan' && line.actorId === DEEPSEEK && line.text.includes('跟进机会')))
+      deferred = true
+  }
+  expect(deferred).toBe(true)
+  expect(movesPerStep.filter(count => count > 0)).toEqual([2, 1])
+  expect(lens.leftoverPlans()).toEqual({})
+}, 180_000)
+
+it('an npc plan that is not offered leaves a plan line instead of vanishing', async () => {
+  const lens = await open(PACK, { skipAutoStart: ['prologue'] })
+  lens.setNpcPlans({ [DEEPSEEK]: [{ kind: 'perform', interact: 'status:no-such-thing' }] })
+  let note: string | undefined
+  for (let i = 0; i < 6 && note === undefined; i++)
+    note = (await lens.step({ kind: 'say', text: '大家好，DeepSeek 你在吗？' })).lines.find(
+      line => line.kind === 'plan' && line.actorId === DEEPSEEK,
+    )?.text
+  expect(note).toContain('找不到交互 status:no-such-thing')
+  expect(lens.leftoverPlans()).toEqual({})
+}, 120_000)
+
+it('npc perform plans take the short forms player steps use, one form at a time', () => {
+  const scenario = (plan: unknown) => ({ title: 't', npcPlans: { [DEEPSEEK]: [plan] }, steps: [{ wait: true }] })
+  expect(() => parseScenario(scenario({ kind: 'perform', interact: 'status:take', target: 'entity:x' }))).not.toThrow()
+  expect(() => parseScenario(scenario({ kind: 'perform', move: 'location:kitchen' }))).not.toThrow()
+  expect(() => parseScenario(scenario({ kind: 'perform', move: 'location:a', interact: 'status:take' }))).toThrow(
+    '恰好写明一种行动',
+  )
+  expect(() => parseScenario(scenario({ kind: 'perform', move: 'location:a', target: 'entity:x' }))).toThrow(
+    '不认识的字段',
+  )
+})
+
+it('a scenario with a failed expectation or unused plans does not pass', async () => {
+  const lens = await open(PACK, { skipAutoStart: ['prologue'] })
+  const result = await applyScenario(lens, {
+    title: '期望落空',
+    npcPlans: { [DEEPSEEK]: [{ kind: 'abstain' }, { kind: 'abstain' }, { kind: 'abstain' }, { kind: 'abstain' }] },
+    steps: [{ wait: true, expect: { status: { slot: '不存在的时段' } } }],
+  })
+  expect(result.passed).toBe(false)
+  expect(result.unusedNpcPlans?.[DEEPSEEK]).toBeGreaterThan(0)
+  const ok = await applyScenario(await open(PACK, { skipAutoStart: ['prologue'] }), {
+    title: '无期望',
+    steps: [{ wait: true }],
+  })
+  expect(ok.passed).toBe(true)
 }, 120_000)
 
 it('npc options follow the real status policy and autonomy whitelist', async () => {

@@ -35,7 +35,8 @@ function lens(...args: string[]) {
       done({
         code,
         out: stdout.trim() ? JSON.parse(stdout) : undefined,
-        err: code === 0 ? undefined : JSON.parse(errorLine),
+        // Exit 2 (a scenario that did not pass) reports on stdout and leaves no error line.
+        err: errorLine ? JSON.parse(errorLine) : undefined,
       })
     })
   })
@@ -91,12 +92,25 @@ it('simulate runs a scenario with expectations', async () => {
   })
   const { code, out } = await lens('simulate', pack, script)
   expect(code).toBe(0)
+  expect(out.passed).toBe(true)
   expect(out.title).toBe('深夜厨房')
   expect(out.steps[0].error).toBeUndefined()
   expect(out.steps[0].expectations).toEqual([
     { text: expect.stringContaining('midnight-fridge'), ok: true },
     { text: expect.stringContaining('slot'), ok: true },
   ])
+}, 90_000)
+
+it('simulate exits 2 when an expectation fails', async () => {
+  const script = scenarioFile('wrong.json', {
+    title: '时段写错',
+    start: START,
+    steps: [{ wait: true, expect: { status: { slot: '正午' } } }],
+  })
+  const { code, out } = await lens('simulate', pack, script)
+  expect(code).toBe(2)
+  expect(out.passed).toBe(false)
+  expect(out.steps[0].expectations[0].ok).toBe(false)
 }, 90_000)
 
 it('simulate takes a script name from the pack scenarios folder', async () => {
@@ -113,7 +127,9 @@ it('simulate takes a script name from the pack scenarios folder', async () => {
 it('simulate reports an unmatched action', async () => {
   const script = scenarioFile('nope.json', { title: 'x', start: START, steps: [{ interact: 'status:nope' }] })
   const { code, out } = await lens('simulate', pack, script)
-  expect(code).toBe(0)
+  // The result is still on stdout; 2 says the scenario did not pass to a caller reading only the exit code.
+  expect(code).toBe(2)
+  expect(out.passed).toBe(false)
   expect(out.steps[0].error).toContain('status:nope')
   expect(out.steps[0].error).toContain('status:sleep-next-day')
 }, 90_000)
@@ -121,7 +137,7 @@ it('simulate reports an unmatched action', async () => {
 it('simulate refuses an untargeted interact offered on several targets', async () => {
   const script = scenarioFile('ambiguous.json', { title: 'x', start: START, steps: [{ interact: 'base:hold-hand' }] })
   const { code, out } = await lens('simulate', pack, script)
-  expect(code).toBe(0)
+  expect(code).toBe(2)
   expect(out.steps[0].error).toContain('target')
   expect(out.steps[0].error).toContain('character:claude')
   expect(out.steps[0].error).toContain('character:gpt')
