@@ -5,11 +5,15 @@ import {
   type ProviderProtocol,
   thinkingLevel,
   type ThinkingLevel,
+  promptCacheMode,
+  effectivePromptCacheMode,
+  type PromptCacheMode,
 } from '@harness-world/provider-chat'
 import { randomUUID } from 'node:crypto'
 
 /** One remembered provider address. Its key lives in the OS credential store, never here. */
 export interface ModelConnection {
+  cacheMode?: PromptCacheMode
   id: string
   name: string
   protocol: ProviderProtocol
@@ -53,14 +57,23 @@ export function modelEndpoint(endpoint: string, protocol: ProviderProtocol): URL
 
 export function modelConnection(value: unknown): ModelConnection {
   const data = record(value, '连接无效。')
-  if (Object.keys(data).some(key => !['id', 'name', 'protocol', 'endpoint'].includes(key)))
+  if (Object.keys(data).some(key => !['id', 'name', 'protocol', 'endpoint', 'cacheMode'].includes(key)))
     throw new Error('连接包含不支持的字段。')
   if (typeof data.id !== 'string' || !/^[a-f0-9-]{36}$/.test(data.id)) throw new Error('连接标识无效。')
   if (typeof data.name !== 'string' || !data.name.trim() || data.name.trim().length > 80)
     throw new Error('连接名称无效。')
   if (typeof data.endpoint !== 'string' || data.endpoint.length > 4096) throw new Error('接口地址无效。')
   const protocol = providerProtocol(data.protocol)
-  return { id: data.id, name: data.name.trim(), protocol, endpoint: modelEndpoint(data.endpoint, protocol).href }
+  const endpoint = modelEndpoint(data.endpoint, protocol)
+  const cacheMode = promptCacheMode(data.cacheMode)
+  effectivePromptCacheMode(protocol, endpoint, cacheMode)
+  return {
+    id: data.id,
+    name: data.name.trim(),
+    protocol,
+    endpoint: endpoint.href,
+    ...(data.cacheMode === undefined ? {} : { cacheMode }),
+  }
 }
 
 export function modelsListUrl(connection: ModelConnection): URL {
@@ -229,6 +242,7 @@ export function brokenModels(models: InstanceModels, connections: readonly Model
 }
 
 export interface ResolvedModel {
+  cacheMode?: PromptCacheMode
   connectionId: string
   protocol: ProviderProtocol
   endpoint: string
@@ -252,6 +266,7 @@ function resolved(
     protocol: connection.protocol,
     endpoint: connection.endpoint,
     model: target.model,
+    ...(withThinking && connection.cacheMode !== undefined ? { cacheMode: connection.cacheMode } : {}),
     ...(withThinking && target.thinkingLevel !== undefined ? { thinkingLevel: target.thinkingLevel } : {}),
   }
 }
@@ -297,6 +312,7 @@ export function modelEnvironment(
 
 /** One fully resolved call target as the game process uses it; the key is only ever held in memory. */
 export interface RuntimeModel {
+  readonly cacheMode?: PromptCacheMode
   readonly protocol: ProviderProtocol
   readonly endpoint: string
   readonly model: string
@@ -320,10 +336,14 @@ export function runtimeRoleModels(roles: unknown, apiKeys: unknown): RuntimeRole
     const data = record(value, '角色模型配置无效。')
     const protocol = providerProtocol(data.protocol),
       key = typeof data.connectionId === 'string' ? keys[data.connectionId] : undefined
+    const endpoint = modelEndpoint(String(data.endpoint), protocol)
+    const cacheMode = promptCacheMode(data.cacheMode)
+    effectivePromptCacheMode(protocol, endpoint, cacheMode)
     return {
       protocol,
-      endpoint: modelEndpoint(String(data.endpoint), protocol).href,
+      endpoint: endpoint.href,
       model: modelId(data.model),
+      ...(withThinking && data.cacheMode !== undefined ? { cacheMode } : {}),
       ...(withThinking && data.thinkingLevel !== undefined ? { thinkingLevel: thinkingLevel(data.thinkingLevel) } : {}),
       ...(typeof key === 'string' && key ? { apiKey: key } : {}),
     }
@@ -356,7 +376,13 @@ export function environmentRoleModels(env: Readonly<Record<string, string | unde
     ...(apiKey ? { apiKey } : {}),
   }
   const level = env.PERSPECTRA_THINKING_LEVEL?.trim()
-  const decision: RuntimeModel = { ...memory, ...(level ? { thinkingLevel: thinkingLevel(level) } : {}) }
+  const cacheMode = promptCacheMode(env.PERSPECTRA_MODEL_CACHE_MODE?.trim() || undefined)
+  effectivePromptCacheMode(protocol, new URL(memory.endpoint), cacheMode)
+  const decision: RuntimeModel = {
+    ...memory,
+    ...(level ? { thinkingLevel: thinkingLevel(level) } : {}),
+    ...(env.PERSPECTRA_MODEL_CACHE_MODE?.trim() ? { cacheMode } : {}),
+  }
   return { default: { decision, memory }, characters: {} }
 }
 

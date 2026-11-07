@@ -45,13 +45,6 @@ export function characterTurnCall(request: {
     ...(expression?.speech === 'choices' ? { enum: expression.speechChoices } : {}),
   }
   const variants = operationSchemas(request.context.affordances)
-  const scene = request.context.scene as WorldJsonObject | undefined
-  const actor = (request.context.character as WorldJsonObject | undefined)?.characterId
-  const addressees = Array.isArray(scene?.people)
-    ? scene.people
-        .map(person => (person as WorldJsonObject).characterId)
-        .filter((id): id is string => typeof id === 'string' && id !== actor)
-    : []
   const canPerform = request.canPerform ?? !request.continuation
   const perform = canPerform
     ? variants.map(variant => {
@@ -67,6 +60,27 @@ export function characterTurnCall(request: {
         }
       })
     : []
+  // Rules that change between the steps of one activation or between rounds stay out of the opening contract,
+  // so the contract, tools and authorized history form a prefix a provider can reuse; they follow the context.
+  const beforeAction = canPerform && request.canExpressBeforeAction === true && (speechAllowed || narrationAllowed)
+  const turnInstructions =
+    (request.context.recentExecutionEvidence === undefined
+      ? ''
+      : 'recentExecutionEvidence 是本次已经交付的授权执行证据，不是目标进展判定。移动成功只代表抵达，操作成功不等于目标完成；查找结果仅适用于说明的范围。你可以根据自己的目标、已发生的经历和当前环境，自主决定继续原来的办法、改变策略、获取新信息、寻求帮助、等待或者放弃。过去的计划不要求继续执行；已有证据显示未取得预期结果时可以重新考虑，但没有新进展不必然代表方案错误，失败也不必然要求立即换方案。区分实际执行结果、他人的陈述和自己的推测，不能把尚未发生的行动或未经验证的成果当成已经完成。你不需要每次推动目标；日常交流、休息、犹豫和改变心意也是合理行为。') +
+    (expression === undefined
+      ? ''
+      : '当前 activity 是临时玩法。仅可使用当前许可和工具字段；expressionPolicy 禁用的表达不应生成。游戏轮次与世界 tick 不同，游戏反馈只认程序提交的结果。主动 pass 是工具操作，abstain 不代表主动让出回合。') +
+    (request.canContinueAfterPublish
+      ? '本次首次 publish 后，在预算允许时还会获得一次决策机会。发表计划不等于执行；后续可以 perform、表达或 abstain。你无需先发言，可以直接行动或结束。'
+      : 'publish 会结束本次处理机会，发表行动计划不会自动执行计划。如果决定在本次机会实际行动，请选择 perform；收到真实结果后再表达。你仍可犹豫、拒绝或结束处理。') +
+    (request.afterPublication
+      ? '你刚才已经正式发表了表达，最新历史包含该内容。现在重新依据当前授权场景决定是否实际行动；无需重复刚才的对白。可以改变主意或 abstain，宿主不会从你的台词推导行动。'
+      : '') +
+    (canPerform ? '' : '本步不能 perform：本次处理的重要交互已经用完。只能 publish 或 abstain。') +
+    (beforeAction
+      ? '本次 perform 可以附可选 before:{segments,scope,addresseeIds}，表达你行动前要说或表现的内容；表达先裁定提交，再按最新状态裁定一次 actionType/parameters 中的行动。无需先单独 publish 再等待下一机会。' +
+        'before 不得提前声称行动成功，也不得包含行动后表达。行动后会另给真实结果与授权场景，再由你决定表达或沉默。只有表达而没有行动时仍用 publish；两者都不需要时用 abstain。'
+      : '')
   const prepared: ChatCall = {
     schema: {
       type: 'object',
@@ -85,22 +99,20 @@ export function characterTurnCall(request: {
                 required: ['decision', 'segments'],
                 properties: {
                   decision: { const: 'publish' },
+                  // The same choices whoever is present: the people a character can address are in
+                  // context.scene, and the host delivers only to those present, so the tools stay a stable prefix.
                   scope: {
                     type: 'string',
-                    enum: addressees.length ? ['scene_public', 'direct', 'private', 'self'] : ['scene_public', 'self'],
+                    enum: ['scene_public', 'direct', 'private', 'self'],
                     description:
                       '整次发布的受众：scene_public 公开；direct 仅指定对象；private 指定对象收到内容、旁观者只知道发生交流；self 仅自己。direct/private 必须填写非空 addresseeIds，scene_public/self 不填或留空。',
                   },
-                  ...(addressees.length === 0
-                    ? {}
-                    : {
-                        addresseeIds: {
-                          type: 'array',
-                          uniqueItems: true,
-                          maxItems: addressees.length,
-                          items: { type: 'string', enum: addressees },
-                        },
-                      }),
+                  addresseeIds: {
+                    type: 'array',
+                    uniqueItems: true,
+                    items: { type: 'string' },
+                    description: '只填 context.scene.people 中除你以外的角色 characterId。',
+                  },
                   segments: {
                     type: 'array',
                     minItems: 1,
@@ -163,16 +175,11 @@ export function characterTurnCall(request: {
         content:
           characterDecisionPrinciples +
           characterContextNote +
-          (request.context.recentExecutionEvidence === undefined
-            ? ''
-            : 'recentExecutionEvidence 是本次已经交付的授权执行证据，不是目标进展判定。移动成功只代表抵达，操作成功不等于目标完成；查找结果仅适用于说明的范围。你可以根据自己的目标、已发生的经历和当前环境，自主决定继续原来的办法、改变策略、获取新信息、寻求帮助、等待或者放弃。过去的计划不要求继续执行；已有证据显示未取得预期结果时可以重新考虑，但没有新进展不必然代表方案错误，失败也不必然要求立即换方案。区分实际执行结果、他人的陈述和自己的推测，不能把尚未发生的行动或未经验证的成果当成已经完成。你不需要每次推动目标；日常交流、休息、犹豫和改变心意也是合理行为。') +
-          (expression === undefined
-            ? ''
-            : '当前 activity 是临时玩法。仅可使用当前许可和工具字段；expressionPolicy 禁用的表达不应生成。游戏轮次与世界 tick 不同，游戏反馈只认程序提交的结果。主动 pass 是工具操作，abstain 不代表主动让出回合。') +
           `publish 提交 segments，可选 scope 和 addresseeIds。scope 可选 scene_public（公开）、direct（仅指定对象，旁观者无观察）、private（指定对象获得内容，旁观者只知道发生交流）、self（仅自己）。direct/private 必须指定当前可见的其他角色；scene_public/self 不指定接收对象。省略 scope 时，有接收对象为 direct，否则为 scene_public。segments 是有序的 {type: speech 或 narration, text} 数组，可任意交替或重复类型；所有片段共用受众，一次原子发布，文本合计最多 ${maximum} 字符。固定对白选项模式一次最多一个 speech 片段。` +
           (expressions.length
             ? `片段可附 expression，表示这一段时你的表情，从 ${expressions.join('、')} 中选；不写则保持上一次的表情。表情只是外显表现，不改变任何状态。`
             : '') +
+          '用户消息末尾的 turnInstructions 是本次处理适用的规则，与这里的说明同样有效。' +
           '扮演场景中的这个角色，依据自己的性格和可见信息自主决定。' +
           '被唤醒只是处理新信息的机会，不要求你表演回应。没有要补充的内容时返回 abstain，不发布任何表达。' +
           (narrationAllowed
@@ -182,23 +189,17 @@ export function characterTurnCall(request: {
           '拿起、放下、交给等改变保管关系的动作须 perform 对应选项，成功后才算发生。' +
           '翻页、触碰、挪动、临时托起查看再放回可以自由表达；把自己保管的物品暂放桌上不自动解除保管。收进随身口袋带走则改变保管关系。' +
           '涉及已声明的重要交互或移动时选择 perform，不能用叙述代替执行，也不要提前描写成功后的情节。' +
-          (request.canContinueAfterPublish
-            ? '本次首次 publish 后，在预算允许时还会获得一次决策机会。发表计划不等于执行；后续可以 perform、表达或 abstain。你无需先发言，可以直接行动或结束。'
-            : 'publish 会结束本次处理机会，发表行动计划不会自动执行计划。如果决定在本次机会实际行动，请选择 perform；收到真实结果后再表达。你仍可犹豫、拒绝或结束处理。') +
-          (request.afterPublication
-            ? '你刚才已经正式发表了表达，最新历史包含该内容。现在重新依据当前授权场景决定是否实际行动；无需重复刚才的对白。可以改变主意或 abstain，宿主不会从你的台词推导行动。'
-            : '') +
           '历史观察中的 playerInput 是完整原始玩家输入，用来核对谁在说话、邀请谁做什么；抽取片段可能不完整。原文和邀请不证明行动成功，实际状态仍以裁定结果及可见物品为准。' +
           '记忆的 sourceAgeTicks 是其最新来源距当前的轮次差，不是现实时间；听到转述的轮次也不证明转述之事发生于那时，旧记录不自动代表现状。' +
           '他人说过的话只证明对方说过，不能因此断定所说之事发生。即使没找到记忆，也不能断定事情没发生。' +
           'perform 的参数来自可尝试选项，结果由世界裁定。执行后会给你真实成功或失败结果与刷新后的场景。' +
-          '一次激活最多尝试两次重要交互；仅在本次工具契约仍提供 perform 时才能再次请求。' +
-          '没有 perform 时可以 publish 或 abstain。表达不能改变受控状态或替别人决定反应。',
+          '一次激活最多尝试两次重要交互；turnInstructions 说明本步不能 perform 时，只能 publish 或 abstain。' +
+          'perform 只能选 context.affordances 列出的目的地和交互，其他值会被规则拒绝。表达不能改变受控状态或替别人决定反应。',
       },
-      { role: 'user', content: characterRequestText(request) },
+      { role: 'user', content: characterRequestText(request, turnInstructions) },
     ],
   }
-  if (canPerform && request.canExpressBeforeAction === true) {
+  if (beforeAction) {
     const branches = prepared.schema.oneOf as WorldJsonObject[]
     const publish = branches.find(
       branch => ((branch.properties as WorldJsonObject).decision as WorldJsonObject).const === 'publish',
@@ -211,21 +212,7 @@ export function characterTurnCall(request: {
           ? { ...branch, properties: { ...(branch.properties as WorldJsonObject), before } }
           : branch,
       )
-      const first = prepared.messages[0]!
-      return {
-        ...prepared,
-        schema: { ...prepared.schema, oneOf: revised },
-        messages: [
-          {
-            ...first,
-            content:
-              first.content +
-              '本次 perform 可以附可选 before:{segments,scope,addresseeIds}，表达你行动前要说或表现的内容；表达先裁定提交，再按最新状态裁定一次 actionType/parameters 中的行动。无需先单独 publish 再等待下一机会。' +
-              'before 不得提前声称行动成功，也不得包含行动后表达。行动后会另给真实结果与授权场景，再由你决定表达或沉默。只有表达而没有行动时仍用 publish；两者都不需要时用 abstain。',
-          },
-          ...prepared.messages.slice(1),
-        ],
-      }
+      return { ...prepared, schema: { ...prepared.schema, oneOf: revised } }
     }
   }
   return prepared

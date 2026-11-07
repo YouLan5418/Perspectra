@@ -94,6 +94,24 @@ it.each([false, true])('ends after publication with less than three calls availa
   expect(calls).toBe(1)
 })
 
+it('shows its own accepted speech once, as self history, not again as an observed action result', async () => {
+  let second: CharacterTurnRequest | undefined
+  let calls = 0
+  const f = fixture(
+    async request => {
+      calls++
+      if (calls === 1) return repairedSpeech
+      second = request
+      return { decision: 'abstain' }
+    },
+    [],
+    { continueAfterPublish: true },
+  )
+  await f.turn.run(npc, { maxModelCalls: 3 })
+  expect(JSON.stringify(second!.context.selfObservations)).toContain('修正后的回应')
+  expect(JSON.stringify(second!.context.observations)).not.toContain('修正后的回应')
+})
+
 it('ends on the second publication and never loops endlessly', async () => {
   const f = fixture(async () => repairedSpeech, [], { continueAfterPublish: true })
   expect(await f.turn.run(npc, { maxModelCalls: 8 })).toMatchObject({ status: 'published', calls: 2 })
@@ -330,15 +348,18 @@ it('stops a cancelled recovery and does not expand the implicit call budget', as
   expect(await bounded.turn.run(npc)).toMatchObject({ status: 'abstained', calls: 2 })
 })
 
-it('explains an out-of-scene recipient during the existing schema repair without publishing the rejected words', async () => {
+// The tool no longer lists who is present (it must stay the same across steps), so the host refuses the delivery and
+// the next call explains it, instead of a schema repair.
+it('explains an out-of-scene recipient on the next call without publishing the rejected words', async () => {
   let requests = 0
   const f = fixture(
     async (request, signal, reserve) =>
       decideWithFormatRetry(
         characterTurnCall(request),
-        async call => {
+        async () => {
           if (++requests === 1) return unreachableSpeech
-          expect(JSON.stringify(call.messages)).toContain('上一次表达没有发表，也没有传达给对方')
+          expect(request.result).toMatchObject({ status: 'rejected', action: { actionType: 'speak' } })
+          expect(String(request.result?.instruction)).toContain('没有传达给收件人')
           return repairedSpeech
         },
         signal,
@@ -375,7 +396,8 @@ it('commits a private pre-action expression, one action and a result-based expre
         }
         return { ...take, before }
       }
-      expect(request.canExpressBeforeAction).toBe(false)
+      // Still offered so the tool stays the same; the step cannot perform, so a `before` would be refused.
+      expect(request.canPerform).toBe(false)
       expect(request.result?.status).toBe('accepted')
       expect(JSON.stringify(request.context.selfObservations)).toContain('敏感开场')
       expect(currentEntityState(f.store.readEvents(f.address), 'entity:cup')?.holderId).toBe(npc)
@@ -491,7 +513,6 @@ it('cannot pre-publish and act without a reserved result call', async () => {
   const f = fixture(
     async request => {
       expect(request.canPerform).toBe(false)
-      expect(request.canExpressBeforeAction).toBe(false)
       return { ...take, before: { segments: [{ type: 'speech', text: '预算不足不应发布' }] } }
     },
     [],
@@ -884,11 +905,9 @@ it('refreshes character and scene locations after moving, including the next act
     if (++calls === 1) return { decision: 'perform', actionType: 'move', parameters: { locationId: 'location:next' } }
     expect(currentLocation(f.store.readEvents(f.address), npc)).toBe('location:next')
     expect((request.context.scene as WorldJsonObject).locationId).toBe('location:next')
-    const publish = (characterTurnCall(request).schema.oneOf as WorldJsonObject[]).find(
-      value => ((value.properties as WorldJsonObject).decision as WorldJsonObject).const === 'publish',
-    )!
-    expect(publish.properties).not.toHaveProperty('addresseeIds')
-    expect(((publish.properties as WorldJsonObject).scope as WorldJsonObject).enum).toEqual(['scene_public', 'self'])
+    // The new audience reaches the model through the scene; the tool stays the same.
+    const people = ((request.context.scene as WorldJsonObject).people as WorldJsonObject[]).map(p => p.characterId)
+    expect(people).not.toContain('character:player')
     return { decision: 'publish', segments: [{ type: 'narration', text: '环顾四周。' }] }
   })
   expect(await f.turn.run(npc)).toMatchObject({ status: 'published', calls: 2 })
@@ -1001,15 +1020,8 @@ it.each(['before-perform', 'after-perform'] as const)(
 it('publishes a directed continuation to a visible addressee after an executed operation', async () => {
   const f = fixture(async request => {
     if (!request.continuation) return take
-    const schema = characterTurnCall(request).schema as WorldJsonObject
-    const publish = (schema.oneOf as WorldJsonObject[]).find(
-      value =>
-        (value.properties as WorldJsonObject).decision !== undefined &&
-        ((value.properties as WorldJsonObject).decision as WorldJsonObject).const === 'publish',
-    )!
-    const recipients = ((publish.properties as WorldJsonObject).addresseeIds as WorldJsonObject)
-      .items as WorldJsonObject
-    expect(recipients.enum).toContain('character:player')
+    const people = ((request.context.scene as WorldJsonObject).people as WorldJsonObject[]).map(p => p.characterId)
+    expect(people).toContain('character:player')
     return { decision: 'publish', addresseeIds: ['character:player'], segments: [{ type: 'speech', text: '我到了。' }] }
   })
   const result = await f.turn.run(npc)
@@ -1291,15 +1303,15 @@ it.each([
   expect(f.store.head(f.address)).toEqual(before)
 })
 
-it('keeps local interaction versions numeric without a singleton enum, while rejecting string and wrong versions', async () => {
+it('keeps local interaction versions numeric, and leaves a wrong version to the rules', async () => {
+  const wrong = {
+    ...take,
+    parameters: { ...take.parameters, definitionRef: { ...take.parameters.definitionRef, version: 2 } },
+  }
   let calls = 0
   const f = fixture(async request => {
     if (++calls > 1) return { decision: 'abstain' }
-    const call = gatewayTurnCall(request),
-      validate = new Ajv({ strict: false }).compile(call.schema)
-    const p = (call.schema.properties as WorldJsonObject).parameters as WorldJsonObject
-    const d = (p.properties as WorldJsonObject).definitionRef as WorldJsonObject
-    expect((d.properties as WorldJsonObject).version).toEqual({ type: 'integer', minimum: 1, maximum: 1 })
+    const validate = new Ajv({ strict: false }).compile(gatewayTurnCall(request).schema)
     expect(validate(take)).toBe(true)
     expect(
       validate({
@@ -1307,14 +1319,13 @@ it('keeps local interaction versions numeric without a singleton enum, while rej
         parameters: { ...take.parameters, definitionRef: { ...take.parameters.definitionRef, version: '1' } },
       }),
     ).toBe(false)
-    expect(
-      validate({
-        ...take,
-        parameters: { ...take.parameters, definitionRef: { ...take.parameters.definitionRef, version: 2 } },
-      }),
-    ).toBe(false)
     return take
   })
   expect(await f.turn.run(npc)).toMatchObject({ performResult: { status: 'accepted' } })
   expect(currentEntityState(f.store.readEvents(f.address), 'entity:cup')?.holderId).toBe(npc)
+  // The tool no longer lists the current versions, so it lets a stale one through and the rules refuse it.
+  let tries = 0
+  const stale = fixture(async () => (++tries === 1 ? wrong : { decision: 'abstain' }))
+  expect(await stale.turn.run(npc)).toMatchObject({ performResult: { status: 'rejected' } })
+  expect(currentEntityState(stale.store.readEvents(stale.address), 'entity:cup')?.holderId).not.toBe(npc)
 })

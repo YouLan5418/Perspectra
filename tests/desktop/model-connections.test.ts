@@ -34,6 +34,36 @@ const google: ModelConnection = {
 }
 
 describe('model connections', () => {
+  it('preserves explicit cache settings across the process boundary for decisions only', () => {
+    const configured = modelConnection({ ...openai, cacheMode: 'prompt-key' })
+    const choices = { decision: { connectionId: id, model: 'fixture' } }
+    const env = modelEnvironment(choices, [configured], { [id]: 'private-key' })
+    const runtime = runtimeRoleModels(JSON.parse(env.PERSPECTRA_ROLE_MODELS), JSON.parse(env.PERSPECTRA_MODEL_KEYS))
+    expect(runtime.default.decision.cacheMode).toBe('prompt-key')
+    expect(runtime.default.memory).not.toHaveProperty('cacheMode')
+    expect(modelConnection(openai)).not.toHaveProperty('cacheMode')
+    expect(() => modelConnection({ ...google, cacheMode: 'prefix' })).toThrow('Google')
+    expect(() => modelConnection({ ...openai, cacheMode: 'invalid' })).toThrow('缓存适配')
+    const source = environmentRoleModels({
+      PERSPECTRA_MODEL_ENDPOINT: openai.endpoint,
+      PERSPECTRA_MODEL: 'fixture',
+      PERSPECTRA_MODEL_CACHE_MODE: 'deepseek-user',
+    })
+    expect(source.default.decision.cacheMode).toBe('deepseek-user')
+    expect(source.default.memory).not.toHaveProperty('cacheMode')
+    expect(() =>
+      runtimeRoleModels(
+        {
+          default: {
+            decision: { ...JSON.parse(env.PERSPECTRA_ROLE_MODELS).default.decision, cacheMode: 'invalid' },
+            memory: JSON.parse(env.PERSPECTRA_ROLE_MODELS).default.memory,
+          },
+          characters: {},
+        },
+        {},
+      ),
+    ).toThrow('缓存适配')
+  })
   it('validates connections with the existing endpoint rules', () => {
     expect(modelConnection({ ...openai, name: ' 本地 ' }).name).toBe('本地')
     for (const bad of [

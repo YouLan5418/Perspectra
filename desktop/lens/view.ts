@@ -102,14 +102,19 @@ export async function buildLensView(packPath: string, opening: LensSimulation): 
       .map(ext => `frontend/portraits/${short}.${ext}`)
       .find(path => existsSync(join(packPath, path)))
   }
+  const actionName: Record<string, string> = { speak: '说话', move: '移动到别处', interact: '交互' }
+  // A trigger with its own interval is counted apart from the role's shared count; say so where it is listed.
   const triggerText = (trigger: Json, characterId: string) =>
+    baseTriggerText(trigger, characterId) +
+    (typeof trigger.everyPlayerTurns === 'number' ? `（每 ${trigger.everyPlayerTurns} 次单独计）` : '')
+  const baseTriggerText = (trigger: Json, characterId: string) =>
     typeof trigger.activityKey === 'string'
       ? `活动「${activityTitle.get(trigger.activityKey) ?? trigger.activityKey}」的「${
           activities
             .find(a => a.activityKey === trigger.activityKey)
             ?.operations.find(op => op.id === trigger.operation)?.label ?? trigger.operation
         }」`
-      : `${trigger.actionType === 'interact' ? '交互' : trigger.actionType}${
+      : `${actionName[String(trigger.actionType)] ?? trigger.actionType}${
           trigger.definitionId ? '「' + interactionName(trigger.definitionId, characterId) + '」' : ''
         }`
   for (const entry of characters) {
@@ -126,7 +131,7 @@ export async function buildLensView(packPath: string, opening: LensSimulation): 
     if (sceneOf) fields.push({ key: 'scene', label: '初始场景', value: name(sceneOf.row.locationId) })
     if (wake) {
       fields.push(
-        { key: 'everyPlayerTurns', label: '唤醒频率（每几个玩家回合）', value: wake.everyPlayerTurns },
+        { key: 'everyPlayerTurns', label: '唤醒频率（叫醒事件累计几次）', value: wake.everyPlayerTurns },
         { key: 'opportunities', label: '机会次数', value: wake.opportunities },
         {
           key: 'triggers',

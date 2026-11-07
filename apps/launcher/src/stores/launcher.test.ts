@@ -127,6 +127,17 @@ it('keeps a readable error when a model list cannot be fetched', async () => {
   expect(store.modelLists[connectionId]).toEqual({ models: ['a', 'b'], loading: false })
 })
 
+it('saves a connection cache override without changing its credential', async () => {
+  const store = useLauncherStore()
+  await store.initialize()
+  bridge.setKey.mockClear()
+  expect(await store.saveConnection({ ...connection, cacheMode: 'prompt-key' })).toBe(true)
+  expect(bridge.request).toHaveBeenCalledWith('connection-save', {
+    connection: { ...connection, cacheMode: 'prompt-key' },
+  })
+  expect(bridge.setKey).not.toHaveBeenCalled()
+})
+
 it('proposes the first listed model for a new instance when nothing was chosen before', async () => {
   const store = useLauncherStore()
   await store.initialize()

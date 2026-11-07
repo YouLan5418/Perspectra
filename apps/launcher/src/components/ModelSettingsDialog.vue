@@ -3,6 +3,11 @@ import { computed, reactive, ref, watch } from 'vue'
 import { useLauncherStore } from '../stores/launcher.ts'
 import { testModelConnection } from '../services/desktop.ts'
 import type { ModelConnection } from '../core-types.ts'
+import {
+  effectivePromptCacheMode,
+  promptCacheLabels,
+  type PromptCacheMode,
+} from '@harness-world/provider-chat/prompt-cache'
 import { Button } from './ui/button/index.ts'
 import DialogFrame from './DialogFrame.vue'
 const props = defineProps<{ open: boolean }>()
@@ -23,12 +28,23 @@ const draft = reactive({
   endpoint: '',
   apiKey: '',
   clearKey: false,
+  cacheMode: 'auto' as PromptCacheMode,
 })
 const expanded = ref<string | null>(null)
 const pendingRemove = ref<string | null>(null)
 const testModel = ref(''),
   testing = ref(false),
   testNotice = ref('')
+watch(
+  () => draft.protocol,
+  protocol => {
+    if (
+      (protocol === 'google' && !['auto', 'passive', 'opencode-go'].includes(draft.cacheMode)) ||
+      (protocol !== 'openai' && draft.cacheMode === 'prompt-key')
+    )
+      draft.cacheMode = 'auto'
+  },
+)
 watch(
   () => props.open,
   open => {
@@ -65,6 +81,7 @@ const hostChanged = computed(() => {
 function startEdit(connection?: ModelConnection) {
   Object.assign(
     draft,
+    { cacheMode: 'auto' },
     connection
       ? { ...connection, apiKey: '', clearKey: false }
       : { id: crypto.randomUUID(), name: '', protocol: 'openai', endpoint: '', apiKey: '', clearKey: false },
@@ -79,6 +96,7 @@ async function save() {
     name: draft.name.trim(),
     protocol: draft.protocol,
     endpoint: draft.endpoint.trim(),
+    ...(draft.cacheMode === 'auto' ? {} : { cacheMode: draft.cacheMode }),
   }
   const key = draft.clearKey ? '' : draft.apiKey ? draft.apiKey : undefined
   if (!(await store.saveConnection(connection, key))) return
@@ -86,6 +104,14 @@ async function save() {
   draft.apiKey = ''
   expanded.value = connection.id
   void store.refreshModels(connection.id)
+}
+function cacheLabel(connection: Pick<ModelConnection, 'protocol' | 'endpoint' | 'cacheMode'>): string {
+  try {
+    const mode = effectivePromptCacheMode(connection.protocol, new URL(connection.endpoint), connection.cacheMode)
+    return promptCacheLabels[mode]
+  } catch (error) {
+    return (error as Error).message
+  }
 }
 async function remove(id: string) {
   if (pendingRemove.value !== id && users(id).length) {
@@ -131,6 +157,7 @@ async function test(id: string) {
             <strong>{{ connection.name }}</strong>
             <small>{{ protocolLabel[connection.protocol] }} · {{ connection.endpoint }}</small>
             <small>{{ store.storedKeys.has(connection.id) ? '已保存 API Key' : '未保存 API Key' }}</small>
+            <small>缓存优化：{{ cacheLabel(connection) }} · 命中情况需在游玩中查看</small>
           </div>
           <div class="connection-actions">
             <Button variant="outline" size="sm" @click="toggle(connection.id)">{{
@@ -181,7 +208,7 @@ async function test(id: string) {
               testing ? '正在测试…' : '测试连接'
             }}</Button>
           </div>
-          <small class="muted">测试会发送一次少量模型请求，不验证游戏所需的结构化输出。</small>
+          <small class="muted">测试会发送一次少量模型请求，不验证游戏所需的结构化输出或缓存命中。</small>
           <p v-if="testNotice" role="status">{{ testNotice }}</p>
         </div>
       </li>
@@ -239,6 +266,28 @@ async function test(id: string) {
           ><input v-model="draft.clearKey" type="checkbox" />清除已保存的 API Key</label
         >
       </div>
+      <details>
+        <summary>高级设置</summary>
+        <div class="form-field">
+          <label for="connection-cache">缓存适配</label>
+          <select id="connection-cache" v-model="draft.cacheMode">
+            <option value="auto">自动（默认）</option>
+            <option value="passive">不主动优化</option>
+            <option v-if="draft.protocol !== 'google'" value="deepseek-user">DeepSeek 角色隔离</option>
+            <option v-if="draft.protocol === 'openai'" value="prompt-key">缓存路由标识（需接口支持）</option>
+            <option v-if="draft.protocol !== 'google'" value="prefix">
+              前缀缓存标记（需接口支持，可能有写入费用）
+            </option>
+            <option v-if="draft.protocol !== 'google'" value="openrouter">OpenRouter 角色会话</option>
+            <option value="opencode-go">OpenCode Go 角色会话</option>
+          </select>
+          <small class="muted"
+            >当前适配：{{
+              cacheLabel(draft)
+            }}。自定义中转仅在确认支持后手动选择；不主动优化仍可能使用上游自动缓存。仅用于角色决策，重开游戏后重新预热。</small
+          >
+        </div>
+      </details>
       <div class="dialog-actions">
         <Button type="button" variant="outline" @click="editing = null">取消</Button
         ><Button type="submit" :disabled="store.busy || !draft.name.trim() || !draft.endpoint.trim()">保存连接</Button>

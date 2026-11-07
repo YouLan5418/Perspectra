@@ -394,7 +394,19 @@ export class CharacterTurn {
         let scene = this.#scene.decideFromEvents(this.options.address, characterId, history, head.headSeq)
         const character = this.#manifest.characters.find(value => value.characterId === characterId)!
         const afterSeq = this.options.shortTermAfterSeq?.(characterId)
-        const ordered = view.observations.toSorted((left, right) => left.sourceSeq - right.sourceSeq)
+        // An accepted speech of one's own already appears in selfObservations; the actor's copy of its action
+        // result would repeat the same words and crowd others' events out of the recent window.
+        const ordered = view.observations
+          .filter(record => {
+            const value = record.value as { content?: { actorId?: unknown; actionType?: unknown; status?: unknown } }
+            const content = value?.content
+            return !(
+              content?.actorId === characterId &&
+              content.actionType === 'speak' &&
+              content.status === 'accepted'
+            )
+          })
+          .toSorted((left, right) => left.sourceSeq - right.sourceSeq)
         const recentObservations =
           afterSeq === undefined
             ? ordered.slice(-(this.options.recentObservations ?? 16))
@@ -478,8 +490,9 @@ export class CharacterTurn {
           continuation:
             settings.continuation || options.continuationOf !== undefined || publicationFailure !== undefined,
           canPerform,
-          canExpressBeforeAction:
-            canPerform && this.options.beforeActionExpression === true && context.activity === undefined,
+          // Not tied to canPerform, so the offered tool stays the same across steps; `before` still needs a perform,
+          // and perform is refused once canPerform is false.
+          canExpressBeforeAction: this.options.beforeActionExpression === true && context.activity === undefined,
           ...(canContinueAfterPublish === undefined ? {} : { canContinueAfterPublish }),
           ...(afterPublication ? { afterPublication: true } : {}),
           ...(visibleResult === undefined

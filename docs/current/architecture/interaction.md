@@ -112,6 +112,6 @@ NPC 的模型 Schema 继续只列当前可见收件人；选错时沿用已有�
 
 ### 2026-10-09：官方同居包的 Gemini 料理验证
 
-DeepSeek 角色两次选择煮饭却得到 INVALID_INTERACTION_PARAMETERS；真实决策表明 definitionRef.version 是字符串 "1"。仅调整现有本机 wire 适配器：唯一数值版本用 integer 和相等 minimum/maximum 表达，避免单值 enum 被本机网关错误返回为字符串。Core 保持严格验证，不转换结果、不扩大接受集合。复验角色自主调用料理与食用，权威实体依次成为熟饭与空容器；对应自动回归仍拒绝字符串和错误版本。详情及默认 30 秒反应窗口的实测限制见 [官方包真实验收](../../../examples/world-packs/model-girls-official/LIVE-VALIDATION.md)。
+DeepSeek 角色两次选择煮饭却得到 INVALID_INTERACTION_PARAMETERS；真实决策表明 definitionRef.version 是字符串 "1"。仅调整现有本机 wire 适配器：唯一数值版本用 integer 和相等 minimum/maximum 表达，避免单值 enum 被本机网关错误返回为字符串。Core 保持严格验证，不转换结果、不扩大接受集合。复验角色自主调用料理与食用，权威实体依次成为熟饭与空容器；对应自动回归仍拒绝字符串和错误版本。2026-11-07 起，活动之外的工具定义不再列出当前选项，版本只声明为 integer；宿主仍按带当前选项的严格 schema 校验输出，字符串和错误版本都在格式校验时被拒（原因见[认知与记忆](cognition-memory.md)的工具定义固定说明）。详情及默认 30 秒反应窗口的实测限制见 [官方包真实验收](../../../examples/world-packs/model-girls-official/LIVE-VALIDATION.md)。
 
 这段记录使用当时的内置料理规则；2026-10-22 起已由作者脚本取代，不作为新脚本已通过同一真实验收的证据。

@@ -20,7 +20,16 @@ const hasOptions = (item: LensItem) => item.id in (store.snapshot?.simulation.np
 const wake = (item: LensItem) => {
   const every = fieldValue(item.fields, 'everyPlayerTurns')
   const chances = fieldValue(item.fields, 'opportunities')
-  return every === undefined ? '' : `每 ${showValue(every)} 个玩家回合给她 ${showValue(chances ?? 1)} 次主动机会`
+  if (every === undefined) return ''
+  // Only the listed player actions count; other moves, talk or failed actions do not advance the count.
+  const triggers = list(item, 'triggers')
+  const lines = [
+    `玩家每完成 ${showValue(every)} 次下列行为，给她 ${showValue(chances ?? 1)} 次主动机会：`,
+    ...(triggers.length ? triggers : ['（未声明）']).map(name => '· ' + name),
+    '· 玩家静观也算一次',
+    '其他行为不计数。',
+  ]
+  return lines.join('\n')
 }
 const list = (item: LensItem, key: string) => {
   const value = fieldValue(item.fields, key)
@@ -58,16 +67,15 @@ const events = (item: LensItem) => (item.links ?? []).flatMap(id => store.itemBy
             <template v-if="wake(item)">
               <dt
                 :class="{
-                  changed: changedKeys(item).has('everyPlayerTurns') || changedKeys(item).has('opportunities'),
+                  changed:
+                    changedKeys(item).has('everyPlayerTurns') ||
+                    changedKeys(item).has('opportunities') ||
+                    changedKeys(item).has('triggers'),
                 }"
               >
                 唤醒
               </dt>
-              <dd>{{ wake(item) }}</dd>
-            </template>
-            <template v-if="list(item, 'triggers').length">
-              <dt :class="{ changed: changedKeys(item).has('triggers') }">也会叫醒她</dt>
-              <dd>{{ list(item, 'triggers').join('、') }}</dd>
+              <dd class="lens-lines">{{ wake(item) }}</dd>
             </template>
             <template v-if="fieldValue(item.fields, 'interactions') !== undefined">
               <dt :class="{ changed: changedKeys(item).has('interactions') }">可用交互</dt>
@@ -160,5 +168,8 @@ const events = (item: LensItem) => (item.links ?? []).flatMap(id => store.itemBy
 }
 .lens-chip {
   margin: 0 4px 4px 0;
+}
+.lens-lines {
+  white-space: pre-line;
 }
 </style>

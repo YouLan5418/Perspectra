@@ -27,7 +27,7 @@ export default defineConfig({
       { find: '@', replacement: fileURLToPath(new URL('./src', import.meta.url)) },
       // Only the browser-safe subpaths provider-chat exports; its main entry pulls in Node modules.
       {
-        find: /^@harness-world\/provider-chat\/(preset(?:-library|-macros|-regex)?)$/,
+        find: /^@harness-world\/provider-chat\/(preset(?:-library|-macros|-regex)?|prompt-cache)$/,
         replacement: fileURLToPath(new URL('../../packages/provider-chat/src/$1.ts', import.meta.url)),
       },
     ],

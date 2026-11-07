@@ -27,6 +27,13 @@ export function validateAutonomyRoles(
     const trigger = (value: unknown): boolean => {
       if (!value || typeof value !== 'object' || Array.isArray(value)) return false
       const row = value as Record<string, unknown>
+      if (
+        row.everyPlayerTurns !== undefined &&
+        (!Number.isSafeInteger(row.everyPlayerTurns) ||
+          (row.everyPlayerTurns as number) < 1 ||
+          (row.everyPlayerTurns as number) > 100)
+      )
+        return false
       if ('activityKey' in row)
         return (
           typeof row.activityKey === 'string' &&

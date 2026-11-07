@@ -35,6 +35,8 @@ function integer(value: unknown): number {
   return value
 }
 const management = ACTIVITY_MANAGEMENT_OPERATIONS
+const interval = (trigger: WorldJsonObject) =>
+  trigger.everyPlayerTurns === undefined ? {} : { everyPlayerTurns: integer(trigger.everyPlayerTurns) }
 
 /** Declarative package asset; no script, new manifest version or durable scheduling queue. */
 export class AutonomyPolicy implements AutonomyInstance {
@@ -64,7 +66,7 @@ export class AutonomyPolicy implements AutonomyInstance {
       const triggers: Trigger[] = row.triggers.map(value => {
         const trigger = object(value)
         if (Object.hasOwn(trigger, 'activityKey')) {
-          exact(trigger, ['activityKey', 'operation'])
+          exact(trigger, ['activityKey', 'operation'], ['everyPlayerTurns'])
           if (
             typeof trigger.activityKey !== 'string' ||
             !/^[a-z][a-z0-9-]{0,40}$/u.test(trigger.activityKey) ||
@@ -73,9 +75,9 @@ export class AutonomyPolicy implements AutonomyInstance {
             management.has(trigger.operation)
           )
             throw new TypeError('自主触发需要实际活动操作')
-          return { activityKey: trigger.activityKey, operation: trigger.operation }
+          return { activityKey: trigger.activityKey, operation: trigger.operation, ...interval(trigger) }
         }
-        exact(trigger, ['actionType'], ['definitionId'])
+        exact(trigger, ['actionType'], ['definitionId', 'everyPlayerTurns'])
         if (
           !['speak', 'move', 'interact'].includes(String(trigger.actionType)) ||
           (trigger.definitionId !== undefined &&
@@ -87,6 +89,7 @@ export class AutonomyPolicy implements AutonomyInstance {
         return {
           actionType: trigger.actionType as 'speak' | 'move' | 'interact',
           ...(trigger.definitionId === undefined ? {} : { definitionId: String(trigger.definitionId) }),
+          ...interval(trigger),
         }
       })
       const interactions = strings(row.interactions),
@@ -116,19 +119,28 @@ export class AutonomyPolicy implements AutonomyInstance {
   due({ actions, afterSeq }: Parameters<AutonomyInstance['due']>[0]): readonly string[] {
     return this.roles
       .filter(role => {
-        const matched = new Map<string, number>()
+        // Triggers with their own interval are counted alone; the rest and the player's pause share the role's.
+        const groups = new Map<number, Map<string, number>>()
+        const count = (group: number, action: (typeof actions)[number]) => {
+          const matched = groups.get(group) ?? new Map<string, number>()
+          matched.set(action.transactionId, Math.max(matched.get(action.transactionId) ?? 0, action.seq))
+          groups.set(group, matched)
+        }
         for (const action of actions) {
-          const matches =
-            action.pause ||
-            role.triggers.some(trigger =>
+          if (action.pause) count(-1, action)
+          role.triggers.forEach((trigger, index) => {
+            const matches =
               'activityKey' in trigger
                 ? trigger.activityKey === action.activityKey && trigger.operation === action.operation
                 : trigger.actionType === action.actionType &&
-                  (trigger.definitionId === undefined || trigger.definitionId === action.definitionId),
-            )
-          if (matches) matched.set(action.transactionId, Math.max(matched.get(action.transactionId) ?? 0, action.seq))
+                  (trigger.definitionId === undefined || trigger.definitionId === action.definitionId)
+            if (matches) count(trigger.everyPlayerTurns === undefined ? -1 : index, action)
+          })
         }
-        return [...matched.values()].some((seq, index) => seq > afterSeq && (index + 1) % role.everyPlayerTurns === 0)
+        return [...groups].some(([group, matched]) => {
+          const every = group === -1 ? role.everyPlayerTurns : role.triggers[group]!.everyPlayerTurns!
+          return [...matched.values()].some((seq, index) => seq > afterSeq && (index + 1) % every === 0)
+        })
       })
       .map(role => role.characterId)
   }

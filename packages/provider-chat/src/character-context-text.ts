@@ -89,19 +89,14 @@ function itemBoundaries(
       '以上只约束当下客观的受控结果，不改变角色原有认识；仍可误认、说谎、回忆、假设或尝试。触碰、临时托起查看不等于取得或解除保管。未列出的物品不代表你已知其归属或位置，不能仅凭旧话或提及就补成当前可见事实。',
   }
 }
-// Who the character is comes first, then her history: with Core memory it is most of the request and only grows at
-// its end until the next consolidation, so nothing that changes more often may sit before it. Where she is and what
-// she can do follow, and the latest changes and stimulus close the context.
-const LEADING = [
-  'character',
+// Only what never changes during play comes before her history: with Core memory the history is most of the request
+// and only grows at its end until the next consolidation, so anything that can change, even her goals or feelings,
+// follows it. Where she is and what she can do come next, and the latest changes and stimulus close the context.
+const LEADING = ['character', 'publicationCharacters', 'knownStatusNote', 'history'] as const
+const SITUATION = [
   'cognition',
   'claims',
   'goals',
-  'publicationCharacters',
-  'knownStatusNote',
-  'history',
-] as const
-const SITUATION = [
   'locationId',
   'memories',
   'knownStatus',
@@ -124,11 +119,14 @@ function ordered(context: WorldJsonObject): WorldJsonObject {
   ])
 }
 /** Final model-only presentation. Host requests, memory evidence and commits retain their original fields. */
-export function characterRequestText(request: {
-  readonly context: WorldJsonObject
-  readonly canPerform?: boolean
-  readonly continuation?: boolean
-}): string {
+export function characterRequestText(
+  request: {
+    readonly context: WorldJsonObject
+    readonly canPerform?: boolean
+    readonly continuation?: boolean
+  },
+  turnInstructions?: string,
+): string {
   const { character, observations, selfObservations, cognition, memories, ...dynamic } = request.context
   const profile = isObject(character)
     ? Object.fromEntries(Object.entries(character).filter(([key]) => key !== 'locationId'))
@@ -200,6 +198,8 @@ export function characterRequestText(request: {
           },
         }
       : {}),
+    // Last, after every flag, so what changes between steps never precedes the reusable context.
+    ...(turnInstructions ? { turnInstructions } : {}),
   })
 }
 export const characterContextNote =

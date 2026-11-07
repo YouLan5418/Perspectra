@@ -9,6 +9,8 @@ const request = {
   context: {
     publicationCharacters: 2000,
     character: { characterId: 'character:wolf' },
+    // Arguments keep the author's schema only during an activity, whose revision changes every step anyway.
+    activity: { activityId: 'activity:game' },
     affordances: [
       {
         actionType: 'interact',

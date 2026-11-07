@@ -24,14 +24,13 @@ it('compiles a local tool schema when interactions share targets and bindings', 
   for (const parameters of interactions) {
     expect(validate({ decision: 'perform', actionType: 'interact', parameters })).toBe(true)
   }
+  // The tool does not list this step's targets, so it stays the same across steps; the rulebook refuses an unknown
+  // target, and a malformed one still fails here.
   expect(
     validate({
       decision: 'perform',
       actionType: 'interact',
-      parameters: {
-        ...interactions[0]!,
-        targetRef: { kind: 'entity', id: 'entity:unknown' },
-      },
+      parameters: { ...interactions[0]!, targetRef: { kind: 'entity' } },
     }),
   ).toBe(false)
 })

@@ -2,6 +2,16 @@ import type { ChatMessage } from './wire.ts'
 import { randomUUID } from 'node:crypto'
 import { inspectResponse, type InspectedResponse } from './inspection-response.ts'
 import type { RolePreset } from './preset.ts'
+import type { EffectivePromptCacheMode } from './prompt-cache.ts'
+export interface InspectedUsage {
+  inputTokens?: number
+  uncachedInputTokens?: number
+  cacheReadTokens?: number
+  cacheWriteTokens?: number
+  outputTokens?: number
+  totalTokens?: number
+  source?: 'sdk'
+}
 export interface PresetBaseSource {
   mode: 'auto' | 'global' | 'custom' | 'pack' | 'explicit'
   layers: { name: string; value: RolePreset }[]
@@ -22,6 +32,7 @@ export interface MessageSource {
   position?: 'beforeContext' | 'afterContext'
 }
 export interface CallInspection {
+  cacheMode?: EffectivePromptCacheMode
   characterId: string
   continuation: boolean
   asOfWorldSeq?: number
@@ -30,6 +41,7 @@ export interface CallInspection {
   preset?: { origin: PresetOrigin; value: RolePreset }
 }
 export interface InspectedRequest {
+  cacheMode?: EffectivePromptCacheMode
   id: number
   recordId: string
   decisionId?: string
@@ -50,7 +62,7 @@ export interface InspectedRequest {
   contextParts: { name: string; content: string; estimatedTokens: number }[]
   estimatedBodyTokens: number
   estimatedToolTokens: number
-  usage?: { inputTokens?: number; outputTokens?: number; totalTokens?: number }
+  usage?: InspectedUsage
 }
 export interface InspectorSnapshot {
   enabled: boolean
@@ -106,6 +118,7 @@ export class RequestInspector {
       id,
       recordId: randomUUID(),
       characterId: info.characterId,
+      ...(info.cacheMode === undefined ? {} : { cacheMode: info.cacheMode }),
       continuation: info.continuation,
       ...(info.decisionId === undefined ? {} : { decisionId: info.decisionId }),
       ...(info.preset === undefined ? {} : { preset: structuredClone(info.preset) }),
@@ -166,7 +179,7 @@ export class RequestInspector {
     status: 'ok' | 'failed',
     durationMs: number,
     response?: unknown,
-    detail: { httpStatus?: number; failure?: InspectedRequest['failure'] } = {},
+    detail: { httpStatus?: number; failure?: InspectedRequest['failure']; usage?: InspectedUsage } = {},
   ): void {
     const request = id === undefined ? undefined : this.#pending.get(id)
     if (!request) return
@@ -186,7 +199,7 @@ export class RequestInspector {
       usage?.completion_tokens ?? usage?.output_tokens ?? usage?.candidatesTokenCount ?? root?.eval_count,
     )
     const total = finite(usage?.total_tokens ?? usage?.totalTokenCount)
-    if (input !== undefined || output !== undefined || total !== undefined)
+    if (detail.usage === undefined && (input !== undefined || output !== undefined || total !== undefined))
       request.usage = {
         ...(input === undefined ? {} : { inputTokens: input }),
         ...(output === undefined ? {} : { outputTokens: output }),

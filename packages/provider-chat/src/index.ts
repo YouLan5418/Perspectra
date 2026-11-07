@@ -15,6 +15,13 @@ export { characterTurnCall } from './character-turn-call.ts'
 export { providerProtocol, providerHeaders, type ProviderProtocol } from './protocol.ts'
 
 export { thinkingLevel, type ThinkingLevel } from './thinking.ts'
+export {
+  promptCacheMode,
+  effectivePromptCacheMode,
+  promptCacheLabels,
+  type PromptCacheMode,
+  type EffectivePromptCacheMode,
+} from './prompt-cache.ts'
 export * from './preset.ts'
 export * from './preset-library.ts'
 export * from './preset-runtime.ts'

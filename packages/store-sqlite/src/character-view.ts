@@ -123,7 +123,12 @@ function selfState(
         sourceSeq: event.seq,
         content: {
           actionType: 'speak',
-          ...(typeof data.medium === 'string' ? { medium: data.medium, addresseeIds: data.addresseeIds ?? [] } : {}),
+          // The audience stays with one's own words, since the observed copy of this speech is not sent again.
+          ...(typeof data.scope === 'string' && data.scope !== 'scene_public' ? { scope: data.scope } : {}),
+          ...(typeof data.medium === 'string' || (Array.isArray(data.addresseeIds) && data.addresseeIds.length > 0)
+            ? { addresseeIds: data.addresseeIds ?? [] }
+            : {}),
+          ...(typeof data.medium === 'string' ? { medium: data.medium } : {}),
           ...(typeof data.text === 'string' ? { text: data.text } : {}),
           ...(typeof data.narration === 'string' ? { narration: data.narration } : {}),
           ...(data.segments === undefined ? {} : { segments: parseExpressionSegments(data.segments) }),

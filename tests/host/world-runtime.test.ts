@@ -293,10 +293,11 @@ describe('the web playtest on a frozen world', () => {
     }
   }, 30_000)
 
-  it('sends the local Gemini endpoint a flat decision schema with real movement destinations', async () => {
+  it('sends the local Gemini endpoint a flat decision schema, with the real movement destinations in context', async () => {
     const root = mkdtempSync(join(tmpdir(), 'gemini-flat-tool-'))
     roots.push(root)
-    const schemas: unknown[] = []
+    const schemas: unknown[] = [],
+      prompts: string[] = []
     const server = createChatServer((request, response) => {
       let body = ''
       request.on('data', chunk => {
@@ -305,6 +306,7 @@ describe('the web playtest on a frozen world', () => {
       request.on('end', () => {
         const wire = JSON.parse(body)
         schemas.push(wire.tools[0].function.parameters)
+        prompts.push(wire.messages.at(-1).content)
         response.writeHead(200, { 'content-type': 'application/json' })
         response.end(
           JSON.stringify({
@@ -346,12 +348,12 @@ describe('the web playtest on a frozen world', () => {
           decision: { enum: expect.arrayContaining(['publish', 'perform']) },
           parameters: {
             additionalProperties: false,
-            properties: {
-              locationId: { enum: expect.arrayContaining(['location:living-room']) },
-            },
+            properties: { locationId: { type: 'string' } },
           },
         },
       })
+      // The real destinations reach the model in the context, so the tool itself stays the same across steps.
+      expect(prompts[0]).toContain('location:living-room')
     } finally {
       await runtime.close()
     }
