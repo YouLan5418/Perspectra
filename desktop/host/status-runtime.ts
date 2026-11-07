@@ -92,11 +92,12 @@ export class StatusRuntime {
     mechanism: StatusInstance,
     characterIds: readonly string[],
     entities: readonly { entityId: string; name?: string }[],
+    locationIds?: readonly string[],
   ) {
     this.#mechanism = mechanism
     this.#characterIds = [...characterIds]
     this.#entityNames = new Map(entities.map(e => [e.entityId, e.name ?? e.entityId]))
-    this.#state = new StatusState(mechanism.definition, characterIds, entities)
+    this.#state = new StatusState(mechanism.definition, characterIds, entities, locationIds)
   }
   get statuses() {
     return this.#state.statuses

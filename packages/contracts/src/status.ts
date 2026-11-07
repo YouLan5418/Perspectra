@@ -54,6 +54,8 @@ export interface StatusDefinition {
   readonly owner: 'public' | 'character'
   readonly alwaysKnown: boolean
   readonly activities?: readonly string[]
+  /** Only observers currently at one of these locations can know the status; changes and reveals are unaffected. */
+  readonly locations?: readonly string[]
   /** Author opt-in: the true value is delivered to the player's frontend, which decides whether to show it. */
   readonly playerTruth: boolean
   /** Author opt-in: pinned to the player's status bar; every known status is in the status drawer anyway. */

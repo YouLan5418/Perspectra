@@ -252,7 +252,12 @@ function openingComposition(
           try {
             if (instance.definition === undefined) throw new TypeError('起点 status：本包没有状态脚本')
             const characterIds = pack.content.characters.map(character => String(character.characterId))
-            const statuses = new StatusState(instance.definition, characterIds, pack.content.entities ?? []).statuses
+            const statuses = new StatusState(
+              instance.definition,
+              characterIds,
+              pack.content.entities ?? [],
+              pack.content.locations.map(location => location.locationId),
+            ).statuses
             const check = (entries: WorldJsonObject, owner: 'public' | 'character', field: string) => {
               for (const key of Object.keys(entries))
                 if (!statuses.some(status => status.key === key && status.owner === owner))

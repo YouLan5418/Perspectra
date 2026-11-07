@@ -15,7 +15,7 @@ import {
   type WorldEventDraft,
   type WorldJsonObject,
 } from '@harness-world/contracts'
-import type { RulebookEvent } from '@harness-world/kernel'
+import { currentLocation, type RulebookEvent } from '@harness-world/kernel'
 const NAME = /^[a-z][a-z0-9-]{0,40}$/u
 const RESERVED = ['start', 'retry', 'suspend', 'resume', 'abandon']
 export function statusObject(value: unknown, what = '状态数据'): Record<string, unknown> {
@@ -114,6 +114,8 @@ export class StatusState {
     rawDefinition: unknown,
     characterIds: readonly string[],
     entities: readonly { entityId: string; name?: string }[],
+    /** The pack's locations. When given, a status `locations` entry must be one of them. */
+    locationIds?: readonly string[],
   ) {
     this.#characterIds = [...characterIds]
     this.#entityNames = new Map(entities.map(e => [e.entityId, e.name ?? e.entityId]))
@@ -129,7 +131,11 @@ export class StatusState {
     const ajv = new Ajv({ strict: true, allErrors: false })
     this.statuses = definition.statuses.map(value => {
       const s = object(value, '状态声明')
-      exact(s, ['key', 'label', 'type', 'owner'], ['alwaysKnown', 'activities', 'schema', 'playerTruth', 'bar'])
+      exact(
+        s,
+        ['key', 'label', 'type', 'owner'],
+        ['alwaysKnown', 'activities', 'locations', 'schema', 'playerTruth', 'bar'],
+      )
       if (typeof s.key !== 'string' || !NAME.test(s.key)) throw new TypeError('状态键无效')
       if (!['number', 'string', 'boolean', 'object', 'array', 'null'].includes(String(s.type)))
         throw new TypeError('状态值类型无效：' + s.key)
@@ -146,6 +152,10 @@ export class StatusState {
       if (Object.hasOwn(s, 'playerTruth') && typeof s.playerTruth !== 'boolean')
         throw new TypeError('playerTruth 必须是布尔值')
       if (Object.hasOwn(s, 'bar') && typeof s.bar !== 'boolean') throw new TypeError('bar 必须是布尔值')
+      const locations = Object.hasOwn(s, 'locations') ? strings(s.locations, '状态 locations') : undefined
+      if (locations !== undefined && !locations.length) throw new TypeError('状态 locations 不能为空：' + s.key)
+      if (locations && locationIds && locations.some(id => !locationIds.includes(id)))
+        throw new TypeError('状态 locations 必须是包里登记的地点：' + s.key)
       return {
         key: s.key,
         label: label(s.label),
@@ -156,6 +166,7 @@ export class StatusState {
         playerTruth: s.playerTruth === true,
         bar: s.bar === true,
         ...(Object.hasOwn(s, 'activities') ? { activities: strings(s.activities, '状态适用活动') } : {}),
+        ...(locations ? { locations } : {}),
       }
     })
     if (new Set(this.statuses.map(s => s.key)).size !== this.statuses.length) throw new TypeError('重复的状态键')
@@ -270,7 +281,10 @@ export class StatusState {
     })
     const truth = this.truth(events),
       result: KnownStatus[] = []
+    const observerAt = currentLocation(events, observerId)
     for (const status of this.statuses) {
+      // `locations` limits who can see the status, never whether it changes or is revealed.
+      if (status.locations && (observerAt === undefined || !status.locations.includes(observerAt))) continue
       for (const holderId of status.owner === 'public' ? [null] : this.#characterIds) {
         const real = holderId === null ? truth.public[status.key] : truth.characters[holderId]?.[status.key]
         const base = { key: status.key, label: status.label, holderId }

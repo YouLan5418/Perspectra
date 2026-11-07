@@ -586,6 +586,7 @@ export class WorldHostCore implements HostRuntime {
               runtime.#status,
               pack.content.characters.map(character => character.characterId),
               pack.content.entities ?? [],
+              pack.content.locations.map(location => location.locationId),
             )
       if (modules && status) modules.describe(status)
       runtime.#application.activate(compiled)

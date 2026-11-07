@@ -227,6 +227,7 @@ async function validate(
         instance.definition,
         pack.content.characters.map(character => character.characterId),
         pack.content.entities ?? [],
+        pack.content.locations.map(location => location.locationId),
       )
     } finally {
       await instance.close?.()
