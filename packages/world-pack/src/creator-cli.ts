@@ -135,6 +135,8 @@ export async function executeWorldPackCli(args: readonly string[], options: Worl
       activate: 'Initialize local databases only; does not start the game Host or load Host-side extensions.',
       presets:
         'preset validate <file> accepts native library exchanges; --pack requires a bare RolePreset. Checks fields, macros and regex syntax, not style quality.',
+      // worldpack.cmd in the program folder hands `lens` to the lens runtime before this CLI parses anything.
+      lens: 'worldpack.cmd lens view <dir> | lens requests <dir> | lens simulate <dir> <scenario.json> | lens serve <dir> [--no-open]: read-only pack lens and stub-model simulation in the real Host runtime. simulate exits 2 when a scenario did not pass. Provided by the program folder; from source run node --import tsx desktop/lens/cli.ts.',
     })
   }
   if (invocation.command === 'validate') {

@@ -13,6 +13,8 @@
 & 'D:\Perspectra\worldpack.cmd' inspect 'D:\编译结果\my-world.worldpack.json'
 & 'D:\Perspectra\worldpack.cmd' preset validate 'D:\预设\自然互动.json'
 & 'D:\Perspectra\worldpack.cmd' preset validate 'D:\我的游戏\model-preset.json' --pack
+& 'D:\Perspectra\worldpack.cmd' lens view 'D:\我的游戏'
+& 'D:\Perspectra\worldpack.cmd' lens simulate 'D:\我的游戏' '深夜厨房.json'
 ```
 
 把示例路径替换为实际解压目录和作品目录。当前程序发行包不附带试玩包；作品源目录需另行准备。
@@ -38,6 +40,10 @@
 | `preset validate <file>` | 复用原生预设库导入校验，接受命名交换格式或裸预设；检查字段、启用节点宏与正则语法 |
 | `preset validate <file> --pack` | 只接受作品根部 model-preset.json 使用的裸预设，不接受预设库交换封装 |
 | `activate <file> --data-dir <dir>` | 高级调试：在指定目录初始化本地数据库，不启动游戏宿主；请使用全新实验目录 |
+| `lens view <dir>` | 包透视：不开游戏，输出全部作者设置的只读结果，以及相对作者“已看过”基准的改动 |
+| `lens requests <dir>` | 作者在透视页面圈选、尚未关闭的待改清单 |
+| `lens simulate <dir> <脚本.json>` | 用真实宿主运行时加桩模型跑推演脚本，证明规则、触发和状态变化，不证明角色表现；没通过时退出码为 2，结果仍在标准输出 |
+| `lens serve <dir> [--no-open]` | 为作者打开本机透视页面；命令会一直运行，先输出一行含页面地址的 JSON |
 
 成功退出码为 0，标准输出是一行 JSON。失败退出码为 1，标准错误是一行 ErrorEnvelope JSON；包契约错误的 `details.diagnostics` 包含 `code`、`file`、`jsonPointer`、`message`，部分有 `suggestion`。普通命令用法错误使用 `INVALID_REQUEST`。PowerShell 用 `$LASTEXITCODE` 读取退出码；AI Skill 应同时核对退出码和 JSON。
 

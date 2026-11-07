@@ -76,6 +76,8 @@ describe('World Pack creator CLI', () => {
       command: 'help',
       test: expect.stringContaining('assertionsExecuted is 0'),
       validation: expect.stringContaining('no full Host startup'),
+      // A creator Skill that does not see lens in --help concludes the program is too old for simulation.
+      lens: expect.stringContaining('lens simulate'),
     })
   })
 

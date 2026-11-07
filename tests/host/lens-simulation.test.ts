@@ -253,6 +253,22 @@ it('does not touch the pack or data', async () => {
   expect(existsSync(join(PACK, '.perspectra-lens'))).toBe(lensFiles)
 }, 60_000)
 
+// Walkthrough 2026-11-07: a temp folder the program could not write showed only "unable to open database file".
+it('a temp folder it cannot use is named in the error', async () => {
+  const blocker = join(tempDir('lens-no-temp-'), 'a-file')
+  writeFileSync(blocker, '')
+  const saved = { TEMP: process.env.TEMP, TMP: process.env.TMP, TMPDIR: process.env.TMPDIR }
+  const unusable = join(blocker, 'temp')
+  Object.assign(process.env, { TEMP: unusable, TMP: unusable, TMPDIR: unusable })
+  try {
+    await expect(LensSimulation.open(PACK)).rejects.toThrow(unusable)
+  } finally {
+    for (const [key, value] of Object.entries(saved))
+      if (value === undefined) delete process.env[key]
+      else process.env[key] = value
+  }
+})
+
 it('rejects unknown start references', async () => {
   await expect(LensSimulation.open(PACK, { scenes: { 'character:nobody': 'scene:kitchen' } })).rejects.toThrow(
     'character:nobody',

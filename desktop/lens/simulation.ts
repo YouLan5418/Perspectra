@@ -154,6 +154,9 @@ const object = (value: unknown) => value as WorldJsonObject
 const readJson = <T>(path: string) => JSON.parse(readFileSync(path, 'utf8')) as T
 const show = (value: unknown) => (typeof value === 'string' ? value : JSON.stringify(value))
 
+const FILE_ACCESS = /unable to open database file|EPERM|EACCES/u
+const FILE_ACCESS_HINT =
+  '。推演需要在系统临时目录（TEMP）里建临时文件；请确认该目录可写，安全软件没有拦截，程序也不在带低完整性标签的目录里运行'
 const COPY_PREFIX = 'perspectra-lens-'
 const STALE_COPY_MS = 24 * 60 * 60 * 1000
 /** Copies this process still uses; a lens left open for more than a day must not lose its copy to the sweep. */
@@ -380,8 +383,15 @@ export class LensSimulation {
   ): Promise<LensSimulation> {
     const source = resolve(packPath)
     sweepStaleLensCopies()
-    const root = mkdtempSync(join(tmpdir(), COPY_PREFIX)),
-      copy = join(root, 'pack')
+    let root: string
+    try {
+      root = mkdtempSync(join(tmpdir(), COPY_PREFIX))
+    } catch (error) {
+      throw new Error(`无法在系统临时目录 ${tmpdir()} 新建推演副本：${message(error)}${FILE_ACCESS_HINT}`, {
+        cause: error,
+      })
+    }
+    const copy = join(root, 'pack')
     liveCopies.add(root)
     let stub: StubModel | undefined, runtime: WorldHostRuntime | undefined
     try {
@@ -408,6 +418,11 @@ export class LensSimulation {
       await stub?.close()
       rmSync(root, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 })
       liveCopies.delete(root)
+      // SQLite says only "unable to open database file"; name the folder so the cause can be found.
+      if (FILE_ACCESS.test(message(error)))
+        throw new Error(`推演数据目录 ${join(root, 'data')} 无法读写：${message(error)}${FILE_ACCESS_HINT}`, {
+          cause: error,
+        })
       throw error
     }
   }

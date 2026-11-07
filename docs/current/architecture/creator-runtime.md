@@ -118,6 +118,8 @@ Interaction 定义和绑定提供玩法可选行为，规则负责重要状态�
 
 2026-11-01：透视从 Launcher 窗口里的面板改成独立的本机网页，这样作者能和 AI 的窗口并排看，长操作也不再占住 Launcher 的请求队列，不用先载入包，校验失败的包也能看到原因。[server.ts](../../../desktop/lens/server.ts) 只监听 127.0.0.1，令牌随 `#token=` 传给页面（和创作者页面同样的做法），会话在页面请求时才打开，文件监听发现包改动后由页面提示“重新读取”。页面入口在 [apps/launcher/src/lens/main.ts](../../../apps/launcher/src/lens/main.ts)，单独构建到 `dist-lens`，发行包复制到 `runtime/lens-assets`。Launcher 的 `lens-open` 只负责启动服务并返回地址，由 Rust 校验后交给系统浏览器；原来逐项转发的 `lens-*` 操作已删除。
 
+2026-11-07（一次从零创作走查后）：例如小林的推演计划是“拿蛋糕、吃蛋糕”，拿完后的跟进机会只允许说话，以前桩模型照样交出“吃”，运行时把它当无效输出丢掉，不留记录。现在 [simulation.ts](../../../desktop/lens/simulation.ts) 读请求里的 `canPerform`，把行动留到她下一次机会；计划对不上她当时的选项时，按玩家步骤同一套匹配列出可用项。这两种情况都在逐步经过里记一条 `plan` 行。推演结果带 `passed` 和 `unusedNpcPlans`，没通过时 CLI 退出码为 2。`worldpack --help` 新增 `lens` 一项。推演临时目录不可写时，报错写出目录和可能原因。运行时本身没有改动。
+
 作者操作与用法见[包透视指南](../guides/pack-lens.md)。边界：
 
 - 源码已接通：上述全部。自动测试：`tests/host/lens-*.test.ts`、`tests/desktop/lens-launcher.test.ts`、Launcher 的 `apps/launcher/src/lens/store.test.ts`，以及 `scripts/release/verify-worldpack-cli.mjs` 的 `lens view` 冒烟。
