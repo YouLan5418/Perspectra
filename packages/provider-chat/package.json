@@ -6,6 +6,7 @@
   "exports": {
     ".": "./src/index.ts",
     "./preset": "./src/preset.ts",
+    "./prompt-cache": "./src/prompt-cache.ts",
     "./preset-library": "./src/preset-library.ts",
     "./preset-macros": "./src/preset-macros.ts",
     "./preset-regex": "./src/preset-regex.ts"

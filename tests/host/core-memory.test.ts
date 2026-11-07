@@ -537,7 +537,8 @@ describe('optional web Core memory', () => {
       },
       { publish: true },
     )
-    for (let i = 0; i < 12; i++) await f.runtime.submit(i === 0 ? '记住私下的安排：银杏电台。' : `继续闲聊第 ${i} 次。`)
+    // Own accepted speech is shown once as self history, so observed rows need more rounds to pass the old cap.
+    for (let i = 0; i < 18; i++) await f.runtime.submit(i === 0 ? '记住私下的安排：银杏电台。' : `继续闲聊第 ${i} 次。`)
     const requests = f.requests.filter(
       r => ((r.context as WorldJsonObject).character as WorldJsonObject).characterId === 'character:claude',
     )
@@ -546,7 +547,7 @@ describe('optional web Core memory', () => {
     expect((context.history as WorldJsonObject[]).filter(row => row.kind === 'self').length).toBeGreaterThan(8)
     expect(JSON.stringify(context.history)).toContain('银杏电台')
     expect(builds).toBe(0)
-  }, 120_000) // Twelve published rounds exercise growing SQLite-backed history.
+  }, 120_000) // Eighteen published rounds exercise growing SQLite-backed history.
   it('queues at the estimated token threshold, archives a complete early prefix and keeps its newer tail', async () => {
     const inputs: WorldJsonObject[] = []
     const run: CoreRunner = async input => {

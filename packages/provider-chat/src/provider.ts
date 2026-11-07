@@ -11,10 +11,19 @@ import { anthropicMessagesApi } from '@earendil-works/pi-ai/api/anthropic-messag
 import { googleGenerativeAIApi } from '@earendil-works/pi-ai/api/google-generative-ai.lazy'
 import { openAICompletionsApi } from '@earendil-works/pi-ai/api/openai-completions.lazy'
 import { normalizeContext } from '@earendil-works/pi-ai/utils/transcript'
+import { randomUUID } from 'node:crypto'
 import type { WorldJsonValue } from '@harness-world/contracts'
 import { piModel, usesDeepSeekThinking, type ModelTarget } from './pi-model.ts'
 import { providerProtocol, type ProviderProtocol } from './protocol.ts'
-import type { PresetOrigin, RequestInspector } from './request-inspector.ts'
+import type { InspectedUsage, PresetOrigin, RequestInspector } from './request-inspector.ts'
+import {
+  effectivePromptCacheMode,
+  promptCacheMode,
+  promptCachePayload,
+  promptCacheHeaders,
+  type EffectivePromptCacheMode,
+  type PromptCacheMode,
+} from './prompt-cache.ts'
 import { rolePreset, type RolePreset } from './preset.ts'
 import type { ThinkingLevel } from './thinking.ts'
 import { objectValue, textValue } from './value.ts'
@@ -22,6 +31,8 @@ import { intentCall, type ChatCall, type ChatMessage } from './wire.ts'
 
 /** What one call did, for a caller that shows or budgets its own provider traffic. Never content. */
 export interface ChatCallObservation {
+  readonly usage?: InspectedUsage
+  readonly cacheMode?: EffectivePromptCacheMode
   readonly kind: 'character' | 'intent'
   readonly model: string
   readonly durationMs: number
@@ -42,6 +53,7 @@ export interface ChatCallProfile {
 }
 
 export interface ChatProviderOptions {
+  readonly cacheMode?: PromptCacheMode
   /** Defaults to OpenAI-compatible, the protocol most gateways speak. */
   readonly protocol?: ProviderProtocol
   /** The full request address, as the connection stores it. */
@@ -223,6 +235,18 @@ function toolArguments(call: ToolCall): WorldJsonValue {
 }
 
 /** Shapes the assembled answer as content blocks the request inspector already reads; signatures are not kept. */
+function sdkUsage(message: AssistantMessage): InspectedUsage {
+  const usage = message.usage
+  return {
+    inputTokens: usage.input + usage.cacheRead + usage.cacheWrite,
+    uncachedInputTokens: usage.input,
+    cacheReadTokens: usage.cacheRead,
+    cacheWriteTokens: usage.cacheWrite,
+    outputTokens: usage.output,
+    totalTokens: usage.totalTokens,
+    source: 'sdk',
+  }
+}
 function inspected(message: AssistantMessage): Record<string, unknown> {
   return {
     content: message.content.flatMap((block): Record<string, unknown>[] =>
@@ -236,7 +260,9 @@ function inspected(message: AssistantMessage): Record<string, unknown> {
     ),
     stop_reason: message.rawStopReason ?? message.stopReason,
     usage: {
-      input_tokens: message.usage.input,
+      input_tokens: message.usage.input + message.usage.cacheRead + message.usage.cacheWrite,
+      cache_read_input_tokens: message.usage.cacheRead,
+      cache_creation_input_tokens: message.usage.cacheWrite,
       output_tokens: message.usage.output,
       total_tokens: message.usage.totalTokens,
     },
@@ -310,6 +336,13 @@ export async function testTextCall(
 ): Promise<string> {
   const exchange: Exchange = {}
   const model = callModel(target)
+  const authentication = credentials(target.protocol, apiKey)
+  // A connection test is its own one-request session; Go rejects any request without one.
+  const session = promptCacheHeaders(
+    target.protocol,
+    effectivePromptCacheMode(target.protocol, target.endpoint),
+    randomUUID(),
+  )
   const message = await APIS[target.protocol]()
     .streamSimple(
       model,
@@ -319,7 +352,8 @@ export async function testTextCall(
         target.model,
       ),
       {
-        ...credentials(target.protocol, apiKey),
+        ...authentication,
+        ...(session ? { headers: { ...authentication.headers, ...session } } : {}),
         signal,
         maxTokens: 128,
         maxRetries: 0,
@@ -353,6 +387,9 @@ export interface ChatProvider {
 export function createChatProvider(options: ChatProviderOptions): ChatProvider {
   const preset = rolePreset(options.preset ?? {})
   const protocol = providerProtocol(options.protocol)
+  const cacheMode = effectivePromptCacheMode(protocol, options.endpoint, promptCacheMode(options.cacheMode))
+  // Official role providers are opened per character and per world instance. Nothing is persisted.
+  const cacheKey = randomUUID()
   const toolName = options.toolName ?? 'submit_actions'
 
   async function send(
@@ -396,6 +433,7 @@ export function createChatProvider(options: ChatProviderOptions): ChatProvider {
       kind === 'character' && prepared.inspection
         ? {
             ...prepared.inspection,
+            cacheMode,
             sources,
             preset: {
               origin: options.presetOrigin ?? {
@@ -415,8 +453,16 @@ export function createChatProvider(options: ChatProviderOptions): ChatProvider {
     const timeout = AbortSignal.timeout(timeoutMs)
     const combined = signal === undefined ? timeout : AbortSignal.any([signal, timeout])
     try {
+      const authentication = credentials(protocol, options.apiKey)
+      // Go cannot route a request without its session header, so intent calls keep it too; other upstreams do not.
+      const cacheHeaders = promptCacheHeaders(
+        protocol,
+        kind === 'character' || cacheMode === 'opencode-go' ? cacheMode : 'passive',
+        cacheKey,
+      )
       const streamOptions: SimpleStreamOptions = {
-        ...credentials(protocol, options.apiKey),
+        ...authentication,
+        ...(cacheHeaders ? { headers: { ...authentication.headers, ...cacheHeaders } } : {}),
         signal: combined,
         timeoutMs,
         maxRetries: 0,
@@ -427,13 +473,18 @@ export function createChatProvider(options: ChatProviderOptions): ChatProvider {
         ...(protocol === 'openai' && Object.keys(sampling).length ? { samplingParams: sampling } : {}),
         ...(protocol === 'google' ? {} : { fetch: observingFetch(options.fetch ?? globalThis.fetch, exchange) }),
         onPayload: raw => {
-          const payload = decisionPayload(
-            model,
+          const payload = promptCachePayload(
+            decisionPayload(
+              model,
+              protocol,
+              thinkingPayload(model, protocol, raw as Record<string, unknown>, level, kind),
+              toolName,
+              enabled,
+              generation,
+            ),
             protocol,
-            thinkingPayload(model, protocol, raw as Record<string, unknown>, level, kind),
-            toolName,
-            enabled,
-            generation,
+            kind === 'character' ? cacheMode : 'passive',
+            cacheKey,
           )
           inspectionId = options.inspector?.begin(payload, inspection, messages, modelId)
           return payload
@@ -455,12 +506,21 @@ export function createChatProvider(options: ChatProviderOptions): ChatProvider {
       const payload = payloadOf(message, toolName)
       options.inspector?.finish(inspectionId, 'ok', elapsed(), inspected(message), {
         httpStatus: exchange.httpStatus ?? 200,
+        usage: sdkUsage(message),
       })
-      options.onCall?.({ kind, model: modelId, durationMs: elapsed(), status: 'ok' })
+      options.onCall?.({
+        kind,
+        model: modelId,
+        durationMs: elapsed(),
+        status: 'ok',
+        usage: sdkUsage(message),
+        cacheMode: kind === 'character' ? cacheMode : 'passive',
+      })
       return payload
     } catch (error: unknown) {
       const answered = assembled !== undefined && assembled.stopReason !== 'error' && assembled.stopReason !== 'aborted'
       options.inspector?.finish(inspectionId, 'failed', elapsed(), answered ? inspected(assembled!) : undefined, {
+        ...(answered ? { usage: sdkUsage(assembled!) } : {}),
         ...(exchange.httpStatus === undefined ? {} : { httpStatus: exchange.httpStatus }),
         failure: signal?.aborted
           ? 'cancelled'
@@ -471,6 +531,8 @@ export function createChatProvider(options: ChatProviderOptions): ChatProvider {
               : 'transport',
       })
       options.onCall?.({
+        ...(answered ? { usage: sdkUsage(assembled!) } : {}),
+        cacheMode: kind === 'character' ? cacheMode : 'passive',
         kind,
         model: modelId,
         durationMs: elapsed(),

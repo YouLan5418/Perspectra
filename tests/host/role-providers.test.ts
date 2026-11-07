@@ -7,11 +7,59 @@ import { createRoleProviders } from '../../packages/official-llm/src/role-provid
 import { playSettings } from '../../desktop/play-settings.ts'
 import { WorldHostRuntime } from '../../desktop/host/world-runtime.ts'
 import { fakeModels, startFakeProvider } from '../support/fake-provider.ts'
+import { brandId } from '@harness-world/contracts'
 
 const cleanups: (() => Promise<void>)[] = []
 afterEach(async () => {
   while (cleanups.length) await cleanups.pop()!()
 })
+
+for (const cacheMode of ['prompt-key', 'openrouter', 'opencode-go'] as const)
+  it(
+    cacheMode + ': keeps each character cache key across interleaved calls and starts new namespaces on reopening',
+    async () => {
+      const server = await startFakeProvider('openai', () => ({ tool: { decision: 'abstain' } }))
+      cleanups.push(server.close)
+      const build = () =>
+        createRoleProviders(
+          {
+            models: {
+              default: {
+                decision: { protocol: 'openai', endpoint: server.endpoint, model: 'fixture', cacheMode },
+              },
+              characters: {},
+            },
+          },
+          playSettings({}),
+          ['a', 'b'].map(id => ({ actorId: brandId(id, 'CharacterId') })),
+          new RequestInspector(),
+          () => {},
+          () => {},
+        )
+      const call = {
+        messages: [
+          { role: 'system', content: 'contract' },
+          { role: 'user', content: 'authorized context' },
+        ],
+        schema: { type: 'object' },
+        description: 'fixture',
+      }
+      const roles = build()
+      for (const id of ['a', 'b', 'a', 'b']) await roles.byCharacter.get(id)!.decide(call, new AbortController().signal)
+      const key = (index: number) =>
+        cacheMode === 'opencode-go'
+          ? server.calls[index]!.headers['x-opencode-session']
+          : server.calls[index]!.body[cacheMode === 'openrouter' ? 'session_id' : 'prompt_cache_key']
+      const keys = server.calls.map((_, index) => key(index))
+      expect(keys[0]).toMatch(/^[a-f0-9-]{36}$/)
+      expect(keys[0]).toBe(keys[2])
+      expect(keys[1]).toBe(keys[3])
+      expect(keys[0]).not.toBe(keys[1])
+      await build().byCharacter.get('a')!.decide(call, new AbortController().signal)
+      expect(key(4)).not.toBe(keys[0])
+      expect(server.calls[0]!.body.messages).toEqual(call.messages)
+    },
+  )
 
 it('waits 60 seconds per call when no play settings are given', () => {
   const roles = createRoleProviders(

@@ -217,7 +217,7 @@ it('keeps occurrence-only private observations occurrence-only and preserves cus
   })
   expect(rendered.context.history[1].content).toEqual({ text: '授权的自定义观察' })
 })
-it('puts the profile and the growing history first, the current situation after it and the new stimulus last', () => {
+it('puts only the unchanging profile before the growing history, everything that can change after it and the new stimulus last', () => {
   const rendered = JSON.parse(
     characterRequestText({
       context: {
@@ -239,10 +239,10 @@ it('puts the profile and the growing history first, the current situation after 
   )
   expect(Object.keys(rendered.context)).toEqual([
     'character',
-    'cognition',
     'publicationCharacters',
     'knownStatusNote',
     'history',
+    'cognition',
     'locationId',
     'knownStatus',
     'items',

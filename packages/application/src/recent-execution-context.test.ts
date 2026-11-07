@@ -86,9 +86,9 @@ it('retains a finite custom outcome and rejects neither the route nor the goal',
   const text = characterRequestText({ context: result, canPerform: false })
   expect(text).not.toMatch(/sourceSeq|observationId|actionId/)
   expect(text).toContain('not_found')
-  expect(characterTurnCall({ context: result, continuation: false, canPerform: false }).messages[0]!.content).toContain(
-    '失败也不必然要求立即换方案',
-  )
+  expect(
+    characterTurnCall({ context: result, continuation: false, canPerform: false }).messages.at(-1)!.content,
+  ).toContain('失败也不必然要求立即换方案')
   expect(
     characterTurnCall({ context: input, continuation: false, canPerform: false }).messages[0]!.content,
   ).not.toContain('recentExecutionEvidence 是')

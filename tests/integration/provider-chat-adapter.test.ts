@@ -7,7 +7,7 @@ import {
   type ChatProviderOptions,
   type ProviderProtocol,
 } from '@harness-world/provider-chat'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { startFakeProvider, streamingFetch, type FakeAnswer, type FakeProviderCall } from '../support/fake-provider.ts'
 
 const call = {
@@ -55,6 +55,169 @@ const decide = (chat: { decide: (c: typeof call, s: AbortSignal) => Promise<unkn
   chat.decide(call, new AbortController().signal)
 
 describe('the pi-ai adapter on the wire', () => {
+  for (const protocol of protocols)
+    it(`${protocol}: carries an OpenCode Go session header across calls without putting it in the prompt`, async () => {
+      const { chat, server } = await provider(protocol, () => ({ tool: proposal }), {
+        cacheMode: 'opencode-go',
+        apiKey: 'offline-fixture',
+      })
+      await decide(chat)
+      await decide(chat)
+      const key = server.calls[0]!.headers['x-opencode-session']
+      expect(key).toMatch(/^[a-f0-9-]{36}$/)
+      expect(server.calls[1]!.headers['x-opencode-session']).toBe(key)
+      expect(server.calls[0]!.headers['user-agent']).toBe('Perspectra')
+      expect(JSON.stringify(server.calls[0]!.body)).not.toContain(key!)
+      expect(JSON.stringify(server.calls[0]!.body)).not.toContain('cache_control')
+    })
+
+  for (const protocol of ['openai', 'anthropic'] as const)
+    it(`${protocol}: uses OpenRouter's own session field and a stable prefix for canonical Claude models`, async () => {
+      const { chat, server } = await provider(protocol, () => ({ tool: proposal }), {
+        cacheMode: 'openrouter',
+        model: 'anthropic/claude-sonnet-4.6',
+      })
+      await decide(chat)
+      await decide(chat)
+      const key = (index: number) =>
+        protocol === 'openai' ? server.calls[index]!.body.session_id : server.calls[index]!.headers['x-session-id']
+      expect(key(0)).toMatch(/^[a-f0-9-]{36}$/)
+      expect(key(1)).toBe(key(0))
+      expect(JSON.stringify(server.calls[0]!.body)).toContain('cache_control')
+      expect(server.calls[0]!.body).not.toHaveProperty('prompt_cache_key')
+      const userMessages = (server.calls[0]!.body.messages as { role: string }[]).filter(m => m.role === 'user')
+      expect(JSON.stringify(userMessages)).not.toContain('cache_control')
+    })
+
+  it('does not invent cache markers for an OpenRouter model alias with no declared explicit-cache behavior', async () => {
+    const { chat, server } = await provider('openai', () => ({ tool: proposal }), {
+      cacheMode: 'openrouter',
+      model: 'custom-alias',
+    })
+    await decide(chat)
+    expect(server.calls[0]!.body.session_id).toMatch(/^[a-f0-9-]{36}$/)
+    expect(JSON.stringify(server.calls[0]!.body)).not.toContain('cache_control')
+  })
+
+  it('leaves a checked official endpoint passive when explicitly requested', async () => {
+    let body: Record<string, unknown> | undefined
+    const chat = createChatProvider({
+      endpoint: new URL('https://api.deepseek.com/chat/completions'),
+      model: 'deepseek-flash',
+      cacheMode: 'passive',
+      apiKey: 'offline-fixture',
+      fetch: streamingFetch(async (_url, init) => {
+        body = JSON.parse(String(init!.body))
+        return new Response(JSON.stringify({ message: { content: JSON.stringify(proposal) } }))
+      }),
+    })
+    await decide(chat)
+    expect(body).not.toHaveProperty('user_id')
+    expect(body).not.toHaveProperty('prompt_cache_key')
+  })
+
+  for (const protocol of ['openai', 'anthropic'] as const)
+    it(`${protocol}: caches only the leading system prefix without changing authorized messages`, async () => {
+      const inspector = new RequestInspector()
+      inspector.configure(true)
+      const { chat, server } = await provider(protocol, () => ({ tool: proposal }), { cacheMode: 'prefix', inspector })
+      await decide(chat)
+      const body = server.calls[0]!.body
+      const messages = body.messages as { role: string; content: unknown }[]
+      expect(messages.findLast(m => m.role === 'user')!.content).toEqual(call.messages[1]!.content)
+      const system = protocol === 'anthropic' ? body.system : messages[0]!.content
+      expect(JSON.stringify(system)).toContain('"cache_control":{"type":"ephemeral"}')
+      expect(JSON.stringify(messages.filter(m => m.role === 'user'))).not.toContain('cache_control')
+      expect(inspector.snapshot().requests[0]!.messages.map(m => ({ role: m.role, content: m.content }))).toEqual(
+        call.messages,
+      )
+      expect(inspector.snapshot().requests[0]!.cacheMode).toBe('prefix')
+    })
+
+  for (const protocol of ['openai', 'anthropic'] as const)
+    it(`${protocol}: sends the DeepSeek isolation field without opting into Claude cache writes`, async () => {
+      const bodies: Record<string, unknown>[] = []
+      const chat = createChatProvider({
+        protocol,
+        endpoint: new URL(
+          protocol === 'openai'
+            ? 'https://api.deepseek.com/chat/completions'
+            : 'https://api.deepseek.com/anthropic/v1/messages',
+        ),
+        model: 'deepseek-flash',
+        cacheMode: 'deepseek-user',
+        apiKey: 'offline-fixture',
+        fetch: streamingFetch(async (_url, init) => {
+          bodies.push(JSON.parse(String(init!.body)))
+          return new Response(
+            JSON.stringify(
+              protocol === 'openai'
+                ? { message: { content: JSON.stringify(proposal) } }
+                : { content: [{ type: 'tool_use', id: 'tool_fixture', name: 'submit_actions', input: proposal }] },
+            ),
+          )
+        }),
+      })
+      await decide(chat)
+      await decide(chat)
+      const key = (body: Record<string, unknown>) =>
+        protocol === 'openai' ? body.user_id : (body.metadata as Record<string, unknown>).user_id
+      expect(key(bodies[0]!)).toMatch(/^[a-f0-9-]{36}$/)
+      expect(key(bodies[1]!)).toBe(key(bodies[0]!))
+      expect(JSON.stringify(bodies)).not.toContain('cache_control')
+      expect(JSON.stringify(bodies[0]!.messages)).not.toContain(key(bodies[0]!) as string)
+    })
+
+  it('keeps SDK cache counts and total input even with private request capture disabled', async () => {
+    const inspector = new RequestInspector()
+    let observation: ChatCallObservation | undefined
+    const base = { id: 'cached', object: 'chat.completion.chunk', created: 0, model: 'fixture' }
+    const chunks = [
+      {
+        ...base,
+        choices: [{ index: 0, delta: { role: 'assistant', content: JSON.stringify(proposal) }, finish_reason: 'stop' }],
+      },
+      {
+        ...base,
+        choices: [],
+        usage: {
+          prompt_tokens: 1000,
+          completion_tokens: 20,
+          total_tokens: 1020,
+          prompt_cache_hit_tokens: 800,
+          prompt_tokens_details: { cache_write_tokens: 50 },
+        },
+      },
+    ]
+    const chat = createChatProvider({
+      endpoint: new URL('https://offline.example/v1/chat/completions'),
+      model: 'fixture',
+      inspector,
+      onCall: value => {
+        observation = value
+      },
+      fetch: async () =>
+        new Response(chunks.map(chunk => 'data: ' + JSON.stringify(chunk) + '\n\n').join('') + 'data: [DONE]\n\n', {
+          headers: { 'content-type': 'text/event-stream' },
+        }),
+    })
+    const usage = {
+      inputTokens: 1000,
+      uncachedInputTokens: 150,
+      cacheReadTokens: 800,
+      cacheWriteTokens: 50,
+      outputTokens: 20,
+      totalTokens: 1020,
+      source: 'sdk',
+    }
+    await decide(chat)
+    expect(observation!.usage).toEqual(usage)
+    expect(inspector.snapshot().requests).toEqual([])
+    inspector.configure(true)
+    await decide(chat)
+    expect(inspector.snapshot().requests[0]!.usage).toEqual(usage)
+  })
+
   it('openai forces the decision tool and carries the key only in its header', async () => {
     const { chat, server } = await provider('openai', () => ({ tool: proposal }), { apiKey: 'secret-value' })
     expect(await decide(chat)).toEqual(proposal)
@@ -246,6 +409,27 @@ describe('the pi-ai adapter on the wire', () => {
         ),
       ).toBe('OK')
     })
+
+  it('sends an OpenCode Go session on the connection test, which Go otherwise rejects with 400', async () => {
+    let headers: Headers | undefined
+    vi.stubGlobal(
+      'fetch',
+      streamingFetch(async (_url, init) => {
+        headers = new Headers(init?.headers)
+        return new Response(JSON.stringify({ message: { content: 'OK' } }))
+      }),
+    )
+    try {
+      await testTextCall(
+        { protocol: 'openai', endpoint: new URL('https://opencode.ai/zen/go/v1/chat/completions'), model: 'fixture' },
+        'offline-fixture',
+        new AbortController().signal,
+      )
+    } finally {
+      vi.unstubAllGlobals()
+    }
+    expect(headers?.get('x-opencode-session')).toMatch(/^[a-f0-9-]{36}$/)
+  })
 })
 
 describe('review fixes', () => {

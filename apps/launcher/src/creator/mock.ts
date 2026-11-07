@@ -489,7 +489,16 @@ function request(
         ],
       },
     },
-    usage: { inputTokens: 5_120, outputTokens: 148, totalTokens: 5_268 },
+    cacheMode: 'openrouter',
+    usage: {
+      inputTokens: 5_120,
+      uncachedInputTokens: 1_024,
+      cacheReadTokens: 4_096,
+      cacheWriteTokens: 0,
+      outputTokens: 148,
+      totalTokens: 5_268,
+      source: 'sdk',
+    },
   }
 }
 

@@ -5,9 +5,10 @@ export interface CommunicationDefinition {
   readonly medium: string
   readonly contacts: Readonly<Record<string, readonly string[]>>
 }
+/** everyPlayerTurns on a trigger counts that condition alone; without it the role's own interval applies. */
 export type AutonomyTrigger =
-  | { actionType: 'speak' | 'move' | 'interact'; definitionId?: string }
-  | { activityKey: string; operation: string }
+  | { actionType: 'speak' | 'move' | 'interact'; definitionId?: string; everyPlayerTurns?: number }
+  | { activityKey: string; operation: string; everyPlayerTurns?: number }
 export interface AutonomousRole {
   characterId: CharacterId
   triggers: AutonomyTrigger[]

@@ -1,0 +1,76 @@
+{
+  "requests": [
+    {
+      "name": "openai-none",
+      "cacheKey": null,
+      "userId": null,
+      "cacheMarkers": 0,
+      "googleCachedContent": null
+    },
+    {
+      "name": "openai-short",
+      "cacheKey": "game7_roleA",
+      "userId": null,
+      "cacheMarkers": 0,
+      "googleCachedContent": null
+    },
+    {
+      "name": "gateway-short",
+      "cacheKey": null,
+      "userId": null,
+      "cacheMarkers": 0,
+      "googleCachedContent": null
+    },
+    {
+      "name": "deepseek-chat-short",
+      "cacheKey": null,
+      "userId": null,
+      "cacheMarkers": 0,
+      "googleCachedContent": null
+    },
+    {
+      "name": "claude-none",
+      "cacheKey": null,
+      "userId": "game7_roleA",
+      "cacheMarkers": 0,
+      "googleCachedContent": null
+    },
+    {
+      "name": "claude-short",
+      "cacheKey": null,
+      "userId": "game7_roleA",
+      "cacheMarkers": 2,
+      "googleCachedContent": null
+    },
+    {
+      "name": "deepseek-messages-short",
+      "cacheKey": null,
+      "userId": "game7_roleA",
+      "cacheMarkers": 2,
+      "googleCachedContent": null
+    },
+    {
+      "name": "google-short",
+      "cacheKey": null,
+      "userId": null,
+      "cacheMarkers": 0,
+      "googleCachedContent": null
+    }
+  ],
+  "usage": {
+    "upstream": {
+      "prompt_tokens": 1000,
+      "completion_tokens": 20,
+      "total_tokens": 1020,
+      "prompt_cache_hit_tokens": 800,
+      "prompt_cache_miss_tokens": 200
+    },
+    "inspector": {
+      "inputTokens": 200,
+      "outputTokens": 20,
+      "totalTokens": 1020
+    },
+    "callback": null
+  },
+  "networkAttempts": 0
+}

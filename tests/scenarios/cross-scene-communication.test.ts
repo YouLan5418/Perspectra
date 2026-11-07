@@ -29,7 +29,7 @@ const companion = 'character:companion',
   friend = 'character:friend',
   player = 'character:player'
 
-it('renders free message arguments without requiring unrelated activity fields', async () => {
+it('leaves free message arguments to the option in context, without unrelated activity fields', async () => {
   const { runtime: r } = await fixture()
   const call = gatewayTurnCall({
     continuation: false,
@@ -58,7 +58,10 @@ it('renders free message arguments without requiring unrelated activity fields',
   const args = (
     ((call.schema.properties as WorldJsonObject).parameters as WorldJsonObject).properties as WorldJsonObject
   ).arguments as WorldJsonObject
-  expect(args.required).toEqual(['text'])
+  // Outside an activity the tool keeps a fixed shape; the message's own argument schema reaches the model in
+  // context.affordances, and the rules still check it.
+  expect(args.required).toBeUndefined()
+  expect(call.messages.at(-1)!.content).toContain('"required":["text"]')
   expect(JSON.stringify(args)).not.toContain('activityId')
 })
 

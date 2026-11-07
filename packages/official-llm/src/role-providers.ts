@@ -11,11 +11,13 @@ import {
   type RolePreset,
   type RolePresetMapping,
   type ThinkingLevel,
+  type PromptCacheMode,
 } from '@harness-world/provider-chat'
 import type { CharacterId } from '@harness-world/contracts'
 
 /** One resolved call target. The key is the only credential, and it stays inside this package's providers. */
 export interface LlmModel {
+  readonly cacheMode?: PromptCacheMode
   readonly protocol: ProviderProtocol
   readonly endpoint: string
   readonly model: string
@@ -119,6 +121,7 @@ export function createRoleProviders(
     protocol: own.protocol,
     endpoint: new URL(own.endpoint),
     model: own.model,
+    ...(own.cacheMode === undefined ? {} : { cacheMode: own.cacheMode }),
     ...(own.thinkingLevel === undefined ? {} : { thinkingLevel: own.thinkingLevel }),
     ...(own.apiKey === undefined ? {} : { apiKey: own.apiKey }),
   })

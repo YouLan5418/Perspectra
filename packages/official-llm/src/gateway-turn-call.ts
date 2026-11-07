@@ -13,119 +13,54 @@ function equalBounds(value: WorldJsonValue): WorldJsonValue {
   return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, equalBounds(item as WorldJsonValue)]))
 }
 
-/** Local OpenAI/Anthropic gateways can treat a root oneOf as only its first choice. Host validation stays strict. */
+/**
+ * During an activity (a vote, a round of a game) the arguments carry a revision that changes every step, so the
+ * tool cannot be stable anyway; there the author's argument schema still guides the model.
+ */
+function activityArguments(context: WorldJsonObject): WorldJsonObject | undefined {
+  if (context.activity === undefined) return undefined
+  const affordances = Array.isArray(context.affordances) ? (context.affordances as WorldJsonObject[]) : []
+  const choices = (affordances.find(entry => entry.actionType === 'interact')?.interactions ?? []) as WorldJsonObject[]
+  if (!Array.isArray(choices) || choices.length === 0 || choices.some(c => c.argumentSchema === undefined))
+    return undefined
+  const schemas = choices.map(choice => choice.argumentSchema as WorldJsonObject)
+  return {
+    type: 'object',
+    additionalProperties: false,
+    required: ((schemas[0]!.required as string[] | undefined) ?? []).filter(field =>
+      schemas.every(schema => Array.isArray(schema.required) && (schema.required as string[]).includes(field)),
+    ),
+    properties: equalBounds(Object.assign({}, ...schemas.map(schema => schema.properties))),
+  }
+}
+
+/**
+ * Local OpenAI/Anthropic gateways can treat a root oneOf as only its first choice. Host validation stays strict.
+ *
+ * The tool comes before every message, so it must not change between steps or rounds, or the provider cannot reuse
+ * the cached contract and history behind it. It therefore lists the same fields whatever the character may do now:
+ * where she can go, what she can use and whom she can address are in context.affordances and context.scene, the step's
+ * limits are in turnInstructions, and the host and rulebook reject anything outside them.
+ */
 export function gatewayTurnCall(request: Parameters<typeof characterTurnCall>[0]) {
   const prepared = characterTurnCall(request)
-  const beforeSchema = (prepared.schema.oneOf as WorldJsonObject[])
-    .map(branch => (branch.properties as WorldJsonObject).before)
-    .find(value => value !== undefined)
   const maximum = Number(request.context.publicationCharacters ?? 2000)
   const expression = request.context.expressionPolicy as WorldJsonObject | undefined
   const speechAllowed = expression?.speech !== 'none'
   const narrationAllowed = expression?.narration !== false
-  const canPerform = request.canPerform ?? !request.continuation
-  const affordances = Array.isArray(request.context.affordances)
-    ? (request.context.affordances as WorldJsonObject[])
-    : []
-  const move = canPerform ? affordances.find(entry => entry.actionType === 'move') : undefined
-  const interact = canPerform ? affordances.find(entry => entry.actionType === 'interact') : undefined
-  const destinations = Array.isArray(move?.destinations) ? (move.destinations as WorldJsonObject[]) : []
-  const choices = Array.isArray(interact?.interactions) ? (interact.interactions as WorldJsonObject[]) : []
-  const actionTypes = [...(move === undefined ? [] : ['move']), ...(choices.length === 0 ? [] : ['interact'])]
-  const people = (request.context.scene as WorldJsonObject | undefined)?.people
-  const actorId = (request.context.character as WorldJsonObject | undefined)?.characterId
-  const addressees = Array.isArray(people)
-    ? people.flatMap(person => {
-        const id = (person as WorldJsonObject).characterId
-        return typeof id === 'string' && id !== actorId ? [id] : []
-      })
-    : []
-  const interactionIds = choices.map(choice => choice.targetRef as WorldJsonObject)
-  const definitions = choices.map(choice => choice.definitionRef as WorldJsonObject)
-  const versions = [
-    ...new Set(definitions.map(ref => ref.version).filter((version): version is number => typeof version === 'number')),
-  ]
-  const parameterProperties: WorldJsonObject = {
-    ...(move === undefined
-      ? {}
-      : {
-          locationId: {
-            type: 'string',
-            ...(destinations.length === 0
-              ? {}
-              : {
-                  enum: destinations
-                    .map(place => place.locationId)
-                    .filter((id): id is string => typeof id === 'string'),
-                }),
-            description: 'move 时填写目的地 locationId，不要填写 destinationId。',
-          },
-        }),
-    ...(choices.length === 0
-      ? {}
-      : {
-          targetRef: {
-            type: 'object',
-            additionalProperties: false,
-            required: ['kind', 'id'],
-            properties: {
-              kind: {
-                type: 'string',
-                enum: [
-                  ...new Set(interactionIds.map(ref => ref.kind).filter((id): id is string => typeof id === 'string')),
-                ],
-              },
-              id: {
-                type: 'string',
-                enum: [
-                  ...new Set(interactionIds.map(ref => ref.id).filter((id): id is string => typeof id === 'string')),
-                ],
-              },
-            },
-          },
-          bindingId: {
-            type: 'string',
-            enum: [
-              ...new Set(choices.map(choice => choice.bindingId).filter((id): id is string => typeof id === 'string')),
-            ],
-          },
-          definitionRef: {
-            type: 'object',
-            additionalProperties: false,
-            required: ['id', 'version'],
-            properties: {
-              id: {
-                type: 'string',
-                enum: [...new Set(definitions.map(ref => ref.id).filter((id): id is string => typeof id === 'string'))],
-              },
-              // Equal bounds avoid this gateway returning a singleton numeric enum as a string.
-              // Host validation remains strict: no coercion or widening of accepted versions.
-              version:
-                versions.length === 1
-                  ? { type: 'integer', minimum: versions[0]!, maximum: versions[0]! }
-                  : { type: 'integer', enum: versions },
-            },
-          },
-          arguments: choices.every(c => c.argumentSchema !== undefined)
-            ? {
-                type: 'object',
-                additionalProperties: false,
-                required: (
-                  ((choices[0]!.argumentSchema as WorldJsonObject).required as string[] | undefined) ?? []
-                ).filter(field =>
-                  choices.every(
-                    c =>
-                      Array.isArray((c.argumentSchema as WorldJsonObject).required) &&
-                      ((c.argumentSchema as WorldJsonObject).required as string[]).includes(field),
-                  ),
-                ),
-                properties: equalBounds(
-                  Object.assign({}, ...choices.map(c => (c.argumentSchema as WorldJsonObject).properties)),
-                ),
-              }
-            : { type: 'object' },
-        }),
-  }
+  const expressible = speechAllowed || narrationAllowed
+  const publish = (prepared.schema.oneOf as WorldJsonObject[]).find(
+    branch => ((branch.properties as WorldJsonObject).decision as WorldJsonObject | undefined)?.const === 'publish',
+  )
+  // Offered whenever the host allows it at all, not only on steps that may still perform: the host refuses a
+  // `before` without perform, and turnInstructions says when this step cannot perform.
+  const beforeSchema =
+    publish !== undefined && request.canExpressBeforeAction === true
+      ? (() => {
+          const { decision: _decision, ...properties } = publish.properties as WorldJsonObject
+          return { ...publish, required: ['segments'], properties }
+        })()
+      : undefined
   return {
     ...prepared,
     schema: {
@@ -135,15 +70,7 @@ export function gatewayTurnCall(request: Parameters<typeof characterTurnCall>[0]
       allOf: [
         {
           if: { properties: { decision: { const: 'publish' } } },
-          then: {
-            required: ['segments'],
-            allOf:
-              (prepared.schema.oneOf as WorldJsonObject[]).find(
-                branch =>
-                  (branch.properties as WorldJsonObject).decision &&
-                  ((branch.properties as WorldJsonObject).decision as WorldJsonObject).const === 'publish',
-              )?.allOf ?? [],
-          },
+          then: { required: ['segments'], allOf: publish?.allOf ?? [] },
         },
         {
           if: { properties: { decision: { const: 'perform' } } },
@@ -171,18 +98,14 @@ export function gatewayTurnCall(request: Parameters<typeof characterTurnCall>[0]
         ...(beforeSchema === undefined ? {} : { before: beforeSchema }),
         decision: {
           type: 'string',
-          enum: [
-            'abstain',
-            ...(speechAllowed || narrationAllowed ? ['publish'] : []),
-            ...(actionTypes.length > 0 ? ['perform'] : []),
-          ],
+          enum: ['abstain', ...(expressible ? ['publish'] : []), 'perform'],
           description: 'publish 需要有序 segments；perform 需要 actionType 和 parameters。',
         },
-        ...(speechAllowed || narrationAllowed
+        ...(expressible
           ? {
               scope: {
                 type: 'string',
-                enum: addressees.length ? ['scene_public', 'direct', 'private', 'self'] : ['scene_public', 'self'],
+                enum: ['scene_public', 'direct', 'private', 'self'],
                 description: 'publish 的受众。direct/private 需非空 addresseeIds；scene_public/self 不指定接收者。',
               },
               segments: {
@@ -206,23 +129,45 @@ export function gatewayTurnCall(request: Parameters<typeof characterTurnCall>[0]
                   },
                 },
               },
+              addresseeIds: {
+                type: 'array',
+                uniqueItems: true,
+                items: { type: 'string' },
+                description: '只填 context.scene.people 中除你以外的角色 characterId。',
+              },
             }
           : {}),
-        ...(addressees.length === 0
-          ? {}
-          : { addresseeIds: { type: 'array', uniqueItems: true, items: { type: 'string', enum: addressees } } }),
-        ...(actionTypes.length === 0
-          ? {}
-          : {
-              actionType: { type: 'string', enum: actionTypes },
-              parameters: {
-                type: 'object',
-                additionalProperties: false,
-                properties: parameterProperties,
-                description:
-                  'move 只填 locationId；interact 复制 context.affordances 中同一个选项的 targetRef、bindingId、definitionRef 和 arguments。',
-              },
-            }),
+        actionType: { type: 'string', enum: ['move', 'interact'] },
+        parameters: {
+          type: 'object',
+          additionalProperties: false,
+          properties: {
+            locationId: {
+              type: 'string',
+              description:
+                'move 时填写 context.affordances 中 move 选项列出的目的地 locationId，不要填写 destinationId。',
+            },
+            targetRef: {
+              type: 'object',
+              additionalProperties: false,
+              required: ['kind', 'id'],
+              properties: { kind: { type: 'string' }, id: { type: 'string' } },
+            },
+            bindingId: { type: 'string' },
+            definitionRef: {
+              type: 'object',
+              additionalProperties: false,
+              required: ['id', 'version'],
+              properties: { id: { type: 'string' }, version: { type: 'integer' } },
+            },
+            arguments: activityArguments(request.context) ?? {
+              type: 'object',
+              description: '按该选项的 argumentSchema 填写；没有参数时为 {}。',
+            },
+          },
+          description:
+            'move 只填 locationId；interact 复制 context.affordances 中同一个选项的 targetRef、bindingId、definitionRef 和 arguments。',
+        },
       },
     },
   }

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { promptCacheLabels } from '@harness-world/provider-chat/prompt-cache'
 import { computed, ref, watch } from 'vue'
 import { ArrowLeft, Copy, ExternalLink, X } from '@lucide/vue'
 import type { InspectedRequest } from '@harness-world/provider-chat'
@@ -252,13 +253,25 @@ function toneOf(value: boolean): string {
               输入 {{ tokenLabel(request.usage?.inputTokens) }} / 输出 {{ tokenLabel(request.usage?.outputTokens) }} /
               合计 {{ tokenLabel(request.usage?.totalTokens) }}
             </dd>
+            <template v-if="request.cacheMode">
+              <dt>缓存适配</dt>
+              <dd>{{ promptCacheLabels[request.cacheMode] }}</dd>
+            </template>
+            <template v-if="request.usage?.source === 'sdk'">
+              <dt>SDK 缓存计数</dt>
+              <dd>
+                非缓存输入 {{ tokenLabel(request.usage.uncachedInputTokens) }} / 读取
+                {{ tokenLabel(request.usage.cacheReadTokens) }} / 写入 {{ tokenLabel(request.usage.cacheWriteTokens) }}
+              </dd>
+            </template>
             <dt>本地估算</dt>
             <dd>请求 JSON 约 {{ request.estimatedBodyTokens }} token（其中工具 {{ request.estimatedToolTokens }}）</dd>
             <dt>视图序号</dt>
             <dd>{{ request.asOfWorldSeq ?? '—' }}</dd>
             <p v-if="request.omitted" class="cr-tag warn" style="height: auto">{{ request.omitted }}</p>
             <p class="cr-muted" style="grid-column: 1 / -1">
-              本地估算不等于模型 tokenizer 计数；传输成功不代表决策通过裁定。
+              本地估算不等于模型 tokenizer 计数；SDK
+              的缓存零值也可能表示上游未报告。缓存写入可能收费；传输成功不代表决策通过裁定。
             </p>
           </section>
 

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { promptCacheLabels } from '@harness-world/provider-chat/prompt-cache'
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import type { InspectorSnapshot } from '@harness-world/provider-chat'
 import { useCreatorStore } from './store.ts'
@@ -139,9 +140,16 @@ async function copy(text: string) {
         <span
           >请求 JSON 估算 {{ current.estimatedBodyTokens }} token（其中工具 {{ current.estimatedToolTokens }}）。</span
         >
+        <span v-if="current.cacheMode">缓存适配：{{ promptCacheLabels[current.cacheMode] }}</span>
+        <span v-if="current.usage?.source === 'sdk'">
+          SDK 记录：非缓存输入 {{ current.usage.uncachedInputTokens ?? '未提供' }} / 缓存读取
+          {{ current.usage.cacheReadTokens ?? '未提供' }} / 缓存写入 {{ current.usage.cacheWriteTokens ?? '未提供' }}
+        </span>
       </div>
       <p class="cr-req-hint">
-        本地估算不等于模型 tokenizer 计数；服务 total 可能包含其他计数。ok 表示传输成功，不代表决策通过 Core 校验。
+        本地估算不等于模型 tokenizer 计数；SDK
+        的缓存零值也可能表示上游未报告。缓存写入可能收费，读取量不等于费用节省比例。ok 表示传输成功，不代表决策通过 Core
+        校验。
       </p>
       <div class="cr-req-bar">
         <button class="cr-button" :aria-pressed="tab === 'messages'" @click="tab = 'messages'">
