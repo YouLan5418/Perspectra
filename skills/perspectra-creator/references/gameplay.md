@@ -71,6 +71,20 @@ stimuli 每条 `{ characterId, kind: 'perception' | 'thought', text }`，最多 
 
 它只给处理机会：每隔几个玩家回合、在哪些地点、可用哪些操作；不规定角色做什么，也不把别处的对话传给他。
 
+计数只认 triggers 列出的玩家行为，再加上玩家静观；其他说话、移动或失败的行动不计数。玩家完成一次匹配的行为就加一，满 `everyPlayerTurns` 次给她 `opportunities` 次机会。同一次玩家行动即使匹配多个条件也只算一次。
+
+某个条件想单独计，就在这一条里写自己的 `everyPlayerTurns`（1–100）：
+
+```json
+"triggers": [
+  { "actionType": "interact", "definitionId": "status:work" },
+  { "actionType": "move", "everyPlayerTurns": 3 }
+],
+"everyPlayerTurns": 1
+```
+
+上例中打工每次都给机会，移动每 3 次才给一次；移动不混进打工的计数。没写自己间隔的条件和静观共用角色的 `everyPlayerTurns`。改完用 `lens view` 或包透视核对，角色卡会写成“玩家每完成 1 次下列行为，给她 1 次主动机会：……、移动到别处（每 3 次单独计）；玩家静观也算一次”。
+
 跨场景短信（实验）在 assetFiles 登记 `communication.json`：`{ "medium": "短信", "contacts": { "character:player": ["character:a"], "character:a": ["character:player"] } }`。联系人是有向许可，不等于在场；收信人只知道对方这样说，不获得对方房间的视野。想让角色自主时也能发，在 autonomy 的 interactions 加 `experiment:message`。电话尚未接入。
 
 ## 插件、预设和界面
