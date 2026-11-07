@@ -133,3 +133,33 @@ it('does not repeat a line that an interaction carried with its own observations
   const said = observations(fixture()({ status: 'accepted', events: [speak] }, 'speak', { text: '脚本替玩家说的话' }))
   expect(said.get(NPC)?.speech).toEqual(speak.data)
 })
+
+it('tells witnesses about a character the action moved besides its actor', () => {
+  const moved = (characterId: string): WorldEventDraft => ({
+    eventType: 'character.moved',
+    eventVersion: 1,
+    data: { characterId, fromLocationId: 'location:room', toLocationId: 'location:next' },
+  })
+  const events = fixture()({ status: 'accepted', events: [moved(PLAYER), moved(NPC)] })
+  expect(events.filter(event => event.eventType === 'scene.member_left').map(event => event.data)).toEqual([
+    { sceneId: 'scene:room', characterId: PLAYER },
+    { sceneId: 'scene:room', characterId: NPC },
+  ])
+  const carried = new Map(
+    events
+      .filter(event => String((event.data as WorldJsonObject).id).startsWith(`action:test:moved:${NPC}:`))
+      .map(event => {
+        const value = (event.data as WorldJsonObject).value as WorldJsonObject
+        return [String(value.observerId), (value.content as WorldJsonObject).movement]
+      }),
+  )
+  // Bob stays behind and sees her go; she knows her whole route.
+  expect(carried.get('character:bob')).toEqual({ characterId: NPC, fromLocationId: 'location:room' })
+  expect(carried.get(NPC)).toEqual({ characterId: NPC, fromLocationId: 'location:room', toLocationId: 'location:next' })
+  const own = events.find(event => (event.data as WorldJsonObject).id === `action:test:${NPC}`)!
+  expect((((own.data as WorldJsonObject).value as WorldJsonObject).content as WorldJsonObject).movement).toEqual({
+    characterId: PLAYER,
+    fromLocationId: 'location:room',
+  })
+  expect(events.at(-1)).toMatchObject({ eventType: 'action.resolved' })
+})

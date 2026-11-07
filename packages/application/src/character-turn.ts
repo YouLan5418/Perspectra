@@ -9,6 +9,7 @@ import { randomUUID } from 'node:crypto'
 import {
   brandId,
   canonicalizeWorldJson,
+  deterministicId,
   parseExpressionSegments,
   resolutionAuthority,
   type CharacterId,
@@ -35,6 +36,7 @@ import {
   WriterLeaseService,
 } from '@harness-world/store-sqlite'
 import { actionObservations, movementRoute } from './action-observations.ts'
+import { moveEffects, otherMoverObservations } from './move-effects.ts'
 import { SceneDecisionService } from './scene-decision.ts'
 import { characterExecutionResult, expressionAfterExecution } from './character-execution-result.ts'
 
@@ -614,17 +616,17 @@ export class CharacterTurn {
                   rejectedPublication = { action, status: resolution.status, reason: resolution.reason }
                 }
                 const events: WorldEventDraft[] = [...resolution.events]
-                if (resolution.status === 'accepted' && action.actionType === 'move') {
-                  events.push(
-                    ...this.#scene.transitionForMove(
-                      this.options.address,
-                      history,
-                      characterId,
-                      object(action.parameters).locationId as string,
-                      head.headSeq,
-                    ),
-                  )
-                }
+                const moves =
+                  resolution.status === 'accepted'
+                    ? moveEffects({
+                        scene: this.#scene,
+                        address: this.options.address,
+                        events: history,
+                        headSeq: head.headSeq,
+                        drafts: resolution.events,
+                      })
+                    : { transitions: [], moved: [] }
+                events.push(...moves.transitions)
                 events.push({
                   eventType: 'action.resolved',
                   eventVersion: 1,
@@ -661,7 +663,9 @@ export class CharacterTurn {
                 const route = movementRoute(
                   this.#scene,
                   this.options.address,
-                  resolution.events.find(event => event.eventType === 'character.moved'),
+                  resolution.events.find(
+                    event => event.eventType === 'character.moved' && object(event.data).characterId === characterId,
+                  ),
                   { events: history, asOfSeq: head.headSeq },
                   { events: [...history, ...events], asOfSeq: head.headSeq + events.length },
                 )
@@ -709,8 +713,23 @@ export class CharacterTurn {
                   }),
                   playerBindings: this.#manifest.playerBindings,
                 })
-                events.push(...observed.events)
-                const outbox = observed.outbox
+                // Those a rule moved along with the actor, such as a follower, are seen going and coming too.
+                const others = otherMoverObservations({
+                  scene: this.#scene,
+                  address: this.options.address,
+                  roundId,
+                  actionId,
+                  actorId: characterId,
+                  actionType: action.actionType,
+                  moved: moves.moved,
+                  before: { events: history, asOfSeq: head.headSeq },
+                  after: { events: [...history, ...events], asOfSeq: head.headSeq + events.length },
+                  playerBindings: this.#manifest.playerBindings,
+                  observationId: (moverId, observerId) =>
+                    deterministicId('observation:moved-character', { roundId, actionId, moverId, observerId }),
+                })
+                events.push(...observed.events, ...others.events)
+                const outbox = [...observed.outbox, ...others.outbox]
                 events.push({
                   eventType: 'world.tick-advanced',
                   eventVersion: 1,

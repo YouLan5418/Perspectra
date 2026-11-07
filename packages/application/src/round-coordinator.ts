@@ -48,6 +48,7 @@ import {
 } from '@harness-world/store-sqlite'
 import { bindFrozenInteractionPerformance, resolveGroupAction, stepManifestation } from './action-groups.ts'
 import { actionObservations, movementRoute } from './action-observations.ts'
+import { moveEffects, otherMoverObservations } from './move-effects.ts'
 import { bindPlayerProvisional, verifyPlayerProvisional } from './player-provisional.ts'
 import type { SceneDecisionService } from './scene-decision.ts'
 
@@ -445,22 +446,18 @@ export class RoundCoordinator {
                 }),
           })
         : undefined
-    const provisionalMoveTarget =
-      playerAction.actionType === 'move' ? (playerAction.parameters as WorldJsonObject).locationId : undefined
     const provisional = bindPlayerProvisional(this.#address, head.headSeq, head.eventHash, playerAction, {
       ...playerBaseResolution,
       events: [
         ...playerBaseResolution.events,
-        ...(playerBaseResolution.status === 'accepted' &&
-        typeof provisionalMoveTarget === 'string' &&
-        this.options.sceneDecision !== undefined
-          ? this.options.sceneDecision.transitionForMove(
-              this.#address,
-              history,
-              playerAction.actorId,
-              provisionalMoveTarget,
-              head.headSeq,
-            )
+        ...(playerBaseResolution.status === 'accepted' && this.options.sceneDecision !== undefined
+          ? moveEffects({
+              scene: this.options.sceneDecision,
+              address: this.#address,
+              events: history,
+              headSeq: head.headSeq,
+              drafts: playerBaseResolution.events,
+            }).transitions
           : []),
       ],
     })
@@ -488,14 +485,16 @@ export class RoundCoordinator {
             action: { actionType: extra.actionType, parameters: extra.parameters },
           }),
         )
-        const target = (extra.parameters as WorldJsonObject).locationId
         const events = [
           ...resolution.events,
-          ...(resolution.status === 'accepted' &&
-          extra.actionType === 'move' &&
-          typeof target === 'string' &&
-          this.options.sceneDecision !== undefined
-            ? this.options.sceneDecision.transitionForMove(this.#address, prefix, extra.actorId, target, head.headSeq)
+          ...(resolution.status === 'accepted' && this.options.sceneDecision !== undefined
+            ? moveEffects({
+                scene: this.options.sceneDecision,
+                address: this.#address,
+                events: prefix,
+                headSeq: head.headSeq,
+                drafts: resolution.events,
+              }).transitions
             : []),
         ]
         const scope = resolution.observationScope ?? { scope: 'scene_public' as const }
@@ -673,25 +672,19 @@ export class RoundCoordinator {
         stoppedGroups,
         () => playerSteps.find(step => step.action.actionId === item.action.actionId)!.resolution,
       )
-      const moveTarget =
-        item.action.actionType === 'move' ? (item.action.parameters as WorldJsonObject).locationId : undefined
+      const moves =
+        baseResolution.status === 'accepted' && this.options.sceneDecision !== undefined
+          ? moveEffects({
+              scene: this.options.sceneDecision,
+              address: this.#address,
+              events: actionPrefix,
+              headSeq: head.headSeq + events.length,
+              drafts: baseResolution.events,
+            })
+          : undefined
       const resolution: RulebookResolution =
-        baseResolution.status === 'accepted' &&
-        typeof moveTarget === 'string' &&
-        this.options.sceneDecision !== undefined
-          ? {
-              ...baseResolution,
-              events: [
-                ...baseResolution.events,
-                ...this.options.sceneDecision.transitionForMove(
-                  this.#address,
-                  actionPrefix,
-                  item.action.actorId,
-                  moveTarget,
-                  head.headSeq + events.length,
-                ),
-              ],
-            }
+        moves !== undefined && moves.moved.length > 0
+          ? { ...baseResolution, events: [...baseResolution.events, ...moves.transitions] }
           : baseResolution
       const performance =
         item.actionGroup === undefined
@@ -811,7 +804,11 @@ export class RoundCoordinator {
           ? movementRoute(
               this.options.sceneDecision,
               this.#address,
-              resolvedEvents.find(event => event.eventType === 'character.moved'),
+              resolvedEvents.find(
+                event =>
+                  event.eventType === 'character.moved' &&
+                  (event.data as WorldJsonObject).characterId === item.action.actorId,
+              ),
               { events: actionPrefix, asOfSeq: head.headSeq + events.length },
               {
                 events: [...actionPrefix, ...resolvedEvents],
@@ -867,9 +864,36 @@ export class RoundCoordinator {
               },
         playerBindings: this.#manifest.playerBindings,
       })
-      for (const observerId of observed.observerIds) observedCharacters.add(observerId)
-      events.push(...observed.events)
-      outbox.push(...observed.outbox)
+      // Those a rule moved along with the actor, such as a follower, are seen going and coming too.
+      const others =
+        moves !== undefined
+          ? otherMoverObservations({
+              scene: this.options.sceneDecision!,
+              address: this.#address,
+              roundId,
+              actionId: item.action.actionId,
+              actorId: item.action.actorId,
+              actionType: item.action.actionType,
+              moved: moves.moved,
+              before: { events: actionPrefix, asOfSeq: head.headSeq + events.length },
+              after: {
+                events: [...actionPrefix, ...resolvedEvents],
+                asOfSeq: head.headSeq + events.length + resolvedEvents.length,
+              },
+              playerBindings: this.#manifest.playerBindings,
+              observationId: (moverId, observerId) =>
+                deterministicId('observation:moved-character', {
+                  roundId,
+                  actionId: item.action.actionId,
+                  moverId,
+                  observerId,
+                }),
+            })
+          : undefined
+      for (const observerId of [...observed.observerIds, ...(others?.observerIds ?? [])])
+        observedCharacters.add(observerId)
+      events.push(...observed.events, ...(others?.events ?? []))
+      outbox.push(...observed.outbox, ...(others?.outbox ?? []))
     }
     events.push({ eventType: 'world.tick-advanced', eventVersion: 1, data: { tick: head.tick + 1, roundId } })
     const cognitiveCharacters = new Set<CharacterId>()

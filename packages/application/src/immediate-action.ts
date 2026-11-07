@@ -13,6 +13,7 @@ import {
   type RulebookResolution,
 } from '@harness-world/kernel'
 import { actionObservations, movementRoute } from './action-observations.ts'
+import { moveEffects, otherMoverObservations } from './move-effects.ts'
 import type { SceneDecisionService } from './scene-decision.ts'
 
 /** One adjudicated immediate action as facts: its effects, the scene change of a move, what each witness learns and
@@ -33,16 +34,10 @@ export function immediateActionDrafts(input: {
   const { scene, address, events, headSeq, actorId, actionId, action, result } = input
   const accepted = result.status === 'accepted'
   const drafts: WorldEventDraft[] = [...result.events]
-  if (accepted && action.actionType === 'move')
-    drafts.push(
-      ...scene.transitionForMove(
-        address,
-        events,
-        actorId,
-        String((action.parameters as WorldJsonObject).locationId),
-        headSeq,
-      ),
-    )
+  const moves = accepted
+    ? moveEffects({ scene, address, events, headSeq, drafts: result.events })
+    : { transitions: [], moved: [] }
+  drafts.push(...moves.transitions)
   const scope = result.observationScope
   const audience = scene.audienceForAction(address, actorId, events, headSeq, {
     scope: scope?.scope ?? 'scene_public',
@@ -51,7 +46,11 @@ export function immediateActionDrafts(input: {
       : { recipientIds: scope.recipientIds.map(id => brandId(id, 'CharacterId')) }),
   })
   const after = { events: [...events, ...(drafts as RulebookEvent[])], asOfSeq: headSeq + drafts.length }
-  const moved = accepted ? result.events.find(event => event.eventType === 'character.moved') : undefined
+  const moved = accepted
+    ? result.events.find(
+        event => event.eventType === 'character.moved' && (event.data as WorldJsonObject).characterId === actorId,
+      )
+    : undefined
   const route = movementRoute(scene, address, moved, { events, asOfSeq: headSeq }, after)
   const arrived =
     route === undefined
@@ -84,9 +83,23 @@ export function immediateActionDrafts(input: {
     playerBindings: [],
     observationId: observerId => `${actionId}:${observerId}`,
   })
+  const others = otherMoverObservations({
+    scene,
+    address,
+    roundId: brandId(actionId, 'InteractionRoundId'),
+    actionId,
+    actorId,
+    actionType: action.actionType,
+    moved: moves.moved,
+    before: { events, asOfSeq: headSeq },
+    after,
+    playerBindings: [],
+    observationId: (moverId, observerId) => `${actionId}:moved:${moverId}:${observerId}`,
+  })
   return [
     ...drafts,
     ...observed.events,
+    ...others.events,
     {
       eventType: 'action.resolved',
       eventVersion: 1,
