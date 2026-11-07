@@ -202,6 +202,57 @@ describe('generateMapActivities', () => {
     expect(fight.description).toContain('遗迹守卫说：「擅入者，止步。」')
   })
 
+  it('mid-fight the party can be left only without lockDuringBattle; outside a fight joining and leaving stay open', () => {
+    const battle = (lock: boolean) => {
+      const script = hooks(
+        generate(c => {
+          c.maps[0].scripted = []
+          c.party.lockDuringBattle = lock
+        })[0]!.source,
+      )
+      const game = script.initialize({
+        playerId: PLAYER,
+        npcIds: [CHENG],
+        world: world('location:ruin-1', 1),
+        previous: null,
+      })
+      expect(game.phase).toBe('fighting')
+      return script.policy(scoped(game, CHENG), CHENG).interactions
+    }
+    expect(battle(true)).toEqual([])
+    expect(battle(false)).toEqual(['status:rpg-leave'])
+    const calm = hooks(generate()[1]!.source)
+    const game = calm.initialize({
+      playerId: PLAYER,
+      npcIds: [CHENG],
+      world: world('location:ruin-2', 1),
+      previous: null,
+    })
+    expect(calm.policy(scoped(game, CHENG), CHENG).interactions).toEqual(
+      expect.arrayContaining(['status:rpg-join', 'status:rpg-leave']),
+    )
+  })
+
+  it('a battle that starts after a faster companion left hands the first turn to someone still here', () => {
+    const script = hooks(
+      generate(c => {
+        c.maps[0].engage = 'optional'
+        c.maps[0].scripted = []
+        c.characters[CHENG].speed = 99
+      })[0]!.source,
+    )
+    const game = script.initialize({
+      playerId: PLAYER,
+      npcIds: [CHENG],
+      world: world('location:ruin-1', 1),
+      previous: null,
+    })
+    const state = { id: 'activity:1', revision: 1, participants: [PLAYER, CHENG], game }
+    expect(script.resolve(state, PLAYER, 'engage', {}, world('location:ruin-1', 1), truth()).game.turn).toBe(CHENG)
+    const alone = script.resolve(state, PLAYER, 'engage', {}, world('location:ruin-1', 1, [PLAYER]), truth())
+    expect(alone.game).toMatchObject({ phase: 'fighting', turn: PLAYER })
+  })
+
   it('a party member who is not at the battle gets no turn, is not targeted and does not count against defeat', () => {
     const script = hooks(generate(c => (c.maps[0].scripted = []))[0]!.source)
     const game = script.initialize({

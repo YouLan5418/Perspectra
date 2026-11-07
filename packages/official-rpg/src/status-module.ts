@@ -16,7 +16,8 @@ export interface RpgStatusModule {
   source: string
 }
 
-/** The pack module that holds RPG stats, rest, consumables and equipment. Operations surface as `status:rpg-<op>`. */
+/** The pack module that holds RPG stats, rest, consumables, equipment and the party. Operations surface as
+ * `status:rpg-<op>`; with `party` set it adds `join` and `leave` and the public status `rpg-party`. */
 export function generateStatusModule(config: RpgConfig): RpgStatusModule {
   const used = {
     stats: config.stats,
@@ -26,6 +27,7 @@ export function generateStatusModule(config: RpgConfig): RpgStatusModule {
     equipment: config.equipment,
     consumables: config.consumables,
     ...(config.rest ? { rest: config.rest } : {}),
+    ...(config.party ? { party: config.party } : {}),
   }
   const source = `${rules}\ninstall(${JSON.stringify(used)})\n`
   if (Buffer.byteLength(source) > MODULE_SOURCE_LIMIT) throw new RangeError('rpg 状态模块脚本超过 64 KiB')

@@ -43,7 +43,11 @@ function installMap(config) {
     'status:rpg-equip',
     'status:rpg-unequip',
     'status:rpg-rest',
+    'status:rpg-join',
+    'status:rpg-leave',
   ]
+  // Leaving the party mid-fight is refused when the author locks the party during battle.
+  const BATTLE_OPERATIONS = config.lockDuringBattle ? [] : ['status:rpg-leave']
 
   const operations = []
   if (fighting) {
@@ -143,13 +147,15 @@ function installMap(config) {
   }
   const startFighting = game => {
     // The party opens the first round; enemies faster than everyone in the party act from the cursor onwards.
+    // The first turn goes to a party member who is here: one who has left gets none.
+    const here = game.internal.present || party
     const order = game.public.units
       .filter(unit => unit.team === 'enemy' || unit.hp === null || unit.hp > 0)
       .slice()
       .sort((a, b) => b.speed - a.speed)
       .map(unit => unit.id)
     game.public.order = order
-    game.public.cursor = order.findIndex(id => party.includes(id))
+    game.public.cursor = order.findIndex(id => party.includes(id) && here.includes(id))
     game.phase = 'fighting'
     game.turn = order[game.public.cursor]
     game.round = 1
@@ -282,7 +288,8 @@ function installMap(config) {
             : '',
         },
         private: Object.fromEntries([PLAYER].concat(npcIds).map(id => [id, {}])),
-        internal: {},
+        // Who of the party was here at the last call that saw the world; hooks without a world read it.
+        internal: { present: party.filter(id => id === PLAYER || world.characterIds.includes(id)) },
       }
       // Lines scripted for entering play on the first arrival only.
       const enter = game.public.visit === 1 ? cuesFor('enter') : []
@@ -304,7 +311,7 @@ function installMap(config) {
         speechChoices: [],
         narration: true,
         move: false,
-        interactions: battle ? [] : ITEM_OPERATIONS,
+        interactions: battle ? BATTLE_OPERATIONS : ITEM_OPERATIONS,
         operations: ops,
       }
     },
@@ -314,6 +321,7 @@ function installMap(config) {
       const pub = game.public
       const reject = rejectReason => ({ rejectReason })
       const present = party.filter(id => id === actorId || world.characterIds.includes(id))
+      game.internal.present = present
       const descriptions = []
       const notes = []
       const out = { audience: 'participants' }

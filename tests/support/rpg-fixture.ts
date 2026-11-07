@@ -5,12 +5,14 @@ import type { WorldJsonObject } from '@harness-world/contracts'
 import { WorldStore } from '@harness-world/store-sqlite'
 import { parseRpgConfig, type RpgConfig } from '../../packages/official-rpg/src/config.ts'
 import { generateMapActivities } from '../../packages/official-rpg/src/map-activity.ts'
+import { createRpgRules } from '../../packages/official-rpg/src/rules.ts'
 import { generateStatusModule } from '../../packages/official-rpg/src/status-module.ts'
 import { WorldHostRuntime } from '../../desktop/host/world-runtime.ts'
 import { fakeModels, startFakeProvider } from './fake-provider.ts'
 
 // Temporary wiring until Task 8 loads rpg.json in the host: the generated activities and status module are written
-// into a copy of tests/fixtures/rpg-pack as ordinary pack assets. Delete this helper once the host does it.
+// into a copy of tests/fixtures/rpg-pack as ordinary pack assets, and the RPG rules layer is handed to the runtime
+// composition (Ruling R3). Delete this helper once the host does it.
 
 const FIXTURE = resolve('tests/fixtures/rpg-pack')
 type Json = Record<string, any>
@@ -88,6 +90,7 @@ export async function openRpgFixture(options: RpgFixtureOptions = {}) {
     dataDirectory: data,
     models: fakeModels(provider.endpoint),
     timeoutMs: 5000,
+    plugins: { rules: [createRpgRules(config)] },
   })
   const events = () => {
     const store = new WorldStore(join(data, 'world.sqlite'))
@@ -103,6 +106,7 @@ export async function openRpgFixture(options: RpgFixtureOptions = {}) {
     data,
     inputs,
     events,
+    config,
     move: (locationId: string) => runtime.submit('/act move ' + JSON.stringify({ locationId })),
     async close() {
       await runtime.close()

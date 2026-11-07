@@ -158,7 +158,8 @@ describe('RPG map activities', () => {
   })
 
   it('the ruin-2 potion lies on the floor and the first character to take it keeps it', async () => {
-    const f = await fixture({ places: { [CHENG]: RUIN2 } })
+    // The iron door is not what this is about: open it.
+    const f = await fixture({ places: { [CHENG]: RUIN2 }, config: c => delete c.maps[0].exits })
     await f.move(RUIN2)
     // Cheng's scripted line for entering plays, then the map activity ends and leaves the floor to everyone.
     const line = f.events().find(e => e.eventType === 'character.speak' && data(e).characterId === CHENG)

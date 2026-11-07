@@ -25,6 +25,17 @@ function install(config) {
     owner: 'character',
     schema: { type: 'object', maxProperties: 8, additionalProperties: { type: 'string', maxLength: 100 } },
   })
+  const party = config.party
+  const PARTY = 'rpg-party'
+  if (party) {
+    statuses.push({
+      key: PARTY,
+      label: '队伍',
+      type: 'array',
+      owner: 'public',
+      schema: { type: 'array', maxItems: 16, items: { type: 'string', maxLength: 100 } },
+    })
+  }
 
   const actions = []
   if (config.rest) actions.push({ id: 'rest', label: config.rest.label, schema: noInput })
@@ -32,6 +43,11 @@ function install(config) {
   if (equipment.length) {
     actions.push({ id: 'equip', label: '装备{item}', targets: equipment, schema: noInput })
     actions.push({ id: 'unequip', label: '卸下{item}', targets: equipment, schema: noInput })
+  }
+  // Joining is always the joiner's own act: no parameter names anyone else, and the leader cannot join.
+  if (party) {
+    actions.push({ id: 'join', label: '加入队伍', schema: noInput })
+    actions.push({ id: 'leave', label: '离开队伍', schema: noInput })
   }
 
   const worn = own => (own && own['rpg-equipment']) || {}
@@ -50,7 +66,7 @@ function install(config) {
       }
       return row
     }
-    return { public: {}, characters: Object.fromEntries(ids.map(id => [id, own(id)])) }
+    return { public: party ? { [PARTY]: [] } : {}, characters: Object.fromEntries(ids.map(id => [id, own(id)])) }
   }
 
   // 只给现在可能成功的选项；执行时 resolve 会按真值再查一遍。
@@ -66,7 +82,9 @@ function install(config) {
       targets.use = usable
     }
     const equippable = mine
-      .filter(item => equipment.includes(item.entityId) && slotsOf(actorId).includes(config.equipment[item.entityId].slot))
+      .filter(
+        item => equipment.includes(item.entityId) && slotsOf(actorId).includes(config.equipment[item.entityId].slot),
+      )
       .map(item => item.entityId)
     const free = equippable.filter(id => !slotOf(self, id))
     if (free.length) {
@@ -79,10 +97,47 @@ function install(config) {
       operations.push('unequip')
       targets.unequip = wornGear
     }
+    if (party && actorId !== party.leader) {
+      const listed = (known.public[PARTY] || []).includes(actorId)
+      operations.push(listed ? 'leave' : 'join')
+    }
     return { operations, targets }
   }
 
+  // In the party means listed and standing with the leader. The module drops anyone listed but elsewhere whenever
+  // the leader or that member performs an RPG operation, so the list catches up with where people are.
+  function staleMembers(truth, actorId, world) {
+    if (!party) return []
+    const listed = truth.public[PARTY] || []
+    if (actorId === party.leader) return listed.filter(id => !world.characterIds.includes(id))
+    return listed.includes(actorId) && !world.characterIds.includes(party.leader) ? [actorId] : []
+  }
+  function partyChange(list, world, actorId) {
+    return {
+      changes: [{ holderId: null, key: PARTY, value: list }],
+      // Those present see the new list; anyone elsewhere keeps what they last saw.
+      reveals: [...new Set([actorId].concat(world.characterIds))].map(observerId => ({
+        observerId,
+        holderId: null,
+        key: PARTY,
+      })),
+    }
+  }
+
   function resolve(truth, actorId, operation, args, world, targetId) {
+    const stale = staleMembers(truth, actorId, world)
+    const remaining = (truth.public[PARTY] || []).filter(id => !stale.includes(id))
+    const result = operate(truth, actorId, operation, world, targetId, remaining)
+    if (result.rejectReason || !stale.length || result.changes.some(change => change.key === PARTY)) return result
+    const cleanup = partyChange(remaining, world, actorId)
+    return {
+      ...result,
+      changes: result.changes.concat(cleanup.changes),
+      reveals: result.reveals.concat(cleanup.reveals),
+    }
+  }
+
+  function operate(truth, actorId, operation, world, targetId, members) {
     const own = truth.characters[actorId]
     const reject = rejectReason => ({ rejectReason })
     if (operation === 'rest') {
@@ -104,7 +159,9 @@ function install(config) {
         key: statKey(key),
         value: Math.min(own[maxKey(key)], own[statKey(key)] + restore[key]),
       }))
-      const effect = Object.keys(restore).map(key => statLabel(key) + '恢复了').join('，')
+      const effect = Object.keys(restore)
+        .map(key => statLabel(key) + '恢复了')
+        .join('，')
       return {
         changes,
         reveals: [],
@@ -138,6 +195,17 @@ function install(config) {
         description: '卸下了' + (item ? item.name || item.kind : '装备') + '。',
         audience: 'scene',
       }
+    }
+    if (party && operation === 'join') {
+      if (actorId === party.leader) return reject('你就是队长。')
+      if (!world.characterIds.includes(party.leader)) return reject('队长不在这里。')
+      if (members.includes(actorId)) return reject('已经在队伍里了。')
+      return { ...partyChange(members.concat(actorId), world, actorId), description: '加入了队伍。', audience: 'scene' }
+    }
+    if (party && operation === 'leave') {
+      if (!(truth.public[PARTY] || []).includes(actorId)) return reject('你不在队伍里。')
+      const rest = members.filter(id => id !== actorId)
+      return { ...partyChange(rest, world, actorId), description: '离开了队伍。', audience: 'scene' }
     }
     return reject('没有这个操作。')
   }

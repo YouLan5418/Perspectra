@@ -56,9 +56,23 @@ describe('generateStatusModule', () => {
       statuses: { key: string; locations?: string[] }[]
       operations: { id: string }[]
     }
-    expect(def.statuses.map(s => s.key)).toEqual(['rpg-hp', 'rpg-hp-max', 'rpg-mp', 'rpg-mp-max', 'rpg-equipment'])
+    expect(def.statuses.map(s => s.key)).toEqual([
+      'rpg-hp',
+      'rpg-hp-max',
+      'rpg-mp',
+      'rpg-mp-max',
+      'rpg-equipment',
+      'rpg-party',
+    ])
     expect(def.statuses[1]?.locations).toEqual(['location:ruin-1', 'location:ruin-2'])
-    expect(def.operations.map(o => o.id)).toEqual(['rpg-rest', 'rpg-use', 'rpg-equip', 'rpg-unequip'])
+    expect(def.operations.map(o => o.id)).toEqual([
+      'rpg-rest',
+      'rpg-use',
+      'rpg-equip',
+      'rpg-unequip',
+      'rpg-join',
+      'rpg-leave',
+    ])
     const init = scripts.initialize(['character:player', 'character:cheng', 'character:aru']) as {
       characters: Record<string, Record<string, unknown>>
     }
@@ -127,6 +141,41 @@ describe('generateStatusModule', () => {
     const offer = p.policy(known, PLAYER, place)
     expect(offer.operations).toEqual(['rest', 'use', 'unequip'])
     expect(offer.targets).toEqual({ use: ['entity:potion'], unequip: ['entity:iron-sword'] })
+  })
+
+  it('a companion joins and leaves only herself; anyone listed but away from the leader is dropped on the next operation', () => {
+    const p = plugin()
+    const CHENG = 'character:cheng'
+    const base = truth({})
+    const party = (list: string[]) => ({
+      public: { 'rpg-party': list },
+      characters: { ...base.characters, [CHENG]: { 'rpg-hp': 1, 'rpg-hp-max': 30, 'rpg-mp': 0, 'rpg-mp-max': 12 } },
+    })
+    const at = (characterIds: string[]) => ({ ...world('location:living-room'), characterIds })
+    const call = (actor: string, op: string, list: string[], here: string[]) =>
+      p.resolve(party(list), actor, op, {}, at(here), null, null)
+    const place = { locationId: 'location:living-room', items: [] }
+    expect(p.policy({ public: {}, self: {} }, CHENG, place).operations).toContain('join')
+    expect(p.policy({ public: { 'rpg-party': [CHENG] }, self: {} }, CHENG, place).operations).toContain('leave')
+    expect(p.policy({ public: {}, self: {} }, PLAYER, place).operations).not.toContain('join')
+
+    expect(call(PLAYER, 'join', [], [PLAYER, CHENG]).rejectReason).toBe('你就是队长。')
+    expect(call(CHENG, 'join', [], [CHENG]).rejectReason).toBe('队长不在这里。')
+    const joined = call(CHENG, 'join', [], [PLAYER, CHENG])
+    expect(joined.changes).toEqual([{ holderId: null, key: 'rpg-party', value: [CHENG] }])
+    expect(joined.reveals.map((r: { observerId: string }) => r.observerId).sort()).toEqual([CHENG, PLAYER].sort())
+    expect(call(CHENG, 'join', [CHENG], [PLAYER, CHENG]).rejectReason).toBe('已经在队伍里了。')
+    expect(call(CHENG, 'leave', [CHENG], [PLAYER, CHENG]).changes).toEqual([
+      { holderId: null, key: 'rpg-party', value: [] },
+    ])
+    expect(call(CHENG, 'leave', [], [PLAYER, CHENG]).rejectReason).toBe('你不在队伍里。')
+
+    // Listed but elsewhere: the leader's next operation, or hers, drops her.
+    const rest = (actor: string, here: string[]) =>
+      p.resolve(party([CHENG]), actor, 'rest', {}, { ...world('location:bedroom'), characterIds: here }, null, null)
+    expect(rest(PLAYER, [PLAYER]).changes).toContainEqual({ holderId: null, key: 'rpg-party', value: [] })
+    expect(rest(CHENG, [CHENG]).changes).toContainEqual({ holderId: null, key: 'rpg-party', value: [] })
+    expect(rest(PLAYER, [PLAYER, CHENG]).changes.some((c: { key: string }) => c.key === 'rpg-party')).toBe(false)
   })
 
   it('ships a runtime file that can be read from source', () => {

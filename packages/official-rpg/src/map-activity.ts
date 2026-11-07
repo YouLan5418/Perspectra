@@ -66,6 +66,7 @@ export function generateMapActivities(
       equipment: config.equipment,
       ...(config.defeat ? { defeat: config.defeat } : {}),
       retreat: config.retreat,
+      lockDuringBattle: config.party?.lockDuringBattle ?? true,
     }
     const source = `${rules}\ninstallMap(${JSON.stringify(install)})\n`
     if (Buffer.byteLength(source) > ACTIVITY_SOURCE_LIMIT)
