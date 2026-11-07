@@ -68,4 +68,30 @@ describe('parseRpgConfig', () => {
     })
     expect(message.startsWith('stats：')).toBe(true)
   })
+
+  it('accepts every engage and scripted.when value and keeps round only for turn', () => {
+    const parse = (change: (c: Json) => void) => {
+      const value = referenceJson()
+      change(value)
+      return parseRpgConfig(value, referencePack)
+    }
+    expect(parse(c => (c.maps[0].engage = 'optional')).maps[0]?.engage).toBe('optional')
+    expect(parse(c => (c.retreat = 'back')).retreat).toBe('back')
+    for (const when of ['enter', 'encounter', 'enemy-defeated']) {
+      expect(parse(c => (c.maps[0].scripted[0].when = when)).maps[0]?.scripted?.[0]?.when).toBe(when)
+    }
+    const turn = parse(c => Object.assign(c.maps[0].scripted[0], { when: 'turn', round: 2 })).maps[0]?.scripted?.[0]
+    expect(turn).toMatchObject({ when: 'turn', round: 2 })
+    expect(messageFor(c => (c.maps[0].scripted[0].when = 'turn')).startsWith('maps[0].scripted[0].round：')).toBe(true)
+    expect(messageFor(c => Object.assign(c.maps[0].scripted[0], { when: 'turn', round: 0 }))).toContain('round')
+    expect(messageFor(c => (c.maps[0].scripted[0].round = 1)).startsWith('maps[0].scripted[0].round：')).toBe(true)
+    expect(messageFor(c => (c.maps[0].engage = 'manual')).startsWith('maps[0].engage：')).toBe(true)
+    expect(messageFor(c => (c.maps[0].scripted[0].when = 'victory')).startsWith('maps[0].scripted[0].when：')).toBe(
+      true,
+    )
+  })
+
+  it('names an unknown root field without a leading dot', () => {
+    expect(messageFor(c => (c.foo = 1)).startsWith('foo：')).toBe(true)
+  })
 })

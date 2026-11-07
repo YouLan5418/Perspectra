@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { createContext, Script } from 'node:vm'
 import { describe, expect, it } from 'vitest'
+import { StatusState, adjudicateItemChanges, parseStatusOperationResult } from '@harness-world/application'
 import { StatusScripts } from '@harness-world/official-status'
 import { parseRpgConfig } from './config.ts'
 import { generateStatusModule } from './status-module.ts'
@@ -130,5 +131,73 @@ describe('generateStatusModule', () => {
 
   it('ships a runtime file that can be read from source', () => {
     expect(readFileSync(new URL('./runtime/status-rules.js', import.meta.url), 'utf8')).toContain('function install')
+  })
+
+  it('keeps offering unequip for an occupied slot after the item left her hands', () => {
+    const p = plugin()
+    const known = { public: {}, self: { 'rpg-equipment': { weapon: 'entity:iron-sword' } } }
+    const place = { locationId: 'location:ruin-1', items: [item('entity:iron-sword', 'character:cheng')] }
+    expect(p.policy(known, PLAYER, place).targets?.unequip).toEqual(['entity:iron-sword'])
+    const off = p.resolve(
+      truth({ 'rpg-equipment': { weapon: 'entity:iron-sword' } }),
+      PLAYER,
+      'unequip',
+      {},
+      world('location:ruin-1', item('entity:iron-sword', 'character:cheng')),
+      'entity:iron-sword',
+      null,
+    )
+    expect(off.changes).toEqual([{ holderId: PLAYER, key: 'rpg-equipment', value: {} }])
+  })
+
+  it('has the host accept a use result: status shape and the consumed-item change', () => {
+    const scripts = new StatusScripts({
+      modules: [{ id: 'rpg', source, characters: declaration.characters, unavailableCapabilities: [] }],
+    })
+    const state = new StatusState(
+      scripts.definition,
+      [PLAYER],
+      referencePack.entityIds.map(entityId => ({ entityId })),
+    )
+    const raw = scripts.resolve({
+      truth: truth({}),
+      actorId: PLAYER,
+      operation: 'rpg-use',
+      parameters: {},
+      world: world('location:ruin-1', item('entity:potion', PLAYER, '药水')),
+      targetId: 'entity:potion',
+      external: null,
+    } as never)
+    const result = parseStatusOperationResult(raw)
+    if ('rejected' in result) throw new Error(result.rejected)
+    state.validate(
+      [] as never,
+      {
+        source: { kind: 'operation', operation: 'rpg-use', actorId: PLAYER },
+        changes: result.changes,
+        reveals: [],
+        description: result.description,
+      } as never,
+      [PLAYER],
+    )
+    const events = [
+      {
+        eventType: 'entity.upsert',
+        data: { entityId: 'entity:potion', kind: '药水', holderId: PLAYER, locationId: null },
+      },
+    ]
+    const drafts = adjudicateItemChanges({
+      events: events as never,
+      actorId: PLAYER,
+      interactionId: 'status:rpg-use',
+      sceneIds: [PLAYER],
+      entityIds: ['entity:potion'],
+      value: result.items,
+    })
+    expect(drafts).toHaveLength(1)
+    expect(drafts[0]).toMatchObject({
+      eventType: 'entity.upsert',
+      data: { entityId: 'entity:potion', kind: '药水（已用完）' },
+    })
   })
 })

@@ -1,5 +1,6 @@
 // RPG 状态模块的运行时规则。生成器把本文件的原始字节与一行 install(<配置>) 拼成包模块脚本，
 // 所以这里只能用不依赖 import/export 的普通脚本写法，并且只读取 install 收到的配置。
+// oxlint-disable-next-line no-unused-vars -- called by the appended install(<config>) line
 function install(config) {
   const USED = '（已用完）'
   const stats = config.stats
@@ -72,7 +73,8 @@ function install(config) {
       operations.push('equip')
       targets.equip = free
     }
-    const wornGear = equippable.filter(id => slotOf(self, id))
+    // Whatever occupies a slot can be taken off, held or not; the host still needs the item within reach.
+    const wornGear = equipment.filter(id => slotOf(self, id))
     if (wornGear.length) {
       operations.push('unequip')
       targets.unequip = wornGear

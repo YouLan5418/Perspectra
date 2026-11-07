@@ -44,7 +44,9 @@ export interface RpgExit {
   lockedReason?: string
 }
 export interface RpgScripted {
-  when: 'enter' | 'encounter' | 'victory'
+  when: 'enter' | 'encounter' | 'turn' | 'enemy-defeated'
+  /** Battle round (1-based); required for `turn`, not allowed otherwise. */
+  round?: number
   characterId: string
   say?: string
   skill?: string
@@ -54,7 +56,7 @@ export interface RpgMap {
   locationId: string
   narration: { first: string; again?: string }
   enemies?: string[]
-  engage?: 'on-enter' | 'manual'
+  engage?: 'on-enter' | 'optional'
   drops?: string[]
   chest?: string
   exits?: RpgExit[]
@@ -72,7 +74,7 @@ export interface RpgConfig {
   vault?: string
   maps: RpgMap[]
   defeat?: { to: string; restore: Record<string, number> }
-  /** `stay`: the party stays where it is; `back`: it returns to the previous location. */
+  /** `stay`: the party stays; `back`: teleport to `defeat.to` like a defeat, without the defeat restore. */
   retreat: 'stay' | 'back'
   party?: { leader: string; lockDuringBattle: boolean }
 }
@@ -100,7 +102,7 @@ const count = (value: unknown, path: string): number =>
     ? value
     : fail(path, '需要是 0 到 100000 的整数')
 const only = (value: Json, path: string, keys: readonly string[]) => {
-  for (const key of Object.keys(value)) if (!keys.includes(key)) fail(`${path}.${key}`, '不认识的字段')
+  for (const key of Object.keys(value)) if (!keys.includes(key)) fail(path ? `${path}.${key}` : key, '不认识的字段')
 }
 const oneOf = <T extends string>(value: unknown, path: string, options: readonly T[]): T =>
   typeof value === 'string' && (options as readonly string[]).includes(value)
@@ -277,7 +279,7 @@ export function parseRpgConfig(value: unknown, pack: RpgPackIds): RpgConfig {
         ...(narration.again === undefined ? {} : { again: text(narration.again, `${path}.narration.again`) }),
       },
       ...(mapEnemies ? { enemies: mapEnemies } : {}),
-      ...(m.engage === undefined ? {} : { engage: oneOf(m.engage, `${path}.engage`, ['on-enter', 'manual']) }),
+      ...(m.engage === undefined ? {} : { engage: oneOf(m.engage, `${path}.engage`, ['on-enter', 'optional']) }),
       ...(m.drops === undefined
         ? {}
         : { drops: list(m.drops, `${path}.drops`).map((id, j) => entity(id, `${path}.drops[${j}]`)) }),
@@ -308,7 +310,7 @@ export function parseRpgConfig(value: unknown, pack: RpgPackIds): RpgConfig {
             scripted: list(m.scripted, `${path}.scripted`).map((sRow, j): RpgScripted => {
               const p = `${path}.scripted[${j}]`
               const s = record(sRow, p)
-              only(s, p, ['when', 'characterId', 'say', 'skill', 'target'])
+              only(s, p, ['when', 'round', 'characterId', 'say', 'skill', 'target'])
               if (s.say === undefined && s.skill === undefined) fail(p, '需要 say 或 skill')
               const id = character(s.characterId, `${p}.characterId`)
               if (!(id in characters)) fail(`${p}.characterId`, `角色 ${id} 没有在 characters 中配置`)
@@ -317,8 +319,14 @@ export function parseRpgConfig(value: unknown, pack: RpgPackIds): RpgConfig {
                 fail(`${p}.skill`, `角色 ${id} 没有技能 ${useSkill}`)
               const target =
                 s.target === undefined ? undefined : known(mapEnemies ?? [], s.target, `${p}.target`, '敌人')
+              const when = oneOf(s.when, `${p}.when`, ['enter', 'encounter', 'turn', 'enemy-defeated'])
+              if (when === 'turn') {
+                if (typeof s.round !== 'number' || !Number.isInteger(s.round) || s.round < 1)
+                  fail(`${p}.round`, 'when 为 turn 时需要正整数 round')
+              } else if (s.round !== undefined) fail(`${p}.round`, '只有 when 为 turn 时才能写 round')
               return {
-                when: oneOf(s.when, `${p}.when`, ['enter', 'encounter', 'victory']),
+                when,
+                ...(when === 'turn' ? { round: s.round as number } : {}),
                 characterId: id,
                 ...(s.say === undefined ? {} : { say: text(s.say, `${p}.say`) }),
                 ...(useSkill === undefined ? {} : { skill: useSkill }),
