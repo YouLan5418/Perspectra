@@ -1,0 +1,35 @@
+{
+  "plugin": { "id": "official-rpg", "version": "1" },
+  "stats": [
+    { "key": "hp", "label": "生命", "locations": ["location:ruin-1", "location:ruin-2"] },
+    { "key": "mp", "label": "魔力", "locations": ["location:ruin-1", "location:ruin-2"] }
+  ],
+  "characters": {
+    "character:player": { "stats": { "hp": 40, "mp": 8 }, "attack": 2, "defense": 1, "speed": 30, "skills": ["strike", "fire", "heal"], "slots": ["weapon"] },
+    "character:cheng": { "stats": { "hp": 30, "mp": 12 }, "attack": 0, "defense": 1, "speed": 20, "skills": ["strike", "fire", "heal"], "slots": ["weapon"] }
+  },
+  "skills": [
+    { "id": "strike", "name": "普通攻击", "kind": "damage", "scope": "one", "power": 8, "cost": {} },
+    { "id": "fire", "name": "火球术", "kind": "damage", "scope": "one", "power": 16, "cost": { "mp": 3 } },
+    { "id": "heal", "name": "治疗术", "kind": "heal", "scope": "one", "power": 14, "cost": { "mp": 3 } }
+  ],
+  "equipment": { "entity:iron-sword": { "slot": "weapon", "attack": 3 } },
+  "consumables": { "entity:potion": { "restore": { "hp": 20 } } },
+  "rest": { "label": "睡一觉", "locations": ["location:bedroom"], "restore": "full" },
+  "enemies": {
+    "golem": { "name": "遗迹守卫", "hp": 50, "attack": 1, "defense": 2, "speed": 10, "skills": ["strike"], "strategy": "lowest-hp",
+      "lines": { "encounter": "擅入者，止步。", "defeated": "你们……终究还是来了。" } }
+  },
+  "vault": "location:vault",
+  "maps": [
+    { "locationId": "location:ruin-1", "narration": { "first": "潮湿的石廊，尽头有一扇铁门。", "again": "石廊里只剩守卫的残骸。" },
+      "enemies": ["golem"], "engage": "on-enter", "drops": ["entity:iron-key"],
+      "exits": [{ "to": "location:ruin-2", "requires": { "holds": "entity:iron-key" }, "lockedReason": "铁门锁着，需要钥匙。" }],
+      "scripted": [{ "when": "encounter", "characterId": "character:cheng", "say": "小心，它的护甲很硬！", "skill": "fire", "target": "golem" }] },
+    { "locationId": "location:ruin-2", "narration": { "first": "第二层很安静，角落里有一个木箱。" }, "chest": "entity:potion-2",
+      "scripted": [{ "when": "enter", "characterId": "character:cheng", "say": "这里好像没人来过。" }] }
+  ],
+  "defeat": { "to": "location:living-room", "restore": { "hp": 1 } },
+  "retreat": "stay",
+  "party": { "leader": "character:player", "lockDuringBattle": true }
+}

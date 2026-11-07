@@ -1116,6 +1116,41 @@ describe('activity results that move participants and items', () => {
     }
   })
 
+  it('hooks see where in history the player last arrived, so a fresh arrival differs from staying', async () => {
+    const f = await fixture(
+      () => ({ decision: 'abstain' }),
+      s =>
+        s
+          .replace(
+            'initialize({ playerId, npcIds }) {',
+            'initialize({ playerId, npcIds, world }) { globalThis.__at = world.arrivedAtSeq;',
+          )
+          .replace("public: { range: '1–100',", "public: { arrivedAtSeq: globalThis.__at, range: '1–100',"),
+    )
+    const arrived = async () => {
+      const start = await f.runtime.activityAction({
+        activityId: null,
+        revision: 0,
+        operation: 'start',
+        parameters: {},
+        requestId: randomUUID(),
+      })
+      const at = ((start.activity!.game as WorldJsonObject).public as WorldJsonObject).arrivedAtSeq
+      await f.runtime.activityAction(request(start, 'quit'))
+      return at
+    }
+    expect(await arrived()).toBe(0)
+    expect(await arrived()).toBe(0)
+    await f.runtime.submit('/act move {"locationId":"location:kitchen"}')
+    await f.runtime.submit('/act move {"locationId":"location:bedroom"}')
+    const back = f
+      .events()
+      .findLast(
+        e => e.eventType === 'character.moved' && (e.data as WorldJsonObject).characterId === 'character:player',
+      )!
+    expect(await arrived()).toBe(back.seq)
+  })
+
   it('a moved participant left behind sees nothing of the activity afterwards', async () => {
     const f = await moving('guess', { moves: home })
     const start = await f.runtime.activityAction(request(await f.runtime.state(), 'start'))

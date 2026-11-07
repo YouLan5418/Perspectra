@@ -1,0 +1,29 @@
+{
+  "schemaVersion": "worldpack-entities/v2",
+  "entities": [
+    {
+      "entityId": "entity:iron-sword",
+      "locationId": "location:living-room",
+      "kind": "iron-sword",
+      "name": "铁剑"
+    },
+    {
+      "entityId": "entity:potion",
+      "locationId": "location:living-room",
+      "kind": "potion",
+      "name": "药水"
+    },
+    {
+      "entityId": "entity:potion-2",
+      "locationId": "location:ruin-2",
+      "kind": "potion",
+      "name": "药水"
+    },
+    {
+      "entityId": "entity:iron-key",
+      "locationId": "location:vault",
+      "kind": "iron-key",
+      "name": "铁钥匙"
+    }
+  ]
+}

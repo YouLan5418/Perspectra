@@ -78,7 +78,11 @@ describe('parseRpgConfig', () => {
     expect(parse(c => (c.maps[0].engage = 'optional')).maps[0]?.engage).toBe('optional')
     expect(parse(c => (c.retreat = 'back')).retreat).toBe('back')
     for (const when of ['enter', 'encounter', 'enemy-defeated']) {
-      expect(parse(c => (c.maps[0].scripted[0].when = when)).maps[0]?.scripted?.[0]?.when).toBe(when)
+      const lineOnly = (c: Json) => {
+        c.maps[0].scripted[0].when = when
+        if (when !== 'encounter') (delete c.maps[0].scripted[0].skill, delete c.maps[0].scripted[0].target)
+      }
+      expect(parse(lineOnly).maps[0]?.scripted?.[0]?.when).toBe(when)
     }
     const turn = parse(c => Object.assign(c.maps[0].scripted[0], { when: 'turn', round: 2 })).maps[0]?.scripted?.[0]
     expect(turn).toMatchObject({ when: 'turn', round: 2 })
@@ -89,6 +93,25 @@ describe('parseRpgConfig', () => {
     expect(messageFor(c => (c.maps[0].scripted[0].when = 'victory')).startsWith('maps[0].scripted[0].when：')).toBe(
       true,
     )
+  })
+
+  it('retreat back needs a defeat destination', () => {
+    expect(
+      messageFor(c => {
+        c.retreat = 'back'
+        delete c.defeat
+      }).startsWith('retreat：'),
+    ).toBe(true)
+  })
+
+  it('a chest item must start on its own map, and skills are scripted only in battle', () => {
+    expect(messageFor(c => (c.maps[1].chest = 'entity:iron-key'))).toMatch(/^maps\[1\]\.chest：.*location:ruin-2/u)
+    expect(messageFor(c => (c.maps[0].scripted[0].when = 'enter')).startsWith('maps[0].scripted[0].skill：')).toBe(true)
+    expect(
+      messageFor(c => Object.assign(c.maps[1].scripted[0], { when: 'turn', round: 1 })).startsWith(
+        'maps[1].scripted[0].when：',
+      ),
+    ).toBe(true)
   })
 
   it('names an unknown root field without a leading dot', () => {

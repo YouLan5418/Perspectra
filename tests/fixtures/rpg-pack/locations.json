@@ -1,0 +1,25 @@
+{
+  "schemaVersion": "worldpack-locations/v1",
+  "locations": [
+    {
+      "locationId": "location:living-room",
+      "name": "客厅"
+    },
+    {
+      "locationId": "location:bedroom",
+      "name": "卧室"
+    },
+    {
+      "locationId": "location:ruin-1",
+      "name": "遗迹一层"
+    },
+    {
+      "locationId": "location:ruin-2",
+      "name": "遗迹二层"
+    },
+    {
+      "locationId": "location:vault",
+      "name": "宝库（不可到达）"
+    }
+  ]
+}

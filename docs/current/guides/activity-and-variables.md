@@ -76,7 +76,8 @@ return { game, description, audience: 'participants',
 - `moves` 至多 8 项，只能移动本场参与者，目的地必须是包内地点；已经在目的地的参与者不动。每个移动和基础移动规则写同样的 `character.moved`，场景转换和目击照常生成：留在原地的人看到他们离开，之后的活动结果仍只给参与者。
 - `items` 至多 16 项，字段与状态操作的物品变化相同，但这是作者规则的结果：不检查够不够得着，去向可以是任何已声明角色或地点，一次可以移动多件。物品必须存在，托管必须与已提交事实一致。
 - `moves`、`items`、`status` 与 `activity.updated` 同一次提交；其中任一项无效（例如移动非参与者、未知地点或不存在的物品），整次结果都不提交，错误里带出对应 ID。即时回合原本只允许移动玩家本人，这里仅放宽给活动结果点名的参与者。
-- 自动测试见 [宿主测试](../../../tests/host/pack-activity.test.ts) 的“activity results that move participants and items”；尚未用真实模型试玩。
+- NPC 在自己的回合执行这类操作时（例如战败发生在队友出手的那一轮），到达地点的人只看到她和其他人到来，看不到这次活动操作和结果文字；结果仍只投递给参与者。
+- 自动测试见 [宿主测试](../../../tests/host/pack-activity.test.ts) 的“activity results that move participants and items”，NPC 回合触发的传送见 [RPG 地图活动测试](../../../tests/host/rpg-map-activity.test.ts)；尚未用真实模型试玩。
 
 ### 多活动选择与暂停（2026-10-10，当前源码）
 
@@ -112,7 +113,7 @@ autoStart(truth, world, previous) {
 }
 ```
 
-- **参数：** `truth` 是状态真实值（没有状态脚本时为 null），只在宿主内使用；`world` 是**玩家**当前授权事实（locationId、characterIds、items），格式同 resolve 第五参数；`previous` 是这场活动上次的玩家视图，从未开始过时为 null。
+- **参数：** `truth` 是状态真实值（没有状态脚本时为 null），只在宿主内使用；`world` 是**玩家**当前授权事实（locationId、arrivedAtSeq、characterIds、items），格式同 resolve 第五参数；`previous` 是这场活动上次的玩家视图，从未开始过时为 null。`arrivedAtSeq`（2026-11-08）是玩家最近一次 `character.moved` 的事件序号，从没移动过为 0：例如进入遗迹时播一次旁白，作者在 initialize 里把它记进活动状态，条件写 `previous === null || previous.game.public.arrivedAtSeq !== world.arrivedAtSeq`，玩家站着不动就不会重播，离开再回来才会再开始。initialize 和 resolve 的 `world` 也带这个字段。
 - **返回：** `null` 表示不检查；否则返回对象。`when` 为 1–32 项条件，全部为 true 才满足，数组长度就是条件数目。每项可以是布尔值，也可以是 `[标签, 布尔值]`，标签为 1–80 字符，两种写法可以混用；标签不影响是否满足，只是给这条条件起个名字，[包透视](pack-lens.md)的事件视图和推演会逐条显示标签与 ✔/✘（没写标签的显示为“条件 N”）。建议都写上标签，排查“为什么没触发”时一眼就能看出卡在哪一条。玩家选人活动必须给 `npcIds`，固定参与者活动不能给。`notice`（1–500 字符）是自动开始专用的开场提示，用法同定义里的 `opening`：玩家只看到这一条开场行，不会连着出现两条系统行；参与者仍收到固定开场行。玩家开场行的优先级为 `notice` → `opening` → 固定的“〈标题〉开始。”。
 - **何时检查：** 一个被接受的玩家回合结束时，依次经过在场角色反应、`onRoundEnd`，最后检查自动开始。幂等重试、NPC 行动、逃生或暂停 NPC 期间都不检查。有活动正在运行时不检查；暂停中的活动不参与（继续仍由玩家决定）。
 - **选哪一场：** 条件全部满足的候选中，条件数目最多的开始；数目相同时随机选一个。每轮最多开始一场，本轮新开始的活动不会在同一轮触发下一场。随机值和活动初始化的随机数记录在同一序列里，重新生成这一轮时按记录回放。
@@ -299,7 +300,7 @@ onRoundEnd 拿到真实值和轮次，拿不到角色上下文或模型输出；
 [官方序章脚本](../../../examples/world-packs/model-girls-official/scripts/activity.js) 是新增能力的完整示例：
 
 - initialize 的 `world` 为玩家当前授权场景；`previous` 为上次活动的玩家视图，用于继续已有序章或进入生活菜单。
-- resolve 的第五参数 `world` 为操作主体当前授权事实，包含 locationId、characterIds 与 items.current / lastObserved。lastObserved 仅是目击记录，不能当作当前归属。
+- resolve 的第五参数 `world` 为操作主体当前授权事实，包含 locationId、arrivedAtSeq（最近一次移动的事件序号，没移动过为 0）、characterIds 与 items.current / lastObserved。lastObserved 仅是目击记录，不能当作当前归属。
 - resolve 返回 `playerExpression: { text }` 可在明确玩家选择的操作中同步提交公开玩家表达；不能用于 NPC 代替玩家行动。普通活动仍可只返回 game、description、audience。
 - 也可返回 `playerExpression: { narration }`，以玩家名下的旁白提交，例如赔罪晚宴的“过了 5 分钟，墙上的钟指向 16:05。”，不替玩家说台词。在场角色照常观察到它。
 - 操作定义可加 `quick: true`。例如晚宴时钟的“等 5 分钟”直接出现在玩家行动菜单里，点一下即可：宿主先开始活动，再执行该操作，分成两次普通提交；开始不计入自主触发，操作照常计入。玩家只做了一个动作，所以这次开始不写开场行（2026-10-25 起），记录里只出现操作本身的结果，例如“时间流逝，来到了午后”，不再多一条“〈标题〉开始。”。声明了快捷操作的活动不再显示“开始”入口。仅适用于只有玩家参与、没有参与者选择、操作没有参数的活动；操作仍须被开始后的 policy 允许，否则拒绝并保留已开始的活动，玩家可在卡片里关闭。

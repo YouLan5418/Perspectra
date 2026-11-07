@@ -36,9 +36,24 @@ export function actorWorldView(
   const scene = withSceneDecisions(worldPath, service => service.decideFromEvents(address, actor, events, asOfWorldSeq))
   return {
     locationId: currentLocation(events, actorId) ?? null,
+    arrivedAtSeq: arrivedAtSeq(events, actorId),
     characterIds: [...scene.observerIds],
     items: characterVisibleItems(manifest, events, actor, scene.observerIds),
   }
+}
+
+/** Where in history the actor last moved: lets a hook tell a fresh arrival from staying put. 0 if she never moved.
+ * Committed events carry their seq; an uncommitted draft counts by its position in the prefix. */
+function arrivedAtSeq(events: readonly RulebookEvent[], actorId: string): number {
+  for (let i = events.length - 1; i >= 0; i--) {
+    const event = events[i]!
+    const data = event.data as { characterId?: unknown } | null
+    if (event.eventType === 'character.moved' && data?.characterId === actorId) {
+      const seq = (event as { seq?: unknown }).seq
+      return typeof seq === 'number' ? seq : i + 1
+    }
+  }
+  return 0
 }
 
 /** One committed prefix read once and shared by every activity in a single views() or autoStart() pass.

@@ -162,7 +162,7 @@ ActivitiesRuntime 选择唯一正在运行的 ActivityRuntime，只向该活动�
 
 NPC 固定台词发表时，可选 `onPublished(state, actorId, expression)` 返回新的 game，或 null。宿主仅在活动中的参与角色发表合法 speak 时调用，将发表与进度更新原子提交；提交失败不会跳过该句。该 hook 是同步裁定，不直接发言、调用模型或启动独立引擎。
 
-`initialize` 另收到玩家授权的 `world` 和 `previous`（玩家自己的上次活动视图或 null）；`resolve` 第五参数是当前行动主体授权的 `world`。它包含 locationId、当前可观察角色 characterIds、items.current / lastObserved，使用同一事件前缀与已有可见物品投影，不提供全世界库存。条件不满足可返回唯一字段 `rejectReason`（非空、最多 2000 字符），不提交活动变更。
+`initialize` 另收到玩家授权的 `world` 和 `previous`（玩家自己的上次活动视图或 null）；`resolve` 第五参数是当前行动主体授权的 `world`。它包含 locationId、最近一次移动的事件序号 arrivedAtSeq（没移动过为 0）、当前可观察角色 characterIds、items.current / lastObserved，使用同一事件前缀与已有可见物品投影，不提供全世界库存。条件不满足可返回唯一字段 `rejectReason`（非空、最多 2000 字符），不提交活动变更。
 
 [官方包](../../../examples/world-packs/model-girls-official/README.md) 使用这些入口完成 112 条序章表达，其中 5 条为玩家中性问题。最后请求收留后活动结束，后续输入走真实模型。生活活动只提交开场种子；米饭制作另由已有交互扩展机制裁定。自动实验核对完整表达与零角色 provider 调用；后续本机 Gemini 已完成拒绝、正式料理、私密交流、蛋糕目击和归档后回访的短场景验收，见 [真实记录](../../../examples/world-packs/model-girls-official/LIVE-VALIDATION.md)。默认反应时间截止及未覆盖组合仍明确保留。
 

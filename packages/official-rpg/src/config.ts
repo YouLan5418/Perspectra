@@ -82,6 +82,8 @@ export interface RpgPackIds {
   characterIds: string[]
   locationIds: string[]
   entityIds: string[]
+  /** Where each entity starts: a location, or null when a character holds it. */
+  entityLocations: Record<string, string | null>
 }
 
 /** Host limits for one status module: 64 statuses in all, `rpg-<key>-max` must fit a 41-character status key. */
@@ -260,6 +262,14 @@ export function parseRpgConfig(value: unknown, pack: RpgPackIds): RpgConfig {
   }
   const enemyIds = Object.keys(enemies)
 
+  // A chest is an item lying on the map's floor, picked up with the pack's own take.
+  const chestAt = (id: unknown, locationId: unknown, path: string) => {
+    const name = entity(id, path)
+    if (pack.entityLocations[name] !== locationId)
+      fail(path, `宝箱物品 ${name} 需要一开始放在本地图 ${String(locationId)}`)
+    return name
+  }
+
   const vault = root.vault === undefined ? undefined : location(root.vault, 'vault')
 
   const maps = list(root.maps ?? [], 'maps').map((row, i): RpgMap => {
@@ -283,7 +293,7 @@ export function parseRpgConfig(value: unknown, pack: RpgPackIds): RpgConfig {
       ...(m.drops === undefined
         ? {}
         : { drops: list(m.drops, `${path}.drops`).map((id, j) => entity(id, `${path}.drops[${j}]`)) }),
-      ...(m.chest === undefined ? {} : { chest: entity(m.chest, `${path}.chest`) }),
+      ...(m.chest === undefined ? {} : { chest: chestAt(m.chest, m.locationId, `${path}.chest`) }),
       ...(m.exits === undefined
         ? {}
         : {
@@ -320,6 +330,11 @@ export function parseRpgConfig(value: unknown, pack: RpgPackIds): RpgConfig {
               const target =
                 s.target === undefined ? undefined : known(mapEnemies ?? [], s.target, `${p}.target`, '敌人')
               const when = oneOf(s.when, `${p}.when`, ['enter', 'encounter', 'turn', 'enemy-defeated'])
+              if (useSkill !== undefined && when !== 'encounter' && when !== 'turn')
+                fail(`${p}.skill`, '只有 when 为 encounter 或 turn 时才能指定技能')
+              if (target !== undefined && useSkill === undefined) fail(`${p}.target`, '指定目标时需要同时指定 skill')
+              if ((when === 'encounter' || when === 'turn' || when === 'enemy-defeated') && !mapEnemies?.length)
+                fail(`${p}.when`, `地图没有敌人，不会出现 ${when} 时机`)
               if (when === 'turn') {
                 if (typeof s.round !== 'number' || !Number.isInteger(s.round) || s.round < 1)
                   fail(`${p}.round`, 'when 为 turn 时需要正整数 round')
@@ -336,6 +351,7 @@ export function parseRpgConfig(value: unknown, pack: RpgPackIds): RpgConfig {
           }),
     }
   })
+  if (maps.some(m => m.enemies?.length) && !statKeys.includes('hp')) fail('stats', '有敌人的地图需要属性 hp 作为生命')
   const mapIds = maps.map(m => m.locationId)
   const duplicate = mapIds.findIndex((id, i) => mapIds.indexOf(id) !== i)
   if (duplicate >= 0) fail(`maps[${duplicate}].locationId`, `地点 ${mapIds[duplicate]} 已经配置过地图`)
@@ -358,6 +374,9 @@ export function parseRpgConfig(value: unknown, pack: RpgPackIds): RpgConfig {
     party = { leader, lockDuringBattle: p.lockDuringBattle !== false }
   }
 
+  const retreat = oneOf(root.retreat ?? 'stay', 'retreat', ['stay', 'back'])
+  if (retreat === 'back' && !defeat) fail('retreat', 'back 需要同时配置 defeat.to 作为撤退去向')
+
   return {
     plugin: { id: OFFICIAL_RPG_ID, version: OFFICIAL_RPG_VERSION },
     stats,
@@ -370,7 +389,7 @@ export function parseRpgConfig(value: unknown, pack: RpgPackIds): RpgConfig {
     ...(vault ? { vault } : {}),
     maps,
     ...(defeat ? { defeat } : {}),
-    retreat: oneOf(root.retreat ?? 'stay', 'retreat', ['stay', 'back']),
+    retreat,
     ...(party ? { party } : {}),
   }
 }

@@ -29,7 +29,7 @@
     { "locationId": "location:ruin-2", "narration": { "first": "第二层很安静，角落里有一个木箱。" }, "chest": "entity:potion-2",
       "scripted": [{ "when": "enter", "characterId": "character:cheng", "say": "这里好像没人来过。" }] }
   ],
-  "defeat": { "to": "location:home", "restore": { "hp": 1 } },
+  "defeat": { "to": "location:living-room", "restore": { "hp": 1 } },
   "retreat": "stay",
   "party": { "leader": "character:player", "lockDuringBattle": true }
 }

@@ -59,7 +59,7 @@ describe('generateStatusModule', () => {
     expect(def.statuses.map(s => s.key)).toEqual(['rpg-hp', 'rpg-hp-max', 'rpg-mp', 'rpg-mp-max', 'rpg-equipment'])
     expect(def.statuses[1]?.locations).toEqual(['location:ruin-1', 'location:ruin-2'])
     expect(def.operations.map(o => o.id)).toEqual(['rpg-rest', 'rpg-use', 'rpg-equip', 'rpg-unequip'])
-    const init = scripts.initialize(['character:player', 'character:cheng', 'character:other']) as {
+    const init = scripts.initialize(['character:player', 'character:cheng', 'character:aru']) as {
       characters: Record<string, Record<string, unknown>>
     }
     expect(init.characters['character:player']).toMatchObject({
@@ -68,7 +68,7 @@ describe('generateStatusModule', () => {
       'rpg-mp': 8,
       'rpg-equipment': {},
     })
-    expect(init.characters['character:other']).toMatchObject({ 'rpg-hp': 0, 'rpg-hp-max': 0 })
+    expect(init.characters['character:aru']).toMatchObject({ 'rpg-hp': 0, 'rpg-hp-max': 0 })
   })
 
   it('rest restores to max only where declared; use applies a consumable the actor holds; equip requires holding the item and a matching slot', () => {
@@ -94,7 +94,7 @@ describe('generateStatusModule', () => {
     const equip = (who: string, items: object[], own = {}) =>
       p.resolve(truth(own), who, 'equip', {}, world('location:ruin-1', ...items), 'entity:iron-sword', null)
     expect(equip(PLAYER, [item('entity:iron-sword', null)]).rejectReason).toBeTruthy()
-    expect(equip('character:other', [item('entity:iron-sword', 'character:other')]).rejectReason).toBeTruthy()
+    expect(equip('character:aru', [item('entity:iron-sword', 'character:aru')]).rejectReason).toBeTruthy()
     expect(
       equip(PLAYER, [item('entity:iron-sword', PLAYER)], { 'rpg-equipment': { weapon: 'entity:other' } }).rejectReason,
     ).toBeTruthy()

@@ -1,0 +1,39 @@
+{
+  "schemaVersion": "worldpack-scenes/v2",
+  "scenes": [
+    {
+      "sceneId": "scene:living-room",
+      "lifecycle": "active",
+      "locationId": "location:living-room",
+      "participantIds": [
+        "character:player",
+        "character:cheng",
+        "character:aru"
+      ]
+    },
+    {
+      "sceneId": "scene:bedroom",
+      "lifecycle": "created",
+      "locationId": "location:bedroom",
+      "participantIds": []
+    },
+    {
+      "sceneId": "scene:ruin-1",
+      "lifecycle": "created",
+      "locationId": "location:ruin-1",
+      "participantIds": []
+    },
+    {
+      "sceneId": "scene:ruin-2",
+      "lifecycle": "created",
+      "locationId": "location:ruin-2",
+      "participantIds": []
+    },
+    {
+      "sceneId": "scene:vault",
+      "lifecycle": "created",
+      "locationId": "location:vault",
+      "participantIds": []
+    }
+  ]
+}
