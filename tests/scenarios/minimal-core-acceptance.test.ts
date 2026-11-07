@@ -138,6 +138,21 @@ it('refuses effects that contradict or invent physical facts, and leaves the wor
   expect(currentEntityState(f.events(), CUP)).toMatchObject({ holderId: PLAYER })
 })
 
+it('lets an immediate round move another character only when the caller allows it, still checked against the map', async () => {
+  const f = open()
+  await expect(f.round({ events: [moved({ characterId: NPC })], allowedMovers: [PLAYER] })).rejects.toThrow(
+    'bound player',
+  )
+  await expect(
+    f.round({ events: [moved({ characterId: NPC, toLocationId: 'location:unknown' })], allowedMovers: [NPC] }),
+  ).rejects.toThrow('declared location')
+  await expect(
+    f.round({ events: [moved({ characterId: NPC, fromLocationId: 'location:next' })], allowedMovers: [NPC] }),
+  ).rejects.toThrow('current location')
+  await f.round({ events: [moved({ characterId: NPC })], allowedMovers: [NPC] })
+  expect(currentLocation(f.events(), NPC)).toBe('location:next')
+})
+
 it('refuses illegal callers, cancelled work and stale prefixes through the same execution path', async () => {
   const f = open(),
     before = f.store.head(f.address)

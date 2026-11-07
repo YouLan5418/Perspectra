@@ -61,6 +61,23 @@
 
 实际对白和普通行动仍遵守已有观察范围：scene_public 给当前有权观察的角色完整内容；direct 只给指定对象；private 的旁观者只知发生交流；self 只给自己。参与者公开说“我接受邀请”，旁观者可以从对白得知接受，不能把活动隔离理解成禁止听见公开表达。真实移动、物品转移仍走普通规则与授权观察。当前活动链只调度参与者，不因旁观者收到公开对白就自动给其插入一次反应；其下次获得处理机会时可以依据已收到的观察回应。尚未增加观众订阅或旁观者自动插话机制。
 
+### 结果移动参与者与物品（2026-11-08，当前源码）
+
+例如战斗失败时，队伍全员被送回家；打赢首领时，钥匙从一个玩家去不了的“宝库”地点掉到战场地上。resolve 的返回值可以附加：
+
+```js
+return { game, description, audience: 'participants',
+  moves: [{ characterId: 'character:player', locationId: 'location:home' },
+          { characterId: 'character:companion', locationId: 'location:home' }],
+  items: [{ entityId: 'entity:boss-key', to: { locationId: 'location:arena' } },
+          { entityId: 'entity:potion', to: { holderId: 'character:player' }, kind: '半瓶药水' }] };
+```
+
+- `moves` 至多 8 项，只能移动本场参与者，目的地必须是包内地点；已经在目的地的参与者不动。每个移动和基础移动规则写同样的 `character.moved`，场景转换和目击照常生成：留在原地的人看到他们离开，之后的活动结果仍只给参与者。
+- `items` 至多 16 项，字段与状态操作的物品变化相同，但这是作者规则的结果：不检查够不够得着，去向可以是任何已声明角色或地点，一次可以移动多件。物品必须存在，托管必须与已提交事实一致。
+- `moves`、`items`、`status` 与 `activity.updated` 同一次提交；其中任一项无效（例如移动非参与者、未知地点或不存在的物品），整次结果都不提交，错误里带出对应 ID。即时回合原本只允许移动玩家本人，这里仅放宽给活动结果点名的参与者。
+- 自动测试见 [宿主测试](../../../tests/host/pack-activity.test.ts) 的“activity results that move participants and items”；尚未用真实模型试玩。
+
 ### 多活动选择与暂停（2026-10-10，当前源码）
 
 例如暂停调查、去玩猜数字，再回来继续调查：每个脚本保留自己最近一次进度，一次只运行一个。必须先暂停或结束当前活动，才能开始／继续另一场；不会自动嵌套切换。宿主在当前角色处理完成后才接受暂停，模型等待期间仍可用原有逃生按钮中止。

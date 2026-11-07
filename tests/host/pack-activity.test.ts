@@ -1030,3 +1030,118 @@ describe('activity simulated model responses', () => {
     },
   )
 })
+
+describe('activity results that move participants and items', () => {
+  const VAULT = 'location:living-room',
+    HOME = 'location:kitchen'
+  // The pack's activity returns `extra` with its result for one operation; the items wait in a closed-off room.
+  const moving = (operation: string, extra: WorldJsonObject) =>
+    fixture(
+      input => (input.continuation ? { decision: 'abstain' } : action(input, 'pass')),
+      s =>
+        s.replace(
+          "return { game, description, audience: 'participants' };",
+          `return { game, description, audience: 'participants', ...(operation === '${operation}' ? ${JSON.stringify(extra)} : {}) };`,
+        ),
+      'examples/world-packs/ai-girls-awaken-v10',
+      'ollama',
+      {},
+      pack =>
+        writeFileSync(
+          join(pack, 'entities.json'),
+          JSON.stringify({
+            schemaVersion: 'worldpack-entities/v2',
+            entities: ['entity:key', 'entity:coin', 'entity:map'].map(entityId => ({
+              entityId,
+              locationId: VAULT,
+              kind: 'loot',
+            })),
+          }),
+        ),
+    )
+  const home = [
+    { characterId: 'character:player', locationId: HOME },
+    { characterId: 'character:gpt', locationId: HOME },
+  ]
+  const loot = [
+    { entityId: 'entity:key', to: { locationId: HOME } },
+    { entityId: 'entity:coin', to: { holderId: 'character:player' } },
+    { entityId: 'entity:map', to: { holderId: 'character:gpt' }, kind: '旧地图' },
+  ]
+
+  it('an activity result moves its participants and items in one commit', async () => {
+    const f = await moving('quit', { moves: home, items: loot })
+    const start = await f.runtime.activityAction(request(await f.runtime.state(), 'start'))
+    const end = await f.runtime.activityAction(request(start, 'quit'))
+    expect(end.world.currentScene?.locationName).toBe('厨房')
+    const events = f.events()
+    const update = events.findLast(e => e.eventType === 'activity.updated')!
+    const commit = events.filter(e => e.transactionId === update.transactionId)
+    const moved = commit.filter(e => e.eventType === 'character.moved').map(e => e.data as WorldJsonObject)
+    expect(moved).toEqual([
+      { characterId: 'character:player', fromLocationId: 'location:bedroom', toLocationId: HOME },
+      { characterId: 'character:gpt', fromLocationId: 'location:bedroom', toLocationId: HOME },
+    ])
+    const transfers = commit.filter(e => e.eventType === 'entity.transferred').map(e => e.data as WorldJsonObject)
+    expect(transfers.map(t => [t.entityId, t.toHolderId, t.toLocationId])).toEqual([
+      ['entity:key', null, HOME],
+      ['entity:coin', 'character:player', null],
+      ['entity:map', 'character:gpt', null],
+    ])
+    expect(commit.some(e => e.eventType === 'entity.upsert' && (e.data as WorldJsonObject).kind === '旧地图')).toBe(
+      true,
+    )
+    const joined = commit
+      .filter(e => e.eventType === 'scene.member_joined')
+      .map(e => (e.data as WorldJsonObject).characterId)
+    expect(joined).toEqual(['character:player', 'character:gpt'])
+    expect(commit.filter(e => e.eventType === 'scene.member_left')).toHaveLength(2)
+  })
+
+  it('rejects moving a non-participant or to an unknown location', async () => {
+    for (const [extra, id] of [
+      [{ moves: [{ characterId: 'character:claude', locationId: HOME }], items: loot }, 'character:claude'],
+      [{ moves: [{ characterId: 'character:gpt', locationId: 'location:nowhere' }] }, 'location:nowhere'],
+      [
+        { moves: home, items: [{ entityId: 'entity:key', to: { locationId: 'location:nowhere' } }] },
+        'location:nowhere',
+      ],
+      [{ items: [{ entityId: 'entity:ghost', to: { locationId: HOME } }] }, 'entity:ghost'],
+    ] as const) {
+      const f = await moving('quit', extra as unknown as WorldJsonObject)
+      const start = await f.runtime.activityAction(request(await f.runtime.state(), 'start'))
+      const before = f.events().length
+      await expect(f.runtime.activityAction(request(start, 'quit'))).rejects.toThrow(id)
+      expect(f.events()).toHaveLength(before)
+    }
+  })
+
+  it('a moved participant left behind sees nothing of the activity afterwards', async () => {
+    const f = await moving('guess', { moves: home })
+    const start = await f.runtime.activityAction(request(await f.runtime.state(), 'start'))
+    // The player's guess sends both players to the kitchen; the model then passes and the player wins there.
+    const after = await f.runtime.activityAction(request(start, 'guess', { value: 10 }))
+    expect((after.activity!.game as WorldJsonObject).turn).toBe('character:player')
+    const teleport = f.events().find(e => e.eventType === 'character.moved')!.seq
+    await f.runtime.activityAction(request(after, 'guess', { value: 73 }))
+    const store = new WorldStore(join(f.data, 'world.sqlite'))
+    try {
+      const view = new CharacterViewBuilder(store).rebuildAt(
+        f.runtime.address,
+        brandId('character:claude', 'CharacterId'),
+        store.head(f.runtime.address).headSeq,
+      )
+      const later = view.observations
+        .filter(o => o.sourceSeq >= teleport)
+        .map(o => (o.value as WorldJsonObject).content as WorldJsonObject)
+      // She saw both leave, and nothing of the game that went on in the kitchen.
+      expect(later.map(content => [content.actionType, content.actorId])).toEqual([
+        ['moved', 'character:gpt'],
+        ['moved', 'character:player'],
+      ])
+      expect(JSON.stringify(later)).not.toContain('猜')
+    } finally {
+      store.close()
+    }
+  })
+})

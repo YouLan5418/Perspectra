@@ -41,6 +41,8 @@ export function assertPhysicalEffects(input: {
   readonly drafts: readonly WorldEventDraft[]
   /** The bound actor of an immediate round; only they can walk. Omitted for a rule layer's own proposal. */
   readonly actorId?: string | undefined
+  /** Others the caller lets this round move, such as the participants an activity result sends home. */
+  readonly allowedMovers?: readonly string[] | undefined
 }): void {
   const applied: RulebookEvent[] = [...input.events]
   const character = (id: unknown): void => {
@@ -59,7 +61,11 @@ export function assertPhysicalEffects(input: {
     if (draft.eventType === 'character.moved') {
       character(data.characterId)
       location(data.toLocationId)
-      if (input.actorId !== undefined && data.characterId !== input.actorId)
+      if (
+        input.actorId !== undefined &&
+        data.characterId !== input.actorId &&
+        !input.allowedMovers?.includes(String(data.characterId))
+      )
         throw new TypeError('an immediate round moves only its bound player')
       if ((currentLocation(applied, String(data.characterId)) ?? null) !== data.fromLocationId)
         throw new TypeError('character.moved does not start from the current location')
@@ -110,18 +116,7 @@ export function adjudicateItemChanges(input: {
     if (!itemIsReachable([...events, ...drafts] as RulebookEvent[], actorId, entityId, sceneIds))
       throw new TypeError('物品不在行动者够得着的地方：' + entityId)
     const before = currentEntityState([...events, ...drafts] as RulebookEvent[], entityId)!
-    if (Object.hasOwn(change, 'kind')) {
-      if (typeof change.kind !== 'string' || change.kind.trim() === '' || change.kind.length > 500)
-        throw new TypeError('物品外观必须是 1–500 字')
-      drafts.push({
-        eventType: 'entity.upsert',
-        eventVersion: 1,
-        data:
-          before.holderId === null
-            ? { entityId, locationId: before.locationId, kind: change.kind }
-            : { entityId, locationId: null, holderId: before.holderId, kind: change.kind },
-      })
-    }
+    if (Object.hasOwn(change, 'kind')) drafts.push(kindDraft(entityId, before, change.kind))
     if (Object.hasOwn(change, 'to')) {
       if (moved) throw new TypeError('一次结果至多移动一件物品')
       moved = true
@@ -137,22 +132,85 @@ export function adjudicateItemChanges(input: {
         if (to.locationId !== currentLocation(events, actorId)) throw new TypeError('物品只能放在行动者所在的位置')
         destination = { holderId: null, locationId: to.locationId as string }
       }
-      if (destination.holderId === before.holderId && destination.locationId === before.locationId)
-        throw new TypeError('物品已经在那里')
-      drafts.push({
-        eventType: 'entity.transferred',
-        eventVersion: 1,
-        data: {
-          entityId,
-          characterId: actorId,
-          interactionId: interactionId,
-          fromHolderId: before.holderId,
-          fromLocationId: before.locationId,
-          toHolderId: destination.holderId,
-          toLocationId: destination.locationId,
-        },
-      })
+      drafts.push(transferDraft(entityId, before, destination, actorId, interactionId))
     }
   }
   return drafts
+}
+
+/** Item results of an author's rule, such as the loot an activity drops: any existing item to any declared character
+ * or location, with no reach check and several moves, at most 16 changes. Custody is still checked, in order. */
+export function ruledItemChanges(input: {
+  readonly manifest: Pick<CompiledWorldManifest, 'characters' | 'locations'>
+  readonly events: readonly RulebookEvent[]
+  readonly actorId: string
+  readonly interactionId: string
+  readonly value: unknown
+}): WorldEventDraft[] {
+  const { manifest, events, actorId, interactionId, value } = input
+  if (!Array.isArray(value) || value.length > 16) throw new TypeError('物品变化必须是至多 16 项的列表')
+  const drafts: WorldEventDraft[] = []
+  for (const entry of value) {
+    const change = object(entry, '物品变化')
+    exact(change, ['entityId'], ['kind', 'to'])
+    const entityId = text(change.entityId, '物品')
+    const before = currentEntityState([...events, ...drafts] as RulebookEvent[], entityId)
+    if (before === undefined) throw new TypeError('物品不存在：' + entityId)
+    if (Object.hasOwn(change, 'kind')) drafts.push(kindDraft(entityId, before, change.kind))
+    if (!Object.hasOwn(change, 'to')) continue
+    const to = object(change.to, '物品去向')
+    let destination: { holderId: string | null; locationId: string | null }
+    if (Object.hasOwn(to, 'holderId')) {
+      exact(to, ['holderId'])
+      if (!manifest.characters.some(row => row.characterId === to.holderId))
+        throw new TypeError('物品去向不是声明过的角色：' + String(to.holderId))
+      destination = { holderId: to.holderId as string, locationId: null }
+    } else {
+      exact(to, ['locationId'])
+      if (!manifest.locations.some(row => row.locationId === to.locationId))
+        throw new TypeError('物品去向不是声明过的地点：' + String(to.locationId))
+      destination = { holderId: null, locationId: to.locationId as string }
+    }
+    drafts.push(transferDraft(entityId, before, destination, actorId, interactionId))
+  }
+  return drafts
+}
+
+type Custody = { readonly holderId: string | null; readonly locationId: string | null }
+
+function kindDraft(entityId: string, before: Custody, kind: unknown): WorldEventDraft {
+  if (typeof kind !== 'string' || kind.trim() === '' || kind.length > 500)
+    throw new TypeError('物品外观必须是 1–500 字')
+  return {
+    eventType: 'entity.upsert',
+    eventVersion: 1,
+    data:
+      before.holderId === null
+        ? { entityId, locationId: before.locationId, kind }
+        : { entityId, locationId: null, holderId: before.holderId, kind },
+  }
+}
+
+function transferDraft(
+  entityId: string,
+  before: Custody,
+  destination: Custody,
+  actorId: string,
+  interactionId: string,
+): WorldEventDraft {
+  if (destination.holderId === before.holderId && destination.locationId === before.locationId)
+    throw new TypeError('物品已经在那里：' + entityId)
+  return {
+    eventType: 'entity.transferred',
+    eventVersion: 1,
+    data: {
+      entityId,
+      characterId: actorId,
+      interactionId,
+      fromHolderId: before.holderId,
+      fromLocationId: before.locationId,
+      toHolderId: destination.holderId,
+      toLocationId: destination.locationId,
+    },
+  }
 }

@@ -110,6 +110,9 @@ export function parseActivityOperationResult(
       readonly audience: 'participants' | 'self'
       readonly status?: unknown
       readonly playerExpression?: unknown
+      readonly moves?: readonly ActivityMove[]
+      /** Entry shapes are checked with the item rules, against the committed custody. */
+      readonly items?: readonly unknown[]
     } {
   const resolved = object(value)
   if (Object.hasOwn(resolved, 'rejectReason')) {
@@ -126,7 +129,7 @@ export function parseActivityOperationResult(
     'game',
     'description',
     'audience',
-    ...['playerExpression', 'status'].filter(k => Object.hasOwn(resolved, k)),
+    ...['playerExpression', 'status', 'moves', 'items'].filter(k => Object.hasOwn(resolved, k)),
   ])
   if (
     typeof resolved.description !== 'string' ||
@@ -134,13 +137,35 @@ export function parseActivityOperationResult(
     !['participants', 'self'].includes(String(resolved.audience))
   )
     throw new TypeError('游戏结果无效')
+  if (Object.hasOwn(resolved, 'items') && (!Array.isArray(resolved.items) || resolved.items.length > 16))
+    throw new TypeError('活动物品结果必须是至多 16 项的列表')
   return {
     next: { ...state, revision: state.revision + 1, game: rules.game(resolved.game, state.participants) },
     description: resolved.description,
     audience: resolved.audience as 'participants' | 'self',
     ...(Object.hasOwn(resolved, 'status') ? { status: resolved.status } : {}),
     ...(Object.hasOwn(resolved, 'playerExpression') ? { playerExpression: resolved.playerExpression } : {}),
+    ...(Object.hasOwn(resolved, 'moves') ? { moves: activityMoves(resolved.moves, state.participants) } : {}),
+    ...(Object.hasOwn(resolved, 'items') ? { items: resolved.items as unknown[] } : {}),
   }
+}
+
+/** A participant the result sends somewhere; the location is checked against the map by the caller. */
+export interface ActivityMove {
+  readonly characterId: string
+  readonly locationId: string
+}
+
+function activityMoves(value: unknown, participants: readonly string[]): ActivityMove[] {
+  if (!Array.isArray(value) || value.length > 8) throw new TypeError('活动移动结果必须是至多 8 项的列表')
+  return value.map(entry => {
+    const move = object(entry)
+    exact(move, ['characterId', 'locationId'])
+    if (typeof move.characterId !== 'string' || typeof move.locationId !== 'string')
+      throw new TypeError('活动移动结果无效')
+    if (!participants.includes(move.characterId)) throw new TypeError('活动只能移动自己的参与者：' + move.characterId)
+    return { characterId: move.characterId, locationId: move.locationId }
+  })
 }
 
 /** Scheduling may read hidden state, but only an activation of a current participant leaves the script. */

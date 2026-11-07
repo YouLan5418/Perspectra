@@ -47,10 +47,14 @@ import {
   actorWorldView,
   immediateActionDrafts,
   readActivityWorld,
+  ruledItemChanges,
+  moveEffects,
+  otherMoverObservations,
   type ActivityWorld,
 } from '@harness-world/application'
 import {
   RulebookRegistry,
+  currentLocation,
   type RulebookEvent,
   type RulebookResolver,
   type RulebookResolutionContext,
@@ -327,6 +331,31 @@ export class ActivityRuntime {
           ]),
         )
       }
+      // Moves and items commit with the update too. They are the author's rule results, so no reach check applies;
+      // each mover's scene change and what witnesses see are added where the round commits.
+      const physical: WorldEventDraft[] = []
+      for (const move of resolved.moves ?? []) {
+        if (!context.manifest.locations.some(row => row.locationId === move.locationId))
+          throw new TypeError('活动移动的目的地不是包内地点：' + move.locationId)
+        const from = currentLocation([...context.events, ...physical] as RulebookEvent[], move.characterId) ?? null
+        // A participant already there, say at home when the party is sent home, stays put.
+        if (from === move.locationId) continue
+        physical.push({
+          eventType: 'character.moved',
+          eventVersion: 1,
+          data: { characterId: move.characterId, fromLocationId: from, toLocationId: move.locationId },
+        })
+      }
+      if (resolved.items !== undefined)
+        physical.push(
+          ...ruledItemChanges({
+            manifest: context.manifest,
+            events: [...context.events, ...physical] as RulebookEvent[],
+            actorId: actor,
+            interactionId: context.actionId ?? '',
+            value: resolved.items,
+          }),
+        )
       const scripted: WorldEventDraft[] = []
       if (Object.hasOwn(resolved, 'playerExpression')) {
         if (actor !== this.playerId) throw new TypeError('只有玩家活动操作可以提交脚本玩家表达')
@@ -367,7 +396,7 @@ export class ActivityRuntime {
         )
         return {
           status: 'accepted' as const,
-          events: [sourcedUpdate, ...status, ...scripted],
+          events: [sourcedUpdate, ...status, ...physical, ...scripted],
           observationScope: {
             scope: 'direct' as const,
             recipientIds: resolved.audience === 'self' ? [actor] : state.participants,
@@ -376,7 +405,7 @@ export class ActivityRuntime {
       }
       return {
         status: 'accepted' as const,
-        events: [update, ...status],
+        events: [update, ...status, ...physical],
         observationScope: {
           scope: 'direct' as const,
           recipientIds: resolved.audience === 'self' ? [actor] : state.participants,
@@ -590,6 +619,7 @@ export class ActivityRuntime {
           }
           const actionId = owner + ':action'
           let state: ActivityState, description: string, drafts: WorldEventDraft[], observerIds: string[]
+          let allowedMovers: readonly string[] | undefined
           if (request.operation === 'start') {
             if (
               foreground ||
@@ -712,6 +742,25 @@ export class ActivityRuntime {
             })
             observerIds = [...(resolution.observationScope?.recipientIds ?? current.participants)]
             drafts = [...resolution.events]
+            // The result may send participants elsewhere: each gets a scene change and is seen leaving and arriving.
+            const scene = new SceneDecisionService(store, availability)
+            const moves = moveEffects({ scene, address: this.address, events, headSeq: head.headSeq, drafts })
+            drafts.push(...moves.transitions)
+            drafts.push(
+              ...otherMoverObservations({
+                scene,
+                address: this.address,
+                roundId: brandId(actionId, 'InteractionRoundId'),
+                actionId,
+                actorId: undefined,
+                moved: moves.moved,
+                before: { events, asOfSeq: head.headSeq },
+                after: { events: [...events, ...(drafts as RulebookEvent[])], asOfSeq: head.headSeq + drafts.length },
+                playerBindings: [],
+                observationId: (moverId, observerId) => `${actionId}:moved:${moverId}:${observerId}`,
+              }).events,
+            )
+            allowedMovers = current.participants
             state = object(drafts[0]!.data).state as ActivityState
             description = String(object(drafts[0]!.data).description)
           }
@@ -778,6 +827,7 @@ export class ActivityRuntime {
           return {
             events: drafts,
             authority: { actorId: this.playerId, request: input, status: 'accepted' },
+            ...(allowedMovers ? { allowedMovers } : {}),
           }
         },
       )
@@ -901,9 +951,12 @@ export class ActivityRuntime {
             result,
             description: String(description),
           })
+          const operation = String(object(object(action.parameters).definitionRef ?? {}).id).startsWith('activity:')
           return {
             events: drafts,
             authority: { actorId: this.playerId, action, status: 'accepted' },
+            // An activity operation sent as a world action may move the participants its result names.
+            ...(operation ? { allowedMovers: state.participants } : {}),
           }
         },
       )

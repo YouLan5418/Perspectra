@@ -151,6 +151,35 @@ it('refuses malformed results and games that break the participant shape', () =>
   ).toThrow('阶段或轮次')
 })
 
+it('reads the moves and items of a result, refusing a non-participant mover and oversized lists', () => {
+  const good = { game: game(), description: '败北', audience: 'participants' }
+  const items = [{ entityId: 'entity:key', to: { locationId: 'location:hall' } }]
+  expect(
+    parseActivityOperationResult(
+      { ...good, moves: [{ characterId: NPC, locationId: 'location:home' }], items },
+      rules,
+      state(),
+    ),
+  ).toMatchObject({ moves: [{ characterId: NPC, locationId: 'location:home' }], items })
+  expect(() =>
+    parseActivityOperationResult(
+      { ...good, moves: [{ characterId: 'character:stranger', locationId: 'location:home' }] },
+      rules,
+      state(),
+    ),
+  ).toThrow('character:stranger')
+  const move = { characterId: NPC, locationId: 'location:home' }
+  expect(() =>
+    parseActivityOperationResult({ ...good, moves: Array.from({ length: 9 }, () => move) }, rules, state()),
+  ).toThrow('8')
+  expect(() => parseActivityOperationResult({ ...good, moves: [{ ...move, extra: 1 }] }, rules, state())).toThrow(
+    TypeError,
+  )
+  expect(() =>
+    parseActivityOperationResult({ ...good, items: Array.from({ length: 17 }, () => items[0]) }, rules, state()),
+  ).toThrow('16')
+})
+
 it('activates only a current participant who is not the player', () => {
   expect(parseActivityPlan({ kind: 'wait' }, state(), PLAYER)).toBeUndefined()
   expect(parseActivityPlan({ kind: 'activate', characterId: NPC }, state(), PLAYER)).toBe(NPC)

@@ -60,7 +60,8 @@ export function otherMoverObservations(input: {
   readonly address: WorldAddress
   readonly roundId: InteractionRoundId
   readonly actionId: string
-  readonly actorId: CharacterId
+  /** Undefined when no action record carries anyone's move, as for an activity operation the host commits. */
+  readonly actorId: CharacterId | undefined
   readonly moved: readonly MovedCharacter[]
   readonly before: { readonly events: readonly RulebookEvent[]; readonly asOfSeq: number }
   readonly after: { readonly events: readonly RulebookEvent[]; readonly asOfSeq: number }

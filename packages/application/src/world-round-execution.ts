@@ -22,6 +22,8 @@ export interface WorldRoundSnapshot {
 export interface WorldRoundEffects {
   readonly events: readonly WorldEventDraft[]
   readonly authority: WorldJsonObject
+  /** Characters besides the bound player these effects may move: the participants an activity result names. */
+  readonly allowedMovers?: readonly string[]
 }
 
 /** Host-only execution for immediate rounds. Mechanisms return data; this is never a plugin service.
@@ -64,7 +66,13 @@ export async function executeWorldRound(
     if (input.actorId !== undefined && effects.authority.actorId !== input.actorId)
       throw new TypeError('round authority actor does not match its bound player')
     const characters = new Set(manifest.characters.map(row => String(row.characterId)))
-    assertPhysicalEffects({ manifest, events: snapshot.events, drafts: effects.events, actorId: input.actorId })
+    assertPhysicalEffects({
+      manifest,
+      events: snapshot.events,
+      drafts: effects.events,
+      actorId: input.actorId,
+      allowedMovers: effects.allowedMovers,
+    })
     for (const event of effects.events) {
       if (event.eventType === 'world.tick-advanced') throw new TypeError('round tick is owned by the core')
       if (
