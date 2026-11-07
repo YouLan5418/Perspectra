@@ -89,7 +89,6 @@ export function immediateActionDrafts(input: {
     roundId: brandId(actionId, 'InteractionRoundId'),
     actionId,
     actorId,
-    actionType: action.actionType,
     moved: moves.moved,
     before: { events, asOfSeq: headSeq },
     after,

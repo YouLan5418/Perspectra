@@ -873,7 +873,6 @@ export class RoundCoordinator {
               roundId,
               actionId: item.action.actionId,
               actorId: item.action.actorId,
-              actionType: item.action.actionType,
               moved: moves.moved,
               before: { events: actionPrefix, asOfSeq: head.headSeq + events.length },
               after: {

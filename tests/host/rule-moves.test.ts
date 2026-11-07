@@ -63,6 +63,37 @@ function follow(leader: string, follower: string, target: string): SeamProvider<
   return { id: 'test-follow', version: '1.0.0', open: async () => instance }
 }
 
+/** A test-only rule that, once `actor` speaks, sends `mover` to `target` while the speaker stays where she is. */
+function sendAway(actor: string, mover: string, target: string): SeamProvider<RulesInstance> {
+  let sent = false
+  const instance: RulesInstance = {
+    resolve: (context, next) => {
+      const result = next(context)
+      if (
+        sent ||
+        result.status !== 'accepted' ||
+        context.action.actionType !== 'speak' ||
+        context.characterId !== actor
+      )
+        return result
+      sent = true
+      const from = currentLocation(context.events, mover)
+      return {
+        ...result,
+        events: [
+          ...result.events,
+          {
+            eventType: 'character.moved',
+            eventVersion: 1,
+            data: { characterId: mover, fromLocationId: from ?? null, toLocationId: target },
+          },
+        ],
+      }
+    },
+  }
+  return { id: 'test-send-away', version: '1.0.0', open: async () => instance }
+}
+
 /** Each character answers from `answers` once, then abstains. */
 async function start(rules: SeamProvider<RulesInstance>, answers: Record<string, unknown> = {}) {
   const root = mkdtempSync(join(tmpdir(), 'perspectra-rule-moves-'))
@@ -179,5 +210,35 @@ it('does the same when a character, not the player, leads', async () => {
     ])
     expect(seenMoves(store, address, PLAYER, WITNESS)).toEqual([{ characterId: WITNESS, fromLocationId: FRONT }])
     expect(seenMoves(store, address, FRIEND, WITNESS)).toEqual([{ characterId: WITNESS, toLocationId: BACK }])
+  })
+})
+
+it('tells an actor who stays only that the other left, and the far room nothing of her action', async () => {
+  const { runtime, read } = await start(sendAway(PLAYER, FRIEND, FRONT))
+  await runtime.submit('你好。')
+  read(store => {
+    const address = runtime.address
+    expect(sceneChanges(store, address, FRIEND)).toEqual([
+      ['scene.member_left', 'scene:back-room'],
+      ['scene.member_joined', 'scene:front-room'],
+    ])
+    // The player stays in the back room: she sees the friend go, not where to.
+    expect(seenMoves(store, address, PLAYER, FRIEND)).toEqual([{ characterId: FRIEND, fromLocationId: BACK }])
+    for (const observer of [COMPANION, WITNESS]) {
+      expect(seenMoves(store, address, observer, FRIEND)).toEqual([{ characterId: FRIEND, toLocationId: FRONT }])
+      const contents = new CharacterViewBuilder(store)
+        .rebuildAt(address, brandId(observer, 'CharacterId'), store.head(address).headSeq)
+        .observations.map(entry => (entry.value as { content?: WorldJsonObject }).content)
+      // What reaches the front room is the friend's arrival alone, not the player's words or who made her come.
+      expect(contents.filter(content => content?.actorId === PLAYER)).toEqual([])
+      expect(contents.filter(content => content?.actorId === FRIEND)).toEqual([
+        {
+          actorId: FRIEND,
+          actionType: 'moved',
+          status: 'accepted',
+          movement: { characterId: FRIEND, toLocationId: FRONT },
+        },
+      ])
+    }
   })
 })

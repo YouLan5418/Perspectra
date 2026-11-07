@@ -7,7 +7,7 @@ import type {
   WorldEventDraft,
 } from '@harness-world/contracts'
 import type { RulebookEvent } from '@harness-world/kernel'
-import { actionObservations, movementRoute } from './action-observations.ts'
+import { actionObservations, type MovementRoute } from './action-observations.ts'
 import type { SceneDecisionService } from './scene-decision.ts'
 
 export interface MovedCharacter {
@@ -30,13 +30,18 @@ export function moveEffects(input: {
   const moved: MovedCharacter[] = []
   for (const draft of input.drafts) {
     if (draft.eventType !== 'character.moved') continue
-    const data = draft.data as unknown as MovedCharacter
-    moved.push({ characterId: data.characterId, fromLocationId: data.fromLocationId, toLocationId: data.toLocationId })
+    const data = draft.data as Partial<Record<keyof MovedCharacter, unknown>> | null
+    if (typeof data?.characterId !== 'string' || typeof data.toLocationId !== 'string')
+      throw new TypeError('character.moved needs a characterId and a toLocationId string')
+    if (data.fromLocationId !== null && typeof data.fromLocationId !== 'string')
+      throw new TypeError('character.moved needs a fromLocationId string or null')
+    const characterId = data.characterId as CharacterId
+    moved.push({ characterId, fromLocationId: data.fromLocationId, toLocationId: data.toLocationId })
     transitions.push(
       ...input.scene.transitionForMove(
         input.address,
         [...input.events, ...(transitions as RulebookEvent[])],
-        data.characterId,
+        characterId,
         data.toLocationId,
         input.headSeq,
       ),
@@ -46,16 +51,16 @@ export function moveEffects(input: {
 }
 
 /** What witnesses learn of the characters an action moved besides its actor, such as a follower: those she left see
- * her go, those where she arrives see her come, and she knows her whole route. The actor's own move stays in the
- * action's observation. `before` is the prefix the action started from; `after` already holds every move and its
- * scene changes. */
+ * her go, those where she arrives see her come, and she knows her whole route. Each record is about her alone, with
+ * herself as its subject and `moved` as its kind: those at a far end did not see the action that moved her, and the
+ * actor learns of either end only by being there. The actor's own move stays in the action's observation. `before` is
+ * the prefix the action started from; `after` already holds every move and its scene changes. */
 export function otherMoverObservations(input: {
   readonly scene: SceneDecisionService
   readonly address: WorldAddress
   readonly roundId: InteractionRoundId
   readonly actionId: string
   readonly actorId: CharacterId
-  readonly actionType: string
   readonly moved: readonly MovedCharacter[]
   readonly before: { readonly events: readonly RulebookEvent[]; readonly asOfSeq: number }
   readonly after: { readonly events: readonly RulebookEvent[]; readonly asOfSeq: number }
@@ -65,29 +70,28 @@ export function otherMoverObservations(input: {
   const observerIds: CharacterId[] = [],
     events: WorldEventDraft[] = [],
     outbox: OutboxDraft[] = []
+  const observers = (
+    characterId: CharacterId,
+    at: { readonly events: readonly RulebookEvent[]; readonly asOfSeq: number },
+  ) => new Set(input.scene.decideFromEvents(input.address, characterId, at.events, at.asOfSeq).observerIds)
   for (const mover of input.moved) {
     if (mover.characterId === input.actorId) continue
-    const seen = movementRoute(
-      input.scene,
-      input.address,
-      { eventType: 'character.moved', eventVersion: 1, data: { ...mover } },
-      input.before,
-      input.after,
-    )!
-    // Like an actor, the one moved knows both ends even where no scene is open.
-    const route = {
-      ...seen,
-      departureObservers: new Set([...seen.departureObservers, mover.characterId]),
-      arrivalObservers: new Set([...seen.arrivalObservers, mover.characterId]),
+    const route: MovementRoute = {
+      ...mover,
+      departureObservers: observers(mover.characterId, input.before),
+      arrivalObservers: observers(mover.characterId, input.after),
     }
+    // The mover is the record's subject, so the full-route shortcut is hers, never the actor's.
     const observed = actionObservations({
       roundId: input.roundId,
       actionId: input.actionId,
-      actorId: input.actorId,
-      actionType: input.actionType,
+      actorId: mover.characterId,
+      actionType: 'moved',
       status: 'accepted',
       audience: {
-        fullContentCharacterIds: [...new Set([...route.departureObservers, ...route.arrivalObservers])],
+        fullContentCharacterIds: [
+          ...new Set([...route.departureObservers, ...route.arrivalObservers, mover.characterId]),
+        ],
         occurrenceOnlyCharacterIds: [],
       },
       route,

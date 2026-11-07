@@ -163,3 +163,19 @@ it('tells witnesses about a character the action moved besides its actor', () =>
   })
   expect(events.at(-1)).toMatchObject({ eventType: 'action.resolved' })
 })
+
+it('tells an actor who stays where the other went only if she was there', () => {
+  const moved: WorldEventDraft = {
+    eventType: 'character.moved',
+    eventVersion: 1,
+    data: { characterId: NPC, fromLocationId: 'location:room', toLocationId: 'location:next' },
+  }
+  const events = fixture()({ status: 'accepted', events: [moved] })
+  const record = events.find(event => (event.data as WorldJsonObject).id === `action:test:moved:${NPC}:${PLAYER}`)!
+  expect(((record.data as WorldJsonObject).value as WorldJsonObject).content).toEqual({
+    actorId: NPC,
+    actionType: 'moved',
+    status: 'accepted',
+    movement: { characterId: NPC, fromLocationId: 'location:room' },
+  })
+})

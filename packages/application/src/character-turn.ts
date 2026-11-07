@@ -720,7 +720,6 @@ export class CharacterTurn {
                   roundId,
                   actionId,
                   actorId: characterId,
-                  actionType: action.actionType,
                   moved: moves.moved,
                   before: { events: history, asOfSeq: head.headSeq },
                   after: { events: [...history, ...events], asOfSeq: head.headSeq + events.length },
