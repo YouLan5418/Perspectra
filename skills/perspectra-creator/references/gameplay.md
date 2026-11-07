@@ -135,6 +135,8 @@ model-preset.json、role-presets.json 和 frontend/ 是宿主独立读取的扩�
 - 一个角色一次机会里能做的受控行动有上限：行动之后的跟进机会，有时只能说话或弃权。这时计划里的下一个行动不会被扔掉，而是留到她下一次机会，并在这一步记一条 `plan` 行说明原因。例如小林计划“拿蛋糕、吃蛋糕”，如果拿完后的跟进机会不能行动，“吃蛋糕”会在她下一次机会执行，也就是通常在下一个玩家回合。计划行动当前不可用（地点不可去、交互不在她的选项里）时，同样记一条 `plan` 行，列出她此刻可用的选项，然后弃权。
 - 结果顶层的 `passed` 为 `false`，表示有一步报错或有期望没满足，这时命令退出码为 2（结果仍在 stdout）；退出码 1 才是命令本身失败（stderr）。`unusedNpcPlans` 列出推演结束时每个角色还剩几条计划没用上，通常说明她没有得到你以为的那次机会。
 - 每个 step 恰好写一种行动：`say`、`move`（地点 ID）、`interact`（定义 ID，同一交互有多个目标时必须加 `target`，可加 `arguments`）、`activity`（活动标识加 `operation`，可加 `parameters`）、`wait: true`。行动按名字对照当前实际可用的选项，匹配不上时这一步报错并列出可用项，后面的步骤不再执行。
-- `expect` 可写 `started`（活动开始了）、`notStarted`、`status`（公共状态写 `"slot"`，角色自己的状态写 `"character:deepseek.mood-note"`）。
+- `expect` 可写 `started`（活动开始了）、`notStarted`、`status`（公共状态写 `"slot"`，角色自己的状态写 `"character:deepseek.mood-note"`），以及 `knows` / `doesNotKnow`：按角色写一句或几句话，检查她到目前为止收到的观察里有没有包含这句话的。例如 `"knows": { "character:ajie": "吃得一干二净" }, "doesNotKnow": { "character:player": "吃得一干二净" }`。
+- 每一步的 `perceived` 按角色（含玩家）列出这一步进入她授权视图的观察，就是她的模型实际看到的那份；空列表表示这一步什么也没收到。用它核对信息差：谁在场看见了、谁只看见有人离开、谁什么也不知道。
+- `knows` 只查观察，不查世界知识文档、记忆和人设；“她知道”的意思是她收到过包含这句话的观察，不代表模型一定会用上它。
 
 推演只证明规则与触发，不判断角色演得好不好；这些仍要真实模型试玩。写好的脚本可存进作者包的 `.perspectra-lens/scenarios/`，编译只读取清单列出的文件，不会读它。

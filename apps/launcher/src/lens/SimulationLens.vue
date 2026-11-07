@@ -145,6 +145,16 @@ const trace = computed(() => [...simulation.value.trace].reverse())
             <span class="cr-tag" :class="TONE[line.kind] ?? 'line'">{{ KIND[line.kind] }}</span>
             <span>{{ line.text }}</span>
           </p>
+          <details v-if="Object.keys(step.perceived ?? {}).length" class="lens-perceived" open>
+            <summary class="cr-muted">谁感知到了什么（各人这一步收到的观察，和她的模型看到的一致）</summary>
+            <div v-for="(seen, id) in step.perceived" :key="id" class="lens-who">
+              <span class="lens-who-name">{{ nameOf(String(id)) }}</span>
+              <ul v-if="seen.length">
+                <li v-for="(text, position) in seen" :key="position">{{ text }}</li>
+              </ul>
+              <span v-else class="cr-muted">（这一步什么也没收到）</span>
+            </div>
+          </details>
         </div>
       </article>
     </div>
@@ -207,6 +217,28 @@ const trace = computed(() => [...simulation.value.trace].reverse())
   flex-wrap: wrap;
   gap: 4px;
   align-items: center;
+}
+.lens-perceived {
+  margin-top: 6px;
+  font-size: 12.5px;
+}
+.lens-perceived summary {
+  cursor: pointer;
+  margin-bottom: 3px;
+}
+.lens-who {
+  display: flex;
+  gap: 6px;
+  align-items: baseline;
+  margin: 0 0 3px;
+}
+.lens-who-name {
+  flex: 0 0 5em;
+  font-weight: 600;
+}
+.lens-who ul {
+  margin: 0;
+  padding-left: 1.1em;
 }
 .lens-unmet,
 .lens-problem {

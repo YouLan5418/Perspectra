@@ -458,6 +458,11 @@ export function mockLensSnapshot(): LensSnapshot {
             { ...conditions[0]!, checks: conditions[0]!.checks.map(check => ({ ...check, met: true })), started: true },
           ],
           activated: ['character:deepseek'],
+          perceived: {
+            'character:player': ['你 从 客厅 来到 厨房'],
+            'character:deepseek': ['你 来到 厨房'],
+            'character:gpt': ['你 离开了 客厅'],
+          },
         },
         {
           index: 1,
@@ -484,6 +489,7 @@ export function mockLensSnapshot(): LensSnapshot {
           ],
           autoStart: [],
           activated: [],
+          perceived: { 'character:player': [], 'character:deepseek': [], 'character:gpt': [] },
         },
       ],
       state,

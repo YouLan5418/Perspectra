@@ -157,6 +157,50 @@ it('an npc plan that is not offered leaves a plan line instead of vanishing', as
   expect(lens.leftoverPlans()).toEqual({})
 }, 120_000)
 
+// Walkthrough 2026-11-07: the simulation showed the cake was eaten but not who saw it, which is the game.
+it('each step lists what reached each character, and knows checks her whole view', async () => {
+  const lens = await open(PACK, { skipAutoStart: ['prologue'] })
+  const result = await applyScenario(lens, {
+    title: '谁听见了',
+    steps: [
+      { say: '大家好，今晚吃火锅' },
+      { move: 'location:kitchen' },
+      {
+        wait: true,
+        expect: {
+          knows: { [DEEPSEEK]: '今晚吃火锅', [PLAYER]: ['今晚吃火锅', '来到 厨房'] },
+          doesNotKnow: { [DEEPSEEK]: '不存在的一句话' },
+        },
+      },
+    ],
+  })
+  const [said, moved] = result.steps
+  // Everyone in the living room heard the player; each character's list comes from her own authorized view.
+  expect(said!.perceived[PLAYER]).toContain('玩家 说：大家好，今晚吃火锅')
+  expect(said!.perceived[DEEPSEEK]).toContain('玩家 说：大家好，今晚吃火锅')
+  // Those left behind see the player leave; only the player sees where she went.
+  expect(moved!.perceived[DEEPSEEK]).toContain('玩家 离开了 客厅')
+  expect(moved!.perceived[PLAYER]).toContain('玩家 从 客厅 来到 厨房')
+  expect(result.steps[2]!.expectations!.every(e => e.ok)).toBe(true)
+  expect(result.passed).toBe(true)
+}, 120_000)
+
+it('knows fails for a character who never saw it', async () => {
+  const lens = await open(PACK, kitchenStart('白天'))
+  // The player is in the living room; DeepSeek is in the kitchen and does not hear it.
+  const result = await applyScenario(lens, {
+    title: '隔墙',
+    steps: [
+      { say: '我偷偷告诉你一个秘密', expect: { knows: { [DEEPSEEK]: '秘密' }, doesNotKnow: { [PLAYER]: '秘密' } } },
+    ],
+  })
+  expect(result.steps[0]!.expectations).toEqual([
+    { text: `${DEEPSEEK} 知道“秘密”`, ok: false },
+    { text: `${PLAYER} 不知道“秘密”`, ok: false },
+  ])
+  expect(result.passed).toBe(false)
+}, 120_000)
+
 it('npc perform plans take the short forms player steps use, one form at a time', () => {
   const scenario = (plan: unknown) => ({ title: 't', npcPlans: { [DEEPSEEK]: [plan] }, steps: [{ wait: true }] })
   expect(() => parseScenario(scenario({ kind: 'perform', interact: 'status:take', target: 'entity:x' }))).not.toThrow()

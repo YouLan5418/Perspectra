@@ -15,6 +15,10 @@ export interface LensScenarioExpect {
   readonly notStarted?: string
   /** `"slot"` for a public status, `"character:deepseek.mood-note"` for a character's own. */
   readonly status?: Record<string, unknown>
+  /** characterId -> text her authorized view must contain somewhere (one phrase or several), e.g. `"吃得一干二净"`. */
+  readonly knows?: Record<string, string | readonly string[]>
+  /** characterId -> text her authorized view must not contain anywhere. */
+  readonly doesNotKnow?: Record<string, string | readonly string[]>
 }
 /** Player actions are written the way the game names them; the runner matches them against what is offered now. */
 export type LensScenarioStep = (
@@ -121,10 +125,19 @@ function parseStep(value: unknown, path: string): LensScenarioStep {
     if (step[key] !== undefined) record(step[key], `${path}.${key}`)
   if (step.expect !== undefined) {
     const expect = record(step.expect, `${path}.expect`)
-    only(expect, `${path}.expect`, ['started', 'notStarted', 'status'])
+    only(expect, `${path}.expect`, ['started', 'notStarted', 'status', 'knows', 'doesNotKnow'])
     if (expect.started !== undefined) text(expect.started, `${path}.expect.started`)
     if (expect.notStarted !== undefined) text(expect.notStarted, `${path}.expect.notStarted`)
     if (expect.status !== undefined) record(expect.status, `${path}.expect.status`)
+    for (const key of ['knows', 'doesNotKnow'] as const)
+      if (expect[key] !== undefined)
+        for (const [id, value] of Object.entries(record(expect[key], `${path}.expect.${key}`))) {
+          const at = `${path}.expect.${key}.${id}`
+          if (Array.isArray(value)) {
+            if (value.length === 0) fail(at, '需要至少一句')
+            value.forEach((phrase, i) => text(phrase, `${at}[${i}]`))
+          } else text(value, at)
+        }
   }
   return step as unknown as LensScenarioStep
 }
@@ -232,6 +245,22 @@ async function check(
       results.push({ text: `状态 ${key} 为 ${show(wanted)}${ok ? '' : `（实际 ${show(actual ?? '（无）')}）`}`, ok })
     }
   }
+  if (expect.knows !== undefined || expect.doesNotKnow !== undefined) {
+    // Everything in her view so far, not just this step: "Ajie knows" stays true after the round it happened.
+    const views = sim.perceived()
+    const phrases = (value: string | readonly string[]) => (typeof value === 'string' ? [value] : value)
+    const known = (id: string, phrase: string) => (views[id] ?? []).some(text => text.includes(phrase))
+    for (const [id, value] of Object.entries(expect.knows ?? {}))
+      for (const phrase of phrases(value)) {
+        if (views[id] === undefined) results.push({ text: `${id} 知道“${phrase}”（没有这个角色）`, ok: false })
+        else results.push({ text: `${id} 知道“${phrase}”`, ok: known(id, phrase) })
+      }
+    for (const [id, value] of Object.entries(expect.doesNotKnow ?? {}))
+      for (const phrase of phrases(value)) {
+        if (views[id] === undefined) results.push({ text: `${id} 不知道“${phrase}”（没有这个角色）`, ok: false })
+        else results.push({ text: `${id} 不知道“${phrase}”`, ok: !known(id, phrase) })
+      }
+  }
   return results
 }
 
@@ -251,6 +280,7 @@ export async function applyScenario(sim: LensSimulation, scenario: LensScenario)
         lines: [],
         autoStart: [],
         activated: [],
+        perceived: {},
         error: cause.message,
       }
     }

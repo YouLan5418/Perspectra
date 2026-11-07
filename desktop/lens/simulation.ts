@@ -12,7 +12,8 @@ import {
 import { tmpdir } from 'node:os'
 import { join, relative, resolve } from 'node:path'
 import { interactionPackageDescription, type WorldJsonObject } from '@harness-world/contracts'
-import { WorldStore } from '@harness-world/store-sqlite'
+import { CharacterViewBuilder, WorldStore } from '@harness-world/store-sqlite'
+import type { CharacterId } from '@harness-world/contracts'
 import { compileWorldPackSource, type CompiledWorldPackV5 } from '@harness-world/world-pack'
 import { actionText, WAIT_ACTION, type HostAction, type HostState } from '../host/http-server.ts'
 import type { ActivityRequest } from '@harness-world/contracts'
@@ -144,6 +145,8 @@ export interface LensStepTrace {
   /** Non-player characters that had a chance this step: asked by the stub model, or with an action.resolved or
    * speak event (an abstaining character leaves no event). */
   readonly activated: readonly string[]
+  /** Per character, player included, what reached her authorized view in this step; an empty list means nothing. */
+  readonly perceived: Record<string, readonly string[]>
   readonly error?: string
 }
 
@@ -529,6 +532,7 @@ export class LensSimulation {
       autoStart: autoStart === previousAutoStart ? [] : autoStart,
       ...(pacing === null ? {} : { pacing }),
       activated: [...activated],
+      perceived: this.perceived(before),
       ...(error === undefined ? {} : { error }),
     }
   }
@@ -544,6 +548,64 @@ export class LensSimulation {
       }
     })()
     return this.#closing
+  }
+
+  /** Per character, player included, the observations her authorized view holds, as readable text. `after`
+   * keeps only those that came from events after that seq. The same view the runtime builds for her model. */
+  perceived(after = -1): Record<string, string[]> {
+    const store = new WorldStore(join(this.#runtime.dataDirectory, 'world.sqlite'))
+    try {
+      const address = this.#runtime.address
+      const head = store.head(address).headSeq
+      const events = store.readEvents(address)
+      const builder = new CharacterViewBuilder(store)
+      return Object.fromEntries(
+        [this.#playerId, ...this.#npcIds].map(characterId => [
+          characterId,
+          builder
+            .rebuildFromEvents(address, characterId as CharacterId, head, events)
+            .observations.filter(record => record.sourceSeq > after)
+            .sort((left, right) => left.sourceSeq - right.sourceSeq)
+            .map(record => this.#observationText(object(record.value).content)),
+        ]),
+      )
+    } finally {
+      store.close()
+    }
+  }
+
+  /** One line for an observation: plain text as is, an action by its actor and result, anything else as JSON. */
+  #observationText(content: unknown): string {
+    if (typeof content === 'string') return content
+    const value = object(content)
+    if (value && typeof value === 'object') {
+      const actor = value.actorId ?? value.characterId ?? value.speakerId
+      const who = typeof actor === 'string' ? this.#name(actor) : undefined
+      const failed = value.status === 'rejected' ? '（没有成功）' : ''
+      const speech = (value.speech ?? value) as WorldJsonObject
+      const segments = speech.segments as { type?: string; text?: string }[] | undefined
+      const said = Array.isArray(segments)
+        ? segments.map(s => (s.type === 'narration' ? `（${s.text}）` : s.text)).join('')
+        : typeof speech.text === 'string'
+          ? speech.text
+          : undefined
+      if (said !== undefined) {
+        const to = Array.isArray(speech.addresseeIds) ? speech.addresseeIds.map(id => this.#name(id)) : []
+        return `${who ?? '有人'}${to.length ? ` 对 ${to.join('、')}` : ''} 说：${said}${failed}`
+      }
+      const movement = value.movement as WorldJsonObject | undefined
+      if (movement) {
+        const mover = this.#name(movement.characterId ?? actor)
+        // An observer who stays behind sees only where she left from.
+        if (typeof movement.toLocationId === 'string')
+          return typeof movement.fromLocationId === 'string'
+            ? `${mover} 从 ${this.#name(movement.fromLocationId)} 来到 ${this.#name(movement.toLocationId)}${failed}`
+            : `${mover} 来到 ${this.#name(movement.toLocationId)}${failed}`
+        return `${mover} 离开了 ${this.#name(movement.fromLocationId)}${failed}`
+      }
+      if (typeof value.resultDescription === 'string') return `${who ?? '有人'}：${value.resultDescription}${failed}`
+    }
+    return JSON.stringify(content)
   }
 
   #read(): StoredWorldEvent[] {

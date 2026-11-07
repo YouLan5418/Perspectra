@@ -120,6 +120,8 @@ Interaction 定义和绑定提供玩法可选行为，规则负责重要状态�
 
 2026-11-07（一次从零创作走查后）：例如小林的推演计划是“拿蛋糕、吃蛋糕”，拿完后的跟进机会只允许说话，以前桩模型照样交出“吃”，运行时把它当无效输出丢掉，不留记录。现在 [simulation.ts](../../../desktop/lens/simulation.ts) 读请求里的 `canPerform`，把行动留到她下一次机会；计划对不上她当时的选项时，按玩家步骤同一套匹配列出可用项。这两种情况都在逐步经过里记一条 `plan` 行。推演结果带 `passed` 和 `unusedNpcPlans`，没通过时 CLI 退出码为 2。`worldpack --help` 新增 `lens` 一项。推演临时目录不可写时，报错写出目录和可能原因。运行时本身没有改动。
 
+2026-11-08：推演每一步多了 `perceived`，按角色列出这一步进入她授权视图的观察。它直接用 [CharacterViewBuilder](../../../packages/store-sqlite/src/character-view.ts) 在已提交事件上构建，和角色调用拿到的是同一份，透视没有另写一套“谁该知道”的判断。观察内容按说话、移动、带 `resultDescription` 的行动结果转成一行文字，其余形状原样显示为 JSON。脚本期望新增 `knows` / `doesNotKnow`，按子串匹配该角色到目前为止的全部观察。透视是作者工具，能看到所有角色的视图；这不改变角色之间的权限边界。
+
 作者操作与用法见[包透视指南](../guides/pack-lens.md)。边界：
 
 - 源码已接通：上述全部。自动测试：`tests/host/lens-*.test.ts`、`tests/desktop/lens-launcher.test.ts`、Launcher 的 `apps/launcher/src/lens/store.test.ts`，以及 `scripts/release/verify-worldpack-cli.mjs` 的 `lens view` 冒烟。
