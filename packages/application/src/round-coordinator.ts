@@ -526,8 +526,11 @@ export class RoundCoordinator {
       provisional === undefined
         ? sceneDecision
         : this.options.sceneDecision?.decideFromEvents(this.#address, playerAction.actorId, s1History, head.headSeq)
+    // Those where her own move takes her see her arrive. When another action's result moved her, they see only that
+    // she came, recorded with the other movers, never the action itself.
     if (
       provisional !== undefined &&
+      playerAction.actionType === 'move' &&
       playerObservationScope.scope === 'scene_public' &&
       playerAudience !== undefined &&
       s1Decision !== undefined
@@ -799,8 +802,14 @@ export class RoundCoordinator {
       const publicManifestation = resolvedEvents.find(event => event.eventType === 'character.manifested')
       const publicInteraction = resolution.events.find(event => event.eventType === 'entity.transferred')
       const relations = characterRelationObservations(actionPrefix, resolution.events)
+      // Only the player's own move action carries her route; a move another action's result made is recorded like
+      // any other mover's below, so those she arrives among see her come and nothing of the action.
+      const ownMove = item.action.actionType === 'move'
       const route =
-        item.sourceRole === 'player' && resolution.status === 'accepted' && this.options.sceneDecision !== undefined
+        item.sourceRole === 'player' &&
+        ownMove &&
+        resolution.status === 'accepted' &&
+        this.options.sceneDecision !== undefined
           ? movementRoute(
               this.options.sceneDecision,
               this.#address,
@@ -872,7 +881,7 @@ export class RoundCoordinator {
               address: this.#address,
               roundId,
               actionId: item.action.actionId,
-              actorId: item.action.actorId,
+              actorId: item.sourceRole !== 'player' || ownMove ? item.action.actorId : undefined,
               moved: moves.moved,
               before: { events: actionPrefix, asOfSeq: head.headSeq + events.length },
               after: {

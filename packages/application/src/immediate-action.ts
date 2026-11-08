@@ -46,11 +46,16 @@ export function immediateActionDrafts(input: {
       : { recipientIds: scope.recipientIds.map(id => brandId(id, 'CharacterId')) }),
   })
   const after = { events: [...events, ...(drafts as RulebookEvent[])], asOfSeq: headSeq + drafts.length }
-  const moved = accepted
-    ? result.events.find(
-        event => event.eventType === 'character.moved' && (event.data as WorldJsonObject).characterId === actorId,
-      )
-    : undefined
+  // Only her own move action carries her route: when another action's result moved her, such as a battle button
+  // that sends the party home, those she arrives among see her come, never the action, so her move is recorded like
+  // any other mover's below.
+  const ownMove = action.actionType === 'move'
+  const moved =
+    accepted && ownMove
+      ? result.events.find(
+          event => event.eventType === 'character.moved' && (event.data as WorldJsonObject).characterId === actorId,
+        )
+      : undefined
   const route = movementRoute(scene, address, moved, { events, asOfSeq: headSeq }, after)
   const arrived =
     route === undefined
@@ -88,7 +93,7 @@ export function immediateActionDrafts(input: {
     address,
     roundId: brandId(actionId, 'InteractionRoundId'),
     actionId,
-    actorId,
+    actorId: ownMove ? actorId : undefined,
     moved: moves.moved,
     before: { events, asOfSeq: headSeq },
     after,

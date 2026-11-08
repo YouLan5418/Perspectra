@@ -116,6 +116,23 @@ describe('rpg.json in a pack', () => {
     expect(again.events().length).toBeGreaterThan(0)
   })
 
+  it('editing what only the rules layer reads, such as a locked exit reason, also trips the save pin', async () => {
+    const { pack, data } = copy()
+    const first = await open(pack, data)
+    await first.close()
+    worlds.splice(worlds.indexOf(first), 1)
+    const config = readJson(join(pack, 'rpg.json'))
+    config.maps[0].exits[0].lockedReason = '门上的锁换了。'
+    writeJson(join(pack, 'rpg.json'), config)
+    await expect(open(pack, data)).rejects.toThrow('RPG 插件生成的规则与存档不一致')
+  })
+
+  it('an rpg.json without its plugin field says the field is missing', async () => {
+    const { pack, data } = copy({ config: c => delete c.plugin })
+    await expect(open(pack, data)).rejects.toThrow('rpg.json 缺少 plugin 字段')
+    expect(existsSync(join(data, 'world.sqlite'))).toBe(false)
+  })
+
   it('a pack asking for another plugin version fails before the world opens', async () => {
     const { pack, data } = copy({ config: c => (c.plugin.version = '2') })
     await expect(open(pack, data)).rejects.toThrow('rpg.json 需要 RPG 插件 official-rpg 2，当前程序提供 official-rpg 1')

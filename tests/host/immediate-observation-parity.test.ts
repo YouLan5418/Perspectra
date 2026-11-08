@@ -3,6 +3,8 @@ import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { afterEach, expect, it } from 'vitest'
 import type { WorldJsonObject } from '@harness-world/contracts'
+import { currentLocation } from '@harness-world/kernel'
+import type { RulesInstance, SeamProvider } from '@harness-world/plugin-sdk'
 import { WorldStore } from '@harness-world/store-sqlite'
 import { WorldHostRuntime } from '../../desktop/host/world-runtime.ts'
 import { fakeModels, startFakeProvider } from '../support/fake-provider.ts'
@@ -18,7 +20,7 @@ const COMPANION = 'character:companion',
   BACK = 'location:back-room',
   FRONT = 'location:front-room'
 
-async function world() {
+async function world(rules?: SeamProvider<RulesInstance>) {
   const root = mkdtempSync(join(tmpdir(), 'immediate-parity-'))
   cleanups.push(() => rmSync(root, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 }))
   const packPath = join(root, 'pack')
@@ -32,6 +34,7 @@ async function world() {
     dataDirectory: join(root, 'data'),
     models: fakeModels(server.endpoint),
     timeoutMs: 5000,
+    ...(rules ? { plugins: { rules: [rules] } } : {}),
   })
   cleanups.push(() => runtime.close())
   const events = () => {
@@ -54,7 +57,7 @@ async function world() {
       .filter(e => e.eventType === 'character.speak')
       .map(e => e.data)
   const updates = () => events().filter(e => e.eventType === 'activity.updated').length
-  return { runtime, seenBy, lines, updates }
+  return { runtime, events, seenBy, lines, updates }
 }
 const move = (locationId: string) => `/act move ${JSON.stringify({ locationId })}`
 
@@ -77,6 +80,40 @@ it('a move during an activity tells witnesses the same route', async () => {
   })
   await f.runtime.submit(move(BACK))
   expect(f.seenBy(COMPANION)?.movement).toMatchObject({ fromLocationId: FRONT })
+  expect(f.seenBy(FRIEND)?.movement).toMatchObject({ toLocationId: BACK })
+})
+
+/** A test-only follow rule, like the RPG party's: whoever stands with the player walks along when she moves. */
+const companionFollows: SeamProvider<RulesInstance> = {
+  id: 'test-follow',
+  version: '1.0.0',
+  open: async () => ({
+    resolve: (context, next) => {
+      const result = next(context)
+      const from = currentLocation(context.events, COMPANION)
+      if (result.status !== 'accepted' || context.action.actionType !== 'move') return result
+      if (from !== currentLocation(context.events, String(context.characterId))) return result
+      const to = (context.action.parameters as { locationId: string }).locationId
+      const follow = { characterId: COMPANION, fromLocationId: from ?? null, toLocationId: to }
+      return { ...result, events: [...result.events, { eventType: 'character.moved', eventVersion: 1, data: follow }] }
+    },
+  }),
+}
+
+it('a move during an activity that allows moving brings along whom the rules bring', async () => {
+  const f = await world(companionFollows)
+  await f.runtime.activityAction({
+    activityKey: 'guess',
+    activityId: null,
+    revision: 0,
+    operation: 'start',
+    parameters: {},
+    requestId: 'follow-start',
+  })
+  await f.runtime.submit(move(BACK))
+  const moved = f.events().filter(e => e.eventType === 'character.moved')
+  expect(moved.map(e => obj(e.data).characterId)).toEqual(['character:player', COMPANION])
+  expect(moved[0]!.transactionId).toBe(moved[1]!.transactionId)
   expect(f.seenBy(FRIEND)?.movement).toMatchObject({ toLocationId: BACK })
 })
 

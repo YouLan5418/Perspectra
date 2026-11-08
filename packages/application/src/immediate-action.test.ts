@@ -140,7 +140,9 @@ it('tells witnesses about a character the action moved besides its actor', () =>
     eventVersion: 1,
     data: { characterId, fromLocationId: 'location:room', toLocationId: 'location:next' },
   })
-  const events = fixture()({ status: 'accepted', events: [moved(PLAYER), moved(NPC)] })
+  const events = fixture()({ status: 'accepted', events: [moved(PLAYER), moved(NPC)] }, 'move', {
+    locationId: 'location:next',
+  })
   expect(events.filter(event => event.eventType === 'scene.member_left').map(event => event.data)).toEqual([
     { sceneId: 'scene:room', characterId: PLAYER },
     { sceneId: 'scene:room', characterId: NPC },
@@ -162,6 +164,35 @@ it('tells witnesses about a character the action moved besides its actor', () =>
     fromLocationId: 'location:room',
   })
   expect(events.at(-1)).toMatchObject({ eventType: 'action.resolved' })
+})
+
+it('when an action other than her own move moves the actor, her move is recorded like any mover and the action carries no route', () => {
+  const moved: WorldEventDraft = {
+    eventType: 'character.moved',
+    eventVersion: 1,
+    data: { characterId: PLAYER, fromLocationId: 'location:room', toLocationId: 'location:next' },
+  }
+  const events = fixture()({ status: 'accepted', events: [moved] })
+  const content = (id: string) =>
+    (
+      (events.find(event => (event.data as WorldJsonObject).id === id)?.data as WorldJsonObject | undefined)?.value as
+        | WorldJsonObject
+        | undefined
+    )?.content
+  // Bob stays behind: he sees the action and, separately, that she left; she knows her whole route.
+  expect(content(`action:test:character:bob`)).toMatchObject({ actionType: 'interact' })
+  expect(content(`action:test:character:bob`)).not.toHaveProperty('movement')
+  expect(content(`action:test:moved:${PLAYER}:character:bob`)).toEqual({
+    actorId: PLAYER,
+    actionType: 'moved',
+    status: 'accepted',
+    movement: { characterId: PLAYER, fromLocationId: 'location:room' },
+  })
+  expect((content(`action:test:moved:${PLAYER}:${PLAYER}`) as WorldJsonObject).movement).toEqual({
+    characterId: PLAYER,
+    fromLocationId: 'location:room',
+    toLocationId: 'location:next',
+  })
 })
 
 it('tells an actor who stays where the other went only if she was there', () => {

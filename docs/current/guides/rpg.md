@@ -145,11 +145,12 @@
 - **一个宝箱只装一件物品。** 宝箱就是一件放在本地图地面上的物品，用包自己的“拿起”取走，不是新的容器。
 - **地图内容要等同行的人都在场才开始。** 同行 NPC 就是 `rpg.json` `characters` 里除玩家以外的角色。其中任何一人不在这张地图，这张地图的旁白和战斗都不会开始，也不报错。所以示例里的阿茹不写进 `characters`。
 - **队伍**：只有角色自己能加入；离开的成员不再随行；存下来的队伍名单要到下一次 RPG 操作时才更新，显示可能滞后；她在清理之前回到队长身边，就仍算在队里，不用重新加入。
-- **随行只在当前活动禁止移动时有效**（RPG 地图活动就是）。在包自己的允许移动的活动里，队员不会随行。
-- **战斗参与者是 `characters` 里配置的同行 NPC**，不是后来加入的任何人。
+- **随行发生在队长自己走动时**：没有活动进行时，队长走到哪，和她站在一起的队员跟到哪；在包自己的允许移动的活动里也一样。RPG 地图活动进行中禁止移动，队长走不了，队员也就不动；战败或撤退把参与者一起送走，是活动结果，不是随行。
+- **战斗参与者是 `characters` 里配置的同行 NPC**，不是后来加入的任何人。不在 `characters` 里的角色入队后会随行，但战斗里没有她的回合，“战斗中不能离队”也锁不住她。
 - **写死的演出**：写死的技能和话照写的执行；技能她负担不起（魔力不够等）时，退回由她自己决定，并在战斗记录里留一条说明；话在技能之后说，不在之前；如果写死的技能直接让战斗以失败或撤退收场，这句话就丢掉了。**写死的演出可能和角色当时知道的事矛盾**，程序不判断，必须真人试玩检查。
 - **锁着的出口仍然列在可去的地点里**，走过去才被拒绝并显示作者写的理由。
-- **存档会固定生成的规则**：程序升级后若生成的 RPG 内容变了，旧存档打开会失败并写出新旧两个摘要。改 `rpg.json` 会改变包摘要，也不能续玩旧存档，请用新存档。
+- **存档会固定生成的规则**：程序升级后若生成的 RPG 内容变了，旧存档打开会失败并写出新旧两个摘要。改 `rpg.json`（包括只有规则层读的出口、锁门理由和队长）也会改变这个摘要，不能续玩旧存档，请用新存档。
+- **这个固定是尽力而为**：摘要记在数据目录的 `plugin-set.json` 里。这个文件丢了或损坏，或者把世界复制到另一个数据目录，再打开时会按当前内容重新记下，不报错。
 - 没有 `defeat` 的包，全灭后生命为 0 并留在原地，之后的战斗可能卡在倒下的人身上。
 - 战斗里的提示超过 500 字会被截断。
 - 战斗计算装备加成时，只算该角色看见自己持有的装备；她没亲眼见过易手的队友装备可能漏算（只会少算，不会泄露）。
@@ -158,6 +159,6 @@
 
 ## 7. 验证了什么，没验证什么
 
-- 自动测试：[config.test.ts](../../../packages/official-rpg/src/config.test.ts)、[status-module.test.ts](../../../packages/official-rpg/src/status-module.test.ts)、[map-activity.test.ts](../../../packages/official-rpg/src/map-activity.test.ts)；真实宿主：`tests/host/rpg-map-activity.test.ts`、`rpg-party.test.ts`、`rpg-pack.test.ts`、`lens-rpg.test.ts`、`rpg-story-share.test.ts`。
+- 自动测试：[config.test.ts](../../../packages/official-rpg/src/config.test.ts)、[status-module.test.ts](../../../packages/official-rpg/src/status-module.test.ts)、[map-activity.test.ts](../../../packages/official-rpg/src/map-activity.test.ts)；真实宿主：`tests/host/rpg-map-activity.test.ts`、`rpg-perform-path.test.ts`、`rpg-party.test.ts`、`rpg-pack.test.ts`、`lens-rpg.test.ts`、`rpg-story-share.test.ts`。
 - 验收包：[山脚遗迹](../../../examples/world-packs/hill-ruins/README.md) 的三份推演通过（通关并回家睡觉、战败回家、阿茹不知道战斗细节）。
 - **未验证**：真实模型下的同伴入队意愿、演出自然度、战斗节奏、一局下来的体验；Launcher 窗口与默认舞台上的实际观感；发行包。这些属于下一步手动试玩。

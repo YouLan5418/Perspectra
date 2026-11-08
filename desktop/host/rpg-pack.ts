@@ -11,7 +11,8 @@ export interface RpgContent {
   readonly activities: { key: string; source: string }[]
   readonly module: { declaration: object; source: string }
   readonly rules: SeamProvider<RulesInstance>
-  /** sha256 of the plugin id, version and every generated source; a save keeps the one it was created with. */
+  /** sha256 of the plugin id, version, the parsed config and every generated source; a save keeps the one it was
+   * created with. The config covers what only the rules layer reads, such as exits and the party leader. */
   readonly contentHash: string
 }
 
@@ -28,9 +29,11 @@ export function loadRpgContent(
   } catch (error) {
     throw new TypeError(`rpg.json 无法读取：${(error as Error).message}`, { cause: error })
   }
-  const wanted = `${String(raw?.plugin?.id)} ${String(raw?.plugin?.version)}`
+  if (typeof raw?.plugin?.id !== 'string' || typeof raw.plugin.version !== 'string')
+    throw new TypeError('rpg.json 缺少 plugin 字段：需要写明所用 RPG 插件的 id 和 version，例如 official-rpg 1')
+  const wanted = `${raw.plugin.id} ${raw.plugin.version}`
   if (!rpg) throw new Error(`这个包需要 RPG 插件 ${wanted}，当前组合没有提供`)
-  if (raw?.plugin?.id !== rpg.id || raw.plugin.version !== rpg.version)
+  if (raw.plugin.id !== rpg.id || raw.plugin.version !== rpg.version)
     throw new Error(`rpg.json 需要 RPG 插件 ${wanted}，当前程序提供 ${rpg.id} ${rpg.version}`)
   const { characters, locations, entities, playerSlots } = pack.content
   let config: ReturnType<RpgMechanism['parseConfig']>
@@ -54,7 +57,7 @@ export function loadRpgContent(
   const contentHash =
     'sha256:' +
     createHash('sha256')
-      .update(JSON.stringify({ plugin: { id: rpg.id, version: rpg.version }, module, activities }))
+      .update(JSON.stringify({ plugin: { id: rpg.id, version: rpg.version }, config, module, activities }))
       .digest('hex')
   return { activities, module, rules: rpg.rules(config), contentHash }
 }

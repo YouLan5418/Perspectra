@@ -242,3 +242,33 @@ it('tells an actor who stays only that the other left, and the far room nothing 
     }
   })
 })
+
+it('when the player says something and a rule sends her away, those she joins see her arrive and not her words', async () => {
+  const { runtime, read } = await start(sendAway(PLAYER, PLAYER, FRONT))
+  await runtime.submit('你好。')
+  read(store => {
+    const address = runtime.address
+    expect(sceneChanges(store, address, PLAYER)).toEqual([
+      ['scene.member_left', 'scene:back-room'],
+      ['scene.member_joined', 'scene:front-room'],
+    ])
+    // She knows her whole route; the friend she left sees her go, not where to.
+    expect(seenMoves(store, address, PLAYER, PLAYER)).toEqual([
+      { characterId: PLAYER, fromLocationId: BACK, toLocationId: FRONT },
+    ])
+    expect(seenMoves(store, address, FRIEND, PLAYER)).toEqual([{ characterId: PLAYER, fromLocationId: BACK }])
+    for (const observer of [COMPANION, WITNESS]) {
+      const contents = new CharacterViewBuilder(store)
+        .rebuildAt(address, brandId(observer, 'CharacterId'), store.head(address).headSeq)
+        .observations.map(entry => (entry.value as { content?: WorldJsonObject }).content)
+      expect(contents.filter(content => content?.actorId === PLAYER)).toEqual([
+        {
+          actorId: PLAYER,
+          actionType: 'moved',
+          status: 'accepted',
+          movement: { characterId: PLAYER, toLocationId: FRONT },
+        },
+      ])
+    }
+  })
+})

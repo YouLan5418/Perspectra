@@ -952,11 +952,17 @@ export class ActivityRuntime {
             description: String(description),
           })
           const operation = String(object(object(action.parameters).definitionRef ?? {}).id).startsWith('activity:')
+          // An activity operation sent as a world action may move the participants its result names; the player's own
+          // move may bring along whoever the rules walk with her, such as the RPG party.
+          const allowedMovers = operation
+            ? state.participants
+            : action.actionType === 'move'
+              ? broughtAlong(result.events, this.playerId)
+              : undefined
           return {
             events: drafts,
             authority: { actorId: this.playerId, action, status: 'accepted' },
-            // An activity operation sent as a world action may move the participants its result names.
-            ...(operation ? { allowedMovers: state.participants } : {}),
+            ...(allowedMovers ? { allowedMovers } : {}),
           }
         },
       )
@@ -970,4 +976,17 @@ export class ActivityRuntime {
       store.close()
     }
   }
+}
+
+/** Those a move's result walks along with the mover: every other `character.moved` from where she stood to where she
+ * went. */
+function broughtAlong(events: readonly { eventType: string; data: unknown }[], moverId: string): string[] {
+  const moves = events.filter(e => e.eventType === 'character.moved').map(e => object(e.data))
+  const own = moves.find(m => m.characterId === moverId)
+  if (!own) return []
+  return moves
+    .filter(
+      m => m.characterId !== moverId && m.fromLocationId === own.fromLocationId && m.toLocationId === own.toLocationId,
+    )
+    .map(m => String(m.characterId))
 }
