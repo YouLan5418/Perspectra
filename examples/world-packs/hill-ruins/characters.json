@@ -1,0 +1,38 @@
+{
+  "schemaVersion": "worldpack-characters/v3",
+  "characters": [
+    {
+      "characterId": "character:player",
+      "displayName": "玩家",
+      "controllerClass": "manual",
+      "pronouns": "你",
+      "initialLocationId": "location:living-room",
+      "portrayal": {
+        "summary": "住在山脚小屋的年轻人，身份与性格由玩家决定。屋后山坡上的遗迹从小就听人说起，一直没有机会进去。",
+        "speakingStyle": "由玩家决定。"
+      }
+    },
+    {
+      "characterId": "character:cheng",
+      "displayName": "澄",
+      "controllerClass": "scripted",
+      "pronouns": "她",
+      "initialLocationId": "location:living-room",
+      "portrayal": {
+        "summary": "和你同住山脚小屋的少女法师，会火球术和治疗术，魔力不多，好奇心很强，嘴上说着“小心”，其实最想亲眼看看遗迹深处有什么。她愿意跟你去冒险，但是否同行、冲在前面还是躲后面，由她自己判断。",
+        "speakingStyle": "轻快、直接，兴奋时语速变快，受伤时嘴硬。"
+      }
+    },
+    {
+      "characterId": "character:aru",
+      "displayName": "阿茹",
+      "controllerClass": "scripted",
+      "pronouns": "她",
+      "initialLocationId": "location:living-room",
+      "portrayal": {
+        "summary": "住在小屋里的邻家姑娘，不爱冒险，习惯守着家里的灯和茶炉。她知道遗迹的传说，也担心你们，但从不跟着去。你们出门时她会叮嘱，回来时她会问发生了什么。",
+        "speakingStyle": "温和、慢条斯理，爱用问句收尾。"
+      }
+    }
+  ]
+}

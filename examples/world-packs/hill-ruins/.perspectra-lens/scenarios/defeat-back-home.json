@@ -1,0 +1,71 @@
+{
+  "title": "带着重伤闯进遗迹，战败后被传送回家，生命只剩 1",
+  "start": {
+    "status": {
+      "characters": {
+        "character:player": {
+          "rpg-hp": 2
+        },
+        "character:cheng": {
+          "rpg-hp": 1
+        }
+      }
+    }
+  },
+  "npcPlans": {
+    "character:cheng": [
+      {
+        "kind": "perform",
+        "interact": "status:rpg-join"
+      }
+    ]
+  },
+  "steps": [
+    {
+      "say": "澄，陪我去遗迹。",
+      "expect": {
+        "status": {
+          "rpg-party": [
+            "character:cheng"
+          ]
+        }
+      }
+    },
+    {
+      "move": "location:ruin-1",
+      "expect": {
+        "started": "rpg-map-ruin-1"
+      }
+    },
+    {
+      "activity": "rpg-map-ruin-1",
+      "operation": "guard",
+      "expect": {
+        "status": {
+          "character:player.rpg-hp": 2,
+          "character:cheng.rpg-hp": 0
+        }
+      }
+    },
+    {
+      "activity": "rpg-map-ruin-1",
+      "operation": "guard",
+      "expect": {
+        "status": {
+          "character:player.rpg-hp": 1,
+          "character:cheng.rpg-hp": 1
+        },
+        "knows": {
+          "character:player": "战斗失败"
+        },
+        "doesNotKnow": {
+          "character:aru": [
+            "遗迹守卫",
+            "生命",
+            "战斗"
+          ]
+        }
+      }
+    }
+  ]
+}

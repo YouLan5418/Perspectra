@@ -1,0 +1,26 @@
+{
+  "title": "阿茹留在家里，只看见他们出门，不知道遗迹里的战斗细节",
+  "npcPlans": {
+    "character:cheng": [{ "kind": "perform", "interact": "status:rpg-join" }]
+  },
+  "steps": [
+    { "say": "澄，陪我去遗迹。" },
+    {
+      "move": "location:ruin-1",
+      "expect": {
+        "started": "rpg-map-ruin-1",
+        "knows": { "character:aru": ["玩家 离开了 客厅", "澄 离开了 客厅"] },
+        "doesNotKnow": { "character:aru": ["遗迹守卫", "火球术", "潮湿阴冷", "小心，它的护甲很硬"] }
+      }
+    },
+    {
+      "activity": "rpg-map-ruin-1",
+      "operation": "skill",
+      "parameters": { "skill": "火球术", "target": "遗迹守卫" },
+      "expect": {
+        "knows": { "character:player": "遗迹守卫生命" },
+        "doesNotKnow": { "character:aru": ["遗迹守卫", "火球术", "生命", "魔力", "再来一发"] }
+      }
+    }
+  ]
+}

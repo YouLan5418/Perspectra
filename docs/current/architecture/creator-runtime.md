@@ -129,6 +129,12 @@ Interaction 定义和绑定提供玩法可选行为，规则负责重要状态�
 - 推演不证明体验：桩模型不产生真实对白，角色是否自然、有没有主体性仍靠真实模型试玩。
 - 限制：不自动分叉试跑每个活动选项；不翻译脚本代码，条件说明只来自作者写的标签和运行时结果；“复制给 AI”只复制当时的清单文本。
 
+## RPG 玩法（2026-11-08，分支 feat/rpg-plugin）
+
+例如作者在包里写一份 `rpg.json`：遗迹一层有守卫、铁门需要钥匙，澄是同伴。玩家进入遗迹时，宿主已经为这张地图生成了一场活动，澄随队长走进来，战斗伤害、掉落和锁门由程序裁定，留在家里的阿茹收不到战斗内容。
+
+官方机制包 [official-rpg](../../../packages/official-rpg) 在世界打开时读取 `rpg.json`（需登记在 `assetFiles`），生成一个状态模块、每张地图一个活动和一个规则层（锁门、队伍随行），不写回包目录；[desktop/host/rpg-pack.ts](../../../desktop/host/rpg-pack.ts) 负责载入，生成内容的摘要记在存档的 `plugin-set.json`，不一致时拒绝打开。包透视和 `worldpack validate` 也读 `rpg.json`。作者说明见[RPG 玩法](../guides/rpg.md)，验收包是 [hill-ruins](../../../examples/world-packs/hill-ruins/README.md)。源码已接通、自动测试与推演通过；真实模型试玩和发行包均未做。
+
 ## 创作入口与限制
 
 先看[字段手册](../guides/world-pack-authoring.md)、[试玩步骤](../guides/creator-playtest.md)和[自定义网页](../guides/web-ui.md)。`frontend/` 含 index.html 时须带 manifest.json，使用 iframe 公共玩家接口；只放 theme.css、portraits/、backgrounds/ 与 stage.json 时沿用官方舞台，不需要 manifest。未提供时使用官方默认模板。这些前端资源不改变世界包编译身份；新实验使用独立数据目录。

@@ -1,0 +1,29 @@
+{
+  "schemaVersion": "worldpack-entities/v2",
+  "entities": [
+    {
+      "entityId": "entity:iron-sword",
+      "locationId": "location:living-room",
+      "kind": "放在客厅里的旧铁剑，剑刃有缺口，但还够用",
+      "name": "铁剑"
+    },
+    {
+      "entityId": "entity:potion",
+      "locationId": "location:living-room",
+      "kind": "客厅桌上的药水，喝下去能恢复生命",
+      "name": "药水"
+    },
+    {
+      "entityId": "entity:potion-2",
+      "locationId": "location:ruin-2",
+      "kind": "遗迹二层木箱里的药水，喝下去能恢复生命",
+      "name": "药水"
+    },
+    {
+      "entityId": "entity:iron-key",
+      "locationId": "location:vault",
+      "kind": "遗迹一层那扇铁门的钥匙，守卫倒下后会出现",
+      "name": "铁钥匙"
+    }
+  ]
+}

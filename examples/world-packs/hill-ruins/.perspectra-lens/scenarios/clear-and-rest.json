@@ -1,0 +1,99 @@
+{
+  "title": "入队、打赢守卫、拿钥匙开门、回家睡觉回满生命",
+  "start": {
+    "status": {
+      "characters": {
+        "character:player": {
+          "rpg-hp": 20
+        }
+      }
+    }
+  },
+  "npcPlans": {
+    "character:cheng": [
+      {
+        "kind": "perform",
+        "interact": "status:rpg-join"
+      }
+    ]
+  },
+  "steps": [
+    {
+      "say": "澄，陪我去屋后的遗迹看看吧。",
+      "expect": {
+        "status": {
+          "rpg-party": [
+            "character:cheng"
+          ]
+        }
+      }
+    },
+    {
+      "move": "location:ruin-1",
+      "expect": {
+        "started": "rpg-map-ruin-1"
+      }
+    },
+    {
+      "activity": "rpg-map-ruin-1",
+      "operation": "skill",
+      "parameters": {
+        "skill": "火球术",
+        "target": "遗迹守卫"
+      },
+      "expect": {
+        "status": {
+          "character:player.rpg-hp": 12
+        }
+      }
+    },
+    {
+      "activity": "rpg-map-ruin-1",
+      "operation": "skill",
+      "parameters": {
+        "skill": "普通攻击",
+        "target": "遗迹守卫"
+      },
+      "expect": {
+        "knows": {
+          "character:player": [
+            "遗迹守卫",
+            "敌人全部倒下"
+          ]
+        },
+        "status": {
+          "character:player.rpg-hp": 12
+        }
+      }
+    },
+    {
+      "move": "location:ruin-2"
+    },
+    {
+      "interact": "status:take",
+      "target": "entity:iron-key"
+    },
+    {
+      "move": "location:ruin-2"
+    },
+    {
+      "interact": "status:take",
+      "target": "entity:potion-2"
+    },
+    {
+      "move": "location:living-room"
+    },
+    {
+      "move": "location:bedroom"
+    },
+    {
+      "interact": "status:rpg-rest",
+      "expect": {
+        "status": {
+          "character:player.rpg-hp": 40,
+          "character:player.rpg-mp": 8
+        }
+      }
+    }
+  ]
+}

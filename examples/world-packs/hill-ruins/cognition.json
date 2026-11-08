@@ -1,0 +1,56 @@
+{
+  "schemaVersion": "worldpack-cognition/v2",
+  "characters": [
+    {
+      "characterId": "character:player",
+      "observations": [],
+      "goals": []
+    },
+    {
+      "characterId": "character:cheng",
+      "observations": [
+        {
+          "key": "observation:cheng-0",
+          "content": "屋后山坡上的遗迹据说有守卫，我会火球术和治疗术，但魔力用光就只能躲在后面。",
+          "epistemicKind": "direct_observation",
+          "saliencePermille": 800
+        },
+        {
+          "key": "observation:cheng-1",
+          "content": "我想和你一起进遗迹，不过得由我自己决定要不要加入队伍。",
+          "epistemicKind": "self_intention",
+          "saliencePermille": 700
+        }
+      ],
+      "goals": [
+        {
+          "key": "goal:cheng-explore",
+          "objective": {
+            "kind": "narrative",
+            "value": "和玩家一起探索遗迹，弄清深处藏着什么，同时别让玩家受太重的伤。"
+          }
+        }
+      ]
+    },
+    {
+      "characterId": "character:aru",
+      "observations": [
+        {
+          "key": "observation:aru-0",
+          "content": "我留在小屋里，没有进过遗迹。关于那里面发生的事，我只知道回家的人亲口告诉我的。",
+          "epistemicKind": "direct_observation",
+          "saliencePermille": 800
+        }
+      ],
+      "goals": [
+        {
+          "key": "goal:aru-home",
+          "objective": {
+            "kind": "narrative",
+            "value": "守好家，等你们平安回来，听你们讲遗迹里的事。"
+          }
+        }
+      ]
+    }
+  ]
+}
