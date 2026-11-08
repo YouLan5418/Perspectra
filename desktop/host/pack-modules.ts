@@ -52,20 +52,32 @@ export class PackModules {
   private awaitingCommit = false
   private catalog: CapabilityCatalog | undefined
 
-  static load(packPath: string, pack: CompiledWorldPackV5, catalog?: CapabilityCatalog): PackModules | undefined {
-    if (!pack.assets.some(asset => asset.path === 'plugins.json')) return undefined
-    const declaration = object(JSON.parse(lockedPackAsset(packPath, pack, 'plugins.json')))
-    if (
-      Object.keys(declaration).join() !== 'modules' ||
-      !Array.isArray(declaration.modules) ||
-      declaration.modules.length > 16
-    )
-      throw new TypeError('Expected at most 16 pack modules')
+  /** The pack's plugins.json modules, then a `generated` one whose source the pack does not carry as a file. */
+  static load(
+    packPath: string,
+    pack: CompiledWorldPackV5,
+    catalog?: CapabilityCatalog,
+    generated?: { declaration: object; source: string },
+  ): PackModules | undefined {
+    const declared = pack.assets.some(asset => asset.path === 'plugins.json')
+    if (!declared && !generated) return undefined
+    const items: { value: unknown; source?: string }[] = []
+    if (declared) {
+      const declaration = object(JSON.parse(lockedPackAsset(packPath, pack, 'plugins.json')))
+      if (
+        Object.keys(declaration).join() !== 'modules' ||
+        !Array.isArray(declaration.modules) ||
+        declaration.modules.length > 16
+      )
+        throw new TypeError('Expected at most 16 pack modules')
+      items.push(...declaration.modules.map(value => ({ value })))
+    }
+    if (generated) items.push({ value: generated.declaration, source: generated.source })
     const result = new PackModules(),
       ids = new Set<string>(),
       requirements = new Map<string, CapabilityRequirement>()
     result.catalog = catalog
-    for (const value of declaration.modules) {
+    for (const { value, source } of items) {
       const item = object(value)
       if (
         Object.keys(item).sort().join() !== 'capabilities,characters,entry,id' ||
@@ -81,11 +93,16 @@ export class PackModules {
         !Array.isArray(item.capabilities)
       )
         throw new TypeError('Invalid pack module declaration')
-      if (ids.has(String(item.id))) throw new TypeError('Duplicate pack module: ' + item.id)
+      if (ids.has(String(item.id)))
+        throw new TypeError(
+          source === undefined
+            ? 'Duplicate pack module: ' + item.id
+            : `RPG 插件生成的模块 ${item.id} 与包内 plugins.json 的模块重名`,
+        )
       ids.add(String(item.id))
       const module: Module = {
         id: String(item.id),
-        source: lockedPackAsset(packPath, pack, item.entry),
+        source: source ?? lockedPackAsset(packPath, pack, item.entry),
         characters: item.characters as string[],
         requirements: [],
         definition: {},

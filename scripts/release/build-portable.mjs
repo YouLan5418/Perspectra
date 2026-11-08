@@ -5,6 +5,7 @@ import { execFileSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { copyMemoryRuntime } from '../build/copy-memory-runtime.mjs'
 import { buildWorldPackCli } from '../build/build-worldpack-cli.mjs'
+import { inlineAdjacentScripts } from '../build/inline-adjacent-scripts.mjs'
 const { version } = JSON.parse(await readFile('package.json', 'utf8'))
 const output = resolve(process.argv[2] ?? 'dist/portable/Perspectra-' + version + '-win-x64')
 try {
@@ -76,6 +77,7 @@ for (const [entry, file] of [
     format: 'esm',
     legalComments: 'eof',
     metafile: true,
+    plugins: [inlineAdjacentScripts],
     banner: {
       js: "import {createRequire as __createRequire} from 'node:module'; const require=__createRequire(import.meta.url);",
     },

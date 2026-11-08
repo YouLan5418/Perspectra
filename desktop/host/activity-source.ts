@@ -4,7 +4,12 @@ import { relative, resolve, sep } from 'node:path'
 import { SCRIPT_SOURCE_LIMIT } from '@harness-world/contracts'
 import type { ActivitySource } from '@harness-world/plugin-sdk'
 import type { CompiledWorldPackV5 } from '@harness-world/world-pack'
-export function loadActivitySource(packPath: string, pack: CompiledWorldPackV5): ActivitySource | undefined {
+/** The pack's activity scripts, then `generated` ones that the pack does not carry as files. */
+export function loadActivitySource(
+  packPath: string,
+  pack: CompiledWorldPackV5,
+  generated: readonly { key: string; source: string }[] = [],
+): ActivitySource | undefined {
   const entries: { key: string; entry: string; source: string }[] = [],
     keys = new Set<string>()
   for (const asset of pack.assets) {
@@ -27,6 +32,12 @@ export function loadActivitySource(packPath: string, pack: CompiledWorldPackV5):
     )
       throw new TypeError('活动脚本与编译资产不一致')
     entries.push({ key, entry: asset.path, source: bytes.toString('utf8') })
+  }
+  for (const { key, source } of generated) {
+    const entry = `scripts/activities/${key}.js`
+    if (keys.has(key)) throw new TypeError(`RPG 插件生成的活动 ${key} 与包内 ${entry} 重名`)
+    keys.add(key)
+    entries.push({ key, entry, source })
   }
   return entries.length ? { entries } : undefined
 }

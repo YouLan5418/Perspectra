@@ -3,16 +3,12 @@ import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import type { WorldJsonObject } from '@harness-world/contracts'
 import { WorldStore } from '@harness-world/store-sqlite'
-import { parseRpgConfig, type RpgConfig } from '../../packages/official-rpg/src/config.ts'
-import { generateMapActivities } from '../../packages/official-rpg/src/map-activity.ts'
-import { createRpgRules } from '../../packages/official-rpg/src/rules.ts'
-import { generateStatusModule } from '../../packages/official-rpg/src/status-module.ts'
+import type { WorldComposition } from '../../desktop/official-bundle.ts'
 import { WorldHostRuntime } from '../../desktop/host/world-runtime.ts'
 import { fakeModels, startFakeProvider } from './fake-provider.ts'
 
-// Temporary wiring until Task 8 loads rpg.json in the host: the generated activities and status module are written
-// into a copy of tests/fixtures/rpg-pack as ordinary pack assets, and the RPG rules layer is handed to the runtime
-// composition (Ruling R3). Delete this helper once the host does it.
+// tests/fixtures/rpg-pack registers rpg.json; the host generates its activities, status module and rules. This
+// helper only copies the pack so a test can move people or edit rpg.json, and answers model calls.
 
 const FIXTURE = resolve('tests/fixtures/rpg-pack')
 type Json = Record<string, any>
@@ -20,16 +16,20 @@ const readJson = (path: string): Json => JSON.parse(readFileSync(path, 'utf8'))
 const writeJson = (path: string, value: unknown) => writeFileSync(path, JSON.stringify(value, null, 2) + '\n')
 
 export interface RpgFixtureOptions {
-  /** Edit rpg.json before generation. */
+  /** Edit rpg.json in the copy. */
   config?: (config: Json) => void
   /** Initial locations by character id. */
   places?: Record<string, string>
   /** The fake model's decision for each request (the parsed request JSON). Defaults to abstaining. */
   decide?: (input: WorldJsonObject) => unknown
+  /** Any other change to the copied pack directory. */
+  edit?: (pack: string) => void
+  /** Defaults to the standard install. */
+  composition?: WorldComposition
 }
 
-/** Copy the fixture pack, write the generated RPG content into it, and open it with the real host runtime. */
-export async function openRpgFixture(options: RpgFixtureOptions = {}) {
+/** A temporary copy of the fixture pack and an empty data directory beside it. */
+export function copyRpgFixture(options: Pick<RpgFixtureOptions, 'config' | 'places' | 'edit'> = {}) {
   const root = mkdtempSync(join(tmpdir(), 'rpg-fixture-'))
   const pack = join(root, 'pack'),
     data = join(root, 'data')
@@ -48,50 +48,40 @@ export async function openRpgFixture(options: RpgFixtureOptions = {}) {
     scene.lifecycle = scene.participantIds.length ? 'active' : 'created'
   }
   writeJson(join(pack, 'scenes.json'), scenes)
-
-  const raw = readJson(join(pack, 'rpg.json'))
-  options.config?.(raw)
-  writeJson(join(pack, 'rpg.json'), raw)
-  const locations = readJson(join(pack, 'locations.json')).locations as Json[]
-  const entities = readJson(join(pack, 'entities.json')).entities as Json[]
-  const config: RpgConfig = parseRpgConfig(raw, {
-    characterIds: characters.characters.map((c: Json) => c.characterId),
-    locationIds: locations.map(l => l.locationId),
-    entityIds: entities.map(e => e.entityId),
-    entityLocations: Object.fromEntries(entities.map(e => [e.entityId, e.locationId ?? null])),
-  })
-  const names = Object.fromEntries([
-    ...characters.characters.map((c: Json) => [c.characterId, c.displayName]),
-    ...locations.map(l => [l.locationId, l.name]),
-  ])
-  const activities = generateMapActivities(config, { playerId: 'character:player', names })
-  const module = generateStatusModule(config)
-  mkdirSync(join(pack, 'scripts/activities'), { recursive: true })
-  mkdirSync(join(pack, 'plugins'), { recursive: true })
-  const assets: string[] = []
-  for (const { key, source } of activities) {
-    writeFileSync(join(pack, `scripts/activities/${key}.js`), source)
-    assets.push(`scripts/activities/${key}.js`)
+  if (options.config) {
+    const raw = readJson(join(pack, 'rpg.json'))
+    options.config(raw)
+    writeJson(join(pack, 'rpg.json'), raw)
   }
-  writeFileSync(join(pack, module.declaration.entry), module.source)
-  writeJson(join(pack, 'plugins.json'), { modules: [module.declaration] })
-  const source = readJson(join(pack, 'worldpack.source.json'))
-  source.assetFiles = [...source.assetFiles, ...assets, 'plugins.json', module.declaration.entry]
-  writeJson(join(pack, 'worldpack.source.json'), source)
+  options.edit?.(pack)
+  return { root, pack, data }
+}
 
+/** Open a world from a pack directory with the real host runtime and a fake model. */
+export async function openRpgWorld(
+  pack: string,
+  data: string,
+  options: Pick<RpgFixtureOptions, 'decide' | 'composition'> = {},
+) {
   const inputs: WorldJsonObject[] = []
   const provider = await startFakeProvider('openai', call => {
     const input = JSON.parse(call.userText) as WorldJsonObject
     inputs.push(input)
     return { tool: options.decide?.(input) ?? { decision: 'abstain' } }
   })
-  const runtime = await WorldHostRuntime.create({
-    packPath: pack,
-    dataDirectory: data,
-    models: fakeModels(provider.endpoint),
-    timeoutMs: 5000,
-    plugins: { rules: [createRpgRules(config)] },
-  })
+  let runtime: WorldHostRuntime
+  try {
+    runtime = await WorldHostRuntime.create({
+      packPath: pack,
+      dataDirectory: data,
+      models: fakeModels(provider.endpoint),
+      timeoutMs: 5000,
+      ...(options.composition ? { composition: options.composition } : {}),
+    })
+  } catch (error) {
+    await provider.close()
+    throw error
+  }
   const events = () => {
     const store = new WorldStore(join(data, 'world.sqlite'))
     try {
@@ -106,13 +96,29 @@ export async function openRpgFixture(options: RpgFixtureOptions = {}) {
     data,
     inputs,
     events,
-    config,
     move: (locationId: string) => runtime.submit('/act move ' + JSON.stringify({ locationId })),
     async close() {
       await runtime.close()
       await provider.close()
-      rmSync(root, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 })
     },
+  }
+}
+
+/** Copy the fixture pack and open it. */
+export async function openRpgFixture(options: RpgFixtureOptions = {}) {
+  const { root, pack, data } = copyRpgFixture(options)
+  try {
+    const world = await openRpgWorld(pack, data, options)
+    return {
+      ...world,
+      async close() {
+        await world.close()
+        rmSync(root, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 })
+      },
+    }
+  } catch (error) {
+    rmSync(root, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 })
+    throw error
   }
 }
 export type RpgFixture = Awaited<ReturnType<typeof openRpgFixture>>

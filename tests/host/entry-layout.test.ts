@@ -1,4 +1,5 @@
 import { build } from 'esbuild'
+import { inlineAdjacentScripts } from '../../scripts/build/inline-adjacent-scripts.mjs'
 import { execFileSync, spawn } from 'node:child_process'
 import { once } from 'node:events'
 import { cp, mkdir, mkdtemp, rm } from 'node:fs/promises'
@@ -20,6 +21,7 @@ it('boots the built backend from a source checkout and an isolated installed lay
       target: 'node24',
       format: 'esm',
       logLevel: 'silent',
+      plugins: [inlineAdjacentScripts],
     })
     await cp('packages/frontend/assets', join(directory, 'frontend-assets'), { recursive: true })
     // Exercise the same payload copier used by the bundled backend and portable release builds.

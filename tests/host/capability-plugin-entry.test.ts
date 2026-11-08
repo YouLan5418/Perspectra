@@ -1,4 +1,5 @@
 import { build } from 'esbuild'
+import { inlineAdjacentScripts } from '../../scripts/build/inline-adjacent-scripts.mjs'
 import { spawn } from 'node:child_process'
 import { once } from 'node:events'
 import { createChatServer } from '../support/fake-provider.ts'
@@ -47,6 +48,7 @@ export default function (ctx) {
       target: 'node24',
       format: 'esm',
       logLevel: 'silent',
+      plugins: [inlineAdjacentScripts],
     })
     await cp('packages/frontend/assets', join(directory, 'frontend-assets'), { recursive: true })
     for (const layout of ['source', 'built']) {

@@ -12,6 +12,14 @@ import type { Context } from '@deepseek-ai/cordis'
 import { officialSchedulerProvider, officialAutonomyProvider } from '@harness-world/official-scheduler'
 import { officialCharacterLoopProvider } from '@harness-world/official-character-loop'
 import { officialKnowledgeProvider } from '@harness-world/official-knowledge'
+import {
+  OFFICIAL_RPG_ID,
+  OFFICIAL_RPG_VERSION,
+  createRpgRules,
+  generateMapActivities,
+  generateStatusModule,
+  parseRpgConfig,
+} from '@harness-world/official-rpg'
 import type {
   DecisionInstance,
   CharacterLoopInstance,
@@ -85,12 +93,25 @@ export interface HostSeams {
   readonly rules?: readonly SeamProvider<RulesInstance>[]
 }
 
+/** The RPG mechanism a pack opts into with rpg.json: its config, the scripts generated from it and its rules. */
+export const officialRpg = {
+  id: OFFICIAL_RPG_ID,
+  version: OFFICIAL_RPG_VERSION,
+  parseConfig: parseRpgConfig,
+  statusModule: generateStatusModule,
+  mapActivities: generateMapActivities,
+  rules: createRpgRules,
+}
+export type RpgMechanism = typeof officialRpg
+
 /** Explicit entry composition. An omitted optional mechanism stays absent in this selection. */
 export interface WorldComposition {
   readonly interactionPackages: readonly InteractionPackageImplementation[]
   readonly mechanisms: HostSeams
   readonly modelChannel?: typeof composeModelChannel
   readonly fallbackScheduler?: SeamProvider<SchedulerInstance>
+  /** Serves packs that register rpg.json; without it such a pack does not open. */
+  readonly rpg?: RpgMechanism
 }
 
 /** The standard RP install chosen by desktop/Lens entry points, never by WorldHostCore. */
@@ -100,6 +121,7 @@ export function assembleRoleplay(plugins: Partial<HostSeams> = {}): WorldComposi
     mechanisms: composeWorldSeams(plugins),
     modelChannel: composeModelChannel,
     fallbackScheduler: officialSchedulerProvider,
+    rpg: officialRpg,
   }
 }
 

@@ -1,7 +1,10 @@
 import type { WorldEventDraft } from '@harness-world/contracts'
 import type { RuleContext, RulesInstance, SeamProvider } from '@harness-world/plugin-sdk'
 import type { RpgConfig, RpgExit } from './config.ts'
-import { OFFICIAL_RPG_ID, OFFICIAL_RPG_VERSION } from './index.ts'
+import { OFFICIAL_RPG_ID, OFFICIAL_RPG_VERSION } from './plugin.ts'
+
+/** The rules layer's own provider id, distinct from the plugin id rpg.json names. */
+export const OFFICIAL_RPG_RULES_ID = `${OFFICIAL_RPG_ID}-rules`
 
 /** Public status the RPG status module keeps: the leader's companions, by character id. */
 export const PARTY_STATUS = 'rpg-party'
@@ -104,5 +107,5 @@ export function createRpgRules(config: RpgConfig): SeamProvider<RulesInstance> {
       return follows.length ? { ...result, events: [...result.events, ...follows] } : result
     },
   }
-  return { id: OFFICIAL_RPG_ID, version: OFFICIAL_RPG_VERSION, open: async () => instance }
+  return { id: OFFICIAL_RPG_RULES_ID, version: OFFICIAL_RPG_VERSION, open: async () => instance }
 }

@@ -1,4 +1,4 @@
-import { OFFICIAL_RPG_ID, OFFICIAL_RPG_VERSION } from './index.ts'
+import { OFFICIAL_RPG_ID, OFFICIAL_RPG_VERSION } from './plugin.ts'
 
 export interface RpgStat {
   key: string

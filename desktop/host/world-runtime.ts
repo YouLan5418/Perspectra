@@ -15,6 +15,7 @@ import type {
 import { loadAutonomySource, loadCommunicationSource } from './gameplay-source.ts'
 import { guardedActivities } from './activity-service.ts'
 import { loadActivitySource } from './activity-source.ts'
+import { assertSavedRpgContent, loadRpgContent, type RpgContent } from './rpg-pack.ts'
 import { loadStatusSource } from './status-source.ts'
 import { loadPacingSource } from './pacing-source.ts'
 import { PacingRuntime } from './pacing-runtime.ts'
@@ -268,6 +269,8 @@ export class WorldHostCore implements HostRuntime {
   #llm!: LlmInstance
   /** The modules actually in force, which can differ from what was asked for when a scheduler falls back. */
   readonly #modulesInForce: Record<string, { id: string; version: string }[]> = {}
+  /** Generated from the pack's rpg.json; its rules layer sits inside the chosen rule plugins. */
+  #rpg: RpgContent | undefined
   readonly #gameplay: WorldAdapters
   #decisions: DecisionInstance[] = []
   #ruleLayers: RulesInstance[] = []
@@ -522,7 +525,15 @@ export class WorldHostCore implements HostRuntime {
       resolve(options.packPath),
       options.composition.interactionPackages.map(interactionPackageDescription),
     )) as CompiledWorldPackV5
-    const modules = PackModules.load(options.packPath, pack, options.capabilities)
+    // A pack's rpg.json brings generated activities, a status module and rules; all are checked before the world opens.
+    const rpg = loadRpgContent(options.packPath, pack, options.composition.rpg)
+    if (rpg)
+      assertSavedRpgContent(
+        readPluginSet(options.logicalDirectory ?? options.dataDirectory)?.rpgContent,
+        rpg.contentHash,
+      )
+    const modules = PackModules.load(options.packPath, pack, options.capabilities, rpg?.module)
+    const activitySource = loadActivitySource(options.packPath, pack, rpg?.activities)
     const compiled = adaptCompiledWorldPack(pack, {
       address: {
         tenantId: brandId('tenant:web-playtest', 'TenantId'),
@@ -536,10 +547,11 @@ export class WorldHostCore implements HostRuntime {
       (compiled.manifest as { readonly playerInputPolicy?: { readonly version: string } }).playerInputPolicy
         ?.version === 'player-intent/v1'
     const runtime = new WorldHostCore(options, compiled, intentEnabled)
+    runtime.#rpg = rpg
     try {
       runtime.#communicationSource = loadCommunicationSource(options.packPath, pack)
       runtime.#autonomySource = loadAutonomySource(options.packPath, pack)
-      runtime.#activitySource = loadActivitySource(options.packPath, pack)
+      runtime.#activitySource = activitySource
       runtime.#knowledgeSource = loadKnowledgeSource(options.packPath, pack)
       runtime.#statusSource = loadStatusSource(options.packPath, pack, modules?.sources)
       runtime.#pacingSource = loadPacingSource(options.packPath, pack)
@@ -1657,7 +1669,7 @@ export class WorldHostCore implements HostRuntime {
   #notePluginSet(): void {
     if (this.#options.candidate) return
     const directory = this.#options.logicalDirectory ?? this.#dataDirectory
-    const current = { seams: this.#modulesInForce }
+    const current = { seams: this.#modulesInForce, ...(this.#rpg ? { rpgContent: this.#rpg.contentHash } : {}) }
     const changes = pluginSetChanges(readPluginSet(directory), current)
     if (changes.length)
       this.#notice = [this.#notice, `这个存档使用的模块变了：${changes.join('；')}。世界事实不受影响。`]
@@ -1734,7 +1746,7 @@ export class WorldHostCore implements HostRuntime {
 
   /** A rule the player chose must hold, so one that cannot open stops the world. */
   async #openRules(): Promise<void> {
-    for (const provider of this.#options.plugins?.rules ?? []) {
+    for (const provider of [...(this.#options.plugins?.rules ?? []), ...(this.#rpg ? [this.#rpg.rules] : [])]) {
       try {
         const opened = await provider.open(this.#services(provider.id), AbortSignal.timeout(30_000))
         this.#ruleLayers.push(guardedRules(opened, provider.id, this.#reportPlugin))
