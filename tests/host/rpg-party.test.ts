@@ -118,9 +118,8 @@ describe('RPG locked exits and party', () => {
     expect(partyMembers(f.events(), PLAYER)).toEqual([CHENG])
     const joined = f.events().findLast(e => e.eventType === 'status.updated')!
     expect(data(joined).source).toMatchObject({ operation: 'rpg-join', actorId: CHENG })
-    // Once in, she is offered leaving instead.
+    // Once in, she is offered leaving too.
     expect(offered(f, CHENG)).toContain('status:rpg-leave')
-    expect(offered(f, CHENG)).not.toContain('status:rpg-join')
   })
 
   it('when the player moves, Cheng follows in the same commit and Ah-Ru at home sees both leave', async () => {
@@ -141,11 +140,20 @@ describe('RPG locked exits and party', () => {
   })
 
   it('a member who is elsewhere when the leader moves does not follow and no longer counts as in the party', async () => {
-    const f = await fixture({ decide: chengPlays(statusAction('rpg-join'), moveAction(BEDROOM)) })
+    let step = 0
+    const f = await fixture({
+      decide: chengPlays(
+        () => (step === 1 ? statusAction('rpg-join') : undefined),
+        () => (step === 2 ? moveAction(BEDROOM) : undefined),
+        () => (step === 3 ? statusAction('rpg-join') : undefined),
+      ),
+    })
     await f.runtime.submit('/status take@entity:iron-sword {}')
+    step = 1
     await say(f, '澄，一起去吗？')
-    if (where(f, CHENG) !== BEDROOM) await say(f, '你要去哪？')
     expect(partyList(f.events())).toEqual([CHENG])
+    step = 2
+    await say(f, '你要去哪？')
     expect(where(f, CHENG)).toBe(BEDROOM)
     // Still listed, but not with the leader: she is not in the party and stays behind.
     expect(partyMembers(f.events(), PLAYER)).toEqual([])
@@ -157,33 +165,78 @@ describe('RPG locked exits and party', () => {
     const update = f.events().findLast(e => e.eventType === 'status.updated')!
     expect(data(update).changes).toEqual(expect.arrayContaining([{ holderId: null, key: 'rpg-party', value: [] }]))
     expect(partyList(f.events())).toEqual([])
+
+    // She did not see that; when they meet again she can still join, and does.
+    await f.move(BEDROOM)
+    expect(partyMembers(f.events(), PLAYER)).toEqual([])
+    expect(offered(f, CHENG)).toContain('status:rpg-join')
+    step = 3
+    await say(f, '澄，还一起走吗？')
+    expect(partyList(f.events())).toEqual([CHENG])
+    expect(partyMembers(f.events(), PLAYER)).toEqual([CHENG])
   })
 
   it('leave is refused during a battle when lockDuringBattle is set, and allowed after', async () => {
     let wantsOut = false
+    const tries: string[] = []
     const f = await fixture({
       config: c => {
         c.maps[0].scripted = []
         c.enemies.golem.hp = 5
       },
-      decide: chengPlays(statusAction('rpg-join'), () => (wantsOut ? statusAction('rpg-leave') : undefined)),
+      decide: input => {
+        const context = input.context as Json
+        if (context.character.characterId !== CHENG || input.continuation) return { decision: 'abstain' }
+        const activity = context.activity as Json | undefined
+        if (!tries.includes('join')) return (tries.push('join'), statusAction('rpg-join'))
+        // In the fight she first tries to walk out of the party, then guards.
+        if (activity?.game.active && activity.game.turn === CHENG) {
+          if (!tries.includes('battle-leave')) return (tries.push('battle-leave'), statusAction('rpg-leave'))
+          return {
+            decision: 'perform',
+            actionType: 'interact',
+            parameters: {
+              targetRef: { kind: 'character', id: CHENG },
+              bindingId: activity.id,
+              definitionRef: { id: 'activity:guard', version: 1 },
+              arguments: { activityId: activity.id, revision: activity.revision },
+            },
+          }
+        }
+        if (wantsOut && !activity?.game.active) return ((wantsOut = false), statusAction('rpg-leave'))
+        return { decision: 'abstain' }
+      },
     })
+    const current = () => data(f.events().findLast(e => e.eventType === 'activity.updated')!).state as Json
+    const battleAct = (operation: string, parameters: WorldJsonObject = {}) =>
+      f.runtime.activityAction({
+        activityKey: 'rpg-map-ruin-1',
+        activityId: current().id,
+        revision: current().revision,
+        operation,
+        parameters,
+        requestId: 'r-' + operation,
+      })
     await say(f, '澄，出发了。')
     await f.move(RUIN1)
     expect(where(f, CHENG)).toBe(RUIN1)
-    const state = data(f.events().findLast(e => e.eventType === 'activity.updated')!).state as Json
-    expect(state.game).toMatchObject({ active: true, phase: 'fighting' })
+    expect(current().game).toMatchObject({ active: true, phase: 'fighting' })
     expect(offered(f, CHENG)).not.toContain('status:rpg-leave')
 
-    await f.runtime.activityAction({
-      activityKey: 'rpg-map-ruin-1',
-      activityId: state.id,
-      revision: state.revision,
-      operation: 'skill',
-      parameters: { skill: '普通攻击', target: '遗迹守卫' },
-      requestId: 'strike',
-    })
-    expect(data(f.events().findLast(e => e.eventType === 'activity.updated')!).state.game.active).toBe(false)
+    // On her battle turn she tries to leave anyway: the option is not hers mid-fight, nothing about the party is
+    // written, and she guards instead.
+    const before = f.events().length
+    await battleAct('guard')
+    expect(tries).toContain('battle-leave')
+    const written = f.events().slice(before)
+    expect(written.filter(e => e.eventType === 'status.updated' && data(e).source.operation === 'rpg-leave')).toEqual(
+      [],
+    )
+    expect(partyList(f.events())).toEqual([CHENG])
+    expect(written.some(e => e.eventType === 'activity.updated' && data(e).actorId === CHENG)).toBe(true)
+
+    await battleAct('skill', { skill: '普通攻击', target: '遗迹守卫' })
+    expect(current().game.active).toBe(false)
     expect(offered(f, CHENG)).toContain('status:rpg-leave')
     wantsOut = true
     await say(f, '打完了。')

@@ -156,7 +156,10 @@ describe('generateStatusModule', () => {
       p.resolve(party(list), actor, op, {}, at(here), null, null)
     const place = { locationId: 'location:living-room', items: [] }
     expect(p.policy({ public: {}, self: {} }, CHENG, place).operations).toContain('join')
-    expect(p.policy({ public: { 'rpg-party': [CHENG] }, self: {} }, CHENG, place).operations).toContain('leave')
+    // Believing she is in, she is offered both: her list may be stale.
+    expect(p.policy({ public: { 'rpg-party': [CHENG] }, self: {} }, CHENG, place).operations).toEqual(
+      expect.arrayContaining(['leave', 'join']),
+    )
     expect(p.policy({ public: {}, self: {} }, PLAYER, place).operations).not.toContain('join')
 
     expect(call(PLAYER, 'join', [], [PLAYER, CHENG]).rejectReason).toBe('你就是队长。')
@@ -164,11 +167,17 @@ describe('generateStatusModule', () => {
     const joined = call(CHENG, 'join', [], [PLAYER, CHENG])
     expect(joined.changes).toEqual([{ holderId: null, key: 'rpg-party', value: [CHENG] }])
     expect(joined.reveals.map((r: { observerId: string }) => r.observerId).sort()).toEqual([CHENG, PLAYER].sort())
-    expect(call(CHENG, 'join', [CHENG], [PLAYER, CHENG]).rejectReason).toBe('已经在队伍里了。')
+    const again = call(CHENG, 'join', [CHENG], [PLAYER, CHENG])
+    expect(again).toMatchObject({ description: '已经在队伍里了。', audience: 'self' })
+    expect(again.changes).toEqual([{ holderId: null, key: 'rpg-party', value: [CHENG] }])
     expect(call(CHENG, 'leave', [CHENG], [PLAYER, CHENG]).changes).toEqual([
       { holderId: null, key: 'rpg-party', value: [] },
     ])
-    expect(call(CHENG, 'leave', [], [PLAYER, CHENG]).rejectReason).toBe('你不在队伍里。')
+    // Dropped while away: leaving changes nothing and shows her the list as it is.
+    const gone = call(CHENG, 'leave', [], [PLAYER, CHENG])
+    expect(gone).toMatchObject({ description: '已经不在队伍里了。', audience: 'self' })
+    expect(gone.changes).toEqual([{ holderId: null, key: 'rpg-party', value: [] }])
+    expect(gone.reveals.map((r: { observerId: string }) => r.observerId)).toContain(CHENG)
 
     // Listed but elsewhere: the leader's next operation, or hers, drops her.
     const rest = (actor: string, here: string[]) =>

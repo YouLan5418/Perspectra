@@ -97,9 +97,11 @@ function install(config) {
       operations.push('unequip')
       targets.unequip = wornGear
     }
+    // What she last saw of the list may be stale: the leader may have dropped her while she was away. So a member
+    // who believes she is in is offered both; each answers with the current list, and neither fails on staleness.
     if (party && actorId !== party.leader) {
       const listed = (known.public[PARTY] || []).includes(actorId)
-      operations.push(listed ? 'leave' : 'join')
+      operations.push(...(listed ? ['leave', 'join'] : ['join']))
     }
     return { operations, targets }
   }
@@ -199,11 +201,14 @@ function install(config) {
     if (party && operation === 'join') {
       if (actorId === party.leader) return reject('你就是队长。')
       if (!world.characterIds.includes(party.leader)) return reject('队长不在这里。')
-      if (members.includes(actorId)) return reject('已经在队伍里了。')
+      if (members.includes(actorId))
+        return { ...partyChange(members, world, actorId), description: '已经在队伍里了。', audience: 'self' }
       return { ...partyChange(members.concat(actorId), world, actorId), description: '加入了队伍。', audience: 'scene' }
     }
     if (party && operation === 'leave') {
-      if (!(truth.public[PARTY] || []).includes(actorId)) return reject('你不在队伍里。')
+      // Not in the list (perhaps dropped while away): nothing changes, and she now sees the list as it is.
+      if (!(truth.public[PARTY] || []).includes(actorId))
+        return { ...partyChange(members, world, actorId), description: '已经不在队伍里了。', audience: 'self' }
       const rest = members.filter(id => id !== actorId)
       return { ...partyChange(rest, world, actorId), description: '离开了队伍。', audience: 'scene' }
     }
