@@ -2,6 +2,7 @@ import type { WorldEventDraft } from '@harness-world/contracts'
 import type { RuleContext, RulesInstance, SeamProvider } from '@harness-world/plugin-sdk'
 import type { RpgConfig, RpgExit } from './config.ts'
 import { OFFICIAL_RPG_ID, OFFICIAL_RPG_VERSION } from './plugin.ts'
+import { doorId, UNLOCKED_STATUS } from './status-module.ts'
 
 /** The rules layer's own provider id, distinct from the plugin id rpg.json names. */
 export const OFFICIAL_RPG_RULES_ID = `${OFFICIAL_RPG_ID}-rules`
@@ -25,16 +26,6 @@ export function locationOf(events: Events, characterId: string): string | undefi
   }
   return at
 }
-function holderOf(events: Events, entityId: string): string | null {
-  let holder: string | null = null
-  for (const [type, data] of rows(events)) {
-    if (data.entityId !== entityId) continue
-    if (type === 'entity.upsert') holder = typeof data.holderId === 'string' ? data.holderId : null
-    if (type === 'entity.transferred') holder = typeof data.toHolderId === 'string' ? data.toHolderId : null
-    if (type === 'entity.taken') holder = String(data.characterId)
-  }
-  return holder
-}
 function canWalk(events: Events, characterId: string): boolean {
   let state = 'active'
   for (const [type, data] of rows(events))
@@ -42,18 +33,22 @@ function canWalk(events: Events, characterId: string): boolean {
   return state === 'active'
 }
 
-/** The names listed in `rpg-party` as of this prefix; the rules only read it, the status module writes it. */
-export function partyList(events: Events): string[] {
+/** A public list status as of this prefix; the rules only read it, the status module writes it. */
+function publicList(events: Events, key: string): string[] {
   let list: string[] = []
   for (const event of events) {
     if (event.eventType !== 'status.updated') continue
     const changes = (event.data as { changes?: { holderId: unknown; key: unknown; value: unknown }[] }).changes ?? []
     for (const change of changes)
-      if (change.holderId === null && change.key === PARTY_STATUS && Array.isArray(change.value))
+      if (change.holderId === null && change.key === key && Array.isArray(change.value))
         list = change.value.filter((id): id is string => typeof id === 'string')
   }
   return list
 }
+/** The names listed in `rpg-party` as of this prefix. */
+export const partyList = (events: Events): string[] => publicList(events, PARTY_STATUS)
+/** The doors someone has unlocked, by door id, as of this prefix. */
+export const unlockedDoors = (events: Events): string[] => publicList(events, UNLOCKED_STATUS)
 
 /** In the party: listed in `rpg-party` and at the leader's location. Someone listed but elsewhere does not count. */
 export function partyMembers(events: Events, leaderId: string): string[] {
@@ -62,15 +57,16 @@ export function partyMembers(events: Events, leaderId: string): string[] {
 }
 
 /** The exit that governs a move to `to`: the one out of where the mover stands, else any declared exit to it. */
-function exitTo(config: RpgConfig, from: string | undefined, to: string): RpgExit[] {
+function exitTo(config: RpgConfig, from: string | undefined, to: string): { from: string; exit: RpgExit }[] {
   const all = config.maps.flatMap(map => (map.exits ?? []).map(exit => ({ from: map.locationId, exit })))
   const leading = all.filter(row => row.exit.to === to)
   const local = leading.filter(row => row.from === from)
-  return (local.length ? local : leading).map(row => row.exit)
+  return local.length ? local : leading
 }
 
-const opens = (exit: RpgExit, events: Events, moverId: string) =>
-  !exit.requires || holderOf(events, exit.requires.holds) === moverId
+/** A keyed exit opens once someone has unlocked its door, for anyone; holding the key alone does not open it. */
+const opens = (row: { from: string; exit: RpgExit }, events: Events) =>
+  !row.exit.requires || unlockedDoors(events).includes(doorId(row.from, row.exit.to))
 
 /**
  * Locked exits and party follow, as one rules layer. A move to a locked exit is refused with the author's reason and
@@ -87,8 +83,8 @@ export function createRpgRules(config: RpgConfig): SeamProvider<RulesInstance> {
       const to = (action.parameters as { locationId?: unknown } | null)?.locationId
       if (typeof to === 'string') {
         const exits = exitTo(config, locationOf(events, moverId), to)
-        if (exits.length && !exits.some(exit => opens(exit, events, moverId)))
-          return { status: 'rejected', events: [], reason: 'plugin:' + (exits[0]!.lockedReason ?? LOCKED) }
+        if (exits.length && !exits.some(row => opens(row, events)))
+          return { status: 'rejected', events: [], reason: 'plugin:' + (exits[0]!.exit.lockedReason ?? LOCKED) }
       }
       const result = next(context)
       if (result.status !== 'accepted' || leader === undefined || moverId !== leader) return result

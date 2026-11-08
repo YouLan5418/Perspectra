@@ -37,6 +37,20 @@ function install(config) {
     })
   }
 
+  // A locked door is a world fact: someone holding its key unlocks it where it stands, and from then on anyone passes.
+  const doors = config.doors || []
+  const UNLOCKED = 'rpg-unlocked'
+  const keys = [...new Set(doors.map(door => door.key))]
+  if (doors.length) {
+    statuses.push({
+      key: UNLOCKED,
+      label: '已开的门',
+      type: 'array',
+      owner: 'public',
+      schema: { type: 'array', maxItems: 64, items: { type: 'string', maxLength: 300 } },
+    })
+  }
+
   const actions = []
   if (config.rest) actions.push({ id: 'rest', label: config.rest.label, schema: noInput })
   if (consumables.length) actions.push({ id: 'use', label: '使用{item}', targets: consumables, schema: noInput })
@@ -44,6 +58,7 @@ function install(config) {
     actions.push({ id: 'equip', label: '装备{item}', targets: equipment, schema: noInput })
     actions.push({ id: 'unequip', label: '卸下{item}', targets: equipment, schema: noInput })
   }
+  if (keys.length) actions.push({ id: 'unlock', label: '用{item}开锁', targets: keys, schema: noInput })
   // Joining is always the joiner's own act: no parameter names anyone else, and the leader cannot join.
   if (party) {
     actions.push({ id: 'join', label: '加入队伍', schema: noInput })
@@ -66,7 +81,10 @@ function install(config) {
       }
       return row
     }
-    return { public: party ? { [PARTY]: [] } : {}, characters: Object.fromEntries(ids.map(id => [id, own(id)])) }
+    const shared = {}
+    if (party) shared[PARTY] = []
+    if (doors.length) shared[UNLOCKED] = []
+    return { public: shared, characters: Object.fromEntries(ids.map(id => [id, own(id)])) }
   }
 
   // 只给现在可能成功的选项；执行时 resolve 会按真值再查一遍。
@@ -96,6 +114,17 @@ function install(config) {
     if (wornGear.length) {
       operations.push('unequip')
       targets.unequip = wornGear
+    }
+    // A key she holds, for a door here she has not seen unlocked; resolve checks the truth again.
+    const seenOpen = known.public[UNLOCKED] || []
+    const unlocking = mine
+      .filter(item =>
+        doors.some(door => door.key === item.entityId && door.from === place.locationId && !seenOpen.includes(door.id)),
+      )
+      .map(item => item.entityId)
+    if (unlocking.length) {
+      operations.push('unlock')
+      targets.unlock = unlocking
     }
     // What she last saw of the list may be stale: the leader may have dropped her while she was away. So a member
     // who believes she is in is offered both; each answers with the current list, and neither fails on staleness.
@@ -195,6 +224,27 @@ function install(config) {
         changes: [{ holderId: actorId, key: 'rpg-equipment', value: next }],
         reveals: [],
         description: '卸下了' + (item ? item.name || item.kind : '装备') + '。',
+        audience: 'scene',
+      }
+    }
+    if (operation === 'unlock') {
+      if (!item || item.holderId !== actorId) return reject('你手里没有这把钥匙。')
+      const open = truth.public[UNLOCKED] || []
+      const here = doors.filter(door => door.key === targetId && door.from === world.locationId)
+      if (!here.length) return reject('这里没有它能打开的锁。')
+      const name = item.name || item.kind
+      const still = here.filter(door => !open.includes(door.id))
+      // Already open: nothing changes, and she now knows it is.
+      const reveals = [...new Set([actorId].concat(world.characterIds))].map(observerId => ({
+        observerId,
+        holderId: null,
+        key: UNLOCKED,
+      }))
+      if (!still.length) return { changes: [], reveals, description: '锁已经开着了。', audience: 'self' }
+      return {
+        changes: [{ holderId: null, key: UNLOCKED, value: open.concat(still.map(door => door.id)) }],
+        reveals,
+        description: '用' + name + '打开了门锁。',
         audience: 'scene',
       }
     }

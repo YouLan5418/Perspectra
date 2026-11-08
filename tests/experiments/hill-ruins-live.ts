@@ -133,6 +133,9 @@ try {
   console.log('\n活动：', JSON.stringify((await settled()).activities).slice(0, 400))
   await say('澄，你还好吗？刚才那一下好险。')
   await interact('拿起铁钥匙', 'status:take', {}, 'entity:iron-key')
+  // Whoever holds the key (she may have picked it up first) unlocks the door; ask her if it isn't the player.
+  if (!(await interact('用铁钥匙开锁', 'status:rpg-unlock', {}, 'entity:iron-key')))
+    await say('澄，钥匙在你那儿吧？帮忙把铁门打开。')
   await move('location:ruin-2')
   await say('第二层好安静啊。')
   await interact('拿起药水', 'status:take', {}, 'entity:potion-2')

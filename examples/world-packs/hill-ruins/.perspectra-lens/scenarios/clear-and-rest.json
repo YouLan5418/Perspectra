@@ -1,5 +1,5 @@
 {
-  "title": "入队、打赢守卫、拿钥匙开门、回家睡觉回满生命",
+  "title": "入队、打赢守卫、用钥匙开锁、回家睡觉回满生命",
   "start": {
     "status": {
       "characters": {
@@ -72,6 +72,17 @@
     {
       "interact": "status:take",
       "target": "entity:iron-key"
+    },
+    {
+      "interact": "status:rpg-unlock",
+      "target": "entity:iron-key",
+      "expect": {
+        "status": {
+          "rpg-unlocked": [
+            "location:ruin-1>location:ruin-2"
+          ]
+        }
+      }
     },
     {
       "move": "location:ruin-2"

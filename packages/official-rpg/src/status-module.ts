@@ -16,8 +16,23 @@ export interface RpgStatusModule {
   source: string
 }
 
-/** The pack module that holds RPG stats, rest, consumables, equipment and the party. Operations surface as
- * `status:rpg-<op>`; with `party` set it adds `join` and `leave` and the public status `rpg-party`. */
+/** Public status listing the doors someone has unlocked, by {@link doorId}. */
+export const UNLOCKED_STATUS = 'rpg-unlocked'
+/** A locked exit's stable id: where it leads from and to. */
+export const doorId = (from: string, to: string) => `${from}>${to}`
+
+/** Every exit that needs a key: unlocked once someone holding the key uses it at the door, then open to anyone. */
+export function lockedDoors(config: RpgConfig): { id: string; from: string; key: string }[] {
+  return config.maps.flatMap(map =>
+    (map.exits ?? []).flatMap(exit =>
+      exit.requires ? [{ id: doorId(map.locationId, exit.to), from: map.locationId, key: exit.requires.holds }] : [],
+    ),
+  )
+}
+
+/** The pack module that holds RPG stats, rest, consumables, equipment, the party and unlocked doors. Operations
+ * surface as `status:rpg-<op>`; with `party` set it adds `join` and `leave` and the public status `rpg-party`; with a
+ * keyed exit it adds `unlock` and the public status `rpg-unlocked`. */
 export function generateStatusModule(config: RpgConfig): RpgStatusModule {
   const used = {
     stats: config.stats,
@@ -28,6 +43,7 @@ export function generateStatusModule(config: RpgConfig): RpgStatusModule {
     consumables: config.consumables,
     ...(config.rest ? { rest: config.rest } : {}),
     ...(config.party ? { party: config.party } : {}),
+    doors: lockedDoors(config),
   }
   const source = `${rules}\ninstall(${JSON.stringify(used)})\n`
   if (Buffer.byteLength(source) > MODULE_SOURCE_LIMIT) throw new RangeError('rpg 状态模块脚本超过 64 KiB')

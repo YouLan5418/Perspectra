@@ -3,7 +3,7 @@ import { join } from 'node:path'
 import { brandId, type WorldJsonObject } from '@harness-world/contracts'
 import { currentLocation } from '@harness-world/kernel'
 import { CharacterViewBuilder, WorldStore } from '@harness-world/store-sqlite'
-import { partyList, partyMembers } from '../../packages/official-rpg/src/rules.ts'
+import { partyList, partyMembers, unlockedDoors } from '../../packages/official-rpg/src/rules.ts'
 import { openRpgFixture, type RpgFixture, type RpgFixtureOptions } from '../support/rpg-fixture.ts'
 
 const PLAYER = 'character:player',
@@ -67,13 +67,30 @@ const seenMoves = (f: RpgFixture, observer: string, mover: string) => {
 }
 
 describe('RPG locked exits and party', () => {
-  it('the iron door refuses passage with the author reason until the player holds the key', async () => {
-    const f = await fixture({
+  // Real-model play 2026-11-08: Cheng picked the key up, the player was refused at the door, and Cheng walked
+  // through alone. The key changes the door's state instead: unlocked once, it lets anyone through.
+  it('the iron door stays locked until someone unlocks it with the key, then lets anyone through', async () => {
+    const unlock = {
+      decision: 'perform',
+      actionType: 'interact',
+      parameters: {
+        targetRef: { kind: 'entity', id: 'entity:iron-key' },
+        bindingId: 'status',
+        definitionRef: { id: 'status:rpg-unlock', version: 1 },
+        arguments: {},
+      },
+    }
+    let f!: RpgFixture
+    f = await fixture({
       places: { [CHENG]: RUIN1 },
       config: c => {
         c.maps[0].scripted = []
         c.enemies.golem.hp = 5
       },
+      // Cheng waits until the key is in her hands, then unlocks the door.
+      decide: chengPlays(() =>
+        f.events().some(e => e.eventType === 'entity.transferred' && data(e).toHolderId === CHENG) ? unlock : undefined,
+      ),
     })
     await f.move(RUIN1)
     const latest = data(f.events().findLast(e => e.eventType === 'activity.updated')!).state as Json
@@ -100,7 +117,21 @@ describe('RPG locked exits and party', () => {
     })
     expect(where(f, PLAYER)).toBe(RUIN1)
 
+    // Holding the key does not open the door by itself.
     await f.runtime.submit('/status take@entity:iron-key {}')
+    expect((await f.move(RUIN2)).notice).toContain('铁门锁着，需要钥匙。')
+    expect(where(f, PLAYER)).toBe(RUIN1)
+    expect(offered(f, PLAYER)).toContain('status:rpg-unlock')
+
+    // Whoever holds it unlocks the door: the player hands the key over, and Cheng uses it on her own turn.
+    await f.runtime.submit(`/status give@entity:iron-key {"recipientId":"${CHENG}"}`)
+    expect(offered(f, PLAYER)).not.toContain('status:rpg-unlock')
+    if (!unlockedDoors(f.events()).length) await say(f, '澄，钥匙给你，开门吧。')
+    expect(unlockedDoors(f.events())).toEqual([`${RUIN1}>${RUIN2}`])
+    // Now open, the door is no longer something to unlock for anyone.
+    expect(offered(f, CHENG)).not.toContain('status:rpg-unlock')
+
+    // The player, without the key, now walks through.
     await f.move(RUIN2)
     expect(where(f, PLAYER)).toBe(RUIN2)
   })

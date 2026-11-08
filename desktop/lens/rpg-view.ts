@@ -151,7 +151,11 @@ export function rpgLensItems(rpg: RpgJson, name: (id: string) => string): LensIt
         parentId: id,
         fields: [
           { key: 'to', label: '通往', value: name(exit.to) },
-          { key: 'requires', label: '条件', value: exit.requires ? `持有${name(exit.requires.holds)}` : '无条件' },
+          {
+            key: 'requires',
+            label: '条件',
+            value: exit.requires ? `锁着，用${name(exit.requires.holds)}开锁后谁都能过` : '无条件',
+          },
           { key: 'lockedReason', label: '不满足时的说法', value: String(exit.lockedReason ?? '') },
         ],
         source: at(`/maps/${index}/exits/${position}`),

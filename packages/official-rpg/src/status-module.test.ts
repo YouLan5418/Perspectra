@@ -63,6 +63,7 @@ describe('generateStatusModule', () => {
       'rpg-mp-max',
       'rpg-equipment',
       'rpg-party',
+      'rpg-unlocked',
     ])
     expect(def.statuses[1]?.locations).toEqual(['location:ruin-1', 'location:ruin-2'])
     expect(def.operations.map(o => o.id)).toEqual([
@@ -70,6 +71,7 @@ describe('generateStatusModule', () => {
       'rpg-use',
       'rpg-equip',
       'rpg-unequip',
+      'rpg-unlock',
       'rpg-join',
       'rpg-leave',
     ])
