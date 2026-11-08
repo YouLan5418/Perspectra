@@ -48,6 +48,7 @@ import {
 } from '@harness-world/store-sqlite'
 import { bindFrozenInteractionPerformance, resolveGroupAction, stepManifestation } from './action-groups.ts'
 import { actionObservations, movementRoute } from './action-observations.ts'
+import { actorTransfer } from './item-effects.ts'
 import { moveEffects, otherMoverObservations } from './move-effects.ts'
 import { bindPlayerProvisional, verifyPlayerProvisional } from './player-provisional.ts'
 import type { SceneDecisionService } from './scene-decision.ts'
@@ -800,7 +801,7 @@ export class RoundCoordinator {
       })
       const publicSpeech = resolution.events.find(event => event.eventType === 'character.speak')
       const publicManifestation = resolvedEvents.find(event => event.eventType === 'character.manifested')
-      const publicInteraction = resolution.events.find(event => event.eventType === 'entity.transferred')
+      const publicInteraction = actorTransfer(item.action.actionId, resolution.events)
       const relations = characterRelationObservations(actionPrefix, resolution.events)
       // Only the player's own move action carries her route; a move another action's result made is recorded like
       // any other mover's below, so those she arrives among see her come and nothing of the action.

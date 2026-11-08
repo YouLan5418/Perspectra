@@ -13,6 +13,7 @@ import {
   type RulebookResolution,
 } from '@harness-world/kernel'
 import { actionObservations, movementRoute } from './action-observations.ts'
+import { actorTransfer } from './item-effects.ts'
 import { moveEffects, otherMoverObservations } from './move-effects.ts'
 import type { SceneDecisionService } from './scene-decision.ts'
 
@@ -64,7 +65,7 @@ export function immediateActionDrafts(input: {
   // A line carried by an interaction, such as a scripted player line, has its own observations.
   const speech =
     action.actionType === 'speak' ? result.events.find(event => event.eventType === 'character.speak') : undefined
-  const transfer = result.events.find(event => event.eventType === 'entity.transferred')
+  const transfer = actorTransfer(actionId, result.events)
   const relations = characterRelationObservations(events, result.events)
   const observed = actionObservations({
     roundId: brandId(actionId, 'InteractionRoundId'),

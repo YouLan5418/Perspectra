@@ -15,6 +15,22 @@ function exact(value: Record<string, unknown>, required: string[], optional: str
   if (required.some(k => !Object.hasOwn(value, k)) || keys.some(k => !required.includes(k) && !optional.includes(k)))
     throw new TypeError('状态定义字段不合法：' + keys.join(','))
 }
+/**
+ * The item transfer the actor's own interaction made, if any. A transfer an author rule's result carries, such as
+ * loot an activity drops from a hidden store, is stamped with the action's own id as its interactionId: it belongs
+ * to that rule, not to her hands, and reporting it as her interaction would tell witnesses she moved the item, and
+ * from where.
+ */
+export function actorTransfer<E extends { readonly eventType: string; readonly data?: unknown }>(
+  actionId: string,
+  events: readonly E[],
+): E | undefined {
+  return events.find(
+    event =>
+      event.eventType === 'entity.transferred' &&
+      (event.data as { interactionId?: unknown } | undefined)?.interactionId !== actionId,
+  )
+}
 function text(value: unknown, what: string): string {
   if (typeof value !== 'string' || !value.trim() || value.length > 2000) throw new TypeError(what + '无效')
   return value

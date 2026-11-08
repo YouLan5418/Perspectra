@@ -36,6 +36,7 @@ import {
   WriterLeaseService,
 } from '@harness-world/store-sqlite'
 import { actionObservations, movementRoute } from './action-observations.ts'
+import { actorTransfer } from './item-effects.ts'
 import { moveEffects, otherMoverObservations } from './move-effects.ts'
 import { SceneDecisionService } from './scene-decision.ts'
 import { characterExecutionResult, expressionAfterExecution } from './character-execution-result.ts'
@@ -657,7 +658,7 @@ export class CharacterTurn {
                   },
                 )
                 const speech = resolution.events.find(event => event.eventType === 'character.speak')
-                const transfer = resolution.events.find(event => event.eventType === 'entity.transferred')
+                const transfer = actorTransfer(actionId, resolution.events)
                 const relations = characterRelationObservations(history, resolution.events)
                 // The same move reaches both scenes, but neither scene alone grants the whole route.
                 // Only her own move action carries her route: when another action's result moved her, such as an
