@@ -12,15 +12,9 @@ import type { Context } from '@deepseek-ai/cordis'
 import { officialSchedulerProvider, officialAutonomyProvider } from '@harness-world/official-scheduler'
 import { officialCharacterLoopProvider } from '@harness-world/official-character-loop'
 import { officialKnowledgeProvider } from '@harness-world/official-knowledge'
-import {
-  OFFICIAL_RPG_ID,
-  OFFICIAL_RPG_VERSION,
-  createRpgRules,
-  generateMapActivities,
-  generateStatusModule,
-  parseRpgConfig,
-} from '@harness-world/official-rpg'
+import { officialRpgContent } from '@harness-world/official-rpg'
 import type {
+  ContentGenerator,
   DecisionInstance,
   CharacterLoopInstance,
   KnowledgeInstance,
@@ -91,18 +85,13 @@ export interface HostSeams {
   readonly decisions?: readonly SeamProvider<DecisionInstance>[]
   /** Layers around the official rules; the first is outermost. */
   readonly rules?: readonly SeamProvider<RulesInstance>[]
+  /** Generators that turn a pack's config file into status modules, activities and a rules layer, such as the
+   * official RPG for rpg.json. A pack with a config file no generator here reads does not open. */
+  readonly content?: readonly ContentGenerator[]
 }
 
-/** The RPG mechanism a pack opts into with rpg.json: its config, the scripts generated from it and its rules. */
-export const officialRpg = {
-  id: OFFICIAL_RPG_ID,
-  version: OFFICIAL_RPG_VERSION,
-  parseConfig: parseRpgConfig,
-  statusModule: generateStatusModule,
-  mapActivities: generateMapActivities,
-  rules: createRpgRules,
-}
-export type RpgMechanism = typeof officialRpg
+/** The official content generators; a pack opts into the RPG with rpg.json. */
+export { officialRpgContent }
 
 /** Explicit entry composition. An omitted optional mechanism stays absent in this selection. */
 export interface WorldComposition {
@@ -110,8 +99,6 @@ export interface WorldComposition {
   readonly mechanisms: HostSeams
   readonly modelChannel?: typeof composeModelChannel
   readonly fallbackScheduler?: SeamProvider<SchedulerInstance>
-  /** Serves packs that register rpg.json; without it such a pack does not open. */
-  readonly rpg?: RpgMechanism
 }
 
 /** The standard RP install chosen by desktop/Lens entry points, never by WorldHostCore. */
@@ -121,7 +108,6 @@ export function assembleRoleplay(plugins: Partial<HostSeams> = {}): WorldComposi
     mechanisms: composeWorldSeams(plugins),
     modelChannel: composeModelChannel,
     fallbackScheduler: officialSchedulerProvider,
-    rpg: officialRpg,
   }
 }
 
@@ -161,6 +147,7 @@ export function composeWorldSeams(plugins: Partial<HostSeams> = {}) {
     memory: plugins.memory ?? officialMemoryNoneProvider,
     decisions: composeDecisions(plugins.decisions ?? [], plugins.decisionOrder),
     rules: plugins.rules ?? [],
+    content: plugins.content ?? [officialRpgContent],
   }
 }
 
@@ -175,6 +162,13 @@ export function installOfficialBundle(ctx: Context, memory?: () => SeamProvider<
   if (!ctx.scheduler.current) ctx.effect(() => ctx.scheduler.register(officialSchedulerProvider))
   if (!ctx.characterLoop.current) ctx.effect(() => ctx.characterLoop.register(officialCharacterLoopProvider))
   if (!ctx.memory.current && memory) ctx.effect(() => ctx.memory.register(memory()))
+  // A player generator that reads rpg.json replaces the official one, like any other seam a plugin took.
+  if (
+    !ctx.content.generators.some(
+      generator => generator.id === officialRpgContent.id || generator.configFile === officialRpgContent.configFile,
+    )
+  )
+    ctx.effect(() => ctx.content.register(officialRpgContent))
   for (const provider of composeDecisions(ctx.decisions.providers)) {
     if (!ctx.decisions.providers.some(current => current.id === provider.id))
       ctx.effect(() => ctx.decisions.register(provider))

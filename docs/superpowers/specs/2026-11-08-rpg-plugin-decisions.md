@@ -8,6 +8,8 @@
 
 替代：10-26 的作者端生成器 `examples/rpg-core/generate.mjs`（作者先跑一遍生成器，再把产物放进包里）。
 
+2026-11-08 已实施为内容接缝：`official-rpg` 导出 `officialRpgContent`（一个 `ContentGenerator`，读 `rpg.json`），经 `ctx.content` 注册，默认组合的 `content` 默认就是它。宿主只有通用的 [pack-content](../../../desktop/host/pack-content.ts)：读配置、核对 `plugin` 字段、生成、查重名、按生成器 id 记摘要（`plugin-set.json` 的 `generatedContent`）。它替代了 `WorldComposition.rpg` 槽位、official-bundle 里的 `officialRpg` 对象、`desktop/host/rpg-pack.ts`，以及透视、分享、`worldpack validate` 各自的 RPG 专用选项；存档里的 `rpgContent` 不做迁移（分支未发布）。队伍随行的移动判定 `movedAlongWith` 一并移入 application。RPG 玩法行为未变。
+
 ## 2. 随行：`ctx.rules` 的 resolve 中间件
 
 队长的移动被接受后，中间件追加队员的 `character.moved`。场景转换由 Task 3 统一处理。

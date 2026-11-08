@@ -122,6 +122,7 @@
 | 自主配置与限制 | [official-scheduler/autonomy-policy](../../../packages/official-scheduler/src/autonomy-policy.ts)、`ctx.autonomy` | M5 已迁解析、频率与许可；核心复核声明与效果边界，仍消费原 scheduler／characterLoop |
 | 状态与包内模块解释 | [official-status](../../../packages/official-status/src/index.ts)、`ctx.status`；[StatusState](../../../packages/application/src/status-state.ts)保留核心检查 | M3 已迁，宿主 StatusRuntime／PackModules 只提供授权输入与执行桥；见[M3 记录](../studies/2026-11-core-migration-m3.md) |
 | 知识选择 | [official-knowledge](../../../packages/official-knowledge/src/index.ts)、`ctx.knowledge`；宿主只保留资产适配 | M1 已迁为 Cordis 服务，按授权上下文筛选；见[M0／M1 记录](../studies/2026-11-core-migration-m01.md)，未做真实模型体验验收 |
+| 包内配置生成内容 | `ctx.content`（[SDK 类型](../../../packages/plugin-sdk/src/content.ts)）、宿主通用载入 [pack-content](../../../desktop/host/pack-content.ts)；官方 RPG 以 `officialRpgContent` 读 `rpg.json` | 2026-11-08 起替代宿主内 RPG 专用槽位：玩法插件把包的配置文件生成状态模块、活动和规则层，宿主只做通用的读取、`plugin` 字段核对、重名检查和存档摘要，不认识具体玩法。第二个玩法插件无需新增宿主字段；只在 feat/rpg-plugin 分支，未做真实模型试玩 |
 | 包内玩法组合 | [PackModules](../../../desktop/host/pack-modules.ts)、包内活动／状态脚本 | 复用已有入口，统一它们的依赖、权限、错误与生命周期说明；不直接再造一套格式 |
 | 外部原生插件 | `.mjs`、现有宿主 SDK | 保留实际兼容面，与面向创作者的脚本玩法入口分清 |
 | 移除官方能力后的最小核心 | WorldApplication 已移除隐式玩法安装，空选择可无模型／记忆启动；网页默认仍选模型、记忆与玩法 | M7 已验收实体、事件、授权、通用状态、非法效果拒绝和分支；网页宿主仍需调度、角色循环和模型通道，见[M7 记录](../studies/2026-11-core-migration-m7.md) |

@@ -21,6 +21,8 @@ import {
   type LlmSlotApi,
   type RulesApi,
   type RulesInstance,
+  type ContentApi,
+  type ContentGenerator,
   type MemorySlotApi,
   type PlayerFeedApi,
   type PlayerFeedEvent,
@@ -301,6 +303,25 @@ export class RuleRegistry extends Service implements RulesApi {
   }
 }
 
+export class ContentRegistry extends Service implements ContentApi {
+  generators: readonly ContentGenerator[] = []
+
+  constructor(ctx: Context) {
+    super(ctx, 'content')
+  }
+
+  /** Own the returned disposer with the registering plugin's ctx.effect(). */
+  register(generator: ContentGenerator): () => void {
+    if (this.generators.some(other => other.id === generator.id)) throw new Error(`内容生成插件 ${generator.id} 已注册`)
+    const reader = this.generators.find(other => other.configFile === generator.configFile)
+    if (reader) throw new Error(`${generator.configFile} 已由内容生成插件 ${reader.id} 读取`)
+    this.generators = [...this.generators, generator]
+    return () => {
+      this.generators = this.generators.filter(other => other !== generator)
+    }
+  }
+}
+
 /** Host-only presentation services; this context does not contain world runtime services. */
 export class FrontendServices extends Service implements FrontendHostServices, FrontendServicesApi {
   synthesizeSpeech: SpeechSynthesizer | undefined
@@ -432,6 +453,7 @@ export async function loadHostPlugins(
   const llm = new LlmSlot(root)
   const decisions = new DecisionRegistry(root)
   const rules = new RuleRegistry(root)
+  const content = new ContentRegistry(root)
   const skipped: SkippedHostPlugin[] = []
   const llmPlugins = new Set<string>()
   const declared = new Map<string, { id?: string; version: string }>()
@@ -566,6 +588,7 @@ export async function loadHostPlugins(
         : {}),
       ...(decisions.providers.length ? { decisions: decisions.providers } : {}),
       ...(rules.providers.length ? { rules: rules.providers } : {}),
+      content: content.generators,
     },
     skipped,
     installed: plugins

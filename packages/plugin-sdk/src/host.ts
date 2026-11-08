@@ -14,6 +14,7 @@ import type { MemorySlotApi } from './memory.ts'
 import type { LlmSlotApi } from './llm.ts'
 import type { DecisionsApi } from './decisions.ts'
 import type { RulesApi } from './rules.ts'
+import type { ContentApi } from './content.ts'
 
 export interface HostServices {
   frontendServices: FrontendServicesApi
@@ -31,6 +32,7 @@ export interface HostServices {
   llm: LlmSlotApi
   decisions: DecisionsApi
   rules: RulesApi
+  content: ContentApi
 }
 
 declare module '@deepseek-ai/cordis' {

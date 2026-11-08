@@ -9,6 +9,7 @@ import type {
 import type { RulebookEvent } from '@harness-world/kernel'
 import { actionObservations, type MovementRoute } from './action-observations.ts'
 import type { SceneDecisionService } from './scene-decision.ts'
+import { activityObject as object } from './activity-state.ts'
 
 export interface MovedCharacter {
   readonly characterId: CharacterId
@@ -48,6 +49,19 @@ export function moveEffects(input: {
     )
   }
   return { transitions, moved }
+}
+
+/** Who a move's result walks along with the mover, such as a party a rules layer brings: every other
+ * `character.moved` from where she stood to where she went. Empty when the result does not move her. */
+export function movedAlongWith(events: readonly { eventType: string; data: unknown }[], moverId: string): string[] {
+  const moves = events.filter(e => e.eventType === 'character.moved').map(e => object(e.data))
+  const own = moves.find(m => m.characterId === moverId)
+  if (!own) return []
+  return moves
+    .filter(
+      m => m.characterId !== moverId && m.fromLocationId === own.fromLocationId && m.toLocationId === own.toLocationId,
+    )
+    .map(m => String(m.characterId))
 }
 
 /** What witnesses learn of the characters an action moved besides its actor, such as a follower: those she left see

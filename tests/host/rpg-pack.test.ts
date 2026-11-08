@@ -4,10 +4,10 @@ import { join } from 'node:path'
 import { interactionPackageDescription } from '@harness-world/contracts'
 import { createInstalledInteractionPackages } from '@harness-world/interactions-basic'
 import { compileWorldPackSource } from '@harness-world/world-pack'
-import { assembleRoleplay, officialRpg, type WorldComposition } from '../../desktop/official-bundle.ts'
+import { assembleRoleplay, officialRpgContent, type WorldComposition } from '../../desktop/official-bundle.ts'
 import { loadActivitySource } from '../../desktop/host/activity-source.ts'
 import { PackModules } from '../../desktop/host/pack-modules.ts'
-import { loadRpgContent } from '../../desktop/host/rpg-pack.ts'
+import { loadPackContent } from '../../desktop/host/pack-content.ts'
 import { LensSimulation } from '../../desktop/lens/simulation.ts'
 import { copyRpgFixture, openRpgWorld } from '../support/rpg-fixture.ts'
 
@@ -32,17 +32,20 @@ const withoutRpg = (pack: string) => {
 }
 const compile = (pack: string) =>
   compileWorldPackSource(pack, createInstalledInteractionPackages().map(interactionPackageDescription))
-/** The installed RPG mechanism with one skill's power changed in what it generates. */
-const strongerFire = (): WorldComposition => ({
-  ...assembleRoleplay(),
-  rpg: {
-    ...officialRpg,
-    parseConfig: (value, ids) => {
-      const config = officialRpg.parseConfig(value, ids)
-      return { ...config, skills: config.skills.map(s => (s.id === 'fire' ? { ...s, power: s.power + 1 } : s)) }
-    },
-  },
-})
+/** The installed RPG generator with one skill's power changed in what it generates. */
+const strongerFire = (): WorldComposition =>
+  assembleRoleplay({
+    content: [
+      {
+        ...officialRpgContent,
+        generate: (value, pack) => {
+          const config = structuredClone(value) as { skills: { id: string; power: number }[] }
+          config.skills = config.skills.map(s => (s.id === 'fire' ? { ...s, power: s.power + 1 } : s))
+          return officialRpgContent.generate(config, pack)
+        },
+      },
+    ],
+  })
 
 const roots: string[] = []
 const copy = (options: Parameters<typeof copyRpgFixture>[0] = {}) => {
@@ -67,14 +70,14 @@ describe('rpg.json in a pack', () => {
     const installed = await open(plain.pack, plain.data)
     // The install without the RPG mechanism is the host as it was before rpg.json existed.
     const before = copy({ edit: withoutRpg })
-    const { rpg: _, ...composition } = assembleRoleplay()
+    const composition = assembleRoleplay({ content: [] })
     const previous = await open(before.pack, before.data, { composition })
     const shape = (events: ReturnType<typeof installed.events>) =>
       events.map(e => ({ seq: e.worldSeq, type: e.eventType, data: e.data }))
     expect(shape(installed.events())).toEqual(shape(previous.events()))
     expect(installed.events().some(e => JSON.stringify(e.data).includes('rpg-'))).toBe(false)
     expect(readJson(join(plain.data, 'plugin-set.json'))).toEqual(readJson(join(before.data, 'plugin-set.json')))
-    expect(readJson(join(plain.data, 'plugin-set.json')).rpgContent).toBeUndefined()
+    expect(readJson(join(plain.data, 'plugin-set.json')).generatedContent).toBeUndefined()
   })
 
   it('a pack with rpg.json gets the generated activities, status module and rules', async () => {
@@ -96,7 +99,7 @@ describe('rpg.json in a pack', () => {
       f.events().some(e => e.eventType === 'activity.updated' && (e.data as Json).activityKey === 'rpg-map-ruin-1'),
     ).toBe(true)
     const record = readJson(join(data, 'plugin-set.json'))
-    expect(record.rpgContent).toMatch(/^sha256:[0-9a-f]{64}$/u)
+    expect(record.generatedContent).toEqual({ 'official-rpg': expect.stringMatching(/^sha256:[0-9a-f]{64}$/u) })
     expect(record.seams.rules).toEqual([{ id: 'official-rpg-rules', version: '1' }])
   })
 
@@ -105,11 +108,13 @@ describe('rpg.json in a pack', () => {
     const first = await open(pack, data)
     await first.close()
     worlds.splice(worlds.indexOf(first), 1)
-    const saved = readJson(join(data, 'plugin-set.json')).rpgContent as string
-    const changed = loadRpgContent(pack, await compile(pack), strongerFire().rpg)!.contentHash
+    const saved = readJson(join(data, 'plugin-set.json')).generatedContent['official-rpg'] as string
+    const changed = loadPackContent(pack, await compile(pack), strongerFire().mechanisms.content)!.hashes[
+      'official-rpg'
+    ]
     expect(changed).not.toBe(saved)
     await expect(open(pack, data, { composition: strongerFire() })).rejects.toThrow(
-      `RPG 插件生成的规则与存档不一致（存档 ${saved}，当前 ${changed}）`,
+      `official-rpg 插件生成的规则与存档不一致（存档 ${saved}，当前 ${changed}）`,
     )
     // The same content opens again.
     const again = await open(pack, data)
@@ -124,7 +129,7 @@ describe('rpg.json in a pack', () => {
     const config = readJson(join(pack, 'rpg.json'))
     config.maps[0].exits[0].lockedReason = '门上的锁换了。'
     writeJson(join(pack, 'rpg.json'), config)
-    await expect(open(pack, data)).rejects.toThrow('RPG 插件生成的规则与存档不一致')
+    await expect(open(pack, data)).rejects.toThrow('official-rpg 插件生成的规则与存档不一致')
   })
 
   it('an rpg.json without its plugin field says the field is missing', async () => {
@@ -135,7 +140,7 @@ describe('rpg.json in a pack', () => {
 
   it('a pack asking for another plugin version fails before the world opens', async () => {
     const { pack, data } = copy({ config: c => (c.plugin.version = '2') })
-    await expect(open(pack, data)).rejects.toThrow('rpg.json 需要 RPG 插件 official-rpg 2，当前程序提供 official-rpg 1')
+    await expect(open(pack, data)).rejects.toThrow('rpg.json 需要插件 official-rpg 2，当前程序提供 official-rpg 1')
     expect(existsSync(join(data, 'world.sqlite'))).toBe(false)
   })
 
@@ -151,8 +156,10 @@ describe('rpg.json in a pack', () => {
 
   it('a composition without the RPG mechanism refuses a pack that needs it', async () => {
     const { pack, data } = copy()
-    const { rpg: _, ...composition } = assembleRoleplay()
-    await expect(open(pack, data, { composition })).rejects.toThrow('这个包需要 RPG 插件 official-rpg 1')
+    const composition = assembleRoleplay({ content: [] })
+    await expect(open(pack, data, { composition })).rejects.toThrow(
+      '这个包的 rpg.json 需要插件 official-rpg 1，当前组合没有提供',
+    )
     expect(existsSync(join(data, 'world.sqlite'))).toBe(false)
   })
 
@@ -169,20 +176,20 @@ describe('rpg.json in a pack', () => {
       },
     })
     const compiled = await compile(own.pack)
-    const rpg = loadRpgContent(own.pack, compiled, officialRpg)!
+    const rpg = loadPackContent(own.pack, compiled, [officialRpgContent])!
     expect(loadActivitySource(own.pack, compiled, rpg.activities)!.entries.map(e => e.key)).toEqual([
       'chat',
       'rpg-map-ruin-1',
       'rpg-map-ruin-2',
     ])
-    expect(PackModules.load(own.pack, compiled, undefined, rpg.module)!.sources.map(s => s.id)).toEqual([
+    expect(PackModules.load(own.pack, compiled, undefined, rpg.statusModules)!.sources.map(s => s.id)).toEqual([
       'extra',
       'rpg',
     ])
 
     const activity = copy({ edit: pack => addAsset(pack, 'scripts/activities/rpg-map-ruin-1.js', '// mine\n') })
     await expect(open(activity.pack, activity.data)).rejects.toThrow(
-      'RPG 插件生成的活动 rpg-map-ruin-1 与包内 scripts/activities/rpg-map-ruin-1.js 重名',
+      'official-rpg 插件生成的活动 rpg-map-ruin-1 与包内 scripts/activities/rpg-map-ruin-1.js 重名',
     )
     expect(existsSync(join(activity.data, 'world.sqlite'))).toBe(false)
     const module = copy({
@@ -196,7 +203,7 @@ describe('rpg.json in a pack', () => {
       },
     })
     await expect(open(module.pack, module.data)).rejects.toThrow(
-      'RPG 插件生成的模块 rpg 与包内 plugins.json 的模块重名',
+      'official-rpg 插件生成的模块 rpg 与包内 plugins.json 的模块重名',
     )
     expect(existsSync(join(module.data, 'world.sqlite'))).toBe(false)
   })

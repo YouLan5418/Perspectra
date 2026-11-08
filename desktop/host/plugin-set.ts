@@ -3,8 +3,9 @@ import { join } from 'node:path'
 
 export interface PluginSetRecord {
   readonly seams: Readonly<Record<string, readonly { readonly id: string; readonly version: string }[]>>
-  /** The hash of the RPG content this save was created with, for packs with rpg.json. */
-  readonly rpgContent?: string
+  /** Per content generator id, the hash of what it generated when this save was created, for packs with its config
+   * file. */
+  readonly generatedContent?: Readonly<Record<string, string>>
 }
 
 const FILE = 'plugin-set.json'
@@ -51,7 +52,13 @@ export function readPluginSet(directory: string): PluginSetRecord | undefined {
   try {
     const value = JSON.parse(readFileSync(join(directory, FILE), 'utf8')) as PluginSetRecord
     if (!value || typeof value.seams !== 'object' || value.seams === null) return undefined
-    if (value.rpgContent !== undefined && typeof value.rpgContent !== 'string') return undefined
+    if (
+      value.generatedContent !== undefined &&
+      (typeof value.generatedContent !== 'object' ||
+        value.generatedContent === null ||
+        Object.values(value.generatedContent).some(hash => typeof hash !== 'string'))
+    )
+      return undefined
     for (const entries of Object.values(value.seams))
       if (!Array.isArray(entries) || entries.some(entry => typeof entry?.id !== 'string')) return undefined
     return value

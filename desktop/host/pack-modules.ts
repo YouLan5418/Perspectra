@@ -52,16 +52,16 @@ export class PackModules {
   private awaitingCommit = false
   private catalog: CapabilityCatalog | undefined
 
-  /** The pack's plugins.json modules, then a `generated` one whose source the pack does not carry as a file. */
+  /** The pack's plugins.json modules, then `generated` ones whose source the pack does not carry as a file. */
   static load(
     packPath: string,
     pack: CompiledWorldPackV5,
     catalog?: CapabilityCatalog,
-    generated?: { declaration: object; source: string },
+    generated: readonly { declaration: object; source: string; generator: string }[] = [],
   ): PackModules | undefined {
     const declared = pack.assets.some(asset => asset.path === 'plugins.json')
-    if (!declared && !generated) return undefined
-    const items: { value: unknown; source?: string }[] = []
+    if (!declared && !generated.length) return undefined
+    const items: { value: unknown; source?: string; generator?: string }[] = []
     if (declared) {
       const declaration = object(JSON.parse(lockedPackAsset(packPath, pack, 'plugins.json')))
       if (
@@ -72,12 +72,13 @@ export class PackModules {
         throw new TypeError('Expected at most 16 pack modules')
       items.push(...declaration.modules.map(value => ({ value })))
     }
-    if (generated) items.push({ value: generated.declaration, source: generated.source })
+    for (const module of generated)
+      items.push({ value: module.declaration, source: module.source, generator: module.generator })
     const result = new PackModules(),
       ids = new Set<string>(),
       requirements = new Map<string, CapabilityRequirement>()
     result.catalog = catalog
-    for (const { value, source } of items) {
+    for (const { value, source, generator } of items) {
       const item = object(value)
       if (
         Object.keys(item).sort().join() !== 'capabilities,characters,entry,id' ||
@@ -95,9 +96,9 @@ export class PackModules {
         throw new TypeError('Invalid pack module declaration')
       if (ids.has(String(item.id)))
         throw new TypeError(
-          source === undefined
+          generator === undefined
             ? 'Duplicate pack module: ' + item.id
-            : `RPG 插件生成的模块 ${item.id} 与包内 plugins.json 的模块重名`,
+            : `${generator} 插件生成的模块 ${item.id} 与包内 plugins.json 的模块重名`,
         )
       ids.add(String(item.id))
       const module: Module = {

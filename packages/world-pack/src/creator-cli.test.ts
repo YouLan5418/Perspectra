@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url'
 import { afterEach, describe, expect, it } from 'vitest'
 import { createErrorEnvelope, interactionPackageDescription, WorldError } from '@harness-world/contracts'
 import { createBasicInteractionPackage } from '@harness-world/interactions-basic'
-import { OFFICIAL_RPG_ID, OFFICIAL_RPG_VERSION, parseRpgConfig } from '@harness-world/official-rpg'
+import { officialRpgContent } from '@harness-world/official-rpg'
 import { executeWorldPackCli, parseWorldPackCliInvocation, worldPackCliErrorEnvelope } from './creator-cli.ts'
 import { failWorldPackContract } from './diagnostics.ts'
 
@@ -187,7 +187,7 @@ describe('World Pack creator CLI', () => {
 
 describe('worldpack validate and rpg.json', () => {
   const rpgSource = fileURLToPath(new URL('../../../tests/fixtures/rpg-pack/', import.meta.url))
-  const rpg = { id: OFFICIAL_RPG_ID, version: OFFICIAL_RPG_VERSION, parseConfig: parseRpgConfig }
+  const content = [officialRpgContent]
 
   it('validate reports an rpg.json error with its JSON path', async () => {
     const root = await temporaryRoot()
@@ -195,7 +195,7 @@ describe('worldpack validate and rpg.json', () => {
     const config = JSON.parse(await readFile(join(root, 'rpg.json'), 'utf8'))
     config.maps[0].exits[0].to = 'location:nowhere'
     await writeFile(join(root, 'rpg.json'), JSON.stringify(config))
-    const failure = await executeWorldPackCli(['validate', root], { interactionPackages: installed, rpg }).then(
+    const failure = await executeWorldPackCli(['validate', root], { interactionPackages: installed, content }).then(
       () => undefined,
       (error: unknown) => error as Error,
     )
@@ -208,13 +208,13 @@ describe('worldpack validate and rpg.json', () => {
     const root = await temporaryRoot()
     await cp(rpgSource, root, { recursive: true })
     expect(
-      parsed(await executeWorldPackCli(['validate', root], { interactionPackages: installed, rpg })),
+      parsed(await executeWorldPackCli(['validate', root], { interactionPackages: installed, content })),
     ).toMatchObject({ status: 'valid' })
     await writeFile(join(root, 'rpg.json'), '{')
     expect(parsed(await executeWorldPackCli(['validate', root], { interactionPackages: installed }))).toMatchObject({
       status: 'valid',
     })
-    await expect(executeWorldPackCli(['validate', root], { interactionPackages: installed, rpg })).rejects.toThrow(
+    await expect(executeWorldPackCli(['validate', root], { interactionPackages: installed, content })).rejects.toThrow(
       /^rpg\.json 无法读取/u,
     )
   })

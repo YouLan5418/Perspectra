@@ -8,7 +8,7 @@ import type { CompiledWorldPackV5 } from '@harness-world/world-pack'
 export function loadActivitySource(
   packPath: string,
   pack: CompiledWorldPackV5,
-  generated: readonly { key: string; source: string }[] = [],
+  generated: readonly { key: string; source: string; generator: string }[] = [],
 ): ActivitySource | undefined {
   const entries: { key: string; entry: string; source: string }[] = [],
     keys = new Set<string>()
@@ -33,9 +33,9 @@ export function loadActivitySource(
       throw new TypeError('活动脚本与编译资产不一致')
     entries.push({ key, entry: asset.path, source: bytes.toString('utf8') })
   }
-  for (const { key, source } of generated) {
+  for (const { key, source, generator } of generated) {
     const entry = `scripts/activities/${key}.js`
-    if (keys.has(key)) throw new TypeError(`RPG 插件生成的活动 ${key} 与包内 ${entry} 重名`)
+    if (keys.has(key)) throw new TypeError(`${generator} 插件生成的活动 ${key} 与包内 ${entry} 重名`)
     keys.add(key)
     entries.push({ key, entry, source })
   }

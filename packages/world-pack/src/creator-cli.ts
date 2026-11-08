@@ -1,4 +1,5 @@
-import { mkdir, readFile, writeFile } from 'node:fs/promises'
+import { readFileSync } from 'node:fs'
+import { mkdir, writeFile } from 'node:fs/promises'
 import { dirname, join, resolve } from 'node:path'
 import { WorldApplication } from '@harness-world/application'
 import {
@@ -22,6 +23,7 @@ import {
 } from './tooling.ts'
 import type { CompiledWorldPackV5 } from './contracts.ts'
 import { WorldPackContractError } from './diagnostics.ts'
+import { generatePackContent, type PackContentGenerator } from './pack-content.ts'
 import { worldPackErrorCode } from './schema.ts'
 
 export type WorldPackCliInvocation =
@@ -121,52 +123,9 @@ export interface WorldPackCliOptions {
   readonly interactionPackages?: readonly InteractionPackageDescription[]
   /** Executable install for activate; compile and validate need only the descriptions above. */
   readonly interactionImplementations?: readonly InteractionPackageImplementation[]
-  /** The RPG mechanism this Host installs; validate checks a Pack's rpg.json against it. Without it rpg.json is not checked. */
-  readonly rpg?: {
-    readonly id: string
-    readonly version: string
-    readonly parseConfig: (
-      value: unknown,
-      ids: {
-        characterIds: string[]
-        locationIds: string[]
-        entityIds: string[]
-        entityLocations: Record<string, string | null>
-      },
-    ) => unknown
-  }
-}
-
-const RPG_CONFIG = 'rpg.json'
-
-/** Parse a Pack's rpg.json the way the Host does when it opens the world; an error names the JSON path. */
-async function validateRpgConfig(
-  sourceDirectory: string,
-  pack: CompiledWorldPackV5,
-  rpg: NonNullable<WorldPackCliOptions['rpg']>,
-): Promise<void> {
-  if (!pack.assets.some(asset => asset.path === RPG_CONFIG)) return
-  let raw: { plugin?: { id?: unknown; version?: unknown } } | null
-  try {
-    raw = JSON.parse(await readFile(join(sourceDirectory, RPG_CONFIG), 'utf8'))
-  } catch (error) {
-    throw new TypeError(`rpg.json 无法读取：${(error as Error).message}`, { cause: error })
-  }
-  if (raw?.plugin?.id !== rpg.id || raw.plugin.version !== rpg.version)
-    throw new TypeError(
-      `rpg.json 需要 RPG 插件 ${String(raw?.plugin?.id)} ${String(raw?.plugin?.version)}，当前程序提供 ${rpg.id} ${rpg.version}`,
-    )
-  const { characters, locations, entities } = pack.content
-  try {
-    rpg.parseConfig(raw, {
-      characterIds: characters.map(character => character.characterId),
-      locationIds: locations.map(location => location.locationId),
-      entityIds: entities.map(entity => entity.entityId),
-      entityLocations: Object.fromEntries(entities.map(entity => [entity.entityId, entity.locationId])),
-    })
-  } catch (error) {
-    throw new TypeError(`rpg.json 的 ${(error as Error).message}`, { cause: error })
-  }
+  /** The content generators this Host installs, such as the RPG for rpg.json; validate parses and generates a Pack's
+   * config files with them the way the Host does when it opens the world. Without it config files are not checked. */
+  readonly content?: readonly PackContentGenerator[]
 }
 
 /** Execute one local creator command and return one canonical JSON line. */
@@ -188,7 +147,8 @@ export async function executeWorldPackCli(args: readonly string[], options: Worl
   }
   if (invocation.command === 'validate') {
     const pack = await compileWorldPackSource(invocation.sourceDirectory, options.interactionPackages)
-    if (options.rpg) await validateRpgConfig(invocation.sourceDirectory, pack, options.rpg)
+    const source = invocation.sourceDirectory
+    if (options.content) generatePackContent(pack, options.content, file => readFileSync(join(source, file), 'utf8'))
     return output({
       command: 'validate',
       status: 'valid',

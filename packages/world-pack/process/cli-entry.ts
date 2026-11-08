@@ -1,5 +1,5 @@
 import { canonicalizeWorldJson, interactionPackageDescription, type WorldJsonValue } from '@harness-world/contracts'
-import { OFFICIAL_RPG_ID, OFFICIAL_RPG_VERSION, parseRpgConfig } from '@harness-world/official-rpg'
+import { officialRpgContent } from '@harness-world/official-rpg'
 import { createInstalledInteractionPackages } from '@harness-world/interactions-basic'
 import {
   executeWorldPackCli,
@@ -63,7 +63,7 @@ try {
       await executeWorldPackCli(args, {
         interactionPackages,
         interactionImplementations,
-        rpg: { id: OFFICIAL_RPG_ID, version: OFFICIAL_RPG_VERSION, parseConfig: parseRpgConfig },
+        content: [officialRpgContent],
       }),
     )
   }

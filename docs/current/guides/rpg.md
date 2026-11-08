@@ -18,9 +18,9 @@
 ## 2. 它怎么接入
 
 - 在 `worldpack.source.json` 的 `assetFiles` 里登记 `rpg.json`，同时登记[物品规则脚本](activity-and-variables.md)（`scripts/status.js`，用 Skill 的 `status-items.js` 模板）：宝箱和掉落物都靠包自己的“拿起”取走。
-- 宿主在打开世界时读 `rpg.json`，生成一个状态模块（模块 ID `rpg`）、一个规则层，以及每张地图一个活动 `rpg-map-<地点ID去掉 location: 前缀>`。生成的内容不写回包目录。代码入口：[宿主载入](../../../desktop/host/rpg-pack.ts)、[配置解析](../../../packages/official-rpg/src/config.ts)、[状态模块](../../../packages/official-rpg/src/status-module.ts)、[地图活动](../../../packages/official-rpg/src/map-activity.ts)、[规则层](../../../packages/official-rpg/src/rules.ts)；取舍见[决策记录](../../superpowers/specs/2026-11-08-rpg-plugin-decisions.md)。
+- 宿主在打开世界时读 `rpg.json`，生成一个状态模块（模块 ID `rpg`）、一个规则层，以及每张地图一个活动 `rpg-map-<地点ID去掉 location: 前缀>`。生成的内容不写回包目录。代码入口：[生成器](../../../packages/official-rpg/src/content.ts)（经 `ctx.content` 注册，宿主用通用的[包内容载入](../../../desktop/host/pack-content.ts)）、[配置解析](../../../packages/official-rpg/src/config.ts)、[状态模块](../../../packages/official-rpg/src/status-module.ts)、[地图活动](../../../packages/official-rpg/src/map-activity.ts)、[规则层](../../../packages/official-rpg/src/rules.ts)；取舍见[决策记录](../../superpowers/specs/2026-11-08-rpg-plugin-decisions.md)。
 - 包里不能再有叫 `rpg` 的模块或叫 `rpg-map-*` 的活动，重名会拒绝。
-- 程序没有 RPG 机制，或版本不同，包在世界创建前就失败：“这个包需要 RPG 插件 official-rpg 1，当前组合没有提供”。
+- 程序没有 RPG 机制，或版本不同，包在世界创建前就失败：“这个包的 rpg.json 需要插件 official-rpg 1，当前组合没有提供”；版本不同时是“rpg.json 需要插件 official-rpg 2，当前程序提供 official-rpg 1”。
 - 没有 `rpg.json` 的包行为不变。
 
 玩家看到的状态和操作：`rpg-<属性键>`（当前值）、`rpg-<属性键>-max`（上限）、`rpg-equipment`、`rpg-party`；状态操作 `status:rpg-rest`、`rpg-use`、`rpg-equip`、`rpg-unequip`、`rpg-join`、`rpg-leave`；战斗中的活动操作“使用技能”“防御”“撤退”，`engage: optional` 的地图在待命阶段另有“开战”“离开”。

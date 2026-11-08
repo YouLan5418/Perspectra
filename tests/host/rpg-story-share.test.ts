@@ -36,8 +36,10 @@ it('sharing a story node of an rpg.json pack preflights with the generated statu
   expect(imported.node.packHash).toBe(node.packHash)
 
   // Without the RPG mechanism the generated status module is unknown, and the same node does not preflight.
-  const { rpg: _, ...withoutRpg } = assembleRoleplay()
-  await expect(importStoryNode(archive, receiver, pack, node.packHash, withoutRpg)).rejects.toThrow('RPG 插件')
+  const withoutRpg = assembleRoleplay({ content: [] })
+  await expect(importStoryNode(archive, receiver, pack, node.packHash, withoutRpg)).rejects.toThrow(
+    '需要插件 official-rpg 1',
+  )
 }, 60_000)
 
 it('the share preflight opens status with the generated rpg module beside the pack status script', async () => {

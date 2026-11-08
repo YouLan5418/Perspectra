@@ -21,7 +21,7 @@ import type { AutoStartEvaluation } from '@harness-world/contracts'
 import { StatusState } from '@harness-world/application'
 import { assembleRoleplay, type WorldComposition } from '../official-bundle.ts'
 import { WorldHostRuntime } from '../host/world-runtime.ts'
-import { loadRpgContent } from '../host/rpg-pack.ts'
+import { loadPackContent } from '../host/pack-content.ts'
 import { startStubModel, type StubDecision, type StubModel } from './stub-model.ts'
 import { activityScriptPath, interactionName } from './ids.ts'
 import { interactionLabels } from './view.ts'
@@ -235,20 +235,29 @@ function rewriteCopy(copy: string, pack: CompiledWorldPackV5, start: LensStart, 
 
 const NO_AUTO_START = '\nglobalThis.activityScript.autoStart = undefined\n'
 
-/** An activity the RPG mechanism generates has no file to edit, so its skipped auto-start is removed from the generated text. */
+/** An activity a content generator makes has no file to edit, so its skipped auto-start is removed from the
+ * generated text. */
 function skippingGeneratedAutoStart(composition: WorldComposition, keys: readonly string[]): WorldComposition {
-  const { rpg } = composition
-  if (!rpg || !keys.length) return composition
+  const { content } = composition.mechanisms
+  if (!content?.length || !keys.length) return composition
   return {
     ...composition,
-    rpg: {
-      ...rpg,
-      mapActivities: (config, context) =>
-        rpg
-          .mapActivities(config, context)
-          .map(activity =>
-            keys.includes(activity.key) ? { ...activity, source: activity.source + NO_AUTO_START } : activity,
-          ),
+    mechanisms: {
+      ...composition.mechanisms,
+      content: content.map(generator => ({
+        ...generator,
+        generate: (config, pack) => {
+          const generated = generator.generate(config, pack)
+          return generated.activities
+            ? {
+                ...generated,
+                activities: generated.activities.map(activity =>
+                  keys.includes(activity.key) ? { ...activity, source: activity.source + NO_AUTO_START } : activity,
+                ),
+              }
+            : generated
+        },
+      })),
     },
   }
 }
@@ -430,7 +439,7 @@ export class LensSimulation {
         copy,
         composition.interactionPackages.map(interactionPackageDescription),
       )) as CompiledWorldPackV5
-      const generated = new Set(loadRpgContent(copy, pack, composition.rpg)?.activities.map(a => a.key))
+      const generated = new Set(loadPackContent(copy, pack, composition.mechanisms.content)?.activities.map(a => a.key))
       rewriteCopy(copy, pack, start, generated)
       stub = await startStubModel()
       runtime = await WorldHostRuntime.create({

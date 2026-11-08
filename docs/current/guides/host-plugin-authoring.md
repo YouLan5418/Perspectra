@@ -2,6 +2,43 @@
 
 2026-11-05 M6：先按[共同契约](../architecture/mechanism-contracts.md)区分核心、内部机制、包内脚本与交付适配。API 仍为 2.8，SDK 根导出不变，不导入内部文件作为未发布子路径。显式组合、透视与分享选择见[装配说明](../architecture/mechanism-contracts.md#5-默认组合与显式停用)。
 
+## 从包的配置文件生成玩法内容（2.10）
+
+例如作者在包里写一份 `cards.json`，说明牌桌用几副牌；你的插件读到它，就为这个包生成一场牌桌活动和一个记牌堆的状态模块。官方 RPG 就是这样读 `rpg.json` 的。插件通过 `ctx.effect(() => ctx.content.register(generator))` 注册，清单 services 写 `content`，模块声明 `hostApi = '2.10'`：
+
+```js
+export const hostApi = '2.10'
+
+export default function (ctx) {
+  ctx.effect(() =>
+    ctx.content.register({
+      id: 'my-cards',
+      version: '1',
+      configFile: 'cards.json',
+      generate(config, pack) {
+        if (typeof config.deck !== 'number') throw new TypeError('deck：需要是数字')
+        return {
+          activities: [{ key: 'cards-table', source: tableScript(config.deck, pack.names) }],
+          statusModules: [
+            {
+              declaration: { id: 'cards', entry: 'plugins/cards.js', characters: [pack.playerId], capabilities: [] },
+              source: deckScript(config.deck),
+            },
+          ],
+          // 可选：rules 是一层规则，和 ctx.rules 注册的一样，排在玩家选的规则插件里面。
+        }
+      },
+    }),
+  )
+}
+```
+
+- 包要在 `assetFiles` 登记 `cards.json`，并在顶层写 `"plugin": { "id": "my-cards", "version": "1" }`；缺字段、版本不对、或写了 `plugin` 却没有插件读它，世界都不打开，错误会说明缺哪个插件。
+- 生成的活动和包内 `scripts/activities/<key>.js` 用法一样，状态模块和 `plugins.json` 里的模块一样；与包内或其他插件生成的重名时，世界不打开。生成内容不写回包目录。
+- `generate` 抛出的错误前面会加上 `cards.json 的 `，所以消息以 JSON 路径开头（如 `deck：需要是数字`）。`worldpack validate` 只带官方 RPG 生成器，第三方插件的配置要到打开世界或透视推演时才检查。
+- `generate` 要是确定的：存档按插件 id 记下配置和全部生成内容的摘要，之后变了就拒绝打开这个存档（“my-cards 插件生成的规则与存档不一致”）。
+- 每个配置文件只能有一个插件读。玩家插件注册了读 `rpg.json` 的生成器时，官方 RPG 不再注册。
+
 ## 替换通信与自主策略（2.8）
 
 例如后室角色收到短信后主动整理工作：`ctx.communication` 计算消息选项和文本，`ctx.autonomy` 解释自主配置、频率和许可，既有 `ctx.scheduler`／`ctx.characterLoop` 消费机会。两个新槽位分别用 `ctx.effect(() => ctx.communication.register(provider))` 和 `ctx.effect(() => ctx.autonomy.register(provider))` 注册；清单 services 写相应名称，模块 `hostApi = '2.8'`。2.0～2.7 插件仍可加载。

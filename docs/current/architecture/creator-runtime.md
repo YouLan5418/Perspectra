@@ -133,7 +133,9 @@ Interaction 定义和绑定提供玩法可选行为，规则负责重要状态�
 
 例如作者在包里写一份 `rpg.json`：遗迹一层有守卫、铁门需要钥匙，澄是同伴。玩家进入遗迹时，宿主已经为这张地图生成了一场活动，澄随队长走进来，战斗伤害、掉落和锁门由程序裁定，留在家里的阿茹收不到战斗内容。
 
-官方机制包 [official-rpg](../../../packages/official-rpg) 在世界打开时读取 `rpg.json`（需登记在 `assetFiles`），生成一个状态模块、每张地图一个活动和一个规则层（锁门、队伍随行），不写回包目录；[desktop/host/rpg-pack.ts](../../../desktop/host/rpg-pack.ts) 负责载入，生成内容的摘要记在存档的 `plugin-set.json`，不一致时拒绝打开。包透视和 `worldpack validate` 也读 `rpg.json`。作者说明见[RPG 玩法](../guides/rpg.md)，验收包是 [hill-ruins](../../../examples/world-packs/hill-ruins/README.md)。源码已接通、自动测试与推演通过；真实模型试玩和发行包均未做。
+官方机制包 [official-rpg](../../../packages/official-rpg) 在世界打开时读取 `rpg.json`（需登记在 `assetFiles`），生成一个状态模块、每张地图一个活动和一个规则层（锁门、队伍随行），不写回包目录；宿主经通用的 [desktop/host/pack-content.ts](../../../desktop/host/pack-content.ts) 载入，生成内容的摘要按插件 id 记在存档 `plugin-set.json` 的 `generatedContent`，不一致时拒绝打开。包透视和 `worldpack validate` 也读 `rpg.json`。作者说明见[RPG 玩法](../guides/rpg.md)，验收包是 [hill-ruins](../../../examples/world-packs/hill-ruins/README.md)。源码已接通、自动测试与推演通过；真实模型试玩和发行包均未做。
+
+2026-11-08 内容接缝：宿主不再有 RPG 专用槽位。玩法插件通过 `ctx.content` 注册内容生成器（[SDK 类型](../../../packages/plugin-sdk/src/content.ts)），声明自己读的配置文件；官方 RPG 是其中之一（`officialRpgContent` 读 `rpg.json`），默认组合在没有玩家插件接管 `rpg.json` 时注册它。宿主对每个生成器做同样的事：读已登记的配置文件，核对顶层 `plugin` 的 id 和 version，生成状态模块、活动与规则层，检查与包内模块、活动及其他生成器的重名，并按生成器记摘要。根目录 JSON 资产写了 `plugin` 却没有生成器读它时，世界不打开。包透视推演、故事分享预检和 `worldpack validate` 都走同一读取。包透视里 RPG 条目的展示（rpg-view.ts）仍直接读 `rpg.json`，属于透视自己的 RPG 视图。
 
 ## 创作入口与限制
 
