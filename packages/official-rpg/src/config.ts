@@ -307,7 +307,7 @@ export function parseRpgConfig(value: unknown, pack: RpgPackIds): RpgConfig {
       ...(m.exits === undefined
         ? {}
         : {
-            exits: list(m.exits, `${path}.exits`).map((exitRow, j): RpgExit => {
+            exits: list(m.exits, `${path}.exits`).map((exitRow, j, rows): RpgExit => {
               const p = `${path}.exits[${j}]`
               const x = record(exitRow, p)
               only(x, p, ['to', 'requires', 'lockedReason'])
@@ -317,8 +317,11 @@ export function parseRpgConfig(value: unknown, pack: RpgPackIds): RpgConfig {
                 only(r, `${p}.requires`, ['holds'])
                 requires = { holds: entity(r.holds, `${p}.requires.holds`) }
               }
+              const to = location(x.to, `${p}.to`)
+              if (rows.slice(0, j).some(earlier => (earlier as Json | null)?.to === to))
+                fail(`${p}.to`, `${to} 在这张地图上已有出口，同一目的地只写一个`)
               return {
-                to: location(x.to, `${p}.to`),
+                to,
                 ...(requires ? { requires } : {}),
                 ...(x.lockedReason === undefined ? {} : { lockedReason: text(x.lockedReason, `${p}.lockedReason`) }),
               }

@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import type { RulesInstance, SeamProvider } from '@harness-world/plugin-sdk'
+import type { RulesInstance, SeamProvider, StatusModuleSource } from '@harness-world/plugin-sdk'
 import type { CompiledWorldPackV5 } from '@harness-world/world-pack'
 import type { RpgMechanism } from '../official-bundle.ts'
 import { lockedPackAsset } from './pack-modules.ts'
@@ -57,6 +57,12 @@ export function loadRpgContent(
       .update(JSON.stringify({ plugin: { id: rpg.id, version: rpg.version }, module, activities }))
       .digest('hex')
   return { activities, module, rules: rpg.rules(config), contentHash }
+}
+
+/** The generated status module as a status mechanism receives it, for a caller that opens status without PackModules. */
+export function rpgStatusModuleSource(rpg: RpgContent): StatusModuleSource {
+  const { id, characters } = rpg.module.declaration as { id: string; characters: string[] }
+  return { id, source: rpg.module.source, characters: [...characters], unavailableCapabilities: [] }
 }
 
 /** A save opens only with the generated content it was created with; a save with no record yet takes the current. */

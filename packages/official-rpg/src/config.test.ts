@@ -39,6 +39,8 @@ describe('parseRpgConfig', () => {
         'nope',
       ],
       [c => (c.enemies.golem.skills = ['nope']), 'enemies.golem.skills[0]', 'nope'],
+      // Two exits to one place would give the lens two items with one id.
+      [c => c.maps[0].exits.push({ to: 'location:ruin-2' }), 'maps[0].exits[1].to', 'location:ruin-2'],
       [c => (c.maps[0].enemies = ['ghoul']), 'maps[0].enemies[0]', 'ghoul'],
       [c => (c.maps[0].scripted[0].target = 'ghoul'), 'maps[0].scripted[0].target', 'ghoul'],
       [c => (c.maps[0].scripted[0].characterId = 'character:x'), 'maps[0].scripted[0].characterId', 'character:x'],

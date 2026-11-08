@@ -1,5 +1,8 @@
-import { rmSync } from 'node:fs'
+import { readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
+import { diffLensViews } from '../../desktop/lens/diff.ts'
+import { LensStore } from '../../desktop/lens/store.ts'
 import { applyScenario } from '../../desktop/lens/scenario.ts'
 import { LensSimulation } from '../../desktop/lens/simulation.ts'
 import { buildLensView, type LensItem } from '../../desktop/lens/view.ts'
@@ -118,5 +121,22 @@ describe('the lens and rpg.json', () => {
     await expect(
       LensSimulation.open('tests/fixtures/rpg-pack', { skipAutoStart: ['rpg-map-nowhere'] }),
     ).rejects.toThrow('未知活动 rpg-map-nowhere')
+  }, 60_000)
+
+  it('a change request on an rpg item survives, shows as changed after an edit, and the diff names the item', async () => {
+    const { lens, pack } = await openLens()
+    const before = await buildLensView(pack, lens)
+    const golem = before.items.find(i => i.id === 'rpg:enemy/golem')!
+    const store = new LensStore(pack)
+    store.addRequest(golem, '遗迹守卫太硬')
+    expect(store.requests(before)[0]).toMatchObject({ itemId: 'rpg:enemy/golem', state: 'open' })
+
+    const file = join(pack, 'rpg.json')
+    const config = JSON.parse(readFileSync(file, 'utf8'))
+    config.enemies.golem.hp = 30
+    writeFileSync(file, JSON.stringify(config, null, 2))
+    const after = await buildLensView(pack, lens)
+    expect(store.requests(after)[0]).toMatchObject({ itemId: 'rpg:enemy/golem', state: 'changed' })
+    expect(diffLensViews(before, after)).toEqual([expect.objectContaining({ kind: 'changed', id: 'rpg:enemy/golem' })])
   }, 60_000)
 })
