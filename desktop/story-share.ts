@@ -21,6 +21,7 @@ import { CORE_MEMORY_ID, importCoreArchives } from './official-bundle.ts'
 import { createWorldReader } from './host/world-reader.ts'
 import { StatusState } from '@harness-world/application'
 import { loadStatusSource } from './host/status-source.ts'
+import { loadRpgContent } from './host/rpg-pack.ts'
 import { assembleRoleplay, type WorldComposition } from './official-bundle.ts'
 import { createWorldCast } from './host/world-cast.ts'
 import { modelCharacters } from './host/player-transcript.ts'
@@ -193,7 +194,20 @@ async function validate(
     packPath,
     composition.interactionPackages.map(interactionPackageDescription),
   )) as CompiledWorldPackV5
-  const statusSource = loadStatusSource(packPath, pack)
+  // The status module an rpg.json pack generates is part of its status script, so the preflight checks it too.
+  const rpg = loadRpgContent(packPath, pack, composition.rpg)
+  const statusSource = loadStatusSource(
+    packPath,
+    pack,
+    rpg && [
+      {
+        id: String((rpg.module.declaration as { id: unknown }).id),
+        source: rpg.module.source,
+        characters: [...((rpg.module.declaration as { characters: string[] }).characters ?? [])],
+        unavailableCapabilities: [],
+      },
+    ],
+  )
   if (statusSource) {
     const provider = composition.mechanisms.status
     if (!provider) throw new TypeError('分享预检需要所选状态机制')

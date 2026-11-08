@@ -11,6 +11,7 @@ export const SECTION_LABEL: Record<LensSection, string> = {
   items: '物品',
   events: '事件与活动',
   rules: '规则与钩子',
+  rpg: 'RPG',
   presets: '预设与记忆',
 }
 

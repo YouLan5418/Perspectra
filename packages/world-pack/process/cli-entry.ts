@@ -1,4 +1,5 @@
 import { canonicalizeWorldJson, interactionPackageDescription, type WorldJsonValue } from '@harness-world/contracts'
+import { OFFICIAL_RPG_ID, OFFICIAL_RPG_VERSION, parseRpgConfig } from '@harness-world/official-rpg'
 import { createInstalledInteractionPackages } from '@harness-world/interactions-basic'
 import {
   executeWorldPackCli,
@@ -58,7 +59,13 @@ try {
       ).toString('utf8')}\n`,
     )
   } else {
-    process.stdout.write(await executeWorldPackCli(args, { interactionPackages, interactionImplementations }))
+    process.stdout.write(
+      await executeWorldPackCli(args, {
+        interactionPackages,
+        interactionImplementations,
+        rpg: { id: OFFICIAL_RPG_ID, version: OFFICIAL_RPG_VERSION, parseConfig: parseRpgConfig },
+      }),
+    )
   }
 } catch (error: unknown) {
   const envelope = worldPackCliErrorEnvelope(error, process.argv.slice(2))

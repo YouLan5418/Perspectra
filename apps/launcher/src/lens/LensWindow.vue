@@ -10,6 +10,7 @@ import {
   Play,
   RefreshCw,
   Scale,
+  Swords,
   SlidersHorizontal,
   Users,
 } from '@lucide/vue'
@@ -38,6 +39,7 @@ const nav: { id: LensViewName; icon: unknown; label: string }[] = [
   { id: 'statuses', icon: Braces, label: SECTION_LABEL.statuses },
   { id: 'items', icon: Boxes, label: SECTION_LABEL.items },
   { id: 'rules', icon: Scale, label: SECTION_LABEL.rules },
+  { id: 'rpg', icon: Swords, label: SECTION_LABEL.rpg },
   { id: 'presets', icon: SlidersHorizontal, label: SECTION_LABEL.presets },
   { id: 'requests', icon: ClipboardList, label: '待改清单' },
 ]

@@ -1,9 +1,19 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { activityScriptPath, conditionItems, interactionName as sharedInteractionName } from './ids.ts'
+import { RPG_CONFIG, rpgLensItems, rpgMapKey, type RpgJson } from './rpg-view.ts'
 import type { LensSimulation } from './simulation.ts'
 
-export type LensSection = 'characters' | 'knowledge' | 'places' | 'statuses' | 'items' | 'events' | 'rules' | 'presets'
+export type LensSection =
+  | 'characters'
+  | 'knowledge'
+  | 'places'
+  | 'statuses'
+  | 'items'
+  | 'events'
+  | 'rules'
+  | 'rpg'
+  | 'presets'
 export type LensSource =
   | { readonly kind: 'json'; readonly file: string; readonly pointer: string }
   | { readonly kind: 'script'; readonly file: string; readonly hook: string; readonly label?: string }
@@ -87,6 +97,7 @@ export async function buildLensView(packPath: string, opening: LensSimulation): 
   // A shared definition has no name of its own; a character's own binding label names it for that character.
   const interactionName = (id: string, characterId?: string) =>
     sharedInteractionName(id, characterId, labels.operationLabels, labels.bindingLabels)
+  const rpg = manifest.assetFiles.includes(RPG_CONFIG) ? (readJson(packPath, RPG_CONFIG) as RpgJson) : undefined
   const activityTitle = new Map(activities.map(a => [a.activityKey, a.title]))
   const activitiesOf = (characterId: string) =>
     activities.filter(a => a.npcIds.includes(characterId) || a.participantSelection?.candidates?.includes(characterId))
@@ -256,6 +267,10 @@ export async function buildLensView(packPath: string, opening: LensSimulation): 
   for (const activity of activities) {
     const id = 'event:' + activity.activityKey
     const file = activityScriptPath(activity.activityKey)
+    // A map's activity is generated from rpg.json, so its author setting is the map entry there.
+    const generatedMap = rpg?.maps.findIndex(map => rpgMapKey(map.locationId) === activity.activityKey) ?? -1
+    const eventSource: LensSource =
+      generatedMap >= 0 ? json(RPG_CONFIG, `/maps/${generatedMap}`) : { kind: 'script', file, hook: 'definition' }
     const players = activity.participantSelection
       ? [`玩家选择 ${activity.participantSelection.min}–${activity.participantSelection.max} 位`]
       : activity.npcIds.map(name)
@@ -270,7 +285,7 @@ export async function buildLensView(packPath: string, opening: LensSimulation): 
         { key: 'operations', label: '玩家操作', value: activity.operations.map(op => op.label) },
         { key: 'autoStart', label: '自动触发', value: activity.hasAutoStart },
       ],
-      source: { kind: 'script', file, hook: 'definition' },
+      source: eventSource,
       ...(activity.npcIds.length ? { links: [...activity.npcIds] } : {}),
     })
     const checks = conditions.get(activity.activityKey)?.checks ?? []
@@ -282,7 +297,10 @@ export async function buildLensView(packPath: string, opening: LensSimulation): 
         title,
         parentId: id,
         fields: [{ key: 'met', label: '开场是否成立', value: check.met }],
-        source: { kind: 'script', file, hook: 'autoStart', ...(check.label === null ? {} : { label: check.label }) },
+        source:
+          generatedMap >= 0
+            ? eventSource
+            : { kind: 'script', file, hook: 'autoStart', ...(check.label === null ? {} : { label: check.label }) },
       })
     }
   }
@@ -330,6 +348,8 @@ export async function buildLensView(packPath: string, opening: LensSimulation): 
       ],
       source: { kind: 'script', file: STATUS_SCRIPT, hook: 'definition', label: op.id },
     })
+
+  if (rpg) for (const item of rpgLensItems(rpg, name)) add(item)
 
   // presets
   for (const file of ['model-preset.json']) {

@@ -21,6 +21,7 @@ import type { AutoStartEvaluation } from '@harness-world/contracts'
 import { StatusState } from '@harness-world/application'
 import { assembleRoleplay, type WorldComposition } from '../official-bundle.ts'
 import { WorldHostRuntime } from '../host/world-runtime.ts'
+import { loadRpgContent } from '../host/rpg-pack.ts'
 import { startStubModel, type StubDecision, type StubModel } from './stub-model.ts'
 import { activityScriptPath, interactionName } from './ids.ts'
 import { interactionLabels } from './view.ts'
@@ -188,7 +189,7 @@ export function sweepStaleLensCopies(directory = tmpdir(), now = Date.now()): vo
 }
 
 /** Writes the start into the copy; reference errors name the field and ID. */
-function rewriteCopy(copy: string, pack: CompiledWorldPackV5, start: LensStart): void {
+function rewriteCopy(copy: string, pack: CompiledWorldPackV5, start: LensStart, generated: ReadonlySet<string>): void {
   const characterIds = new Set<string>(pack.content.characters.map(c => c.characterId))
   const scenes = new Map(pack.content.scenes.map(s => [s.sceneId as string, s]))
   const playerId = pack.content.playerSlots[0]!.characterId
@@ -197,7 +198,7 @@ function rewriteCopy(copy: string, pack: CompiledWorldPackV5, start: LensStart):
     if (!scenes.has(sceneId)) throw new TypeError(`起点 scenes.${characterId}：未知场景 ${sceneId}`)
   }
   for (const key of start.skipAutoStart ?? [])
-    if (!pack.assets.some(asset => asset.path === activityScriptPath(key)))
+    if (!generated.has(key) && !pack.assets.some(asset => asset.path === activityScriptPath(key)))
       throw new TypeError(`起点 skipAutoStart：未知活动 ${key}`)
 
   const manifest = readJson<{ sceneFiles: string[]; characterFiles: string[] }>(join(copy, 'worldpack.source.json'))
@@ -228,7 +229,28 @@ function rewriteCopy(copy: string, pack: CompiledWorldPackV5, start: LensStart):
     }
   }
   for (const key of start.skipAutoStart ?? [])
-    appendFileSync(join(copy, activityScriptPath(key)), '\nglobalThis.activityScript.autoStart = undefined\n')
+    if (!generated.has(key))
+      appendFileSync(join(copy, activityScriptPath(key)), '\nglobalThis.activityScript.autoStart = undefined\n')
+}
+
+const NO_AUTO_START = '\nglobalThis.activityScript.autoStart = undefined\n'
+
+/** An activity the RPG mechanism generates has no file to edit, so its skipped auto-start is removed from the generated text. */
+function skippingGeneratedAutoStart(composition: WorldComposition, keys: readonly string[]): WorldComposition {
+  const { rpg } = composition
+  if (!rpg || !keys.length) return composition
+  return {
+    ...composition,
+    rpg: {
+      ...rpg,
+      mapActivities: (config, context) =>
+        rpg
+          .mapActivities(config, context)
+          .map(activity =>
+            keys.includes(activity.key) ? { ...activity, source: activity.source + NO_AUTO_START } : activity,
+          ),
+    },
+  }
 }
 
 /** Apply simulation opening data to the selected mechanism, then use the ordinary core initializer. */
@@ -408,14 +430,18 @@ export class LensSimulation {
         copy,
         composition.interactionPackages.map(interactionPackageDescription),
       )) as CompiledWorldPackV5
-      rewriteCopy(copy, pack, start)
+      const generated = new Set(loadRpgContent(copy, pack, composition.rpg)?.activities.map(a => a.key))
+      rewriteCopy(copy, pack, start, generated)
       stub = await startStubModel()
       runtime = await WorldHostRuntime.create({
         packPath: copy,
         dataDirectory: join(root, 'data'),
         models: stub.models,
         timeoutMs: 10_000,
-        composition: openingComposition(composition, pack, start),
+        composition: skippingGeneratedAutoStart(
+          openingComposition(composition, pack, start),
+          start.skipAutoStart ?? [],
+        ),
       })
       const titles = new Map(
         ((await runtime.state()).activities ?? []).map(a => [String(a.activityKey), String(a.title)] as const),
