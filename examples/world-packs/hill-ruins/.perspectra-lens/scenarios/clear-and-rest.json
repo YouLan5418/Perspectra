@@ -79,7 +79,7 @@
       "expect": {
         "status": {
           "rpg-unlocked": [
-            "location:ruin-1>location:ruin-2"
+            ["location:ruin-1", "location:ruin-2"]
           ]
         }
       }

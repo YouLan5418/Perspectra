@@ -2180,6 +2180,7 @@ export class WorldHostCore implements HostRuntime {
             events,
             this.#playerId,
             this.#names,
+            new Map([...this.#locationNames, ...this.#entityNames, ...this.#names]),
           )
           this.#availableActions = projected.availableActions
           this.#transcript = this.#withPauses(this.#transcript, events)

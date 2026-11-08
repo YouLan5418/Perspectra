@@ -67,6 +67,22 @@ const seenMoves = (f: RpgFixture, observer: string, mover: string) => {
 }
 
 describe('RPG locked exits and party', () => {
+  // Stage check 2026-11-08: "前往 遗迹宝库" was offered at home, so the loot could be taken before any fight.
+  it('nobody is offered the vault or can walk into it', async () => {
+    const f = await fixture()
+    expect(offered(f, PLAYER)).not.toContain('location:vault')
+    expect(offered(f, CHENG)).not.toContain('location:vault')
+    const before = f.events().length
+    await f.move('location:vault').catch(() => undefined)
+    expect(where(f, PLAYER)).toBe(HOME)
+    expect(
+      f
+        .events()
+        .slice(before)
+        .map(e => e.eventType),
+    ).not.toContain('character.moved')
+  })
+
   // Real-model play 2026-11-08: Cheng picked the key up, the player was refused at the door, and Cheng walked
   // through alone. The key changes the door's state instead: unlocked once, it lets anyone through.
   it('the iron door stays locked until someone unlocks it with the key, then lets anyone through', async () => {
@@ -127,9 +143,12 @@ describe('RPG locked exits and party', () => {
     await f.runtime.submit(`/status give@entity:iron-key {"recipientId":"${CHENG}"}`)
     expect(offered(f, PLAYER)).not.toContain('status:rpg-unlock')
     if (!unlockedDoors(f.events()).length) await say(f, '澄，钥匙给你，开门吧。')
-    expect(unlockedDoors(f.events())).toEqual([`${RUIN1}>${RUIN2}`])
+    expect(unlockedDoors(f.events())).toEqual([[RUIN1, RUIN2]])
     // Now open, the door is no longer something to unlock for anyone.
     expect(offered(f, CHENG)).not.toContain('status:rpg-unlock')
+    // The player, who saw it happen, reads the door by its places, not by ids.
+    const bar = (await f.runtime.state()).statusBar ?? []
+    expect(bar.find(entry => entry.key === 'rpg-unlocked')?.valueText).toBe('遗迹一层 → 遗迹二层')
 
     // The player, without the key, now walks through.
     await f.move(RUIN2)

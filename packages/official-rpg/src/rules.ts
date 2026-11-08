@@ -2,7 +2,7 @@ import type { WorldEventDraft } from '@harness-world/contracts'
 import type { RuleContext, RulesInstance, SeamProvider } from '@harness-world/plugin-sdk'
 import type { RpgConfig, RpgExit } from './config.ts'
 import { OFFICIAL_RPG_ID, OFFICIAL_RPG_VERSION } from './plugin.ts'
-import { doorId, UNLOCKED_STATUS } from './status-module.ts'
+import { UNLOCKED_STATUS } from './status-module.ts'
 
 /** The rules layer's own provider id, distinct from the plugin id rpg.json names. */
 export const OFFICIAL_RPG_RULES_ID = `${OFFICIAL_RPG_ID}-rules`
@@ -34,21 +34,25 @@ function canWalk(events: Events, characterId: string): boolean {
 }
 
 /** A public list status as of this prefix; the rules only read it, the status module writes it. */
-function publicList(events: Events, key: string): string[] {
-  let list: string[] = []
+function publicList(events: Events, key: string): unknown[] {
+  let list: unknown[] = []
   for (const event of events) {
     if (event.eventType !== 'status.updated') continue
     const changes = (event.data as { changes?: { holderId: unknown; key: unknown; value: unknown }[] }).changes ?? []
     for (const change of changes)
-      if (change.holderId === null && change.key === key && Array.isArray(change.value))
-        list = change.value.filter((id): id is string => typeof id === 'string')
+      if (change.holderId === null && change.key === key && Array.isArray(change.value)) list = change.value
   }
   return list
 }
 /** The names listed in `rpg-party` as of this prefix. */
-export const partyList = (events: Events): string[] => publicList(events, PARTY_STATUS)
-/** The doors someone has unlocked, by door id, as of this prefix. */
-export const unlockedDoors = (events: Events): string[] => publicList(events, UNLOCKED_STATUS)
+export const partyList = (events: Events): string[] =>
+  publicList(events, PARTY_STATUS).filter((id): id is string => typeof id === 'string')
+/** The doors someone has unlocked, each `[from, to]`, as of this prefix. */
+export const unlockedDoors = (events: Events): [string, string][] =>
+  publicList(events, UNLOCKED_STATUS).filter(
+    (pair): pair is [string, string] =>
+      Array.isArray(pair) && pair.length === 2 && pair.every(part => typeof part === 'string'),
+  )
 
 /** In the party: listed in `rpg-party` and at the leader's location. Someone listed but elsewhere does not count. */
 export function partyMembers(events: Events, leaderId: string): string[] {
@@ -66,7 +70,7 @@ function exitTo(config: RpgConfig, from: string | undefined, to: string): { from
 
 /** A keyed exit opens once someone has unlocked its door, for anyone; holding the key alone does not open it. */
 const opens = (row: { from: string; exit: RpgExit }, events: Events) =>
-  !row.exit.requires || unlockedDoors(events).includes(doorId(row.from, row.exit.to))
+  !row.exit.requires || unlockedDoors(events).some(([from, to]) => from === row.from && to === row.exit.to)
 
 /**
  * Locked exits and party follow, as one rules layer. A move to a locked exit is refused with the author's reason and
@@ -75,12 +79,23 @@ const opens = (row: { from: string; exit: RpgExit }, events: Events) =>
  */
 export function createRpgRules(config: RpgConfig): SeamProvider<RulesInstance> {
   const leader = config.party?.leader
+  // The vault only stores loot until a victory drops it; nobody walks in, or the drops could be taken before any fight.
+  const vault = config.vault
   const instance: RulesInstance = {
+    affordances: (context, next) =>
+      vault === undefined
+        ? next(context)
+        : next(context).map(affordance =>
+            affordance.actionType === 'move' && affordance.destinations
+              ? { ...affordance, destinations: affordance.destinations.filter(d => d.locationId !== vault) }
+              : affordance,
+          ),
     resolve: (context, next) => {
       const { action, events } = context
       const moverId = String(context.characterId)
       if (action.actionType !== 'move') return next(context)
       const to = (action.parameters as { locationId?: unknown } | null)?.locationId
+      if (to === vault) return { status: 'rejected', events: [], reason: 'plugin:' + LOCKED }
       if (typeof to === 'string') {
         const exits = exitTo(config, locationOf(events, moverId), to)
         if (exits.length && !exits.some(row => opens(row, events)))

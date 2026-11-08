@@ -286,16 +286,19 @@ export function projectPlayerView(state: HostState): PlayerView {
     ...(state.tailRound ? { tailRound: state.tailRound } : {}),
     ...(state.statusBar
       ? {
-          statusBar: state.statusBar.map(({ key, label, holderId, holderName, self, value, current, pinned }) => ({
-            key,
-            label,
-            holderId,
-            ...(holderName === undefined ? {} : { holderName }),
-            ...(self === true ? { self } : {}),
-            value,
-            current,
-            ...(pinned === true ? { pinned } : {}),
-          })),
+          statusBar: state.statusBar.map(
+            ({ key, label, holderId, holderName, self, value, valueText, current, pinned }) => ({
+              key,
+              label,
+              holderId,
+              ...(holderName === undefined ? {} : { holderName }),
+              ...(self === true ? { self } : {}),
+              value,
+              ...(valueText === undefined ? {} : { valueText }),
+              current,
+              ...(pinned === true ? { pinned } : {}),
+            }),
+          ),
         }
       : {}),
     ...(state.statusTruth?.length

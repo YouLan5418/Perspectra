@@ -59,6 +59,8 @@ export interface PlayerView {
     holderName?: string
     self?: boolean
     value: import('@harness-world/contracts').WorldJsonValue
+    /** The value as the player reads it: character, place and item ids replaced by their names. */
+    valueText?: string
     current: boolean
     /** The author pinned this status to the status bar (`bar: true`); the rest belong in a status panel. */
     pinned?: true

@@ -16,16 +16,15 @@ export interface RpgStatusModule {
   source: string
 }
 
-/** Public status listing the doors someone has unlocked, by {@link doorId}. */
+/** Public status listing the doors someone has unlocked, each as `[from, to]` location ids, so a stage can name both
+ * places ("遗迹一层 → 遗迹二层"). */
 export const UNLOCKED_STATUS = 'rpg-unlocked'
-/** A locked exit's stable id: where it leads from and to. */
-export const doorId = (from: string, to: string) => `${from}>${to}`
 
 /** Every exit that needs a key: unlocked once someone holding the key uses it at the door, then open to anyone. */
-export function lockedDoors(config: RpgConfig): { id: string; from: string; key: string }[] {
+export function lockedDoors(config: RpgConfig): { from: string; to: string; key: string }[] {
   return config.maps.flatMap(map =>
     (map.exits ?? []).flatMap(exit =>
-      exit.requires ? [{ id: doorId(map.locationId, exit.to), from: map.locationId, key: exit.requires.holds }] : [],
+      exit.requires ? [{ from: map.locationId, to: exit.to, key: exit.requires.holds }] : [],
     ),
   )
 }

@@ -87,6 +87,8 @@ export interface HostState {
     readonly holderName?: string
     readonly self?: boolean
     readonly pinned?: true
+    /** The value as the player reads it, pack ids named; see `statusValueText`. */
+    readonly valueText?: string
   })[]
   /** True values only for statuses the author declared `playerTruth`; the frontend decides whether to show them. */
   readonly statusTruth?: readonly (PlayerTruthStatus & { readonly holderName?: string; readonly self?: boolean })[]

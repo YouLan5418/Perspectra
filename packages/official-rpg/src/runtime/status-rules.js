@@ -41,13 +41,16 @@ function install(config) {
   const doors = config.doors || []
   const UNLOCKED = 'rpg-unlocked'
   const keys = [...new Set(doors.map(door => door.key))]
+  // Each unlocked door is kept as [from, to], so the stage can name both places.
+  const isOpen = (list, door) => list.some(pair => pair[0] === door.from && pair[1] === door.to)
   if (doors.length) {
+    const place = { type: 'string', maxLength: 200 }
     statuses.push({
       key: UNLOCKED,
       label: '已开的门',
       type: 'array',
       owner: 'public',
-      schema: { type: 'array', maxItems: 64, items: { type: 'string', maxLength: 300 } },
+      schema: { type: 'array', maxItems: 64, items: { type: 'array', minItems: 2, maxItems: 2, items: place } },
     })
   }
 
@@ -119,7 +122,7 @@ function install(config) {
     const seenOpen = known.public[UNLOCKED] || []
     const unlocking = mine
       .filter(item =>
-        doors.some(door => door.key === item.entityId && door.from === place.locationId && !seenOpen.includes(door.id)),
+        doors.some(door => door.key === item.entityId && door.from === place.locationId && !isOpen(seenOpen, door)),
       )
       .map(item => item.entityId)
     if (unlocking.length) {
@@ -233,7 +236,7 @@ function install(config) {
       const here = doors.filter(door => door.key === targetId && door.from === world.locationId)
       if (!here.length) return reject('这里没有它能打开的锁。')
       const name = item.name || item.kind
-      const still = here.filter(door => !open.includes(door.id))
+      const still = here.filter(door => !isOpen(open, door))
       // Already open: nothing changes, and she now knows it is.
       const reveals = [...new Set([actorId].concat(world.characterIds))].map(observerId => ({
         observerId,
@@ -242,7 +245,7 @@ function install(config) {
       }))
       if (!still.length) return { changes: [], reveals, description: '锁已经开着了。', audience: 'self' }
       return {
-        changes: [{ holderId: null, key: UNLOCKED, value: open.concat(still.map(door => door.id)) }],
+        changes: [{ holderId: null, key: UNLOCKED, value: open.concat(still.map(door => [door.from, door.to])) }],
         reveals,
         description: '用' + name + '打开了门锁。',
         audience: 'scene',

@@ -88,6 +88,7 @@ function statusBarRows(view: {
     holderName?: string
     self?: boolean
     value: unknown
+    valueText?: string
     current: boolean
   }[]
 }) {
@@ -103,12 +104,17 @@ function statusBarRows(view: {
       }
       groups.push(group)
     }
-    // A composite value is shortened for the panel only; the SDK view keeps the whole value.
+    // A composite value is shortened for the panel only; the SDK view keeps the whole value. The host's readable
+    // text, with ids named, is preferred when it sends one.
+    const text = typeof entry.valueText === 'string' ? Array.from(entry.valueText) : undefined
     const json = typeof entry.value === 'object' && entry.value !== null ? Array.from(JSON.stringify(entry.value)) : []
     group.items.push({
       label: entry.label,
-      value:
-        entry.value === true
+      value: text
+        ? text.length > 120
+          ? text.slice(0, 120).join('') + '…'
+          : text.join('')
+        : entry.value === true
           ? '是'
           : entry.value === false
             ? '否'
