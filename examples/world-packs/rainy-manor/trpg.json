@@ -1,0 +1,47 @@
+{
+  "plugin": { "id": "official-trpg", "version": "1" },
+  "sheet": {
+    "stats": [
+      { "key": "hp", "label": "生命", "max": 10 },
+      { "key": "sanity", "label": "理智", "max": 10 }
+    ],
+    "skills": [
+      { "key": "agility", "label": "敏捷", "modifier": 0 },
+      { "key": "observe", "label": "观察", "modifier": 0 },
+      { "key": "persuade", "label": "交涉", "modifier": 0 },
+      { "key": "lore", "label": "学识", "modifier": 0 }
+    ],
+    "dice": "d20"
+  },
+  "characters": {
+    "character:aru": { "skills": { "lore": 3, "persuade": 1 } },
+    "character:cheng": { "stats": { "sanity": 7 }, "skills": { "agility": 3, "observe": 1 } },
+    "character:mei": { "stats": { "sanity": 9 }, "skills": { "observe": 3, "lore": 1, "agility": -1 } }
+  },
+  "hosts": ["character:aru", "character:mei"],
+  "scenarios": [
+    {
+      "id": "rainy-manor",
+      "title": "雨夜古宅",
+      "opening": "雨夜，你们开车穿过山路，车在一座古宅门口熄了火，怎么也打不着。手机没有信号。门廊的灯还亮着，大门虚掩，门缝里飘出一股旧木头和蜡烛的味道。一位穿黑色礼服的老管家站在门内，微微欠身：“客人们，雨这么大，请进来避一避吧。天亮之前，路是走不通的。”",
+      "truth": "二十年前，老主人沈先生发现管家多年来一直挪用家里的钱，准备第二天报警。当晚管家在他的茶里下了药，伪装成心脏病发作。那本记着挪用账目的账本被沈先生藏进了书房书架后的暗格，管家找了二十年都没找到。管家表面殷勤，其实害怕客人在宅子里乱翻；他会用热茶、故事和“楼上不安全”的说法把客人留在门厅，天一亮就催他们离开。阁楼里住着沈先生年迈的妹妹，她知道哥哥死得蹊跷，但被管家锁在阁楼，只能在夜里敲地板求救。书房的门锁着，钥匙挂在管家的腰上；画像背面刻着暗格的开法：“第三层，左数第七本”。",
+      "endings": [
+        "找到账本，把管家的罪行揭穿：阁楼里的老妇人得救，天亮后警察上门。",
+        "听见了阁楼的敲击声，救出老妇人，但账本没找到，管家趁乱逃进了雨夜。",
+        "天亮前被管家客客气气地劝走，什么都没发现，只记得那杯过分香甜的茶。"
+      ],
+      "content": [
+        { "kind": "place", "name": "门厅", "description": "高高的穹顶下挂着老主人的画像，画里的人目光阴郁。地毯潮湿，壁炉里的火刚刚生起。", "public": true },
+        { "kind": "place", "name": "书房", "description": "在门厅左手的走廊尽头。门锁着，门缝里透出霉味和旧纸的气息。", "public": true },
+        { "kind": "place", "name": "楼梯", "description": "通往二楼的木楼梯，扶手上积着灰，每踩一级都吱呀作响。", "public": true },
+        { "kind": "place", "name": "阁楼", "description": "楼梯尽头一扇低矮的小门，从外面上了门闩。", "public": false },
+        { "kind": "npc", "name": "管家", "description": "彬彬有礼的老人，说话轻声细语，总在客人身后出现。腰间挂着一串钥匙。", "location": "门厅", "public": true },
+        { "kind": "npc", "name": "阁楼里的老妇人", "description": "沈先生的妹妹，头发全白，被关在阁楼二十年。她只信任肯听她说话的人。", "location": "阁楼", "public": false },
+        { "kind": "item", "name": "热茶", "description": "管家端上来的红茶，甜得过分，喝了让人发困。", "location": "门厅", "public": true },
+        { "kind": "item", "name": "账本", "description": "藏在书房暗格里的旧账本，一笔一笔记着管家挪走的钱。", "location": "书房", "public": false },
+        { "kind": "item", "name": "画像背面的刻字", "description": "画框背面刻着一行小字：“第三层，左数第七本”。", "location": "门厅", "public": false }
+      ]
+    }
+  ],
+  "themes": ["深夜的废弃医院", "一场没人记得的生日会"]
+}

@@ -1,0 +1,57 @@
+{
+  "title": "检定点数只给被检定的人和主持人，暗骰只有主持人自己知道",
+  "npcPlans": {
+    "character:aru": [
+      { "kind": "perform", "interact": "activity:respond", "arguments": { "accept": true } },
+      {
+        "kind": "perform",
+        "interact": "activity:check",
+        "arguments": { "targetId": "character:cheng", "skill": "agility", "difficulty": 12, "hidden": false }
+      },
+      { "kind": "perform", "interact": "activity:announce", "arguments": { "text": "澄踮着脚踩上楼梯，第三级台阶还是吱呀响了一声。" } },
+      { "kind": "perform", "interact": "activity:check", "arguments": { "skill": "observe", "difficulty": 15, "hidden": true } }
+    ]
+  },
+  "steps": [
+    {
+      "activity": "trpg",
+      "operation": "start",
+      "parameters": { "npcIds": ["character:aru", "character:cheng", "character:mei"] },
+      "expect": { "started": "trpg" }
+    },
+    {
+      "activity": "trpg",
+      "operation": "setup",
+      "parameters": { "hostId": "character:aru", "scenario": "rainy-manor" },
+      "expect": { "knows": { "character:mei": "阿茹接受了主持邀请" } }
+    },
+    {
+      "activity": "trpg",
+      "operation": "propose",
+      "parameters": { "text": "让澄先上楼梯看看。" },
+      "expect": {
+        "knows": {
+          "character:cheng": ["澄的敏捷检定：", "第三级台阶还是吱呀响了一声"],
+          "character:aru": "澄的敏捷检定：",
+          "character:player": ["澄进行了一次敏捷检定。", "第三级台阶还是吱呀响了一声"],
+          "character:mei": ["澄进行了一次敏捷检定。", "第三级台阶还是吱呀响了一声"]
+        },
+        "doesNotKnow": {
+          "character:player": "敏捷检定：",
+          "character:mei": "敏捷检定："
+        }
+      }
+    },
+    {
+      "say": "大家小心点，我总觉得有人在看着我们。",
+      "expect": {
+        "knows": { "character:aru": ["你掷了一次暗骰。", "暗骰的观察检定："] },
+        "doesNotKnow": {
+          "character:player": ["暗骰", "观察检定"],
+          "character:cheng": ["暗骰", "观察检定"],
+          "character:mei": ["暗骰", "观察检定"]
+        }
+      }
+    }
+  ]
+}

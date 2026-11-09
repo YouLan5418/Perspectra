@@ -1,0 +1,59 @@
+{
+  "title": "梅用题目“一场没人记得的生日会”即兴主持：真相只写在她的私密笔记里，阿茹接过话头自己提出行动",
+  "npcPlans": {
+    "character:mei": [
+      { "kind": "perform", "interact": "activity:respond", "arguments": { "accept": true } },
+      {
+        "kind": "perform",
+        "interact": "activity:note",
+        "arguments": { "scope": "private", "mode": "replace", "text": "真相：寿星三年前就搬走了，生日会是房东一个人每年照常办的。" }
+      },
+      { "kind": "perform", "interact": "activity:announce", "arguments": { "text": "蛋糕上插着二十七根蜡烛，盘子摆了五份，可桌边一个人也没有。" } },
+      { "kind": "perform", "interact": "activity:announce", "arguments": { "text": "贺卡背面只写着一行字：明年也请来。" } }
+    ],
+    "character:aru": [{ "kind": "perform", "interact": "activity:propose", "arguments": { "text": "我去翻翻桌上的贺卡。" } }]
+  },
+  "steps": [
+    {
+      "activity": "trpg",
+      "operation": "start",
+      "parameters": { "npcIds": ["character:aru", "character:cheng", "character:mei"] },
+      "expect": { "started": "trpg" }
+    },
+    {
+      "activity": "trpg",
+      "operation": "setup",
+      "parameters": { "hostId": "character:mei", "theme": "一场没人记得的生日会" },
+      "expect": {
+        "knows": {
+          "character:player": ["题目：一场没人记得的生日会", "梅接受了主持邀请"],
+          "character:aru": "题目：一场没人记得的生日会",
+          "character:cheng": "题目：一场没人记得的生日会"
+        }
+      }
+    },
+    {
+      "activity": "trpg",
+      "operation": "propose",
+      "parameters": { "text": "我推开挂着彩带的那扇门。" },
+      "expect": {
+        "knows": {
+          "character:mei": "你更新了私密笔记。",
+          "character:player": ["蛋糕上插着二十七根蜡烛", "阿茹提出行动：我去翻翻桌上的贺卡。", "贺卡背面只写着一行字"],
+          "character:cheng": ["蛋糕上插着二十七根蜡烛", "阿茹提出行动：我去翻翻桌上的贺卡。", "贺卡背面只写着一行字"]
+        },
+        "doesNotKnow": {
+          "character:player": ["私密笔记", "三年前就搬走了"],
+          "character:aru": ["私密笔记", "三年前就搬走了"],
+          "character:cheng": ["私密笔记", "三年前就搬走了"]
+        }
+      }
+    },
+    {
+      "activity": "trpg",
+      "operation": "end",
+      "parameters": {},
+      "expect": { "knows": { "character:mei": "跑团结束", "character:aru": "跑团结束" } }
+    }
+  ]
+}

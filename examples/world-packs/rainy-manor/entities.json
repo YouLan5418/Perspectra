@@ -1,0 +1,17 @@
+{
+  "schemaVersion": "worldpack-entities/v2",
+  "entities": [
+    {
+      "entityId": "entity:teacup",
+      "locationId": "location:living-room",
+      "kind": "teacup",
+      "name": "茶杯"
+    },
+    {
+      "entityId": "entity:dice-box",
+      "locationId": "location:living-room",
+      "kind": "dice-box",
+      "name": "骰子盒"
+    }
+  ]
+}

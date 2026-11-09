@@ -1,0 +1,67 @@
+{
+  "title": "阿茹主持《雨夜古宅》：撬门的点数只有玩家和阿茹知道，澄只知道有过检定，没参加的梅什么都不知道",
+  "npcPlans": {
+    "character:aru": [
+      { "kind": "perform", "interact": "activity:respond", "arguments": { "accept": true } },
+      {
+        "kind": "perform",
+        "interact": "activity:check",
+        "arguments": { "targetId": "character:player", "skill": "agility", "difficulty": 12, "hidden": false }
+      },
+      { "kind": "perform", "interact": "activity:announce", "arguments": { "text": "门锁卡住了，撬棍发出一声刺耳的响动。走廊那头，传来了管家的脚步声。" } }
+    ],
+    "character:cheng": [{ "kind": "say", "text": "你小声点！要被听见了！" }]
+  },
+  "steps": [
+    {
+      "activity": "trpg",
+      "operation": "start",
+      "parameters": { "npcIds": ["character:aru", "character:cheng"] },
+      "expect": { "started": "trpg" }
+    },
+    {
+      "activity": "trpg",
+      "operation": "setup",
+      "parameters": { "hostId": "character:aru", "scenario": "rainy-manor" },
+      "expect": {
+        "knows": {
+          "character:player": ["雨夜，你们开车穿过山路", "阿茹接受了主持邀请，跑团《雨夜古宅》开始。"],
+          "character:cheng": "雨夜，你们开车穿过山路"
+        },
+        "doesNotKnow": {
+          "character:player": ["账本", "暗格", "下了药", "阁楼里的老妇人"],
+          "character:cheng": ["账本", "暗格", "下了药", "阁楼里的老妇人"],
+          "character:mei": ["古宅", "跑团"]
+        }
+      }
+    },
+    {
+      "activity": "trpg",
+      "operation": "propose",
+      "parameters": { "text": "我想用撬棍撬开书房的门。" },
+      "expect": {
+        "knows": {
+          "character:player": ["玩家的敏捷检定：", "门锁卡住了，撬棍发出一声刺耳的响动。"],
+          "character:aru": "玩家的敏捷检定：",
+          "character:cheng": ["玩家进行了一次敏捷检定。", "门锁卡住了，撬棍发出一声刺耳的响动。", "你小声点！"]
+        },
+        "doesNotKnow": {
+          "character:cheng": "敏捷检定：",
+          "character:mei": ["撬棍", "检定", "书房"]
+        }
+      }
+    },
+    {
+      "activity": "trpg",
+      "operation": "end",
+      "parameters": { "ending": "天亮了，雨停了。你们修好车离开，谁也没有回头。" },
+      "expect": {
+        "knows": {
+          "character:aru": "跑团结束：天亮了",
+          "character:cheng": "跑团结束：天亮了"
+        },
+        "doesNotKnow": { "character:mei": ["跑团", "古宅", "天亮了"] }
+      }
+    }
+  ]
+}
