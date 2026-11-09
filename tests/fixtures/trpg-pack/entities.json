@@ -1,4 +1,11 @@
 {
   "schemaVersion": "worldpack-entities/v2",
-  "entities": []
+  "entities": [
+    {
+      "entityId": "entity:teacup",
+      "locationId": "location:living-room",
+      "kind": "teacup",
+      "name": "茶杯"
+    }
+  ]
 }
