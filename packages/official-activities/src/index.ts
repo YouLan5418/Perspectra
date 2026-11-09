@@ -1,6 +1,7 @@
 import { Script, createContext } from 'node:vm'
 import type { ActivityState, StatusTruth, WorldJsonObject, WorldJsonValue } from '@harness-world/contracts'
 import type {
+  DiceRoll,
   ActivitySource,
   ActivityInstance,
   ActivitiesInstance,
@@ -39,8 +40,9 @@ export class ActivityScript implements ActivityInstance {
     parameters: WorldJsonObject,
     world: WorldJsonObject,
     truth: StatusTruth | null,
+    roll?: (expression: string) => DiceRoll,
   ) {
-    return this.#call('resolve', [state, actorId, operation, parameters, world, truth])
+    return this.#call('resolve', [state, actorId, operation, parameters, world, truth], undefined, roll)
   }
   published(state: ActivityState, actorId: string, publication: WorldJsonValue | null) {
     return this.#call('onPublished', [state, actorId, publication])
@@ -60,7 +62,14 @@ export class ActivityScript implements ActivityInstance {
   outcome(result: WorldJsonObject, state: ActivityState) {
     return this.#call('onOutcome', [result, state])
   }
-  #call(method: string, args: readonly unknown[], random?: () => number): unknown {
+  /** `random` replaces Math.random during initialize; `roll` is the global `rollDice` during resolve. Both are
+   * recorded by the core and gone once this call returns, since each call gets a fresh context. */
+  #call(
+    method: string,
+    args: readonly unknown[],
+    random?: () => number,
+    roll?: (expression: string) => DiceRoll,
+  ): unknown {
     const input = JSON.stringify(args)
     // A simulated model receives the role's full authorized context, unlike small game operations.
     // Core history in the official prologue already exceeds 64 KiB; keep this path bounded at 1 MiB.
@@ -71,6 +80,7 @@ export class ActivityScript implements ActivityInstance {
         __method: method,
         __args: input,
         ...(method === 'initialize' ? { __initialRandom: random } : {}),
+        ...(method === 'resolve' && roll ? { rollDice: roll } : {}),
       }),
       { codeGeneration: { strings: false, wasm: false }, microtaskMode: 'afterEvaluate' },
     )

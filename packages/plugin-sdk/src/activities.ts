@@ -1,5 +1,6 @@
 import type { WorldJsonObject, WorldJsonValue } from '@harness-world/contracts'
 import type { MemoryRequest } from './memory.ts'
+import type { DiceRoll } from './dice.ts'
 import type { SeamProvider } from './world.ts'
 
 export interface ActivitySource {
@@ -15,6 +16,8 @@ export interface ActivityInstance {
   initialize(input: WorldJsonObject, random: () => number): unknown
   /** Participant public state and this actor's private state only; never internal or other private values. */
   policy(scoped: WorldJsonObject, actorId: string): unknown
+  /** `roll` draws from the core's round record through `ctx.dice` and expires when this synchronous call returns;
+   * an invalid expression throws a TypeError and nothing commits. */
   resolve(
     state: import('@harness-world/contracts').ActivityState,
     actorId: string,
@@ -22,6 +25,7 @@ export interface ActivityInstance {
     parameters: WorldJsonObject,
     world: WorldJsonObject,
     truth: import('@harness-world/contracts').StatusTruth | null,
+    roll?: (expression: string) => DiceRoll,
   ): unknown
   published(
     state: import('@harness-world/contracts').ActivityState,

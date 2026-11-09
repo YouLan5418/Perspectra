@@ -51,7 +51,11 @@ export function guardedActivities(
       hasResume: wrap(entry.hasResume.bind(entry)),
       initialize: (input, random) => guard(entry.key, () => entry.initialize(structuredClone(input), random)),
       policy: wrap(entry.policy.bind(entry)),
-      resolve: wrap(entry.resolve.bind(entry)),
+      // The dice capability is a function: lend it as is, copy only the data.
+      resolve: (state, actorId, operation, parameters, world, truth, roll) =>
+        guard(entry.key, () =>
+          entry.resolve(...structuredClone([state, actorId, operation, parameters, world, truth] as const), roll),
+        ),
       published: wrap(entry.published.bind(entry)),
       resume: wrap(entry.resume.bind(entry)),
       autoStart: wrap(entry.autoStart.bind(entry)),

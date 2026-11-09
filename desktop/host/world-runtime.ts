@@ -6,6 +6,7 @@ import type {
   ActivitiesInstance,
   AutonomyInstance,
   CommunicationInstance,
+  DiceInstance,
   KnowledgeInstance,
   PacingInstance,
   PacingSource,
@@ -258,6 +259,7 @@ export class WorldHostCore implements HostRuntime {
   #communication!: CommunicationInstance
   #autonomy!: AutonomyInstance
   #pacing: PacingInstance | undefined
+  #dice: DiceInstance | undefined
   #pacingSource: PacingSource | undefined
   #communicationSource: import('@harness-world/plugin-sdk').CommunicationSource | undefined
   #autonomySource: import('@harness-world/plugin-sdk').AutonomySource | undefined
@@ -563,6 +565,7 @@ export class WorldHostCore implements HostRuntime {
         communication: () => runtime.#openCommunication(),
         autonomy: () => runtime.#openAutonomy(),
         pacing: () => runtime.#openPacing(),
+        dice: () => runtime.#openDice(),
         llm: () => runtime.#openLlm(),
         rules: () => runtime.#openRules(),
         memory: () => runtime.#openMemory(),
@@ -631,6 +634,7 @@ export class WorldHostCore implements HostRuntime {
               runtime.#playerId,
               status,
               runtime.#coreRules(),
+              runtime.#dice,
             )
       if (modules)
         runtime.#gameplay.activity?.setActionResolver((context, adjudicate) =>
@@ -1373,6 +1377,7 @@ export class WorldHostCore implements HostRuntime {
       ['通信', this.#communication],
       ['自主', this.#autonomy],
       ['节奏', this.#pacing],
+      ['骰子', this.#dice],
     ] as const) {
       try {
         await instance?.close?.()
@@ -1791,7 +1796,7 @@ export class WorldHostCore implements HostRuntime {
 
   /** One selected mechanism for this world: pass its declared source, validate it, and close it if that fails. */
   async #openMechanism<T>(input: {
-    readonly name: 'communication' | 'autonomy' | 'activities' | 'status' | 'knowledge' | 'pacing'
+    readonly name: 'communication' | 'autonomy' | 'activities' | 'status' | 'knowledge' | 'pacing' | 'dice'
     readonly label: string
     readonly sourceKey: string
     readonly source: object | undefined
@@ -1867,6 +1872,21 @@ export class WorldHostCore implements HostRuntime {
           activities: this.#activities,
           report: this.#reportPlugin,
         }),
+    })
+  }
+  /** No world source: the activity runtime lends it to each resolve with the round's recorded draws. */
+  #openDice(): Promise<void> {
+    return this.#openMechanism<DiceInstance>({
+      name: 'dice',
+      label: '骰子',
+      sourceKey: 'diceSource',
+      source: undefined,
+      required: false,
+      assign: instance => (this.#dice = instance),
+      guard: instance => {
+        if (typeof instance?.roll !== 'function') throw new TypeError('dice requires roll')
+        return instance
+      },
     })
   }
   #openActivities(): Promise<void> {

@@ -13,7 +13,7 @@ import {
   type ActivityRequest,
   type AutoStartCheck,
 } from '@harness-world/contracts'
-import type { ActivityInstance } from '@harness-world/plugin-sdk'
+import type { ActivityInstance, DiceInstance, DiceRoll } from '@harness-world/plugin-sdk'
 import { WorldStore, WriterLeaseService, CharacterRuntimeAvailabilityService } from '@harness-world/store-sqlite'
 import {
   SceneDecisionService,
@@ -64,9 +64,11 @@ import {
   type CompiledWorldManifest,
 } from '@harness-world/kernel'
 import type { StatusRuntime } from './status-runtime.ts'
-/** What the catalog lends each activity: one round's random sequence, the live committed prefix and its lifetime. */
+/** What the catalog lends each activity: one round's random sequence, the live committed prefix, its lifetime, and
+ * the dice that roll from that sequence while resolve runs. */
 export interface ActivityBindings {
   readonly randomSource: () => number
+  readonly dice?: DiceInstance
   readonly readCurrent: () => ActivityState | undefined
   readonly signal?: AbortSignal
 }
@@ -127,6 +129,34 @@ export class ActivityRuntime {
         if (!active) throw new Error('Activity random capability has ended')
         return this.#bindings.randomSource()
       })
+    } finally {
+      active = false
+    }
+  }
+  /** Dice drawn from the round record, valid only during this one synchronous resolve. */
+  #resolveOperation(
+    ...args: [
+      state: ActivityState,
+      actorId: string,
+      operation: string,
+      parameters: WorldJsonObject,
+      world: WorldJsonObject,
+      truth: Parameters<ActivityInstance['resolve']>[5],
+    ]
+  ): unknown {
+    const dice = this.#bindings.dice
+    let active = true
+    const random = () => {
+      if (!active) throw new Error('Activity random capability has ended')
+      return this.#bindings.randomSource()
+    }
+    const roll = (expression: string): DiceRoll => {
+      if (!active) throw new TypeError('掷骰只能在处理操作时进行')
+      if (!dice) throw new TypeError('当前组合没有骰子机制')
+      return structuredClone(dice.roll(expression, random))
+    }
+    try {
+      return this.#mechanism.resolve(...args, roll)
     } finally {
       active = false
     }
@@ -326,7 +356,7 @@ export class ActivityRuntime {
           : []
       })
       const resolved = parseActivityOperationResult(
-        this.#mechanism.resolve(
+        this.#resolveOperation(
           state,
           actor,
           operation,

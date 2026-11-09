@@ -1,5 +1,7 @@
 # 目录与模块地图
 
+2026-11-08 骰子（分支 feat/rpg-plugin）：新增 [official-dice](../../../packages/official-dice)，通过 ctx.dice 让活动脚本在 resolve 里用 `rollDice` 掷骰，点数取自活动目录每轮的随机记录；取舍见[记录](../../superpowers/specs/2026-11-08-trpg-decisions.md)。
+
 2026-11-08 内容接缝（分支 feat/rpg-plugin）：未新增包。plugin-sdk 新增 `ctx.content`（内容生成插件），替代 official-bundle 里的 RPG 专用槽位；desktop/host 的 rpg-pack.ts 换成通用的 pack-content.ts，world-pack 新增 pack-content.ts 供宿主和 `worldpack validate` 共用配置读取；队伍随行判定 `movedAlongWith` 从活动宿主移入 application 的 move-effects。
 
 2026-11-05 起伏器：新增 [official-pacing](../../../packages/official-pacing)，通过 ctx.pacing 解释世界包的 scripts/pacing.js 并决定这一轮是否发生节拍或事件。
@@ -78,6 +80,7 @@
 | [official-contexts](../../../packages/official-contexts) | 官方决策扩充、有序组合与交付步骤的记忆窗口声明；同 ID 替换、显式顺序停用 | [实现](../../../packages/official-contexts/src/index.ts)，通过公开 contextSources 读取授权投影 |
 | [official-communication](../../../packages/official-communication) | 已声明通信的消息参数、选项、文本计算与指引 | [机制](../../../packages/official-communication/src/index.ts)；核心 [CommunicationRules](../../../packages/application/src/communication-state.ts)核验联系人、信封与投递事实，宿主绑定执行 |
 | [official-activities](../../../packages/official-activities) | 活动脚本同步计算及前台／自动开始选择 | [机制](../../../packages/official-activities/src/index.ts)；核心 ActivityStateRules 校验，宿主执行与随机记录不下放 |
+| [official-dice](../../../packages/official-dice) | 骰子机制（分支 feat/rpg-plugin，未做真实模型试玩）：解析 `NdM+K` 表达式（个数 1–20 或省略，面数 2–1000，修正 ±1000），每颗骰子用一个记录下的随机数；另有纯函数检定 `check` | [实现](../../../packages/official-dice/src/dice.ts)；以 `officialDiceProvider` 经 `ctx.dice` 或 [official-bundle](../../../desktop/official-bundle.ts) 的默认 `dice` 进入组合，[活动桥](../../../desktop/host/activity-runtime.ts)在每次 resolve 里借给脚本 |
 | [official-status](../../../packages/official-status) | 状态和包内模块的同步脚本解释，返回候选数据 | [解释器](../../../packages/official-status/src/index.ts)、[源码组合](../../../packages/official-status/src/modules.ts)；核心 [StatusState](../../../packages/application/src/status-state.ts)校验声明、值和告知，宿主能力桥执行原生请求 |
 | [official-knowledge](../../../packages/official-knowledge) | 作者设定的受众、条件、关键词和整条预算选择 | [选择器](../../../packages/official-knowledge/src/selection.ts)、[Provider](../../../packages/official-knowledge/src/index.ts)；资产校验由宿主 [knowledge-source](../../../desktop/host/knowledge-source.ts) 负责 |
 | [official-character-loop](../../../packages/official-character-loop) | 官方单角色执行策略：行动／表达续写、次数和发言修正 | [实现](../../../packages/official-character-loop/src/index.ts)只使用公开激活能力；[CharacterTurn](../../../packages/application/src/character-turn.ts)保留授权、规则、受众与原子提交 |

@@ -2,6 +2,12 @@
 
 2026-11-05 M6：先按[共同契约](../architecture/mechanism-contracts.md)区分核心、内部机制、包内脚本与交付适配。API 仍为 2.8，SDK 根导出不变，不导入内部文件作为未发布子路径。显式组合、透视与分享选择见[装配说明](../architecture/mechanism-contracts.md#5-默认组合与显式停用)。
 
+## 替换骰子（2.11）
+
+例如想让活动里的 `rollDice('d20')` 改成优势骰（掷两次取高），只换骰子机制，不改活动脚本。插件通过 `ctx.effect(() => ctx.dice.register(provider))` 注册单例，清单 services 写 `dice`，模块声明 `hostApi = '2.11'`；没有插件注册时用官方 `official-dice`。
+
+`open(world, signal)` 每世界返回 `DiceInstance`，只有 `roll(expression, random)`：返回 `{ expression, dice, modifier, total }`。`random` 取自活动这一轮的随机记录，只在这次 `resolve` 期间有效；每颗骰子都要从它取数，不要用自己的随机源，否则回看和重新生成会掷出不同点数。表达式非法时抛 TypeError，整次活动结果不提交。取舍见[记录](../../superpowers/specs/2026-11-08-trpg-decisions.md)。
+
 ## 从包的配置文件生成玩法内容（2.10）
 
 例如作者在包里写一份 `cards.json`，说明牌桌用几副牌；你的插件读到它，就为这个包生成一场牌桌活动和一个记牌堆的状态模块。官方 RPG 就是这样读 `rpg.json` 的。插件通过 `ctx.effect(() => ctx.content.register(generator))` 注册，清单 services 写 `content`，模块声明 `hostApi = '2.10'`：
@@ -82,7 +88,7 @@ export default function (ctx) {
 | entries | 每活动的 key、definition、hasAutoStart 与计算方法；声明仍由核心规范化、检查 |
 | initialize(input, random) | 接收宿主确认的玩家、NPC 等初始化数据，返回既有 game；核心检查参与者、turn、public／private／internal 形状 |
 | policy(scoped, actorId) | 仅收到公开状态与当前参与者自己的 private，不含 internal 或其他角色 private；返回既有许可 |
-| resolve(state, actorId, operation, parameters, world, truth) | 可信规则计算得到完整活动状态、真实 actor、授权场景与状态真值，返回候选结果；不能直接提交 |
+| resolve(state, actorId, operation, parameters, world, truth, roll) | 可信规则计算得到完整活动状态、真实 actor、授权场景与状态真值，返回候选结果；不能直接提交。2.11 起第七个参数 `roll(expression)` 经 `ctx.dice` 按本轮随机记录掷骰，调用返回后失效；官方解释器把它作为脚本全局 `rollDice` |
 | published／resume／autoStart／simulate | 对应原 onPublished／resume／autoStart／simulate 钩子；resume 使用玩家作用域和授权 world，simulate 只得到当前角色授权请求；autoStart 为可信条件规则，可读 truth 与玩家授权 world |
 | schedule(state)／outcome(result, state) | 可信调度规则得到完整活动状态，可返回 wait 或参与者 activate；核心拒绝玩家与未参与角色的激活 |
 | hasResume() | 对应脚本是否具备 resume 钩子的检查 |

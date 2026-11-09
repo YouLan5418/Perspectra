@@ -79,6 +79,24 @@ return { game, description, audience: 'participants',
 - NPC 在自己的回合执行这类操作时（例如战败发生在队友出手的那一轮），到达地点的人只看到她和其他人到来，看不到这次活动操作和结果文字；结果仍只投递给参与者。
 - 自动测试见 [宿主测试](../../../tests/host/pack-activity.test.ts) 的“activity results that move participants and items”，NPC 回合触发的传送见 [RPG 地图活动测试](../../../tests/host/rpg-map-activity.test.ts)；尚未用真实模型试玩。
 
+### 处理操作时掷骰（2026-11-08，分支 feat/rpg-plugin）
+
+例如玩家撬门，脚本掷一个 d20 加敏捷修正，和难度 12 比：
+
+```js
+resolve(state, actorId, operation, parameters) {
+  const game = JSON.parse(JSON.stringify(state.game));
+  const roll = rollDice('1d20+2'); // { expression: '1d20+2', dice: [9], modifier: 2, total: 11 }
+  game.public.lastCheck = roll.total >= 12 ? '撬开了' : '卡住了';
+  return { game, description: actorId + '撬门：' + game.public.lastCheck + '。', audience: 'participants' };
+}
+```
+
+- `rollDice(expression)` 只在 `resolve` 里存在；在 `policy`、`initialize` 等其他钩子里调用会失败。表达式写成 `d20`、`1d20+2`、`2d6-1`、`d100`：个数 1–20 或省略，面数 2–1000，修正 ±1000，不写前导零。表达式非法时整次结果不提交。
+- 点数取自活动这一轮的随机记录（和初始化的随机数、自动开始的平局选择在同一串里）。回看、分支、末端重新生成都按记录重放，同一轮重新生成得到同样的点数，玩家不能靠重新生成刷检定。`resolve` 里直接用 `Math.random` 不进记录，重新生成时会变，所以掷骰请用 `rollDice`。
+- 点数只是返回值，写进 `public`、某人的 `private` 还是 `internal`，由脚本决定，随活动结果一起提交。
+- 骰子由 `ctx.dice` 提供，默认是 [official-dice](../../../packages/official-dice/src/dice.ts)。[宿主测试](../../../tests/host/activity-dice.test.ts)覆盖掷骰写进状态、按记录重放、`policy` 里调用失败、非法表达式不提交；尚未用真实模型试玩。
+
 ### 多活动选择与暂停（2026-10-10，当前源码）
 
 例如暂停调查、去玩猜数字，再回来继续调查：每个脚本保留自己最近一次进度，一次只运行一个。必须先暂停或结束当前活动，才能开始／继续另一场；不会自动嵌套切换。宿主在当前角色处理完成后才接受暂停，模型等待期间仍可用原有逃生按钮中止。

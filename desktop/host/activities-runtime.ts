@@ -8,7 +8,7 @@ import type {
   AutoStartEvaluation,
   ActivityDefinitionView,
 } from '@harness-world/contracts'
-import type { ActivitiesInstance } from '@harness-world/plugin-sdk'
+import type { ActivitiesInstance, DiceInstance } from '@harness-world/plugin-sdk'
 import { WorldStore } from '@harness-world/store-sqlite'
 import { RulebookRegistry, type RulebookEvent, type RulebookResolver } from '@harness-world/kernel'
 import {
@@ -55,6 +55,8 @@ export class ActivitiesRuntime {
     playerId: string,
     status: StatusRuntime | undefined,
     coreRules: RulebookRegistry,
+    /** Absent in a composition without a dice mechanism; then rollDice fails and nothing commits. */
+    dice?: DiceInstance,
   ): ActivitiesRuntime | undefined {
     if (!mechanism.entries.length) return undefined
     const catalog = new ActivitiesRuntime(worldPath, address, playerId, coreRules, mechanism)
@@ -64,6 +66,7 @@ export class ActivitiesRuntime {
         randomSource: () => catalog.#nextRandom(),
         readCurrent: () => catalog.#current(entry.key),
         signal: catalog.signal,
+        ...(dice ? { dice } : {}),
       })
       catalog.#entries.set(entry.key, activity)
     }
@@ -174,7 +177,7 @@ export class ActivitiesRuntime {
       }),
     )
   }
-  // One recorded sequence per round, so regenerating replays both the tie-break and every initialize in order.
+  // One recorded sequence per round, so regenerating replays the tie-break, every initialize and every dice roll in order.
   #randomValues: number[] = []
   #randomReplay: readonly number[] | undefined
   #randomCursor = 0

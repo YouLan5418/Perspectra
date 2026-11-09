@@ -30,6 +30,13 @@ export const SEAMS = [
     official: 'official-pacing',
   },
   {
+    seam: 'dice',
+    label: '骰子',
+    single: true,
+    description: '活动处理操作时掷骰，点数取自本轮的随机记录。',
+    official: 'official-dice',
+  },
+  {
     seam: 'activities',
     label: '活动规则',
     single: true,

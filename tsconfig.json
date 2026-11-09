@@ -27,6 +27,7 @@
       "@harness-world/official-communication": ["./packages/official-communication/src/index.ts"],
       "@harness-world/official-activities": ["./packages/official-activities/src/index.ts"],
       "@harness-world/official-pacing": ["./packages/official-pacing/src/index.ts"],
+      "@harness-world/official-dice": ["./packages/official-dice/src/index.ts"],
       "@harness-world/official-rpg": ["./packages/official-rpg/src/index.ts"],
       "@harness-world/official-status": ["./packages/official-status/src/index.ts"],
       "@harness-world/official-contexts": ["./packages/official-contexts/src/index.ts"],
