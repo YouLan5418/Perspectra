@@ -48,8 +48,8 @@ export class PacingRuntime {
   }
   #draw(): number {
     if (this.world.activities) return this.world.activities.drawRandom()
-    const value = this.#randomReplay === undefined ? Math.random() : this.#randomReplay[this.#randomCursor]
-    if (value === undefined) throw new TypeError('节奏随机记录不足。')
+    // Same as the activities' draws: the recorded prefix, then fresh draws.
+    const value = this.#randomReplay?.[this.#randomCursor] ?? Math.random()
     this.#randomCursor++
     this.#randomValues.push(value)
     return value

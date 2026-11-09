@@ -7,6 +7,7 @@ import { brandId, type WorldJsonObject } from '@harness-world/contracts'
 import { CharacterViewBuilder, WorldStore } from '@harness-world/store-sqlite'
 import { ActivityScript } from '@harness-world/official-activities'
 import { officialTrpgContent } from '@harness-world/official-trpg'
+import { currentWorldDirectory } from '../../desktop/tail-storage.ts'
 import { openRpgWorld } from '../support/rpg-fixture.ts'
 
 // The TRPG activity on the real host runtime. The host is an AI character played by the fake model: each host
@@ -67,16 +68,18 @@ async function open(edit?: (config: Json) => void) {
     },
   })
   worlds.push(world)
+  // After a regeneration the selected world lives in a candidate directory, so follow the selection.
   const read = <T>(use: (store: WorldStore) => T) => {
-    const store = new WorldStore(join(data, 'world.sqlite'))
+    const store = new WorldStore(join(currentWorldDirectory(data), 'world.sqlite'))
     try {
       return use(store)
     } finally {
       store.close()
     }
   }
+  const events = () => read(store => store.readEvents(world.runtime.address))
   const state = () =>
-    (world.events().findLast(e => e.eventType === 'activity.updated')?.data as Json | undefined)?.state as
+    (events().findLast(e => e.eventType === 'activity.updated')?.data as Json | undefined)?.state as
       | { id: string; revision: number; participants: string[]; game: Json }
       | undefined
   const observations = (characterId: string, after = 0) =>
@@ -90,7 +93,7 @@ async function open(edit?: (config: Json) => void) {
       .observations.filter(o => o.sourceSeq > after)
       .map(o => JSON.stringify(o.value))
       .join('\n')
-  const head = () => world.events().at(-1)!.seq
+  const head = () => events().at(-1)!.seq
   const act = (operation: string, parameters: Json = {}) => {
     const current = state()
     return world.runtime.activityAction({
@@ -111,7 +114,7 @@ async function open(edit?: (config: Json) => void) {
     )
   }
   const begin = () => act('start', { npcIds: NPCS })
-  return { ...world, plans, state, observations, head, act, host, begin }
+  return { ...world, events, plans, state, observations, head, act, host, begin }
 }
 type World = Awaited<ReturnType<typeof open>>
 
@@ -387,6 +390,19 @@ describe('the TRPG activity', () => {
       expect(rolls(f, ARU)).toEqual([first])
       expect(rolls(f, PLAYER)).toEqual([first])
     }
+  })
+
+  it('a regenerated round that rolls more than the original draws fresh and records the roll', async () => {
+    const f = await playing()
+    f.plans[ARU] = [say('你推了推门，门没锁。')]
+    const proposed = await f.act('propose', { text: '我想撬开书房的门。' })
+    expect(rolls(f, ARU)).toEqual([])
+    f.host(ARU, ['check', { targetId: PLAYER, skill: 'agility', difficulty: 12, hidden: false }])
+    const regenerated = await f.runtime.regenerate(proposed.tailRound!.id!, randomUUID())
+    expect(regenerated.tailRound!.id).not.toBe(proposed.tailRound!.id)
+    expect(f.plans[ARU]).toEqual([])
+    expect(rolls(f, ARU)).toHaveLength(1)
+    expect(rolls(f, PLAYER)).toEqual(rolls(f, ARU))
   })
 
   const asked = (f: World, id: string) =>

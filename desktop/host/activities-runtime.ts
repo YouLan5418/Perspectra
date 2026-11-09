@@ -189,9 +189,9 @@ export class ActivitiesRuntime {
   roundRandom(): number[] {
     return [...this.#randomValues]
   }
+  /** Replays the recorded draws in order; once they run out (a regenerated round rolling more), draws fresh. */
   #nextRandom(): number {
-    const value = this.#randomReplay === undefined ? Math.random() : this.#randomReplay[this.#randomCursor]
-    if (value === undefined) throw new TypeError('活动随机记录不足。')
+    const value = this.#randomReplay?.[this.#randomCursor] ?? Math.random()
     this.#randomCursor++
     this.#randomValues.push(value)
     return value
