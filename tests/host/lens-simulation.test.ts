@@ -17,7 +17,7 @@ import { afterEach, expect, it } from 'vitest'
 import type { WorldJsonObject } from '@harness-world/contracts'
 import { WorldStore } from '@harness-world/store-sqlite'
 import { sweetWithoutPacing } from '../support/sweet-without-pacing.ts'
-import { LensSimulation, sweepStaleLensCopies, type LensStart } from '../../desktop/lens/simulation.ts'
+import { LensSimulation, matchAction, sweepStaleLensCopies, type LensStart } from '../../desktop/lens/simulation.ts'
 import { applyScenario, parseScenario } from '../../desktop/lens/scenario.ts'
 import { startStubModel } from '../../desktop/lens/stub-model.ts'
 import { WorldHostRuntime } from '../../desktop/host/world-runtime.ts'
@@ -211,6 +211,26 @@ it('npc perform plans take the short forms player steps use, one form at a time'
   expect(() => parseScenario(scenario({ kind: 'perform', move: 'location:a', target: 'entity:x' }))).toThrow(
     '不认识的字段',
   )
+})
+
+it('arguments a plan writes are added to the ones the offer carries, so an activity operation keeps its round', () => {
+  // An activity option carries which round it belongs to; a host plan only says what she chose.
+  const offered = [
+    {
+      actionType: 'interact',
+      interactions: [
+        {
+          bindingId: 'activity:a',
+          definitionRef: { id: 'activity:respond', version: 1 },
+          targetRef: { kind: 'character', id: DEEPSEEK },
+          arguments: { activityId: 'activity:a', revision: 3 },
+        },
+      ],
+    },
+  ] as never
+  expect(matchAction({ interact: 'activity:respond', arguments: { accept: true } }, offered).parameters).toMatchObject({
+    arguments: { activityId: 'activity:a', revision: 3, accept: true },
+  })
 })
 
 it('a scenario with a failed expectation or unused plans does not pass', async () => {

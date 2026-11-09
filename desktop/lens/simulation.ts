@@ -86,7 +86,8 @@ export function matchAction(spec: LensActionSpec, offered: Offered): HostAction 
       ...(found.targetRef === undefined ? {} : { targetRef: found.targetRef }),
       bindingId: found.bindingId!,
       definitionRef: found.definitionRef!,
-      arguments: spec.arguments ?? (found.arguments as WorldJsonObject | undefined) ?? {},
+      // What the offer carries (an activity option's round) stays; the scenario adds or overrides the rest.
+      arguments: { ...(found.arguments as WorldJsonObject | undefined), ...spec.arguments },
     },
   }
 }

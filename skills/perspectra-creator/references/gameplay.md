@@ -131,7 +131,7 @@ model-preset.json、role-presets.json 和 frontend/ 是宿主独立读取的扩�
 ~~~
 
 - `start` 是另一种开场：`status` 覆盖状态初始值（`public` 与按角色的 `characters`），`scenes` 指定角色（含玩家）在哪个场景，`skipAutoStart` 列出这次不自动开始的活动标识。未知角色、场景会直接报错。
-- `npcPlans` 按角色列出她每次获得机会时依次做什么：`{ kind: 'abstain' }`、`{ kind: 'say', text }`，或 `perform` 行动。`perform` 和玩家步骤写法相同：`{ kind: 'perform', move: '地点ID' }`，或 `{ kind: 'perform', interact: '定义ID', target: '目标ID' }`（可加 `arguments`）；页面复制出的 `{ kind: 'perform', action }` 也可以用。计划用完或没写的角色弃权。
+- `npcPlans` 按角色列出她每次获得机会时依次做什么：`{ kind: 'abstain' }`、`{ kind: 'say', text }`，或 `perform` 行动。`perform` 和玩家步骤写法相同：`{ kind: 'perform', move: '地点ID' }`，或 `{ kind: 'perform', interact: '定义ID', target: '目标ID' }`（可加 `arguments`，它补在选项自带的参数上，例如主持人接受邀请写 `{ "kind": "perform", "interact": "activity:respond", "arguments": { "accept": true } }`，活动这一轮的标识由选项带上）；页面复制出的 `{ kind: 'perform', action }` 也可以用。计划用完或没写的角色弃权。
 - 一个角色一次机会里能做的受控行动有上限：行动之后的跟进机会，有时只能说话或弃权。这时计划里的下一个行动不会被扔掉，而是留到她下一次机会，并在这一步记一条 `plan` 行说明原因。例如小林计划“拿蛋糕、吃蛋糕”，如果拿完后的跟进机会不能行动，“吃蛋糕”会在她下一次机会执行，也就是通常在下一个玩家回合。计划行动当前不可用（地点不可去、交互不在她的选项里）时，同样记一条 `plan` 行，列出她此刻可用的选项，然后弃权。
 - 结果顶层的 `passed` 为 `false`，表示有一步报错或有期望没满足，这时命令退出码为 2（结果仍在 stdout）；退出码 1 才是命令本身失败（stderr）。`unusedNpcPlans` 列出推演结束时每个角色还剩几条计划没用上，通常说明她没有得到你以为的那次机会。
 - 每个 step 恰好写一种行动：`say`、`move`（地点 ID）、`interact`（定义 ID，同一交互有多个目标时必须加 `target`，可加 `arguments`）、`activity`（活动标识加 `operation`，可加 `parameters`）、`wait: true`。行动按名字对照当前实际可用的选项，匹配不上时这一步报错并列出可用项，后面的步骤不再执行。
