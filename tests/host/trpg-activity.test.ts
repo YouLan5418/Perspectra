@@ -20,8 +20,9 @@ const PLAYER = 'character:player',
   MEI = 'character:mei'
 const NPCS = [ARU, CHENG, MEI]
 type Json = Record<string, any>
-/** What a character does when the model is asked for a fresh decision; continuations always pass. */
-type Move = (activity: Json) => unknown
+/** What a character does when the model is asked for a fresh decision; continuations pass unless the move is marked
+ * `continuation`, which plays only as the next step of the same turn. */
+type Move = ((activity: Json) => unknown) & { continuation?: true }
 
 const roots: string[] = []
 const worlds: Awaited<ReturnType<typeof openRpgWorld>>[] = []
@@ -62,7 +63,8 @@ async function open(edit?: (config: Json) => void) {
       const context = input.context as Json
       const me = context.character.characterId as string
       const next = plans[me]?.[0]
-      if (input.continuation || !next || !context.activity) return { decision: 'abstain' }
+      if (!next || !context.activity || input.continuation !== (next.continuation === true))
+        return { decision: 'abstain' }
       plans[me]!.shift()
       return next(context.activity) ?? { decision: 'abstain' }
     },
@@ -438,6 +440,24 @@ describe('the TRPG activity', () => {
     })
     // Cheng got the spotlight (and passed); announce stays offered to the host.
     expect([asked(f, ARU), asked(f, CHENG), asked(f, MEI)]).toEqual([1, 1, 0])
+  })
+
+  it('an announcement and a line in the same host turn handle only one pending action', async () => {
+    const f = await playing()
+    await f.act('propose', { text: '我推开书房的门。' })
+    expect(f.state()!.game.public.pending).toHaveLength(1)
+    const round = f.state()!.game.round
+    f.host(ARU, ['announce', { text: '书房的门开了。' }])
+    f.plans[ARU]!.push(Object.assign(say('里面黑漆漆的。'), { continuation: true as const }))
+    f.inputs.length = 0
+    await f.act('propose', { text: '我再看看楼梯。' })
+    expect(f.plans[ARU]).toEqual([])
+    const game = f.state()!.game
+    expect(game.public.pending.map((p: Json) => p.text)).toEqual(['我再看看楼梯。'])
+    expect(game.round).toBe(round + 1)
+    // One announcement moved the spotlight once: Cheng, the first AI player in turn, got it.
+    expect(game.internal).toMatchObject({ spotlight: CHENG, cursor: 1 })
+    expect([asked(f, CHENG), asked(f, MEI)]).toEqual([1, 0])
   })
 
   it('host speech with nothing pending changes nothing', async () => {

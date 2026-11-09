@@ -467,14 +467,15 @@ function installTrpg(config) {
     },
 
     // Someone at the table spoke. A player's line ends any spotlight and gives the host a chance to answer. The host
-    // telling a result while actions wait counts as announcing it; otherwise the host's line ends its chance, unless
-    // it follows a tool just used (a check it may still announce).
+    // telling a result while actions wait and its chance is open counts as announcing it (after `announce` the
+    // chance is over, so a line in the same turn handles nothing more); otherwise the host's line ends its chance,
+    // unless it follows a tool just used (a check it may still announce).
     onPublished(state, actorId, publication) {
       const game = clone(state.game)
       const internal = game.internal
       if (!game.active || game.phase !== 'playing') return null
       if (actorId === game.public.hostId) {
-        if (game.public.pending.length) {
+        if (game.public.pending.length && internal.hostDue) {
           announced(game, state.participants)
           const text = spokenText(publication)
           if (text) game.public.lastResult = text
