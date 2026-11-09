@@ -87,6 +87,10 @@ describe('parseTrpgConfig', () => {
     expect(messageFor(c => (c.scenarios[0].content[2].location = '地下室'))).toMatch(
       /^scenarios\[0\]\.content\[2\]\.location：/u,
     )
+    // A public entry placed in a hidden place would print that place's name in public content.
+    expect(messageFor(c => (c.scenarios[0].content[0].public = false))).toMatch(
+      /^scenarios\[0\]\.content\[2\]\.location：.*隐藏地点/u,
+    )
     expect(messageFor(c => (c.scenarios[0].content[0].kind = 'monster'))).toMatch(
       /^scenarios\[0\]\.content\[0\]\.kind：/u,
     )

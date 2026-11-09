@@ -209,10 +209,14 @@ export function parseTrpgConfig(value: unknown, pack: ContentPackFacts): TrpgCon
         j => `${path}.content[${j}].name`,
         '局内内容',
       )
-      const places = content.filter(c => c.kind === 'place').map(c => c.name)
+      const places = content.filter(c => c.kind === 'place')
       content.forEach((c, j) => {
-        if (c.location !== undefined && !places.includes(c.location))
+        if (c.location === undefined) return
+        const place =
+          places.find(p => p.name === c.location) ??
           fail(`${path}.content[${j}].location`, `剧本里没有地点 ${c.location}`)
+        // Setup shows a public entry's location, so it would reveal a hidden place's name.
+        if (c.public && !place.public) fail(`${path}.content[${j}].location`, `公开内容不能放在隐藏地点 ${c.location}`)
       })
       return {
         id,
