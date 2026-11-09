@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { randomUUID } from 'node:crypto'
-import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { brandId, type WorldJsonObject } from '@harness-world/contracts'
@@ -41,13 +41,19 @@ const perform = (me: string, activity: Json, operation: string, args: Json = {})
   },
 })
 
-async function open() {
+/** `edit` changes the copied pack's trpg.json. */
+async function open(edit?: (config: Json) => void) {
   const root = mkdtempSync(join(tmpdir(), 'trpg-activity-'))
   roots.push(root)
   const pack = join(root, 'pack'),
     data = join(root, 'data')
   cpSync(FIXTURE, pack, { recursive: true })
   mkdirSync(data)
+  if (edit) {
+    const config = JSON.parse(readFileSync(join(pack, 'trpg.json'), 'utf8'))
+    edit(config)
+    writeFileSync(join(pack, 'trpg.json'), JSON.stringify(config))
+  }
   /** Planned moves per character, used one per fresh decision. */
   const plans: Record<string, Move[]> = {}
   const world = await openRpgWorld(pack, data, {
@@ -143,7 +149,8 @@ describe('the TRPG activity', () => {
     expect(Object.keys(game.public.sheets).sort()).toEqual([PLAYER, CHENG, MEI].sort())
     expect(game.public.sheets[CHENG].skills.agility.modifier).toBe(2)
     expect(game.public.sheets[MEI].stats.sanity).toEqual({ label: '理智', value: 8, max: 10 })
-    for (const id of [PLAYER, CHENG, MEI]) expect(f.observations(id)).toContain('开场：题目：深夜的废弃医院')
+    for (const id of [PLAYER, CHENG, MEI])
+      expect(f.observations(id)).toContain('"resultDescription":"题目：深夜的废弃医院"')
     for (const id of [PLAYER, ...NPCS]) expect(f.observations(id)).toContain('阿茹接受了主持邀请')
   })
 
@@ -176,8 +183,21 @@ describe('the TRPG activity', () => {
     await f.act('setup', { hostId: ARU, scenario: 'rainy-manor' })
     expect(f.state()!.game.phase).toBe('invited')
     const before = f.events()
-    await expect(f.act('propose', { text: '我想撬开书房的门。' })).rejects.toThrow()
+    await expect(f.act('propose', { text: '我想撬开书房的门。' })).rejects.toThrow('尚未轮到你或操作未被允许')
     expect(f.events()).toEqual(before)
+  })
+
+  it('an opening of the full 2000 characters still lets the host accept', async () => {
+    const opening = '雨'.repeat(2000)
+    const f = await open(config => {
+      config.scenarios[0].title = '题'.repeat(80)
+      config.scenarios[0].opening = opening
+    })
+    await f.begin()
+    f.host(ARU, ['respond', { accept: true }])
+    await f.act('setup', { hostId: ARU, scenario: 'rainy-manor' })
+    expect(f.state()!.game).toMatchObject({ phase: 'playing', public: { opening } })
+    for (const id of [PLAYER, CHENG, MEI]) expect(f.observations(id)).toContain(opening)
   })
 
   it('a check shows its total only to the target and the host, and the others see that a check happened', async () => {
@@ -244,22 +264,26 @@ describe('the TRPG activity', () => {
 
   it('set-stat refuses unknown stats and values outside 0..max', async () => {
     const f = await playing()
-    vi.spyOn(console, 'error').mockImplementation(() => {})
     // Not on the sheet template: the offered operation's schema refuses it as invalid output, and nothing commits.
-    let before = f.events().length
+    const before = f.events().length
     f.host(ARU, ['set-stat', { targetId: PLAYER, stat: 'luck', value: 3 }])
     await f.runtime.submit('继续。')
     expect(operationsSince(f, before)).toEqual([])
+    // A value or target the sheet does not allow is the host's mistake: the host reads why, nothing changes, and
+    // the player's own request goes through.
     for (const [args, reason] of [
       [{ targetId: PLAYER, stat: 'hp', value: 11 }, '生命需要在 0 到 10 之间。'],
       [{ targetId: PLAYER, stat: 'hp', value: -1 }, '生命需要在 0 到 10 之间。'],
       // The host has no sheet.
       [{ targetId: ARU, stat: 'hp', value: 3 }, '没有这名参与者的角色卡'],
     ] as const) {
-      before = f.events().length
+      const from = f.head(),
+        sheets = f.state()!.game.public.sheets
       f.host(ARU, ['set-stat', args])
-      await expect(f.runtime.submit('继续。')).rejects.toThrow(reason)
-      expect(operationsSince(f, before)).toEqual([])
+      await f.runtime.submit('继续。')
+      expect(f.state()!.game.public.sheets).toEqual(sheets)
+      expect(f.observations(ARU, from)).toContain(reason)
+      for (const other of [PLAYER, CHENG, MEI]) expect(f.observations(other, from)).not.toContain(reason)
     }
     f.host(ARU, ['set-stat', { targetId: PLAYER, stat: 'hp', value: 0 }])
     await f.runtime.submit('继续。')
@@ -268,20 +292,21 @@ describe('the TRPG activity', () => {
 
   it('a note that would pass 6000 characters is refused with the reason', async () => {
     const f = await playing()
-    vi.spyOn(console, 'error').mockImplementation(() => {})
     f.host(ARU, ['note', { scope: 'private', text: '记'.repeat(5996), mode: 'append' }])
     await f.runtime.submit('开始吧。')
     expect(f.state()!.game.private[ARU].notes).toHaveLength(5996)
-    f.host(ARU, ['note', { scope: 'private', text: '多出来的话', mode: 'append' }])
-    // The host's operation is refused on its own turn; the player's line before it stays committed.
-    const before = f.events().length
-    await expect(f.runtime.submit('然后呢？')).rejects.toThrow(
-      '私密笔记将超过 6000 字（现有 5996 字），请用 replace 把整段改写整理后再写入。',
+    // Too long, then on the extra chance the mistake gives, rewritten whole.
+    f.host(
+      ARU,
+      ['note', { scope: 'private', text: '多出来的话', mode: 'append' }],
+      ['note', { scope: 'private', text: '整理后的笔记', mode: 'replace' }],
     )
-    expect(operationsSince(f, before)).toEqual([])
-    expect(f.state()!.game.private[ARU].notes).toHaveLength(5996)
-    f.host(ARU, ['note', { scope: 'private', text: '整理后的笔记', mode: 'replace' }])
-    await f.runtime.submit('再然后呢？')
+    const from = f.head()
+    await f.runtime.submit('然后呢？')
+    const reason = '私密笔记将超过 6000 字（现有 5996 字），请用 replace 把整段改写整理后再写入。'
+    expect(f.observations(ARU, from)).toContain(reason)
+    for (const other of [PLAYER, CHENG, MEI]) expect(f.observations(other, from)).not.toMatch(/笔记将超过|5996/u)
+    expect(f.plans[ARU]).toEqual([])
     expect(f.state()!.game.private[ARU].notes).toBe('整理后的笔记')
   })
 
@@ -306,7 +331,9 @@ describe('the TRPG activity', () => {
         'activity:set-stat',
       ].sort(),
     )
-    // Cheng and Mei get no turn from this activity (see the generated-script test for what they would be offered).
+    // The host passed, so nobody holds the spotlight: Cheng and Mei were not asked (see the generated-script test for
+    // what they are offered).
+    expect(of(CHENG)).toEqual([])
     const playerOps = ((await f.runtime.state()).activity!.options as Json[]).map(o => o.definitionRef.id)
     expect(playerOps.sort()).toEqual(['activity:end', 'activity:propose'])
     await f.act('end', { ending: '天亮了。' })
@@ -361,6 +388,38 @@ describe('the TRPG activity', () => {
       expect(rolls(f, PLAYER)).toEqual([first])
     }
   })
+
+  const asked = (f: World, id: string) =>
+    f.inputs.filter(input => !input.continuation && (input.context as Json).character.characterId === id).length
+
+  it('after an announcement the next AI player gets a chance, can propose, and the host answers', async () => {
+    const f = await playing()
+    f.host(ARU, ['announce', { text: '书房的门开了一条缝。' }], ['announce', { text: '楼梯吱呀作响。' }])
+    f.host(CHENG, ['propose', { text: '我去看看楼梯。' }])
+    f.inputs.length = 0
+    const before = f.events().length
+    await f.act('propose', { text: '我推开书房的门。' })
+    // The host, Cheng with the spotlight, the host again, then Mei, who passes: four chances, the default bound.
+    expect(operationsSince(f, before)).toEqual(['propose', 'announce', 'propose', 'announce'])
+    expect(f.observations(MEI)).toContain('澄提出行动：我去看看楼梯。')
+    expect([asked(f, ARU), asked(f, CHENG), asked(f, MEI)]).toEqual([2, 1, 1])
+    expect(f.state()!.game.internal).toMatchObject({ hostDue: false, spotlight: MEI, cursor: 2 })
+    expect(f.state()!.game.public.pending).toEqual([])
+  })
+
+  it('an AI player who passes ends the chain, and the next player line takes the spotlight back', async () => {
+    const f = await playing()
+    f.host(ARU, ['announce', { text: '门厅的灯闪了一下。' }])
+    f.inputs.length = 0
+    await f.act('propose', { text: '我看看画像。' })
+    expect([asked(f, ARU), asked(f, CHENG), asked(f, MEI)]).toEqual([1, 1, 0])
+    expect(f.state()!.game.internal).toMatchObject({ hostDue: false, spotlight: CHENG })
+    f.inputs.length = 0
+    await f.runtime.submit('澄，你怎么不说话？')
+    // The player spoke: the host gets the chance to answer, and Cheng's spotlight is over.
+    expect([asked(f, ARU), asked(f, CHENG), asked(f, MEI)]).toEqual([1, 0, 0])
+    expect(f.state()!.game.internal).toMatchObject({ hostDue: true, spotlight: null })
+  })
 })
 
 describe('the generated script', () => {
@@ -399,11 +458,46 @@ describe('the generated script', () => {
     return run(game, ARU, 'respond', { accept: true }).game
   }
 
+  /** A host mistake: the game unchanged, the reason for the host alone. */
+  const mistaken = (result: Json, game: Json, reason: string) =>
+    expect(result).toEqual({ game, description: reason, audience: 'self' })
+
   it('names the 6000-character limit and replace when a note would pass it', () => {
     const game = run(started(), ARU, 'note', { scope: 'public', text: '记'.repeat(5996), mode: 'append' }).game
-    const refused = run(game, ARU, 'note', { scope: 'public', text: '多出来的话', mode: 'append' })
-    expect(refused.rejectReason).toContain('6000')
-    expect(refused.rejectReason).toContain('replace')
+    mistaken(
+      run(game, ARU, 'note', { scope: 'public', text: '多出来的话', mode: 'append' }),
+      game,
+      '公开笔记将超过 6000 字（现有 5996 字），请用 replace 把整段改写整理后再写入。',
+    )
+  })
+
+  it('keeps a place others stand in, and says a revealed item was added', () => {
+    const game = started()
+    const hall = game.public.content.find((c: Json) => c.name === '门厅')
+    for (const change of [{ kind: 'item' }, { name: '前厅' }])
+      mistaken(
+        run(game, ARU, 'content', {
+          kind: 'place',
+          name: '门厅',
+          description: '空的',
+          public: true,
+          id: hall.id,
+          ...change,
+        }),
+        game,
+        '还有局内内容在地点「门厅」，先把它们移走，再改这个地点的类型或名字。',
+      )
+    const ledger = game.private[ARU].hiddenContent[0]
+    const revealed = run(game, ARU, 'content', {
+      kind: 'item',
+      name: '账本',
+      description: ledger.description,
+      location: '书房',
+      public: true,
+      id: ledger.id,
+    })
+    expect(revealed.description).toBe('阿茹加入了局内物品「账本」。')
+    expect(revealed.game.private[ARU].hiddenContent).toEqual([])
   })
 
   it('offers host tools to the host alone and propose to the other participants', () => {
@@ -421,9 +515,8 @@ describe('the generated script', () => {
   })
 
   it('names the range a stat must stay in', () => {
-    expect(run(started(), ARU, 'set-stat', { targetId: PLAYER, stat: 'hp', value: 11 }).rejectReason).toBe(
-      '生命需要在 0 到 10 之间。',
-    )
+    const game = started()
+    mistaken(run(game, ARU, 'set-stat', { targetId: PLAYER, stat: 'hp', value: 11 }), game, '生命需要在 0 到 10 之间。')
   })
 
   it('formats a check with the skill modifier and keeps a hidden roll out of public', () => {

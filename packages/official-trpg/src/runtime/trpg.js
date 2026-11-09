@@ -156,6 +156,8 @@ function installTrpg(config) {
     game.phase = 'setup'
     game.turn = PLAYER
     game.internal.hostDue = false
+    game.internal.followUp = false
+    game.internal.spotlight = null
     game.internal.opening = null
   }
   const placeNames = game =>
@@ -170,7 +172,7 @@ function installTrpg(config) {
 
     initialize({ playerId, npcIds }) {
       const game = { active: true, phase: 'setup', turn: playerId, round: 1, public: { lastResult: null }, private: {} }
-      game.internal = { hostDue: false, opening: null, nextContent: 1 }
+      game.internal = { hostDue: false, followUp: false, spotlight: null, cursor: 0, opening: null, nextContent: 1 }
       backToSetup(game, [playerId].concat(npcIds))
       return game
     },
@@ -204,7 +206,15 @@ function installTrpg(config) {
       const game = clone(state.game)
       const p = game.public
       const internal = game.internal
+      // An illegal request (wrong phase or actor) is refused and commits nothing.
       const reject = rejectReason => ({ rejectReason })
+      // A host tool used wrongly is the host's own mistake: nothing changes, the host alone reads why, and the
+      // activity schedule gives it another (bounded) try.
+      const mistake = reason => ({ game: clone(state.game), description: reason, audience: 'self' })
+      const tool = () => {
+        internal.hostDue = true
+        internal.followUp = true
+      }
       const hostId = p.hostId
       const host = hostId !== null && actorId === hostId
       const playing = game.phase === 'playing'
@@ -280,9 +290,10 @@ function installTrpg(config) {
         game.phase = 'playing'
         p.opening = internal.opening
         p.statusText = '进行中：《' + p.title + '》，主持人' + hostName
-        // The opening is the author's text, often addressed to "你们"; each player gets it as written in a note.
+        // The opening is the author's text, often addressed to "你们"; each player gets it as written in a note. The
+        // title is already public, and a note holds at most 2000 characters, as an opening may.
         const privateNotes = Object.fromEntries(
-          state.participants.filter(id => id !== hostId).map(id => [id, '《' + p.title + '》开场：' + p.opening]),
+          state.participants.filter(id => id !== hostId).map(id => [id, p.opening]),
         )
         return done(shown(hostName + '接受了主持邀请，跑团《' + p.title + '》开始。'), 'participants', {
           privateNotes,
@@ -293,9 +304,11 @@ function installTrpg(config) {
 
       if (operation === 'propose') {
         if (host) return reject('主持人不用提出行动，可以直接宣布。')
-        if (p.pending.length >= PENDING_LIMIT) return reject('待处理的行动已满，请等主持人处理。')
+        if (p.pending.length >= PENDING_LIMIT) return mistake('待处理的行动已满，请等主持人处理。')
         p.pending.push({ actorId, name: nameOf(actorId), text: parameters.text })
+        // Whoever held the spotlight has had it: the host answers next.
         internal.hostDue = true
+        internal.spotlight = null
         return done(shown(nameOf(actorId) + '提出行动：' + parameters.text))
       }
 
@@ -303,9 +316,9 @@ function installTrpg(config) {
 
       if (operation === 'check') {
         const targetId = parameters.targetId
-        if (targetId === undefined && !parameters.hidden) return reject('公开检定需要指明对象。')
+        if (targetId === undefined && !parameters.hidden) return mistake('公开检定需要指明对象。')
         const sheet = targetId === undefined ? undefined : p.sheets[targetId]
-        if (targetId !== undefined && !sheet) return reject('没有这名参与者的角色卡：' + targetId + '。')
+        if (targetId !== undefined && !sheet) return mistake('没有这名参与者的角色卡：' + targetId + '。')
         const skill = skillOf(parameters.skill)
         const modifier = sheet ? sheet.skills[skill.key].modifier : skill.modifier
         const roll = rollDice(sheet ? sheet.dice : config.sheet.dice)
@@ -341,7 +354,7 @@ function installTrpg(config) {
         }
         const own = game.private[hostId]
         own.rolls = record(own.rolls, entry)
-        internal.hostDue = true
+        tool()
         if (parameters.hidden)
           // Nothing public changes: only the host's own record and note.
           return done('你掷了一次暗骰。', 'self', { privateNotes: { [hostId]: (sheet ? '暗骰·' : '') + line } })
@@ -355,17 +368,21 @@ function installTrpg(config) {
         p.pending.shift()
         game.round += 1
         internal.hostDue = false
+        internal.followUp = false
+        // The next AI player at the table, in turn, gets a chance to act on the result; nothing says what they do.
+        const players = state.participants.filter(id => id !== hostId && id !== PLAYER)
+        internal.spotlight = players.length ? players[internal.cursor++ % players.length] : null
         return done(shown(parameters.text))
       }
 
       if (operation === 'note') {
         const own = game.private[hostId]
         const current = parameters.scope === 'public' ? p.notes : own.notes
-        if (parameters.mode === 'append' && !parameters.text.trim()) return reject('追加的笔记不能为空。')
+        if (parameters.mode === 'append' && !parameters.text.trim()) return mistake('追加的笔记不能为空。')
         const next =
           parameters.mode === 'replace' ? parameters.text : current ? current + '\n' + parameters.text : parameters.text
         if (next.length > NOTE_LIMIT)
-          return reject(
+          return mistake(
             (parameters.scope === 'public' ? '公开' : '私密') +
               '笔记将超过 ' +
               NOTE_LIMIT +
@@ -373,7 +390,7 @@ function installTrpg(config) {
               current.length +
               ' 字），请用 replace 把整段改写整理后再写入。',
           )
-        internal.hostDue = true
+        tool()
         if (parameters.scope === 'public') {
           p.notes = next
           return done(shown(hostName + '更新了公开笔记。'))
@@ -384,14 +401,14 @@ function installTrpg(config) {
 
       if (operation === 'set-stat') {
         const sheet = p.sheets[parameters.targetId]
-        if (!sheet) return reject('没有这名参与者的角色卡：' + parameters.targetId + '。')
+        if (!sheet) return mistake('没有这名参与者的角色卡：' + parameters.targetId + '。')
         const stat = sheet.stats[parameters.stat]
-        if (!stat) return reject('角色卡上没有数值 ' + parameters.stat + '。')
+        if (!stat) return mistake('角色卡上没有数值 ' + parameters.stat + '。')
         if (parameters.value < 0 || parameters.value > stat.max)
-          return reject(stat.label + '需要在 0 到 ' + stat.max + ' 之间。')
+          return mistake(stat.label + '需要在 0 到 ' + stat.max + ' 之间。')
         const before = stat.value
         stat.value = parameters.value
-        internal.hostDue = true
+        tool()
         return done(
           shown(hostName + '把' + sheet.name + '的' + stat.label + '从 ' + before + ' 改为 ' + stat.value + '。'),
         )
@@ -405,24 +422,29 @@ function installTrpg(config) {
         if (id !== undefined) {
           const index = p.content.findIndex(c => c.id === id)
           const hiddenIndex = own.hiddenContent.findIndex(c => c.id === id)
-          if (index < 0 && hiddenIndex < 0) return reject('没有局内内容 ' + id + '。')
+          if (index < 0 && hiddenIndex < 0) return mistake('没有局内内容 ' + id + '。')
           wasPublic = index >= 0
+          const old = wasPublic ? p.content[index] : own.hiddenContent[hiddenIndex]
+          // A place others stand in keeps its kind and name, or they would point at nothing.
+          const used = lists.some(list => list.some(c => c.id !== id && c.location === old.name))
+          if (old.kind === 'place' && used && (parameters.kind !== 'place' || parameters.name !== old.name))
+            return mistake('还有局内内容在地点「' + old.name + '」，先把它们移走，再改这个地点的类型或名字。')
           if (wasPublic) p.content.splice(index, 1)
           else own.hiddenContent.splice(hiddenIndex, 1)
         } else {
           if (lists[0].length + lists[1].length >= CONTENT_LIMIT)
-            return reject('局内内容已有 ' + CONTENT_LIMIT + ' 项，请修改已有的项。')
+            return mistake('局内内容已有 ' + CONTENT_LIMIT + ' 项，请修改已有的项。')
           id = 'c' + internal.nextContent++
         }
         if (parameters.location !== undefined && !placeNames(game).includes(parameters.location))
-          return reject('局内没有地点「' + parameters.location + '」，可以先新建这个地点。')
+          return mistake('局内没有地点「' + parameters.location + '」，可以先新建这个地点。')
         const row = { id, kind: parameters.kind, name: parameters.name, description: parameters.description }
         if (parameters.location !== undefined) row.location = parameters.location
         ;(parameters.public ? p.content : own.hiddenContent).push(row)
-        internal.hostDue = true
+        tool()
         const label = KINDS[row.kind] + '「' + row.name + '」'
-        if (parameters.public)
-          return done(shown(hostName + (parameters.id === undefined ? '加入了局内' : '修改了局内') + label + '。'))
+        // Hidden content made public is new to everyone else.
+        if (parameters.public) return done(shown(hostName + (wasPublic ? '修改了局内' : '加入了局内') + label + '。'))
         if (wasPublic) return done(shown(hostName + '收起了局内' + label + '。'))
         return done('你记下了只有你知道的' + label + '。', 'self')
       }
@@ -430,24 +452,40 @@ function installTrpg(config) {
       return reject('当前不能执行此操作。')
     },
 
-    // Someone at the table spoke: the host gets a chance to respond to it.
+    // Someone at the table spoke. A player's line ends any spotlight and gives the host a chance to answer. The host's
+    // own line ends its chance, unless it follows a tool just used (a check it may still announce).
     onPublished(state, actorId) {
       const game = clone(state.game)
-      if (!game.active || game.phase !== 'playing' || actorId === game.public.hostId || game.internal.hostDue)
-        return null
-      game.internal.hostDue = true
+      const internal = game.internal
+      if (!game.active || game.phase !== 'playing') return null
+      if (actorId === game.public.hostId) {
+        if (!internal.hostDue) return null
+        if (internal.followUp) internal.followUp = false
+        else internal.hostDue = false
+        return game
+      }
+      if (internal.hostDue && internal.spotlight === null) return null
+      internal.hostDue = true
+      internal.spotlight = null
       return game
     },
 
+    // Only chances: the host when something awaits an answer, else the AI player holding the spotlight.
     schedule(state) {
       const game = state.game
-      const due = game.phase === 'invited' || (game.phase === 'playing' && game.internal.hostDue)
-      return game.active && due ? { kind: 'activate', characterId: game.public.hostId } : { kind: 'wait' }
+      const internal = game.internal
+      if (!game.active) return { kind: 'wait' }
+      if (game.phase === 'invited' || (game.phase === 'playing' && internal.hostDue))
+        return { kind: 'activate', characterId: game.public.hostId }
+      if (game.phase === 'playing' && internal.spotlight !== null)
+        return { kind: 'activate', characterId: internal.spotlight }
+      return { kind: 'wait' }
     },
-    // A host who used a tool (a check, a note) may follow up with another; speaking only or passing ends the chance.
+    // A turn that committed something, words or an operation, lets the next chance follow; passing stops the chain.
     onOutcome(result, state) {
-      const acted = result.performResult && result.performResult.status === 'accepted'
-      return acted && !result.failure ? this.schedule(state) : { kind: 'wait' }
+      const committed =
+        result.status === 'published' || (result.performResult && result.performResult.status === 'accepted')
+      return committed && !result.failure && result.status !== 'interrupted' ? this.schedule(state) : { kind: 'wait' }
     },
   })
 }
