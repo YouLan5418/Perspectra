@@ -139,9 +139,9 @@ Interaction 定义和绑定提供玩法可选行为，规则负责重要状态�
 
 ## 跑团玩法（2026-11-09，分支 feat/rpg-plugin）
 
-例如作者在包里写一份 `trpg.json`：玩家请阿茹当主持人，选剧本《雨夜古宅》。阿茹自己决定接不接；接下后，玩家说“撬开书房的门”，阿茹要求一次敏捷检定，程序掷出的点数只发给玩家和阿茹，澄只知道有过检定，没参加的梅什么都不知道。
+例如作者在包里写一份 `trpg.json`：玩家请阿茹当主持人，选剧本《雨夜古宅》。阿茹自己决定接不接；接下后，玩家说“撬开书房的门”，阿茹要求一次敏捷检定，程序掷出的点数只发给玩家和阿茹，澄只知道有过检定；没参加的梅看不到活动结果和点数，但 AI 参与者在局内说的话按普通发言公开，她听得见。
 
-官方玩法包 [official-trpg](../../../packages/official-trpg) 经 `ctx.content` 读取 `trpg.json`（需登记在 `assetFiles`），生成一个键为 `trpg` 的活动，复用上一节的内容接缝（版本核对、重名检查、存档摘要）。点数来自 `ctx.dice`（[official-dice](../../../packages/official-dice)）：活动脚本在 `resolve` 里调用宿主注入的 `rollDice`，取数记入活动目录每轮的随机记录，所以回看、分支、重新生成都重放同一点数。点数通过活动结果的 `privateNotes` 只作为指定参与者的观察提交。主持人的裁定质量靠模型，程序只保证点数可信、可见范围正确。作者说明见[跑团玩法](../guides/trpg.md)，验收包是 [rainy-manor](../../../examples/world-packs/rainy-manor/README.md)。源码已接通并有宿主自动测试，未做真实模型试玩或发行包验收。
+官方玩法包 [official-trpg](../../../packages/official-trpg) 经 `ctx.content` 读取 `trpg.json`（需登记在 `assetFiles`），生成一个键为 `trpg` 的活动，复用上一节的内容接缝（版本核对、重名检查、存档摘要）。点数来自 `ctx.dice`（[official-dice](../../../packages/official-dice)）：活动脚本在 `resolve` 里调用宿主注入的 `rollDice`，取数记入活动目录每轮的随机记录，所以回看、分支、重新生成都重放同一点数。点数通过活动结果的 `privateNotes` 只作为指定参与者的观察提交。主持人的裁定质量靠模型，程序只保证点数可信、可见范围正确。作者说明见[跑团玩法](../guides/trpg.md)，验收包是 [rainy-manor](../../../examples/world-packs/rainy-manor/README.md)。源码已接通并有宿主自动测试；2026-11-09 有一次 GLM-5.3-Flash 的脚本化试玩（[记录](../studies/2026-11-09-rainy-manor-playtest.md)），未做真人试玩或发行包验收。
 
 ## 创作入口与限制
 
