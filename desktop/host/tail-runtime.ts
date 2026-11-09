@@ -478,6 +478,9 @@ export class TailRoundRuntime {
       if (this.#cancelled || this.#closed) throw new TypeError('重新生成已取消，原结果保留。')
       if (result.error) throw new TypeError('候选角色处理未完成，原结果保留。')
       const end = await this.#candidate.settleRound()
+      // The candidate replayed the record as its prefix; keep any fresh draws after it, so a later regeneration
+      // replays them instead of re-rolling.
+      const drawn = this.#candidate.roundRandom()
       if (tail.environment !== (await this.#environment())) throw new TypeError('生成期间环境已改变，原结果保留。')
       if (this.#cancelled || this.#closed) throw new TypeError('重新生成已取消，原结果保留。')
       // Close/checkpoint all candidate writers, then validate a fresh runtime before the atomic selection.
@@ -499,6 +502,7 @@ export class TailRoundRuntime {
         version,
         tail: {
           ...tail,
+          activityRandom: drawn.length > tail.activityRandom.length ? drawn : tail.activityRandom,
           id: candidateId,
           selected: candidateId,
           ...end,

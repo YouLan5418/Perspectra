@@ -407,6 +407,24 @@ describe('the TRPG activity', () => {
     expect(rolls(f, PLAYER)).toEqual(rolls(f, ARU))
   })
 
+  it('a second regeneration replays the first regeneration’s fresh roll', async () => {
+    const f = await playing()
+    f.plans[ARU] = [say('你推了推门，门没锁。')]
+    const proposed = await f.act('propose', { text: '我想撬开书房的门。' })
+    const check: [string, Json] = ['check', { targetId: PLAYER, skill: 'agility', difficulty: 12, hidden: false }]
+    f.host(ARU, check)
+    let tail = (await f.runtime.regenerate(proposed.tailRound!.id!, randomUUID())).tailRound!.id!
+    const [fresh] = rolls(f, ARU)
+    expect(fresh).toBeDefined()
+    // Three more regenerations: a fresh d20 each time would differ by chance 1 in 8000.
+    for (let i = 0; i < 3; i++) {
+      f.host(ARU, check)
+      tail = (await f.runtime.regenerate(tail, randomUUID())).tailRound!.id!
+      expect(f.plans[ARU]).toEqual([])
+      expect(rolls(f, ARU)).toEqual([fresh])
+    }
+  })
+
   const asked = (f: World, id: string) =>
     f.inputs.filter(input => !input.continuation && (input.context as Json).character.characterId === id).length
 
