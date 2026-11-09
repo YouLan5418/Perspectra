@@ -128,6 +128,31 @@ export function activityOutcomeObservations(input: {
   }).events
 }
 
+/** A result's private notes: each reaches its one participant, marked as part of the same activity round. */
+export function activityNoteObservations(input: {
+  readonly state: ActivityState
+  readonly notes: Readonly<Record<string, string>>
+  readonly actorId: string
+  readonly actionId: string
+  readonly operation: string
+}): readonly WorldEventDraft[] {
+  const { actionId } = input
+  return Object.entries(input.notes).flatMap(
+    ([characterId, note]) =>
+      actionObservations({
+        roundId: brandId(actionId, 'InteractionRoundId'),
+        actionId,
+        actorId: brandId(input.actorId, 'CharacterId'),
+        actionType: 'interact',
+        status: 'accepted',
+        audience: { fullContentCharacterIds: [brandId(characterId, 'CharacterId')], occurrenceOnlyCharacterIds: [] },
+        shared: { resultDescription: note, resultMetadata: activityResultMetadata(input.state, input.operation) },
+        playerBindings: [],
+        observationId: observerId => `${actionId}:note:${observerId}`,
+      }).events,
+  )
+}
+
 /** Something that happened around those present. No actor: nobody here did it, and it reads as what they noticed. */
 export function sceneEventObservations(input: {
   readonly actionId: string

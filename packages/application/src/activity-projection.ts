@@ -113,6 +113,8 @@ export function parseActivityOperationResult(
       readonly moves?: readonly ActivityMove[]
       /** Entry shapes are checked with the item rules, against the committed custody. */
       readonly items?: readonly unknown[]
+      /** One observation each, for that participant alone. */
+      readonly privateNotes?: Readonly<Record<string, string>>
     } {
   const resolved = object(value)
   if (Object.hasOwn(resolved, 'rejectReason')) {
@@ -129,7 +131,7 @@ export function parseActivityOperationResult(
     'game',
     'description',
     'audience',
-    ...['playerExpression', 'status', 'moves', 'items'].filter(k => Object.hasOwn(resolved, k)),
+    ...['playerExpression', 'status', 'moves', 'items', 'privateNotes'].filter(k => Object.hasOwn(resolved, k)),
   ])
   if (
     typeof resolved.description !== 'string' ||
@@ -139,6 +141,9 @@ export function parseActivityOperationResult(
     throw new TypeError('游戏结果无效')
   if (Object.hasOwn(resolved, 'items') && (!Array.isArray(resolved.items) || resolved.items.length > 16))
     throw new TypeError('活动物品结果必须是至多 16 项的列表')
+  const privateNotes = Object.hasOwn(resolved, 'privateNotes')
+    ? activityPrivateNotes(resolved.privateNotes, state.participants)
+    : undefined
   return {
     next: { ...state, revision: state.revision + 1, game: rules.game(resolved.game, state.participants) },
     description: resolved.description,
@@ -147,7 +152,21 @@ export function parseActivityOperationResult(
     ...(Object.hasOwn(resolved, 'playerExpression') ? { playerExpression: resolved.playerExpression } : {}),
     ...(Object.hasOwn(resolved, 'moves') ? { moves: activityMoves(resolved.moves, state.participants) } : {}),
     ...(Object.hasOwn(resolved, 'items') ? { items: resolved.items as unknown[] } : {}),
+    ...(privateNotes === undefined ? {} : { privateNotes }),
   }
+}
+
+function activityPrivateNotes(value: unknown, participants: readonly string[]): Record<string, string> {
+  if (typeof value !== 'object' || value === null || Array.isArray(value))
+    throw new TypeError('活动私密说明必须是以参与者为键的对象')
+  const entries = Object.entries(value)
+  if (entries.length > 8) throw new TypeError('活动私密说明至多 8 条')
+  for (const [characterId, note] of entries) {
+    if (!participants.includes(characterId)) throw new TypeError('活动私密说明只能给参与者：' + characterId)
+    if (typeof note !== 'string' || !note.trim() || note.length > 2000)
+      throw new TypeError('活动私密说明必须是 1–2000 字的文字')
+  }
+  return Object.fromEntries(entries) as Record<string, string>
 }
 
 /** A participant the result sends somewhere; the location is checked against the map by the caller. */

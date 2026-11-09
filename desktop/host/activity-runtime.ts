@@ -36,6 +36,7 @@ import {
   validateActivityDecision,
   abandonedActivity,
   activityOutcomeObservations,
+  activityNoteObservations,
   sceneEventObservations,
   activityResultMetadata,
   activityUpdatedEvent,
@@ -405,6 +406,17 @@ export class ActivityRuntime {
             value: resolved.items,
           }),
         )
+      // Each note reaches only its participant, as part of this round of the activity.
+      const notes =
+        resolved.privateNotes === undefined
+          ? []
+          : activityNoteObservations({
+              state: next,
+              notes: resolved.privateNotes,
+              actorId: actor,
+              actionId: context.actionId ?? '',
+              operation,
+            })
       const scripted: WorldEventDraft[] = []
       if (Object.hasOwn(resolved, 'playerExpression')) {
         if (actor !== this.playerId) throw new TypeError('只有玩家活动操作可以提交脚本玩家表达')
@@ -445,7 +457,7 @@ export class ActivityRuntime {
         )
         return {
           status: 'accepted' as const,
-          events: [sourcedUpdate, ...status, ...physical, ...scripted],
+          events: [sourcedUpdate, ...status, ...physical, ...notes, ...scripted],
           observationScope: {
             scope: 'direct' as const,
             recipientIds: resolved.audience === 'self' ? [actor] : state.participants,
@@ -454,7 +466,7 @@ export class ActivityRuntime {
       }
       return {
         status: 'accepted' as const,
-        events: [update, ...status, ...physical],
+        events: [update, ...status, ...physical, ...notes],
         observationScope: {
           scope: 'direct' as const,
           recipientIds: resolved.audience === 'self' ? [actor] : state.participants,

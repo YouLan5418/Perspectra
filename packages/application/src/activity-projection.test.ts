@@ -180,6 +180,29 @@ it('reads the moves and items of a result, refusing a non-participant mover and 
   ).toThrow('16')
 })
 
+it('reads private notes for participants, refusing outsiders, too many notes and bad lengths', () => {
+  const good = { game: game(), description: '掷骰', audience: 'participants' }
+  expect(
+    parseActivityOperationResult(
+      { ...good, privateNotes: { [PLAYER]: '你掷出 9', [NPC]: '玩家掷出 9' } },
+      rules,
+      state(),
+    ),
+  ).toMatchObject({ privateNotes: { [PLAYER]: '你掷出 9', [NPC]: '玩家掷出 9' } })
+  expect(parseActivityOperationResult(good, rules, state())).not.toHaveProperty('privateNotes')
+  expect(() =>
+    parseActivityOperationResult({ ...good, privateNotes: { 'character:stranger': '偷看' } }, rules, state()),
+  ).toThrow('character:stranger')
+  for (const note of ['', 'x'.repeat(2001), 9])
+    expect(() => parseActivityOperationResult({ ...good, privateNotes: { [NPC]: note } }, rules, state())).toThrow(
+      '私密说明',
+    )
+  expect(() => parseActivityOperationResult({ ...good, privateNotes: [] }, rules, state())).toThrow('私密说明')
+  const many = Object.fromEntries(Array.from({ length: 9 }, (_, i) => ['character:p' + i, '点数']))
+  const crowd = { ...state(), participants: Object.keys(many) } as ActivityState
+  expect(() => parseActivityOperationResult({ ...good, privateNotes: many }, rules, crowd)).toThrow('8')
+})
+
 it('activates only a current participant who is not the player', () => {
   expect(parseActivityPlan({ kind: 'wait' }, state(), PLAYER)).toBeUndefined()
   expect(parseActivityPlan({ kind: 'activate', characterId: NPC }, state(), PLAYER)).toBe(NPC)
