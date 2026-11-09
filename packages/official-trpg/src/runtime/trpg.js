@@ -137,7 +137,7 @@ function installTrpg(config) {
     }
   }
   const hostGuide = withSecret =>
-    '你是这局跑团的主持人，局内发生的一切只属于游戏。可用的工具：check 要求检定（程序掷骰，点数只告诉对象和你；hidden 为暗骰，只有你知道）、announce 宣布结果（全体参与者可见，会处理最早一条待处理行动）、note 写公开或私密笔记（各至多 6000 字）、set-stat 改角色卡数值、content 新建或修改局内地点、物品、NPC、end 结束本局。宣布时可以用名字称呼参与者。' +
+    '你是这局跑团的主持人，局内发生的一切只属于游戏。可用的工具：check 要求检定（程序掷骰，点数只告诉对象和你；hidden 为暗骰，只有你知道）、announce 宣布结果（全体参与者可见，会处理最早一条待处理行动；有待处理行动时，直接说出结果也算一次宣布）、note 写公开或私密笔记（各至多 6000 字）、set-stat 改角色卡数值、content 新建或修改局内地点、物品、NPC、end 结束本局。宣布时可以用名字称呼参与者。' +
     (withSecret ? '' : '这局只有题目，没有写好的真相与结局，可以先用 note 写私密笔记定下来。')
   const backToSetup = (game, participants) => {
     const p = game.public
@@ -165,6 +165,26 @@ function installTrpg(config) {
       .concat(game.private[game.public.hostId].hiddenContent)
       .filter(c => c.kind === 'place')
       .map(c => c.name)
+  // A result is out, by `announce` or by the host saying it: the oldest pending action is handled, the host's chance
+  // ends, and the next AI player at the table, in turn, gets a chance to act on it. Nothing says what they do.
+  const announced = (game, participants) => {
+    const internal = game.internal
+    const hostId = game.public.hostId
+    game.public.pending.shift()
+    game.round += 1
+    internal.hostDue = false
+    internal.followUp = false
+    const players = participants.filter(id => id !== hostId && id !== PLAYER)
+    internal.spotlight = players.length ? players[internal.cursor++ % players.length] : null
+  }
+  const spokenText = publication => {
+    if (!publication) return ''
+    const segments = publication.segments || [{ type: 'speech', text: publication.text || '' }]
+    return segments
+      .filter(s => s.type === 'speech' || s.type === 'narration')
+      .map(s => s.text || '')
+      .join('')
+  }
   const record = (rolls, entry) => rolls.concat([entry]).slice(-ROLL_LIMIT)
 
   return (globalThis.activityScript = {
@@ -365,13 +385,7 @@ function installTrpg(config) {
       }
 
       if (operation === 'announce') {
-        p.pending.shift()
-        game.round += 1
-        internal.hostDue = false
-        internal.followUp = false
-        // The next AI player at the table, in turn, gets a chance to act on the result; nothing says what they do.
-        const players = state.participants.filter(id => id !== hostId && id !== PLAYER)
-        internal.spotlight = players.length ? players[internal.cursor++ % players.length] : null
+        announced(game, state.participants)
         return done(shown(parameters.text))
       }
 
@@ -452,13 +466,20 @@ function installTrpg(config) {
       return reject('当前不能执行此操作。')
     },
 
-    // Someone at the table spoke. A player's line ends any spotlight and gives the host a chance to answer. The host's
-    // own line ends its chance, unless it follows a tool just used (a check it may still announce).
-    onPublished(state, actorId) {
+    // Someone at the table spoke. A player's line ends any spotlight and gives the host a chance to answer. The host
+    // telling a result while actions wait counts as announcing it; otherwise the host's line ends its chance, unless
+    // it follows a tool just used (a check it may still announce).
+    onPublished(state, actorId, publication) {
       const game = clone(state.game)
       const internal = game.internal
       if (!game.active || game.phase !== 'playing') return null
       if (actorId === game.public.hostId) {
+        if (game.public.pending.length) {
+          announced(game, state.participants)
+          const text = spokenText(publication)
+          if (text) game.public.lastResult = text
+          return game
+        }
         if (!internal.hostDue) return null
         if (internal.followUp) internal.followUp = false
         else internal.hostDue = false

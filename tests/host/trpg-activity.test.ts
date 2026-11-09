@@ -407,6 +407,36 @@ describe('the TRPG activity', () => {
     expect(f.state()!.game.public.pending).toEqual([])
   })
 
+  const say = (text: string) => () => ({ decision: 'publish', segments: [{ type: 'speech', text }] })
+
+  it('the host telling the result of a proposal counts as announcing it', async () => {
+    const f = await playing()
+    const round = f.state()!.game.round
+    f.plans[ARU] = [say('书房的门吱呀一声开了。')]
+    f.inputs.length = 0
+    await f.act('propose', { text: '我推开书房的门。' })
+    expect(f.state()!.game).toMatchObject({
+      round: round + 1,
+      public: { pending: [], lastResult: '书房的门吱呀一声开了。' },
+      internal: { hostDue: false, spotlight: CHENG, cursor: 1 },
+    })
+    // Cheng got the spotlight (and passed); announce stays offered to the host.
+    expect([asked(f, ARU), asked(f, CHENG), asked(f, MEI)]).toEqual([1, 1, 0])
+  })
+
+  it('host speech with nothing pending changes nothing', async () => {
+    const f = await playing()
+    const before = f.state()!.game
+    f.plans[ARU] = [say('大家先四处看看吧。')]
+    f.inputs.length = 0
+    await f.runtime.submit('我们从哪里开始？')
+    const game = f.state()!.game
+    expect(game.public).toEqual(before.public)
+    expect(game.round).toBe(before.round)
+    expect(game.internal).toMatchObject({ hostDue: false, spotlight: null, cursor: 0 })
+    expect([asked(f, ARU), asked(f, CHENG), asked(f, MEI)]).toEqual([1, 0, 0])
+  })
+
   it('an AI player who passes ends the chain, and the next player line takes the spotlight back', async () => {
     const f = await playing()
     f.host(ARU, ['announce', { text: '门厅的灯闪了一下。' }])
