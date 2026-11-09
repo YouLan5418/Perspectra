@@ -21,12 +21,21 @@ export interface RpgSkill {
   scope: 'one' | 'all'
   power: number
   cost: Record<string, number>
+  element?: 'fire'
+  inflicts?: string
+}
+export interface RpgCombatStatus {
+  name: string
+  turns: number
+  damage: number
+  element: 'fire'
 }
 export interface RpgEquipment {
   slot: string
   attack: number
   defense: number
   speed: number
+  resistances?: { fire: number }
 }
 export interface RpgEnemy {
   name: string
@@ -67,6 +76,7 @@ export interface RpgConfig {
   stats: RpgStat[]
   characters: Record<string, RpgCharacter>
   skills: RpgSkill[]
+  combatStatuses: Record<string, RpgCombatStatus>
   equipment: Record<string, RpgEquipment>
   consumables: Record<string, { restore: Record<string, number> }>
   rest?: { label: string; locations: string[]; restore: 'full' }
@@ -118,6 +128,7 @@ export function parseRpgConfig(value: unknown, pack: RpgPackIds): RpgConfig {
     'stats',
     'characters',
     'skills',
+    'combatStatuses',
     'equipment',
     'consumables',
     'rest',
@@ -171,17 +182,45 @@ export function parseRpgConfig(value: unknown, pack: RpgPackIds): RpgConfig {
     return out
   }
 
+  const element = (value: unknown, path: string) => oneOf(value, path, ['fire'])
+  const combatStatuses = Object.fromEntries(
+    Object.entries(record(root.combatStatuses ?? {}, 'combatStatuses')).map(
+      ([id, value]): [string, RpgCombatStatus] => {
+        const path = `combatStatuses.${id}`
+        if (!STAT_KEY.test(id)) fail(path, '状态 ID 需要是小写字母开头的小写字母、数字、连字符，至多 33 字符')
+        const status = record(value, path)
+        only(status, path, ['name', 'turns', 'damage', 'element'])
+        const name = text(status.name, `${path}.name`)
+        if (name.length > 36) fail(`${path}.name`, '显示名称至多 36 字')
+        const turns = count(status.turns, `${path}.turns`)
+        const damage = count(status.damage, `${path}.damage`)
+        if (turns < 1) fail(`${path}.turns`, '至少持续 1 回合')
+        if (damage < 1) fail(`${path}.damage`, '每回合伤害至少为 1')
+        return [id, { name, turns, damage, element: element(status.element, `${path}.element`) }]
+      },
+    ),
+  )
+
   const skills = list(root.skills ?? [], 'skills').map((row, i): RpgSkill => {
     const path = `skills[${i}]`
     const skill = record(row, path)
-    only(skill, path, ['id', 'name', 'kind', 'scope', 'power', 'cost'])
+    only(skill, path, ['id', 'name', 'kind', 'scope', 'power', 'cost', 'element', 'inflicts'])
+    const kind = oneOf(skill.kind, `${path}.kind`, ['damage', 'heal'])
+    const cost = amounts(skill.cost ?? {}, `${path}.cost`, false)
+    if (Object.hasOwn(cost, 'hp')) fail(`${path}.cost.hp`, '技能消耗不支持生命')
+    if (kind === 'heal' && (skill.element !== undefined || skill.inflicts !== undefined))
+      fail(path, '只有伤害技能能配置伤害元素或附加战斗状态')
     return {
       id: text(skill.id, `${path}.id`),
       name: text(skill.name, `${path}.name`),
-      kind: oneOf(skill.kind, `${path}.kind`, ['damage', 'heal']),
+      kind,
       scope: oneOf(skill.scope ?? 'one', `${path}.scope`, ['one', 'all']),
       power: count(skill.power, `${path}.power`),
-      cost: amounts(skill.cost ?? {}, `${path}.cost`, false),
+      cost,
+      ...(skill.element === undefined ? {} : { element: element(skill.element, `${path}.element`) }),
+      ...(skill.inflicts === undefined
+        ? {}
+        : { inflicts: known(Object.keys(combatStatuses), skill.inflicts, `${path}.inflicts`, '战斗状态') }),
     }
   })
   const skillIds = skills.map(s => s.id)
@@ -209,12 +248,20 @@ export function parseRpgConfig(value: unknown, pack: RpgPackIds): RpgConfig {
     const path = `equipment.${id}`
     entity(id, path)
     const e = record(row, path)
-    only(e, path, ['slot', 'attack', 'defense', 'speed'])
+    only(e, path, ['slot', 'attack', 'defense', 'speed', 'resistances'])
+    const resistances = e.resistances === undefined ? undefined : record(e.resistances, `${path}.resistances`)
+    let fire = 0
+    if (resistances) {
+      only(resistances, `${path}.resistances`, ['fire'])
+      fire = count(resistances.fire, `${path}.resistances.fire`)
+      if (fire > 75) fail(`${path}.resistances.fire`, '火焰抗性需要是 0 到 75 的整数百分比')
+    }
     equipment[id] = {
       slot: text(e.slot, `${path}.slot`),
       attack: count(e.attack ?? 0, `${path}.attack`),
       defense: count(e.defense ?? 0, `${path}.defense`),
       speed: count(e.speed ?? 0, `${path}.speed`),
+      ...(resistances ? { resistances: { fire } } : {}),
     }
   }
 
@@ -239,6 +286,7 @@ export function parseRpgConfig(value: unknown, pack: RpgPackIds): RpgConfig {
   }
 
   const enemies: Record<string, RpgEnemy> = {}
+  const skillsById = new Map(skills.map(skill => [skill.id, skill]))
   for (const [id, row] of Object.entries(record(root.enemies ?? {}, 'enemies'))) {
     const path = `enemies.${id}`
     text(id, path)
@@ -252,7 +300,12 @@ export function parseRpgConfig(value: unknown, pack: RpgPackIds): RpgConfig {
       attack: count(e.attack, `${path}.attack`),
       defense: count(e.defense, `${path}.defense`),
       speed: count(e.speed, `${path}.speed`),
-      skills: list(e.skills, `${path}.skills`).map((s, i) => skill(s, `${path}.skills[${i}]`)),
+      skills: list(e.skills, `${path}.skills`).map((s, i) => {
+        const skillPath = `${path}.skills[${i}]`
+        const id = skill(s, skillPath)
+        if (Object.keys(skillsById.get(id)!.cost).length) fail(skillPath, `敌人没有资源池，技能 ${id} 不能有消耗`)
+        return id
+      }),
       strategy: oneOf(e.strategy ?? 'lowest-hp', `${path}.strategy`, ['lowest-hp', 'random']),
       lines: {
         ...(lines.encounter === undefined ? {} : { encounter: text(lines.encounter, `${path}.lines.encounter`) }),
@@ -395,6 +448,7 @@ export function parseRpgConfig(value: unknown, pack: RpgPackIds): RpgConfig {
     stats,
     characters,
     skills,
+    combatStatuses,
     equipment,
     consumables,
     ...(rest ? { rest } : {}),

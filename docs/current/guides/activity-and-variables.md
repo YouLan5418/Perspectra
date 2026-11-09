@@ -175,7 +175,7 @@ Activity 收紧局部玩法许可；默认由模型决定扮演内容，作者�
 | definition.statuses | 每项 `{ key, label, type, owner, schema?, alwaysKnown?, activities?, locations?, playerTruth?, bar? }`。type 为 `number`／`string`／`boolean`／`object`／`array`／`null`；对象、数组必须声明同类型 JSON Schema，其他类型可选；owner 为 `public`（全世界一份）或 `character`（包里每个角色各一份，包括玩家和尚未登场的角色）；`alwaysKnown: true` 表示所有人始终知道真实值；`playerTruth: true` 表示把这个状态所有归属者的真实值交给玩家前端（见下文“显示”），不影响任何角色知道什么；`locations`（非空、互不重复的地点 ID 列表，必须是本包地点）表示只有当前位于这些地点之一的观察者才知道这个状态：状态栏、角色的已知状态都按观察者自己此刻的地点过滤，离开后再回来值不变；它只限制谁能看到，不限制改动、告知（reveal）或 `playerTruth`，改状态仍按 `activities` 等规则；包内插件模块（`plugins/*.js` 的 `definition.statuses`）同样可用；`bar: true` 表示钉在玩家的状态栏（建议 2–4 项，例如时间、余额），没钉的已知状态仍在默认舞台的“状态”抽屉里，PlayerView 的 `statusBar` 每项多一个 `pinned: true` 标记，只影响显示 |
 | definition.operations | 每项 `{ id, label, schema, targets?, characterParameters?, actors?, activities? }`。schema 必须是封闭对象；`targets` 列出作用的物品，label 可写 `{item}`；`characterParameters` 列出指向角色的字符串参数，宿主在调用 resolve 前检查该角色存在且在行动者当前授权场景内；`actors` 为 `player`／`npc`／`any`（默认） |
 | initialize(characterIds) | 返回 `{ public, characters, reveals? }`，必须恰好包含声明的状态。新世界首次打开时提交为初始事件；角色私有状态默认告知归属者，公共状态除非 alwaysKnown 否则不告知任何人 |
-| resolve(truth, actorId, operationId, parameters, world, targetId) | 裁定一次操作。truth 是真实值，只在宿主内使用，不进入任何角色视图；world 与活动 resolve 的第五参数相同；第六参数为目标物品 ID，无物品目标时为 null |
+| resolve(truth, actorId, operationId, parameters, world, targetId) | 裁定一次操作。truth 是真实值，只在宿主内使用。world 提供操作主体授权的场景与可见物品。第六参数为目标物品 ID，无物品目标时为 null |
 | policy(known, actorId, place)（可选） | 返回 `{ operations: ['操作ID', ...], targets?: { 操作ID: [物品ID, ...] } }`，根据已知状态筛选操作，并可用行动者手里／脚下的物品收窄目标；省略或返回 null 表示不额外筛选。只读，不提交效果 |
 | onRoundEnd(truth, round)（可选） | 每次玩家输入被受理、本轮角色反应结束后调用一次，返回 `null` 或 `{ changes, reveals }` |
 
@@ -300,8 +300,9 @@ onRoundEnd 拿到真实值和轮次，拿不到角色上下文或模型输出；
 
 [官方序章脚本](../../../examples/world-packs/model-girls-official/scripts/activity.js) 是新增能力的完整示例：
 
-- initialize 的 `world` 为玩家当前授权场景；`previous` 为上次活动的玩家视图，用于继续已有序章或进入生活菜单。
+- initialize 的 `world` 为玩家当前授权场景，`previous` 为上次活动的玩家视图，用于继续已有序章或进入生活菜单。`truth` 仅供可信活动脚本裁定，包含同一时刻的公共状态与本次参与者的角色状态，无状态机制时为 null。
 - resolve 的第五参数 `world` 为操作主体当前授权事实，包含 locationId、arrivedAtSeq（最近一次移动的事件序号，没移动过为 0）、characterIds 与 items.current / lastObserved。lastObserved 仅是目击记录，不能当作当前归属。
+- 可信活动的 resolve 另收到 `world.participantHeldItems`，是同场活动参与者实际持有的 `{ entityId, holderId }` 列表。用它裁定需要真实持有关系的效果，例如火焰抗性。发布状态和结果时仍按受众范围选择信息。
 - resolve 返回 `playerExpression: { text }` 可在明确玩家选择的操作中同步提交公开玩家表达；不能用于 NPC 代替玩家行动。普通活动仍可只返回 game、description、audience。
 - 也可返回 `playerExpression: { narration }`，以玩家名下的旁白提交，例如赔罪晚宴的“过了 5 分钟，墙上的钟指向 16:05。”，不替玩家说台词。在场角色照常观察到它。
 - 操作定义可加 `quick: true`。例如晚宴时钟的“等 5 分钟”直接出现在玩家行动菜单里，点一下即可：宿主先开始活动，再执行该操作，分成两次普通提交；开始不计入自主触发，操作照常计入。玩家只做了一个动作，所以这次开始不写开场行（2026-10-25 起），记录里只出现操作本身的结果，例如“时间流逝，来到了午后”，不再多一条“〈标题〉开始。”。声明了快捷操作的活动不再显示“开始”入口。仅适用于只有玩家参与、没有参与者选择、操作没有参数的活动；操作仍须被开始后的 policy 允许，否则拒绝并保留已开始的活动，玩家可在卡片里关闭。

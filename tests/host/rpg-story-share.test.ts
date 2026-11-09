@@ -2,9 +2,10 @@ import type { StatusSource } from '@harness-world/plugin-sdk'
 import { mkdirSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
 import { afterEach, expect, it } from 'vitest'
-import { assembleRoleplay } from '../../desktop/official-bundle.ts'
+import { assembleRoleplay, officialRpgContent } from '../../desktop/official-bundle.ts'
 import { WorldHostRuntime } from '../../desktop/host/world-runtime.ts'
 import { exportStoryNode, importStoryNode } from '../../desktop/story-share.ts'
+import { readStoryNodes, restoreStoryNode } from '../../desktop/story-nodes.ts'
 import { fakeModels, startFakeProvider } from '../support/fake-provider.ts'
 import { copyRpgFixture } from '../support/rpg-fixture.ts'
 
@@ -27,6 +28,7 @@ it('sharing a story node of an rpg.json pack preflights with the generated statu
   })
   const node = await runtime.saveNode('带 RPG 的节点')
   await runtime.close()
+  expect(readStoryNodes(data).find(entry => entry.parentNodeId === null)?.files).toContain('plugin-set.json')
 
   const archive = join(root, 'node.perspectra-story')
   await exportStoryNode(data, node.id, archive, pack)
@@ -34,12 +36,39 @@ it('sharing a story node of an rpg.json pack preflights with the generated statu
   mkdirSync(receiver)
   const imported = await importStoryNode(archive, receiver, pack, node.packHash)
   expect(imported.node.packHash).toBe(node.packHash)
+  expect(imported.node.files).toContain('plugin-set.json')
 
   // Without the RPG mechanism the generated status module is unknown, and the same node does not preflight.
   const withoutRpg = assembleRoleplay({ content: [] })
   await expect(importStoryNode(archive, receiver, pack, node.packHash, withoutRpg)).rejects.toThrow(
     '需要插件 official-rpg 1',
   )
+
+  const changed = assembleRoleplay({
+    content: [
+      {
+        ...officialRpgContent,
+        generate(config, facts) {
+          const copy = structuredClone(config) as { skills: { id: string; power: number }[] }
+          copy.skills.find(skill => skill.id === 'fire')!.power++
+          return officialRpgContent.generate(copy, facts)
+        },
+      },
+    ],
+  })
+  const mismatch = 'official-rpg 插件生成的规则与存档不一致'
+  await expect(importStoryNode(archive, receiver, pack, node.packHash, changed)).rejects.toThrow(mismatch)
+  const fork = join(root, 'fork')
+  restoreStoryNode(data, node.id, fork, node.packHash)
+  await expect(
+    WorldHostRuntime.create({
+      packPath: pack,
+      dataDirectory: fork,
+      models: fakeModels(provider.endpoint),
+      timeoutMs: 5000,
+      composition: changed,
+    }),
+  ).rejects.toThrow(mismatch)
 }, 60_000)
 
 it('the share preflight opens status with the generated rpg module beside the pack status script', async () => {

@@ -69,6 +69,7 @@ describe('generateMapActivities', () => {
       npcIds: [CHENG],
       world: world('location:ruin-1', 7),
       previous: null,
+      truth: truth(),
     })
     const ended = { ...scoped({ ...game, active: false, turn: null }, PLAYER) }
     expect(script.autoStart(truth(), world('location:ruin-1', 7), ended).when[1][1]).toBe(false)
@@ -85,6 +86,7 @@ describe('generateMapActivities', () => {
       npcIds: [CHENG],
       world: world('location:ruin-2', 3),
       previous: null,
+      truth: truth(),
     })
     expect(game).toMatchObject({ active: false, phase: 'done', turn: null })
   })
@@ -96,10 +98,73 @@ describe('generateMapActivities', () => {
       npcIds: [CHENG],
       world: world('location:ruin-1', 1),
       previous: null,
+      truth: truth(),
     })
     expect(game).toMatchObject({ phase: 'fighting', turn: PLAYER })
     const theirs = { ...game, turn: CHENG }
     expect(script.simulate(request(theirs, CHENG))).toBeNull()
+  })
+
+  it('leaves the activity inactive when no participant can fight on arrival', () => {
+    const script = hooks(generate()[0]!.source)
+    const fallen = truth({ 'rpg-hp': 0 })
+    fallen.characters[PLAYER]['rpg-hp'] = 0
+    const game = script.initialize({
+      npcIds: [CHENG],
+      world: world('location:ruin-1', 1),
+      previous: null,
+      truth: fallen,
+    })
+    expect(game).toMatchObject({ active: false, turn: null, public: { lastResult: '队伍无人能够战斗。' } })
+  })
+
+  it('ticks a condition after its holder acts, refreshes it on hit, and removes it after three turns', () => {
+    const script = hooks(
+      generate(c => {
+        c.combatStatuses = { burn: { name: '灼烧', turns: 3, damage: 3, element: 'fire' } }
+        Object.assign(
+          c.skills.find((skill: Json) => skill.id === 'fire'),
+          { element: 'fire', inflicts: 'burn', power: 10 },
+        )
+        c.enemies.golem.hp = 100
+        c.enemies.golem.skills = []
+        c.maps[0].scripted = []
+      })[0]!.source,
+    )
+    const place = world('location:ruin-1', 1)
+    const stats = truth()
+    const state = {
+      revision: 1,
+      game: script.initialize({ npcIds: [CHENG], world: place, previous: null, truth: stats }),
+    }
+    const step = (actorId: string, fire = false) => {
+      const result = script.resolve(
+        state,
+        actorId,
+        fire ? 'skill' : 'guard',
+        fire ? { skill: '火球术', target: '遗迹守卫' } : {},
+        place,
+        stats,
+      )
+      expect(result.rejectReason).toBeUndefined()
+      state.game = result.game
+      return result
+    }
+    const remaining = () => state.game.internal.conditions.map((effect: Json) => effect.remaining)
+    step(PLAYER, true)
+    expect(remaining()).toEqual([3])
+    expect(step(CHENG).description).toContain('灼烧造成 3 点伤害')
+    expect(remaining()).toEqual([2])
+    expect(step(PLAYER, true).description).toContain('状态持续时间刷新')
+    expect(remaining()).toEqual([3])
+    for (const left of [2, 1, 0]) {
+      const result = step(CHENG)
+      expect(result.description).toContain('灼烧造成 3 点伤害')
+      expect(remaining()).toEqual(left ? [left] : [])
+      if (left) step(PLAYER)
+    }
+    step(PLAYER)
+    expect(step(CHENG).description).not.toContain('灼烧')
   })
 
   it('a turn cue for round 2 performs its skill on her second turn and publishes the line after the result', () => {
@@ -113,6 +178,7 @@ describe('generateMapActivities', () => {
       npcIds: [CHENG],
       world: world('location:ruin-1', 1),
       previous: null,
+      truth: truth(),
     })
     const step = (actorId: string, operation: string, parameters: Json = {}) => {
       const result = script.resolve(
@@ -157,6 +223,7 @@ describe('generateMapActivities', () => {
       npcIds: [CHENG],
       world: world('location:ruin-1', 1),
       previous: null,
+      truth: truth(),
     })
     const won = script.resolve(
       { id: 'activity:1', revision: 1, participants: [PLAYER, CHENG], game },
@@ -191,6 +258,7 @@ describe('generateMapActivities', () => {
       npcIds: [CHENG],
       world: world('location:ruin-1', 1),
       previous: null,
+      truth: truth(),
     })
     expect(game).toMatchObject({ phase: 'standby', turn: PLAYER })
     expect(script.policy(scoped(game, PLAYER), PLAYER)).toMatchObject({ move: false, operations: ['engage', 'leave'] })
@@ -215,6 +283,7 @@ describe('generateMapActivities', () => {
         npcIds: [CHENG],
         world: world('location:ruin-1', 1),
         previous: null,
+        truth: truth(),
       })
       expect(game.phase).toBe('fighting')
       return script.policy(scoped(game, CHENG), CHENG).interactions
@@ -227,6 +296,7 @@ describe('generateMapActivities', () => {
       npcIds: [CHENG],
       world: world('location:ruin-2', 1),
       previous: null,
+      truth: truth(),
     })
     expect(calm.policy(scoped(game, CHENG), CHENG).interactions).toEqual(
       expect.arrayContaining(['status:rpg-join', 'status:rpg-leave']),
@@ -246,6 +316,7 @@ describe('generateMapActivities', () => {
       npcIds: [CHENG],
       world: world('location:ruin-1', 1),
       previous: null,
+      truth: truth(),
     })
     const state = { id: 'activity:1', revision: 1, participants: [PLAYER, CHENG], game }
     expect(script.resolve(state, PLAYER, 'engage', {}, world('location:ruin-1', 1), truth()).game.turn).toBe(CHENG)
@@ -260,6 +331,7 @@ describe('generateMapActivities', () => {
       npcIds: [CHENG],
       world: world('location:ruin-1', 1),
       previous: null,
+      truth: truth(),
     })
     const alone = world('location:ruin-1', 1, [PLAYER])
     const state = { id: 'activity:1', revision: 1, participants: [PLAYER, CHENG], game }

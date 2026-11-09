@@ -133,7 +133,7 @@ Interaction 定义和绑定提供玩法可选行为，规则负责重要状态�
 
 例如作者在包里写一份 `rpg.json`：遗迹一层有守卫、铁门需要钥匙，澄是同伴。玩家进入遗迹时，宿主已经为这张地图生成了一场活动，澄随队长走进来，战斗伤害、掉落和锁门由程序裁定，留在家里的阿茹收不到战斗内容。
 
-官方机制包 [official-rpg](../../../packages/official-rpg) 在世界打开时读取 `rpg.json`（需登记在 `assetFiles`），生成一个状态模块、每张地图一个活动和一个规则层（锁门、队伍随行），不写回包目录；宿主经通用的 [desktop/host/pack-content.ts](../../../desktop/host/pack-content.ts) 载入，生成内容的摘要按插件 id 记在存档 `plugin-set.json` 的 `generatedContent`，不一致时拒绝打开。包透视和 `worldpack validate` 也读 `rpg.json`。作者说明见[RPG 玩法](../guides/rpg.md)，验收包是 [hill-ruins](../../../examples/world-packs/hill-ruins/README.md)。源码已接通、自动测试与推演通过；真实模型试玩和发行包均未做。
+官方机制包 [official-rpg](../../../packages/official-rpg) 在世界打开时读取 `rpg.json`（需登记在 `assetFiles`），生成一个状态模块、每张地图一个活动和一个规则层（锁门、队伍随行），不写回包目录。宿主经通用的 [desktop/host/pack-content.ts](../../../desktop/host/pack-content.ts) 载入，生成内容的摘要按插件 id 记在存档 `plugin-set.json` 的 `generatedContent`。新建的[故事节点](../../../desktop/story-nodes.ts)也携带该记录，导入分享和打开恢复后的故事线时都核对摘要。包透视和 `worldpack validate` 也读 `rpg.json`。作者说明见[RPG 玩法](../guides/rpg.md)，验收包是 [hill-ruins](../../../examples/world-packs/hill-ruins/README.md)。摘要校验已通过自动测试，本轮修复未做真实模型试玩或发行包验收。
 
 2026-11-08 内容接缝：宿主不再有 RPG 专用槽位。玩法插件通过 `ctx.content` 注册内容生成器（[SDK 类型](../../../packages/plugin-sdk/src/content.ts)），声明自己读的配置文件；官方 RPG 是其中之一（`officialRpgContent` 读 `rpg.json`），默认组合在没有玩家插件接管 `rpg.json` 时注册它。宿主对每个生成器做同样的事：读已登记的配置文件，核对顶层 `plugin` 的 id 和 version，生成状态模块、活动与规则层，检查与包内模块、活动及其他生成器的重名，并按生成器记摘要。根目录 JSON 资产写了 `plugin` 却没有生成器读它时，世界不打开。包透视推演、故事分享预检和 `worldpack validate` 都走同一读取。包透视里 RPG 条目的展示（rpg-view.ts）仍直接读 `rpg.json`，属于透视自己的 RPG 视图。
 
@@ -170,7 +170,7 @@ ActivitiesRuntime 选择唯一正在运行的 ActivityRuntime，只向该活动�
 
 NPC 固定台词发表时，可选 `onPublished(state, actorId, expression)` 返回新的 game，或 null。宿主仅在活动中的参与角色发表合法 speak 时调用，将发表与进度更新原子提交；提交失败不会跳过该句。该 hook 是同步裁定，不直接发言、调用模型或启动独立引擎。
 
-`initialize` 另收到玩家授权的 `world` 和 `previous`（玩家自己的上次活动视图或 null）；`resolve` 第五参数是当前行动主体授权的 `world`。它包含 locationId、最近一次移动的事件序号 arrivedAtSeq（没移动过为 0）、当前可观察角色 characterIds、items.current / lastObserved，使用同一事件前缀与已有可见物品投影，不提供全世界库存。条件不满足可返回唯一字段 `rejectReason`（非空、最多 2000 字符），不提交活动变更。
+`initialize` 另收到玩家授权的 `world`、`previous`（玩家自己的上次活动视图或 null）和同一事件前缀的 `truth`（公共状态与本次参与者的角色状态，无状态机制时为 null）。例如 RPG 根据当前生命安排首回合。`resolve` 的第五参数 `world` 包含当前行动主体授权的位置、最近移动序号、可观察角色与可见物品。可信活动裁定额外收到同一事件前缀的 `participantHeldItems`，仅列出同场参与者持有的物品 ID 和持有者 ID。例如队友没目睹玩家穿上护甲，规则仍按当前持有事实计算抗性。宿主只把这份数据传给 `resolve`，角色与前端接收活动的授权结果视图。条件不满足可返回唯一字段 `rejectReason`（非空、最多 2000 字符），不提交活动变更。 [活动桥](../../../desktop/host/activity-runtime.ts)
 
 [官方包](../../../examples/world-packs/model-girls-official/README.md) 使用这些入口完成 112 条序章表达，其中 5 条为玩家中性问题。最后请求收留后活动结束，后续输入走真实模型。生活活动只提交开场种子；米饭制作另由已有交互扩展机制裁定。自动实验核对完整表达与零角色 provider 调用；后续本机 Gemini 已完成拒绝、正式料理、私密交流、蛋糕目击和归档后回访的短场景验收，见 [真实记录](../../../examples/world-packs/model-girls-official/LIVE-VALIDATION.md)。默认反应时间截止及未覆盖组合仍明确保留。
 

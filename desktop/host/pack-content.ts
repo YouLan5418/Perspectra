@@ -89,9 +89,8 @@ export function assertSavedPackContent(
   saved: Readonly<Record<string, string>> | undefined,
   current: Readonly<Record<string, string>>,
 ): void {
-  for (const [id, hash] of Object.entries(current)) {
-    const before = saved?.[id]
-    if (before !== undefined && before !== hash)
-      throw new Error(`${id} 插件生成的规则与存档不一致（存档 ${before}，当前 ${hash}）`)
+  for (const [id, before] of Object.entries(saved ?? {})) {
+    const hash = Object.hasOwn(current, id) ? current[id] : undefined
+    if (before !== hash) throw new Error(`${id} 插件生成的规则与存档不一致（存档 ${before}，当前 ${hash ?? '缺失'}）`)
   }
 }

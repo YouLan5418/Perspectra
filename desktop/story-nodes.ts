@@ -4,6 +4,7 @@ import { join } from 'node:path'
 import { backup, DatabaseSync } from 'node:sqlite'
 import type { WorldAddress } from '@harness-world/contracts'
 import { worldAddressKey } from '@harness-world/contracts'
+import { PLUGIN_SET_FILE, writePluginSet, type PluginSetRecord } from './host/plugin-set.ts'
 
 export interface StoryNode {
   id: string
@@ -29,6 +30,7 @@ const NODE_FILES = [
   'context.sqlite',
   'memory-aliases.json',
   'core-memory.json',
+  PLUGIN_SET_FILE,
 ] as const
 export function readStoryNodes(directory: string): StoryNode[] {
   const root = join(directory, 'story-nodes')
@@ -72,6 +74,7 @@ export async function saveStoryNode(
   logicalDirectory = directory,
   coreMemory: unknown = {},
   memoryProvider?: string,
+  pluginSet?: PluginSetRecord,
 ): Promise<StoryNode> {
   if (!title.trim() || title.length > 80) throw new TypeError('节点名称须为 1 至 80 个字符。')
   const root = join(logicalDirectory, 'story-nodes'),
@@ -124,6 +127,7 @@ export async function saveStoryNode(
   }
   writeFileSync(join(temporary, 'memory-aliases.json'), JSON.stringify(aliases))
   writeFileSync(join(temporary, 'core-memory.json'), JSON.stringify(coreMemory))
+  if (pluginSet?.generatedContent) writePluginSet(temporary, pluginSet)
   node.files = NODE_FILES.filter(name => existsSync(join(temporary, name)))
   writeFileSync(join(temporary, 'node.json'), JSON.stringify(node))
   renameSync(temporary, join(root, id))

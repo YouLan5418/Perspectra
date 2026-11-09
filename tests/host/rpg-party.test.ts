@@ -172,6 +172,22 @@ describe('RPG locked exits and party', () => {
     expect(offered(f, CHENG)).toContain('status:rpg-leave')
   })
 
+  it('lets the key holder unlock an exit while an optional battle is on standby', async () => {
+    const f = await fixture({
+      places: { [CHENG]: RUIN1 },
+      config: c => {
+        c.maps[0].engage = 'optional'
+        c.maps[0].exits[0].requires.holds = 'entity:potion'
+      },
+    })
+    await f.runtime.submit('/status take@entity:potion {}')
+    await f.move(RUIN1)
+    expect(offered(f, PLAYER)).toContain('status:rpg-unlock')
+    await f.runtime.submit('/status rpg-unlock@entity:potion {}')
+    expect(unlockedDoors(f.events())).toEqual([[RUIN1, RUIN2]])
+    expect(data(f.events().findLast(e => e.eventType === 'activity.updated')!).state.game.phase).toBe('standby')
+  })
+
   it('when the player moves, Cheng follows in the same commit and Ah-Ru at home sees both leave', async () => {
     const f = await fixture({ decide: chengPlays(statusAction('rpg-join')) })
     await say(f, '澄，跟我来。')

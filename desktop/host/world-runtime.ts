@@ -529,11 +529,10 @@ export class WorldHostCore implements HostRuntime {
     // A config file a content generator reads brings generated activities, status modules and rules; all are checked
     // before the world opens.
     const generated = loadPackContent(options.packPath, pack, options.composition.mechanisms.content)
-    if (generated)
-      assertSavedPackContent(
-        readPluginSet(options.logicalDirectory ?? options.dataDirectory)?.generatedContent,
-        generated.hashes,
-      )
+    assertSavedPackContent(
+      readPluginSet(options.logicalDirectory ?? options.dataDirectory)?.generatedContent,
+      generated?.hashes ?? {},
+    )
     const modules = PackModules.load(options.packPath, pack, options.capabilities, generated?.statusModules)
     const activitySource = loadActivitySource(options.packPath, pack, generated?.activities)
     const compiled = adaptCompiledWorldPack(pack, {
@@ -1075,6 +1074,7 @@ export class WorldHostCore implements HostRuntime {
         this.#options.logicalDirectory,
         this.#memory?.snapshotArchives?.(this.#characterIds) ?? {},
         this.#memoryId,
+        this.#pluginSet(),
       )
     } finally {
       this.#savingNode = false
@@ -1666,15 +1666,18 @@ export class WorldHostCore implements HostRuntime {
     }
   }
 
-  /** Tells the player when this save's modules changed since it last ran. Worth a notice, never worth refusing the
-   * save, and a candidate is not the save itself. */
-  #notePluginSet(): void {
-    if (this.#options.candidate) return
-    const directory = this.#options.logicalDirectory ?? this.#dataDirectory
-    const current = {
+  #pluginSet() {
+    return {
       seams: this.#modulesInForce,
       ...(this.#generated ? { generatedContent: this.#generated.hashes } : {}),
     }
+  }
+
+  /** Tells the player when this save's modules changed since it last ran. A candidate is not the save itself. */
+  #notePluginSet(): void {
+    if (this.#options.candidate) return
+    const directory = this.#options.logicalDirectory ?? this.#dataDirectory
+    const current = this.#pluginSet()
     const changes = pluginSetChanges(readPluginSet(directory), current)
     if (changes.length)
       this.#notice = [this.#notice, `这个存档使用的模块变了：${changes.join('；')}。世界事实不受影响。`]

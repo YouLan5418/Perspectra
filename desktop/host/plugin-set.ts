@@ -8,7 +8,7 @@ export interface PluginSetRecord {
   readonly generatedContent?: Readonly<Record<string, string>>
 }
 
-const FILE = 'plugin-set.json'
+export const PLUGIN_SET_FILE = 'plugin-set.json'
 const LABELS: Readonly<Record<string, string>> = {
   scheduler: '角色调度',
   knowledge: '设定知识',
@@ -50,12 +50,13 @@ export function pluginSetChanges(previous: PluginSetRecord | undefined, current:
 /** What this save last ran with. A missing or damaged record only means there is nothing to compare. */
 export function readPluginSet(directory: string): PluginSetRecord | undefined {
   try {
-    const value = JSON.parse(readFileSync(join(directory, FILE), 'utf8')) as PluginSetRecord
+    const value = JSON.parse(readFileSync(join(directory, PLUGIN_SET_FILE), 'utf8')) as PluginSetRecord
     if (!value || typeof value.seams !== 'object' || value.seams === null) return undefined
     if (
       value.generatedContent !== undefined &&
       (typeof value.generatedContent !== 'object' ||
         value.generatedContent === null ||
+        Array.isArray(value.generatedContent) ||
         Object.values(value.generatedContent).some(hash => typeof hash !== 'string'))
     )
       return undefined
@@ -68,7 +69,7 @@ export function readPluginSet(directory: string): PluginSetRecord | undefined {
 }
 
 export function writePluginSet(directory: string, record: PluginSetRecord): void {
-  const path = join(directory, FILE)
+  const path = join(directory, PLUGIN_SET_FILE)
   writeFileSync(path + '.tmp', JSON.stringify(record))
   renameSync(path + '.tmp', path)
 }

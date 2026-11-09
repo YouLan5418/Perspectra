@@ -21,7 +21,8 @@ import { CORE_MEMORY_ID, importCoreArchives } from './official-bundle.ts'
 import { createWorldReader } from './host/world-reader.ts'
 import { StatusState } from '@harness-world/application'
 import { loadStatusSource } from './host/status-source.ts'
-import { generatedStatusModuleSources, loadPackContent } from './host/pack-content.ts'
+import { assertSavedPackContent, generatedStatusModuleSources, loadPackContent } from './host/pack-content.ts'
+import { PLUGIN_SET_FILE, readPluginSet } from './host/plugin-set.ts'
 import { assembleRoleplay, type WorldComposition } from './official-bundle.ts'
 import { createWorldCast } from './host/world-cast.ts'
 import { modelCharacters } from './host/player-transcript.ts'
@@ -30,7 +31,7 @@ import { preflightSave } from './save-preflight.ts'
 import { readStoryNodes, restoreStoryNode, storyId, type StoryNode } from './story-nodes.ts'
 
 // A bounded JSON container replaces ZIP extraction. Only these literal filenames can be written.
-const SHARE_FILES = ['world.sqlite', 'session.sqlite', 'memory-aliases.json', 'core-memory.json']
+const SHARE_FILES = ['world.sqlite', 'session.sqlite', 'memory-aliases.json', 'core-memory.json', PLUGIN_SET_FILE]
 const MAX_FILE = 64 * 1024 * 1024,
   MAX_TOTAL = 96 * 1024 * 1024,
   MAX_CONTAINER = 129 * 1024 * 1024
@@ -196,6 +197,11 @@ async function validate(
   )) as CompiledWorldPackV5
   // The status modules a content generator makes are part of the pack's status script, so the preflight checks them too.
   const generated = loadPackContent(packPath, pack, composition.mechanisms.content)
+  if (node.files.includes(PLUGIN_SET_FILE)) {
+    const saved = readPluginSet(directory)?.generatedContent
+    if (!saved) throw new Error('故事线节点的生成规则摘要损坏。')
+    assertSavedPackContent(saved, generated?.hashes ?? {})
+  }
   const statusSource = loadStatusSource(packPath, pack, generated && generatedStatusModuleSources(generated))
   if (statusSource) {
     const provider = composition.mechanisms.status

@@ -130,6 +130,37 @@ describe('RPG map activities', () => {
     expect(poor.events().some(e => e.eventType === 'character.speak' && data(e).characterId === CHENG)).toBe(false)
   })
 
+  it('skips a fallen companion when opening a fight, including her encounter skill', async () => {
+    const f = await fixture({
+      config: c => {
+        c.characters[CHENG].stats.hp = 0
+        c.characters[CHENG].speed = 100
+      },
+    })
+    await f.move(RUIN1)
+    expect(latest(f, 'rpg-map-ruin-1').game).toMatchObject({ phase: 'fighting', turn: PLAYER })
+    expect(f.inputs.filter(input => (input.context as Json).activity)).toHaveLength(0)
+    await act(f, 'flee')
+    expect(latest(f, 'rpg-map-ruin-1').game).toMatchObject({ active: false, phase: 'fled' })
+  })
+
+  it('records a scripted heal refused at full health and lets Cheng choose another action', async () => {
+    const f = await fixture({
+      config: c => {
+        c.maps[0].scripted = [{ when: 'encounter', characterId: CHENG, skill: 'heal', say: '治疗一下。' }]
+      },
+      decide: chengUses('普通攻击'),
+    })
+    await f.move(RUIN1)
+    const results = updates(f, 'rpg-map-ruin-1').map(e => String(data(e).description))
+    expect(results.some(text => text.includes('写死的技能不可用：目标生命已满'))).toBe(true)
+    expect(results.at(-1)).toContain('澄使用普通攻击')
+    expect(latest(f, 'rpg-map-ruin-1').game).toMatchObject({ phase: 'fighting', turn: PLAYER })
+    expect(
+      f.events().some(e => e.eventType === 'character.speak' && JSON.stringify(e.data).includes('治疗一下。')),
+    ).toBe(false)
+  })
+
   it('victory drops the iron key on the floor and anyone can pick it up', async () => {
     const f = await fixture({
       config: c => {

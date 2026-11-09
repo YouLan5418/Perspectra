@@ -63,6 +63,7 @@ export function generateMapActivities(
       stats: config.stats.map(({ key: statKey, label }) => ({ key: statKey, label })),
       characters: config.characters,
       skills: config.skills.filter(s => used.has(s.id)),
+      combatStatuses: config.combatStatuses,
       equipment: config.equipment,
       ...(config.defeat ? { defeat: config.defeat } : {}),
       retreat: config.retreat,

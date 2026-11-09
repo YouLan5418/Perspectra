@@ -34,7 +34,13 @@ const weakGolem = (c: Record<string, any>) => {
 
 describe('the lens and rpg.json', () => {
   it('lens view lists RPG characters, enemies and map exits with their conditions', async () => {
-    const { lens, pack } = await openLens()
+    const { lens, pack } = await openLens({
+      config: c => {
+        c.combatStatuses = { burn: { name: '灼烧', turns: 3, damage: 3, element: 'fire' } }
+        Object.assign(c.skills[1], { element: 'fire', inflicts: 'burn' })
+        c.equipment['entity:iron-sword'].resistances = { fire: 20 }
+      },
+    })
     const view = await buildLensView(pack, lens)
     const item = (id: string): LensItem => {
       const found = view.items.find(candidate => candidate.id === id)
@@ -49,6 +55,10 @@ describe('the lens and rpg.json', () => {
     expect(field('rpg:enemy/golem', 'encounter')).toBe('擅入者，止步。')
     expect(field('rpg:enemy/golem', 'defeated')).toBe('你们……终究还是来了。')
     expect(field('rpg:equipment/entity:iron-sword', 'attack')).toBe(3)
+    expect(field('rpg:equipment/entity:iron-sword', 'fireResistance')).toBe('20%')
+    expect(field('rpg:skill/fire', 'inflicts')).toBe('灼烧')
+    expect(item('rpg:skill/fire').links).toEqual(['rpg:combat-status/burn'])
+    expect(field('rpg:combat-status/burn', 'turns')).toBe(3)
     expect(field('rpg:consumable/entity:potion', 'restore')).toEqual(['生命 20'])
     expect(field('rpg:map/location:ruin-1', 'narration')).toBe('潮湿的石廊，尽头有一扇铁门。')
     expect(field('rpg:map/location:ruin-1', 'enemies')).toEqual(['遗迹守卫'])

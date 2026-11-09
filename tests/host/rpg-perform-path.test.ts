@@ -2,7 +2,8 @@ import { afterEach, expect, it } from 'vitest'
 import { join } from 'node:path'
 import { brandId, type WorldJsonObject } from '@harness-world/contracts'
 import { CharacterViewBuilder, WorldStore } from '@harness-world/store-sqlite'
-import { openRpgFixture, type RpgFixture, type RpgFixtureOptions } from '../support/rpg-fixture.ts'
+import { openRpgFixture, openRpgWorld, type RpgFixture, type RpgFixtureOptions } from '../support/rpg-fixture.ts'
+import { restoreStoryNode } from '../../desktop/story-nodes.ts'
 
 // The default player frontend sends a battle button as a world action (`runtime.perform` → `/act interact`), not
 // through `activityAction`. Its result may move the party home; those at home see them arrive and nothing else.
@@ -19,8 +20,8 @@ const open: RpgFixture[] = []
 afterEach(async () => {
   for (const f of open.splice(0)) await f.close()
 })
-async function fixture(config: NonNullable<RpgFixtureOptions['config']>) {
-  const f = await openRpgFixture({ places: { [CHENG]: RUIN1 }, config })
+async function fixture(config: NonNullable<RpgFixtureOptions['config']>, decide?: RpgFixtureOptions['decide']) {
+  const f = await openRpgFixture({ places: { [CHENG]: RUIN1 }, config, ...(decide ? { decide } : {}) })
   open.push(f)
   return f
 }
@@ -38,10 +39,12 @@ const observed = (f: RpgFixture, observerId: string, from: number) => {
   }
 }
 /** The battle button for `operation`, as the default frontend performs it on the player's turn. */
+function battle(f: RpgFixture) {
+  return data(f.events().findLast(e => e.eventType === 'activity.updated' && data(e).activityKey === 'rpg-map-ruin-1')!)
+    .state as Json
+}
 async function press(f: RpgFixture, operation: string, extra: Json = {}) {
-  const state = data(
-    f.events().findLast(e => e.eventType === 'activity.updated' && data(e).activityKey === 'rpg-map-ruin-1')!,
-  ).state as Json
+  const state = battle(f)
   expect(state.game.turn).toBe(PLAYER)
   await f.runtime.perform({
     actionType: 'interact',
@@ -53,6 +56,105 @@ async function press(f: RpgFixture, operation: string, extra: Json = {}) {
     },
   })
 }
+
+it.each([
+  { held: true, hp: 32, afterBurn: 30 },
+  { held: false, hp: 29, afterBurn: 26 },
+])('uses current equipment custody during another character’s turn (held=$held)', async ({ held, hp, afterBurn }) => {
+  const f = await fixture(
+    c => {
+      c.maps[0].scripted = []
+      c.combatStatuses = { burn: { name: '灼烧', turns: 3, damage: 3, element: 'fire' } }
+      c.characters[PLAYER].defense = 3
+      c.equipment['entity:iron-sword'] = { slot: 'weapon', resistances: { fire: 20 } }
+      c.skills.push({
+        id: 'golem-fire',
+        name: '守卫火球',
+        kind: 'damage',
+        scope: 'all',
+        power: 10,
+        element: 'fire',
+        inflicts: 'burn',
+      })
+      c.enemies.golem.attack = 4
+      c.enemies.golem.skills = ['golem-fire']
+    },
+    input => {
+      const activity = (input.context as Json).activity
+      if (input.continuation || activity?.game.turn !== CHENG) return { decision: 'abstain' }
+      return {
+        decision: 'perform',
+        actionType: 'interact',
+        parameters: {
+          targetRef: { kind: 'character', id: CHENG },
+          bindingId: activity.id,
+          definitionRef: { id: 'activity:guard', version: 1 },
+          arguments: { activityId: activity.id, revision: activity.revision },
+        },
+      }
+    },
+  )
+  await f.runtime.submit('/status take@entity:iron-sword {}')
+  await f.runtime.submit('/status rpg-equip@entity:iron-sword {}')
+  if (!held) await f.runtime.submit('/status drop@entity:iron-sword {}')
+  await f.move(RUIN1)
+  const from = f.events().at(-1)!.seq
+  await press(f, 'skill', { skill: '普通攻击', target: '遗迹守卫' })
+  expect(battle(f).game.public.units.find((unit: Json) => unit.id === PLAYER).hp).toBe(hp)
+  expect(battle(f).game.public['状态']).toContain('灼烧（剩余 3 回合）')
+  const before = battle(f)
+  await f.runtime.submit('澄，先稳住。')
+  expect(battle(f)).toEqual(before)
+  await expect(press(f, 'skill', { skill: '普通攻击', target: '玩家' })).rejects.toThrow()
+  expect(battle(f)).toEqual(before)
+  await press(f, 'guard')
+  const results = observed(f, PLAYER, from)
+    .map(row => row.resultDescription)
+    .join(' ')
+  expect(results).toContain(`灼烧造成 ${hp - afterBurn} 点伤害，玩家生命 ${hp} → ${afterBurn}`)
+  expect(JSON.stringify(observed(f, ARU, from))).not.toMatch(/灼烧|守卫火球/u)
+  const chengInputs = f.inputs.filter(input => (input.context as Json).activity)
+  expect(chengInputs.length).toBeGreaterThan(0)
+  expect(JSON.stringify(chengInputs)).not.toMatch(/participantHeldItems|iron-sword/u)
+})
+
+it('restores remaining burn turns in a story branch and commits its killing tick with loot', async () => {
+  const f = await fixture(c => {
+    delete c.characters[CHENG]
+    for (const map of c.maps) map.scripted = []
+    c.combatStatuses = { burn: { name: '灼烧', turns: 3, damage: 3, element: 'fire' } }
+    Object.assign(
+      c.skills.find((skill: Json) => skill.id === 'fire'),
+      { element: 'fire', inflicts: 'burn', power: 10 },
+    )
+    c.enemies.golem.skills = []
+    c.enemies.golem.hp = 19
+  })
+  await f.move(RUIN1)
+  await press(f, 'skill', { skill: '火球术', target: '遗迹守卫' })
+  const initial = battle(f)
+  expect(initial.game.internal.conditions).toEqual([{ unitId: 'golem', statusId: 'burn', remaining: 2 }])
+  const node = await f.runtime.saveNode('灼烧中')
+  const forkDir = join(f.data, '..', 'burn-branch')
+  restoreStoryNode(f.data, node.id, forkDir, node.packHash)
+  const fork = await openRpgWorld(f.pack, forkDir)
+  try {
+    expect(battle(fork)).toEqual(initial)
+    for (const line of [f, fork]) {
+      await press(line, 'guard')
+      expect(battle(line).game.internal.conditions[0].remaining).toBe(1)
+      await press(line, 'guard')
+      const events = line.events()
+      const victory = events.findLast(e => e.eventType === 'activity.updated')!
+      expect(battle(line).game).toMatchObject({ phase: 'victory', internal: { conditions: [] } })
+      const drops = events.filter(e => e.eventType === 'entity.transferred' && data(e).entityId === 'entity:iron-key')
+      expect(drops.map(e => e.transactionId)).toEqual([victory.transactionId])
+      expect(data(victory).description).toContain('灼烧造成 3 点伤害')
+    }
+  } finally {
+    await fork.close()
+  }
+})
 /** Both came home in the action's commit, and Ah-Ru, who stayed there, sees only that they arrived. */
 function expectOnlyArrivals(f: RpgFixture, from: number) {
   const moved = f.events().filter(e => e.seq > from && e.eventType === 'character.moved')

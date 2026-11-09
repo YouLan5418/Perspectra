@@ -56,6 +56,19 @@ describe('parseRpgConfig', () => {
     }
   })
 
+  it('validates combat effects and rejects resource costs that cannot be settled', () => {
+    expect(messageFor(c => (c.skills[1].cost = { hp: 1 }))).toMatch(/^skills\[1\]\.cost\.hp：/u)
+    expect(messageFor(c => (c.enemies.golem.skills = ['fire']))).toMatch(/^enemies\.golem\.skills\[0\]：/u)
+    expect(messageFor(c => (c.skills[1].inflicts = 'missing'))).toMatch(/^skills\[1\]\.inflicts：.*missing/u)
+    expect(messageFor(c => (c.skills[1].element = 'ice'))).toMatch(/^skills\[1\]\.element：/u)
+    expect(messageFor(c => (c.equipment['entity:iron-sword'].resistances = { fire: 76 }))).toMatch(
+      /^equipment\.entity:iron-sword\.resistances\.fire：/u,
+    )
+    expect(
+      messageFor(c => (c.combatStatuses = { burn: { name: '灼烧', turns: 0, damage: 3, element: 'fire' } })),
+    ).toMatch(/^combatStatuses\.burn\.turns：/u)
+  })
+
   it('rejects a config whose generated statuses or operations exceed the host limits', () => {
     const message = messageFor(c => {
       c.stats = Array.from({ length: 32 }, (_, i) => ({ key: 's' + i, label: 'S' + i }))

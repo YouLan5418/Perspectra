@@ -55,6 +55,7 @@ import {
 } from '@harness-world/application'
 import {
   RulebookRegistry,
+  currentEntityState,
   currentLocation,
   type RulebookEvent,
   type RulebookResolver,
@@ -314,8 +315,25 @@ export class ActivityRuntime {
       const { activityId: _id, revision: _revision, ...parameters } = args
       if (!this.#rules.validArguments(operation, parameters)) throw new TypeError('游戏操作参数无效')
       const world = this.#worldView(context.manifest, context.events, actor, context.asOfWorldSeq)
+      // Trusted resolution needs present participants' actual custody, even when the actor missed a transfer.
+      const present = strings(world.characterIds)
+      const participantHeldItems = context.manifest.entities.flatMap(({ entityId }) => {
+        const holderId = currentEntityState(context.events, entityId)?.holderId
+        return holderId != null &&
+          state.participants.includes(holderId) &&
+          (holderId === actor || present.includes(holderId))
+          ? [{ entityId, holderId }]
+          : []
+      })
       const resolved = parseActivityOperationResult(
-        this.#mechanism.resolve(state, actor, operation, parameters, world, this.status?.truth(context.events) ?? null),
+        this.#mechanism.resolve(
+          state,
+          actor,
+          operation,
+          parameters,
+          { ...world, participantHeldItems },
+          this.status?.truth(context.events) ?? null,
+        ),
         this.#rules,
         state,
       )
@@ -652,6 +670,7 @@ export class ActivityRuntime {
             if (npcIds.some(id => !scene.observerIds.includes(brandId(id, 'CharacterId'))))
               throw new TypeError('需要与游戏参与者在同一场景')
             const participants = [this.playerId, ...npcIds]
+            const truth = this.status?.truth(events)
             state = startedActivity({
               id: 'activity:' + randomUUID(),
               participants,
@@ -661,6 +680,12 @@ export class ActivityRuntime {
                   npcIds,
                   world: this.#worldView(manifest, events, this.playerId, head.headSeq),
                   previous: current ? this.scoped(current, this.playerId) : null,
+                  truth: truth
+                    ? {
+                        public: truth.public,
+                        characters: Object.fromEntries(participants.map(id => [id, truth.characters[id] ?? {}])),
+                      }
+                    : null,
                 }),
                 participants,
               ),

@@ -13,6 +13,7 @@ function installMap(config) {
   const maxKey = key => 'rpg-' + key + '-max'
   const statLabel = key => (config.stats.find(stat => stat.key === key) || { label: key }).label
   const skillById = id => config.skills.find(skill => skill.id === id)
+  const statusById = id => config.combatStatuses[id]
   const enemies = config.enemies
   const enemyName = id => (enemies.find(enemy => enemy.id === id) || { name: id }).name
   const unitNames = party.map(nameOf).concat(enemies.map(enemy => enemy.name))
@@ -42,6 +43,7 @@ function installMap(config) {
     'status:rpg-use',
     'status:rpg-equip',
     'status:rpg-unequip',
+    'status:rpg-unlock',
     'status:rpg-rest',
     'status:rpg-join',
     'status:rpg-leave',
@@ -119,6 +121,12 @@ function installMap(config) {
       .filter(unit => unit.team === 'enemy')
       .map(unit => unit.name + '：生命 ' + unit.hp + '/' + unit.maxHp + (unit.hp <= 0 ? '（倒下）' : ''))
       .join('；')
+    pub['状态'] = (game.internal.conditions ?? [])
+      .map(({ unitId, statusId, remaining }) => {
+        const unit = pub.units.find(unit => unit.id === unitId)
+        return unit.name + '：' + statusById(statusId).name + '（剩余 ' + remaining + ' 回合）'
+      })
+      .join('；')
     pub.phaseLabel =
       {
         enter: config.title,
@@ -133,6 +141,8 @@ function installMap(config) {
     game.active = false
     game.phase = phase
     game.turn = null
+    game.internal.conditions = []
+    game.public['状态'] = ''
     game.public.phaseLabel = label
     return game
   }
@@ -150,23 +160,33 @@ function installMap(config) {
     // The first turn goes to a party member who is here: one who has left gets none.
     const here = game.internal.present || party
     const order = game.public.units
-      .filter(unit => unit.team === 'enemy' || unit.hp === null || unit.hp > 0)
+      .filter(unit => unit.hp > 0 && (unit.team === 'enemy' || here.includes(unit.id)))
       .slice()
       .sort((a, b) => b.speed - a.speed)
       .map(unit => unit.id)
     game.public.order = order
     game.public.cursor = order.findIndex(id => party.includes(id) && here.includes(id))
+    if (game.public.cursor === -1) return finish(game, 'left', '队伍无人能够战斗')
     game.phase = 'fighting'
     game.turn = order[game.public.cursor]
     game.round = 1
     return summarize(game)
   }
   const encounter = game => {
+    const here = game.internal.present
+    const standing = game.public.units.filter(unit => unit.team === 'party' && here.includes(unit.id) && unit.hp > 0)
+    if (!standing.length) {
+      game.public.lastResult = '队伍无人能够战斗。'
+      return finish(game, 'left', '队伍无人能够战斗')
+    }
     game.public.lastResult = words([
       game.public.lastResult,
       ...game.public.units.filter(u => u.team === 'enemy').map(u => enemyLine(u, 'encounter')),
     ])
-    return queue(game, 'encounter', cuesFor('encounter'), startFighting)
+    const openingCues = cuesFor('encounter').filter(
+      cue => !cue.skill || standing.some(unit => unit.id === cue.characterId),
+    )
+    return queue(game, 'encounter', openingCues, startFighting)
   }
   const afterEnter = game => {
     if (!fighting || game.public.cleared) return finish(game, 'done', config.title)
@@ -189,17 +209,18 @@ function installMap(config) {
   }
 
   // ---- 结算用的数值：每次结算都从状态真值读取队伍数值，只计入本人此刻拿在手里的装备 ----
-  const gear = (truth, world, id) => {
-    const bonus = { attack: 0, defense: 0 }
+  const gear = (truth, items, id) => {
+    const bonus = { attack: 0, defense: 0, fire: 0 }
     const own = (truth && truth.characters[id]) || {}
     const worn = own['rpg-equipment'] || {}
     for (const slot of Object.keys(worn)) {
       const entityId = worn[slot]
       const piece = config.equipment[entityId]
-      const held = world.items.current.some(item => item.entityId === entityId && item.holderId === id)
+      const held = items.some(item => item.entityId === entityId && item.holderId === id)
       if (piece && held) {
         bonus.attack += piece.attack
         bonus.defense += piece.defense
+        bonus.fire += piece.resistances?.fire ?? 0
       }
     }
     return bonus
@@ -211,7 +232,7 @@ function installMap(config) {
       unit.maxHp = own[maxKey('hp')] || 0
       for (const stat of config.stats) unit.stats[stat.key] = own[statKey(stat.key)] || 0
       const base = config.characters[unit.id]
-      const bonus = gear(truth, world, unit.id)
+      const bonus = gear(truth, world.items.current, unit.id)
       unit.attack = (base ? base.attack : 0) + bonus.attack
       unit.defense = (base ? base.defense : 0) + bonus.defense
     }
@@ -231,9 +252,9 @@ function installMap(config) {
     return null
   }
   // R4: a scripted skill that cannot be used now is not forced; the companion's model decides and the reason is shown.
-  const noteUnavailable = (game, cue, notes) => {
+  const noteUnavailable = (game, cue, notes, reason) => {
     if (!cue || !cue.skill || game.public.noted.includes(cue.index)) return
-    const reason = unavailable(cue, game)
+    reason ??= unavailable(cue, game)
     if (!reason) return
     game.public.noted.push(cue.index)
     notes.push('写死的技能不可用：' + reason + '（' + nameOf(cue.characterId) + '的' + skillOf(cue).name + '）。')
@@ -263,7 +284,7 @@ function installMap(config) {
       }
     },
 
-    initialize({ npcIds, world, previous }) {
+    initialize({ npcIds, world, previous, truth }) {
       const prior = previous ? previous.game.public : null
       const game = {
         active: true,
@@ -289,8 +310,9 @@ function installMap(config) {
         },
         private: Object.fromEntries([PLAYER].concat(npcIds).map(id => [id, {}])),
         // Who of the party was here at the last call that saw the world; hooks without a world read it.
-        internal: { present: party.filter(id => id === PLAYER || world.characterIds.includes(id)) },
+        internal: { present: party.filter(id => id === PLAYER || world.characterIds.includes(id)), conditions: [] },
       }
+      if (fighting && !game.public.cleared) sync(game, truth, world)
       // Lines scripted for entering play on the first arrival only.
       const enter = game.public.visit === 1 ? cuesFor('enter') : []
       return queue(game, 'enter', enter, afterEnter)
@@ -319,6 +341,7 @@ function installMap(config) {
     resolve(state, actorId, operation, parameters, world, truth) {
       const game = clone(state.game)
       const pub = game.public
+      game.internal.conditions ??= []
       const reject = rejectReason => ({ rejectReason })
       const present = party.filter(id => id === actorId || world.characterIds.includes(id))
       game.internal.present = present
@@ -345,6 +368,22 @@ function installMap(config) {
       }
 
       const units = pub.units
+      const effective = new Map(
+        units
+          .filter(unit => unit.team === 'party')
+          .map(unit => {
+            const bonus = gear(truth, world.participantHeldItems ?? world.items.current, unit.id)
+            const base = config.characters[unit.id]
+            return [
+              unit.id,
+              {
+                attack: base.attack + bonus.attack,
+                defense: base.defense + bonus.defense,
+                fire: Math.min(75, bonus.fire),
+              },
+            ]
+          }),
+      )
       const own = units.find(unit => unit.id === actorId)
       const cueNow =
         game.phase === 'encounter'
@@ -356,21 +395,58 @@ function installMap(config) {
       if (own.hp <= 0) return reject('你已失去战斗能力。')
       if (operation === 'flee' && (actorId !== PLAYER || game.phase !== 'fighting')) return reject('现在不能撤退。')
 
+      const mitigate = (victim, raw, element) => {
+        const resistance = element === 'fire' ? (effective.get(victim.id)?.fire ?? 0) : 0
+        return Math.max(1, Math.floor((raw * (100 - resistance)) / 100))
+      }
+      const hurt = (victim, damage, label) => {
+        const from = victim.hp
+        victim.hp = Math.max(0, from - damage)
+        descriptions.push(label + '，' + victim.name + '生命 ' + from + ' → ' + victim.hp + '。')
+        if (victim.hp > 0) return
+        game.internal.conditions = game.internal.conditions.filter(effect => effect.unitId !== victim.id)
+        if (victim.team === 'enemy') descriptions.push(enemyLine(victim, 'defeated'))
+      }
       const apply = (actor, used, targets) => {
         for (const key of Object.keys(used.cost)) actor.stats[key] -= used.cost[key]
         for (const victim of targets) {
-          const from = victim.hp
-          if (used.kind === 'heal') victim.hp = Math.min(victim.maxHp, victim.hp + used.power)
-          else {
-            const raw = Math.max(1, used.power + actor.attack - victim.defense)
-            victim.hp = Math.max(0, victim.hp - (victim.guarded ? Math.ceil(raw / 2) : raw))
-            victim.guarded = false
+          const label = actor.name + '使用' + used.name
+          if (used.kind === 'heal') {
+            const from = victim.hp
+            victim.hp = Math.min(victim.maxHp, from + used.power)
+            descriptions.push(label + '，' + victim.name + '生命 ' + from + ' → ' + victim.hp + '。')
+            continue
           }
-          descriptions.push(
-            actor.name + '使用' + used.name + '，' + victim.name + '生命 ' + from + ' → ' + victim.hp + '。',
-          )
-          if (victim.team === 'enemy' && victim.hp <= 0 && from > 0) descriptions.push(enemyLine(victim, 'defeated'))
+          const attack = effective.get(actor.id)?.attack ?? actor.attack
+          const defense = effective.get(victim.id)?.defense ?? victim.defense
+          const raw = Math.max(1, used.power + attack - defense)
+          const damage = mitigate(victim, raw, used.element)
+          hurt(victim, victim.guarded ? Math.ceil(damage / 2) : damage, label)
+          victim.guarded = false
+          if (damage < raw) descriptions.push(victim.name + '的火焰抗性降低了伤害。')
+          if (used.inflicts && victim.hp > 0) {
+            const status = statusById(used.inflicts)
+            const current = game.internal.conditions.find(
+              effect => effect.unitId === victim.id && effect.statusId === used.inflicts,
+            )
+            if (current) current.remaining = status.turns
+            else game.internal.conditions.push({ unitId: victim.id, statusId: used.inflicts, remaining: status.turns })
+            descriptions.push(victim.name + (current ? '的状态持续时间刷新：' : '获得状态：') + status.name + '。')
+          }
         }
+      }
+      const endTurn = unit => {
+        if (outcome()) return
+        for (const effect of game.internal.conditions.filter(effect => effect.unitId === unit.id)) {
+          const status = statusById(effect.statusId)
+          const damage = mitigate(unit, status.damage, status.element)
+          effect.remaining--
+          hurt(unit, damage, status.name + '造成 ' + damage + ' 点伤害')
+          if (damage < status.damage) descriptions.push(unit.name + '的火焰抗性降低了伤害。')
+          if (unit.hp <= 0) break
+          if (effect.remaining === 0) descriptions.push(unit.name + '的' + status.name + '结束。')
+        }
+        game.internal.conditions = game.internal.conditions.filter(effect => effect.remaining > 0)
       }
       // Only the party members here fight: one who is elsewhere gets no turn, is not targeted and does not count.
       const here = unit => unit.team === 'enemy' || present.includes(unit.id)
@@ -396,21 +472,20 @@ function installMap(config) {
           !pub.said.includes(cueNow.index) &&
           !pub.noted.includes(cueNow.index)
         // The author's skill for this moment cannot be used: nothing happens, the reason is shown, her model decides.
-        if (scripted && unavailable(cueNow, game)) {
-          noteUnavailable(game, cueNow, notes)
+        const heal = used.kind === 'heal'
+        const validTarget = unit => unit && here(unit) && unit.hp > 0 && heal === (unit.team === 'party')
+        const targets = used.scope === 'all' ? units.filter(validTarget) : [victim]
+        const missingCost = Object.keys(used.cost).find(key => own.stats[key] < used.cost[key])
+        const problem =
+          (scripted && unavailable(cueNow, game)) ||
+          (!validTarget(victim) && '这个技能不能对该目标使用。') ||
+          (missingCost && statLabel(missingCost) + '不足，什么都没有发生。') ||
+          (heal && targets.every(unit => unit.hp === unit.maxHp) && '目标生命已满，不消耗魔力。')
+        if (problem) {
+          if (!scripted) return reject(problem)
+          noteUnavailable(game, cueNow, notes, problem)
           return finalize()
         }
-        if (!victim || !here(victim) || victim.hp <= 0 || (used.kind === 'heal') !== (victim.team === 'party'))
-          return reject('这个技能不能对该目标使用。')
-        for (const key of Object.keys(used.cost)) {
-          if (own.stats[key] < used.cost[key]) return reject(statLabel(key) + '不足，什么都没有发生。')
-        }
-        const targets =
-          used.scope === 'all'
-            ? units.filter(unit => here(unit) && unit.hp > 0 && (used.kind === 'heal') === (unit.team === 'party'))
-            : [victim]
-        if (used.kind === 'heal' && targets.every(unit => unit.hp === unit.maxHp))
-          return reject('目标生命已满，不消耗魔力。')
         if (scripted) {
           pub.lastCue = cueNow.index
           pub.said.push(cueNow.index)
@@ -429,6 +504,7 @@ function installMap(config) {
         }
         return finalize()
       } else return reject('没有这个战斗操作。')
+      endTurn(own)
       if (pub.lastCue === null) noteUnavailable(game, cueNow, notes)
 
       if (game.phase === 'encounter' && !outcome()) {
@@ -465,12 +541,14 @@ function installMap(config) {
                 : standing.slice().sort((a, b) => a.hp - b.hp)[0]
             apply(next, used, used.scope === 'all' ? standing : [pick])
           }
+          endTurn(next)
           if (outcome()) return
         }
       }
       function settle() {
         const result = outcome()
         if (result === 'victory') {
+          game.internal.conditions = []
           pub.cleared = true
           descriptions.push('敌人全部倒下，战斗胜利。')
           if (config.drops.length) {
@@ -576,16 +654,15 @@ function installMap(config) {
       if (game.phase === 'aftermath' && cue.skill) return publish(cue.say)
       if (pub.said.includes(cue.index)) return null
       if (!cue.skill) return publish(cue.say)
-      // A skill the battle already found unusable is not forced. Before the first result the party's numbers are
-      // not in the activity yet; the resolve then records why the skill cannot be used and her model takes over.
-      if (pub.noted.includes(cue.index) || unavailable(cue, game)) return null
+      // The first attempt can record why the skill cannot be used. Once noted, her model takes over.
+      if (pub.noted.includes(cue.index)) return null
       const used = skillOf(cue)
-      const standing = pub.units.filter(unit => unit.hp === null || unit.hp > 0)
+      const team = used.kind === 'heal' ? 'party' : 'enemy'
+      const candidates = pub.units.filter(unit => unit.team === team)
+      const standing = candidates.filter(unit => unit.hp > 0)
       const target = cue.target
         ? enemyName(cue.target)
-        : used.kind === 'heal'
-          ? standing.filter(u => u.team === 'party').sort((a, b) => (a.hp || 0) - (b.hp || 0))[0].name
-          : standing.find(u => u.team === 'enemy').name
+        : ((used.kind === 'heal' ? standing.sort((a, b) => a.hp - b.hp)[0] : standing[0]) ?? candidates[0]).name
       return {
         decision: 'perform',
         actionType: 'interact',

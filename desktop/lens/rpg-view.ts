@@ -73,8 +73,31 @@ export function rpgLensItems(rpg: RpgJson, name: (id: string) => string): LensIt
         { key: 'scope', label: '目标', value: skill.scope === 'all' ? '全体' : '单体' },
         { key: 'power', label: '威力', value: skill.power },
         { key: 'cost', label: '消耗', value: amounts(skill.cost) },
+        ...(skill.element === 'fire' ? [{ key: 'element', label: '伤害元素', value: '火焰' }] : []),
+        ...(skill.inflicts
+          ? [
+              {
+                key: 'inflicts',
+                label: '附加状态',
+                value: String(rpg.combatStatuses?.[skill.inflicts]?.name ?? skill.inflicts),
+              },
+            ]
+          : []),
       ],
       source: at(`/skills/${index}`),
+      ...(skill.inflicts ? { links: ['rpg:combat-status/' + skill.inflicts] } : {}),
+    })
+  for (const [id, status] of Object.entries((rpg.combatStatuses ?? {}) as Record<string, Json>))
+    add({
+      id: 'rpg:combat-status/' + id,
+      section: 'rpg',
+      title: String(status.name),
+      fields: [
+        { key: 'turns', label: '持续回合', value: status.turns },
+        { key: 'damage', label: '每回合基础伤害', value: status.damage },
+        { key: 'element', label: '伤害元素', value: '火焰' },
+      ],
+      source: at(`/combatStatuses/${id}`),
     })
   for (const [id, row] of Object.entries((rpg.equipment ?? {}) as Record<string, Json>))
     add({
@@ -86,6 +109,9 @@ export function rpgLensItems(rpg: RpgJson, name: (id: string) => string): LensIt
         ...(['attack', 'defense', 'speed'] as const).flatMap(key =>
           row[key] === undefined ? [] : [{ key, label: STAT_LABEL[key], value: row[key] as number }],
         ),
+        ...(row.resistances?.fire === undefined
+          ? []
+          : [{ key: 'fireResistance', label: '火焰抗性', value: `${row.resistances.fire}%` }]),
       ],
       source: at(`/equipment/${id}`),
       links: ['item:' + id],
