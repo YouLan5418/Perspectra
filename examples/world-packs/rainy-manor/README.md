@@ -33,7 +33,7 @@ corepack pnpm@11.7.0 experience:web --memory-none --pack examples/world-packs/ra
 
 - `corepack pnpm@11.7.0 worldpack validate examples/world-packs/rainy-manor`：通过。
 - 三份推演（`node --import tsx desktop/lens/cli.ts simulate examples/world-packs/rainy-manor <名字>.json`）都是 `passed: true`，退出码 0：
-  - `scenario-game`：阿茹主持《雨夜古宅》，玩家撬门，点数只有玩家和阿茹知道，澄只知道有过检定并自己接了一句话；剧本的秘密谁也没看到；没参加的梅什么都不知道。
+  - `scenario-game`：阿茹主持《雨夜古宅》，玩家撬门，点数只有玩家和阿茹知道，澄只知道有过检定并自己接了一句话；剧本的秘密谁也没看到；没参加的梅看不到点数、宣布和剧本（她仍听得见 AI 参与者在局内说的话）。
   - `theme-game`：梅用题目“一场没人记得的生日会”即兴主持，把真相写进私密笔记；阿茹拿到聚光灯后自己提出行动。
   - `hidden-rolls`：对澄的检定点数只有澄和阿茹知道；阿茹的暗骰只有她自己知道。
 - 推演只证明规则和信息差，不证明体验。

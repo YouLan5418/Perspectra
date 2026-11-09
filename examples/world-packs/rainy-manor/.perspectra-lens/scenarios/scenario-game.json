@@ -1,5 +1,5 @@
 {
-  "title": "阿茹主持《雨夜古宅》：撬门的点数只有玩家和阿茹知道，澄只知道有过检定，没参加的梅什么都不知道（doesNotKnow 只查观察渠道，是冒烟检查；真正的可见范围测试在 tests/host/trpg-activity.test.ts）",
+  "title": "阿茹主持《雨夜古宅》：撬门的点数只有玩家和阿茹知道，澄只知道有过检定，没参加的梅看不到点数、宣布和剧本，但听得见 AI 参与者的局内发言（doesNotKnow 只查观察渠道，是冒烟检查；真正的可见范围测试在 tests/host/trpg-activity.test.ts）",
   "npcPlans": {
     "character:aru": [
       { "kind": "perform", "interact": "activity:respond", "arguments": { "accept": true } },
