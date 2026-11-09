@@ -3,13 +3,15 @@ import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { afterEach, expect, it, vi } from 'vitest'
 import type { ActivityState, WorldJsonObject } from '@harness-world/contracts'
+import { officialDiceProvider } from '@harness-world/official-dice'
+import type { DiceInstance, SeamProvider } from '@harness-world/plugin-sdk'
 import { WorldStore } from '@harness-world/store-sqlite'
-import type { WorldHostCore } from '../../desktop/host/world-runtime.ts'
+import { WorldHostRuntime, type WorldHostCore } from '../../desktop/host/world-runtime.ts'
 import { createRoleplayCore } from '../support/roleplay-runtime.ts'
 import { startFakeProvider, fakeModels } from '../support/fake-provider.ts'
 
 const roots: string[] = [],
-  runtimes: WorldHostCore[] = [],
+  runtimes: (WorldHostCore | WorldHostRuntime)[] = [],
   servers: Awaited<ReturnType<typeof startFakeProvider>>[] = []
 afterEach(async () => {
   vi.restoreAllMocks()
@@ -105,4 +107,29 @@ it('commits nothing when an expression is invalid', async () => {
   const started = bad.events()
   await expect(bad.guess()).rejects.toThrow()
   expect(bad.events()).toEqual(started)
+})
+
+it('refuses to regenerate a round once the dice plugin has changed', async () => {
+  const server = await startFakeProvider('openai', () => ({ tool: { decision: 'abstain' } }))
+  servers.push(server)
+  const identity = { faces: 'plain' }
+  const dice: SeamProvider<DiceInstance> = { ...officialDiceProvider, identity }
+  const runtime = await WorldHostRuntime.create({
+    dataDirectory: fresh(),
+    packPath: pack(rollInGuess),
+    models: fakeModels(server.endpoint),
+    plugins: { dice },
+    serialScheduling: true,
+  })
+  runtimes.push(runtime)
+  const started = await runtime.activityAction({
+    activityId: null,
+    revision: 0,
+    operation: 'start',
+    parameters: {},
+    requestId: 'start',
+  })
+  // The same recorded draws would land on other faces under another dice plugin.
+  identity.faces = 'weighted'
+  await expect(runtime.regenerate(started.tailRound!.id!, 'dice-changed')).rejects.toThrow('环境已改变')
 })

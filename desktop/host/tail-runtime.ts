@@ -263,6 +263,8 @@ export class TailRoundRuntime {
       activitiesProvider: provider(this.options.plugins?.activities),
       communicationProvider: provider(this.options.plugins?.communication),
       autonomyProvider: provider(this.options.plugins?.autonomy),
+      pacingProvider: provider(this.options.plugins?.pacing),
+      diceProvider: provider(this.options.plugins?.dice),
       characterLoopProvider: provider(this.options.plugins?.characterLoop),
       memoryProvider: provider(this.options.plugins?.memory),
       llmProvider: provider(this.options.plugins?.llm),
