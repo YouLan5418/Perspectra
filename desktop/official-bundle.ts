@@ -14,6 +14,7 @@ import { officialSchedulerProvider, officialAutonomyProvider } from '@harness-wo
 import { officialCharacterLoopProvider } from '@harness-world/official-character-loop'
 import { officialKnowledgeProvider } from '@harness-world/official-knowledge'
 import { officialRpgContent } from '@harness-world/official-rpg'
+import { officialTrpgContent } from '@harness-world/official-trpg'
 import type {
   ContentGenerator,
   DecisionInstance,
@@ -94,8 +95,8 @@ export interface HostSeams {
   readonly content?: readonly ContentGenerator[]
 }
 
-/** The official content generators; a pack opts into the RPG with rpg.json. */
-export { officialRpgContent }
+/** The official content generators; a pack opts into the RPG with rpg.json and into TRPG with trpg.json. */
+export { officialRpgContent, officialTrpgContent }
 
 /** Explicit entry composition. An omitted optional mechanism stays absent in this selection. */
 export interface WorldComposition {
@@ -137,6 +138,9 @@ export const officialWorldOrder = [
   'characterLoop',
 ] as const
 
+/** The official gameplay generators: rpg.json and trpg.json. */
+const officialContent: readonly ContentGenerator[] = [officialRpgContent, officialTrpgContent]
+
 /** Direct hosts and the plugin loader share the same default choices and decision ordering. */
 export function composeWorldSeams(plugins: Partial<HostSeams> = {}) {
   return {
@@ -153,7 +157,7 @@ export function composeWorldSeams(plugins: Partial<HostSeams> = {}) {
     memory: plugins.memory ?? officialMemoryNoneProvider,
     decisions: composeDecisions(plugins.decisions ?? [], plugins.decisionOrder),
     rules: plugins.rules ?? [],
-    content: plugins.content ?? [officialRpgContent],
+    content: plugins.content ?? officialContent,
   }
 }
 
@@ -169,13 +173,14 @@ export function installOfficialBundle(ctx: Context, memory?: () => SeamProvider<
   if (!ctx.scheduler.current) ctx.effect(() => ctx.scheduler.register(officialSchedulerProvider))
   if (!ctx.characterLoop.current) ctx.effect(() => ctx.characterLoop.register(officialCharacterLoopProvider))
   if (!ctx.memory.current && memory) ctx.effect(() => ctx.memory.register(memory()))
-  // A player generator that reads rpg.json replaces the official one, like any other seam a plugin took.
-  if (
-    !ctx.content.generators.some(
-      generator => generator.id === officialRpgContent.id || generator.configFile === officialRpgContent.configFile,
+  // A player generator with the same id or config file replaces the official one, like any other seam a plugin took.
+  for (const official of officialContent)
+    if (
+      !ctx.content.generators.some(
+        generator => generator.id === official.id || generator.configFile === official.configFile,
+      )
     )
-  )
-    ctx.effect(() => ctx.content.register(officialRpgContent))
+      ctx.effect(() => ctx.content.register(official))
   for (const provider of composeDecisions(ctx.decisions.providers)) {
     if (!ctx.decisions.providers.some(current => current.id === provider.id))
       ctx.effect(() => ctx.decisions.register(provider))

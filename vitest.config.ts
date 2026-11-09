@@ -18,6 +18,7 @@ export default defineConfig({
       '@harness-world/official-pacing': `${root}packages/official-pacing/src/index.ts`,
       '@harness-world/official-dice': `${root}packages/official-dice/src/index.ts`,
       '@harness-world/official-rpg': `${root}packages/official-rpg/src/index.ts`,
+      '@harness-world/official-trpg': `${root}packages/official-trpg/src/index.ts`,
       '@harness-world/official-knowledge': `${root}packages/official-knowledge/src/index.ts`,
       '@harness-world/official-communication': `${root}packages/official-communication/src/index.ts`,
       '@harness-world/official-activities': `${root}packages/official-activities/src/index.ts`,

@@ -25,3 +25,11 @@
 `official-dice` 导出 `check(roll, difficulty)`：`total >= difficulty` 为成功，`margin = total - difficulty`。它不掷骰、不读状态，玩法插件或活动生成器直接调用。
 
 替代：把检定做成 `ctx.dice` 的另一个方法或宿主步骤。检定规则简单且确定，不需要替换和记录。
+
+## 5. `trpg.json` 的骰子写法用 official-dice 语法的副本校验
+
+`official-trpg` 校验 `sheet.dice` 时，不导入 `official-dice` 的 `parseDice`，而是在 `config.ts` 里复制它的正则和范围检查（个数 1–20 或省略，面数 2–1000，修正 ±1000，不允许前导零和 `+0`/`-0`），导出为 `isDiceExpression`。`tests/host/trpg-dice-agreement.test.ts` 在两个包之外，把一组合法和非法写法同时交给两边，要求结论一致；改骰子语法的一方要同步另一方，否则这个测试失败。
+
+替代：计划里的宽松正则 `^(\d{0,2})d(\d{1,4})([+-]\d{1,4})?$`。它会放过 `d1`、`0d6`、`21d6`、`d20+0`、`d06` 这类 `parseDice` 拒绝的写法，配置通过校验却在开局后第一次掷骰时失败。也不让官方插件互相导入：官方包之间保持各自独立，组合只发生在 `official-bundle`。
+
+已知限制：玩家换掉 `ctx.dice`、新实现支持更多写法（例如爆骰）时，`trpg.json` 仍只接受官方语法。等真有这样的实现再考虑让校验询问当前骰子机制。

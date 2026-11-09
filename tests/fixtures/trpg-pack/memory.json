@@ -1,0 +1,9 @@
+{
+  "schemaVersion": "worldpack-memory/v2",
+  "characters": [
+    { "characterId": "character:player", "profile": "standard", "attentionTopics": [] },
+    { "characterId": "character:aru", "profile": "standard", "attentionTopics": [] },
+    { "characterId": "character:cheng", "profile": "standard", "attentionTopics": [] },
+    { "characterId": "character:mei", "profile": "standard", "attentionTopics": [] }
+  ]
+}

@@ -307,6 +307,12 @@ importers:
         specifier: workspace:*
         version: link:../plugin-sdk
 
+  packages/official-trpg:
+    dependencies:
+      '@harness-world/plugin-sdk':
+        specifier: workspace:*
+        version: link:../plugin-sdk
+
   packages/plugin-sdk:
     dependencies:
       '@deepseek-ai/cordis':

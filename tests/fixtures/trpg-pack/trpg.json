@@ -1,0 +1,36 @@
+{
+  "plugin": { "id": "official-trpg", "version": "1" },
+  "sheet": {
+    "stats": [
+      { "key": "hp", "label": "生命", "max": 10 },
+      { "key": "sanity", "label": "理智", "max": 10 }
+    ],
+    "skills": [
+      { "key": "agility", "label": "敏捷", "modifier": 0 },
+      { "key": "observe", "label": "观察", "modifier": 0 },
+      { "key": "persuade", "label": "交涉", "modifier": 0 }
+    ],
+    "dice": "d20"
+  },
+  "characters": {
+    "character:cheng": { "skills": { "agility": 2, "observe": 1 } },
+    "character:mei": { "stats": { "sanity": 8 }, "skills": { "observe": 3 } }
+  },
+  "hosts": ["character:aru", "character:mei"],
+  "scenarios": [
+    {
+      "id": "rainy-manor",
+      "title": "雨夜古宅",
+      "opening": "雨夜，你们的车坏在一座古宅门口。门廊的灯还亮着，大门虚掩。",
+      "truth": "管家多年前害死了老主人，把账本藏在书房暗格里。他会设法让客人在天亮前离开。",
+      "endings": ["找到账本，揭穿管家", "天亮前被管家劝走，什么都没发现"],
+      "content": [
+        { "kind": "place", "name": "门厅", "description": "挂着老主人的画像，地毯潮湿。", "public": true },
+        { "kind": "place", "name": "书房", "description": "门锁着，门缝里透出霉味。", "public": true },
+        { "kind": "npc", "name": "管家", "description": "彬彬有礼的老人，总在客人身后出现。", "location": "门厅", "public": true },
+        { "kind": "item", "name": "账本", "description": "记着老主人最后一笔交易。", "location": "书房", "public": false }
+      ]
+    }
+  ],
+  "themes": ["深夜的废弃医院", "一场没人记得的生日会"]
+}
