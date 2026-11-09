@@ -14,6 +14,7 @@ description: 为 Perspectra 创作与修改世界游玩包和原生模型预设�
 - 原创或修改世界包：按下文创建或编辑；读[源包与人物](references/world-pack.md)，有玩法需求再读[玩法扩展](references/gameplay.md)。
 - 酒馆角色卡分析／转换：读[酒馆卡迁移](references/tavern.md)。本 Skill 已收录旧 tavern-to-perspectra 的提取器、容量分析与迁移／验收方法，不依赖另装旧 Skill。只评估时不建包；明确转换时继续完成源包与所需规则。
 - RPG 玩法（战斗、队伍、副本地图）：读[RPG 玩法](references/rpg.md)，在包里写 `rpg.json`。
+- 跑团玩法（AI 主持人、可信掷骰、检定）：读[跑团玩法](references/trpg.md)，在包里写 `trpg.json`。
 - 预设创作／修改：读[原生预设](references/presets.md)，按包推荐或命名交换格式输出。仅做预设时不生成游戏包；同时迁移卡和创作预设时共用本次选定人物及风格。
 
 用户已经指定卡、作品、模型或限制时沿用。改进本 Skill 不代表允许批量转换本机卡片；本次制作 Skill 仅使用合成样本验证。

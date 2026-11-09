@@ -1,5 +1,5 @@
 {
-  "title": "梅用题目“一场没人记得的生日会”即兴主持：真相只写在她的私密笔记里，阿茹接过话头自己提出行动",
+  "title": "梅用题目“一场没人记得的生日会”即兴主持：真相只写在她的私密笔记里，阿茹接过话头自己提出行动（doesNotKnow 只查观察渠道，是冒烟检查；真正的可见范围测试在 tests/host/trpg-activity.test.ts）",
   "npcPlans": {
     "character:mei": [
       { "kind": "perform", "interact": "activity:respond", "arguments": { "accept": true } },

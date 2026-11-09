@@ -137,6 +137,12 @@ Interaction 定义和绑定提供玩法可选行为，规则负责重要状态�
 
 2026-11-08 内容接缝：宿主不再有 RPG 专用槽位。玩法插件通过 `ctx.content` 注册内容生成器（[SDK 类型](../../../packages/plugin-sdk/src/content.ts)），声明自己读的配置文件；官方 RPG 是其中之一（`officialRpgContent` 读 `rpg.json`），默认组合在没有玩家插件接管 `rpg.json` 时注册它。宿主对每个生成器做同样的事：读已登记的配置文件，核对顶层 `plugin` 的 id 和 version，生成状态模块、活动与规则层，检查与包内模块、活动及其他生成器的重名，并按生成器记摘要。根目录 JSON 资产写了 `plugin` 却没有生成器读它时，世界不打开。包透视推演、故事分享预检和 `worldpack validate` 都走同一读取。包透视里 RPG 条目的展示（rpg-view.ts）仍直接读 `rpg.json`，属于透视自己的 RPG 视图。
 
+## 跑团玩法（2026-11-09，分支 feat/rpg-plugin）
+
+例如作者在包里写一份 `trpg.json`：玩家请阿茹当主持人，选剧本《雨夜古宅》。阿茹自己决定接不接；接下后，玩家说“撬开书房的门”，阿茹要求一次敏捷检定，程序掷出的点数只发给玩家和阿茹，澄只知道有过检定，没参加的梅什么都不知道。
+
+官方玩法包 [official-trpg](../../../packages/official-trpg) 经 `ctx.content` 读取 `trpg.json`（需登记在 `assetFiles`），生成一个键为 `trpg` 的活动，复用上一节的内容接缝（版本核对、重名检查、存档摘要）。点数来自 `ctx.dice`（[official-dice](../../../packages/official-dice)）：活动脚本在 `resolve` 里调用宿主注入的 `rollDice`，取数记入活动目录每轮的随机记录，所以回看、分支、重新生成都重放同一点数。点数通过活动结果的 `privateNotes` 只作为指定参与者的观察提交。主持人的裁定质量靠模型，程序只保证点数可信、可见范围正确。作者说明见[跑团玩法](../guides/trpg.md)，验收包是 [rainy-manor](../../../examples/world-packs/rainy-manor/README.md)。源码已接通并有宿主自动测试，未做真实模型试玩或发行包验收。
+
 ## 创作入口与限制
 
 先看[字段手册](../guides/world-pack-authoring.md)、[试玩步骤](../guides/creator-playtest.md)和[自定义网页](../guides/web-ui.md)。`frontend/` 含 index.html 时须带 manifest.json，使用 iframe 公共玩家接口；只放 theme.css、portraits/、backgrounds/ 与 stage.json 时沿用官方舞台，不需要 manifest。未提供时使用官方默认模板。这些前端资源不改变世界包编译身份；新实验使用独立数据目录。

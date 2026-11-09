@@ -1,5 +1,5 @@
 {
-  "title": "检定点数只给被检定的人和主持人，暗骰只有主持人自己知道",
+  "title": "检定点数只给被检定的人和主持人，暗骰只有主持人自己知道（doesNotKnow 只查观察渠道，是冒烟检查；真正的可见范围测试在 tests/host/trpg-activity.test.ts）",
   "npcPlans": {
     "character:aru": [
       { "kind": "perform", "interact": "activity:respond", "arguments": { "accept": true } },
