@@ -460,6 +460,36 @@ describe('the TRPG activity', () => {
     expect([asked(f, ARU), asked(f, CHENG), asked(f, MEI)]).toEqual([1, 1, 0])
   })
 
+  it('a host word to one player is not announced to the table', async () => {
+    const f = await playing()
+    f.plans[ARU] = [
+      () => ({
+        decision: 'publish',
+        addresseeIds: [CHENG],
+        segments: [{ type: 'speech', text: '悄悄告诉你，门后有人。' }],
+      }),
+    ]
+    f.inputs.length = 0
+    await f.act('propose', { text: '我推开书房的门。' })
+    const game = f.state()!.game
+    expect(game.public.pending.map((p: Json) => p.text)).toEqual(['我推开书房的门。'])
+    expect(String(game.public.lastResult)).not.toContain('门后有人')
+    expect(game.internal).toMatchObject({ spotlight: null, cursor: 0 })
+    expect(f.observations(PLAYER)).not.toContain('门后有人')
+    expect(f.observations(CHENG)).toContain('门后有人')
+  })
+
+  it('a host line addressed to every other participant still counts as announcing', async () => {
+    const f = await playing()
+    const others = f.state()!.participants.filter((id: string) => id !== ARU)
+    f.plans[ARU] = [
+      () => ({ decision: 'publish', addresseeIds: others, segments: [{ type: 'speech', text: '门开了。' }] }),
+    ]
+    f.inputs.length = 0
+    await f.act('propose', { text: '我推开书房的门。' })
+    expect(f.state()!.game.public).toMatchObject({ pending: [], lastResult: '门开了。' })
+  })
+
   it('an announcement and a line in the same host turn handle only one pending action', async () => {
     const f = await playing()
     await f.act('propose', { text: '我推开书房的门。' })

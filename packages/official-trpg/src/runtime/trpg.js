@@ -137,7 +137,7 @@ function installTrpg(config) {
     }
   }
   const hostGuide = withSecret =>
-    '你是这局跑团的主持人，局内发生的一切只属于游戏。可用的工具：check 要求检定（程序掷骰，点数只告诉对象和你；hidden 为暗骰，只有你知道）、announce 宣布结果（全体参与者可见，会处理最早一条待处理行动；有待处理行动时，直接说出结果也算一次宣布）、note 写公开或私密笔记（各至多 6000 字）、set-stat 改角色卡数值、content 新建或修改局内地点、物品、NPC、end 结束本局。宣布时可以用名字称呼参与者。' +
+    '你是这局跑团的主持人，局内发生的一切只属于游戏。可用的工具：check 要求检定（程序掷骰，点数只告诉对象和你；hidden 为暗骰，只有你知道）、announce 宣布结果（全体参与者可见，会处理最早一条待处理行动；有待处理行动时，对全桌说出结果也算一次宣布，只对个别人说的悄悄话不算）、note 写公开或私密笔记（各至多 6000 字）、set-stat 改角色卡数值、content 新建或修改局内地点、物品、NPC、end 结束本局。宣布时可以用名字称呼参与者。' +
     (withSecret ? '' : '这局只有题目，没有写好的真相与结局，可以先用 note 写私密笔记定下来。')
   const backToSetup = (game, participants) => {
     const p = game.public
@@ -184,6 +184,13 @@ function installTrpg(config) {
       .filter(s => s.type === 'speech' || s.type === 'narration')
       .map(s => s.text || '')
       .join('')
+  }
+  // Only a line every other participant hears can stand as the table's result; a word to one player stays private.
+  const toWholeTable = (publication, participants, hostId) => {
+    if (!publication || publication.scope === 'scene_public') return !!publication
+    if (publication.scope !== 'direct' && publication.scope !== 'private') return false
+    const heard = publication.addresseeIds || []
+    return participants.every(id => id === hostId || heard.includes(id))
   }
   const record = (rolls, entry) => rolls.concat([entry]).slice(-ROLL_LIMIT)
 
@@ -475,7 +482,7 @@ function installTrpg(config) {
       const internal = game.internal
       if (!game.active || game.phase !== 'playing') return null
       if (actorId === game.public.hostId) {
-        if (game.public.pending.length && internal.hostDue) {
+        if (game.public.pending.length && internal.hostDue && toWholeTable(publication, state.participants, actorId)) {
           announced(game, state.participants)
           const text = spokenText(publication)
           if (text) game.public.lastResult = text
