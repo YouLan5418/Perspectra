@@ -1,7 +1,6 @@
 import { build } from 'esbuild'
 import { cp, mkdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import { inlineAdjacentScripts } from './inline-adjacent-scripts.mjs'
 
 /** Bundle the same creator entry used in source mode, with no repository imports at runtime. */
 export async function buildWorldPackCli(output) {
@@ -15,7 +14,6 @@ export async function buildWorldPackCli(output) {
     format: 'esm',
     legalComments: 'eof',
     metafile: true,
-    plugins: [inlineAdjacentScripts],
     banner: {
       js: "import {createRequire as __createRequire} from 'node:module'; const require=__createRequire(import.meta.url);",
     },

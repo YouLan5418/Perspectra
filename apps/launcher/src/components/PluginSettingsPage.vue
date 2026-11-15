@@ -63,13 +63,15 @@ function toggle(key: string) {
   if (!expanded.delete(key)) expanded.add(key)
 }
 function selected(row: ModuleRow) {
-  return row.providers.find(provider => provider.effective)?.pluginId ?? ''
+  return row.providers.find(provider => provider.enabled)?.pluginId ?? ''
 }
 function choose(row: ModuleRow, value: string) {
   pickProvider(store.preferencesDraft.hostPlugins, row, value || null)
 }
 function moduleBadge(row: ModuleRow) {
   if (row.conflict) return { text: '有冲突', tone: 'warn' }
+  if (row.providers.some(provider => provider.enabled && !provider.nativeAllowed))
+    return { text: '有未允许项', tone: 'warn' }
   return row.providers.some(provider => provider.effective)
     ? { text: '插件提供', tone: 'on' }
     : { text: row.single ? '官方' : '未使用', tone: 'off' }
@@ -77,12 +79,13 @@ function moduleBadge(row: ModuleRow) {
 function pluginBadge(plugin: HostPluginSettings) {
   const info = infoOf(plugin)
   if (info && 'error' in info) return { text: '清单有误', tone: 'warn' }
+  if (plugin.nativeAllowed !== true) return { text: '未允许执行', tone: 'warn' }
   if (plugin.enabled && store.skippedPlugins.some(item => item.id === plugin.id))
     return { text: '上次已跳过', tone: 'warn' }
-  return plugin.enabled ? { text: '启动时加载', tone: 'on' } : { text: '未启用', tone: 'off' }
+  return plugin.enabled ? { text: '启动时加载', tone: 'on' } : { text: '已允许，未加载', tone: 'off' }
 }
 function addPlugin() {
-  const plugin = { id: `plugin-${crypto.randomUUID()}`, path: '', enabled: false }
+  const plugin = { id: `plugin-${crypto.randomUUID()}`, path: '', nativeAllowed: false, enabled: false }
   store.preferencesDraft.hostPlugins.push(plugin)
   const added = store.preferencesDraft.hostPlugins.at(-1)!
   query.value = ''
@@ -99,7 +102,7 @@ function remove(index: number) {
     <header class="plugin-page-head">
       <h3>插件</h3>
       <p class="muted">
-        插件在下次启动游戏时加载。只添加你信任的本地插件，它们和游戏拥有相同的本机权限。密钥类配置保存在系统凭据管理器。
+        插件在下次启动游戏时加载。允许在本机执行与启动时加载分别设置；只添加你信任的本地插件，它们和游戏拥有相同的本机权限。密钥类配置保存在系统凭据管理器。
       </p>
     </header>
 
@@ -119,7 +122,7 @@ function remove(index: number) {
         <span>模块</span>
       </button>
       <p class="muted plugin-group-note">
-        按清单预计下次启动使用的实现；实际能否加载会在启动时检查。官方实现可以被插件替换。
+        按清单预计下次启动使用的实现；未允许在本机执行的插件不会生效，实际能否加载会在启动时检查。官方实现可以被插件替换。
       </p>
       <div v-show="open.modules" class="plugin-grid">
         <article v-for="row in visibleRows" :key="row.seam" class="plugin-card">
@@ -157,8 +160,14 @@ function remove(index: number) {
                 @change="choose(row, ($event.target as HTMLSelectElement).value)"
               >
                 <option value="">官方默认</option>
-                <option v-for="provider in row.providers" :key="provider.pluginId" :value="provider.pluginId">
-                  {{ provider.name }}
+                <option
+                  v-for="provider in row.providers"
+                  :key="provider.pluginId"
+                  :value="provider.pluginId"
+                  :disabled="!provider.nativeAllowed"
+                >
+                  {{ provider.name
+                  }}{{ !provider.nativeAllowed ? '（未允许在本机执行）' : !provider.enabled ? '（未启用）' : '' }}
                 </option>
               </select>
             </div>
@@ -166,7 +175,13 @@ function remove(index: number) {
               <li v-for="provider in row.providers" :key="provider.pluginId">
                 {{ provider.name
                 }}<span class="muted">{{
-                  !provider.enabled ? '（未启用）' : provider.effective ? '' : '（预计跳过）'
+                  !provider.nativeAllowed
+                    ? '（未允许在本机执行）'
+                    : !provider.enabled
+                      ? '（未启用）'
+                      : provider.effective
+                        ? ''
+                        : '（预计跳过）'
                 }}</span>
               </li>
             </ul>

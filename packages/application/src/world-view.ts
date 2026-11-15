@@ -1,5 +1,13 @@
 import { brandId, type StatusTruth, type WorldAddress, type WorldJsonObject } from '@harness-world/contracts'
-import { currentLocation, type CompiledWorldManifest, type RulebookEvent } from '@harness-world/kernel'
+import {
+  currentLocation,
+  currentEntityState,
+  currentCharacterLifecycle,
+  type CompiledWorldManifest,
+  type RulebookEvent,
+} from '@harness-world/kernel'
+import { activityProgress } from './activity-state.ts'
+import { itemIsReachable } from './item-effects.ts'
 import { characterVisibleItems } from './character-visible-items.ts'
 import { SceneDecisionService } from './scene-decision.ts'
 import { WorldStore, CharacterRuntimeAvailabilityService } from '@harness-world/store-sqlite'
@@ -7,6 +15,23 @@ import { WorldStore, CharacterRuntimeAvailabilityService } from '@harness-world/
 /** Anything that can fold status truth from a prefix. */
 export interface StatusTruthReader {
   truth(events: readonly RulebookEvent[]): StatusTruth
+}
+
+/** Status policy sees only the actor's own or grounded reachable items, never another holder's inventory. */
+export function statusPlaceView(
+  events: readonly RulebookEvent[],
+  actorId: string,
+  entityIds: readonly string[],
+): WorldJsonObject {
+  return {
+    locationId: currentLocation(events, actorId) ?? null,
+    items: entityIds.flatMap(id => {
+      const item = currentEntityState(events, id)
+      return item !== undefined && itemIsReachable(events, actorId, id, [])
+        ? [{ entityId: id, kind: item.kind, holderId: item.holderId, locationId: item.locationId }]
+        : []
+    }),
+  }
 }
 
 /** Short-lived scene readers for one authorized projection; never held across asynchronous work. */
@@ -39,6 +64,40 @@ export function actorWorldView(
     arrivedAtSeq: arrivedAtSeq(events, actorId),
     characterIds: [...scene.observerIds],
     items: characterVisibleItems(manifest, events, actor, scene.observerIds),
+  }
+}
+
+/** Core physical input for trusted gameplay computation. Contains no cognition or private status values. */
+export function gameplayWorldView(
+  worldPath: string,
+  address: WorldAddress,
+  manifest: CompiledWorldManifest,
+  events: readonly RulebookEvent[],
+  actorId: string,
+): WorldJsonObject {
+  const head = events.reduce((max, event) => Math.max(max, Number((event as { seq?: number }).seq ?? 0)), 0)
+  const world = actorWorldView(worldPath, address, manifest, events, actorId, head)
+  const state = [...activityProgress(events).values()].find(
+    value => value.game.active && value.participants.includes(actorId),
+  )
+  const present = world.characterIds as string[]
+  return {
+    ...world,
+    characters: Object.fromEntries(
+      manifest.characters.map(row => [
+        row.characterId,
+        {
+          locationId: currentLocation(events, row.characterId) ?? null,
+          lifecycle: currentCharacterLifecycle(events, row.characterId) ?? 'active',
+        },
+      ]),
+    ),
+    participantHeldItems: manifest.entities.flatMap(({ entityId }) => {
+      const holderId = currentEntityState(events, entityId)?.holderId
+      return holderId && state?.participants.includes(holderId) && (holderId === actorId || present.includes(holderId))
+        ? [{ entityId, holderId }]
+        : []
+    }),
   }
 }
 

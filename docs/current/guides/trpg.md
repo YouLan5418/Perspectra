@@ -22,7 +22,7 @@
 ## 2. 它怎么接入
 
 - 在 `worldpack.source.json` 的 `assetFiles` 里登记 `trpg.json`。没有登记的世界里没有跑团。
-- 宿主打开世界时读 `trpg.json`，生成一个活动（键 `trpg`），不写回包目录。代码入口：[配置解析](../../../packages/official-trpg/src/config.ts)、[内容生成](../../../packages/official-trpg/src/content.ts)、[活动脚本](../../../packages/official-trpg/src/runtime/trpg.js)；取舍见[决策记录](../../superpowers/specs/2026-11-08-trpg-decisions.md)，设计见[跑团活动设计](../../superpowers/specs/2026-11-08-trpg-activity-design.md)。
+- 宿主打开世界时读 `trpg.json`，生成一个活动（键 `trpg`），不写回包目录。代码入口：[配置解析](../../../packages/official-trpg/src/config.ts)、[内容生成](../../../packages/official-trpg/src/content.ts)、[活动脚本](../../../packages/official-trpg/src/activity.ts)；取舍见[决策记录](../../superpowers/specs/2026-11-08-trpg-decisions.md)，设计见[跑团活动设计](../../superpowers/specs/2026-11-08-trpg-activity-design.md)。
 - 包里不能再有叫 `trpg` 的活动，重名会拒绝。包里必须有玩家角色。
 - 程序没有跑团机制或版本不同，包在世界创建前就失败（和 `rpg.json` 一样的提示）。没有 `trpg.json` 的包行为不变。
 - 点数来自官方骰子机制 `official-dice`，活动脚本在 `resolve` 里用宿主注入的 `rollDice` 取数。需要自己写别的活动用骰子时，见[活动与状态](activity-and-variables.md)。

@@ -6,7 +6,7 @@ import {
   currentLocation,
   currentSceneStates,
 } from '@harness-world/kernel'
-import type { MemoryInstance, SchedulerResult } from '@harness-world/plugin-sdk'
+import type { MemoryInstance, SchedulerResult, ExecutionCycleResult } from '@harness-world/plugin-sdk'
 import type { RequestInspector } from '@harness-world/provider-chat'
 import { CharacterViewBuilder, WorldStore } from '@harness-world/store-sqlite'
 import { resolve } from 'node:path'
@@ -34,6 +34,7 @@ export interface CreatorQueryHost {
   readonly packHash: string
   readonly storyParentNodeId: string | null
   readonly activationCycle: SchedulerResult | undefined
+  readonly executionResult?: ExecutionCycleResult | undefined
   readonly inspector: RequestInspector
   readonly records: CreatorRecords
   statusTruth(events: readonly RulebookEvent[]): StatusTruth | undefined
@@ -96,7 +97,9 @@ export function creatorInspectionSnapshot(
         processing: {
           transport: host.inspector.status(id),
           lastActivation:
-            host.activationCycle?.activations.findLast(activation => activation.characterId === id)?.result ?? null,
+            host.executionResult?.activations.findLast(activation => activation.characterId === id) ??
+            host.activationCycle?.activations.findLast(activation => activation.characterId === id)?.result ??
+            null,
         },
       }
     })

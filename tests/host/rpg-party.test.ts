@@ -167,7 +167,7 @@ describe('RPG locked exits and party', () => {
     expect(partyList(f.events())).toEqual([CHENG])
     expect(partyMembers(f.events(), PLAYER)).toEqual([CHENG])
     const joined = f.events().findLast(e => e.eventType === 'status.updated')!
-    expect(data(joined).source).toMatchObject({ operation: 'rpg-join', actorId: CHENG })
+    expect(data(joined).source).toMatchObject({ operation: 'status:rpg-join', actorId: CHENG })
     // Once in, she is offered leaving too.
     expect(offered(f, CHENG)).toContain('status:rpg-leave')
   })

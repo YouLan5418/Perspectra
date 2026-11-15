@@ -1,3 +1,4 @@
+import { PACK_CONFIG_BYTE_LIMIT } from '@harness-world/world-pack'
 import { createHash } from 'node:crypto'
 import { lstatSync, readFileSync, realpathSync } from 'node:fs'
 import { relative, resolve } from 'node:path'
@@ -21,9 +22,12 @@ const object = (value: unknown): WorldJsonObject => {
   return value as WorldJsonObject
 }
 const name = (value: unknown) => typeof value === 'string' && /^[a-z][a-z0-9-]{0,40}$/u.test(value)
+type ModuleImplementation =
+  | { readonly source: string }
+  | { readonly module: import('@harness-world/plugin-sdk').StatusModuleHooks }
 interface Module {
   id: string
-  source: string
+  implementation: ModuleImplementation
   characters: string[]
   requirements: CapabilityRequirement[]
   definition: WorldJsonObject
@@ -52,16 +56,22 @@ export class PackModules {
   private awaitingCommit = false
   private catalog: CapabilityCatalog | undefined
 
-  /** The pack's plugins.json modules, then `generated` ones whose source the pack does not carry as a file. */
+  /** 包内 plugins.json 模块，加上玩法插件直接注册的原生状态模块（无落盘脚本）。 */
   static load(
     packPath: string,
     pack: CompiledWorldPackV5,
     catalog?: CapabilityCatalog,
-    generated: readonly { declaration: object; source: string; generator: string }[] = [],
+    generated: readonly (import('@harness-world/plugin-sdk').GeneratedStatusModule & {
+      readonly generator: string
+    })[] = [],
   ): PackModules | undefined {
-    const declared = pack.assets.some(asset => asset.path === 'plugins.json')
+    const declared = !!pack.plugins?.['pack-scripts'] && pack.assets.some(asset => asset.path === 'plugins.json')
     if (!declared && !generated.length) return undefined
-    const items: { value: unknown; source?: string; generator?: string }[] = []
+    const items: {
+      value: unknown
+      native?: import('@harness-world/plugin-sdk').StatusModuleHooks
+      generator?: string
+    }[] = []
     if (declared) {
       const declaration = object(JSON.parse(lockedPackAsset(packPath, pack, 'plugins.json')))
       if (
@@ -72,20 +82,33 @@ export class PackModules {
         throw new TypeError('Expected at most 16 pack modules')
       items.push(...declaration.modules.map(value => ({ value })))
     }
-    for (const module of generated)
-      items.push({ value: module.declaration, source: module.source, generator: module.generator })
+    for (const entry of generated) {
+      items.push({
+        value: {
+          id: entry.declaration.id,
+          characters: [...entry.declaration.characters],
+          capabilities: [...(entry.declaration.capabilities ?? [])],
+        },
+        native: entry.module,
+        generator: entry.generator,
+      })
+    }
     const result = new PackModules(),
       ids = new Set<string>(),
       requirements = new Map<string, CapabilityRequirement>()
     result.catalog = catalog
-    for (const { value, source, generator } of items) {
+    for (const { value, native, generator } of items) {
       const item = object(value)
+      const validKeys =
+        native !== undefined
+          ? Object.keys(item).sort().join() === 'capabilities,characters,id'
+          : Object.keys(item).sort().join() === 'capabilities,characters,entry,id' &&
+            typeof item.entry === 'string' &&
+            item.entry.startsWith('plugins/') &&
+            item.entry.endsWith('.js')
       if (
-        Object.keys(item).sort().join() !== 'capabilities,characters,entry,id' ||
+        !validKeys ||
         !name(item.id) ||
-        typeof item.entry !== 'string' ||
-        !item.entry.startsWith('plugins/') ||
-        !item.entry.endsWith('.js') ||
         !Array.isArray(item.characters) ||
         item.characters.some(
           id => typeof id !== 'string' || !pack.content.characters.some(character => character.characterId === id),
@@ -103,7 +126,8 @@ export class PackModules {
       ids.add(String(item.id))
       const module: Module = {
         id: String(item.id),
-        source: source ?? lockedPackAsset(packPath, pack, item.entry),
+        implementation:
+          native !== undefined ? { module: native } : { source: lockedPackAsset(packPath, pack, String(item.entry)) },
         characters: item.characters as string[],
         requirements: [],
         definition: {},
@@ -152,21 +176,31 @@ export class PackModules {
     return result
   }
 
-  /** Locked module texts plus resolved availability; no script is executed by this adapter. */
+  /** 已锁定的脚本模块或原生状态模块及其外部能力可用性。 */
   get sources(): readonly import('@harness-world/plugin-sdk').StatusModuleSource[] {
-    return this.modules.map(module => ({
-      id: module.id,
-      source: module.source,
-      characters: [...module.characters],
-      unavailableCapabilities: module.requirements
+    return this.modules.map(module => {
+      const unavailableCapabilities = module.requirements
         .filter(
           requirement =>
             !this.catalog
               ?.list()
               .some(provider => provider.id === requirement.id && provider.version === requirement.version),
         )
-        .map(requirement => requirement.id),
-    }))
+        .map(requirement => requirement.id)
+      return 'module' in module.implementation
+        ? {
+            id: module.id,
+            module: module.implementation.module,
+            characters: [...module.characters],
+            unavailableCapabilities,
+          }
+        : {
+            id: module.id,
+            source: module.implementation.source,
+            characters: [...module.characters],
+            unavailableCapabilities,
+          }
+    })
   }
   describe(status: StatusRuntime): void {
     for (const module of this.modules) {
@@ -314,7 +348,7 @@ export function lockedPackAsset(packPath: string, pack: CompiledWorldPackV5, ent
     throw new TypeError('Pack plugin asset must be inside the pack')
   const bytes = readFileSync(file)
   if (
-    bytes.length > 65536 ||
+    bytes.length > PACK_CONFIG_BYTE_LIMIT ||
     bytes.length !== lock.size ||
     'sha256:' + createHash('sha256').update(bytes).digest('hex') !== lock.contentHash
   )

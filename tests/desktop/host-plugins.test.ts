@@ -1,7 +1,7 @@
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 import { once } from 'node:events'
 import { createServer } from 'node:http'
 import type { AddressInfo } from 'node:net'
@@ -9,12 +9,17 @@ import { Context } from '@deepseek-ai/cordis'
 import { afterEach, expect, it, vi } from 'vitest'
 import {
   FrontendServices,
+  HostPluginLoadError,
   PlayerFeed,
   loadHostPlugins,
   type HostPlugins,
   type PlayerFeedEvent,
 } from '../../desktop/host-plugins.ts'
-import { hostPluginSettings } from '../../desktop/host-plugin-settings.ts'
+import {
+  hostPluginNativeAllowed,
+  hostPluginSettings,
+  shouldLoadHostPlugin,
+} from '../../desktop/host-plugin-settings.ts'
 import { HOST_API_VERSION, hostApiCompatible } from '@harness-world/plugin-sdk'
 import { moduleRows } from '../../apps/launcher/src/stores/modules.ts'
 
@@ -24,7 +29,16 @@ afterEach(async () => {
   vi.unstubAllEnvs()
   for (const session of sessions.splice(0)) await session.close()
   for (const root of roots.splice(0)) await rm(root, { recursive: true, force: true })
+  vi.restoreAllMocks()
 })
+function captureConsole(): unknown[][] {
+  const calls: unknown[][] = []
+  for (const method of ['debug', 'info', 'log', 'warn', 'error'] as const)
+    vi.spyOn(console, method).mockImplementation((...args: unknown[]) => {
+      calls.push([method, ...args])
+    })
+  return calls
+}
 
 it('runs the optional HTTP speech plugin against a local service without persisting provider credentials', async () => {
   const received: unknown[] = [],
@@ -46,6 +60,7 @@ it('runs the optional HTTP speech plugin against a local service without persist
         {
           id: 'http-tts',
           enabled: true,
+          nativeAllowed: true,
           path: fileURLToPath(new URL('../../examples/host-plugins/http-speech.mjs', import.meta.url)),
           config: { endpoint: `http://127.0.0.1:${(server.address() as AddressInfo).port}/speech` },
         },
@@ -71,10 +86,19 @@ async function moduleFile(source: string) {
   await writeFile(path, source.includes('hostApi') ? source : `export const hostApi = '2.0';\n${source}`)
   return { root, path }
 }
+async function moduleManifest(
+  file: { root: string; path: string },
+  services: ('frontendServices' | 'playerFeed' | 'capabilities')[],
+) {
+  await writeFile(
+    file.path.replace(/\.mjs$/u, '.plugin.json'),
+    JSON.stringify({ name: '测试外围插件', version: '1.0.0', services }),
+  )
+}
 const paragraph = { seq: 7, segmentIndex: 0, text: '你好。', type: 'speech' as const }
 const audio = { contentType: 'audio/wav' as const, bytes: new Uint8Array([82, 73, 70, 70]) }
 
-it('does not even import disabled modules and loads an enabled Cordis speech service', async () => {
+it('does not import disabled modules and loads an allowed, enabled Cordis speech service', async () => {
   const disabled = await moduleFile(`throw new Error('disabled module executed')`)
   const file = await moduleFile(`export default function(ctx) {
     if ('worldRuntimeRegistry' in ctx || 'worldKernel' in ctx) throw new Error('unexpected world services');
@@ -82,10 +106,10 @@ it('does not even import disabled modules and loads an enabled Cordis speech ser
       contentType: 'audio/wav', bytes: new TextEncoder().encode(input.text)
     })));
   }`)
-  const empty = await loadHostPlugins([{ id: 'disabled', path: disabled.path, enabled: false }])
+  const empty = await loadHostPlugins([{ id: 'disabled', path: disabled.path, nativeAllowed: true, enabled: false }])
   sessions.push(empty)
   expect(empty.services.synthesizeSpeech).toBeUndefined()
-  const session = await loadHostPlugins([{ id: 'tts', path: file.path, enabled: true }])
+  const session = await loadHostPlugins([{ id: 'tts', path: file.path, nativeAllowed: true, enabled: true }])
   sessions.push(session)
   const result = await session.services.synthesizeSpeech!(paragraph, new AbortController().signal)
   expect(new TextDecoder().decode(result.bytes)).toBe(paragraph.text)
@@ -93,8 +117,135 @@ it('does not even import disabled modules and loads an enabled Cordis speech ser
   expect(session.services.synthesizeSpeech).toBeUndefined()
 })
 
+it('fails closed before an unallowed scheduler runs or a default is assembled', async () => {
+  const scheduler = await moduleFile(`import { writeFileSync } from 'node:fs'
+    writeFileSync(new URL('./unallowed-scheduler-imported', import.meta.url), 'yes')
+    export const hostApi = '2.0'
+    export default function (ctx) {
+      ctx.effect(() => ctx.scheduler.register({ id: 'unallowed', version: '1.0.0', open: async () => ({
+        run: async () => ({ calls: 0, wave: 0, terminalReason: 'quiescent', activations: [] }),
+      }) }))
+    }`)
+  await writeFile(
+    scheduler.path.replace(/\.mjs$/u, '.plugin.json'),
+    JSON.stringify({ name: '未允许的调度器', version: '1.0.0', services: ['scheduler'] }),
+  )
+  const defaultMemory = vi.fn()
+  const request = loadHostPlugins(
+    [{ id: 'unallowed-scheduler', path: scheduler.path, enabled: true }],
+    {},
+    { memory: defaultMemory },
+  )
+  await expect(request).rejects.toMatchObject({
+    name: 'HostPluginLoadError',
+    pluginId: 'unallowed-scheduler',
+    reason: 'permission',
+  })
+  await expect(request).rejects.toThrow('插件 unallowed-scheduler 尚未允许在本机执行')
+  await expect(readFile(join(scheduler.root, 'unallowed-scheduler-imported'), 'utf8')).rejects.toMatchObject({
+    code: 'ENOENT',
+  })
+  expect(defaultMemory).not.toHaveBeenCalled()
+})
+
+it('cleans earlier factories and fails closed when an explicit provider cannot import', async () => {
+  const consoleCalls = captureConsole(),
+    marker = 'FAKE_SECRET_IMPORT_MARKER'
+  const root = await mkdtemp(join(tmpdir(), 'perspectra-explicit-import-'))
+  roots.push(root)
+  const first = join(root, 'first.mjs')
+  const broken = join(root, 'broken.mjs')
+  await writeFile(
+    first,
+    `import { writeFileSync } from 'node:fs';
+    export const hostApi = '2.0';
+    export default ctx => ctx.effect(() => () => writeFileSync(new URL('./first-disposed', import.meta.url), 'yes'))`,
+  )
+  await writeFile(
+    first.replace(/\.mjs$/u, '.plugin.json'),
+    JSON.stringify({ name: '第一个', version: '1.0.0', services: ['scheduler'] }),
+  )
+  await writeFile(broken, `throw new Error('${marker}')`)
+  await writeFile(
+    broken.replace(/\.mjs$/u, '.plugin.json'),
+    JSON.stringify({ name: '坏的调度器', version: '1.0.0', services: ['scheduler'] }),
+  )
+
+  const failure = await loadHostPlugins([
+    { id: 'first', path: first, nativeAllowed: true, enabled: true },
+    { id: 'broken', path: broken, nativeAllowed: true, enabled: true },
+  ]).catch(error => error)
+  expect(failure).toBeInstanceOf(HostPluginLoadError)
+  expect(failure).toMatchObject({ pluginId: 'broken', reason: 'import' })
+  expect(String(failure)).not.toContain(marker)
+  expect((failure as Error).stack).not.toContain(marker)
+  expect((failure as Error).cause).toBeUndefined()
+  await new Promise(done => setImmediate(done))
+  expect(JSON.stringify(consoleCalls)).not.toContain(marker)
+  expect(await readFile(join(root, 'first-disposed'), 'utf8')).toBe('yes')
+})
+
+it('times out a hanging initialization and prevents its late registration from mounting', async () => {
+  const file = await moduleFile(`export default async function(ctx) {
+    await new Promise(done => setTimeout(done, 80));
+    ctx.effect(() => ctx.frontendServices.registerSpeech(async () => ({
+      contentType: 'audio/wav', bytes: new Uint8Array([1])
+    })));
+  }`)
+  await moduleManifest(file, ['frontendServices'])
+  // Warm the module so the test exercises the apply deadline rather than
+  // competing with filesystem/module-loader latency under the 10 ms import deadline.
+  await import(pathToFileURL(file.path).href)
+  const session = await loadHostPlugins(
+    [{ id: 'slow', path: file.path, nativeAllowed: true, enabled: true }],
+    {},
+    {},
+    { initializationTimeoutMs: 10, cleanupTimeoutMs: 20 },
+  )
+  sessions.push(session)
+  expect(session.skipped).toEqual([{ id: 'slow', reason: 'apply' }])
+  expect(session.services.synthesizeSpeech).toBeUndefined()
+  await new Promise(done => setTimeout(done, 100))
+  expect(session.services.synthesizeSpeech).toBeUndefined()
+})
+
+it('does not let a hanging cleanup keep a fatal startup waiting forever', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'perspectra-cleanup-hang-'))
+  roots.push(root)
+  const stuck = join(root, 'stuck.mjs')
+  const broken = join(root, 'broken.mjs')
+  await writeFile(
+    stuck,
+    `export const hostApi = '2.0';
+    export default ctx => ctx.effect(() => () => new Promise(() => {}))`,
+  )
+  await writeFile(
+    stuck.replace(/\.mjs$/u, '.plugin.json'),
+    JSON.stringify({ name: '清理挂起', version: '1.0.0', services: ['scheduler'] }),
+  )
+  await writeFile(broken, `throw new Error('PRIVATE_CLEANUP_SECRET')`)
+  await writeFile(
+    broken.replace(/\.mjs$/u, '.plugin.json'),
+    JSON.stringify({ name: '明确失败', version: '1.0.0', services: ['scheduler'] }),
+  )
+  const started = Date.now()
+  await expect(
+    loadHostPlugins(
+      [
+        { id: 'stuck', path: stuck, nativeAllowed: true, enabled: true },
+        { id: 'broken', path: broken, nativeAllowed: true, enabled: true },
+      ],
+      {},
+      {},
+      { cleanupTimeoutMs: 20 },
+    ),
+  ).rejects.toThrow('插件 broken 导入失败')
+  expect(Date.now() - started).toBeLessThan(500)
+})
+
 it('skips a failing plugin, unwinds only its own registrations and keeps the rest running', async () => {
-  const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+  const consoleCalls = captureConsole(),
+    marker = 'FAKE_SECRET_APPLY_MARKER'
   const file = await moduleFile(`import { writeFileSync } from 'node:fs';
     export default function(ctx) {
       ctx.effect(() => () => writeFileSync(new URL('./disposed', import.meta.url), 'yes'));
@@ -104,14 +255,21 @@ it('skips a failing plugin, unwinds only its own registrations and keeps the res
     ctx.effect(() => ctx.capabilities.register({ id: 'half-done', version: '1', methods: {
       ping: { arguments: { type: 'object' }, result: { type: 'object' }, effect: 'read' } },
       async open() { return { async invoke() { return { completion: 'completed', data: {} } }, async close() {} } } }));
-    throw new Error('PRIVATE_PLUGIN_SECRET')
+    throw new Error('${marker}')
   }`)
   const missing = await moduleFile(`export const notDefault = 1`)
+  await moduleManifest(failed, ['capabilities'])
+  await moduleManifest(missing, ['frontendServices'])
+  const absent = join(file.root, 'missing.mjs')
+  await writeFile(
+    absent.replace(/\.mjs$/u, '.plugin.json'),
+    JSON.stringify({ name: '缺失外围插件', version: '1.0.0', services: ['playerFeed'] }),
+  )
   const session = await loadHostPlugins([
-    { id: 'first', path: file.path, enabled: true },
-    { id: 'broken', path: failed.path, enabled: true },
-    { id: 'no-export', path: missing.path, enabled: true },
-    { id: 'absent', path: join(file.root, 'absent.mjs'), enabled: true },
+    { id: 'first', path: file.path, nativeAllowed: true, enabled: true },
+    { id: 'broken', path: failed.path, nativeAllowed: true, enabled: true },
+    { id: 'no-export', path: missing.path, nativeAllowed: true, enabled: true },
+    { id: 'absent', path: absent, nativeAllowed: true, enabled: true },
   ])
   sessions.push(session)
   expect(session.skipped).toEqual([
@@ -119,15 +277,78 @@ it('skips a failing plugin, unwinds only its own registrations and keeps the res
     { id: 'no-export', reason: 'import' },
     { id: 'absent', reason: 'import' },
   ])
-  expect(JSON.stringify(session.skipped)).not.toContain('PRIVATE_PLUGIN_SECRET')
+  expect(JSON.stringify(session.skipped)).not.toContain(marker)
   expect(session.capabilities.list()).toEqual([])
   await expect(readFile(join(file.root, 'disposed'), 'utf8')).rejects.toMatchObject({ code: 'ENOENT' })
-  // The detailed cause goes to the host log, labelled with the plugin ID.
-  expect(error.mock.calls.some(([label]) => String(label).includes('[宿主插件 broken] 初始化失败'))).toBe(true)
-  error.mockRestore()
+  await new Promise(done => setImmediate(done))
+  expect(JSON.stringify(consoleCalls)).not.toContain(marker)
   await session.close()
   sessions.splice(sessions.indexOf(session), 1)
   expect(await readFile(join(file.root, 'disposed'), 'utf8')).toBe('yes')
+})
+
+it('fails closed when a falsely peripheral plugin occupied a core seam before throwing', async () => {
+  const file = await moduleFile(`export default function (ctx) {
+    ctx.effect(() => ctx.scheduler.register({ id: 'hidden-core', version: '1.0.0', open: async () => ({
+      run: async () => ({ calls: 0, wave: 0, terminalReason: 'quiescent', activations: [] }),
+    }) }))
+    throw new Error('失败前已占用调度槽')
+  }`)
+  await moduleManifest(file, ['frontendServices'])
+  await expect(
+    loadHostPlugins([{ id: 'hidden-scheduler', path: file.path, nativeAllowed: true, enabled: true }]),
+  ).rejects.toMatchObject({
+    pluginId: 'hidden-scheduler',
+    reason: 'apply',
+  })
+})
+
+it('retains core ownership when a falsely peripheral async plugin throws after awaiting', async () => {
+  const file = await moduleFile(`export default async function (ctx) {
+    ctx.effect(() => ctx.scheduler.register({ id: 'hidden-async-core', version: '1.0.0', open: async () => ({
+      run: async () => ({ calls: 0, wave: 0, terminalReason: 'quiescent', activations: [] }),
+    }) }))
+    await Promise.resolve()
+    throw new Error('异步失败前已占用调度槽')
+  }`)
+  await moduleManifest(file, ['frontendServices'])
+  await expect(
+    loadHostPlugins([{ id: 'hidden-async-scheduler', path: file.path, nativeAllowed: true, enabled: true }]),
+  ).rejects.toMatchObject({
+    pluginId: 'hidden-async-scheduler',
+    reason: 'apply',
+  })
+})
+
+it('keeps a descendant Fiber core registration owned by the loading plugin after rollback', async () => {
+  const file = await moduleFile(`export default async function (ctx) {
+    await ctx.plugin(function nestedScheduler(child) {
+      child.effect(() => child.scheduler.register({ id: 'nested-core', version: '1.0.0', open: async () => ({
+        run: async () => ({ calls: 0, wave: 0, terminalReason: 'quiescent', activations: [] }),
+      }) }))
+    })
+    throw new Error('nested registration failed afterward')
+  }`)
+  await moduleManifest(file, ['frontendServices'])
+  await expect(
+    loadHostPlugins([{ id: 'nested-owner', path: file.path, nativeAllowed: true, enabled: true }]),
+  ).rejects.toMatchObject({ pluginId: 'nested-owner', reason: 'apply' })
+})
+
+it('keeps a manifest-declared core failure closed before any registration happens', async () => {
+  const file = await moduleFile(`export default function () {
+    throw new Error('注册前失败')
+  }`)
+  await writeFile(
+    file.path.replace(/\.mjs$/u, '.plugin.json'),
+    JSON.stringify({ name: '显式核心', version: '1.0.0', services: ['scheduler'] }),
+  )
+  await expect(
+    loadHostPlugins([{ id: 'declared-core', path: file.path, nativeAllowed: true, enabled: true }]),
+  ).rejects.toMatchObject({
+    pluginId: 'declared-core',
+    reason: 'apply',
+  })
 })
 
 it('keeps the first synthesizer and skips a second plugin that tries to register another', async () => {
@@ -137,9 +358,11 @@ it('keeps the first synthesizer and skips a second plugin that tries to register
   }`
   const first = await moduleFile(source),
     second = await moduleFile(source)
+  await moduleManifest(first, ['frontendServices'])
+  await moduleManifest(second, ['frontendServices'])
   const session = await loadHostPlugins([
-    { id: 'one', path: first.path, enabled: true },
-    { id: 'two', path: second.path, enabled: true },
+    { id: 'one', path: first.path, nativeAllowed: true, enabled: true },
+    { id: 'two', path: second.path, nativeAllowed: true, enabled: true },
   ])
   sessions.push(session)
   expect(session.skipped).toEqual([{ id: 'two', reason: 'apply' }])
@@ -149,7 +372,7 @@ it('keeps the first synthesizer and skips a second plugin that tries to register
 
 it('still fails the whole launch for invalid plugin settings', async () => {
   await expect(
-    loadHostPlugins([{ id: 'bad', path: 'https://example.com/plugin.mjs', enabled: true }]),
+    loadHostPlugins([{ id: 'bad', path: 'https://example.com/plugin.mjs', nativeAllowed: true, enabled: true }]),
   ).rejects.toThrow()
 })
 
@@ -181,14 +404,25 @@ it('aborts outstanding synthesis and rejects late audio when its owner is dispos
 it('validates local module settings without allowing extra credential fields', () => {
   expect(hostPluginSettings([])).toEqual([])
   expect(hostPluginSettings([{ id: 'tts', path: '', enabled: false }])).toEqual([
-    { id: 'tts', path: '', enabled: false },
+    { id: 'tts', path: '', nativeAllowed: false, enabled: false },
   ])
+  expect(hostPluginSettings([{ id: 'tts', path: 'C:/tts.mjs', enabled: true }])).toEqual([
+    { id: 'tts', path: 'C:/tts.mjs', nativeAllowed: false, enabled: true },
+  ])
+  expect(hostPluginSettings([{ id: 'tts', path: 'C:/tts.mjs', nativeAllowed: true, enabled: false }])).toEqual([
+    { id: 'tts', path: 'C:/tts.mjs', nativeAllowed: true, enabled: false },
+  ])
+  expect(hostPluginNativeAllowed({ path: 'C:/tts.mjs', nativeAllowed: true })).toBe(true)
+  expect(shouldLoadHostPlugin({ path: 'C:/tts.mjs', nativeAllowed: true, enabled: false })).toBe(false)
+  expect(shouldLoadHostPlugin({ path: 'C:/tts.mjs', nativeAllowed: false, enabled: true })).toBe(false)
   for (const item of [
     { id: 'tts', path: '', enabled: true },
     { id: 'tts', path: 'https://example.com/tts.mjs', enabled: true },
     { id: 'tts', path: 'relative.mjs', enabled: true },
     { id: 'tts', path: 'C:/tts.ts', enabled: true },
     { id: 'tts', path: 'C:/tts.mjs', enabled: true, apiKey: 'secret' },
+    { id: 'tts', path: 'C:/tts.mjs', nativeAllowed: 'yes', enabled: false },
+    { id: 'tts', path: '', nativeAllowed: true, enabled: false },
   ])
     expect(() => hostPluginSettings([item])).toThrow()
   expect(() =>
@@ -201,16 +435,17 @@ it('validates local module settings without allowing extra credential fields', (
 
 it('feeds only changes to the player transcript, isolates listeners and stops after unsubscribe', async () => {
   const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+  const privateMarker = 'FAKE_PRIVATE_PLAYER_FEED_MARKER'
   const root = new Context(),
     feed = new PlayerFeed(root),
     received: PlayerFeedEvent[] = []
   const delivered = () => new Promise<void>(done => setImmediate(done))
   const line = (seq: number, text: string) => ({ seq, speaker: '澄', text, player: false })
   feed.subscribe(() => {
-    throw new Error('broken listener')
+    throw new Error(privateMarker)
   })
   feed.subscribe(async () => {
-    throw new Error('broken async listener')
+    throw new Error(privateMarker)
   })
   const unsubscribe = feed.subscribe(event => {
     received.push(event)
@@ -226,13 +461,13 @@ it('feeds only changes to the player transcript, isolates listeners and stops af
   expect(received.map(event => event.kind)).toEqual(['reset', 'append', 'reset'])
   expect(received[1]!.lines).toHaveLength(1)
   expect(error).toHaveBeenCalledTimes(6)
+  expect(JSON.stringify(error.mock.calls)).not.toContain(privateMarker)
   unsubscribe()
   feed.publish([line(1, '你好。'), line(3, '另一条候选。'), line(4, '退订后。')])
   await delivered()
   expect(received).toHaveLength(3)
   await root.fiber.dispose()
   expect(() => feed.subscribe(() => {})).toThrow('关闭')
-  error.mockRestore()
 })
 
 it('mirrors appends and resets into a file through the example transcript plugin', async () => {
@@ -243,6 +478,7 @@ it('mirrors appends and resets into a file through the example transcript plugin
     {
       id: 'transcript',
       path: fileURLToPath(new URL('../../examples/host-plugins/transcript-file.mjs', import.meta.url)),
+      nativeAllowed: true,
       enabled: true,
       config: { file },
     },
@@ -275,7 +511,7 @@ it('accepts a plugin only for the same host API major and a minor this host alre
 })
 
 it('skips plugins that need a newer host API or do not declare one, before their apply runs', async () => {
-  const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+  const consoleCalls = captureConsole()
   const root = await mkdtemp(join(tmpdir(), 'perspectra-host-api-'))
   roots.push(root)
   const body = (marker: string) => `import { writeFileSync } from 'node:fs';
@@ -283,6 +519,10 @@ it('skips plugins that need a newer host API or do not declare one, before their
   const write = async (name: string, source: string) => {
     const path = join(root, name)
     await writeFile(path, source)
+    await writeFile(
+      path.replace(/\.mjs$/u, '.plugin.json'),
+      JSON.stringify({ name, version: '1.0.0', services: ['frontendServices'] }),
+    )
     return path
   }
   const session = await loadHostPlugins([
@@ -292,32 +532,51 @@ it('skips plugins that need a newer host API or do not declare one, before their
         'newer.mjs',
         `export const hostApi = '${HOST_API_VERSION.split('.')[0]}.99';\n${body('newer-ran')}`,
       ),
+      nativeAllowed: true,
       enabled: true,
     },
-    { id: 'undeclared', path: await write('undeclared.mjs', body('undeclared-ran')), enabled: true },
+    {
+      id: 'undeclared',
+      path: await write('undeclared.mjs', body('undeclared-ran')),
+      nativeAllowed: true,
+      enabled: true,
+    },
     {
       id: 'old-scheduler-api',
       path: await write('old.mjs', `export const hostApi = '1.4';\n${body('old-ran')}`),
+      nativeAllowed: true,
       enabled: true,
     },
     {
       id: 'current',
       path: await write('current.mjs', `export const hostApi = '${HOST_API_VERSION}';\n${body('current-ran')}`),
+      nativeAllowed: true,
       enabled: true,
     },
   ])
   sessions.push(session)
   expect(session.skipped).toEqual([
-    { id: 'newer', reason: 'version' },
-    { id: 'undeclared', reason: 'version' },
-    { id: 'old-scheduler-api', reason: 'version' },
+    {
+      id: 'newer',
+      reason: 'version',
+      detail: `需要宿主 API ${HOST_API_VERSION.split('.')[0]}.99，当前为 ${HOST_API_VERSION}。`,
+    },
+    {
+      id: 'undeclared',
+      reason: 'version',
+      detail: `需要宿主 API 未声明或格式无效，当前为 ${HOST_API_VERSION}。`,
+    },
+    {
+      id: 'old-scheduler-api',
+      reason: 'version',
+      detail: `需要宿主 API 1.4，当前为 ${HOST_API_VERSION}。`,
+    },
   ])
   await expect(readFile(join(root, 'newer-ran'), 'utf8')).rejects.toMatchObject({ code: 'ENOENT' })
   await expect(readFile(join(root, 'undeclared-ran'), 'utf8')).rejects.toMatchObject({ code: 'ENOENT' })
   await expect(readFile(join(root, 'old-ran'), 'utf8')).rejects.toMatchObject({ code: 'ENOENT' })
   expect(await readFile(join(root, 'current-ran'), 'utf8')).toBe('ran')
-  expect(error.mock.calls.some(([label]) => String(label).includes('（未声明 hostApi）'))).toBe(true)
-  error.mockRestore()
+  expect(JSON.stringify(consoleCalls)).toContain('需要宿主 API 未声明或格式无效')
 })
 
 it('checks the manifest and config before importing, and hands the merged config to the plugin', async () => {
@@ -343,27 +602,44 @@ it('checks the manifest and config before importing, and hands the merged config
   const manifest = {
     name: '配置示例',
     version: '1.0.0',
-    services: [],
+    services: ['frontendServices'],
     config: {
       endpoint: { type: 'string', title: '服务地址', required: true },
       voice: { type: 'string', title: '音色', default: '温柔' },
       apiKey: { type: 'string', title: 'API Key', secret: true },
     },
   }
+  await expect(
+    loadHostPlugins([
+      {
+        id: 'broken-manifest',
+        path: await plugin('broken-manifest', '{ not json'),
+        nativeAllowed: true,
+        enabled: true,
+      },
+    ]),
+  ).rejects.toThrow('清单无效')
   const session = await loadHostPlugins(
     [
-      { id: 'configured', path: await plugin('configured', manifest), enabled: true, config: { endpoint: 'http://x' } },
-      { id: 'unfilled', path: await plugin('unfilled', manifest), enabled: true },
-      { id: 'broken-manifest', path: await plugin('broken-manifest', '{ not json'), enabled: true },
-      { id: 'no-manifest', path: await plugin('no-manifest'), enabled: true },
+      {
+        id: 'configured',
+        path: await plugin('configured', manifest),
+        nativeAllowed: true,
+        enabled: true,
+        config: { endpoint: 'http://x' },
+      },
+      { id: 'unfilled', path: await plugin('unfilled', manifest), nativeAllowed: true, enabled: true },
+      {
+        id: 'no-manifest',
+        path: await plugin('no-manifest'),
+        nativeAllowed: true,
+        enabled: true,
+      },
     ],
     { configured: { apiKey: 'fixture-secret' } },
   )
   sessions.push(session)
-  expect(session.skipped).toEqual([
-    { id: 'unfilled', reason: 'config', detail: '请先填写：服务地址。' },
-    { id: 'broken-manifest', reason: 'manifest', detail: '插件清单不是有效的 JSON。' },
-  ])
+  expect(session.skipped).toEqual([{ id: 'unfilled', reason: 'config', detail: '请先填写：服务地址。' }])
   expect(JSON.parse(await readFile(join(root, 'configured-config'), 'utf8'))).toEqual({
     endpoint: 'http://x',
     voice: '温柔',
@@ -378,12 +654,13 @@ it('checks the manifest and config before importing, and hands the merged config
 })
 
 // Written outside the repository: a bare '@deepseek-ai/cordis' cannot resolve there without the host's hook.
-async function writePlugin(id: string, source: string) {
+async function writePlugin(id: string, source: string, services: ('scheduler' | 'memory' | 'llm')[] = []) {
   const root = await mkdtemp(join(tmpdir(), 'perspectra-seam-plugin-'))
   roots.push(root)
   const path = join(root, `${id}.mjs`)
   await writeFile(path, source)
-  return { id, path, enabled: true }
+  await writeFile(join(root, `${id}.plugin.json`), JSON.stringify({ id, name: id, version: '1.0.0', services }))
+  return { id, path, nativeAllowed: true, enabled: true }
 }
 const schedulerPlugin = (id: string) => `
   export const hostApi = '2.0'
@@ -393,7 +670,7 @@ const schedulerPlugin = (id: string) => `
     }) }))
   }
 `
-async function load(...settings: { id: string; path: string; enabled: boolean }[]) {
+async function load(...settings: { id: string; path: string; nativeAllowed: boolean; enabled: boolean }[]) {
   const plugins = await loadHostPlugins(settings)
   sessions.push(plugins)
   return plugins
@@ -404,13 +681,13 @@ it('fills an empty scheduler seam with the official provider', async () => {
   expect(plugins.seams.scheduler.id).toBe('official-scheduler')
 })
 
-it('lets a player plugin take the scheduler seam and skips a second one', async () => {
-  const plugins = await load(
-    await writePlugin('first', schedulerPlugin('first')),
-    await writePlugin('second', schedulerPlugin('second')),
-  )
-  expect(plugins.seams.scheduler.id).toBe('first')
-  expect(plugins.skipped).toEqual([{ id: 'second', reason: 'apply' }])
+it('refuses to fill an explicit scheduler failure with another implementation', async () => {
+  await expect(
+    load(
+      await writePlugin('first', schedulerPlugin('first'), ['scheduler']),
+      await writePlugin('second', schedulerPlugin('second'), ['scheduler']),
+    ),
+  ).rejects.toThrow('插件 second 初始化失败')
 })
 
 it('hands a plugin outside the repository the same Cordis the host runs', async () => {
@@ -428,6 +705,7 @@ it('hands a plugin outside the repository the same Cordis the host runs', async 
         }) }))
       }
     `,
+      ['scheduler'],
     ),
   )
   expect(plugins.skipped).toEqual([])
@@ -441,7 +719,7 @@ const memoryPlugin = (id: string) => `
   }
 `
 
-it('lets a player plugin take the memory seam over the default and skips a second one', async () => {
+it('refuses to replace an explicit memory provider conflict with its default', async () => {
   const official = {
     id: 'official-default',
     version: '1.0.0',
@@ -455,30 +733,26 @@ it('lets a player plugin take the memory seam over the default and skips a secon
   const empty = await loadHostPlugins([], {}, { memory: assemble })
   sessions.push(empty)
   expect(empty.seams.memory?.id).toBe('official-default')
-  const taken = await loadHostPlugins(
-    [await writePlugin('mine', memoryPlugin('mine')), await writePlugin('other', memoryPlugin('other'))],
-    {},
-    { memory: assemble },
-  )
-  sessions.push(taken)
-  expect(taken.seams.memory?.id).toBe('mine')
+  await expect(
+    loadHostPlugins(
+      [
+        await writePlugin('mine', memoryPlugin('mine'), ['memory']),
+        await writePlugin('other', memoryPlugin('other'), ['memory']),
+      ],
+      {},
+      { memory: assemble },
+    ),
+  ).rejects.toThrow('插件 other 初始化失败')
   expect(assembled).toBe(1)
-  expect(taken.skipped).toEqual([{ id: 'other', reason: 'apply' }])
 })
 
 const SIMPLE_LLM = fileURLToPath(new URL('../../examples/host-plugins/simple-llm.mjs', import.meta.url))
 
-it('refuses to fall back to the official channel when a model channel plugin is skipped', async () => {
-  vi.spyOn(console, 'error').mockImplementation(() => {})
+it('stops the launch rather than falling back when a model channel plugin fails', async () => {
   // Missing its required endpoint, so the plugin is skipped before it runs.
-  const session = await loadHostPlugins([{ id: 'simple-llm', enabled: true, path: SIMPLE_LLM, config: {} }])
-  try {
-    expect(session.skipped.map(plugin => plugin.id)).toEqual(['simple-llm'])
-    expect(session.seams.llm?.id).toBe('simple-llm')
-    await expect(session.seams.llm!.open({} as never, new AbortController().signal)).rejects.toThrow('已跳过')
-  } finally {
-    await session.close()
-  }
+  await expect(
+    loadHostPlugins([{ id: 'simple-llm', nativeAllowed: true, enabled: true, path: SIMPLE_LLM, config: {} }]),
+  ).rejects.toThrow('插件 simple-llm 配置无效')
 })
 
 it('lets the example channel hand back prose so that the host can retry', async () => {
@@ -492,7 +766,13 @@ it('lets the example channel hand back prose so that the host can retry', async 
   await new Promise<void>(done => server.listen(0, '127.0.0.1', done))
   const endpoint = `http://127.0.0.1:${(server.address() as AddressInfo).port}/v1/chat/completions`
   const session = await loadHostPlugins([
-    { id: 'simple-llm', enabled: true, path: SIMPLE_LLM, config: { endpoint, model: 'fixture' } },
+    {
+      id: 'simple-llm',
+      nativeAllowed: true,
+      enabled: true,
+      path: SIMPLE_LLM,
+      config: { endpoint, model: 'fixture' },
+    },
   ])
   try {
     const channel = await session.seams.llm!.open({} as never, new AbortController().signal)
@@ -510,6 +790,7 @@ it('loads the locked-room example, whose rule refuses that room and removes it f
   const session = await loadHostPlugins([
     {
       id: 'locked-room',
+      nativeAllowed: true,
       enabled: true,
       path: fileURLToPath(new URL('../../examples/host-plugins/locked-room.mjs', import.meta.url)),
       config: { locationId: 'location:vault' },
@@ -559,26 +840,18 @@ it('agrees with the launcher on which plugin holds a seam taking one', async () 
       join(root, id + '.plugin.json'),
       JSON.stringify({ id, name: id, version: '1.0.0', services: ['scheduler'] }),
     )
-    return { id, enabled: true, path: join(root, id + '.mjs') }
+    return { id, nativeAllowed: true, enabled: true, path: join(root, id + '.mjs') }
   }
   const plugins = [await write('first'), await write('second')]
-  const session = await loadHostPlugins(plugins)
-  try {
-    const rows = moduleRows(
-      plugins,
-      Object.fromEntries(
-        plugins.map(plugin => [
-          plugin.id,
-          { manifest: { name: plugin.id, version: '1.0.0', services: ['scheduler'] } },
-        ]),
-      ) as never,
-    )
-    expect(rows.find(row => row.seam === 'scheduler')!.effective).toBe(session.seams.scheduler.id)
-    expect(session.skipped.map(plugin => plugin.id)).toEqual(['second'])
-  } finally {
-    await session.close()
-    await rm(root, { recursive: true, force: true })
-  }
+  await expect(loadHostPlugins(plugins)).rejects.toThrow('插件 second 初始化失败')
+  const rows = moduleRows(
+    plugins,
+    Object.fromEntries(
+      plugins.map(plugin => [plugin.id, { manifest: { name: plugin.id, version: '1.0.0', services: ['scheduler'] } }]),
+    ) as never,
+  )
+  expect(rows.find(row => row.seam === 'scheduler')).toMatchObject({ effective: 'first', conflict: true })
+  await rm(root, { recursive: true, force: true })
 })
 
 it.each([true, false])(
@@ -586,11 +859,10 @@ it.each([true, false])(
   async transportFirst => {
     const source = `export const hostApi = '2.3'; export default function(ctx) { ctx.effect(() => ctx.llm.registerTransport({ id:'transport', version:'1.0.0', open:async()=>({ model:'alternate', schemaMode:'native', send:async()=>({value:{decision:'abstain'}}) }) })) }`
     const full = `export const hostApi = '2.0'; export default function(ctx) { ctx.effect(() => ctx.llm.register({ id:'full', version:'1.0.0', open:async()=>({send:async()=>({decision:'abstain'})}) })) }`
-    const a = await writePlugin('transport', source),
-      b = await writePlugin('full', full)
-    const session = await load(...(transportFirst ? [a, b] : [b, a]))
-    expect(session.skipped).toEqual([{ id: transportFirst ? 'full' : 'transport', reason: 'apply' }])
-    expect(session.seams.llmTransport?.id).toBe(transportFirst ? 'transport' : undefined)
-    expect(session.seams.llm?.id).toBe(transportFirst ? undefined : 'full')
+    const a = await writePlugin('transport', source, ['llm']),
+      b = await writePlugin('full', full, ['llm'])
+    await expect(load(...(transportFirst ? [a, b] : [b, a]))).rejects.toThrow(
+      `插件 ${transportFirst ? 'full' : 'transport'} 初始化失败`,
+    )
   },
 )

@@ -11,7 +11,6 @@ import { CharacterViewBuilder, WorldStore } from '@harness-world/store-sqlite'
 import { AuthorizedSourceStore } from '@harness-world/memory'
 import { WorldHostRuntime } from '../../desktop/host/world-runtime.ts'
 import {
-  CoreMemoryAdapter,
   DEFAULT_MEMORY_CONTEXT_BUDGET,
   MEMORY_DELIVERY_BUDGET,
   estimateContextTokens,
@@ -438,20 +437,48 @@ describe('optional web Core memory', () => {
     expect((await f.runtime.state()).error).toBe(false)
   })
   it('closing a game cancels unfinished builds without installing transient results', async () => {
+    const started = new Set<string>(),
+      cancelled = new Set<string>()
     const run: CoreRunner = async (input, signal) =>
       input.operation === 'recall'
         ? empty
-        : new Promise((_resolve, reject) =>
-            signal.addEventListener('abort', () => reject(signal.reason), { once: true }),
-          )
-    const f = await fixture(run),
-      before = f.head()
+        : new Promise((_resolve, reject) => {
+            const actor = String((input.scope as WorldJsonObject).characterId)
+            started.add(actor)
+            signal.addEventListener(
+              'abort',
+              () => {
+                cancelled.add(actor)
+                reject(signal.reason)
+              },
+              { once: true },
+            )
+          })
+    const f = await fixture(run)
+    await f.runtime.submit('尚未安装记忆归档时，仍须保留这条已提交观察。')
+    const before = f.head()
     await f.runtime.refreshMemory()
     await f.runtime.close()
-    expect((await f.runtime.state()).memoryMaintenance!.cancelled).toBe(4)
+    expect(started.size).toBeGreaterThan(0)
+    expect(cancelled).toEqual(started)
+    await expect(f.runtime.state()).rejects.toThrow('closed')
     expect(f.head()).toBe(before)
     const adapter = coreAdapter(f.data, f.runtime.address, run)
     expect(adapter.archivePrefix('character:claude')).toBe(0)
+    const rebuilt: WorldJsonObject[] = []
+    const restarted = coreAdapter(f.data, f.runtime.address, async input => {
+      rebuilt.push(input)
+      return input.operation === 'build' ? built(input) : empty
+    })
+    await restarted.refresh(['character:claude'], AbortSignal.timeout(2000), () => {})
+    const build = rebuilt.find(input => input.operation === 'build')!
+    const sources = build.sources as WorldJsonObject[]
+    expect(JSON.stringify(sources)).toContain('仍须保留这条已提交观察')
+    expect(
+      sources.every(source => source.characterId === 'character:claude' && Number.isSafeInteger(source.knownTick)),
+    ).toBe(true)
+    expect(restarted.archivePrefix('character:claude')).toBe(before)
+    expect(f.head()).toBe(before)
   })
   it('keeps declared activity interaction usable while background builds are pending', async () => {
     const run: CoreRunner = async (input, signal) =>

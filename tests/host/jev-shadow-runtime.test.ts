@@ -135,6 +135,9 @@ it.each([0, 0.999])(
           expect(questions[0]?.publication.actorId).toBe('character:player')
         }
         release()
+        // Finish this audit while its world read capability is valid. Closing an instance revokes
+        // capabilities and need not finish uncommitted background reactions.
+        if (enabled) await expect.poll(() => records.length).toBe(2)
         await runtime.close()
         runtime = undefined
         const store = new WorldStore(resolve(root, 'world.sqlite'))

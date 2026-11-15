@@ -1,5 +1,5 @@
 import type { CharacterId, WorldAddress } from '@harness-world/contracts'
-import type { AutonomyOpportunities } from '@harness-world/plugin-sdk'
+import type { OpportunityScheduleLimits, WakeupSource } from '@harness-world/plugin-sdk'
 import type { WorldStore } from '@harness-world/store-sqlite'
 import { createSchedulerRound, type ActivationTurn } from '../../packages/application/src/scheduler-round.ts'
 import { runOfficialSchedule } from '../../packages/official-scheduler/src/index.ts'
@@ -18,7 +18,8 @@ export function runActivations(input: {
   locationId?: (characterId: CharacterId) => string | null
   maximumConcurrent?: number
   limits?: Parameters<typeof createSchedulerRound>[0]['limits']
-  autonomy?: AutonomyOpportunities & { turn: ActivationTurn }
+  opportunityLimits?: OpportunityScheduleLimits
+  wakeupSources?: readonly WakeupSource[]
 }) {
   const { maximumConcurrent, strictCallBudget, limits, locationId, ...round } = input
   return runOfficialSchedule(

@@ -78,7 +78,11 @@ it('refuses a shadow audit of an item the pack does not declare', async () => {
         }),
       ],
     }),
-  ).rejects.toThrow('not declared')
+  ).rejects.toMatchObject({
+    name: 'PluginFault',
+    pluginId: 'official-jev-shadow-audit',
+    operation: 'open',
+  })
 })
 
 it('keeps refusing to regenerate under the publication audit, and leaves the round as it was', async () => {
@@ -86,6 +90,10 @@ it('keeps refusing to regenerate under the publication audit, and leaves the rou
     decisions: [jevPublicationAudit({ mode: 'baseline', items: ITEMS, classify, write: () => {} })],
   })
   const state = await runtime.submit(MOVE)
-  await expect(runtime.regenerate(state.tailRound!.id!, 'jev-publication-candidate')).rejects.toThrow('外部审计')
+  await expect(runtime.regenerate(state.tailRound!.id!, 'jev-publication-candidate')).rejects.toMatchObject({
+    name: 'PluginFault',
+    pluginId: 'official-jev-publication-audit',
+    operation: 'open',
+  })
   expect((await runtime.submit('你好')).error).toBe(false)
 })

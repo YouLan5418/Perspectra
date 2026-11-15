@@ -9,6 +9,7 @@ import { LensSession } from '../../desktop/lens/session.ts'
 import { exportStoryNode, importStoryNode } from '../../desktop/story-share.ts'
 import { startFakeProvider, fakeModels } from '../support/fake-provider.ts'
 import type { SeamProvider, StatusInstance } from '@harness-world/plugin-sdk'
+import { PluginFaultError } from '../../desktop/host/plugin-runtime.ts'
 
 const roots: string[] = [],
   runtimes: WorldHostRuntime[] = [],
@@ -112,22 +113,32 @@ it('refuses required status assets when the selected composition omits the statu
   await expect(start({ ...standard, mechanisms }, pack(true))).rejects.toThrow('世界声明的 status 需要对应机制')
 })
 it('does not manufacture a scheduler fallback for a custom composition', async () => {
-  const { fallbackScheduler: _fallback, ...composition } = assembleRoleplay()
-  await expect(
-    start({
-      ...composition,
-      mechanisms: {
-        ...composition.mechanisms,
-        scheduler: {
-          id: 'broken-scheduler',
-          version: '1.0.0',
-          open: async () => {
-            throw new Error('no fallback chosen')
-          },
+  const composition = assembleRoleplay()
+  const failure = await start({
+    ...composition,
+    mechanisms: {
+      ...composition.mechanisms,
+      scheduler: {
+        id: 'broken-scheduler',
+        version: '1.0.0',
+        open: async () => {
+          throw new Error('no fallback chosen')
         },
       },
-    }),
-  ).rejects.toThrow('no fallback chosen')
+    },
+  }).then(
+    () => undefined,
+    error => error,
+  )
+  expect(failure).toBeInstanceOf(PluginFaultError)
+  if (!(failure instanceof PluginFaultError)) return
+  expect(failure).toMatchObject({
+    origin: 'plugin',
+    pluginId: 'broken-scheduler',
+    operation: 'open',
+    invalidResult: false,
+  })
+  expect(failure.message).toBe('插件 broken-scheduler 的 open 操作失败。')
 })
 it('uses the selected status definition and initializer for Lens opening overrides', async () => {
   const { composition, opened } = customStatus()
@@ -151,6 +162,7 @@ it('opens and closes the selected status provider for share preflight without a 
   const { composition, opened } = customStatus(),
     f = await start(composition, pack(true))
   const node = await f.runtime.saveNode('自定义状态节点')
+  expect(node.files).toContain('plugin-set.json')
   const archive = join(fresh(), 'selected.perspectra-story')
   await exportStoryNode(f.root, node.id, archive, f.packPath, composition)
   expect(opened.length).toBeGreaterThan(1)
@@ -160,7 +172,7 @@ it('opens and closes the selected status provider for share preflight without a 
   expect(opened.every(entry => entry.closed)).toBe(true)
 })
 
-it('closes a selected mechanism that opens but fails validation, and names it in the error', async () => {
+it('closes and safely attributes a selected mechanism that opens but fails validation', async () => {
   const standard = assembleRoleplay()
   let closed = false
   const broken: SeamProvider<StatusInstance> = {
@@ -174,20 +186,55 @@ it('closes a selected mechanism that opens but fails validation, and names it in
         },
       }) as unknown as StatusInstance,
   }
-  await expect(
-    start({ ...standard, mechanisms: { ...standard.mechanisms, status: broken } }, pack(true)),
-  ).rejects.toThrow('状态机制 broken-status 无法打开：status requires initialize')
+  const failure = await start({ ...standard, mechanisms: { ...standard.mechanisms, status: broken } }, pack(true)).then(
+    () => undefined,
+    error => error,
+  )
+  expect(failure).toBeInstanceOf(PluginFaultError)
+  if (!(failure instanceof PluginFaultError)) return
+  expect(failure).toMatchObject({
+    origin: 'plugin',
+    pluginId: 'broken-status',
+    operation: 'open:initialize',
+    invalidResult: true,
+  })
+  expect(failure.message).toBe('插件 broken-status 的 open:initialize 返回了无效结果。')
   expect(closed).toBe(true)
 })
 it('refuses a knowledge mechanism without select but does not require knowledge for a world', async () => {
   const standard = assembleRoleplay()
-  await expect(
-    start({
-      ...standard,
-      mechanisms: {
-        ...standard.mechanisms,
-        knowledge: { id: 'broken-knowledge', version: '1.0.0', open: async () => ({}) as never },
-      },
-    }),
-  ).rejects.toThrow('知识机制 broken-knowledge 无法打开：knowledge requires select')
+  const missingSelect: { select: () => undefined } = { select: () => undefined }
+  Object.defineProperty(missingSelect, 'select', { value: undefined })
+  const failure = await start({
+    ...standard,
+    mechanisms: {
+      ...standard.mechanisms,
+      knowledge: { id: 'broken-knowledge', version: '1.0.0', open: async () => missingSelect },
+    },
+  }).then(
+    () => undefined,
+    error => error,
+  )
+  expect(failure).toBeInstanceOf(PluginFaultError)
+  if (!(failure instanceof PluginFaultError)) return
+  expect(failure).toMatchObject({
+    origin: 'plugin',
+    pluginId: 'broken-knowledge',
+    operation: 'open:select',
+    invalidResult: true,
+  })
+  expect(failure.message).toBe('插件 broken-knowledge 的 open:select 返回了无效结果。')
+})
+
+it('starts a normal system cycle without an installed status script or a player wait action', async () => {
+  const standard = assembleRoleplay()
+  const { runtime } = await start({
+    ...standard,
+    mechanisms: { scheduler: standard.mechanisms.scheduler, characterLoop: standard.mechanisms.characterLoop! },
+  })
+  expect((await runtime.state()).canWait).not.toBe(true)
+  const state = await runtime.processStimulus(0)
+  expect(state.busy).toBe(false)
+  expect(state.debug.execution).toMatchObject({ status: 'completed' })
+  expect(state.transcript.filter(line => line.player)).toEqual([])
 })

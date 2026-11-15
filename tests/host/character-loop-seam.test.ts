@@ -5,6 +5,7 @@ import { afterEach, expect, it, vi } from 'vitest'
 import type { CharacterLoopInstance, SeamProvider } from '@harness-world/plugin-sdk'
 import { officialCharacterLoop } from '@harness-world/official-character-loop'
 import { loadHostPlugins, type HostPlugins } from '../../desktop/host-plugins.ts'
+import { PluginFaultError } from '../../desktop/host/plugin-runtime.ts'
 import { WorldHostRuntime, type WorldHostOptions } from '../../desktop/host/world-runtime.ts'
 import { restoreStoryNode } from '../../desktop/story-nodes.ts'
 import { startFakeProvider, fakeModels } from '../support/fake-provider.ts'
@@ -49,7 +50,7 @@ async function start(
 it.each(['dynamic-scheduling', 'autonomy-scheduling', 'scripted-performance'])(
   'loads the external example and runs it for %s',
   async pack => {
-    const session = await loadHostPlugins([{ id: 'loop', path: EXAMPLE, enabled: true }])
+    const session = await loadHostPlugins([{ id: 'loop', path: EXAMPLE, enabled: true, nativeAllowed: true }])
     sessions.push(session)
     expect(session.skipped).toEqual([])
     const source = session.seams.characterLoop!
@@ -103,15 +104,25 @@ it.each(['dynamic-scheduling', 'autonomy-scheduling', 'scripted-performance'])(
 
 it('fails opening instead of falling back to a different character policy', async () => {
   vi.spyOn(console, 'error').mockImplementation(() => {})
-  await expect(
-    start({
-      id: 'broken-loop',
-      version: '1.0.0',
-      open: async () => {
-        throw new Error('open failed')
-      },
-    }),
-  ).rejects.toThrow('角色循环插件 broken-loop')
+  const failure = await start({
+    id: 'broken-loop',
+    version: '1.0.0',
+    open: async () => {
+      throw new Error('open failed')
+    },
+  }).then(
+    () => undefined,
+    error => error,
+  )
+  expect(failure).toBeInstanceOf(PluginFaultError)
+  if (!(failure instanceof PluginFaultError)) return
+  expect(failure).toMatchObject({
+    origin: 'plugin',
+    pluginId: 'broken-loop',
+    operation: 'open',
+    invalidResult: false,
+  })
+  expect(failure.message).toBe('插件 broken-loop 的 open 操作失败。')
 })
 
 it('attributes a loop bug to the selected plugin and keeps the player input', async () => {
@@ -130,6 +141,55 @@ it('attributes a loop bug to the selected plugin and keeps the player input', as
   expect(state.notice).toContain('broken-loop')
   expect(state.transcript.some(line => line.player)).toBe(true)
   expect(calls).toHaveLength(0)
+})
+
+it('attributes a format retry callback failure to its loop without leaking private text', async () => {
+  const logs: unknown[] = []
+  vi.spyOn(console, 'error').mockImplementation((...args) => void logs.push(args))
+  const failures: unknown[] = []
+  const loop: SeamProvider<CharacterLoopInstance> = {
+    id: 'retry-loop',
+    version: '1.0.0',
+    open: async () => ({
+      run: async activation => {
+        activation.prepare({ continuation: false, canPerform: false })
+        try {
+          await activation.decide(() => {
+            throw new TypeError('private-marker-retry')
+          })
+        } catch (error) {
+          failures.push(error)
+          throw error
+        }
+        return 'failed'
+      },
+    }),
+  }
+  const { runtime, calls } = await start(loop, 'dynamic-scheduling', {
+    serialScheduling: true,
+    plugins: {
+      characterLoop: loop,
+      llm: { id: 'invalid-answer', version: '1.0.0', open: async () => ({ send: async () => ({}) }) },
+    },
+  })
+  const state = await runtime.submit(MOVE)
+  expect(failures.length).toBeGreaterThan(0)
+  for (const failure of failures) {
+    expect(failure).toBeInstanceOf(PluginFaultError)
+    expect(failure).toMatchObject({
+      origin: 'plugin',
+      pluginId: 'retry-loop',
+      operation: 'reserveFormatRetry',
+      invalidResult: false,
+      message: '插件 retry-loop 的 reserveFormatRetry 操作失败。',
+    })
+    expect(failure).not.toHaveProperty('cause')
+  }
+  expect(state.error).toBe(true)
+  expect(state.notice).toContain('retry-loop')
+  expect(state.transcript.some(line => line.player)).toBe(true)
+  expect(calls).toHaveLength(0)
+  expect(JSON.stringify([state, logs, failures])).not.toContain('private-marker-retry')
 })
 
 it('opens independent instances for candidates and node restores, and tracks identity changes', async () => {

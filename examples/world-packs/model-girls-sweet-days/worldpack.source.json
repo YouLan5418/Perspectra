@@ -49,5 +49,12 @@
   ],
   "reactionFile": "reaction.json",
   "manifestationFile": "manifestation.json",
-  "interactionFile": "interactions.json"
+  "interactionFile": "interactions.json",
+  "plugins": {
+    "official-autonomy": {},
+    "official-communication": {},
+    "pack-scripts": {},
+    "official-pacing": {},
+    "official-dice": {}
+  }
 }

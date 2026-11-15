@@ -12,6 +12,7 @@ import { hostPluginSettings, type HostPluginSettings } from '../../../../desktop
 import { isTauri } from '@tauri-apps/api/core'
 import {
   coreRequest,
+  readPackConfiguration as readPackConfig,
   openGame,
   openCreator as openCreatorPage,
   openLensPage,
@@ -43,7 +44,7 @@ import {
 import { availableModel, historyTo } from '../domain.ts'
 import type { CoreStatus, GamePackage } from '../types.ts'
 
-export type DrawerSection = 'story' | 'model' | 'preset' | 'frontend' | 'play' | 'lens'
+export type DrawerSection = 'story' | 'model' | 'preset' | 'frontend' | 'play' | 'lens' | 'pack-config'
 export interface DrawerRow {
   id: DrawerSection
   group: '游玩' | '进阶'
@@ -56,6 +57,7 @@ export interface DrawerRow {
 
 /** Player-facing words for why a host plugin was skipped at launch. */
 export const PLUGIN_SKIP_REASON = {
+  permission: '尚未允许在本机执行',
   manifest: '插件清单无效',
   config: '配置不完整或无效',
   import: '导入失败',
@@ -388,6 +390,14 @@ export const useLauncherStore = defineStore('launcher', () => {
         action: '调整',
       },
       {
+        id: 'pack-config',
+        group: '进阶',
+        label: '玩法配置',
+        summary: '编辑源包规则，校验后用于新的游玩实例',
+        action: '编辑',
+        disabled: running.value,
+      },
+      {
         id: 'lens',
         group: '进阶',
         label: '透视',
@@ -396,6 +406,34 @@ export const useLauncherStore = defineStore('launcher', () => {
       },
     ]
   })
+  async function inspectPackConfiguration() {
+    if (real) return readPackConfig(selectedPackageId.value)
+    return {
+      packHash: 'preview',
+      validation: '这是界面预览，不会修改本地游戏包。',
+      entries: [
+        {
+          id: 'scripts/gameplay',
+          title: '房间搜证',
+          path: 'worldpack.source.json#/scripts/gameplay/config',
+          schema: {
+            type: 'object',
+            properties: { energy: { type: 'integer', title: '初始精力', minimum: 1, maximum: 20 } },
+            required: ['energy'],
+            additionalProperties: false,
+          },
+          text: '{"energy":3}',
+        },
+      ],
+    }
+  }
+  async function savePackConfiguration(configId: string, packHash: string, value: unknown): Promise<boolean> {
+    if (!real) {
+      notice.value = '当前为界面预览，未写入本地游戏包。'
+      return false
+    }
+    return action('pack-config-save', { packageId: selectedPackageId.value, configId, packHash, value })
+  }
   async function inspectFrontend() {
     return action('frontend-inspect', { instanceId: selectedInstanceId.value })
   }
@@ -446,7 +484,7 @@ export const useLauncherStore = defineStore('launcher', () => {
     theme.value = snapshot.preferences?.theme ?? 'system'
     reading.value = snapshot.preferences?.reading ?? { ...DEFAULT_READING }
     audio.value = snapshot.preferences?.audio ?? { ...DEFAULT_AUDIO }
-    hostPlugins.value = snapshot.preferences?.hostPlugins ?? []
+    hostPlugins.value = hostPluginSettings(snapshot.preferences?.hostPlugins ?? [])
     skippedPlugins.value = snapshot.skippedPlugins ?? []
     pluginManifests.value = snapshot.pluginManifests ?? {}
     optionalPluginNote.value = snapshot.optionalPluginNote ?? ''
@@ -848,6 +886,8 @@ export const useLauncherStore = defineStore('launcher', () => {
     saveInstancePreset,
     currentFrontend,
     inspectFrontend,
+    inspectPackConfiguration,
+    savePackConfiguration,
     grantFrontend,
     revokeFrontend,
     real,

@@ -15,18 +15,33 @@ import { parseWorldJson, rollbackAndThrow, worldJsonText } from './sqlite.ts'
 import type { WriterLease } from './writer-lease.ts'
 
 export const PLAYER_INPUT_TRANSITIONS = {
-  received: ['prepared', 'validated', 'clarification_required', 'cancelled'],
-  prepared: ['dispatch_started', 'clarification_required', 'cancelled'],
-  dispatch_started: ['response_received', 'timed_out', 'timed_out_ambiguous', 'invalid_response', 'cancelled'],
-  response_received: ['validated', 'clarification_required', 'invalid_response', 'timed_out_ambiguous', 'cancelled'],
-  validated: ['round_enqueued'],
-  round_enqueued: ['completed'],
+  received: ['prepared', 'validated', 'clarification_required', 'cancelled', 'failed'],
+  prepared: ['dispatch_started', 'clarification_required', 'cancelled', 'failed'],
+  dispatch_started: [
+    'response_received',
+    'timed_out',
+    'timed_out_ambiguous',
+    'invalid_response',
+    'cancelled',
+    'failed',
+  ],
+  response_received: [
+    'validated',
+    'clarification_required',
+    'invalid_response',
+    'timed_out_ambiguous',
+    'cancelled',
+    'failed',
+  ],
+  validated: ['round_enqueued', 'failed'],
+  round_enqueued: ['completed', 'failed'],
   completed: [],
   clarification_required: [],
   invalid_response: [],
   timed_out: [],
   timed_out_ambiguous: [],
   cancelled: [],
+  failed: [],
 } as const
 export type PlayerInputStatus = keyof typeof PLAYER_INPUT_TRANSITIONS
 export interface PlayerInputJob extends WorldJsonObject {

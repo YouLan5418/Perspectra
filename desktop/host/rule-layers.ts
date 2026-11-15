@@ -1,8 +1,27 @@
 import type { InteractionPackageImplementation } from '@harness-world/contracts'
 import { assertPhysicalEffects } from '@harness-world/application'
 import { createCoreRulebookRegistry, RulebookRegistry, type RulebookResolver } from '@harness-world/kernel'
-import type { RulesInstance } from '@harness-world/plugin-sdk'
+import type { ActionAffordance, RulesInstance, RuleResolution } from '@harness-world/plugin-sdk'
 import type { ReportPluginFailure } from './character-decision.ts'
+import {
+  callPluginForValue,
+  hostCapability,
+  invalidPluginResult,
+  isPluginFault,
+  type PluginCallContext,
+} from './plugin-runtime.ts'
+
+function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
+  return typeof value === 'object' && value !== null
+}
+
+function isRuleResolution(value: unknown): value is RuleResolution {
+  return isRecord(value) && (value.status === 'accepted' || value.status === 'rejected') && Array.isArray(value.events)
+}
+
+function isAffordanceList(value: unknown): value is readonly ActionAffordance[] {
+  return Array.isArray(value)
+}
 
 /** The one source of core rules in a world instance, for players, characters and activities alike. Plugin layers
  * are read on each call, so this can be handed out before they open. */
@@ -28,61 +47,66 @@ export function layeredCoreRules(
   return registry
 }
 
-/** A plugin's layer. When it fails, the action is refused and the options stand: a rule that cannot answer must not
- * let an action through, and it must not leave a round unfinished. A failure further in is not the plugin's. */
-export function guardedRules(instance: RulesInstance, id: string, report: ReportPluginFailure): RulesInstance {
+/** A plugin fault stops adjudication. Business refusals are explicit valid return values. */
+export function guardedRules(
+  instance: RulesInstance,
+  id: string,
+  context: PluginCallContext,
+  report: ReportPluginFailure,
+): RulesInstance {
+  const { resolve, affordances } = instance
+  if (resolve !== undefined && typeof resolve !== 'function') throw invalidPluginResult(context, id, 'open')
+  if (affordances !== undefined && typeof affordances !== 'function') throw invalidPluginResult(context, id, 'open')
   const guarded = <C extends { readonly characterId: string }, R>(
-    context: C,
+    operation: string,
+    input: C,
     next: (context: C) => R,
     work: (next: (context: C) => R) => R,
-    fallback: () => R,
   ): R => {
-    let passedOn: unknown
     try {
-      return work(current => {
-        try {
-          return next(current)
-        } catch (error) {
-          passedOn = error
-          throw error
-        }
-      })
+      return callPluginForValue(context, id, operation, () =>
+        work(hostCapability(context, current => next(structuredClone(current)))),
+      )
     } catch (error) {
-      if (error === passedOn) throw error
-      report(id, String(context.characterId), error)
-      return fallback()
+      if (isPluginFault(error)) report(id, String(input.characterId), error)
+      throw error
     }
   }
-  const { resolve, affordances, close } = instance
   return {
     ...(resolve
       ? {
-          resolve: (context, next) =>
-            guarded(
-              context,
-              next,
-              onward => {
-                const result = resolve.call(instance, context, onward)
-                // Rules decide business legality; a physical effect that contradicts the committed facts is refused.
+          resolve: (input, next) => {
+            return guarded(
+              'resolve',
+              input,
+              current => {
+                const result = next(current)
+                // A real downstream failure remains a Host callback failure.
                 if (result.status === 'accepted')
-                  assertPhysicalEffects({ manifest: context.manifest, events: context.events, drafts: result.events })
+                  assertPhysicalEffects({ manifest: current.manifest, events: current.events, drafts: result.events })
                 return result
               },
-              () => ({ status: 'rejected', events: [], reason: `plugin:规则插件 ${id} 出错，这次行动没有执行。` }),
-            ),
+              onward => {
+                const value = resolve.call(instance, structuredClone(input), onward)
+                if (!isRuleResolution(value)) throw invalidPluginResult(context, id, 'resolve')
+                // Validation of data returned by this plugin belongs to this plugin's fault boundary.
+                if (value.status === 'accepted')
+                  assertPhysicalEffects({ manifest: input.manifest, events: input.events, drafts: value.events })
+                return value
+              },
+            )
+          },
         }
       : {}),
     ...(affordances
       ? {
-          affordances: (context, next) =>
-            guarded(
-              context,
-              next,
-              onward => affordances.call(instance, context, onward),
-              () => next(context),
-            ),
+          affordances: (input, next) =>
+            guarded('affordances', input, next, onward => {
+              const value = affordances.call(instance, structuredClone(input), onward)
+              if (!isAffordanceList(value)) throw invalidPluginResult(context, id, 'affordances')
+              return value
+            }),
         }
       : {}),
-    ...(close ? { close: close.bind(instance) } : {}),
   }
 }

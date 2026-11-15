@@ -1,16 +1,6 @@
-import type { FrontendSpeechAudio, FrontendSpeechInput } from './speech.ts'
+import type { FrontendBgmTrack, FrontendSpeechInput } from '@harness-world/contracts'
 
-/** Explicitly published presentation assets, never paths supplied by a frontend. */
-export interface FrontendBgmTrack extends FrontendSpeechAudio {
-  readonly id: string
-  readonly title: string
-}
-
-export interface FrontendBgmPlugin {
-  readonly tracks: readonly FrontendBgmTrack[]
-  /** A pure choice for this authorized reading segment. null means silence. */
-  readonly selectTrack: (input: FrontendSpeechInput, signal: AbortSignal) => Promise<string | null> | string | null
-}
+export type { FrontendBgmPlugin, FrontendBgmTrack } from '@harness-world/contracts'
 
 export interface FrontendBgmService {
   selectTrack(input: FrontendSpeechInput, signal: AbortSignal): Promise<{ id: string; title: string } | null>

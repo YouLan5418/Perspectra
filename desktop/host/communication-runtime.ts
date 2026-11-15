@@ -1,6 +1,6 @@
-import { randomUUID } from 'node:crypto'
 import {
   brandId,
+  canonicalizeWorldJson,
   resolutionAuthority,
   isMessageAction,
   type CharacterId,
@@ -29,6 +29,10 @@ export class CommunicationRuntime {
     readonly mechanism: CommunicationInstance,
     manifest: CompiledWorldManifest,
     private readonly base: RulebookResolver,
+    private readonly knownState: (
+      events: RulebookResolutionContext['events'],
+      actorId: string,
+    ) => WorldJsonObject = () => ({}),
   ) {
     this.#rules = new CommunicationRules(
       mechanism.definition,
@@ -44,6 +48,12 @@ export class CommunicationRuntime {
   get instruction() {
     return this.mechanism.instruction
   }
+  activeContacts(events: RulebookResolutionContext['events'], actorId: string): readonly string[] {
+    const recipientIds = this.#rules.activeContacts(events, actorId)
+    return (
+      this.mechanism.contacts?.({ actorId, recipientIds, knownState: this.knownState(events, actorId) }) ?? recipientIds
+    )
+  }
   parameters(recipientId: string, text: string) {
     const parameters = this.mechanism.parameters(recipientId, text)
     const request = this.#rules.request(parameters, 'interact', Infinity, true)
@@ -54,7 +64,7 @@ export class CommunicationRuntime {
   options(events: RulebookResolutionContext['events'], actorId: string, publicationCharacters = 2000) {
     const options = this.mechanism.options({
       actorId,
-      recipientIds: this.#rules.activeContacts(events, actorId),
+      recipientIds: this.activeContacts(events, actorId),
       publicationCharacters,
     })
     if (!Array.isArray(options)) throw new TypeError('通信选项必须是列表')
@@ -85,7 +95,11 @@ export class CommunicationRuntime {
   }
   resolve(context: RulebookResolutionContext): RulebookResolution {
     return isMessageAction(context.action.parameters)
-      ? this.#rules.resolve(context, input => this.mechanism.prepare(input))
+      ? this.#rules.resolve(
+          context,
+          input => this.mechanism.prepare(input),
+          this.activeContacts(context.events, String(context.characterId)),
+        )
       : this.base.resolve(context)
   }
   executionResult: typeof characterExecutionResult = input =>
@@ -104,6 +118,7 @@ export class CommunicationRuntime {
     actorId: CharacterId
     recipientId: string
     text: string
+    requestId: string
     resolver?: RulebookResolver
     signal?: AbortSignal
   }) {
@@ -116,21 +131,38 @@ export class CommunicationRuntime {
     manifest: CompiledWorldManifest
     actorId: CharacterId
     parameters: WorldJsonObject
+    requestId: string
     resolver?: RulebookResolver
     signal?: AbortSignal
-  }) {
+  }): Promise<{
+    readonly afterSeq: number
+    readonly status: RulebookResolution['status']
+    readonly committed: boolean
+  }> {
     if (!input.manifest.playerBindings.some(binding => binding.characterId === input.actorId))
       throw new TypeError('手动发送入口仅允许绑定玩家')
-    const owner = `message:${randomUUID()}`
+    const owner = `message:${input.requestId}`
     let status: RulebookResolution['status'] = 'rejected'
+    let afterSeq = 0
     const committed = await executeWorldRound(
       { ...input, owner, leaseTtlMs: 30_000, tickRoundId: true },
-      ({ head, manifest, events }) => {
+      ({ head, manifest, manifestHash, events, prior }) => {
+        afterSeq = head.headSeq
+        const action = { actionType: 'interact', parameters: input.parameters }
+        if (prior) {
+          const same = (value: unknown) => Buffer.from(canonicalizeWorldJson(value as WorldJsonObject)).toString('utf8')
+          if (prior.authority.actorId !== input.actorId || same(prior.authority.action) !== same(action))
+            throw new TypeError('同一请求不能改变内容')
+          if (prior.authority.status !== 'accepted' && prior.authority.status !== 'rejected')
+            throw new Error('通信提交记录的状态无效')
+          status = prior.authority.status
+          return undefined
+        }
         const roundId = brandId(owner, 'InteractionRoundId'),
           actionId = `${owner}:action`
-        const action = { actionType: 'interact', parameters: input.parameters }
         const result = (input.resolver ?? this).resolve({
           manifest,
+          manifestHash,
           events,
           characterId: input.actorId,
           asOfWorldSeq: head.headSeq,
@@ -155,6 +187,8 @@ export class CommunicationRuntime {
                 actionType: 'interact',
                 sourceRole: 'player',
                 accepted: result.status === 'accepted',
+                reason: result.reason ?? null,
+                ...(result.rejection === undefined ? {} : { rejection: result.rejection }),
               },
             },
             ...actionObservations({
@@ -172,6 +206,6 @@ export class CommunicationRuntime {
         }
       },
     )
-    return { afterSeq: committed!.afterSeq, status }
+    return { afterSeq: committed?.afterSeq ?? afterSeq, status, committed: committed !== undefined }
   }
 }

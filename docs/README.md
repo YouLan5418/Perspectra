@@ -11,6 +11,7 @@
 | 运行或创作内容 | [操作指南](current/guides/README.md) |
 | 用创作者页面排查角色和物品 | [创作者调试接口](current/creator-debug-api.md) |
 | 从入门到理解当前代码 | [代码技术文档](current/architecture/README.md) |
+| 已定稿的可组合引擎与后续施工 | [规范入口](current/architecture/plugin-standard.md)、[完整定稿](current/architecture/composable-engine.md)、[分批重构计划](superpowers/plans/2026-11-11-composable-engine-refactor.md) |
 | 真实实验依据 | [实验入口](../experiments/README.md)、[当前研究](current/studies/ai-girls/README.md) |
 | 代码命名与运行边界 | [误导性代码与命名审查（2026-10-21）](current/studies/misleading-code-audit-20261021.md)、[宿主整理工作树审查（2026-10-21）](current/studies/code-organization-review-20261021.md) |
 | 历史设计与过程 | [归档](archive/README.md)、[ADR](adr/README.md)、[冻结规格](spec/README.md) |

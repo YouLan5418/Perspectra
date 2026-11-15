@@ -11,6 +11,7 @@ export function loadStatusSource(
   pack: CompiledWorldPackV5,
   modules?: readonly StatusModuleSource[],
 ): StatusSource | undefined {
+  if (!pack.plugins?.['pack-scripts']) return modules === undefined ? undefined : { modules }
   const entry = 'scripts/status.js',
     lock = pack.assets.find(asset => asset.path === entry)
   // An explicitly declared empty module bundle still has the existing empty-state initialization.

@@ -1,4 +1,5 @@
 import { officialCharacterLoop } from '@harness-world/official-character-loop'
+import { randomUUID } from 'node:crypto'
 import { coreAdapter } from './core-adapter.ts'
 import { readFileSync, mkdirSync, existsSync, unlinkSync } from 'node:fs'
 import { resolve, join } from 'node:path'
@@ -283,6 +284,7 @@ export async function crossSceneRuntime(
     async send(text: string, recipientId = 'character:companion', signal = new AbortController().signal) {
       return work(async () => {
         const sent = await communication.send({
+          requestId: randomUUID(),
           store,
           leases,
           address,
@@ -308,6 +310,7 @@ export async function crossSceneRuntime(
           phone.callFor(store.readEvents(address), playerId) ??
           phoneCalls(store.readEvents(address)).findLast(c => [c.callerId, c.calleeId].includes(playerId))
         const sent = await communication.perform({
+          requestId: randomUUID(),
           store,
           leases,
           address,

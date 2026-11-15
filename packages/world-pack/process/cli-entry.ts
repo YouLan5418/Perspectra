@@ -1,6 +1,9 @@
+import { packValidationCatalog } from '../../../desktop/pack-validation.ts'
+import { hostPluginSettings } from '../../../desktop/host-plugin-settings.ts'
+import { parseWorldPackSourceManifestV5 } from '../src/schema.ts'
+import { join } from 'node:path'
 import { canonicalizeWorldJson, interactionPackageDescription, type WorldJsonValue } from '@harness-world/contracts'
-import { officialRpgContent } from '@harness-world/official-rpg'
-import { officialTrpgContent } from '@harness-world/official-trpg'
+import { officialPackPlugins, validatePackScript } from '../../../desktop/official-pack-metadata.ts'
 import { createInstalledInteractionPackages } from '@harness-world/interactions-basic'
 import {
   executeWorldPackCli,
@@ -21,6 +24,18 @@ const interactionPackages = interactionImplementations.map(interactionPackageDes
 
 try {
   const args = process.argv.slice(2)
+  let catalog = officialPackPlugins
+  const settingsIndex = args.indexOf('--plugins')
+  if (settingsIndex !== -1) {
+    if (!['validate', 'compile', 'test'].includes(args[0] ?? '') || settingsIndex !== args.length - 2 || !args[1])
+      throw new TypeError('--plugins <settings.json> is a final option for validate, compile or test')
+    const settingsFile = args[settingsIndex + 1]!
+    args.splice(settingsIndex)
+    const source = parseWorldPackSourceManifestV5(
+      JSON.parse(await readFile(join(args[1]!, 'worldpack.source.json'), 'utf8')),
+    )
+    catalog = await packValidationCatalog(source, hostPluginSettings(JSON.parse(await readFile(settingsFile, 'utf8'))))
+  }
   if (args.length === 1 && (args[0] === '--version' || args[0] === 'version')) {
     process.stdout.write(
       `${Buffer.from(
@@ -64,7 +79,8 @@ try {
       await executeWorldPackCli(args, {
         interactionPackages,
         interactionImplementations,
-        content: [officialRpgContent, officialTrpgContent],
+        content: catalog,
+        validateScript: validatePackScript,
       }),
     )
   }

@@ -7,6 +7,7 @@ import {
   type BranchComponentFactory,
   type BranchExecutionLane,
 } from './runtime.ts'
+import { CleanupTimeoutError } from './instance-scope.ts'
 
 declare module '@deepseek-ai/cordis' {
   interface Events {
@@ -166,5 +167,71 @@ describe('WorldRuntimeRegistry', () => {
     await expect(lease.slot.enqueueRound(async () => 3)).resolves.toBe(3)
     await lease.dispose()
     await expect(lease.slot.enqueueRound(async () => 4)).rejects.toThrow('disposed')
+  })
+
+  it('keeps a no-reason component rejection as a disposal failure and closes the store', async () => {
+    const root = new Context()
+    let storeClosed = false
+    const registry = new WorldRuntimeRegistry(
+      root,
+      {
+        create: () => ({
+          kernel: {
+            dispose: () => Promise.reject(),
+          },
+          store: {
+            close: () => {
+              storeClosed = true
+            },
+          },
+          agents: {},
+          presentation: {},
+        }),
+      },
+      { cleanupTimeoutMs: 10 },
+    )
+    const lease = await registry.acquire(fixtureAddress('no-reason'), hashWorldJson('manifest', 1))
+
+    const error = await lease.dispose().catch((reason: unknown) => reason)
+    expect(error).toBeInstanceOf(AggregateError)
+    expect((error as AggregateError).errors).toEqual([undefined])
+    expect(storeClosed).toBe(true)
+    expect(registry.activeSlotCount).toBe(0)
+  })
+
+  it('continues reverse component cleanup and propagates every branch disposal failure', async () => {
+    const root = new Context()
+    const failure = new Error('agents dispose failed')
+    let storeClosed = false
+    const registry = new WorldRuntimeRegistry(
+      root,
+      {
+        create: () => ({
+          kernel: {
+            dispose: () => new Promise<void>(() => {}),
+          },
+          store: {
+            close: () => {
+              storeClosed = true
+            },
+          },
+          agents: {
+            dispose: () => {
+              throw failure
+            },
+          },
+          presentation: {},
+        }),
+      },
+      { cleanupTimeoutMs: 10 },
+    )
+    const lease = await registry.acquire(fixtureAddress('cleanup'), hashWorldJson('manifest', 1))
+
+    const error = await lease.dispose().catch((reason: unknown) => reason)
+    expect(error).toBeInstanceOf(AggregateError)
+    expect((error as AggregateError).errors).toContain(failure)
+    expect((error as AggregateError).errors.some(value => value instanceof CleanupTimeoutError)).toBe(true)
+    expect(storeClosed).toBe(true)
+    expect(registry.activeSlotCount).toBe(0)
   })
 })

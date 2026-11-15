@@ -61,7 +61,7 @@ export function reactionNotice(
   pluginFailures: ReadonlyMap<string, string>,
 ): void {
   const terminal = cycle.terminalReason
-  if (terminal === 'plugin_failed') {
+  if (terminal === 'plugin_failed' || terminal === 'plugin_invalid') {
     status.set(undefined, true)
     status.set(SCHEDULER_FAILED_NOTICE, undefined)
     return
@@ -77,14 +77,14 @@ export function reactionNotice(
     const cause =
       terminal === 'interrupted'
         ? '角色处理被打断或超时'
-        : failedPlugin !== undefined
-          ? failedCall?.status === 'failed' && failedCall.httpStatus !== undefined
-            ? `插件 ${failedPlugin}：${providerFailureNotice(failedCall.httpStatus)}`
-            : `插件 ${failedPlugin} 出错，详情见游戏进程的输出`
-          : relevant?.failure === 'invalid_output'
-            ? '角色返回格式无效'
-            : relevant?.failure === 'preset_failed'
-              ? '角色预设处理失败，请检查提示节点与文本规则'
+        : relevant?.failure === 'preset_failed'
+          ? '角色预设处理失败，请检查提示节点与文本规则'
+          : failedPlugin !== undefined
+            ? failedCall?.status === 'failed' && failedCall.httpStatus !== undefined
+              ? `插件 ${failedPlugin}：${providerFailureNotice(failedCall.httpStatus)}`
+              : `插件 ${failedPlugin} 出错，详情见游戏进程的输出`
+            : relevant?.failure === 'invalid_output'
+              ? '角色返回格式无效'
               : relevant?.failure === 'provider_failed'
                 ? providerFailureNotice(failedCall?.status === 'failed' ? failedCall.httpStatus : undefined)
                 : '角色处理失败'
@@ -111,7 +111,7 @@ export function autonomyNotice(status: RoundStatus, reason: string): void {
   if (reason === 'failed' || reason === 'interrupted') {
     status.set(undefined, true)
     status.set('玩家输入及已提交的角色行动保留；自主处理失败或超时，未完成的机会已丢弃，可以继续行动。', undefined)
-  } else if (reason === 'plugin_failed') {
+  } else if (reason === 'plugin_failed' || reason === 'plugin_invalid') {
     status.set(undefined, true)
     status.set(SCHEDULER_FAILED_NOTICE, undefined)
   } else if (reason === 'call_limit' || reason === 'wave_limit' || reason === 'character_limit') {
@@ -159,7 +159,8 @@ export function playerResolutionNotice(
         const reason = resolutions.get(action.actionId)?.reason
         // Players read the shared plain-language wording; raw rejection codes stay out of the notice.
         const explained = typeof reason === 'string' ? rejectionReasonText(reason)?.replace(/。$/u, '') : undefined
-        return `“${quote || action.actionType}”未执行${explained === undefined ? '' : `：${explained}`}`
+        const label = quote?.trimStart().startsWith('/act ') ? '所选行动' : quote || action.actionType
+        return `“${label}”未执行${explained === undefined ? '' : `：${explained}`}`
       })
       .join('；')
     const lastEnd = Math.max(0, ...(validated.sourceSpans ?? []).map(span => span.endUtf16))

@@ -615,8 +615,11 @@ it('replans an autonomous move after an ordinary actor arrives, without duplicat
   expect(JSON.stringify(autonomous(f.requests))).not.toContain('私语暗号霜叶')
   expect(state.debug.autonomy).toMatchObject({
     autonomousCalls: 3,
-    activations: [{ result: { status: 'stale' } }, { result: { status: 'abstained' } }],
   })
+  expect(
+    f.runtime.creatorInspection().characters.find(character => character.id === 'character:friend')?.processing
+      .lastActivation,
+  ).toMatchObject({ status: 'abstained' })
   const moves = f
     .events()
     .filter(event => event.eventType === 'action.resolved' && object(event.data).actionType === 'move')

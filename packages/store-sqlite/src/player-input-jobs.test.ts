@@ -1,3 +1,4 @@
+import { PLAYER_INPUT_SCHEMA } from './player-input-schema.ts'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -250,6 +251,42 @@ it('detects damaged imported or locally stored input authority', () => {
       }),
     ).toThrow('inconsistent')
   } finally {
+    s.close()
+  }
+})
+
+it('upgrades the input fault terminal constraint while preserving existing input evidence and world facts', () => {
+  const s = setup()
+  let reopened: PlayerInputJobs | undefined
+  try {
+    const original = s.jobs.receive(s.address, 'p', 'original', { text: 'preserve' }, 2)
+    const db = new DatabaseSync(s.path)
+    const before = db.prepare('SELECT * FROM player_input_jobs').all()
+    const head = db.prepare('SELECT * FROM heads').all()
+    db.exec('BEGIN IMMEDIATE')
+    try {
+      db.exec('ALTER TABLE player_input_jobs RENAME TO player_input_jobs_newer')
+      db.exec(PLAYER_INPUT_SCHEMA)
+      db.exec(
+        'INSERT INTO player_input_jobs SELECT * FROM player_input_jobs_newer; DROP TABLE player_input_jobs_newer; PRAGMA user_version=20; COMMIT',
+      )
+    } catch (error) {
+      db.exec('ROLLBACK')
+      throw error
+    }
+    db.close()
+    reopened = new PlayerInputJobs(s.path, () => 100)
+    expect(reopened.read(s.address, 'original')).toEqual(original)
+    const upgraded = new DatabaseSync(s.path)
+    expect(upgraded.prepare('SELECT * FROM player_input_jobs').all()).toEqual(before)
+    expect(upgraded.prepare('SELECT * FROM heads').all()).toEqual(head)
+    upgraded.close()
+    const claimed = reopened.claim(s.address, s.lease)!
+    expect(reopened.advance(claimed, s.lease, 'failed', { pluginId: 'test', operation: 'affordances' }).status).toBe(
+      'failed',
+    )
+  } finally {
+    reopened?.close()
     s.close()
   }
 })

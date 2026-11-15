@@ -248,6 +248,20 @@ export class StatusState {
     return truth
   }
 
+  /** Checks recovered owned values without pretending that loading a snapshot changes an activity-scoped status. */
+  validateSnapshot(events: readonly RulebookEvent[]): void {
+    const truth = this.truth(events)
+    for (const [holderId, values] of Object.entries(truth.characters))
+      if (Object.keys(values).length && !this.#characterIds.includes(holderId))
+        throw new TypeError('状态存档含未声明的角色')
+    for (const status of this.statuses)
+      for (const holderId of status.owner === 'public' ? [null] : this.#characterIds) {
+        const values = holderId === null ? truth.public : truth.characters[holderId]
+        if (!values || !Object.hasOwn(values, status.key)) throw new TypeError('状态存档缺少已声明的值：' + status.key)
+        this.#value(status, values[status.key])
+      }
+  }
+
   /** Current true values of statuses declared `playerTruth`, for the player's frontend only. */
   playerTruth(events: readonly RulebookEvent[]): PlayerTruthStatus[] {
     const truth = this.truth(events),
@@ -372,6 +386,9 @@ export class StatusState {
     else if (source.kind === 'round') {
       exact(source, ['kind', 'round'], ['pause'])
       if (Object.hasOwn(source, 'pause') && source.pause !== true) throw new TypeError('状态来源无效')
+    } else if (source.kind === 'cycle') {
+      exact(source, ['kind', 'cycleId'])
+      if (typeof source.cycleId !== 'string' || !source.cycleId) throw new TypeError('执行周期来源无效')
     } else if (source.kind === 'beat') {
       exact(source, ['kind', 'beatId'])
       if (typeof source.beatId !== 'string' || !source.beatId) throw new TypeError('状态来源无效')

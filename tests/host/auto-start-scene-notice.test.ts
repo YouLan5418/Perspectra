@@ -12,6 +12,48 @@ const PLAYER = 'character:player',
   FRIEND = 'character:friend'
 const THUNDER = '一声闷雷滚过，屋里的灯全灭了。'
 const cleanups: (() => Promise<void> | void)[] = []
+
+it('attributes selected activity initialization failures to activities through the pacing cycle hook', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'scene-notice-'))
+  cleanups.push(() => rmSync(root, { recursive: true, force: true }))
+  const packPath = join(root, 'pack')
+  cpSync(resolve('examples/world-packs/cross-scene-activity'), packPath, { recursive: true })
+  const file = join(packPath, 'scripts/activities/guess.js')
+  writeFileSync(
+    file,
+    readFileSync(file, 'utf8') +
+      `\nactivityScript.autoStart=()=>({when:[['ready',true]]});activityScript.initialize=()=>{throw new Error('PRIVATE_INITIALIZATION_CONTEXT')}`,
+  )
+  writeFileSync(
+    join(packPath, 'scripts/pacing.js'),
+    `globalThis.pacingScript={definition:{cycleRounds:16,chance:1,cooldownRounds:{low:0,medium:0,high:0},recoveryRounds:0,activities:{guess:{intensity:'low'}},beats:{}},beats:{}}`,
+  )
+  const source = join(packPath, 'worldpack.source.json'),
+    manifest = JSON.parse(readFileSync(source, 'utf8'))
+  manifest.assetFiles.push('scripts/pacing.js')
+  writeFileSync(source, JSON.stringify(manifest))
+  const server = await startFakeProvider('openai', () => ({ tool: { decision: 'abstain' } }))
+  cleanups.push(server.close)
+  const runtime = await WorldHostRuntime.create({
+    packPath,
+    dataDirectory: join(root, 'data'),
+    models: fakeModels(server.endpoint),
+  })
+  cleanups.push(() => runtime.close())
+  const state = await runtime.submit('本句应当保留。')
+  expect(state.error).toBe(true)
+  expect(state.debug.execution).toMatchObject({ status: 'failed' })
+  expect(state.notice).toContain('official-activities')
+  expect(JSON.stringify(state)).not.toContain('PRIVATE_INITIALIZATION_CONTEXT')
+  const store = new WorldStore(join(runtime.dataDirectory, 'world.sqlite'))
+  try {
+    const events = store.readEvents(runtime.address)
+    expect(events.filter(event => event.eventType === 'activity.updated')).toEqual([])
+    expect(JSON.stringify(events)).toContain('本句应当保留')
+  } finally {
+    store.close()
+  }
+})
 afterEach(async () => {
   for (const cleanup of cleanups.splice(0).reverse()) await cleanup()
 })
@@ -66,9 +108,13 @@ const told = (contents: readonly WorldJsonObject[]) => contents.filter(content =
 
 it('tells participants and bystanders the event, but not those elsewhere', async () => {
   const present = await world(`notice: '轰隆！', sceneNotice: '${THUNDER}'`, true)
-  expect(told(present.seen(COMPANION))).toEqual([{ status: 'accepted', eventNotice: THUNDER }])
+  expect(told(present.seen(COMPANION))).toEqual([
+    { status: 'accepted', eventNotice: THUNDER, source: { kind: 'cycle', cycleId: expect.any(String) } },
+  ])
   expect(present.seen(COMPANION).map(content => content.resultDescription)).toContain('轮流猜数字开始。')
-  expect(told(present.seen(FRIEND))).toEqual([{ status: 'accepted', eventNotice: THUNDER }])
+  expect(told(present.seen(FRIEND))).toEqual([
+    { status: 'accepted', eventNotice: THUNDER, source: { kind: 'cycle', cycleId: expect.any(String) } },
+  ])
   const away = await world(`sceneNotice: '${THUNDER}'`, false)
   expect(told(away.seen(COMPANION))).toHaveLength(1)
   expect(told(away.seen(FRIEND))).toEqual([])
@@ -105,12 +151,20 @@ it('reaches the characters in their next request, not attached to the player', a
   const stimulus = obj(JSON.parse(request!).context).stimulus as unknown as { content: WorldJsonObject }[]
   const line = stimulus.find(item => item.content?.eventNotice === THUNDER)!
   // It reads as something noticed: no actor, so nobody is said to have caused it.
-  expect(line.content).toEqual({ status: 'accepted', eventNotice: THUNDER })
+  expect(line.content).toEqual({
+    status: 'accepted',
+    eventNotice: THUNDER,
+    source: { kind: 'cycle', cycleId: expect.any(String) },
+  })
 })
 
 it('rejects an empty or overlong scene text', async () => {
   for (const text of ["' '", `'${'长'.repeat(501)}'`]) {
     const f = await world(`sceneNotice: ${text}`, true)
-    expect(String(obj(obj(await f.runtime.state()).debug).autoStartError)).toContain('在场提示')
+    const state = await f.runtime.state()
+    expect(state.error).toBe(false)
+    expect(state.notice).toContain('official-activities')
+    expect(state.notice).toContain('其他处理继续')
+    expect(state.activity?.id).toBeNull()
   }
 })

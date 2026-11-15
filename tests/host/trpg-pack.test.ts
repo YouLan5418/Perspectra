@@ -58,8 +58,14 @@ describe('trpg.json in a pack', () => {
     const updated = world.events().find(e => e.eventType === 'activity.updated')!
     expect((updated.data as Json).activityKey).toBe('trpg')
     expect(JSON.stringify(updated.data)).toContain('"phase":"setup"')
-    expect(readJson(join(data, 'plugin-set.json')).generatedContent).toEqual({
-      'official-trpg': expect.stringMatching(/^sha256:[0-9a-f]{64}$/u),
+    expect(readJson(join(data, 'plugin-set.json')).gameplayData).toEqual({
+      'official-trpg': {
+        pluginVersion: '1',
+        dataVersion: 1,
+        statuses: [],
+        activities: [{ key: 'trpg', phases: ['setup', 'invited', 'playing', 'ended'] }],
+        digest: expect.stringMatching(/^sha256:[0-9a-f]{64}$/u),
+      },
     })
   })
 
@@ -68,6 +74,7 @@ describe('trpg.json in a pack', () => {
     const { pack } = copy(pack => {
       const source = readJson(join(pack, 'worldpack.source.json'))
       source.assetFiles = []
+      source.plugins = {}
       writeFileSync(join(pack, 'worldpack.source.json'), JSON.stringify(source))
       rmSync(join(pack, 'trpg.json'))
     })

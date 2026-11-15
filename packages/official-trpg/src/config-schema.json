@@ -1,0 +1,211 @@
+{
+  "type": "object",
+  "properties": {
+    "plugin": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "const": "official-trpg"
+        },
+        "version": {
+          "type": "string",
+          "const": "1"
+        }
+      },
+      "required": [
+        "id",
+        "version"
+      ],
+      "additionalProperties": false
+    },
+    "sheet": {
+      "type": "object",
+      "properties": {
+        "stats": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "key": {
+                "type": "string",
+                "minLength": 1
+              },
+              "label": {
+                "type": "string",
+                "minLength": 1
+              },
+              "max": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 1000
+              }
+            },
+            "required": [
+              "key",
+              "label",
+              "max"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "skills": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "key": {
+                "type": "string",
+                "minLength": 1
+              },
+              "label": {
+                "type": "string",
+                "minLength": 1
+              },
+              "modifier": {
+                "type": "integer",
+                "minimum": -100,
+                "maximum": 100
+              }
+            },
+            "required": [
+              "key",
+              "label",
+              "modifier"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "dice": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "stats",
+        "skills",
+        "dice"
+      ],
+      "additionalProperties": false
+    },
+    "characters": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "stats": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          "skills": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "integer"
+            }
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      }
+    },
+    "hosts": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "scenarios": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1
+          },
+          "opening": {
+            "type": "string",
+            "minLength": 1
+          },
+          "truth": {
+            "type": "string",
+            "minLength": 1
+          },
+          "endings": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "content": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "enum": [
+                    "place",
+                    "item",
+                    "npc"
+                  ]
+                },
+                "name": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "description": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "location": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "public": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "kind",
+                "name",
+                "description",
+                "public"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "opening",
+          "truth",
+          "endings",
+          "content"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "themes": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    }
+  },
+  "required": [
+    "plugin",
+    "sheet"
+  ],
+  "additionalProperties": false
+}

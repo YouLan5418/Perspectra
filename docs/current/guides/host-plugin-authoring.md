@@ -1,5 +1,7 @@
 # 编写并加载自己的 Cordis 宿主插件
 
+B8 共同 GameplayDefinition 可提供通用操作、面板与绑定正式操作的控件；configSchema 可由 Launcher 编辑。参见[展示与配置指南](gameplay-presentation.md)，无需编写默认舞台组件。
+
 2026-11-05 M6：先按[共同契约](../architecture/mechanism-contracts.md)区分核心、内部机制、包内脚本与交付适配。API 仍为 2.8，SDK 根导出不变，不导入内部文件作为未发布子路径。显式组合、透视与分享选择见[装配说明](../architecture/mechanism-contracts.md#5-默认组合与显式停用)。
 
 ## 替换骰子（2.11）
@@ -134,7 +136,7 @@ export default function (ctx) {
 
 每个世界与候选独立 open/close；公开 identity 纳入重生与候选比较。打开失败不回退，选择失败提示真实机制 ID，玩家输入与先前提交内容保留。当前仍是可信原生插件，不提供恶意代码沙箱。
 
-2026-11-04 依赖就绪：插件可用 Cordis 的 `inject` 声明所需服务，提供者可以排在后面。宿主完成全部装载后核对状态，缺服务或互相等待的插件会被跳过，并列出未就绪的服务名。异步初始化仍保留设置列表中的注册优先级。该声明不替代世界包的 requiresPlugins，也不决定决策步骤顺序。见[默认组合与依赖诊断](../studies/2026-11-plugin-first-phase-11.md)。
+依赖就绪：插件可用 Cordis 的 `inject` 声明所需服务，提供者可以排在后面。宿主完成全部装载后核对状态；B2 开始，核心实现缺服务或互相等待时停止启动，只有明确的外围可选插件可报告后跳过。异步初始化仍保留设置列表中的注册优先级。该声明不替代世界包的 requiresPlugins，也不决定决策步骤顺序。历史实现见[默认组合与依赖诊断](../studies/2026-11-plugin-first-phase-11.md)。
 
 ## 替换角色执行循环（2.4）
 
@@ -178,7 +180,7 @@ export default function(ctx) {
 ## 先运行一个不需要音频文件的示例
 
 1. 在启动器“全局设置 → 插件”点“添加本地插件”，文件选择 [demo-bgm.mjs](../../../examples/host-plugins/demo-bgm.mjs)的绝对路径，插件 ID 没有自动填上就填 `demo-bgm`。
-2. 勾选加载，保存设置，下次启动游戏生效。
+2. 勾选“允许在本机执行此插件”，再勾选“启动游戏时加载此插件”，保存设置，下次启动游戏生效。换路径会撤销旧许可和加载选择。
 3. 在默认舞台内点击一次，解锁浏览器声音。“设置 → 声音”中可关闭背景音乐、调整音量或静音。
 
 示例在内存生成两段很轻的测试和弦，不是正式配乐。当前段落含“争执”“危险”或“紧张”时选紧张曲，含“停止音乐”时返回静音，其他段落选日常曲。这只是可替换的示例规则，运行时没有新增文本分类器或模型调用。
@@ -243,7 +245,7 @@ export default async function myBgm(ctx) {
 
 所有接口类型集中在 [@harness-world/plugin-sdk](../../../packages/plugin-sdk/src/index.ts)：`HostServices` 列出服务，`SchedulerRound` 等定义参数与事件形状。宿主直接引用这些类型。该包尚未发布到 npm，也不随便携包附带；仓库外开发时可参照源码或复制类型。
 
-目前使用项目依赖的 `@deepseek-ai/cordis@4.0.1`。装载器接受默认导出的函数、类或 `{ apply(ctx) {} }` 对象；资源注册用 `ctx.effect(() => register(...))`，退出时返回的注销函数随插件释放。外部文件入口必须是 `.mjs` 或可由 Node 按 ESM 解析的 `.js`，不直接执行 TypeScript。插件初始化抛错时只跳过这一个插件，已经通过 `ctx.effect` 注册的服务会被撤销，所以注册都应放进 `ctx.effect`；启动器设置页会标出上次被跳过的插件及原因；详细错误只输出到游戏进程的标准错误，调试时请从命令行启动游戏。加载入口见[宿主插件](../host-plugins.md)，类型定义见 [plugin-sdk](../../../packages/plugin-sdk/src/index.ts)。
+目前使用项目依赖的 `@deepseek-ai/cordis@4.0.1`。装载器接受默认导出的函数、类或 `{ apply(ctx) {} }` 对象；资源注册用 `ctx.effect(() => register(...))`，退出时返回的注销函数随插件释放。外部文件入口必须是 `.mjs` 或可由 Node 按 ESM 解析的 `.js`，不直接执行 TypeScript。B2 的加载器只导入已允许且启用的模块，显式核心实现初始化失败停止启动；清单仅声明语音／音乐、玩家可见订阅或外部能力的外围插件可报告后跳过。原始异常正文不会写进宿主生成的提示；注册仍应放进 `ctx.effect`。加载入口见[宿主插件](../host-plugins.md)，类型定义见 [plugin-sdk](../../../packages/plugin-sdk/src/index.ts)。
 
 | 接口 | 用途 |
 | --- | --- |
@@ -287,13 +289,14 @@ export default function (ctx) {
 - `round.observationSeqs(id, afterSeq, throughSeq)` 返回该角色授权视图中的全部观察序号，顺序沿用视图，不保证数值递增。官方活动将它们排序后取最近 8 条；自主机会沿用视图顺序。自主处理用 `round.turn(id, { kind: 'autonomous', ... })`，合法行动继续由宿主裁定。
 - `round.activity.next()` 给出当前合法参与者；你可以不给机会、只处理一次或继续处理。每次 `turn` 前宿主重查参与者，完成后用真实结果推进活动。不能跳过法定次序、伪造 outcome，或同时执行两个活动参与者。`resultUnknown()` 为真时应停止。
 - 返回 `{ calls, wave, terminalReason, activations }`。`failed`、`interrupted`、`call_limit`、`wave_limit`、`character_limit` 有各自的玩家提示，其他值都显示为本轮已结束。
+- 只需要补充角色唤醒来源而不替换整个调度器时，可在声明 `services: ['scheduler']` 后调用 `ctx.effect(() => ctx.scheduler.registerWakeup({ id: 'my-wakeup', version: '1.0.0', open: async world => ({ nominate: input => [...] }) }))`。提名只表达角色机会与已属于该角色的观察序号；可选唤醒源抛错或返回越权刺激时会被跳过并告警，其他唤醒源与正常反应继续运行。
 - 进阶接口 `onCommitted` 和 `continuationOf` 用于动态并发和过期重算，可参考[官方实现](../../../packages/official-scheduler/src/index.ts)。
 
 需要定义自己的服务时，可以 `import { Service } from '@deepseek-ai/cordis'`，宿主会把它指向自己运行的那一份，插件不用也不要自带。
 
 **由作者负责的部分。** `round.limits` 是玩家设置的上限，只作为建议传给你，宿主不做总量拦截，超出就要玩家多付模型费用。`world` 和 `round.world` 能读所有事件和任意角色的视图，把一个角色的私有内容交给另一个角色，隔离就破了。玩家启用插件即视为信任作者，宿主不做沙箱。活动中的合法参与者属于玩法；调度器决定是否提供机会，不改变玩法规定的合法顺序。`beforeModelCall` 是可选的本轮预算回调，在真实发送与格式重试前调用；官方分段自主调度用它计数，第三方不传时宿主不施加官方总量限制。`calls` 仍是角色决策计数，不等于任意决策插件实际发送的总次数。
 
-调度器抛错或返回非法结果时，这一轮反应结束，已提交的内容保留，玩家看到提示后可以继续。打开失败时改用官方调度。如果它忽略取消信号又一直不返回，这一轮会卡住，只能重启游戏。
+调度器抛错或返回非法结果时，这一轮反应结束，已提交的内容保留，玩家看到提示后可以继续。打开失败时停止打开世界。请求取消或实例关闭会主动结束异步等待并撤销后续调用资格；可信原生同步代码不能被抢占。调度的核心硬预算在 B3 接通，当前不能据此声称所有插件都遵守官方调度预算。
 
 玩家移除插件后，同一个存档回到官方调度，已提交的世界事实不变。自动测试覆盖替换、异常、候选与存档重开。阶段 7 的真实模型验收单独记录在[实施记录](../studies/2026-11-plugin-first-phase-7.md)，不能从单测推导。示例采用自主处理后不追加反应波的简化策略；官方实现保留原有后续反应。
 

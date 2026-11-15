@@ -1,3 +1,4 @@
+import { CharacterTurn } from './character-turn.ts'
 import { Context } from '@deepseek-ai/cordis'
 import {
   WorldError,
@@ -13,9 +14,9 @@ import {
   type FaultInjector,
   type InteractionPackageImplementation,
   type InteractionRoundId,
-  type RecallTokenizerId,
   type WorldAddress,
   type WorldJsonValue,
+  type WorldJsonObject,
 } from '@harness-world/contracts'
 import {
   FrozenInteractionRulebook,
@@ -30,12 +31,21 @@ import {
   type PlayerActionInput,
   type RulebookRegistry,
 } from '@harness-world/kernel'
+import { RulebookRegistry as BaseRulebookRegistry, type RulebookResolver } from '@harness-world/kernel'
 import { AuthorizedSourceStore } from '@harness-world/memory'
 import { DeterministicPresenter } from '@harness-world/presentation'
 import {
+  PluginFaultError,
+  createPluginCallContext,
+  callPluginForValueAsync,
+  type HostCallbackErrors,
+  isPluginFault,
+  createWorldInstanceScope,
   WorldRuntimeRegistry,
   type BranchComponentFactory,
   type BranchExecutionLane,
+  type WorldInstanceScope,
+  type WorldInstanceScopeOptions,
 } from '@harness-world/runtime-cordis'
 import {
   BranchAdministration,
@@ -70,6 +80,29 @@ import { SceneDecisionService } from './scene-decision.ts'
 import { WorldAdministration } from './world-administration.ts'
 import type { MountedBranch, WorldBranchAccess } from './world-branch-access.ts'
 import { WorldReadQueries } from './world-read-queries.ts'
+import { CycleHookFault, WorldExecutionEngine } from './execution-engine.ts'
+import { GameplayRuntime } from './gameplay-runtime.ts'
+import { gameplayWorldView } from './world-view.ts'
+import { executeWorldRound, validateWorldRoundEffects } from './world-round-execution.ts'
+import type { ExecutionCycleBudget, HostServices } from '@harness-world/plugin-sdk'
+
+/** Every application entrance rechecks the active branch's registered gameplay, including existing player APIs. */
+class GameplayRulebooks extends BaseRulebookRegistry {
+  constructor(
+    readonly owner: object,
+    private readonly base: RulebookRegistry,
+    private readonly gameplay: (address: WorldAddress) => GameplayRuntime | undefined,
+  ) {
+    super()
+  }
+  override resolve(id: string, version: number, correlationId: string, address?: WorldAddress): RulebookResolver {
+    const base = this.base.resolve(id, version, correlationId, address)
+    return {
+      affordances: context => (this.gameplay(context.manifest.address)?.resolver(base) ?? base).affordances(context),
+      resolve: context => (this.gameplay(context.manifest.address)?.resolver(base) ?? base).resolve(context),
+    }
+  }
+}
 
 function assertCompatibleContentPackVersion(
   existing: { readonly manifest: WorldJsonValue } | undefined,
@@ -125,6 +158,16 @@ export interface WorldApplicationOptions {
   readonly interactionPackages?: readonly InteractionPackageImplementation[]
   readonly memoryPath?: string
   readonly contextPath?: string
+}
+
+export interface WorldExecutionResources {
+  readonly store: WorldStore
+  createTurn(
+    options: Omit<
+      ConstructorParameters<typeof CharacterTurn>[0],
+      'address' | 'store' | 'leases' | 'availability' | 'projectGameplayContext'
+    >,
+  ): CharacterTurn
 }
 
 export interface SubmitTextRequest {
@@ -228,14 +271,24 @@ export class BranchStoreComponent {
   }
 
   close(): void {
-    this.session.close()
-    this.outbox.close()
-    this.availability.close()
-    this.quarantine.close()
-    this.administration.close()
-    this.inbox.close()
-    this.leases.close()
-    this.store.close()
+    const errors: unknown[] = []
+    const close = (work: () => void) => {
+      try {
+        work()
+      } catch (error: unknown) {
+        errors.push(error)
+      }
+    }
+    close(() => this.session.close())
+    close(() => this.outbox.close())
+    close(() => this.availability.close())
+    close(() => this.quarantine.close())
+    close(() => this.administration.close())
+    close(() => this.inbox.close())
+    close(() => this.leases.close())
+    close(() => this.store.close())
+    if (errors.length === 1) throw errors[0]
+    if (errors.length > 1) throw new AggregateError(errors, 'branch store cleanup failed')
   }
 }
 
@@ -345,10 +398,13 @@ export class WorldApplication {
   readonly #inputTails = new Map<string, Promise<unknown>>()
   readonly #root = new Context()
   readonly #branches = new Map<string, Promise<MountedBranch>>()
+  readonly #instanceScopes = new Set<WorldInstanceScope>()
   readonly #rulebooks: RulebookRegistry
+  readonly #gameplay = new Map<string, GameplayRuntime>()
   readonly runtimeRegistry: WorldRuntimeRegistry
   readonly runtimeMetrics = new ApplicationRuntimeMetrics()
   #closed = false
+  #closePromise: Promise<void> | undefined
 
   readonly #interactionPackages: readonly InteractionPackageImplementation[]
   /**
@@ -377,7 +433,9 @@ export class WorldApplication {
     this.admin = new WorldAdministration(access)
     this.#interactionPackages = options.interactionPackages ?? []
     this.#frozenInteractions = new FrozenInteractionRulebook(this.#interactionPackages)
-    this.#rulebooks = options.rulebooks ?? createCoreRulebookRegistry({ frozenInteractions: this.#frozenInteractions })
+    this.#rulebooks = this.#gameplayRules(
+      options.rulebooks ?? createCoreRulebookRegistry({ frozenInteractions: this.#frozenInteractions }),
+    )
     this.runtimeRegistry = new WorldRuntimeRegistry(
       this.#root,
       new WorldBranchComponentFactory({
@@ -385,6 +443,202 @@ export class WorldApplication {
         rulebooks: this.#rulebooks,
       }),
     )
+  }
+
+  async createInstanceScope(options: WorldInstanceScopeOptions = {}): Promise<WorldInstanceScope> {
+    this.#assertOpen()
+    const scope = await createWorldInstanceScope(this.#root, options)
+    this.#instanceScopes.add(scope)
+    if (this.#closed) {
+      await this.#closeInstanceScope(scope)
+      this.#assertOpen()
+    }
+    return scope
+  }
+
+  #gameplayRules(base: RulebookRegistry): RulebookRegistry {
+    return base instanceof GameplayRulebooks && base.owner === this
+      ? base
+      : new GameplayRulebooks(this, base, address => this.#gameplay.get(worldAddressKey(address)))
+  }
+
+  /** Reuses this application's real branch resources and binds authoritative turn dependencies. */
+  async withExecutionResources<T>(
+    input: { readonly scope: WorldInstanceScope; readonly address: WorldAddress; readonly signal?: AbortSignal },
+    work: (resources: WorldExecutionResources) => Promise<T>,
+  ): Promise<T> {
+    this.#assertOpen()
+    if (!this.#instanceScopes.has(input.scope)) throw new TypeError('scope belongs to another application')
+    input.scope.assertActive(input.signal)
+    const address = structuredClone(input.address)
+    const branch = await this.#branch(address)
+    branch.kernel.yieldWriter()
+    input.scope.assertActive(input.signal)
+    return work({
+      store: branch.store.store,
+      createTurn: options => {
+        input.scope.assertActive(input.signal)
+        return new CharacterTurn({
+          ...options,
+          rulebooks: this.#gameplayRules(options.rulebooks),
+          projectGameplayContext: (events, actorId) =>
+            this.#gameplay.get(worldAddressKey(address))?.projectContext(events, actorId, {}) ?? {},
+          address,
+          store: branch.store.store,
+          leases: branch.store.leases,
+          availability: branch.store.availability,
+        })
+      },
+    })
+  }
+
+  /** Binds the public execution entry to an existing application scope and authoritative branch. */
+  async createGameplayRuntime(options: {
+    readonly scope: WorldInstanceScope
+    readonly address: WorldAddress
+    readonly engine: WorldExecutionEngine
+    readonly availableServices: readonly (keyof HostServices)[]
+    readonly projectWorld?: import('./gameplay-runtime.ts').GameplayRuntimeOptions['projectWorld']
+    readonly projectKnownStatus?: import('./gameplay-runtime.ts').GameplayRuntimeOptions['projectKnownStatus']
+    readonly rollDice?: import('./gameplay-runtime.ts').GameplayRuntimeOptions['rollDice']
+  }): Promise<GameplayRuntime> {
+    this.#assertOpen()
+    if (!this.#instanceScopes.has(options.scope)) throw new TypeError('scope belongs to another application')
+    options.scope.assertActive()
+    const address = structuredClone(options.address)
+    const key = worldAddressKey(address)
+    if (this.#gameplay.has(key)) throw new TypeError('this branch already has a gameplay runtime')
+    if (options.scope.resolve(`execution:${worldAddressKey(address)}`) !== options.engine)
+      throw new TypeError('gameplay requires this branch execution engine')
+    const branch = await this.#branch(address)
+    const manifest = runtimeManifestFromStoredRecord(branch.store.store.readManifest(address))
+    branch.kernel.yieldWriter()
+    const runtime = new GameplayRuntime({
+      scope: options.scope,
+      manifest,
+      engine: options.engine,
+      availableServices: options.availableServices,
+      projectWorld:
+        options.projectWorld ??
+        ((events, actorId) => gameplayWorldView(this.options.worldPath, address, manifest, events, actorId)),
+      ...(options.projectKnownStatus ? { projectKnownStatus: options.projectKnownStatus } : {}),
+      ...(options.rollDice ? { rollDice: options.rollDice } : {}),
+      read: async () => {
+        this.#assertOpen()
+        options.scope.assertActive()
+        const current = await this.#branch(address)
+        const record = current.store.store.readManifest(address)!
+        return {
+          head: current.store.store.head(address),
+          manifest: runtimeManifestFromStoredRecord(record),
+          manifestHash: record.manifestHash,
+          events: current.store.store.readEvents(address),
+          prior: undefined,
+        }
+      },
+      execute: async (owner, actorId, adjudicate) => {
+        this.#assertOpen()
+        options.scope.assertActive()
+        const current = await this.#branch(address)
+        current.kernel.yieldWriter()
+        const committed = await executeWorldRound(
+          {
+            store: current.store.store,
+            leases: current.store.leases,
+            address,
+            owner,
+            actorId,
+            signal: options.scope.signal,
+            captureCognition: current.agents.cognitiveMemory !== undefined,
+          },
+          adjudicate,
+        )
+        if (committed && current.agents.cognitiveMemory) {
+          try {
+            current.kernel.resumeWriter()
+          } finally {
+            current.kernel.yieldWriter()
+          }
+        }
+        return committed
+      },
+    })
+    const owned = options.scope.own(`gameplay:${key}`, runtime, () => {
+      runtime.close()
+      if (this.#gameplay.get(key) === runtime) this.#gameplay.delete(key)
+    })
+    this.#gameplay.set(key, runtime)
+    return owned
+  }
+
+  /** Binds the public execution entry to an existing application scope and authoritative branch. */
+  async createExecutionEngine(options: {
+    readonly scope: WorldInstanceScope
+    readonly address: WorldAddress
+    readonly defaults?: Partial<ExecutionCycleBudget>
+    readonly callbacks?: HostCallbackErrors
+  }): Promise<WorldExecutionEngine> {
+    this.#assertOpen()
+    if (!this.#instanceScopes.has(options.scope)) throw new TypeError('scope belongs to another application')
+    options.scope.assertActive()
+    const address = structuredClone(options.address)
+    const branch = await this.#branch(address)
+    const manifest = runtimeManifestFromStoredRecord(branch.store.store.readManifest(address))
+    const players = new Set(manifest.playerBindings.map(row => row.characterId))
+    branch.kernel.yieldWriter()
+    const hookContext = createPluginCallContext(options.scope, options.callbacks)
+    const engine = new WorldExecutionEngine({
+      scope: options.scope,
+      characters: manifest.characters.filter(row => !players.has(row.characterId)).map(row => row.characterId),
+      ...(options.defaults === undefined ? {} : { defaults: options.defaults }),
+      settle: async (hook, cycleId, signal) => {
+        this.#assertOpen()
+        options.scope.assertActive(signal)
+        // Reacquire the same mounted branch; release/save may have disposed an earlier handle.
+        const current = await this.#branch(address)
+        current.kernel.yieldWriter()
+        const committed = await executeWorldRound(
+          {
+            store: current.store.store,
+            leases: current.store.leases,
+            address,
+            owner: `cycle:${cycleId}:${randomUUID()}`,
+            signal,
+            captureCognition: current.agents.cognitiveMemory !== undefined,
+          },
+          async snapshot => {
+            try {
+              return await callPluginForValueAsync(
+                hookContext,
+                hook.pluginId,
+                'onCycleEnd',
+                signal,
+                async hookSignal => {
+                  const effects = await hook.resolve(structuredClone(snapshot), cycleId, hookSignal)
+                  if (effects === undefined) return undefined
+                  const value = structuredClone(effects)
+                  canonicalizeWorldJson(value as unknown as WorldJsonValue)
+                  validateWorldRoundEffects(snapshot, value)
+                  return value
+                },
+              )
+            } catch (error) {
+              if (isPluginFault(error)) throw new CycleHookFault(error.pluginId, hook.hookId)
+              throw error
+            }
+          },
+        )
+        if (committed && current.agents.cognitiveMemory) {
+          try {
+            current.kernel.resumeWriter()
+          } finally {
+            current.kernel.yieldWriter()
+          }
+        }
+        return committed
+      },
+    })
+    return options.scope.own(`execution:${worldAddressKey(address)}`, engine, () => engine.close())
   }
 
   activate(compiled: CompiledWorldSpec) {
@@ -571,6 +825,12 @@ export class WorldApplication {
         await this.#queueNextPlayerInput(address, request.correlationId)
         current = jobs.read(address, received.idempotencyKey)!
       }
+      if (current.status === 'failed') {
+        const fault = current.records.failed as WorldJsonObject
+        if (typeof fault.pluginId !== 'string' || typeof fault.operation !== 'string')
+          throw new TypeError('failed input diagnostic is malformed')
+        throw new PluginFaultError(fault.pluginId, fault.operation, fault.invalidResult === true)
+      }
       if (current.status !== 'completed' && current.status !== 'clarification_required') {
         const detail =
           current.status === 'invalid_response'
@@ -692,7 +952,17 @@ export class WorldApplication {
       },
       complete: async job => {
         while (branch.store.inbox.readCompleted(address, job.idempotencyKey) === undefined) {
-          await branch.kernel.processNextAccepted(correlationId)
+          try {
+            await branch.kernel.processNextAccepted(correlationId)
+          } catch (error) {
+            if (!isPluginFault(error)) throw error
+            const current = branch.store.inbox.readStatus(address, { idempotencyKey: job.idempotencyKey })
+            if (current?.status === 'failed') throw error
+            if (current?.status !== 'queued' && current?.status !== 'processing')
+              throw new Error('input round lost its active queue binding')
+            // A different, earlier FIFO item failed. Its diagnostic is already recorded;
+            // this independent input has not failed and keeps its own lifecycle.
+          }
         }
         return branch.store.inbox.readCompleted(address, job.idempotencyKey)!
       },
@@ -918,20 +1188,42 @@ export class WorldApplication {
     await branch.lease.dispose()
   }
 
-  async close(): Promise<void> {
-    if (this.#closed) return
+  close(): Promise<void> {
+    if (this.#closePromise !== undefined) return this.#closePromise
     this.#closed = true
+    const scopeClosings = [...this.#instanceScopes].map(scope => this.#closeInstanceScope(scope))
+    this.#closePromise = this.#finishClose(scopeClosings)
+    return this.#closePromise
+  }
+
+  async #finishClose(scopeClosings: readonly Promise<void>[]): Promise<void> {
     const pending = [...this.#branches.values()]
     await Promise.allSettled(this.#inputTails.values())
     this.#branches.clear()
-    await Promise.all(
-      pending.map(branch =>
-        branch.then(
-          value => value.lease.dispose(),
-          () => undefined,
+    const [scopeResults, branchResults] = await Promise.all([
+      Promise.allSettled(scopeClosings),
+      Promise.allSettled(
+        pending.map(branch =>
+          branch.then(
+            value => value.lease.dispose(),
+            () => undefined,
+          ),
         ),
       ),
+    ])
+    const errors = [...scopeResults, ...branchResults].flatMap(result =>
+      result.status === 'rejected' ? [result.reason] : [],
     )
+    if (errors.length === 1) throw errors[0]
+    if (errors.length > 1) throw new AggregateError(errors, 'world application cleanup failed')
+  }
+
+  async #closeInstanceScope(scope: WorldInstanceScope): Promise<void> {
+    try {
+      await scope.close()
+    } finally {
+      this.#instanceScopes.delete(scope)
+    }
   }
 
   get activeBranchCount(): number {

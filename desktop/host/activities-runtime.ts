@@ -8,6 +8,7 @@ import type {
   AutoStartEvaluation,
   ActivityDefinitionView,
 } from '@harness-world/contracts'
+import { isPluginFault, PluginFaultError } from './plugin-runtime.ts'
 import type { ActivitiesInstance, DiceInstance } from '@harness-world/plugin-sdk'
 import { WorldStore } from '@harness-world/store-sqlite'
 import { RulebookRegistry, type RulebookEvent, type RulebookResolver } from '@harness-world/kernel'
@@ -47,6 +48,8 @@ export class ActivitiesRuntime {
     readonly playerId: string,
     readonly coreRules: RulebookRegistry,
     readonly mechanism: ActivitiesInstance,
+    private readonly ownerId: string,
+    private readonly isCoreError: (error: unknown) => boolean,
   ) {}
   static open(
     mechanism: ActivitiesInstance,
@@ -57,12 +60,16 @@ export class ActivitiesRuntime {
     coreRules: RulebookRegistry,
     /** Absent in a composition without a dice mechanism; then rollDice fails and nothing commits. */
     dice?: DiceInstance,
+    ownerId = 'official-activities',
+    isCoreError: (error: unknown) => boolean = () => false,
+    native?: import('@harness-world/application').GameplayRuntime,
   ): ActivitiesRuntime | undefined {
     if (!mechanism.entries.length) return undefined
-    const catalog = new ActivitiesRuntime(worldPath, address, playerId, coreRules, mechanism)
+    const catalog = new ActivitiesRuntime(worldPath, address, playerId, coreRules, mechanism, ownerId, isCoreError)
     for (const entry of mechanism.entries) {
       if (catalog.#entries.has(entry.key)) throw new TypeError('重复的活动标识：' + entry.key)
       const activity = new ActivityRuntime(entry, worldPath, address, playerId, entry.key, status, coreRules, {
+        ...(native ? { native } : {}),
         randomSource: () => catalog.#nextRandom(),
         readCurrent: () => catalog.#current(entry.key),
         signal: catalog.signal,
@@ -207,14 +214,21 @@ export class ActivitiesRuntime {
     return this.#nextRandom()
   }
   /** The activities whose author conditions all hold now. A failing hook throws after recording its evaluation. */
-  autoStartCandidates(): readonly AutoStartCandidate[] {
-    const { evaluations, met, error } = this.#evaluateAutoStart()
+  autoStartCandidates(snapshot?: ActivityWorld, onWarning?: (error: Error) => void): readonly AutoStartCandidate[] {
+    this.#preparedAutoStart = undefined
+    const { evaluations, met, error } = this.#evaluateAutoStart(snapshot)
     this.#lastAutoStart = evaluations
-    if (error) throw error
+    if (error) {
+      if (!onWarning) throw error
+      onWarning(error)
+    }
     return met
   }
   /** The activity mechanism's own choice among these. */
   async startChosen(met: readonly AutoStartCandidate[]): Promise<boolean> {
+    return this.startAuto(this.chooseAutoStart(met))
+  }
+  chooseAutoStart(met: readonly AutoStartCandidate[]): AutoStartCandidate {
     let active = true
     let key: string | undefined
     try {
@@ -230,7 +244,24 @@ export class ActivitiesRuntime {
     }
     const chosen = met.find(candidate => candidate.key === key)
     if (!chosen) throw new TypeError('自动开始选择了条件未满足的活动')
-    return this.startAuto(chosen)
+    return chosen
+  }
+  prepareAutoStart(chosen: AutoStartCandidate, snapshot: ActivityWorld, cycleId: string) {
+    try {
+      const effects = chosen.entry.prepareAutoStart(snapshot, chosen.parameters, cycleId, {
+        ...(chosen.notice === undefined ? {} : { notice: chosen.notice }),
+        ...(chosen.sceneNotice === undefined ? {} : { sceneNotice: chosen.sceneNotice }),
+      })
+      this.#preparedAutoStart = {
+        key: chosen.key,
+        actionId: cycleId + ':activity:' + chosen.key,
+        afterSeq: snapshot.headSeq,
+      }
+      return effects
+    } catch (error) {
+      if (this.isCoreError(error) || isPluginFault(error)) throw error
+      throw new PluginFaultError(this.ownerId, 'initialize', true)
+    }
   }
   async startAuto(chosen: AutoStartCandidate): Promise<boolean> {
     const store = new WorldStore(this.worldPath)
@@ -261,8 +292,28 @@ export class ActivitiesRuntime {
     return started
   }
   #lastAutoStart: readonly AutoStartEvaluation[] = []
+  #preparedAutoStart: { readonly key: string; readonly actionId: string; readonly afterSeq: number } | undefined
   /** Each autoStart activity's checks from the most recent round's autoStart(). */
   lastAutoStart(): readonly AutoStartEvaluation[] {
+    const prepared = this.#preparedAutoStart
+    if (
+      prepared &&
+      this.#readStore()
+        .readEventsRange(this.address, prepared.afterSeq, this.#readStore().head(this.address).headSeq, [
+          'activity.updated',
+        ])
+        .some(event => {
+          const data = event.data as WorldJsonObject
+          return (
+            event.eventType === 'activity.updated' && data.actionId === prepared.actionId && data.operation === 'start'
+          )
+        })
+    ) {
+      this.#lastAutoStart = this.#lastAutoStart.map(item =>
+        item.activityKey === prepared.key ? { ...item, started: true } : item,
+      )
+      this.#preparedAutoStart = undefined
+    }
     return this.#lastAutoStart
   }
   /** The author's activity declarations, read from the already loaded scripts. */
@@ -282,14 +333,17 @@ export class ActivitiesRuntime {
     return this.#evaluateAutoStart().evaluations
   }
   /** Script and validation errors stay with their item; storage faults still throw. */
-  #evaluateAutoStart() {
+  #evaluateAutoStart(snapshot?: ActivityWorld) {
     const entries = [...this.#entries].filter(([, entry]) => entry.hasAutoStart)
     const evaluations: AutoStartEvaluation[] = [],
       met: AutoStartCandidate[] = []
     let error: Error | undefined
     // A running foreground activity skips every start check, as rounds always have.
-    const skipped = entries.length === 0 || this.current()?.game.active === true
-    const world = skipped ? undefined : readActivityWorld(this.worldPath, this.address)
+    const running = snapshot
+      ? [...activityProgress(snapshot.events).values()].some(state => state.game.active)
+      : this.current()?.game.active === true
+    const skipped = entries.length === 0 || running
+    const world = skipped ? undefined : (snapshot ?? readActivityWorld(this.worldPath, this.address))
     for (const [key, entry] of entries) {
       const item = { activityKey: key, title: entry.title, started: false }
       if (!world) {
@@ -306,7 +360,8 @@ export class ActivitiesRuntime {
         }
         if (candidate?.met) met.push({ key, entry, ...candidate })
       } catch (cause: unknown) {
-        if (!(cause instanceof TypeError) && !(cause instanceof RangeError)) throw cause
+        if (this.isCoreError(cause)) throw cause
+        if (!(cause instanceof TypeError) && !(cause instanceof RangeError) && !isPluginFault(cause)) throw cause
         error ??= cause
         evaluations.push({ ...item, checks: null, error: cause.message })
       }

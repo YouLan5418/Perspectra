@@ -791,3 +791,64 @@ it('names actions by their author, with plain fallbacks that never show a defini
     '与 一锅米 互动',
   ])
 })
+
+it('B8 routes finite select controls via the current formal offer and rejects removed or disabled controls', async () => {
+  const { send, runtime, setState } = await fixture()
+  const operation = { id: 'rules:mode', argument: 'mode' }
+  const state: HostState = {
+    ...privateState(),
+    gameplay: [
+      {
+        moduleId: 'rules',
+        view: {
+          controls: [
+            {
+              id: 'mode',
+              label: '模式',
+              kind: 'select',
+              value: 'normal',
+              options: [
+                { value: 'normal', label: '普通' },
+                { value: 'quiet', label: '安静' },
+              ],
+              operation,
+            },
+          ],
+        },
+      },
+    ],
+    availableActions: [
+      {
+        actionType: 'interact',
+        actionVersion: 2,
+        interactions: [
+          {
+            label: '模式',
+            targetRef: { kind: 'character', id: PLAYER },
+            definitionRef: { id: 'rules:mode', version: 1 },
+            bindingId: 'gameplay',
+            arguments: { fixed: 1 },
+            argumentSchema: {
+              type: 'object',
+              properties: { mode: { type: 'string', enum: ['normal', 'quiet'] }, fixed: { type: 'integer' } },
+              required: ['mode', 'fixed'],
+            },
+            ui: { label: '模式' },
+          },
+        ],
+      },
+    ],
+  }
+  setState(state)
+  expect((await send('setPluginControl', { id: 'rules/mode', value: 'invented' }, 'invalid-mode')).status).toBe(400)
+  expect(runtime.perform).not.toHaveBeenCalled()
+  expect((await send('setPluginControl', { id: 'rules/mode', value: 'quiet' }, 'quiet-mode')).status).toBe(200)
+  expect(runtime.perform).toHaveBeenCalledWith(
+    expect.objectContaining({ parameters: expect.objectContaining({ arguments: { fixed: 1, mode: 'quiet' } }) }),
+  )
+  setState({ ...state, availableActions: [] })
+  expect((await send('setPluginControl', { id: 'rules/mode', value: 'normal' }, 'stale-mode')).status).toBe(400)
+  setState({ ...state, gameplay: [] })
+  expect((await send('setPluginControl', { id: 'rules/mode', value: 'normal' }, 'missing-mode')).status).toBe(400)
+  expect(runtime.perform).toHaveBeenCalledOnce()
+})

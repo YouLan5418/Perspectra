@@ -10,10 +10,12 @@ const bridge = vi.hoisted(() => ({
   setSecret: vi.fn(),
   secretStatus: vi.fn(),
   inspect: vi.fn(),
+  packConfig: vi.fn(),
 }))
 vi.mock('@tauri-apps/api/core', () => ({ isTauri: () => true }))
 vi.mock('../services/desktop.ts', () => ({
   coreRequest: bridge.request,
+  readPackConfiguration: bridge.packConfig,
   openGame: bridge.open,
   openCreator: bridge.creator,
   listConnectionModels: bridge.list,
@@ -327,7 +329,7 @@ it('keeps plugin drafts separate from playback preferences and saves through the
   await store.initialize()
   store.resetPreferencesDraft()
   expect(store.hostPlugins).toEqual([])
-  const plugin = { id: 'tts', path: 'C:/plugins/tts.mjs', enabled: true }
+  const plugin = { id: 'tts', path: 'C:/plugins/tts.mjs', nativeAllowed: true, enabled: true }
   store.preferencesDraft.hostPlugins.push({ ...plugin })
   expect(store.preferencesDirty).toBe(true)
   expect(store.hostPlugins).toEqual([])
@@ -348,6 +350,21 @@ it('keeps plugin drafts separate from playback preferences and saves through the
   store.preferencesDraft.hostPlugins[0]!.path = 'relative.mjs'
   await expect(store.applyPreferences()).rejects.toThrow('绝对路径')
   expect(store.hostPlugins).toEqual([plugin])
+})
+
+it('normalizes legacy plugin records to denied when the settings page opens', async () => {
+  const store = useLauncherStore()
+  bridge.request.mockResolvedValue({
+    ...snapshot(),
+    preferences: {
+      largeText: false,
+      hostPlugins: [{ id: 'legacy', path: 'C:/plugins/legacy.mjs', enabled: true }],
+    },
+  })
+  await store.initialize()
+  expect(store.hostPlugins).toEqual([
+    { id: 'legacy', path: 'C:/plugins/legacy.mjs', nativeAllowed: false, enabled: true },
+  ])
 })
 
 it('restores and saves audio preferences through the existing preferences operation', async () => {
@@ -438,6 +455,7 @@ it('lists the session drawer rows with summaries, a sandbox warning and creator 
     ['游玩', 'preset'],
     ['游玩', 'frontend'],
     ['进阶', 'play'],
+    ['进阶', 'pack-config'],
     ['进阶', 'lens'],
   ])
   const row = (id: string) => store.drawerRows.find(r => r.id === id)!
@@ -531,6 +549,7 @@ it('saves plugin secrets only after the settings, never inside them, and forgets
   store.preferencesDraft.hostPlugins.push({
     id: 'tts',
     path: 'D:/plugins/tts.mjs',
+    nativeAllowed: true,
     enabled: true,
     config: { endpoint: 'http://127.0.0.1:9000/tts' },
   })
@@ -553,4 +572,19 @@ it('keeps typed secrets when the settings save fails', async () => {
   expect(bridge.setSecret).not.toHaveBeenCalled()
   expect(store.pluginSecretDrafts.tts).toEqual({ apiKey: 'typed-secret' })
   expect(store.notice).toContain('没有配置项 volume')
+})
+
+it('B8 reads and saves config for the selected source pack through the real bridge', async () => {
+  const store = useLauncherStore()
+  await store.initialize()
+  bridge.packConfig.mockResolvedValue({ packHash: 'source-before', entries: [], validation: '' })
+  expect(await store.inspectPackConfiguration()).toMatchObject({ packHash: 'source-before' })
+  expect(bridge.packConfig).toHaveBeenCalledWith('pack:real')
+  expect(await store.savePackConfiguration('rules', 'source-before', { energy: 3 })).toBe(true)
+  expect(bridge.request).toHaveBeenCalledWith('pack-config-save', {
+    packageId: 'pack:real',
+    configId: 'rules',
+    packHash: 'source-before',
+    value: { energy: 3 },
+  })
 })

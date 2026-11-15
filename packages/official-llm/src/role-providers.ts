@@ -35,6 +35,7 @@ export interface LlmSettings {
 }
 /** How the host learns about calls for its debug state and failure notices. */
 export interface ChatObservers {
+  readonly onAttempt?: (ordinal: number) => void
   readonly onCall: (observation: ChatCallObservation) => void
   readonly onRoleCall: (characterId: string, observation: ChatCallObservation) => void
 }
@@ -114,6 +115,7 @@ export function createRoleProviders(
   inspector: RequestInspector,
   onCall: (observation: ChatCallObservation) => void,
   onRoleCall: (characterId: string, observation: ChatCallObservation) => void,
+  onAttempt?: (ordinal: number) => void,
 ): RoleProviders {
   const timeoutMs = llmTimeoutMs(options, settings)
   const base = options.models.default.decision
@@ -131,6 +133,7 @@ export function createRoleProviders(
     inspector,
     timeoutMs,
     onCall,
+    ...(onAttempt ? { onAttempt } : {}),
   }
   const shared = createChatProvider(providerOptions)
   const { presets, origins } = resolveRolePresets(options, characters)
@@ -146,6 +149,7 @@ export function createRoleProviders(
         ...decisionTarget(String(c.actorId)),
         inspector,
         timeoutMs,
+        ...(onAttempt ? { onAttempt } : {}),
         preset: presets.get(c.actorId)!,
         presetOrigin: origins.get(String(c.actorId))!,
         onCall: observation => {

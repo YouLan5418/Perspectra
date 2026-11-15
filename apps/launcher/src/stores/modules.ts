@@ -102,6 +102,7 @@ export interface ModuleRow {
     readonly pluginId: string
     readonly name: string
     readonly enabled: boolean
+    readonly nativeAllowed: boolean
     readonly effective: boolean
   }[]
   /** Predicted from manifests; apply failures are only known after launch. */
@@ -122,7 +123,7 @@ export function moduleRows(
   const occupied = new Set<string>()
   const accepted = new Set<string>()
   for (const plugin of plugins) {
-    if (!plugin.enabled) continue
+    if (!plugin.enabled || plugin.nativeAllowed !== true) continue
     const manifest = manifestOf(manifests[plugin.id])
     if (!manifest) continue
     const singles = SEAMS.filter(item => item.single && manifest.services.includes(item.seam)).map(item => item.seam)
@@ -134,11 +135,21 @@ export function moduleRows(
     const providers = plugins.flatMap(plugin => {
       const manifest = manifestOf(manifests[plugin.id])
       return manifest?.services.includes(seam)
-        ? [{ pluginId: plugin.id, name: manifest.name, enabled: plugin.enabled, effective: accepted.has(plugin.id) }]
+        ? [
+            {
+              pluginId: plugin.id,
+              name: manifest.name,
+              enabled: plugin.enabled,
+              nativeAllowed: plugin.nativeAllowed === true,
+              effective: accepted.has(plugin.id),
+            },
+          ]
         : []
     })
     const enabled = providers.filter(provider => provider.effective)
-    const blocked = providers.filter(provider => provider.enabled && !provider.effective).map(provider => provider.name)
+    const blocked = providers
+      .filter(provider => provider.enabled && provider.nativeAllowed && !provider.effective)
+      .map(provider => provider.name)
     const effective = !enabled.length
       ? single
         ? '官方默认'
@@ -163,8 +174,16 @@ export function moduleRows(
   })
 }
 
-/** Leaves `pluginId` the only enabled provider of a seam, or none for the official default. */
+/** Selects an already allowed provider, or none for the official default. Selection never grants consent. */
 export function pickProvider(plugins: HostPluginSettings[], row: ModuleRow, pluginId: string | null): void {
+  if (pluginId !== null) {
+    const provider = row.providers.find(item => item.pluginId === pluginId)
+    const plugin = plugins.find(item => item.id === pluginId)
+    if (!provider || plugin?.nativeAllowed !== true) {
+      if (plugin) plugin.enabled = false
+      return
+    }
+  }
   for (const provider of row.providers) {
     const plugin = plugins.find(item => item.id === provider.pluginId)
     if (plugin) plugin.enabled = provider.pluginId === pluginId

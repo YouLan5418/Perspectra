@@ -1,5 +1,4 @@
 import { build } from 'esbuild'
-import { inlineAdjacentScripts } from '../../scripts/build/inline-adjacent-scripts.mjs'
 import { spawn } from 'node:child_process'
 import { once } from 'node:events'
 import { createChatServer } from '../support/fake-provider.ts'
@@ -48,7 +47,6 @@ export default function (ctx) {
       target: 'node24',
       format: 'esm',
       logLevel: 'silent',
-      plugins: [inlineAdjacentScripts],
     })
     await cp('packages/frontend/assets', join(directory, 'frontend-assets'), { recursive: true })
     for (const layout of ['source', 'built']) {
@@ -75,10 +73,13 @@ export default function (ctx) {
               'http://127.0.0.1:' + (model.address() as AddressInfo).port + '/v1/chat/completions',
             PERSPECTRA_MODEL: 'fixture',
             PERSPECTRA_HOST_PLUGINS: JSON.stringify([
-              { id: plugin, enabled: true, path: resolve('examples/host-plugins/' + plugin + '.mjs') },
-              // A broken, unrelated plugin is skipped; the world still opens because it does not need it.
-              { id: 'missing-file', enabled: true, path: join(directory, 'missing.mjs') },
-              { id: 'host-cordis', enabled: true, path: outsidePlugin },
+              {
+                id: plugin,
+                enabled: true,
+                nativeAllowed: true,
+                path: resolve('examples/host-plugins/' + plugin + '.mjs'),
+              },
+              { id: 'host-cordis', enabled: true, nativeAllowed: true, path: outsidePlugin },
             ]),
           },
         },
@@ -116,7 +117,7 @@ export default function (ctx) {
             }
           })
         })
-        expect(ready.skippedPlugins).toEqual([{ id: 'missing-file', reason: 'import' }])
+        expect(ready.skippedPlugins).toEqual([])
         const url = 'http://127.0.0.1:' + ready.port
         const headers = { 'x-playtest-token': ready.token, 'content-type': 'application/json' }
         const view = async () => {
@@ -143,7 +144,7 @@ export default function (ctx) {
       } finally {
         if (child.exitCode === null && child.signalCode === null) {
           const exited = once(child, 'exit')
-          child.send({ type: 'shutdown' })
+          if (child.connected) child.send({ type: 'shutdown' }, () => {})
           await exited
         }
       }

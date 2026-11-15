@@ -6,14 +6,14 @@ import { afterEach, expect, it, vi } from 'vitest'
 import { brandId, worldAddressKey } from '@harness-world/contracts'
 import { BranchAdministration, WorldStore, WriterLeaseService } from '@harness-world/store-sqlite'
 import { basicInteractionPackage, frozenInteractionWorld } from '../../../tests/fixtures/frozen-interaction-world.ts'
-import { WorldApplication, WorldBranchComponentFactory } from './world-application.ts'
+import { BranchStoreComponent, WorldApplication, WorldBranchComponentFactory } from './world-application.ts'
 import { RoundCoordinator } from './round-coordinator.ts'
 
 const fixtures: { app: WorldApplication; root: string }[] = []
 afterEach(async () => {
   vi.restoreAllMocks()
   for (const { app, root } of fixtures.splice(0)) {
-    await app.close()
+    await app.close().catch(() => undefined)
     rmSync(root, { recursive: true, force: true })
   }
 })
@@ -152,4 +152,25 @@ it('checks the current maintenance barrier before resuming a retained branch', a
   } finally {
     administration.close()
   }
+})
+
+it('continues branch store cleanup after an earlier close failure and propagates it', async () => {
+  const f = fixture()
+  const create = vi.spyOn(WorldBranchComponentFactory.prototype, 'create')
+  await f.app.head(f.address)
+  const branchStore = create.mock.results[0]!.value.store as BranchStoreComponent
+  const failure = new Error('store dispose failed')
+  const closeSession = branchStore.session.close.bind(branchStore.session)
+  const sessionClose = vi.spyOn(branchStore.session, 'close').mockImplementation(() => {
+    closeSession()
+    throw failure
+  })
+  const storeClose = vi.spyOn(branchStore.store, 'close')
+
+  const error = await f.app.close().catch((reason: unknown) => reason)
+  expect(error).toBeInstanceOf(AggregateError)
+  expect((error as AggregateError).errors).toContain(failure)
+  expect(sessionClose).toHaveBeenCalledOnce()
+  expect(storeClose).toHaveBeenCalledOnce()
+  expect(f.app.activeBranchCount).toBe(0)
 })

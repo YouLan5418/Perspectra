@@ -1,3 +1,4 @@
+import { validateInstalledPack } from '../pack-validation.ts'
 import { rolePreset, rolePresetMapping } from '@harness-world/provider-chat'
 import { listenOnSafePort } from '../safe-port.ts'
 import { loadHostPlugins, type HostPlugins } from '../host-plugins.ts'
@@ -98,8 +99,10 @@ async function main(): Promise<void> {
   // Removed from the environment before any plugin runs, so one plugin cannot read another's secrets there.
   const pluginSecrets = pluginSecretValues(JSON.parse(process.env.PERSPECTRA_PLUGIN_SECRETS || '{}'))
   delete process.env.PERSPECTRA_PLUGIN_SECRETS
+  const selectedHostPlugins = hostPluginSettings(JSON.parse(process.env.PERSPECTRA_HOST_PLUGINS ?? '[]'))
+  await validateInstalledPack(packPath, selectedHostPlugins)
   hostPlugins = await loadHostPlugins(
-    hostPluginSettings(JSON.parse(process.env.PERSPECTRA_HOST_PLUGINS ?? '[]')),
+    selectedHostPlugins,
     pluginSecrets,
     launch.memoryCore
       ? {
@@ -110,6 +113,7 @@ async function main(): Promise<void> {
             }),
         }
       : {},
+    { gameplayIds: Object.keys(compiled.plugins ?? {}) },
   )
   const pluginProblems = checkPluginRequirements(compiled.requiresPlugins ?? [], hostPlugins.installed)
   if (pluginProblems.some(problem => !problem.optional))

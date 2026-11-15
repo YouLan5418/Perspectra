@@ -27,6 +27,7 @@ export function bindPlayerProvisional(
     resolutionAuthority: authority,
     status: resolution.status,
     reason: resolution.reason ?? null,
+    ...(resolution.rejection === undefined ? {} : { rejection: resolution.rejection }),
     events: resolution.events.map((event, draftOrdinal) => ({
       actionId: action.actionId,
       draftOrdinal,
@@ -42,6 +43,7 @@ export function bindPlayerProvisional(
       resolutionAuthority: authority,
       status: resolution.status,
       reason: resolution.reason ?? null,
+      ...(resolution.rejection === undefined ? {} : { rejection: resolution.rejection }),
       events: resolution.events,
       observationScope: scope,
       ...(resolution.interactionTrace === undefined ? {} : { interaction: resolution.interactionTrace }),

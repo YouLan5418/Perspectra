@@ -1,8 +1,10 @@
 import type { ContentPackFacts } from '@harness-world/plugin-sdk'
 
-/** What a pack's trpg.json names in `plugin`; a world records it with the generated content. */
+/** 包内 trpg.json 在 `plugin` 字段声明的插件标识与持久数据兼容版本。 */
 export const OFFICIAL_TRPG_ID = 'official-trpg'
 export const OFFICIAL_TRPG_VERSION = '1'
+export const OFFICIAL_TRPG_DATA_VERSION = 1
+export const OFFICIAL_TRPG_SUPPORTED_DATA_VERSIONS = [1] as const
 
 export interface TrpgStat {
   key: string
@@ -64,8 +66,16 @@ const SCENARIO_ID = /^[a-z][a-z0-9-]{0,31}$/u
 const MODIFIER = 100
 
 type Json = Record<string, unknown>
+export class ConfigInputError extends TypeError {
+  constructor(
+    readonly path: string,
+    message: string,
+  ) {
+    super(path + '：' + message)
+  }
+}
 const fail = (path: string, problem: string): never => {
-  throw new TypeError(`${path}：${problem}`)
+  throw new ConfigInputError(path, problem)
 }
 const isObject = (value: unknown): value is Json => typeof value === 'object' && value !== null && !Array.isArray(value)
 const record = (value: unknown, path: string): Json => (isObject(value) ? value : fail(path, '需要是对象'))

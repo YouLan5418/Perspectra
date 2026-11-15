@@ -1,5 +1,6 @@
 import { Context, Service, type Fiber } from '@deepseek-ai/cordis'
 import { failWorld, worldAddressKey, type WorldAddress, type WorldHash } from '@harness-world/contracts'
+import { cleanupWithin, resolveCleanupTimeoutMs } from './instance-scope.ts'
 
 const branchScope = Symbol('harness-world.branch-scope')
 
@@ -26,6 +27,25 @@ function hasDisposer(component: BranchOwnedComponent): component is { dispose():
 
 function hasCloser(component: BranchOwnedComponent): component is { close(): void | Promise<void> } {
   return 'close' in component && typeof component.close === 'function'
+}
+
+async function disposeBranchComponents(
+  components: readonly {
+    readonly name: string
+    readonly component: BranchOwnedComponent
+  }[],
+  cleanupTimeoutMs: number,
+): Promise<void> {
+  const errors: unknown[] = []
+  for (const { name, component } of components) {
+    if (!hasDisposer(component) && !hasCloser(component)) continue
+    const outcome = await cleanupWithin(name, cleanupTimeoutMs, () =>
+      hasDisposer(component) ? component.dispose() : component.close(),
+    )
+    if (outcome.status === 'failed') errors.push(outcome.error)
+    else if (outcome.status === 'timedOut') errors.push(outcome.error)
+  }
+  if (errors.length > 0) throw new AggregateError(errors, 'branch runtime component cleanup failed')
 }
 
 export interface BranchRuntimeComponents {
@@ -111,6 +131,8 @@ export class BranchRuntimeSlot {
   #fiber: Fiber
   #disposed = false
   readonly #lane: SerialRoundLane
+  readonly #cleanupComponents: () => Promise<void>
+  readonly #markExplicitDispose: () => void
 
   private constructor(
     readonly address: WorldAddress,
@@ -120,12 +142,16 @@ export class BranchRuntimeSlot {
     lane: SerialRoundLane,
     services: BranchServices,
     components: BranchRuntimeComponents,
+    cleanupComponents: () => Promise<void>,
+    markExplicitDispose: () => void,
   ) {
     this.addressKey = worldAddressKey(address)
     this.#fiber = fiber
     this.#lane = lane
     this.services = services
     this.components = components
+    this.#cleanupComponents = cleanupComponents
+    this.#markExplicitDispose = markExplicitDispose
   }
 
   /** Mount four injected branch-owned components below isolated Cordis labels. */
@@ -134,7 +160,9 @@ export class BranchRuntimeSlot {
     address: WorldAddress,
     manifestHash: WorldHash,
     factory: BranchComponentFactory,
+    cleanupTimeoutMs = resolveCleanupTimeoutMs(),
   ): Promise<BranchRuntimeSlot> {
+    cleanupTimeoutMs = resolveCleanupTimeoutMs(cleanupTimeoutMs)
     const addressKey = worldAddressKey(address)
     const scopeLabel = Symbol(addressKey)
     let context = root
@@ -148,6 +176,8 @@ export class BranchRuntimeSlot {
     const lane = new SerialRoundLane(address, manifestHash, context)
     let services!: BranchServices
     let components!: BranchRuntimeComponents
+    let cleanupComponents!: () => Promise<void>
+    let explicitDispose = false
     const fiber = context.plugin(function branchRuntimePlugin(ctx) {
       lane.bindContext(ctx)
       components = factory.create(lane)
@@ -156,19 +186,42 @@ export class BranchRuntimeSlot {
       const agents = new BranchComponentService(ctx, 'worldAgents', addressKey, components.agents)
       const presentation = new BranchComponentService(ctx, 'worldPresentation', addressKey, components.presentation)
       services = { kernel, store, agents, presentation }
+      let cleanup: Promise<void> | undefined
+      cleanupComponents = () =>
+        (cleanup ??= disposeBranchComponents(
+          [
+            { name: 'worldKernel', component: components.kernel },
+            { name: 'worldPresentation', component: components.presentation },
+            { name: 'worldAgents', component: components.agents },
+            { name: 'worldStore', component: components.store },
+          ],
+          cleanupTimeoutMs,
+        ))
       ctx.effect(
         () => async () => {
-          const allComponents = [components.kernel, components.presentation, components.agents, components.store]
-          for (const component of allComponents) {
-            if (hasDisposer(component)) await component.dispose()
-            else if (hasCloser(component)) await component.close()
+          try {
+            await cleanupComponents()
+          } catch (error: unknown) {
+            if (!explicitDispose) throw error
           }
         },
         `world-runtime:${addressKey}`,
       )
     })
     await fiber
-    return new BranchRuntimeSlot(address, manifestHash, context, fiber, lane, services, components)
+    return new BranchRuntimeSlot(
+      address,
+      manifestHash,
+      context,
+      fiber,
+      lane,
+      services,
+      components,
+      cleanupComponents,
+      () => {
+        explicitDispose = true
+      },
+    )
   }
 
   /** Serialize process-local Round work without poisoning the FIFO after a failed item. */
@@ -186,7 +239,28 @@ export class BranchRuntimeSlot {
     if (this.#disposed) return
     this.#disposed = true
     this.#lane.dispose()
-    await this.#fiber.dispose()
+    this.#markExplicitDispose()
+    let cleanupFailed = false
+    let cleanupError: unknown
+    try {
+      await this.#cleanupComponents()
+    } catch (error: unknown) {
+      cleanupFailed = true
+      cleanupError = error
+    }
+    let fiberFailed = false
+    let fiberError: unknown
+    try {
+      await this.#fiber.dispose()
+    } catch (error: unknown) {
+      fiberFailed = true
+      fiberError = error
+    }
+    const errors: unknown[] = []
+    if (cleanupFailed) errors.push(cleanupError)
+    if (fiberFailed) errors.push(fiberError)
+    if (errors.length === 1) throw errors[0]
+    if (errors.length > 1) throw new AggregateError(errors, 'branch runtime cleanup failed')
   }
 }
 
@@ -204,15 +278,22 @@ interface SlotReservation {
   references: number
 }
 
+export interface WorldRuntimeRegistryOptions {
+  readonly cleanupTimeoutMs?: number
+}
+
 /** Root-scoped router that stores no world domain state inside Cordis services. */
 export class WorldRuntimeRegistry extends Service {
   readonly #slots = new Map<string, SlotReservation>()
+  readonly #cleanupTimeoutMs: number
 
   constructor(
     ctx: Context,
     private readonly factory: BranchComponentFactory,
+    options: WorldRuntimeRegistryOptions = {},
   ) {
     super(ctx, 'worldRuntimeRegistry')
+    this.#cleanupTimeoutMs = resolveCleanupTimeoutMs(options.cleanupTimeoutMs)
   }
 
   /** Acquire or join the one active slot for an exact WorldAddress. */
@@ -221,7 +302,13 @@ export class WorldRuntimeRegistry extends Service {
     let reservation = this.#slots.get(key)
     if (reservation === undefined) {
       reservation = {
-        pending: BranchRuntimeSlot.create(this.ctx.root, address, manifestHash, this.factory).then(slot => ({ slot })),
+        pending: BranchRuntimeSlot.create(
+          this.ctx.root,
+          address,
+          manifestHash,
+          this.factory,
+          this.#cleanupTimeoutMs,
+        ).then(slot => ({ slot })),
         references: 0,
       }
       this.#slots.set(key, reservation)
@@ -264,11 +351,12 @@ export class WorldRuntimeRegistry extends Service {
     reservation.references -= 1
     if (reservation.references !== 0 || this.#slots.get(key) !== reservation) return
     this.#slots.delete(key)
+    let entry: SlotEntry
     try {
-      const entry = await reservation.pending
-      await entry.slot.dispose()
+      entry = await reservation.pending
     } catch {
-      // A failed mount owns no resources after its Cordis Fiber rejects.
+      return
     }
+    await entry.slot.dispose()
   }
 }

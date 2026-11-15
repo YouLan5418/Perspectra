@@ -226,7 +226,7 @@ it('names the plugin and logs the error when the channel fails', async () => {
     provider(
       {
         send: async () => {
-          throw new Error('模型服务返回 401')
+          throw new Error('PRIVATE_CHANNEL_MARKER')
         },
       },
       'broken-channel',
@@ -235,8 +235,11 @@ it('names the plugin and logs the error when the channel fails', async () => {
   )
   const state = await runtime.submit('你好')
   expect(state.notice).toContain('broken-channel')
-  expect(state.notice).not.toContain('模型服务')
-  expect(log.mock.calls.flat().map(String).join(' ')).toContain('模型服务返回 401')
+  expect(state.notice).not.toContain('PRIVATE_CHANNEL_MARKER')
+  const logged = log.mock.calls.flat().map(String).join(' ')
+  expect(logged).toContain('broken-channel')
+  expect(logged).toContain('send')
+  expect(logged).not.toContain('PRIVATE_CHANNEL_MARKER')
 })
 
 it('does not blame presets when a third-party prepare fails', async () => {
@@ -369,8 +372,8 @@ it('uses the adapter schema mode even when the unused official protocol is Googl
   expect(shapes[0]).not.toHaveProperty('oneOf')
 })
 
-it('records and names an HTTP 401 from the transport without falling back', async () => {
-  vi.spyOn(console, 'error').mockImplementation(() => {})
+it('records an HTTP 401 from the transport, preserves adapter attribution, and hides its private message', async () => {
+  const log = vi.spyOn(console, 'error').mockImplementation(() => {})
   const { runtime, original } = await start(undefined, {
     serialScheduling: true,
     plugins: {
@@ -378,7 +381,7 @@ it('records and names an HTTP 401 from the transport without falling back', asyn
         model: 'refused',
         schemaMode: 'native',
         send: async () => {
-          throw Object.assign(new Error('refused'), { httpStatus: 401 })
+          throw Object.assign(new Error('PRIVATE_HTTP_MARKER'), { httpStatus: 401 })
         },
       }),
     },
@@ -387,8 +390,13 @@ it('records and names an HTTP 401 from the transport without falling back', asyn
   const state = await runtime.submit('你好')
   expect(state.notice).toContain('test-transport')
   expect(state.notice).toContain('HTTP 401')
+  expect(state.notice).not.toContain('official-llm')
+  expect(state.notice).not.toContain('PRIVATE_HTTP_MARKER')
   expect(state.error).toBe(true)
   expect(original.calls).toBe(0)
+  const logged = log.mock.calls.flat().map(String).join(' ')
+  expect(logged).toContain('test-transport')
+  expect(logged).not.toContain('PRIVATE_HTTP_MARKER')
   expect(runtime.requestInspection().requests[0]).toMatchObject({ status: 'failed', httpStatus: 401, failure: 'http' })
 })
 
@@ -539,6 +547,7 @@ it('loads the real transport example and sends preset messages with only its own
         id: 'simple-transport',
         path: resolve('examples/host-plugins/simple-transport.mjs'),
         enabled: true,
+        nativeAllowed: true,
         config: { endpoint, model: 'alternate' },
       },
     ],
@@ -596,6 +605,30 @@ it('rejects a full channel plus transport and closes an adapter if preset assemb
       },
       presetMapping: { characters: { 'character:nonexistent': {} } },
     }),
-  ).rejects.toThrow('预设')
+  ).rejects.toThrow('插件 official-llm 的 open 操作失败。')
   expect(closed).toBe(1)
+})
+
+it('reports an opaque transport format repair as two sends with unknown HTTP and usage', async () => {
+  let sends = 0
+  const { runtime } = await start(undefined, {
+    plugins: {
+      llmTransport: {
+        id: 'opaque',
+        version: '1.0.0',
+        open: async () => ({
+          model: 'opaque',
+          schemaMode: 'gateway',
+          send: async () => ({ value: ++sends === 1 ? 'bad JSON' : { decision: 'abstain' } }),
+        }),
+      },
+    },
+    serialScheduling: true,
+    executionBudget: { maxActivations: 1 },
+  })
+  const state = await runtime.submit(MOVE)
+  expect(sends).toBe(2)
+  expect(state.debug.execution).toMatchObject({
+    usage: { sends: 2, observedHttpAttempts: 0, opaqueTransportCalls: 2, usageReported: 0, usageMissing: 2 },
+  })
 })

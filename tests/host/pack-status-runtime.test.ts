@@ -628,18 +628,22 @@ it('a throwing author policy hides status options but keeps the session and NPC 
   const state = await f.runtime.state()
   expect(ids(state.availableActions)).toEqual([])
   expect(state.statusBar).toContainEqual(expect.objectContaining({ key: 'time', value: 10 }))
-  expect(String(object(state.debug.statusPolicyError)[PLAYER])).toContain('告示牌坏了')
+  expect(String(object(state.debug.statusPolicyError)[PLAYER])).toContain('official-status')
+  expect(JSON.stringify(state)).not.toContain('告示牌坏了')
   const after = f.requests.length
   const second = await f.runtime.submit(speak('第二轮。'))
   expect(second.error, JSON.stringify(second.debug)).toBe(false)
   const npc = f.requests.slice(after).filter(input => actor(input) === THIEF)
   expect(npc.length).toBeGreaterThan(0)
   for (const input of npc) expect(ids(object(input.context).affordances)).toEqual([])
-  expect(String(object(second.debug.statusPolicyError)[THIEF])).toContain('告示牌坏了')
+  expect(String(object(second.debug.statusPolicyError)[THIEF])).toContain('official-status')
   expect(f.status.truth(f.statusEvents()).public.time).toBe(20)
   // Executing an operation still runs the policy, and its failure stays the author's fault.
   const head = f.events().length
-  await expect(f.runtime.submit('/status check-purse {}')).rejects.toThrow('告示牌坏了')
+  await expect(f.runtime.submit('/status check-purse {}')).rejects.toMatchObject({
+    origin: 'plugin',
+    pluginId: 'official-status',
+  })
   expect(f.events()).toHaveLength(head)
 }, 60_000)
 
@@ -808,8 +812,27 @@ it('a throwing onRoundEnd keeps the round and leaves status unchanged', async ()
   expect(JSON.stringify(f.events())).toContain('钟声呢？')
   expect(f.statusEvents()).toHaveLength(1)
   expect(f.status.truth(f.statusEvents()).public.time).toBe(0)
-  expect(String(state.debug.statusRoundError)).toContain('钟楼坏了')
+  expect(state.error).toBe(true)
+  expect(state.debug.execution).toMatchObject({ status: 'failed' })
+  expect(state.notice).toContain('official-status')
+  expect(JSON.stringify(state)).not.toContain('钟楼坏了')
 }, 60_000)
+
+it('stops a wait cycle after its status hook fails without running later processing', async () => {
+  const f = await fixture('ollama', 'throwingHook')
+  await expect(
+    f.runtime.perform({ actionType: 'interact', parameters: { definitionRef: { id: 'host:wait', version: 1 } } }),
+  ).rejects.toMatchObject({
+    origin: 'plugin',
+    pluginId: 'official-status',
+    operation: 'onCycleEnd',
+  })
+  const state = await f.runtime.state()
+  expect(state.error).toBe(true)
+  expect(f.status.truth(f.statusEvents()).public.time).toBe(0)
+  expect(f.requests).toHaveLength(0)
+  expect(state.debug.execution).toMatchObject({ status: 'failed' })
+})
 
 it('replaying a committed speech does not run the round hook again', async () => {
   const f = await fixture('ollama'),
@@ -885,7 +908,9 @@ it.each(['scopedHook', 'leakyHook'] as const)(
     const state = await f.runtime.submit(speak('又一轮。'))
     expect(JSON.stringify(f.events())).toContain('又一轮。')
     expect(f.statusEvents()).toHaveLength(1)
-    expect(state.debug.statusRoundError).toEqual(expect.any(String))
+    expect(state.error).toBe(true)
+    expect(state.debug.execution).toMatchObject({ status: 'failed' })
+    expect(state.notice).toContain('official-status')
   },
   60_000,
 )

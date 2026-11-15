@@ -71,6 +71,12 @@ export interface RpgMap {
   exits?: RpgExit[]
   scripted?: RpgScripted[]
 }
+export type RpgNarration = RpgMap['narration']
+export type RpgEngage = NonNullable<RpgMap['engage']>
+export type RpgCue = RpgScripted
+export type RpgDefeat = NonNullable<RpgConfig['defeat']>
+export type RpgRetreat = RpgConfig['retreat']
+export type RpgParty = NonNullable<RpgConfig['party']>
 export interface RpgConfig {
   plugin: { id: string; version: string }
   stats: RpgStat[]
@@ -101,8 +107,16 @@ export const MAX_RPG_STATS = 31
 const STAT_KEY = /^[a-z][a-z0-9-]{0,32}$/u
 
 type Json = Record<string, unknown>
+export class ConfigInputError extends TypeError {
+  constructor(
+    readonly path: string,
+    message: string,
+  ) {
+    super(path + '：' + message)
+  }
+}
 const fail = (path: string, problem: string): never => {
-  throw new TypeError(`${path}：${problem}`)
+  throw new ConfigInputError(path, problem)
 }
 const isObject = (value: unknown): value is Json => typeof value === 'object' && value !== null && !Array.isArray(value)
 const record = (value: unknown, path: string): Json => (isObject(value) ? value : fail(path, '需要是对象'))

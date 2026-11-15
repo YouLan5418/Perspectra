@@ -9,6 +9,7 @@ import ModelConfigDialog from './ModelConfigDialog.vue'
 import PresetDialog from './PresetDialog.vue'
 import FrontendAuthorizationDialog from './FrontendAuthorizationDialog.vue'
 import PlaySettingsDialog from './PlaySettingsDialog.vue'
+import PackConfigEditor from './PackConfigEditor.vue'
 
 /** 本局抽屉：一列设置行，点进去在抽屉内部翻页；原对话框在这里只渲染内容。 */
 type Page = Exclude<DrawerSection, 'lens'> | 'import' | 'export'
@@ -144,6 +145,7 @@ function removeCurrent() {
           <PresetDialog :open="shown('preset')" @close="back" />
           <FrontendAuthorizationDialog :open="shown('frontend')" @close="back" />
           <PlaySettingsDialog :open="shown('play')" @close="back" />
+          <PackConfigEditor v-if="shown('pack-config')" />
         </div>
       </aside>
     </div>

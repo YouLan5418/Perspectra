@@ -234,10 +234,7 @@ function rewriteCopy(copy: string, pack: CompiledWorldPackV5, start: LensStart, 
       appendFileSync(join(copy, activityScriptPath(key)), '\nglobalThis.activityScript.autoStart = undefined\n')
 }
 
-const NO_AUTO_START = '\nglobalThis.activityScript.autoStart = undefined\n'
-
-/** An activity a content generator makes has no file to edit, so its skipped auto-start is removed from the
- * generated text. */
+/** 原生活动没有包内脚本文件可改写，跳过自动开启时直接移除其 autoStart 钩子。 */
 function skippingGeneratedAutoStart(composition: WorldComposition, keys: readonly string[]): WorldComposition {
   const { content } = composition.mechanisms
   if (!content?.length || !keys.length) return composition
@@ -252,9 +249,11 @@ function skippingGeneratedAutoStart(composition: WorldComposition, keys: readonl
           return generated.activities
             ? {
                 ...generated,
-                activities: generated.activities.map(activity =>
-                  keys.includes(activity.key) ? { ...activity, source: activity.source + NO_AUTO_START } : activity,
-                ),
+                activities: generated.activities.map(entry => {
+                  if (!keys.includes(entry.key)) return entry
+                  const { autoStart: _autoStart, ...rest } = entry.activity
+                  return { key: entry.key, activity: rest }
+                }),
               }
             : generated
         },
@@ -440,7 +439,9 @@ export class LensSimulation {
         copy,
         composition.interactionPackages.map(interactionPackageDescription),
       )) as CompiledWorldPackV5
-      const generated = new Set(loadPackContent(copy, pack, composition.mechanisms.content)?.activities.map(a => a.key))
+      const content = loadPackContent(copy, pack, composition.mechanisms.content, composition.mechanisms.packPlugins)
+      const generated = new Set(content?.activities.map(a => a.key))
+      content?.close()
       rewriteCopy(copy, pack, start, generated)
       stub = await startStubModel()
       runtime = await WorldHostRuntime.create({

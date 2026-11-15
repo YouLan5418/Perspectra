@@ -130,8 +130,16 @@ export interface WorldPackPluginRequirement extends WorldJsonObject {
   readonly optional?: boolean
 }
 
+export interface WorldPackComposition extends WorldJsonObject {
+  /** Omitted means no gameplay plugin; filenames never enable a plugin. Versions, when supplied, are exact. */
+  readonly plugins?: { readonly [id: string]: { readonly version?: string; readonly config?: string } }
+  /** Hard provider identity requirements. Ordinary packs omit this and use player/host choices. */
+  readonly services?: { readonly [service: string]: string }
+  readonly scripts?: { readonly gameplay: { readonly entry: string; readonly config?: WorldJsonObject } }
+}
+
 /** The supported source manifest selects the world's interaction file. */
-export interface WorldPackSourceManifestV5 extends WorldJsonObject {
+export interface WorldPackSourceManifestV5 extends WorldPackComposition {
   readonly requiresPlugins?: readonly WorldPackPluginRequirement[]
   readonly sourceSchemaVersion: typeof WORLD_PACK_SOURCE_SCHEMA_VERSION_V5
   readonly packId: WorldPackId
@@ -479,7 +487,7 @@ export interface WorldPackCompileOptionsV5 {
   readonly interactionPackages: readonly InteractionPackageDescription[]
 }
 
-export interface CompiledWorldPackV5 extends WorldJsonObject {
+export interface CompiledWorldPackV5 extends WorldPackComposition {
   readonly requiresPlugins?: readonly WorldPackPluginRequirement[]
   readonly compiledSchemaVersion: typeof WORLD_PACK_COMPILED_SCHEMA_VERSION_V5
   readonly packId: WorldPackId

@@ -223,7 +223,8 @@ it('names the implementation and logs when it fails, but not for a failure insid
   )
   const state = await runtime.submit('你好')
   expect(state.notice).toContain('buggy-decision')
-  expect(log.mock.calls.flat().map(String).join(' ')).toContain('decide bug')
+  expect(log.mock.calls.flat().map(String).join(' ')).toContain('buggy-decision')
+  expect(log.mock.calls.flat().map(String).join(' ')).not.toContain('decide bug')
 })
 
 it('replaces one official step while projecting memory exactly once per decision', async () => {
@@ -295,6 +296,7 @@ it('runs the knowledge replacement example after authorized status without discl
       id: 'focused-knowledge',
       path: resolve('examples/host-plugins/focused-knowledge.mjs'),
       enabled: true,
+      nativeAllowed: true,
       config: { maximumEntries: 0 },
     },
   ])

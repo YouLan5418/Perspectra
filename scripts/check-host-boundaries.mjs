@@ -44,6 +44,7 @@ function check(file) {
   if (
     (path.startsWith('desktop/') || path.startsWith('packages/application/')) &&
     path !== 'desktop/official-bundle.ts' &&
+    path !== 'desktop/official-pack-metadata.ts' &&
     /from\s+['"]@harness-world\/official-/.test(source)
   ) {
     errors.push(file + ': only desktop/official-bundle.ts may import an official implementation')

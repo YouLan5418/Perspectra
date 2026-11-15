@@ -47,6 +47,7 @@ function pack(beats: Record<string, string>, intensity = 'low', cooldown = 0): s
   const file = join(packPath, 'worldpack.source.json'),
     manifest = JSON.parse(readFileSync(file, 'utf8'))
   manifest.assetFiles = ['scripts/status.js', 'scripts/pacing.js']
+  manifest.plugins = { ...manifest.plugins, 'official-pacing': {} }
   writeFileSync(file, JSON.stringify(manifest))
   return packPath
 }
@@ -82,6 +83,27 @@ const decision = (runtime: { creatorInspection(): { pacing: unknown } }) => obj(
 
 const random = `apply: truth => ({
   changes: [{ holderId: null, key: 'time', value: truth.public.time + 1 + Math.floor(Math.random() * 100000) }] })`
+
+it('settles status before pacing and never repeats those hooks for settlement reactions', async () => {
+  const f = await open(
+    pack({
+      clock: `apply: truth => { if (truth.public.time !== 10) throw new Error('STATUS_NOT_SETTLED_ONCE'); return {notice:'已结算时间：'+truth.public.time} }`,
+    }),
+  )
+  const state = await f.runtime.submit('只执行一次周期结算。')
+  expect(state.error).toBe(false)
+  expect(f.beats()).toHaveLength(1)
+  expect(JSON.stringify(state.transcript)).toContain('已结算时间：10')
+  const store = new WorldStore(join(f.runtime.dataDirectory, 'world.sqlite'))
+  try {
+    const updates = store
+      .readEvents(f.runtime.address)
+      .filter(event => event.eventType === 'status.updated' && obj(obj(event.data).source).kind === 'round')
+    expect(updates).toHaveLength(1)
+  } finally {
+    store.close()
+  }
+})
 
 it('brings the same beat with the same values when a round is regenerated', async () => {
   const f = await open(pack({ a: random, b: random, c: random }), { storyNodes: true })

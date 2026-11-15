@@ -1,3 +1,4 @@
+import { validateInstalledPack } from './pack-validation.ts'
 import {
   playSettings,
   readingPreferences,
@@ -9,7 +10,14 @@ import {
   type ReadingPreferences,
   type AudioPreferences,
 } from './play-settings.ts'
-import { hostPluginSettings, pluginSecretValues, type HostPluginSettings } from './host-plugin-settings.ts'
+import {
+  hostPluginNativeAllowed,
+  isSafeHostPluginFailureMessage,
+  hostPluginSettings,
+  pluginSecretValues,
+  shouldLoadHostPlugin,
+  type HostPluginSettings,
+} from './host-plugin-settings.ts'
 import { savedPluginConfig } from './host-plugin-manifest.ts'
 import { readPluginManifest } from './plugin-manifest-file.ts'
 import type { PluginManifest } from '@harness-world/plugin-sdk'
@@ -45,6 +53,7 @@ import { randomUUID } from 'node:crypto'
 import { mkdir, readFile, rename, rm, writeFile, access, copyFile } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
 import { compileWorldPackSource, type CompiledWorldPackV5 } from '@harness-world/world-pack'
+import { readPackConfiguration, savePackConfiguration } from './pack-config.ts'
 import { interactionPackageDescription } from '@harness-world/contracts'
 import { createInstalledInteractionPackages } from '@harness-world/interactions-basic'
 import { preflightSave } from './save-preflight.ts'
@@ -129,11 +138,11 @@ function object(value: unknown): Record<string, unknown> {
 }
 export interface SkippedPlugin {
   id: string
-  reason: 'manifest' | 'config' | 'import' | 'version' | 'apply'
+  reason: 'permission' | 'manifest' | 'config' | 'import' | 'version' | 'apply'
   /** Host-written text for manifest and config problems, e.g. which field to fill in. */
   detail?: string
 }
-const SKIP_REASONS = ['manifest', 'config', 'import', 'version', 'apply']
+const SKIP_REASONS = ['permission', 'manifest', 'config', 'import', 'version', 'apply']
 /** What the settings page shows about a plugin file: its manifest, that it has none, or why it is unreadable. */
 export type PluginManifestInfo = { manifest: PluginManifest } | { missing: true } | { error: string }
 async function inspectPlugin(path: string): Promise<PluginManifestInfo> {
@@ -167,6 +176,7 @@ function skippedPlugins(value: unknown): SkippedPlugin[] {
 /** A pack whose required capability is missing names it, so the player knows which plugin to fix. */
 function startupFailure(data: Record<string, unknown>): string {
   const skipped = skippedPlugins(data.skippedPlugins).map(plugin => plugin.id)
+  const pluginFailure = isSafeHostPluginFailureMessage(data.message) ? data.message : undefined
   const missing =
     typeof data.missingCapability === 'string' && /^[a-z][a-z0-9-]{0,40}@[^\s]{1,80}$/u.test(data.missingCapability)
       ? data.missingCapability
@@ -174,6 +184,7 @@ function startupFailure(data: Record<string, unknown>): string {
   const skippedNote = skipped.length ? `本次加载失败已跳过的插件：${skipped.join('、')}。` : ''
   if (typeof data.pluginRequirement === 'string' && data.pluginRequirement.length <= 2000)
     return `${data.pluginRequirement}。${skippedNote}`
+  if (pluginFailure) return `${pluginFailure}${skippedNote}`
   if (missing)
     return `世界包需要宿主能力 ${missing}，但没有已启用的插件提供它。${skippedNote}请在设置中启用或修复对应插件后重试。`
   if (skipped.length) return `Core 初始化失败。${skippedNote}请检查包、存档、本机记忆依赖与这些插件文件。`
@@ -192,6 +203,17 @@ async function checkedPluginConfig(plugins: HostPluginSettings[]): Promise<HostP
     }
   }
   return plugins
+}
+/** Consent belongs to a file. Changing its path revokes execution and the selected launch together. */
+function preserveHostPluginConsent(
+  previous: readonly HostPluginSettings[],
+  next: HostPluginSettings[],
+): HostPluginSettings[] {
+  const saved = new Map(previous.map(plugin => [plugin.id, plugin]))
+  return next.map(plugin => {
+    const old = saved.get(plugin.id)
+    return old && old.path !== plugin.path ? { ...plugin, nativeAllowed: false, enabled: false } : plugin
+  })
 }
 function text(value: unknown, label: string, max = 4096): string {
   if (typeof value !== 'string' || !value.trim() || value.length > max) throw new Error(label + '无效。')
@@ -259,7 +281,7 @@ export class LauncherCore {
     await this.#readPluginManifests()
     return !(this.#index.preferences.hostPlugins ?? []).some(plugin => {
       const info = this.#pluginManifests[plugin.id]
-      return plugin.enabled && info && 'manifest' in info && info.manifest.services.includes('memory')
+      return shouldLoadHostPlugin(plugin) && info && 'manifest' in info && info.manifest.services.includes('memory')
     })
   }
   /** Refuses when a required plugin is not in force, listing everything at once; returns what optional ones lack. */
@@ -268,12 +290,18 @@ export class LauncherCore {
     const installed = (this.#index.preferences.hostPlugins ?? []).map(plugin => {
       const info = this.#pluginManifests[plugin.id]
       const manifest = info && 'manifest' in info ? info.manifest : undefined
-      return { id: manifest?.id, version: manifest?.version, enabled: plugin.enabled }
+      return {
+        id: manifest?.id,
+        version: manifest?.version,
+        nativeAllowed: hostPluginNativeAllowed(plugin),
+        enabled: plugin.enabled,
+      }
     })
     const problems = checkPluginRequirements(await readPackRequirements(packPath), installed)
     const required = problems.filter(problem => !problem.optional)
     if (required.length) throw new Error('这个世界包需要的插件有问题：' + requirementMessage(required))
-    return requirementMessage(problems)
+    const pending = await validateInstalledPack(packPath, this.#index.preferences.hostPlugins ?? [])
+    return [requirementMessage(problems), pending].filter(Boolean).join('；')
   }
   #frontends: Record<
     string,
@@ -818,6 +846,27 @@ export class LauncherCore {
         await this.#inspect(instance)
         return this.snapshot()
       }
+      case 'pack-config-read': {
+        const pack = this.#index.packs.find(pack => pack.id === request.packageId)
+        if (!pack) throw new Error('请先载入游戏包。')
+        return readPackConfiguration(pack.path, this.#index.preferences.hostPlugins ?? [])
+      }
+      case 'pack-config-save': {
+        this.#idle()
+        const pack = this.#index.packs.find(pack => pack.id === request.packageId)
+        if (!pack) throw new Error('请先载入游戏包。')
+        await savePackConfiguration(
+          pack.path,
+          this.#index.preferences.hostPlugins ?? [],
+          {
+            id: text(request.configId, '配置标识'),
+            packHash: text(request.packHash, '包版本'),
+            value: request.value,
+          },
+          () => this.#idle(),
+        )
+        return this.handle({ operation: 'load', path: pack.path })
+      }
       case 'load': {
         this.#idle()
         const path = resolve(text(request.path, '世界包目录'))
@@ -992,6 +1041,15 @@ export class LauncherCore {
           typeof request.largeText !== 'boolean'
         )
           throw new TypeError('外观设置无效。')
+        const hostPlugins =
+          request.hostPlugins === undefined
+            ? undefined
+            : await checkedPluginConfig(
+                preserveHostPluginConsent(
+                  this.#index.preferences.hostPlugins ?? [],
+                  hostPluginSettings(request.hostPlugins),
+                ),
+              )
         await this.#save({
           ...this.#index,
           preferences: {
@@ -1000,16 +1058,16 @@ export class LauncherCore {
             largeText: request.largeText,
             ...(request.reading === undefined ? {} : { reading: readingPreferences(request.reading) }),
             ...(request.audio === undefined ? {} : { audio: audioPreferences(request.audio) }),
-            ...(request.hostPlugins === undefined
-              ? {}
-              : { hostPlugins: await checkedPluginConfig(hostPluginSettings(request.hostPlugins)) }),
+            ...(hostPlugins === undefined ? {} : { hostPlugins }),
           },
         })
         await this.#readPluginManifests()
         return this.snapshot()
       }
       case 'plugin-inspect': {
-        const [plugin] = hostPluginSettings([{ id: 'inspect', path: request.path, enabled: true }])
+        const [plugin] = hostPluginSettings([
+          { id: 'inspect', path: request.path, enabled: false, nativeAllowed: false },
+        ])
         return inspectPlugin(plugin!.path)
       }
       case 'settings': {
@@ -1044,7 +1102,9 @@ export class LauncherCore {
         this.#skippedPlugins = []
         await this.#readPluginManifests()
         const enabledPlugins = new Set(
-          (this.#index.preferences.hostPlugins ?? []).filter(plugin => plugin.enabled).map(plugin => plugin.id),
+          (this.#index.preferences.hostPlugins ?? [])
+            .filter(plugin => shouldLoadHostPlugin(plugin))
+            .map(plugin => plugin.id),
         )
         const pluginSecrets = Object.fromEntries(
           Object.entries(pluginSecretValues(request.pluginSecrets ?? {})).filter(([id]) => enabledPlugins.has(id)),

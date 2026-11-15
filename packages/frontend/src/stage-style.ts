@@ -411,4 +411,15 @@ main:has(.panel:not([hidden])) .stage-bottom{left:calc((100% - var(--drawer-widt
   .settings-body{padding:20px}
   @keyframes slide{from{transform:translateY(24px);opacity:0}to{transform:none;opacity:1}}
 }
+
+#gameplay-panels{padding:0 20px}
+.gameplay-panel{padding:16px 0;border-top:1px solid var(--line);min-width:0}
+.gameplay-panel h3{font:600 15px var(--font-story);margin:0 0 12px}
+.gameplay-properties{display:grid;grid-template-columns:minmax(90px,1fr) minmax(0,2fr);gap:8px 16px;margin:0}
+.gameplay-properties dt{color:var(--muted)}.gameplay-properties dd{margin:0;overflow-wrap:anywhere;white-space:pre-wrap}
+.gameplay-entries{list-style:none;padding:0;margin:0}.gameplay-entries li+li{border-top:1px solid var(--line);margin-top:12px;padding-top:12px}
+.gameplay-entries p{margin:4px 0 0;white-space:pre-wrap;overflow-wrap:anywhere}
+#gameplay-controls select{max-width:45%;min-width:85px}
+.action-form input:focus-visible,.action-form select:focus-visible,.action-form textarea:focus-visible,#gameplay-controls input:focus-visible,#gameplay-controls select:focus-visible{outline:2px solid var(--text);outline-offset:2px}
+@media(max-width:480px){.gameplay-properties{grid-template-columns:minmax(70px,1fr) minmax(0,2fr);gap:8px}.gameplay-panel h3{font-size:14px}}
 `

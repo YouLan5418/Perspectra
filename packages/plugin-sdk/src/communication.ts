@@ -1,12 +1,18 @@
-import type { WorldJsonObject } from '@harness-world/contracts'
+import type { CommunicationDefinition, WorldJsonObject } from '@harness-world/contracts'
 import type { SeamProvider } from './world.ts'
 
 export interface CommunicationSource {
   readonly config: unknown
 }
 export interface CommunicationInstance {
-  readonly definition: unknown
+  readonly definition: CommunicationDefinition | undefined
   readonly instruction: string
+  /** May only narrow the core's live authorized contacts, using this actor's known state. */
+  contacts?(input: {
+    readonly actorId: string
+    readonly recipientIds: readonly string[]
+    readonly knownState: WorldJsonObject
+  }): readonly string[]
   parameters(recipientId: string, text: string): WorldJsonObject
   options(input: {
     readonly actorId: string

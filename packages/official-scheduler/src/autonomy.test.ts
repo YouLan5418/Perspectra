@@ -6,7 +6,7 @@ it('uses the autonomous deadline for serial follow-up reactions when no shorter 
   const timeout = vi.spyOn(AbortSignal, 'timeout').mockImplementation(() => new AbortController().signal)
   try {
     const round: SchedulerRound = {
-      phase: 'autonomy',
+      phase: 'opportunity',
       characterIds: [],
       afterSeq: 0,
       signal: new AbortController().signal,
@@ -18,9 +18,11 @@ it('uses the autonomous deadline for serial follow-up reactions when no shorter 
       observationSeqs: () => [],
       presentCharacterIds: () => [],
       locationOf: () => null,
-      turn: vi.fn(),
-      autonomy: {
-        roles: [],
+      turn: vi.fn(async () => ({ status: 'abstained' as const, calls: 1 })),
+      wakeups: () => [
+        { characterId: 'character:a' as never, stimulusSeqs: [], opportunities: 1, sourceIds: ['policy:extra'] },
+      ],
+      opportunityLimits: {
         maximumNpcCalls: 3,
         deadlineSeconds: 60,
         reactionLimits: { maximumWaves: 1, maximumNpcCalls: 4, maximumCallsPerCharacter: 2 },
@@ -45,7 +47,7 @@ it('allows an authorized follow-up reaction to finish after 35 seconds within th
     const a = 'character:a' as SchedulerRound['characterIds'][number]
     const b = 'character:b' as SchedulerRound['characterIds'][number]
     const result = runOfficialSchedule({
-      phase: 'autonomy',
+      phase: 'opportunity',
       characterIds: [b],
       afterSeq: 0,
       signal: new AbortController().signal,
@@ -68,8 +70,8 @@ it('allows an authorized follow-up reaction to finish after 35 seconds within th
           options.signal.addEventListener('abort', () => finish('interrupted'), { once: true })
         })
       },
-      autonomy: {
-        roles: [{ characterId: a, opportunities: 1 }],
+      wakeups: () => [{ characterId: a, stimulusSeqs: [], opportunities: 1, sourceIds: ['policy:extra'] }],
+      opportunityLimits: {
         maximumNpcCalls: 3,
         deadlineSeconds: 60,
         reactionLimits: { maximumWaves: 1, maximumNpcCalls: 4, maximumCallsPerCharacter: 2 },

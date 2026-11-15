@@ -10,6 +10,43 @@ import { fakeModels, startFakeProvider } from '../support/fake-provider.ts'
 import { brandId } from '@harness-world/contracts'
 
 const cleanups: (() => Promise<void>)[] = []
+
+it('sends two characters to their separately selected connections and protocols', async () => {
+  const first = await startFakeProvider('openai', () => ({ tool: { decision: 'abstain' } }))
+  const second = await startFakeProvider('anthropic', () => ({ tool: { decision: 'abstain' } }))
+  cleanups.push(first.close, second.close)
+  const observed: string[] = []
+  const roles = createRoleProviders(
+    {
+      models: {
+        default: { decision: { protocol: 'openai', endpoint: first.endpoint, model: 'first-model' } },
+        characters: { b: { decision: { protocol: 'anthropic', endpoint: second.endpoint, model: 'second-model' } } },
+      },
+    },
+    playSettings({}),
+    ['a', 'b'].map(id => ({ actorId: brandId(id, 'CharacterId') })),
+    new RequestInspector(),
+    () => {},
+    id => observed.push(id),
+  )
+  const call = {
+    messages: [
+      { role: 'system' as const, content: 'contract' },
+      { role: 'user' as const, content: 'authorized context' },
+    ],
+    schema: { type: 'object' },
+    description: 'fixture',
+  }
+  await roles.byCharacter.get('a')!.decide(call, new AbortController().signal)
+  await roles.byCharacter.get('b')!.decide(call, new AbortController().signal)
+  expect(roles.protocols.get('a')).toBe('openai')
+  expect(roles.protocols.get('b')).toBe('anthropic')
+  expect(first.calls).toHaveLength(1)
+  expect(second.calls).toHaveLength(1)
+  expect(first.calls[0]!.body.model).toBe('first-model')
+  expect(second.calls[0]!.body.model).toBe('second-model')
+  expect(observed).toEqual(['a', 'b'])
+})
 afterEach(async () => {
   while (cleanups.length) await cleanups.pop()!()
 })

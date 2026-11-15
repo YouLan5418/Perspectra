@@ -28,6 +28,11 @@ import { canonicalizeWorldJson, type WorldJsonObject } from '@harness-world/cont
 import type { ActionAffordance } from '@harness-world/kernel'
 
 export interface HostState {
+  /** Already scoped to the player by the common gameplay runtime. Never module truth. */
+  readonly gameplay?: readonly {
+    readonly moduleId: string
+    readonly view: import('@harness-world/plugin-sdk').GameplayPlayerView
+  }[]
   readonly busy: boolean
   /** Public permission to submit another player input, cancelling only unfinished NPC work. */
   readonly canInterrupt?: boolean
@@ -170,6 +175,7 @@ export interface HostRuntime {
   creatorRecords?(query?: CreatorRecordsQuery): CreatorRecordsSnapshot
   creatorHistory?(query?: CreatorHistoryQuery): CreatorHistorySnapshot
   state(): Promise<HostState>
+  processStimulus?(afterSeq?: number): Promise<HostState>
   submit(text: string): Promise<HostState>
   perform?(action: HostAction, line?: PlayerLine): Promise<HostState>
   activityAction?(request: ActivityRequest): Promise<HostState>

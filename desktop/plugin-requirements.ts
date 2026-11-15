@@ -11,6 +11,8 @@ export async function readPackRequirements(packPath: string): Promise<readonly W
 export interface InstalledPlugin {
   readonly id?: string | undefined
   readonly version?: string | undefined
+  /** Missing legacy values mean the module was not permitted to run. */
+  readonly nativeAllowed?: boolean | undefined
   readonly enabled: boolean
 }
 export interface RequirementProblem {
@@ -57,7 +59,7 @@ export function checkPluginRequirements(
     const problem = { id: requirement.id, version: requirement.version, optional: requirement.optional === true }
     const matching = installed.filter(plugin => plugin.id === requirement.id)
     if (!matching.length) return [{ ...problem, kind: 'missing' as const }]
-    const enabled = matching.filter(plugin => plugin.enabled)
+    const enabled = matching.filter(plugin => plugin.nativeAllowed === true && plugin.enabled)
     if (!enabled.length) return [{ ...problem, kind: 'disabled' as const }]
     if (enabled.some(plugin => plugin.version !== undefined && satisfiesVersion(plugin.version, requirement.version)))
       return []
@@ -74,7 +76,7 @@ export function requirementMessage(problems: readonly RequirementProblem[]): str
       problem.kind === 'missing'
         ? `缺少插件 ${problem.id}（需要 ${problem.version}）`
         : problem.kind === 'disabled'
-          ? `插件 ${problem.id} 没有启用或加载失败（需要 ${problem.version}）`
+          ? `插件 ${problem.id} 没有允许在本机执行、没有启用或加载失败（需要 ${problem.version}）`
           : `插件 ${problem.id} 的版本是 ${problem.found ?? '未知'}，需要 ${problem.version}`,
     )
     .join('；')

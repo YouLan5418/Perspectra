@@ -2,17 +2,18 @@ import { createHash } from 'node:crypto'
 import { lstatSync, readFileSync, realpathSync } from 'node:fs'
 import { relative, resolve, sep } from 'node:path'
 import { SCRIPT_SOURCE_LIMIT } from '@harness-world/contracts'
-import type { ActivitySource } from '@harness-world/plugin-sdk'
+import type { ActivitySource, ActivitySourceEntry, GeneratedActivity } from '@harness-world/plugin-sdk'
 import type { CompiledWorldPackV5 } from '@harness-world/world-pack'
-/** The pack's activity scripts, then `generated` ones that the pack does not carry as files. */
+
+/** 读取包内活动脚本，再合入玩法插件注册的原生活动（与包内同名脚本冲突时在开档前报错）。 */
 export function loadActivitySource(
   packPath: string,
   pack: CompiledWorldPackV5,
-  generated: readonly { key: string; source: string; generator: string }[] = [],
+  generated: readonly (GeneratedActivity & { readonly generator: string })[] = [],
 ): ActivitySource | undefined {
-  const entries: { key: string; entry: string; source: string }[] = [],
+  const entries: ActivitySourceEntry[] = [],
     keys = new Set<string>()
-  for (const asset of pack.assets) {
+  for (const asset of pack.plugins?.['pack-scripts'] ? pack.assets : []) {
     const match = /^scripts\/activities\/([a-z][a-z0-9-]{0,40})\.js$/u.exec(asset.path)
     if (asset.path !== 'scripts/activity.js' && !match) continue
     const key = match?.[1] ?? 'default'
@@ -33,11 +34,11 @@ export function loadActivitySource(
       throw new TypeError('活动脚本与编译资产不一致')
     entries.push({ key, entry: asset.path, source: bytes.toString('utf8') })
   }
-  for (const { key, source, generator } of generated) {
+  for (const { key, activity, generator } of generated) {
     const entry = `scripts/activities/${key}.js`
     if (keys.has(key)) throw new TypeError(`${generator} 插件生成的活动 ${key} 与包内 ${entry} 重名`)
     keys.add(key)
-    entries.push({ key, entry, source })
+    entries.push({ key, activity })
   }
   return entries.length ? { entries } : undefined
 }

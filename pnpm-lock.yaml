@@ -192,6 +192,9 @@ importers:
       '@harness-world/plugin-sdk':
         specifier: workspace:*
         version: link:../plugin-sdk
+      acorn:
+        specifier: 8.15.0
+        version: 8.15.0
 
   packages/official-character-loop:
     dependencies:
@@ -321,12 +324,13 @@ importers:
       '@harness-world/contracts':
         specifier: workspace:*
         version: link:../contracts
-      '@harness-world/frontend':
-        specifier: workspace:*
-        version: link:../frontend
-      '@harness-world/kernel':
-        specifier: workspace:*
-        version: link:../kernel
+      ajv:
+        specifier: 8.17.1
+        version: 8.17.1
+    devDependencies:
+      typescript:
+        specifier: 6.0.3
+        version: 6.0.3
 
   packages/presentation:
     dependencies:
@@ -351,6 +355,9 @@ importers:
       '@harness-world/contracts':
         specifier: workspace:*
         version: link:../contracts
+      '@harness-world/plugin-sdk':
+        specifier: workspace:*
+        version: link:../plugin-sdk
 
   packages/store-sqlite:
     dependencies:
@@ -378,6 +385,9 @@ importers:
       '@harness-world/kernel':
         specifier: workspace:*
         version: link:../kernel
+      ajv:
+        specifier: 8.17.1
+        version: 8.17.1
 
 packages:
 
@@ -1481,6 +1491,11 @@ packages:
     engines: {node: '>=22'}
     peerDependencies:
       vue: ^3.5.0
+
+  acorn@8.15.0:
+    resolution: {integrity: sha512-NZyJarBfL7nWwIq+FDL6Zp/yHEhePMNnnJ0y3qfieCrmNvYct8uvtiV41UvlSe6apAfk0fY1FbWx+NwfmpvtTg==}
+    engines: {node: '>=0.4.0'}
+    hasBin: true
 
   agent-base@7.1.4:
     resolution: {integrity: sha512-MnA+YT8fwfJPgBx3m60MNqakm30XOkyIoH1y6huTQvC0PwZG7ki8NacLBcrPbNoo8vEZy7Jpuk7+jMO+CUovTQ==}
@@ -3222,6 +3237,8 @@ snapshots:
   '@vueuse/shared@15.0.0(vue@3.5.43(typescript@6.0.3))':
     dependencies:
       vue: 3.5.43(typescript@6.0.3)
+
+  acorn@8.15.0: {}
 
   agent-base@7.1.4: {}
 

@@ -1,5 +1,7 @@
 # Harness / Cordis World 新原型契约：自由叙述与声明式交互
 
+2026-11-11，后续架构施工采用用户确认的[可组合游戏引擎定稿](architecture/composable-engine.md)，由[核心与插件规范](architecture/plugin-standard.md)统一导航。核心硬预算、实例 Fiber、原生与脚本共同定义及输入无关周期按新定稿实施，历史验收记录保留其当时范围。
+
 > **现状说明（2026-10-18）：** 本文保留最初方案与各轮验收记录。下表的“尚未实现”及文末阶段状态属于起草时点，不是当前总进度；实际实现和验收范围见[当前架构](architecture/README.md)。[遗留处理记录](studies/phase8-prototype-transition-audit-20261018.md)已退役旧 NPC Round／Reaction、Context／Checkpoint、Reflection 和旧模型调用服务，保留玩家提交、权限裁定与授权记忆来源。下文引用这些旧源码的位置仅作历史复用依据，不要求恢复旧路径。初始心理材料的呈现调整曾实现，但对照出现行动选择退化迹象后已撤回，不作为本轮已交付能力，也不恢复通用心理写回。
 
 > **物品规则现状（2026-10-22 核对）：** 例如角色拿起钥匙后交给同伴，由世界包的 `scripts/status.js` 声明目标与参数、裁定结果，宿主检查并提交物品变化和授权观察。拿／放／给已由[作者模板](../../examples/templates/item-rules.js)取代，使用 `status:take`／`status:drop`／`status:give`；旧 `base:take`／`base:drop`／`base:give` 及核心 home.ts、dinner.ts 已删除，基础交互只保留牵手与松手。玩家使用当前选项，交给是一个选项加接收者参数；旧 `/take`、`/give`、`/drop` 已删除，调试改用 `/status take@entity:xxx {}` 等。源码、自动测试场景和此次两个真实样本的边界见[物品指南](guides/activity-and-variables.md#作者物品规则的验证范围)。下文旧验收的 take／give／drop 指当时实现，不作为现行内置能力或新模板已重验的证明。

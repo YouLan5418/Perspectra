@@ -39,6 +39,7 @@ export async function executeWorldRound(
     readonly actorId?: string | undefined
     readonly signal?: AbortSignal | undefined
     readonly leaseTtlMs?: number
+    readonly captureCognition?: boolean
     readonly tickRoundId?: boolean
   },
   adjudicate: (snapshot: WorldRoundSnapshot) => WorldRoundEffects | undefined | Promise<WorldRoundEffects | undefined>,
@@ -63,30 +64,7 @@ export async function executeWorldRound(
     const effects = await adjudicate(snapshot)
     input.signal?.throwIfAborted()
     if (effects === undefined) return undefined
-    if (input.actorId !== undefined && effects.authority.actorId !== input.actorId)
-      throw new TypeError('round authority actor does not match its bound player')
-    const characters = new Set(manifest.characters.map(row => String(row.characterId)))
-    assertPhysicalEffects({
-      manifest,
-      events: snapshot.events,
-      drafts: effects.events,
-      actorId: input.actorId,
-      allowedMovers: effects.allowedMovers,
-    })
-    for (const event of effects.events) {
-      if (event.eventType === 'world.tick-advanced') throw new TypeError('round tick is owned by the core')
-      if (
-        event.eventType === 'action.resolved' &&
-        input.actorId !== undefined &&
-        (event.data as WorldJsonObject).actorId !== input.actorId
-      )
-        throw new TypeError('resolved action actor does not match its bound player')
-      if (event.eventType === 'observation.upsert') {
-        const observer = ((event.data as WorldJsonObject).value as WorldJsonObject | undefined)?.observerId
-        if (typeof observer !== 'string' || !characters.has(observer))
-          throw new TypeError('observation recipient is not a declared character')
-      }
-    }
+    validateWorldRoundEffects(snapshot, effects, input.actorId)
     const roundId = brandId(owner, 'InteractionRoundId')
     await store.commitRound({
       address,
@@ -104,6 +82,17 @@ export async function executeWorldRound(
         },
       ],
       outbox: [],
+      ...(input.captureCognition
+        ? {
+            cognitiveJobs: [
+              ...new Set(
+                effects.events
+                  .filter(event => event.eventType === 'observation.upsert')
+                  .map(event => String(((event.data as WorldJsonObject).value as WorldJsonObject).observerId)),
+              ),
+            ].map(characterId => ({ characterId: brandId(characterId, 'CharacterId') })),
+          }
+        : {}),
       writerFencingToken: lease.fencingToken,
       correlationId: owner,
       authority: effects.authority,
@@ -111,5 +100,48 @@ export async function executeWorldRound(
     return { afterSeq: head.headSeq }
   } finally {
     leases.release(address, owner, lease.fencingToken)
+  }
+}
+
+/** Validates pure adjudication data before the commit boundary. */
+export function validateWorldRoundEffects(
+  snapshot: WorldRoundSnapshot,
+  effects: WorldRoundEffects,
+  actorId?: string,
+): void {
+  if (actorId !== undefined && effects.authority.actorId !== actorId)
+    throw new TypeError('round authority actor does not match its bound player')
+  if (
+    !Array.isArray(effects.events) ||
+    !effects.authority ||
+    typeof effects.authority !== 'object' ||
+    Array.isArray(effects.authority)
+  )
+    throw new TypeError('round effects require events and an authority object')
+  const allowed = new Set(snapshot.manifest.registries.events.definitions.map(row => `${row.name}@${row.version}`))
+  for (const event of effects.events)
+    if (!allowed.has(`${event.eventType}@${event.eventVersion}`))
+      throw new TypeError('event is not declared by the world')
+  const characters = new Set(snapshot.manifest.characters.map(row => String(row.characterId)))
+  assertPhysicalEffects({
+    manifest: snapshot.manifest,
+    events: snapshot.events,
+    drafts: effects.events,
+    actorId: actorId,
+    allowedMovers: effects.allowedMovers,
+  })
+  for (const event of effects.events) {
+    if (event.eventType === 'world.tick-advanced') throw new TypeError('round tick is owned by the core')
+    if (
+      event.eventType === 'action.resolved' &&
+      actorId !== undefined &&
+      (event.data as WorldJsonObject).actorId !== actorId
+    )
+      throw new TypeError('resolved action actor does not match its bound player')
+    if (event.eventType === 'observation.upsert') {
+      const observer = ((event.data as WorldJsonObject).value as WorldJsonObject | undefined)?.observerId
+      if (typeof observer !== 'string' || !characters.has(observer))
+        throw new TypeError('observation recipient is not a declared character')
+    }
   }
 }

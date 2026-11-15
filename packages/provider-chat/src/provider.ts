@@ -33,6 +33,8 @@ import { intentCall, type ChatCall, type ChatMessage } from './wire.ts'
 export interface ChatCallObservation {
   readonly usage?: InspectedUsage
   readonly cacheMode?: EffectivePromptCacheMode
+  readonly httpAttempts?: number
+  readonly usageReported?: boolean
   readonly kind: 'character' | 'intent'
   readonly model: string
   readonly durationMs: number
@@ -71,6 +73,8 @@ export interface ChatProviderOptions {
   readonly fetch?: typeof globalThis.fetch
   readonly inspector?: RequestInspector
   readonly presetOrigin?: PresetOrigin
+  readonly onAttempt?: (ordinal: number) => void
+  readonly maxRetries?: number
   readonly onCall?: (observation: ChatCallObservation) => void
 }
 
@@ -286,15 +290,23 @@ function payloadOf(message: AssistantMessage, toolName: string): WorldJsonValue 
 }
 
 interface Exchange {
+  httpAttempts?: number
+  usageObserved?: boolean
   httpStatus?: number
   detail?: string
   notStreamed?: boolean
 }
 
 /** Wraps the transport so the HTTP status and the endpoint's own words survive pi-ai's error normalisation. */
-function observingFetch(base: typeof globalThis.fetch, exchange: Exchange): typeof globalThis.fetch {
+function observingFetch(
+  base: typeof globalThis.fetch,
+  exchange: Exchange,
+  onAttempt?: (ordinal: number) => void,
+): typeof globalThis.fetch {
   return (async (input, init) => {
     // A redirect could carry the key to another host; the old adapter refused them and so does this one.
+    exchange.httpAttempts = (exchange.httpAttempts ?? 0) + 1
+    onAttempt?.(exchange.httpAttempts)
     const response = await base(input, { ...init, redirect: 'error' })
     exchange.httpStatus = response.status
     if (!response.ok) exchange.detail = (await response.clone().text()).slice(0, 512)
@@ -302,7 +314,35 @@ function observingFetch(base: typeof globalThis.fetch, exchange: Exchange): type
       exchange.notStreamed = true
       throw new ChatTransportError(NOT_STREAMED)
     }
-    return response
+    if (!response.ok || !response.body) return response
+    // Observe only whether the endpoint reported numeric usage; SDK defaults alone are not reports.
+    const decoder = new TextDecoder()
+    let buffer = ''
+    const observe = (line: string) => {
+      if (!line.startsWith('data:')) return
+      try {
+        const frame = JSON.parse(line.slice(5))
+        const usage = frame.usage ?? frame.message?.usage ?? frame.usageMetadata
+        if (usage && Object.values(usage).some(value => typeof value === 'number')) exchange.usageObserved = true
+      } catch {
+        /* Non-JSON SSE control frames carry no usage. */
+      }
+    }
+    const body = response.body.pipeThrough(
+      new TransformStream<Uint8Array, Uint8Array>({
+        transform(chunk, controller) {
+          buffer += decoder.decode(chunk, { stream: true })
+          const lines = buffer.split('\n')
+          buffer = lines.pop() ?? ''
+          for (const line of lines) observe(line)
+          controller.enqueue(chunk)
+        },
+        flush() {
+          observe(buffer + decoder.decode())
+        },
+      }),
+    )
+    return new Response(body, { status: response.status, statusText: response.statusText, headers: response.headers })
   }) as typeof globalThis.fetch
 }
 
@@ -445,7 +485,7 @@ export function createChatProvider(options: ChatProviderOptions): ChatProvider {
             },
           }
         : undefined
-    const exchange: Exchange = {}
+    const exchange: Exchange = protocol === 'google' ? {} : { httpAttempts: 0 }
     let inspectionId: number | undefined
     let assembled: AssistantMessage | undefined
     const started = performance.now()
@@ -465,13 +505,15 @@ export function createChatProvider(options: ChatProviderOptions): ChatProvider {
         ...(cacheHeaders ? { headers: { ...authentication.headers, ...cacheHeaders } } : {}),
         signal: combined,
         timeoutMs,
-        maxRetries: 0,
+        maxRetries: options.maxRetries ?? 0,
         maxTokens: maximum,
         cacheRetention: 'none',
         ...(temperature === undefined ? {} : { temperature }),
         ...(enabled ? { reasoning: level } : {}),
         ...(protocol === 'openai' && Object.keys(sampling).length ? { samplingParams: sampling } : {}),
-        ...(protocol === 'google' ? {} : { fetch: observingFetch(options.fetch ?? globalThis.fetch, exchange) }),
+        ...(protocol === 'google'
+          ? {}
+          : { fetch: observingFetch(options.fetch ?? globalThis.fetch, exchange, options.onAttempt) }),
         onPayload: raw => {
           const payload = promptCachePayload(
             decisionPayload(
@@ -509,6 +551,8 @@ export function createChatProvider(options: ChatProviderOptions): ChatProvider {
         usage: sdkUsage(message),
       })
       options.onCall?.({
+        ...(exchange.httpAttempts === undefined ? {} : { httpAttempts: exchange.httpAttempts }),
+        usageReported: exchange.usageObserved === true || (protocol === 'google' && message.usage.totalTokens > 0),
         kind,
         model: modelId,
         durationMs: elapsed(),
@@ -531,6 +575,9 @@ export function createChatProvider(options: ChatProviderOptions): ChatProvider {
               : 'transport',
       })
       options.onCall?.({
+        ...(exchange.httpAttempts === undefined ? {} : { httpAttempts: exchange.httpAttempts }),
+        usageReported:
+          exchange.usageObserved === true || (protocol === 'google' && (assembled?.usage.totalTokens ?? 0) > 0),
         ...(answered ? { usage: sdkUsage(assembled!) } : {}),
         cacheMode: kind === 'character' ? cacheMode : 'passive',
         kind,

@@ -1,4 +1,4 @@
-import { messageParameters, type CommunicationDefinition } from '@harness-world/contracts'
+import { messageParameters, parseCommunicationDefinition, type CommunicationDefinition } from '@harness-world/contracts'
 import type { CommunicationInstance, CommunicationSource, SeamProvider } from '@harness-world/plugin-sdk'
 
 export const communicationInstruction =
@@ -6,12 +6,15 @@ export const communicationInstruction =
 
 /** Existing SMS options and prose; the core validates contacts, envelopes and resulting facts. */
 export class CommunicationPolicy implements CommunicationInstance {
-  readonly definition: unknown
+  readonly definition: CommunicationDefinition | undefined
   readonly instruction = communicationInstruction
   constructor(source: CommunicationSource | undefined) {
-    this.definition = structuredClone(source?.config)
+    this.definition = source === undefined ? undefined : parseCommunicationDefinition(source.config)
   }
   parameters = messageParameters
+  contacts({ recipientIds }: Parameters<NonNullable<CommunicationInstance['contacts']>>[0]) {
+    return recipientIds
+  }
   options({ recipientIds, publicationCharacters }: Parameters<CommunicationInstance['options']>[0]) {
     const medium = (this.definition as CommunicationDefinition).medium
     return recipientIds.map(id => ({

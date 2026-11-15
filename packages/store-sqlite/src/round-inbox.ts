@@ -386,6 +386,42 @@ export class RoundInbox {
     }
   }
 
+  /** Finish an adjudication fault without manufacturing a World Event or commit proof. */
+  failClaimed(
+    address: WorldAddress,
+    inboxSeq: number,
+    ownerId: string,
+    fencingToken: number,
+    failure: WorldJsonValue,
+  ): void {
+    const key = worldAddressKey(address)
+    this.#db.exec('BEGIN IMMEDIATE')
+    try {
+      this.#assertCurrentLease(address, key, ownerId, fencingToken)
+      const row = this.#db
+        .prepare('SELECT * FROM round_inbox WHERE address_key = ? AND inbox_seq = ?')
+        .get(key, inboxSeq) as (StatusRow & { claim_owner_id: string; claim_fencing_token: number }) | undefined
+      if (
+        !row ||
+        row.status !== 'claimed' ||
+        row.claim_owner_id !== ownerId ||
+        row.claim_fencing_token !== fencingToken
+      )
+        throw new Error('failed round is not claimed by the current writer')
+      const roundId = coordinatedRoundId(address, inboxSeq, row.idempotency_key, row.input_hash)
+      if (this.#db.prepare('SELECT 1 FROM round_commits WHERE address_key = ? AND round_id = ?').get(key, roundId))
+        throw new Error('a committed round cannot be marked failed')
+      this.#db
+        .prepare(
+          "UPDATE round_inbox SET status = 'failed', result_hash = ?, result_json = ? WHERE address_key = ? AND inbox_seq = ?",
+        )
+        .run(hashWorldJson('player-round-result', failure), worldJsonText(failure), key, inboxSeq)
+      this.#db.exec('COMMIT')
+    } catch (error) {
+      rollbackAndThrow(this.#db, error)
+    }
+  }
+
   readCompleted(address: WorldAddress, idempotencyKey: string): WorldJsonValue | undefined {
     const row = this.#db
       .prepare(

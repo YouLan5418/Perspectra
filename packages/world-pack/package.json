@@ -7,6 +7,7 @@
   "dependencies": {
     "@harness-world/application": "workspace:*",
     "@harness-world/contracts": "workspace:*",
-    "@harness-world/kernel": "workspace:*"
+    "@harness-world/kernel": "workspace:*",
+    "ajv": "8.17.1"
   }
 }

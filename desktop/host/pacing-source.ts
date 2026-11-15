@@ -7,6 +7,7 @@ import type { CompiledWorldPackV5 } from '@harness-world/world-pack'
 
 /** Validate the locked asset before handing its text to the selected mechanism. */
 export function loadPacingSource(packPath: string, pack: CompiledWorldPackV5): PacingSource | undefined {
+  if (!pack.plugins?.['official-pacing']) return undefined
   const entry = 'scripts/pacing.js',
     lock = pack.assets.find(asset => asset.path === entry)
   if (!lock) return undefined

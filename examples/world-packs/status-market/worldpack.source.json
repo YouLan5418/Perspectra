@@ -27,8 +27,12 @@
   "memoryFiles": [
     "memory.json"
   ],
-  "documentFiles": ["documents.json"],
-  "markdownFiles": ["task-reward.md"],
+  "documentFiles": [
+    "documents.json"
+  ],
+  "markdownFiles": [
+    "task-reward.md"
+  ],
   "assetFiles": [
     "scripts/status.js",
     "knowledge.json"
@@ -38,5 +42,8 @@
   ],
   "reactionFile": "reaction.json",
   "manifestationFile": "manifestation.json",
-  "interactionFile": "interactions.json"
+  "interactionFile": "interactions.json",
+  "plugins": {
+    "pack-scripts": {}
+  }
 }

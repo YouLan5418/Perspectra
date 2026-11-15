@@ -127,7 +127,7 @@ export async function saveStoryNode(
   }
   writeFileSync(join(temporary, 'memory-aliases.json'), JSON.stringify(aliases))
   writeFileSync(join(temporary, 'core-memory.json'), JSON.stringify(coreMemory))
-  if (pluginSet?.generatedContent) writePluginSet(temporary, pluginSet)
+  if (pluginSet) writePluginSet(temporary, pluginSet)
   node.files = NODE_FILES.filter(name => existsSync(join(temporary, name)))
   writeFileSync(join(temporary, 'node.json'), JSON.stringify(node))
   renameSync(temporary, join(root, id))

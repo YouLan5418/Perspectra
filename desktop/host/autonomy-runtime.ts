@@ -133,7 +133,7 @@ export class AutonomyRuntime {
         role.locationIds.includes(currentLocation(events, role.characterId) ?? ''),
     )
   }
-  /** A role-specific resolver for autonomous activations only; the base still adjudicates every effect. */
+  /** A role restriction applies independently of why the scheduler offered an opportunity. */
   rulebooks(base: RulebookResolver): RulebookRegistry {
     const forRole = (actor: string) => this.roles.find(r => r.characterId === actor)
     const allowed = (
@@ -151,7 +151,7 @@ export class AutonomyRuntime {
     const resolver: RulebookResolver = {
       affordances: context => {
         const role = forRole(context.characterId)
-        if (!role) throw new TypeError('未声明自主角色')
+        if (!role) return base.affordances(context)
         const inRange = role.locationIds.includes(currentLocation(context.events, context.characterId) ?? '')
         return base.affordances(context).flatMap((action): ActionAffordance[] => {
           if (action.actionType === 'speak') return allowed(role, context.events, 'speak', {}) ? [action] : []
@@ -174,7 +174,7 @@ export class AutonomyRuntime {
       resolve: context => {
         const role = forRole(context.characterId),
           action = context.action
-        if (!role) throw new TypeError('未声明自主角色')
+        if (!role) return base.resolve(context)
         if (
           !allowed(
             role,

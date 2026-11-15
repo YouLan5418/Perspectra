@@ -239,7 +239,7 @@ describe('SQLite ownership helpers', () => {
   })
 })
 
-describe('World schema v18', () => {
+describe('World schema v21', () => {
   it('keeps the event type index and no retired Reaction tables', async () => {
     const path = database('world-current.sqlite')
     const address = fixtureAddress('current-schema')
@@ -253,8 +253,8 @@ describe('World schema v18', () => {
     const names = (worldSchemaRows(raw) as Array<{ readonly name: string }>).map(row => row.name)
     expect(names).toContain('events_type_range')
     expect(names.filter(name => name.startsWith('world_reaction_'))).toEqual([])
-    expect(hashWorldJson('world-sqlite-schema/v20', worldSchemaRows(raw))).toBe(
-      'sha256:0696d156cf2a83237729966def651397186a3b53248153e81a321c99d740c746',
+    expect(hashWorldJson('world-sqlite-schema/v21', worldSchemaRows(raw))).toBe(
+      'sha256:a9ca8d882186c6f2376de3d9998435506f56c042bb772fc85dc8880d249817ec',
     )
     raw.close()
   })

@@ -6,6 +6,7 @@ import type { SeamProvider, StatusInstance } from '@harness-world/plugin-sdk'
 import { StatusScripts } from '@harness-world/official-status'
 import { WorldStore } from '@harness-world/store-sqlite'
 import { loadHostPlugins, type HostPlugins } from '../../desktop/host-plugins.ts'
+import { PluginFaultError } from '../../desktop/host/plugin-runtime.ts'
 import { WorldHostRuntime } from '../../desktop/host/world-runtime.ts'
 import { startFakeProvider, fakeModels } from '../support/fake-provider.ts'
 
@@ -89,7 +90,7 @@ it('loads an external status service and submits its proposed changes through th
     path.replace('.mjs', '.plugin.json'),
     JSON.stringify({ id: 'external-status', name: '状态机制', version: '1.0.0', services: ['status'] }),
   )
-  const session = await loadHostPlugins([{ id: 'state', path, enabled: true }])
+  const session = await loadHostPlugins([{ id: 'state', path, enabled: true, nativeAllowed: true }])
   sessions.push(session)
   expect(session.skipped).toEqual([])
   const f = await start(session.seams.status!)
@@ -108,15 +109,25 @@ it('loads an external status service and submits its proposed changes through th
 })
 
 it('fails opening a broken service without falling back to the official interpreter', async () => {
-  await expect(
-    start({
-      id: 'broken-status',
-      version: '1.0.0',
-      open: async () => {
-        throw new Error('cannot initialize')
-      },
-    }),
-  ).rejects.toThrow('状态机制 broken-status 无法打开')
+  const failure = await start({
+    id: 'broken-status',
+    version: '1.0.0',
+    open: async () => {
+      throw new Error('cannot initialize')
+    },
+  }).then(
+    () => undefined,
+    error => error,
+  )
+  expect(failure).toBeInstanceOf(PluginFaultError)
+  if (!(failure instanceof PluginFaultError)) return
+  expect(failure).toMatchObject({
+    origin: 'plugin',
+    pluginId: 'broken-status',
+    operation: 'open',
+    invalidResult: false,
+  })
+  expect(failure.message).toBe('插件 broken-status 的 open 操作失败。')
 })
 
 it('attributes interpreter errors and keeps the authoritative prefix unchanged', async () => {
@@ -129,7 +140,19 @@ it('attributes interpreter errors and keeps the authoritative prefix unchanged',
     }),
   )
   const before = f.events()
-  await expect(f.runtime.submit('/status gain {}')).rejects.toThrow('状态机制 custom-status')
+  const failure = await f.runtime.submit('/status gain {}').then(
+    () => undefined,
+    error => error,
+  )
+  expect(failure).toBeInstanceOf(PluginFaultError)
+  if (!(failure instanceof PluginFaultError)) return
+  expect(failure).toMatchObject({
+    origin: 'plugin',
+    pluginId: 'custom-status',
+    operation: 'resolve',
+    invalidResult: false,
+  })
+  expect(failure.message).toBe('插件 custom-status 的 resolve 操作失败。')
   expect(f.events()).toEqual(before)
 })
 
@@ -199,7 +222,12 @@ it('does not create undeclared persistent state when the world has no status sou
   const undeclared = new StatusScripts({ script, modules: [] })
   await expect(
     start({ id: 'undeclared-status', version: '1.0.0', open: async () => undeclared }, pack(false)),
-  ).rejects.toThrow('must match the world declared source')
+  ).rejects.toMatchObject({
+    origin: 'plugin',
+    pluginId: 'undeclared-status',
+    operation: 'open:definition',
+    invalidResult: true,
+  })
 })
 
 it('preserves initialization for a declared empty module bundle without a base status script', async () => {

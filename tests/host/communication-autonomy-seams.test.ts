@@ -5,19 +5,227 @@ import { join, resolve } from 'node:path'
 import { afterEach, expect, it, vi } from 'vitest'
 import { CommunicationPolicy } from '@harness-world/official-communication'
 import { AutonomyPolicy } from '@harness-world/official-scheduler'
+import { officialStatusProvider } from '@harness-world/official-status'
 import type { AutonomySource, AutonomyInstance, CommunicationInstance, SeamProvider } from '@harness-world/plugin-sdk'
 import type { WorldJsonObject } from '@harness-world/contracts'
 import { currentLocation, type RulebookResolver, type CompiledWorldManifest } from '@harness-world/kernel'
 import { WorldStore } from '@harness-world/store-sqlite'
 import type { HostSeams } from '../../desktop/official-bundle.ts'
 import { loadHostPlugins, type HostPlugins } from '../../desktop/host-plugins.ts'
+import { PluginFaultError } from '../../desktop/host/plugin-runtime.ts'
 import { WorldHostRuntime } from '../../desktop/host/world-runtime.ts'
 import { startFakeProvider, fakeModels } from '../support/fake-provider.ts'
+import { playSettings } from '../../desktop/play-settings.ts'
 
 const roots: string[] = [],
   runtimes: WorldHostRuntime[] = [],
   sessions: HostPlugins[] = [],
   servers: Awaited<ReturnType<typeof startFakeProvider>>[] = []
+
+function countingCyclePack() {
+  const sourcePath = pack()
+  const file = join(sourcePath, 'scripts/status.js')
+  writeFileSync(
+    file,
+    readFileSync(file, 'utf8') +
+      `
+statusScript.definition.statuses.push({key:'counter',label:'周期计数',type:'number',owner:'public',alwaysKnown:true});
+const initial = statusScript.initialize;
+statusScript.initialize=ids=>{const state=initial(ids);state.public.counter=0;return state};
+statusScript.onRoundEnd=truth=>({changes:[{holderId:null,key:'counter',value:truth.public.counter+1}],reveals:[]});
+`,
+  )
+  return sourcePath
+}
+
+it.each([true, false])('does not settle an opportunity budget stop (serial=%s)', async serialScheduling => {
+  const sourcePath = countingCyclePack(),
+    file = join(sourcePath, 'autonomy.json')
+  const config = JSON.parse(readFileSync(file, 'utf8'))
+  config.characters[0].opportunities = 2
+  writeFileSync(file, JSON.stringify(config))
+  const f = await start({}, sourcePath, {
+    serialScheduling,
+    playSettings: playSettings({ autonomyOpportunities: 2, autonomyNpcCalls: 2, autonomyReactionWaves: 0 }),
+  })
+  const state = await f.runtime.submit('/act speak ' + JSON.stringify({ text: '本轮输入', scope: 'scene_public' }))
+  expect(state.debug.execution).toMatchObject({ status: 'budget_exhausted' })
+  expect(state.notice).toContain('自主行动或后续反应达到预算上限')
+  expect(
+    f
+      .events()
+      .filter(
+        event =>
+          event.eventType === 'status.updated' &&
+          ((event.data as WorldJsonObject).source as WorldJsonObject).kind === 'round',
+      ),
+  ).toEqual([])
+})
+
+it('replays a message without resending or settling and refuses changed content for the same key', async () => {
+  const sourcePath = countingCyclePack(),
+    file = join(sourcePath, 'worldpack.source.json')
+  const manifest = JSON.parse(readFileSync(file, 'utf8'))
+  manifest.assetFiles = manifest.assetFiles.filter((name: string) => name !== 'autonomy.json')
+  if (!manifest.assetFiles.includes('autonomy.json')) delete manifest.plugins['official-autonomy']
+  writeFileSync(file, JSON.stringify(manifest))
+  let blocked = false
+  const prepare = vi.fn()
+  const f = await start(
+    {
+      communication: communication(instance => {
+        instance.contacts = input => (blocked ? [] : input.recipientIds)
+        const original = instance.prepare.bind(instance)
+        instance.prepare = input => {
+          prepare()
+          return original(input)
+        }
+      }),
+    },
+    sourcePath,
+  )
+  const message = (text: string) => '/message ' + JSON.stringify({ recipientId: 'character:friend', text })
+  await f.runtime.submit(message('同一条消息'), 'message-replay')
+  const before = f.events(),
+    calls = f.requests.length
+  expect(prepare).toHaveBeenCalledOnce()
+  expect(
+    before.filter(event => event.eventType === 'character.speak' && (event.data as WorldJsonObject).medium === '短信'),
+  ).toHaveLength(1)
+  expect(
+    before.filter(
+      event =>
+        event.eventType === 'status.updated' &&
+        ((event.data as WorldJsonObject).source as WorldJsonObject).kind === 'round',
+    ),
+  ).toHaveLength(1)
+  blocked = true
+  await f.runtime.submit(message('同一条消息'), 'message-replay')
+  expect(f.events()).toEqual(before)
+  expect(f.requests).toHaveLength(calls)
+  expect(prepare).toHaveBeenCalledOnce()
+  await expect(f.runtime.submit(message('改过的消息'), 'message-replay')).rejects.toThrow('同一请求不能改变内容')
+  expect(f.events()).toEqual(before)
+})
+
+it('settles a normal cycle once and does not renominate autonomy while handling its new observations', async () => {
+  const sourcePath = pack()
+  const scriptPath = join(sourcePath, 'scripts/status.js')
+  writeFileSync(
+    scriptPath,
+    readFileSync(scriptPath, 'utf8') +
+      `
+statusScript.definition.statuses.push({key:'counter',label:'计数',type:'number',owner:'public',alwaysKnown:true});
+const initialCycleState = statusScript.initialize;
+statusScript.initialize = ids => { const state = initialCycleState(ids); state.public.counter = 0; return state };
+statusScript.onRoundEnd = truth => ({changes:[{holderId:null,key:'counter',value:truth.public.counter+1}],reveals:[]});
+`,
+  )
+  const settled = vi.fn(),
+    nominated = vi.fn()
+  const f = await start(
+    {
+      status: {
+        id: 'counted-status',
+        version: '1.0.0',
+        open: async (world, signal) => {
+          const instance = await officialStatusProvider.open(world, signal),
+            original = instance.endRound.bind(instance)
+          instance.endRound = (truth, round) => {
+            settled()
+            return original(truth, round)
+          }
+          return instance
+        },
+      },
+      autonomy: autonomy(instance => {
+        const original = instance.due.bind(instance)
+        instance.due = input => {
+          nominated()
+          return original(input)
+        }
+      }),
+    },
+    sourcePath,
+  )
+  const state = await f.runtime.submit('本轮正式输入。')
+  expect(state.error).toBe(false)
+  expect(settled).toHaveBeenCalledOnce()
+  expect(nominated).toHaveBeenCalledOnce()
+  const inputCount = f
+    .events()
+    .filter(
+      event => event.eventType === 'action.resolved' && (event.data as WorldJsonObject).sourceRole === 'player',
+    ).length
+  await f.runtime.processStimulus(f.events().at(-1)!.seq)
+  expect(settled).toHaveBeenCalledTimes(2)
+  expect(
+    f
+      .events()
+      .filter(
+        event => event.eventType === 'action.resolved' && (event.data as WorldJsonObject).sourceRole === 'player',
+      ),
+  ).toHaveLength(inputCount)
+  expect(
+    (
+      f
+        .events()
+        .filter(event => event.eventType === 'status.updated')
+        .at(-1)!.data as WorldJsonObject
+    ).source,
+  ).toMatchObject({ kind: 'cycle' })
+})
+
+it('narrows communication contacts from authorized current state and rechecks both sending paths', async () => {
+  const sourcePath = pack(),
+    scriptPath = join(sourcePath, 'scripts/status.js')
+  writeFileSync(
+    scriptPath,
+    readFileSync(scriptPath, 'utf8') +
+      `
+statusScript.definition.statuses.push({key:'blocked',label:'屏蔽',type:'boolean',owner:'character'});
+statusScript.definition.operations.push({id:'block-contact',label:'屏蔽联系人',schema:{type:'object',properties:{},additionalProperties:false}});
+const initialContactState=statusScript.initialize, contactPolicy=statusScript.policy, resolveContact=statusScript.resolve;
+statusScript.initialize=ids=>{const state=initialContactState(ids);for(const id of ids)state.characters[id].blocked=id!=='character:player';return state};
+statusScript.policy=(...args)=>{const result=contactPolicy(...args);return {...result,operations:[...new Set([...result.operations,'block-contact'])]}};
+statusScript.resolve=(truth,actor,operation,...rest)=>operation==='block-contact'?{changes:[{holderId:actor,key:'blocked',value:true}],reveals:[],description:'已屏蔽',audience:'self'}:resolveContact(truth,actor,operation,...rest);
+`,
+  )
+  const known: WorldJsonObject[] = []
+  const f = await start(
+    {
+      communication: communication(instance => {
+        instance.contacts = input => {
+          if (input.actorId === 'character:player') known.push(input.knownState)
+          return (input.knownState.self as WorldJsonObject)?.blocked ? [] : input.recipientIds
+        }
+      }),
+    },
+    sourcePath,
+  )
+  await f.message()
+  const delivered = () =>
+    f
+      .events()
+      .filter(event => event.eventType === 'character.speak' && (event.data as WorldJsonObject).medium === '短信')
+  expect(delivered()).toHaveLength(1)
+  await f.runtime.submit('/status block-contact {}')
+  await expect(f.message()).rejects.toThrow('不能给这个人发')
+  await f.runtime.submit(
+    '/act interact ' +
+      JSON.stringify({
+        targetRef: { kind: 'character', id: 'character:friend' },
+        bindingId: 'experiment:message',
+        definitionRef: { id: 'experiment:message', version: 1 },
+        arguments: { text: '已被条件拒绝的消息' },
+      }),
+  )
+  expect(delivered()).toHaveLength(1)
+  expect(known.some(state => (state.self as WorldJsonObject)?.blocked === true)).toBe(true)
+  expect(known.every(state => !Object.hasOwn((state.characters as WorldJsonObject) ?? {}, 'character:friend'))).toBe(
+    true,
+  )
+})
 afterEach(async () => {
   vi.restoreAllMocks()
   for (const runtime of runtimes.splice(0)) await runtime.close()
@@ -37,6 +245,7 @@ function pack(enabled = true) {
     manifest = JSON.parse(readFileSync(file, 'utf8'))
   if (enabled) {
     manifest.assetFiles.push('communication.json')
+    manifest.plugins['official-communication'] = {}
     writeFileSync(
       join(path, 'communication.json'),
       JSON.stringify({
@@ -45,10 +254,15 @@ function pack(enabled = true) {
       }),
     )
   } else manifest.assetFiles = manifest.assetFiles.filter((name: string) => name !== 'autonomy.json')
+  if (!manifest.assetFiles.includes('autonomy.json')) delete manifest.plugins['official-autonomy']
   writeFileSync(file, JSON.stringify(manifest))
   return path
 }
-async function start(plugins: Partial<HostSeams> = {}, packPath = pack()) {
+async function start(
+  plugins: Partial<HostSeams> = {},
+  packPath = pack(),
+  options: Pick<Parameters<typeof WorldHostRuntime.create>[0], 'serialScheduling' | 'playSettings'> = {},
+) {
   const requests: WorldJsonObject[] = []
   const server = await startFakeProvider('openai', input => {
     requests.push(JSON.parse(input.userText) as WorldJsonObject)
@@ -61,6 +275,7 @@ async function start(plugins: Partial<HostSeams> = {}, packPath = pack()) {
     plugins,
     models: fakeModels(server.endpoint),
     serialScheduling: true,
+    ...options,
   })
   runtimes.push(runtime)
   const events = () => {
@@ -128,7 +343,7 @@ it('loads actual Cordis communication and autonomy replacements, preserving send
       services: ['communication', 'autonomy'],
     }),
   )
-  const session = await loadHostPlugins([{ id: 'external-mechanisms', path, enabled: true }])
+  const session = await loadHostPlugins([{ id: 'external-mechanisms', path, enabled: true, nativeAllowed: true }])
   sessions.push(session)
   expect(session.skipped).toEqual([])
   const f = await start(session.seams)
@@ -169,7 +384,19 @@ it.each(['communication', 'autonomy'] as const)(
         throw new Error('broken')
       },
     }
-    await expect(start({ [seam]: broken })).rejects.toThrow('broken-' + seam + ' 无法打开')
+    const failure = await start({ [seam]: broken }).then(
+      () => undefined,
+      error => error,
+    )
+    expect(failure).toBeInstanceOf(PluginFaultError)
+    if (!(failure instanceof PluginFaultError)) return
+    expect(failure).toMatchObject({
+      origin: 'plugin',
+      pluginId: 'broken-' + seam,
+      operation: 'open',
+      invalidResult: false,
+    })
+    expect(failure.message).toBe(`插件 broken-${seam} 的 open 操作失败。`)
   },
 )
 
@@ -186,7 +413,12 @@ it.each(['recipientId', 'characterId', 'events'] as const)(
       }),
     })
     const before = f.events()
-    await expect(f.message()).rejects.toThrow('无效投递候选')
+    await expect(f.message()).rejects.toMatchObject({
+      origin: 'plugin',
+      pluginId: 'custom-communication',
+      operation: 'prepare',
+      invalidResult: true,
+    })
     expect(f.events()).toEqual(before)
   },
 )
@@ -204,7 +436,19 @@ it('computes messages from a narrow copy and attributes failures without partial
     }),
   })
   const before = f.events()
-  await expect(f.message()).rejects.toThrow('机制 custom-communication')
+  const failure = await f.message().then(
+    () => undefined,
+    error => error,
+  )
+  expect(failure).toBeInstanceOf(PluginFaultError)
+  if (!(failure instanceof PluginFaultError)) return
+  expect(failure).toMatchObject({
+    origin: 'plugin',
+    pluginId: 'custom-communication',
+    operation: 'prepare',
+    invalidResult: false,
+  })
+  expect(failure.message).toBe('插件 custom-communication 的 prepare 操作失败。')
   expect(received).toBe(true)
   expect(f.events()).toEqual(before)
 })
@@ -225,7 +469,12 @@ it('rejects unauthorized contact options during initial projection', async () =>
         }),
       },
     }),
-  ).rejects.toThrow('未授权联系人')
+  ).rejects.toMatchObject({
+    origin: 'plugin',
+    pluginId: 'custom-communication',
+    operation: 'options',
+    invalidResult: true,
+  })
 })
 
 it('lets the autonomy mechanism veto advertised actions while keeping declared scope caps', async () => {
@@ -247,13 +496,16 @@ it('lets the autonomy mechanism veto advertised actions while keeping declared s
   expect(actions.some(action => action.actionType === 'move')).toBe(false)
 })
 
-it('rejects unknown due actors and preserves the already committed player action', async () => {
+it('warns and skips an invalid optional nomination while preserving the committed action', async () => {
   const f = await start({
     autonomy: autonomy(instance => {
       instance.due = () => ['character:player']
     }),
   })
-  await expect(f.runtime.submit('这是本轮事实。')).rejects.toThrow('自主机制选择了未声明角色')
+  const state = await f.runtime.submit('这是本轮事实。')
+  expect(state.error).toBe(false)
+  expect(state.notice).toContain('custom-autonomy')
+  expect(state.notice).toContain('其他处理继续')
   expect(
     f
       .events()
@@ -331,7 +583,12 @@ it('does not install undeclared communication or autonomous state', async () => 
       },
       pack(false),
     ),
-  ).rejects.toThrow('通信机制必须匹配声明的配置')
+  ).rejects.toMatchObject({
+    origin: 'plugin',
+    pluginId: 'custom-communication',
+    operation: 'open:definition',
+    invalidResult: true,
+  })
   await expect(
     start(
       {
@@ -341,7 +598,12 @@ it('does not install undeclared communication or autonomous state', async () => 
       },
       pack(false),
     ),
-  ).rejects.toThrow('自主机制需要合法声明')
+  ).rejects.toMatchObject({
+    origin: 'plugin',
+    pluginId: 'custom-autonomy',
+    operation: 'open',
+    invalidResult: true,
+  })
 })
 
 it('binds manual parameters to the requested recipient even when another contact is authorized', async () => {
@@ -362,7 +624,12 @@ it('binds manual parameters to the requested recipient even when another contact
     source,
   )
   const before = f.events()
-  await expect(f.message()).rejects.toThrow('消息参数必须绑定请求的收件人与正文')
+  await expect(f.message()).rejects.toMatchObject({
+    origin: 'plugin',
+    pluginId: 'custom-communication',
+    operation: 'parameters',
+    invalidResult: true,
+  })
   expect(f.events()).toEqual(before)
 })
 
@@ -438,4 +705,84 @@ it('enforces autonomous locations and effect bounds even when a native permissio
   } finally {
     store.close()
   }
+})
+
+it('opens additive Cordis wakeup sources via ctx.scheduler.registerWakeup and isolates faulty sources', async () => {
+  const path = join(fresh(), 'wakeups.mjs')
+  writeFileSync(
+    path,
+    `export const hostApi='2.8';export default ctx=>{
+      ctx.effect(()=>ctx.scheduler.registerWakeup({
+        id:'broken-wakeup',
+        version:'1.0.0',
+        open:async()=>({nominate:()=>{throw new Error('wakeup exploded')}})
+      }));
+      ctx.effect(()=>ctx.scheduler.registerWakeup({
+        id:'alarm-wakeup',
+        version:'1.0.0',
+        open:async()=>({
+          nominate:input=>input.characterIds.includes('character:friend')
+            ? [{characterId:'character:friend',stimulusSeqs:[],opportunities:1}]
+            : []
+        })
+      }));
+    }`,
+  )
+  writeFileSync(
+    path.replace('.mjs', '.plugin.json'),
+    JSON.stringify({
+      id: 'external-wakeups',
+      name: '附加唤醒源',
+      version: '1.0.0',
+      services: ['scheduler'],
+    }),
+  )
+  const session = await loadHostPlugins([{ id: 'external-wakeups', path, enabled: true, nativeAllowed: true }])
+  sessions.push(session)
+  expect(session.skipped).toEqual([])
+  const f = await start(session.seams, pack(false))
+  const state = await f.runtime.submit('/act speak ' + JSON.stringify({ text: '前厅自言自语', scope: 'scene_public' }))
+  expect(
+    f.requests.some(
+      request =>
+        ((request.context as WorldJsonObject)?.character as WorldJsonObject)?.characterId === 'character:friend',
+    ),
+  ).toBe(true)
+  expect(state.notice).toContain('插件 broken-wakeup 本次未能提供额外处理机会，其他处理继续。')
+})
+
+it('keeps delivery and recipient reactions when the post-commit formatter fails', async () => {
+  const sourcePath = pack()
+  const file = join(sourcePath, 'worldpack.source.json')
+  const manifest = JSON.parse(readFileSync(file, 'utf8'))
+  manifest.assetFiles = manifest.assetFiles.filter((name: string) => name !== 'autonomy.json')
+  if (!manifest.assetFiles.includes('autonomy.json')) delete manifest.plugins['official-autonomy']
+  writeFileSync(file, JSON.stringify(manifest))
+  const log = vi.spyOn(console, 'error').mockImplementation(() => {})
+  const f = await start(
+    {
+      communication: communication(instance => {
+        instance.describeDelivery = () => {
+          throw new TypeError('PRIVATE_FORMATTER_STACK')
+        }
+      }),
+    },
+    sourcePath,
+  )
+  const message = '/message ' + JSON.stringify({ recipientId: 'character:friend', text: 'DELIVERED_MARKER' })
+  const result = await f.runtime.submit(message, 'format-fault')
+  expect(result.debug.execution).toMatchObject({ status: 'completed' })
+  expect(
+    f
+      .events()
+      .some(event => event.eventType === 'character.speak' && JSON.stringify(event.data).includes('DELIVERED_MARKER')),
+  ).toBe(true)
+  expect(f.requests.length).toBeGreaterThan(0)
+  expect(log.mock.calls.flat().join(' ')).toContain('describeDelivery')
+  expect(JSON.stringify(result)).not.toContain('PRIVATE_FORMATTER_STACK')
+  const before = f.events(),
+    calls = f.requests.length
+  await f.runtime.submit(message, 'format-fault')
+  expect(f.events()).toEqual(before)
+  expect(f.requests).toHaveLength(calls)
 })

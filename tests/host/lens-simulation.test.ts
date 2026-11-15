@@ -20,7 +20,6 @@ import { sweetWithoutPacing } from '../support/sweet-without-pacing.ts'
 import { LensSimulation, matchAction, sweepStaleLensCopies, type LensStart } from '../../desktop/lens/simulation.ts'
 import { applyScenario, parseScenario } from '../../desktop/lens/scenario.ts'
 import { startStubModel } from '../../desktop/lens/stub-model.ts'
-import { WorldHostRuntime } from '../../desktop/host/world-runtime.ts'
 import type { HostAction, HostState } from '../../desktop/host/http-server.ts'
 
 const PACK = sweetWithoutPacing()
@@ -338,7 +337,11 @@ it('rejects unknown start references', async () => {
     'character:nobody',
   )
   await expect(LensSimulation.open(PACK, { scenes: { [DEEPSEEK]: 'scene:nowhere' } })).rejects.toThrow('scene:nowhere')
-  await expect(LensSimulation.open(PACK, { status: { public: { nokey: 1 } } })).rejects.toThrow('nokey')
+  await expect(LensSimulation.open(PACK, { status: { public: { nokey: 1 } } })).rejects.toMatchObject({
+    name: 'PluginFault',
+    pluginId: 'official-status',
+    operation: 'open',
+  })
   await expect(LensSimulation.open(PACK, { skipAutoStart: ['no-such-activity'] })).rejects.toThrow('no-such-activity')
 }, 60_000)
 

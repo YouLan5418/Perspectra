@@ -6,6 +6,33 @@
 
 2026-10-22 核对物品创作入口：例如希望角色拿起钥匙再交给汤汤，在包内 `scripts/status.js` 配置物品规则；当前所有 v5 示例包都已使用作者模板。本文说明源码接法，自动测试与真实样本的范围见[活动与状态指南](activity-and-variables.md#作者物品规则的验证范围)；未据此确认发行包已包含这些改动。
 
+## B7 显式组合与共同脚本（源码）
+
+列入 assetFiles 只说明它是资产，不会自动启用玩法。添加或删除玩法时同步修改 worldpack.source.json 的 plugins；无需填满 services。
+
+| 内容 | plugins 声明 |
+| --- | --- |
+| rpg.json | official-rpg 与 official-dice |
+| trpg.json | official-trpg 与 official-dice |
+| autonomy.json | official-autonomy |
+| communication.json | official-communication |
+| scripts/pacing.js | official-pacing |
+| 旧 status.js、plugins.json、活动脚本 | pack-scripts；使用骰子再加 official-dice |
+
+例如增加 "plugins": { "official-rpg": {}, "official-dice": {} }。精确版本和配置路径可写成 "official-rpg": { "version": "1", "config": "configs/rpg.json" }，config 路径也要列入 assetFiles。configSchema 公开结构，validateConfig 检查实体引用及跨字段条件，错误会阻止开档。
+
+新玩法可声明 "scripts": { "gameplay": { "entry": "scripts/gameplay.cjs", "config": { "energy": 1 } } }。自包含脚本以 module.exports 导出 SDK 的 ContentGameplay；状态、操作、用途、参数 Schema 与结果投影和原生定义相同。entry 列入 assetFiles，不自动扫描未声明脚本。源码单文件示例在 examples/gameplay/investigation.cjs，B8 已接入默认控件、面板与源包配置编辑，使用方法见[展示与配置指南](gameplay-presentation.md)。
+
+services 只在确实要求特定 Provider 时填写，如 "services": { "scheduler": "my-grid-scheduler" }；冲突会中止启动。LLM 通道、记忆实现和凭据通常交玩家管理。
+
+静态 CLI／Launcher 预检不启动 Provider，遇到 services 时明确报告尚待宿主选型校验（CLI 为 runtimeValidation: pending-host-selection），不把静态合法当作运行环境已满足。正式开档按实际所选 Provider ID 校验，包括默认 LLM 入口。
+
+共同脚本仅支持同步定义与有限 JSON 数据：不支持 async／await、动态 import、Promise、WebAssembly、Atomics 或异步内置 API，不提供时钟和未记录随机。函数留在 VM 中，每次调用上限 100 ms；脚本及单次跨界数据上限 1 MiB。配置文件读取上限也统一为 1 MiB；TRPG 加入玩家及名称后的活动配置另限 256 KiB，纯校验与正式开档一致。需要外部资源的实现使用已被用户信任的原生插件。
+
+第三方生成器默认把原始配置交给共同定义；若生成器已在闭包内展开配置，可返回 gameplayConfig 显式指定定义收到的配置（官方 RPG／TRPG 使用空对象）。正式打开与读档预检遵循同一规则。
+
+原生插件须先安装并允许执行，包只能选择已有插件。第三方导出 packPlugin 供纯校验；源码 CLI validate／compile／test 可追加 --plugins settings.json。这里描述源码能力，不代表旧发行版支持。
+
 ## 1. 从一个可以运行的包开始
 
 只有程序包的创作者可以使用随包 [perspectra-creator Skill](../../../skills/perspectra-creator/SKILL.md)，用自带 Node 在新目录生成一个玩家、一个 NPC 和一个地点的空白 v5 源包，再逐步补作品内容。它还整合[酒馆卡静态提取与迁移](../../../skills/perspectra-creator/references/tavern.md)和[原生预设创作](../../../skills/perspectra-creator/references/presets.md)，卡片提取使用随包 Python，预设提供包推荐与预设库模板，并用 preset validate 单独校验。将整个 Skill 目录复制到所用 AI 工具的 Skill 目录；它不要求仓库、pnpm 或全局 Node／Python。下面的示例属于源码仓库，不附在本轮程序包中。

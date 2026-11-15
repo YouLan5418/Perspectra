@@ -6,7 +6,7 @@ import { join, resolve } from 'node:path'
 import { randomUUID } from 'node:crypto'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { jevPublicationAudit } from '../../packages/official-jev-audit/src/index.ts'
-import { brandId, RECALL_KEYWORD_TOKENIZER_ID, type WorldJsonObject } from '@harness-world/contracts'
+import { brandId, type WorldJsonObject } from '@harness-world/contracts'
 import { AuthorizedSourceStore } from '@harness-world/memory'
 import { CharacterViewBuilder, WorldStore } from '@harness-world/store-sqlite'
 import { WorldHostRuntime, type WorldHostOptions } from '../../desktop/host/world-runtime.ts'
@@ -424,7 +424,11 @@ describe('creator activity and host escape', () => {
       s => s.replace('policy() {', "policy(view) { if (view.revision > 1) throw new Error('creator policy failed');"),
     )
     const start = await f.runtime.activityAction(request(await f.runtime.state(), 'start'))
-    await expect(f.runtime.activityAction(request(start, 'pass'))).rejects.toThrow(/脚本/u)
+    await expect(f.runtime.activityAction(request(start, 'pass'))).rejects.toMatchObject({
+      name: 'PluginFault',
+      pluginId: 'official-activities',
+      operation: 'policy',
+    })
     const escaped = await f.runtime.escape()
     expect((escaped.activity!.game as WorldJsonObject).phase).toBe('host-aborted')
     expect(escaped.availableActions?.some(a => a.actionType === 'move')).toBe(true)

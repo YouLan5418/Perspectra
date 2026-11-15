@@ -1,25 +1,15 @@
-import { readFileSync } from 'node:fs'
-import { createContext, Script } from 'node:vm'
 import { describe, expect, it } from 'vitest'
 import { StatusState, adjudicateItemChanges, parseStatusOperationResult } from '@harness-world/application'
 import { StatusScripts } from '@harness-world/official-status'
+import type { StatusTruth, WorldJsonObject } from '@harness-world/contracts'
 import { parseRpgConfig } from './config.ts'
 import { generateStatusModule } from './status-module.ts'
 import { referenceJson, referencePack } from './fixtures/reference.ts'
 
 const config = parseRpgConfig(referenceJson(), referencePack)
-const { declaration, source } = generateStatusModule(config)
+const { declaration, module } = generateStatusModule(config)
 
-interface Plugin {
-  policy(known: object, actorId: string, place: object): { operations: string[]; targets?: Record<string, string[]> }
-  resolve(...args: unknown[]): any
-}
-/** Run the generated source like the host does and hand back the hooks it defines. */
-const plugin = (): Plugin => {
-  const context = createContext({})
-  new Script(source).runInContext(context)
-  return new Script('globalThis.packPlugin').runInContext(context) as Plugin
-}
+type Json = Record<string, any>
 
 const PLAYER = 'character:player'
 const item = (entityId: string, holderId: string | null, kind = '物品') => ({
@@ -29,28 +19,31 @@ const item = (entityId: string, holderId: string | null, kind = '物品') => ({
   holderId,
   locationId: null,
 })
-const truth = (own: Record<string, unknown>) => ({
-  public: {},
-  characters: {
-    [PLAYER]: { 'rpg-hp': 10, 'rpg-hp-max': 40, 'rpg-mp': 2, 'rpg-mp-max': 8, 'rpg-equipment': {}, ...own },
-  },
-})
-const world = (locationId: string, ...items: object[]) => ({ locationId, items: { current: items } })
+const truth = (own: Record<string, unknown>): StatusTruth =>
+  ({
+    public: {},
+    characters: {
+      [PLAYER]: { 'rpg-hp': 10, 'rpg-hp-max': 40, 'rpg-mp': 2, 'rpg-mp-max': 8, 'rpg-equipment': {}, ...own },
+    },
+  }) as StatusTruth
+const world = (locationId: string, ...items: object[]): WorldJsonObject =>
+  ({ locationId, items: { current: items } }) as unknown as WorldJsonObject
 
 describe('generateStatusModule', () => {
-  it('declares the module for the configured characters', () => {
+  it('declares the native module for the configured characters without generating script source', () => {
     expect(declaration).toEqual({
       id: 'rpg',
-      entry: 'plugins/rpg.js',
       characters: ['character:player', 'character:cheng'],
       capabilities: [],
     })
-    expect(Buffer.byteLength(source)).toBeLessThan(64 * 1024)
+    expect(typeof module.initialize).toBe('function')
+    expect(typeof module.policy).toBe('function')
+    expect(typeof module.resolve).toBe('function')
   })
 
   it('produces a definition the host accepts, with locations on stats and their maxima', () => {
     const scripts = new StatusScripts({
-      modules: [{ id: 'rpg', source, characters: declaration.characters, unavailableCapabilities: [] }],
+      modules: [{ id: 'rpg', module, characters: declaration.characters, unavailableCapabilities: [] }],
     })
     const def = scripts.definition as {
       statuses: { key: string; locations?: string[] }[]
@@ -88,8 +81,7 @@ describe('generateStatusModule', () => {
   })
 
   it('rest restores to max only where declared; use applies a consumable the actor holds; equip requires holding the item and a matching slot', () => {
-    const p = plugin()
-    const rest = (loc: string) => p.resolve(truth({}), PLAYER, 'rest', {}, world(loc), null, null)
+    const rest = (loc: string) => module.resolve(truth({}), PLAYER, 'rest', {}, world(loc), null, null) as Json
     expect(rest('location:ruin-1').rejectReason).toBeTruthy()
     expect(rest('location:bedroom').changes).toEqual([
       { holderId: PLAYER, key: 'rpg-hp', value: 40 },
@@ -97,7 +89,7 @@ describe('generateStatusModule', () => {
     ])
 
     const use = (items: object[], own = {}) =>
-      p.resolve(truth(own), PLAYER, 'use', {}, world('location:ruin-1', ...items), 'entity:potion', null)
+      module.resolve(truth(own), PLAYER, 'use', {}, world('location:ruin-1', ...items), 'entity:potion', null) as Json
     expect(use([item('entity:potion', null)]).rejectReason).toBeTruthy()
     const used = use([item('entity:potion', PLAYER, '药水')])
     expect(used.changes).toEqual([{ holderId: PLAYER, key: 'rpg-hp', value: 30 }])
@@ -108,7 +100,15 @@ describe('generateStatusModule', () => {
     ])
 
     const equip = (who: string, items: object[], own = {}) =>
-      p.resolve(truth(own), who, 'equip', {}, world('location:ruin-1', ...items), 'entity:iron-sword', null)
+      module.resolve(
+        truth(own),
+        who,
+        'equip',
+        {},
+        world('location:ruin-1', ...items),
+        'entity:iron-sword',
+        null,
+      ) as Json
     expect(equip(PLAYER, [item('entity:iron-sword', null)]).rejectReason).toBeTruthy()
     expect(equip('character:aru', [item('entity:iron-sword', 'character:aru')]).rejectReason).toBeTruthy()
     expect(
@@ -117,7 +117,7 @@ describe('generateStatusModule', () => {
     expect(equip(PLAYER, [item('entity:iron-sword', PLAYER)]).changes).toEqual([
       { holderId: PLAYER, key: 'rpg-equipment', value: { weapon: 'entity:iron-sword' } },
     ])
-    const off = p.resolve(
+    const off = module.resolve(
       truth({ 'rpg-equipment': { weapon: 'entity:iron-sword' } }),
       PLAYER,
       'unequip',
@@ -125,13 +125,15 @@ describe('generateStatusModule', () => {
       world('location:ruin-1', item('entity:iron-sword', PLAYER)),
       'entity:iron-sword',
       null,
-    )
+    ) as Json
     expect(off.changes).toEqual([{ holderId: PLAYER, key: 'rpg-equipment', value: {} }])
   })
 
   it('offers only operations that can work now', () => {
-    const p = plugin()
-    const known = { public: {}, self: { 'rpg-equipment': { weapon: 'entity:iron-sword' } } }
+    const known = {
+      public: {},
+      self: { 'rpg-equipment': { weapon: 'entity:iron-sword' } },
+    } as unknown as WorldJsonObject
     const place = {
       locationId: 'location:bedroom',
       items: [
@@ -139,30 +141,30 @@ describe('generateStatusModule', () => {
         item('entity:iron-sword', PLAYER),
         item('entity:iron-key', PLAYER),
       ],
-    }
-    const offer = p.policy(known, PLAYER, place)
+    } as unknown as WorldJsonObject
+    const offer = module.policy(known, PLAYER, place)
     expect(offer.operations).toEqual(['rest', 'use', 'unequip'])
     expect(offer.targets).toEqual({ use: ['entity:potion'], unequip: ['entity:iron-sword'] })
   })
 
   it('a companion joins and leaves only herself; anyone listed but away from the leader is dropped on the next operation', () => {
-    const p = plugin()
     const CHENG = 'character:cheng'
     const base = truth({})
-    const party = (list: string[]) => ({
-      public: { 'rpg-party': list },
-      characters: { ...base.characters, [CHENG]: { 'rpg-hp': 1, 'rpg-hp-max': 30, 'rpg-mp': 0, 'rpg-mp-max': 12 } },
-    })
-    const at = (characterIds: string[]) => ({ ...world('location:living-room'), characterIds })
+    const party = (list: string[]): StatusTruth =>
+      ({
+        public: { 'rpg-party': list },
+        characters: { ...base.characters, [CHENG]: { 'rpg-hp': 1, 'rpg-hp-max': 30, 'rpg-mp': 0, 'rpg-mp-max': 12 } },
+      }) as StatusTruth
+    const at = (characterIds: string[]) =>
+      ({ ...world('location:living-room'), characterIds }) as unknown as WorldJsonObject
     const call = (actor: string, op: string, list: string[], here: string[]) =>
-      p.resolve(party(list), actor, op, {}, at(here), null, null)
-    const place = { locationId: 'location:living-room', items: [] }
-    expect(p.policy({ public: {}, self: {} }, CHENG, place).operations).toContain('join')
-    // Believing she is in, she is offered both: her list may be stale.
-    expect(p.policy({ public: { 'rpg-party': [CHENG] }, self: {} }, CHENG, place).operations).toEqual(
+      module.resolve(party(list), actor, op, {}, at(here), null, null) as Json
+    const place = { locationId: 'location:living-room', items: [] } as unknown as WorldJsonObject
+    expect(module.policy({ public: {}, self: {} }, CHENG, place).operations).toContain('join')
+    expect(module.policy({ public: { 'rpg-party': [CHENG] }, self: {} }, CHENG, place).operations).toEqual(
       expect.arrayContaining(['leave', 'join']),
     )
-    expect(p.policy({ public: {}, self: {} }, PLAYER, place).operations).not.toContain('join')
+    expect(module.policy({ public: {}, self: {} }, PLAYER, place).operations).not.toContain('join')
 
     expect(call(PLAYER, 'join', [], [PLAYER, CHENG]).rejectReason).toBe('你就是队长。')
     expect(call(CHENG, 'join', [], [CHENG]).rejectReason).toBe('队长不在这里。')
@@ -175,30 +177,37 @@ describe('generateStatusModule', () => {
     expect(call(CHENG, 'leave', [CHENG], [PLAYER, CHENG]).changes).toEqual([
       { holderId: null, key: 'rpg-party', value: [] },
     ])
-    // Dropped while away: leaving changes nothing and shows her the list as it is.
     const gone = call(CHENG, 'leave', [], [PLAYER, CHENG])
     expect(gone).toMatchObject({ description: '已经不在队伍里了。', audience: 'self' })
     expect(gone.changes).toEqual([{ holderId: null, key: 'rpg-party', value: [] }])
     expect(gone.reveals.map((r: { observerId: string }) => r.observerId)).toContain(CHENG)
 
-    // Listed but elsewhere: the leader's next operation, or hers, drops her.
     const rest = (actor: string, here: string[]) =>
-      p.resolve(party([CHENG]), actor, 'rest', {}, { ...world('location:bedroom'), characterIds: here }, null, null)
+      module.resolve(
+        party([CHENG]),
+        actor,
+        'rest',
+        {},
+        { ...world('location:bedroom'), characterIds: here } as unknown as WorldJsonObject,
+        null,
+        null,
+      ) as Json
     expect(rest(PLAYER, [PLAYER]).changes).toContainEqual({ holderId: null, key: 'rpg-party', value: [] })
     expect(rest(CHENG, [CHENG]).changes).toContainEqual({ holderId: null, key: 'rpg-party', value: [] })
     expect(rest(PLAYER, [PLAYER, CHENG]).changes.some((c: { key: string }) => c.key === 'rpg-party')).toBe(false)
   })
 
-  it('ships a runtime file that can be read from source', () => {
-    expect(readFileSync(new URL('./runtime/status-rules.js', import.meta.url), 'utf8')).toContain('function install')
-  })
-
   it('keeps offering unequip for an occupied slot after the item left her hands', () => {
-    const p = plugin()
-    const known = { public: {}, self: { 'rpg-equipment': { weapon: 'entity:iron-sword' } } }
-    const place = { locationId: 'location:ruin-1', items: [item('entity:iron-sword', 'character:cheng')] }
-    expect(p.policy(known, PLAYER, place).targets?.unequip).toEqual(['entity:iron-sword'])
-    const off = p.resolve(
+    const known = {
+      public: {},
+      self: { 'rpg-equipment': { weapon: 'entity:iron-sword' } },
+    } as unknown as WorldJsonObject
+    const place = {
+      locationId: 'location:ruin-1',
+      items: [item('entity:iron-sword', 'character:cheng')],
+    } as unknown as WorldJsonObject
+    expect(module.policy(known, PLAYER, place).targets?.unequip).toEqual(['entity:iron-sword'])
+    const off = module.resolve(
       truth({ 'rpg-equipment': { weapon: 'entity:iron-sword' } }),
       PLAYER,
       'unequip',
@@ -206,13 +215,13 @@ describe('generateStatusModule', () => {
       world('location:ruin-1', item('entity:iron-sword', 'character:cheng')),
       'entity:iron-sword',
       null,
-    )
+    ) as Json
     expect(off.changes).toEqual([{ holderId: PLAYER, key: 'rpg-equipment', value: {} }])
   })
 
   it('has the host accept a use result: status shape and the consumed-item change', () => {
     const scripts = new StatusScripts({
-      modules: [{ id: 'rpg', source, characters: declaration.characters, unavailableCapabilities: [] }],
+      modules: [{ id: 'rpg', module, characters: declaration.characters, unavailableCapabilities: [] }],
     })
     const state = new StatusState(
       scripts.definition,

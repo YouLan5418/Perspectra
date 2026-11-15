@@ -1,0 +1,515 @@
+{
+  "type": "object",
+  "properties": {
+    "plugin": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "const": "official-rpg"
+        },
+        "version": {
+          "type": "string",
+          "const": "1"
+        }
+      },
+      "required": [
+        "id",
+        "version"
+      ],
+      "additionalProperties": false
+    },
+    "stats": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string",
+            "minLength": 1
+          },
+          "label": {
+            "type": "string",
+            "minLength": 1
+          },
+          "locations": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        "required": [
+          "key",
+          "label"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "characters": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "stats": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          "attack": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "defense": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "speed": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "skills": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "slots": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        "required": [
+          "stats",
+          "attack",
+          "defense",
+          "speed"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "skills": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "kind": {
+            "enum": [
+              "damage",
+              "heal"
+            ]
+          },
+          "scope": {
+            "enum": [
+              "one",
+              "all"
+            ]
+          },
+          "power": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "cost": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          "element": {
+            "const": "fire"
+          },
+          "inflicts": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "kind",
+          "scope",
+          "power"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "combatStatuses": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "turns": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "damage": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "element": {
+            "const": "fire"
+          }
+        },
+        "required": [
+          "name",
+          "turns",
+          "damage",
+          "element"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "equipment": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "slot": {
+            "type": "string",
+            "minLength": 1
+          },
+          "attack": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "defense": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "speed": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "resistances": {
+            "type": "object",
+            "properties": {
+              "fire": {
+                "type": "integer",
+                "minimum": 0
+              }
+            },
+            "required": [],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "slot"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "consumables": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "restore": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        },
+        "required": [
+          "restore"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "rest": {
+      "type": "object",
+      "properties": {
+        "label": {
+          "type": "string",
+          "minLength": 1
+        },
+        "locations": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "restore": {
+          "const": "full"
+        }
+      },
+      "required": [
+        "label",
+        "locations",
+        "restore"
+      ],
+      "additionalProperties": false
+    },
+    "enemies": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "hp": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "attack": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "defense": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "speed": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "skills": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "strategy": {
+            "enum": [
+              "lowest-hp",
+              "random"
+            ]
+          },
+          "lines": {
+            "type": "object",
+            "properties": {
+              "encounter": {
+                "type": "string",
+                "minLength": 1
+              },
+              "defeated": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "required": [],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "name",
+          "hp",
+          "attack",
+          "defense",
+          "speed"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "vault": {
+      "type": "string",
+      "minLength": 1
+    },
+    "maps": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "locationId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "narration": {
+            "type": "object",
+            "properties": {
+              "first": {
+                "type": "string",
+                "minLength": 1
+              },
+              "again": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "required": [
+              "first"
+            ],
+            "additionalProperties": false
+          },
+          "enemies": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "engage": {
+            "enum": [
+              "on-enter",
+              "optional"
+            ]
+          },
+          "drops": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "chest": {
+            "type": "string",
+            "minLength": 1
+          },
+          "exits": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "to": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "requires": {
+                  "type": "object",
+                  "properties": {
+                    "holds": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  },
+                  "required": [
+                    "holds"
+                  ],
+                  "additionalProperties": false
+                },
+                "lockedReason": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required": [
+                "to"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "scripted": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "when": {
+                  "enum": [
+                    "enter",
+                    "encounter",
+                    "turn",
+                    "enemy-defeated"
+                  ]
+                },
+                "round": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "characterId": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "say": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "skill": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "target": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required": [
+                "when",
+                "characterId"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "locationId",
+          "narration"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "defeat": {
+      "type": "object",
+      "properties": {
+        "to": {
+          "type": "string",
+          "minLength": 1
+        },
+        "restore": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      },
+      "required": [
+        "to",
+        "restore"
+      ],
+      "additionalProperties": false
+    },
+    "retreat": {
+      "enum": [
+        "stay",
+        "back"
+      ]
+    },
+    "party": {
+      "type": "object",
+      "properties": {
+        "leader": {
+          "type": "string",
+          "minLength": 1
+        },
+        "lockDuringBattle": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "leader"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "plugin",
+    "stats",
+    "characters"
+  ],
+  "additionalProperties": false
+}

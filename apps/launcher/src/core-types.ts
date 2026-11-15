@@ -62,7 +62,11 @@ export interface CoreSnapshot {
   playSettings?: Record<string, PlaySettings>
   dataDirectory: string
   /** Plugins that failed to load in the most recent game launch and were skipped. */
-  skippedPlugins?: { id: string; reason: 'manifest' | 'config' | 'import' | 'version' | 'apply'; detail?: string }[]
+  skippedPlugins?: {
+    id: string
+    reason: 'permission' | 'manifest' | 'config' | 'import' | 'version' | 'apply'
+    detail?: string
+  }[]
   /** Per saved plugin ID. */
   pluginManifests?: Record<string, PluginManifestInfo>
   /** What a world pack would use but does not need, and is not in force. */

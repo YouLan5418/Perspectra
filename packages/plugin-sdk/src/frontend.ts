@@ -3,7 +3,7 @@ import type {
   FrontendBgmTrack,
   FrontendSpeechAudio,
   FrontendSpeechInput,
-} from '@harness-world/frontend'
+} from '@harness-world/contracts'
 
 export type SpeechInput = FrontendSpeechInput
 export type SpeechAudio = FrontendSpeechAudio

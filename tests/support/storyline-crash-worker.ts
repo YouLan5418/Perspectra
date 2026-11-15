@@ -2,8 +2,7 @@ import { createRuntimeWithCore } from './core-memory-options.ts'
 import fs from 'node:fs'
 import promises from 'node:fs/promises'
 import { syncBuiltinESMExports } from 'node:module'
-import { basename } from 'node:path'
-import { WorldHostRuntime } from '../../desktop/host/world-runtime.ts'
+import { basename, dirname } from 'node:path'
 import type { CoreRunner } from '../../packages/official-memory-core/src/python-worker.ts'
 import { LauncherCore } from '../../desktop/launcher-core.ts'
 import { fakeModels } from './fake-provider.ts'
@@ -46,7 +45,14 @@ function install() {
   fs.renameSync = (...args: Parameters<typeof fs.renameSync>) => {
     originalRename(...args)
     const path = String(args[1])
-    if (config.phase === 'save-published' && String(args[0]).includes('story-nodes')) halt(path)
+    // Stop at the node directory publication, not at an atomic file rename inside its hidden draft.
+    if (
+      config.phase === 'save-published' &&
+      basename(dirname(path)) === 'story-nodes' &&
+      dirname(String(args[0])) === dirname(path) &&
+      basename(String(args[0])) === '.' + basename(path)
+    )
+      halt(path)
     if (
       config.phase === 'share-import-published' &&
       String(args[0]).endsWith('.' + basename(path)) &&

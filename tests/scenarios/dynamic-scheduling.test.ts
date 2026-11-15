@@ -424,6 +424,7 @@ it('replans the second move when two in-flight roles choose to exchange rooms', 
     .filter(event => event.eventType === 'character.moved' && object(event.data).characterId !== 'character:player')
   expect(moved.map(event => object(event.data).characterId)).toEqual(['character:companion', 'character:friend'])
   expect(f.requests.filter(input => actor(input) === 'character:friend' && input.continuation)).toHaveLength(1)
+  expect(object(state.debug.execution).status).toBe('completed')
 }, 60000)
 
 it('preserves a committed move when its result-aware continuation is interrupted', async () => {
@@ -493,9 +494,10 @@ it('still runs both scenes concurrently in a pack with a status script', async (
   const state = await f.runtime.submit(enterFront)
   expect(state.error).toBe(false)
   expect(peak).toBe(2)
-  const activated = (object(state.debug.activationCycle).activations as WorldJsonObject[]).map(
-    activation => activation.characterId,
-  )
+  const activated = f.runtime
+    .creatorInspection()
+    .characters.filter(character => character.processing.lastActivation !== null)
+    .map(character => character.id)
   expect(activated).toEqual(expect.arrayContaining(['character:companion', 'character:friend']))
 }, 60000)
 
@@ -648,6 +650,12 @@ it('charges new autonomous observations to their reaction budget after older ord
       id: string,
       options: { stimulus: WorldJsonObject[]; onCommitted: (through: number, head: number) => void },
     ) => {
+      if (id === autonomous) {
+        events.push(event(4, foreground))
+        options.onCommitted(3, 4)
+        autonomousCommitted.resolve()
+        return { status: 'abstained', calls: 1, asOfWorldSeq: 3 }
+      }
       if (id === other) {
         await foregroundStarted.promise
         events.push(event(3, foreground))
@@ -662,33 +670,33 @@ it('charges new autonomous observations to their reaction budget after older ord
       return { status: 'abstained', calls: 1, asOfWorldSeq: events.at(-1)!.seq }
     },
   } as never
-  const autonomousTurn = {
-    run: async (_id: string, options: { onCommitted: (through: number, head: number) => void }) => {
-      events.push(event(4, foreground))
-      options.onCommitted(3, 4)
-      autonomousCommitted.resolve()
-      return { status: 'abstained', calls: 1, asOfWorldSeq: 3 }
-    },
-  } as never
   const result = await runActivations({
     store,
     address: {} as never,
     turn,
     afterSeq: 0,
-    characterIds: [foreground, other] as never,
+    characterIds: [foreground, other, autonomous] as never,
+    presentCharacterIds: () => [foreground, other] as never,
     signal: new AbortController().signal,
     locationId: id => String(id),
     limits: { maximumWaves: 3, maximumNpcCalls: 6, maximumCallsPerCharacter: 2, reactionDeadlineSeconds: 2 },
-    autonomy: {
-      turn: autonomousTurn,
-      roles: [{ characterId: autonomous as never, opportunities: 1 }],
+    wakeupSources: [
+      {
+        id: 'policy:extra',
+        nominate: () => [{ characterId: autonomous as never, stimulusSeqs: [], opportunities: 1 }],
+      },
+    ],
+    opportunityLimits: {
       maximumNpcCalls: 2,
       deadlineSeconds: 2,
       reactionLimits: { maximumWaves: 1, maximumNpcCalls: 2, maximumCallsPerCharacter: 2 },
     },
   })
   expect(result.calls).toBe(2)
-  expect(result.autonomy).toMatchObject({ autonomousCalls: 1, reactionCalls: 1, terminalReason: 'quiescent' })
+  expect({ foregroundCalls, result }).toMatchObject({
+    foregroundCalls: 2,
+    result: { autonomy: { autonomousCalls: 1, reactionCalls: 1, terminalReason: 'quiescent' } },
+  })
   expect(foregroundCalls).toBe(2)
 }, 10000)
 
@@ -725,9 +733,11 @@ it.each(['ordinary', 'autonomous'])(
     const result = await runActivations({
       store,
       address: {} as never,
-      turn: { run: run('ordinary') } as never,
+      turn: {
+        run: (id: string, options: unknown) => run(id === autonomous ? 'autonomous' : 'ordinary')(id, options as never),
+      } as never,
       afterSeq: 0,
-      characterIds: [foreground] as never,
+      characterIds: [foreground, autonomous] as never,
       signal: controller.signal,
       locationId: id => String(id),
       limits: {
@@ -736,16 +746,23 @@ it.each(['ordinary', 'autonomous'])(
         maximumCallsPerCharacter: 1,
         reactionDeadlineSeconds: expiring === 'ordinary' ? 0.05 : 1,
       },
-      autonomy: {
-        turn: { run: run('autonomous') } as never,
-        roles: [{ characterId: autonomous as never, opportunities: 1 }],
+      wakeupSources: [
+        {
+          id: 'policy:extra',
+          nominate: () => [{ characterId: autonomous as never, stimulusSeqs: [], opportunities: 1 }],
+        },
+      ],
+      opportunityLimits: {
         maximumNpcCalls: 2,
         deadlineSeconds: expiring === 'autonomous' ? 0.05 : 1,
         reactionLimits: { maximumWaves: 1, maximumNpcCalls: 2, maximumCallsPerCharacter: 1 },
       },
     })
     expect(controller.signal.aborted).toBe(false)
-    expect(result.terminalReason).toBe(expiring === 'ordinary' ? 'interrupted' : 'quiescent')
+    // The other dispatch finishes, but either deadline stops the common cycle's settlement.
+    expect(result.terminalReason).toBe('interrupted')
+    expect(result.activations[0]?.result.status).toBe(expiring === 'ordinary' ? 'interrupted' : 'abstained')
+    expect(result.autonomy?.activations[0]?.result.status).toBe(expiring === 'autonomous' ? 'interrupted' : 'abstained')
     expect(result.autonomy?.terminalReason).toBe(expiring === 'autonomous' ? 'interrupted' : 'quiescent')
   },
   10000,

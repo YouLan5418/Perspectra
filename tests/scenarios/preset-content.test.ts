@@ -409,17 +409,13 @@ it('reports request-dependent preset expansion failure without calling the provi
     expect(state.error).toBe(true)
     expect(state.notice).toContain('角色预设处理失败')
     expect(state.notice).not.toContain('模型服务')
-    expect(state.debug.activationCycle).toHaveProperty('activations.length', 2)
-    expect(state.debug.activationCycle).toMatchObject({
-      activations: expect.arrayContaining(
-        ['character:companion', 'character:friend'].map(characterId =>
-          expect.objectContaining({
-            characterId,
-            result: expect.objectContaining({ status: 'failed', failure: 'preset_failed' }),
-          }),
-        ),
-      ),
-    })
+    const inspected = runtime.creatorInspection().characters
+    for (const id of ['character:companion', 'character:friend'])
+      expect(inspected.find(character => character.id === id)?.processing.lastActivation).toMatchObject({
+        status: 'failed',
+        failure: 'preset_failed',
+      })
+    expect(state.debug.activationCycle).not.toHaveProperty('activations')
     expect(fetch).not.toHaveBeenCalled()
   } finally {
     await runtime.close()

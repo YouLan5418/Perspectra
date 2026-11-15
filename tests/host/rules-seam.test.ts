@@ -28,6 +28,11 @@ function provider(instance: RulesInstance, id = 'test-rules', version = '1.0.0')
   return { id, version, open: async () => instance }
 }
 
+/** Deliberately violates the checked-in contract to exercise the host's runtime boundary. */
+function uncheckedProvider(instance: unknown, id = 'invalid-rules'): SeamProvider<RulesInstance> {
+  return { id, version: '1.0.0', open: async () => instance as RulesInstance }
+}
+
 /** Refuses any move to a room, and takes it off the list of destinations. */
 const locked = (locationId: string, seen?: string[]): RulesInstance => ({
   resolve: (context, next) => {
@@ -162,10 +167,10 @@ it('applies layers in load order, the first outermost', async () => {
   expect(order.slice(0, 2)).toEqual(['first', 'second'])
 })
 
-it('refuses a character action when a layer throws, and logs the error', async () => {
+it('refuses a character action when a layer throws, and logs only the safe plugin fault', async () => {
   const log = vi.spyOn(console, 'error').mockImplementation(() => {})
   const answer = { decision: 'perform', actionType: 'move', parameters: { locationId: 'location:front-room' } }
-  const { runtime, moves } = await start(
+  const { runtime, moves, root } = await start(
     [
       provider(
         {
@@ -181,23 +186,41 @@ it('refuses a character action when a layer throws, and logs the error', async (
     { serialScheduling: true },
   )
   const before = moves().length
-  const state = await runtime.submit('你们好。')
+  expect((await runtime.submit('你们好。')).error).toBe(true)
+  const state = await runtime.state()
   expect(state.transcript.some(line => line.player)).toBe(true)
+  const store = new WorldStore(join(root, 'world.sqlite'))
+  try {
+    const events = store.readEvents(runtime.address)
+    expect(events.some(event => JSON.stringify(event.data).includes('规则插件'))).toBe(false)
+    expect(
+      events.filter(
+        event => event.eventType === 'action.resolved' && (event.data as { actionType?: string }).actionType === 'move',
+      ),
+    ).toEqual([])
+  } finally {
+    store.close()
+  }
   expect(moves()).toHaveLength(before)
-  expect(log.mock.calls.flat().map(String).join(' ')).toContain('rule bug')
-  expect((await runtime.submit('还在吗？')).transcript.some(line => line.text === '还在吗？')).toBe(true)
+  const logged = log.mock.calls.flat().map(String).join(' ')
+  expect(logged).toContain('buggy-rules')
+  expect(logged).toContain('resolve')
+  expect(logged).not.toContain('rule bug')
+  expect((await runtime.submit('还在吗？')).error).toBe(true)
+  expect((await runtime.state()).transcript.some(line => line.text === '还在吗？')).toBe(true)
 })
 
-it('keeps offering options when a layer fails on them', async () => {
+it('stops opening when a required affordance layer fails instead of bypassing its restrictions', async () => {
   vi.spyOn(console, 'error').mockImplementation(() => {})
-  const { runtime } = await start([
-    provider({
-      affordances: () => {
-        throw new Error('rule bug')
-      },
-    }),
-  ])
-  expect(JSON.stringify((await runtime.state()).availableActions)).toContain('move')
+  await expect(
+    start([
+      provider({
+        affordances: () => {
+          throw new Error('rule bug')
+        },
+      }),
+    ]),
+  ).rejects.toMatchObject({ origin: 'plugin', operation: 'affordances' })
 })
 
 it('closes open layers when a later one cannot open', async () => {
@@ -215,6 +238,39 @@ it('closes open layers when a later one cannot open', async () => {
     ]),
   ).rejects.toThrow('broken-rules')
   expect(close).toHaveBeenCalledTimes(1)
+})
+
+it.each([
+  ['resolve', { resolve: 'not a function' }],
+  ['affordances', { affordances: 1 }],
+])('rejects non-function %s metadata with a plugin fault while opening', async (_method, instance) => {
+  await expect(start([uncheckedProvider(instance)])).rejects.toThrow('插件 invalid-rules 的 open 返回了无效结果。')
+})
+
+it.each([
+  ['null', null],
+  ['missing status', { events: [] }],
+  ['invalid status', { status: 'pending', events: [] }],
+  ['missing events', { status: 'accepted' }],
+])('turns a %s resolution into a reported plugin fault', async (_shape, resolution) => {
+  vi.spyOn(console, 'error').mockImplementation(() => {})
+  const { runtime, moves } = await start([uncheckedProvider({ resolve: () => resolution })])
+  const outcome = await runtime.submit(MOVE_FRONT).then(
+    state => JSON.stringify(state.notice),
+    (error: Error) => error.message,
+  )
+  expect(outcome).toContain('invalid-rules')
+  expect(moves()).not.toContain(FRONT)
+})
+
+it('fails closed on an invalid affordance result', async () => {
+  const log = vi.spyOn(console, 'error').mockImplementation(() => {})
+  await expect(start([uncheckedProvider({ affordances: () => null })])).rejects.toMatchObject({
+    origin: 'plugin',
+    pluginId: 'invalid-rules',
+    operation: 'affordances',
+  })
+  expect(log.mock.calls.flat().map(String).join(' ')).toContain('invalid-rules')
 })
 
 it('refuses to regenerate after the rule layers changed', async () => {
@@ -263,14 +319,16 @@ it('tells the player which plugin failed on their own action, then continues', a
       'buggy-rules',
     ),
   ])
-  const outcome = await runtime.submit(MOVE_FRONT).then(
+  const outcome = await runtime.submit(MOVE_FRONT, 'rules-fault').then(
     state => JSON.stringify(state.notice),
     (error: Error) => error.message,
   )
   expect(outcome).toContain('buggy-rules')
   expect(moves()).not.toContain(FRONT)
   fail = false
-  await runtime.submit(MOVE_FRONT)
+  await expect(runtime.submit(MOVE_FRONT, 'rules-fault')).rejects.toMatchObject({ pluginId: 'buggy-rules' })
+  expect(moves()).not.toContain(FRONT)
+  await runtime.submit(MOVE_FRONT, 'rules-fixed')
   expect(moves()).toContain(FRONT)
 })
 
@@ -294,7 +352,7 @@ it("reads a rule layer's refusal to the player inside an activity that allows mo
   expect(moves()).not.toContain(FRONT)
 })
 
-it('refuses a rule layer whose accepted result contradicts committed custody, instead of poisoning the log', async () => {
+it('reports illegal plugin custody effects as a terminal plugin fault without poisoning the log', async () => {
   const forged: RulesInstance = {
     resolve: (context, next) =>
       context.action.actionType === 'move'
@@ -319,8 +377,11 @@ it('refuses a rule layer whose accepted result contradicts committed custody, in
         : next(context),
   }
   const { runtime, root, moves } = await start([provider(forged)])
-  const state = await runtime.submit(MOVE_FRONT)
-  expect(state.notice).toContain('规则插件 test-rules 出错')
+  await expect(runtime.submit(MOVE_FRONT)).rejects.toMatchObject({
+    origin: 'plugin',
+    pluginId: 'test-rules',
+    operation: 'resolve',
+  })
   expect(moves()).not.toContain(FRONT)
   const store = new WorldStore(join(root, 'world.sqlite'))
   try {

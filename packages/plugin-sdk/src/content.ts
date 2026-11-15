@@ -1,18 +1,43 @@
+import type { WorldJsonValue } from '@harness-world/contracts'
+import type { ActivityHooks } from './activities.ts'
+import type { GameplayDataCompatibility } from './gameplay.ts'
+import type { GameplayDefinition, OperationDefinition } from './gameplay.ts'
+import type { WorldJsonObject } from '@harness-world/contracts'
+
+export type ContentGameplay = GameplayDefinition<
+  WorldJsonObject,
+  readonly OperationDefinition<WorldJsonObject, WorldJsonObject, WorldJsonValue>[],
+  WorldJsonObject,
+  WorldJsonValue,
+  readonly OperationDefinition<WorldJsonObject, WorldJsonObject, WorldJsonValue>[]
+>
 import type { RulesInstance } from './rules.ts'
+import type { StatusModuleHooks } from './status.ts'
 import type { SeamProvider } from './world.ts'
 
-/** A pack module a generator makes, as plugins.json would declare it, with its source instead of a file. */
+/** 玩法插件从配置构造的原生状态模块定义，不落地也不拼接脚本文本。 */
 export interface GeneratedStatusModule {
-  readonly declaration: { id: string; entry: string; characters: string[]; capabilities: [] }
-  readonly source: string
+  readonly declaration: {
+    readonly id: string
+    readonly characters: readonly string[]
+    readonly capabilities?: readonly []
+  }
+  readonly module: StatusModuleHooks
 }
 
-/** What a gameplay plugin makes from a pack's config file: ordinary pack content the existing mechanisms load. The
- * status modules join the pack's plugins.json modules, the activities its scripts/activities, and the rules layer
- * sits inside the rule plugins the player chose. Nothing generated is written into the pack. */
+/** 玩法插件从配置构造的原生活动定义。 */
+export interface GeneratedActivity {
+  readonly key: string
+  readonly activity: ActivityHooks
+}
+
+/** 玩法插件根据包内配置文件构造的原生状态模块、原生活动与规则层。 */
 export interface GeneratedContent {
+  /** Override the generator input only when generated definitions close over config rather than consuming it. */
+  readonly gameplayConfig?: WorldJsonObject
+  readonly gameplay?: readonly ContentGameplay[]
   readonly statusModules?: readonly GeneratedStatusModule[]
-  readonly activities?: readonly { key: string; source: string }[]
+  readonly activities?: readonly GeneratedActivity[]
   readonly rules?: SeamProvider<RulesInstance>
 }
 
@@ -29,14 +54,22 @@ export interface ContentPackFacts {
   names: Record<string, string>
 }
 
-/** Turns one pack config file into pack content. A pack opts in by registering the file in assetFiles with a
- * top-level `plugin: { id, version }` naming this generator. Generation must be deterministic: a save records a hash
- * of the config and everything generated, and refuses to open when it changes. */
-export interface ContentGenerator {
+/** 将包内声明的玩法配置文件解析为原生状态、活动和规则层，并声明持久数据兼容版本。 */
+export interface ContentGenerator extends GameplayDataCompatibility {
   readonly id: string
   readonly version: string
   /** Pack-relative config file, registered in assetFiles, e.g. 'rpg.json'. */
   readonly configFile: string
+  /** Dependencies are required declarations, never automatically enabled. */
+  readonly requiredPlugins?: readonly string[]
+  readonly configSchema?: object
+  /** Expected invalid author input returns issues; unexpected throws are plugin faults. */
+  readonly validateConfig?: (
+    config: unknown,
+    pack: ContentPackFacts,
+  ) => readonly { readonly path: string; readonly message: string }[]
+  /** 可选规则实现标识，纳入配置与环境摘要用于重生成候选比较与诊断。 */
+  readonly identity?: WorldJsonValue
   /** Parse and generate; throw a TypeError whose message starts with the JSON path on bad config. */
   generate(config: unknown, pack: ContentPackFacts): GeneratedContent
 }

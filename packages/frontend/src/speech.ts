@@ -1,20 +1,10 @@
-import type { CharacterId, ExpressionSegment } from '@harness-world/contracts'
+import type { FrontendSpeechAudio, FrontendSpeechInput } from '@harness-world/contracts'
 import type { PlayerView } from './player-view.ts'
 import type { stagePreferences } from './stage-preferences.ts'
 import type { FrontendBgmService } from './bgm.ts'
 
-/** An authorized, committed reading segment. No private runtime state or credentials. */
-export interface FrontendSpeechInput {
-  seq: number
-  segmentIndex: number
-  text: string
-  type: ExpressionSegment['type']
-  speakerId?: CharacterId
-}
-export interface FrontendSpeechAudio {
-  contentType: 'audio/mpeg' | 'audio/ogg' | 'audio/wav'
-  bytes: Uint8Array
-}
+export type { FrontendSpeechAudio, FrontendSpeechInput } from '@harness-world/contracts'
+
 /** Optional host service; implementations own provider configuration and any cache. */
 export interface FrontendHostServices {
   bgm?: FrontendBgmService | undefined

@@ -9,6 +9,7 @@ import {
   type WorldJsonObject,
   type StatusEventData,
   type StatusChange,
+  type StatusTruth,
 } from '@harness-world/contracts'
 import type { StatusInstance } from '@harness-world/plugin-sdk'
 import {
@@ -39,9 +40,11 @@ import {
   itemIsReachable,
   adjudicateItemChanges,
   actorWorldView,
+  statusPlaceView,
   immediateActionDrafts,
   withSceneDecisions,
   type WorldRoundSnapshot,
+  type WorldRoundEffects,
 } from '@harness-world/application'
 import { activityProgress } from '@harness-world/application'
 import { CAPABILITY_PENDING, type CapabilityOutcome } from '../host-capabilities.ts'
@@ -66,6 +69,10 @@ export type Adjudication =
 
 /** Host adapter for state facts, authorized operation inputs and execution; never a script interpreter. */
 export class StatusRuntime {
+  native: import('@harness-world/application').GameplayRuntime | undefined
+  validateRecovered(events: readonly RulebookEvent[]): void {
+    this.#state.validateSnapshot(events)
+  }
   externalActions:
     | {
         has(operation: string): boolean
@@ -148,17 +155,7 @@ export class StatusRuntime {
   /** What the actor can see and lay hands on: its location, and every item it holds or that lies there, such as
    * a cooker a recipe needs. Never an item someone else holds, which the actor may not know about. */
   #place(events: readonly RulebookEvent[], actorId: string): WorldJsonObject {
-    const locationId = currentLocation(events, actorId) ?? null
-    const ids = [...this.#entityNames.keys()]
-    return {
-      locationId,
-      items: ids.flatMap(id => {
-        const item = currentEntityState(events, id)
-        return item !== undefined && itemIsReachable(events, actorId, id, [])
-          ? [{ entityId: id, kind: item.kind, holderId: item.holderId, locationId: item.locationId }]
-          : []
-      }),
-    }
+    return statusPlaceView(events, actorId, [...this.#entityNames.keys()])
   }
 
   #policy(view: ReturnType<typeof knownStatusView>, actorId: string, place: WorldJsonObject): StatusOffers {
@@ -208,6 +205,28 @@ export class StatusRuntime {
       isReachable: (id, present) => itemIsReachable(events, actorId, id, present),
     })
     if ('rejected' in admission) return { status: 'rejected', reason: admission.rejected }
+    if (this.native?.ownsOperation('status:' + input.operationId)) {
+      const result = this.native.adjudicate(
+        events,
+        brandId(actorId, 'CharacterId'),
+        'status:' + input.operationId,
+        input.parameters,
+        undefined,
+        input.targetId,
+      )
+      return result.status === 'accepted'
+        ? {
+            status: 'accepted',
+            events: [...result.events],
+            description: String(
+              (result.events.find(event => event.eventType === 'status.updated')?.data as WorldJsonObject | undefined)
+                ?.description ?? '',
+            ),
+            observationScope: result.observationScope ?? { scope: 'self' },
+            sceneIds: admission.sceneIds,
+          }
+        : { status: 'rejected', reason: result.rejection?.message ?? result.reason ?? '操作被拒绝' }
+    }
     const { op, sceneIds } = admission
     const activityKey = scopedActivity
     const parameters = input.parameters as Record<string, unknown>
@@ -401,7 +420,9 @@ export class StatusRuntime {
       if (e.eventType !== 'status.updated') return false
       const source = statusData(e).source
       return (
-        source.kind === 'operation' && source.actorId === input.actorId && source.operation === id.slice(PREFIX.length)
+        source.kind === 'operation' &&
+        source.actorId === input.actorId &&
+        source.operation === (this.native?.ownsOperation(id) ? id : id.slice(PREFIX.length))
       )
     })
     const description = latest === undefined ? undefined : object(latest.data).description
@@ -456,18 +477,50 @@ export class StatusRuntime {
   }
 
   /** Commits the initial values once, as their own round, when the world has no status event yet. */
-  async ensureInitial(worldPath: string, address: WorldAddress, playerId: string): Promise<void> {
+  async ensureInitial(
+    worldPath: string,
+    address: WorldAddress,
+    playerId: string,
+    nativeKeys: readonly string[] = [],
+  ): Promise<void> {
     await this.#commitRound(
       worldPath,
       address,
       'status-initial:' + randomUUID(),
-      ({ events }) =>
-        events.some(event => event.eventType === 'status.updated')
-          ? undefined
-          : {
-              events: [this.initialEvent()],
+      ({ events }) => {
+        if (events.some(event => event.eventType === 'status.updated')) {
+          const truth = this.#state.truth(events)
+          const base = this.#state.statuses.filter(status => !nativeKeys.includes(status.key))
+          const basePresent = base.some(status =>
+            status.owner === 'public'
+              ? Object.hasOwn(truth.public, status.key)
+              : Object.values(truth.characters).some(own => Object.hasOwn(own, status.key)),
+          )
+          if (nativeKeys.length && base.length && !basePresent) {
+            const initial = this.initialEvent(),
+              data = statusData(initial)
+            const filtered = {
+              ...initial,
+              data: {
+                ...data,
+                changes: data.changes.filter(change => !nativeKeys.includes(change.key)),
+                reveals: data.reveals.filter(reveal => !nativeKeys.includes(reveal.key)),
+              } as unknown as WorldJsonObject,
+            }
+            this.#state.validateSnapshot([...events, filtered])
+            return {
+              events: [filtered],
               authority: { actorId: playerId, source: 'status-initial', status: 'accepted' },
-            },
+            }
+          }
+          this.#state.validateSnapshot(events)
+          return undefined
+        }
+        return {
+          events: [this.initialEvent()],
+          authority: { actorId: playerId, source: 'status-initial', status: 'accepted' },
+        }
+      },
       playerId,
     )
   }
@@ -559,6 +612,26 @@ export class StatusRuntime {
       playerId,
       signal,
     )
+  }
+
+  /** Pure legacy-provider adapter; the public engine owns the single final commit. */
+  cycleEffects(input: {
+    readonly events: readonly RulebookEvent[]
+    readonly truth: StatusTruth
+    readonly round: number
+    readonly turnCommits: number
+    readonly cycleId: string
+    readonly playerTurn: boolean
+  }): WorldRoundEffects | undefined {
+    let data = this.#state.roundResult(input.events, this.#mechanism.endRound(input.truth, input.round), input.round)
+    if (data === undefined && input.playerTurn && input.turnCommits > 1)
+      data = { source: { kind: 'round', round: input.round }, changes: [], reveals: [] }
+    if (!data) return undefined
+    if (!input.playerTurn) data = { ...data, source: { kind: 'cycle', cycleId: input.cycleId } }
+    return {
+      events: [{ eventType: 'status.updated', eventVersion: 1, data: data as unknown as WorldJsonObject }],
+      authority: { source: 'status-cycle', cycleId: input.cycleId },
+    }
   }
 
   /** Runs the optional `onRoundEnd` hook once after an accepted player input and commits its result as the

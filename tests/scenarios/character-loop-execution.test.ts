@@ -286,6 +286,45 @@ it('retains a committed operation after the continuation model fails and never r
   expect(f.store.readEvents(f.address).filter(e => e.eventType === 'entity.transferred')).toHaveLength(1)
 })
 
+it.each([
+  { label: 'an Error', failure: new Error('host storage failure') },
+  { label: 'a rejection without a reason', failure: undefined },
+])('propagates $label identified by the host without committing or retaining its lease', async ({ failure }) => {
+  const f = fixture(officialCharacterLoop, async () => {
+    throw failure
+  })
+  const turn = new CharacterTurn({
+    ...f.options,
+    loop: officialCharacterLoop,
+    propagateDecisionError: error => error === failure,
+  })
+  const before = f.store.head(f.address)
+
+  await expect(turn.run(npc)).rejects.toBe(failure)
+  expect(f.store.head(f.address)).toEqual(before)
+  await expect(
+    new CharacterTurn({ ...f.options, loop: officialCharacterLoop, decide: async () => speech }).run(npc),
+  ).resolves.toMatchObject({ status: 'published' })
+})
+
+it('preserves an identified host error when cancellation happens during the same decision', async () => {
+  const controller = new AbortController()
+  const failure = new Error('host callback failed before cancellation settled')
+  const f = fixture(officialCharacterLoop, async () => {
+    controller.abort()
+    throw failure
+  })
+  const turn = new CharacterTurn({
+    ...f.options,
+    loop: officialCharacterLoop,
+    propagateDecisionError: error => error === failure,
+  })
+  const before = f.store.head(f.address)
+
+  await expect(turn.run(npc, { signal: controller.signal })).rejects.toBe(failure)
+  expect(f.store.head(f.address)).toEqual(before)
+})
+
 it('adjudicates unreachable private recipients without delivering their content', async () => {
   const f = fixture(
     {
@@ -314,4 +353,53 @@ it('adjudicates unreachable private recipients without delivering their content'
   )
   expect(await f.turn.run(npc)).toMatchObject({ status: 'failed' })
   expect(f.store.readEvents(f.address).filter(e => e.eventType === 'character.speak')).toEqual([])
+})
+
+it('reports a real committed perform when cancellation prevents the following publication', async () => {
+  const controller = new AbortController()
+  let performed!: () => void
+  const ready = new Promise<void>(resolve => {
+    performed = resolve
+  })
+  const progress: unknown[] = []
+  const f = fixture({
+    async run(a) {
+      a.prepare({ canPerform: true, continuation: false })
+      await a.submit(take)
+      performed()
+      await new Promise((_resolve, reject) =>
+        a.signal.addEventListener('abort', () => reject(a.signal.reason), { once: true }),
+      )
+      return 'published'
+    },
+  })
+  const pending = f.turn.run(npc, {
+    signal: controller.signal,
+    onProgress: value => progress.push(structuredClone(value)),
+  })
+  await ready
+  controller.abort()
+  expect(await pending).toMatchObject({
+    status: 'interrupted',
+    controlledCommitted: true,
+    publicationCommitted: false,
+    lastDecision: { decision: 'perform', status: 'accepted' },
+  })
+  expect(progress).toContainEqual(expect.objectContaining({ controlledCommitted: true, publicationCommitted: false }))
+  expect(currentEntityState(f.store.readEvents(f.address), 'entity:cup')?.holderId).toBe(npc)
+})
+
+it('does not record an invalid abstain as a legal last decision', async () => {
+  const f = fixture({
+    async run(a) {
+      a.prepare({ canPerform: true, continuation: false })
+      await a.submit({ decision: 'abstain', illegal: 'extra' })
+      return 'abstained'
+    },
+  })
+  const result = await f.turn.run(npc)
+  expect(result.status).toBe('failed')
+  expect(result.lastDecision).toBeUndefined()
+  expect(result.controlledCommitted).toBe(false)
+  expect(result.publicationCommitted).toBe(false)
 })

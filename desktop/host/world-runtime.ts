@@ -1,10 +1,23 @@
+import { assertServiceRequirements } from '@harness-world/world-pack'
+import { bindNativeGameplay } from '@harness-world/plugin-sdk'
 import { createWorldCast } from './world-cast.ts'
+import { preflightGameplay } from './gameplay-preflight.ts'
 import { AutonomyRuntime } from './autonomy-runtime.ts'
 import { CommunicationRuntime } from './communication-runtime.ts'
-import { guardedCommunication, guardedAutonomy, guardedPacing, guardedStatus } from './gameplay-services.ts'
+import {
+  guardedCommunication,
+  guardedAutonomy,
+  guardedDice,
+  guardedPacing,
+  guardedStatus,
+} from './gameplay-services.ts'
 import type {
+  ExecutionCycleBudget,
+  ExecutionCycleResult,
   ActivitiesInstance,
+  ActivitySource,
   AutonomyInstance,
+  CharacterLoopActivation,
   CommunicationInstance,
   DiceInstance,
   KnowledgeInstance,
@@ -12,6 +25,7 @@ import type {
   PacingSource,
   SeamProvider,
   StatusInstance,
+  StatusSource,
 } from '@harness-world/plugin-sdk'
 import { loadAutonomySource, loadCommunicationSource } from './gameplay-source.ts'
 import { guardedActivities } from './activity-service.ts'
@@ -54,6 +68,17 @@ import {
   SceneDecisionService,
   WorldApplication,
   type ActivationTurn,
+  type WorldExecutionEngine,
+  type WorldExecutionRequest,
+  type WorldExecutionCycle,
+  type ExecutionCycleControl,
+  type ExecutionSchedulerRound,
+  type ExecutionRoundRunner,
+  type WorldExecutionResources,
+  executeSchedulerRound,
+  recordExecutionModelObservation,
+  recordExecutionModelAttempt,
+  withoutExecutionObservation,
   type CharacterTurnRequest,
   type CharacterTurnResult,
 } from '@harness-world/application'
@@ -64,6 +89,9 @@ import type { ActivityRequest } from '@harness-world/contracts'
 import {
   guardedDecision,
   guardedLlm,
+  guardedLlmTransport,
+  guardedKnowledge,
+  guardedMemory,
   runDecision,
   wrapDecision,
   type DecisionParts,
@@ -76,7 +104,7 @@ import { creatorHistorySnapshot, creatorInspectionSnapshot, type CreatorQueryHos
 import { routeGameplayInput } from './player-input.ts'
 import { projectStatus, withMessageActions } from './gameplay-projection.ts'
 import { createActivityRound } from './activity-round.ts'
-import { createAutonomyRound } from './autonomy-round.ts'
+import { createAutonomyRound, autonomyWakeupSource } from './autonomy-round.ts'
 import {
   activityNotice,
   autonomyNotice,
@@ -100,6 +128,8 @@ import {
   type CharacterId,
   type CharacterView,
   type StoredWorldEvent,
+  playerRoundNumber,
+  knownStatusView,
   type WorldJsonObject,
   type WorldAddress,
 } from '@harness-world/contracts'
@@ -108,7 +138,6 @@ import {
   CharacterRuntimeAvailabilityService,
   PlayerInputJobs,
   WorldStore,
-  WriterLeaseService,
 } from '@harness-world/store-sqlite'
 import { adaptCompiledWorldPack, compileWorldPackSource, type CompiledWorldPackV5 } from '@harness-world/world-pack'
 import { actionText, HostBusyError, isWait, type HostAction, type HostRuntime, type HostState } from './http-server.ts'
@@ -117,8 +146,27 @@ import { DEFAULT_RUNTIME_TUNING, type RuntimeTuning } from './runtime-tuning.ts'
 import { PackModules } from './pack-modules.ts'
 import { CapabilitySession, type CapabilityCatalog } from '../host-capabilities.ts'
 import { CORE_MEMORY_ID, llmTimeoutMs, type HostSeams, type ModelOptions } from '../official-bundle.ts'
-import { normalizeSchedulerResult, trackSchedulerTurns } from './scheduler-result.ts'
+import { playerSchedulerSummary } from './scheduler-result.ts'
 import { createWorldReader } from './world-reader.ts'
+import type { WorldInstanceScope } from '@harness-world/runtime-cordis'
+import {
+  callPluginForValueAsync,
+  callPluginOpen,
+  callPluginSync,
+  clonePluginValue,
+  createPluginCallContext,
+  HostCallbackErrors,
+  hostCallback,
+  hostCallbackAsync,
+  hostCapability,
+  hostCapabilityAsync,
+  invalidPluginResult,
+  isPluginFault,
+  publicPluginFailure,
+  PluginFaultError,
+  requirePluginObject,
+  type PluginCallContext,
+} from './plugin-runtime.ts'
 import type {
   DecisionInstance,
   LlmInstance,
@@ -127,7 +175,7 @@ import type {
   RulesInstance,
   SchedulerInstance,
   SchedulerResult,
-  SchedulerRound,
+  WakeupSource,
   WorldServices,
 } from '@harness-world/plugin-sdk'
 
@@ -160,6 +208,9 @@ export interface WorldHostOptions extends Omit<ModelOptions, 'models' | 'playSet
   readonly pacingEnabled?: boolean
   /** Experiment control for comparing the former wave scheduler with dynamic dispatch. */
   readonly serialScheduling?: boolean
+  /** Per-resource cleanup bound for this world instance; primarily used by lifecycle tests. */
+  readonly executionBudget?: Partial<ExecutionCycleBudget>
+  readonly providerCleanupTimeoutMs?: number
   /** Measurement control: ordinary work stays dynamic, autonomy waits for it to finish. */
   readonly stagedAutonomy?: boolean
   /** Experiment only: one bounded decision after a pre-action publication; default off. */
@@ -192,6 +243,27 @@ interface InputOutcome {
   readonly notice?: string
 }
 
+function waitForWorkOrAbort(work: Promise<void>, signal: AbortSignal): Promise<void> {
+  if (signal.aborted) return Promise.resolve()
+  return new Promise<void>((resolve, reject) => {
+    const abort = () => {
+      signal.removeEventListener('abort', abort)
+      resolve()
+    }
+    signal.addEventListener('abort', abort, { once: true })
+    void work.then(
+      () => {
+        signal.removeEventListener('abort', abort)
+        resolve()
+      },
+      error => {
+        signal.removeEventListener('abort', abort)
+        reject(error)
+      },
+    )
+  })
+}
+
 export class WorldHostCore implements HostRuntime {
   readonly #worldVersion: string
   readonly #options: WorldHostOptions
@@ -218,6 +290,7 @@ export class WorldHostCore implements HostRuntime {
       locationNames: this.#locationNames,
       inspector: this.#inspector,
       activationCycle: this.#activationCycle,
+      executionResult: this.#lastExecutionResult,
       statusTruth: events => this.#gameplay.status?.truth(events),
       activityStates: events => this.#gameplay.activity?.debugStates(events) ?? [],
       pacing: () => this.#gameplay.pacing?.lastDecision ?? null,
@@ -239,6 +312,8 @@ export class WorldHostCore implements HostRuntime {
     return creatorInspectionSnapshot(this.#creatorQueryHost(), input)
   }
   readonly #application: WorldApplication
+  #scope!: WorldInstanceScope
+  readonly #callbackErrors = new HostCallbackErrors()
   readonly #address
   readonly #principalId: string
   readonly #playerId: CharacterId
@@ -255,6 +330,7 @@ export class WorldHostCore implements HostRuntime {
   #model: string
   readonly #intentModel: string
   readonly #characterIds: readonly CharacterId[]
+  #requiredLlmId: string | undefined
   #status!: StatusInstance
   #communication!: CommunicationInstance
   #autonomy!: AutonomyInstance
@@ -295,6 +371,32 @@ export class WorldHostCore implements HostRuntime {
   async requestCharacter(characterId: string, signal?: AbortSignal): Promise<WorldJsonObject> {
     return WorldStore.withEventReadCache(() => this.#requestCharacter(characterId, signal))
   }
+  /** Processes already committed stimuli through the normal engine; no player text or wait action is fabricated. */
+  async processStimulus(afterSeq?: number): Promise<HostState> {
+    return WorldStore.withEventReadCache(async () => {
+      if (this.#busy || this.#escaping || this.#closing || this.#paused)
+        throw new HostBusyError('当前实例不能启动系统周期。')
+      const head = await this.#application.head(this.#address)
+      const from = afterSeq ?? head.headSeq
+      if (!Number.isSafeInteger(from) || from < 0 || from > head.headSeq)
+        throw new TypeError('invalid system stimulus prefix')
+      this.#beginWork()
+      this.#cycleSettlementEnabled = true
+      this.#error = false
+      try {
+        this.#rootBeforeSeq = from
+        await this.#activateCharacters()
+        await this.#refresh()
+      } catch (error) {
+        this.#executionControl?.observe('failed')
+        throw error
+      } finally {
+        await this.#endWork()
+      }
+      return this.state()
+    })
+  }
+
   async #requestCharacter(characterId: string, signal?: AbortSignal): Promise<WorldJsonObject> {
     if (
       !this.#pluginsReady ||
@@ -305,7 +407,7 @@ export class WorldHostCore implements HostRuntime {
       throw new TypeError('Character is not bound to this plugin session')
     if (this.#busy || this.#escaping || this.#paused || this.#roundHolds > 0)
       throw new HostBusyError('当前实例不能处理新的角色请求。')
-    this.#beginWork()
+    this.#beginWork(signal, 'character')
     try {
       const before = (await this.#application.head(this.#address)).headSeq
       const result = await this.#activateCharacters(false, brandId(characterId, 'CharacterId'), signal)
@@ -323,12 +425,19 @@ export class WorldHostCore implements HostRuntime {
         calls: result?.calls ?? 0,
         expressions: expressions as unknown as WorldJsonObject[],
       }
+    } catch (error) {
+      this.#executionControl?.observe('failed')
+      throw error
     } finally {
-      this.#endWork()
+      await this.#endWork()
     }
   }
   /** The pack's SMS contacts; the rule wraps the core resolver anew for every resolver chain. */
   #autonomyCycle: Record<string, unknown> | undefined
+  #wakeupWarnings: string[] = []
+  #cyclePlayerTurn = false
+  #statusSettledBeforeReactions = false
+  #cycleSettlementEnabled = false
   /** The round's notice and error flag, for the code that runs rounds outside this class. */
   readonly #roundStatus: RoundStatus = {
     set: (notice, error) => {
@@ -344,11 +453,10 @@ export class WorldHostCore implements HostRuntime {
   #finishWork: (() => void) | undefined
   #escaping: Promise<HostState> | undefined
   #statusRoundError: string | undefined
-  #autoStartError: string | undefined
   #activationCycle: SchedulerResult | undefined
   #scheduler!: SchedulerInstance
+  #schedulerContext!: PluginCallContext
   #characterLoop!: import('@harness-world/plugin-sdk').CharacterLoopInstance
-  #schedulerIsOfficial = true
   readonly #manifestVersion: number
   readonly #intentEnabled: boolean
   readonly #dataDirectory: string
@@ -357,6 +465,7 @@ export class WorldHostCore implements HostRuntime {
   #savingNode = false
   #closing = false
   #abortedWork = false
+  #closePromise: Promise<void> | undefined
   readonly #playSettings: PlaySettings
   readonly #tuning: RuntimeTuning
   #transcript: HostState['transcript'] = []
@@ -367,6 +476,7 @@ export class WorldHostCore implements HostRuntime {
   #debug: Record<string, unknown> = {}
   #busy = false
   #pacingEnabled = true
+  #presentationWarning = ''
   #allowInterruption = false
   /** Roles whose scheduled activation is running; only the host status reads it. */
   readonly #running = new Map<string, number>()
@@ -384,12 +494,19 @@ export class WorldHostCore implements HostRuntime {
     // Preserve the source of this exception through context wrappers, but allow a new outer failure to replace it.
     if (this.#pluginFailures.has(characterId) && this.#pluginFailureCauses.get(characterId) === error) return
     this.#pluginFailureCauses.set(characterId, error)
-    console.error(`[插件 ${pluginId}] 角色决策失败：`, error)
-    this.#pluginFailures.set(characterId, pluginId)
+    const sourceId = isPluginFault(error) ? error.pluginId : pluginId
+    const publicFailure = publicPluginFailure(error)
+    console.error(`[插件 ${sourceId}] 角色决策失败${publicFailure === undefined ? '。' : `：${publicFailure}`}`)
+    this.#pluginFailures.set(characterId, sourceId)
   }
   #lastPlayerIntent: string | null = null
   #rootBeforeSeq = 0
   #continuationController: AbortController | undefined
+  #execution!: WorldExecutionEngine
+  #executionRequest: WorldExecutionRequest | undefined
+  #executionCycle: WorldExecutionCycle | undefined
+  #executionControl: ExecutionCycleControl | undefined
+  #lastExecutionResult: ExecutionCycleResult | undefined
 
   private constructor(
     options: WorldHostCoreOptions,
@@ -530,13 +647,37 @@ export class WorldHostCore implements HostRuntime {
     )) as CompiledWorldPackV5
     // A config file a content generator reads brings generated activities, status modules and rules; all are checked
     // before the world opens.
-    const generated = loadPackContent(options.packPath, pack, options.composition.mechanisms.content)
+    assertServiceRequirements(
+      { services: Object.fromEntries(Object.entries(pack.services ?? {}).filter(([key]) => key !== 'llm')) },
+      Object.fromEntries(
+        Object.entries(options.composition.mechanisms).filter(
+          ([, value]) => value && typeof value === 'object' && 'id' in value,
+        ),
+      ) as Record<string, { id: string }>,
+    )
+    const generated = loadPackContent(
+      options.packPath,
+      pack,
+      options.composition.mechanisms.content,
+      options.composition.mechanisms.packPlugins,
+    )
     assertSavedPackContent(
-      readPluginSet(options.logicalDirectory ?? options.dataDirectory)?.generatedContent,
-      generated?.hashes ?? {},
+      readPluginSet(options.logicalDirectory ?? options.dataDirectory),
+      generated?.compatibility ?? {},
     )
     const modules = PackModules.load(options.packPath, pack, options.capabilities, generated?.statusModules)
     const activitySource = loadActivitySource(options.packPath, pack, generated?.activities)
+    const statusSource = loadStatusSource(options.packPath, pack, modules?.sources)
+    const recovered = await preflightGameplay(
+      options.dataDirectory,
+      options.logicalDirectory ?? options.dataDirectory,
+      generated,
+      [
+        ...(options.composition.mechanisms.status ? ['status' as const] : []),
+        ...(options.composition.mechanisms.activities ? ['activities' as const] : []),
+        ...(options.composition.mechanisms.dice ? ['dice' as const] : []),
+      ],
+    )
     const compiled = adaptCompiledWorldPack(pack, {
       address: {
         tenantId: brandId('tenant:web-playtest', 'TenantId'),
@@ -550,13 +691,18 @@ export class WorldHostCore implements HostRuntime {
       (compiled.manifest as { readonly playerInputPolicy?: { readonly version: string } }).playerInputPolicy
         ?.version === 'player-intent/v1'
     const runtime = new WorldHostCore(options, compiled, intentEnabled)
+    runtime.#requiredLlmId = pack.services?.llm
     runtime.#generated = generated
     try {
+      runtime.#scope = await runtime.#application.createInstanceScope(
+        options.providerCleanupTimeoutMs === undefined ? {} : { cleanupTimeoutMs: options.providerCleanupTimeoutMs },
+      )
+      if (generated) runtime.#scope.own('pack:gameplay', generated, () => generated.close())
       runtime.#communicationSource = loadCommunicationSource(options.packPath, pack)
       runtime.#autonomySource = loadAutonomySource(options.packPath, pack)
       runtime.#activitySource = activitySource
       runtime.#knowledgeSource = loadKnowledgeSource(options.packPath, pack)
-      runtime.#statusSource = loadStatusSource(options.packPath, pack, modules?.sources)
+      runtime.#statusSource = statusSource
       runtime.#pacingSource = loadPacingSource(options.packPath, pack)
       const open = {
         knowledge: () => runtime.#openKnowledge(),
@@ -590,6 +736,13 @@ export class WorldHostCore implements HostRuntime {
               runtime.#communication,
               compiled.manifest,
               runtime.#coreRules().resolve('builtin:speak-move', 2, 'communication', runtime.#address),
+              (events, actorId) =>
+                runtime.#gameplay.status
+                  ? (knownStatusView(
+                      runtime.#gameplay.status.known(events, actorId),
+                      actorId,
+                    ) as unknown as WorldJsonObject)
+                  : {},
             )
       runtime.#gameplay.autonomy =
         runtime.#autonomySource === undefined
@@ -605,7 +758,13 @@ export class WorldHostCore implements HostRuntime {
               pack.content.locations.map(location => location.locationId),
             )
       if (modules && status) modules.describe(status)
+      if (recovered) status?.validateRecovered(recovered.events)
       runtime.#application.activate(compiled)
+      runtime.#execution = await runtime.#application.createExecutionEngine({
+        scope: runtime.#scope,
+        address: runtime.#address,
+        callbacks: runtime.#callbackErrors,
+      })
       runtime.#gameplay.modules = modules
       if (modules) {
         const scope = {
@@ -614,17 +773,57 @@ export class WorldHostCore implements HostRuntime {
           requestCharacter: (characterId: string, signal?: AbortSignal) =>
             runtime.requestCharacter(characterId, signal),
         }
-        runtime.#capabilities = options.capabilities
+        const capabilities = options.capabilities
           ? await options.capabilities.attach(scope, modules.requirements)
           : await CapabilitySession.open(scope, modules.requirements, new Map(), () => {})
+        runtime.#capabilities = runtime.#scope.own('instance:capabilities', capabilities, () => capabilities.close())
       }
       runtime.#gameplay.status = status
       if (modules) {
         modules.bind(status!, runtime.#capabilities!)
         status!.externalActions = modules
       }
-      await status?.ensureInitial(resolve(runtime.#dataDirectory, 'world.sqlite'), runtime.#address, runtime.#playerId)
-      runtime.#gameplay.activity =
+      if (generated?.gameplay.length) {
+        const native = await runtime.#application.createGameplayRuntime({
+          scope: runtime.#scope,
+          address: runtime.#address,
+          engine: runtime.#execution,
+          availableServices: [
+            ...(runtime.#status ? ['status' as const] : []),
+            ...(runtime.#activities ? ['activities' as const] : []),
+            ...(runtime.#dice ? ['dice' as const] : []),
+          ],
+          ...(status
+            ? {
+                projectKnownStatus: (
+                  events: readonly import('@harness-world/kernel').RulebookEvent[],
+                  actorId: string,
+                ) => knownStatusView(status.known(events, actorId), actorId) as unknown as WorldJsonObject,
+              }
+            : {}),
+          rollDice: expression => {
+            if (!runtime.#dice) throw new TypeError('当前组合没有骰子机制')
+            return runtime.#dice.roll(expression, () => runtime.#gameplay.activity!.drawRandom())
+          },
+        })
+        runtime.#gameplay.native = native
+        for (const definition of generated.gameplay)
+          native.register(
+            generated.scriptDefinitions.has(definition)
+              ? definition
+              : bindNativeGameplay(definition, { status: runtime.#status, activities: runtime.#activities }),
+            generated.configs.get(definition) ?? {},
+          )
+        await native.initialize()
+        if (status) status.native = native
+      }
+      await status?.ensureInitial(
+        resolve(runtime.#dataDirectory, 'world.sqlite'),
+        runtime.#address,
+        runtime.#playerId,
+        generated?.gameplay.flatMap(def => def.states?.map(state => state.key) ?? []) ?? [],
+      )
+      const activityRuntime =
         runtime.#activities === undefined
           ? undefined
           : ActivitiesRuntime.open(
@@ -635,7 +834,14 @@ export class WorldHostCore implements HostRuntime {
               status,
               runtime.#coreRules(),
               runtime.#dice,
+              runtime.#options.plugins!.activities!.id,
+              error => runtime.#callbackErrors.has(error),
+              runtime.#gameplay.native,
             )
+      runtime.#gameplay.activity =
+        activityRuntime === undefined
+          ? undefined
+          : runtime.#scope.own('instance:activitiesRuntime', activityRuntime, () => activityRuntime.close())
       if (modules)
         runtime.#gameplay.activity?.setActionResolver((context, adjudicate) =>
           modules.resolveAction(
@@ -660,6 +866,8 @@ export class WorldHostCore implements HostRuntime {
       if (runtime.#gameplay.pacing)
         runtime.#pacingEnabled =
           options.pacingEnabled ?? readPacingPreference(options.logicalDirectory ?? options.dataDirectory)
+      await runtime.#openWakeups()
+      runtime.#installCycleHooks()
       await runtime.#refresh()
       const rebuildPath = resolve(options.dataDirectory, 'rebuild-memory.json')
       if (existsSync(rebuildPath)) {
@@ -700,7 +908,10 @@ export class WorldHostCore implements HostRuntime {
       }
       return runtime
     } catch (error) {
-      await runtime.close()
+      await runtime.close().catch(cleanupError => {
+        const publicFailure = publicPluginFailure(cleanupError)
+        console.error(`[世界实例] 打开失败后的清理未完成${publicFailure === undefined ? '。' : `：${publicFailure}`}`)
+      })
       throw error
     }
   }
@@ -723,8 +934,15 @@ export class WorldHostCore implements HostRuntime {
     const present = new Set((this.#currentScene?.recipients ?? []).map(person => person.id))
     const running = [...this.#running.keys()]
     const responders = running.filter(id => present.has(id)).map(id => this.#names.get(id) ?? id)
+    const warnings: string[] = []
+    const gameplay =
+      (await this.#gameplay.native?.playerView(this.#principalId, fault => warnings.push(fault.message))) ?? []
+    const warning = warnings.join(' ')
+    if (warning && warning !== this.#presentationWarning) console.error(warning)
+    this.#presentationWarning = warning
     return {
-      playerFeedback: { phase: this.#phaseLabel, message: this.#notice },
+      gameplay,
+      playerFeedback: { phase: this.#phaseLabel, message: [this.#notice, warning].filter(Boolean).join(' ') },
       busy: this.#busy,
       canInterrupt,
       background: canInterrupt && running.length > 0 && responders.length === 0,
@@ -790,7 +1008,6 @@ export class WorldHostCore implements HostRuntime {
         playerInputMode: this.#intentEnabled ? 'command-controlled' : 'legacy-speech',
         lastProviderCall: this.#lastCall,
         ...(this.#statusRoundError === undefined ? {} : { statusRoundError: this.#statusRoundError }),
-        ...(this.#autoStartError === undefined ? {} : { autoStartError: this.#autoStartError }),
         ...(this.#gameplay.status && Object.keys(this.#gameplay.status.policyErrors).length
           ? { statusPolicyError: this.#gameplay.status.policyErrors }
           : {}),
@@ -856,20 +1073,22 @@ export class WorldHostCore implements HostRuntime {
         if (!outcome.accepted) break
       }
       const committed = (await this.#application.head(this.#address)).headSeq > this.#rootBeforeSeq
+      this.#cycleSettlementEnabled = committed || !inputs.length
       if (react) {
         await this.#refresh()
         await this.#activateCharacters(inActivity)
       }
-      if (committed) await (inputs.length ? this.#endPlayerRound() : this.#autoStartActivity())
+      if (committed) this.#cyclePlayerTurn = true
       if (notices.length) this.#notice = [...notices, this.#notice].filter(Boolean).join(' ')
     } catch (error: unknown) {
       failed = true
+      this.#executionControl?.observe('failed')
       throw error
     } finally {
       try {
         await (failed ? this.#refresh().catch(() => {}) : this.#refresh())
       } finally {
-        this.#endWork()
+        await this.#endWork()
       }
     }
     return this.state()
@@ -878,29 +1097,33 @@ export class WorldHostCore implements HostRuntime {
   /** Commits one input without letting anyone react. `accepted` is false when the world refused or never took it. */
   async #commitInput(text: string, key: string, inActivity: boolean): Promise<InputOutcome> {
     await this.#application.yieldWriter(this.#address)
-    const routed = await routeGameplayInput({
-      gameplay: this.#gameplay,
-      status: this.#roundStatus,
-      worldPath: resolve(this.#dataDirectory, 'world.sqlite'),
-      address: this.#address,
-      playerId: this.#playerId,
-      manifest: this.#entities,
-      publicationCharacters: this.#playSettings.publicationCharacters,
-      signal: this.#continuationController!.signal,
-      text,
-      key,
-      inActivity,
-    })
+    const routed = await this.#executionCycle!.run(() =>
+      routeGameplayInput({
+        gameplay: this.#gameplay,
+        status: this.#roundStatus,
+        worldPath: resolve(this.#dataDirectory, 'world.sqlite'),
+        address: this.#address,
+        playerId: this.#playerId,
+        manifest: this.#entities,
+        publicationCharacters: this.#playSettings.publicationCharacters,
+        signal: this.#continuationController!.signal,
+        text,
+        key,
+        inActivity,
+      }),
+    )
     if (routed) return routed
     this.#phaseLabel = text.startsWith('/') ? '正在执行命令' : '正在提交发言'
     this.#lastPlayerIntent = text.startsWith('/') ? 'command' : 'natural-language'
     try {
-      const result = await this.#application.submitText(this.#address, {
-        text,
-        idempotencyKey: key,
-        principalId: this.#principalId,
-        correlationId: key,
-      })
+      const result = await this.#executionCycle!.run(() =>
+        this.#application.submitText(this.#address, {
+          text,
+          idempotencyKey: key,
+          principalId: this.#principalId,
+          correlationId: key,
+        }),
+      )
       // A clarification is a durable answer, not a failure: nothing was spent and the world did not move.
       if (result.status === 'service_failed') {
         this.#error = true
@@ -943,24 +1166,100 @@ export class WorldHostCore implements HostRuntime {
     }
   }
 
-  #beginWork(): void {
+  #beginWork(signal?: AbortSignal, kind: 'interaction' | 'character' | 'maintenance' = 'interaction'): void {
     if (this.#capabilities?.resultUnknown) throw new TypeError('外部执行结果尚未确认，请检查外部游戏后重新启动实例。')
     this.#allowInterruption = false
     this.#autonomyCycle = undefined
+    this.#wakeupWarnings = []
+    this.#cyclePlayerTurn = false
+    this.#statusSettledBeforeReactions = false
+    this.#statusRoundError = undefined
+    this.#cycleSettlementEnabled = kind === 'character'
     this.#abortedWork = false
-    this.#continuationController = new AbortController()
+    const controller = (this.#continuationController = new AbortController())
+    const autonomous =
+      kind === 'interaction' && this.#gameplay.autonomy !== undefined && this.#playSettings.autonomyOpportunities > 0
+    const activity = kind === 'interaction' && this.#gameplay.activity !== undefined
+    const pacing = kind === 'interaction' && this.#gameplay.pacing !== undefined && this.#pacingEnabled
+    const configured =
+      kind === 'interaction'
+        ? {
+            maxActivations:
+              this.#playSettings.maximumNpcCalls +
+              (autonomous ? this.#playSettings.autonomyNpcCalls + this.#playSettings.autonomyReactionCalls : 0) +
+              (activity ? this.#playSettings.activityOpportunities : 0) +
+              (pacing ? this.#playSettings.maximumNpcCalls : 0),
+            deadlineMs:
+              (this.#playSettings.reactionDeadlineSeconds +
+                (autonomous ? this.#playSettings.autonomyDeadlineSeconds : 0) +
+                (activity ? this.#playSettings.activityDeadlineSeconds : 0) +
+                (pacing ? this.#playSettings.reactionDeadlineSeconds : 0)) *
+              1000,
+          }
+        : { maxActivations: 1, deadlineMs: this.#playSettings.activationTimeoutSeconds * 1000 }
+    const request = (this.#executionRequest = this.#execution.beginRequest({
+      budget: { ...configured, ...this.#options.executionBudget },
+      signal: signal ? AbortSignal.any([signal, controller.signal]) : controller.signal,
+    }))
+    request.signal.addEventListener('abort', () => controller.abort(request.signal.reason), { once: true })
+    if (request.signal.aborted) controller.abort(request.signal.reason)
+    this.#executionCycle = request.openCycle()
+    this.#executionControl = this.#executionCycle.control
     this.#busy = true
     this.#phaseLabel = '正在提交操作'
     this.#workDone = new Promise<void>(done => {
       this.#finishWork = done
     })
   }
-  #endWork(): void {
-    this.#allowInterruption = false
-    this.#busy = false
-    this.#phaseLabel = this.#paused ? 'NPC 已暂停' : '可以输入'
-    this.#finishWork?.()
-    this.#finishWork = undefined
+  async #endWork(): Promise<void> {
+    try {
+      if (this.#savingNode) this.#executionControl?.observe('interrupted')
+      const result = await this.#executionCycle?.completeScheduled(
+        { scheduler: this.#scheduler, pluginId: this.#options.plugins!.scheduler!.id, context: this.#schedulerContext },
+        async (afterSeq, runRound) => {
+          const priorNotice = this.#notice,
+            priorAutonomy = this.#autonomyCycle
+          this.#rootBeforeSeq = afterSeq
+          await this.#activateCharacters(false, undefined, undefined, runRound, true)
+          await this.#refresh()
+          this.#notice = [...new Set([priorNotice, this.#notice].filter(Boolean))].join(' ')
+          this.#autonomyCycle = priorAutonomy
+        },
+      )
+      if (result?.status === 'failed' && !this.#error) {
+        this.#error = true
+        this.#notice = '本次执行周期失败；已提交事实保留，未完成的操作和后续处理已停止。'
+      }
+      if (result?.failure) {
+        const failure = result.failure
+        this.#error = true
+        if (typeof failure === 'object') {
+          console.error(`[插件 ${failure.pluginId}] ${failure.operation}：${failure.message}`)
+          this.#notice = `插件 ${failure.pluginId} 的周期结算失败；已提交事实保留，未提交结算已停止。`
+        }
+      }
+      if (result) this.#lastExecutionResult = result
+      if (result)
+        this.#debug.execution = {
+          status: result.status,
+          calls: result.calls,
+          usage: result.usage,
+          ...this.#executionRequest?.snapshot(),
+        }
+      if (this.#wakeupWarnings.length)
+        this.#notice = [this.#notice, ...new Set(this.#wakeupWarnings)].filter(Boolean).join(' ')
+    } finally {
+      this.#executionRequest?.close()
+      this.#executionRequest = undefined
+      this.#executionCycle = undefined
+      this.#executionControl = undefined
+      this.#continuationController = undefined
+      this.#allowInterruption = false
+      this.#busy = false
+      this.#phaseLabel = this.#paused ? 'NPC 已暂停' : '可以输入'
+      this.#finishWork?.()
+      this.#finishWork = undefined
+    }
   }
   async activityAction(request: ActivityRequest): Promise<HostState> {
     return WorldStore.withEventReadCache(() => this.#activityAction(request))
@@ -976,6 +1275,7 @@ export class WorldHostCore implements HostRuntime {
       await this.#application.yieldWriter(this.#address)
       const changed = await this.#gameplay.activity.apply(request)
       const committed = (await this.#application.head(this.#address)).headSeq > this.#rootBeforeSeq
+      this.#cycleSettlementEnabled = changed && committed
       this.#notice = changed ? '游戏操作已提交。' : '已返回原提交结果，没有再次执行。'
       if (changed) {
         // Show the operation's result before the next participant spends its model call.
@@ -986,59 +1286,19 @@ export class WorldHostCore implements HostRuntime {
           store.close()
         }
         await this.#activateCharacters(true)
-        if (committed) await this.#endPlayerRound()
+        if (committed) this.#cyclePlayerTurn = true
       }
+    } catch (error) {
+      this.#executionControl?.observe('failed')
+      throw error
     } finally {
       try {
         await this.#refresh()
       } finally {
-        this.#endWork()
+        await this.#endWork()
       }
     }
     return this.state()
-  }
-  /** The accepted player input's round is over: the status hook, then at most one author-conditioned activity start. */
-  async #endPlayerRound(): Promise<void> {
-    if (this.#capabilities?.resultUnknown) throw new TypeError('外部执行结果尚未确认，本轮不再自动推进。')
-    await this.#endStatusRound()
-    await this.#autoStartActivity()
-  }
-  /** Script and start-validation failures are recorded, not retried, and commit nothing; storage faults still throw. */
-  async #autoStartActivity(): Promise<void> {
-    if (
-      (!this.#gameplay.activity && !this.#gameplay.pacing) ||
-      this.#escaping ||
-      this.#closing ||
-      this.#paused ||
-      this.#abortedWork
-    )
-      return
-    await this.#application.yieldWriter(this.#address)
-    let started = false,
-      beatFrom: number | undefined
-    try {
-      if (this.#gameplay.pacing && this.#pacingEnabled)
-        ({ started, beatFrom } = await this.#gameplay.pacing.endOfRound(this.#rootBeforeSeq))
-      // Switched off, the world is as if it had no pacing script: activities keep their own conditions.
-      else started = (await this.#gameplay.activity?.autoStart()) ?? false
-      this.#autoStartError = undefined
-    } catch (error: unknown) {
-      if (!(error instanceof TypeError) && !(error instanceof RangeError)) throw error
-      this.#autoStartError = error.message
-    }
-    // The participants get the same chance to react to the opening as after a manual start.
-    if (started) await this.#activateCharacters(true)
-    if (beatFrom !== undefined) {
-      // Show what happened before anyone spends a model call on it; only this beat's observations wake characters.
-      const store = new WorldStore(resolve(this.#dataDirectory, 'world.sqlite'))
-      try {
-        await this.#projectCommitted(store)
-      } finally {
-        store.close()
-      }
-      this.#rootBeforeSeq = beatFrom
-      await this.#activateCharacters(false)
-    }
   }
   /** The status hook runs once per accepted player round, recording (not retrying) a failure. */
   async #endStatusRound(pause = false): Promise<void> {
@@ -1051,6 +1311,97 @@ export class WorldHostCore implements HostRuntime {
       pause,
     )
     this.#statusRoundError = result.ok ? undefined : result.error
+    this.#statusSettledBeforeReactions = true
+    this.#cyclePlayerTurn = true
+    if (!result.ok) throw new PluginFaultError(this.#options.plugins!.status!.id, 'onCycleEnd', false)
+  }
+
+  #installCycleHooks(): void {
+    const coreRead = <T>(work: () => T): T => hostCallback(this.#callbackErrors, work)
+    if (this.#gameplay.status)
+      this.#scope.context.effect(() =>
+        this.#execution.registerCoreCycleEndHook({
+          pluginId: this.#options.plugins!.status!.id,
+          hookId: 'status-cycle',
+          order: -20,
+          resolve: (snapshot, cycleId) => {
+            if (!this.#cycleSettlementEnabled || this.#statusSettledBeforeReactions) return undefined
+            const status = this.#gameplay.status!
+            const truth = coreRead(() => status.truth(snapshot.events))
+            const count = coreRead(() =>
+              playerRoundNumber(snapshot.events as readonly StoredWorldEvent[], this.#rootBeforeSeq, false),
+            )
+            return status.cycleEffects({
+              events: snapshot.events,
+              truth,
+              ...count,
+              cycleId,
+              playerTurn: this.#cyclePlayerTurn,
+            })
+          },
+        }),
+      )
+    if (this.#gameplay.pacing || this.#gameplay.activity)
+      this.#scope.context.effect(() =>
+        this.#execution.registerCoreCycleEndHook({
+          pluginId: this.#gameplay.pacing ? this.#options.plugins!.pacing!.id : this.#options.plugins!.activities!.id,
+          hookId: 'pacing-cycle',
+          order: -10,
+          resolve: (snapshot, cycleId) => {
+            if (!this.#cycleSettlementEnabled) return undefined
+            if (this.#gameplay.pacing && this.#pacingEnabled)
+              return this.#gameplay.pacing.prepareCycle(
+                snapshot,
+                this.#rootBeforeSeq,
+                cycleId,
+                coreRead,
+                (kind, error) =>
+                  this.#reportWakeupWarning(
+                    isPluginFault(error)
+                      ? error
+                      : invalidPluginResult(
+                          createPluginCallContext(this.#scope),
+                          kind === 'activity'
+                            ? this.#options.plugins!.activities!.id
+                            : this.#options.plugins!.pacing!.id,
+                          'nominate',
+                        ),
+                  ),
+              )
+            const world = activityWorldFromEvents(
+              resolve(this.#dataDirectory, 'world.sqlite'),
+              this.#address,
+              snapshot.head.headSeq,
+              snapshot.events,
+              snapshot.manifest,
+            )
+            const scoped = {
+              ...world,
+              truth: (status: Parameters<typeof world.truth>[0]) => coreRead(() => world.truth(status)),
+              worldView: (actor: string) => coreRead(() => world.worldView(actor)),
+            }
+            const ready =
+              this.#gameplay.activity?.autoStartCandidates(scoped, error =>
+                this.#reportWakeupWarning(
+                  isPluginFault(error)
+                    ? error
+                    : invalidPluginResult(
+                        createPluginCallContext(this.#scope),
+                        this.#options.plugins!.activities!.id,
+                        'nominate',
+                      ),
+                ),
+              ) ?? []
+            return ready.length
+              ? this.#gameplay.activity!.prepareAutoStart(
+                  this.#gameplay.activity!.chooseAutoStart(ready),
+                  scoped,
+                  cycleId,
+                )
+              : undefined
+          },
+        }),
+      )
   }
   /** Rounds are kept by the status script, and a running activity has its own turns. */
   #canWait(): boolean {
@@ -1061,7 +1412,7 @@ export class WorldHostCore implements HostRuntime {
     if (this.#busy || this.#escaping || this.#closing || this.#paused)
       throw new HostBusyError('请等待当前行动完成并恢复 NPC 后保存节点。')
     this.#savingNode = true
-    this.#beginWork()
+    this.#beginWork(undefined, 'maintenance')
     try {
       this.#memory?.cancelBackground?.()
       await this.#memory?.waitForBackground?.()
@@ -1081,8 +1432,11 @@ export class WorldHostCore implements HostRuntime {
         this.#pluginSet(),
       )
     } finally {
-      this.#savingNode = false
-      this.#endWork()
+      try {
+        await this.#endWork()
+      } finally {
+        this.#savingNode = false
+      }
     }
   }
   /** Automatic-start checks for the pack lens: the last round's, or recomputed now without starting anything. */
@@ -1119,10 +1473,7 @@ export class WorldHostCore implements HostRuntime {
       if (!stored) throw new Error('世界尚未初始化')
       const manifest = stored.manifest as CompiledWorldManifest
       const { rulebookId, version } = manifest.rulebook
-      const base = this.#gameplay.rulebooks(path)
-      const rules = this.#gameplay.autonomy?.roles.some(role => role.characterId === characterId)
-        ? this.#gameplay.autonomy.rulebooks(base.resolve(rulebookId, version, 'lens', this.#address))
-        : base
+      const rules = this.#gameplay.rulebooks(path)
       return rules.resolve(rulebookId, version, 'lens', this.#address).affordances({
         manifest,
         manifestHash: stored.manifestHash,
@@ -1314,6 +1665,8 @@ export class WorldHostCore implements HostRuntime {
     try {
       const job = jobs.read(this.#address, idempotencyKey)
       if (job === undefined) return '本轮失败，这条输入没有被世界受理；可以重新说一次。'
+      if (job.status === 'failed')
+        return '这条输入因插件故障结束，尚未提交的操作已终止。此前已提交结果保留；请修复插件后重新操作。'
       return job.status === 'completed'
         ? '这一轮其实已经完成了，请看转录。'
         : `你的输入已被世界记录（状态 ${job.status}），它会在世界能写入时完成——请不要重发。`
@@ -1340,200 +1693,197 @@ export class WorldHostCore implements HostRuntime {
     return this.state()
   }
 
-  async close(): Promise<void> {
+  close(): Promise<void> {
+    return (this.#closePromise ??= this.#close())
+  }
+
+  async #close(): Promise<void> {
     this.#closing = true
     this.#pluginsReady = false
-    const closingCapabilities = this.#capabilities?.close()
     this.#inspector.configure(false)
+    const scope = this.#scope
+    const closingScope = scope?.close()
     this.#continuationController?.abort()
-    this.#gameplay.activity?.close()
-    const closingMemory = (async () => this.#memory?.close?.())().catch(error =>
-      console.error('[记忆] 关闭失败：', error),
-    )
-    await this.#workDone
-    await closingCapabilities
-    await closingMemory
-    try {
-      await this.#scheduler?.close?.()
-    } catch (error) {
-      console.error('[调度器插件] 关闭失败：', error)
-    }
-    try {
-      await this.#characterLoop?.close?.()
-    } catch (error) {
-      console.error('[角色循环插件] 关闭失败：', error)
-    }
-    try {
-      await this.#llm?.close?.()
-    } catch (error) {
-      console.error('[模型通道插件] 关闭失败：', error)
-    }
-    try {
-      await this.#knowledge?.close?.()
-    } catch (error) {
-      console.error('[知识机制] 关闭失败：', error)
-    }
-    for (const [name, instance] of [
-      ['通信', this.#communication],
-      ['自主', this.#autonomy],
-      ['节奏', this.#pacing],
-      ['骰子', this.#dice],
-    ] as const) {
+    this.#capabilities?.cancelPending()
+    if (scope) await waitForWorkOrAbort(this.#workDone, scope.signal)
+
+    let scopeFailed = false
+    if (closingScope) {
       try {
-        await instance?.close?.()
-      } catch (error) {
-        console.error(`[${name}机制] 关闭失败：`, error)
+        const report = await closingScope
+        for (const { resource } of report.failed) console.error(`[世界实例] 资源 ${resource} 清理失败。`)
+        for (const resource of report.timedOut) console.error(`[世界实例] 资源 ${resource} 清理超时。`)
+      } catch {
+        scopeFailed = true
       }
     }
-    try {
-      await this.#activities?.close?.()
-    } catch (error) {
-      console.error('[活动机制] 关闭失败：', error)
-    }
-    try {
-      await this.#status?.close?.()
-    } catch (error) {
-      console.error('[状态机制] 关闭失败：', error)
-    }
-    for (const layer of [...this.#ruleLayers].reverse()) {
-      try {
-        await layer.close?.()
-      } catch (error) {
-        console.error('[规则插件] 关闭失败：', error)
-      }
-    }
-    for (const decision of [...this.#decisions].reverse()) {
-      try {
-        await decision.close?.()
-      } catch (error) {
-        console.error('[决策插件] 关闭失败：', error)
-      }
-    }
+
+    let applicationSettled = false
+    let applicationFailure: unknown
     try {
       await this.#application.close()
-    } finally {
-      this.#gameplay.activity?.close()
+      applicationSettled = true
+    } catch (error) {
+      applicationFailure = error
     }
+    if (!applicationSettled) throw applicationFailure
+    if (scopeFailed) console.error('[世界实例] scope 清理未完成。')
   }
 
   #coreRules(): RulebookRegistry {
     return this.#coreRegistry
   }
 
+  #reportWakeupWarning(fault: { readonly pluginId: string; readonly message: string }): void {
+    console.error(`[插件 ${fault.pluginId}] ${fault.message}`)
+    this.#wakeupWarnings.push(`插件 ${fault.pluginId} 本次未能提供额外处理机会，其他处理继续。`)
+  }
+
+  #dueCandidates(store: WorldStore): AutonomousRole[] {
+    try {
+      return (
+        this.#gameplay.autonomy?.due(
+          store,
+          this.#address,
+          this.#playerId,
+          this.#rootBeforeSeq,
+          store.head(this.#address).headSeq,
+        ) ?? []
+      )
+    } catch (error) {
+      if (!isPluginFault(error)) throw error
+      this.#reportWakeupWarning(error)
+      return []
+    }
+  }
+
   async #activateCharacters(
     activityOnly = false,
     requestedCharacter?: CharacterId,
     requestSignal?: AbortSignal,
+    runRound: ExecutionRoundRunner = round => this.#scheduleRound(round),
+    settlementReactions = false,
   ): Promise<CharacterTurnResult | undefined> {
     await this.#application.yieldWriter(this.#address)
     if (this.#escaping || this.#closing || this.#abortedWork) return
     const path = resolve(this.#dataDirectory, 'world.sqlite')
-    const store = new WorldStore(path),
-      leases = new WriterLeaseService(path)
-    const availability = new CharacterRuntimeAvailabilityService(path)
-    this.#continuationController = new AbortController()
-    try {
-      if (this.#paused) return
-      const createTurn = this.#turnFactory(path, store, leases, availability)
-      const turn = createTurn()
-      if (requestedCharacter)
-        return await turn.run(requestedCharacter, {
-          signal: requestSignal
-            ? AbortSignal.any([requestSignal, this.#continuationController.signal])
-            : this.#continuationController.signal,
-          maxCalls: 2,
-          maxModelCalls: this.#playSettings.maximumNpcCalls,
-        })
-      this.#phaseLabel = '角色正在处理场景与行动结果'
-      const active = this.#gameplay.activity?.current()
-      const due =
-        this.#playSettings.autonomyOpportunities === 0
-          ? []
-          : (
-              this.#gameplay.autonomy?.due(
-                store,
-                this.#address,
-                this.#playerId,
-                this.#rootBeforeSeq,
-                store.head(this.#address).headSeq,
-              ) ?? []
+    const request = this.#executionRequest,
+      controller = this.#continuationController
+    if (!request || !controller) throw new Error('missing execution request')
+    return this.#application.withExecutionResources(
+      { scope: this.#scope, address: this.#address, signal: request.signal },
+      async ({ store, createTurn: bindTurn }) => {
+        try {
+          if (this.#paused) return
+          const createTurn = this.#turnFactory(path, store, bindTurn)
+          const turn = createTurn()
+          if (requestedCharacter)
+            return await this.#executionControl!.activate(requestedCharacter, (signal, onProgress) =>
+              this.#track(turn).run(requestedCharacter, {
+                onProgress,
+                signal: requestSignal ? AbortSignal.any([requestSignal, controller.signal]) : signal,
+                maxCalls: 2,
+                maxModelCalls: this.#playSettings.maximumNpcCalls,
+              }),
             )
-              // Activity owns its participants' opportunities; autonomy never takes over its turn.
-              .filter(role => !active?.game.active || !active.participants.includes(role.characterId))
-      let activityTurns = 0
-      const trackedActivityTurn = this.#track(turn)
-      const activity = createActivityRound({
-        activity: this.#gameplay.activity,
-        settings: this.#playSettings,
-        address: this.#address,
-        signal: this.#continuationController.signal,
-        store,
-        turn: {
-          run: (id, options) => {
-            activityTurns++
-            return trackedActivityTurn.run(id, options)
-          },
-        },
-        world: this.#worldReader(),
-        resultUnknown: () => this.#capabilities?.resultUnknown === true,
-      })
-      if (activity) {
-        const result = await this.#scheduleRound(activity)
-        activityNotice(this.#roundStatus, result)
-        if (
-          !this.#schedulerIsOfficial &&
-          activityTurns === 0 &&
-          activity.activity?.next() !== undefined &&
-          !this.#continuationController.signal.aborted &&
-          !['plugin_failed', 'plugin_invalid', 'interrupted', 'result_unknown'].includes(result.terminalReason)
-        ) {
-          this.#notice = '当前调度器本次未安排活动角色处理，活动停留在当前轮次；可再次请求处理或更换调度器。'
-          return
+          this.#phaseLabel = '角色正在处理场景与行动结果'
+          const active = this.#gameplay.activity?.current()
+          const newActivity = Boolean(
+            settlementReactions &&
+              active?.game.active &&
+              store
+                .readEventsRange(this.#address, this.#rootBeforeSeq, store.head(this.#address).headSeq, [
+                  'activity.updated',
+                ])
+                .some(event => {
+                  const data = event.data as WorldJsonObject,
+                    source = data.source as WorldJsonObject | undefined
+                  return (
+                    data.operation === 'start' &&
+                    (data.state as WorldJsonObject | undefined)?.id === active.id &&
+                    source?.kind === 'cycle' &&
+                    source.cycleId === this.#executionCycle?.cycleId
+                  )
+                }),
+          )
+          const due =
+            settlementReactions || this.#playSettings.autonomyOpportunities === 0
+              ? []
+              : this.#dueCandidates(store)
+                  // Activity owns its participants' opportunities; autonomy never takes over its turn.
+                  .filter(role => !active?.game.active || !active.participants.includes(role.characterId))
+          let activityTurns = 0
+          const trackedActivityTurn = this.#track(turn)
+          const activity = createActivityRound({
+            activity: this.#gameplay.activity,
+            settings: this.#playSettings,
+            address: this.#address,
+            signal: controller.signal,
+            store,
+            turn: {
+              run: (id, options) => {
+                activityTurns++
+                return trackedActivityTurn.run(id, options)
+              },
+            },
+            world: this.#worldReader(),
+            resultUnknown: () => this.#capabilities?.resultUnknown === true,
+          })
+          if (activity && (!settlementReactions || newActivity)) {
+            const result = await runRound(activity)
+            activityNotice(this.#roundStatus, result)
+            if (
+              activityTurns === 0 &&
+              activity.activity?.next() !== undefined &&
+              !controller.signal.aborted &&
+              !['plugin_failed', 'plugin_invalid', 'interrupted', 'result_unknown'].includes(result.terminalReason)
+            ) {
+              this.#notice = '当前调度器本次未安排活动角色处理，活动停留在当前轮次；可再次请求处理或更换调度器。'
+              return
+            }
+            if (
+              ['plugin_failed', 'plugin_invalid'].includes(result.terminalReason) ||
+              this.#capabilities?.resultUnknown
+            )
+              return
+          }
+          this.#allowInterruption = !this.#gameplay.activity?.current()?.game.active
+          const extraWakeups = settlementReactions ? [] : this.#execution.wakeupSources()
+          if (activityOnly) {
+            await this.#autonomousRound(store, createTurn, due, extraWakeups, new Map(), runRound)
+            return
+          }
+          await this.#runSceneReactions(
+            store,
+            turn,
+            due,
+            extraWakeups,
+            settlementReactions && !newActivity ? undefined : active,
+            runRound,
+          )
+        } finally {
+          this.#allowInterruption = false
+          if (!this.#paused && !this.#escaping) withoutExecutionObservation(() => this.#memory?.startPending?.())
         }
-        if (['plugin_failed', 'plugin_invalid'].includes(result.terminalReason) || this.#capabilities?.resultUnknown)
-          return
-      }
-      this.#allowInterruption = !this.#gameplay.activity?.current()?.game.active
-      if (activityOnly) {
-        await this.#autonomousRound(store, createTurn, due, new Map())
-        return
-      }
-      await this.#runSceneReactions(store, turn, createTurn, due, active)
-    } finally {
-      this.#allowInterruption = false
-      availability.close()
-      leases.close()
-      store.close()
-      this.#continuationController = undefined
-      if (!this.#paused && !this.#escaping) this.#memory?.startPending?.()
-    }
+      },
+    )
   }
 
-  /** Build CharacterTurns that share this activation's store handles; `autonomous` swaps in the autonomy rules and prompt. */
-  #turnFactory(
-    path: string,
-    store: WorldStore,
-    leases: WriterLeaseService,
-    availability: CharacterRuntimeAvailabilityService,
-  ): (autonomous?: boolean) => CharacterTurn {
+  /** Every opportunity uses the same rules, context projection and bound CharacterTurn. */
+  #turnFactory(path: string, store: WorldStore, bindTurn: WorldExecutionResources['createTurn']): () => CharacterTurn {
     const contextWindow = this.#decisions.find(decision => decision.shortTermAfterSeq)?.shortTermAfterSeq
-    return (autonomous = false) => {
+    return () => {
       const base = this.#gameplay.rulebooks(path)
-      return new CharacterTurn({
+      return bindTurn({
         loop: this.#characterLoop,
         onLoopFailure: (characterId, error) =>
           this.#reportPlugin(this.#options.plugins!.characterLoop!.id, characterId, error),
         publicationCharacters: this.#playSettings.publicationCharacters,
         activationTimeoutMs: this.#playSettings.activationTimeoutSeconds * 1000,
-        address: this.#address,
-        store,
-        leases,
-        availability,
-        rulebooks: autonomous
-          ? this.#gameplay.autonomy!.rulebooks(base.resolve('builtin:speak-move', 2, 'autonomy', this.#address))
-          : base,
+        rulebooks: base,
         decide: (request, signal, reserveFormatRetry, beforeModelCall) =>
           this.#decide(request, signal, reserveFormatRetry, beforeModelCall),
+        propagateDecisionError: error => !isPluginFault(error) && this.#callbackErrors.has(error),
         onTrace: (kind, characterId, decisionId, data) => {
           if (this.#inspector.enabled) this.#records.trace(kind, characterId, decisionId, data)
         },
@@ -1553,7 +1903,7 @@ export class WorldHostCore implements HostRuntime {
         allowUnrelatedCommits:
           !this.#options.serialScheduling && !this.#gameplay.activity?.current()?.game.active && !this.#serialDecisions,
         projectContext: (context: WorldJsonObject, canPerform: boolean) =>
-          this.#gameplay.projectContext(context, canPerform, autonomous),
+          this.#gameplay.projectContext(context, canPerform),
         ...this.#gameplay.turnOptions(path),
         ...(contextWindow === undefined ? {} : { shortTermAfterSeq: contextWindow }),
         recentObservations: this.#tuning.recentObservations,
@@ -1566,107 +1916,120 @@ export class WorldHostCore implements HostRuntime {
   async #runSceneReactions(
     store: WorldStore,
     turn: CharacterTurn,
-    createTurn: (autonomous?: boolean) => CharacterTurn,
     due: AutonomousRole[],
+    extraWakeups: readonly WakeupSource[],
     active: ReturnType<ActivitiesRuntime['current']> | undefined,
+    runRound: ExecutionRoundRunner,
   ): Promise<void> {
     const controller = this.#continuationController!
     const dynamic =
       !this.#options.serialScheduling && !this.#gameplay.activity?.current()?.game.active && !this.#serialDecisions
-    const { autonomy, ...cycle } = await this.#schedule({
-      store,
-      address: this.#address,
-      turn: this.#track(turn),
-      afterSeq: this.#rootBeforeSeq,
-      characterIds: this.#characterIds.filter(
-        id => !due.some(role => role.characterId === id) && (!active?.game.active || !active.participants.includes(id)),
-      ),
-      signal: controller.signal,
-      presentCharacterIds: () =>
-        (this.#currentScene?.recipients ?? []).map(person => brandId(person.id, 'CharacterId')),
-      allowConcurrent: dynamic,
-      locationId: (id: CharacterId) => currentLocation(store.readEvents(this.#address), id) ?? null,
+    const wakeupSources: WakeupSource[] = [
       ...(due.length > 0
-        ? {
-            autonomy: {
-              staged: this.#options.stagedAutonomy === true,
-              turn: this.#track(createTurn(true)),
-              roles: due.map(role => ({
-                characterId: role.characterId,
-                opportunities: Math.min(role.opportunities, this.#playSettings.autonomyOpportunities),
-              })),
-              maximumNpcCalls: this.#playSettings.autonomyNpcCalls,
-              deadlineSeconds: this.#playSettings.autonomyDeadlineSeconds,
-              reactionLimits: {
-                maximumWaves: this.#playSettings.autonomyReactionWaves,
-                maximumNpcCalls: this.#playSettings.autonomyReactionCalls,
-                maximumCallsPerCharacter: this.#playSettings.maximumCallsPerCharacter,
-                reactionDeadlineSeconds: this.#playSettings.autonomyDeadlineSeconds,
+        ? [autonomyWakeupSource(this.#options.plugins!.autonomy!.id, due, this.#playSettings.autonomyOpportunities)]
+        : []),
+      ...extraWakeups,
+    ]
+    const { autonomy, ...cycle } = await runRound(
+      createSchedulerRound({
+        store,
+        address: this.#address,
+        turn: this.#track(turn),
+        afterSeq: this.#rootBeforeSeq,
+        characterIds: this.#characterIds.filter(id => !active?.game.active || !active.participants.includes(id)),
+        signal: controller.signal,
+        presentCharacterIds: () =>
+          (this.#currentScene?.recipients ?? []).map(person => brandId(person.id, 'CharacterId')),
+        allowConcurrent: dynamic,
+        locationId: (id: CharacterId) => currentLocation(store.readEvents(this.#address), id) ?? null,
+        ...(wakeupSources.length > 0
+          ? {
+              wakeupSources,
+              onWakeupWarning: fault => this.#reportWakeupWarning(fault),
+              isCoreError: error => this.#callbackErrors.has(error),
+              opportunityLimits: {
+                staged: this.#options.stagedAutonomy === true,
+                maximumNpcCalls: this.#playSettings.autonomyNpcCalls,
+                deadlineSeconds: this.#playSettings.autonomyDeadlineSeconds,
+                reactionLimits: {
+                  maximumWaves: this.#playSettings.autonomyReactionWaves,
+                  maximumNpcCalls: this.#playSettings.autonomyReactionCalls,
+                  maximumCallsPerCharacter: this.#playSettings.maximumCallsPerCharacter,
+                  reactionDeadlineSeconds: this.#playSettings.autonomyDeadlineSeconds,
+                },
               },
-            },
-          }
-        : {}),
-      limits: this.#tuning,
-    })
+            }
+          : {}),
+        limits: this.#tuning,
+        world: this.#worldReader(),
+      }),
+    )
     this.#activationCycle = cycle
     this.#autonomyCycle = autonomy
     reactionNotice(this.#roundStatus, cycle, this.#roleCalls, this.#pluginFailures)
     if (autonomy) autonomyNotice(this.#roundStatus, autonomy.terminalReason)
   }
 
-  #services(id: string): WorldServices {
+  #services(id: string, pluginContext: PluginCallContext): WorldServices {
+    const reader = this.#worldReader()
+    const callback = <T>(work: () => T): T =>
+      hostCallback(pluginContext.callbacks, () => {
+        pluginContext.scope.assertActive()
+        return structuredClone(work())
+      })
+    const callbackAsync = <T>(signal: AbortSignal, work: (signal: AbortSignal) => T | PromiseLike<T>): Promise<T> =>
+      hostCallbackAsync(pluginContext, signal, async operationSignal => structuredClone(await work(operationSignal)))
     return {
-      address: this.#address,
+      address: structuredClone(this.#address),
       worldVersion: this.#worldVersion,
       dataDirectory: resolve(this.#dataDirectory, 'plugins', id),
       instanceDirectory: resolve(this.#dataDirectory),
       candidate: this.#options.candidate === true,
-      cast: createWorldCast(this.#entities, String(this.#playerId), this.#characterIds),
-      world: this.#worldReader(),
+      cast: structuredClone(createWorldCast(this.#entities, String(this.#playerId), this.#characterIds)),
+      world: {
+        readEvents: (afterSeq, throughSeq, types) =>
+          callback(() => reader.readEvents(afterSeq, throughSeq, structuredClone(types))),
+        characterObservations: (characterId, throughSeq) =>
+          callback(() => reader.characterObservations(characterId, throughSeq)),
+        head: () => callback(() => reader.head()),
+        eventTicks: throughSeq => callback(() => reader.eventTicks(throughSeq)),
+        authorizedSources: (characterId, throughSeq, options) =>
+          callback(() => reader.authorizedSources(characterId, throughSeq, structuredClone(options))),
+      },
       contextSources: {
-        memory: async (request, signal) => {
-          try {
-            if (!this.#memory) return request
-            return await this.#memory.project(request, signal)
-          } catch (error) {
-            if (!signal.aborted)
-              this.#reportPlugin(
-                this.#memoryId!,
-                String((request.context.character as WorldJsonObject).characterId),
-                error,
-              )
-            throw error
-          }
-        },
-        memoryAfterSeq: actor => this.#memory?.shortTermAfterSeq?.(actor),
-        recentExecution: async request =>
-          this.#options.recentExecutionEvidence === true
-            ? { ...request, context: recentExecutionContext(request.context) }
-            : request,
+        memory: (request, signal) =>
+          callbackAsync(signal, async operationSignal => {
+            if (!this.#memory) return structuredClone(request)
+            return this.#memory.project(structuredClone(request), operationSignal)
+          }),
+        memoryAfterSeq: actor => callback(() => this.#memory?.shortTermAfterSeq?.(actor)),
+        recentExecution: (request, signal) =>
+          callbackAsync(signal, async () => {
+            const copy = structuredClone(request)
+            return this.#options.recentExecutionEvidence === true
+              ? { ...copy, context: recentExecutionContext(copy.context) }
+              : copy
+          }),
         status: async request =>
-          this.#gameplay.statusContext(request, String((request.context.character as WorldJsonObject).characterId)),
-        knowledge: async request => {
-          try {
-            const selected = this.#knowledge?.select(request.context)
-            return selected === undefined
-              ? request
-              : { ...request, context: { ...request.context, knowledge: selected } }
-          } catch (error) {
-            this.#reportPlugin(
-              this.#options.plugins!.knowledge!.id,
+          callback(() =>
+            this.#gameplay.statusContext(
+              structuredClone(request),
               String((request.context.character as WorldJsonObject).characterId),
-              error,
-            )
-            throw error
-          }
+            ),
+          ),
+        knowledge: async (request, signal) => {
+          pluginContext.scope.assertActive(signal)
+          const copy = structuredClone(request)
+          const selected = this.#knowledge?.select(copy.context)
+          return selected === undefined ? copy : { ...copy, context: { ...copy.context, knowledge: selected } }
         },
-        expressions: async request => {
-          const characterId = String((request.context.character as WorldJsonObject).characterId)
-          const expressions = this.#options.stageExpressions?.[characterId]
-          return expressions?.length
-            ? { ...request, context: { ...request.context, expressions: [...expressions] } }
-            : request
-        },
+        expressions: async request =>
+          callback(() => {
+            const copy = structuredClone(request),
+              characterId = String((copy.context.character as WorldJsonObject).characterId),
+              expressions = this.#options.stageExpressions?.[characterId]
+            return expressions?.length ? { ...copy, context: { ...copy.context, expressions: [...expressions] } } : copy
+          }),
       },
     }
   }
@@ -1674,7 +2037,7 @@ export class WorldHostCore implements HostRuntime {
   #pluginSet() {
     return {
       seams: this.#modulesInForce,
-      ...(this.#generated ? { generatedContent: this.#generated.hashes } : {}),
+      ...(this.#generated ? { gameplayData: this.#generated.gameplayData } : {}),
     }
   }
 
@@ -1705,88 +2068,125 @@ export class WorldHostCore implements HostRuntime {
     const adapter = this.#options.plugins?.llmTransport
     if (full && adapter) throw new TypeError('完整模型通道与发送适配器不能同时启用。')
     let transport: LlmTransportInstance | undefined
-    try {
-      if (adapter) {
-        transport = await adapter.open(this.#services(adapter.id), AbortSignal.timeout(30_000))
-        if (
-          !transport ||
-          typeof transport.model !== 'string' ||
-          !transport.model.trim() ||
-          !['native', 'gateway'].includes(transport.schemaMode) ||
-          typeof transport.send !== 'function'
-        )
-          throw new TypeError('发送适配器须声明 model、schemaMode 与 send')
-      }
-      const provider =
-        full ??
-        this.#options.composition!.modelChannel!({
-          ...this.#options,
-          settings: this.#playSettings,
-          inspector: this.#inspector,
-          ...(adapter && transport
-            ? {
-                transport: {
-                  id: adapter.id,
-                  instance: transport,
-                  failure: (characterId: string, error: unknown) => this.#reportPlugin(adapter.id, characterId, error),
-                },
-              }
-            : {}),
-          onCall: observation => {
-            this.#providerCalls++
-            this.#lastCall = observation
-          },
-          onRoleCall: (characterId, observation) => {
-            this.#roleCalls.set(characterId, observation)
-          },
-        })
-      const opened = await provider.open(this.#services(provider.id), AbortSignal.timeout(30_000))
-      this.#modulesInForce.llm = [
-        { id: provider.id, version: provider.version },
-        ...(adapter ? [{ id: adapter.id, version: adapter.version }] : []),
-      ]
-      this.#llm = full ? guardedLlm(opened, provider.id, this.#reportPlugin) : opened
-      if (transport) this.#model = transport.model
-    } catch (error) {
-      await transport?.close?.()
-      if (!full && !adapter) throw error
-      throw new Error(
-        `模型通道组合 ${full?.id ?? 'official-llm + ' + adapter!.id} 无法打开：${(error as Error).message}`,
-        { cause: error },
+    if (adapter) {
+      const context = createPluginCallContext(this.#scope, this.#callbackErrors)
+      const opened = await callPluginOpen(
+        context,
+        'llmTransport',
+        adapter.id,
+        adapter,
+        this.#services(adapter.id, context),
+        AbortSignal.timeout(30_000),
       )
+      transport = requirePluginObject(context, adapter.id, 'open', opened)
+      if (
+        !transport ||
+        typeof transport.model !== 'string' ||
+        !transport.model.trim() ||
+        !['native', 'gateway'].includes(transport.schemaMode) ||
+        typeof transport.send !== 'function'
+      )
+        throw invalidPluginResult(context, adapter.id, 'open')
+      transport = guardedLlmTransport(transport, adapter.id, context, this.#reportPlugin)
     }
+    const provider =
+      full ??
+      this.#options.composition!.modelChannel!({
+        ...this.#options,
+        settings: this.#playSettings,
+        inspector: this.#inspector,
+        ...(adapter && transport
+          ? {
+              transport: {
+                id: adapter.id,
+                instance: transport,
+                failure: (characterId: string, error: unknown) => this.#reportPlugin(adapter.id, characterId, error),
+              },
+            }
+          : {}),
+        onAttempt: recordExecutionModelAttempt,
+        onCall: observation => {
+          recordExecutionModelObservation({
+            ...(observation.httpAttempts === 0 ? { httpAttempts: 0 } : {}),
+            ...(observation.usageReported && observation.usage ? { usage: observation.usage } : {}),
+          })
+          this.#providerCalls++
+          this.#lastCall = observation
+        },
+        onRoleCall: (characterId, observation) => {
+          this.#roleCalls.set(characterId, observation)
+        },
+      })
+    const context = createPluginCallContext(this.#scope, this.#callbackErrors)
+    if (this.#requiredLlmId) assertServiceRequirements({ services: { llm: this.#requiredLlmId } }, { llm: provider })
+    const providerToOpen =
+      adapter && transport
+        ? {
+            ...provider,
+            open: async (services: WorldServices, signal: AbortSignal) => {
+              const { close: _close, ...instance } = await provider.open(services, signal)
+              return instance
+            },
+          }
+        : provider
+    const opened = await callPluginOpen(
+      context,
+      'llm',
+      provider.id,
+      providerToOpen,
+      this.#services(provider.id, context),
+      AbortSignal.timeout(30_000),
+    )
+    requirePluginObject(context, provider.id, 'open', opened)
+    if (typeof opened.send !== 'function') throw invalidPluginResult(context, provider.id, 'open')
+    this.#modulesInForce.llm = [
+      { id: provider.id, version: provider.version },
+      ...(adapter ? [{ id: adapter.id, version: adapter.version }] : []),
+    ]
+    this.#llm = guardedLlm(opened, provider.id, context, this.#reportPlugin)
+    if (transport) this.#model = transport.model
   }
 
   /** A rule the player chose must hold, so one that cannot open stops the world. */
   async #openRules(): Promise<void> {
-    for (const provider of [...(this.#options.plugins?.rules ?? []), ...(this.#generated?.rules ?? [])]) {
-      try {
-        const opened = await provider.open(this.#services(provider.id), AbortSignal.timeout(30_000))
-        this.#ruleLayers.push(guardedRules(opened, provider.id, this.#reportPlugin))
-        ;(this.#modulesInForce.rules ??= []).push({ id: provider.id, version: provider.version })
-      } catch (error) {
-        throw new Error(`规则插件 ${provider.id} 无法打开：${(error as Error).message}`, { cause: error })
-      }
+    const providers = [...(this.#options.plugins?.rules ?? []), ...(this.#generated?.rules ?? [])]
+    for (const [index, provider] of providers.entries()) {
+      const context = createPluginCallContext(this.#scope, this.#callbackErrors)
+      const opened = await callPluginOpen(
+        context,
+        `rules:${index}`,
+        provider.id,
+        provider,
+        this.#services(provider.id, context),
+        AbortSignal.timeout(30_000),
+      )
+      requirePluginObject(context, provider.id, 'open', opened)
+      this.#ruleLayers.push(guardedRules(opened, provider.id, context, this.#reportPlugin))
+      ;(this.#modulesInForce.rules ??= []).push({ id: provider.id, version: provider.version })
     }
   }
 
   /** Whoever asked to take part in decisions expects to, so one that cannot open stops the world. */
   async #openDecisions(): Promise<void> {
-    for (const provider of this.#options.plugins!.decisions ?? []) {
-      try {
-        const opened = await provider.open(this.#services(provider.id), AbortSignal.timeout(30_000))
-        if (
-          opened.shortTermAfterSeq &&
-          ((!opened.context && !opened.decide) || this.#decisions.some(decision => decision.shortTermAfterSeq))
-        ) {
-          await opened.close?.()
-          throw new TypeError('a memory cutoff requires a single delivery implementation')
-        }
-        this.#decisions.push(guardedDecision(opened, provider.id, this.#reportPlugin))
-        ;(this.#modulesInForce.decisions ??= []).push({ id: provider.id, version: provider.version })
-      } catch (error) {
-        throw new Error(`决策插件 ${provider.id} 无法打开：${(error as Error).message}`, { cause: error })
+    for (const [index, provider] of (this.#options.plugins!.decisions ?? []).entries()) {
+      const context = createPluginCallContext(this.#scope, this.#callbackErrors)
+      const opened = await callPluginOpen(
+        context,
+        `decisions:${index}`,
+        provider.id,
+        provider,
+        this.#services(provider.id, context),
+        AbortSignal.timeout(30_000),
+      )
+      requirePluginObject(context, provider.id, 'open', opened)
+      if (
+        opened.shortTermAfterSeq &&
+        ((!opened.context && !opened.decide) || this.#decisions.some(decision => decision.shortTermAfterSeq))
+      ) {
+        throw new TypeError('a memory cutoff requires a single delivery implementation')
       }
+      this.#decisions.push(guardedDecision(opened, provider.id, context, this.#reportPlugin))
+      ;(this.#modulesInForce.decisions ??= []).push({ id: provider.id, version: provider.version })
     }
   }
 
@@ -1795,16 +2195,17 @@ export class WorldHostCore implements HostRuntime {
   }
 
   /** One selected mechanism for this world: pass its declared source, validate it, and close it if that fails. */
-  async #openMechanism<T>(input: {
+  async #openMechanism<T, S extends object = object>(input: {
     readonly name: 'communication' | 'autonomy' | 'activities' | 'status' | 'knowledge' | 'pacing' | 'dice'
     readonly label: string
     readonly sourceKey: string
-    readonly source: object | undefined
+    readonly source: S | undefined
+    readonly cloneSource?: (source: S) => S
     /** A world that declares this source cannot run without the mechanism. */
     readonly required: boolean
     /** Assigned twice: the raw instance first, so a failing guard still leaves it to be closed. */
     readonly assign: (instance: T) => void
-    readonly guard: (instance: T, id: string) => T
+    readonly guard: (instance: T, id: string, context: PluginCallContext) => T
   }): Promise<void> {
     const { name, source } = input
     const provider = this.#options.plugins![name] as unknown as SeamProvider<T> | undefined
@@ -1812,23 +2213,27 @@ export class WorldHostCore implements HostRuntime {
       if (input.required && source !== undefined) throw new TypeError(`世界声明的 ${name} 需要对应机制`)
       return
     }
-    try {
-      const opened = await provider.open(
+    const context = createPluginCallContext(this.#scope, this.#callbackErrors)
+    const cloneSource = input.cloneSource ?? (value => structuredClone(value))
+    const opened = requirePluginObject(
+      context,
+      provider.id,
+      'open',
+      await callPluginOpen(
+        context,
+        `mechanism:${name}`,
+        provider.id,
+        provider,
         {
-          ...this.#services(provider.id),
-          ...(source === undefined ? {} : { [input.sourceKey]: structuredClone(source) }),
+          ...this.#services(provider.id, context),
+          ...(source === undefined ? {} : { [input.sourceKey]: cloneSource(source) }),
         },
         AbortSignal.timeout(30_000),
-      )
-      input.assign(opened)
-      input.assign(input.guard(opened, provider.id))
-      this.#modulesInForce[name] = [{ id: provider.id, version: provider.version }]
-    } catch (cause) {
-      throw new Error(
-        `${input.label}机制 ${provider.id} 无法打开：${cause instanceof Error ? cause.message : String(cause)}`,
-        { cause },
-      )
-    }
+      ),
+    )
+    input.assign(opened)
+    input.assign(input.guard(opened, provider.id, context))
+    this.#modulesInForce[name] = [{ id: provider.id, version: provider.version }]
   }
   #openCommunication(): Promise<void> {
     return this.#openMechanism<CommunicationInstance>({
@@ -1838,8 +2243,8 @@ export class WorldHostCore implements HostRuntime {
       source: this.#communicationSource,
       required: true,
       assign: instance => (this.#communication = instance),
-      guard: (instance, id) =>
-        guardedCommunication(instance, this.#communicationSource !== undefined, id, this.#reportPlugin),
+      guard: (instance, id, context) =>
+        guardedCommunication(instance, this.#communicationSource !== undefined, id, context, this.#reportPlugin),
     })
   }
   #openAutonomy(): Promise<void> {
@@ -1850,7 +2255,8 @@ export class WorldHostCore implements HostRuntime {
       source: this.#autonomySource,
       required: true,
       assign: instance => (this.#autonomy = instance),
-      guard: (instance, id) => guardedAutonomy(instance, this.#autonomySource !== undefined, id, this.#reportPlugin),
+      guard: (instance, id, context) =>
+        guardedAutonomy(instance, this.#autonomySource !== undefined, id, context, this.#reportPlugin),
     })
   }
   #openPacing(): Promise<void> {
@@ -1861,17 +2267,21 @@ export class WorldHostCore implements HostRuntime {
       source: this.#pacingSource,
       required: true,
       assign: instance => (this.#pacing = instance),
-      guard: (instance, id) =>
-        guardedPacing(instance, {
-          hasSource: this.#pacingSource !== undefined,
-          id,
-          hasStatus: this.#statusSource !== undefined,
-          statusKeys: ((this.#status?.definition as { statuses?: { key: string }[] } | undefined)?.statuses ?? []).map(
-            status => status.key,
-          ),
-          activities: this.#activities,
-          report: this.#reportPlugin,
-        }),
+      guard: (instance, id, context) =>
+        guardedPacing(
+          instance,
+          {
+            hasSource: this.#pacingSource !== undefined,
+            id,
+            hasStatus: this.#statusSource !== undefined,
+            statusKeys: (
+              (this.#status?.definition as { statuses?: { key: string }[] } | undefined)?.statuses ?? []
+            ).map(status => status.key),
+            activities: this.#activities,
+            report: this.#reportPlugin,
+          },
+          context,
+        ),
     })
   }
   /** No world source: the activity runtime lends it to each resolve with the round's recorded draws. */
@@ -1883,33 +2293,71 @@ export class WorldHostCore implements HostRuntime {
       source: undefined,
       required: false,
       assign: instance => (this.#dice = instance),
-      guard: instance => {
-        if (typeof instance?.roll !== 'function') throw new TypeError('dice requires roll')
-        return instance
+      guard: (instance, id, context) => {
+        if (typeof instance?.roll !== 'function') throw invalidPluginResult(context, id, 'open:roll')
+        return guardedDice(instance, id, context)
       },
     })
   }
   #openActivities(): Promise<void> {
-    return this.#openMechanism<ActivitiesInstance>({
+    return this.#openMechanism<ActivitiesInstance, ActivitySource>({
       name: 'activities',
       label: '活动',
       sourceKey: 'activitySource',
       source: this.#activitySource,
+      cloneSource: source => ({
+        entries: source.entries.map(entry =>
+          'source' in entry
+            ? structuredClone(entry)
+            : {
+                key: entry.key,
+                activity: {
+                  ...entry.activity,
+                  definition: structuredClone(entry.activity.definition),
+                  ...(entry.activity.phases ? { phases: [...entry.activity.phases] } : {}),
+                },
+              },
+        ),
+      }),
       required: true,
       assign: instance => (this.#activities = instance),
-      guard: (instance, id) => guardedActivities(instance, this.#activitySource, id, this.#reportPlugin),
+      guard: (instance, id, context) =>
+        guardedActivities(instance, this.#activitySource, id, context, this.#reportPlugin),
     })
   }
   #openStatus(): Promise<void> {
-    return this.#openMechanism<StatusInstance>({
+    return this.#openMechanism<StatusInstance, StatusSource>({
       name: 'status',
       label: '状态',
       sourceKey: 'statusSource',
       source: this.#statusSource,
+      cloneSource: source => ({
+        ...(source.script === undefined ? {} : { script: source.script }),
+        modules: source.modules.map(entry =>
+          'source' in entry
+            ? structuredClone(entry)
+            : {
+                id: entry.id,
+                characters: [...entry.characters],
+                unavailableCapabilities: [...entry.unavailableCapabilities],
+                module: {
+                  ...entry.module,
+                  definition: structuredClone(entry.module.definition),
+                },
+              },
+        ),
+      }),
       required: true,
       assign: instance => (this.#status = instance),
-      guard: (instance, id) =>
-        guardedStatus(instance, this.#statusSource !== undefined, id, String(this.#playerId), this.#reportPlugin),
+      guard: (instance, id, context) =>
+        guardedStatus(
+          instance,
+          this.#statusSource !== undefined,
+          id,
+          String(this.#playerId),
+          context,
+          this.#reportPlugin,
+        ),
     })
   }
   #openKnowledge(): Promise<void> {
@@ -1920,9 +2368,9 @@ export class WorldHostCore implements HostRuntime {
       source: this.#knowledgeSource,
       required: false,
       assign: instance => (this.#knowledge = instance),
-      guard: instance => {
-        if (typeof instance.select !== 'function') throw new TypeError('knowledge requires select')
-        return instance
+      guard: (instance, id, context) => {
+        if (typeof instance.select !== 'function') throw invalidPluginResult(context, id, 'open:select')
+        return guardedKnowledge(instance, id, context, this.#reportPlugin)
       },
     })
   }
@@ -1932,84 +2380,138 @@ export class WorldHostCore implements HostRuntime {
     if (!provider) return
     this.#memoryIsCore = provider.id === CORE_MEMORY_ID
     this.#memoryId = provider.id
-    try {
-      this.#memory = await provider.open(this.#services(provider.id), AbortSignal.timeout(30_000))
-      this.#modulesInForce.memory = [{ id: provider.id, version: provider.version }]
-    } catch (error) {
-      if (this.#memoryIsCore) throw error
-      throw new Error(`记忆插件 ${provider.id} 无法打开：${(error as Error).message}`, { cause: error })
-    }
+    const context = createPluginCallContext(this.#scope, this.#callbackErrors)
+    const opened = await callPluginOpen(
+      context,
+      'memory',
+      provider.id,
+      provider,
+      this.#services(provider.id, context),
+      AbortSignal.timeout(30_000),
+    )
+    requirePluginObject(context, provider.id, 'open', opened)
+    this.#memory = guardedMemory(opened, provider.id, context, this.#reportPlugin)
+    this.#modulesInForce.memory = [{ id: provider.id, version: provider.version }]
   }
 
-  /** Each world instance gets its own scheduler; one that cannot open must not keep the world from opening. */
+  /** Each world instance gets its own selected scheduler; opening never switches implementation. */
   async #openScheduler(): Promise<void> {
-    const official = this.#options.composition!.fallbackScheduler
     const provider = this.#options.plugins!.scheduler!
-    const signal = AbortSignal.timeout(30_000)
-    this.#schedulerIsOfficial = provider === official
-    try {
-      this.#scheduler = await provider.open(this.#services(provider.id), signal)
-      this.#modulesInForce.scheduler = [{ id: provider.id, version: provider.version }]
-    } catch (error) {
-      if (!official || provider === official) throw error
-      console.error(`[调度器插件 ${provider.id}] 打开失败：`, error)
-      this.#scheduler = await official.open(this.#services(official.id), signal)
-      this.#modulesInForce.scheduler = [{ id: official.id, version: official.version }]
-      this.#schedulerIsOfficial = true
-      this.#notice = `调度器插件 ${provider.id} 无法打开，已改用官方调度。`
+    const context = createPluginCallContext(this.#scope, this.#callbackErrors)
+    const opened = await callPluginOpen(
+      context,
+      'scheduler',
+      provider.id,
+      provider,
+      this.#services(provider.id, context),
+      AbortSignal.timeout(30_000),
+    )
+    requirePluginObject(context, provider.id, 'open', opened)
+    if (typeof opened.run !== 'function') throw invalidPluginResult(context, provider.id, 'open:run')
+    this.#scheduler = opened
+    this.#schedulerContext = context
+    this.#modulesInForce.scheduler = [{ id: provider.id, version: provider.version }]
+  }
+
+  async #openWakeups(): Promise<void> {
+    for (const [index, provider] of (this.#options.plugins?.wakeups ?? []).entries()) {
+      if (provider.id === this.#options.plugins?.autonomy?.id)
+        throw new Error(`唤醒来源 ${provider.id} 与自主策略标识冲突`)
+      const context = createPluginCallContext(this.#scope, this.#callbackErrors)
+      const opened = await callPluginOpen(
+        context,
+        `wakeup:${index}`,
+        provider.id,
+        provider,
+        this.#services(provider.id, context),
+        AbortSignal.timeout(30_000),
+      )
+      requirePluginObject(context, provider.id, 'open', opened)
+      if ((opened.id !== undefined && opened.id !== provider.id) || typeof opened.nominate !== 'function')
+        throw invalidPluginResult(context, provider.id, 'open')
+      const dispose = this.#execution.registerWakeupSource({
+        id: provider.id,
+        nominate: input => callPluginSync(context, provider.id, 'nominate', () => opened.nominate(input)),
+      })
+      this.#scope.context.effect(() => dispose)
+      ;(this.#modulesInForce.wakeups ??= []).push({ id: provider.id, version: provider.version })
     }
   }
 
   async #openCharacterLoop(): Promise<void> {
     const provider = this.#options.plugins!.characterLoop!
-    try {
-      const opened = await provider.open(this.#services(provider.id), AbortSignal.timeout(30_000))
-      this.#characterLoop = opened
-      if (typeof opened.run !== 'function') throw new TypeError('character loop requires run')
-      this.#modulesInForce.characterLoop = [{ id: provider.id, version: provider.version }]
-      this.#characterLoop = {
-        run: async activation => {
-          let passedOn: unknown
-          const capability = <T>(work: () => T): T => {
-            try {
-              return work()
-            } catch (error) {
-              passedOn = error
-              throw error
-            }
-          }
-          const asyncCapability = async <T>(work: () => Promise<T>): Promise<T> => {
-            try {
-              return await work()
-            } catch (error) {
-              passedOn = error
-              throw error
-            }
-          }
-          try {
-            return await opened.run({
-              ...activation,
-              get calls() {
-                return activation.calls
-              },
-              get performResult() {
-                return activation.performResult
-              },
-              prepare: options => capability(() => activation.prepare(options)),
-              decide: reserve => asyncCapability(() => activation.decide(reserve)),
-              submit: decision => asyncCapability(() => activation.submit(decision)),
-            })
-          } catch (error) {
-            if (!activation.signal.aborted && error !== passedOn) {
-              throw new CharacterLoopError('character loop failed', { cause: error })
-            }
-            throw error
-          }
-        },
-        ...(opened.close ? { close: () => opened.close!() } : {}),
-      }
-    } catch (error) {
-      throw new Error(`角色循环插件 ${provider.id} 无法打开：${(error as Error).message}`, { cause: error })
+    const context = createPluginCallContext(this.#scope, this.#callbackErrors)
+    const opened = await callPluginOpen(
+      context,
+      'characterLoop',
+      provider.id,
+      provider,
+      this.#services(provider.id, context),
+      AbortSignal.timeout(30_000),
+    )
+    requirePluginObject(context, provider.id, 'open', opened)
+    if (typeof opened.run !== 'function') throw invalidPluginResult(context, provider.id, 'open:run')
+    this.#modulesInForce.characterLoop = [{ id: provider.id, version: provider.version }]
+    this.#characterLoop = {
+      run: async activation => {
+        const source = activation as CharacterLoopActivation & {
+          readonly context?: WorldJsonObject
+          readonly result?: WorldJsonObject
+        }
+        try {
+          const status = await callPluginForValueAsync(
+            context,
+            provider.id,
+            'run',
+            activation.signal,
+            operationSignal =>
+              opened.run({
+                ...activation,
+                ...(source.context === undefined ? {} : { context: structuredClone(source.context) }),
+                ...(source.result === undefined ? {} : { result: structuredClone(source.result) }),
+                signal: operationSignal,
+                get calls() {
+                  return activation.calls
+                },
+                get performResult() {
+                  return structuredClone(activation.performResult)
+                },
+                prepare: options =>
+                  clonePluginValue(
+                    context,
+                    provider.id,
+                    'prepare',
+                    hostCapability(context, activation.prepare)(structuredClone(options)),
+                  ),
+                decide: reserve =>
+                  hostCapabilityAsync(
+                    context,
+                    operationSignal,
+                    activation.decide,
+                  )(
+                    reserve === undefined
+                      ? undefined
+                      : () => {
+                          this.#scope.assertActive(operationSignal)
+                          return callPluginSync(context, provider.id, 'reserveFormatRetry', reserve)
+                        },
+                  ),
+                submit: decision =>
+                  hostCapabilityAsync(
+                    context,
+                    operationSignal,
+                    activation.submit,
+                  )(clonePluginValue(context, provider.id, 'submit', decision)),
+              }),
+          )
+          if (!['published', 'abstained', 'budget_exhausted', 'failed'].includes(status))
+            throw invalidPluginResult(context, provider.id, 'run')
+          return status
+        } catch (error) {
+          if (activation.signal.aborted || !isPluginFault(error)) throw error
+          throw new CharacterLoopError('character loop failed', { cause: error })
+        }
+      },
     }
   }
 
@@ -2017,35 +2519,30 @@ export class WorldHostCore implements HostRuntime {
     return createWorldReader(resolve(this.#dataDirectory, 'world.sqlite'), this.#address)
   }
 
-  /** A third-party scheduler failing costs the round's reactions, never what has been committed. */
-  async #schedule(input: Omit<Parameters<typeof createSchedulerRound>[0], 'world'>): Promise<SchedulerResult> {
-    return this.#scheduleRound(createSchedulerRound({ ...input, world: this.#worldReader() }))
-  }
-
-  async #scheduleRound(round: SchedulerRound): Promise<SchedulerResult> {
-    if (this.#schedulerIsOfficial) return this.#scheduler.run(round)
-    const tracked = trackSchedulerTurns(round)
-    try {
-      return normalizeSchedulerResult(await this.#scheduler.run(tracked.round))
-    } catch (error) {
-      console.error('[调度器插件] 本轮调度失败：', error)
-      return { calls: 0, wave: 0, terminalReason: 'plugin_failed', activations: [] }
-    } finally {
-      // The store closes after this returns, so nothing the scheduler left running may outlive it.
-      await tracked.settle()
-    }
+  async #scheduleRound(round: ExecutionSchedulerRound): Promise<SchedulerResult> {
+    if (!this.#executionControl) throw new Error('scheduler requires an execution request')
+    return executeSchedulerRound({
+      round,
+      control: this.#executionControl,
+      scheduler: this.#scheduler,
+      pluginId: this.#options.plugins!.scheduler!.id,
+      context: this.#schedulerContext,
+    })
   }
 
   /** Each due character's own opportunities, then what the round left for the player to read. */
   async #autonomousRound(
     store: WorldStore,
-    createTurn: (autonomous?: boolean) => CharacterTurn,
+    createTurn: () => CharacterTurn,
     due: AutonomousRole[],
+    extraWakeups: readonly WakeupSource[],
     counts: Map<CharacterId, number>,
+    runRound: ExecutionRoundRunner,
   ): Promise<void> {
-    if (!due.length || this.#paused || this.#abortedWork || !this.#continuationController) return
+    if ((!due.length && !extraWakeups.length) || this.#paused || this.#abortedWork || !this.#continuationController)
+      return
     const active = this.#gameplay.activity?.current()
-    const result = await this.#scheduleRound(
+    const result = await runRound(
       createAutonomyRound({
         settings: this.#playSettings,
         address: this.#address,
@@ -2053,8 +2550,11 @@ export class WorldHostCore implements HostRuntime {
         store,
         world: this.#worldReader(),
         turn: this.#track(createTurn()),
-        autonomousTurn: this.#track(createTurn(true)),
         due,
+        ...(this.#options.plugins?.autonomy ? { autonomySourceId: this.#options.plugins.autonomy.id } : {}),
+        extraWakeupSources: extraWakeups,
+        onWakeupWarning: fault => this.#reportWakeupWarning(fault),
+        isCoreError: error => this.#callbackErrors.has(error),
         counts,
         rootBeforeSeq: this.#rootBeforeSeq,
         characterIds: this.#characterIds,
@@ -2260,8 +2760,8 @@ export class WorldHostCore implements HostRuntime {
       manifestVersion: this.#manifestVersion,
       outputProtocol: 'perform/publish(segments)/abstain',
       memoryMode: this.#memoryIsCore ? 'core' : 'none',
-      activationCycle: this.#activationCycle ?? null,
-      autonomy: this.#autonomyCycle ?? null,
+      activationCycle: playerSchedulerSummary(this.#activationCycle),
+      autonomy: playerSchedulerSummary(this.#autonomyCycle),
       visibleSceneIds: view.scenes.map(scene => scene.sceneId),
     }
     if (this.#pluginsReady) for (const decision of this.#decisions) decision.committed?.(head.headSeq)

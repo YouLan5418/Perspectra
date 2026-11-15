@@ -3,8 +3,52 @@ export interface HostPluginSettings {
   id: string
   path: string
   enabled: boolean
+  /** Persistent consent to run this exact local file. Missing legacy values always mean false. */
+  nativeAllowed?: boolean
   /** Non-secret values for the fields the plugin's manifest declares; secrets live in the credential store. */
   config?: Record<string, string | number | boolean>
+}
+
+export type HostPluginFailureReason = 'permission' | 'manifest' | 'config' | 'import' | 'version' | 'apply'
+
+export const HOST_PLUGIN_FAILURE_TEXT: Record<HostPluginFailureReason, string> = {
+  permission: '尚未允许在本机执行',
+  manifest: '清单无效',
+  config: '配置无效',
+  import: '导入失败',
+  version: '宿主 API 版本不兼容',
+  apply: '初始化失败',
+}
+
+export function hostPluginLoadFailureMessage(
+  pluginId: string,
+  reason: HostPluginFailureReason,
+  detail?: string,
+): string {
+  return (
+    `插件 ${pluginId} ${HOST_PLUGIN_FAILURE_TEXT[reason]}${detail ? `（${detail}）` : ''}。` +
+    '为避免改用其他实现，本次启动已停止。'
+  )
+}
+
+/** Recognize only the exact host-generated message before crossing a child-process boundary. */
+export function isSafeHostPluginFailureMessage(value: unknown): value is string {
+  if (typeof value !== 'string' || value.length > 1000 || /[\r\n]/u.test(value)) return false
+  const match =
+    /^插件 ([a-z0-9][a-z0-9-]{0,63}) (.+?)(?:（([^\r\n）]{1,300})）)?。为避免改用其他实现，本次启动已停止。$/u.exec(
+      value,
+    )
+  return !!match && Object.values(HOST_PLUGIN_FAILURE_TEXT).includes(match[2]!)
+}
+
+/** Installed and explicitly allowed. Future config-only checks use this without requiring `enabled`. */
+export function hostPluginNativeAllowed(plugin: Pick<HostPluginSettings, 'path' | 'nativeAllowed'>): boolean {
+  return plugin.path.trim().length > 0 && plugin.nativeAllowed === true
+}
+
+/** A module may be imported or applied only when it is installed, allowed and selected for this launch. */
+export function shouldLoadHostPlugin(plugin: Pick<HostPluginSettings, 'path' | 'nativeAllowed' | 'enabled'>): boolean {
+  return hostPluginNativeAllowed(plugin) && plugin.enabled
 }
 
 /** `{ pluginId: { field: value } }` handed over at launch. Values are never echoed in errors. */
@@ -41,19 +85,24 @@ export function hostPluginSettings(value: unknown): HostPluginSettings[] {
       .sort()
       .join(',')
     if (
-      keys !== 'enabled,id,path' ||
+      !['enabled,id,path', 'enabled,id,nativeAllowed,path'].includes(keys) ||
       typeof plugin.id !== 'string' ||
       !/^[a-z0-9][a-z0-9-]{0,63}$/.test(plugin.id) ||
       ids.has(plugin.id) ||
       typeof plugin.enabled !== 'boolean' ||
+      (plugin.nativeAllowed !== undefined && typeof plugin.nativeAllowed !== 'boolean') ||
       typeof plugin.path !== 'string' ||
       plugin.path.length > 4096 ||
       plugin.path.includes('\0')
     ) {
-      throw new TypeError('插件 ID 须为不重复的小写字母、数字或连字符，加载开关与路径须有效。')
+      throw new TypeError('插件 ID 须为不重复的小写字母、数字或连字符，本机执行许可、加载开关与路径须有效。')
     }
     const path = plugin.path.trim()
-    if ((plugin.enabled || path) && (!/^(?:[a-z]:[\\/]|\/|\\\\)/i.test(path) || !/\.(?:mjs|js)$/i.test(path))) {
+    const nativeAllowed = plugin.nativeAllowed === true
+    if (
+      (plugin.enabled || nativeAllowed || path) &&
+      (!/^(?:[a-z]:[\\/]|\/|\\\\)/i.test(path) || !/\.(?:mjs|js)$/i.test(path))
+    ) {
       throw new TypeError('请选择本地插件 .mjs / .js 文件的绝对路径。')
     }
     // The shape only; whether each value fits the plugin's manifest is checked where the manifest is read.
@@ -80,6 +129,6 @@ export function hostPluginSettings(value: unknown): HostPluginSettings[] {
       config = Object.fromEntries(entries) as Record<string, string | number | boolean>
     }
     ids.add(plugin.id)
-    return { id: plugin.id, path, enabled: plugin.enabled, ...(config ? { config } : {}) }
+    return { id: plugin.id, path, nativeAllowed, enabled: plugin.enabled, ...(config ? { config } : {}) }
   })
 }

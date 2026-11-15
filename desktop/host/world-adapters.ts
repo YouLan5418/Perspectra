@@ -17,6 +17,7 @@ const LOCATION_EVENTS: readonly string[] = ['character.created', 'character.upse
 
 /** Host rule and context projections over already assembled execution adapters. No mechanism selection. */
 export class WorldAdapters {
+  native: import('@harness-world/application').GameplayRuntime | undefined
   activity: ActivitiesRuntime | undefined
   modules: PackModules | undefined
   autonomy: AutonomyRuntime | undefined
@@ -36,17 +37,33 @@ export class WorldAdapters {
   /** Resolver chain: core, then the pack's SMS, then status operations, then the running activity's permissions. */
   rulebooks(worldPath: string): RulebookRegistry {
     const core = this.communication?.registry() ?? this.world.coreRules()
-    if (!this.status) return this.activity?.rulebooks(this.communication?.resolver()) ?? core
+    if (!this.status) return this.#permissions(this.activity?.rulebooks(this.communication?.resolver()) ?? core)
     const status = this.status.resolver(
       core.resolve('builtin:speak-move', 2, 'status', this.world.address),
       worldPath,
       this.world.address,
       this.world.playerId,
     )
-    if (this.activity) return this.activity.rulebooks(status)
+    if (this.activity) return this.#permissions(this.activity.rulebooks(status))
     const registry = new RulebookRegistry()
     registry.register('builtin:speak-move', 2, status)
-    return registry
+    return this.#permissions(registry)
+  }
+
+  #permissions(registry: RulebookRegistry): RulebookRegistry {
+    if (this.native) {
+      const wrapped = new RulebookRegistry()
+      wrapped.register(
+        'builtin:speak-move',
+        2,
+        this.native.resolver(registry.resolve('builtin:speak-move', 2, 'native-gameplay', this.world.address)),
+      )
+      registry = wrapped
+    }
+    return (
+      this.autonomy?.rulebooks(registry.resolve('builtin:speak-move', 2, 'role-permissions', this.world.address)) ??
+      registry
+    )
   }
 
   /** What this character knows of the pack's state and author knowledge, ahead of a decision. */
@@ -89,12 +106,13 @@ export class WorldAdapters {
     return request
   }
 
-  projectContext(context: WorldJsonObject, canPerform: boolean, autonomous: boolean): WorldJsonObject {
+  projectContext(context: WorldJsonObject, canPerform: boolean): WorldJsonObject {
     const activityContext = this.activity?.projectContext(context, canPerform) ?? context
     const projected = this.communication
       ? { ...activityContext, communicationInstruction: this.communication.instruction }
       : activityContext
-    return autonomous
+    const character = context.character as WorldJsonObject | undefined
+    return this.autonomy?.roles.some(role => role.characterId === character?.characterId)
       ? {
           ...projected,
           autonomy: {

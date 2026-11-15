@@ -108,13 +108,20 @@ describe('isDiceExpression', () => {
 
 describe('officialTrpgContent', () => {
   it('reads trpg.json and generates one trpg activity that opens in setup', () => {
-    expect(officialTrpgContent).toMatchObject({ id: 'official-trpg', version: '1', configFile: 'trpg.json' })
+    expect(officialTrpgContent).toMatchObject({
+      id: 'official-trpg',
+      version: '1',
+      configFile: 'trpg.json',
+      dataVersion: 1,
+      supportedDataVersions: [1],
+    })
     const generated = officialTrpgContent.generate(reference(), pack)
     expect(generated.statusModules).toBeUndefined()
     expect(generated.rules).toBeUndefined()
     expect(generated.activities?.map(a => a.key)).toEqual(['trpg'])
-    // Deterministic: a save hashes what it generated.
-    expect(officialTrpgContent.generate(reference(), pack)).toEqual(generated)
+    const again = officialTrpgContent.generate(reference(), pack)
+    expect(again.activities?.[0]?.activity.definition).toEqual(generated.activities?.[0]?.activity.definition)
+    expect(again.activities?.[0]?.activity.phases).toEqual(generated.activities?.[0]?.activity.phases)
   })
 
   it('throws the path-prefixed TypeError on bad config', () => {

@@ -2,14 +2,14 @@ import type {
   ActionAffordance,
   RulebookResolution as RuleResolution,
   RulebookResolutionContext as RuleContext,
-} from '@harness-world/kernel'
+} from '@harness-world/contracts'
 import type { SeamProvider } from './world.ts'
 
 export type {
   ActionAffordance,
   RulebookResolution as RuleResolution,
   RulebookResolutionContext as RuleContext,
-} from '@harness-world/kernel'
+} from '@harness-world/contracts'
 type AffordanceContext = Omit<RuleContext, 'action' | 'actionId'>
 
 /** One layer of rules around the official ones. It sees speech, moves and core interactions by players and

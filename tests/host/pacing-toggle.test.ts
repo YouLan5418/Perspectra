@@ -40,6 +40,7 @@ function pack(pacing = true): string {
   const file = join(packPath, 'worldpack.source.json'),
     manifest = JSON.parse(readFileSync(file, 'utf8'))
   manifest.assetFiles = pacing ? ['scripts/status.js', 'scripts/pacing.js'] : ['scripts/status.js']
+  manifest.plugins = { 'pack-scripts': {}, ...(pacing ? { 'official-pacing': {} } : {}) }
   writeFileSync(file, JSON.stringify(manifest))
   return packPath
 }
@@ -76,8 +77,8 @@ async function open(packPath: string, dataDirectory = fresh()) {
       frontendActionRequest({
         requestId: 'request:' + ++id,
         actionId: 'action:' + id,
-        operation: 'setPacing',
-        payload: { enabled },
+        operation: 'setPluginControl',
+        payload: { id: 'runtime:pacing', value: enabled },
       }),
     )
   return { runtime, dataDirectory, beats, setPacing, close }
@@ -85,10 +86,12 @@ async function open(packPath: string, dataDirectory = fresh()) {
 
 it('lets the player switch pacing off and on during play', async () => {
   const f = await open(pack())
-  expect(projectPlayerView(await f.runtime.state()).pacing).toEqual({ enabled: true })
+  expect(
+    projectPlayerView(await f.runtime.state()).pluginControls?.find(control => control.id === 'runtime:pacing')?.value,
+  ).toBe(true)
   await f.runtime.submit('你好。')
   expect(f.beats()).toBe(1)
-  expect((await f.setPacing(false)).pacing).toEqual({ enabled: false })
+  expect((await f.setPacing(false)).pluginControls?.find(control => control.id === 'runtime:pacing')?.value).toBe(false)
   await f.runtime.submit('还在吗？')
   expect(f.beats()).toBe(1)
   await f.setPacing(true)
@@ -102,7 +105,10 @@ it('remembers the choice when the world is opened again', async () => {
   await f.setPacing(false)
   await f.close()
   const again = await open(packPath, f.dataDirectory)
-  expect(projectPlayerView(await again.runtime.state()).pacing).toEqual({ enabled: false })
+  expect(
+    projectPlayerView(await again.runtime.state()).pluginControls?.find(control => control.id === 'runtime:pacing')
+      ?.value,
+  ).toBe(false)
   await again.runtime.submit('你好。')
   expect(again.beats()).toBe(0)
 })
@@ -115,21 +121,25 @@ it('regenerates a round with the choice that round was played with', async () =>
   await f.runtime.regenerate(state.tailRound!.id!, 'pacing-toggle-regeneration')
   expect(f.beats()).toBe(0)
   // The player's present choice still holds for the next round.
-  expect(projectPlayerView(await f.runtime.state()).pacing).toEqual({ enabled: true })
+  expect(
+    projectPlayerView(await f.runtime.state()).pluginControls?.find(control => control.id === 'runtime:pacing')?.value,
+  ).toBe(true)
   await f.runtime.submit('然后呢？')
   expect(f.beats()).toBe(1)
 })
 
 it('offers no switch in a world without pacing, and refuses one', async () => {
   const f = await open(pack(false))
-  expect(projectPlayerView(await f.runtime.state()).pacing).toBeUndefined()
-  await expect(f.setPacing(false)).rejects.toThrow('剧情节奏')
+  expect(
+    projectPlayerView(await f.runtime.state()).pluginControls?.find(control => control.id === 'runtime:pacing'),
+  ).toBeUndefined()
+  await expect(f.setPacing(false)).rejects.toThrow('不可用')
 })
 
 it('accepts only a plain on or off', () => {
   const request = (payload: unknown) =>
-    frontendActionRequest({ requestId: 'request:1', actionId: 'action:1', operation: 'setPacing', payload })
-  expect(request({ enabled: false }).payload).toEqual({ enabled: false })
-  expect(() => request({ enabled: 'no' })).toThrow()
-  expect(() => request({ enabled: true, extra: 1 })).toThrow()
+    frontendActionRequest({ requestId: 'request:1', actionId: 'action:1', operation: 'setPluginControl', payload })
+  expect(request({ id: 'runtime:pacing', value: false }).payload).toEqual({ id: 'runtime:pacing', value: false })
+  expect(() => request({ id: 'runtime:pacing', value: 1 })).toThrow()
+  expect(() => request({ id: 'runtime:pacing', value: true, extra: 1 })).toThrow()
 })

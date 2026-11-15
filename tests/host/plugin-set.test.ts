@@ -108,19 +108,16 @@ it('notices a new version of the same plugin', () => {
   expect(pluginSetChanges(undefined, before)).toEqual([])
 })
 
-it('treats a damaged record as no record', async () => {
+it('refuses a damaged compatibility record without replacing it', async () => {
   const root = newRoot()
   const models = await serve()
   await open(root, models, { memory: memory('my-memory') })
   await shut()
   writeFileSync(join(root, 'plugin-set.json'), '{not json')
-  const reopened = await open(root, models, { memory: memory('other-memory') })
-  expect((await reopened.state()).notice).not.toContain('长期记忆')
-  expect(record(root).seams.memory[0].id).toBe('other-memory')
-  await shut()
+  await expect(open(root, models, { memory: memory('other-memory') })).rejects.toThrow('插件数据兼容记录损坏')
+  expect(readFileSync(join(root, 'plugin-set.json'), 'utf8')).toBe('{not json')
   writeFileSync(join(root, 'plugin-set.json'), JSON.stringify({ seams: { memory: 'wrong' } }))
-  const again = await open(root, models, { memory: memory('third-memory') })
-  expect((await again.state()).notice).not.toContain('长期记忆')
+  await expect(open(root, models, { memory: memory('third-memory') })).rejects.toThrow('插件数据兼容记录损坏')
 })
 
 it('leaves the record alone for a regeneration candidate', async () => {

@@ -31,6 +31,7 @@ import type {
   MemoryInstance,
   RulesInstance,
   SchedulerInstance,
+  WakeupInstance,
   SeamProvider,
 } from '@harness-world/plugin-sdk'
 
@@ -71,6 +72,8 @@ export function assembleCoreMemory(
 
 /** The implementation in force for each replaceable seam. */
 export interface HostSeams {
+  /** Installed, permitted native gameplay metadata for explicit pack selection. */
+  readonly packPlugins?: readonly import('@harness-world/world-pack').PackPluginDescriptor[]
   readonly knowledge?: SeamProvider<KnowledgeInstance>
   readonly status?: SeamProvider<StatusInstance>
   readonly activities?: SeamProvider<ActivitiesInstance>
@@ -80,6 +83,8 @@ export interface HostSeams {
   /** Rolls an activity's dice from the round's recorded draws. */
   readonly dice?: SeamProvider<DiceInstance>
   readonly scheduler: SeamProvider<SchedulerInstance>
+  /** Additive pure wakeup sources registered through `ctx.scheduler.registerWakeup`. */
+  readonly wakeups?: readonly SeamProvider<WakeupInstance>[]
   readonly characterLoop?: SeamProvider<CharacterLoopInstance>
   readonly memory?: SeamProvider<MemoryInstance>
   readonly llm?: SeamProvider<LlmInstance>
@@ -91,11 +96,11 @@ export interface HostSeams {
   /** Layers around the official rules; the first is outermost. */
   readonly rules?: readonly SeamProvider<RulesInstance>[]
   /** Generators that turn a pack's config file into status modules, activities and a rules layer, such as the
-   * official RPG for rpg.json. A pack with a config file no generator here reads does not open. */
+   * official RPG for rpg.json. Only explicitly selected gameplay is generated; missing selected implementations fail closed. */
   readonly content?: readonly ContentGenerator[]
 }
 
-/** The official content generators; a pack opts into the RPG with rpg.json and into TRPG with trpg.json. */
+/** Installed content generators; the pack selects their IDs in its plugins manifest. */
 export { officialRpgContent, officialTrpgContent }
 
 /** Explicit entry composition. An omitted optional mechanism stays absent in this selection. */
@@ -103,7 +108,6 @@ export interface WorldComposition {
   readonly interactionPackages: readonly InteractionPackageImplementation[]
   readonly mechanisms: HostSeams
   readonly modelChannel?: typeof composeModelChannel
-  readonly fallbackScheduler?: SeamProvider<SchedulerInstance>
 }
 
 /** The standard RP install chosen by desktop/Lens entry points, never by WorldHostCore. */
@@ -112,7 +116,6 @@ export function assembleRoleplay(plugins: Partial<HostSeams> = {}): WorldComposi
     interactionPackages: defaultInteractionPackages(),
     mechanisms: composeWorldSeams(plugins),
     modelChannel: composeModelChannel,
-    fallbackScheduler: officialSchedulerProvider,
   }
 }
 
@@ -153,6 +156,7 @@ export function composeWorldSeams(plugins: Partial<HostSeams> = {}) {
     pacing: plugins.pacing ?? officialPacingProvider,
     dice: plugins.dice ?? officialDiceProvider,
     scheduler: plugins.scheduler ?? officialSchedulerProvider,
+    wakeups: plugins.wakeups ?? [],
     characterLoop: plugins.characterLoop ?? officialCharacterLoopProvider,
     memory: plugins.memory ?? officialMemoryNoneProvider,
     decisions: composeDecisions(plugins.decisions ?? [], plugins.decisionOrder),
@@ -194,3 +198,5 @@ export function composeModelChannel(
 ) {
   return replacement ?? officialLlmProvider(options)
 }
+
+export { GameplayScript } from '@harness-world/official-activities'

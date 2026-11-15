@@ -53,6 +53,7 @@ export function officialLlmProvider(
             options.inspector,
             options.onCall,
             options.onRoleCall,
+            options.onAttempt,
           )
       const portrayal =
         models ??

@@ -5,6 +5,7 @@ import { afterEach, expect, it } from 'vitest'
 import type { PacingInstance, SeamProvider } from '@harness-world/plugin-sdk'
 import { WorldHostRuntime } from '../../desktop/host/world-runtime.ts'
 import { assembleRoleplay, type WorldComposition } from '../../desktop/official-bundle.ts'
+import { PluginFaultError } from '../../desktop/host/plugin-runtime.ts'
 import { fakeModels } from '../support/fake-provider.ts'
 
 const cleanups: (() => Promise<void> | void)[] = []
@@ -42,6 +43,7 @@ function pack(pacing: string | undefined, base = 'rpg-turn-battle', onlyPacing =
       manifest = JSON.parse(readFileSync(file, 'utf8'))
     if (onlyPacing) manifest.assetFiles = []
     manifest.assetFiles.push('scripts/pacing.js')
+    manifest.plugins = { ...manifest.plugins, 'official-pacing': {} }
     writeFileSync(file, JSON.stringify(manifest))
   }
   return { root, path }
@@ -57,9 +59,36 @@ async function open(packPath: string, root: string, composition: WorldCompositio
   cleanups.push(() => runtime.close())
   return runtime
 }
+
+async function expectOfficialPacingFault(
+  start: () => Promise<unknown>,
+  operation: string,
+  invalidResult: boolean,
+): Promise<void> {
+  const failure = await start().then(
+    () => {
+      throw new Error('expected the pacing plugin to block opening')
+    },
+    error => error,
+  )
+  expect(failure).toBeInstanceOf(PluginFaultError)
+  if (!(failure instanceof PluginFaultError)) return
+  expect(failure).toMatchObject({
+    origin: 'plugin',
+    pluginId: 'official-pacing',
+    operation,
+    invalidResult,
+  })
+  expect(failure.message).toBe(
+    invalidResult
+      ? `插件 official-pacing 的 ${operation} 返回了无效结果。`
+      : `插件 official-pacing 的 ${operation} 操作失败。`,
+  )
+}
+
 const seams = (root: string) => JSON.parse(readFileSync(join(root, 'data', 'plugin-set.json'), 'utf8')).seams
 
-it('opens a world without a pacing script and records the selected mechanism', async () => {
+it('opens an empty pacing capability without enabling authored pacing', async () => {
   const { path, root } = pack(undefined)
   await open(path, root)
   expect(seams(root).pacing).toEqual([{ id: 'official-pacing', version: '1.0.0' }])
@@ -102,34 +131,40 @@ it('uses and closes a selected replacement', async () => {
   expect(closed).toBe(true)
 })
 
-const invalid: [string, unknown, string][] = [
-  ['unknown field', { ...good, extra: 1 }, '字段'],
-  ['short cycle', { ...good, cycleRounds: 1 }, 'cycleRounds'],
-  ['chance above one', { ...good, chance: 1.5 }, 'chance'],
-  ['negative cooldown', { ...good, cooldownRounds: { low: -1, medium: 1, high: 1 } }, 'cooldownRounds'],
-  ['unknown intensity', { ...good, activities: { battle: { intensity: 'huge' } } }, 'intensity'],
-  ['max chance below chance', { ...good, stagnation: { ...good.stagnation, maxChance: 0.1 } }, 'maxChance'],
-  ['undeclared activity', { ...good, activities: { nowhere: { intensity: 'low' } } }, 'nowhere'],
+const invalid: [string, unknown, string, boolean][] = [
+  ['unknown field', { ...good, extra: 1 }, 'open', false],
+  ['short cycle', { ...good, cycleRounds: 1 }, 'open', false],
+  ['chance above one', { ...good, chance: 1.5 }, 'open', false],
+  ['negative cooldown', { ...good, cooldownRounds: { low: -1, medium: 1, high: 1 } }, 'open', false],
+  ['unknown intensity', { ...good, activities: { battle: { intensity: 'huge' } } }, 'open', false],
+  ['max chance below chance', { ...good, stagnation: { ...good.stagnation, maxChance: 0.1 } }, 'open', false],
+  ['undeclared activity', { ...good, activities: { nowhere: { intensity: 'low' } } }, 'open:activities', true],
   [
     'undeclared progress status',
     { ...good, stagnation: { ...good.stagnation, progress: { statuses: ['nothing'], activities: [] } } },
-    'nothing',
+    'open:statuses',
+    true,
   ],
   [
     'undeclared progress activity',
     { ...good, stagnation: { ...good.stagnation, progress: { statuses: [], activities: ['nowhere'] } } },
-    'nowhere',
+    'open:activities',
+    true,
   ],
   [
     'beat without an implementation',
     { ...good, beats: { knock: { intensity: 'low' }, rain: { intensity: 'low' } } },
-    'rain',
+    'open',
+    false,
   ],
 ]
-it.each(invalid)('refuses a pacing script with %s, naming it', async (_name, definition, named) => {
-  const { path, root } = pack(script(definition))
-  await expect(open(path, root)).rejects.toThrow(named)
-})
+it.each(invalid)(
+  'refuses a pacing script with %s as a safe plugin fault',
+  async (_name, definition, operation, invalidResult) => {
+    const { path, root } = pack(script(definition))
+    await expectOfficialPacingFault(() => open(path, root), operation, invalidResult)
+  },
+)
 
 it('refuses an implemented beat that was not declared', async () => {
   const { path, root } = pack(
@@ -138,7 +173,7 @@ it('refuses an implemented beat that was not declared', async () => {
       `{ knock: { when: () => [true], apply: () => ({}) }, rain: { when: () => [true], apply: () => ({}) } }`,
     ),
   )
-  await expect(open(path, root)).rejects.toThrow('rain')
+  await expectOfficialPacingFault(() => open(path, root), 'open', false)
 })
 
 it('refuses an activity that has no start condition', async () => {
@@ -151,12 +186,12 @@ it('refuses an activity that has no start condition', async () => {
     manifest = JSON.parse(readFileSync(file, 'utf8'))
   manifest.assetFiles.push('scripts/activities/game.js')
   writeFileSync(file, JSON.stringify(manifest))
-  await expect(open(path, root)).rejects.toThrow('game')
+  await expectOfficialPacingFault(() => open(path, root), 'open:autoStart', true)
 })
 
 it('refuses beats in a world with no status declaration', async () => {
   const { path, root } = pack(script({ ...good, stagnation: undefined, activities: {} }), 'rpg-turn-battle', true)
-  await expect(open(path, root)).rejects.toThrow('需要状态声明')
+  await expectOfficialPacingFault(() => open(path, root), 'open:status', true)
 })
 
 it('allows pacing only activities in a world with no status declaration', async () => {

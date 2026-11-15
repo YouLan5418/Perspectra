@@ -2,65 +2,154 @@ import type {
   ActivitiesInstance,
   AutonomyInstance,
   CommunicationInstance,
+  DiceInstance,
   PacingCandidate,
   PacingInstance,
   StatusInstance,
 } from '@harness-world/plugin-sdk'
+import {
+  validateCommunicationCandidate,
+  validateCommunicationOption,
+  parseCommunicationRequest,
+} from '@harness-world/application'
+import {
+  callPluginForValue,
+  hostCapability,
+  invalidPluginResult,
+  isPluginFault,
+  type PluginCallContext,
+} from './plugin-runtime.ts'
 
-/** Names the failing mechanism and keeps the error class: a TypeError or RangeError refuses this one request and
- * reaches the player with its message, anything else is an internal failure. */
-export function mechanismFailure(label: string, cause: unknown): Error {
-  const message = `${label} 执行失败：${cause instanceof Error ? cause.message : String(cause)}`
-  if (cause instanceof TypeError) return new TypeError(message, { cause })
-  if (cause instanceof RangeError) return new RangeError(message, { cause })
-  return new Error(message, { cause })
-}
-
-/** Native mechanisms are trusted, but computation receives copies rather than host-owned objects. */
-function computationGuard(id: string, report: (id: string, actorId: string, error: unknown) => void) {
-  return <A extends unknown[], R>(work: (...args: A) => R) =>
-    (...args: A): R => {
-      try {
-        return structuredClone(work(...structuredClone(args)))
-      } catch (cause) {
-        report(id, 'gameplay', cause)
-        throw mechanismFailure(`机制 ${id}`, cause)
-      }
-    }
+function mechanismValue<T>(
+  context: PluginCallContext,
+  id: string,
+  operation: string,
+  actorId: string,
+  report: (id: string, actorId: string, error: unknown) => void,
+  work: () => T,
+): T {
+  try {
+    return callPluginForValue(context, id, operation, work)
+  } catch (error) {
+    if (isPluginFault(error)) report(id, actorId, error)
+    throw error
+  }
 }
 function instruction(value: unknown): string {
   if (typeof value !== 'string' || value.length > 4000) throw new TypeError('机制指引必须是有限文本')
   return value
 }
+
+export function guardedDice(instance: DiceInstance, id: string, context: PluginCallContext): DiceInstance {
+  if (typeof instance.roll !== 'function') throw invalidPluginResult(context, id, 'open:roll')
+  return {
+    roll: (expression, random) =>
+      callPluginForValue(context, id, 'roll', () => {
+        const result = instance.roll(expression, hostCapability(context, random))
+        if (
+          !result ||
+          typeof result.expression !== 'string' ||
+          !Array.isArray(result.dice) ||
+          result.dice.some(face => typeof face !== 'number' || !Number.isFinite(face)) ||
+          !Number.isFinite(result.modifier) ||
+          !Number.isFinite(result.total)
+        )
+          throw invalidPluginResult(context, id, 'roll')
+        return result
+      }),
+  }
+}
 export function guardedCommunication(
   instance: CommunicationInstance,
   hasSource: boolean,
   id: string,
+  context: PluginCallContext,
   report: (id: string, actorId: string, error: unknown) => void,
 ): CommunicationInstance {
   for (const method of ['parameters', 'options', 'prepare', 'describeDelivery'] as const)
-    if (typeof instance[method] !== 'function') throw new TypeError('communication requires ' + method)
-  if ((instance.definition !== undefined) !== hasSource) throw new TypeError('通信机制必须匹配声明的配置')
-  const wrap = computationGuard(id, report),
-    describe = wrap(instance.describeDelivery.bind(instance))
+    if (typeof instance[method] !== 'function') throw invalidPluginResult(context, id, `open:${method}`)
+  if (instance.contacts !== undefined && typeof instance.contacts !== 'function')
+    throw invalidPluginResult(context, id, 'open:contacts')
+  if ((instance.definition !== undefined) !== hasSource) throw invalidPluginResult(context, id, 'open:definition')
+  let instructionText: string
+  try {
+    instructionText = instruction(instance.instruction)
+  } catch {
+    throw invalidPluginResult(context, id, 'open:instruction')
+  }
   return {
     definition: structuredClone(instance.definition),
-    instruction: instruction(instance.instruction),
-    parameters: wrap(instance.parameters.bind(instance)),
-    options: wrap(instance.options.bind(instance)),
-    prepare: wrap(instance.prepare.bind(instance)),
-    describeDelivery: status => {
-      const value = describe(status)
-      if (typeof value !== 'string' || value.length > 2000) throw new TypeError('通信结果描述无效')
-      return value
-    },
-    ...(instance.close ? { close: () => instance.close!() } : {}),
+    instruction: instructionText,
+    ...(instance.contacts === undefined
+      ? {}
+      : {
+          contacts: (input: Parameters<NonNullable<CommunicationInstance['contacts']>>[0]) =>
+            mechanismValue(context, id, 'contacts', input.actorId, report, () => {
+              const selected = instance.contacts!(structuredClone(input))
+              if (
+                !Array.isArray(selected) ||
+                new Set(selected).size !== selected.length ||
+                selected.some(recipient => !input.recipientIds.includes(recipient))
+              )
+                throw invalidPluginResult(context, id, 'contacts')
+              return [...selected]
+            }),
+        }),
+    parameters: (recipientId, text) =>
+      mechanismValue(context, id, 'parameters', 'gameplay', report, () => {
+        const value = instance.parameters(recipientId, text)
+        const request = parseCommunicationRequest(value, 'interact', Infinity, true)
+        if (!request || request.recipientId !== recipientId || request.text !== text)
+          throw invalidPluginResult(context, id, 'parameters')
+        return value
+      }),
+    options: input =>
+      mechanismValue(context, id, 'options', input.actorId, report, () => {
+        const options = instance.options(structuredClone(input))
+        if (
+          !Array.isArray(options) ||
+          options.some(option => {
+            const target = option?.targetRef
+            return (
+              !target ||
+              typeof target !== 'object' ||
+              Array.isArray(target) ||
+              !input.recipientIds.includes(String((target as import('@harness-world/contracts').WorldJsonObject).id))
+            )
+          })
+        )
+          throw invalidPluginResult(context, id, 'options')
+        for (const option of options) {
+          try {
+            validateCommunicationOption(option, input.publicationCharacters)
+          } catch {
+            throw invalidPluginResult(context, id, 'options')
+          }
+        }
+        return options
+      }),
+    prepare: input =>
+      mechanismValue(context, id, 'prepare', 'gameplay', report, () => {
+        const candidate = instance.prepare(structuredClone(input))
+        try {
+          return validateCommunicationCandidate(candidate, input.publicationCharacters)
+        } catch {
+          throw invalidPluginResult(context, id, 'prepare')
+        }
+      }),
+    describeDelivery: status =>
+      mechanismValue(context, id, 'describeDelivery', 'gameplay', report, () => {
+        const value = instance.describeDelivery(status)
+        if (typeof value !== 'string' || value.length > 2000) throw invalidPluginResult(context, id, 'describeDelivery')
+        return value
+      }),
   }
 }
 export function guardedAutonomy(
   instance: AutonomyInstance,
   hasSource: boolean,
   id: string,
+  context: PluginCallContext,
   report: (id: string, actorId: string, error: unknown) => void,
 ): AutonomyInstance {
   if (
@@ -69,19 +158,34 @@ export function guardedAutonomy(
     typeof instance.due !== 'function' ||
     typeof instance.permits !== 'function'
   )
-    throw new TypeError('自主机制需要合法声明、due 与 permits')
-  const wrap = computationGuard(id, report),
-    permits = wrap(instance.permits.bind(instance))
+    throw invalidPluginResult(context, id, 'open')
+  let instructionText: string
+  try {
+    instructionText = instruction(instance.instruction)
+  } catch {
+    throw invalidPluginResult(context, id, 'open:instruction')
+  }
   return {
     roles: structuredClone(instance.roles),
-    instruction: instruction(instance.instruction),
-    due: wrap(instance.due.bind(instance)),
+    instruction: instructionText,
+    due: input =>
+      mechanismValue(context, id, 'due', 'gameplay', report, () => {
+        const selected = instance.due(structuredClone(input))
+        if (
+          !Array.isArray(selected) ||
+          new Set(selected).size !== selected.length ||
+          selected.some(actor => !instance.roles.some(role => role.characterId === actor))
+        )
+          throw invalidPluginResult(context, id, 'due')
+        return selected
+      }),
     permits: input => {
-      const value = permits(input)
-      if (typeof value !== 'boolean') throw new TypeError('自主许可必须是布尔值')
+      const value = mechanismValue(context, id, 'permits', 'gameplay', report, () =>
+        instance.permits(structuredClone(input)),
+      )
+      if (typeof value !== 'boolean') throw invalidPluginResult(context, id, 'permits')
       return value
     },
-    ...(instance.close ? { close: () => instance.close!() } : {}),
   }
 }
 export function guardedStatus(
@@ -89,32 +193,39 @@ export function guardedStatus(
   hasSource: boolean,
   id: string,
   playerId: string,
+  context: PluginCallContext,
   report: (id: string, actorId: string, error: unknown) => void,
 ): StatusInstance {
   for (const method of ['initialize', 'policy', 'resolve', 'endRound', 'prepareModule'] as const)
-    if (typeof instance[method] !== 'function') throw new TypeError('status requires ' + method)
+    if (typeof instance[method] !== 'function') throw invalidPluginResult(context, id, `open:${method}`)
   if (!Array.isArray(instance.moduleDefinitions) || typeof instance.hasRoundHook !== 'boolean')
-    throw new TypeError('status metadata is invalid')
-  if (hasSource === (instance.definition === undefined))
-    throw new TypeError('status implementation must match the world declared source')
-  const guard = <T>(actorId: string, work: () => T): T => {
-    try {
-      return structuredClone(work())
-    } catch (cause) {
-      report(id, actorId, cause)
-      throw mechanismFailure(`状态机制 ${id}`, cause)
-    }
-  }
+    throw invalidPluginResult(context, id, 'open:metadata')
+  if (hasSource === (instance.definition === undefined)) throw invalidPluginResult(context, id, 'open:definition')
   return {
     definition: structuredClone(instance.definition),
     hasRoundHook: instance.hasRoundHook,
     moduleDefinitions: structuredClone(instance.moduleDefinitions),
-    initialize: ids => guard(playerId, () => instance.initialize(ids)),
-    policy: (known, actorId, place) => guard(actorId, () => instance.policy(known, actorId, place)),
-    resolve: input => guard(input.actorId, () => instance.resolve(input)),
-    endRound: (truth, round) => guard(playerId, () => instance.endRound(truth, round)),
-    prepareModule: (...args) => guard(args[2], () => instance.prepareModule(...args)),
-    ...(instance.close ? { close: () => instance.close!() } : {}),
+    initialize: ids =>
+      mechanismValue(context, id, 'initialize', playerId, report, () => instance.initialize(structuredClone(ids))),
+    policy: (known, actorId, place) =>
+      mechanismValue(context, id, 'policy', actorId, report, () =>
+        instance.policy(structuredClone(known), actorId, structuredClone(place)),
+      ),
+    resolve: input =>
+      mechanismValue(context, id, 'resolve', input.actorId, report, () => instance.resolve(structuredClone(input))),
+    endRound: (truth, round) =>
+      mechanismValue(context, id, 'endRound', playerId, report, () => instance.endRound(structuredClone(truth), round)),
+    prepareModule: (...args) =>
+      mechanismValue(context, id, 'prepareModule', args[2], report, () =>
+        instance.prepareModule(
+          args[0],
+          structuredClone(args[1]),
+          args[2],
+          args[3],
+          structuredClone(args[4]),
+          structuredClone(args[5]),
+        ),
+      ),
   }
 }
 /** Checks what a pacing mechanism claims against what the world actually declares, then copies its inputs and outputs. */
@@ -128,44 +239,48 @@ export function guardedPacing(
     readonly activities: ActivitiesInstance | undefined
     readonly report: (id: string, actorId: string, error: unknown) => void
   },
+  context: PluginCallContext,
 ): PacingInstance {
-  for (const method of ['intensity', 'checks', 'choose', 'apply'] as const)
-    if (typeof instance[method] !== 'function') throw new TypeError('pacing requires ' + method)
   const { id, report, activities } = world
+  for (const method of ['intensity', 'checks', 'choose', 'apply'] as const)
+    if (typeof instance[method] !== 'function') throw invalidPluginResult(context, id, `open:${method}`)
+  if (
+    !Array.isArray(instance.managedActivities) ||
+    !Array.isArray(instance.beats) ||
+    !Array.isArray(instance.progress?.activities) ||
+    !Array.isArray(instance.progress?.statuses)
+  )
+    throw invalidPluginResult(context, id, 'open:metadata')
   if (!world.hasSource && (instance.managedActivities.length || instance.beats.length))
-    throw new TypeError('节奏机制必须匹配世界声明的脚本')
-  if (instance.beats.length && !world.hasStatus) throw new TypeError('写了节拍的世界包需要状态声明')
+    throw invalidPluginResult(context, id, 'open:source')
+  if (instance.beats.length && !world.hasStatus) throw invalidPluginResult(context, id, 'open:status')
   for (const key of [...instance.managedActivities, ...instance.progress.activities]) {
     const entry = activities?.entries.find(row => row.key === key)
-    if (!entry) throw new TypeError('节奏配置列出了未声明的活动：' + key)
+    if (!entry) throw invalidPluginResult(context, id, 'open:activities')
     if (instance.managedActivities.includes(key) && !entry.hasAutoStart)
-      throw new TypeError('节奏管理的活动必须写 autoStart：' + key)
+      throw invalidPluginResult(context, id, 'open:autoStart')
   }
   for (const key of instance.progress.statuses)
-    if (!world.statusKeys.includes(key)) throw new TypeError('节奏配置列出了未声明的状态：' + key)
-  const guard = <T>(work: () => T): T => {
-    try {
-      return structuredClone(work())
-    } catch (cause) {
-      report(id, 'pacing', cause)
-      throw mechanismFailure(`节奏机制 ${id}`, cause)
-    }
-  }
+    if (!world.statusKeys.includes(key)) throw invalidPluginResult(context, id, 'open:statuses')
   return {
     managedActivities: [...instance.managedActivities],
     beats: [...instance.beats],
     progress: structuredClone(instance.progress),
-    intensity: (candidate: PacingCandidate) => guard(() => instance.intensity(candidate)),
-    checks: (beatId, input) => guard(() => instance.checks(beatId, structuredClone(input))),
-    choose: input =>
-      guard(() =>
-        instance.choose({
-          candidates: structuredClone(input.candidates),
-          history: structuredClone(input.history),
-          random: input.random,
-        }),
+    intensity: (candidate: PacingCandidate) =>
+      mechanismValue(context, id, 'intensity', 'pacing', report, () => instance.intensity(structuredClone(candidate))),
+    checks: (beatId, input) =>
+      mechanismValue(context, id, 'checks', 'pacing', report, () => instance.checks(beatId, structuredClone(input))),
+    choose: input => {
+      const candidates = structuredClone(input.candidates),
+        history = structuredClone(input.history),
+        random = hostCapability(context, input.random)
+      return mechanismValue(context, id, 'choose', 'pacing', report, () =>
+        instance.choose({ candidates, history, random }),
+      )
+    },
+    apply: (beatId, input, random) =>
+      mechanismValue(context, id, 'apply', 'pacing', report, () =>
+        instance.apply(beatId, structuredClone(input), hostCapability(context, random)),
       ),
-    apply: (beatId, input, random) => guard(() => instance.apply(beatId, structuredClone(input), random)),
-    ...(instance.close ? { close: () => instance.close!() } : {}),
   }
 }

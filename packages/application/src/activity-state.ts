@@ -71,7 +71,16 @@ export class ActivityStateRules {
     rawDefinition: unknown,
     readonly playerId: string,
     readonly key: string,
+    readonly phases?: readonly string[],
   ) {
+    if (
+      phases !== undefined &&
+      (!Array.isArray(phases) ||
+        phases.length === 0 ||
+        phases.some(phase => typeof phase !== 'string' || !phase.trim()) ||
+        new Set(phases).size !== phases.length)
+    )
+      throw new TypeError('活动阶段声明无效：' + key)
     const definition = object(structuredClone(rawDefinition))
     exact(definition, [
       'title',
@@ -148,6 +157,8 @@ export class ActivityStateRules {
   }
   game(value: unknown, participants: string[]): Game {
     const game = object(value)
+    if (this.phases && game.phase !== 'host-aborted' && !this.phases.includes(String(game.phase)))
+      throw new TypeError('活动 ' + this.key + ' 存档含未声明的阶段：' + String(game.phase))
     exact(game, ['active', 'phase', 'turn', 'round', 'public', 'private', 'internal'])
     if (
       typeof game.active !== 'boolean' ||

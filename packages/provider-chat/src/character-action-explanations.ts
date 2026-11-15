@@ -38,7 +38,9 @@ export function characterActionExplanations(context: WorldJsonObject): WorldJson
             ? option.label + (target.kind === 'entity' && !option.label.includes(label) ? `：${label}` : '')
             : `请求交互 ${definition.id}（${target.id}）`
         const description =
-          '请求已有定义所声明的交互，具体效果以该定义与随后返回的裁定结果为准；如有参数契约，仍须填写其要求的内容。'
+          typeof option.whenToUse === 'string'
+            ? option.whenToUse + ' 具体效果以正式裁定结果为准。'
+            : '请求已有定义所声明的交互，具体效果以该定义与随后返回的裁定结果为准；如有参数契约，仍须填写其要求的内容。'
         options.push({
           meaning,
           description,

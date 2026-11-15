@@ -1,14 +1,47 @@
-import type { WorldJsonObject, WorldJsonValue } from '@harness-world/contracts'
+import type { ActivityState, StatusTruth, WorldJsonObject, WorldJsonValue } from '@harness-world/contracts'
 import type { MemoryRequest } from './memory.ts'
 import type { DiceRoll } from './dice.ts'
 import type { SeamProvider } from './world.ts'
 
+/** 原生 TypeScript 活动定义与钩子；受控随机源与骰子由核心按调用作用域注入。 */
+export interface ActivityHooks {
+  readonly definition: WorldJsonObject
+  /** 持久状态中允许出现的阶段名列表，读档数据兼容校验按此核对。 */
+  readonly phases?: readonly string[]
+  initialize(input: WorldJsonObject, random: () => number): WorldJsonObject
+  policy(scoped: WorldJsonObject, actorId: string): WorldJsonObject
+  resolve(
+    state: ActivityState,
+    actorId: string,
+    operation: string,
+    parameters: WorldJsonObject,
+    world: WorldJsonObject,
+    truth: StatusTruth | null,
+    roll?: (expression: string) => DiceRoll,
+  ): WorldJsonObject
+  onPublished?(state: ActivityState, actorId: string, publication: WorldJsonValue | null): WorldJsonObject | null
+  resume?(scoped: WorldJsonObject, world: WorldJsonObject): WorldJsonObject | null
+  autoStart?(
+    truth: StatusTruth | null,
+    world: WorldJsonObject,
+    previous: WorldJsonObject | null,
+  ): WorldJsonObject | null
+  simulate?(request: MemoryRequest): WorldJsonObject | null
+  schedule(state: ActivityState): WorldJsonObject
+  onOutcome(result: WorldJsonObject, state: ActivityState): WorldJsonObject
+}
+
+export type ActivitySourceEntry =
+  | { readonly key: string; readonly entry: string; readonly source: string }
+  | { readonly key: string; readonly activity: ActivityHooks }
+
 export interface ActivitySource {
-  readonly entries: readonly { readonly key: string; readonly entry: string; readonly source: string }[]
+  readonly entries: readonly ActivitySourceEntry[]
 }
 /** Data computation only. Scoped policy/simulation inputs and trusted adjudication inputs stay distinct. */
 export interface ActivityInstance {
   readonly key: string
+  readonly phases?: readonly string[]
   readonly definition: unknown
   readonly hasAutoStart: boolean
   hasResume(): boolean
@@ -19,29 +52,21 @@ export interface ActivityInstance {
   /** `roll` draws from the core's round record through `ctx.dice` and expires when this synchronous call returns;
    * an invalid expression throws a TypeError and nothing commits. */
   resolve(
-    state: import('@harness-world/contracts').ActivityState,
+    state: ActivityState,
     actorId: string,
     operation: string,
     parameters: WorldJsonObject,
     world: WorldJsonObject,
-    truth: import('@harness-world/contracts').StatusTruth | null,
+    truth: StatusTruth | null,
     roll?: (expression: string) => DiceRoll,
   ): unknown
-  published(
-    state: import('@harness-world/contracts').ActivityState,
-    actorId: string,
-    publication: WorldJsonValue | null,
-  ): unknown
+  published(state: ActivityState, actorId: string, publication: WorldJsonValue | null): unknown
   resume(scoped: WorldJsonObject, world: WorldJsonObject): unknown
-  autoStart(
-    truth: import('@harness-world/contracts').StatusTruth | null,
-    world: WorldJsonObject,
-    previous: WorldJsonObject | null,
-  ): unknown
+  autoStart(truth: StatusTruth | null, world: WorldJsonObject, previous: WorldJsonObject | null): unknown
   simulate(request: MemoryRequest): unknown
   /** Trusted rule input includes internal state. The core validates the proposed participant activation. */
-  schedule(state: import('@harness-world/contracts').ActivityState): unknown
-  outcome(result: WorldJsonObject, state: import('@harness-world/contracts').ActivityState): unknown
+  schedule(state: ActivityState): unknown
+  outcome(result: WorldJsonObject, state: ActivityState): unknown
 }
 export interface ActivitiesInstance {
   readonly entries: readonly ActivityInstance[]

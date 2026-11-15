@@ -8,6 +8,8 @@
 
 | 内容 | 维护位置 | 更新触发 |
 | --- | --- | --- |
+| 已确认架构与当前差距 | composable-engine.md、plugin-standard.md | 设计语义或真实接通范围变化 |
+| 分批施工与验收证据 | docs/superpowers/plans/2026-11-11-composable-engine-refactor.md | 批次开始、完成或技术依赖调整 |
 | 初学者概念与例子 | getting-started.md | 产品流程或术语发生变化 |
 | 目录与模块职责 | modules.md | 新增、删除、合并包或改变职责 |
 | 实际入口与调用路线 | code-walkthrough.md、runtime.md | 入口、循环或提交流程变化 |

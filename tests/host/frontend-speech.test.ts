@@ -155,7 +155,7 @@ it('serves a dynamically loaded Cordis plugin through the same authorization bou
       }));
     }`,
   )
-  const session = await loadHostPlugins([{ id: 'tts', path, enabled: true }])
+  const session = await loadHostPlugins([{ id: 'tts', path, enabled: true, nativeAllowed: true }])
   try {
     const { url, send, submit } = await fixture(session.services)
     expect((await send({ ...paragraph, text: 'PRIVATE_DEBUG' })).status).toBe(400)

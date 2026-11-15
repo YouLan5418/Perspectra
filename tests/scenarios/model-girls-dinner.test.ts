@@ -65,7 +65,8 @@ it('advances the clock in one click, narrates the time and closes it so characte
     narration: '过了 5 分钟，墙上的钟指向 16:05。离晚饭还有 115 分钟。',
   })
   // The provider is unreachable, so the first autonomous role fails; reaching it proves the wait triggered autonomy.
-  expect(((state.debug.autonomy as WorldJsonObject).activations as unknown[]).length).toBeGreaterThan(0)
+  expect(state.debug.execution).toMatchObject({ status: 'failed' })
+  expect(Number((state.debug.execution as WorldJsonObject).usedActivations)).toBeGreaterThan(0)
   await f.act('等 20 分钟')
   expect((await f.runtime.state()).activity?.game).toMatchObject({ active: false, public: { 时间: '16:25' } })
   // A management start and a counted operation, so each wait still triggers the declared autonomy.

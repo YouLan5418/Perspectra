@@ -1,3 +1,4 @@
+import { isPluginFault, PluginFaultError } from '@harness-world/runtime-cordis'
 import { parseManifestationProposal } from '@harness-world/agents'
 import {
   assertProtocolString,
@@ -10,6 +11,7 @@ import {
   resolutionAuthority,
   type ActionGroupBinding,
   type ActionRequest,
+  type BusinessRejection,
   type CharacterId,
   type FaultInjector,
   type InteractionRoundId,
@@ -63,6 +65,7 @@ export interface RoundExecutionLane {
 export interface PlayerRoundResult extends WorldJsonObject {
   readonly status: 'accepted' | 'rejected'
   readonly reason: string | null
+  readonly rejection?: BusinessRejection
   readonly headSeq: number
   readonly tick: number
   readonly bundleHash: WorldHash
@@ -74,12 +77,28 @@ export function parsePlayerRoundResult(value: WorldJsonValue): PlayerRoundResult
     throw new TypeError('completed Round result must be an object')
   const result = value as Record<string, WorldJsonValue>
   const keys = Object.keys(result).sort(compareWorldText)
-  if (keys.join(',') !== 'bundleHash,headSeq,reason,status,tick')
+  if (keys.filter(key => key !== 'rejection').join(',') !== 'bundleHash,headSeq,reason,status,tick')
     throw new TypeError('completed Round result has an invalid shape')
   if (result.status !== 'accepted' && result.status !== 'rejected')
     throw new TypeError('completed Round status is invalid')
   if (result.reason !== null && typeof result.reason !== 'string')
     throw new TypeError('completed Round reason is invalid')
+  if (result.rejection !== undefined) {
+    const value = result.rejection
+    if (!value || typeof value !== 'object' || Array.isArray(value))
+      throw new TypeError('completed Round rejection is invalid')
+    const rejection = value as WorldJsonObject
+    if (
+      result.status !== 'rejected' ||
+      Object.keys(rejection).some(key => !['code', 'message', 'details'].includes(key)) ||
+      typeof rejection.code !== 'string' ||
+      typeof rejection.message !== 'string' ||
+      (rejection.details !== undefined &&
+        (!rejection.details || typeof rejection.details !== 'object' || Array.isArray(rejection.details)))
+    )
+      throw new TypeError('completed Round rejection is invalid')
+    canonicalizeWorldJson(rejection)
+  }
   if (!Number.isSafeInteger(result.headSeq) || (result.headSeq as number) < 0)
     throw new TypeError('completed Round headSeq is invalid')
   if (!Number.isSafeInteger(result.tick) || (result.tick as number) < 0)
@@ -236,6 +255,13 @@ export class RoundCoordinator {
     if (this.#closed) return Promise.reject(new Error('RoundCoordinator is closed'))
     const queued = this.#enqueue(request)
     return this.options.runtimeLane.enqueueRound(async () => {
+      const prior = this.options.inbox.readStatus(this.#address, { idempotencyKey: request.idempotencyKey })
+      if (prior?.status === 'failed') {
+        const fault = prior.result as WorldJsonObject
+        if (typeof fault.pluginId !== 'string' || typeof fault.operation !== 'string')
+          throw new TypeError('failed round diagnostic is malformed')
+        throw new PluginFaultError(fault.pluginId, fault.operation, fault.invalidResult === true)
+      }
       const completed = this.options.inbox.readCompleted(this.#address, request.idempotencyKey)
       if (completed !== undefined) return parsePlayerRoundResult(completed)
       return this.#drainUntil(queued.inboxSeq, request.correlationId)
@@ -347,7 +373,28 @@ export class RoundCoordinator {
   }
 
   async #commitAndComplete(claimed: ClaimedRound, correlationId: string): Promise<CommittedAcceptedRound> {
-    const committed = await this.#commitClaimed(claimed, correlationId)
+    let committed: CommittedAcceptedRound
+    try {
+      committed = await this.#commitClaimed(claimed, correlationId)
+    } catch (error) {
+      if (isPluginFault(error)) {
+        this.#renewLease()
+        this.options.inbox.failClaimed(
+          this.#address,
+          claimed.inboxSeq,
+          this.options.ownerId,
+          this.#lease.fencingToken,
+          {
+            status: 'failed',
+            origin: error.origin,
+            pluginId: error.pluginId,
+            operation: error.operation,
+            invalidResult: error.invalidResult,
+          },
+        )
+      }
+      throw error
+    }
     this.#renewLease()
     this.options.inbox.complete(
       this.#address,
@@ -796,6 +843,7 @@ export class RoundCoordinator {
           order: ordinal,
           accepted: resolution.status === 'accepted',
           reason: resolution.reason ?? null,
+          ...(resolution.rejection === undefined ? {} : { rejection: resolution.rejection }),
           ...(manifestationResolution === undefined ? {} : { manifestationStatus: manifestationResolution.status }),
         },
       })
@@ -952,6 +1000,7 @@ export class RoundCoordinator {
       result: {
         status: playerResolution!.status,
         reason: playerResolution!.reason ?? null,
+        ...(playerResolution!.rejection === undefined ? {} : { rejection: playerResolution!.rejection }),
         headSeq: commit.headSeq,
         tick: commit.tick,
         bundleHash: commit.bundleHash,
@@ -1048,6 +1097,7 @@ export class RoundCoordinator {
     return parsePlayerRoundResult({
       status: resolution.accepted ? 'accepted' : 'rejected',
       reason: resolution.reason,
+      ...(resolution.rejection === undefined ? {} : { rejection: resolution.rejection }),
       headSeq: committed.headSeq,
       tick: committed.tick,
       bundleHash: committed.bundleHash,

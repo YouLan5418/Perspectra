@@ -1,3 +1,4 @@
+import { PLAYER_VIEW_PATCH_FIELDS } from '@harness-world/frontend'
 import { stagePreferences, createParticipantPicker, PARTICIPANT_PICKER_STYLE } from '@harness-world/frontend'
 
 /** Host-owned outer page. Creator presentation lives in the child frame. */
@@ -182,7 +183,7 @@ iframe{
     const candidateChanged=playerView.tailRound?.id&&playerView.tailRound.id===next.tailRound?.id&&selected(playerView.tailRound)!==selected(next.tailRound);
     if(init?.frontend==='default'&&candidateChanged){readingPending=true;shownActivity=next.activity?{title:next.activity.title,game:{active:next.activity.active,phase:next.activity.phase,public:next.activity.public}}:null;node('game').open=false;panelPresentation()}
 
-    for(const key of ['game','player','scene','status','canInterrupt','responders','expression','actions','tailRound','settings','activity','activities','feedback','statusBar','statusTruth','items'])if(JSON.stringify(playerView[key])!==JSON.stringify(next[key]))changes[key]=next[key];
+    for(const key of ${JSON.stringify(PLAYER_VIEW_PATCH_FIELDS)})if(JSON.stringify(playerView[key])!==JSON.stringify(next[key]))changes[key]=next[key]??null;
     if(JSON.stringify(playerView.history)!==JSON.stringify(next.history)){
       const prefix=playerView.history.length<=next.history.length&&playerView.history.every((line,i)=>JSON.stringify(line)===JSON.stringify(next.history[i]));
       if(prefix)changes.historyAppend=next.history.slice(playerView.history.length);else changes.history=next.history;
@@ -212,7 +213,7 @@ iframe{
           if(!init.canSave||Object.keys(r.payload).join(',')!=='title'||typeof r.payload.title!=='string'||r.payload.title.length>80)throw new Error('保存请求无效');
           const result=await api('/api/story-save',{title:r.payload.title});reply({ok:true,result:result.node});return;
         }
-        const grant={view:'view',history:'history',speak:'speak',perform:'perform',regenerate:'regenerate',selectCandidate:'regenerate',cancelRegeneration:'regenerate',setPacing:'perform',resource:'resources',synthesizeSpeech:'speech',selectBgm:'bgm',getBgmAudio:'bgm'}[r.method];
+        const grant={view:'view',history:'history',speak:'speak',perform:'perform',regenerate:'regenerate',selectCandidate:'regenerate',cancelRegeneration:'regenerate',setPluginControl:'perform',resource:'resources',synthesizeSpeech:'speech',selectBgm:'bgm',getBgmAudio:'bgm'}[r.method];
         if(!grant||!init.capabilities.includes(grant))throw new Error('前端没有该能力');
         if(['view','history'].includes(r.method)){
           if(Object.keys(r.payload).length)throw new Error('查询不接受额外参数');
@@ -285,7 +286,7 @@ iframe{
           const event=JSON.parse(line.slice(6));
           if(event.type==='frontend-policy'){await mount(true);continue}
           if(event.type==='snapshot'){streamView=event.view;applyView(streamView,init?.capabilities.includes('subscribe'))}
-          if(event.type==='view-patch'&&streamView){const {historyAppend,...fields}=event.changes;streamView={...streamView,...fields};if(historyAppend)streamView.history=[...streamView.history,...historyAppend];applyView(streamView,init?.capabilities.includes('subscribe'))}
+          if(event.type==='view-patch'&&streamView){const {historyAppend,...fields}=event.changes;streamView={...streamView,...fields};for(const [key,value] of Object.entries(fields))if(value===null&&key!=='scene')delete streamView[key];if(historyAppend)streamView.history=[...streamView.history,...historyAppend];applyView(streamView,init?.capabilities.includes('subscribe'))}
         }
       }
     }catch(error){if(error.name!=='AbortError'){post({type:'disconnected'});node('frontend-status').textContent='公开视图连接断开；正在重连';setTimeout(events,1500)}}

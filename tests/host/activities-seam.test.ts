@@ -93,7 +93,7 @@ it('registers an external activities service through Cordis and commits its prop
     path.replace('.mjs', '.plugin.json'),
     JSON.stringify({ id: 'external-activities', name: '活动机制', version: '1.0.0', services: ['activities'] }),
   )
-  const session = await loadHostPlugins([{ id: 'activities', path, enabled: true }])
+  const session = await loadHostPlugins([{ id: 'activities', path, enabled: true, nativeAllowed: true }])
   sessions.push(session)
   expect(session.skipped).toEqual([])
   const f = await start(session.seams.activities!)
@@ -110,7 +110,7 @@ it('rejects a broken selected implementation without using the default', async (
         throw new Error('broken')
       },
     }),
-  ).rejects.toThrow('活动机制 broken 无法打开')
+  ).rejects.toThrow('插件 broken 的 open 操作失败。')
 })
 
 it.each(['owner', 'turn'] as const)('rejects invalid %s proposals before any activity commit', async kind => {
@@ -141,7 +141,7 @@ it('attributes computation failures to the selected provider and keeps the prefi
     }),
   )
   const before = f.events()
-  await expect(f.begin()).rejects.toThrow('活动机制 custom-activities（default）')
+  await expect(f.begin()).rejects.toThrow('插件 custom-activities 的 initialize 操作失败。')
   expect(f.events()).toEqual(before)
 })
 
@@ -259,7 +259,7 @@ it('refuses activities not declared in the world assets', async () => {
         Object.defineProperty(instance.entries[0]!, 'key', { value: 'foreign' })
       }),
     ),
-  ).rejects.toThrow('未知或重复活动标识')
+  ).rejects.toThrow('插件 custom-activities 的 open:entries 返回了无效结果。')
   const source = {
     entries: [
       {
@@ -271,7 +271,7 @@ it('refuses activities not declared in the world assets', async () => {
   }
   await expect(
     start({ id: 'undeclared', version: '1.0.0', open: async () => new ActivitiesScripts(source) }, pack(false)),
-  ).rejects.toThrow('必须匹配世界声明')
+  ).rejects.toThrow('插件 undeclared 的 open:entries 返回了无效结果。')
 })
 
 it('refuses an ineligible automatic-start choice and revokes its random callback', async () => {
@@ -289,7 +289,9 @@ it('refuses an ineligible automatic-start choice and revokes its random callback
     }),
   )
   const result = await f.runtime.submit('继续。')
-  expect(result.debug.autoStartError).toContain('条件未满足')
+  expect(result.error).toBe(true)
+  expect(result.debug.execution).toMatchObject({ status: 'failed' })
+  expect(result.notice).toContain('custom-activities')
   expect(f.events().filter(event => event.eventType === 'activity.updated')).toEqual([])
   expect(() => draw!()).toThrow('random capability has ended')
 })

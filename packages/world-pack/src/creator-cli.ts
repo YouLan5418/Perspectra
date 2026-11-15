@@ -23,7 +23,7 @@ import {
 } from './tooling.ts'
 import type { CompiledWorldPackV5 } from './contracts.ts'
 import { WorldPackContractError } from './diagnostics.ts'
-import { generatePackContent, type PackContentGenerator } from './pack-content.ts'
+import { PackCompositionError, validatePackComposition, type PackPluginDescriptor } from './composition.ts'
 import { worldPackErrorCode } from './schema.ts'
 
 export type WorldPackCliInvocation =
@@ -123,9 +123,28 @@ export interface WorldPackCliOptions {
   readonly interactionPackages?: readonly InteractionPackageDescription[]
   /** Executable install for activate; compile and validate need only the descriptions above. */
   readonly interactionImplementations?: readonly InteractionPackageImplementation[]
-  /** The content generators this Host installs, such as the RPG for rpg.json; validate parses and generates a Pack's
-   * config files with them the way the Host does when it opens the world. Without it config files are not checked. */
-  readonly content?: readonly PackContentGenerator[]
+  /** Installed plugin metadata and pure validators. Missing selected plugins fail closed.
+   * Authoring validation never calls content generators or opens runtime providers. */
+  readonly content?: readonly PackPluginDescriptor[]
+  readonly validateScript?: (source: string, config: WorldJsonObject, pack: CompiledWorldPackV5) => void
+}
+
+export function validatePackAuthoring(
+  pack: CompiledWorldPackV5,
+  read: (file: string) => string,
+  options: WorldPackCliOptions,
+): void {
+  validatePackComposition(pack, options.content ?? [], read)
+  if (pack.scripts?.gameplay) {
+    if (!options.validateScript) throw new TypeError('This entry has no common gameplay script validator')
+    options.validateScript(read(pack.scripts.gameplay.entry), pack.scripts.gameplay.config ?? {}, pack)
+  }
+}
+
+function pendingHostRequirements(pack: CompiledWorldPackV5): WorldJsonObject {
+  return Object.keys(pack.services ?? {}).length
+    ? { runtimeValidation: 'pending-host-selection', requiredServices: { ...pack.services } }
+    : {}
 }
 
 /** Execute one local creator command and return one canonical JSON line. */
@@ -148,10 +167,11 @@ export async function executeWorldPackCli(args: readonly string[], options: Worl
   if (invocation.command === 'validate') {
     const pack = await compileWorldPackSource(invocation.sourceDirectory, options.interactionPackages)
     const source = invocation.sourceDirectory
-    if (options.content) generatePackContent(pack, options.content, file => readFileSync(join(source, file), 'utf8'))
+    validatePackAuthoring(pack, file => readFileSync(join(source, file), 'utf8'), options)
     return output({
       command: 'validate',
       status: 'valid',
+      ...pendingHostRequirements(pack),
       packId: pack.packId,
       packVersion: pack.packVersion,
       packHash: pack.packHash,
@@ -159,12 +179,14 @@ export async function executeWorldPackCli(args: readonly string[], options: Worl
   }
   if (invocation.command === 'compile') {
     const pack = await compileWorldPackSource(invocation.sourceDirectory, options.interactionPackages)
+    validatePackAuthoring(pack, file => readFileSync(join(invocation.sourceDirectory, file), 'utf8'), options)
     const outputPath = resolve(invocation.outputPath)
     await mkdir(dirname(outputPath), { recursive: true })
     await writeFile(outputPath, canonicalCompiledWorldPackBytes(pack))
     return output({
       command: 'compile',
       status: 'compiled',
+      ...pendingHostRequirements(pack),
       outputPath,
       packId: pack.packId,
       packVersion: pack.packVersion,
@@ -179,8 +201,11 @@ export async function executeWorldPackCli(args: readonly string[], options: Worl
     })
   }
   if (invocation.command === 'test') {
+    const pack = await compileWorldPackSource(invocation.sourceDirectory, options.interactionPackages)
+    validatePackAuthoring(pack, file => readFileSync(join(invocation.sourceDirectory, file), 'utf8'), options)
     return output({
       command: 'test',
+      ...pendingHostRequirements(pack),
       report: await new WorldPackTestRunner().run(invocation.sourceDirectory, options.interactionPackages),
     })
   }
@@ -215,7 +240,9 @@ export function worldPackCliErrorEnvelope(error: unknown, args: readonly string[
   return createErrorEnvelope({
     errorCode: 'INVALID_REQUEST',
     category: 'admission',
-    message: error instanceof TypeError ? error.message : 'worldpack command failed',
+    message:
+      error instanceof TypeError || error instanceof PackCompositionError ? error.message : 'worldpack command failed',
+    ...(error instanceof PackCompositionError ? { details: { compositionCode: error.code } } : {}),
     retryable: false,
     correlationId,
   })

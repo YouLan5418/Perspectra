@@ -80,11 +80,20 @@ it('strictly parses durable completed Round results', () => {
     bundleHash: `sha256:${'a'.repeat(64)}`,
   } as const
   expect(parsePlayerRoundResult(valid)).toEqual(valid)
+  const rejected = {
+    ...valid,
+    status: 'rejected',
+    rejection: { code: 'LOCKED', message: '等待。', details: { why: 'locked' } },
+  }
+  expect(parsePlayerRoundResult(rejected)).toEqual(rejected)
   for (const invalid of [
     null,
     [],
     'result',
     { ...valid, extra: true },
+    { ...valid, rejection: rejected.rejection },
+    { ...rejected, rejection: { message: 'missing code' } },
+    { ...rejected, rejection: { ...rejected.rejection, details: [] } },
     { ...valid, status: 'committed' },
     { ...valid, reason: 1 },
     { ...valid, headSeq: 1.5 },

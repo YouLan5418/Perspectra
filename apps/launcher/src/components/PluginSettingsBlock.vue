@@ -22,18 +22,24 @@ const SERVICE_LABELS: Record<PluginManifest['services'][number], string> = {
   communication: '替换通信规则',
   autonomy: '替换自主配置与策略',
   pacing: '替换剧情节奏与节拍',
+  dice: '替换骰子与随机裁定',
   characterLoop: '替换角色执行循环',
   memory: '替换角色记忆',
   llm: '替换角色模型通道（对话会发给插件指定的服务）',
   decisions: '参与角色决策',
   rules: '增加世界规则',
+  content: '提供内容生成与配置文件读取',
 }
 
 const info = ref<PluginManifestInfo>()
 let timer: ReturnType<typeof setTimeout> | undefined
 watch(
   () => props.plugin.path,
-  path => {
+  (path, oldPath) => {
+    if (oldPath !== undefined && path !== oldPath) {
+      props.plugin.nativeAllowed = false
+      props.plugin.enabled = false
+    }
     clearTimeout(timer)
     info.value = undefined
     if (!/^(?:[a-z]:[\\/]|\/|\\\\)/i.test(path.trim()) || !/\.(?:mjs|js)$/i.test(path.trim())) return
@@ -84,6 +90,14 @@ function setSecret(name: string, next: string) {
 }
 function secretStored(name: string) {
   return store.pluginSecretsStored[props.plugin.id]?.includes(name) ?? false
+}
+function setNativeAllowed(checked: boolean) {
+  props.plugin.nativeAllowed = checked
+  if (!checked) props.plugin.enabled = false
+}
+function setEnabled(checked: boolean) {
+  if (checked && props.plugin.nativeAllowed !== true) return
+  props.plugin.enabled = checked
 }
 </script>
 
@@ -195,7 +209,27 @@ function secretStored(name: string) {
       </template>
     </div>
 
-    <label class="checkbox-row"><input v-model="plugin.enabled" type="checkbox" />启动游戏时加载此插件</label>
+    <div class="plugin-run-choices">
+      <label class="checkbox-row"
+        ><input
+          type="checkbox"
+          :checked="plugin.nativeAllowed === true"
+          @change="setNativeAllowed(($event.target as HTMLInputElement).checked)"
+        />允许在本机执行此插件</label
+      >
+      <p class="muted field-help">
+        读取清单、检查配置或选择模块都不会授予这项许可。撤销后，插件不能在下一次启动时加载。
+      </p>
+      <label class="checkbox-row"
+        ><input
+          type="checkbox"
+          :checked="plugin.enabled"
+          :disabled="plugin.nativeAllowed !== true"
+          @change="setEnabled(($event.target as HTMLInputElement).checked)"
+        />启动游戏时加载此插件</label
+      >
+      <p v-if="plugin.nativeAllowed !== true" class="muted field-help">先允许在本机执行，才能选择启动时加载。</p>
+    </div>
     <p v-if="skipped" class="plugin-skipped" role="status">
       上次启动时{{ PLUGIN_SKIP_REASON[skipped.reason] }}，已跳过<span v-if="skipped.detail">：{{ skipped.detail }}</span
       ><span v-else>。请检查插件文件，或取消勾选后重试。</span>
@@ -245,6 +279,15 @@ function secretStored(name: string) {
 .plugin-boolean {
   display: grid;
   gap: 4px;
+}
+.plugin-run-choices {
+  display: grid;
+  gap: 6px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+.plugin-run-choices .checkbox-row:has(input:disabled) {
+  color: var(--muted-foreground);
 }
 .secret-clear {
   justify-self: start;

@@ -801,7 +801,14 @@ it('keeps package play settings separate, restores them and preserves model conn
 
 it('persists host plugin choices without importing modules in Launcher and rejects invalid updates', async () => {
   const core = await service()
-  const hostPlugins = [{ id: 'tts', path: resolve('uninstalled-tts.mjs'), enabled: true }]
+  const hostPlugins = [
+    {
+      id: 'b2-preview-plugin',
+      path: 'D:/preview-only/b2-no-execution.mjs',
+      nativeAllowed: true,
+      enabled: true,
+    },
+  ]
   await core.handle({ operation: 'preferences', theme: 'system', largeText: false, hostPlugins })
   await core.handle({ operation: 'preferences', theme: 'light', largeText: true })
   const restored = new LauncherCore(resolve('.'), core.root)
@@ -819,10 +826,59 @@ it('persists host plugin choices without importing modules in Launcher and rejec
   expect(await readFile(join(core.root, 'launcher.json'), 'utf8')).toBe(before)
 })
 
+it('defaults legacy plugin records to denied and clears consent and enabling when the path changes', async () => {
+  const core = await service()
+  const first = resolve('first-plugin.mjs')
+  const second = resolve('second-plugin.mjs')
+  await core.handle({
+    operation: 'preferences',
+    theme: 'system',
+    largeText: false,
+    hostPlugins: [{ id: 'tts', path: first, enabled: true }],
+  })
+  expect(core.snapshot().preferences.hostPlugins).toEqual([
+    { id: 'tts', path: first, nativeAllowed: false, enabled: true },
+  ])
+
+  await core.handle({
+    operation: 'preferences',
+    theme: 'system',
+    largeText: false,
+    hostPlugins: [{ id: 'tts', path: first, nativeAllowed: true, enabled: true }],
+  })
+  await core.handle({ operation: 'plugin-inspect', path: first })
+  expect(core.snapshot().preferences.hostPlugins).toEqual([
+    { id: 'tts', path: first, nativeAllowed: true, enabled: true },
+  ])
+
+  await core.handle({
+    operation: 'preferences',
+    theme: 'system',
+    largeText: false,
+    hostPlugins: [{ id: 'tts', path: second, nativeAllowed: true, enabled: true }],
+  })
+  const moved = [{ id: 'tts', path: second, nativeAllowed: false, enabled: false }]
+  expect(core.snapshot().preferences.hostPlugins).toEqual(moved)
+  const restored = new LauncherCore(resolve('.'), core.root)
+  await restored.initialize()
+  expect(restored.snapshot().preferences.hostPlugins).toEqual(moved)
+
+  const before = await readFile(join(core.root, 'launcher.json'), 'utf8')
+  await expect(
+    core.handle({
+      operation: 'preferences',
+      theme: 'system',
+      largeText: false,
+      hostPlugins: [{ id: 'tts', path: second, nativeAllowed: 'yes', enabled: true }],
+    }),
+  ).rejects.toThrow('本机执行许可')
+  expect(await readFile(join(core.root, 'launcher.json'), 'utf8')).toBe(before)
+})
+
 it('passes only saved plugin choices at startup and applies changes on the next game launch', async () => {
   const { core, instanceId, log } = await runningService()
   try {
-    const enabled = [{ id: 'tts', path: resolve('uninstalled-tts.mjs'), enabled: true }]
+    const enabled = [{ id: 'tts', path: resolve('uninstalled-tts.mjs'), nativeAllowed: true, enabled: true }]
     await core.handle({ operation: 'preferences', theme: 'system', largeText: false, hostPlugins: enabled })
     await core.handle({ operation: 'start', instanceId })
     const disabled = [{ ...enabled[0]!, enabled: false }]
@@ -856,6 +912,7 @@ it('shows plugins the game skipped and names a missing required capability witho
         skippedPlugins: [
           { id: 'tts', reason: 'apply' },
           { id: 'old-api', reason: 'version' },
+          { id: 'untrusted', reason: 'permission' },
           { id: 'odd', reason: 'unknown' },
           'junk',
         ],
@@ -866,12 +923,14 @@ it('shows plugins the game skipped and names a missing required capability witho
     expect(core.snapshot().skippedPlugins).toEqual([
       { id: 'tts', reason: 'apply' },
       { id: 'old-api', reason: 'version' },
+      { id: 'untrusted', reason: 'permission' },
     ])
     await core.stop()
     // Settings can still point at the plugin after the game stops.
     expect(core.snapshot().skippedPlugins).toEqual([
       { id: 'tts', reason: 'apply' },
       { id: 'old-api', reason: 'version' },
+      { id: 'untrusted', reason: 'permission' },
     ])
     await writeFile(
       startup,
@@ -926,17 +985,25 @@ it('reads plugin manifests, checks saved config against them and hands over secr
     await expect(core.handle({ operation: 'plugin-inspect', path: 'relative.mjs' })).rejects.toThrow('绝对路径')
 
     const before = await readFile(join(core.root, 'launcher.json'), 'utf8')
-    await expect(save([{ id: 'tts', path: tts, enabled: true, config: { apiKey: 'leaked' } }])).rejects.toThrow(
-      '插件 tts：API Key 是密钥',
-    )
-    await expect(save([{ id: 'tts', path: tts, enabled: true, config: { volume: 1 } }])).rejects.toThrow(
-      '没有配置项 volume',
-    )
-    await expect(save([{ id: 'plain', path: plain, enabled: true, config: { x: 1 } }])).rejects.toThrow('没有配置项 x')
+    await expect(
+      save([{ id: 'tts', path: tts, nativeAllowed: true, enabled: true, config: { apiKey: 'leaked' } }]),
+    ).rejects.toThrow('插件 tts：API Key 是密钥')
+    await expect(
+      save([{ id: 'tts', path: tts, nativeAllowed: true, enabled: true, config: { volume: 1 } }]),
+    ).rejects.toThrow('没有配置项 volume')
+    await expect(
+      save([{ id: 'plain', path: plain, nativeAllowed: false, enabled: true, config: { x: 1 } }]),
+    ).rejects.toThrow('没有配置项 x')
     expect(await readFile(join(core.root, 'launcher.json'), 'utf8')).toBe(before)
 
     await save([
-      { id: 'tts', path: tts, enabled: true, config: { endpoint: 'http://127.0.0.1:9000/tts' } },
+      {
+        id: 'tts',
+        path: tts,
+        nativeAllowed: true,
+        enabled: true,
+        config: { endpoint: 'http://127.0.0.1:9000/tts' },
+      },
       { id: 'plain', path: plain, enabled: false },
       { id: 'broken', path: broken, enabled: false },
     ])

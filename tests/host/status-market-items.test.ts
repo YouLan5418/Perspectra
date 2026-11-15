@@ -159,7 +159,7 @@ it('lists the items the player can see: on the ground here, in hand, then with w
   expect(await items()).toEqual([{ id: 'entity:thermos', name: '保温杯', where: 'with', holderName: '同行者' }])
 })
 
-it('reports a failing author script as a refused request, as activity and communication mechanisms do', async () => {
+it('reports a failing author script as an attributed fault without exposing the original message', async () => {
   const f = await fixture()
   await f.runtime.close()
   const script = join(f.packPath, 'scripts/status.js')
@@ -176,9 +176,8 @@ it('reports a failing author script as a refused request, as activity and commun
   runtimes.push(runtime)
   const take = projectPlayerView(await runtime.state()).actions.find(a => a.label === '拿起保温杯')!
   const failure = await runtime.perform(take.action).catch((error: unknown) => error)
-  // The HTTP layer answers a TypeError with its message, and anything else with an opaque 500.
-  expect(failure).toBeInstanceOf(TypeError)
-  expect((failure as Error).message).toContain('作者脚本出错')
+  expect(failure).toMatchObject({ origin: 'plugin', pluginId: 'official-status', operation: 'resolve' })
+  expect((failure as Error).message).not.toContain('作者脚本出错')
 })
 
 describe('a result told to nobody else', () => {

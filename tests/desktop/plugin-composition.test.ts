@@ -18,7 +18,16 @@ async function load(sources: string[]) {
   const settings = sources.map((source, i) => {
     const path = join(root, `plugin-${i}.mjs`)
     writeFileSync(path, `export const hostApi='2.4';\n${source}`)
-    return { id: `plugin-${i}`, path, enabled: true }
+    writeFileSync(
+      path.replace(/\.mjs$/u, '.plugin.json'),
+      JSON.stringify({
+        id: `plugin-${i}`,
+        name: `plugin-${i}`,
+        version: '1.0.0',
+        services: source.includes('ctx.scheduler') ? ['scheduler'] : [],
+      }),
+    )
+    return { id: `plugin-${i}`, path, nativeAllowed: true, enabled: true }
   })
   const session = await loadHostPlugins(settings)
   sessions.push(session)
@@ -34,23 +43,21 @@ it('activates an earlier consumer after a later plugin supplies its Cordis servi
   expect(session.seams.scheduler.id).toBe('from-later')
 })
 
-it('reports a missing dependency rather than recording an unstarted plugin as installed', async () => {
+it('fails closed when a plugin with an unknown dependency need cannot start', async () => {
   vi.spyOn(console, 'error').mockImplementation(() => {})
-  const session = await load([`export default {inject:['absent'], apply(){throw new Error('must not run')}}`])
-  expect(session.skipped).toEqual([{ id: 'plugin-0', reason: 'apply', detail: expect.stringContaining('absent') }])
-  expect(session.installed[0]!.enabled).toBe(false)
-  expect(session.seams.scheduler.id).toBe('official-scheduler')
+  await expect(load([`export default {inject:['absent'], apply(){throw new Error('must not run')}}`])).rejects.toThrow(
+    '插件 plugin-0 初始化失败',
+  )
 })
 
 it('diagnoses mutually waiting services without inventing a dependency ordering', async () => {
   vi.spyOn(console, 'error').mockImplementation(() => {})
-  const session = await load([
-    `import {Service} from '@deepseek-ai/cordis'; export default class A extends Service {static inject=['b'];constructor(ctx){super(ctx,'a')}}`,
-    `import {Service} from '@deepseek-ai/cordis'; export default class B extends Service {static inject=['a'];constructor(ctx){super(ctx,'b')}}`,
-  ])
-  expect(session.skipped).toHaveLength(2)
-  expect(session.skipped.every(entry => entry.detail?.includes('循环依赖'))).toBe(true)
-  expect(session.installed.every(entry => !entry.enabled)).toBe(true)
+  await expect(
+    load([
+      `import {Service} from '@deepseek-ai/cordis'; export default class A extends Service {static inject=['b'];constructor(ctx){super(ctx,'a')}}`,
+      `import {Service} from '@deepseek-ai/cordis'; export default class B extends Service {static inject=['a'];constructor(ctx){super(ctx,'b')}}`,
+    ]),
+  ).rejects.toThrow(/缺少服务或存在循环依赖/)
 })
 
 it('registers official context defaults through the public registry and respects explicit omission', async () => {
@@ -64,7 +71,5 @@ it('keeps settings priority when the first plugin registers after asynchronous s
   vi.spyOn(console, 'error').mockImplementation(() => {})
   const code = (id: string, delay: number) =>
     `export default async ctx => { await new Promise(done=>setTimeout(done,${delay})); ctx.effect(()=>ctx.scheduler.register({id:'${id}',version:'1.0.0',open:async()=>({})})) }`
-  const session = await load([code('first', 20), code('second', 0)])
-  expect(session.seams.scheduler.id).toBe('first')
-  expect(session.skipped).toEqual([{ id: 'plugin-1', reason: 'apply' }])
+  await expect(load([code('first', 20), code('second', 0)])).rejects.toThrow('插件 plugin-1 初始化失败')
 })

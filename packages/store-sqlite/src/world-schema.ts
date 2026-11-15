@@ -1,5 +1,5 @@
 import type { DatabaseSync } from 'node:sqlite'
-import { PLAYER_INPUT_SCHEMA } from './player-input-schema.ts'
+import { PLAYER_INPUT_SCHEMA, PLAYER_INPUT_FAULT_SCHEMA } from './player-input-schema.ts'
 import { openMigratedDatabase, WORLD_APPLICATION_ID } from './sqlite.ts'
 
 /**
@@ -516,7 +516,7 @@ DROP TABLE world_reaction_waves;
 DROP TABLE world_reaction_cycles;
 `
 
-export const WORLD_SCHEMA_VERSION = 20
+export const WORLD_SCHEMA_VERSION = 21
 
 export function openWorldDatabase(path: string): DatabaseSync {
   return openMigratedDatabase(path, WORLD_APPLICATION_ID, [
@@ -542,6 +542,7 @@ export function openWorldDatabase(path: string): DatabaseSync {
     },
     { version: 18, sql: PLAYER_INPUT_SCHEMA },
     { version: 19, sql: WORLD_REACTION_EVIDENCE_SCHEMA },
-    { version: WORLD_SCHEMA_VERSION, sql: WORLD_RETIRE_REACTION_SCHEMA },
+    { version: 20, sql: WORLD_RETIRE_REACTION_SCHEMA },
+    { version: WORLD_SCHEMA_VERSION, sql: PLAYER_INPUT_FAULT_SCHEMA },
   ])
 }

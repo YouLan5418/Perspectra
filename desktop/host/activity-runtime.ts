@@ -48,6 +48,7 @@ import {
   actorWorldView,
   immediateActionDrafts,
   readActivityWorld,
+  activityWorldFromEvents,
   ruledItemChanges,
   moveEffects,
   movedAlongWith,
@@ -68,6 +69,7 @@ import type { StatusRuntime } from './status-runtime.ts'
 /** What the catalog lends each activity: one round's random sequence, the live committed prefix, its lifetime, and
  * the dice that roll from that sequence while resolve runs. */
 export interface ActivityBindings {
+  readonly native?: import('@harness-world/application').GameplayRuntime
   readonly randomSource: () => number
   readonly dice?: DiceInstance
   readonly readCurrent: () => ActivityState | undefined
@@ -118,7 +120,7 @@ export class ActivityRuntime {
   ) {
     this.#mechanism = mechanism
     this.#bindings = bindings
-    this.#rules = new ActivityStateRules(mechanism.definition, playerId, key)
+    this.#rules = new ActivityStateRules(mechanism.definition, playerId, key, mechanism.phases)
   }
   state(events: readonly RulebookEvent[]) {
     return this.#rules.state(events)
@@ -316,7 +318,7 @@ export class ActivityRuntime {
       resolve: context => this.#resolve(context, base),
     }
     const registry = new RulebookRegistry()
-    registry.register('builtin:speak-move', 2, resolver)
+    registry.register('builtin:speak-move', 2, this.#bindings.native?.resolver(resolver) ?? resolver)
     return registry
   }
   #resolve(context: RulebookResolutionContext, base: RulebookResolver) {
@@ -494,7 +496,8 @@ export class ActivityRuntime {
       state?.game.active &&
       state.participants.includes(actor) &&
       action.actionType === 'speak' &&
-      result.status === 'accepted'
+      result.status === 'accepted' &&
+      !this.#bindings.native?.ownsActivity(this.key)
     ) {
       const published = result.events.find(e => e.eventType === 'character.speak')
       const game = this.#mechanism.published(state, actor, published?.data ?? null)
@@ -621,6 +624,110 @@ export class ActivityRuntime {
     return parseActivityAutoStart(output, this.participantSelection)
   }
 
+  #startState(snapshot: ActivityWorld, parameters: WorldJsonObject) {
+    this.#bindings.native?.admitActivityControl(snapshot.events, this.playerId, 'start', this.key)
+    const current = this.state(snapshot.events)
+    if (
+      [...activityProgress(snapshot.events).values()].some(state => state.game.active) ||
+      current?.suspendedTurn !== undefined
+    )
+      throw new TypeError('已有活动或存在暂停进度')
+    if (this.participantSelection) exact(parameters, ['npcIds'])
+    else if (Object.keys(parameters).length) throw new TypeError('开始操作没有参数')
+    const npcIds = this.participantSelection ? strings(parameters.npcIds) : this.npcIds
+    if (!this.#rules.validParticipants([this.playerId, ...npcIds]))
+      throw new TypeError('选择的活动参与者不符合人数或候选限制')
+    if (
+      npcIds.some(
+        id =>
+          !snapshot.manifest.characters.some(row => row.characterId === id) ||
+          snapshot.manifest.playerBindings.some(row => row.characterId === id),
+      )
+    )
+      throw new TypeError('活动 NPC 未声明')
+    const world = snapshot.worldView(this.playerId)
+    if (npcIds.some(id => !(world.characterIds as readonly string[]).includes(id)))
+      throw new TypeError('需要与游戏参与者在同一场景')
+    const participants = [this.playerId, ...npcIds],
+      truth = snapshot.truth(this.status)
+    return startedActivity({
+      id: 'activity:' + randomUUID(),
+      participants,
+      game: this.#rules.game(
+        this.#initialize({
+          playerId: this.playerId,
+          npcIds,
+          world,
+          previous: current ? this.scoped(current, this.playerId) : null,
+          truth: truth
+            ? {
+                public: truth.public,
+                characters: Object.fromEntries(participants.map(id => [id, truth.characters[id] ?? {}])),
+              }
+            : null,
+        }),
+        participants,
+      ),
+    })
+  }
+
+  /** Pure automatic-start proposal, sharing initialization and authority checks with manual starts. */
+  prepareAutoStart(
+    snapshot: ActivityWorld,
+    parameters: WorldJsonObject,
+    cycleId: string,
+    auto: { notice?: string; sceneNotice?: string },
+  ) {
+    const state = this.#startState(snapshot, parameters),
+      actionId = cycleId + ':activity:' + this.key
+    const description = this.title + '开始。',
+      notice = auto.notice ?? this.opening ?? auto.sceneNotice
+    const event = this.#event(state, description, this.playerId, actionId, 'start')
+    const { actorId: _actor, ...data } = object(event.data)
+    const observations = [
+      ...(notice === undefined
+        ? this.#observations(state, description, this.playerId, actionId, state.participants, 'start')
+        : [
+            ...this.#observations(state, notice, this.playerId, actionId, [this.playerId], 'start'),
+            ...this.#observations(
+              state,
+              description,
+              this.playerId,
+              actionId,
+              state.participants.filter(id => id !== this.playerId),
+              'start',
+            ),
+          ]),
+      ...sceneEventObservations({
+        actionId,
+        observerIds:
+          auto.sceneNotice === undefined
+            ? []
+            : [
+                ...new Set([...state.participants, ...(snapshot.worldView(this.playerId).characterIds as string[])]),
+              ].filter(id => id !== this.playerId),
+        text: auto.sceneNotice ?? '',
+      }),
+    ].map(observation => {
+      const value = object(object(observation.data).value),
+        content = object(value.content)
+      const { actorId: _actorId, ...details } = content
+      return {
+        ...observation,
+        data: {
+          ...object(observation.data),
+          value: { ...value, content: { ...details, source: { kind: 'cycle', cycleId } } },
+        } as WorldJsonObject,
+      }
+    })
+    const effects = {
+      events: [{ ...event, data: { ...data, source: { kind: 'cycle', cycleId } } as WorldJsonObject }, ...observations],
+      authority: { source: 'activity-cycle-start', cycleId, activityKey: this.key },
+    }
+    this.#bindings.native?.validateCandidate([...snapshot.events, ...effects.events])
+    return effects
+  }
+
   /** A script with autoStart offers its manual start only while the same conditions all hold. */
   #manualStartAllowed(snapshot?: ActivityWorld): boolean {
     try {
@@ -679,6 +786,8 @@ export class ActivityRuntime {
             return undefined
           }
           const actionId = owner + ':action'
+          if (['suspend', 'resume', 'abandon', 'escape'].includes(request.operation))
+            this.#bindings.native?.admitActivityControl(events, this.playerId, request.operation, this.key)
           let state: ActivityState, description: string, drafts: WorldEventDraft[], observerIds: string[]
           let allowedMovers: readonly string[] | undefined
           if (request.operation === 'start') {
@@ -689,51 +798,13 @@ export class ActivityRuntime {
               request.revision !== 0
             )
               throw new TypeError('已有活动、存在暂停进度或开始请求失效')
-            if (this.participantSelection) exact(request.parameters, ['npcIds'])
-            else if (Object.keys(request.parameters).length) throw new TypeError('开始操作没有参数')
-            const npcIds = this.participantSelection ? strings(request.parameters.npcIds) : this.npcIds
-            if (!this.#rules.validParticipants([this.playerId, ...npcIds]))
-              throw new TypeError('选择的活动参与者不符合人数或候选限制')
             const manifest = store.readManifest(this.address)!.manifest as CompiledWorldManifest
-            if (
-              npcIds.some(
-                id =>
-                  !manifest.characters.some(c => c.characterId === id) ||
-                  manifest.playerBindings.some(b => b.characterId === id),
-              )
+            state = this.#startState(
+              activityWorldFromEvents(this.worldPath, this.address, head.headSeq, events, manifest),
+              request.parameters,
             )
-              throw new TypeError('活动 NPC 未声明')
-            const scene = new SceneDecisionService(store, availability).decideFromEvents(
-              this.address,
-              brandId(this.playerId, 'CharacterId'),
-              events,
-              head.headSeq,
-            )
-            if (npcIds.some(id => !scene.observerIds.includes(brandId(id, 'CharacterId'))))
-              throw new TypeError('需要与游戏参与者在同一场景')
-            const participants = [this.playerId, ...npcIds]
-            const truth = this.status?.truth(events)
-            state = startedActivity({
-              id: 'activity:' + randomUUID(),
-              participants,
-              game: this.#rules.game(
-                this.#initialize({
-                  playerId: this.playerId,
-                  npcIds,
-                  world: this.#worldView(manifest, events, this.playerId, head.headSeq),
-                  previous: current ? this.scoped(current, this.playerId) : null,
-                  truth: truth
-                    ? {
-                        public: truth.public,
-                        characters: Object.fromEntries(participants.map(id => [id, truth.characters[id] ?? {}])),
-                      }
-                    : null,
-                }),
-                participants,
-              ),
-            })
             description = this.title + '开始。'
-            observerIds = participants
+            observerIds = state.participants
             drafts = [this.#event(state, description, this.playerId, actionId, 'start')]
           } else if (['suspend', 'resume', 'abandon'].includes(request.operation)) {
             if (
@@ -808,6 +879,10 @@ export class ActivityRuntime {
                 },
               },
             })
+            if (resolution.status !== 'accepted')
+              throw new TypeError(
+                resolution.rejection?.message ?? resolution.reason?.replace(/^plugin:/u, '') ?? '活动操作未通过裁定',
+              )
             observerIds = [...(resolution.observationScope?.recipientIds ?? current.participants)]
             drafts = [...resolution.events]
             // The result may send participants elsewhere: each gets a scene change and is seen leaving and arriving.
@@ -832,6 +907,17 @@ export class ActivityRuntime {
             state = object(drafts[0]!.data).state as ActivityState
             description = String(object(drafts[0]!.data).description)
           }
+          if (!auto && ['start', 'suspend', 'resume', 'abandon'].includes(request.operation)) {
+            drafts.push(
+              ...(this.#bindings.native?.deriveActivityControl(
+                events,
+                brandId(this.playerId, 'CharacterId'),
+                request.operation,
+                actionId,
+                drafts,
+              ) ?? []),
+            )
+          } else if (request.operation !== 'escape') this.#bindings.native?.validateCandidate([...events, ...drafts])
           if (auto && request.operation !== 'start') throw new TypeError('只有开始可以由宿主自动发出')
           drafts[0] = {
             ...drafts[0]!,

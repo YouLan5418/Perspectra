@@ -5,7 +5,12 @@ import { filledPluginId, moduleRows, pickProvider } from './modules'
 
 const manifest = (name: string, ...services: string[]) =>
   ({ manifest: { name, version: '1.0.0', services } }) as unknown as PluginManifestInfo
-const plugin = (id: string, enabled = true): HostPluginSettings => ({ id, path: `D:/plugins/${id}.mjs`, enabled })
+const plugin = (id: string, enabled = true, nativeAllowed = true): HostPluginSettings => ({
+  id,
+  path: `D:/plugins/${id}.mjs`,
+  nativeAllowed,
+  enabled,
+})
 const row = (rows: ReturnType<typeof moduleRows>, seam: string) => rows.find(item => item.seam === seam)!
 
 it('shows the official default when no plugin provides a seam', () => {
@@ -61,6 +66,31 @@ it('excludes every service of a plugin blocked by a single-provider conflict', (
 it('ignores a plugin whose manifest is missing or invalid', () => {
   const rows = moduleRows([plugin('a'), plugin('b')], { a: { missing: true }, b: { error: '坏了' } })
   expect(row(rows, 'memory').providers).toEqual([])
+})
+
+it('never treats a selected plugin as allowed until native consent is present', () => {
+  const plugins = [plugin('denied', true, false)]
+  const manifests = { denied: manifest('未允许', 'memory') }
+  const rows = moduleRows(plugins, manifests)
+  expect(row(rows, 'memory')).toMatchObject({
+    effective: '官方默认',
+    conflict: false,
+    chip: 'official-memory-core',
+  })
+  expect(row(rows, 'memory').providers[0]).toMatchObject({ enabled: true, nativeAllowed: false, effective: false })
+  pickProvider(plugins, row(rows, 'memory'), 'denied')
+  expect(plugins[0]).toMatchObject({ nativeAllowed: false, enabled: false })
+})
+
+it('rejects a programmatic unallowed pick without changing the current provider', () => {
+  const plugins = [plugin('allowed'), plugin('denied', false, false)]
+  const manifests = { allowed: manifest('已允许', 'memory'), denied: manifest('未允许', 'memory') }
+  pickProvider(plugins, row(moduleRows(plugins, manifests), 'memory'), 'denied')
+  expect(plugins.map(item => [item.nativeAllowed, item.enabled])).toEqual([
+    [true, true],
+    [false, false],
+  ])
+  expect(row(moduleRows(plugins, manifests), 'memory').effective).toBe('已允许')
 })
 
 it('disables the other providers when the player picks one', () => {

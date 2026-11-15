@@ -1,3 +1,4 @@
+import { isPluginFault } from '@harness-world/runtime-cordis'
 import { PlayerIntentCallStore } from '@harness-world/agents'
 import {
   bindPlayerIntentCandidate,
@@ -51,12 +52,13 @@ export class PlayerIntentWorker {
   async processNext(): Promise<PlayerInputJob | undefined> {
     const jobs = new PlayerInputJobs(this.options.worldPath)
     const calls = new PlayerIntentCallStore(this.options.contextPath)
+    let job: PlayerInputJob | undefined
+    const advance = (status: PlayerInputJob['status'], evidence: WorldJsonValue) => {
+      job = jobs.advance(job!, this.options.renewLease(), status, evidence)
+    }
     try {
-      let job = jobs.claim(this.options.address, this.options.renewLease())
+      job = jobs.claim(this.options.address, this.options.renewLease())
       if (job === undefined) return undefined
-      const advance = (status: PlayerInputJob['status'], evidence: WorldJsonValue) => {
-        job = jobs.advance(job!, this.options.renewLease(), status, evidence)
-      }
       if (job.status === 'received') {
         const prepared = this.options.prepare(job)
         if ('clarification' in prepared) {
@@ -230,6 +232,15 @@ export class PlayerIntentWorker {
       this.options.faultInjector?.hit('player-input.after-world-commit')
       advance('completed', result)
       return job
+    } catch (error) {
+      if (isPluginFault(error) && job !== undefined && job.status !== 'completed')
+        advance('failed', {
+          origin: error.origin,
+          pluginId: error.pluginId,
+          operation: error.operation,
+          invalidResult: error.invalidResult,
+        })
+      throw error
     } finally {
       calls.close()
       jobs.close()

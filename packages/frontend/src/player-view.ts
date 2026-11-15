@@ -5,6 +5,33 @@ export interface PlayerAction {
   readonly parameters: WorldJsonObject
 }
 
+export type PlayerPanel =
+  | {
+      readonly kind: 'property-table'
+      readonly id: string
+      readonly title: string
+      readonly properties: readonly {
+        key: string
+        label: string
+        value: import('@harness-world/contracts').WorldJsonValue
+      }[]
+    }
+  | {
+      readonly kind: 'entry-list'
+      readonly id: string
+      readonly title: string
+      readonly entries: readonly { id: string; title: string; content: string }[]
+    }
+export type PlayerPluginControl = {
+  readonly id: string
+  readonly label: string
+  readonly scope: 'world' | 'runtime'
+  readonly description?: string
+  readonly disabled?: boolean
+} & (
+  | { readonly kind: 'boolean'; readonly value: boolean }
+  | { readonly kind: 'select'; readonly value: string; readonly options: readonly { value: string; label: string }[] }
+)
 export interface PlayerView {
   game: { title: string }
   player: { name: string }
@@ -40,8 +67,8 @@ export interface PlayerView {
     /** The player's chosen appearance for the stage; absent means follow the system. */
     appearance?: 'system' | 'light' | 'dark'
   }
-  /** Present only when the world has story pacing: whether it may bring events and beats. The player's switch. */
-  pacing?: { enabled: boolean }
+  pluginControls?: readonly PlayerPluginControl[]
+  panels?: readonly PlayerPanel[]
   tailRound?: {
     candidateIds?: readonly string[]
     candidateIndex?: number
@@ -104,7 +131,9 @@ export interface PlayerView {
     label: string
     action: PlayerAction
     kind: 'move' | 'interact' | 'activity' | 'manage'
-    target?: { kind: 'location' | 'item' | 'character' | 'self' | 'activity'; id: string; name: string }
+    /** Display semantics only; action.parameters retains the authoritative target reference. */
+    target?: { kind: string; id: string; name: string }
+    group?: string
     /** Inputs the player fills in; perform then carries them as `arguments`. Never includes fixed inputs. */
     argumentSchema?: WorldJsonObject
     /** Inputs among `argumentSchema` that name a character in the player's scene. */
@@ -112,27 +141,31 @@ export interface PlayerView {
     participantSelection?: { min: number; max: number; candidates: { id: string; name: string }[] }
   }[]
 }
+export const PLAYER_VIEW_PATCH_FIELDS = [
+  'game',
+  'player',
+  'scene',
+  'status',
+  'canInterrupt',
+  'responders',
+  'expression',
+  'actions',
+  'tailRound',
+  'settings',
+  'activity',
+  'activities',
+  'feedback',
+  'statusBar',
+  'statusTruth',
+  'items',
+  'pluginControls',
+  'panels',
+] as const
+
 export function playerViewPatch(before: PlayerView, after: PlayerView): Record<string, unknown> | null {
   const changes: Record<string, unknown> = {}
-  for (const key of [
-    'game',
-    'player',
-    'scene',
-    'status',
-    'canInterrupt',
-    'responders',
-    'expression',
-    'actions',
-    'tailRound',
-    'settings',
-    'activity',
-    'activities',
-    'feedback',
-    'statusBar',
-    'statusTruth',
-    'items',
-  ] as const) {
-    if (JSON.stringify(before[key]) !== JSON.stringify(after[key])) changes[key] = after[key]
+  for (const key of PLAYER_VIEW_PATCH_FIELDS) {
+    if (JSON.stringify(before[key]) !== JSON.stringify(after[key])) changes[key] = after[key] ?? null
   }
   if (JSON.stringify(before.history) !== JSON.stringify(after.history)) {
     const prefix =
@@ -146,7 +179,7 @@ export function playerViewPatch(before: PlayerView, after: PlayerView): Record<s
 export interface FrontendActionRequest {
   requestId: string
   actionId: string
-  operation: 'speak' | 'perform' | 'regenerate' | 'selectCandidate' | 'cancelRegeneration' | 'setPacing'
+  operation: 'speak' | 'perform' | 'regenerate' | 'selectCandidate' | 'cancelRegeneration' | 'setPluginControl'
   payload: Record<string, unknown>
 }
 export function frontendActionRequest(value: unknown, maximumCharacters = 2000): FrontendActionRequest {
@@ -158,7 +191,7 @@ export function frontendActionRequest(value: unknown, maximumCharacters = 2000):
     !/^[a-zA-Z0-9:-]{1,100}$/.test(r.requestId) ||
     typeof r.actionId !== 'string' ||
     !/^[a-zA-Z0-9:-]{1,100}$/.test(r.actionId) ||
-    !['speak', 'perform', 'regenerate', 'selectCandidate', 'cancelRegeneration', 'setPacing'].includes(
+    !['speak', 'perform', 'regenerate', 'selectCandidate', 'cancelRegeneration', 'setPluginControl'].includes(
       String(r.operation),
     ) ||
     !r.payload ||
@@ -174,14 +207,20 @@ export function frontendActionRequest(value: unknown, maximumCharacters = 2000):
       operation: 'speak',
       payload: speech(payload, maximumCharacters),
     }
-  if (r.operation === 'setPacing') {
-    if (Object.keys(payload).join(',') !== 'enabled' || typeof payload.enabled !== 'boolean')
-      throw new TypeError('剧情节奏开关只接受 enabled: true 或 false')
+  if (r.operation === 'setPluginControl') {
+    if (
+      Object.keys(payload).sort().join(',') !== 'id,value' ||
+      typeof payload.id !== 'string' ||
+      !payload.id ||
+      payload.id.length > 512 ||
+      !(typeof payload.value === 'boolean' || (typeof payload.value === 'string' && payload.value.length <= 16384))
+    )
+      throw new TypeError('玩法设置只接受已注册的 id 和布尔／选项值')
     return {
       requestId: r.requestId,
       actionId: r.actionId,
-      operation: 'setPacing',
-      payload: { enabled: payload.enabled },
+      operation: 'setPluginControl',
+      payload: { id: payload.id, value: payload.value },
     }
   }
   if (r.operation === 'cancelRegeneration') {

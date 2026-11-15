@@ -1,0 +1,16 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "strict": true,
+    "exactOptionalPropertyTypes": true,
+    "noEmit": true
+  },
+  "include": [
+    "./src/gameplay.ts",
+    "./src/results.ts",
+    "./src/gameplay.example.ts",
+    "./src/gameplay.type.fixture.ts",
+    "./src/gameplay.test.ts",
+    "./src/contract-imports.test.ts"
+  ]
+}

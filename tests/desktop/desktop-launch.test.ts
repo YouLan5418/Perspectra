@@ -129,8 +129,13 @@ describe('desktop launch boundary', () => {
             PERSPECTRA_MODEL_ENDPOINT: 'http://127.0.0.1:9/v1/chat/completions',
             PERSPECTRA_MODEL: 'fixture',
             PERSPECTRA_HOST_PLUGINS: JSON.stringify([
-              { id: 'tts', path: pluginPath, enabled: true },
-              { id: 'disabled', path: join(pluginDirectory, 'not-installed.mjs'), enabled: false },
+              { id: 'tts', path: pluginPath, nativeAllowed: true, enabled: true },
+              {
+                id: 'disabled',
+                path: join(pluginDirectory, 'not-installed.mjs'),
+                nativeAllowed: true,
+                enabled: false,
+              },
             ]),
           },
         },

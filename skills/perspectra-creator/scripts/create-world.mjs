@@ -28,6 +28,7 @@ try {
       memoryFiles: ['memory.json'],
       documentFiles: [],
       markdownFiles: [],
+      plugins: {},
       assetFiles: [],
       assertionFiles: ['assertions.json'],
       reactionFile: 'reaction.json',

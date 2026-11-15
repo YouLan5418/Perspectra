@@ -15,3 +15,14 @@ CREATE TABLE player_input_jobs (
   CHECK((claim_owner_id IS NULL AND claim_fencing_token IS NULL) OR (claim_owner_id IS NOT NULL AND claim_fencing_token >= 1))
 ) STRICT;
 `
+
+/** An input whose preparation/adjudication faults must be terminal without claiming a world commit. */
+export const PLAYER_INPUT_FAULT_SCHEMA = `
+${PLAYER_INPUT_SCHEMA.replace(
+  'CREATE TABLE player_input_jobs (',
+  'CREATE TABLE player_input_jobs_with_faults (',
+).replace("'timed_out_ambiguous','cancelled'", "'timed_out_ambiguous','cancelled','failed'")}
+INSERT INTO player_input_jobs_with_faults SELECT * FROM player_input_jobs;
+DROP TABLE player_input_jobs;
+ALTER TABLE player_input_jobs_with_faults RENAME TO player_input_jobs;
+`

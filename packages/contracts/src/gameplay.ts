@@ -5,6 +5,40 @@ export interface CommunicationDefinition {
   readonly medium: string
   readonly contacts: Readonly<Record<string, readonly string[]>>
 }
+
+/** Structural registration boundary; the core additionally checks the actual world's character IDs. */
+export function parseCommunicationDefinition(value: unknown): CommunicationDefinition {
+  if (!value || typeof value !== 'object' || Array.isArray(value))
+    throw new TypeError('COMMUNICATION_DEFINITION_INVALID')
+  const row = value as Record<string, unknown>
+  if (
+    Object.keys(row).some(key => !['medium', 'contacts'].includes(key)) ||
+    typeof row.medium !== 'string' ||
+    !row.medium.trim() ||
+    row.medium.length > 40 ||
+    !row.contacts ||
+    typeof row.contacts !== 'object' ||
+    Array.isArray(row.contacts)
+  )
+    throw new TypeError('COMMUNICATION_DEFINITION_INVALID')
+  const contacts: Record<string, readonly string[]> = {}
+  for (const [actor, recipients] of Object.entries(row.contacts)) {
+    if (
+      !actor ||
+      !Array.isArray(recipients) ||
+      recipients.some(id => typeof id !== 'string' || !id || id === actor) ||
+      new Set(recipients).size !== recipients.length
+    )
+      throw new TypeError('COMMUNICATION_CONTACTS_INVALID')
+    Object.defineProperty(contacts, actor, {
+      value: [...recipients],
+      enumerable: true,
+      configurable: true,
+      writable: true,
+    })
+  }
+  return { medium: row.medium, contacts }
+}
 /** everyPlayerTurns on a trigger counts that condition alone; without it the role's own interval applies. */
 export type AutonomyTrigger =
   | { actionType: 'speak' | 'move' | 'interact'; definitionId?: string; everyPlayerTurns?: number }

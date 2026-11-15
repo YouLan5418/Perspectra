@@ -3,6 +3,7 @@ import type {
   CharacterLoopInstance,
   CharacterLoopPreparation,
   CharacterLoopSubmission,
+  LastDecisionOutcome,
 } from '@harness-world/plugin-sdk'
 import { characterVisibleItems } from './character-visible-items.ts'
 import { randomUUID } from 'node:crypto'
@@ -27,6 +28,7 @@ import {
   type RulebookRegistry,
   type RulebookResolution,
   type RulebookResolutionContext,
+  type RulebookEvent,
 } from '@harness-world/kernel'
 import {
   CognitionProjectionRebuilder,
@@ -62,6 +64,9 @@ export interface CharacterTurnRequest {
 export interface CharacterTurnResult {
   readonly status: 'published' | 'abstained' | 'budget_exhausted' | 'interrupted' | 'inactive' | 'stale' | 'failed'
   readonly calls: number
+  readonly controlledCommitted: boolean
+  readonly publicationCommitted: boolean
+  readonly lastDecision?: LastDecisionOutcome
   /** Last prefix actually read by the model; scheduling must not consume later observations. */
   readonly asOfWorldSeq?: number
   readonly performResult?: WorldJsonObject
@@ -148,7 +153,11 @@ export class CharacterTurn {
         reserveFormatRetry?: () => boolean,
         beforeModelCall?: () => void,
       ) => Promise<unknown>
+      /** Preserve a failure from a Host-owned dependency while the decision account is active. */
+      readonly propagateDecisionError?: (error: unknown) => boolean
       readonly projectContext?: (context: WorldJsonObject, canPerform: boolean) => WorldJsonObject
+      /** Core-bound native gameplay projection, also included in decision freshness checks. */
+      readonly projectGameplayContext?: (events: readonly RulebookEvent[], actorId: CharacterId) => WorldJsonObject
       /** Optional host executor. No SQLite transaction is open while it awaits external work. */
       readonly resolveAction?: (
         context: RulebookResolutionContext,
@@ -245,6 +254,7 @@ export class CharacterTurn {
         people: scene.observerIds,
         affordances,
         items: characterVisibleItems(this.#manifest, history, characterId, scene.observerIds),
+        gameplayContext: this.options.projectGameplayContext?.(history, characterId) ?? null,
       } as unknown as WorldJsonObject),
     ).toString('utf8')
   }
@@ -258,6 +268,12 @@ export class CharacterTurn {
       readonly maxModelCalls?: number
       readonly beforeModelCall?: () => void
       readonly onCommitted?: (asOfWorldSeq: number, headSeq: number) => void
+      readonly onProgress?: (
+        value: Pick<
+          CharacterTurnResult,
+          'calls' | 'controlledCommitted' | 'publicationCommitted' | 'performResult' | 'lastDecision'
+        >,
+      ) => void
       readonly stimulus?: readonly WorldJsonObject[]
       readonly continuationOf?: {
         readonly actionId: string
@@ -286,11 +302,22 @@ export class CharacterTurn {
     let lease: ReturnType<WriterLeaseService['acquire']> | undefined
     let calls = 0
     let performResult: WorldJsonObject | undefined
+    let controlledCommittedEver = false
+    let publicationCommittedEver = false
+    let lastDecision: LastDecisionOutcome | undefined
     let publicationFailure: WorldJsonObject | undefined
     let modelFailure: CharacterTurnResult['failure']
     let asOfWorldSeq: number | undefined
     let attempt = 0
     let decisionId: string | null = null
+    const progress = () =>
+      options.onProgress?.({
+        calls,
+        controlledCommitted: controlledCommittedEver,
+        publicationCommitted: publicationCommittedEver,
+        ...(performResult === undefined ? {} : { performResult }),
+        ...(lastDecision === undefined ? {} : { lastDecision }),
+      })
     const done = (status: CharacterTurnResult['status']): CharacterTurnResult => {
       this.options.onTrace?.('turn', characterId, decisionId, {
         status,
@@ -300,6 +327,10 @@ export class CharacterTurn {
       return {
         status,
         calls,
+        controlledCommitted: controlledCommittedEver,
+        publicationCommitted: publicationCommittedEver,
+        ...(status !== 'failed' || modelFailure === undefined ? {} : { failure: modelFailure }),
+        ...(lastDecision === undefined ? {} : { lastDecision }),
         ...(asOfWorldSeq === undefined ? {} : { asOfWorldSeq }),
         ...(performResult === undefined ? {} : { performResult }),
       }
@@ -349,6 +380,7 @@ export class CharacterTurn {
           action: options.continuationOf.action,
           status: resolved.accepted === true ? 'accepted' : 'rejected',
           reason: resolved.reason ?? null,
+          ...(resolved.rejection === undefined ? {} : { rejection: resolved.rejection }),
           eventRefs: [prior.seq],
         }
       }
@@ -472,6 +504,8 @@ export class CharacterTurn {
             })),
         }
         context = this.options.projectContext?.(context, canPerform) ?? context
+        if (this.options.projectGameplayContext)
+          context = { ...context, ...this.options.projectGameplayContext(history, characterId) }
         const latestResult = publicationFailure ?? performResult
         const resultEventRefs = latestResult?.eventRefs
         const resultSeq = Array.isArray(resultEventRefs) ? resultEventRefs.at(-1) : undefined
@@ -519,63 +553,72 @@ export class CharacterTurn {
           assertLive()
           if (!isCurrent()) throw new ActivationStopped('stale')
           modelFailure = 'invalid_output'
-          const decision = object(structuredClone(raw))
-          this.options.validateDecision?.(decision, request)
-          if (decision.decision === 'abstain') {
-            keys(decision, ['decision'])
-            modelFailure = undefined
-            return { decision: 'abstain', status: 'accepted', controlledCommitted: false, publicationRejected: false }
-          }
+          let decision: WorldJsonObject
           let action: { actionType: string; parameters: WorldJsonValue }
           let beforeAction: { actionType: string; parameters: WorldJsonValue } | undefined
           let rejectedPublication: WorldJsonObject | undefined
-          const publication = (expression: WorldJsonObject) => {
-            keys(expression, ['segments', 'scope', 'addresseeIds'])
-            const segments = parseExpressionSegments(expression.segments, this.options.publicationCharacters ?? 2000)
-            const addresseeIds = expression.addresseeIds ?? []
-            if (
-              !Array.isArray(addresseeIds) ||
-              new Set(addresseeIds).size !== addresseeIds.length ||
-              addresseeIds.some(
-                id =>
-                  typeof id !== 'string' ||
-                  id === characterId ||
-                  !this.#manifest.characters.some(character => character.characterId === id),
+          try {
+            decision = object(structuredClone(raw))
+            this.options.validateDecision?.(decision, request)
+            if (decision.decision === 'abstain') {
+              keys(decision, ['decision'])
+              lastDecision = { decision: 'abstain' }
+              progress()
+              modelFailure = undefined
+              return { decision: 'abstain', status: 'accepted', controlledCommitted: false, publicationRejected: false }
+            }
+            const publication = (expression: WorldJsonObject) => {
+              keys(expression, ['segments', 'scope', 'addresseeIds'])
+              const segments = parseExpressionSegments(expression.segments, this.options.publicationCharacters ?? 2000)
+              const addresseeIds = expression.addresseeIds ?? []
+              if (
+                !Array.isArray(addresseeIds) ||
+                new Set(addresseeIds).size !== addresseeIds.length ||
+                addresseeIds.some(
+                  id =>
+                    typeof id !== 'string' ||
+                    id === characterId ||
+                    !this.#manifest.characters.some(character => character.characterId === id),
+                )
+              ) {
+                throw new TypeError('addressee must be another declared character')
+              }
+              const scope = expression.scope ?? (addresseeIds.length === 0 ? 'scene_public' : 'direct')
+              if (
+                typeof scope !== 'string' ||
+                !['scene_public', 'direct', 'private', 'self'].includes(scope) ||
+                (scope === 'direct' || scope === 'private' ? addresseeIds.length === 0 : addresseeIds.length !== 0)
+              ) {
+                throw new TypeError('publication scope and addressees do not match')
+              }
+              return { actionType: 'speak', parameters: { segments, scope, addresseeIds } }
+            }
+            if (decision.decision === 'publish') {
+              keys(decision, ['decision', 'segments', 'scope', 'addresseeIds'])
+              const { decision: _decision, ...expression } = decision
+              action = publication(expression)
+            } else if (decision.decision === 'perform' && canPerform) {
+              keys(decision, ['decision', 'actionType', 'parameters', 'before'])
+              if (decision.actionType !== 'move' && decision.actionType !== 'interact')
+                throw new TypeError('unsupported operation')
+              const parameters = object(decision.parameters)
+              keys(
+                parameters,
+                decision.actionType === 'move'
+                  ? ['locationId']
+                  : ['targetRef', 'bindingId', 'definitionRef', 'arguments'],
               )
-            ) {
-              throw new TypeError('addressee must be another declared character')
-            }
-            const scope = expression.scope ?? (addresseeIds.length === 0 ? 'scene_public' : 'direct')
-            if (
-              typeof scope !== 'string' ||
-              !['scene_public', 'direct', 'private', 'self'].includes(scope) ||
-              (scope === 'direct' || scope === 'private' ? addresseeIds.length === 0 : addresseeIds.length !== 0)
-            ) {
-              throw new TypeError('publication scope and addressees do not match')
-            }
-            return { actionType: 'speak', parameters: { segments, scope, addresseeIds } }
+              action = { actionType: decision.actionType, parameters }
+              if (decision.before !== undefined) {
+                if (!request.canExpressBeforeAction) throw new TypeError('pre-action expression unavailable')
+                beforeAction = publication(object(decision.before))
+              }
+            } else throw new TypeError('operation budget exhausted; publish or abstain only')
+          } catch (error) {
+            if (error instanceof TypeError || (error instanceof DOMException && error.name === 'DataCloneError'))
+              throw new InvalidCharacterOutputError('invalid character decision', { cause: error })
+            throw error
           }
-          if (decision.decision === 'publish') {
-            keys(decision, ['decision', 'segments', 'scope', 'addresseeIds'])
-            const { decision: _decision, ...expression } = decision
-            action = publication(expression)
-          } else if (decision.decision === 'perform' && canPerform) {
-            keys(decision, ['decision', 'actionType', 'parameters', 'before'])
-            if (decision.actionType !== 'move' && decision.actionType !== 'interact')
-              throw new TypeError('unsupported operation')
-            const parameters = object(decision.parameters)
-            keys(
-              parameters,
-              decision.actionType === 'move'
-                ? ['locationId']
-                : ['targetRef', 'bindingId', 'definitionRef', 'arguments'],
-            )
-            action = { actionType: decision.actionType, parameters }
-            if (decision.before !== undefined) {
-              if (!request.canExpressBeforeAction) throw new TypeError('pre-action expression unavailable')
-              beforeAction = publication(object(decision.before))
-            }
-          } else throw new TypeError('operation budget exhausted; publish or abstain only')
           modelFailure = undefined
           const committed = await commitInOrder(this.options.store, async () => {
             assertLive()
@@ -641,6 +684,7 @@ export class CharacterTurn {
                     order: 0,
                     accepted: resolution.status === 'accepted',
                     reason: resolution.reason ?? null,
+                    ...(resolution.rejection === undefined ? {} : { rejection: resolution.rejection }),
                   },
                 })
                 const audience = this.#scene.audienceForAction(
@@ -765,14 +809,24 @@ export class CharacterTurn {
                 })
                 if (action.actionType !== 'speak') {
                   controlledCommitted = true
+                  controlledCommittedEver = true
                   performResult = {
                     operationId: actionId,
                     action,
                     status: resolution.status,
                     reason: resolution.reason ?? null,
                     eventRefs: resolution.events.map((_, index) => head.headSeq + index + 1),
+                    ...(resolution.rejection === undefined ? {} : { rejection: resolution.rejection }),
                   }
                 }
+                if (action.actionType === 'speak' && resolution.status === 'accepted') publicationCommittedEver = true
+                lastDecision = {
+                  decision: action.actionType === 'speak' ? 'publish' : 'perform',
+                  status: resolution.status,
+                  controlledCommitted,
+                  publicationRejected: rejectedPublication !== undefined,
+                }
+                progress()
                 ownPrefix = this.options.store.head(this.options.address).headSeq
                 this.options.onTrace?.('action', characterId, decisionId, {
                   actionId,
@@ -780,6 +834,7 @@ export class CharacterTurn {
                   status: resolution.status,
                   reason: resolution.reason ?? null,
                   afterSeq: head.headSeq,
+                  ...(resolution.rejection === undefined ? {} : { rejection: resolution.rejection }),
                   headSeq: ownPrefix,
                   startedAt: actionStartedAt,
                   durationMs: Math.round(performance.now() - actionStarted),
@@ -830,6 +885,7 @@ export class CharacterTurn {
             decisionId = randomUUID()
             let repaired = false
             calls += 1
+            progress()
             modelFailure = 'provider_failed'
             const raw = await this.options.decide(
               { ...request, decisionId },
@@ -839,6 +895,7 @@ export class CharacterTurn {
                 if (repaired || reserveFormatRetry?.() === false) return false
                 repaired = true
                 calls += 1
+                progress()
                 return true
               },
               options.beforeModelCall,
@@ -867,6 +924,20 @@ export class CharacterTurn {
       return done(status)
     } catch (error) {
       this.options.onActionFailure?.()
+      const classifiedDecisionError =
+        error instanceof ActivationStopped ||
+        error instanceof CharacterLoopError ||
+        error instanceof InvalidCharacterOutputError ||
+        error instanceof CharacterPresetError
+      if (
+        modelFailure !== undefined &&
+        !classifiedDecisionError &&
+        this.options.propagateDecisionError?.(error) === true
+      )
+        throw error
+      // Cancellation may race a failed commit or another core callback. Only the actual
+      // cancellation reason may replace such an error; an aborted signal alone proves nothing.
+      if (modelFailure === undefined && !classifiedDecisionError && error !== signal.reason) throw error
       if (signal.aborted) return done('interrupted')
       if (error instanceof ActivationStopped) return done(error.status)
       if (error instanceof CharacterLoopError) {

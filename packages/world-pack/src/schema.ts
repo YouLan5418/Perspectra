@@ -1,3 +1,4 @@
+import { parsePackComposition } from './composition.ts'
 import { createHash } from 'node:crypto'
 import {
   AFFECT_DURATIONS,
@@ -393,7 +394,7 @@ export function parseWorldPackSourceManifestV5(
       'manifestationFile',
       'interactionFile',
     ],
-    ['requiresPlugins'],
+    ['requiresPlugins', 'plugins', 'services', 'scripts'],
     file,
     '',
   )
@@ -444,6 +445,7 @@ export function parseWorldPackSourceManifestV5(
     reactionFile,
     manifestationFile,
     interactionFile,
+    ...parsePackComposition(root, lists.assetFiles),
     ...(root.requiresPlugins === undefined
       ? {}
       : { requiresPlugins: pluginRequirements(root.requiresPlugins, file, '/requiresPlugins') }),
@@ -1845,7 +1847,7 @@ export function parseCompiledWorldPackV5(input: unknown, file = 'worldpack.json'
       'assets',
       'acceptanceAssertions',
     ],
-    ['requiresPlugins'],
+    ['requiresPlugins', 'plugins', 'services', 'scripts'],
     file,
     '',
   )
@@ -1982,6 +1984,10 @@ export function parseCompiledWorldPackV5(input: unknown, file = 'worldpack.json'
     content: parsedContent,
     assets,
     acceptanceAssertions,
+    ...parsePackComposition(
+      root,
+      assets.map(asset => asset.path),
+    ),
     ...(root.requiresPlugins === undefined
       ? {}
       : { requiresPlugins: pluginRequirements(root.requiresPlugins, file, '/requiresPlugins') }),

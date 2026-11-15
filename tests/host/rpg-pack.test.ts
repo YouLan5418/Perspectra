@@ -27,22 +27,35 @@ const addAsset = (pack: string, path: string, contents: string) => {
 const withoutRpg = (pack: string) => {
   const source = readJson(join(pack, 'worldpack.source.json'))
   source.assetFiles = source.assetFiles.filter((path: string) => path !== 'rpg.json')
+  delete source.plugins['official-rpg']
   writeJson(join(pack, 'worldpack.source.json'), source)
   rmSync(join(pack, 'rpg.json'))
 }
 const compile = (pack: string) =>
   compileWorldPackSource(pack, createInstalledInteractionPackages().map(interactionPackageDescription))
-/** The installed RPG generator with one skill's power changed in what it generates. */
+/** 保持同一持久数据版本与状态／活动结构，仅调整火球术数值的兼容插件组合。 */
 const strongerFire = (): WorldComposition =>
   assembleRoleplay({
     content: [
       {
         ...officialRpgContent,
+        identity: { fireBonus: 1 },
         generate: (value, pack) => {
           const config = structuredClone(value) as { skills: { id: string; power: number }[] }
           config.skills = config.skills.map(s => (s.id === 'fire' ? { ...s, power: s.power + 1 } : s))
           return officialRpgContent.generate(config, pack)
         },
+      },
+    ],
+  })
+
+const incompatibleRpg = (): WorldComposition =>
+  assembleRoleplay({
+    content: [
+      {
+        ...officialRpgContent,
+        dataVersion: 2,
+        supportedDataVersions: [2],
       },
     ],
   })
@@ -68,7 +81,6 @@ describe('rpg.json in a pack', () => {
   it('a pack without rpg.json opens exactly as before', async () => {
     const plain = copy({ edit: withoutRpg })
     const installed = await open(plain.pack, plain.data)
-    // The install without the RPG mechanism is the host as it was before rpg.json existed.
     const before = copy({ edit: withoutRpg })
     const composition = assembleRoleplay({ content: [] })
     const previous = await open(before.pack, before.data, { composition })
@@ -77,74 +89,111 @@ describe('rpg.json in a pack', () => {
     expect(shape(installed.events())).toEqual(shape(previous.events()))
     expect(installed.events().some(e => JSON.stringify(e.data).includes('rpg-'))).toBe(false)
     expect(readJson(join(plain.data, 'plugin-set.json'))).toEqual(readJson(join(before.data, 'plugin-set.json')))
-    expect(readJson(join(plain.data, 'plugin-set.json')).generatedContent).toBeUndefined()
+    expect(readJson(join(plain.data, 'plugin-set.json')).gameplayData).toBeUndefined()
   })
 
-  it('a pack with rpg.json gets the generated activities, status module and rules', async () => {
+  it('a pack with rpg.json registers native activities, status module, rules and compatibility metadata', async () => {
     const { pack, data } = copy({ places: { [CHENG]: RUIN1 } })
-    // Nothing generated is written into the pack.
     expect(existsSync(join(pack, 'plugins.json'))).toBe(false)
     expect(existsSync(join(pack, 'plugins/rpg.js'))).toBe(false)
     expect(existsSync(join(pack, 'scripts/activities'))).toBe(false)
     const f = await open(pack, data)
-    // Status module: the stats start from rpg.json.
     const initial = f.events().find(e => e.eventType === 'status.updated')!
     expect(JSON.stringify(initial.data)).toContain('"rpg-hp"')
-    // Rules: the iron door is locked without the key.
     const refused = await f.move(RUIN2)
     expect(refused.notice).toContain('铁门锁着，需要钥匙。')
-    // Activities: arriving in ruin-1 starts its map activity.
     await f.move(RUIN1)
     expect(
       f.events().some(e => e.eventType === 'activity.updated' && (e.data as Json).activityKey === 'rpg-map-ruin-1'),
     ).toBe(true)
     const record = readJson(join(data, 'plugin-set.json'))
-    expect(record.generatedContent).toEqual({ 'official-rpg': expect.stringMatching(/^sha256:[0-9a-f]{64}$/u) })
-    expect(record.seams.rules).toEqual([{ id: 'official-rpg-rules', version: '1' }])
+    expect(record.gameplayData).toEqual({
+      'official-rpg': {
+        pluginVersion: '1',
+        dataVersion: 1,
+        statuses: expect.arrayContaining([
+          { key: 'rpg-hp', type: 'number', owner: 'character' },
+          { key: 'rpg-equipment', type: 'object', owner: 'character' },
+          { key: 'rpg-party', type: 'array', owner: 'public' },
+          { key: 'rpg-unlocked', type: 'array', owner: 'public' },
+        ]),
+        activities: [
+          { key: 'rpg-map-ruin-1', phases: expect.arrayContaining(['fighting', 'victory', 'defeat', 'fled']) },
+          { key: 'rpg-map-ruin-2', phases: expect.arrayContaining(['enter', 'done']) },
+        ],
+        digest: expect.stringMatching(/^sha256:[0-9a-f]{64}$/u),
+      },
+    })
+    // Official restrictions and derivation are registered on GameplayRuntime, without an extra RulesInstance.
+    expect(record.seams.rules).toBeUndefined()
   })
 
-  it('opening a saved world whose generated content changed fails with both hashes', async () => {
+  it('compatible rule tuning opens existing saves while rejecting stale regeneration candidates via digest', async () => {
     const { pack, data } = copy()
     const first = await open(pack, data)
+    const state = await first.runtime.submit('你好')
+    const regenerated = await first.runtime.regenerate(state.tailRound!.id!, 'rpg-original-candidate')
+    const staleCandidateId = regenerated.tailRound!.candidateIds![0]!
     await first.close()
     worlds.splice(worlds.indexOf(first), 1)
-    const saved = readJson(join(data, 'plugin-set.json')).generatedContent['official-rpg'] as string
+
+    const saved = readJson(join(data, 'plugin-set.json')).gameplayData['official-rpg'].digest as string
     const changed = loadPackContent(pack, await compile(pack), strongerFire().mechanisms.content)!.hashes[
       'official-rpg'
     ]
     expect(changed).not.toBe(saved)
-    await expect(open(pack, data, { composition: strongerFire() })).rejects.toThrow(
-      `official-rpg 插件生成的规则与存档不一致（存档 ${saved}，当前 ${changed}）`,
-    )
-    // The same content opens again.
-    const again = await open(pack, data)
-    expect(again.events().length).toBeGreaterThan(0)
+
+    // 普通读档在兼容声明下正常打开；但未提交的旧重生成候选因配置／实现摘要已变被拦截。
+    const reopened = await open(pack, data, { composition: strongerFire() })
+    const current = await reopened.runtime.state()
+    expect(current.notice).toContain('official-rpg 已按兼容声明载入更新')
+    await expect(reopened.runtime.regenerate(current.tailRound!.id!, 'rpg-changed-digest')).rejects.toThrow('环境')
+    await expect(
+      reopened.runtime.selectCandidate(current.tailRound!.id!, staleCandidateId, 'rpg-old-candidate'),
+    ).rejects.toThrow('环境')
+    // 正常继续游玩不受影响。
+    expect((await reopened.runtime.submit('继续出发')).error).toBe(false)
   })
 
-  it('editing what only the rules layer reads, such as a locked exit reason, also trips the save pin', async () => {
+  it('editing compatible copy such as a locked exit reason reopens cleanly, while removing a saved map or bumping dataVersion diagnoses clearly', async () => {
     const { pack, data } = copy()
     const first = await open(pack, data)
     await first.close()
     worlds.splice(worlds.indexOf(first), 1)
+
     const config = readJson(join(pack, 'rpg.json'))
     config.maps[0].exits[0].lockedReason = '门上的锁换了。'
     writeJson(join(pack, 'rpg.json'), config)
-    await expect(open(pack, data)).rejects.toThrow('official-rpg 插件生成的规则与存档不一致')
+
+    const withNewCopy = await open(pack, data)
+    const refused = await withNewCopy.move(RUIN2)
+    expect(refused.notice).toContain('门上的锁换了。')
+    await withNewCopy.close()
+    worlds.splice(worlds.indexOf(withNewCopy), 1)
+
+    await expect(open(pack, data, { composition: incompatibleRpg() })).rejects.toThrow(
+      'official-rpg 插件的数据版本与存档不兼容（存档 dataVersion 1，当前支持 2）',
+    )
+
+    const missingMap = structuredClone(config)
+    missingMap.maps = missingMap.maps.slice(0, 1)
+    writeJson(join(pack, 'rpg.json'), missingMap)
+    await expect(open(pack, data)).rejects.toThrow('official-rpg 插件缺少存档所需的活动标识 rpg-map-ruin-2')
   })
 
   it('an rpg.json without its plugin field says the field is missing', async () => {
     const { pack, data } = copy({ config: c => delete c.plugin })
-    await expect(open(pack, data)).rejects.toThrow('rpg.json 缺少 plugin 字段')
+    await expect(open(pack, data)).rejects.toThrow("must have required property 'plugin'")
     expect(existsSync(join(data, 'world.sqlite'))).toBe(false)
   })
 
   it('a pack asking for another plugin version fails before the world opens', async () => {
     const { pack, data } = copy({ config: c => (c.plugin.version = '2') })
-    await expect(open(pack, data)).rejects.toThrow('rpg.json 需要插件 official-rpg 2，当前程序提供 official-rpg 1')
+    await expect(open(pack, data)).rejects.toThrow('/plugin/version')
     expect(existsSync(join(data, 'world.sqlite'))).toBe(false)
   })
 
-  it('the lens simulation opens an rpg.json pack with the same generated content', async () => {
+  it('the lens simulation opens an rpg.json pack with the same native content', async () => {
     const lens = await LensSimulation.open('tests/fixtures/rpg-pack')
     try {
       expect(JSON.stringify(lens.activityDefinitions())).toContain('rpg-map-ruin-1')
@@ -158,12 +207,12 @@ describe('rpg.json in a pack', () => {
     const { pack, data } = copy()
     const composition = assembleRoleplay({ content: [] })
     await expect(open(pack, data, { composition })).rejects.toThrow(
-      '这个包的 rpg.json 需要插件 official-rpg 1，当前组合没有提供',
+      'Selected plugin is not installed or allowed: official-rpg',
     )
     expect(existsSync(join(data, 'world.sqlite'))).toBe(false)
   })
 
-  it("generated content sits beside the pack's own modules and activities, and a clash fails before the world opens", async () => {
+  it("native content sits beside the pack's own modules and activities, and a clash fails before the world opens", async () => {
     const own = copy({
       edit: pack => {
         addAsset(pack, 'scripts/activities/chat.js', '// own activity\n')

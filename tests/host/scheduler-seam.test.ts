@@ -1,3 +1,5 @@
+import { WorldApplication } from '@harness-world/application'
+import { WorldStore } from '@harness-world/store-sqlite'
 import { mkdtempSync, rmSync } from 'node:fs'
 import type { Server } from 'node:http'
 import { tmpdir } from 'node:os'
@@ -9,6 +11,7 @@ import { officialSeams } from '../../desktop/official-bundle.ts'
 import { playSettings } from '../../desktop/play-settings.ts'
 import { restoreStoryNode } from '../../desktop/story-nodes.ts'
 import { WorldHostRuntime, type WorldHostOptions } from '../../desktop/host/world-runtime.ts'
+import { PluginFaultError } from '../../desktop/host/plugin-runtime.ts'
 import { createChatServer, fakeModels } from '../support/fake-provider.ts'
 
 const roots: string[] = [],
@@ -105,10 +108,10 @@ it('lets the same scheduler choose a single staged autonomous opportunity', asyn
   const { runtime, actors } = await start(
     provider(async round => {
       phases.push(round.phase ?? 'scene')
-      if (!round.autonomy) return quiet
-      const id = round.autonomy!.roles[0]!.characterId
+      const nominated = round.wakeups?.() ?? []
+      if (!nominated.length) return quiet
+      const id = nominated[0]!.characterId
       const result = await round.turn(id, {
-        kind: 'autonomous',
         signal: round.signal,
         stimulusSeqs: round.observationSeqs(id, round.afterSeq, round.headSeq()),
         maxCalls: 2,
@@ -188,11 +191,11 @@ it('charges repeated decision middleware sends to the official staged budget', a
 
 it('does not apply the official autonomous budget to a third-party scheduler', async () => {
   const custom = provider(async round => {
-    if (!round.autonomy) return quiet
-    const id = round.autonomy!.roles[0]!.characterId
+    const nominated = round.wakeups?.() ?? []
+    if (!nominated.length) return quiet
+    const id = nominated[0]!.characterId
     for (let n = 0; n < 3; n++)
       await round.turn(id, {
-        kind: 'autonomous',
         signal: round.signal,
         maxCalls: 2,
         stimulusSeqs: round.observationSeqs(id, round.afterSeq, round.headSeq()),
@@ -225,25 +228,34 @@ it('keeps player input and continues the next round when the scheduler throws', 
   expect(next.transcript.some(line => line.player && line.text === '还在吗？')).toBe(true)
 })
 
-it('treats an invalid result as a finished round', async () => {
+it('reports an invalid scheduler result as a plugin fault', async () => {
   const { runtime } = await start(provider(async () => ({ nope: true })))
   const state = await runtime.submit(MOVE)
-  expect(state.error).toBeFalsy()
-  expect(state.notice).toContain('本轮角色处理已结束')
+  expect(state.error).toBe(true)
+  expect(state.notice).toContain('调度器插件')
+  expect(state.debug.execution).toMatchObject({ status: 'failed' })
 })
 
-it('falls back to the official scheduler when open fails', async () => {
-  vi.spyOn(console, 'error').mockImplementation(() => {})
-  const { runtime, actors } = await start(
+it('stops opening instead of switching implementations when the selected scheduler fails', async () => {
+  const failure = await start(
     provider(async () => quiet, {
       open: async () => {
         throw new Error('cannot open')
       },
     }),
+  ).then(
+    () => undefined,
+    error => error,
   )
-  expect((await runtime.state()).notice).toContain('已改用官方调度')
-  await runtime.submit(MOVE)
-  expect(actors.length).toBeGreaterThan(0)
+  expect(failure).toBeInstanceOf(PluginFaultError)
+  if (!(failure instanceof PluginFaultError)) return
+  expect(failure).toMatchObject({
+    origin: 'plugin',
+    pluginId: 'test-scheduler',
+    operation: 'open',
+    invalidResult: false,
+  })
+  expect(failure.message).toBe('插件 test-scheduler 的 open 操作失败。')
 })
 
 it('opens a separate instance for each regeneration candidate and closes it', async () => {
@@ -343,7 +355,7 @@ const EXAMPLE = resolve('examples/host-plugins/impulsive-scheduler.mjs')
 
 async function loadExample(priority: string) {
   const plugins = await loadHostPlugins([
-    { id: 'impulsive-scheduler', path: EXAMPLE, enabled: true, config: { priority } },
+    { id: 'impulsive-scheduler', path: EXAMPLE, enabled: true, nativeAllowed: true, config: { priority } },
   ])
   sessions.push(plugins)
   expect(plugins.skipped).toEqual([])
@@ -417,7 +429,7 @@ it('waits for turns a scheduler left running before it closes the round', async 
     expect(settled).toBe(true)
     await new Promise(done => setTimeout(done, 20))
     expect(rejections).toEqual([])
-    expect((await runtime.submit('还在吗？')).error).toBeFalsy()
+    expect((await runtime.submit('还在吗？')).transcript.some(line => line.text === '还在吗？')).toBe(true)
   } finally {
     process.off('unhandledRejection', onRejection)
   }
@@ -489,8 +501,9 @@ it('treats an activation with a null result as an invalid result', async () => {
     })),
   )
   const state = await runtime.submit(MOVE)
-  expect(state.error).toBeFalsy()
-  expect(state.notice).toContain('本轮角色处理已结束')
+  expect(state.error).toBe(true)
+  expect(state.notice).toContain('调度器插件')
+  expect(state.debug.execution).toMatchObject({ status: 'failed' })
 })
 
 it('reports an activity scheduler that returns no result instead of silently leaving it stuck', async () => {
@@ -511,4 +524,128 @@ it('reports an activity scheduler that returns no result instead of silently lea
   expect(state.notice).toContain('调度器插件')
   expect(state.activity?.game).toMatchObject({ phase: 'opening', turn: 'character:companion' })
   expect(actors).toEqual([])
+})
+
+it('caps a hostile scheduler at the actual request activation entry even when it returns quiet', async () => {
+  const results: string[] = []
+  const { runtime, actors } = await start(
+    provider(async round => {
+      for (let index = 0; index < 4; index++) {
+        const result = await round.turn(WITNESS as never, { signal: round.signal, stimulusSeqs: [], maxCalls: 2 })
+        results.push(result.status)
+      }
+      return {
+        ...quiet,
+        activations: [
+          {
+            characterId: WITNESS,
+            result: { status: 'published', calls: 100, performResult: { secret: 'PRIVATE_NPC_RESULT' } },
+          },
+        ],
+      }
+    }),
+    undefined,
+    'dynamic-scheduling',
+    { executionBudget: { maxActivations: 1 } },
+  )
+  const state = await runtime.submit(MOVE)
+  expect(actors).toEqual([WITNESS])
+  expect(results).toEqual(['published', 'budget_exhausted', 'budget_exhausted', 'budget_exhausted'])
+  expect(state.debug.execution).toMatchObject({
+    status: 'budget_exhausted',
+    usedActivations: 1,
+    usage: { sends: 1, observedHttpAttempts: 1, usageReported: 1 },
+  })
+  expect(JSON.stringify(state)).not.toContain('PRIVATE_NPC_RESULT')
+  expect(JSON.stringify(state.debug)).not.toContain('performResult')
+})
+
+it('atomically limits concurrent scheduler turns independently of the scheduler return value', async () => {
+  const results: string[] = []
+  const { runtime, actors } = await start(
+    provider(async round => {
+      const values = await Promise.all(
+        [0, 1].map(() => round.turn(WITNESS as never, { signal: round.signal, stimulusSeqs: [], maxCalls: 2 })),
+      )
+      results.push(...values.map(row => row.status))
+      return quiet
+    }),
+    undefined,
+    'dynamic-scheduling',
+    { executionBudget: { maxConcurrentActivations: 1 } },
+  )
+  const state = await runtime.submit(MOVE)
+  expect(actors).toEqual([WITNESS])
+  expect(results).toEqual(['published', 'budget_exhausted'])
+  expect(state.debug.execution).toMatchObject({ status: 'budget_exhausted', usedActivations: 1, runningActivations: 0 })
+})
+
+it('counts a simulated decision without inventing a model send', async () => {
+  const { runtime, actors } = await start(provider(witnessOnly), undefined, 'dynamic-scheduling', {
+    plugins: {
+      scheduler: provider(witnessOnly),
+      decisions: [
+        {
+          id: 'simulated',
+          version: '1.0.0',
+          open: async () => ({
+            decide: async () => ({ decision: 'publish', segments: [{ type: 'speech', text: '模拟回答。' }] }),
+          }),
+        },
+      ],
+    },
+  })
+  const state = await runtime.submit(MOVE)
+  expect(actors).toEqual([])
+  expect(state.debug.execution).toMatchObject({
+    calls: 1,
+    usage: { sends: 0, observedHttpAttempts: 0, usageReported: 0, usageMissing: 0 },
+  })
+})
+
+it('starts a system stimulus cycle without a player text or a wait action', async () => {
+  const { runtime, actors } = await start(provider(witnessOnly))
+  const before = await runtime.state()
+  const state = await runtime.processStimulus(0)
+  expect(state.busy).toBe(false)
+  expect(actors).toEqual([WITNESS])
+  expect(state.debug.execution).toMatchObject({ status: 'completed', usedActivations: 1 })
+  const store = new WorldStore(join(runtime.dataDirectory, 'world.sqlite'))
+  try {
+    const playerActions = store
+      .readEvents(runtime.address)
+      .filter(
+        event =>
+          event.eventType === 'action.resolved' && (event.data as { actorId?: string }).actorId === 'character:player',
+      )
+    expect(playerActions).toEqual([])
+    expect(state.transcript.filter(line => line.player)).toEqual(before.transcript.filter(line => line.player))
+  } finally {
+    store.close()
+  }
+})
+
+it('reports a cycle settlement fault to the player and keeps its raw error private', async () => {
+  const factory = WorldApplication.prototype.createExecutionEngine
+  vi.spyOn(WorldApplication.prototype, 'createExecutionEngine').mockImplementation(async function (
+    this: WorldApplication,
+    options,
+  ) {
+    const engine = await factory.call(this, options)
+    engine.registerCoreCycleEndHook({
+      pluginId: 'settlement-test',
+      hookId: 'end',
+      resolve: () => {
+        throw new Error('PRIVATE_CYCLE_CONTEXT')
+      },
+    })
+    return engine
+  })
+  vi.spyOn(console, 'error').mockImplementation(() => {})
+  const { runtime } = await start(provider(witnessOnly))
+  const state = await runtime.processStimulus(0)
+  expect(state.error).toBe(true)
+  expect(state.notice).toContain('settlement-test')
+  expect(state.notice).toContain('周期结算失败')
+  expect(JSON.stringify(state)).not.toContain('PRIVATE_CYCLE_CONTEXT')
 })

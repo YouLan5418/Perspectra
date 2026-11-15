@@ -1,6 +1,7 @@
 import {
   MESSAGE_DEFINITION_ID,
   isMessageAction,
+  parseCommunicationDefinition,
   type WorldJsonObject,
   type WorldJsonValue,
 } from '@harness-world/contracts'
@@ -14,22 +15,91 @@ const object = (value: unknown): WorldJsonObject | undefined =>
   value !== null && typeof value === 'object' && !Array.isArray(value) ? (value as WorldJsonObject) : undefined
 const exact = (value: WorldJsonObject, keys: string[]) => Object.keys(value).sort().join(',') === keys.sort().join(',')
 
+/** Shared result validation, also used inside the selected provider's fault boundary. */
+export function validateCommunicationCandidate(
+  value: unknown,
+  maximum: number,
+): { rejectReason: string } | { text: string; description: string } {
+  const candidate = object(value)
+  if (
+    candidate &&
+    exact(candidate, ['rejectReason']) &&
+    typeof candidate.rejectReason === 'string' &&
+    candidate.rejectReason.trim()
+  )
+    return { rejectReason: candidate.rejectReason }
+  if (
+    !candidate ||
+    !exact(candidate, ['text', 'description']) ||
+    typeof candidate.text !== 'string' ||
+    !candidate.text.trim() ||
+    candidate.text.length > maximum ||
+    typeof candidate.description !== 'string' ||
+    candidate.description.length > 2000
+  )
+    throw new TypeError('通信机制返回了无效投递候选')
+  return { text: candidate.text, description: candidate.description }
+}
+
+/** Message envelope validation shared by provider output guards and core request admission. */
+export function parseCommunicationRequest(
+  parameters: unknown,
+  actionType: string,
+  maximum: number,
+  allowEmpty = false,
+): { recipientId: string; text: string } | undefined {
+  const p = object(parameters),
+    target = object(p?.targetRef),
+    definition = object(p?.definitionRef),
+    args = object(p?.arguments)
+  if (
+    !p ||
+    actionType !== 'interact' ||
+    !exact(p, ['targetRef', 'bindingId', 'definitionRef', 'arguments']) ||
+    p.bindingId !== MESSAGE_DEFINITION_ID ||
+    !target ||
+    !exact(target, ['kind', 'id']) ||
+    target.kind !== 'character' ||
+    typeof target.id !== 'string' ||
+    !definition ||
+    !exact(definition, ['id', 'version']) ||
+    definition.id !== MESSAGE_DEFINITION_ID ||
+    definition.version !== 1 ||
+    !args ||
+    !exact(args, ['text']) ||
+    typeof args.text !== 'string' ||
+    (!allowEmpty && !args.text.trim()) ||
+    args.text.length > maximum
+  )
+    return undefined
+  return { recipientId: target.id, text: args.text }
+}
+export function validateCommunicationOption(option: unknown, maximum: number): { recipientId: string; text: string } {
+  const row = object(option)
+  const request =
+    row &&
+    parseCommunicationRequest(
+      {
+        targetRef: row.targetRef!,
+        bindingId: row.bindingId!,
+        definitionRef: row.definitionRef!,
+        arguments: row.arguments!,
+      },
+      'interact',
+      maximum,
+      true,
+    )
+  if (!request) throw new TypeError('通信机制提供了无效消息参数')
+  return request
+}
+
 /** Contact authority, real sender binding and atomic delivery facts, independent of message computation. */
 export class CommunicationRules {
   readonly contacts: ReadonlyMap<string, readonly string[]>
   readonly medium: string
   constructor(definition: unknown, characterIds: readonly string[]) {
-    const root = object(structuredClone(definition))
-    if (
-      !root ||
-      !exact(root, ['medium', 'contacts']) ||
-      typeof root.medium !== 'string' ||
-      !root.medium.trim() ||
-      root.medium.length > 40
-    )
-      throw new TypeError('通信配置无效')
-    const contacts = object(root.contacts)
-    if (!contacts) throw new TypeError('通信联系人配置无效')
+    const root = parseCommunicationDefinition(definition)
+    const contacts = root.contacts
     const ids = new Set(characterIds)
     this.contacts = new Map(
       Object.entries(contacts).map(([actor, recipients]) => {
@@ -55,31 +125,7 @@ export class CommunicationRules {
     maximum: number,
     allowEmpty = false,
   ): { recipientId: string; text: string } | undefined {
-    const p = object(parameters),
-      target = object(p?.targetRef),
-      definition = object(p?.definitionRef),
-      args = object(p?.arguments)
-    if (
-      !p ||
-      actionType !== 'interact' ||
-      !exact(p, ['targetRef', 'bindingId', 'definitionRef', 'arguments']) ||
-      p.bindingId !== MESSAGE_DEFINITION_ID ||
-      !target ||
-      !exact(target, ['kind', 'id']) ||
-      target.kind !== 'character' ||
-      typeof target.id !== 'string' ||
-      !definition ||
-      !exact(definition, ['id', 'version']) ||
-      definition.id !== MESSAGE_DEFINITION_ID ||
-      definition.version !== 1 ||
-      !args ||
-      !exact(args, ['text']) ||
-      typeof args.text !== 'string' ||
-      (!allowEmpty && !args.text.trim()) ||
-      args.text.length > maximum
-    )
-      return undefined
-    return { recipientId: target.id, text: args.text }
+    return parseCommunicationRequest(parameters, actionType, maximum, allowEmpty)
   }
   validateOption(
     option: WorldJsonObject,
@@ -104,6 +150,7 @@ export class CommunicationRules {
   resolve(
     context: RulebookResolutionContext,
     prepare: (input: { actorId: string; recipientId: string; text: string; publicationCharacters: number }) => unknown,
+    availableContacts?: readonly string[],
   ): RulebookResolution {
     if (!isMessageAction(context.action.parameters)) throw new TypeError('不是通信操作')
     const reject = (reason: string) => ({
@@ -117,27 +164,14 @@ export class CommunicationRules {
       { recipientId } = request
     if (!(this.contacts.get(actor) ?? []).includes(recipientId)) return reject('CONTACT_NOT_AUTHORIZED')
     if (!this.activeContacts(context.events, actor).includes(recipientId)) return reject('CONTACT_UNAVAILABLE')
+    if (availableContacts !== undefined && !availableContacts.includes(recipientId))
+      return reject('CONTACT_UNAVAILABLE')
     if (!context.actionId) throw new TypeError('投递必须有行动标识')
-    const candidate = object(
+    const candidate = validateCommunicationCandidate(
       prepare({ actorId: actor, recipientId, text: request.text, publicationCharacters: maximum }),
+      maximum,
     )
-    if (
-      candidate &&
-      exact(candidate, ['rejectReason']) &&
-      typeof candidate.rejectReason === 'string' &&
-      candidate.rejectReason.trim()
-    )
-      return reject(candidate.rejectReason)
-    if (
-      !candidate ||
-      !exact(candidate, ['text', 'description']) ||
-      typeof candidate.text !== 'string' ||
-      !candidate.text.trim() ||
-      candidate.text.length > maximum ||
-      typeof candidate.description !== 'string' ||
-      candidate.description.length > 2000
-    )
-      throw new TypeError('通信机制返回了无效投递候选')
+    if ('rejectReason' in candidate) return reject(candidate.rejectReason)
     const speech = {
       characterId: actor,
       text: candidate.text,

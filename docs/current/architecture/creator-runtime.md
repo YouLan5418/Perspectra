@@ -1,5 +1,40 @@
 # 当前创作者运行时
 
+2026-11-15 B8：默认动作分组／参数表单、通用控件、授权只读面板与 Launcher 源包配置编辑已接通，三组独立复验及主代理验收通过。详见 [展示与配置指南](../guides/gameplay-presentation.md)和 [B8 记录](../../superpowers/plans/2026-11-15-composable-engine-b8-presentation.md)。停在 B8，不进入 B9；以下历史批次说明保留当时证据。
+
+2026-11-15 B7：游戏包显式 plugins、可选 services 硬要求、共同 gameplay 脚本和独立配置校验已接通，三组独立复验全部 PASS，主代理已完成 B7 验收。证据和边界见 [B7 记录](../../superpowers/plans/2026-11-15-composable-engine-b7-packs.md)。保留 v5 内容布局，当时默认展示与作者界面留 B8；其最新状态见页首。
+
+
+## 官方原生玩法接入（2026-11-15，B6 九项修正已通过独立复验）
+
+例如同伴在地图战斗中使用技能，实际执行的是所属 GameplayDefinition 注册的 Handler；RPG 锁门和金库访问走 restrictions，随行移动走单层 afterAction。TRPG 主持人的暗骰及笔记仍只形成指定接收者的观察。Host 把已有状态／活动操作信封转换为公共操作 ID；注册前由 bindNativeGameplay 绑定当前世界选中的 State／Activity Provider。唯一 Handler 调用所选实例生成候选，核心复核权限、状态和原子提交，不绕过替换实现调用生成时捕获的官方计算。源码接通与测试证据见 [B6 记录](../../superpowers/plans/2026-11-15-composable-engine-b6-rpg-trpg.md)，原阶段审查已完成，本次九项修正见[复核记录](../../superpowers/plans/2026-11-15-composable-engine-b6-followup.md)，已通过三组新的独立复验；不代表真实模型或发行验收。
+
+[nativeGameplay](../../../packages/plugin-sdk/src/native-gameplay.ts)把动态配置中的纯状态／活动计算展开为共同定义、参数 Schema 和操作。活动 behavior 保留初始化、policy、调度、自动开始、发布后计算和恢复条件，正式 resolve 只在 operations 中注册。status-result／activity-result 是核心识别的提案数据；公共执行器用已有解析器归一化，再与普通效果共同检查所属状态、冲突归并、活动身份／阶段、可信物理范围和受众。发布后派生与原表达属于同一个候选提交。 所选状态实例负责初始化、policy 与 resolve；所选活动实例负责初始化、policy、resolve、schedule、发布后计算等既有能力。状态结果按声明归属过滤初值，后续候选仍由核心作共同校验。 当 State Provider 同时处理基础脚本与原生玩法时，宿主以 projectKnownStatus 提供该调用者完整授权的 known view，复制冻结后交给 policy；Handler truth 和模块状态投影仍只含所属状态。
+
+WorldApplication 默认绑定同一事实前缀的物理视图，角色输入不包含他人认知或私有状态。裁定只获得模块自有状态真值；候选按已知数据收窄。需要队伍位移或指定实体掉落的定义显式声明 physicalEffects，核心仍验证最终效果。公开 startActivity 给每次开始分配新身份并绑定玩家与 NPC；resume 复核恢复钩子或共址条件。骰子能力只在当前调用期间有效。包清单与共同脚本装配由 B7 接通，默认 UI 由 B8 接通。
+
+状态操作的 status 绑定指向本地 action，所属 statusPolicy 保留角色资格、动作声明与纯 policy。核心复用 StatusState、knownStatusView、admitStatusOperation 和 parseStatusOffers 检查执行者、当前已知许可、活动、角色参数、物品目标与可达性；policy 的 place 只包含自身或地面的可达物品，不借裁定真值生成许可。公开 executePlayer 的可选 targetId 单独表达物品目标，不混入参数 Schema。公共开始在同一快照复核已注册 autoStart 条件，条件不满足时不调用初始化或消耗其随机数。
+
+手动开始、暂停、恢复、放弃活动均执行一次单层 afterAction，读取同一主结果候选快照，主效果与派生一起校验提交；派生失败不留下半次生命周期变化。自动开始属于 onCycleEnd 结算，强制 escape 保留既有例外。通用正式操作在 Handler 之前核验目标资格，并将 targetRef.id 传入 Handler.targetId；不合法目标不会调用业务处理器。TRPG 公开内容只可引用公开地点，仍被公开内容引用的地点也不能直接改为私有。
+
+搜证示例的 offer 始终列出当前授权地点，精力为零时仍可见搜查候选，尝试后由 resolve 返回 INSUFFICIENT_ENERGY；这样保留明确的资源拒绝码。私有线索等候选仍负责过滤未授权目标，不能通过执行 Handler 后再验证目标来取得业务说明。
+
+## 原生玩法定义（2026-11-13，B4 已通过独立审查）
+
+例如搜查候选直接指向当前地点，查看线索候选指向已知线索。offer.targetId 保留为受控目标；B8 起 ui.targetKind 只承担展示分类，实际 targetRef.kind 由身份推导，正式入口使用与候选相同的受限材料复核目标；不能通过替换或撤销后的目标执行。示例状态统一以 `clues` 作为声明键和读字段，使用默认所属投影与核心行动者告知，避免手工名称映射。必要的其他接收者告知仍须显式声明，不能据此向旁观者暴露完整状态。
+
+例如角色搜查档案室后，本人获得线索，同房人只看到翻找，房外人不收到材料。[搜证定义](../../../packages/plugin-sdk/src/gameplay.example.ts)现在实际通过公共引擎、真实 CharacterTurn 和原子提交运行，不再只验证作者类型。当前原生集成覆盖搜证、跨模块计算、派生冲突、最终伤害／倒地、活动私有材料、所属周期结算和生命周期；真实模型、默认界面、游戏包装载与发行包尚未验收。
+
+引擎消费端用 [WorldApplication.createGameplayRuntime](../../../packages/application/src/world-application.ts)绑定已有 scope、分支与执行引擎，再 register(definition, config, context?) 并等待 initialize()。作者定义只依赖 SDK；注册、执行与受众检查在 [gameplay-runtime](../../../packages/application/src/gameplay-runtime.ts)。装配后不追加定义，Context 释放时撤销所属注册；实例关闭使旧计算方法和执行入口失效。已有 WorldApplication 玩家入口与受控角色回合自动消费所属分支的原生规则。
+
+initializeState 明确返回现有 StatusTruth 的 public／characters，替代 B1 未绑定归属的扁平初值。声明状态时必须有初值，无状态模块可省略。恢复已有值时检查声明和 Schema，不用初始化覆盖不匹配的事实。projectState 的候选输入只含该角色已知且属于本模块的状态；裁定消费所属真值。角色上下文和新鲜度检查同时纳入授权的原生材料。
+
+公开方法用同一 defineOperation 类型声明并放进 methods，主操作通过 compute(method, parameters) 调用。方法只贡献所属效果，使用当前计算快照，回调返回后能力失效。所有 afterAction 读取相同主结果候选，一层收集后统一检查；冲突需要所属模块 combineChanges 明确归并，最终不变量仍须成立。故障或冲突使整步未提交效果一起丢弃。
+
+用途和参数 Schema 随合法候选交给通用决策模板。操作及活动结果先按接收者投影，再经对应结果 Schema 和格式化；默认只给行动者完整业务结果，目击者得到基础动作说明。格式化失败只留脱敏告警。活动仍使用既有 ActivityStateRules、private／internal 隔离和暂停／恢复／放弃／退出逻辑。原生 onCycleEnd 只收到所属状态，经 B3 内部适配结算，不接收全量世界快照；status.updated 的 cycle 来源不计为玩家轮次。
+
+包内脚本和清单已在 B7 接通（见页首），默认面板／表单留 B8，旧官方业务迁移按 B5／B6 进行，不能把本切片写成已在全部入口发行。源码及独立验收状态见 [B4 记录](../../superpowers/plans/2026-11-13-composable-engine-b4-gameplay.md)。
+
 2026-11-05 M5：例如后室同伴收到玩家短信后，自主处理自己的目标。通信选项与消息计算由 ctx.communication 提供，自主配置、触发频率和许可由 ctx.autonomy 提供；两者不直接提交事件。CommunicationRules 与执行适配绑定真实收发者，AutonomyRuntime 提取交易摘要并检查声明范围，机会继续交现有 scheduler／characterLoop。源码与验证边界见[M5 记录](../studies/2026-11-core-migration-m5.md)。
 
 2026-11-05 M4：例如猜数字与 RPG 战斗共用活动机制，各自保留包内脚本。`ctx.activities` 选择独立的解释器与候选策略；宿主 ActivityRuntime／ActivitiesRuntime 只准备授权输入并调用核心执行。参与者、private／internal 隔离、前台唯一性和随机回放继续受检查。旧活动 VM 已迁至 official-activities；源码、自动验证与体验限制见[M4 记录](../studies/2026-11-core-migration-m4.md)。
@@ -24,7 +59,7 @@ RPG Maker 方向暂停继续扩展自研 RPG Core 战斗规则。[桥接骨架](
 
 预设创作可让同行者少写总结、保留自己的语气；不会授予其读取信件秘密的权限。CLI 进程新增 `preset validate <file> [--pack]`，直接复用 [rolePreset](../../../packages/provider-chat/src/preset.ts) 和[预设库导入](../../../packages/provider-chat/src/preset-library.ts)校验；包推荐模式只接受裸 RolePreset，预设库模式支持交换格式。它只检查字段、宏与正则语法，不执行文本替换、不写入预设库、不证明风格效果。世界包 validate 仍不自动加载预设扩展，需分别检查；详见[预设创作](../../../skills/perspectra-creator/references/presets.md)。
 
-2026-10-24 创作校验入口：例如作者修改同行者拿钥匙的作品后，可在程序目录调用 `worldpack.cmd validate <源目录>`，让创作 Skill 读取退出码及 JSON 诊断。便携构建复用 [CLI 进程入口](../../../packages/world-pack/process/cli-entry.ts)和[构建函数](../../../scripts/build/build-worldpack-cli.mjs)，随包 Node 与 jieba-wasm 执行，不依赖创作者的源码环境；`--version` 给出程序与格式版本，`--help` 说明范围。CLI 不执行玩法脚本或启动完整宿主；`test` 仅编译适配，不执行声明断言。独立目录、空 PATH、中文和空格路径以及错误码已由[隔离检查](../../../scripts/release/verify-worldpack-cli.mjs)覆盖；这次不涉及角色协议，也未据此声称真实模型体验或完整发行包通过。操作见[创作指南](../guides/world-pack-authoring.md#6-校验与试玩)。
+2026-10-24 创作校验入口：例如作者修改同行者拿钥匙的作品后，可在程序目录调用 `worldpack.cmd validate <源目录>`，让创作 Skill 读取退出码及 JSON 诊断。便携构建复用 [CLI 进程入口](../../../packages/world-pack/process/cli-entry.ts)和[构建函数](../../../scripts/build/build-worldpack-cli.mjs)，随包 Node 与 jieba-wasm 执行，不依赖创作者的源码环境；`--version` 给出程序与格式版本，`--help` 说明范围。B7 起 CLI 执行所选定义的元数据及纯配置校验，包内共同定义在 VM 中读取；不执行玩法行动或启动完整宿主；`test` 仅编译适配，不执行声明断言。独立目录、空 PATH、中文和空格路径以及错误码已由[隔离检查](../../../scripts/release/verify-worldpack-cli.mjs)覆盖；这次不涉及角色协议，也未据此声称真实模型体验或完整发行包通过。操作见[创作指南](../guides/world-pack-authoring.md#6-校验与试玩)。
 
 2026-10-22 核对：例如留守者自主去拿钥匙，包内 `scripts/status.js` 的作者模板提供 `status:take`，`autonomy.json` 再允许它在本次机会使用这一操作。活动 policy 同样用 `status:take`／`status:drop`／`status:give` 引用拿、放、给；这些操作不再由基础交互包安装。模板、目标筛选和执行复查见[物品操作](../guides/activity-and-variables.md#对物品做的操作2026-10-22当前源码)。下方示例已按现行 ID 更新，带日期的旧试玩结果不等于新模板已完成同样验收。
 
@@ -40,7 +75,7 @@ RPG Maker 方向暂停继续扩展自研 RPG Core 战斗规则。[桥接骨架](
 
 同一天补齐了第一版[创作者控制台](../creator-debug-api.md#创作者控制台)：2026-10-17 起改为由 Launcher“打开创作者页面”在系统浏览器打开的独立页面（[入口](../../../apps/launcher/src/creator/main.ts)，只在游戏运行时可用，“模型请求”视图取代原请求探查对话框），左侧是游戏／故事线／角色导航，中间是「对话」连续阅读与「轨迹」紧凑表格，右侧是按对象变化的详情面板；世界总览、角色、物品、状态和活动共用同一套列表框架。它只做读取与合并：`apps/launcher/src/creator` 下的 [store.ts](../../../apps/launcher/src/creator/store.ts) 负责分页、轮询去重与选择状态，[model.ts](../../../apps/launcher/src/creator/model.ts) 把已提交事件与私有记录合成一条轨迹，[source.ts](../../../apps/launcher/src/creator/source.ts) 用页面令牌同源读取 `/api/creator-*`，没有令牌时使用浏览器 Mock 样例。合并规则不超出接口已有的证据：未读到正文的记录只显示「已记录」，失败与未发表内容默认收在「显示处理过程」之后。真实运行实例、长会话容量与发行包仍未验收。2026-10-30 新增「运行时间线」：同一份轨迹按角色与系统泳道横向排开，只按 actionId、transactionId、decisionId、eventRefs、participantId 画关联，见[运行时间线](../creator-debug-api.md#运行时间线)；同日修正创作者快照的物品名取自最近一次写明 name 的 upsert，creator-meta 增加包内地点名，创作者页暗色改为中性近黑底。
 
-> [跨场景短信实验样例](../studies/cross-scene-communication-20261010.md)允许声明媒介名称和有向联系人；[电话实验](../studies/cross-scene-phone-20261010.md)进一步支持自主接听与持续连接，但仅独立实验入口加载。2026-10-25 起包内放 `communication.json`（媒介名称与有向联系人，登记在 `assetFiles`）即在默认宿主启用短信，`model-girls-sweet-days` 是第一个开启的包；电话、活动期间收发短信仍未接入默认宿主；改名为托梦不会自动实现睡眠条件或匿名来源。
+> [跨场景短信实验样例](../studies/cross-scene-communication-20261010.md)允许声明媒介名称和有向联系人；[电话实验](../studies/cross-scene-phone-20261010.md)进一步支持自主接听与持续连接，但仅独立实验入口加载。2026-10-25 曾按包内文件启用；B7 起须显式选择 official-communication，并登记其 communication.json 资产，才在默认宿主启用短信，`model-girls-sweet-days` 是第一个开启的包；电话、活动期间收发短信仍未接入默认宿主；改名为托梦不会自动实现睡眠条件或匿名来源。
 
 > [活动与通信组合实验](../studies/cross-scene-activity-20261010.md)已用活动现有 `interactions` 白名单裁定通信：允许时可以收发与接听，禁止时直接提交也不能绕过；默认宿主尚未安装这套组合规则。
 
@@ -133,15 +168,15 @@ Interaction 定义和绑定提供玩法可选行为，规则负责重要状态�
 
 例如作者在包里写一份 `rpg.json`：遗迹一层有守卫、铁门需要钥匙，澄是同伴。玩家进入遗迹时，宿主已经为这张地图生成了一场活动，澄随队长走进来，战斗伤害、掉落和锁门由程序裁定，留在家里的阿茹收不到战斗内容。
 
-官方机制包 [official-rpg](../../../packages/official-rpg) 在世界打开时读取 `rpg.json`（需登记在 `assetFiles`），生成一个状态模块、每张地图一个活动和一个规则层（锁门、队伍随行），不写回包目录。宿主经通用的 [desktop/host/pack-content.ts](../../../desktop/host/pack-content.ts) 载入，生成内容的摘要按插件 id 记在存档 `plugin-set.json` 的 `generatedContent`。新建的[故事节点](../../../desktop/story-nodes.ts)也携带该记录，导入分享和打开恢复后的故事线时都核对摘要。包透视和 `worldpack validate` 也读 `rpg.json`。作者说明见[RPG 玩法](../guides/rpg.md)，验收包是 [hill-ruins](../../../examples/world-packs/hill-ruins/README.md)。摘要校验已通过自动测试，本轮修复未做真实模型试玩或发行包验收。
+官方机制包 [official-rpg](../../../packages/official-rpg) 由清单 plugins 选择，读取锁定的 rpg.json（或显式 config 路径），展开原生状态、地图活动、限制与派生定义。必须同时显式选择 official-dice。Host 的 [pack-content.ts](../../../desktop/host/pack-content.ts) 负责通用装载，规则由共同执行边界裁定。存档用 gameplayData 的插件身份及数据版本检查兼容，代码／配置摘要仅用于尾部候选环境比较；分享和读档继续核对实际状态。详见 [B6 记录](../../superpowers/plans/2026-11-15-composable-engine-b6-rpg-trpg.md)与 [B7 记录](../../superpowers/plans/2026-11-15-composable-engine-b7-packs.md)。未把源码和自动化结果视作真实模型或发行验收。
 
-2026-11-08 内容接缝：宿主不再有 RPG 专用槽位。玩法插件通过 `ctx.content` 注册内容生成器（[SDK 类型](../../../packages/plugin-sdk/src/content.ts)），声明自己读的配置文件；官方 RPG 是其中之一（`officialRpgContent` 读 `rpg.json`），默认组合在没有玩家插件接管 `rpg.json` 时注册它。宿主对每个生成器做同样的事：读已登记的配置文件，核对顶层 `plugin` 的 id 和 version，生成状态模块、活动与规则层，检查与包内模块、活动及其他生成器的重名，并按生成器记摘要。根目录 JSON 资产写了 `plugin` 却没有生成器读它时，世界不打开。包透视推演、故事分享预检和 `worldpack validate` 都走同一读取。包透视里 RPG 条目的展示（rpg-view.ts）仍直接读 `rpg.json`，属于透视自己的 RPG 视图。
+2026-11-08 建立的 ctx.content 接缝继续使用。B7 将内容发现改为按 plugins 显式选择，不再根据根目录 JSON 中的 plugin 字段自动装载。所选插件需已安装、版本匹配并被允许执行；未选择的玩法不会因配置文件存在而启动。纯校验由声明式 Schema 和注入的 validateConfig 执行，不调用 generate；宿主打开时才展开原生定义并检查重复注册。第三方元数据传入开档、尾轮、分享与 Lens 预检，避免后续入口遗失同一选择。Lens 的 RPG 只读视图仍属于其自己的展示逻辑。
 
 ## 跑团玩法（2026-11-09，分支 feat/rpg-plugin）
 
 例如作者在包里写一份 `trpg.json`：玩家请阿茹当主持人，选剧本《雨夜古宅》。阿茹自己决定接不接；接下后，玩家说“撬开书房的门”，阿茹要求一次敏捷检定，程序掷出的点数只发给玩家和阿茹，澄只知道有过检定；没参加的梅看不到活动结果和点数，但 AI 参与者在局内说的话按普通发言公开，她听得见。
 
-官方玩法包 [official-trpg](../../../packages/official-trpg) 经 `ctx.content` 读取 `trpg.json`（需登记在 `assetFiles`），生成一个键为 `trpg` 的活动，复用上一节的内容接缝（版本核对、重名检查、存档摘要）。点数来自 `ctx.dice`（[official-dice](../../../packages/official-dice)）：活动脚本在 `resolve` 里调用宿主注入的 `rollDice`，取数记入活动目录每轮的随机记录，所以回看、分支、重新生成都重放同一点数。点数通过活动结果的 `privateNotes` 只作为指定参与者的观察提交。主持人的裁定质量靠模型，程序只保证点数可信、可见范围正确。作者说明见[跑团玩法](../guides/trpg.md)，验收包是 [rainy-manor](../../../examples/world-packs/rainy-manor/README.md)。源码已接通并有宿主自动测试；2026-11-09 有一次 GLM-5.3-Flash 的脚本化试玩（[记录](../studies/2026-11-09-rainy-manor-playtest.md)），未做真人试玩或发行包验收。
+官方玩法包 [official-trpg](../../../packages/official-trpg) 经 `ctx.content` 读取 `trpg.json`（需登记在 `assetFiles`），在清单显式选择 official-trpg 与 official-dice 后，展开键为 trpg 的原生活动，复用上一节的组合校验和数据版本检查。点数来自 `ctx.dice`（[official-dice](../../../packages/official-dice)）：活动脚本在 `resolve` 里调用宿主注入的 `rollDice`，取数记入活动目录每轮的随机记录，所以回看、分支、重新生成都重放同一点数。点数通过活动结果的 `privateNotes` 只作为指定参与者的观察提交。主持人的裁定质量靠模型，程序只保证点数可信、可见范围正确。作者说明见[跑团玩法](../guides/trpg.md)，验收包是 [rainy-manor](../../../examples/world-packs/rainy-manor/README.md)。源码已接通并有宿主自动测试；2026-11-09 有一次 GLM-5.3-Flash 的脚本化试玩（[记录](../studies/2026-11-09-rainy-manor-playtest.md)），未做真人试玩或发行包验收。
 
 ## 创作入口与限制
 

@@ -1,6 +1,11 @@
 import { Script, createContext } from 'node:vm'
-import type { WorldJsonValue } from '@harness-world/contracts'
-import type { StatusModuleSource } from '@harness-world/plugin-sdk'
+import {
+  STATUS_CALL_LIMIT,
+  type StatusTruth,
+  type WorldJsonObject,
+  type WorldJsonValue,
+} from '@harness-world/contracts'
+import type { StatusModuleHooks, StatusModuleSource } from '@harness-world/plugin-sdk'
 
 /** Adapter for the existing synchronous packPlugin hooks. No native capability is visible in this VM. */
 export function callModule(source: string, method: string, args: readonly WorldJsonValue[]): unknown {
@@ -16,42 +21,123 @@ export function callModule(source: string, method: string, args: readonly WorldJ
   return JSON.parse(output)
 }
 
-/** Retain the existing source composition and hook semantics, including only the base onRoundEnd. */
-export function composeStatusSource(
-  base: string | undefined,
-  modules: readonly StatusModuleSource[],
-  missing: readonly string[],
-): string {
-  return `const base = (() => { ${base ?? 'globalThis.statusScript = null;'}; return globalThis.statusScript; })();
-const modules = [${modules.map(module => `(() => { ${module.source}; return {id:${JSON.stringify(module.id)}, characters:${JSON.stringify(module.characters)}, plugin:globalThis.packPlugin}; })()`).join(',')}];
-const unavailable = ${JSON.stringify(missing)};
-globalThis.statusScript = {
- definition: { statuses: [...(base?.definition.statuses ?? []), ...modules.flatMap(m=>m.plugin.definition.statuses)],
-   operations: [...(base?.definition.operations ?? []), ...modules.flatMap(m=>m.plugin.definition.actions.map(a=>{
-     const {capability,method,...op}=a; return {...op,id:m.id+'-'+a.id}; }))] },
- initialize(ids) {
-   const out={public:{},characters:Object.fromEntries(ids.map(id=>[id,{}])),reveals:[]};
-   for(const script of [base,...modules.map(m=>m.plugin)].filter(Boolean)) {
-     const initial=script.initialize(ids);
-     for(const [key,value] of Object.entries(initial.public)) {if(key in out.public) throw new Error('Duplicate status');out.public[key]=value;}
-     for(const id of ids) for(const [key,value] of Object.entries(initial.characters[id])) {if(key in out.characters[id]) throw new Error('Duplicate status');out.characters[id][key]=value;}
-     out.reveals.push(...(initial.reveals??[]));
-   } return out;
- },
- policy(view,actor,world) {
-   const original=base?.policy?.(view,actor,world);
-   const operations=[...(original?.operations??base?.definition.operations.map(o=>o.id)??[])];
-   for(const m of modules) if(m.characters.includes(actor)) {
-     const offered=m.plugin.policy(view,actor,world).operations;
-     for(const id of offered) if(!m.plugin.definition.actions.some(a=>a.id===id)) throw new Error('Undeclared module action');
-     operations.push(...offered.map(id=>m.id+'-'+id).filter(id=>!unavailable.includes(id)));
-   } return {...(original??{}),operations};
- },
- resolve(truth,actor,operation,args,world,target,result) {
-   for(const m of modules) for(const a of m.plugin.definition.actions) if(operation===m.id+'-'+a.id)
-     return m.plugin.resolve(truth,actor,a.id,args,world,target,result);
-   return base.resolve(truth,actor,operation,args,world,target);
- },
- onRoundEnd(...args) {return base?.onRoundEnd?.(...args)??null;}
-};`
+function cloneBoundedJson<T>(value: T, label: string): T {
+  if (value instanceof Promise) {
+    void value.catch(() => {})
+    throw new TypeError(`${label}必须同步返回有限 JSON`)
+  }
+  let text: string | undefined
+  try {
+    text = JSON.stringify(value)
+  } catch (error) {
+    throw new TypeError(`${label}必须返回有限 JSON`, { cause: error })
+  }
+  if (typeof text !== 'string' || Buffer.byteLength(text) > STATUS_CALL_LIMIT)
+    throw new TypeError(`${label}必须返回有限 JSON`)
+  return JSON.parse(text) as T
+}
+
+function callNativeHook<T>(hooks: StatusModuleHooks, run: (target: StatusModuleHooks) => T): T {
+  let result: T
+  try {
+    result = run(hooks)
+  } catch (error) {
+    throw new TypeError('原生状态模块执行失败：' + (error instanceof Error ? error.message : String(error)), {
+      cause: error,
+    })
+  }
+  return cloneBoundedJson(result, '原生状态模块')
+}
+
+export interface ResolvedStatusModule {
+  readonly id: string
+  readonly characters: readonly string[]
+  readonly unavailableCapabilities: readonly string[]
+  readonly definition: {
+    readonly statuses: readonly WorldJsonObject[]
+    readonly actions: readonly WorldJsonObject[]
+  }
+  initialize(characterIds: readonly string[]): WorldJsonObject
+  policy(known: WorldJsonObject, actorId: string, place: WorldJsonObject): WorldJsonObject
+  resolve(
+    truth: StatusTruth,
+    actorId: string,
+    actionId: string,
+    parameters: WorldJsonObject,
+    world: WorldJsonObject,
+    targetId: string | null,
+    external: WorldJsonValue | null,
+  ): WorldJsonObject
+  prepare(
+    known: WorldJsonObject,
+    actorId: string,
+    operation: string,
+    parameters: WorldJsonObject,
+    world: WorldJsonObject,
+  ): unknown
+}
+
+/** 将脚本状态模块与原生 TypeScript 状态模块统一为同一内存调用边界。 */
+export function openStatusModule(entry: StatusModuleSource): ResolvedStatusModule {
+  if ('source' in entry) {
+    const definition = callModule(entry.source, 'definition', []) as {
+      readonly statuses: readonly WorldJsonObject[]
+      readonly actions: readonly WorldJsonObject[]
+    }
+    return {
+      id: entry.id,
+      characters: [...entry.characters],
+      unavailableCapabilities: [...entry.unavailableCapabilities],
+      definition,
+      initialize: characterIds => callModule(entry.source, 'initialize', [[...characterIds]]) as WorldJsonObject,
+      policy: (known, actorId, place) => callModule(entry.source, 'policy', [known, actorId, place]) as WorldJsonObject,
+      resolve: (truth, actorId, actionId, parameters, world, targetId, external) =>
+        callModule(entry.source, 'resolve', [
+          truth as unknown as WorldJsonObject,
+          actorId,
+          actionId,
+          parameters,
+          world,
+          targetId,
+          external,
+        ]) as WorldJsonObject,
+      prepare: (known, actorId, operation, parameters, world) =>
+        callModule(entry.source, 'prepare', [known, actorId, operation, parameters, world]),
+    }
+  }
+  const hooks = entry.module
+  const definition = cloneBoundedJson(hooks.definition, '原生状态模块定义')
+  return {
+    id: entry.id,
+    characters: [...entry.characters],
+    unavailableCapabilities: [...entry.unavailableCapabilities],
+    definition,
+    initialize: characterIds => {
+      const ids = cloneBoundedJson([...characterIds], '原生状态模块输入')
+      return callNativeHook(hooks, target => target.initialize(ids)) as WorldJsonObject
+    },
+    policy: (known, actorId, place) => {
+      const [clonedKnown, clonedPlace] = cloneBoundedJson([known, place] as const, '原生状态模块输入')
+      return callNativeHook(hooks, target => target.policy(clonedKnown, actorId, clonedPlace)) as WorldJsonObject
+    },
+    resolve: (truth, actorId, actionId, parameters, world, targetId, external) => {
+      const [clonedTruth, clonedParams, clonedWorld, clonedExternal] = cloneBoundedJson(
+        [truth, parameters, world, external] as const,
+        '原生状态模块输入',
+      )
+      return callNativeHook(hooks, target =>
+        target.resolve(clonedTruth, actorId, actionId, clonedParams, clonedWorld, targetId, clonedExternal),
+      )
+    },
+    prepare: (known, actorId, operation, parameters, world) => {
+      if (typeof hooks.prepare !== 'function') throw new TypeError('Module prepare hook unavailable')
+      const [clonedKnown, clonedParams, clonedWorld] = cloneBoundedJson(
+        [known, parameters, world] as const,
+        '原生状态模块输入',
+      )
+      return callNativeHook(hooks, target =>
+        target.prepare!(clonedKnown, actorId, operation, clonedParams, clonedWorld),
+      )
+    },
+  }
 }

@@ -2,13 +2,12 @@ import type { WorldEventDraft } from '@harness-world/contracts'
 import type { RuleContext, RulesInstance, SeamProvider } from '@harness-world/plugin-sdk'
 import type { RpgConfig, RpgExit } from './config.ts'
 import { OFFICIAL_RPG_ID, OFFICIAL_RPG_VERSION } from './plugin.ts'
-import { UNLOCKED_STATUS } from './status-module.ts'
+import { PARTY_STATUS, UNLOCKED_STATUS } from './state.ts'
 
 /** The rules layer's own provider id, distinct from the plugin id rpg.json names. */
 export const OFFICIAL_RPG_RULES_ID = `${OFFICIAL_RPG_ID}-rules`
 
-/** Public status the RPG status module keeps: the leader's companions, by character id. */
-export const PARTY_STATUS = 'rpg-party'
+export { PARTY_STATUS }
 const LOCKED = '这条路现在走不通。'
 type Events = RuleContext['events']
 type Row = Record<string, unknown>

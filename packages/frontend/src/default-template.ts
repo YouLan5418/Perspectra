@@ -1,3 +1,4 @@
+import { GAMEPLAY_WIDGETS } from './gameplay-widgets.ts'
 import { createReadingPlayback } from './reading-playback.ts'
 import { STAGE_STYLE } from './stage-style.ts'
 import { stagePreferences } from './stage-preferences.ts'
@@ -45,7 +46,7 @@ export const DEFAULT_PAGE = String.raw`<!doctype html>
   <section id="action-panel" class="panel action-panel" aria-label="可用行动" hidden><div class="panel-header"><span>当前可用行动</span><button id="actions-close" type="button" aria-label="关闭行动">×</button></div><div id="actions"></div></section>
   <section id="message-panel" class="panel message-panel" aria-label="短信" hidden><div class="panel-header"><span id="message-title">短信</span><button id="message-close" type="button" aria-label="关闭短信">×</button></div><div class="panel-body message-body"><label for="message-to">发给</label><select id="message-to"></select><label for="message-text">内容</label><textarea id="message-text" rows="4" placeholder="写下要发出的内容……"></textarea><p id="message-hint" class="hint">对方不在身边也能收到；同一房间的人看不到内容。</p><button id="message-send" class="primary" type="button">发送</button></div></section>
   <section id="inventory-panel" class="panel inventory-panel" aria-label="背包" hidden><div class="panel-header"><span>背包 · 随身物品</span><button id="inventory-close" type="button" aria-label="关闭背包">×</button></div><div id="inventory-list" class="panel-body"></div></section>
-  <section id="status-panel" class="panel status-panel" aria-label="状态" hidden><div class="panel-header"><span>状态</span><button id="status-close" type="button" aria-label="关闭状态">×</button></div><div id="status-list" class="panel-body"></div></section>
+  <section id="status-panel" class="panel status-panel" aria-label="状态" hidden><div class="panel-header"><span>状态</span><button id="status-close" type="button" aria-label="关闭状态">×</button></div><div class="panel-body"><div id="status-list"></div><div id="gameplay-panels"></div></div></section>
   <section id="settings-panel" class="panel settings-panel" aria-label="设置" hidden>
     <div class="panel-header"><span>舞台设置</span><button id="settings-close" type="button" aria-label="关闭设置">×</button></div>
     <div class="panel-body settings-body">
@@ -65,10 +66,10 @@ export const DEFAULT_PAGE = String.raw`<!doctype html>
         <p id="bgm-notice" class="hint" role="status"></p>
       </fieldset>
       <fieldset><legend>外观</legend><div class="appearance-options" role="group" aria-label="界面外观"><label><input type="radio" name="appearance" value="system"><span>跟随系统</span></label><label><input type="radio" name="appearance" value="light"><span>浅色</span></label><label><input type="radio" name="appearance" value="dark"><span>深色</span></label></div></fieldset>
-      <fieldset id="pacing-settings" hidden><legend>剧情</legend><label class="setting-check"><span>剧情节奏<small>关闭后不再插入小插曲；突发事件只按各自的条件发生，不再调节疏密。从下一轮起生效。</small></span><input id="setting-pacing" type="checkbox" role="switch"></label><p id="pacing-notice" class="hint" role="status"></p></fieldset>
+      <fieldset id="gameplay-settings" hidden><legend>玩法设置</legend><div id="gameplay-controls"></div><p id="gameplay-control-notice" class="hint" role="status"></p></fieldset>
       <section id="plugin-settings" hidden aria-label="插件设置"></section>
       <fieldset><legend>故事进度</legend><p class="hint">保存此刻的故事，在启动器中继续。</p><button id="stage-save" class="save-entry" type="button" disabled>保存进度 <span aria-hidden="true">↗</span></button><p id="save-unavailable" class="hint" hidden>当前运行时不支持保存进度。</p></fieldset>
-      <p id="settings-notice" class="hint" role="status">设置仅影响本机显示，即时生效。</p>
+      <p id="settings-notice" class="hint" role="status">阅读、声音和外观即时生效；玩法设置按各项说明保存和生效。</p>
     </div>
   </section>
   <dialog id="save-dialog" class="save-dialog" aria-labelledby="save-heading"><div>
@@ -203,6 +204,7 @@ export const DEFAULT_SCRIPT = String.raw`(() => {
      for(const picker of box.querySelectorAll('select,input,textarea'))picker.disabled=actionDisabled;
    }
    node('composer-actions').disabled=actionDisabled;node('composer-message').disabled=actionDisabled;node('message-send').disabled=actionDisabled;
+   updateGameplayControls(actionDisabled);
    if(actionDisabled)node('message-panel').hidden=true;
    for(const control of node('activity-card').querySelectorAll('#activity-options button,#activity-options select,#activity-options input,#activity-options textarea,#activity-manage button'))control.disabled=actionDisabled;
   const retryAllowed=['ready','error'].includes(latest?.status)||(pending?.method==='speak'&&latest?.canInterrupt===true);
@@ -222,10 +224,10 @@ export const DEFAULT_SCRIPT = String.raw`(() => {
  function bottom(){history.scrollTop=history.scrollHeight;node('latest').hidden=true}
  history.onscroll=()=>{node('latest').hidden=history.scrollHeight-history.scrollTop-history.clientHeight<70};
  node('latest').onclick=bottom;
- let pacingPending=false;
+ ${GAMEPLAY_WIDGETS}
  function render(view){
-   node('pacing-settings').hidden=!view.pacing;
-   if(view.pacing&&!pacingPending)node('setting-pacing').checked=view.pacing.enabled;
+   renderPluginControls(view);
+   renderGameplayPanels(view);
    waitOption=view.actions.find(option=>option.id==='wait');
    view={...view,history:view.history.filter(line=>!line.pause),actions:view.actions.filter(option=>option!==waitOption)};
    if(posting&&pending?.method==='speak'&&view.canInterrupt&&view.history.filter(line=>line.player).length>submittedPlayers){
@@ -242,14 +244,14 @@ export const DEFAULT_SCRIPT = String.raw`(() => {
    const reading=preferences;
    node('input').maxLength=node('narration').maxLength=view.settings?.inputCharacters||2000;
    node('title').textContent=view.game.title;node('player').textContent='你 · '+view.player.name;
-   const nextStatus=JSON.stringify(view.statusBar||[]);
+   const nextStatus=JSON.stringify([view.statusBar||[],(view.panels||[]).length]);
    if(nextStatus!==statusKey){statusKey=nextStatus;const bar=node('status-bar'),rows=statusRows(view),pinned=statusRows({statusBar:(view.statusBar||[]).filter(entry=>entry.pinned)});bar.replaceChildren();bar.hidden=!pinned.length;
      for(const group of pinned){const section=document.createElement('span');section.className='status-group';const holder=document.createElement('small');holder.textContent=group.holder;section.append(holder);
        for(const item of group.items){const entry=document.createElement('span');entry.className='status-item';entry.append(item.label+' ');const value=document.createElement('strong');value.textContent=item.value;entry.append(value);
          if(item.note){const note=document.createElement('span');note.className='hint';note.textContent=item.note;entry.append(' ',note)}section.append(entry)}
        bar.append(section)}
      const list=node('status-list');list.replaceChildren();
-     if(!rows.length){const empty=document.createElement('p');empty.className='empty-status';empty.textContent='你还不知道任何状态。';list.append(empty)}
+     if(!rows.length&&!(view.panels||[]).length){const empty=document.createElement('p');empty.className='empty-status';empty.textContent='你还不知道任何状态。';list.append(empty)}
      for(const group of rows){const section=document.createElement('section');section.className='status-section';const heading=document.createElement('h3');heading.textContent=group.holder;const table=document.createElement('dl');
        for(const item of group.items){const term=document.createElement('dt');term.textContent=item.label;const value=document.createElement('dd');value.textContent=item.value+(item.note?'（'+item.note+'）':'');table.append(term,value)}
        section.append(heading,table);list.append(section)}}
@@ -274,19 +276,31 @@ export const DEFAULT_SCRIPT = String.raw`(() => {
 
      if(follow)bottom();else{history.scrollTop=oldTop;node('latest').hidden=false}
    }
-   const nextActions=JSON.stringify(view.actions);
+   const nextActions=JSON.stringify([view.actions,view.scene?.recipients]);
+   const drafts=new Map(),activeInput=document.activeElement,activeForm=activeInput?.closest?.('.action-form');
+   const focused=activeForm&&node('actions').contains(activeForm)?{optionId:activeForm.dataset.optionId,name:activeInput.name,start:activeInput.selectionStart,end:activeInput.selectionEnd}:null;
+   if(nextActions!==actionsKey)for(const form of node('actions').querySelectorAll('.action-form'))
+     drafts.set(form.dataset.optionId,new Map(Array.from(form.querySelectorAll('input,select,textarea'),input=>[input.name,input.value])));
    if(nextActions!==actionsKey){
      actionsKey=nextActions;node('actions').replaceChildren();
      // Messages have their own composer button and panel; the action drawer keeps the rest.
      const listed=view.actions.filter(option=>!isMessage(option));renderMessages(view.actions.filter(isMessage));
      node('action-count').textContent=String(listed.length);
      if(attached&&!view.actions.some(option=>option.id===attached.option.id)){detach();node('notice').textContent='附带的行动已经不可用，请重新选择。'}
-     for(const [kind,title] of [['move','移动'],['interact','物品与互动'],['activity','活动'],['manage','活动管理']]){
-       const options=listed.filter(option=>option.kind===kind);if(!options.length)continue;
+     const groups=new Map();for(const option of listed){const title=option.group||({move:'移动',interact:'物品与互动',activity:'活动',manage:'活动管理'}[option.kind]||'其他行动');if(!groups.has(title))groups.set(title,[]);groups.get(title).push(option)}
+     for(const [title,options] of groups){
        const group=document.createElement('section');group.className='action-group';
        const heading=document.createElement('h3');heading.textContent=title;group.append(heading);
        for(const option of options)appendAction(group,option);
        node('actions').append(group);
+     }
+     for(const form of node('actions').querySelectorAll('.action-form'))for(const input of form.querySelectorAll('input,select,textarea')){
+       const value=drafts.get(form.dataset.optionId)?.get(input.name);
+       if(value!==undefined&&(input.tagName!=='SELECT'||Array.from(input.options).some(option=>option.value===value)))input.value=value;
+     }
+     if(focused)for(const form of node('actions').querySelectorAll('.action-form'))if(form.dataset.optionId===focused.optionId){
+       const input=Array.from(form.querySelectorAll('input,select,textarea')).find(input=>input.name===focused.name);
+       if(input){input.focus({preventScroll:true});if(typeof focused.start==='number'&&typeof focused.end==='number')input.setSelectionRange(focused.start,focused.end)}
      }
      if(!listed.length){const empty=document.createElement('p');empty.className='no-actions';empty.textContent='暂时没有可用行动，仍可通过对话表达。';node('actions').append(empty)}
    }
@@ -359,7 +373,7 @@ export const DEFAULT_SCRIPT = String.raw`(() => {
    card.hidden=!running;if(!running){activityKey='';return}
    if(!openingHalted&&auto&&running.key===stageConfig?.autoplay?.activity){card.hidden=true;return}
    const options=view.actions.filter(option=>option.kind==='activity'&&option.target?.kind==='activity'),manage=view.actions.filter(option=>option.kind==='manage');
-   const key=JSON.stringify([running,options,manage]);if(key===activityKey)return;activityKey=key;
+   const key=JSON.stringify([running,options,manage,view.scene?.recipients]);if(key===activityKey)return;activityKey=key;
    const shown=running.public||{};
    node('activity-title').textContent=running.title;
    node('activity-phase').textContent=shown.statusText||shown.phaseLabel||PHASES[running.phase]||running.phase;
@@ -443,19 +457,22 @@ export const DEFAULT_SCRIPT = String.raw`(() => {
  document.addEventListener('click',event=>{if(!node('character-menu').hidden&&!node('character-menu').contains(event.target))node('character-menu').hidden=true});
  /** A small form for an action's player inputs: characters come from the scene, other fields follow the schema. */
  function argumentForm(option){
-   const form=document.createElement('div');form.className='action-form';const fields=[],schema=option.argumentSchema,required=new Set(schema.required||[]);
+   const form=document.createElement('div');form.className='action-form';form.dataset.optionId=option.id;const fields=[],schema=option.argumentSchema,required=new Set(schema.required||[]);
    for(const [key,spec] of Object.entries(schema.properties||{})){
      const label=document.createElement('label'),caption=document.createElement('span');caption.textContent=(spec.title||spec.description||key)+(required.has(key)?'':'（可选）');label.append(caption);
      let input,read;
-     if((option.characterArguments||[]).includes(key)){input=document.createElement('select');const blank=document.createElement('option');blank.value='';blank.textContent='选择角色';input.append(blank);for(const person of latest?.scene?.recipients||[]){const item=document.createElement('option');item.value=person.id;item.textContent=person.name;input.append(item)}read=()=>input.value||undefined}
-     else if(Array.isArray(spec.enum)){input=document.createElement('select');for(const value of spec.enum){const item=document.createElement('option');item.value=JSON.stringify(value);item.textContent=String(value);input.append(item)}read=()=>JSON.parse(input.value)}
-     else if(spec.type==='boolean'){input=document.createElement('input');input.type='checkbox';read=()=>input.checked}
-     else if(spec.type==='integer'||spec.type==='number'){input=document.createElement('input');input.type='number';if(spec.type==='integer')input.step='1';if(typeof spec.minimum==='number')input.min=String(spec.minimum);if(typeof spec.maximum==='number')input.max=String(spec.maximum);read=()=>input.value===''?undefined:Number(input.value)}
-     else if(spec.type==='string'){input=document.createElement('input');input.type='text';if(typeof spec.maxLength==='number')input.maxLength=spec.maxLength;read=()=>input.value===''?undefined:input.value}
-     else{input=document.createElement('textarea');input.placeholder='JSON';read=()=>{if(!input.value.trim())return undefined;try{return JSON.parse(input.value)}catch{throw new Error(caption.textContent+' 不是有效的 JSON')}}}
-     label.append(input);form.append(label);fields.push({key,caption:caption.textContent,read,required:required.has(key)})}
-   form.read=()=>{const values={};for(const field of fields){const value=field.read();if(value===undefined){if(field.required)throw new Error('请填写 '+field.caption);continue}values[field.key]=value}return values};
+     const blank=picker=>{const row=document.createElement('option');row.value='';row.textContent='请选择';picker.append(row)};
+     if((option.characterArguments||[]).includes(key)){input=document.createElement('select');blank(input);for(const person of latest?.scene?.recipients||[]){const item=document.createElement('option');item.value=person.id;item.textContent=person.name;input.append(item)}read=()=>input.value||undefined}
+     else if(Array.isArray(spec.enum)){input=document.createElement('select');blank(input);for(const value of spec.enum){const item=document.createElement('option');item.value=JSON.stringify(value);item.textContent=String(value);input.append(item)}if(spec.default!==undefined)input.value=JSON.stringify(spec.default);read=()=>input.value===''?undefined:JSON.parse(input.value)}
+     else if(spec.type==='boolean'){input=document.createElement('select');blank(input);for(const [value,title] of [['true','是'],['false','否']]){const item=document.createElement('option');item.value=value;item.textContent=title;input.append(item)}if(spec.default!==undefined)input.value=String(spec.default);read=()=>input.value===''?undefined:input.value==='true'}
+     else if(spec.type==='integer'||spec.type==='number'){input=document.createElement('input');input.type='number';input.step='any';if(typeof spec.minimum==='number')input.min=String(spec.minimum);if(typeof spec.maximum==='number')input.max=String(spec.maximum);if(spec.default!==undefined)input.value=String(spec.default);read=()=>input.value===''?undefined:Number(input.value)}
+     else if(spec.type==='string'){input=document.createElement('input');input.type='text';if(typeof spec.maxLength==='number')input.maxLength=spec.maxLength;if(typeof spec.minLength==='number')input.minLength=spec.minLength;if(spec.default!==undefined)input.value=spec.default;read=()=>input.value===''?undefined:input.value}
+     else{input=document.createElement('textarea');input.placeholder='填写 JSON';if(spec.default!==undefined)input.value=JSON.stringify(spec.default);read=()=>{if(!input.value.trim())return undefined;try{return JSON.parse(input.value)}catch{throw new Error(caption.textContent+' 不是有效的 JSON')}};const hint=document.createElement('small');hint.className='hint';hint.textContent='此参数使用结构化 JSON；提交时由游戏规则校验。';label.append(hint)}
+     input.name=key;input.required=required.has(key);input.setAttribute('aria-label',caption.textContent);label.append(input);form.append(label);fields.push({key,caption:caption.textContent,input,read,required:required.has(key)});
+   }
+   form.read=()=>{const values={};for(const field of fields){const value=field.read();if(value===undefined){if(field.required){field.input.focus();throw new Error('请填写 '+field.caption)}continue}if(!field.input.checkValidity()){field.input.focus();throw new Error(field.caption+'：'+field.input.validationMessage)}values[field.key]=value}return values};
    return form}
+
  node('wait').onclick=node('reply-wait').onclick=()=>{if(waitOption)send('perform',{optionId:waitOption.id})};
  node('reply-open').onclick=()=>{composerExpanded=true;activityOpen=false;controls();node('input').focus()};
  node('send').onclick=()=>{const text=latest?.expression&&latest.expression.speech!=='free'?'':node('input').value.trim(),narration=latest?.expression?.narration===false?'':node('narration').value.trim();if(!text&&!narration&&!attached)return;const maximum=latest?.settings?.inputCharacters||2000;if(text.length+narration.length>maximum){node('notice').textContent='发言与描写合计不能超过 '+maximum+' 个字符';return}const scope=speechScope(),addresseeIds=scope==='direct'||scope==='private'?[node('speech-recipient').value]:[];if((text||narration)&&(scope==='direct'||scope==='private')&&!addresseeIds[0])return;
@@ -575,12 +592,7 @@ export const DEFAULT_SCRIPT = String.raw`(() => {
    changePreference(key,event.target.checked);
  };
  for(const radio of document.querySelectorAll('input[name="appearance"]'))radio.onchange=()=>changePreference('appearance',radio.value);
- // Story pacing is the world's, not this screen's: the host keeps the choice and applies it from the next round.
- node('setting-pacing').onchange=async event=>{
-   const enabled=event.target.checked;pacingPending=true;node('pacing-notice').textContent='';
-   try{const view=await api.setPacing(enabled);node('pacing-notice').textContent=enabled?'已开启，从下一轮起生效。':'已关闭，从下一轮起生效。';pacingPending=false;render(view)}
-   catch(error){event.target.checked=!enabled;pacingPending=false;node('pacing-notice').textContent=error.message}
- };
+
  async function unlockVoice(){
    if((!hasSpeech||!preferences.voiceEnabled)&&(!hasBgm||!node('setting-bgm').checked)||audioContext?.state==='running')return;
    try{audioContext=audioContext||new AudioContext();await audioContext.resume();voiceKey='';playVoice();playBgm()}catch(error){node('voice-notice').textContent='无法开启声音：'+error.message}

@@ -11,10 +11,21 @@ import type {
 import type { ActivationLimits } from '@harness-world/plugin-sdk'
 import { runActivitySchedule } from './activity.ts'
 import { runAutonomousSchedule } from './autonomy.ts'
+import type { OpportunityRound } from './opportunity-round.ts'
 
 type Activation = SchedulerActivation
 type ActivationResult = SchedulerCycle
 type ScheduleOptions = { readonly maximumConcurrent?: number; readonly strictCallBudget?: boolean }
+
+/** Every scheduled part must finish normally before the common cycle may settle. */
+function terminalReason(...reasons: string[]): string {
+  return (
+    reasons.find(reason => reason === 'failed') ??
+    reasons.find(reason => reason === 'interrupted') ??
+    reasons.find(reason => reason !== 'quiescent') ??
+    'quiescent'
+  )
+}
 
 /** The bounded scheduling players get unless a plugin replaces it. Unfinished activations need not survive. */
 export const officialSchedulerProvider: SeamProvider<SchedulerInstance> = {
@@ -24,27 +35,60 @@ export const officialSchedulerProvider: SeamProvider<SchedulerInstance> = {
 }
 
 export async function runOfficialSchedule(
-  round: SchedulerRound,
+  input: SchedulerRound,
   options: ScheduleOptions = {},
 ): Promise<SchedulerResult> {
+  const nominated = input.wakeups?.() ?? []
+  const round: OpportunityRound = {
+    ...input,
+    ...(nominated.length
+      ? {
+          autonomy: {
+            ...(input.opportunityLimits ?? {
+              maximumNpcCalls: input.limits.maximumNpcCalls,
+              deadlineSeconds: input.limits.reactionDeadlineSeconds ?? 30,
+              reactionLimits: input.limits,
+            }),
+            roles: nominated.map(candidate => ({
+              characterId: candidate.characterId,
+              opportunities: candidate.opportunities,
+            })),
+            stimuli: new Map(nominated.map(candidate => [candidate.characterId, candidate.stimulusSeqs])),
+          },
+        }
+      : {}),
+  }
   if (round.phase === 'activity') return runActivitySchedule(round)
-  if (round.phase === 'autonomy') return runAutonomousSchedule(round, next => runSceneSchedule(next, options))
+  if (round.phase === 'opportunity')
+    return round.autonomy
+      ? runAutonomousSchedule(round, next => runSceneSchedule(next, options))
+      : { calls: 0, wave: 0, terminalReason: 'quiescent', activations: [] }
   if (round.autonomy && (!round.allowConcurrent || round.autonomy.staged)) {
     const { autonomy: _autonomy, ...scene } = round
-    const ordinary = await runSceneSchedule(scene, options)
+    const ordinary = await runSceneSchedule(
+      {
+        ...scene,
+        characterIds: scene.characterIds.filter(id => !round.autonomy!.roles.some(role => role.characterId === id)),
+      },
+      options,
+    )
     if (round.signal.aborted) return ordinary
     const counts = new Map(round.initialCounts)
     for (const activation of ordinary.activations)
       counts.set(activation.characterId, (counts.get(activation.characterId) ?? 0) + 1)
-    const autonomous = await runAutonomousSchedule({ ...round, phase: 'autonomy', initialCounts: counts }, next =>
+    const autonomous = await runAutonomousSchedule({ ...round, phase: 'opportunity', initialCounts: counts }, next =>
       runSceneSchedule(next, options),
     )
-    return { ...ordinary, ...(autonomous.autonomy === undefined ? {} : { autonomy: autonomous.autonomy }) }
+    return {
+      ...ordinary,
+      terminalReason: terminalReason(ordinary.terminalReason, autonomous.terminalReason),
+      ...(autonomous.autonomy === undefined ? {} : { autonomy: autonomous.autonomy }),
+    }
   }
   return runSceneSchedule(round, options)
 }
 
-async function runSceneSchedule(round: SchedulerRound, options: ScheduleOptions): Promise<SchedulerResult> {
+async function runSceneSchedule(round: OpportunityRound, options: ScheduleOptions): Promise<SchedulerResult> {
   if (round.allowConcurrent) return runDynamicActivations(round, options)
   const limits = round.limits
   const signal = AbortSignal.any([round.signal, AbortSignal.timeout((limits.reactionDeadlineSeconds ?? 30) * 1_000)])
@@ -124,7 +168,7 @@ async function runSceneSchedule(round: SchedulerRound, options: ScheduleOptions)
 }
 
 /** Readiness follows committed observations rather than a barrier between whole waves. */
-async function runDynamicActivations(round: SchedulerRound, options: ScheduleOptions): Promise<SchedulerResult> {
+async function runDynamicActivations(round: OpportunityRound, options: ScheduleOptions): Promise<SchedulerResult> {
   const limits = round.limits
   const controller = new AbortController()
   const signal = AbortSignal.any([round.signal, controller.signal])
@@ -192,7 +236,21 @@ async function runDynamicActivations(round: SchedulerRound, options: ScheduleOpt
   const seedAutonomous = (id: CharacterId) => {
     if ((opportunities.get(id) ?? 0) <= 0 || stopped.has(id) || autonomySignal.aborted) return
     const existing = pending.get(id)
-    pending.set(id, { ...existing, observations: existing?.observations ?? [], depths: { autonomous: 0 } })
+    const explicit = round.autonomy?.stimuli.get(id) ?? []
+    pending.set(id, {
+      ...existing,
+      observations: [
+        ...(existing?.observations ?? []),
+        ...explicit
+          .filter(
+            seq =>
+              !(existing?.observations ?? []).some(entry => entry.seq === seq) &&
+              seq > (consumed.get(id) ?? round.afterSeq),
+          )
+          .map(seq => ({ seq, kind: 'autonomous' as const, depth: 0 })),
+      ],
+      depths: { ...existing?.depths, autonomous: 0 },
+    })
   }
   const collect = (source: 'ordinary' | 'autonomyReaction', depth: number, root = false) => {
     const head = round.headSeq()
@@ -406,7 +464,6 @@ async function runDynamicActivations(round: SchedulerRound, options: ScheduleOpt
         current.wave = Math.max(current.wave, job.depth)
         const promise = round
           .turn(id, {
-            kind: job.kind === 'autonomous' ? 'autonomous' : 'reaction',
             signal: current.signal,
             stimulusSeqs: job.observations.map(entry => entry.seq),
             maxCalls: job.kind === 'autonomous' ? 2 : reserve === 3 ? 3 : 2,
@@ -452,6 +509,7 @@ async function runDynamicActivations(round: SchedulerRound, options: ScheduleOpt
       reactions = outcome('autonomyReaction')
     return {
       ...ordinary,
+      terminalReason: terminalReason(ordinary.terminalReason, autonomous.terminalReason, reactions.terminalReason),
       ...(round.autonomy
         ? {
             autonomy: {
@@ -459,8 +517,7 @@ async function runDynamicActivations(round: SchedulerRound, options: ScheduleOpt
               autonomousCalls: autonomous.calls,
               reactionCalls: reactions.calls,
               reactions,
-              terminalReason:
-                autonomous.terminalReason !== 'quiescent' ? autonomous.terminalReason : reactions.terminalReason,
+              terminalReason: terminalReason(autonomous.terminalReason, reactions.terminalReason),
             },
           }
         : {}),

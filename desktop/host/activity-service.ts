@@ -1,11 +1,18 @@
 import type { ActivitiesInstance, ActivityInstance, ActivitySource } from '@harness-world/plugin-sdk'
-import { mechanismFailure } from './gameplay-services.ts'
+import {
+  callPluginForValue,
+  hostCapability,
+  invalidPluginResult,
+  isPluginFault,
+  type PluginCallContext,
+} from './plugin-runtime.ts'
 
 /** Copy calculation inputs and proposals; the mechanism never receives a live host state object. */
 export function guardedActivities(
   instance: ActivitiesInstance,
   source: ActivitySource | undefined,
   providerId: string,
+  context: PluginCallContext,
   report: (providerId: string, actorId: string, error: unknown) => void,
 ): ActivitiesInstance {
   if (
@@ -13,20 +20,20 @@ export function guardedActivities(
     typeof instance.select !== 'function' ||
     typeof instance.chooseAutoStart !== 'function'
   )
-    throw new TypeError('activities requires entries, select and chooseAutoStart')
+    throw invalidPluginResult(context, providerId, 'open')
   const declared = new Set((source?.entries ?? []).map(entry => entry.key))
-  if (instance.entries.length !== declared.size) throw new TypeError('活动机制必须匹配世界声明的活动')
-  const guard = <T>(key: string, work: () => T): T => {
+  if (instance.entries.length !== declared.size) throw invalidPluginResult(context, providerId, 'open:entries')
+  const guard = <T>(operation: string, key: string, work: () => T): T => {
     try {
-      return structuredClone(work())
-    } catch (cause) {
-      report(providerId, key, cause)
-      throw mechanismFailure(`活动机制 ${providerId}（${key}）`, cause)
+      return callPluginForValue(context, providerId, operation, work)
+    } catch (error) {
+      if (isPluginFault(error)) report(providerId, key, error)
+      throw error
     }
   }
   const entries = instance.entries.map((entry): ActivityInstance => {
     if (!declared.delete(entry.key) || typeof entry.hasAutoStart !== 'boolean')
-      throw new TypeError('未知或重复活动标识，或活动元数据无效')
+      throw invalidPluginResult(context, providerId, 'open:entries')
     for (const method of [
       'hasResume',
       'initialize',
@@ -39,36 +46,52 @@ export function guardedActivities(
       'schedule',
       'outcome',
     ] as const)
-      if (typeof entry[method] !== 'function') throw new TypeError(`活动 ${entry.key} 缺少 ${method}`)
-    const wrap =
-      <A extends unknown[], R>(work: (...args: A) => R) =>
-      (...args: A): R =>
-        guard(entry.key, () => work(...structuredClone(args)))
+      if (typeof entry[method] !== 'function')
+        throw invalidPluginResult(context, providerId, `open:${entry.key}:${method}`)
     return {
       key: entry.key,
+      ...(entry.phases === undefined ? {} : { phases: structuredClone(entry.phases) }),
       definition: structuredClone(entry.definition),
       hasAutoStart: entry.hasAutoStart,
-      hasResume: wrap(entry.hasResume.bind(entry)),
-      initialize: (input, random) => guard(entry.key, () => entry.initialize(structuredClone(input), random)),
-      policy: wrap(entry.policy.bind(entry)),
+      hasResume: () => guard('hasResume', entry.key, entry.hasResume.bind(entry)),
+      initialize: (input, random) =>
+        guard('initialize', entry.key, () => entry.initialize(structuredClone(input), hostCapability(context, random))),
+      policy: (scoped, actorId) => guard('policy', entry.key, () => entry.policy(structuredClone(scoped), actorId)),
       // The dice capability is a function: lend it as is, copy only the data.
       resolve: (state, actorId, operation, parameters, world, truth, roll) =>
-        guard(entry.key, () =>
-          entry.resolve(...structuredClone([state, actorId, operation, parameters, world, truth] as const), roll),
+        guard('resolve', entry.key, () =>
+          entry.resolve(
+            structuredClone(state),
+            actorId,
+            operation,
+            structuredClone(parameters),
+            structuredClone(world),
+            structuredClone(truth),
+            roll === undefined ? undefined : hostCapability(context, roll),
+          ),
         ),
-      published: wrap(entry.published.bind(entry)),
-      resume: wrap(entry.resume.bind(entry)),
-      autoStart: wrap(entry.autoStart.bind(entry)),
-      simulate: wrap(entry.simulate.bind(entry)),
-      schedule: wrap(entry.schedule.bind(entry)),
-      outcome: wrap(entry.outcome.bind(entry)),
+      published: (state, actorId, publication) =>
+        guard('published', entry.key, () =>
+          entry.published(structuredClone(state), actorId, structuredClone(publication)),
+        ),
+      resume: (scoped, world) =>
+        guard('resume', entry.key, () => entry.resume(structuredClone(scoped), structuredClone(world))),
+      autoStart: (truth, world, previous) =>
+        guard('autoStart', entry.key, () =>
+          entry.autoStart(structuredClone(truth), structuredClone(world), structuredClone(previous)),
+        ),
+      simulate: request => guard('simulate', entry.key, () => entry.simulate(structuredClone(request))),
+      schedule: state => guard('schedule', entry.key, () => entry.schedule(structuredClone(state))),
+      outcome: (result, state) =>
+        guard('outcome', entry.key, () => entry.outcome(structuredClone(result), structuredClone(state))),
     }
   })
   return {
     entries,
-    select: (progress, latest) => guard('select', () => instance.select(structuredClone(progress), latest)),
+    select: (progress, latest) => guard('select', 'select', () => instance.select(structuredClone(progress), latest)),
     chooseAutoStart: (candidates, random) =>
-      guard('autoStart', () => instance.chooseAutoStart(structuredClone(candidates), random)),
-    ...(instance.close ? { close: () => instance.close!() } : {}),
+      guard('chooseAutoStart', 'autoStart', () =>
+        instance.chooseAutoStart(structuredClone(candidates), hostCapability(context, random)),
+      ),
   }
 }

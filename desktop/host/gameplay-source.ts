@@ -2,11 +2,13 @@ import type { AutonomySource, CommunicationSource } from '@harness-world/plugin-
 import type { CompiledWorldPackV5 } from '@harness-world/world-pack'
 import { packJsonAsset } from './pack-json-asset.ts'
 export function loadCommunicationSource(root: string, pack: CompiledWorldPackV5): CommunicationSource | undefined {
-  const config = packJsonAsset(root, pack, 'communication.json')
+  if (!pack.plugins?.['official-communication']) return undefined
+  const config = packJsonAsset(root, pack, pack.plugins['official-communication'].config ?? 'communication.json')
   return config === undefined ? undefined : { config }
 }
 export function loadAutonomySource(root: string, pack: CompiledWorldPackV5): AutonomySource | undefined {
-  const config = packJsonAsset(root, pack, 'autonomy.json')
+  if (!pack.plugins?.['official-autonomy']) return undefined
+  const config = packJsonAsset(root, pack, pack.plugins['official-autonomy'].config ?? 'autonomy.json')
   if (config === undefined) return undefined
   const characterIds = pack.content.characters.map(character => String(character.characterId))
   return {

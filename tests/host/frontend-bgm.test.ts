@@ -156,6 +156,7 @@ it('loads the runnable creator Cordis example and serves its WAV through the rea
       id: 'bgm',
       path: fileURLToPath(new URL('../../examples/host-plugins/demo-bgm.mjs', import.meta.url)),
       enabled: true,
+      nativeAllowed: true,
     },
   ])
   try {

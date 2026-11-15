@@ -1,31 +1,22 @@
-import { readFileSync } from 'node:fs'
+import type { GeneratedActivity } from '@harness-world/plugin-sdk'
+import { createRpgMapBattleHooks } from './battle.ts'
 import type { RpgConfig } from './config.ts'
 
-/** Host limit for one activity script. */
-const ACTIVITY_SOURCE_LIMIT = 256 * 1024
 const ACTIVITY_KEY = /^[a-z][a-z0-9-]{0,40}$/u
-
-// The rules are plain script bytes shipped beside this file; the generator appends the map's config, never re-serialises code.
-const rules = readFileSync(new URL('./runtime/map-battle.js', import.meta.url), 'utf8')
+const MAP_CONFIG_LIMIT = 256 * 1024
 
 export interface MapActivityOptions {
-  /** The pack's player character; defaults to `party.leader`. */
+  /** 包内首位玩家角色；未提供时回退到 `party.leader`。 */
   playerId?: string
-  /** Display names of characters and locations, used in titles and battle text. */
+  /** 角色与地点展示名，用于活动标题和战斗播报。 */
   names?: Record<string, string>
 }
 
-/** `rpg-map-<location id without location:>`, the key of the map's activity under scripts/activities. */
+/** `rpg-map-<location id without location:>`，地图原生活动的唯一标识。 */
 export const mapActivityKey = (locationId: string) => 'rpg-map-' + locationId.replace(/^location:/u, '')
 
-/**
- * One activity per map. It starts when the player arrives with every configured companion present, plays the
- * narration, then the scripted lines for entering, the encounter and the battle, and ends.
- */
-export function generateMapActivities(
-  config: RpgConfig,
-  options: MapActivityOptions = {},
-): { key: string; source: string }[] {
+/** 为每张地图构造原生 TypeScript 探索与战斗活动定义，不再拼接脚本文本。 */
+export function generateMapActivities(config: RpgConfig, options: MapActivityOptions = {}): GeneratedActivity[] {
   const playerId = options.playerId ?? config.party?.leader
   if (playerId === undefined || !(playerId in config.characters))
     throw new TypeError('characters：需要配置玩家角色的数值（或在 party.leader 指明玩家）')
@@ -42,14 +33,13 @@ export function generateMapActivities(
       const n = enemyIds.filter(seen => seen === id).length
       enemyIds.push(id)
       const enemy = config.enemies[id]!
-      // A second enemy of the same kind gets its own id and name, so targets stay unambiguous.
       return { ...enemy, id: n ? `${id}-${n + 1}` : id, name: n ? `${enemy.name}${n + 1}` : enemy.name }
     })
     const used = new Set([
       ...Object.values(config.characters).flatMap(c => c.skills),
       ...enemies.flatMap(e => e.skills),
     ])
-    const install = {
+    const mapConfig = {
       title: (names[map.locationId] ?? map.locationId).slice(0, 80),
       playerId,
       npcIds,
@@ -60,7 +50,7 @@ export function generateMapActivities(
       enemies,
       drops: map.drops ?? [],
       scripted: map.scripted ?? [],
-      stats: config.stats.map(({ key: statKey, label }) => ({ key: statKey, label })),
+      stats: config.stats.map(({ key: statId, label }) => ({ key: statId, label })),
       characters: config.characters,
       skills: config.skills.filter(s => used.has(s.id)),
       combatStatuses: config.combatStatuses,
@@ -69,9 +59,9 @@ export function generateMapActivities(
       retreat: config.retreat,
       lockDuringBattle: config.party?.lockDuringBattle ?? true,
     }
-    const source = `${rules}\ninstallMap(${JSON.stringify(install)})\n`
-    if (Buffer.byteLength(source) > ACTIVITY_SOURCE_LIMIT)
-      throw new RangeError(`maps[${i}]：生成的地图活动脚本超过 256 KiB`)
-    return { key, source }
+    if (Buffer.byteLength(JSON.stringify(mapConfig)) > MAP_CONFIG_LIMIT)
+      throw new RangeError(`maps[${i}]：地图活动配置超过 256 KiB`)
+    const activity = createRpgMapBattleHooks(mapConfig)
+    return { key, activity }
   })
 }

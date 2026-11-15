@@ -19,14 +19,12 @@ import { compileWorldPackSource, type CompiledWorldPackV5 } from '@harness-world
 import { interactionPackageDescription } from '@harness-world/contracts'
 import { CORE_MEMORY_ID, importCoreArchives } from './official-bundle.ts'
 import { createWorldReader } from './host/world-reader.ts'
-import { StatusState } from '@harness-world/application'
+import { ActivityStateRules } from '@harness-world/application'
 import { loadStatusSource } from './host/status-source.ts'
+import { preflightGameplay, preflightStatus } from './host/gameplay-preflight.ts'
 import { assertSavedPackContent, generatedStatusModuleSources, loadPackContent } from './host/pack-content.ts'
 import { PLUGIN_SET_FILE, readPluginSet } from './host/plugin-set.ts'
 import { assembleRoleplay, type WorldComposition } from './official-bundle.ts'
-import { createWorldCast } from './host/world-cast.ts'
-import { modelCharacters } from './host/player-transcript.ts'
-import type { CompiledWorldManifest } from '@harness-world/kernel'
 import { preflightSave } from './save-preflight.ts'
 import { readStoryNodes, restoreStoryNode, storyId, type StoryNode } from './story-nodes.ts'
 
@@ -135,6 +133,26 @@ async function validate(
   if (!node.files.includes('session.sqlite')) throw new Error('分享节点缺少必要的会话文件。')
   const preflight = await preflightSave(packPath, directory)
   if (preflight.packHash !== node.packHash) throw new Error('分享节点与当前游戏包内容不同。')
+  const pack = (await compileWorldPackSource(
+    packPath,
+    composition.interactionPackages.map(interactionPackageDescription),
+  )) as CompiledWorldPackV5
+  const generated = loadPackContent(packPath, pack, composition.mechanisms.content, composition.mechanisms.packPlugins)
+  try {
+    const recovered = await preflightGameplay(directory, directory, generated, [
+      ...(composition.mechanisms.status ? ['status' as const] : []),
+      ...(composition.mechanisms.activities ? ['activities' as const] : []),
+      ...(composition.mechanisms.dice ? ['dice' as const] : []),
+    ])
+    await preflightStatus(
+      recovered,
+      loadStatusSource(packPath, pack, generated && generatedStatusModuleSources(generated)),
+      composition.mechanisms.status,
+      directory,
+    )
+  } finally {
+    generated?.close()
+  }
   const address: WorldAddress = {
     tenantId: brandId('tenant:web-playtest', 'TenantId'),
     worldId: brandId('world:web-playtest:' + node.packHash.slice(7, 23), 'WorldId'),
@@ -191,56 +209,22 @@ async function validate(
   } finally {
     db.close()
   }
-  const pack = (await compileWorldPackSource(
-    packPath,
-    composition.interactionPackages.map(interactionPackageDescription),
-  )) as CompiledWorldPackV5
   // The status modules a content generator makes are part of the pack's status script, so the preflight checks them too.
-  const generated = loadPackContent(packPath, pack, composition.mechanisms.content)
-  if (node.files.includes(PLUGIN_SET_FILE)) {
-    const saved = readPluginSet(directory)?.generatedContent
-    if (!saved) throw new Error('故事线节点的生成规则摘要损坏。')
-    assertSavedPackContent(saved, generated?.hashes ?? {})
-  }
-  const statusSource = loadStatusSource(packPath, pack, generated && generatedStatusModuleSources(generated))
-  if (statusSource) {
-    const provider = composition.mechanisms.status
-    if (!provider) throw new TypeError('分享预检需要所选状态机制')
+  if (generated?.activities.length) {
     const store = new WorldStore(join(directory, 'world.sqlite'))
-    let manifest: CompiledWorldManifest
     try {
-      manifest = store.readManifest(address)!.manifest as CompiledWorldManifest
+      const events = store.readEvents(address)
+      const playerId = String(pack.content.playerSlots[0]!.characterId)
+      for (const { key, activity } of generated.activities)
+        new ActivityStateRules(activity.definition, playerId, key, activity.phases).state(events)
     } finally {
       store.close()
     }
-    const playerId = String(pack.content.playerSlots[0]!.characterId)
-    const instance = await provider.open(
-      {
-        address,
-        worldVersion: 'share-preflight',
-        candidate: true,
-        dataDirectory: join(directory, 'plugins', provider.id),
-        instanceDirectory: directory,
-        cast: createWorldCast(
-          manifest,
-          playerId,
-          modelCharacters(manifest, brandId(playerId, 'CharacterId')).map(character => character.actorId),
-        ),
-        world: createWorldReader(join(directory, 'world.sqlite'), address),
-        statusSource,
-      },
-      AbortSignal.timeout(30_000),
-    )
-    try {
-      new StatusState(
-        instance.definition,
-        pack.content.characters.map(character => character.characterId),
-        pack.content.entities ?? [],
-        pack.content.locations.map(location => location.locationId),
-      )
-    } finally {
-      await instance.close?.()
-    }
+  }
+  if (node.files.includes(PLUGIN_SET_FILE)) {
+    const saved = readPluginSet(directory)
+    if (!saved) throw new Error('故事线节点缺少插件数据兼容记录。')
+    assertSavedPackContent(saved, generated?.compatibility ?? {})
   }
   const aliases = object(JSON.parse(readFileSync(join(directory, 'memory-aliases.json'), 'utf8')))
   const actors = pack.content.characters

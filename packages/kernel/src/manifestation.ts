@@ -3,13 +3,16 @@ import {
   type ActionGroupCue,
   type CharacterId,
   type InteractionRoundId,
+  type ManifestationCueResolution,
+  type ManifestationResolution,
   type ManifestationCueProposal,
   type ManifestationProposal,
   type WorldEventDraft,
-  type WorldJsonObject,
   type WorldJsonValue,
 } from '@harness-world/contracts'
 import { worldJsonObject, type RulebookEvent } from './rulebook.ts'
+
+export type { ManifestationCueResolution, ManifestationResolution } from '@harness-world/contracts'
 
 /**
  * A step's closed-vocabulary cues, read as the proposal the manifestation resolver takes. It lives here
@@ -33,18 +36,6 @@ export function stepManifestation(
       persistence: 'event_only',
     })),
   }
-}
-
-export interface ManifestationCueResolution extends WorldJsonObject {
-  readonly cueId: string
-  readonly status: 'accepted' | 'rejected'
-  readonly reason: 'accepted' | 'visible_state_absent'
-}
-
-export interface ManifestationResolution extends WorldJsonObject {
-  readonly status: 'accepted' | 'partially_accepted' | 'rejected'
-  readonly cueResolutions: readonly ManifestationCueResolution[]
-  readonly events: readonly WorldEventDraft[]
 }
 
 export interface ResolveManifestationRequest {

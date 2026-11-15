@@ -1,6 +1,8 @@
 import { WriterLeaseService } from '@harness-world/store-sqlite'
 import { WorldStore } from '@harness-world/store-sqlite'
 import type { CharacterId, WorldAddress, WorldJsonObject } from '@harness-world/contracts'
+import { brandId } from '@harness-world/contracts'
+import { isPluginFault } from './plugin-runtime.ts'
 import type { RoundStatus } from './round-notices.ts'
 import type { WorldAdapters } from './world-adapters.ts'
 
@@ -78,14 +80,15 @@ export async function routeGameplayInput(input: {
     const store = new WorldStore(path),
       leases = new WriterLeaseService(path)
     try {
-      // Only an active contact is offered; the rule would record anything else as a refused message.
+      // Replays use their committed authority even if the contact is unavailable now.
       if (
+        !store.readRoundAuthority(address, brandId('message:' + key, 'TransactionId')) &&
         !gameplay.communication
           .options(store.readEvents(address), playerId)
           .some(option => option.targetRef.id === recipientId)
       )
         throw new TypeError('不能给这个人发' + gameplay.communication.medium)
-      await gameplay.communication.send({
+      const delivery = await gameplay.communication.send({
         store,
         leases,
         address: address,
@@ -93,14 +96,25 @@ export async function routeGameplayInput(input: {
         actorId: playerId,
         recipientId,
         text: message.text,
+        requestId: key,
+        resolver: gameplay
+          .rulebooks(worldPath)
+          .resolve(manifest.rulebook.rulebookId, manifest.rulebook.version, 'manual-communication', address),
         ...(input.signal ? { signal: input.signal } : {}),
       })
+      let description = delivery.status === 'accepted' ? '消息已投递。' : '消息未能投递。'
+      try {
+        description = gameplay.communication.mechanism.describeDelivery(delivery.status)
+      } catch (error) {
+        // The guarded formatter already reports the plugin fault. Keep the committed delivery and reaction.
+        if (!isPluginFault(error)) throw error
+      }
+      status.set(description, undefined)
+      return { accepted: delivery.status === 'accepted', react: delivery.committed }
     } finally {
       leases.close()
       store.close()
     }
-    status.set(gameplay.communication.medium + '已发出，不代表对方已读或同意。', undefined)
-    return { accepted: true, react: true }
   }
   if (text.startsWith('/status ')) {
     const command = statusCommand(text)

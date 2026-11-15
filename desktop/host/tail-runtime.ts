@@ -15,7 +15,8 @@ import {
 } from '../tail-storage.ts'
 import { canonicalizeWorldJson, interactionPackageDescription, type WorldJsonObject } from '@harness-world/contracts'
 import type { SeamProvider } from '@harness-world/plugin-sdk'
-import { compileWorldPackSource } from '@harness-world/world-pack'
+import { compileWorldPackSource, type CompiledWorldPackV5 } from '@harness-world/world-pack'
+import { loadPackContent } from './pack-content.ts'
 import { actionText, HostBusyError, isWait, type HostAction, type HostState, type PlayerLine } from './http-server.ts'
 import type { WorldHostOptions, WorldHostCore } from './world-runtime.ts'
 import type { RuntimeModel, RuntimeRole } from '../model-connections.ts'
@@ -238,6 +239,14 @@ export class TailRoundRuntime {
               value.identity === undefined ? null : Buffer.from(canonicalizeWorldJson(value.identity)).toString('utf8'),
           }
         : null
+    const content = loadPackContent(
+      resolve(this.options.packPath),
+      pack as CompiledWorldPackV5,
+      this.options.composition!.mechanisms.content,
+      this.options.composition!.mechanisms.packPlugins,
+    )
+    const gameplayDigests = content?.hashes ?? null
+    content?.close()
     return JSON.stringify({
       runtimeRevision,
       executable: loadedRuntimeIdentity,
@@ -272,6 +281,7 @@ export class TailRoundRuntime {
       decisionOrder: this.options.plugins?.decisionOrder ?? null,
       decisionProviders: (this.options.plugins?.decisions ?? []).map(provider),
       ruleProviders: (this.options.plugins?.rules ?? []).map(provider),
+      gameplayDigests,
     })
   }
   async #run(input: TailRecord['input'], idempotencyKey?: string): Promise<HostState> {
@@ -334,6 +344,23 @@ export class TailRoundRuntime {
       this.#interrupting = false
     }
   }
+  /** System work has its own normal execution request and invalidates the old replay candidate. */
+  async processStimulus(afterSeq?: number): Promise<HostState> {
+    this.#begin()
+    this.#runtime.holdCognition()
+    try {
+      this.#write({ ...this.#selection, tail: null })
+      await this.#runtime.settleRound()
+      this.#runtime.beginRoundRandom()
+      await this.#runtime.processStimulus(afterSeq)
+      await this.#runtime.settleRound()
+    } finally {
+      this.#runtime.releaseCognition()
+      this.#end()
+    }
+    return this.state()
+  }
+
   async submit(text: string, idempotencyKey?: string): Promise<HostState> {
     if (this.#busy || this.#interrupting) await this.#interruptIfBusy()
     await this.#run({ text }, idempotencyKey)

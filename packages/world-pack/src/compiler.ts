@@ -1,3 +1,4 @@
+import type { WorldPackComposition } from './contracts.ts'
 import { createHash } from 'node:crypto'
 import { lstat, readFile, realpath, stat } from 'node:fs/promises'
 import { isAbsolute, join, relative, resolve, sep } from 'node:path'
@@ -91,7 +92,7 @@ function rawHash(bytes: Uint8Array): WorldHash {
   return `sha256:${createHash('sha256').update(bytes).digest('hex')}`
 }
 
-interface UnsignedCompiledWorldPackV5 extends WorldJsonObject {
+interface UnsignedCompiledWorldPackV5 extends WorldPackComposition {
   readonly compiledSchemaVersion: typeof WORLD_PACK_COMPILED_SCHEMA_VERSION_V5
   readonly packId: CompiledWorldPackV5['packId']
   readonly packVersion: string
@@ -1024,6 +1025,9 @@ async function compileV5Source(
     content,
     assets,
     acceptanceAssertions,
+    ...(manifest.plugins === undefined ? {} : { plugins: manifest.plugins }),
+    ...(manifest.services === undefined ? {} : { services: manifest.services }),
+    ...(manifest.scripts === undefined ? {} : { scripts: manifest.scripts }),
     ...(manifest.requiresPlugins === undefined ? {} : { requiresPlugins: manifest.requiresPlugins }),
   }
   const unsigned: UnsignedCompiledWorldPackV5 = {

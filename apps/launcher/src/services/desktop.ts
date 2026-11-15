@@ -1,4 +1,8 @@
 import { invoke, isTauri } from '@tauri-apps/api/core'
+import type { PackConfigDocument } from '../../../../desktop/pack-config.ts'
+export async function readPackConfiguration(packageId: string): Promise<PackConfigDocument> {
+  return invoke<PackConfigDocument>('launcher_request', { request: { operation: 'pack-config-read', packageId } })
+}
 import type { CoreSnapshot, PluginManifestInfo, ThinkingLevel } from '../core-types.ts'
 export async function coreRequest(operation: string, data: Record<string, unknown> = {}): Promise<CoreSnapshot> {
   return invoke<CoreSnapshot>('launcher_request', { request: { operation, ...data } })

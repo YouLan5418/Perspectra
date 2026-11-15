@@ -97,7 +97,11 @@ it('rolls recorded dice inside resolve and replays them from the round record', 
 it('has no rollDice outside resolve', async () => {
   vi.spyOn(console, 'error').mockImplementation(() => {})
   const f = await start(pack(script => script.replace('policy() {', "policy() { rollDice('d20');")))
-  await expect(f.begin()).rejects.toThrow('活动机制 official-activities（default）')
+  await expect(f.begin()).rejects.toMatchObject({
+    name: 'PluginFault',
+    pluginId: 'official-activities',
+    operation: 'policy',
+  })
 })
 
 it('commits nothing when an expression is invalid', async () => {

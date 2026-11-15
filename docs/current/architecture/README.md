@@ -1,5 +1,22 @@
 # 当前代码技术文档
 
+2026-11-15 B8：默认动作分组／参数表单、通用控件、授权只读面板与 Launcher 源包配置编辑已接通，三组独立复验及主代理验收通过。详见 [展示与配置指南](../guides/gameplay-presentation.md)和 [B8 记录](../../superpowers/plans/2026-11-15-composable-engine-b8-presentation.md)。停在 B8，不进入 B9；以下历史批次说明保留当时证据。
+
+2026-11-15 B7：游戏包显式 plugins、可选 services 硬要求、共同 gameplay 脚本和独立配置校验已接通，三组独立复验全部 PASS，主代理已完成 B7 验收。证据和边界见 [B7 记录](../../superpowers/plans/2026-11-15-composable-engine-b7-packs.md)。保留 v5 内容布局，当时默认展示与作者界面留 B8；其最新状态见页首。
+
+
+2026-11-15 后续复核：发现并修正九项接通缺口，详见[本轮记录](../../superpowers/plans/2026-11-15-composable-engine-b6-followup.md)。此前 PASS 为当时证据；本轮九项及复审发现的三处残留均已修复，三位新的独立 GPT-6.1 Sol 最终复验全部 PASS，12 项独立探针通过。保持在 B6，不进入 B7。
+
+2026-11-15：B6 已通过独立 GPT‑6.1 Sol 收口复审。官方 RPG／TRPG 通过实例所属 GameplayRuntime 注册状态、活动与操作；锁门／金库限制及随行派生进入公共规则，状态与活动开始的真实准入在共同入口复核。恢复与分享在写入前只读校验兼容记录、实际值与阶段。最后独立 11 项探针及 5 文件 88 项回归通过，其他证据见 [B6 记录](../../superpowers/plans/2026-11-15-composable-engine-b6-rpg-trpg.md)。按用户要求停在 B6，不进入 B7；真实模型、GUI 与发行验收未做。
+
+2026-11-13 B5 待独立审查：公开唤醒提名、统一角色执行与许可、依已知状态收窄联系人、公共周期提交 status／pacing 已接通。Host 135 项与公共执行 88 项等定向回归通过，尚未放行；源码职责和后续包迁移边界见 [B5 记录](../../superpowers/plans/2026-11-13-composable-engine-b5-services.md)及[运行时](runtime.md)。
+
+2026-11-13：B3 已通过独立复审。B4 的原生注册、限制与处理器、所属效果、同快照派生、周期钩子和授权结果源码已接通并通过独立审查。先读[创作者运行时](creator-runtime.md)，阶段证据见 [B4 记录](../../superpowers/plans/2026-11-13-composable-engine-b4-gameplay.md)。包清单、默认 UI、真实模型和发行范围不提前算完成。
+
+2026-11-11 架构定稿已确认。后续施工遵循[核心与插件规范](plugin-standard.md)及完整的[可组合游戏引擎架构](composable-engine.md)，批次、依赖和验收见[分批重构实施计划](../../superpowers/plans/2026-11-11-composable-engine-refactor.md)。核心硬预算、实例 Fiber、共同作者定义、onCycleEnd、原生状态、通用展示和无头推演属于本轮目标。以下源码迁移记录保留各自日期与验证范围。
+
+2026-11-12：B2 经用户指出规则故障与取消诊断差距后修正，并通过独立收口审查。B3 的公共分支资源装配、实际调度驱动、硬预算与系统刺激周期源码已接通，已通过 B3 独立复审；核心内部结算适配器与 B4 作者钩子注册分别说明，见[运行时](runtime.md)与[B3 记录](../../superpowers/plans/2026-11-12-composable-engine-b3-execution.md)。
+
 2026-11-05 下沉：玩家即时行动的观察、状态校验、活动生命周期和活动检查移入 application；活动中移动的目击者现在能得到路线。机制接口与作者格式不变，见[下沉记录](../studies/2026-11-host-adapter-sinking.md)。
 
 2026-11-05 M7：核心拒绝与已提交事实矛盾的物品和位置效果；最小核心、默认 RP、狼人杀、RPG、状态市场和原生能力组合已有验收场景。真实模型与发行验证及其限制见[M7 记录](../studies/2026-11-core-migration-m7.md)。
@@ -16,7 +33,7 @@
 
 2026-11-04 M0／M1：知识选择已迁为 Cordis 内部机制；当时最小核心探针发现空交互目录存在激活与挂载校验不一致（已于 M2 修复），尚未达到无具体玩法的最小运行时目标。基线、知识接口与验证范围见[本轮记录](../studies/2026-11-core-migration-m01.md)。
 
-后续开发统一遵循[核心与插件规范](plugin-standard.md)：核心保留事实与权限边界，内部机制使用 Cordis，外部玩法通过脚本等形式组合机制。该规范包含目录、接口、生命周期和现有实现差距；不表示代码已全部迁移。[两项暂缓需求](plugin-layering-direction.md)继续暂停。
+后续开发通过[核心与插件规范](plugin-standard.md)进入定稿。原生插件状态注册已纳入实施，剧情节奏已有代码，范围变化见[分层与范围记录](plugin-layering-direction.md)。M0～M7 对应下述历史迁移，当前目标的接通状态以新实施计划记录为准。
 
 源码探查后的[分批迁移计划](../../superpowers/plans/2026-11-04-core-mechanisms-migration.md)列出了具体耦合、目标归属、M0～M7 顺序和验收入口；M0～M7 已接通。
 
@@ -41,6 +58,7 @@
 
 | 阅读问题 | 入口 |
 | --- | --- |
+| 新架构采用什么边界、下一批做什么 | [核心与插件规范](plugin-standard.md)、[完整定稿](composable-engine.md)、[施工计划](../../superpowers/plans/2026-11-11-composable-engine-refactor.md) |
 | 一次输入怎样运行、什么时候停止 | [运行时](runtime.md) |
 | 分支组件和历史怎样复用，缓存何时失效、维护时注意什么 | [运行时缓存设计](runtime-caches.md) |
 | 自由表达与重要状态如何共存 | [Interaction](interaction.md) |

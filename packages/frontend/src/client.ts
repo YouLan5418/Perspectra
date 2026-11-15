@@ -7,6 +7,7 @@ export const FRONTEND_SDK = String.raw`/** API v1: the only connection is a host
   const merge=patch=>{
     if(!view)return;
     const {historyAppend,...fields}=patch; view={...view,...fields};
+    for(const [key,value] of Object.entries(fields))if(value===null&&key!=='scene')delete view[key];
     if(historyAppend)view.history=[...view.history,...historyAppend];
   };
   window.addEventListener('message',event=>{
@@ -21,7 +22,7 @@ export const FRONTEND_SDK = String.raw`/** API v1: the only connection is a host
       if(data.type==='response'){
         const work=pending.get(data.requestId);if(!work)return;
         pending.delete(data.requestId);clearTimeout(work.timer);
-        if(data.ok){if(data.view&&work.method==='view')view=data.view;work.resolve(data.result??data.view)}
+        if(data.ok){if(work.method==='view')view=data.result??data.view;work.resolve(data.result??data.view)}
         else {const error=new Error(data.error||'请求失败');error.retryable=data.retryable!==false;work.reject(error)};
       }
     };
@@ -46,7 +47,7 @@ export const FRONTEND_SDK = String.raw`/** API v1: the only connection is a host
     regenerate:(tailId,actionId=id())=>request('regenerate',{tailId},actionId),
     selectCandidate:(tailId,candidateId,actionId=id())=>request('selectCandidate',{tailId,candidateId},actionId),
     cancelRegeneration:(actionId=id())=>request('cancelRegeneration',{},actionId),
-    setPacing:(enabled,actionId=id())=>request('setPacing',{enabled},actionId),
+    setPluginControl:(controlId,value,actionId=id())=>request('setPluginControl',{id:controlId,value},actionId),
     // extra: { arguments } for the option's argumentSchema, { say, order } for a line said in the same turn.
     perform:(optionId,actionId=id(),npcIds,extra={})=>request('perform',{optionId,...(npcIds===undefined?{}:{npcIds}),...extra},actionId),
     resource:path=>request('resource',{path}),

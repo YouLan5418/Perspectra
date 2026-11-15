@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { brandId, type WorldJsonObject } from '@harness-world/contracts'
 import { CharacterViewBuilder, WorldStore } from '@harness-world/store-sqlite'
-import { ActivityScript } from '@harness-world/official-activities'
+import { NativeActivity } from '@harness-world/official-activities'
 import { officialTrpgContent } from '@harness-world/official-trpg'
 import { currentWorldDirectory } from '../../desktop/tail-storage.ts'
 import { openRpgWorld } from '../support/rpg-fixture.ts'
@@ -536,8 +536,35 @@ describe('the TRPG activity', () => {
   })
 })
 
-describe('the generated script', () => {
-  // The refusals the host meets, read straight from the script: the host runtime only reports that it was refused.
+it('does not reveal a private place through a public content reference on the real Host', async () => {
+  const f = await playing()
+  f.host(ARU, ['content', { kind: 'place', name: 'PRIVATE_VAULT', description: 'secret', public: false }])
+  await f.act('propose', { text: 'look around' })
+  expect(f.state()!.game.private[ARU].hiddenContent.some((row: Json) => row.name === 'PRIVATE_VAULT')).toBe(true)
+  const before = f.head()
+  f.host(ARU, [
+    'content',
+    { kind: 'item', name: 'PUBLIC_KEY', description: 'key', location: 'PRIVATE_VAULT', public: true },
+  ])
+  await f.act('propose', { text: 'inspect key' })
+  expect(f.state()!.game.public.content.some((row: Json) => row.name === 'PUBLIC_KEY')).toBe(false)
+  for (const id of [PLAYER, CHENG, MEI]) expect(f.observations(id, before)).not.toContain('PRIVATE_VAULT')
+  const vault = f.state()!.game.private[ARU].hiddenContent.find((row: Json) => row.name === 'PRIVATE_VAULT')
+  f.host(ARU, ['content', { ...vault, public: true }])
+  await f.act('propose', { text: 'reveal vault' })
+  f.host(ARU, [
+    'content',
+    { kind: 'item', name: 'PUBLIC_KEY', description: 'key', location: 'PRIVATE_VAULT', public: true },
+  ])
+  await f.act('propose', { text: 'inspect visible key' })
+  expect(f.state()!.game.public.content.some((row: Json) => row.name === 'PUBLIC_KEY')).toBe(true)
+  f.host(ARU, ['content', { ...vault, public: false }])
+  await f.act('propose', { text: 'try hiding referenced vault' })
+  expect(f.state()!.game.public.content.some((row: Json) => row.name === 'PRIVATE_VAULT')).toBe(true)
+})
+
+describe('the native trpg activity', () => {
+  // The refusals the host meets, read straight from the native activity: the host runtime only reports that it was refused.
   const config = JSON.parse(readFileSync(join(FIXTURE, 'trpg.json'), 'utf8'))
   const names = { [PLAYER]: '玩家', [ARU]: '阿茹', [CHENG]: '澄', [MEI]: '梅' }
   const pack = {
@@ -549,7 +576,7 @@ describe('the generated script', () => {
     names,
   }
   const [entry] = officialTrpgContent.generate(config, pack).activities!
-  const script = new ActivityScript({ key: 'trpg', entry: 'trpg', source: entry!.source } as never)
+  const script = new NativeActivity(entry!)
   const participants = [PLAYER, ...NPCS]
   const run = (game: Json, actorId: string, operation: string, parameters: Json) =>
     script.resolve(

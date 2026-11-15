@@ -19,6 +19,7 @@ const roots: string[] = []
 afterEach(async () => {
   vi.unstubAllEnvs()
   for (const root of roots.splice(0)) await rm(root, { recursive: true, force: true })
+  vi.restoreAllMocks()
 })
 const LOCKED = fileURLToPath(new URL('../../examples/host-plugins/locked-room.mjs', import.meta.url))
 const DYNAMIC_HASH = 'sha256:e2542e11fe87eaadefa291d6bf4438c79602109b38db9c664d598c7dc9ade8cc'
@@ -89,9 +90,9 @@ describe('checking requirements', () => {
     { id: 'extra', version: '^1.0.0', optional: true },
   ]
   const installed = [
-    { id: 'off', version: '1.0.0', enabled: false },
-    { id: 'old', version: '1.5.0', enabled: true },
-    { id: 'fine', version: '1.1.0', enabled: true },
+    { id: 'off', version: '1.0.0', nativeAllowed: true, enabled: false },
+    { id: 'old', version: '1.5.0', nativeAllowed: true, enabled: true },
+    { id: 'fine', version: '1.1.0', nativeAllowed: true, enabled: true },
   ]
 
   it('lists every missing, disabled and mismatched plugin at once', () => {
@@ -110,13 +111,22 @@ describe('checking requirements', () => {
   it('does not let a plugin without a manifest id satisfy a requirement', () => {
     const problems: RequirementProblem[] = checkPluginRequirements(
       [{ id: 'fine', version: '^1.0.0' }],
-      [{ enabled: true }],
+      [{ nativeAllowed: true, enabled: true }],
     )
     expect(problems[0]!.kind).toBe('missing')
   })
 
   it('only warns about an optional requirement', () => {
     expect(checkPluginRequirements(required, installed).find(problem => problem.id === 'extra')?.optional).toBe(true)
+  })
+
+  it('does not count an enabled but unallowed module as loaded', () => {
+    expect(
+      checkPluginRequirements(
+        [{ id: 'denied', version: '^1.0.0' }],
+        [{ id: 'denied', version: '1.0.0', nativeAllowed: false, enabled: true }],
+      )[0]!.kind,
+    ).toBe('disabled')
   })
 })
 
@@ -146,9 +156,10 @@ describe('world packs', () => {
     ).rejects.toThrow()
   })
 
-  it('keeps the pack hash when requiresPlugins is absent', async () => {
+  it('preserves a verifiable hash for explicit selections when requiresPlugins is absent', async () => {
     const compiled = await compile(resolve('examples/world-packs/dynamic-scheduling'))
-    expect(compiled.packHash).toBe(DYNAMIC_HASH)
+    expect(verifyCompiledWorldPackV5(compiled).packHash).toBe(compiled.packHash)
+    expect(compiled.plugins).toHaveProperty('pack-scripts')
     expect('requiresPlugins' in compiled).toBe(false)
   })
 })
@@ -171,14 +182,30 @@ describe('launcher', () => {
       operation: 'preferences',
       theme: 'system',
       largeText: false,
-      hostPlugins: [{ id: 'mine', path: LOCKED, enabled: false, config: { locationId: 'location:front-room' } }],
+      hostPlugins: [
+        {
+          id: 'mine',
+          path: LOCKED,
+          nativeAllowed: true,
+          enabled: false,
+          config: { locationId: 'location:front-room' },
+        },
+      ],
     })
     await expect(core.handle({ operation: 'start', instanceId })).rejects.toThrow('没有启用')
     await core.handle({
       operation: 'preferences',
       theme: 'system',
       largeText: false,
-      hostPlugins: [{ id: 'mine', path: LOCKED, enabled: true, config: { locationId: 'location:front-room' } }],
+      hostPlugins: [
+        {
+          id: 'mine',
+          path: LOCKED,
+          nativeAllowed: true,
+          enabled: true,
+          config: { locationId: 'location:front-room' },
+        },
+      ],
     })
     await expect(core.checkPackPlugins(core.snapshot().packs[0]!.path)).resolves.toBe('')
   })
@@ -198,10 +225,10 @@ describe('launcher', () => {
       operation: 'preferences',
       theme: 'system',
       largeText: false,
-      hostPlugins: [{ id: 'mine', path, enabled: true, config: {} }],
+      hostPlugins: [{ id: 'needs-new-host', path, nativeAllowed: true, enabled: true, config: {} }],
     })
     const failure = String(await core.handle({ operation: 'start', instanceId }).catch((error: Error) => error))
-    expect(failure).toContain('这个世界包需要的插件有问题')
+    expect(failure).toContain('插件 needs-new-host 宿主 API 版本不兼容')
     expect(failure).toContain('needs-new-host')
     expect(failure).not.toContain('Core 初始化失败')
     expect(core.snapshot().core.state).toBe('idle')
@@ -215,10 +242,25 @@ describe('launcher', () => {
 
 describe('game process', () => {
   it('counts a plugin the loader skipped as not in force', async () => {
-    vi.spyOn(console, 'error').mockImplementation(() => {})
-    const session = await loadHostPlugins([{ id: 'mine', enabled: true, path: LOCKED, config: {} }])
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const root = await mkdtemp(join(tmpdir(), 'perspectra-optional-plugin-'))
+    roots.push(root)
+    const path = join(root, 'locked-room.mjs')
+    await writeFile(path, "throw new Error('配置校验失败时不应执行模块')")
+    await writeFile(
+      join(root, 'locked-room.plugin.json'),
+      JSON.stringify({
+        id: 'locked-room',
+        name: '可选外围插件',
+        version: '0.1.0',
+        services: ['playerFeed'],
+        config: { room: { type: 'string', title: '房间', required: true } },
+      }),
+    )
+    const session = await loadHostPlugins([{ id: 'mine', nativeAllowed: true, enabled: true, path, config: {} }])
     try {
-      expect(session.installed).toEqual([{ id: 'locked-room', version: '0.1.0', enabled: false }])
+      expect(session.skipped).toEqual([{ id: 'mine', reason: 'config', detail: '请先填写：房间。' }])
+      expect(session.installed).toEqual([{ id: 'locked-room', version: '0.1.0', nativeAllowed: true, enabled: false }])
       expect(checkPluginRequirements([{ id: 'locked-room', version: '^0.1.0' }], session.installed)[0]!.kind).toBe(
         'disabled',
       )
@@ -229,7 +271,13 @@ describe('game process', () => {
 
   it('counts a loaded plugin as in force', async () => {
     const session = await loadHostPlugins([
-      { id: 'mine', enabled: true, path: LOCKED, config: { locationId: 'location:front-room' } },
+      {
+        id: 'mine',
+        nativeAllowed: true,
+        enabled: true,
+        path: LOCKED,
+        config: { locationId: 'location:front-room' },
+      },
     ])
     try {
       expect(checkPluginRequirements([{ id: 'locked-room', version: '^0.1.0' }], session.installed)).toEqual([])
@@ -255,14 +303,14 @@ describe('python check', () => {
       operation: 'preferences',
       theme: 'system',
       largeText: false,
-      hostPlugins: [{ id: 'memory', path: entry, enabled: true }],
+      hostPlugins: [{ id: 'memory', path: entry, nativeAllowed: true, enabled: true }],
     })
     await expect(core.needsCorePython()).resolves.toBe(false)
     await core.handle({
       operation: 'preferences',
       theme: 'system',
       largeText: false,
-      hostPlugins: [{ id: 'memory', path: entry, enabled: false }],
+      hostPlugins: [{ id: 'memory', path: entry, nativeAllowed: true, enabled: false }],
     })
     await expect(core.needsCorePython()).resolves.toBe(true)
   })

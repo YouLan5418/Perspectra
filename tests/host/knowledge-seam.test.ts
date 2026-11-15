@@ -2,7 +2,9 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { afterEach, expect, it, vi } from 'vitest'
+import { brandId, isJsonObject } from '@harness-world/contracts'
 import type { KnowledgeInstance, SeamProvider } from '@harness-world/plugin-sdk'
+import { CharacterViewBuilder } from '@harness-world/store-sqlite'
 import { loadHostPlugins, type HostPlugins } from '../../desktop/host-plugins.ts'
 import { WorldHostRuntime } from '../../desktop/host/world-runtime.ts'
 import { startFakeProvider, fakeModels } from '../support/fake-provider.ts'
@@ -26,15 +28,16 @@ function fresh() {
 async function start(knowledge: SeamProvider<KnowledgeInstance>) {
   const server = await startFakeProvider('openai', () => ({ tool: { decision: 'abstain' } }))
   servers.push(server)
+  const root = fresh()
   const runtime = await WorldHostRuntime.create({
-    dataDirectory: fresh(),
+    dataDirectory: root,
     packPath: resolve('examples/world-packs/prototype-g1'),
     models: fakeModels(server.endpoint),
     plugins: { knowledge },
     serialScheduling: true,
   })
   runtimes.push(runtime)
-  return { runtime, calls: server.calls }
+  return { runtime, calls: server.calls, root }
 }
 
 it('loads an external knowledge service and uses it through the official context step', async () => {
@@ -43,7 +46,7 @@ it('loads an external knowledge service and uses it through the official context
     path,
     `export const hostApi='2.5'; export default ctx=>ctx.effect(()=>ctx.knowledge.register({id:'external-knowledge',version:'1.0.0',open:async()=>({select:context=>({source:'author_setting',entries:[{documentId:'marker',content:'knowledge-marker:'+context.character.characterId}]})})}))`,
   )
-  const session = await loadHostPlugins([{ id: 'knowledge', path, enabled: true }])
+  const session = await loadHostPlugins([{ id: 'knowledge', path, enabled: true, nativeAllowed: true }])
   sessions.push(session)
   expect(session.skipped).toEqual([])
   const { runtime, calls } = await start(session.seams.knowledge!)
@@ -67,17 +70,17 @@ it('fails opening instead of silently replacing a broken knowledge mechanism', a
         throw new Error('cannot parse')
       },
     }),
-  ).rejects.toThrow('知识机制 broken-knowledge 无法打开')
+  ).rejects.toThrow('插件 broken-knowledge 的 open 操作失败。')
 })
 
 it('attributes selection errors to the mechanism and preserves the player input', async () => {
-  vi.spyOn(console, 'error').mockImplementation(() => {})
+  const log = vi.spyOn(console, 'error').mockImplementation(() => {})
   const { runtime, calls } = await start({
     id: 'broken-selection',
     version: '1.0.0',
     open: async () => ({
       select: () => {
-        throw new Error('selection failed')
+        throw new TypeError('PRIVATE_MARKER')
       },
     }),
   })
@@ -85,6 +88,49 @@ it('attributes selection errors to the mechanism and preserves the player input'
   expect(state.notice).toContain('broken-selection')
   expect(state.transcript.some(line => line.player)).toBe(true)
   expect(calls).toHaveLength(0)
+  const publicState = JSON.stringify(state)
+  const logged = log.mock.calls.flat().map(String).join(' ')
+  expect(publicState).not.toContain('PRIVATE_MARKER')
+  expect(logged).toContain('broken-selection')
+  expect(logged).not.toContain('PRIVATE_MARKER')
+})
+
+it('preserves the original storage error thrown through a Host callback from select', async () => {
+  let hostFailure: unknown
+  let rebuildCalls = 0
+  const exactFailure = new Error('PRIVATE_CORE_MARKER')
+  const { runtime } = await start({
+    id: 'storage-knowledge',
+    version: '1.0.0',
+    open: async world => ({
+      select: context => {
+        const character = context.character
+        if (!isJsonObject(character) || typeof character.characterId !== 'string')
+          throw new TypeError('missing character')
+        const throughSeq = world.world.head().headSeq
+        const rebuild = vi.spyOn(CharacterViewBuilder.prototype, 'rebuildAt').mockImplementationOnce(() => {
+          rebuildCalls++
+          throw exactFailure
+        })
+        try {
+          world.world.characterObservations(brandId(character.characterId, 'CharacterId'), throughSeq)
+        } catch (error) {
+          hostFailure = error
+          throw error
+        } finally {
+          rebuild.mockRestore()
+        }
+        return undefined
+      },
+    }),
+  })
+  const failure = await runtime.submit('你好').then(
+    () => undefined,
+    error => error,
+  )
+  expect(rebuildCalls).toBe(1)
+  expect(hostFailure).toBe(exactFailure)
+  expect(failure).toBe(exactFailure)
 })
 
 it('opens independent candidate instances, closes each one, and compares public identity', async () => {

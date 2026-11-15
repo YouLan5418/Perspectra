@@ -67,11 +67,13 @@ export function projectPlayerView(state: HostState): PlayerView {
         // The author names an action on its binding; the contact rules have a plain fallback, and any other
         // unnamed action reads as an interaction with its target rather than showing a definition ID. A
         // recipient is always named, so the same action for different people stays apart.
+        const ui = option.ui as WorldJsonObject | undefined
         const authored = state.actionLabels?.[option.bindingId]
-        const label =
-          definition.id.startsWith('activity:') ||
-          definition.id.startsWith('status:') ||
-          definition.id === 'experiment:message'
+        const label = ui
+          ? String(option.label ?? ui.label ?? definition.id)
+          : definition.id.startsWith('activity:') ||
+              definition.id.startsWith('status:') ||
+              definition.id === 'experiment:message'
             ? String(option.label ?? definition.id)
             : (authored ??
                 {
@@ -80,17 +82,30 @@ export function projectPlayerView(state: HostState): PlayerView {
                 }[definition.id] ??
                 '与 ' + targetName + ' 互动') + (recipient === undefined ? '' : '（给 ' + recipient + '）')
         const targetId = String(target.id)
-        const characterArguments = (state.characterArguments?.[definition.id] ?? []).filter(key =>
-          Object.hasOwn((inputs?.properties ?? {}) as WorldJsonObject, key),
-        )
+        const characterArguments = (
+          Array.isArray(ui?.characterArguments)
+            ? (ui.characterArguments as string[])
+            : (state.characterArguments?.[definition.id] ?? [])
+        ).filter(key => Object.hasOwn((inputs?.properties ?? {}) as WorldJsonObject, key))
         actions.push({
           id: optionId(action),
           label,
           action,
           kind: definition.id.startsWith('activity:') ? 'activity' : 'interact',
           // A status operation acts as the player; whom it touches, if anyone, is one of its inputs.
-          target:
-            definition.id.startsWith('activity:') && running
+          ...(typeof ui?.group === 'string' ? { group: ui.group } : {}),
+          target: ui
+            ? {
+                kind:
+                  typeof ui.targetKind === 'string'
+                    ? ui.targetKind
+                    : target.kind === 'entity'
+                      ? 'item'
+                      : String(target.kind),
+                id: targetId,
+                name: name(targetId),
+              }
+            : definition.id.startsWith('activity:') && running
               ? activityTarget(running)
               : definition.id.startsWith('status:') && target.kind !== 'entity'
                 ? { kind: 'self', id: targetId, name: state.world.playerName }
@@ -257,7 +272,43 @@ export function projectPlayerView(state: HostState): PlayerView {
     status: state.busy && !background ? 'busy' : state.error ? 'error' : state.paused ? 'paused' : 'ready',
     ...(state.canInterrupt === undefined || background ? {} : { canInterrupt: state.canInterrupt }),
     ...(state.busy && !background && state.responders?.length ? { responders: [...state.responders] } : {}),
-    ...(state.pacing ? { pacing: { enabled: state.pacing.enabled } } : {}),
+    panels: (state.gameplay ?? []).flatMap(module =>
+      (module.view.panels ?? []).map(panel => ({ ...structuredClone(panel), id: module.moduleId + '/' + panel.id })),
+    ),
+    pluginControls: [
+      ...(state.pacing
+        ? [
+            {
+              id: 'runtime:pacing',
+              kind: 'boolean' as const,
+              label: '剧情节奏',
+              value: state.pacing.enabled,
+              scope: 'runtime' as const,
+              description: '调整小插曲与剧情疏密，从下一轮起生效；保存在当前故事线的游玩偏好中。',
+            },
+          ]
+        : []),
+      ...(state.gameplay ?? []).flatMap(module =>
+        (module.view.controls ?? []).map(control => {
+          const options = actions.filter(
+            action =>
+              (action.action.parameters.definitionRef as WorldJsonObject | undefined)?.id === control.operation.id,
+          )
+          const option = options[0]
+          const available =
+            options.length === 1 &&
+            Object.hasOwn((option?.argumentSchema?.properties ?? {}) as WorldJsonObject, control.operation.argument) &&
+            ((option?.argumentSchema?.required ?? []) as string[]).every(key => key === control.operation.argument)
+          const { operation: _operation, ...display } = control
+          return {
+            ...structuredClone(display),
+            id: module.moduleId + '/' + control.id,
+            scope: 'world' as const,
+            disabled: control.disabled === true || !available,
+          }
+        }),
+      ),
+    ],
     ...(state.playerSettings
       ? {
           settings: {
@@ -341,9 +392,38 @@ export class FrontendActions {
     }
     if (this.#requests.size >= 4096) throw new RangeError('本会话操作数量达到上限，请保存后重新启动')
     const result = Promise.resolve().then(async () => {
-      if (request.operation === 'setPacing') {
-        if (!this.runtime.setPacing) throw new TypeError('当前世界没有剧情节奏可开关')
-        return projectPlayerView(await this.runtime.setPacing(request.payload.enabled as boolean))
+      if (request.operation === 'setPluginControl') {
+        const state = await this.runtime.state(),
+          view = projectPlayerView(state)
+        const control = view.pluginControls?.find(row => row.id === request.payload.id)
+        const value = request.payload.value
+        if (!control || control.disabled) throw new TypeError('此玩法设置当前不可用，请刷新后重试')
+        if (
+          control.kind === 'boolean'
+            ? typeof value !== 'boolean'
+            : typeof value !== 'string' || !control.options.some(option => option.value === value)
+        )
+          throw new TypeError('玩法设置的值不在允许范围内')
+        if (control.scope === 'runtime') {
+          if (control.id !== 'runtime:pacing' || !this.runtime.setPacing) throw new TypeError('运行偏好不可用')
+          return projectPlayerView(await this.runtime.setPacing(value as boolean))
+        }
+        const definition = state.gameplay
+          ?.flatMap(module => (module.view.controls ?? []).filter(row => module.moduleId + '/' + row.id === control.id))
+          .at(0)
+        const options = view.actions.filter(
+          row => (row.action.parameters.definitionRef as WorldJsonObject | undefined)?.id === definition?.operation.id,
+        )
+        if (!definition || options.length !== 1) throw new TypeError('设置操作当前不可用')
+        // Reuse the current-offer checks and the formal action path below.
+        request = {
+          ...request,
+          operation: 'perform',
+          payload: {
+            optionId: options[0]!.id,
+            arguments: { [definition.operation.argument]: value },
+          },
+        }
       }
       if (request.operation === 'cancelRegeneration') {
         if (!this.runtime.cancelRegeneration) throw new TypeError('取消不可用')

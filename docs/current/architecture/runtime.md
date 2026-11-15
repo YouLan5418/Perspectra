@@ -1,5 +1,41 @@
 # 当前运行时
 
+2026-11-15 九项复核修正：调度器拿到独立的数据副本，不能通过保留 limits、角色列表或 initialCounts 的引用污染下一次请求；调度结果的计数、激活和可选 autonomy／reactions 均验证后才判断正常完成，非法返回属于对应插件故障且不结算，包括装箱枚举、稀疏激活数组和非 JSON performResult；JSON 限制复用既有 WorldJson 校验。周期末取消与核心回调错误相遇时，短暂收束已结束回调以保留原核心错误，不无限等待忽略取消的 Provider。
+
+例如短信已实际投递，但插件生成“已送达”说明时抛错：宿主使用基本结果说明，记录安全诊断，并继续本次收件人反应。它不撤销短信、不要求重启后补齐反应。参数与候选选项的完整信封校验已纳入通信 Provider 的故障边界；核心继续独立校验当前联系人与实际提交。验证和独立复审状态见[本轮修正记录](../../superpowers/plans/2026-11-15-composable-engine-b6-followup.md)。
+
+2026-11-15 B6.3 已通过独立复审：例如地图战斗技能由注册的公共 Handler 计算，队伍效果与状态、活动更新、物品和观察一起交给核心提交。WorldApplication 默认绑定同前缀物理投影，Host 只提供所选骰子／随机记录和入口信封转换。新活动若由本周期结算真正开启，后续调用它自己的机会策略并继续消耗原请求预算；不会恢复旧提名。恢复和分享先只读核对插件数据版本、必要记录、实际状态值和活动阶段，再打开写资源。源码及验收边界见 [B6 记录](../../superpowers/plans/2026-11-15-composable-engine-b6-rpg-trpg.md)。
+
+## 公共执行与请求预算（B3 源码与自动化已通过独立审查）
+
+2026-11-14 B5 源码与审查问题已收口：例如短信联系人根据角色已知状态被屏蔽后，候选与正式发送都会拒绝该目标。公开 WakeupSource 支持经 `ctx.scheduler.registerWakeup`、`GameplayDefinition.wakeupSources` 与 `WorldExecutionEngine.registerWakeupSource` 叠加注册，同角色提名合并后调用同一个 CharacterTurn，自主行动许可进入共同角色规则；可选提名失败跳过并端侧告警，已标记的核心回调错误与取消信号原样透传。普通 status／pacing 结算已移入公共周期，内部依赖次序保证状态先于节奏，同序按稳定 ID；自动活动开始与手动入口共享校验，核心提交而非钩子自行开写事务。重放／澄清无结算资格，结算后仅处理新观察；静观仍先处理时间且不在末尾重跑。原生正式行动入口对过期绑定与不可用目标返回结构化拒绝，保留作者业务拒绝原因且不阻塞持久化收件箱。这不代表 B6／B7 的所有包业务已经迁移，详见 [B5 记录](../../superpowers/plans/2026-11-13-composable-engine-b5-services.md)。
+
+例如玩家输入引起角色回答，随后活动自动开场、角色再处理新刺激，这些激活共享一次请求的次数、并发和期限。角色已正式拿到钥匙而表达中断时，拿取事实和执行结果保留；abstain 不伪造一次已接受的行动。
+
+[WorldApplication.createExecutionEngine](../../../packages/application/src/world-application.ts)绑定已有实例 scope 和分支；[执行协调器](../../../packages/application/src/execution-engine.ts)通过 beginRequest、openCycle／runCycle／runScheduledCycle 和受控 activate 提供无玩家输入的系统周期。公共默认值为 27 次激活、2 并发、270 秒。Host 按请求类型和实际已启用的普通、自主、活动、节奏来源授予额度，缺席来源不叠加；单角色请求只授予一次激活，程序化 executionBudget 可覆盖入口配置。设置用于授予上限，实际激活、业务决策和发送分别计数。周期换界不刷新额度，关闭请求、周期或实例后旧能力失效。调度器报告不能覆盖核心已经观察到的停止或失败。
+
+正常周期通过明确的核心内部 CoreCycleEndHook 结算适配器，按内部依赖次序及稳定插件／钩子 ID 排序；每个钩子复用 executeWorldRound 单独原子提交，后续故障保留先前已提交效果，故障原文不外传。结算后激活仍使用原请求的剩余额度。该低层适配器的原始快照／事件不作为作者 API 交付。B4 已接通作者 GameplayCycleEndInput／GameplayEffect 的所属投影与受控校验，已通过独立审查；现有 status／pacing 的 B5 迁移见本节开头；静观的原有先结算顺序保留。
+
+例如周期结算敲响钟声，NPC 应在本次请求剩余预算内获得处理钟声的机会。公共 runScheduledCycle 与 Host 现共用 completeScheduled 组织收尾；普通场景默认重新绑定结算后的观察前缀，其他场景可用 settlementRounds 工厂重新绑定活动等机会。旧自主提名不会自动重复，内部重绑定方法不交给调度插件。一次 stale 激活可由调度器有界重规划；只有最终停止原因决定周期是否中断。取消与真实提交错误同拍时，核心保留已观察到的原错误。上述修正已通过独立复审，放行范围限于 B3 源码与自动化。
+
+实际调度调用、读取资格、回调来源、未完成工作收尾和原子激活准入位于 [scheduler-execution](../../../packages/application/src/scheduler-execution.ts)。WorldApplication.withExecutionResources 复用现有分支并绑定角色回合的真实地址、Store、租约和可用性资源；Host 只提供模型、玩法适配与机会策略，调用同一协调器。测试可直接用这些入口驱动真实 CharacterTurn，无需 Desktop 或 HTTP Stub。Host／Tail 另提供 processStimulus(afterSeq)，处理已提交观察而不合成玩家文本或静观行动；它使旧候选失去重放资格，未把系统周期记成玩家输入。
+
+周期结算错误有明确端侧提示和脱敏日志；关闭资格错误和核心回调错误保持来源。结算中的 observation.upsert 在同一事务登记已有 cognitiveJobs，再按原授权捕获路径消费，原始观察和后台归档安装仍分别计量。
+
+B5 审查修正已收口整体停止资格与输入边界：官方调度器汇总各分项终态，任一分项被预算或期限截断就不进行正常周期结算，其他已经完成的事实仍保留。可选自动活动条件和可选唤醒源只降级作者故障，已标记的核心读取错误原样传播。手动短信以请求键复用已有提交记录；同键重试不再投递、激活或结算，同键改内容拒绝，联系人后来变更也不重新裁定旧提交，路由输入统一纳入当前执行周期观测。通信 prepare 的非法候选在所属提供者边界内报告 invalidResult，收件资格和事实提交仍由核心校验。
+
+[发送计量](../../../packages/application/src/execution-observation.ts)与业务 decision 次数分开。实际 LLM.send／dispatch 记录发送，official-llm 注入 provider-chat 的真实 fetch 尝试观察，格式重试产生新发送，HTTP 重试按实际尝试记录。Google 和不透明原生 transport 无 HTTP 尝试观测时明确记未知范围；缺失 usage 不用 SDK 默认零冒充。后台记忆退出当前请求的计量上下文。结果为返回时快照，晚到用量不改写已经返回的对象。
+
+玩家 debug 只包含汇总计数、终态和数值用量，不转发 NPC performResult／activation 数组；完整执行详情仍只在受信任的创作者检查入口。核心、模拟模型和 Host 自动回归的实际结果见 [B3 记录](../../superpowers/plans/2026-11-12-composable-engine-b3-execution.md)。本批没有真实模型、原生界面或发行包体验验收。
+
+## 原生规则与角色上下文（B4 已通过独立审查）
+
+例如调查成员已走到另一间房，合法活动结果仍按接收者投影送给他，但不能借这个受众资格取得远端物品。原生正常活动转换现在复核全部适用限制和最终业务不变量，强制逃离保留例外；同步校验返回 Promise 即所属插件故障。候选保留声明目标，搜查绑定地点、查看绑定线索，正式入口复核当前目标。业务拒绝的稳定 code／details 随正式结果和幂等重放保留，默认仅向行动者展示文案。具体证据和独立复审状态见 [B4 记录](../../superpowers/plans/2026-11-13-composable-engine-b4-gameplay.md)。
+
+例如战斗限制移动，既有玩家 submit 和受控 CharacterTurn 都重查该限制；伤害方法和后置派生的合法效果仍在同一个原子提交中。[GameplayRuntime](../../../packages/application/src/gameplay-runtime.ts)由已有实例 scope 拥有，注册模块、操作、方法、限制与活动，核心按分支接入规则。原生授权材料也进入角色上下文和决策新鲜度比较，避免漏掉影响自身认知的状态变化。初值、派生、活动投影和结果格式化的实际入口及限制见[创作者运行时](creator-runtime.md)与[B4 记录](../../superpowers/plans/2026-11-13-composable-engine-b4-gameplay.md)。此处尚未包含游戏包装载和默认 UI。
+
+2026-11-12 B2 经用户架构复核修正并通过独立审查：例如关闭世界 A 后，世界 B 继续使用自己的 Provider；A 的晚到结果不能继续调用宿主能力。实例作用域由 [WorldApplication](../../../packages/application/src/world-application.ts) 从既有根 Context 派生，[实例 scope](../../../packages/runtime-cordis/src/instance-scope.ts) 将服务绑定、取消与资源清理归所属 Fiber 管理。宿主统一消费 [插件调用保护](../../../desktop/host/plugin-runtime.ts)，取消主动结束异步等待，原生异常不向玩家展开。选定调度器打开失败时停止，已删除官方身份保护特例和打开失败回退。B3 源码已接通公共执行与请求硬预算，验收状态见下文；自动化、界面与未验收范围分别记录在 [B2 施工记录](../../superpowers/plans/2026-11-12-composable-engine-b2-lifecycle.md)。
+
 2026-11-05 M6：默认 RP 经 assembleRoleplay 明确选择，WorldHostCore 只接收完整组合；所选交互目录贯穿编译、规则和候选比较。WorldAdapters 不装配机制，透视起点和分享预检使用所选状态服务。见[共同契约](mechanism-contracts.md)和[M6 记录](../studies/2026-11-core-migration-m6.md)。
 
 2026-11-05 M5：例如后室同伴收到玩家短信后，自主处理自己的目标。通信选项与消息计算由 ctx.communication 提供，自主配置、触发频率和许可由 ctx.autonomy 提供；两者不直接提交事件。CommunicationRules 与执行适配绑定真实收发者，AutonomyRuntime 提取交易摘要并检查声明范围，机会继续交现有 scheduler／characterLoop。源码与验证边界见[M5 记录](../studies/2026-11-core-migration-m5.md)。
@@ -24,7 +60,7 @@
 
 2026-11-04 调度接缝：例如同伴在普通聊天后自主行动，进入活动时又必须等到合法轮次，这两类处理机会与普通反应现在都交给同一个 `ctx.scheduler` 实例。[官方调度器](../../../packages/official-scheduler/src/index.ts)负责整合／分段选择，[自主策略](../../../packages/official-scheduler/src/autonomy.ts)与[活动策略](../../../packages/official-scheduler/src/activity.ts)负责循环、期限和官方预算。宿主的 [activity-round](../../../desktop/host/activity-round.ts) 只桥接合法下一参与者、真实 turn 和 outcome；[autonomy-round](../../../desktop/host/autonomy-round.ts)只整理当次到期机会。宿主不保留旧机会循环或全局调用预算，取消、失效世界检查、授权、裁定和原子提交仍由主干执行。接口升级为 2.0；请求对照、自动测试与真实体验的不同验收范围见[阶段 7 记录](../studies/2026-11-plugin-first-phase-7.md)。
 
-以下有界与次序策略均描述官方调度器。第三方收到的玩家预算只作建议，也可忽略自主或活动机会；插件不返回仍可能使本轮卡住。单独的外部 `requestCharacter` 仍是显式角色请求，不属于自动机会分配。角色激活由核心 CharacterTurn 准备受控能力，循环算法已在阶段 10 经 ctx.characterLoop 开放替换。
+以下有界与次序策略描述官方调度器；第三方仍可选择机会策略。正式激活统一受 B3 请求额度限制，B2 的异步等待随请求取消或实例关闭主动结束，可信原生同步代码不能被抢占。外部 `requestCharacter` 是显式角色请求，也使用同一受控入口。角色激活由核心 CharacterTurn 准备受控能力，循环算法已在阶段 10 经 ctx.characterLoop 开放替换。
 
 2026-11-03 规则层和内部拆分：例如开发者想让“上锁的房间”在所有世界都进不去，用 `ctx.rules` 包在核心规则外面，玩家和角色的发言、移动和核心互动都受约束；状态操作、活动操作和短信有自己的规则，不经过它。核心规则现在在一个世界实例里只有一个来源（[rule-layers.ts](../../../desktop/host/rule-layers.ts)）。世界包的玩法模块留在宿主内，由 [world-gameplay.ts](../../../desktop/host/world-adapters.ts) 持有，不能作为整体替换，因为世界包脚本就是写给它们的。轮次、输入分发、投影和创作者查询已移出 `world-runtime.ts`，行为不变。写法见[增加世界规则](../guides/host-plugin-authoring.md#增加世界规则)。
 

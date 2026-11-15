@@ -1,9 +1,10 @@
-import type { SchedulerActivation, SchedulerResult, SchedulerRound } from '@harness-world/plugin-sdk'
+import type { SchedulerActivation, SchedulerResult } from '@harness-world/plugin-sdk'
+import type { OpportunityRound } from './opportunity-round.ts'
 
 /** Staged autonomous opportunities and their reactions. All temporary budgets belong to this scheduler. */
 export async function runAutonomousSchedule(
-  round: SchedulerRound,
-  react: (round: SchedulerRound) => Promise<SchedulerResult>,
+  round: OpportunityRound,
+  react: (round: OpportunityRound) => Promise<SchedulerResult>,
 ): Promise<SchedulerResult> {
   const autonomy = round.autonomy!
   const signal = AbortSignal.any([round.signal, AbortSignal.timeout(autonomy.deadlineSeconds * 1000)])
@@ -35,12 +36,16 @@ export async function runAutonomousSchedule(
         break outer
       }
       const result = await round.turn(role.characterId, {
-        kind: 'autonomous',
         signal,
         maxCalls: 2,
         maxModelCalls: available,
         beforeModelCall: spend,
-        stimulusSeqs: round.observationSeqs(role.characterId, round.afterSeq, round.headSeq()),
+        stimulusSeqs: [
+          ...new Set([
+            ...(autonomy.stimuli.get(role.characterId) ?? []),
+            ...round.observationSeqs(role.characterId, round.afterSeq, round.headSeq()),
+          ]),
+        ],
       })
       calls += result.calls
       activations.push({ characterId: role.characterId, result })
