@@ -1,0 +1,22 @@
+{
+  "schemaVersion": "worldpack-scenes/v2",
+  "scenes": [
+    {
+      "sceneId": "scene:living-room",
+      "lifecycle": "active",
+      "locationId": "location:living-room",
+      "participantIds": [
+        "character:player",
+        "character:cheng"
+      ]
+    },
+    {
+      "sceneId": "scene:bedroom",
+      "lifecycle": "active",
+      "locationId": "location:bedroom",
+      "participantIds": [
+        "character:aru"
+      ]
+    }
+  ]
+}

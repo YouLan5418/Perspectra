@@ -50,6 +50,19 @@ export function statusData(event: RulebookEvent): StatusEventData {
   return data as unknown as StatusEventData
 }
 
+/** Replay committed status facts for core/creator inspection; this is not an actor-authorized view. */
+export function committedStatusTruth(events: readonly RulebookEvent[]): StatusTruth {
+  const truth: StatusTruth = { public: {}, characters: {} }
+  for (const event of events) {
+    if (event.eventType !== 'status.updated') continue
+    for (const { holderId, key, value } of statusData(event).changes) {
+      if (holderId === null) truth.public[key] = structuredClone(value)
+      else (truth.characters[holderId] ??= {})[key] = structuredClone(value)
+    }
+  }
+  return truth
+}
+
 const object = statusObject,
   exact = statusExact,
   strings = statusStrings
@@ -237,15 +250,7 @@ export class StatusState {
   }
 
   truth(events: readonly RulebookEvent[]): StatusTruth {
-    const truth: StatusTruth = { public: {}, characters: {} }
-    for (const event of events) {
-      if (event.eventType !== 'status.updated') continue
-      for (const { holderId, key, value } of statusData(event).changes) {
-        if (holderId === null) truth.public[key] = structuredClone(value)
-        else (truth.characters[holderId] ??= {})[key] = structuredClone(value)
-      }
-    }
-    return truth
+    return committedStatusTruth(events)
   }
 
   /** Checks recovered owned values without pretending that loading a snapshot changes an activity-scoped status. */

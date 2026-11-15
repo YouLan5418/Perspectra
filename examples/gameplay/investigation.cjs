@@ -35,7 +35,7 @@ module.exports = {
       };
     },
     npc: {
-      whenToUse: '需要搜查所在房间且精力充足时使用。',
+      whenToUse: '搜查所在房间，每次消耗 1 点精力；重复搜查仍消耗精力，线索不重复加入，精力为零时拒绝。',
       projectResult: input => input.recipientId === input.actorId ? input.outcome : { clue: null },
       formatResult: input => input.recipientId !== input.actorId ? '在房间里翻找。' : '发现线索：' + String(input.outcome.clue),
     },

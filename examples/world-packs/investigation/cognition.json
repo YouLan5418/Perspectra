@@ -1,0 +1,20 @@
+{
+  "schemaVersion": "worldpack-cognition/v2",
+  "characters": [
+    {
+      "characterId": "character:player",
+      "observations": [],
+      "goals": []
+    },
+    {
+      "characterId": "character:cheng",
+      "observations": [],
+      "goals": []
+    },
+    {
+      "characterId": "character:aru",
+      "observations": [],
+      "goals": []
+    }
+  ]
+}

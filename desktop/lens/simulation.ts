@@ -1,3 +1,4 @@
+import { PluginFaultError } from '@harness-world/runtime-cordis'
 import { randomUUID } from 'node:crypto'
 import {
   appendFileSync,
@@ -18,11 +19,11 @@ import { compileWorldPackSource, type CompiledWorldPackV5 } from '@harness-world
 import { actionText, WAIT_ACTION, type HostAction, type HostState } from '../host/http-server.ts'
 import type { ActivityRequest } from '@harness-world/contracts'
 import type { AutoStartEvaluation } from '@harness-world/contracts'
-import { StatusState } from '@harness-world/application'
+import { StatusState, committedStatusTruth } from '@harness-world/application'
 import { assembleRoleplay, type WorldComposition } from '../official-bundle.ts'
 import { WorldHostRuntime } from '../host/world-runtime.ts'
 import { loadPackContent } from '../host/pack-content.ts'
-import { startStubModel, type StubDecision, type StubModel } from './stub-model.ts'
+import { ScriptedModel } from './scripted-model.ts'
 import { activityScriptPath, interactionName } from './ids.ts'
 import { interactionLabels } from './view.ts'
 
@@ -138,13 +139,17 @@ export interface LensNpcOption {
   readonly action: HostAction
 }
 export interface LensStepTrace {
+  readonly fault?: { readonly pluginId: string; readonly operation: string; readonly invalidResult: boolean }
+  readonly resolutions?: readonly WorldJsonObject[]
+  readonly modelInputs?: readonly { characterId: string; input: WorldJsonObject }[]
+  readonly gameplay?: HostState['gameplay']
   readonly index: number
   readonly step: LensStep
   readonly lines: readonly LensTraceLine[]
   readonly autoStart: readonly AutoStartEvaluation[]
   /** Why pacing did or did not bring something at the last round's end. */
   readonly pacing?: WorldJsonObject
-  /** Non-player characters that had a chance this step: asked by the stub model, or with an action.resolved or
+  /** Non-player characters that had a chance this step: asked by the scripted transport, or with an action.resolved or
    * speak event (an abstaining character leaves no event). */
   readonly activated: readonly string[]
   /** Per character, player included, what reached her authorized view in this step; an empty list means nothing. */
@@ -337,11 +342,11 @@ function inputText(step: LensStep): string {
   return '输入：静观'
 }
 
-/** A real host runtime on a temporary copy of the pack, answered by a stub model; the pack itself is never written. */
+/** A real host runtime on a temporary copy of the pack, answered by an in-process scripted transport; the pack itself is never written. */
 export class LensSimulation {
   readonly #root: string
   readonly #runtime: WorldHostRuntime
-  readonly #stub: StubModel
+  readonly #scripted: ScriptedModel
   readonly #playerId: string
   readonly #names: ReadonlyMap<string, string>
   readonly #activityTitles: ReadonlyMap<string, string>
@@ -352,18 +357,28 @@ export class LensSimulation {
   #notes: Omit<LensTraceLine, 'seq'>[] = []
   #steps = 0
   #closing: Promise<void> | undefined
+  timings = { setupMs: 0, compileMs: 0, initializeMs: 0, executionMs: 0, cleanupMs: 0 }
+
+  /** Actual authorized model requests, not scenario expectations. Creator inspection only. */
+  modelInputs() {
+    return structuredClone(this.#scripted.inputs)
+  }
+  /** Committed facts in the isolated SQLite, for author assertions and parity checks. */
+  events() {
+    return this.#read()
+  }
 
   private constructor(
     readonly startedFrom: LensStart,
     root: string,
     runtime: WorldHostRuntime,
-    stub: StubModel,
+    scripted: ScriptedModel,
     pack: CompiledWorldPackV5,
     activityTitles: ReadonlyMap<string, string>,
   ) {
     this.#root = root
     this.#runtime = runtime
-    this.#stub = stub
+    this.#scripted = scripted
     this.#playerId = pack.content.playerSlots[0]!.characterId
     this.#npcIds = pack.content.characters.map(c => c.characterId as string).filter(id => id !== this.#playerId)
     this.#names = new Map([
@@ -372,7 +387,7 @@ export class LensSimulation {
       ...(pack.content.entities ?? []).map(e => [e.entityId, e.name ?? e.entityId] as const),
     ])
     this.#activityTitles = activityTitles
-    stub.decide = (characterId, input) => {
+    scripted.decide = (characterId, input) => {
       this.#asked.add(characterId)
       return this.#decide(characterId, input)
     }
@@ -380,7 +395,7 @@ export class LensSimulation {
 
   /** The next plan as a model decision. A plan that cannot run as written abstains and leaves a `plan` line, so
    * nothing the author scripted disappears without a trace. */
-  #decide(characterId: string, input: WorldJsonObject): StubDecision {
+  #decide(characterId: string, input: WorldJsonObject): WorldJsonObject {
     const queue = this.#plans.get(characterId)
     const plan = queue?.[0]
     if (!plan) return { decision: 'abstain' }
@@ -420,6 +435,7 @@ export class LensSimulation {
     start: LensStart = {},
     composition: WorldComposition = assembleRoleplay(),
   ): Promise<LensSimulation> {
+    const opened = performance.now()
     const source = resolve(packPath)
     sweepStaleLensCopies()
     let root: string
@@ -432,9 +448,10 @@ export class LensSimulation {
     }
     const copy = join(root, 'pack')
     liveCopies.add(root)
-    let stub: StubModel | undefined, runtime: WorldHostRuntime | undefined
+    let runtime: WorldHostRuntime | undefined
     try {
       cpSync(source, copy, { recursive: true, filter: path => relative(source, path) !== LENS_DIRECTORY })
+      const compileStarted = performance.now()
       const pack = (await compileWorldPackSource(
         copy,
         composition.interactionPackages.map(interactionPackageDescription),
@@ -443,24 +460,38 @@ export class LensSimulation {
       const generated = new Set(content?.activities.map(a => a.key))
       content?.close()
       rewriteCopy(copy, pack, start, generated)
-      stub = await startStubModel()
+      const scripted = new ScriptedModel()
+      const initialized = performance.now()
+      const { llm: _llm, ...mechanisms } = composition.mechanisms
       runtime = await WorldHostRuntime.create({
         packPath: copy,
         dataDirectory: join(root, 'data'),
-        models: stub.models,
+        models: scripted.models,
         timeoutMs: 10_000,
         composition: skippingGeneratedAutoStart(
-          openingComposition(composition, pack, start),
+          openingComposition(
+            { ...composition, mechanisms: { ...mechanisms, llmTransport: scripted.provider } },
+            pack,
+            start,
+          ),
           start.skipAutoStart ?? [],
         ),
       })
       const titles = new Map(
         ((await runtime.state()).activities ?? []).map(a => [String(a.activityKey), String(a.title)] as const),
       )
-      return new LensSimulation(structuredClone(start), root, runtime, stub, pack, titles)
+      const simulation = new LensSimulation(structuredClone(start), root, runtime, scripted, pack, titles)
+      simulation.timings = {
+        setupMs: compileStarted - opened,
+        compileMs: initialized - compileStarted,
+        initializeMs: performance.now() - initialized,
+        executionMs: 0,
+        cleanupMs: 0,
+      }
+      return simulation
     } catch (error) {
       await runtime?.close()
-      await stub?.close()
+
       rmSync(root, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 })
       liveCopies.delete(root)
       // SQLite says only "unable to open database file"; name the folder so the cause can be found.
@@ -476,7 +507,7 @@ export class LensSimulation {
     return this.#runtime.state()
   }
   async statusTruth(): Promise<WorldJsonObject> {
-    return object(this.#runtime.creatorInspection({ limit: 1 }).statusTruth ?? {})
+    return committedStatusTruth(this.#read()) as unknown as WorldJsonObject
   }
   setNpcPlans(plans: Record<string, readonly LensNpcPlan[]>): void {
     this.#plans = new Map(Object.entries(plans).map(([id, list]) => [id, [...list]]))
@@ -529,9 +560,12 @@ export class LensSimulation {
   }
 
   async step(step: LensStep): Promise<LensStepTrace> {
+    const started = performance.now()
+    const inputOffset = this.#scripted.inputs.length
     const index = this.#steps++
     const before = this.#read().at(-1)?.seq ?? 0
     let error: string | undefined
+    let fault: LensStepTrace['fault']
     this.#asked = new Set()
     this.#notes = []
     // The host refreshes its last evaluations only when a round commits; autoStart() assigns a new array, so an
@@ -546,6 +580,8 @@ export class LensSimulation {
       else await this.#runtime.perform(WAIT_ACTION)
     } catch (cause) {
       error = message(cause)
+      if (cause instanceof PluginFaultError)
+        fault = { pluginId: cause.pluginId, operation: cause.operation, invalidResult: cause.invalidResult }
     }
     const events = this.#read()
     const lines = [
@@ -567,26 +603,36 @@ export class LensSimulation {
               : undefined
         if (typeof actor === 'string' && actor !== this.#playerId) activated.add(actor)
       }
+    const gameplay = (await this.state()).gameplay ?? []
+    const perceived = this.perceived(before)
+    this.timings.executionMs += performance.now() - started
     return {
+      resolutions: events
+        .filter(event => event.seq > before && event.eventType === 'action.resolved')
+        .map(event => object(event.data)),
+      modelInputs: structuredClone(this.#scripted.inputs.slice(inputOffset)),
+      gameplay,
       index,
       step: structuredClone(step),
       lines,
       autoStart: autoStart === previousAutoStart ? [] : autoStart,
       ...(pacing === null ? {} : { pacing }),
       activated: [...activated],
-      perceived: this.perceived(before),
+      perceived,
       ...(error === undefined ? {} : { error }),
+      ...(fault === undefined ? {} : { fault }),
     }
   }
 
   close(): Promise<void> {
     this.#closing ??= (async () => {
+      const started = performance.now()
       try {
         await this.#runtime.close()
       } finally {
-        await this.#stub.close()
         rmSync(this.#root, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 })
         liveCopies.delete(this.#root)
+        this.timings.cleanupMs = performance.now() - started
       }
     })()
     return this.#closing

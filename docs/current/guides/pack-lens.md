@@ -118,3 +118,11 @@ AI 不能运行命令行时，在待改清单页点“复制给 AI”，把待�
 - 活动操作的参数结构较复杂（超出字符串、数字、布尔、枚举）时，窗口提示改用推演脚本填写。
 - 只支持当前 `worldpack-source/v5`。
 - 编译只读取清单列出的文件，没有为 `.perspectra-lens/` 另做忽略；该目录已列入仓库 `.gitignore`，打包时是否带走未专门验证。
+
+## 进程内推演（B9）
+
+在源码仓库中，`corepack pnpm@11.7.0 worldpack simulate <源目录> <剧本.json>` 使用正式引擎执行链、隔离临时 SQLite 和进程内模型计划，不需要真实模型连接。旧 Lens simulate 命令继续可用。完整例子见[两间房的搜证](../../../examples/world-packs/investigation/README.md)。
+
+剧本可用 `resolution: { status: "rejected", code: "INSUFFICIENT_ENERGY" }` 检查真实提交的拒绝；通过完整 `action` 提交提案时，仍由引擎裁定。`fault` 需同时提供 `pluginId`、`operation`、`invalidResult`，检查正式插件故障。`status`、`knows/doesNotKnow`、`contextContains/contextExcludes`、`panelsContain/panelsExclude` 分别检查状态、授权观察、实际模型输入和玩家玩法展示；未产生模型请求的角色不能通过上下文断言。
+
+结果 `passed=false` 时退出码为 2，命令或装配失败为 1。输出带启动、准备、编译、初始化、剧本执行和清理计时，范围见 [B9 记录](../../superpowers/plans/2026-11-15-composable-engine-b9-simulation.md)。输出供创作者诊断，包含逐角色授权请求，不应当作共享上下文提供给所有角色。本次验证不代表真实模型体验或发行包已经包含新入口。

@@ -1,0 +1,38 @@
+{
+  "schemaVersion": "worldpack-characters/v3",
+  "characters": [
+    {
+      "characterId": "character:player",
+      "displayName": "玩家",
+      "controllerClass": "manual",
+      "pronouns": "你",
+      "initialLocationId": "location:living-room",
+      "portrayal": {
+        "summary": "由玩家决定身份与表达。",
+        "speakingStyle": "由玩家决定。"
+      }
+    },
+    {
+      "characterId": "character:cheng",
+      "displayName": "澄",
+      "controllerClass": "scripted",
+      "pronouns": "她",
+      "initialLocationId": "location:living-room",
+      "portrayal": {
+        "summary": "和玩家同住山脚小屋的少女，会一点魔法，好奇心强。",
+        "speakingStyle": "轻快、直接。"
+      }
+    },
+    {
+      "characterId": "character:aru",
+      "displayName": "阿茹",
+      "controllerClass": "scripted",
+      "pronouns": "她",
+      "initialLocationId": "location:bedroom",
+      "portrayal": {
+        "summary": "住在小屋里的邻家姑娘，不爱冒险，喜欢守着家。",
+        "speakingStyle": "温和、慢条斯理。"
+      }
+    }
+  ]
+}

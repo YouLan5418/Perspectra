@@ -21,9 +21,9 @@ beforeAll(() => {
   return () => rmSync(root, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 })
 })
 
-function lens(...args: string[]) {
+function command(cli: string, ...args: string[]) {
   return new Promise<{ code: number | null; out: any; err: any }>((done, reject) => {
-    const child = spawn(process.execPath, ['--import', 'tsx', CLI, ...args], { stdio: ['ignore', 'pipe', 'pipe'] })
+    const child = spawn(process.execPath, ['--import', 'tsx', cli, ...args], { stdio: ['ignore', 'pipe', 'pipe'] })
     let stdout = '',
       stderr = ''
     child.stdout.on('data', chunk => (stdout += chunk))
@@ -41,6 +41,8 @@ function lens(...args: string[]) {
     })
   })
 }
+const lens = (...args: string[]) => command(CLI, ...args)
+
 function scenarioFile(name: string, body: unknown): string {
   const dir = mkdtempSync(join(tmpdir(), 'lens-cli-scenario-'))
   roots.push(dir)
@@ -190,4 +192,28 @@ it('serve refuses a folder that is not a pack, and a missing path', async () => 
   roots.push(root)
   expect((await lens('serve', root, '--no-open')).err.error.code).toBe('PACK_NOT_FOUND')
   expect((await lens('serve', '--no-open')).err.error.code).toBe('INVALID_REQUEST')
+}, 60_000)
+
+it('worldpack simulate exposes the formal in-process scenario and measured boundaries', async () => {
+  const cli = resolve('packages/world-pack/process/cli-entry.ts')
+  const source = resolve('examples/world-packs/investigation')
+  const result = await command(cli, 'simulate', source, join(source, 'scenario.json'))
+  expect(result.code).toBe(0)
+  expect(result.out.passed).toBe(true)
+  expect(result.out.steps[2].resolutions).toContainEqual(
+    expect.objectContaining({
+      accepted: false,
+      rejection: expect.objectContaining({ code: 'INSUFFICIENT_ENERGY' }),
+    }),
+  )
+  for (const key of ['startupMs', 'setupMs', 'compileMs', 'initializeMs', 'executionMs', 'cleanupMs'])
+    expect(result.out.timings[key]).toBeGreaterThan(0)
+  const wrong = scenarioFile('b9-wrong.json', {
+    title: '失败退出',
+    steps: [
+      { interact: 'investigation:search', expect: { resolution: { status: 'rejected', code: 'INSUFFICIENT_ENERGY' } } },
+    ],
+  })
+  expect((await command(cli, 'simulate', source, wrong)).code).toBe(2)
+  expect((await command(cli, 'simulate', source)).code).toBe(1)
 }, 60_000)

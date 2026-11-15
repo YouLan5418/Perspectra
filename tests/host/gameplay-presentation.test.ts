@@ -1,3 +1,9 @@
+import { mkdtempSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join, resolve } from 'node:path'
+import { ScriptedModel } from '../../desktop/lens/scripted-model.ts'
+import { WorldHostRuntime } from '../../desktop/host/world-runtime.ts'
+import { assembleRoleplay } from '../../desktop/official-bundle.ts'
 import { rmSync } from 'node:fs'
 import { Script, runInNewContext } from 'node:vm'
 import { afterEach, expect, it } from 'vitest'
@@ -134,4 +140,32 @@ it('clears removed controls and panels over the actual SDK patch transport', asy
   // A later unrelated patch must retain the freshly fetched full view, not restore old panels.
   port.onmessage({ data: { type: 'view-patch', changes: { status: 'busy' } } })
   expect(latest).not.toHaveProperty('panels')
+})
+
+it('B9 standalone search pack runs through the normal stage action adapter without HTTP or model credentials', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'b9-stage-'))
+  cleanups.push(() => rmSync(root, { recursive: true, force: true }))
+  const model = new ScriptedModel()
+  const runtime = await WorldHostRuntime.create({
+    packPath: resolve('examples/world-packs/investigation'),
+    dataDirectory: root,
+    models: model.models,
+    composition: assembleRoleplay({ llmTransport: model.provider }),
+  })
+  cleanups.push(() => runtime.close())
+  const actions = new FrontendActions(runtime)
+  const view = projectPlayerView(await runtime.state())
+  const search = view.actions.find(row => row.label === '搜查房间')!
+  const after = await actions.perform(
+    frontendActionRequest({
+      requestId: 'b9',
+      actionId: 'search',
+      operation: 'perform',
+      payload: { optionId: search.id },
+    }),
+  )
+  expect(energy(after)).toBe(1)
+  expect(after.panels?.find(row => row.kind === 'entry-list')).toMatchObject({ entries: [{ title: '一封信' }] })
+  expect(model.inputs.some(entry => entry.characterId === 'character:cheng')).toBe(true)
+  expect(JSON.stringify(model.inputs)).not.toContain('clue:letter')
 })

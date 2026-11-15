@@ -1830,13 +1830,23 @@ export class GameplayRuntime {
           }
         }
         const interact = baseOffers.find(offer => offer.actionType === 'interact')
+        // Host adapters and the public execution entrance can both wrap this resolver.
+        // Identical offers describe one proposal; keep distinct bindings, parameters and targets.
+        const interactions = [
+          ...new Map(
+            [...(interact?.interactions ?? []), ...choices].map(option => [
+              Buffer.from(canonicalizeWorldJson(option)).toString('utf8'),
+              option,
+            ]),
+          ).values(),
+        ]
         return [
           ...baseOffers.filter(offer => offer.actionType !== 'interact'),
           ...(choices.length || interact
             ? [
                 {
                   ...(interact ?? { actionType: 'interact', actionVersion: 2 }),
-                  interactions: [...(interact?.interactions ?? []), ...choices],
+                  interactions,
                 },
               ]
             : []),

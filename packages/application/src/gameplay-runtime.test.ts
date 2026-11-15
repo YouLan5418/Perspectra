@@ -307,6 +307,8 @@ it('uses the same restricted candidate material when validating native targets',
     events: f.events(),
     characterId: player,
   })
+  // Public execution may wrap the Host resolver again; it must not duplicate the same proposal.
+  expect(f.gameplay.resolver(rules).affordances(context())).toEqual(rules.affordances(context()))
   const parameters = {
     targetRef: { kind: 'location', id: 'location:next' },
     bindingId: 'gameplay',

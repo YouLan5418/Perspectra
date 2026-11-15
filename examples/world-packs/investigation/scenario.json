@@ -1,0 +1,81 @@
+{
+  "title": "搜证、重复与精力耗尽",
+  "steps": [
+    {
+      "interact": "investigation:search",
+      "expect": {
+        "resolution": {
+          "status": "accepted"
+        },
+        "status": {
+          "character:player.energy": 1,
+          "character:player.clues": [
+            "clue:letter"
+          ]
+        },
+        "knows": {
+          "character:cheng": "翻找"
+        },
+        "doesNotKnow": {
+          "character:cheng": "clue:letter",
+          "character:aru": [
+            "翻找",
+            "clue:letter"
+          ]
+        },
+        "panelsContain": [
+          "一封信"
+        ],
+        "contextContains": {
+          "character:cheng": "翻找"
+        },
+        "contextExcludes": {
+          "character:cheng": "clue:letter"
+        }
+      }
+    },
+    {
+      "interact": "investigation:search",
+      "expect": {
+        "resolution": {
+          "status": "accepted"
+        },
+        "status": {
+          "character:player.energy": 0,
+          "character:player.clues": [
+            "clue:letter"
+          ]
+        }
+      }
+    },
+    {
+      "action": {
+        "actionType": "interact",
+        "parameters": {
+          "bindingId": "gameplay",
+          "definitionRef": {
+            "id": "investigation:search",
+            "version": 1
+          },
+          "targetRef": {
+            "kind": "location",
+            "id": "location:living-room"
+          },
+          "arguments": {}
+        }
+      },
+      "expect": {
+        "resolution": {
+          "status": "rejected",
+          "code": "INSUFFICIENT_ENERGY"
+        },
+        "status": {
+          "character:player.energy": 0,
+          "character:player.clues": [
+            "clue:letter"
+          ]
+        }
+      }
+    }
+  ]
+}

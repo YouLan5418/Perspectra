@@ -998,7 +998,7 @@ pacing 的候选计算与正式效果应用分别采用其所在路径的语义�
 | official-status／official-activities | 主要以脚本文本作为定义来源 | 原生定义注册与脚本适配共用机制接口 |
 | RPG／TRPG content | B6.3 已把配置展开为实际注册的原生状态、活动、Handler、限制和派生，独立复审通过 | 保留配置校验，包清单和共同脚本适配留 B7 |
 | plugin-sdk rules | B1 已将公共规则数据归入 contracts，kernel 保留算法并重导出 | 后续只通过现行执行入口适配，不为旧类型增加兼容分支 |
-| Lens simulation | 动态模拟依赖宿主实现与默认 RP 组合 | 使用公开装配和运行入口 |
+| Lens simulation | B9 通过 WorldHostRuntime 的公共执行周期装配，使用进程内模型传输 | 包迁移留 B10；真实模型及发行验收留 B11 |
 | host-plugins 与 scheduler 打开逻辑 | B2 已删除调度回退，导入前检查 nativeAllowed，按清单与实际核心注册判断必要性 | B7 再接游戏包显式玩法组合 |
 | gameplay-services | B2 已统一输入输出复制与插件故障，结构化业务拒绝仍经原路径；核心回调按来源传播 | B4 接原生玩法定义与派生 |
 | Cordis 分支与宿主关闭逻辑 | B2 已由真实实例 Fiber 持有资源，关闭先撤资格，晚到回收与有界清理已有定向证据 | B3 再绑定公共执行周期 |
@@ -1006,7 +1006,7 @@ pacing 的候选计算与正式效果应用分别采用其所在路径的语义�
 | status／activities SDK | 新作者定义已给出具体类型；现行 Provider 定义和多项钩子仍返回 unknown | B4 接通注册与执行时复用新契约，宿主边界继续执行运行校验 |
 | character-action-explanations | 模型层按已有选项重建操作说明 | 操作用途和结果表述归定义，通用模板消费授权投影 |
 | PlayerView 与默认舞台 | B8 已接通开放展示分组、有限参数表单、pluginControls 和两种授权只读面板，完整／增量请求闭环 | 更复杂展示继续由自定义前端承担，不引入动态 UI 框架 |
-| Lens simulation／scenario | 已有动作匹配、NPC 计划和观察断言，执行依赖 HTTP 桩与宿主 | 保留剧本语义，使用公开引擎执行与进程内替代实现 |
+| Lens simulation／scenario | B9 保留正式 DecisionService 授权组装，仅替换模型传输；simulate、提交／拒绝／上下文／面板／故障断言已接通 | 参见 B9 施工记录的测试与测量范围 |
 | 调度预算契约 | B3 源码接通实际激活、并发与期限的请求硬预算，阶段待独立验收 | 正式执行边界检查硬预算，周期换界沿用宿主执行范围的剩余额度 |
 | 记忆归档与角色模型 | 已有来源、归档前缀、迟到结果检查及按角色模型映射 | 将这些边界和正常调用能力写入公共契约 |
 
@@ -1103,6 +1103,8 @@ ScriptedDecisionProvider 表达按计划决策的实现。需要验证正式 Dec
 无头推演直接调用这些进程内实现。CLI 提供包路径、场景和必要配置，正式模型与网络资源由需要它们的其他入口装配。发行工具应包含该推演入口、所需轻量实现和作者类型声明。
 
 存储优先复用隔离的临时 SQLite 与现有事务路径。编译结果和定义可以在有效实例范围内复用，推演数据与历史试玩目录分别管理。
+
+B9 源码入口与验证边界见 [B9 施工记录](../../superpowers/plans/2026-11-15-composable-engine-b9-simulation.md)。正式命令为 `worldpack simulate <source> <scenario.json>`，可运行[搜证切片](../../../examples/world-packs/investigation/README.md)。Host 继续负责现有装配，公共执行器负责预算、裁定、提交和收尾；没有提前搬迁包。
 
 ### 17.4 结果断言与性能观察
 

@@ -228,3 +228,12 @@ NPC 固定台词发表时，可选 `onPublished(state, actorId, expression)` 返
 第二轮在脚本加载时探测是否声明 autoStart；没有 hook 的固定名单活动不再为菜单和自动开始准备世界历史，动态选人仍读取授权场景，声明了 hook 的条件仍按当前状态重新计算，不缓存条件结果。玩家刷新可以把已经读取的同一前缀交给活动菜单，共用该次刷新内的授权世界投影；如果目录头已改变，则重新读取。该复用不会跨回合缓存角色视图或扩大 script 的信息接收范围。
 
 这是源码优化，尚未重建发行包；首次恢复、完整世界视图和记忆来源仍有历史读取成本。测量与验证范围见[首轮活动性能记录](../studies/2026-10-30_sqlite-activity-performance-report.md)与[第二轮读取记录](../studies/2026-10-30_sqlite-activity-performance-round2-report.md)。原有序章实验见[历史性能实测](../studies/prologue-performance-20261010.md)；其数字不代表本次改动的性能或验收范围。
+
+
+## B9 无头推演接线（2026-11-15）
+
+玩家搜查后精力减少、线索进入自己的面板，同房澄仅看到翻找。`worldpack simulate <source> <scenario.json>` 与 Lens 共用 `runScenario`；`LensSimulation` 通过 `WorldHostRuntime.create/perform/submit` 接到 `WorldApplication.createExecutionEngine` 与正式周期。`ScriptedModel` 仅实现现有 `llmTransport`，保留官方预设与 Default DecisionService 授权组装；这条路径不启动 HTTP 模型桩、不读取真实模型凭据。
+
+结果包含逐步真实裁定、角色观察、实际模型输入和玩家玩法投影。状态回放直接读临时 SQLite 的已提交事件，包含共同玩法状态；候选缺失和正式拒绝分开处理。`fault` 匹配实际插件故障，状态断言检查失败后未提交的效果；`contextExcludes` 必须有实际请求才可通过。全部输出属于作者诊断，不回流角色共享上下文。
+
+[搜证示例](../../../examples/world-packs/investigation/README.md)包含显式启用、实现和三步剧本。计时与实际验证见 [B9 记录](../../superpowers/plans/2026-11-15-composable-engine-b9-simulation.md)；实际 HTTP 桩仍留在旧测试支持文件，不在新的 Lens 执行路径中。没有实施 B10 包迁移或 B11 真实模型／发行验收。

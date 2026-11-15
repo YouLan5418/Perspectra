@@ -65,10 +65,11 @@ async function run(args: readonly string[]): Promise<unknown> {
   } catch (error) {
     throw new CliError('SCENARIO_INVALID', `推演脚本无效（${file}）：${(error as Error).message}`)
   }
+  const startupMs = process.uptime() * 1000
   const result = await runScenario(packPath, scenario)
   // The result still goes to stdout; 2 tells a caller that only reads the exit code the scenario did not pass.
   if (!result.passed) exitCode = 2
-  return result
+  return { ...result, timings: { startupMs, ...result.timings } }
 }
 
 /** 0 passed, 1 the command failed (stderr), 2 a simulated scenario ran but did not pass (stdout). */
@@ -114,5 +115,5 @@ try {
   const code = error instanceof CliError ? error.code : 'LENS_FAILED'
   await flush(process.stderr, JSON.stringify({ error: { code, message: (error as Error).message } }) + '\n')
 }
-// The stub model server and runtime are closed by now; leave without waiting on stray handles.
+// The simulation runtime is closed by now; leave without waiting on stray handles.
 process.exit(exitCode)

@@ -1,0 +1,50 @@
+{
+  "sourceSchemaVersion": "worldpack-source/v5",
+  "packId": "pack:investigation",
+  "packVersion": "1.0.0",
+  "worldFile": "world.json",
+  "characterFiles": [
+    "characters.json"
+  ],
+  "locationFiles": [
+    "locations.json"
+  ],
+  "entityFiles": [
+    "entities.json"
+  ],
+  "sceneFiles": [
+    "scenes.json"
+  ],
+  "playerSlotFiles": [
+    "player-slots.json"
+  ],
+  "presentationFiles": [
+    "presentation.json"
+  ],
+  "cognitionFiles": [
+    "cognition.json"
+  ],
+  "memoryFiles": [
+    "memory.json"
+  ],
+  "documentFiles": [],
+  "markdownFiles": [],
+  "assetFiles": [
+    "scripts/gameplay.cjs"
+  ],
+  "assertionFiles": [
+    "assertions.json"
+  ],
+  "reactionFile": "reaction.json",
+  "manifestationFile": "manifestation.json",
+  "interactionFile": "interactions.json",
+  "plugins": {},
+  "scripts": {
+    "gameplay": {
+      "entry": "scripts/gameplay.cjs",
+      "config": {
+        "energy": 2
+      }
+    }
+  }
+}

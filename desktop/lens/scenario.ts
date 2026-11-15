@@ -11,6 +11,14 @@ import {
 } from './simulation.ts'
 
 export interface LensScenarioExpect {
+  /** Player resolution read from the committed action.resolved event. */
+  readonly resolution?: { readonly status: 'accepted' | 'rejected'; readonly code?: string }
+  readonly fault?: { readonly pluginId: string; readonly operation: string; readonly invalidResult: boolean }
+  readonly error?: string
+  readonly panelsContain?: readonly string[]
+  readonly panelsExclude?: readonly string[]
+  readonly contextContains?: Record<string, string | readonly string[]>
+  readonly contextExcludes?: Record<string, string | readonly string[]>
   readonly started?: string
   readonly notStarted?: string
   /** `"slot"` for a public status, `"character:deepseek.mood-note"` for a character's own. */
@@ -22,6 +30,7 @@ export interface LensScenarioExpect {
 }
 /** Player actions are written the way the game names them; the runner matches them against what is offered now. */
 export type LensScenarioStep = (
+  | { readonly action: import('../host/http-server.ts').HostAction }
   | { readonly say: string }
   | { readonly move: string }
   | { readonly interact: string; readonly target?: string; readonly arguments?: WorldJsonObject }
@@ -39,6 +48,7 @@ export interface LensExpectation {
   readonly ok: boolean
 }
 export interface LensScenarioResult {
+  readonly timings?: LensSimulation['timings']
   readonly title: string
   /** False when a step errored or an expectation failed; the CLI then exits with 2. */
   readonly passed: boolean
@@ -102,13 +112,14 @@ function parsePlan(value: unknown, path: string): LensNpcPlan {
   return plan as unknown as LensNpcPlan
 }
 
-const STEP_KINDS = ['say', 'move', 'interact', 'activity', 'wait'] as const
+const STEP_KINDS = ['say', 'move', 'interact', 'activity', 'wait', 'action'] as const
 function parseStep(value: unknown, path: string): LensScenarioStep {
   const step = record(value, path)
   const kinds = STEP_KINDS.filter(kind => step[kind] !== undefined)
   if (kinds.length !== 1) fail(path, `需要恰好写明一种行动：${STEP_KINDS.join('、')}（现在有 ${kinds.length} 种）`)
   const kind = kinds[0]!
   const extra: Record<(typeof STEP_KINDS)[number], readonly string[]> = {
+    action: [],
     say: [],
     move: [],
     interact: ['target', 'arguments'],
@@ -118,6 +129,11 @@ function parseStep(value: unknown, path: string): LensScenarioStep {
   only(step, path, [kind, ...extra[kind], 'expect'])
   if (kind === 'wait') {
     if (step.wait !== true) fail(`${path}.wait`, '需要是 true')
+  } else if (kind === 'action') {
+    const action = record(step.action, `${path}.action`)
+    only(action, `${path}.action`, ['actionType', 'parameters'])
+    text(action.actionType, `${path}.action.actionType`)
+    record(action.parameters, `${path}.action.parameters`)
   } else text(step[kind], `${path}.${kind}`)
   if (kind === 'activity') text(step.operation, `${path}.operation`)
   if (step.target !== undefined) text(step.target, `${path}.target`)
@@ -125,11 +141,45 @@ function parseStep(value: unknown, path: string): LensScenarioStep {
     if (step[key] !== undefined) record(step[key], `${path}.${key}`)
   if (step.expect !== undefined) {
     const expect = record(step.expect, `${path}.expect`)
-    only(expect, `${path}.expect`, ['started', 'notStarted', 'status', 'knows', 'doesNotKnow'])
+    only(expect, `${path}.expect`, [
+      'started',
+      'notStarted',
+      'status',
+      'knows',
+      'doesNotKnow',
+      'resolution',
+      'fault',
+      'error',
+      'panelsContain',
+      'panelsExclude',
+      'contextContains',
+      'contextExcludes',
+    ])
+    if (expect.resolution !== undefined) {
+      const result = record(expect.resolution, `${path}.expect.resolution`)
+      only(result, `${path}.expect.resolution`, ['status', 'code'])
+      if (!['accepted', 'rejected'].includes(String(result.status)))
+        fail(`${path}.expect.resolution.status`, '需要是 accepted 或 rejected')
+      if (result.code !== undefined) text(result.code, `${path}.expect.resolution.code`)
+    }
+    if (expect.fault !== undefined) {
+      const fault = record(expect.fault, `${path}.expect.fault`)
+      only(fault, `${path}.expect.fault`, ['pluginId', 'operation', 'invalidResult'])
+      text(fault.pluginId, `${path}.expect.fault.pluginId`)
+      text(fault.operation, `${path}.expect.fault.operation`)
+      if (typeof fault.invalidResult !== 'boolean') fail(`${path}.expect.fault.invalidResult`, '需要是布尔值')
+    }
+    if (expect.error !== undefined) text(expect.error, `${path}.expect.error`)
+    for (const key of ['panelsContain', 'panelsExclude'] as const) {
+      const values = expect[key]
+      if (values === undefined) continue
+      if (!Array.isArray(values) || !values.length) fail(`${path}.expect.${key}`, '需要至少一句')
+      for (const [index, value] of (values as unknown[]).entries()) text(value, `${path}.expect.${key}[${index}]`)
+    }
     if (expect.started !== undefined) text(expect.started, `${path}.expect.started`)
     if (expect.notStarted !== undefined) text(expect.notStarted, `${path}.expect.notStarted`)
     if (expect.status !== undefined) record(expect.status, `${path}.expect.status`)
-    for (const key of ['knows', 'doesNotKnow'] as const)
+    for (const key of ['knows', 'doesNotKnow', 'contextContains', 'contextExcludes'] as const)
       if (expect[key] !== undefined)
         for (const [id, value] of Object.entries(record(expect[key], `${path}.expect.${key}`))) {
           const at = `${path}.expect.${key}.${id}`
@@ -160,6 +210,7 @@ export function parseScenario(value: unknown): LensScenario {
 
 /** Finds the offered option for a step in the current state; throws UnmatchedAction, listing what is offered. */
 function resolve(step: LensScenarioStep, state: HostState): LensStep {
+  if ('action' in step) return { kind: 'action', action: step.action }
   if ('say' in step) return { kind: 'say', text: step.say }
   if ('wait' in step) return { kind: 'wait' }
   if ('move' in step) return { kind: 'action', action: matchAction({ move: step.move }, state.availableActions ?? []) }
@@ -191,6 +242,7 @@ function resolve(step: LensScenarioStep, state: HostState): LensStep {
 
 /** What the scenario asked for, unmatched: only the names the author wrote, no invented parameters. */
 function asked(step: LensScenarioStep): LensStep {
+  if ('action' in step) return { kind: 'action', action: step.action }
   if ('say' in step) return { kind: 'say', text: step.say }
   if ('wait' in step) return { kind: 'wait' }
   if ('move' in step) return { kind: 'action', action: { actionType: 'move', parameters: { locationId: step.move } } }
@@ -233,6 +285,49 @@ async function check(
     ...trace.lines.flatMap(l => (l.kind === 'activity' && l.activityKey !== undefined ? [l.activityKey] : [])),
   ])
   const results: LensExpectation[] = []
+  if (expect.resolution) {
+    const actual = trace.resolutions?.find(result => result.sourceRole === 'player')
+    const wanted = expect.resolution
+    results.push({
+      text: `正式裁定 ${show(wanted)}`,
+      ok:
+        actual !== undefined &&
+        actual.accepted === (wanted.status === 'accepted') &&
+        (wanted.code === undefined || (actual.rejection as WorldJsonObject | undefined)?.code === wanted.code),
+    })
+  }
+  if (expect.fault !== undefined)
+    results.push({
+      text: `插件故障 ${show(expect.fault)}`,
+      ok:
+        trace.fault !== undefined &&
+        trace.fault.pluginId === expect.fault.pluginId &&
+        trace.fault.operation === expect.fault.operation &&
+        trace.fault.invalidResult === expect.fault.invalidResult,
+    })
+  if (expect.error !== undefined)
+    results.push({ text: `故障包含 ${expect.error}`, ok: trace.error?.includes(expect.error) === true })
+  for (const [key, contains] of [
+    ['panelsContain', true],
+    ['panelsExclude', false],
+  ] as const)
+    for (const phrase of expect[key] ?? [])
+      results.push({
+        text: `玩家面板${contains ? '包含' : '不含'} ${phrase}`,
+        ok: JSON.stringify(trace.gameplay ?? []).includes(phrase) === contains,
+      })
+  for (const [key, contains] of [
+    ['contextContains', true],
+    ['contextExcludes', false],
+  ] as const)
+    for (const [id, phrases] of Object.entries(expect[key] ?? {})) {
+      const inputs = trace.modelInputs?.filter(entry => entry.characterId === id) ?? []
+      for (const phrase of typeof phrases === 'string' ? [phrases] : phrases)
+        results.push({
+          text: `${id} 实际模型请求${contains ? '包含' : '不含'} ${phrase}`,
+          ok: inputs.length > 0 && inputs.some(entry => JSON.stringify(entry.input).includes(phrase)) === contains,
+        })
+    }
   if (expect.started !== undefined)
     results.push({ text: `活动 ${expect.started} 开始了`, ok: startedKeys.has(expect.started) })
   if (expect.notStarted !== undefined)
@@ -264,8 +359,10 @@ async function check(
   return results
 }
 
-/** Runs a scenario's NPC plans and steps on an already-open simulation. Stops after the first step that errors. */
+/** Runs plans and assertions on an open simulation; an unexpected step error stops the scenario. */
 export async function applyScenario(sim: LensSimulation, scenario: LensScenario): Promise<LensScenarioResult> {
+  const started = performance.now()
+  const previousExecutionMs = sim.timings.executionMs
   if (scenario.npcPlans) sim.setNpcPlans(scenario.npcPlans)
   const steps: LensScenarioResult['steps'][number][] = []
   for (const [position, scenarioStep] of scenario.steps.entries()) {
@@ -286,9 +383,21 @@ export async function applyScenario(sim: LensSimulation, scenario: LensScenario)
     }
     const expectations = scenarioStep.expect ? await check(sim, scenarioStep.expect, trace) : undefined
     steps.push(expectations ? { ...trace, expectations } : trace)
-    if (trace.error !== undefined) break
+    if (
+      trace.error !== undefined &&
+      scenarioStep.expect?.error === undefined &&
+      scenarioStep.expect?.fault === undefined
+    )
+      break
   }
-  const passed = steps.every(step => step.error === undefined && (step.expectations ?? []).every(e => e.ok))
+  const passed = steps.every(
+    (step, index) =>
+      (step.error === undefined ||
+        scenario.steps[index]?.expect?.error !== undefined ||
+        scenario.steps[index]?.expect?.fault !== undefined) &&
+      (step.expectations ?? []).every(e => e.ok),
+  )
+  sim.timings.executionMs = previousExecutionMs + performance.now() - started
   const leftover = sim.leftoverPlans()
   return {
     title: scenario.title,
@@ -300,9 +409,11 @@ export async function applyScenario(sim: LensSimulation, scenario: LensScenario)
 
 export async function runScenario(packPath: string, scenario: LensScenario): Promise<LensScenarioResult> {
   const sim = await LensSimulation.open(packPath, scenario.start)
+  let result: LensScenarioResult
   try {
-    return await applyScenario(sim, scenario)
+    result = await applyScenario(sim, scenario)
   } finally {
     await sim.close()
   }
+  return { ...result, timings: { ...sim.timings } }
 }

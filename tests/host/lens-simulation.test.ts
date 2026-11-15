@@ -1,3 +1,6 @@
+import { createRequire } from 'node:module'
+import type { ContentGameplay } from '@harness-world/plugin-sdk'
+import { assembleRoleplay } from '../../desktop/official-bundle.ts'
 import { createRuntimeWithCore } from '../support/core-memory-options.ts'
 import {
   cpSync,
@@ -420,3 +423,177 @@ it('matches a plain host runtime', async () => {
   expect(lensActivity).toHaveLength(plainKeys.length)
   lensActivity.forEach((line, index) => expect(line.text).toContain(String(plainKeys[index])))
 }, 120_000)
+
+it('B9 searches through committed facts, authorized requests, duplicate cost and structured exhaustion', async () => {
+  const lens = await open(resolve('examples/world-packs/investigation'))
+  const scenario = parseScenario(
+    JSON.parse(readFileSync(resolve('examples/world-packs/investigation/scenario.json'), 'utf8')),
+  )
+  const result = await applyScenario(lens, scenario)
+  expect(result.passed, JSON.stringify(result.steps.map(step => step.expectations))).toBe(true)
+  const changes = lens
+    .events()
+    .filter(event => event.eventType === 'status.updated')
+    .map(event => (event.data as any).changes)
+  // The same committed event carries the resource debit and the private clue.
+  expect(changes).toContainEqual(
+    expect.arrayContaining([
+      { holderId: PLAYER, key: 'energy', value: 1 },
+      { holderId: PLAYER, key: 'clues', value: ['clue:letter'] },
+    ]),
+  )
+  expect(lens.modelInputs().some(entry => entry.characterId === 'character:aru')).toBe(false)
+  const later = await applyScenario(lens, {
+    title: '房外隔离',
+    steps: [
+      { move: 'location:bedroom', expect: { contextExcludes: { 'character:aru': ['clue:letter', '在房间里翻找'] } } },
+    ],
+  })
+  expect(later.passed, JSON.stringify(later.steps)).toBe(true)
+  expect(lens.timings.executionMs).toBeGreaterThan(0)
+})
+
+it('B9 assertions fail when a context was never delivered, and fault expectations check actual rollback', async () => {
+  const root = tempDir('lens-b9-fault-'),
+    pack = join(root, 'pack')
+  cpSync(resolve('examples/world-packs/investigation'), pack, { recursive: true })
+  const script = join(pack, 'scripts/gameplay.cjs')
+  writeFileSync(
+    script,
+    readFileSync(script, 'utf8').replace(
+      'resolve: ({ actorId, state }) => {',
+      "resolve: ({ actorId, state }) => { throw new TypeError('PRIVATE_INTERNAL');",
+    ),
+  )
+  const lens = await open(pack)
+  const before = await lens.statusTruth()
+  const result = await applyScenario(lens, {
+    title: '真实故障',
+    steps: [
+      {
+        interact: 'investigation:search',
+        expect: {
+          fault: { pluginId: 'example-investigation', operation: 'resolve:investigation:search', invalidResult: false },
+          status: { 'character:player.energy': 2, 'character:player.clues': [] },
+        },
+      },
+    ],
+  })
+  expect(result.passed, JSON.stringify(result.steps)).toBe(true)
+  expect(await lens.statusTruth()).toEqual(before)
+  expect(result.steps[0]!.resolutions).toEqual([])
+  expect(result.steps[0]!.error).not.toContain('PRIVATE_INTERNAL')
+  const noRequest = await applyScenario(lens, {
+    title: '没有请求不能证明隔离',
+    steps: [
+      {
+        interact: 'investigation:search',
+        expect: { error: 'example-investigation', contextExcludes: { 'character:aru': 'secret' } },
+      },
+    ],
+  })
+  expect(noRequest.passed).toBe(false)
+})
+
+it('B9 native and script definitions produce equal committed state and authorized delivery', async () => {
+  const root = tempDir('lens-b9-native-'),
+    pack = join(root, 'pack')
+  cpSync(resolve('examples/world-packs/investigation'), pack, { recursive: true })
+  const file = join(pack, 'worldpack.source.json')
+  const manifest = JSON.parse(readFileSync(file, 'utf8'))
+  delete manifest.scripts
+  manifest.plugins = { 'example-investigation': { config: 'investigation.json' } }
+  manifest.assetFiles = ['investigation.json']
+  writeFileSync(file, JSON.stringify(manifest))
+  writeFileSync(join(pack, 'investigation.json'), JSON.stringify({ energy: 2 }))
+  const definition = createRequire(import.meta.url)(resolve('examples/gameplay/investigation.cjs')) as ContentGameplay
+  const native = await LensSimulation.open(
+    pack,
+    {},
+    assembleRoleplay({
+      content: [
+        {
+          id: definition.id,
+          version: definition.version,
+          dataVersion: definition.dataVersion,
+          configFile: 'investigation.json',
+          generate: () => ({ gameplay: [definition] }),
+        },
+      ],
+    }),
+  )
+  cleanups.push(() => native.close())
+  const scripted = await open(resolve('examples/world-packs/investigation'))
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const traces: Awaited<ReturnType<LensSimulation['step']>>[] = []
+    for (const sim of [native, scripted])
+      traces.push(
+        await sim.step({
+          kind: 'action',
+          action: matchAction({ interact: 'investigation:search' }, (await sim.state()).availableActions ?? []),
+        }),
+      )
+    expect(traces.map(trace => trace.error)).toEqual([undefined, undefined])
+    expect(await native.statusTruth()).toEqual(await scripted.statusTruth())
+    // Independent worlds have different action IDs; keep all actual observation content.
+    const observations = (trace: (typeof traces)[number]) =>
+      JSON.stringify(trace.perceived).replace(/action:[a-f0-9]+/gu, 'action:<id>')
+    expect(observations(traces[0]!)).toEqual(observations(traces[1]!))
+    expect(traces[0]!.gameplay).toEqual(traces[1]!.gameplay)
+    expect(traces[0]!.resolutions?.map(r => [r.accepted, r.rejection])).toEqual(
+      traces[1]!.resolutions?.map(r => [r.accepted, r.rejection]),
+    )
+  }
+})
+
+it('B9 parses structured fault assertions and rejects malformed assertion fields', () => {
+  const fault = { pluginId: 'example-investigation', operation: 'resolve:investigation:search', invalidResult: false }
+  expect(
+    parseScenario({ title: '故障', steps: [{ interact: 'investigation:search', expect: { fault } }] }).steps[0]!.expect!
+      .fault,
+  ).toEqual(fault)
+  expect(() =>
+    parseScenario({ title: '故障', steps: [{ wait: true, expect: { fault: { ...fault, invalidResult: 'no' } } }] }),
+  ).toThrow('invalidResult')
+  expect(() => parseScenario({ title: '面板', steps: [{ wait: true, expect: { panelsContain: [] } }] })).toThrow(
+    '至少一句',
+  )
+})
+
+it('B9 NPC plans use authorized operation instructions and receive their own private formal result', async () => {
+  const lens = await open(resolve('examples/world-packs/investigation'))
+  lens.setNpcPlans({ 'character:cheng': [{ kind: 'perform', interact: 'investigation:search' }] })
+  const trace = await lens.step({ kind: 'say', text: '澄，请看看房间。' })
+  expect(trace.error).toBeUndefined()
+  expect(await lens.statusTruth()).toMatchObject({
+    characters: { 'character:cheng': { energy: 1, clues: ['clue:letter'] }, [PLAYER]: { energy: 2, clues: [] } },
+  })
+  const requests = lens.modelInputs().filter(entry => entry.characterId === 'character:cheng')
+  const offers = (requests[0]!.input.context as any).affordances.flatMap((entry: any) => entry.interactions ?? [])
+  expect(offers.filter((offer: any) => offer.definitionRef.id === 'investigation:search')).toHaveLength(1)
+  expect(JSON.stringify(requests[0])).toContain('每次消耗 1 点精力')
+  expect(JSON.stringify(requests[0])).not.toContain('clue:letter')
+  expect(JSON.stringify(requests.slice(1))).toContain('clue:letter')
+  expect(JSON.stringify(trace.gameplay)).not.toContain('一封信')
+  expect(trace.perceived[PLAYER]!.some(line => line.includes('翻找'))).toBe(true)
+  expect(JSON.stringify(trace.perceived[PLAYER])).not.toContain('clue:letter')
+  expect(JSON.stringify(trace.perceived['character:aru'])).not.toContain('翻找')
+})
+
+it('matching preserves ambiguity between distinct bindings or arguments even on the same target', () => {
+  const option = {
+    bindingId: 'one',
+    definitionRef: { id: 'investigation:search', version: 1 },
+    targetRef: { kind: 'location', id: 'location:living-room' },
+    arguments: {},
+  }
+  for (const alternative of [
+    { ...option, bindingId: 'two' },
+    { ...option, arguments: { mode: 'other' } },
+  ])
+    expect(() =>
+      matchAction({ interact: 'investigation:search', target: 'location:living-room' }, [
+        { actionType: 'interact', interactions: [option, alternative] },
+      ]),
+    ).toThrow('多个目标')
+})

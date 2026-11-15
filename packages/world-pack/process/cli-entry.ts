@@ -52,6 +52,14 @@ try {
         }),
       ).toString('utf8')}\n`,
     )
+  } else if (args[0] === 'simulate') {
+    if (args.length !== 3) throw new TypeError('usage: worldpack simulate <source> <scenario.json>')
+    const { parseScenario, runScenario } = await import('../../../desktop/lens/scenario.ts')
+    const scenario = parseScenario(JSON.parse(await readFile(args[2]!, 'utf8')))
+    const startupMs = process.uptime() * 1000
+    const result = await runScenario(args[1]!, scenario)
+    process.stdout.write(JSON.stringify({ ...result, timings: { startupMs, ...result.timings } }) + '\n')
+    if (!result.passed) process.exitCode = 2
   } else if (args[0] === 'preset') {
     if (args[1] !== 'validate' || !args[2] || (args.length !== 3 && !(args.length === 4 && args[3] === '--pack'))) {
       throw new TypeError('usage: worldpack preset validate <file> [--pack]')
