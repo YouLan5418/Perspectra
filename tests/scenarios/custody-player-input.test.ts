@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { resolutionAuthority } from '@harness-world/contracts'
-import { createCoreRulebookRegistry, currentEntityState, type RulebookEvent } from '@harness-world/kernel'
-import type { PlayerInputJob } from '@harness-world/store-sqlite'
-import { preparePlayerIntent } from '../../packages/application/src/player-intent-preparation.ts'
+import { resolutionAuthority } from '@perspectra/sdk/contracts'
+import { createCoreRulebookRegistry, currentEntityState, type RulebookEvent } from '@perspectra/core/kernel'
+import type { PlayerInputJob } from '@perspectra/core/store'
+import { preparePlayerIntent } from '../../packages/core/src/application/player-intent-preparation.ts'
 import { frozenIntentWorld, intentFixtureProfile } from '../fixtures/player-intent-world.ts'
 import { basicInteractionPackage } from '../fixtures/frozen-interaction-world.ts'
 

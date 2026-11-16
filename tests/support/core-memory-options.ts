@@ -1,6 +1,6 @@
-import { assembleCoreMemory } from '../../desktop/official-bundle.ts'
-import type { CoreProviderOptions } from '../../packages/official-memory-core/src/core-provider.ts'
-import { WorldHostRuntime, type WorldHostOptions } from '../../desktop/host/world-runtime.ts'
+import { assembleCoreMemory } from '../../apps/host/src/memory-composition.ts'
+import type { CoreProviderOptions } from '../../packages/memory-core/src/core-provider.ts'
+import { WorldHostRuntime, type WorldHostOptions } from '../../apps/host/src/runtime/world-runtime.ts'
 
 export interface CoreTestOptions {
   readonly memoryCore?: boolean

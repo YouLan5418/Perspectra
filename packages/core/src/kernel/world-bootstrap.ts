@@ -1,0 +1,84 @@
+import { brandId, deterministicId, failWorld } from '@perspectra/sdk/contracts'
+import { WorldStore, type ActivateBranchResult } from '@perspectra/core/store'
+import type { FrozenInteractionRulebook } from './frozen-interactions.ts'
+import type { CompiledWorldSpec } from './world-spec.ts'
+
+/** Activates a compiled world through the Store's Tick 0 administrative transaction. */
+export class WorldBootstrap {
+  constructor(
+    private readonly store: WorldStore,
+    private readonly playerIntentRuntime = false,
+    private readonly frozenInteractions?: FrozenInteractionRulebook,
+  ) {}
+
+  activate(compiled: CompiledWorldSpec, correlationId = 'world-bootstrap'): ActivateBranchResult {
+    if ((compiled.manifest as { readonly schemaVersion: number }).schemaVersion !== 10) {
+      failWorld({
+        errorCode: 'INVALID_REQUEST',
+        category: 'admission',
+        message: 'new worlds require Manifest v10',
+        retryable: false,
+        correlationId,
+        address: compiled.manifest.address,
+        details: { schemaVersion: compiled.manifest.schemaVersion },
+      })
+    }
+    // Registering the version is not the same as having a resolver for it, and a count of installed
+    // packages says nothing about whether they are the right ones. So the selection is actually frozen
+    // here: the packages, definition locks and bindings this Manifest names are resolved against what
+    // the Host installed, and a world whose actions could not be resolved is refused before any Genesis
+    // bytes exist rather than opened and then failing on its first move.
+    if (this.frozenInteractions === undefined) {
+      failWorld({
+        errorCode: 'MANIFEST_RUNTIME_UNAVAILABLE',
+        category: 'runtime',
+        message: 'Manifest v10 requires the frozen interaction runtime',
+        retryable: false,
+        correlationId,
+        address: compiled.manifest.address,
+        details: { schemaVersion: 10, requiredStage: 'I4' },
+      })
+    }
+    try {
+      this.frozenInteractions.adopt(compiled.manifest, compiled.manifestHash)
+    } catch (error: unknown) {
+      failWorld({
+        errorCode: 'MANIFEST_RUNTIME_UNAVAILABLE',
+        category: 'runtime',
+        message: 'the Host cannot resolve the interaction selection this Manifest names',
+        retryable: false,
+        correlationId,
+        address: compiled.manifest.address,
+        details: { schemaVersion: 10, reason: error instanceof Error ? error.message : 'unknown selection failure' },
+      })
+    }
+    const playerInputPolicy = compiled.manifest.playerInputPolicy
+    if (playerInputPolicy?.version === 'player-intent/v1' && !this.playerIntentRuntime) {
+      failWorld({
+        errorCode: 'MANIFEST_RUNTIME_UNAVAILABLE',
+        category: 'runtime',
+        message: 'player-intent/v1 activation requires the C3 durable interpreter',
+        retryable: false,
+        correlationId,
+        address: compiled.manifest.address,
+        details: { playerInputPolicy: 'player-intent/v1', requiredStage: 'C3' },
+      })
+    }
+    const identity = {
+      address: compiled.manifest.address,
+      manifestHash: compiled.manifestHash,
+      genesisHash: compiled.genesisHash,
+    }
+    return this.store.activateBranch({
+      address: compiled.manifest.address,
+      manifest: compiled.manifest,
+      manifestHash: compiled.manifestHash,
+      genesisEvents: compiled.genesisEvents,
+      genesisHash: compiled.genesisHash,
+      transactionId: brandId(deterministicId('transaction:genesis', identity), 'TransactionId'),
+      roundId: brandId(deterministicId('round:genesis', identity), 'InteractionRoundId'),
+      cognitiveJobs: compiled.manifest.characters.map(character => ({ characterId: character.characterId })),
+      correlationId,
+    })
+  }
+}

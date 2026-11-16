@@ -8,9 +8,9 @@ import {
   type InteractionRef,
   type WorldEventDraft,
   type WorldJsonObject,
-} from '@harness-world/contracts'
-import { interactionPackageHash } from '@harness-world/interaction-runtime'
-import { characterExecutionResult } from '../../packages/application/src/character-execution-result.ts'
+} from '@perspectra/sdk/contracts'
+import { interactionPackageHash } from '@perspectra/core/interactions'
+import { characterExecutionResult } from '../../packages/core/src/application/character-execution-result.ts'
 
 export const inspectId = 'experiment:inspect-notice-board'
 export const boardText = '登记处：二楼203'

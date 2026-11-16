@@ -1,11 +1,13 @@
 {
-  "name": "@harness-world/testkit",
+  "name": "@perspectra/testkit",
   "version": "0.3.5",
   "private": true,
   "type": "module",
-  "exports": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
   "dependencies": {
-    "@harness-world/contracts": "workspace:*",
-    "@harness-world/store-sqlite": "workspace:*"
+    "@perspectra/sdk": "workspace:*",
+    "@perspectra/core": "workspace:*"
   }
 }

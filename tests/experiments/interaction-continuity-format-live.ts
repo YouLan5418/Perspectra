@@ -1,11 +1,11 @@
 // Explicit fault injection against a real provider, kept separate from natural playtest failures.
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { resolve, join } from 'node:path'
-import { createChatProvider, characterTurnCall } from '@harness-world/provider-chat'
-import type { WorldJsonObject, WorldJsonValue } from '@harness-world/contracts'
-import { gatewayTurnCall } from '../../packages/official-llm/src/gateway-turn-call.ts'
-import { decideWithFormatRetry } from '../../desktop/host/decision-format.ts'
-import type { CharacterTurnRequest } from '../../packages/application/src/character-turn.ts'
+import { createChatProvider, characterTurnCall } from '@perspectra/providers/chat'
+import type { WorldJsonObject, WorldJsonValue } from '@perspectra/sdk/contracts'
+import { gatewayTurnCall } from '../../packages/providers/src/llm/gateway-turn-call.ts'
+import { decideWithFormatRetry } from '../../apps/host/src/runtime/decision-format.ts'
+import type { CharacterTurnRequest } from '../../packages/core/src/application/character-turn.ts'
 
 const directory=resolve(process.argv[2]??'output/interaction-continuity/format-live')
 mkdirSync(directory,{recursive:true})

@@ -3,13 +3,13 @@ import { DatabaseSync } from 'node:sqlite'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { brandId, hashWorldJson, RECALL_KEYWORD_TOKENIZER_ID, worldAddressKey,
-  type WorldEventDraft, type WorldJsonObject } from '@harness-world/contracts'
-import { createCoreRulebookRegistry } from '@harness-world/kernel'
-import { WorldStore, WriterLeaseService, CharacterRuntimeAvailabilityService } from '@harness-world/store-sqlite'
-import { CognitiveMemoryService } from '@harness-world/memory'
-import { createChatProvider } from '@harness-world/provider-chat'
-import { CharacterTurn, type CharacterTurnRequest } from '../../packages/application/src/character-turn.ts'
-import { gatewayTurnCall } from '../../desktop/host/gateway-turn-call.ts'
+  type WorldEventDraft, type WorldJsonObject } from '@perspectra/sdk/contracts'
+import { createCoreRulebookRegistry } from '@perspectra/core/kernel'
+import { WorldStore, WriterLeaseService, CharacterRuntimeAvailabilityService } from '@perspectra/core/store'
+import { CognitiveMemoryService } from '@perspectra/core/memory'
+import { createChatProvider } from '@perspectra/providers/chat'
+import { CharacterTurn, type CharacterTurnRequest } from '../../packages/core/src/application/character-turn.ts'
+import { gatewayTurnCall } from '../../apps/host/src/runtime/gateway-turn-call.ts'
 import { frozenInteractionWorld, basicInteractionPackage } from '../../tests/fixtures/frozen-interaction-world.ts'
 
 type SourceRow = { source_id: string; source_seq: number; source_hash: string;
@@ -35,7 +35,7 @@ const npc = brandId('character:npc', 'CharacterId')
 const bob = brandId('character:bob', 'CharacterId')
 const player = brandId('character:player', 'CharacterId')
 const question = '那件喝水用的器皿最初是谁收走的？鲍勃后来怎么说？请区分你看到的事和他声称的事。'
-const corePath = resolve('packages/official-memory-core/python/core/core.py')
+const corePath = resolve('packages/memory-core/python/core/core.py')
 function core(input: WorldJsonObject): CoreResult {
   const run = spawnSync(process.env.HCW_HINDSIGHT_PYTHON || 'python', [corePath], {
     input: JSON.stringify(input), encoding: 'utf8', maxBuffer: 16 * 1024 * 1024, timeout: 180_000,

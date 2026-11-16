@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import { promptCacheLabels } from '@harness-world/provider-chat/prompt-cache'
+import { promptCacheLabels } from '@perspectra/providers/chat/prompt-cache'
 import { computed, ref, watch } from 'vue'
 import { ArrowLeft, Copy, ExternalLink, X } from '@lucide/vue'
-import type { InspectedRequest } from '@harness-world/provider-chat'
-import type { CreatorInspectionSnapshot } from '../../../../desktop/host/creator-inspection.ts'
-import type { CreatorRecord } from '../../../../desktop/host/creator-records.ts'
+import type { InspectedRequest } from '@perspectra/providers/chat'
+import type { CreatorInspectionSnapshot } from '../../../host/src/runtime/creator-inspection.ts'
+import type { CreatorRecord } from '../../../host/src/runtime/creator-records.ts'
 import {
   activityStatus,
   asArray,

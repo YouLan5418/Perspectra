@@ -1,0 +1,303 @@
+import { validateInstalledPack } from '../pack-validation.ts'
+import { rolePreset, rolePresetMapping } from '@perspectra/providers/chat'
+import { listenOnSafePort } from '../safe-port.ts'
+import { loadHostPlugins, type HostPlugins } from '../host-plugins.ts'
+import type { ShadowOptions } from '@perspectra/jev-audit'
+import type { DecisionInstance, SeamProvider } from '@perspectra/sdk'
+import { hostPluginSettings, pluginSecretValues } from '../host-plugin-settings.ts'
+import { checkPluginRequirements, PluginRequirementError, requirementMessage } from '../plugin-requirements.ts'
+import { readingPreferences, audioPreferences } from '../play-settings.ts'
+import { environmentRoleModels, runtimeRoleModels } from '../model-connections.ts'
+import { ModelPresets, packPreset } from '../model-presets.ts'
+import { createTrustedFrontendServer, type FrontendPolicy } from './frontend-server.ts'
+import { readFileSync, mkdirSync } from 'node:fs'
+import { appendFile } from 'node:fs/promises'
+import { resolve } from 'node:path'
+import { randomBytes } from 'node:crypto'
+import { parseHostLaunchArguments } from './launch-arguments.ts'
+import { WorldHostRuntime, isV5SourcePackDirectory } from './world-runtime.ts'
+import { createHostServer } from './http-server.ts'
+import { loadPackWeb, saveStageMarks, type StageMarks } from './pack-frontend.ts'
+import { compileWorldPackSource, type CompiledWorldPackV5 } from '@perspectra/world-pack'
+import { interactionPackageDescription } from '@perspectra/sdk/contracts'
+import { createInstalledInteractionPackages } from '@perspectra/plugins/basic-interactions'
+import { defaultGameDirectory } from './player-transcript.ts'
+import { MissingCapabilityError } from '../host-capabilities.ts'
+
+let hostPlugins: HostPlugins | undefined
+let startupRuntime: WorldHostRuntime | undefined
+
+async function main(): Promise<void> {
+  const launch = parseHostLaunchArguments(process.argv.slice(2))
+  const packPath = launch.packPath ?? (process.env.HCW_PLAYTEST_PACK?.trim() || undefined)
+  const dataDirectory =
+    launch.dataDirectory ?? (process.env.HCW_PLAYTEST_DATA_DIRECTORY?.trim() || defaultGameDirectory())
+  // Keys stay in this process's memory only; the Core Python workers receive just the key of their own target.
+  const models = process.env.PERSPECTRA_ROLE_MODELS
+    ? runtimeRoleModels(
+        JSON.parse(process.env.PERSPECTRA_ROLE_MODELS),
+        JSON.parse(process.env.PERSPECTRA_MODEL_KEYS || '{}'),
+      )
+    : environmentRoleModels(process.env)
+  const claimKey = process.env.OPENROUTER_JEV_KEY ?? ''
+  delete process.env.OPENROUTER_JEV_KEY
+  delete process.env.PERSPECTRA_MODEL_KEYS
+  delete process.env.PERSPECTRA_MODEL_API_KEY
+  if (packPath === undefined || !isV5SourcePackDirectory(packPath)) {
+    throw new Error('请通过 --pack 指定 worldpack-source/v5 世界源目录；旧 Pack 已不再由网页试玩入口运行')
+  }
+  let shadowDecision: SeamProvider<DecisionInstance> | undefined
+  let shadowAudit: ShadowOptions | undefined
+  if (launch.shadowConfigPath !== undefined) {
+    const { createClaimClassifier, parseAuditItems, jevShadowAudit } = await import('@perspectra/jev-audit')
+    const items = parseAuditItems(JSON.parse(readFileSync(resolve(launch.shadowConfigPath), 'utf8')))
+    const classify = createClaimClassifier(claimKey)
+    mkdirSync(resolve(dataDirectory), { recursive: true })
+    const logPath = resolve(dataDirectory, 'jev-shadow.jsonl')
+    shadowAudit = {
+      items,
+      classify,
+      write: async record => {
+        await appendFile(logPath, JSON.stringify(record) + '\n', 'utf8')
+      },
+      onError: message => {
+        console.error(message)
+      },
+    }
+    shadowDecision = jevShadowAudit(shadowAudit)
+    process.stdout.write(`Jev 影子审计已启用：已发布的对白和叙述将发送到 OpenRouter。日志：${logPath}\n`)
+  }
+  const packWeb = await loadPackWeb(packPath)
+  const compiled = (await compileWorldPackSource(
+    packPath,
+    createInstalledInteractionPackages().map(interactionPackageDescription),
+  )) as CompiledWorldPackV5
+  const playerId = compiled.content.playerSlots[0]?.characterId
+  const creatorMeta = {
+    title: compiled.content.world.title,
+    storyline: process.env.PERSPECTRA_STORY_NAME || '主故事线',
+    characters: compiled.content.characters
+      .filter(
+        c => c.characterId !== playerId && c.controllerClass !== 'manual' && (c.lifecycle ?? 'active') === 'active',
+      )
+      .map(c => ({ id: c.characterId, name: c.displayName })),
+    // 包里公开的地点名，供创作者页在更早的 location.upsert 未载入时显示可读名称。
+    locations: compiled.content.locations.map(location => ({ id: location.locationId, name: location.name })),
+  }
+  const recommended = await packPreset(packPath)
+  const settings = process.env.PERSPECTRA_PRESET_ROOT ? new ModelPresets(process.env.PERSPECTRA_PRESET_ROOT) : undefined
+  if (settings) await settings.load()
+  const instanceId = process.env.PERSPECTRA_PRESET_INSTANCE ?? ''
+  if (settings && !/^[a-f0-9-]{36}$/.test(instanceId)) throw new Error('启动预设的实例标识无效。')
+  const {
+    mode: _mode,
+    override: _override,
+    ...mapping
+  } = settings?.instances[instanceId] ?? { mode: 'auto', override: {} }
+  // Removed from the environment before any plugin runs, so one plugin cannot read another's secrets there.
+  const pluginSecrets = pluginSecretValues(JSON.parse(process.env.PERSPECTRA_PLUGIN_SECRETS || '{}'))
+  delete process.env.PERSPECTRA_PLUGIN_SECRETS
+  const selectedHostPlugins = hostPluginSettings(JSON.parse(process.env.PERSPECTRA_HOST_PLUGINS ?? '[]'))
+  await validateInstalledPack(packPath, selectedHostPlugins)
+  const memoryComposition = launch.memoryCore ? await import('../memory-composition.ts') : undefined
+  hostPlugins = await loadHostPlugins(
+    selectedHostPlugins,
+    pluginSecrets,
+    launch.memoryCore
+      ? {
+          memory: () =>
+            memoryComposition!.assembleCoreMemory({
+              models,
+              ...(launch.playSettings === undefined ? {} : { playSettings: launch.playSettings }),
+            }),
+        }
+      : {},
+    { gameplayIds: Object.keys(compiled.plugins ?? {}) },
+  )
+  const pluginProblems = checkPluginRequirements(compiled.requiresPlugins ?? [], hostPlugins.installed)
+  if (pluginProblems.some(problem => !problem.optional))
+    throw new PluginRequirementError(
+      '这个世界包需要的插件有问题：' + requirementMessage(pluginProblems.filter(problem => !problem.optional)),
+    )
+  if (pluginProblems.length) console.error('世界包的可选插件没有生效：' + requirementMessage(pluginProblems))
+  const runtime = await WorldHostRuntime.create({
+    capabilities: hostPlugins.capabilities,
+    playerFeed: hostPlugins.playerFeed,
+    plugins: shadowDecision
+      ? {
+          ...hostPlugins.seams,
+          decisions: [shadowDecision, ...(hostPlugins.seams.decisions ?? [])],
+        }
+      : hostPlugins.seams,
+    dataDirectory,
+    models,
+    packPath,
+    storyNodes: !!process.send,
+    ...(launch.playSettings === undefined ? {} : { playSettings: launch.playSettings }),
+    ...(process.env.PERSPECTRA_READING === undefined
+      ? {}
+      : { reading: readingPreferences(JSON.parse(process.env.PERSPECTRA_READING)) }),
+    ...(process.env.PERSPECTRA_AUDIO === undefined
+      ? {}
+      : { audio: audioPreferences(JSON.parse(process.env.PERSPECTRA_AUDIO)) }),
+    stageExpressions: Object.fromEntries(
+      Object.entries(packWeb?.stage?.characters ?? {}).flatMap(([id, character]) =>
+        character.expressions ? [[id, Object.keys(character.expressions)]] : [],
+      ),
+    ),
+    ...(['system', 'light', 'dark'].includes(process.env.PERSPECTRA_APPEARANCE ?? '')
+      ? { appearance: process.env.PERSPECTRA_APPEARANCE as 'system' | 'light' | 'dark' }
+      : {}),
+    ...(process.env.PERSPECTRA_STORY_PARENT_NODE
+      ? { storyParentNodeId: process.env.PERSPECTRA_STORY_PARENT_NODE }
+      : {}),
+    preset: settings
+      ? settings.effective(instanceId, recommended)
+      : process.env.PERSPECTRA_ROLE_PRESET === undefined
+        ? recommended
+        : rolePreset(JSON.parse(process.env.PERSPECTRA_ROLE_PRESET)),
+    presetBaseSource: settings
+      ? {
+          mode: settings.instances[instanceId]?.mode ?? 'auto',
+          layers:
+            settings.instances[instanceId]?.mode === 'custom'
+              ? [{ name: '实例自定义', value: settings.instances[instanceId]!.override }]
+              : settings.instances[instanceId]?.mode === 'global'
+                ? [{ name: '全局预设', value: settings.global }]
+                : [
+                    { name: '全局预设', value: settings.global },
+                    { name: '游戏包推荐', value: recommended },
+                  ],
+        }
+      : {
+          mode: process.env.PERSPECTRA_ROLE_PRESET === undefined ? 'pack' : 'explicit',
+          layers: [
+            {
+              name: process.env.PERSPECTRA_ROLE_PRESET === undefined ? '游戏包推荐' : '运行配置',
+              value:
+                process.env.PERSPECTRA_ROLE_PRESET === undefined
+                  ? recommended
+                  : rolePreset(JSON.parse(process.env.PERSPECTRA_ROLE_PRESET)),
+            },
+          ],
+        },
+    presetMapping: settings
+      ? rolePresetMapping(mapping)
+      : rolePresetMapping(JSON.parse(process.env.PERSPECTRA_ROLE_MAPPING ?? '{}')),
+    ...(launch.serialScheduling ? { serialScheduling: true } : {}),
+    ...(launch.tuning === undefined ? {} : { tuning: launch.tuning }),
+  })
+  startupRuntime = runtime
+  const token = randomBytes(32).toString('hex')
+  const policy: FrontendPolicy = { mode: 'sandbox', origin: '', revision: 0 }
+  const approved = process.env.PERSPECTRA_FRONTEND_APPROVED_SHA256
+  const trustedAssets =
+    approved && packWeb?.digest === approved && process.send
+      ? createTrustedFrontendServer(packWeb, policy, () => hostOrigin)
+      : undefined
+  let hostOrigin = ''
+  const server = createHostServer(
+    Object.assign(runtime, {
+      creatorMeta: () => structuredClone(creatorMeta),
+      ...(packWeb
+        ? { saveStageMarks: (id: string, marks: StageMarks) => saveStageMarks(packPath, packWeb, id, marks) }
+        : {}),
+    }),
+    token,
+    packWeb,
+    policy,
+    {
+      ...hostPlugins.services,
+      // Under the launcher, the stage's settings go back to it; a standalone host keeps them for this session only.
+      ...(process.send
+        ? { saveStagePreferences: preferences => process.send?.({ type: 'stage-preferences', preferences }) }
+        : {}),
+    },
+  )
+  let closing = false
+  const close = async () => {
+    if (closing) return
+    closing = true
+    const closingResources = Promise.allSettled([runtime.close(), hostPlugins!.close()])
+    if (server.listening) {
+      await new Promise<void>((resolveClose, rejectClose) => {
+        server.close(error => (error === undefined ? resolveClose() : rejectClose(error)))
+        server.closeAllConnections()
+      })
+    }
+    if (trustedAssets?.listening) {
+      trustedAssets.closeAllConnections()
+      await new Promise<void>(done => trustedAssets.close(() => done()))
+    }
+    for (const result of await closingResources) if (result.status === 'rejected') throw result.reason
+  }
+  process.once('SIGINT', () => {
+    void close().then(() => {
+      process.exitCode = 0
+    })
+  })
+  process.once('SIGTERM', () => {
+    void close().then(() => {
+      process.exitCode = 0
+    })
+  })
+  process.on('message', message => {
+    if (message !== null && typeof message === 'object' && 'type' in message && message.type === 'frontend-revoke') {
+      policy.mode = 'sandbox'
+      policy.revision++
+      process.send?.({ type: 'frontend-revoked' })
+    }
+
+    if (message !== null && typeof message === 'object' && 'type' in message && message.type === 'shutdown') {
+      void close()
+        .then(() => {
+          process.exitCode = 0
+          process.disconnect?.()
+        })
+        .catch(error => {
+          console.error('本机试玩页关闭失败：', error instanceof Error ? error.message : '未知错误')
+          process.exitCode = 1
+        })
+    }
+  })
+  const port = await listenOnSafePort(server)
+  hostOrigin = 'http://127.0.0.1:' + port
+  if (trustedAssets) {
+    policy.origin = 'http://127.0.0.1:' + (await listenOnSafePort(trustedAssets))
+    policy.mode = 'trusted'
+  }
+  process.send?.({ type: 'ready', port, token, frontendMode: policy.mode, skippedPlugins: hostPlugins.skipped })
+  process.stdout.write(`\n本机试玩页已启动：\nhttp://127.0.0.1:${port}/#token=${token}\n\n`)
+  process.stdout.write(
+    `世界数据：${dataDirectory}\n模型：${models.default.decision.protocol} ${models.default.decision.model} @ ${new URL(models.default.decision.endpoint).host}\n按 Ctrl+C 安全关闭。\n`,
+  )
+  if (launch.memoryCore)
+    process.stdout.write(
+      'Core 记忆已开启；可在宿主页启动或取消后台整理，整理期间可以继续游玩。未整理时长期交付为空。\n',
+    )
+  if (packPath !== undefined) process.stdout.write(`World Pack：${packPath}\n`)
+  if (hostPlugins.skipped.length)
+    process.stdout.write(
+      `已跳过加载失败的宿主插件：${hostPlugins.skipped.map(p => p.id).join('、')}；详情见上方日志。\n`,
+    )
+}
+
+try {
+  await main()
+} catch (error: unknown) {
+  const cleanup = await Promise.allSettled([hostPlugins?.close(), startupRuntime?.close()])
+  if (cleanup.some(result => result.status === 'rejected')) console.error('启动失败后的资源清理未完成。')
+  const message = error instanceof Error ? error.message : '未知错误'
+  process.send?.(
+    {
+      type: 'startup-error',
+      message,
+      skippedPlugins: hostPlugins?.skipped ?? [],
+      ...(error instanceof MissingCapabilityError ? { missingCapability: error.capability } : {}),
+      ...(error instanceof PluginRequirementError ? { pluginRequirement: message } : {}),
+    },
+    () => process.disconnect?.(),
+  )
+  console.error('本机试玩页启动失败：', message)
+  process.exitCode = 1
+}

@@ -2,12 +2,12 @@ import { mkdtempSync, rmSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve, basename, sep } from 'node:path'
 import { afterEach, expect, it, vi } from 'vitest'
-import type { WorldJsonObject } from '@harness-world/contracts'
-import { restoreStoryNode } from '../../desktop/story-nodes.ts'
-import { exportStoryNode, importStoryNode } from '../../desktop/story-share.ts'
+import type { WorldJsonObject } from '@perspectra/sdk/contracts'
+import { restoreStoryNode } from '../../apps/host/src/story-nodes.ts'
+import { exportStoryNode, importStoryNode } from '../../apps/host/src/story-share.ts'
 import { crossSceneRuntime } from '../support/cross-scene-runtime.ts'
 import { CrossScenePhone } from '../support/cross-scene-phone.ts'
-import type { CoreRunner } from '../../packages/official-memory-core/src/python-worker.ts'
+import type { CoreRunner } from '../../packages/memory-core/src/python-worker.ts'
 
 const packPath = resolve('examples/world-packs/cross-scene-activity'),
   friend = 'character:friend',

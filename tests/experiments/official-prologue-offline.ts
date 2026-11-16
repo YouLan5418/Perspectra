@@ -1,11 +1,11 @@
 import { createRoleplayCore } from '../support/roleplay-runtime.ts'
 import assert from 'node:assert/strict'
-import type { WorldJsonObject } from '@harness-world/contracts'
+import type { WorldJsonObject } from '@perspectra/sdk/contracts'
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
-import { WorldStore } from '@harness-world/store-sqlite'
-import { projectPlayerView } from '../../desktop/host/frontend-adapter.ts'
-import { environmentRoleModels } from '../../desktop/model-connections.ts'
+import { WorldStore } from '@perspectra/core/store'
+import { projectPlayerView } from '../../apps/host/src/runtime/frontend-adapter.ts'
+import { environmentRoleModels } from '../../apps/host/src/model-connections.ts'
 const root=resolve('.tmp/official-demo-'+Date.now());mkdirSync(root,{recursive:true})
 const runtime=await createRoleplayCore({models: environmentRoleModels({ PERSPECTRA_MODEL_ENDPOINT: 'http://127.0.0.1:1/api/chat', PERSPECTRA_MODEL: 'unused' }),packPath:resolve('examples/world-packs/model-girls-official'),dataDirectory:root,timeoutMs:1000})
 try{

@@ -15,7 +15,7 @@ import {
   type WorldEventDraft,
   type WorldJsonObject,
   type WorldJsonValue,
-} from '@harness-world/contracts'
+} from '@perspectra/sdk/contracts'
 import {
   characterInteractionManifestRegistries,
   type CompiledWorldManifestV10,
@@ -23,7 +23,7 @@ import {
   type ContentPackCharacterSpecV2,
   type ContentPackManifestBindingV2,
   type SceneSpecV2,
-} from '@harness-world/kernel'
+} from '@perspectra/core/kernel'
 import {
   WORLD_PACK_CORE_PROFILES,
   WORLD_PACK_COMPILER_ID,

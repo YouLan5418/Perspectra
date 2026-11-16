@@ -3,12 +3,12 @@ import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:f
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { expect, it } from 'vitest'
-import { WorldStore } from '@harness-world/store-sqlite'
-import { currentEntityState } from '@harness-world/kernel'
-import { WorldHostRuntime } from '../../desktop/host/world-runtime.ts'
-import { restoreStoryNode } from '../../desktop/story-nodes.ts'
-import { playSettings } from '../../desktop/play-settings.ts'
-import type { CoreRunner } from '../../packages/official-memory-core/src/python-worker.ts'
+import { WorldStore } from '@perspectra/core/store'
+import { currentEntityState } from '@perspectra/core/kernel'
+import { WorldHostRuntime } from '../../apps/host/src/runtime/world-runtime.ts'
+import { restoreStoryNode } from '../../apps/host/src/story-nodes.ts'
+import { playSettings } from '../../apps/host/src/play-settings.ts'
+import type { CoreRunner } from '../../packages/memory-core/src/python-worker.ts'
 import { createChatServer, fakeModels } from '../support/fake-provider.ts'
 
 it('keeps disabled requests unchanged and isolates private evidence across a real saved-node fork', async () => {

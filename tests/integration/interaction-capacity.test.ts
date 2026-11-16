@@ -17,9 +17,9 @@ import {
   type InteractionRole,
   type InteractionRuleImplementation,
   type WorldAddress,
-} from '@harness-world/contracts'
-import { InteractionRegistry, interactionPackageHash } from '@harness-world/interaction-runtime'
-import { parseWorldPackInteractionsSource } from '@harness-world/world-pack'
+} from '@perspectra/sdk/contracts'
+import { InteractionRegistry, interactionPackageHash } from '@perspectra/core/interactions'
+import { parseWorldPackInteractionsSource } from '@perspectra/world-pack'
 
 /**
  * The frozen `interaction-limits/v1` numbers, each one met and then exceeded. A limit is evidence only in

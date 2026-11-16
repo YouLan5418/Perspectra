@@ -77,10 +77,10 @@ corepack pnpm@11.7.0 worldpack activate ./examples/action-group-demo.worldpack.j
 
 | Evidence | Finding | Path |
 |---|---|---|
-| `packages/agents/src/submit-actions-v4.test.ts` | 非法组合与自由表现无法进入新协议 | 保持闭合协议，扩词需明确版本与规则 |
-| `packages/application/src/round-coordinator.test.ts`、`reaction-scheduler.test.ts` | 移动后发言、先说后移动失败、抢同一物品、失败跳过均按组裁定 | 根轮和反应轮共用组语义 |
+| `packages/core/src/agents/submit-actions-v4.test.ts` | 非法组合与自由表现无法进入新协议 | 保持闭合协议，扩词需明确版本与规则 |
+| `packages/core/src/application/round-coordinator.test.ts`、`reaction-scheduler.test.ts` | 移动后发言、先说后移动失败、抢同一物品、失败跳过均按组裁定 | 根轮和反应轮共用组语义 |
 | `tests/action-group.integration.test.ts` | 实际 Application 的 Context、Memory、反应与导入导出可闭环 | 已修复导入校验遗漏 Reaction settlement hash 的问题 |
 | `tests/crash.test.ts`、`tests/workers/action-group-crash-worker.ts` | 提交前后硬终止恢复不会重复执行组内效果 | 保持整个 Round 原子提交与耐久 Provider response 恢复 |
-| `packages/store-sqlite/src/logical-transfer.test.ts` | 有数据的 v16 升级及旧逻辑格式兼容通过 | 旧世界不自动启用新动作语义 |
+| `packages/core/src/store/logical-transfer.test.ts` | 有数据的 v16 升级及旧逻辑格式兼容通过 | 旧世界不自动启用新动作语义 |
 
 以上为脚本 Provider 的工程验证；尚未证明真实模型在长期游玩中的组合选择、闭合表现自然度与失败理解质量。真实模型验收应使用新世界与 v4 Provider，分别游玩进门后说话、离场告别、多人争抢物品和移动被拒绝场景，并检查事件、各角色观察及后续记忆的一致性。

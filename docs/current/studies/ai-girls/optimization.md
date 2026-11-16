@@ -25,7 +25,7 @@
 
 常驻网页入口使用`createCoreWorker`与Python桥`--serve`。独立对照脚本仍可使用原单次进程命令。没有引入通用进程池、框架、数据库、持久化协议版本或新恢复机制。压缩只作用于已经为当前角色授权的认知材料；模型消息说明了表格读取方式和主观认识边界，没有跨角色汇总。
 
-对应源码：`packages/application/src/prototype-character-turn.ts`、`tests/experiments/playtest-frozen-runtime.ts`、`tests/experiments/hindsight-python.ts`、`experiments/activity-memory/core_bridge.py`、`packages/provider-chat/src/character-context-text.ts`与`prototype-turn.ts`。
+对应源码：`packages/core/src/application/prototype-character-turn.ts`、`tests/experiments/playtest-frozen-runtime.ts`、`tests/experiments/hindsight-python.ts`、`experiments/activity-memory/core_bridge.py`、`packages/providers/src/chat/character-context-text.ts`与`prototype-turn.ts`。
 
 ## 3. 真实耗时与信息体积
 
@@ -84,7 +84,7 @@
 | 真实模型与网页 | 13次输入、1次整理，含一次真实浏览器DOM确认与暗号跨房间补测 |
 | 全部Python实验、硬崩溃、桌面打包/发布 | 本轮未运行；没有修改提交事务或恢复规则，桌面Core资产打包仍未验收 |
 
-相关测试命令使用`vitest run --config vitest.config.ts`，文件为`tests/experiments/playtest-frozen-runtime.test.ts`、`hindsight-python.test.ts`、`tests/prototype/playtest-memory-core.test.ts`、`g1-combination.test.ts`、`perform-continuation.test.ts`及`packages/provider-chat/src/character-context-text.test.ts`。默认check与专项测试有重叠，不将项数相加作为独立覆盖数量。
+相关测试命令使用`vitest run --config vitest.config.ts`，文件为`tests/experiments/playtest-frozen-runtime.test.ts`、`hindsight-python.test.ts`、`tests/prototype/playtest-memory-core.test.ts`、`g1-combination.test.ts`、`perform-continuation.test.ts`及`packages/providers/src/chat/character-context-text.test.ts`。默认check与专项测试有重叠，不将项数相加作为独立覆盖数量。
 
 完整诊断在`.tmp/ai-girls-optimized-20261006/`：`stages.json`为冻结主测，`supplemental.json`为工作区补测，`timing.jsonl`/`python-timing.jsonl`为阶段计时，`context-lossless.json`、`production-worker-check.json`、`audit.json`为离线校验，`browser-timing.json`为DOM首条证据，`profile.ts`、`profile_bridge.py`、`check-context.ts`、`check-worker.ts`与`audit.py`为本机复核工具。模型trace与Source属于私有诊断，只留本机，不发给玩家或进入Git。
 

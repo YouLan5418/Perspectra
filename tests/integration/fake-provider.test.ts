@@ -3,7 +3,7 @@ import { anthropicMessagesApi } from '@earendil-works/pi-ai/api/anthropic-messag
 import { googleGenerativeAIApi } from '@earendil-works/pi-ai/api/google-generative-ai.lazy'
 import { openAICompletionsApi } from '@earendil-works/pi-ai/api/openai-completions.lazy'
 import { normalizeContext } from '@earendil-works/pi-ai/utils/transcript'
-import { piModel } from '@harness-world/provider-chat'
+import { piModel } from '@perspectra/providers/chat'
 import { describe, expect, it } from 'vitest'
 import { startFakeProvider } from '../support/fake-provider.ts'
 

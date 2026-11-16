@@ -79,7 +79,7 @@ This design has a cost. Each character calls the model separately, and one round
 
 There is no program package to download at the moment. The earlier pre-release was built long ago and is behind the current code; please run from source.
 
-Requires Node.js 22.19+ or 24+ and the repository-pinned pnpm version. Native launcher development additionally requires Rust/Cargo, Windows build tools, and a [Python/E5 memory environment](packages/official-memory-core/README.md).
+Requires Node.js 22.19+ or 24+ and the repository-pinned pnpm version. Native launcher development additionally requires Rust/Cargo, Windows build tools, and a [Python/E5 memory environment](packages/memory-core/README.md).
 
 ```powershell
 corepack pnpm@11.7.0 install --frozen-lockfile
@@ -182,7 +182,7 @@ Automated checks verify specific mechanism boundaries, not the quality of real-m
 
 ![Code layers: world packs, replaceable mechanisms, host and core; the launcher, stage, model service and long-term memory run in separate processes](docs/current/assets/readme/layers.en.svg)
 
-Read the code from the top down: world-pack scripts are interpreted by `packages/official-*`, `desktop/host` binds the results to real characters, and `packages/application` with `packages/store-sqlite` commits them. The images are drawn by `node scripts/docs/readme-diagrams.mjs`. Each module's job is listed in the [module map](docs/current/architecture/modules.md) (Chinese).
+Read the code from the top down: world-pack scripts are interpreted by `packages/providers · plugins`, `apps/host/src/runtime` binds the results to real characters, and `packages/core/src/application` with `packages/core/src/store` commits them. The images are drawn by `node scripts/docs/readme-diagrams.mjs`. Each module's job is listed in the [module map](docs/current/architecture/modules.md) (Chinese).
 
 | Topic | Document |
 | --- | --- |

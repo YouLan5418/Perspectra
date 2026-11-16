@@ -4,7 +4,7 @@ import {
   hashWorldJson,
   interactionPackageDescription,
   type InteractionPackageDescription,
-} from '@harness-world/contracts'
+} from '@perspectra/sdk/contracts'
 import { createItemCustodyTestPackage } from '../../../tests/fixtures/item-custody-package.ts'
 import { describe, expect, it } from 'vitest'
 import { compileWorldPackSource } from './tooling.ts'

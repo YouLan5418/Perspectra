@@ -10,9 +10,9 @@
 
 | 证据 | 发现 | 修改路径 |
 | --- | --- | --- |
-| E1：新包 45 步共查询事件 686 次、返回 129701 行 | 多个阶段和 Store 实例反复加载同一前缀 | [WorldStore](../../../packages/store-sqlite/src/world-store.ts)新增 withEventReadCache，用现有 readEvents／readEventsRange 接口共享操作内的已解析前缀 |
-| E2：状态、活动、角色与最后刷新处于同一宿主等待链 | 不需要逐个改动脚本参数和服务协议 | [WorldHostCore](../../../desktop/host/world-runtime.ts)在 turn、activityAction、requestCharacter 入口建立临时读取范围；新连接也可借用同路径、同分支前缀 |
-| E3：记忆追赶和刷新重复构建同一角色视图 | 事件对象完全相同的授权投影可以复用 | [CharacterViewBuilder](../../../packages/store-sqlite/src/character-view.ts)按地址、角色、序号及事件对象逐项相同核对缓存，向调用者返回独立副本 |
+| E1：新包 45 步共查询事件 686 次、返回 129701 行 | 多个阶段和 Store 实例反复加载同一前缀 | [WorldStore](../../../packages/core/src/store/world-store.ts)新增 withEventReadCache，用现有 readEvents／readEventsRange 接口共享操作内的已解析前缀 |
+| E2：状态、活动、角色与最后刷新处于同一宿主等待链 | 不需要逐个改动脚本参数和服务协议 | [WorldHostCore](../../../apps/host/src/runtime/world-runtime.ts)在 turn、activityAction、requestCharacter 入口建立临时读取范围；新连接也可借用同路径、同分支前缀 |
+| E3：记忆追赶和刷新重复构建同一角色视图 | 事件对象完全相同的授权投影可以复用 | [CharacterViewBuilder](../../../packages/core/src/store/character-view.ts)按地址、角色、序号及事件对象逐项相同核对缓存，向调用者返回独立副本 |
 | E4：修改后 45 步查询 127 次、返回 15119 行；第 45 步从 6039 行降到 595 行 | 常规全量／范围读取不再反复解码同一事件；额外查询用于补读新提交尾部 | 以实际 SQLite 结果行数计数，不把公开 readEvents 调用次数误当作物理读取次数 |
 
 `WorldApplication.#integrityGuard` 本身负责捕获完整性错误并隔离分支，不是一个每次扫描历史的验证器；剖析中标在该调用栈下的时间包含它包裹的工作。本轮没有移除它。显式 `verifyBranchIntegrity` 继续绕过共享前缀，直接读取数据库、校验事件链与提交记录。

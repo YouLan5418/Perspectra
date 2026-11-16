@@ -64,8 +64,8 @@ await cp(resolve('packages/frontend/assets'), join(runtime, 'frontend-assets'), 
 await cp(resolve('apps/launcher/dist-creator'), join(runtime, 'creator-assets'), { recursive: true })
 await cp(resolve('apps/launcher/dist-lens'), join(runtime, 'lens-assets'), { recursive: true })
 for (const [entry, file] of [
-  ['desktop/launcher-entry.ts', 'launcher.mjs'],
-  ['desktop/host/web-entry.ts', 'playtest.mjs'],
+  ['apps/launcher/backend/entry.ts', 'launcher.mjs'],
+  ['apps/host/src/runtime/web-entry.ts', 'playtest.mjs'],
 ]) {
   const result = await build({
     entryPoints: [entry],
@@ -83,7 +83,7 @@ for (const [entry, file] of [
   for (const path of Object.keys(result.metafile.inputs)) inputs.add(resolve(path))
 }
 await copyMemoryRuntime(runtime)
-const assets = JSON.parse(await readFile('packages/official-memory-core/python/core/e5-assets.json', 'utf8'))
+const assets = JSON.parse(await readFile('packages/memory-core/python/core/e5-assets.json', 'utf8'))
 for (const [file, expected] of Object.entries(assets.files)) {
   const source = resolve('.tmp/hindsight-e5-small', file),
     bytes = await readFile(source)
@@ -98,10 +98,7 @@ await cp(
 )
 await cp(resolve('.tmp/portable-release-assets/E5-MODEL-CARD.md'), join(output, 'licenses/E5-MODEL-CARD.md'))
 await cp(resolve('.tmp/portable-release-assets/E5-BASE-MODEL-CARD.md'), join(output, 'licenses/E5-BASE-MODEL-CARD.md'))
-await cp(
-  resolve('packages/official-memory-core/python/core/vendor/LICENSE'),
-  join(output, 'licenses/HINDSIGHT-LICENSE.txt'),
-)
+await cp(resolve('packages/memory-core/python/core/vendor/LICENSE'), join(output, 'licenses/HINDSIGHT-LICENSE.txt'))
 const packages = new Map()
 for (const file of inputs) {
   if (!file.includes('node_modules')) continue

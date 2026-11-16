@@ -3,9 +3,9 @@ import { createHash } from 'node:crypto'
 import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { Ajv } from 'ajv'
-import { createChatProvider } from '@harness-world/provider-chat'
-import type { CharacterTurnRequest } from '../../packages/application/src/character-turn.ts'
-import { gatewayTurnCall } from '../../desktop/host/gateway-turn-call.ts'
+import { createChatProvider } from '@perspectra/providers/chat'
+import type { CharacterTurnRequest } from '../../packages/core/src/application/character-turn.ts'
+import { gatewayTurnCall } from '../../apps/host/src/runtime/gateway-turn-call.ts'
 
 type Mode = 'native' | 'old' | 'new'
 type Json = Record<string, unknown>

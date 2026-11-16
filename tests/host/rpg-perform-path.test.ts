@@ -1,9 +1,9 @@
 import { afterEach, expect, it } from 'vitest'
 import { join } from 'node:path'
-import { brandId, type WorldJsonObject } from '@harness-world/contracts'
-import { CharacterViewBuilder, WorldStore } from '@harness-world/store-sqlite'
+import { brandId, type WorldJsonObject } from '@perspectra/sdk/contracts'
+import { CharacterViewBuilder, WorldStore } from '@perspectra/core/store'
 import { openRpgFixture, openRpgWorld, type RpgFixture, type RpgFixtureOptions } from '../support/rpg-fixture.ts'
-import { restoreStoryNode } from '../../desktop/story-nodes.ts'
+import { restoreStoryNode } from '../../apps/host/src/story-nodes.ts'
 
 // The default player frontend sends a battle button as a world action (`runtime.perform` → `/act interact`), not
 // through `activityAction`. Its result may move the party home; those at home see them arrive and nothing else.

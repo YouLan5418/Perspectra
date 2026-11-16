@@ -4,9 +4,9 @@ import { itemRulesScript } from '../support/item-rules.ts'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { WorldHostRuntime, providerFailureNotice } from '../../desktop/host/world-runtime.ts'
-import { WorldStore } from '@harness-world/store-sqlite'
-import { currentEntityState } from '@harness-world/kernel'
+import { WorldHostRuntime, providerFailureNotice } from '../../apps/host/src/runtime/world-runtime.ts'
+import { WorldStore } from '@perspectra/core/store'
+import { currentEntityState } from '@perspectra/core/kernel'
 import { createChatServer, fakeModels } from '../support/fake-provider.ts'
 
 describe('provider failure notice', () => {

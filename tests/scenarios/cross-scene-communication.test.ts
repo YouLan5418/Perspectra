@@ -1,15 +1,15 @@
 import { coreAdapter } from '../support/core-adapter.ts'
-import { AuthorizedSourceStore } from '@harness-world/memory'
+import { AuthorizedSourceStore } from '@perspectra/core/memory'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 import { afterEach, expect, it, vi } from 'vitest'
-import { brandId, resolutionAuthority, type WorldJsonObject } from '@harness-world/contracts'
-import { currentLocation } from '@harness-world/kernel'
+import { brandId, resolutionAuthority, type WorldJsonObject } from '@perspectra/sdk/contracts'
+import { currentLocation } from '@perspectra/core/kernel'
 import { crossSceneRuntime } from '../support/cross-scene-runtime.ts'
-import { CoreMemoryAdapter } from '../../packages/official-memory-core/src/core-memory.ts'
-import { gatewayTurnCall } from '../../packages/official-llm/src/gateway-turn-call.ts'
+import { CoreMemoryAdapter } from '../../packages/memory-core/src/core-memory.ts'
+import { gatewayTurnCall } from '../../packages/providers/src/llm/gateway-turn-call.ts'
 
 const directories: string[] = [],
   runtimes: Awaited<ReturnType<typeof crossSceneRuntime>>[] = []

@@ -8,7 +8,7 @@
 
 ## 1. 实际变更与范围
 
-`packages/application/src/scene-decision.ts` 的最后一人离开仅自动关闭没有固定地点的临时会话；地点房间保持空但有效，显式关闭仍是终态。移动和成员变更继续走既有规则与原子提交，不重开历史 closed 场景。
+`packages/core/src/application/scene-decision.ts` 的最后一人离开仅自动关闭没有固定地点的临时会话；地点房间保持空但有效，显式关闭仍是终态。移动和成员变更继续走既有规则与原子提交，不重开历史 closed 场景。
 
 `tests/experiments/playtest-frozen-runtime.ts` 的活动刺激从本角色授权观察中按 sourceSeq 排序再取最新八条，不再依赖观察 ID 的排列。认知授权没有变化，未唤醒也不等于未观察。
 

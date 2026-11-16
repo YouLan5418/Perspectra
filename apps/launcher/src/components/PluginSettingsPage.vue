@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ChevronDown, ChevronRight, Search } from '@lucide/vue'
 import { computed, reactive, ref } from 'vue'
-import type { HostPluginSettings } from '../../../../desktop/host-plugin-settings.ts'
+import type { HostPluginSettings } from '@perspectra/host/plugin-settings'
 import type { PluginManifestInfo } from '../core-types.ts'
 import { useLauncherStore } from '../stores/launcher.ts'
 import { moduleRows, pickProvider, type ModuleRow } from '../stores/modules.ts'

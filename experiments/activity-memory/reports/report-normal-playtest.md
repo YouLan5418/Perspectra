@@ -37,7 +37,7 @@
 
 ## 3. 本轮暴露的问题
 
-**Context地点字段不一致，优先局部修复。** 同行者移到后室后，实际请求`character.locationId`仍是前室，而`scene.locationId`正确为后室。`packages/application/src/prototype-character-turn.ts`直接把Manifest中的静态角色记录放入`context.character`，同时通过当前view生成scene。实际记录有5次这种不一致。本轮回应和裁定没有因此错误，但不能把权限审计通过描述成Context完全一致。下一步可用已有角色view覆写当前地点，配一个真实移动后的最小回归；不需要新协议或状态层。本轮仅记录，未改变运行时。
+**Context地点字段不一致，优先局部修复。** 同行者移到后室后，实际请求`character.locationId`仍是前室，而`scene.locationId`正确为后室。`packages/core/src/application/prototype-character-turn.ts`直接把Manifest中的静态角色记录放入`context.character`，同时通过当前view生成scene。实际记录有5次这种不一致。本轮回应和裁定没有因此错误，但不能把权限审计通过描述成Context完全一致。下一步可用已有角色view覆写当前地点，配一个真实移动后的最小回归；不需要新协议或状态层。本轮仅记录，未改变运行时。
 
 **同行者过于执着钥匙目标。** 玩家进入后室时问“柜子在哪？”，玩家说明闲聊暗号后仍问“……柜子呢？”。其既有目标是“弄清楚钥匙能派上什么用场”，风格是“短句，少解释”；当前场景没有可用柜子交互。重复追问并忽略当前话题是实际体验限制，不能只因角色设定允许就宣称自然度验收通过，也不能据单轨迹断定由极简Delivery导致。先修明确Context问题，再观察同类回合，不立即加语义过滤器。
 

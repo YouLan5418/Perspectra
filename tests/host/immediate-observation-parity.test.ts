@@ -2,11 +2,11 @@ import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:f
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { afterEach, expect, it } from 'vitest'
-import type { WorldJsonObject } from '@harness-world/contracts'
-import { currentLocation } from '@harness-world/kernel'
-import type { RulesInstance, SeamProvider } from '@harness-world/plugin-sdk'
-import { WorldStore } from '@harness-world/store-sqlite'
-import { WorldHostRuntime } from '../../desktop/host/world-runtime.ts'
+import type { WorldJsonObject } from '@perspectra/sdk/contracts'
+import { currentLocation } from '@perspectra/core/kernel'
+import type { RulesInstance, SeamProvider } from '@perspectra/sdk'
+import { WorldStore } from '@perspectra/core/store'
+import { WorldHostRuntime } from '../../apps/host/src/runtime/world-runtime.ts'
 import { fakeModels, startFakeProvider } from '../support/fake-provider.ts'
 
 // What a witness learns of the player's action must not depend on whether an activity happens to be running.

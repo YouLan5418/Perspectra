@@ -1,6 +1,6 @@
 /** Sanitized, model-free preview. Never opens a save or calls a model provider. */
-import { createHostServer, type HostState, type HostRuntime } from '../../desktop/host/http-server.ts'
-import { brandId } from '@harness-world/contracts'
+import { createHostServer, type HostState, type HostRuntime } from '../../apps/host/src/runtime/http-server.ts'
+import { brandId } from '@perspectra/sdk/contracts'
 const token = 'f'.repeat(64)
 let seq = 2, submissions = 0
 let state: HostState = {

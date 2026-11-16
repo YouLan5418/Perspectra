@@ -1,6 +1,6 @@
-import { brandId, type WorldAddress, type WorldEventDraft, type WorldJsonObject } from '@harness-world/contracts'
-import { currentSceneStates, type CompiledWorldManifest } from '@harness-world/kernel'
-import type { WorldStore, WriterLeaseService } from '@harness-world/store-sqlite'
+import { brandId, type WorldAddress, type WorldEventDraft, type WorldJsonObject } from '@perspectra/sdk/contracts'
+import { currentSceneStates, type CompiledWorldManifest } from '@perspectra/core/kernel'
+import type { WorldStore, WriterLeaseService } from '@perspectra/core/store'
 
 /** Experimental lodging Host: closed meetings end; a later visit needs a new empty Scene.
  * No movement, member join, dialogue or cognition is authored here. Normal move resolution does that.

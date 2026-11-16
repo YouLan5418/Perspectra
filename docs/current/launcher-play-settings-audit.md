@@ -11,7 +11,7 @@
 
 ## 1. 已有可调参数，但 Launcher 没有接入
 
-`desktop/host/runtime-tuning.ts` 已有完整校验，`launch-arguments.ts` 接受 `--tuning` JSON，网页入口将其交给运行时。`desktop/launcher-core.ts` 的启动命令没有传入 `--tuning`，因此桌面游玩一直采用默认值。
+`apps/host/src/runtime/runtime-tuning.ts` 已有完整校验，`launch-arguments.ts` 接受 `--tuning` JSON，网页入口将其交给运行时。`apps/launcher/backend/core.ts` 的启动命令没有传入 `--tuning`，因此桌面游玩一直采用默认值。
 
 | 参数 | 默认值 | 现有允许范围 | 实际含义 |
 | --- | --- | --- | --- |
@@ -22,7 +22,7 @@
 | recentObservations | 16 | 1–100 | 原生记忆路径进入上下文的最近观察条数 |
 | recentSelfObservations | 8 | 0–50 | 原生记忆路径进入上下文的最近自身观察条数 |
 
-实际调度见 `packages/application/src/prototype-activation-cycle.ts`。每次激活预留至少两个模型调用槽位；有余量时可提供第三个槽位。单角色激活可以直接 publish/abstain，实际消耗少于预留值。因此“最多 8 次调用”不等于“8 个角色一定都能轮到”。
+实际调度见 `packages/core/src/application/prototype-activation-cycle.ts`。每次激活预留至少两个模型调用槽位；有余量时可提供第三个槽位。单角色激活可以直接 publish/abstain，实际消耗少于预留值。因此“最多 8 次调用”不等于“8 个角色一定都能轮到”。
 
 当前 Launcher 显式开启 Core 记忆。`prototype-character-turn.ts` 中一旦设置 `shortTermAfterSeq`，最近观察改为保留归档前缀之后的完整授权尾部，不按上面两项条数裁剪。不能把这两项当作当前 Core 记忆上下文长度的控制入口。
 
@@ -30,10 +30,10 @@
 
 | 限制 | 默认/当前值 | 位置 | 接入注意事项 |
 | --- | --- | --- | --- |
-| 模型输出 Token | 默认 2048；预设支持 1–32768 | `packages/provider-chat/src/provider.ts:193`、`preset.ts:38`、`apps/launcher/src/components/PresetDialog.vue:164` | 已有预设入口，应明确与游玩参数的优先级，避免两个入口互相覆盖 |
-| 一次角色发布的文字合计 | 2000 字符 | `packages/contracts/src/expression.ts:18`、`packages/provider-chat/src/prototype-turn.ts:11` | 提高 Token 上限仍不能超过该文字限制；改成可配时，必须同时修改模型可见 Schema、说明和实际发布校验 |
-| 玩家输入文字合计 | 2000 字符 | `desktop/host/http-server.ts:113` | 独立于角色输出，不应随角色输出限制一起改变 |
-| 玩家意图解释输出 | 1024 Token | `desktop/host/world-runtime.ts:239` | 属于内部结构化解释，建议首版保持内部默认值 |
+| 模型输出 Token | 默认 2048；预设支持 1–32768 | `packages/providers/src/chat/provider.ts:193`、`preset.ts:38`、`apps/launcher/src/components/PresetDialog.vue:164` | 已有预设入口，应明确与游玩参数的优先级，避免两个入口互相覆盖 |
+| 一次角色发布的文字合计 | 2000 字符 | `packages/sdk/src/contracts/expression.ts:18`、`packages/providers/src/chat/prototype-turn.ts:11` | 提高 Token 上限仍不能超过该文字限制；改成可配时，必须同时修改模型可见 Schema、说明和实际发布校验 |
+| 玩家输入文字合计 | 2000 字符 | `apps/host/src/runtime/http-server.ts:113` | 独立于角色输出，不应随角色输出限制一起改变 |
+| 玩家意图解释输出 | 1024 Token | `apps/host/src/runtime/world-runtime.ts:239` | 属于内部结构化解释，建议首版保持内部默认值 |
 
 Token 上限包含模型协议输出，不是角色对白字符数，也不是整个反应周期的累计 Token 预算。
 
@@ -47,14 +47,14 @@ Token 上限包含模型协议输出，不是角色对白字符数，也不是�
 | Activity 连续处理 | 最多 4 次机会、总计 90 秒 | `world-runtime.ts:615`；独立于普通反应周期，每次激活最多两次模型调用 |
 | 写入租约 | 180 秒 | `prototype-character-turn.ts:124`、`:227`、`:259`；是内部一致性机制，应随激活超时协调，不作为玩家独立旋钮 |
 | 玩家意图解释 | 最多 60 秒 | `world-runtime.ts:239`；另有 Host profile 校验上限，不能直接跟随无限增大的模型超时 |
-| 普通 Core 启动 | 60 秒 | `desktop/launcher-core.ts:420`；不同于游玩中的模型请求 |
+| 普通 Core 启动 | 60 秒 | `apps/launcher/backend/core.ts:420`；不同于游玩中的模型请求 |
 | 分叉记忆重建启动 | 3660 秒；重建自身 3600 秒 | `launcher-core.ts:420`、`world-runtime.ts:285`；首版建议保持内部默认值 |
 
 Activity 处理之后可能再运行普通反应周期，因此普通反应周期的调用预算和截止时间不是整次玩家操作的统一预算。
 
 ## 4. Core 记忆的其他可配置候选
 
-`packages/official-memory-core/src/core-memory.ts` 已有创建选项，但 Launcher/网页 CLI 没有暴露：
+`packages/memory-core/src/core-memory.ts` 已有创建选项，但 Launcher/网页 CLI 没有暴露：
 
 - 上下文整理触发阈值：估算 170000 Token。
 - 一次整理的前缀目标：估算 120000 Token。
@@ -104,7 +104,7 @@ Activity 处理之后可能再运行普通反应周期，因此普通反应周�
 
 游戏详情 → 游玩配置 → 运行参数 → 配置。当前包的所有实例及分叉在下次启动采用这些参数；运行期间禁止更改。恢复默认值只修改草稿，仍需保存。配置按包 ID 保存在当前数据根目录 `launcher.json` 的 `playSettings` 中，不写游戏包或存档事实。
 
-`desktop/play-settings.ts` 集中定义默认值、范围和校验，并由 Launcher 与 `--play-settings` JSON 启动路径共用。普通周期复用现有调度参数；Activity 保持独立预算。模型输出 Token 仍归角色预设管理。角色发布字符限制同时传入模型 Schema、格式校验、预设处理、Activity 和 Kernel 裁定；写入租约随激活总时限延长。玩家输入上限同步到公开视图、宿主、默认模板和服务器请求体校验，主发言与细节描写合计计数。
+`apps/host/src/play-settings.ts` 集中定义默认值、范围和校验，并由 Launcher 与 `--play-settings` JSON 启动路径共用。普通周期复用现有调度参数；Activity 保持独立预算。模型输出 Token 仍归角色预设管理。角色发布字符限制同时传入模型 Schema、格式校验、预设处理、Activity 和 Kernel 裁定；写入租约随激活总时限延长。玩家输入上限同步到公开视图、宿主、默认模板和服务器请求体校验，主发言与细节描写合计计数。
 
 | 设置 | 默认值 | 范围 |
 | --- | --- | --- |

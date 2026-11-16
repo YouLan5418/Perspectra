@@ -30,7 +30,7 @@
 - **配置项**：`config` 是字段名到定义的对象，类型为 `string`、`number`、`integer` 或 `boolean`，可带 `title`（必填）、`description`、`required`、`default`，字符串还可带 `enum`、`maxLength` 和 `secret`，数字可带 `minimum` / `maximum`。启动器按这些定义生成表单。
 - **保存在哪里**：普通值写进 `launcher.json` 的插件设置；`secret` 字段由桌面壳写入 Windows 凭据管理器（`plugin-config/<插件ID>/<字段>`），不经过 Node 后端落盘。插件被移除或改指向别的文件时，桌面壳删除它原来的密钥，与模型 Key 不跟随连接换主机的规则一致。
 - **交给插件**：启动游戏时，桌面壳只为已启用插件读取密钥，经 `PERSPECTRA_PLUGIN_SECRETS` 交给游戏进程；游戏入口读到后立即从环境中删除，再装载插件。装载器在导入模块前合并默认值、保存值和密钥并检查必填项，通过后作为 Cordis 的 `config` 传给插件：`export default function (ctx, config) {}`。清单无效或配置不符时只跳过这一个插件，原因分别为 `manifest` / `config`，启动器显示宿主写的说明（如缺哪一项），不显示配置值。
-- 源码：[清单格式与配置合并](../../desktop/host-plugin-manifest.ts)（启动器页面与宿主共用）、[读取清单文件](../../desktop/plugin-manifest-file.ts)、[凭据存储](../../apps/launcher/src-tauri/src/plugin_secrets.rs)、[设置页插件块](../../apps/launcher/src/components/PluginSettingsBlock.vue)。类型在 [plugin-sdk](../../packages/plugin-sdk/src/index.ts) 的 `PluginManifest`、`PluginConfigField`。自动测试覆盖清单解析、配置合并、导入前跳过、启动器保存校验、仅启用插件拿到密钥、密钥晚于设置保存，以及凭据清理规则；没有在 Tauri 桌面版里实际走过一遍保存密钥和启动的流程。
+- 源码：[清单格式与配置合并](../../apps/host/src/host-plugin-manifest.ts)（启动器页面与宿主共用）、[读取清单文件](../../apps/host/src/plugin-manifest-file.ts)、[凭据存储](../../apps/launcher/src-tauri/src/plugin_secrets.rs)、[设置页插件块](../../apps/launcher/src/components/PluginSettingsBlock.vue)。类型在 [plugin-sdk](../../packages/sdk/src/index.ts) 的 `PluginManifest`、`PluginConfigField`。自动测试覆盖清单解析、配置合并、导入前跳过、启动器保存校验、仅启用插件拿到密钥、密钥晚于设置保存，以及凭据清理规则；没有在 Tauri 桌面版里实际走过一遍保存密钥和启动的流程。
 
 2026-11-04 宿主 API 为 `2.0`：每个插件模块须导出 `hostApi = '2.0'`。装载器在执行插件前比较主次版本，缺失、不兼容或要求更高次版本时跳过，原因为 `version`。本次主版本升级是因为调度器接管了自主和活动处理；旧 1.x 插件不会自动适配。仓库示例已更新，写法见[插件编写指南](guides/host-plugin-authoring.md)。这取代 2026-10-26 的 1.0 声明要求。
 
@@ -39,7 +39,7 @@
 - 事件只有两种：`append` 带新增的行；`reset` 带完整记录，出现在首次推送、重新生成、切换候选或恢复之后，订阅者应整体替换已有内容。
 - 重新生成时，候选在被选中之前不推送；取消或失败的候选从不出现在订阅里。
 - 宿主在下一轮事件循环里调用监听器，每个监听器拿到独立副本；监听器抛错或返回失败的 Promise 只记录到游戏进程的标准错误，不影响游戏和其他监听器。
-- 源码接通点是 [PlayerFeed](../../desktop/host-plugins.ts)、运行时每次刷新玩家投影后调用的 `publishPlayerFeed()`，以及 [TailRoundRuntime](../../desktop/host/tail-runtime.ts) 给候选加的闸门。自动测试覆盖比较逻辑、监听器隔离、示例插件写文件，以及取消的候选不泄露；真实模型、真实直播软件和发行包未验收。
+- 源码接通点是 [PlayerFeed](../../apps/host/src/host-plugins.ts)、运行时每次刷新玩家投影后调用的 `publishPlayerFeed()`，以及 [TailRoundRuntime](../../apps/host/src/runtime/tail-runtime.ts) 给候选加的闸门。自动测试覆盖比较逻辑、监听器隔离、示例插件写文件，以及取消的候选不泄露；真实模型、真实直播软件和发行包未验收。
 
 2026-10-26 插件故障：例如玩家同时启用了语音插件和设备插件，语音插件文件损坏。游戏照常启动，启动器提示“tts（导入失败）已跳过”，设置页在该插件下标出原因；只有当世界包把设备能力声明为必需而设备插件也坏了时，世界才不打开，启动器会写明缺少哪个能力。做法参考 DSH 的可选插件策略，见下方“装载、授权与退出”。
 
@@ -103,10 +103,10 @@ export default function speechPlugin(ctx, config) {
 
 ## 装载、授权与退出
 
-- [LauncherCore](../../desktop/launcher-core.ts)只保存和传递插件选择，不在启动器后端导入插件。每次启动用 `PERSPECTRA_HOST_PLUGINS` 覆盖传入当前保存的列表。
-- [游戏入口](../../desktop/host/web-entry.ts)在创建世界运行时之前调用 [loadHostPlugins](../../desktop/host-plugins.ts)。装载器创建独立 Context，注册 `frontendServices`、按世界绑定的 `capabilities` 和只读的 `playerFeed`，再按列表顺序 `ctx.plugin()`。只提供有限角色请求回调，没有挂载世界内核或存储写入，也不提供原始 Context。
+- [LauncherCore](../../apps/launcher/backend/core.ts)只保存和传递插件选择，不在启动器后端导入插件。每次启动用 `PERSPECTRA_HOST_PLUGINS` 覆盖传入当前保存的列表。
+- [游戏入口](../../apps/host/src/runtime/web-entry.ts)在创建世界运行时之前调用 [loadHostPlugins](../../apps/host/src/host-plugins.ts)。装载器创建独立 Context，注册 `frontendServices`、按世界绑定的 `capabilities` 和只读的 `playerFeed`，再按列表顺序 `ctx.plugin()`。只提供有限角色请求回调，没有挂载世界内核或存储写入，也不提供原始 Context。
 - 同时只允许一个合成服务与一个 BGM 服务，两者可以由同一个或不同插件注册。显式核心实现导入、版本、初始化或注册失败时停止启动；清单缺失时保守按必要实现处理。只有清单全部声明为 frontendServices／playerFeed／capabilities 的外围插件可以报告后跳过，再由包的必需能力检查决定能否打开世界。Cordis 撤销其 effect；宿主生成的错误不携带原生异常正文或 cause。导入／初始化默认期限为 10 秒，进程插件清理等待默认为 2 秒；同步可信代码仍不能被抢占。缺失必需能力沿用 MissingCapabilityError，不由默认填补掩盖。
-- 服务通过已有 `FrontendHostServices` 交给 [HTTP 宿主](../../desktop/host/http-server.ts)。模板声明的能力与实际安装服务共同决定是否授予 `speech`；合成前校验授权文本，合成后重验段落，候选替换后返回 409。未安装服务返回 404，合成失败返回 502。
+- 服务通过已有 `FrontendHostServices` 交给 [HTTP 宿主](../../apps/host/src/runtime/http-server.ts)。模板声明的能力与实际安装服务共同决定是否授予 `speech`；合成前校验授权文本，合成后重验段落，候选替换后返回 409。未安装服务返回 404，合成失败返回 502。
 - 前端请求断开或服务注销会触发 abort。插件应把信号传给实际请求；即使插件忽略取消，注销后晚到的音频也会被拒绝。关闭游戏时释放插件及其 `ctx.effect()`，不为未完成音频增加恢复机制。
 
 ## BGM 与其他扩展的范围

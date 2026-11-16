@@ -1,4 +1,4 @@
-import { hashWorldJson, type ReactionProfileId, type WorldJsonObject } from '@harness-world/contracts'
+import { hashWorldJson, type ReactionProfileId, type WorldJsonObject } from '@perspectra/sdk/contracts'
 import { frozenInteractionWorld } from './frozen-interaction-world.ts'
 
 /**

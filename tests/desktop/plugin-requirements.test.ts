@@ -2,18 +2,18 @@ import { cp, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { compileWorldPackSource, verifyCompiledWorldPackV5 } from '@harness-world/world-pack'
-import { interactionPackageDescription } from '@harness-world/contracts'
-import { createInstalledInteractionPackages } from '@harness-world/interactions-basic'
+import { compileWorldPackSource, verifyCompiledWorldPackV5 } from '@perspectra/world-pack'
+import { interactionPackageDescription } from '@perspectra/sdk/contracts'
+import { createInstalledInteractionPackages } from '@perspectra/plugins/basic-interactions'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { loadHostPlugins } from '../../desktop/host-plugins.ts'
-import { LauncherCore } from '../../desktop/launcher-core.ts'
+import { loadHostPlugins } from '../../apps/host/src/host-plugins.ts'
+import { LauncherCore } from '../../apps/launcher/backend/core.ts'
 import {
   checkPluginRequirements,
   requirementMessage,
   satisfiesVersion,
   type RequirementProblem,
-} from '../../desktop/plugin-requirements.ts'
+} from '../../apps/host/src/plugin-requirements.ts'
 
 const roots: string[] = []
 afterEach(async () => {

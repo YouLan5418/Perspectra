@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { brandId, type CharacterView } from '@harness-world/contracts'
-import { playerTranscript } from '../../desktop/host/player-transcript.ts'
+import { brandId, type CharacterView } from '@perspectra/sdk/contracts'
+import { playerTranscript } from '../../apps/host/src/runtime/player-transcript.ts'
 
 describe('player-facing playtest transcript', () => {
   it('uses only the already authorized player observations', () => {

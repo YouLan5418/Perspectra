@@ -12,7 +12,7 @@
 | --- | --- | --- |
 | `corepack pnpm@11.7.0 launcher:check` | 类型检查通过；10 项测试通过 | Launcher 数据映射、预设与故事线视图逻辑 |
 | `corepack pnpm@11.7.0 check` | 最后一次类型检查、lint 通过；37 文件、255 项测试通过 | 当前原型基线，含下列功能与失败路径 |
-| `corepack pnpm@11.7.0 test:related packages/provider-chat/src/provider.test.ts packages/provider-chat/src/wire.test.ts` | 2 文件、20 项通过 | 模型传输、输出协议和请求构造 |
+| `corepack pnpm@11.7.0 test:related packages/providers/src/chat/provider.test.ts packages/providers/src/chat/wire.test.ts` | 2 文件、20 项通过 | 模型传输、输出协议和请求构造 |
 
 相关覆盖来自 `model-presets.test.ts`、`preset-content.test.ts`、`preset-library.test.ts`、`request-inspector.test.ts`、`story-nodes.test.ts`、`storyline-crash.test.ts`：
 

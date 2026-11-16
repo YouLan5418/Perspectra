@@ -1,10 +1,10 @@
 import { expect, it } from 'vitest'
 import { once } from 'node:events'
 import type { AddressInfo } from 'node:net'
-import { RequestInspector } from '../../packages/provider-chat/src/request-inspector.ts'
-import { createChatProvider } from '../../packages/provider-chat/src/provider.ts'
-import { presetCall } from '../../packages/provider-chat/src/preset-runtime.ts'
-import { createHostServer, type HostRuntime } from '../../desktop/host/http-server.ts'
+import { RequestInspector } from '../../packages/providers/src/chat/request-inspector.ts'
+import { createChatProvider } from '../../packages/providers/src/chat/provider.ts'
+import { presetCall } from '../../packages/providers/src/chat/preset-runtime.ts'
+import { createHostServer, type HostRuntime } from '../../apps/host/src/runtime/http-server.ts'
 import { startFakeProvider } from '../support/fake-provider.ts'
 const info = { characterId: 'npc:a', continuation: false, sources: [{ source: 'core', name: 'Core' }] }
 const body = { model: 'test', messages: [{ role: 'system', content: '契约' }] }

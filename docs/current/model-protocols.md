@@ -24,7 +24,7 @@ DeepSeek 官方填 `https://api.deepseek.com/chat/completions`（OpenAI 兼容�
 
 例如 Claude 与 Gemini 都通过 OpenCode Go 回应玩家，交替调用时各自沿用本次运行的固定会话 UUID；另一局即使使用同名角色，也分配不同 UUID。角色不需要看到这个标识，创作者不需要逐个角色配置。
 
-Launcher 连接编辑器的“高级设置 → 缓存适配”默认为自动。只对已核对的 HTTPS 官方主机和路径主动适配；未知中转默认不加缓存字段，可以手动覆盖。解析与请求处理见 [prompt-cache.ts](../../packages/provider-chat/src/prompt-cache.ts)，实际识别范围以该文件为准。
+Launcher 连接编辑器的“高级设置 → 缓存适配”默认为自动。只对已核对的 HTTPS 官方主机和路径主动适配；未知中转默认不加缓存字段，可以手动覆盖。解析与请求处理见 [prompt-cache.ts](../../packages/providers/src/chat/prompt-cache.ts)，实际识别范围以该文件为准。
 
 | 策略 | 实际请求行为 |
 | --- | --- |

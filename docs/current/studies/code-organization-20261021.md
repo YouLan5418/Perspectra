@@ -2,32 +2,32 @@
 
 本次在独立分支 `codex/code-organization-20261021` 整理当前实现，起点为 `717ed6c`。原工作区已有文档、未跟踪文件与历史试玩目录保持原状；没有合并到 main、推送、调用真实模型或改写历史实验结果。
 
-例如玩家启动游戏、查看创作者状态、保存故事节点时，实际运行的文件现在集中于 `desktop/host`，不再需要从“测试／实验”目录寻找正式宿主。整理保持既有角色协议、提示内容、预算、规则裁定和存储格式；创作者检查响应的 `variables` 明确更名为 `statusTruth`，第一方页面同步调整，没有保留旧字段兼容层。
+例如玩家启动游戏、查看创作者状态、保存故事节点时，实际运行的文件现在集中于 `apps/host/src/runtime`，不再需要从“测试／实验”目录寻找正式宿主。整理保持既有角色协议、提示内容、预算、规则裁定和存储格式；创作者检查响应的 `variables` 明确更名为 `statusTruth`，第一方页面同步调整，没有保留旧字段兼容层。
 
 ## 改动与证据
 
 | 原问题与证据 | 本次处理 | 当前入口 |
 | --- | --- | --- |
-| 源码启动、桌面打包和便携脚本从 `tests/experiments` 加载宿主，生产相关静态导入集合为 27 个 TS 文件 | 迁移到现有 desktop 所有权下，统一修改源码、测试、构建与引用 | [宿主说明](../../../desktop/host/README.md)、[web-entry.ts](../../../desktop/host/web-entry.ts) |
-| 默认 Core 从 `experiments` 启动 Python，便携包复制其中实现 | 迁移 10 个运行模块、vendor、资产清单、准备脚本和依赖说明；Rust、worker、发行复制与校验同步 | [Core 说明](../../../packages/official-memory-core/README.md)、[便携构建](../../../scripts/release/build-portable.mjs) |
-| frontend 的公共视图文件引用宿主状态与运行接口 | 将投影和操作执行适配移入宿主；公共数据、请求校验与补丁仍由 frontend 提供 | [frontend-adapter.ts](../../../desktop/host/frontend-adapter.ts)、[公共视图](../../../packages/frontend/src/player-view.ts) |
-| `decideActivityFormat` 实际服务全部角色决策 | 从活动运行时拆出通用重试，改名为 `decideWithFormatRetry`；重试内容和预算逻辑保持一致 | [decision-format.ts](../../../desktop/host/decision-format.ts) |
-| `frozen/playtest/hindsight` 混淆正式职责 | 内部入口、宿主、网关适配、解释器和检查类型按职责更名；既有品牌 ID、外部 HTTP 路由、token header 和发行 `playtest.mjs` 文件名保留 | [world-runtime.ts](../../../desktop/host/world-runtime.ts)、[gateway-turn-call.ts](../../../packages/official-llm/src/gateway-turn-call.ts)、[python-worker.ts](../../../packages/official-memory-core/src/python-worker.ts) |
+| 源码启动、桌面打包和便携脚本从 `tests/experiments` 加载宿主，生产相关静态导入集合为 27 个 TS 文件 | 迁移到现有 desktop 所有权下，统一修改源码、测试、构建与引用 | [宿主说明](../../../apps/host/src/runtime/README.md)、[web-entry.ts](../../../apps/host/src/runtime/web-entry.ts) |
+| 默认 Core 从 `experiments` 启动 Python，便携包复制其中实现 | 迁移 10 个运行模块、vendor、资产清单、准备脚本和依赖说明；Rust、worker、发行复制与校验同步 | [Core 说明](../../../packages/memory-core/README.md)、[便携构建](../../../scripts/release/build-portable.mjs) |
+| frontend 的公共视图文件引用宿主状态与运行接口 | 将投影和操作执行适配移入宿主；公共数据、请求校验与补丁仍由 frontend 提供 | [frontend-adapter.ts](../../../apps/host/src/runtime/frontend-adapter.ts)、[公共视图](../../../packages/frontend/src/player-view.ts) |
+| `decideActivityFormat` 实际服务全部角色决策 | 从活动运行时拆出通用重试，改名为 `decideWithFormatRetry`；重试内容和预算逻辑保持一致 | [decision-format.ts](../../../apps/host/src/runtime/decision-format.ts) |
+| `frozen/playtest/hindsight` 混淆正式职责 | 内部入口、宿主、网关适配、解释器和检查类型按职责更名；既有品牌 ID、外部 HTTP 路由、token header 和发行 `playtest.mjs` 文件名保留 | [world-runtime.ts](../../../apps/host/src/runtime/world-runtime.ts)、[gateway-turn-call.ts](../../../packages/providers/src/llm/gateway-turn-call.ts)、[python-worker.ts](../../../packages/memory-core/src/python-worker.ts) |
 | 创作者“变量”页展示状态真值，样例仍含情绪／信任值 | 改为状态导航与 `statusTruth`，样例使用客观状态，修正导出说明；活动内部变量保留 | [StatusView.vue](../../../apps/launcher/src/creator/StatusView.vue)、[接口文档](../creator-debug-api.md) |
 | 历史 JEV/Core 探针绑定固定记录，关系 spike 已退役 | 移入对应研究目录，注明外部调用／固定样本限制；冻结证据源码保持原样 | [JEV 历史脚本](../../../experiments/jev-narrative-auditor/scripts/README.md)、[Core 诊断](../../../experiments/activity-memory/scripts/README.md)、[关系原型](../../../experiments/character-relations/archive/README.md) |
-| 无引用的旧 `playtest-page.ts` 与实际宿主页并存 | 删除旧页；宿主测试移到 `tests/host`，零模型序章与专用角色卡切片准确命名 | [宿主页](../../../desktop/host/host-page.ts)、[宿主测试](../../../tests/host)、[离线序章](../../../tests/experiments/official-prologue-offline.ts) |
+| 无引用的旧 `playtest-page.ts` 与实际宿主页并存 | 删除旧页；宿主测试移到 `tests/host`，零模型序章与专用角色卡切片准确命名 | [宿主页](../../../apps/host/src/runtime/host-page.ts)、[宿主测试](../../../tests/host)、[离线序章](../../../tests/experiments/official-prologue-offline.ts) |
 
-没有引入新的 Host 框架、包、协议版本、数据库或通用脚本平台。`packages/memory` 仍提供原生记忆；Python Core 是宿主适配，不把宿主存档与发行职责塞进原生记忆包。
+没有引入新的 Host 框架、包、协议版本、数据库或通用脚本平台。`packages/core/src/memory` 仍提供原生记忆；Python Core 是宿主适配，不把宿主存档与发行职责塞进原生记忆包。
 
 ## 路径与运行时身份
 
-源码 Python 实现在 `packages/official-memory-core/python/{core,bridge}`，发行位置为 `runtime/memory-core/python/{core,bridge}`。Python 的源码根目录回退随层级调整；发行时继续通过既有环境变量指定模型与缓存。头像和创作者资产的源码相对位置也已核对。
+源码 Python 实现在 `packages/memory-core/python/{core,bridge}`，发行位置为 `runtime/memory-core/python/{core,bridge}`。Python 的源码根目录回退随层级调整；发行时继续通过既有环境变量指定模型与缓存。头像和创作者资产的源码相对位置也已核对。
 
-[运行时身份](../../../desktop/tail-runtime-identity.ts)同步跟随新路径，并包含拆出的格式重试、前端适配与授权名称模块。改路径会改变身份；旧末端回合不能因此绕过环境一致性检查重新生成或切换候选。本次不新增旧候选迁移。故事节点、原始经历与记忆授权边界按现有回归分别验证，不把“身份改变”泛化为所有存档损坏。
+[运行时身份](../../../apps/host/src/tail-runtime-identity.ts)同步跟随新路径，并包含拆出的格式重试、前端适配与授权名称模块。改路径会改变身份；旧末端回合不能因此绕过环境一致性检查重新生成或切换候选。本次不新增旧候选迁移。故事节点、原始经历与记忆授权边界按现有回归分别验证，不把“身份改变”泛化为所有存档损坏。
 
 ## 验证方法与范围
 
-从仓库根目录运行；本机 Python/E5 环境准备见 [Core 说明](../../../packages/official-memory-core/README.md)：
+从仓库根目录运行；本机 Python/E5 环境准备见 [Core 说明](../../../packages/memory-core/README.md)：
 
 ```powershell
 node scripts/check-host-boundaries.mjs
@@ -64,7 +64,7 @@ node scripts/docs/check-links.mjs
 
 | 问题 | 修复与验证边界 |
 | --- | --- |
-| Electron 开发入口仍拼旧实验路径 | 改为 `desktop/host/web-entry.ts`，保持显式原生记忆；实际 TypeScript 后端启动纳入回归，未运行 Electron 图形界面 |
+| Electron 开发入口仍拼旧实验路径 | 改为 `apps/host/src/runtime/web-entry.ts`，保持显式原生记忆；实际 TypeScript 后端启动纳入回归，未运行 Electron 图形界面 |
 | 构建后的后端把源码目录误判为安装目录，加载身份时即因 Python 路径失败 | worker 与身份共用 `corePythonRoot`，以既有 `PERSPECTRA_RUNTIME_ROOT` 显式选择；缺文件仍直接失败，没有跳过身份检查 |
 | Electron 包缺少身份检查需要的 Python 源文件 | `desktop:build` 与便携构建共用复制清单，Electron 打包时设置自己的 runtime root；未给旧 Electron 增加 Core 解释器或 E5 发行支持 |
 | 边界检查漏掉 `join(repository, 'tests', 'experiments', ...)` | 同时检查 `join` / `resolve` 的字面路径段，加入失败夹具；扫描范围补上构建脚本 |
@@ -85,8 +85,8 @@ node scripts/docs/check-links.mjs
 
 | 问题与证据 | 处理 |
 | --- | --- |
-| 角色回合主路径叫 `prototype-character-turn.ts`、`PrototypeCharacterTurn`、`runPrototypeActivations`，provider-chat 的请求构造叫 `prototypeTurnCall` | 改为 [character-turn.ts](../../../packages/application/src/character-turn.ts)、[activation-cycle.ts](../../../packages/official-scheduler/src/index.ts)、[character-turn-call.ts](../../../packages/provider-chat/src/character-turn-call.ts)；符号同步去掉 `Prototype` 前缀，写入租约的临时 owner 前缀改为 `character-turn:`。带日期的证据目录、历史报告和 archive 保持原名 |
-| 宿主有 62 处 `../../packages/x/src/...` 深路径，其中 17 个包内文件未从入口导出；`packages/frontend` 没有 package.json | application 与 provider-chat 入口导出宿主实际使用的模块；frontend 成为 `@harness-world/frontend` 包；`desktop` 全部改用包名。launcher 的 tsconfig 只为类型检查增加同一映射，其运行时代码仍只直接引用浏览器安全的 preset 模块 |
+| 角色回合主路径叫 `prototype-character-turn.ts`、`PrototypeCharacterTurn`、`runPrototypeActivations`，provider-chat 的请求构造叫 `prototypeTurnCall` | 改为 [character-turn.ts](../../../packages/core/src/application/character-turn.ts)、[activation-cycle.ts](../../../packages/providers/src/scheduler/index.ts)、[character-turn-call.ts](../../../packages/providers/src/chat/character-turn-call.ts)；符号同步去掉 `Prototype` 前缀，写入租约的临时 owner 前缀改为 `character-turn:`。带日期的证据目录、历史报告和 archive 保持原名 |
+| 宿主有 62 处 `../../packages/x/src/...` 深路径，其中 17 个包内文件未从入口导出；`packages/frontend` 没有 package.json | application 与 provider-chat 入口导出宿主实际使用的模块；frontend 成为 `@perspectra/frontend` 包；`desktop` 全部改用包名。launcher 的 tsconfig 只为类型检查增加同一映射，其运行时代码仍只直接引用浏览器安全的 preset 模块 |
 | 默认回归经 14 个文件依赖 `tests/experiments`，删除实验驱动会打破回归 | 共用场景、夹具与崩溃子进程移入 [tests/support](../../../tests/support/README.md)；`hidden-cure` 两个驱动拆出共享场景与玩家策略，真实模型 CLI 留在原处 |
 
 [边界检查](../../../scripts/check-host-boundaries.mjs)新增两条规则：TypeScript 源码不得用相对路径进入其他包的 `src/`（launcher 与 `.mjs` 发布脚本仅允许类型导入和明确列出的浏览器安全模块）；`tests/` 中除研究驱动外不得 import `tests/experiments`。在 `f7070f0` 的源码上运行，新规则分别报告 desktop 的深路径与 29 处回归依赖；[宿主测试](../../../tests/host/boundaries.test.ts)补了对应的失败与放行夹具。
@@ -101,11 +101,11 @@ node scripts/docs/check-links.mjs
 
 基点为 `ddcbe4a`（第三轮之后的试玩记录），分三个提交，不改变角色协议、提示内容、调度顺序、规则裁定或存储格式。
 
-**命名与退役契约**（`6559f47`）。`contracts/context-v2.ts` 中导演规划、上下文回执和各类上下文哈希约 360 行，生产代码零引用，只有自身测试在用，连同测试删除；仍在使用的 `ContextSourceRef` 移到 [context-source.ts](../../../packages/contracts/src/context-source.ts)。`memory-v2.ts`、`phase8-registries.ts` 改为 [cognitive-memory.ts](../../../packages/contracts/src/cognitive-memory.ts)、[runtime-registries.ts](../../../packages/contracts/src/runtime-registries.ts)；`PHASE8_*` 契约导出改为 `BASIC_VOCABULARY_*`、`RUNTIME_REGISTRY_*` 等。哈希域字符串与存档中的 ID 未改，词表与注册表 Golden 仍通过。
+**命名与退役契约**（`6559f47`）。`contracts/context-v2.ts` 中导演规划、上下文回执和各类上下文哈希约 360 行，生产代码零引用，只有自身测试在用，连同测试删除；仍在使用的 `ContextSourceRef` 移到 [context-source.ts](../../../packages/sdk/src/contracts/context-source.ts)。`memory-v2.ts`、`phase8-registries.ts` 改为 [cognitive-memory.ts](../../../packages/sdk/src/contracts/cognitive-memory.ts)、[runtime-registries.ts](../../../packages/sdk/src/contracts/runtime-registries.ts)；`PHASE8_*` 契约导出改为 `BASIC_VOCABULARY_*`、`RUNTIME_REGISTRY_*` 等。哈希域字符串与存档中的 ID 未改，词表与注册表 Golden 仍通过。
 
 **测试分层**（`6097aed`）。`tests/prototype` 按被测入口拆为 [tests/host](../../../tests/host)、[tests/desktop](../../../tests/desktop)、[tests/scenarios](../../../tests/scenarios)；根目录的 `p2/p4/p8/frozen-*` 集成测试移入 [tests/integration](../../../tests/integration) 并按行为命名。默认配置改名为 `vitest.regression.config.ts`，并纳入原先只在 `test:related` 中运行的 10 个集成测试文件（60 项，迁移前已确认全部通过）。
 
-**宿主拆分**（本提交）。模型与按角色预设的装配移到 [role-providers.ts](../../../packages/official-llm/src/role-providers.ts)，Core 记忆按模型分组的 runner 移到 [python-worker.ts](../../../packages/official-memory-core/src/python-worker.ts)，散落在 5 处的默认模型与端点统一为 `provider-defaults.ts`（当时模块，2026-10-27 已删除；现改由[模型配置](../../../desktop/model-connections.ts)解析调用目标）。角色决策管线从构造函数中的闭包改为私有方法 `#decide`，逻辑原样搬移。`WorldHostCore` 构造函数由约 180 行降到约 75 行。
+**宿主拆分**（本提交）。模型与按角色预设的装配移到 [role-providers.ts](../../../packages/providers/src/llm/role-providers.ts)，Core 记忆按模型分组的 runner 移到 [python-worker.ts](../../../packages/memory-core/src/python-worker.ts)，散落在 5 处的默认模型与端点统一为 `provider-defaults.ts`（当时模块，2026-10-27 已删除；现改由[模型配置](../../../apps/host/src/model-connections.ts)解析调用目标）。角色决策管线从构造函数中的闭包改为私有方法 `#decide`，逻辑原样搬移。`WorldHostCore` 构造函数由约 180 行降到约 75 行。
 
 有意保留：
 - 调度（`#activateCharacters`、`#activateAutonomous`）和状态投影仍在 `WorldHostCore` 中。它们与大量可变运行状态交织，拆分需要配合真实试玩，本轮不动。

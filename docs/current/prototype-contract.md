@@ -279,10 +279,10 @@ yield()
 
 | 候选模块 | 新实验用途 | 不自动带入的部分 |
 | --- | --- | --- |
-| `packages/kernel/src/rulebook.ts`、store-sqlite | 受控裁定、事件提交、状态读取 | 全版本调度、全部署恢复 |
+| `packages/core/src/kernel/rulebook.ts`、store-sqlite | 受控裁定、事件提交、状态读取 | 全版本调度、全部署恢复 |
 | 基线的 `interaction-runtime` 与 `contracts/interaction-definition.ts` | definition、binding、统一执行入口 | Performance policy、通用生命周期图、完整插件版本平台 |
-| `packages/agents/src/context-v2.ts` 与 application 的上下文组装 | 角色隔离、场景素材、会话来源 | 全套 Context Hash/Receipt 与精确重建承诺 |
-| `packages/application/src/reaction-scheduler.ts` | 参考预算、受众与打断语义 | 耐久 Cycle/Job/Lease 实现 |
+| `packages/core/src/agents/context-v2.ts` 与 application 的上下文组装 | 角色隔离、场景素材、会话来源 | 全套 Context Hash/Receipt 与精确重建承诺 |
+| `packages/core/src/application/reaction-scheduler.ts` | 参考预算、受众与打断语义 | 耐久 Cycle/Job/Lease 实现 |
 | `tests/experiments/playtest-*` | 输入框、会话展示、真实 Provider 适配经验 | 固定 cue 文案、旧协议选择与任意固定字节上限 |
 
 这些是复用候选，不代表已经完成简化。基线 e682c5c 已包含 v10 交互抽象，但仍有大量旧协议和基础设施；按实际依赖逐步删除。`993b247` 仅作早期体验参考。

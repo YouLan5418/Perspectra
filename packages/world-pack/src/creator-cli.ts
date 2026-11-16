@@ -1,7 +1,6 @@
 import { readFileSync } from 'node:fs'
 import { mkdir, writeFile } from 'node:fs/promises'
 import { dirname, join, resolve } from 'node:path'
-import { WorldApplication } from '@harness-world/application'
 import {
   brandId,
   canonicalizeWorldJson,
@@ -12,7 +11,7 @@ import {
   WorldError,
   type ErrorEnvelope,
   type WorldJsonObject,
-} from '@harness-world/contracts'
+} from '@perspectra/sdk/contracts'
 import {
   adaptCompiledWorldPack,
   canonicalCompiledWorldPackBytes,
@@ -98,6 +97,7 @@ async function activate(
     principalId: 'principal:local-player',
     sessionId: brandId('session:local-player', 'SessionId'),
   })
+  const { WorldApplication } = await import('@perspectra/core')
   const application = new WorldApplication({ ...paths, interactionPackages })
   try {
     const result = application.activate(compiled)
@@ -161,7 +161,7 @@ export async function executeWorldPackCli(args: readonly string[], options: Worl
       presets:
         'preset validate <file> accepts native library exchanges; --pack requires a bare RolePreset. Checks fields, macros and regex syntax, not style quality.',
       // worldpack.cmd in the program folder hands `lens` to the lens runtime before this CLI parses anything.
-      lens: 'worldpack.cmd lens view <dir> | lens requests <dir> | lens simulate <dir> <scenario.json> | lens serve <dir> [--no-open]: read-only pack lens and stub-model simulation in the real Host runtime. simulate exits 2 when a scenario did not pass. Provided by the program folder; from source run node --import tsx desktop/lens/cli.ts.',
+      lens: 'worldpack.cmd lens view <dir> | lens requests <dir> | lens simulate <dir> <scenario.json> | lens serve <dir> [--no-open]: read-only pack lens and stub-model simulation in the real Host runtime. simulate exits 2 when a scenario did not pass. Provided by the program folder; from source run node --import tsx apps/host/src/lens/cli.ts.',
     })
   }
   if (invocation.command === 'validate') {

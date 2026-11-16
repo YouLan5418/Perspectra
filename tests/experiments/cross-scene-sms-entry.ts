@@ -2,8 +2,8 @@ import { resolve } from 'node:path'
 import { appendFileSync } from 'node:fs'
 import { createInterface } from 'node:readline/promises'
 import { stdin, stdout } from 'node:process'
-import { createChatProvider } from '@harness-world/provider-chat'
-import { gatewayTurnCall } from '../../packages/official-llm/src/gateway-turn-call.ts'
+import { createChatProvider } from '@perspectra/providers/chat'
+import { gatewayTurnCall } from '../../packages/providers/src/llm/gateway-turn-call.ts'
 import { crossSceneRuntime, communicationContext } from '../support/cross-scene-runtime.ts'
 
 const directory = process.argv[2]

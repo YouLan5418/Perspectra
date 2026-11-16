@@ -2,9 +2,9 @@ import { createServer } from 'node:http'
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { WorldHostRuntime } from '../../desktop/host/world-runtime.ts'
+import { WorldHostRuntime } from '../../apps/host/src/runtime/world-runtime.ts'
 import { array, object, packPath, plans, settings, snapshot } from '../support/hidden-cure-scenario.ts'
-import { environmentRoleModels } from '../../desktop/model-connections.ts'
+import { environmentRoleModels } from '../../apps/host/src/model-connections.ts'
 
 async function run() {
   const args = process.argv.slice(2), selected = args.find(arg => arg.startsWith('--case='))?.slice(7)

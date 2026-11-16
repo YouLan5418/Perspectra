@@ -1,6 +1,6 @@
 import { expect, it } from 'vitest'
-import { brandId } from '@harness-world/contracts'
-import { characterExecutionResult } from '../../packages/application/src/character-execution-result.ts'
+import { brandId } from '@perspectra/sdk/contracts'
+import { characterExecutionResult } from '../../packages/core/src/application/character-execution-result.ts'
 import { frozenInteractionWorld } from '../fixtures/frozen-interaction-world.ts'
 
 const world = frozenInteractionWorld()

@@ -24,7 +24,12 @@
     "pinia": "^3.0.0",
     "reka-ui": "^2.11.0",
     "tailwind-merge": "^3.0.0",
-    "vue": "^3.5.0"
+    "vue": "^3.5.0",
+    "@perspectra/sdk": "workspace:*",
+    "@perspectra/world-pack": "workspace:*",
+    "@perspectra/host": "workspace:*",
+    "@perspectra/providers": "workspace:*",
+    "@perspectra/plugins": "workspace:*"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.0.0",

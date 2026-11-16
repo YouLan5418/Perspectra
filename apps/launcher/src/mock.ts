@@ -1,6 +1,6 @@
 import type { GamePackage, GameInstance, ModelProfile, ModelConfiguration } from './types.ts'
-import type { LensSnapshot } from '../../../desktop/lens/session.ts'
-import type { LensView } from '../../../desktop/lens/view.ts'
+import type { LensSnapshot } from '../../host/src/lens/session.ts'
+import type { LensView } from '@perspectra/world-pack/lens/view'
 
 export const modelProfiles: ModelProfile[] = [
   {

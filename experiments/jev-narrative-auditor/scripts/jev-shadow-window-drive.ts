@@ -1,15 +1,15 @@
 // 历史研究脚本；路径、样本和模型可能绑定原始记录，不属于游戏启动或默认验收。
-import { jevShadowAudit } from '../../../packages/official-jev-audit/src/index.ts'
+import { jevShadowAudit } from '@perspectra/jev-audit'
 import { appendFileSync, existsSync, mkdirSync, writeFileSync } from 'node:fs'
 import { createHash } from 'node:crypto'
 import { resolve } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
-import { brandId, type StoredWorldEvent, type WorldAddress, type WorldJsonObject } from '@harness-world/contracts'
-import { currentEntityState } from '@harness-world/kernel'
-import { WorldHostRuntime } from '../../../desktop/host/world-runtime.ts'
-import { JevShadow, type ShadowRecord } from '../../../packages/official-jev-audit/src/jev-shadow.ts'
-import { createClaimClassifier } from '../../../packages/official-jev-audit/src/jev-shadow-claims-client.ts'
-import { environmentRoleModels } from '../../../desktop/model-connections.ts'
+import { brandId, type StoredWorldEvent, type WorldAddress, type WorldJsonObject } from '@perspectra/sdk/contracts'
+import { currentEntityState } from '@perspectra/core/kernel'
+import { WorldHostRuntime } from '../../../apps/host/src/runtime/world-runtime.ts'
+import { JevShadow, type ShadowRecord } from '../../../packages/jev-audit/src/jev-shadow.ts'
+import { createClaimClassifier } from '../../../packages/jev-audit/src/jev-shadow-claims-client.ts'
+import { environmentRoleModels } from '../../../apps/host/src/model-connections.ts'
 
 const replay = process.argv.includes('--replay')
 const explicit = process.argv.includes('--explicit')

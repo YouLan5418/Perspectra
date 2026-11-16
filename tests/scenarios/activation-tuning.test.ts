@@ -2,8 +2,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { brandId, type WorldAddress, type WorldEventDraft, type WorldJsonObject } from '@harness-world/contracts'
-import { WorldStore } from '@harness-world/store-sqlite'
+import { brandId, type WorldAddress, type WorldEventDraft, type WorldJsonObject } from '@perspectra/sdk/contracts'
+import { WorldStore } from '@perspectra/core/store'
 import { runActivations } from '../support/run-activations.ts'
 
 describe('prototype reaction tuning', () => {

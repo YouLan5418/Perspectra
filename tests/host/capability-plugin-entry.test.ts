@@ -6,7 +6,7 @@ import { cp, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import type { AddressInfo } from 'node:net'
-import type { PlayerView } from '@harness-world/frontend'
+import type { PlayerView } from '@perspectra/frontend'
 import { expect, it } from 'vitest'
 
 it('loads capability plugins through both source and bundled host entries and exposes real player actions', async () => {
@@ -40,7 +40,7 @@ export default function (ctx) {
   try {
     const entry = join(directory, 'backend.mjs')
     await build({
-      entryPoints: ['desktop/host/web-entry.ts'],
+      entryPoints: ['apps/host/src/runtime/web-entry.ts'],
       outfile: entry,
       bundle: true,
       platform: 'node',
@@ -53,7 +53,7 @@ export default function (ctx) {
       const child = spawn(
         process.execPath,
         [
-          ...(layout === 'source' ? ['--import', 'tsx', resolve('desktop/host/web-entry.ts')] : [entry]),
+          ...(layout === 'source' ? ['--import', 'tsx', resolve('apps/host/src/runtime/web-entry.ts')] : [entry]),
           '--memory-none',
           '--pack',
           resolve('examples/world-packs/' + pack),

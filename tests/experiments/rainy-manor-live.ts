@@ -1,11 +1,11 @@
 import { existsSync, mkdirSync, writeFileSync, appendFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { randomUUID } from 'node:crypto'
-import { brandId, type WorldJsonObject } from '@harness-world/contracts'
-import { CharacterViewBuilder, WorldStore } from '@harness-world/store-sqlite'
-import { environmentRoleModels } from '../../desktop/model-connections.ts'
-import { WorldHostRuntime } from '../../desktop/host/world-runtime.ts'
-import type { HostState } from '../../desktop/host/http-server.ts'
+import { brandId, type WorldJsonObject } from '@perspectra/sdk/contracts'
+import { CharacterViewBuilder, WorldStore } from '@perspectra/core/store'
+import { environmentRoleModels } from '../../apps/host/src/model-connections.ts'
+import { WorldHostRuntime } from '../../apps/host/src/runtime/world-runtime.ts'
+import type { HostState } from '../../apps/host/src/runtime/http-server.ts'
 
 // Real-model play of the rainy-manor TRPG pack through the default frontend's paths: speech via submit, the TRPG
 // panel via activityAction. Two games (the authored scenario, then a theme), each followed by main-world chat.

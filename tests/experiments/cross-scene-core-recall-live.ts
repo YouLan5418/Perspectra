@@ -1,12 +1,12 @@
 import assert from 'node:assert/strict'
 import { cpSync, existsSync, mkdirSync, writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
-import { createChatProvider, characterTurnCall, type ChatCall } from '@harness-world/provider-chat'
-import type { WorldJsonObject } from '@harness-world/contracts'
+import { createChatProvider, characterTurnCall, type ChatCall } from '@perspectra/providers/chat'
+import type { WorldJsonObject } from '@perspectra/sdk/contracts'
 import { crossSceneRuntime } from '../support/cross-scene-runtime.ts'
-import { coreRunner, createCoreWorker } from '../../packages/official-memory-core/src/python-worker.ts'
-import { gatewayTurnCall } from '../../packages/official-llm/src/gateway-turn-call.ts'
-import { decideWithFormatRetry } from '../../desktop/host/decision-format.ts'
+import { coreRunner, createCoreWorker } from '../../packages/memory-core/src/python-worker.ts'
+import { gatewayTurnCall } from '../../packages/providers/src/llm/gateway-turn-call.ts'
+import { decideWithFormatRetry } from '../../apps/host/src/runtime/decision-format.ts'
 
 // Use only after the source experiment has stopped. Copy into a new directory, retaining its evidence.
 const source = process.argv[2], target = process.argv[3], medium = process.argv[4]

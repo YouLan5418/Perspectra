@@ -26,7 +26,7 @@ import type {
   WorldHash,
   WorldJsonObject,
   WorldJsonValue,
-} from '@harness-world/contracts'
+} from '@perspectra/sdk/contracts'
 
 export type WorldPackId = BrandedId<'WorldPackId'>
 export type WorldPackSlotId = BrandedId<'WorldPackSlotId'>

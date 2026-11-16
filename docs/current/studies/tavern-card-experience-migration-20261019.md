@@ -247,12 +247,12 @@
 | --- | --- | --- | --- | --- |
 | 1 | 角色设定与独立认知 | **已实现** | [schema.ts](../../../packages/world-pack/src/schema.ts) 解析认知清单：每角色含观察、主张、目标、关系、情感、内在张力、承诺、未结环；观察带认识类型、显著度与来源键；角色数上限 256 | 秘密必须写进各自认知；来源键按同角色校验 |
 | 2 | 长期记忆与历史经历 | **已实现** | [认知与记忆](../architecture/cognition-memory.md)：软触发约 170k、整理较老约 120k、保留约 16k 原文衔接；来源 → 原子 → 片段 → 认识的分层；另有原生记忆路径 | 170k 是本地估算而非供应商分词器；未真实跨越 170k 验收 |
-| 3 | 角色自主回应与调度 | **已实现（实验入口）** | [prototype-activation-cycle.ts](../../../packages/application/src/prototype-activation-cycle.ts) 含自主阶段；[autonomy.json](../../../examples/world-packs/character-autonomy/autonomy.json) 声明触发动作、回合频率、机会数、可用交互与区域；[play-settings.ts](../../../desktop/play-settings.ts) 暴露五项预算参数 | 自主配置不在世界包 schema 的字段表里，是宿主按资源登记读取的声明；玩家空闲时不跑后台计时器；多自主角色未验收 |
+| 3 | 角色自主回应与调度 | **已实现（实验入口）** | [prototype-activation-cycle.ts](../../../packages/core/src/application/prototype-activation-cycle.ts) 含自主阶段；[autonomy.json](../../../examples/world-packs/character-autonomy/autonomy.json) 声明触发动作、回合频率、机会数、可用交互与区域；[play-settings.ts](../../../apps/host/src/play-settings.ts) 暴露五项预算参数 | 自主配置不在世界包 schema 的字段表里，是宿主按资源登记读取的声明；玩家空闲时不跑后台计时器；多自主角色未验收 |
 | 4 | 世界状态与变量 | **已实现（已重写为“状态”）** | [活动与状态](../guides/activity-and-variables.md)：作者脚本声明状态与操作，真实值只以世界事件提交；对象、数组需带 JSON Schema；操作可按角色已知状态筛选 | 模型不能写变量，叙事内的变量更新块不被解析；每条可写字段都要改写成裁定分支；状态 64 个、操作 32 个、合计 512 KiB 上限 |
-| 5 | 地点、物品、关系 | **已实现** | 地点与实体清单；物品转移走内建交互（[basic.ts](../../../packages/interactions-basic/src/basic.ts)）；关系走建立与解除两类定义，解除需放在关系绑定里 | 位置与归属不能绕过规则改；目击记录不等于当前归属 |
+| 5 | 地点、物品、关系 | **已实现** | 地点与实体清单；物品转移走内建交互（[basic.ts](../../../packages/plugins/src/basic-interactions/basic.ts)）；关系走建立与解除两类定义，解除需放在关系绑定里 | 位置与归属不能绕过规则改；目击记录不等于当前归属 |
 | 6 | Interaction（规则化交互） | **已实现** | 已安装交互包 + 定义 ID / 版本锁定；interactions-basic 提供拿取 / 放下 / 给予 / 建立关系 / 解除关系，以及料理、修复、做饭等包定义 | JSON 不能凭空安装新规则；新玩法要么扩宿主，要么走活动 + 状态 |
 | 7 | Activity（活动机制） | **已实现** | 固定入口的作者活动脚本：定义、初始化、许可、裁定、调度、结果钩子，以及可选的固定演出与恢复检查；多活动可暂停 / 继续 / 放弃；单场最多 8 个 NPC、16 个操作 | 必须登记；一次只跑一个；裁定函数同步有界（64 KiB / 100 ms） |
-| 8 | 角色预设、提示节点、文本规则 | **已实现** | 包根目录可选预设文件；酒馆预设可离线转换；见[预设说明](../model-presets.md) 与 [preset.ts](../../../packages/provider-chat/src/preset.ts) | 文本规则上限 32 条、单条替换上限 4000 字符——酒馆的巨型状态栏替换会被跳过 |
+| 8 | 角色预设、提示节点、文本规则 | **已实现** | 包根目录可选预设文件；酒馆预设可离线转换；见[预设说明](../model-presets.md) 与 [preset.ts](../../../packages/providers/src/chat/preset.ts) | 文本规则上限 32 条、单条替换上限 4000 字符——酒馆的巨型状态栏替换会被跳过 |
 | 9 | 自定义前端与玩家操作选项 | **已实现** | 前端清单 + 页面 + 脚本；[player-view.ts](../../../packages/frontend/src/player-view.ts) 暴露状态栏、真实值投影与行动选项 | 前端是 iframe + 授权；后端活动脚本是可信本地代码，不是沙箱 |
 | 10 | 开场演出、故事线、分支 | **部分** | [官方序章包](../../../examples/world-packs/model-girls-official) 用活动加固定演出做出 112 条表达；[故事线](../storylines.md) 支持保存节点、分叉、导出导入 | **没有多开局概念**：玩家槽恰好 1 个，schema 中没有开局字段；多开局只能靠活动菜单与移动变通 |
 
@@ -280,17 +280,17 @@
 | 事件队列 | 事件按序触发、不重复 | 每轮钩子 + 显式操作 | C | [活动与状态](../guides/activity-and-variables.md) | 钩子拿不到角色上下文与模型输出；不自动生成递归事件链 | 用“状态键 + 每轮钩子”近似；复杂队列建议改成活动阶段 |
 | 多开局（鸣潮 16 / Ark 4） | 选一个开局进入不同起点 | 无多开局概念 | C | [schema.ts](../../../packages/world-pack/src/schema.ts) 玩家槽恰好 1 个，无开局字段 | 只能一包一开局。条件扩展后，“用开场活动写入公开开局标记、再按标记分发开场材料”这条变通更完整，但**初始场景与首发消息仍只有一个** | 单包只做一个开局；其余各建一个包 |
 | 反全知铁律 / 角色秘密 | NPC 不比自己知道得多 | 每角色独立认知 + 来源校验 | A | [schema.ts](../../../packages/world-pack/src/schema.ts)、[多人秘密示例](../../../examples/world-packs/model-girls-dinner/cognition.json) | 与酒馆不同：秘密写进世界包**不会**自动人人皆知——这正是要利用的 | 把“误会”与“事实”分写进不同角色的观察，并区分认识类型 |
-| 角色主动发消息 / 自主行动 | 角色会自己来找你 | 自主行动配置（触发、频率、机会、区域）+ 目标 | A/B | [autonomy.json](../../../examples/world-packs/character-autonomy/autonomy.json)、[激活周期](../../../packages/application/src/prototype-activation-cycle.ts)、[赔罪晚宴试玩](../../../examples/world-packs/model-girls-dinner/README.md) | 玩家空闲时不跑后台计时器；默认预算小（自主调用 3 次），四角色包需手工调高；多自主角色长期表现未验收 | 直接复用；这是相对酒馆的结构性优势 |
+| 角色主动发消息 / 自主行动 | 角色会自己来找你 | 自主行动配置（触发、频率、机会、区域）+ 目标 | A/B | [autonomy.json](../../../examples/world-packs/character-autonomy/autonomy.json)、[激活周期](../../../packages/core/src/application/prototype-activation-cycle.ts)、[赔罪晚宴试玩](../../../examples/world-packs/model-girls-dinner/README.md) | 玩家空闲时不跑后台计时器；默认预算小（自主调用 3 次），四角色包需手工调高；多自主角色长期表现未验收 | 直接复用；这是相对酒馆的结构性优势 |
 | 跨场景通信（飞讯私聊） | 不在同一场景也能对话 | 带媒介的发言 + 跨场景通信示例 | B | [跨场景通信研究](cross-scene-communication-20261010.md)、[cross-scene-sms](../../../examples/world-packs/cross-scene-sms) | 通信观察不授予对方房间视野；不支持跨场景状态告知 | 复刻通信面，不做完整 IM 应用 |
 | 好感度数值 | 数值上升、态度变化 | **不建议**做成数值 | B/E | [世界设定指南](../guides/world-knowledge.md)、[花房切片](tavern-card-slice-20261018.md) | 项目方向已撤销情感数值 | 改写成“角色依据人设 / 预设 / 记忆 / 对话历史自己判断”；只在玩法确有客观门槛时用状态 |
-| 装备品级与生产 | 打造、升级、消耗 | 实体 + 种类 + 交互绑定（种类变换模式） | B | [dinner.ts](../../../packages/interactions-basic/src/dinner.ts)、[赔罪晚宴](../../../examples/world-packs/model-girls-dinner/README.md) | 只支持作者写定的一种种类换成另一种 + 在场 / 工具前置；没有通用合成树 | 用活动裁定做配方；复杂合成降级为少数关键配方 |
+| 装备品级与生产 | 打造、升级、消耗 | 实体 + 种类 + 交互绑定（种类变换模式） | B | [dinner.ts](../../../packages/plugins/src/basic-interactions/dinner.ts)、[赔罪晚宴](../../../examples/world-packs/model-girls-dinner/README.md) | 只支持作者写定的一种种类换成另一种 + 在场 / 工具前置；没有通用合成树 | 用活动裁定做配方；复杂合成降级为少数关键配方 |
 | 经营与资产 | 产业会自己长 | 对象状态 + 每轮钩子推进周期 | B | [活动与状态](../guides/activity-and-variables.md)、[集市钱袋](../../../examples/world-packs/status-market) | 无自动事件链；对象按整键告知，公开与秘密不能混在同一键 | 公开产出与隐藏条件拆成不同状态键 |
 | 声望系统 | 社会评价会变 | 数字 / 字符串状态 + 按已知值筛选操作 | B | 同上 | 风评若需按角色分别可见，需每人一份的归属 | 知名度做公共，风评做按角色 |
 | 阶段化叙事人格 | 文风随剧情变 | 预设的附加提示与文本规则 + 按条件分发的知识条目 | B | [预设说明](../model-presets.md)、[世界设定指南](../guides/world-knowledge.md) | 文本规则上限 32 条、替换上限 4000 字符；**条件只决定交付哪一份，不能在一份正文里做插值**。二元 / 三元切换可拆成多份文档分别设条件，代价是条目数与预算 | 把“人格段落”拆成“善良 / 堕落”等互斥文档，各自用已知状态条件；复杂计算型文案仍需作者脚本 |
 | HTML 开场界面 / 状态面板 / 创角表单 | 视觉仪式感 | 社区前端（HTML/CSS/JS + SDK） | C | [网页界面指南](../guides/web-ui.md)、[前端 v1](../frontend-v1.md) | 前端拿不到任意变量，只有状态栏与真实值投影；无酒馆宏 | 只保留状态栏与行动按钮；复杂视觉降级为文本 |
 | 多开局索引跳转脚本 | 点一下换开局 | 无对应物 | D/E | 同上 | 需要新机制才能在同一实例内切换开局 | 不建议为单卡复刻；直接多建包 |
 | 骰池宏 | 骰子可预期地消耗 | 无宏系统 | B | 无 | 无骰子宏 | 在裁定函数里掷骰；“顺序消耗骰池”的仪式感会丢 |
-| 正则改写输出（去 AI 腔、隐藏变量块、美化） | 文本更干净 | 预设转换的三阶段文本规则 | C | [preset.ts](../../../packages/provider-chat/src/preset.ts)、[能力对照](tavern-card-port-capability-20261018.md) | 鸣潮 22 条正则会展开成 38 条导致超限被拒；巨型替换被跳过 | 只迁移“去 AI 腔”那 6 条短规则；隐藏变量块本来就不需要 |
+| 正则改写输出（去 AI 腔、隐藏变量块、美化） | 文本更干净 | 预设转换的三阶段文本规则 | C | [preset.ts](../../../packages/providers/src/chat/preset.ts)、[能力对照](tavern-card-port-capability-20261018.md) | 鸣潮 22 条正则会展开成 38 条导致超限被拒；巨型替换被跳过 | 只迁移“去 AI 腔”那 6 条短规则；隐藏变量块本来就不需要 |
 | 卡内脚本（MVU / Zod / 引擎 / GM 面板 / 创意工坊） | 系统运转的基础 | **不复刻** | E | 见 1.7 安全事实 | 依赖 CDN、latest 漂移、含环境嗅探与防盗版载荷 | 只迁移被脚本实现出来的玩法语义，不迁移实现 |
 | odysseia_trace / 外链 CDN / iframe 工坊 | 无 | 无 | E | 无 | 未解释或不可控 | 丢弃 |
 
@@ -300,7 +300,7 @@
 | --- | --- | --- |
 | 体验保真度 | Ark·Endfield 高；鸣潮“剧本 + 认知 + 自主”中高（阶段解锁类设定已能按条件交付），手机生态与 CG 低；魔法少女战斗与成长中高（战斗规则可按活动阶段收窄），界面低；创世回廊数值沙盒中、模块拼装高 | 关键词知识、授权处境条件、认知隔离、状态、活动、自主都有一等公民实现；缺的是多开局、条目内模板插值、巨型前端、模型写变量 |
 | 创作与开发成本 | Ark 最低（纯声明）；创世回廊最高（数值面与长篇主线）；鸣潮中高（条目需筛）；魔法少女中（一个战斗活动脚本 + 状态声明） | 参照[最小示例](../../../examples/world-packs/launcher-demo)（约 12 KB JSON）、[集市钱袋](../../../examples/world-packs/status-market)（加一个状态脚本）、[官方序章包](../../../examples/world-packs/model-girls-official)（加约 30 KB 活动脚本与前端） |
-| 运行时模型调用开销 | 源码网页默认 3 波 / 8 次调用 / 30 秒，Launcher 默认反应时限 120 秒；自主行动另有五项预算（默认 3 次调用 / 60 秒）。原卡更贵：鸣潮飞讯会额外起模型调用 | [当前项目状态](../PROJECT-STATE.md)、[play-settings.ts](../../../desktop/play-settings.ts) |
+| 运行时模型调用开销 | 源码网页默认 3 波 / 8 次调用 / 30 秒，Launcher 默认反应时限 120 秒；自主行动另有五项预算（默认 3 次调用 / 60 秒）。原卡更贵：鸣潮飞讯会额外起模型调用 | [当前项目状态](../PROJECT-STATE.md)、[play-settings.ts](../../../apps/host/src/play-settings.ts) |
 | 长期游玩稳定性 | 中：Core 记忆整理已实现但未真实跨越触发阈值验收；状态事件进入全局清单后**所有旧存档打不开**，需新建 | [认知与记忆](../architecture/cognition-memory.md)、[活动与状态](../guides/activity-and-variables.md) |
 | 对现有架构的侵入程度 | 低：知识走资源登记，状态 / 活动是作者脚本，自主行动有开关，**不需要改 packages**；唯一需要动宿主的是“多开局”与“条目内模板插值” | 同上 |
 

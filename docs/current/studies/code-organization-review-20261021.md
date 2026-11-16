@@ -57,38 +57,38 @@
 
 ### 3.1 生产宿主已从测试目录移出
 
-- 正式入口从 `tests/experiments/playtest-web-entry.ts` 迁移到 [desktop/host/web-entry.ts](<D:/DeepSeek Harness/Perspectra-code-cleanup-20261021/desktop/host/web-entry.ts>)。
-- 构建入口已改为 `desktop/host/web-entry.ts`（[package.json](<D:/DeepSeek Harness/Perspectra-code-cleanup-20261021/package.json#L15>)、[build-portable.mjs](<D:/DeepSeek Harness/Perspectra-code-cleanup-20261021/scripts/release/build-portable.mjs#L26>)）。
-- Launcher 子进程改指 `desktop/host/web-entry.ts`（[launcher-core.ts](<D:/DeepSeek Harness/Perspectra-code-cleanup-20261021/desktop/launcher-core.ts#L471>)）。
-- `tail-runtime-identity` 改为哈希 `desktop/host/*` 与新的 Python 根（[tail-runtime-identity.ts](<D:/DeepSeek Harness/Perspectra-code-cleanup-20261021/desktop/tail-runtime-identity.ts#L23-L34>)）。
-- 故事分享改从 `desktop/host` 导入记忆与状态模块（[story-share.ts](<D:/DeepSeek Harness/Perspectra-code-cleanup-20261021/desktop/story-share.ts#L10-L11>)）。
+- 正式入口从 `tests/experiments/playtest-web-entry.ts` 迁移到 [apps/host/src/runtime/web-entry.ts](<D:/DeepSeek Harness/Perspectra-code-cleanup-20261021/apps/host/src/runtime/web-entry.ts>)。
+- 构建入口已改为 `apps/host/src/runtime/web-entry.ts`（[package.json](<D:/DeepSeek Harness/Perspectra-code-cleanup-20261021/package.json#L15>)、[build-portable.mjs](<D:/DeepSeek Harness/Perspectra-code-cleanup-20261021/scripts/release/build-portable.mjs#L26>)）。
+- Launcher 子进程改指 `apps/host/src/runtime/web-entry.ts`（[launcher-core.ts](<D:/DeepSeek Harness/Perspectra-code-cleanup-20261021/apps/launcher/backend/core.ts#L471>)）。
+- `tail-runtime-identity` 改为哈希 `apps/host/src/runtime/*` 与新的 Python 根（[tail-runtime-identity.ts](<D:/DeepSeek Harness/Perspectra-code-cleanup-20261021/apps/host/src/tail-runtime-identity.ts#L23-L34>)）。
+- 故事分享改从 `apps/host/src/runtime` 导入记忆与状态模块（[story-share.ts](<D:/DeepSeek Harness/Perspectra-code-cleanup-20261021/apps/host/src/story-share.ts#L10-L11>)）。
 - `packages`、`apps`、`desktop` 对 `tests/experiments` 的静态 import 为 0；边界检查报告 258 个生产文件通过。
 
 ### 3.2 默认 Core 记忆已从 `experiments` 移出
 
-- 运行实现迁到 `packages/official-memory-core/python/{core,bridge}`；发行脚本从新位置复制（[build-portable.mjs](<D:/DeepSeek Harness/Perspectra-code-cleanup-20261021/scripts/release/build-portable.mjs#L31-L33>)）。
-- Node worker 与 `PERSPECTRA_RUNTIME_ROOT` 的发行路径同步（[python-worker.ts](<D:/DeepSeek Harness/Perspectra-code-cleanup-20261021/packages/official-memory-core/src/python-worker.ts#L13-L17>)）。
-- 运行时身份哈希包含新的 Python 根（[tail-runtime-identity.ts](<D:/DeepSeek Harness/Perspectra-code-cleanup-20261021/desktop/tail-runtime-identity.ts#L33-L42>)）。
+- 运行实现迁到 `packages/memory-core/python/{core,bridge}`；发行脚本从新位置复制（[build-portable.mjs](<D:/DeepSeek Harness/Perspectra-code-cleanup-20261021/scripts/release/build-portable.mjs#L31-L33>)）。
+- Node worker 与 `PERSPECTRA_RUNTIME_ROOT` 的发行路径同步（[python-worker.ts](<D:/DeepSeek Harness/Perspectra-code-cleanup-20261021/packages/memory-core/src/python-worker.ts#L13-L17>)）。
+- 运行时身份哈希包含新的 Python 根（[tail-runtime-identity.ts](<D:/DeepSeek Harness/Perspectra-code-cleanup-20261021/apps/host/src/tail-runtime-identity.ts#L33-L42>)）。
 - 新增发行布局验证脚本 [verify-core-layout.mjs](<D:/DeepSeek Harness/Perspectra-code-cleanup-20261021/scripts/release/verify-core-layout.mjs>) 与说明；当前说明记录 38 项 Python 离线回归通过。
 
 ### 3.3 命名核心项已落地
 
 | 旧名 | 新名/位置 | 状态 |
 | --- | --- | --- |
-| `playtest-frozen-runtime.ts` / `FrozenWorldPlaytestRuntime` | `desktop/host/world-runtime.ts` / `WorldHostRuntime` | 已改 |
-| `playtest-server.ts` / `PlaytestState` | `desktop/host/http-server.ts` / `HostState` | 已改 |
-| `playtest-memory-core.ts` / `PlaytestMemoryCore` | `packages/official-memory-core/src/core-memory.ts` / `CoreMemoryAdapter` | 已改 |
-| `hindsight-python.ts` / `hindsightPython()` | `packages/official-memory-core/src/python-worker.ts` / `corePythonExecutable()` | 已改 |
-| `local-prototype-turn-call.ts` / `localPrototypeTurnCall` | `packages/official-llm/src/gateway-turn-call.ts` / `gatewayTurnCall` | 已改 |
-| `decideActivityFormat`（在 `pack-activity.ts`） | `desktop/host/decision-format.ts` / `decideWithFormatRetry` | 已拆出并改名 |
-| `creator-debug.ts` / `CreatorDebugSnapshot` | `desktop/host/creator-inspection.ts` / `CreatorInspectionSnapshot` | 已改（HTTP 路由 `/api/creator-debug` 有意保留） |
+| `playtest-frozen-runtime.ts` / `FrozenWorldPlaytestRuntime` | `apps/host/src/runtime/world-runtime.ts` / `WorldHostRuntime` | 已改 |
+| `playtest-server.ts` / `PlaytestState` | `apps/host/src/runtime/http-server.ts` / `HostState` | 已改 |
+| `playtest-memory-core.ts` / `PlaytestMemoryCore` | `packages/memory-core/src/core-memory.ts` / `CoreMemoryAdapter` | 已改 |
+| `hindsight-python.ts` / `hindsightPython()` | `packages/memory-core/src/python-worker.ts` / `corePythonExecutable()` | 已改 |
+| `local-prototype-turn-call.ts` / `localPrototypeTurnCall` | `packages/providers/src/llm/gateway-turn-call.ts` / `gatewayTurnCall` | 已改 |
+| `decideActivityFormat`（在 `pack-activity.ts`） | `apps/host/src/runtime/decision-format.ts` / `decideWithFormatRetry` | 已拆出并改名 |
+| `creator-debug.ts` / `CreatorDebugSnapshot` | `apps/host/src/runtime/creator-inspection.ts` / `CreatorInspectionSnapshot` | 已改（HTTP 路由 `/api/creator-debug` 有意保留） |
 | `variables`（创作者快照） | `statusTruth` | 已改 |
 
-错误文案也同步了：Core 缺环境/失败信息不再称“实验记忆”，而是“Core 记忆”（[python-worker.ts](<D:/DeepSeek Harness/Perspectra-code-cleanup-20261021/packages/official-memory-core/src/python-worker.ts#L25-L41>)）。
+错误文案也同步了：Core 缺环境/失败信息不再称“实验记忆”，而是“Core 记忆”（[python-worker.ts](<D:/DeepSeek Harness/Perspectra-code-cleanup-20261021/packages/memory-core/src/python-worker.ts#L25-L41>)）。
 
 ### 3.4 创作者语义已从“变量”切到“状态”
 
-- 宿主快照字段改为 `statusTruth`（[creator-inspection.ts](<D:/DeepSeek Harness/Perspectra-code-cleanup-20261021/desktop/host/creator-inspection.ts#L25>)），运行时用 `PackStatus.truth()` 填充（[world-runtime.ts](<D:/DeepSeek Harness/Perspectra-code-cleanup-20261021/desktop/host/world-runtime.ts#L186-L192>)）。
+- 宿主快照字段改为 `statusTruth`（[creator-inspection.ts](<D:/DeepSeek Harness/Perspectra-code-cleanup-20261021/apps/host/src/runtime/creator-inspection.ts#L25>)），运行时用 `PackStatus.truth()` 填充（[world-runtime.ts](<D:/DeepSeek Harness/Perspectra-code-cleanup-20261021/apps/host/src/runtime/world-runtime.ts#L186-L192>)）。
 - 创作者页面 `VariablesView.vue` 改为 [StatusView.vue](<D:/DeepSeek Harness/Perspectra-code-cleanup-20261021/apps/launcher/src/creator/StatusView.vue>)，导航改为“状态”。
 - Mock 改为客观状态字段（`timeOfDay/gateOpen/energy`），不再伪造情绪/信任值（[mock.ts](<D:/DeepSeek Harness/Perspectra-code-cleanup-20261021/apps/launcher/src/creator/mock.ts#L203>)）。
 - 导出说明改为“世界历史、角色私密状态、长期记忆和已提交的玩法状态”，不再写“包变量”（[ExportDialog.vue](<D:/DeepSeek Harness/Perspectra-code-cleanup-20261021/apps/launcher/src/components/ExportDialog.vue#L43>)）。
@@ -96,7 +96,7 @@
 
 ### 3.5 死代码与历史资产
 
-- 无引用的 `tests/experiments/playtest-page.ts` 已删除；宿主页为 `desktop/host/host-page.ts`。
+- 无引用的 `tests/experiments/playtest-page.ts` 已删除；宿主页为 `apps/host/src/runtime/host-page.ts`。
 - JEV 历史脚本移到 `experiments/jev-narrative-auditor/scripts/`，并新增说明，明确固定路径/外部调用/不可直接复跑（[scripts/README.md](<D:/DeepSeek Harness/Perspectra-code-cleanup-20261021/experiments/jev-narrative-auditor/scripts/README.md>)）。
 - Core 历史探针移到 `experiments/activity-memory/scripts/`，并标注历史输入绑定。
 - 关系 spike 移到 `experiments/character-relations/archive/`，说明其已被 kernel/interactions-basic 取代。
@@ -111,7 +111,7 @@
 
 **事实：**
 
-[desktop/main.ts](<D:/DeepSeek Harness/Perspectra-code-cleanup-20261021/desktop/main.ts#L108>) 在非打包分支仍拼：
+[apps/host/src/main.ts](<D:/DeepSeek Harness/Perspectra-code-cleanup-20261021/apps/host/src/main.ts#L108>) 在非打包分支仍拼：
 
 ```ts
 : join(repository, 'tests', 'experiments', 'playtest-web-entry.ts')
@@ -127,8 +127,8 @@
 
 **建议：**
 
-- 若保留 Electron 入口：改指 `desktop/host/web-entry.ts`（或构建产物），并补一次源码启动验证。
-- 若决定退役：删除 `package.json` 的 `desktop` 脚本、`desktop/main.ts` 和 README 中“仍保留”的声明，避免留下坏入口。
+- 若保留 Electron 入口：改指 `apps/host/src/runtime/web-entry.ts`（或构建产物），并补一次源码启动验证。
+- 若决定退役：删除 `package.json` 的 `desktop` 脚本、`apps/host/src/main.ts` 和 README 中“仍保留”的声明，避免留下坏入口。
 
 ### P1-2. 边界检查有盲区，恰好漏掉了上面的路径
 
@@ -182,7 +182,7 @@
 
 **事实：**
 
-- `core.py`、`vector_core.py`、`episode_core.py` 等已迁到 `packages/official-memory-core/python/core`，但 `experiments/hindsight-core` 仍保留 `test_core.py`、`test_vector_core.py`、`test_projections.py` 等，测试仍 `import core`。
+- `core.py`、`vector_core.py`、`episode_core.py` 等已迁到 `packages/memory-core/python/core`，但 `experiments/hindsight-core` 仍保留 `test_core.py`、`test_vector_core.py`、`test_projections.py` 等，测试仍 `import core`。
 - 实际执行：
 
 ```powershell
@@ -193,7 +193,7 @@ python -c "import sys; sys.path.insert(0,'experiments/hindsight-core'); import c
 - [hindsight-core/README.md](<D:/DeepSeek Harness/Perspectra-code-cleanup-20261021/experiments/hindsight-core/README.md#L36>) 仍保留 `python -m unittest discover -s experiments/hindsight-core -p test_core.py`。
 - 单独运行 `tsc -p experiments/hindsight-core/tsconfig.json --noEmit` 还会报旧 `experimentalCharacterRequest` / `releaseForExperimentalHost` 错误（4 个）。
 - [activity-memory/README.md](<D:/DeepSeek Harness/Perspectra-code-cleanup-20261021/experiments/activity-memory/README.md#L65-L66>) 的“文件职责”仍指向已删除的 `tests/experiments/playtest-memory-core.ts` 与 `playtest-frozen-runtime.ts`。
-- 移到 `experiments/activity-memory/scripts/` 的 `core-utility-*` 仍把 `sys.path` 指向 `experiments/activity-memory`，而不是新的 `packages/official-memory-core/python/bridge`。
+- 移到 `experiments/activity-memory/scripts/` 的 `core-utility-*` 仍把 `sys.path` 指向 `experiments/activity-memory`，而不是新的 `packages/memory-core/python/bridge`。
 
 **判断：**
 
@@ -201,7 +201,7 @@ python -c "import sys; sys.path.insert(0,'experiments/hindsight-core'); import c
 
 **建议：**
 
-- 要么像 [packages/official-memory-core/README.md](<D:/DeepSeek Harness/Perspectra-code-cleanup-20261021/packages/official-memory-core/README.md#L25-L34>) 那样补上 `PYTHONPATH`（core + bridge + 历史辅助目录）并验证一组能跑的回归；
+- 要么像 [packages/memory-core/README.md](<D:/DeepSeek Harness/Perspectra-code-cleanup-20261021/packages/memory-core/README.md#L25-L34>) 那样补上 `PYTHONPATH`（core + bridge + 历史辅助目录）并验证一组能跑的回归；
 - 要么把这些历史测试/命令明确标为“不可复跑，仅保留记录”，并删除可执行命令；
 - 修正 `activity-memory/README` 的文件职责表和 `core-utility-*` 的 `sys.path`；
 - 若 `hindsight-core/tsconfig.json` 已不再维护，删除或标注“历史类型检查，预期失败”。
@@ -226,13 +226,13 @@ python -c "import sys; sys.path.insert(0,'experiments/hindsight-core'); import c
 
 这些不影响运行，但会削弱“按职责更名”的完成度：
 
-- `tests/prototype/playtest-memory-core.test.ts` 测的是 `packages/official-memory-core/src/core-memory.ts`；
+- `tests/prototype/playtest-memory-core.test.ts` 测的是 `packages/memory-core/src/core-memory.ts`；
 - `tests/prototype/local-prototype-turn-call.test.ts` 测的是 `gatewayTurnCall`；
 - `tests/prototype/creator-debug.test.ts` 测的是 `creator-inspection`（路由保留是有意为之，测试名可随组件名）；
 - [goal-progress-inspection-fixture.ts](<D:/DeepSeek Harness/Perspectra-code-cleanup-20261021/tests/experiments/goal-progress-inspection-fixture.ts#L17>) 仍导出 `goalProgressSearchPackage`；
 - [tavern-black-shores-slice.ts](<D:/DeepSeek Harness/Perspectra-code-cleanup-20261021/tests/experiments/tavern-black-shores-slice.ts#L94>) 的 usage 文本仍写 `tavern-card-slice.ts`，且函数仍叫 `createTavernSlice`；
-- [http-server.ts](<D:/DeepSeek Harness/Perspectra-code-cleanup-20261021/desktop/host/http-server.ts#L87>)、[world-runtime.ts](<D:/DeepSeek Harness/Perspectra-code-cleanup-20261021/desktop/host/world-runtime.ts#L296>)、[launch-arguments.ts](<D:/DeepSeek Harness/Perspectra-code-cleanup-20261021/desktop/host/launch-arguments.ts#L37>) 仍有 `playtest runtime failure`、`playtest Pack`、`unsupported playtest argument` 等旧错误串；
-- [core_bridge.py](<D:/DeepSeek Harness/Perspectra-code-cleanup-20261021/packages/official-memory-core/python/bridge/core_bridge.py#L1>) 首行仍称 “experimental core”。
+- [http-server.ts](<D:/DeepSeek Harness/Perspectra-code-cleanup-20261021/apps/host/src/runtime/http-server.ts#L87>)、[world-runtime.ts](<D:/DeepSeek Harness/Perspectra-code-cleanup-20261021/apps/host/src/runtime/world-runtime.ts#L296>)、[launch-arguments.ts](<D:/DeepSeek Harness/Perspectra-code-cleanup-20261021/apps/host/src/runtime/launch-arguments.ts#L37>) 仍有 `playtest runtime failure`、`playtest Pack`、`unsupported playtest argument` 等旧错误串；
+- [core_bridge.py](<D:/DeepSeek Harness/Perspectra-code-cleanup-20261021/packages/memory-core/python/bridge/core_bridge.py#L1>) 首行仍称 “experimental core”。
 
 ### 有意保留、不算问题的项
 
@@ -246,8 +246,8 @@ python -c "import sys; sys.path.insert(0,'experiments/hindsight-core'); import c
 
 | 上一轮问题 | 本次状态 | 说明 |
 | --- | --- | --- |
-| `tests/experiments` 承担正式宿主 | **已解决** | 入口/HTTP/宿主/创作者接口迁到 `desktop/host` |
-| `experiments` 承担默认 Core | **已解决** | Python core/bridge/vendor 迁到 `desktop/host/memory` |
+| `tests/experiments` 承担正式宿主 | **已解决** | 入口/HTTP/宿主/创作者接口迁到 `apps/host/src/runtime` |
+| `experiments` 承担默认 Core | **已解决** | Python core/bridge/vendor 迁到 `apps/host/src/runtime/memory` |
 | 生产包反向依赖测试目录 | **已解决** | `packages/apps/desktop` 静态 import 为 0 |
 | `decideActivityFormat` 范围错误 | **已解决** | 拆成 `decision-format.ts` / `decideWithFormatRetry` |
 | `localPrototypeTurnCall` 名字错误 | **已解决** | 改为 `gatewayTurnCall` |
@@ -312,15 +312,15 @@ node scripts/docs/check-links.mjs
 
 以下均为 `docs/current` 内指向已迁移文件的链接（节选）：
 
-- `tests/experiments/playtest-frozen-runtime.ts` → `desktop/host/world-runtime.ts`
-- `tests/experiments/playtest-tail-runtime.ts` → `desktop/host/tail-runtime.ts`
-- `tests/experiments/playtest-server.ts` → `desktop/host/http-server.ts`
-- `tests/experiments/playtest-memory-core.ts` → `packages/official-memory-core/src/core-memory.ts`
-- `tests/experiments/local-prototype-turn-call.ts` → `packages/official-llm/src/gateway-turn-call.ts`
-- `tests/experiments/pack-activity.ts` → `desktop/host/pack-activity.ts`
+- `tests/experiments/playtest-frozen-runtime.ts` → `apps/host/src/runtime/world-runtime.ts`
+- `tests/experiments/playtest-tail-runtime.ts` → `apps/host/src/runtime/tail-runtime.ts`
+- `tests/experiments/playtest-server.ts` → `apps/host/src/runtime/http-server.ts`
+- `tests/experiments/playtest-memory-core.ts` → `packages/memory-core/src/core-memory.ts`
+- `tests/experiments/local-prototype-turn-call.ts` → `packages/providers/src/llm/gateway-turn-call.ts`
+- `tests/experiments/pack-activity.ts` → `apps/host/src/runtime/pack-activity.ts`
 - `tests/experiments/tavern-card-slice.ts` → `tests/experiments/tavern-black-shores-slice.ts`
 - `tests/experiments/core-utility-*.py` → `experiments/activity-memory/scripts/core-utility-*.py`
-- `experiments/activity-memory/core_bridge.py` → `packages/official-memory-core/python/bridge/core_bridge.py`
+- `experiments/activity-memory/core_bridge.py` → `packages/memory-core/python/bridge/core_bridge.py`
 
 ---
 

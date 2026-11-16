@@ -1,5 +1,7 @@
 # 当前代码技术文档
 
+2026-11-15 B10：`@perspectra/*` 包与 Host／Launcher 入口迁移见[模块地图](modules.md)、[代码路线](code-walkthrough.md)及[B10 验收记录](../../superpowers/plans/2026-11-15-composable-engine-b10-packages.md)。以下旧批次条目只表示各自当时范围。
+
 2026-11-15 B8：默认动作分组／参数表单、通用控件、授权只读面板与 Launcher 源包配置编辑已接通，三组独立复验及主代理验收通过。详见 [展示与配置指南](../guides/gameplay-presentation.md)和 [B8 记录](../../superpowers/plans/2026-11-15-composable-engine-b8-presentation.md)。停在 B8，不进入 B9；以下历史批次说明保留当时证据。
 
 2026-11-15 B7：游戏包显式 plugins、可选 services 硬要求、共同 gameplay 脚本和独立配置校验已接通，三组独立复验全部 PASS，主代理已完成 B7 验收。证据和边界见 [B7 记录](../../superpowers/plans/2026-11-15-composable-engine-b7-packs.md)。保留 v5 内容布局，当时默认展示与作者界面留 B8；其最新状态见页首。

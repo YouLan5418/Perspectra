@@ -1,11 +1,6 @@
 <script setup lang="ts">
 import { ref, watch, computed, nextTick, inject, onBeforeUnmount } from 'vue'
-import {
-  assignPackRolePresets,
-  characterPreset,
-  rolePreset,
-  type RolePreset,
-} from '@harness-world/provider-chat/preset'
+import { assignPackRolePresets, characterPreset, rolePreset, type RolePreset } from '@perspectra/providers/chat/preset'
 import type { PresetChoice } from '../core-types.ts'
 import { useLauncherStore } from '../stores/launcher.ts'
 import DialogFrame from './DialogFrame.vue'

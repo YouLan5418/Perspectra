@@ -1,7 +1,7 @@
 import { join } from 'node:path'
-import type { WorldAddress } from '@harness-world/contracts'
-import { createWorldReader } from '../../desktop/host/world-reader.ts'
-import { CoreMemoryAdapter } from '../../packages/official-memory-core/src/core-memory.ts'
+import type { WorldAddress } from '@perspectra/sdk/contracts'
+import { createWorldReader } from '../../apps/host/src/runtime/world-reader.ts'
+import { CoreMemoryAdapter } from '../../packages/memory-core/src/core-memory.ts'
 
 type Rest = ConstructorParameters<typeof CoreMemoryAdapter> extends [unknown, unknown, unknown, ...infer R] ? R : never
 

@@ -13,7 +13,7 @@ it('boots the built backend from a source checkout and an isolated installed lay
     runtime = join(directory, 'runtime')
   try {
     await build({
-      entryPoints: ['desktop/host/web-entry.ts'],
+      entryPoints: ['apps/host/src/runtime/web-entry.ts'],
       outfile: entry,
       bundle: true,
       platform: 'node',
@@ -38,7 +38,7 @@ it('boots the built backend from a source checkout and an isolated installed lay
       const installed = layout === 'installed'
       const command =
         layout === 'typescript'
-          ? ['--import', 'tsx', resolve('desktop/host/web-entry.ts')]
+          ? ['--import', 'tsx', resolve('apps/host/src/runtime/web-entry.ts')]
           : [installed ? join(runtime, 'backend.mjs') : entry]
       const child = spawn(
         process.execPath,
@@ -98,7 +98,7 @@ it('boots the built backend from a source checkout and an isolated installed lay
       } finally {
         if (child.exitCode === null && child.signalCode === null) {
           const exited = once(child, 'exit')
-          child.kill()
+          child.send({ type: 'shutdown' })
           await exited
         }
       }

@@ -1,10 +1,10 @@
-import { interactionName } from '../../desktop/lens/ids.ts'
+import { interactionName } from '../../packages/world-pack/src/lens/ids.ts'
 import { cpSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { afterAll, beforeAll, expect, it } from 'vitest'
-import { LensSimulation } from '../../desktop/lens/simulation.ts'
-import { buildLensView, type LensItem, type LensView } from '../../desktop/lens/view.ts'
+import { LensSimulation } from '../../apps/host/src/lens/simulation.ts'
+import { buildLensView, type LensItem, type LensView } from '../../packages/world-pack/src/lens/view.ts'
 
 const PACK = resolve('examples/world-packs/model-girls-sweet-days')
 let simulation: LensSimulation

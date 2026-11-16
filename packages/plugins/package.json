@@ -1,0 +1,17 @@
+{
+  "name": "@perspectra/plugins",
+  "version": "0.3.5",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./dice": "./src/dice/index.ts",
+    "./pacing": "./src/pacing/index.ts",
+    "./rpg": "./src/rpg/index.ts",
+    "./trpg": "./src/trpg/index.ts",
+    "./basic-interactions": "./src/basic-interactions/index.ts"
+  },
+  "dependencies": {
+    "@perspectra/sdk": "workspace:*",
+    "@perspectra/core": "workspace:*"
+  }
+}

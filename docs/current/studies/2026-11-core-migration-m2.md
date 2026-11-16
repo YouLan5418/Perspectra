@@ -6,11 +6,11 @@
 
 ## 1. 默认组合退出核心
 
-[WorldApplication](../../../packages/application/src/world-application.ts) 不再导入 interactions-basic，移除 DEFAULT_INTERACTION_PACKAGES 及对应包依赖。interactionPackages 省略时为空，只能激活不选择交互包的世界；若世界选择了未安装的包，仍在 genesis 前拒绝。
+[WorldApplication](../../../packages/core/src/application/world-application.ts) 不再导入 interactions-basic，移除 DEFAULT_INTERACTION_PACKAGES 及对应包依赖。interactionPackages 省略时为空，只能激活不选择交互包的世界；若世界选择了未安装的包，仍在 genesis 前拒绝。
 
-桌面默认组合由 [official-bundle.defaultInteractionPackages](../../../desktop/official-bundle.ts) 显式提供，宿主编译、规则层与 WorldApplication 使用它。rule-layers 接收安装列表，不自行补基础包。PackActivity／PackActivities 的回退只建立空安装的核心注册表，生产宿主显式传入已有规则链；独立测试消费者也显式装配。
+桌面默认组合由 [official-bundle.defaultInteractionPackages](../../../apps/host/src/official-bundle.ts) 显式提供，宿主编译、规则层与 WorldApplication 使用它。rule-layers 接收安装列表，不自行补基础包。PackActivity／PackActivities 的回退只建立空安装的核心注册表，生产宿主显式传入已有规则链；独立测试消费者也显式装配。
 
-创作 CLI 的库函数区分编译所需的 interactionPackages 描述与激活所需的 interactionImplementations。两者均由[进程入口](../../../packages/world-pack/process/cli-entry.ts)选择并传入，库不重新决定默认玩法。仅提供描述不会授予执行实现。
+创作 CLI 的库函数区分编译所需的 interactionPackages 描述与激活所需的 interactionImplementations。两者均由[进程入口](../../../apps/host/src/cli/worldpack.ts)选择并传入，库不重新决定默认玩法。仅提供描述不会授予执行实现。
 
 [生产边界检查](../../../scripts/check-host-boundaries.mjs) 增加 application／kernel／store-sqlite 不得导入 interactions-basic 的约束，不放宽已有官方机制与宿主的边界。
 
@@ -26,7 +26,7 @@
 
 ## 3. 核心执行契约
 
-新增 [executeWorldRound](../../../packages/application/src/world-round-execution.ts)，替代状态、活动和通信里重复的即时提交管线。这是宿主适配调用的核心函数，**不是 Cordis 服务，也不放进插件 SDK**。不给脚本传递数据库、租约或任意 commitRound 回调。
+新增 [executeWorldRound](../../../packages/core/src/application/world-round-execution.ts)，替代状态、活动和通信里重复的即时提交管线。这是宿主适配调用的核心函数，**不是 Cordis 服务，也不放进插件 SDK**。不给脚本传递数据库、租约或任意 commitRound 回调。
 
 | 项目 | 当前处理 |
 | --- | --- |
@@ -50,7 +50,7 @@
 
 活动目录关闭会中止其执行信号；玩家即时状态／活动／通信输入接入宿主取消信号。已经提交的事实保留。外部副作用发生后本地提交失败，仍沿用现有 RESULT_UNKNOWN 处理，不承诺撤销现实世界效果。
 
-[物品效果检查](../../../packages/application/src/item-effects.ts)从 PackStatus 移入 application：可达性、实体存在、外观变化保留位置／持有者、合法接收者或当前位置、一次结果至多移动一件物品、不接受无效去向。玩家和 NPC 的状态裁定共用它。状态声明 Schema、值及 reveal 的授权检查仍由宿主侧 PackStatus 执行，M3 再拆离计算与核心检查，未把它们迁给外部脚本。
+[物品效果检查](../../../packages/core/src/application/item-effects.ts)从 PackStatus 移入 application：可达性、实体存在、外观变化保留位置／持有者、合法接收者或当前位置、一次结果至多移动一件物品、不接受无效去向。玩家和 NPC 的状态裁定共用它。状态声明 Schema、值及 reveal 的授权检查仍由宿主侧 PackStatus 执行，M3 再拆离计算与核心检查，未把它们迁给外部脚本。
 
 ## 4. 验证
 

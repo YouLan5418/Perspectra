@@ -132,7 +132,7 @@ export default function (ctx, config) {
 ## 现在还没有
 
 - 插件自己的 HTTP 路由、写入事件日志的私有记录、随节点复制的插件数据目录。设计里提过，阶段 5 确认没有实际插件需要，所以没做。记忆插件用 `snapshotArchives` / `restoreArchives` 随节点保存。
-- `@harness-world/plugin-sdk` 还没发布到 npm，仓库外开发时参照[类型源码](../../../packages/plugin-sdk/src/index.ts)。
+- `@perspectra/sdk` 还没发布到 npm，仓库外开发时参照[类型源码](../../../packages/sdk/src/index.ts)。
 
 ## 验证范围
 

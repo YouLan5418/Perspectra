@@ -5,9 +5,9 @@ import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { once } from 'node:events'
 import type { AddressInfo } from 'node:net'
-import { createHostServer } from '../../desktop/host/http-server.ts'
-import { creatorInspectionQuery } from '../../desktop/host/creator-inspection.ts'
-import { RequestInspector } from '../../packages/provider-chat/src/request-inspector.ts'
+import { createHostServer } from '../../apps/host/src/runtime/http-server.ts'
+import { creatorInspectionQuery } from '../../apps/host/src/runtime/creator-inspection.ts'
+import { RequestInspector } from '../../packages/providers/src/chat/request-inspector.ts'
 import { createChatServer, fakeModels } from '../support/fake-provider.ts'
 
 const cleanups: (() => Promise<void>)[] = []

@@ -5,14 +5,14 @@ import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { randomUUID } from 'node:crypto'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { jevPublicationAudit } from '../../packages/official-jev-audit/src/index.ts'
-import { brandId, type WorldJsonObject } from '@harness-world/contracts'
-import { AuthorizedSourceStore } from '@harness-world/memory'
-import { CharacterViewBuilder, WorldStore } from '@harness-world/store-sqlite'
-import { WorldHostRuntime, type WorldHostOptions } from '../../desktop/host/world-runtime.ts'
-import { createHostServer } from '../../desktop/host/http-server.ts'
-import { characterRequestText } from '../../packages/provider-chat/src/character-context-text.ts'
-import type { ActivityRequest } from '@harness-world/contracts'
+import { jevPublicationAudit } from '../../packages/jev-audit/src/index.ts'
+import { brandId, type WorldJsonObject } from '@perspectra/sdk/contracts'
+import { AuthorizedSourceStore } from '@perspectra/core/memory'
+import { CharacterViewBuilder, WorldStore } from '@perspectra/core/store'
+import { WorldHostRuntime, type WorldHostOptions } from '../../apps/host/src/runtime/world-runtime.ts'
+import { createHostServer } from '../../apps/host/src/runtime/http-server.ts'
+import { characterRequestText } from '../../packages/providers/src/chat/character-context-text.ts'
+import type { ActivityRequest } from '@perspectra/sdk/contracts'
 import { createChatServer, fakeModels } from '../support/fake-provider.ts'
 
 const roots: string[] = [],
@@ -605,7 +605,7 @@ describe('creator activity and host escape', () => {
   it('serves escape in the host frame and protects the override endpoint', async () => {
     const f = await fixture(),
       token = 'b'.repeat(64),
-      web = await import('../../desktop/host/pack-frontend.ts')
+      web = await import('../../apps/host/src/runtime/pack-frontend.ts')
     const server = createHostServer(f.runtime, token, await web.loadPackWeb(f.pack))
     servers.push(server)
     await new Promise<void>(ready => server.listen(0, '127.0.0.1', ready))

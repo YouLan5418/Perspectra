@@ -2,11 +2,11 @@ import assert from 'node:assert/strict'
 import { cpSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { resolve, join } from 'node:path'
 import { randomUUID } from 'node:crypto'
-import { WorldStore } from '@harness-world/store-sqlite'
-import type { WorldJsonObject } from '@harness-world/contracts'
-import { WorldHostRuntime } from '../../desktop/host/world-runtime.ts'
-import type { HostState } from '../../desktop/host/http-server.ts'
-import { environmentRoleModels } from '../../desktop/model-connections.ts'
+import { WorldStore } from '@perspectra/core/store'
+import type { WorldJsonObject } from '@perspectra/sdk/contracts'
+import { WorldHostRuntime } from '../../apps/host/src/runtime/world-runtime.ts'
+import type { HostState } from '../../apps/host/src/runtime/http-server.ts'
+import { environmentRoleModels } from '../../apps/host/src/model-connections.ts'
 
 const root=resolve('.tmp','multiple-activities-live-'+Date.now()),pack=join(root,'pack'),data=join(root,'data')
 mkdirSync(root,{recursive:true});cpSync(resolve('examples/world-packs/multiple-activities'),pack,{recursive:true})

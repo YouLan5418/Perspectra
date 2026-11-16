@@ -2,11 +2,11 @@ import { resolve } from 'node:path'
 import { appendFileSync, writeFileSync } from 'node:fs'
 import { createInterface } from 'node:readline/promises'
 import { stdin, stdout } from 'node:process'
-import { createChatProvider } from '@harness-world/provider-chat'
-import { gatewayTurnCall } from '../../packages/official-llm/src/gateway-turn-call.ts'
+import { createChatProvider } from '@perspectra/providers/chat'
+import { gatewayTurnCall } from '../../packages/providers/src/llm/gateway-turn-call.ts'
 import { crossSceneRuntime, communicationContext } from '../support/cross-scene-runtime.ts'
 import { CrossScenePhone } from '../support/cross-scene-phone.ts'
-import { currentLocation } from '@harness-world/kernel'
+import { currentLocation } from '@perspectra/core/kernel'
 
 const directory = process.argv[2]
 if (!directory) throw new TypeError('请指定新的电话实验数据目录，追加 --scenario 可运行固定短场景')

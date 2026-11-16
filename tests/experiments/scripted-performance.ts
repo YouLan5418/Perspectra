@@ -2,11 +2,11 @@ import assert from 'node:assert/strict'
 import { randomUUID } from 'node:crypto'
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
-import type { WorldJsonObject } from '@harness-world/contracts'
-import { WorldStore } from '@harness-world/store-sqlite'
-import { WorldHostRuntime } from '../../desktop/host/world-runtime.ts'
-import type { HostState } from '../../desktop/host/http-server.ts'
-import { environmentRoleModels } from '../../desktop/model-connections.ts'
+import type { WorldJsonObject } from '@perspectra/sdk/contracts'
+import { WorldStore } from '@perspectra/core/store'
+import { WorldHostRuntime } from '../../apps/host/src/runtime/world-runtime.ts'
+import type { HostState } from '../../apps/host/src/runtime/http-server.ts'
+import { environmentRoleModels } from '../../apps/host/src/model-connections.ts'
 
 // No real model service: an accidental provider call fails the experiment.
 const root=resolve(process.argv[2]??`.tmp/scripted-performance-${Date.now()}`)

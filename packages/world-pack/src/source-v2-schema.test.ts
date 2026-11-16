@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { hashWorldJson } from '@harness-world/contracts'
+import { hashWorldJson } from '@perspectra/sdk/contracts'
 import {
   WorldPackContractError,
   parseWorldPackCharactersSourceV3,

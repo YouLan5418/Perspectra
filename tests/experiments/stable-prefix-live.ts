@@ -10,13 +10,14 @@
 import { randomUUID } from 'node:crypto'
 import { appendFileSync, cpSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
-import type { WorldJsonObject } from '@harness-world/contracts'
-import { WorldStore } from '@harness-world/store-sqlite'
-import { projectPlayerView } from '../../desktop/host/frontend-adapter.ts'
-import { WorldHostRuntime } from '../../desktop/host/world-runtime.ts'
-import { environmentRoleModels } from '../../desktop/model-connections.ts'
-import { assembleCoreMemory, assembleRoleplay } from '../../desktop/official-bundle.ts'
-import { playSettings } from '../../desktop/play-settings.ts'
+import type { WorldJsonObject } from '@perspectra/sdk/contracts'
+import { WorldStore } from '@perspectra/core/store'
+import { projectPlayerView } from '../../apps/host/src/runtime/frontend-adapter.ts'
+import { WorldHostRuntime } from '../../apps/host/src/runtime/world-runtime.ts'
+import { environmentRoleModels } from '../../apps/host/src/model-connections.ts'
+import { assembleCoreMemory } from '../../apps/host/src/memory-composition.ts'
+import { assembleRoleplay } from '../../apps/host/src/official-bundle.ts'
+import { playSettings } from '../../apps/host/src/play-settings.ts'
 
 const apiKey = process.env.DEEPSEEK_API_KEY?.trim()
 if (!apiKey) throw new Error('DEEPSEEK_API_KEY is not set')

@@ -6,7 +6,7 @@
 
 ## 默认组合
 
-[official-bundle](../../../desktop/official-bundle.ts)现在集中声明官方默认 Provider、决策组合和世界服务打开顺序。`installOfficialBundle` 通过现有 `ctx.scheduler`、`ctx.characterLoop`、`ctx.memory`、`ctx.decisions` 的 register／effect 填充空缺，第三方已注册的实现保留，官方注册也随 Cordis 根释放。Core 工厂只在没有替代记忆时调用。没有第二个服务容器，也没有合并 Launcher／游戏与内核的 Cordis 生命周期。
+[official-bundle](../../../apps/host/src/official-bundle.ts)现在集中声明官方默认 Provider、决策组合和世界服务打开顺序。`installOfficialBundle` 通过现有 `ctx.scheduler`、`ctx.characterLoop`、`ctx.memory`、`ctx.decisions` 的 register／effect 填充空缺，第三方已注册的实现保留，官方注册也随 Cordis 根释放。Core 工厂只在没有替代记忆时调用。没有第二个服务容器，也没有合并 Launcher／游戏与内核的 Cordis 生命周期。
 
 直接调用 WorldHost 的测试、透视与宿主扩展复用 `composeWorldSeams` 的相同选择和排序；它不模拟另一个注册容器。无记忆配置的直接入口继续使用 official-memory-none，正常 Launcher／源码入口提供的 Core 工厂不变。模型通道依赖入口持有的凭证与检查回调，仍在每世界打开时由组合工厂装配，使用公开的 Provider.open；没有把凭证加入 WorldServices，也没有提前注册一个缺配置的模型实例。默认顺序为模型、规则、记忆、决策、调度、角色循环。
 
@@ -28,7 +28,7 @@
 | 知识 | WorldGameplay、contextSources.knowledge、官方／focused-knowledge 决策步骤 | 已能替换材料选择步骤；没有替换知识存储与包协议的实际需求 |
 | 自主配置 | PackAutonomy、机会桥、scheduler 与行动限制 | 已能替换机会策略；没有替换作者配置协议的实际需求 |
 
-依据[WorldGameplay](https://github.com/YouLan5418/Perspectra/blob/91292dbf/desktop/host/world-gameplay.ts)及已有示例核对。本轮交付默认组合与依赖诊断；没有迁出这些玩法，不宣称整个默认游戏的玩法已全部插件化。未来每迁一项仍需实际替代者、兼容范围和独立验收。
+依据[WorldGameplay](https://github.com/YouLan5418/Perspectra/blob/91292dbf/apps/host/src/runtime/world-gameplay.ts)及已有示例核对。本轮交付默认组合与依赖诊断；没有迁出这些玩法，不宣称整个默认游戏的玩法已全部插件化。未来每迁一项仍需实际替代者、兼容范围和独立验收。
 
 ## 验证
 

@@ -3,18 +3,18 @@ import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } f
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { afterEach, expect, it } from 'vitest'
-import { compileWorldPackSource } from '@harness-world/world-pack'
-import { createInstalledInteractionPackages } from '@harness-world/interactions-basic'
-import { interactionPackageDescription, type WorldJsonObject } from '@harness-world/contracts'
-import { KnowledgeSelection } from '@harness-world/official-knowledge'
-import { loadKnowledgeSource } from '../../desktop/host/knowledge-source.ts'
-import type { CompiledWorldPackV5 } from '@harness-world/world-pack'
+import { compileWorldPackSource } from '@perspectra/world-pack'
+import { createInstalledInteractionPackages } from '@perspectra/plugins/basic-interactions'
+import { interactionPackageDescription, type WorldJsonObject } from '@perspectra/sdk/contracts'
+import { KnowledgeSelection } from '@perspectra/providers/knowledge'
+import { loadKnowledgeSource } from '../../apps/host/src/runtime/knowledge-source.ts'
+import type { CompiledWorldPackV5 } from '@perspectra/world-pack'
 const loadKnowledge = (root: string, pack: CompiledWorldPackV5) => {
   const source = loadKnowledgeSource(root, pack)
   return source && KnowledgeSelection.parse(source.configuration, source.content)
 }
-import { WorldHostRuntime } from '../../desktop/host/world-runtime.ts'
-import { projectPlayerView } from '../../desktop/host/frontend-adapter.ts'
+import { WorldHostRuntime } from '../../apps/host/src/runtime/world-runtime.ts'
+import { projectPlayerView } from '../../apps/host/src/runtime/frontend-adapter.ts'
 import { createChatServer, fakeModels } from '../support/fake-provider.ts'
 
 const roots: string[] = [],

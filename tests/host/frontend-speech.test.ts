@@ -4,10 +4,10 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { AddressInfo } from 'node:net'
 import { afterEach, expect, it, vi } from 'vitest'
-import { brandId } from '@harness-world/contracts'
-import { createHostServer, type HostState } from '../../desktop/host/http-server.ts'
+import { brandId } from '@perspectra/sdk/contracts'
+import { createHostServer, type HostState } from '../../apps/host/src/runtime/http-server.ts'
 import type { FrontendHostServices, FrontendSpeechAudio } from '../../packages/frontend/src/speech.ts'
-import { loadHostPlugins } from '../../desktop/host-plugins.ts'
+import { loadHostPlugins } from '../../apps/host/src/host-plugins.ts'
 
 const servers: ReturnType<typeof createHostServer>[] = [],
   token = 'c'.repeat(64)

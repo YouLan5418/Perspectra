@@ -58,4 +58,4 @@ operation: { id: 'investigation:set-enabled', argument: 'enabled' }
 
 保存修改源包，刷新 Launcher 包记录；已有实例的包版本／存档不被改写。用新实例验证修改，旧实例可能因原有包摘要保护而拒绝打开。一次保存只改一份配置；若包内其他配置也无效，需要先修复相关配置再通过整包校验。
 
-源码关系：[SDK](../../../packages/plugin-sdk/src/gameplay.ts)、[呈现校验](../../../packages/application/src/gameplay-presentation.ts)、[公共投影与操作](../../../desktop/host/frontend-adapter.ts)、[默认组件](../../../packages/frontend/src/gameplay-widgets.ts)、[配置读写](../../../desktop/pack-config.ts)、[配置编辑器](../../../apps/launcher/src/components/PackConfigEditor.vue)。
+源码关系：[SDK](../../../packages/sdk/src/gameplay.ts)、[呈现校验](../../../packages/core/src/application/gameplay-presentation.ts)、[公共投影与操作](../../../apps/host/src/runtime/frontend-adapter.ts)、[默认组件](../../../packages/frontend/src/gameplay-widgets.ts)、[配置读写](../../../apps/host/src/pack-config.ts)、[配置编辑器](../../../apps/launcher/src/components/PackConfigEditor.vue)。

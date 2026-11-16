@@ -18,11 +18,11 @@
 }
 ```
 
-[character-action-explanations.ts](../../../packages/provider-chat/src/character-action-explanations.ts)只读取本次已授权 Context 的 affordances、在场人物和当前可见物品，确定性生成 actionExplanations。移动名称取实际提供的 destinations；当前位置名称由 Character Turn 使用本人当前 locationId 从现有 manifest 取出，不查询其他人物的位置或知识。历史重放没有记录当前位置名称时，用“当前位置”，不从 ID 猜测名字。
+[character-action-explanations.ts](../../../packages/providers/src/chat/character-action-explanations.ts)只读取本次已授权 Context 的 affordances、在场人物和当前可见物品，确定性生成 actionExplanations。移动名称取实际提供的 destinations；当前位置名称由 Character Turn 使用本人当前 locationId 从现有 manifest 取出，不查询其他人物的位置或知识。历史重放没有记录当前位置名称时，用“当前位置”，不从 ID 猜测名字。
 
 基础 base:take/give/drop version 1 使用与已有权威定义含义一致的本地文案模板，分别说明纳入保管、交由当前选项指定接收者保管、解除个人保管并留在当前位置。不是分析任意 ID 来猜行为。未知定义及不同版本只引用其定义身份，保留参数契约，不编造治疗、消耗、关系或其他效果。没有引入新的作者语义字段；自定义玩法的人类语义尚不能自动完整生成。
 
-[character-context-text.ts](../../../packages/provider-chat/src/character-context-text.ts)仅在本次 canPerform 允许且确有现有选项时加入说明。保留原 affordances 和工具 Schema；operation 复制对应原选项的请求参数，不能当成成功保证或新的工具字段。执行仍通过 Action / Rulebook / Event；失败路径、预算及 publish 结束激活行为未改变。表达后继续决策保持关闭。
+[character-context-text.ts](../../../packages/providers/src/chat/character-context-text.ts)仅在本次 canPerform 允许且确有现有选项时加入说明。保留原 affordances 和工具 Schema；operation 复制对应原选项的请求参数，不能当成成功保证或新的工具字段。执行仍通过 Action / Rulebook / Event；失败路径、预算及 publish 结束激活行为未改变。表达后继续决策保持关闭。
 
 没有动作选项时不从“看得见物品”反推出可拿取能力；不使用 items.lastObserved 推测现在的归属；不查全局实体或其他角色私密上下文。语义说明只是呈现，不能改变当前候选权限、规则裁定或提交事实。
 

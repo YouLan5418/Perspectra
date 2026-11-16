@@ -4,11 +4,11 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { resolve, join } from 'node:path'
 import { randomBytes, randomUUID } from 'node:crypto'
 import { once } from 'node:events'
-import type { WorldJsonObject } from '@harness-world/contracts'
-import { WorldHostRuntime } from '../../desktop/host/world-runtime.ts'
-import { createHostServer } from '../../desktop/host/http-server.ts'
-import { DEFAULT_RUNTIME_TUNING } from '../../desktop/host/runtime-tuning.ts'
-import { environmentRoleModels } from '../../desktop/model-connections.ts'
+import type { WorldJsonObject } from '@perspectra/sdk/contracts'
+import { WorldHostRuntime } from '../../apps/host/src/runtime/world-runtime.ts'
+import { createHostServer } from '../../apps/host/src/runtime/http-server.ts'
+import { DEFAULT_RUNTIME_TUNING } from '../../apps/host/src/runtime/runtime-tuning.ts'
+import { environmentRoleModels } from '../../apps/host/src/model-connections.ts'
 
 const root=resolve(process.argv[2]??'')
 if(!process.argv[2]||existsSync(root))throw new Error('provide a fresh output directory')

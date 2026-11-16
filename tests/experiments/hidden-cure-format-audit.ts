@@ -1,11 +1,11 @@
 import { readFileSync, writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import Ajv from 'ajv'
-import { characterTurnCall } from '@harness-world/provider-chat'
-import { gatewayTurnCall } from '../../packages/official-llm/src/gateway-turn-call.ts'
-import { decideWithFormatRetry } from '../../desktop/host/decision-format.ts'
-import type { CharacterTurnRequest } from '../../packages/application/src/character-turn.ts'
-import type { WorldJsonValue } from '@harness-world/contracts'
+import { characterTurnCall } from '@perspectra/providers/chat'
+import { gatewayTurnCall } from '../../packages/providers/src/llm/gateway-turn-call.ts'
+import { decideWithFormatRetry } from '../../apps/host/src/runtime/decision-format.ts'
+import type { CharacterTurnRequest } from '../../packages/core/src/application/character-turn.ts'
+import type { WorldJsonValue } from '@perspectra/sdk/contracts'
 
 // Offline replay of the recorded invalid output: not a new NPC decision or gameplay result.
 if (!process.argv[2] || !process.argv[3]) throw new TypeError('用法：hidden-cure-format-audit.ts <含 B/record.json 的实验目录> <新的结果文件>')

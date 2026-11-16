@@ -20,7 +20,7 @@
 
 ## 2. 活动生命周期
 
-固定入口为 `globalThis.activityScript`。定义和 hook 的完整形式以 [演示脚本](../../../examples/world-packs/launcher-demo/scripts/activity.js) 与 [当前活动桥](../../../desktop/host/activity-runtime.ts) 为准。
+固定入口为 `globalThis.activityScript`。定义和 hook 的完整形式以 [演示脚本](../../../examples/world-packs/launcher-demo/scripts/activity.js) 与 [当前活动桥](../../../apps/host/src/runtime/activity-runtime.ts) 为准。
 
 | 部分 | 职责 |
 | --- | --- |
@@ -95,7 +95,7 @@ resolve(state, actorId, operation, parameters) {
 - `rollDice(expression)` 只在 `resolve` 里存在；在 `policy`、`initialize` 等其他钩子里调用会失败。表达式写成 `d20`、`1d20+2`、`2d6-1`、`d100`：个数 1–20 或省略，面数 2–1000，修正 ±1000，不写前导零。表达式非法时整次结果不提交。
 - 点数取自活动这一轮的随机记录（和初始化的随机数、自动开始的平局选择在同一串里）。回看、分支、末端重新生成都按记录重放，同一轮重新生成得到同样的点数，玩家不能靠重新生成刷检定。`resolve` 里直接用 `Math.random` 不进记录，重新生成时会变，所以掷骰请用 `rollDice`。
 - 点数只是返回值，写进 `public`、某人的 `private` 还是 `internal`，由脚本决定，随活动结果一起提交。
-- 骰子由 `ctx.dice` 提供，默认是 [official-dice](../../../packages/official-dice/src/dice.ts)。[宿主测试](../../../tests/host/activity-dice.test.ts)覆盖掷骰写进状态、按记录重放、`policy` 里调用失败、非法表达式不提交；尚未用真实模型试玩。
+- 骰子由 `ctx.dice` 提供，默认是 [official-dice](../../../packages/plugins/src/dice/dice.ts)。[宿主测试](../../../tests/host/activity-dice.test.ts)覆盖掷骰写进状态、按记录重放、`policy` 里调用失败、非法表达式不提交；尚未用真实模型试玩。
 
 ### 多活动选择与暂停（2026-10-10，当前源码）
 
@@ -182,7 +182,7 @@ Activity 收紧局部玩法许可；默认由模型决定扮演内容，作者�
 
 例如玩家钱袋里有 100。同行者趁人多执行“偷窃”，作者脚本裁定成功：真实余额变成 70，结果只告诉同行者。玩家的状态栏和角色上下文仍是 100，但立刻标为“上次确认”（current=false）：玩家知道钱袋有了变化，却不知道现在是多少、是谁动的。执行“查看钱包”或付账后，才看到 70。旁边的留守者从头到尾不知道两人的余额。完整样例见 [集市钱袋](../../../examples/world-packs/status-market/README.md)。
 
-状态是作者用代码声明、经过裁定的常驻客观值：金钱、HP、游戏时间、剧情阶段等。真实值只以 `status.updated` 世界事件提交，和对话、行动走同一次原子提交；每个观察者（NPC 与玩家相同）只知道告知过自己的值。它替代了已退役的包变量（`scripts/variables.js`、`pack-variables.json`、`/vars` 已删除）。实现在 [状态桥](../../../desktop/host/status-runtime.ts)，设计见[状态栏设计](../../superpowers/specs/2026-10-18-status-bar-design.md)。
+状态是作者用代码声明、经过裁定的常驻客观值：金钱、HP、游戏时间、剧情阶段等。真实值只以 `status.updated` 世界事件提交，和对话、行动走同一次原子提交；每个观察者（NPC 与玩家相同）只知道告知过自己的值。它替代了已退役的包变量（`scripts/variables.js`、`pack-variables.json`、`/vars` 已删除）。实现在 [状态桥](../../../apps/host/src/runtime/status-runtime.ts)，设计见[状态栏设计](../../superpowers/specs/2026-10-18-status-bar-design.md)。
 
 ### 作者写什么
 

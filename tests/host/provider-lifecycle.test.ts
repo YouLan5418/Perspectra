@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
-import { brandId } from '@harness-world/contracts'
+import { brandId } from '@perspectra/sdk/contracts'
 import type {
   CharacterLoopActivation,
   CharacterLoopInstance,
@@ -13,12 +13,12 @@ import type {
   SchedulerRound,
   SeamProvider,
   WorldServices,
-} from '@harness-world/plugin-sdk'
-import { WorldStore } from '@harness-world/store-sqlite'
+} from '@perspectra/sdk'
+import { WorldStore } from '@perspectra/core/store'
 import { afterEach, expect, it, vi } from 'vitest'
-import { loadHostPlugins, type HostPlugins } from '../../desktop/host-plugins.ts'
-import { assembleRoleplay } from '../../desktop/official-bundle.ts'
-import { WorldHostRuntime, type WorldHostOptions } from '../../desktop/host/world-runtime.ts'
+import { loadHostPlugins, type HostPlugins } from '../../apps/host/src/host-plugins.ts'
+import { assembleRoleplay } from '../../apps/host/src/official-bundle.ts'
+import { WorldHostRuntime, type WorldHostOptions } from '../../apps/host/src/runtime/world-runtime.ts'
 import { fakeModels, startFakeProvider } from '../support/fake-provider.ts'
 
 const PACK = resolve('examples/world-packs/dynamic-scheduling')

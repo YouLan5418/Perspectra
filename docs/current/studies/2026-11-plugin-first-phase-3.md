@@ -8,9 +8,9 @@
 
 | 项目 | 结果 |
 | --- | --- |
-| `ctx.llm` | 新增，只要求 `send`，宿主 API 升到 `1.3`。官方实现移到 [official-llm](../../../packages/official-llm/src/index.ts)，带预设、按角色选模型和请求记录 |
-| `ctx.decisions` | 新增，可叠加多个，能给请求加内容或包住整个决策。公共流程移到 [character-decision.ts](../../../desktop/host/character-decision.ts) |
-| JEV 审计 | 移到 [official-jev-audit](../../../packages/official-jev-audit/src/index.ts)，作为两个决策实现接入。宿主不再有 `publicationAudit`、`shadowAudit` 选项 |
+| `ctx.llm` | 新增，只要求 `send`，宿主 API 升到 `1.3`。官方实现移到 [official-llm](../../../packages/providers/src/llm/index.ts)，带预设、按角色选模型和请求记录 |
+| `ctx.decisions` | 新增，可叠加多个，能给请求加内容或包住整个决策。公共流程移到 [character-decision.ts](../../../apps/host/src/runtime/character-decision.ts) |
+| JEV 审计 | 移到 [official-jev-audit](../../../packages/jev-audit/src/index.ts)，作为两个决策实现接入。宿主不再有 `publicationAudit`、`shadowAudit` 选项 |
 | `WorldServices` | 增加 `cast`（玩家、角色和地点的名字）和 `candidate`（是否为重新生成的候选） |
 | 环境指纹 | 包含模型通道和决策实现的 ID 与版本 |
 | `OPENROUTER_JEV_KEY` | 启动时从环境中取走，插件读不到（阶段 2 审查提出的问题） |

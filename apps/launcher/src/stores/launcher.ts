@@ -7,8 +7,8 @@ import {
   type PlaySettings,
   type ReadingPreferences,
   type AudioPreferences,
-} from '../../../../desktop/play-settings.ts'
-import { hostPluginSettings, type HostPluginSettings } from '../../../../desktop/host-plugin-settings.ts'
+} from '@perspectra/host/play-settings'
+import { hostPluginSettings, type HostPluginSettings } from '@perspectra/host/plugin-settings'
 import { isTauri } from '@tauri-apps/api/core'
 import {
   coreRequest,

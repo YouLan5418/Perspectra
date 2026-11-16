@@ -1,6 +1,6 @@
 # 创作者：RPG 玩法
 
-2026-11-08 当前源码（分支 `feat/rpg-plugin`）：官方 RPG 机制 [official-rpg](../../../packages/official-rpg) 按世界包里的 `rpg.json` 生成战斗、队伍与每张地图的副本活动。验证范围分开看：
+2026-11-08 当前源码（分支 `feat/rpg-plugin`）：官方 RPG 机制 [official-rpg](../../../packages/plugins/src/rpg) 按世界包里的 `rpg.json` 生成战斗、队伍与每张地图的副本活动。验证范围分开看：
 
 - **源码已接通**：配置校验、状态模块、地图活动、锁门与队伍随行、宿主载入与存档摘要、包透视与 `worldpack validate`。
 - **自动测试范围**：上述各项都有单元测试或真实宿主测试，见第 7 节；验收包的三份推演通过。
@@ -18,7 +18,7 @@
 ## 2. 它怎么接入
 
 - 在 `worldpack.source.json` 的 `assetFiles` 里登记 `rpg.json`，同时登记[物品规则脚本](activity-and-variables.md)（`scripts/status.js`，用 Skill 的 `status-items.js` 模板）：宝箱和掉落物都靠包自己的“拿起”取走。
-- 宿主在打开世界时读 `rpg.json`，生成一个状态模块（模块 ID `rpg`）、一个规则层，以及每张地图一个活动 `rpg-map-<地点ID去掉 location: 前缀>`。生成的内容不写回包目录。代码入口：[生成器](../../../packages/official-rpg/src/content.ts)（经 `ctx.content` 注册，宿主用通用的[包内容载入](../../../desktop/host/pack-content.ts)）、[配置解析](../../../packages/official-rpg/src/config.ts)、[状态模块](../../../packages/official-rpg/src/status-module.ts)、[地图活动](../../../packages/official-rpg/src/map-activity.ts)、[规则层](../../../packages/official-rpg/src/rules.ts)；取舍见[决策记录](../../superpowers/specs/2026-11-08-rpg-plugin-decisions.md)。
+- 宿主在打开世界时读 `rpg.json`，生成一个状态模块（模块 ID `rpg`）、一个规则层，以及每张地图一个活动 `rpg-map-<地点ID去掉 location: 前缀>`。生成的内容不写回包目录。代码入口：[生成器](../../../packages/plugins/src/rpg/content.ts)（经 `ctx.content` 注册，宿主用通用的[包内容载入](../../../apps/host/src/runtime/pack-content.ts)）、[配置解析](../../../packages/plugins/src/rpg/config.ts)、[状态模块](../../../packages/plugins/src/rpg/status-module.ts)、[地图活动](../../../packages/plugins/src/rpg/map-activity.ts)、[规则层](../../../packages/plugins/src/rpg/rules.ts)；取舍见[决策记录](../../superpowers/specs/2026-11-08-rpg-plugin-decisions.md)。
 - 包里不能再有叫 `rpg` 的模块或叫 `rpg-map-*` 的活动，重名会拒绝。
 - 程序没有 RPG 机制，或版本不同，包在世界创建前就失败：“这个包的 rpg.json 需要插件 official-rpg 1，当前组合没有提供”；版本不同时是“rpg.json 需要插件 official-rpg 2，当前程序提供 official-rpg 1”。
 - 没有 `rpg.json` 的包行为不变。
@@ -175,6 +175,6 @@
 
 ## 7. 验证了什么，没验证什么
 
-- 自动测试：[config.test.ts](../../../packages/official-rpg/src/config.test.ts)、[status-module.test.ts](../../../packages/official-rpg/src/status-module.test.ts)、[map-activity.test.ts](../../../packages/official-rpg/src/map-activity.test.ts)；真实宿主：`tests/host/rpg-map-activity.test.ts`、`rpg-perform-path.test.ts`、`rpg-party.test.ts`、`rpg-pack.test.ts`、`lens-rpg.test.ts`、`rpg-story-share.test.ts`。
+- 自动测试：[config.test.ts](../../../packages/plugins/src/rpg/config.test.ts)、[status-module.test.ts](../../../packages/plugins/src/rpg/status-module.test.ts)、[map-activity.test.ts](../../../packages/plugins/src/rpg/map-activity.test.ts)；真实宿主：`tests/host/rpg-map-activity.test.ts`、`rpg-perform-path.test.ts`、`rpg-party.test.ts`、`rpg-pack.test.ts`、`lens-rpg.test.ts`、`rpg-story-share.test.ts`。
 - 验收包：[山脚遗迹](../../../examples/world-packs/hill-ruins/README.md) 的三份推演通过（通关并回家睡觉、战败回家、阿茹不知道战斗细节）。
 - **未验证**：真实模型下的同伴入队意愿、演出自然度、战斗节奏、一局下来的体验；Launcher 窗口与默认舞台上的实际观感；发行包。这些属于下一步手动试玩。

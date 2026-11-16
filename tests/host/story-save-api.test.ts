@@ -2,7 +2,7 @@ import { afterEach, expect, it, vi } from 'vitest'
 import { once } from 'node:events'
 import type { AddressInfo } from 'node:net'
 import type { Server } from 'node:http'
-import { createHostServer, HostBusyError, type HostRuntime } from '../../desktop/host/http-server.ts'
+import { createHostServer, HostBusyError, type HostRuntime } from '../../apps/host/src/runtime/http-server.ts'
 
 const token = 'a'.repeat(64)
 const servers: Server[] = []

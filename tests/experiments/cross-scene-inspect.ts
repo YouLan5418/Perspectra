@@ -1,8 +1,8 @@
 import { DatabaseSync } from 'node:sqlite'
 import { resolve, join } from 'node:path'
 import { writeFileSync } from 'node:fs'
-import { currentLocation } from '@harness-world/kernel'
-import type { WorldJsonObject } from '@harness-world/contracts'
+import { currentLocation } from '@perspectra/core/kernel'
+import type { WorldJsonObject } from '@perspectra/sdk/contracts'
 
 if (!process.argv[2]) throw new TypeError('请指定短信实验数据目录')
 const directory = resolve(process.argv[2]), db = new DatabaseSync(join(directory, 'world.sqlite'), { readOnly: true })

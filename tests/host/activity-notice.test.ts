@@ -1,6 +1,6 @@
-import type { SchedulerResult, SchedulerTurnResult } from '@harness-world/plugin-sdk'
+import type { SchedulerResult, SchedulerTurnResult } from '@perspectra/sdk'
 import { expect, it } from 'vitest'
-import { activityNotice } from '../../desktop/host/round-notices.ts'
+import { activityNotice } from '../../apps/host/src/runtime/round-notices.ts'
 
 function noticeFor(result: SchedulerTurnResult): string | undefined {
   let notice: string | undefined

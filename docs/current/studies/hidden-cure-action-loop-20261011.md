@@ -8,7 +8,7 @@
 
 复核旧记录 `output/hidden-cure/live-vuTX5e/{A,B,C}/record.json`，三组第 6–8 回合共 18 次 NPC 根调用，全部 `continuation=false`、`canPerform=true`，都有合法的 move 目的地。16 次选择 publish、2 次 abstain，没有 perform。A/C 的目的地包含教会与档案室，B 包含旅馆与教会。正常回合均 quiescent，未耗尽配置的自主预算；B6 是格式失败。
 
-[Character Turn](../../../packages/application/src/character-turn.ts)的 publish 提交后会结束本次激活。结果续写通常没有 perform；不能期待模型先说“准备出发”，宿主随后把这句话转成移动。[动态调度](../../../packages/official-scheduler/src/index.ts)给予自主角色每个机会一次重要操作及其结果续写，下一机会再决定下一步。它没有在普通发言之后无限追加行动机会，这属于当前有界设计。
+[Character Turn](../../../packages/core/src/application/character-turn.ts)的 publish 提交后会结束本次激活。结果续写通常没有 perform；不能期待模型先说“准备出发”，宿主随后把这句话转成移动。[动态调度](../../../packages/providers/src/scheduler/index.ts)给予自主角色每个机会一次重要操作及其结果续写，下一机会再决定下一步。它没有在普通发言之后无限追加行动机会，这属于当前有界设计。
 
 发送给模型的系统说明已经要求重要移动/交互使用 perform。原后期记录证明的是“有权限、有机会，却选择表达”，不是移动不可用或调用额度不足。它也不证明模型永远无法行动：D2 以及本轮材料拿取都实际执行了。角色等待玩家答复也可能合理；没有新目标且合理等待的 abstain 不能一律算无意义沉默。
 
@@ -80,7 +80,7 @@ r6 玩家驱动又问了一次已实际完成的交付。两位 NPC 都正确指
 
 ## 格式失败的独立结论
 
-重放原 B6：缺少 addresseeIds 的 direct 输出通过 local 和 generic Schema；现有 `decideActivityFormat` 只调用一次便返回，因为 AJV 判合法。普通场景默认也没有接入活动修正器。[发送端](../../../packages/official-llm/src/gateway-turn-call.ts)的字段大多可选，[通用 Schema](../../../packages/provider-chat/src/character-turn-call.ts)也没有 direct/private 对非空接收者的条件约束；宿主随后严格拒绝，保护了信息范围。
+重放原 B6：缺少 addresseeIds 的 direct 输出通过 local 和 generic Schema；现有 `decideActivityFormat` 只调用一次便返回，因为 AJV 判合法。普通场景默认也没有接入活动修正器。[发送端](../../../packages/providers/src/llm/gateway-turn-call.ts)的字段大多可选，[通用 Schema](../../../packages/providers/src/chat/character-turn-call.ts)也没有 direct/private 对非空接收者的条件约束；宿主随后严格拒绝，保护了信息范围。
 
 本轮两次遗漏 arguments 被 Rulebook 拒绝；D3 第二次 r4 和 E 第二次 r4 则把 scene_public 与非空 addresseeIds 混用，被宿主拒绝。它们不是同一种失败：前者留下 rejected 行动及反馈，后者没有提交非法表达。模型错误有偶发性，Schema 的结构性宽松也有可复现证据，不能只归咎模型或只靠现有 AJV 修正器解决。
 
@@ -134,4 +134,4 @@ r6 玩家驱动又问了一次已实际完成的交付。两位 NPC 都正确指
 
 | 迁移前路径（上述提交） | 当前源码 |
 | --- | --- |
-| `tests/experiments/local-prototype-turn-call.ts` | [gateway-turn-call.ts](../../../packages/official-llm/src/gateway-turn-call.ts) |
+| `tests/experiments/local-prototype-turn-call.ts` | [gateway-turn-call.ts](../../../packages/providers/src/llm/gateway-turn-call.ts) |

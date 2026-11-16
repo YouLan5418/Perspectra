@@ -1,6 +1,6 @@
 import { expect, it } from 'vitest'
-import { parseDice } from '@harness-world/official-dice'
-import { isDiceExpression } from '@harness-world/official-trpg'
+import { parseDice } from '@perspectra/plugins/dice'
+import { isDiceExpression } from '@perspectra/plugins/trpg'
 
 // Official packages do not import each other, so official-trpg checks `sheet.dice` with its own copy of the dice
 // grammar. A config that passes must roll; one that fails must be one the dice would refuse.

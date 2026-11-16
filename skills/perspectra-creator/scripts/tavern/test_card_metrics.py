@@ -48,7 +48,7 @@ class MetricsTest(unittest.TestCase):
     def test_preflight_refresh_and_unresolved(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
-            source = root/'desktop/host/pack-knowledge.ts'
+            source = root/'apps/host/src/runtime/pack-knowledge.ts'
             source.parent.mkdir(parents=True)
             source.write_text('const MAX_CHARACTERS = 2 * 2\n', encoding='utf-8')
             card = metrics([{'enabled': False, 'content': '12345'}])

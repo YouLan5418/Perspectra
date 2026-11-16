@@ -2,14 +2,14 @@ import { afterEach, expect, it } from 'vitest'
 import { mkdtemp, rm, readFile, writeFile } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
 import { tmpdir } from 'node:os'
-import { LauncherCore } from '../../desktop/launcher-core.ts'
-import { ModelPresets } from '../../desktop/model-presets.ts'
+import { LauncherCore } from '../../apps/launcher/backend/core.ts'
+import { ModelPresets } from '../../apps/host/src/model-presets.ts'
 import {
   importPresets,
   exportPresets,
   PRESET_FORMAT,
   PRESET_SCHEMA_VERSION,
-} from '../../packages/provider-chat/src/preset-library.ts'
+} from '../../packages/providers/src/chat/preset-library.ts'
 const roots: string[] = []
 async function root() {
   const path = await mkdtemp(join(tmpdir(), 'preset-library-'))

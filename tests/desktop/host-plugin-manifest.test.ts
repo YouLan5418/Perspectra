@@ -7,7 +7,7 @@ import {
   pluginSecretFields,
   resolvePluginConfig,
   savedPluginConfig,
-} from '../../desktop/host-plugin-manifest.ts'
+} from '../../apps/host/src/host-plugin-manifest.ts'
 
 const tts = parsePluginManifest({
   name: '语音',

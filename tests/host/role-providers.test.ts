@@ -2,12 +2,12 @@ import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { afterEach, expect, it } from 'vitest'
-import { RequestInspector } from '@harness-world/provider-chat'
-import { createRoleProviders } from '../../packages/official-llm/src/role-providers.ts'
-import { playSettings } from '../../desktop/play-settings.ts'
-import { WorldHostRuntime } from '../../desktop/host/world-runtime.ts'
+import { RequestInspector } from '@perspectra/providers/chat'
+import { createRoleProviders } from '../../packages/providers/src/llm/role-providers.ts'
+import { playSettings } from '../../apps/host/src/play-settings.ts'
+import { WorldHostRuntime } from '../../apps/host/src/runtime/world-runtime.ts'
 import { fakeModels, startFakeProvider } from '../support/fake-provider.ts'
-import { brandId } from '@harness-world/contracts'
+import { brandId } from '@perspectra/sdk/contracts'
 
 const cleanups: (() => Promise<void>)[] = []
 

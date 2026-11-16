@@ -69,8 +69,8 @@ corepack pnpm@11.7.0 --filter @perspectra/launcher tauri build --debug --no-bund
 
 | 文件 | 实现 |
 | --- | --- |
-| [desktop/launcher-core.ts](../../desktop/launcher-core.ts) | 读取/原子保存 Launcher 索引，校验包，创建实例元数据，保存模型配置，拥有游戏子进程，处理就绪与停止 |
-| [desktop/launcher-entry.ts](../../desktop/launcher-entry.ts) | Tauri 与 Node 的本机 stdio 请求入口；一次串行处理一个操作；不转发私有 Core 输出 |
+| [apps/launcher/backend/core.ts](../../apps/launcher/backend/core.ts) | 读取/原子保存 Launcher 索引，校验包，创建实例元数据，保存模型配置，拥有游戏子进程，处理就绪与停止 |
+| [apps/launcher/backend/entry.ts](../../apps/launcher/backend/entry.ts) | Tauri 与 Node 的本机 stdio 请求入口；一次串行处理一个操作；不转发私有 Core 输出 |
 | [main.rs](../../apps/launcher/src-tauri/src/main.rs) | 仅 main 窗口可调用命令；启动 Node 桥接；校验本机游戏 URL 后打开浏览器；Windows Job Object 保证拥有的 Core 进程树随 Launcher 退出 |
 | [Cargo.toml](../../apps/launcher/src-tauri/Cargo.toml)、Cargo.lock | JSON 通信及 Windows Job Object 所需依赖 |
 | [core-types.ts](../../apps/launcher/src/core-types.ts) | 包/实例的公开 Launcher 元数据及真实状态 DTO |
@@ -82,7 +82,7 @@ corepack pnpm@11.7.0 --filter @perspectra/launcher tauri build --debug --no-bund
 | [launcher-core.test.ts](../../tests/desktop/launcher-core.test.ts) | 5 项实例索引、配置损坏、无效包、权限及认证字段回归 |
 | [launcher.test.ts](../../apps/launcher/src/stores/launcher.test.ts) | 2 项原生初始化和跨接口密钥隔离回归 |
 
-没有修改 Core 的 Action、Rulebook、Event 提交、角色权限或记忆算法；继续调用现有 `desktop/host/web-entry.ts`。旧 Electron 桌面入口已于 2026-10-21 删除，其存档和设置未迁移。
+没有修改 Core 的 Action、Rulebook、Event 提交、角色权限或记忆算法；继续调用现有 `apps/host/src/runtime/web-entry.ts`。旧 Electron 桌面入口已于 2026-10-21 删除，其存档和设置未迁移。
 
 ## 3. 数据与进程
 

@@ -1,7 +1,7 @@
-import { characterTurnCall } from '@harness-world/provider-chat'
+import { characterTurnCall } from '@perspectra/providers/chat'
 import Ajv from 'ajv'
 import { expect, it } from 'vitest'
-import { gatewayTurnCall } from '../../packages/official-llm/src/gateway-turn-call.ts'
+import { gatewayTurnCall } from '../../packages/providers/src/llm/gateway-turn-call.ts'
 
 const REVISION = 5
 const request = {

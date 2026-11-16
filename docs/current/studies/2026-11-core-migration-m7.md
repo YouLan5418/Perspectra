@@ -8,8 +8,8 @@
 
 | 问题 | 影响 | 处理 |
 | --- | --- | --- |
-| M3 的状态机制 guard 把脚本失败的 TypeError 改成普通 Error | 作者脚本出错时，玩家从 400 加具体原因变成不透明的 500“操作未完成”；多段输入的后续句不再按“被拒绝”结束。活动与通信机制没有这个问题，是回归 | [mechanismFailure](../../../desktop/host/gameplay-services.ts) 保留错误类别，三处 guard 共用；[回归测试](../../../tests/host/status-market-items.test.ts) |
-| 核心接受与已提交托管矛盾的物理事件 | `executeWorldRound` 只查事件登记，矛盾的 `entity.transferred` 可以提交；日志中一旦存在，之后每次折叠该物品都抛错，世界无法继续读取。规则插件的结果走另两条提交路径时同样没有检查 | [assertPhysicalEffects](../../../packages/application/src/item-effects.ts) 按序校验托管、声明过的角色与地点、当前位置，外观更新不能顺带移动物品。接入即时回合（并要求只能移动绑定玩家）与[规则插件层](../../../desktop/host/rule-layers.ts)，后者沿用“插件出错则拒绝本次行动” |
+| M3 的状态机制 guard 把脚本失败的 TypeError 改成普通 Error | 作者脚本出错时，玩家从 400 加具体原因变成不透明的 500“操作未完成”；多段输入的后续句不再按“被拒绝”结束。活动与通信机制没有这个问题，是回归 | [mechanismFailure](../../../apps/host/src/runtime/gameplay-services.ts) 保留错误类别，三处 guard 共用；[回归测试](../../../tests/host/status-market-items.test.ts) |
+| 核心接受与已提交托管矛盾的物理事件 | `executeWorldRound` 只查事件登记，矛盾的 `entity.transferred` 可以提交；日志中一旦存在，之后每次折叠该物品都抛错，世界无法继续读取。规则插件的结果走另两条提交路径时同样没有检查 | [assertPhysicalEffects](../../../packages/core/src/application/item-effects.ts) 按序校验托管、声明过的角色与地点、当前位置，外观更新不能顺带移动物品。接入即时回合（并要求只能移动绑定玩家）与[规则插件层](../../../apps/host/src/runtime/rule-layers.ts)，后者沿用“插件出错则拒绝本次行动” |
 | M2～M6 引用的基线和日志不可复核 | `.tmp/migration-m01/baseline.json` 及各批日志不在本机与兄弟工作树，无法直接验证“基线相同”的记录 | 从 `a020632` 重新录制并对比，结果见下 |
 
 未发现认知隔离、角色权限或原子提交方面的其他问题。其余提交（活动、通信、自主、知识、角色循环、组合与分享）逐段阅读后未发现需要修改之处；这是阅读结论，不是形式证明。

@@ -2,11 +2,11 @@
 
 2026-11-05 M5：例如后室同伴收到玩家短信后，自主处理自己的目标。通信选项与消息计算由 ctx.communication 提供，自主配置、触发频率和许可由 ctx.autonomy 提供；两者不直接提交事件。CommunicationRules 与执行适配绑定真实收发者，AutonomyRuntime 提取交易摘要并检查声明范围，机会继续交现有 scheduler／characterLoop。源码与验证边界见[M5 记录](../studies/2026-11-core-migration-m5.md)。
 
-2026-11-04 M2：例如作者只需要实体与普通发言，可显式选择空交互目录；源包、编译目录和存档读取均允许它，未安装的非空选择仍拒绝。核心应用不自动补基础交互，默认桌面组合显式提供。物品变更由核心 [item-effects](../../../packages/application/src/item-effects.ts)校验后提交，具体玩法仍来自作者规则；范围见[M2 记录](../studies/2026-11-core-migration-m2.md)。
+2026-11-04 M2：例如作者只需要实体与普通发言，可显式选择空交互目录；源包、编译目录和存档读取均允许它，未安装的非空选择仍拒绝。核心应用不自动补基础交互，默认桌面组合显式提供。物品变更由核心 [item-effects](../../../packages/core/src/application/item-effects.ts)校验后提交，具体玩法仍来自作者规则；范围见[M2 记录](../studies/2026-11-core-migration-m2.md)。
 
 2026-10-22 核对：例如玩家选择“把钥匙交给”，再在“交给谁”中选择汤汤。这是一个物品选项加 `recipientId` 参数；每个接收者不再单独占一个选项。拿起、放下、交给以及料理／修理都由各包的 `scripts/status.js` 裁定，宿主不再安装旧的三种物品规则；标准写法见[作者模板](../../../examples/templates/item-rules.js)和[物品操作接口](../guides/activity-and-variables.md#对物品做的操作2026-10-22当前源码)。候选按作者 policy 筛选，执行前重新检查，成功后才提交权威物品变化与授权观察。下列带日期的验收记录保留当时的入口和选项形态。
 
-2026-10-21：玩家一个回合 = 一次表达 + 至多一个行动。例如玩家在输入框写“这个给你。”，再点“把 钥匙 交给 汤汤”：两者作为同一回合提交，先说后做（也可选先做后说），角色只反应一次，且同时看到这句话和交接结果；以前要分两回合，NPC 会先对一句空话作出反应。两步仍各自走原有裁定与提交（发言是 `/act speak`，行动是 `/act` 或 `/status`），不是一次原子提交：先说的话在后面的行动被拒绝时照样成立，并照常得到反应；选了先做后说时，行动被拒绝就不再说这句话。整个回合在[末端回合重新生成](../tail-round-regeneration.md)里记为一次输入，重新生成时两步一起重演。入口在[末端回合运行时](../../../desktop/host/tail-runtime.ts)的 `perform(action, line)` 和[宿主](../../../desktop/host/world-runtime.ts)的 `turn(texts)`。
+2026-10-21：玩家一个回合 = 一次表达 + 至多一个行动。例如玩家在输入框写“这个给你。”，再点“把 钥匙 交给 汤汤”：两者作为同一回合提交，先说后做（也可选先做后说），角色只反应一次，且同时看到这句话和交接结果；以前要分两回合，NPC 会先对一句空话作出反应。两步仍各自走原有裁定与提交（发言是 `/act speak`，行动是 `/act` 或 `/status`），不是一次原子提交：先说的话在后面的行动被拒绝时照样成立，并照常得到反应；选了先做后说时，行动被拒绝就不再说这句话。整个回合在[末端回合重新生成](../tail-round-regeneration.md)里记为一次输入，重新生成时两步一起重演。入口在[末端回合运行时](../../../apps/host/src/runtime/tail-runtime.ts)的 `perform(action, line)` 和[宿主](../../../apps/host/src/runtime/world-runtime.ts)的 `turn(texts)`。
 
 同日，[玩家视图](../../../packages/frontend/src/player-view.ts)的 `actions` 不再按“哪个脚本提供”区分，而是给每项标出 `kind`（`move` 移动、`interact` 世界内行动、`activity` 活动内行动或开始活动、`manage` 暂停／继续／放弃／重试等游戏外管理）和 `target`（地点、物品、角色、自己或活动）。需要玩家填写的操作（如购买金额、偷窃对象）也进入列表，带 `argumentSchema`，指向角色的输入列在 `characterArguments`；`perform` 以 `arguments` 传入，宿主只接受表单里开放的字段，固定字段（如活动 revision）由选项自带并优先，规则照常校验完整参数。因此 `/status`、`/act` 只保留给创作者调试，不再是玩家路径。自动测试覆盖 API 校验、同回合只反应一次、拒绝后的两种顺序与重新生成；默认舞台在本机桩模型下点击核对过附带行动和表单，未做真实模型试玩。
 
@@ -14,7 +14,7 @@
 
 2026-10-18：已撤销最初花房实验的信任数值交互、事件及面板。角色对他人的态度、同意和情感不由外加分数或门槛裁定；依据人设、预设、记忆与对话历史自主表达。客观玩法效果继续通过现有交互／规则／事件提交，变量不会因为一句情感叙述自动改变。边界例子见[世界设定指南](../guides/world-knowledge.md#3-客观变量与角色态度的边界)。
 
-> [跨场景短信实验](../studies/cross-scene-communication-20261010.md)通过独立安装的 `experiment:message` 交互投递自由正文；[电话实验](../studies/cross-scene-phone-20261010.md)用独立绑定裁定呼叫、接听、通话和挂断。普通 publish 仍只面向现场授权受众。2026-10-25 起默认宿主支持短信；M5 的[消息计算](../../../packages/official-communication/src/index.ts)与[宿主执行适配](../../../desktop/host/communication-runtime.ts)已分开：包根目录有 `communication.json` 时默认宿主安装它，玩家行动里出现“给 X 发短信”（正文在表单里填），NPC 的规则链为 core → 短信 → 状态 → 活动，自主行动可在 `autonomy.json` 里列出 `experiment:message`。玩家短信走独立提交（同 `/status`），活动进行中不能发。电话实验仍未加入默认宿主。作者 argumentSchema 提供动态正文；本地模型参数 Schema 的必填项取实际候选契约的共同字段，不再默认要求活动专用字段。
+> [跨场景短信实验](../studies/cross-scene-communication-20261010.md)通过独立安装的 `experiment:message` 交互投递自由正文；[电话实验](../studies/cross-scene-phone-20261010.md)用独立绑定裁定呼叫、接听、通话和挂断。普通 publish 仍只面向现场授权受众。2026-10-25 起默认宿主支持短信；M5 的[消息计算](../../../packages/providers/src/communication/index.ts)与[宿主执行适配](../../../apps/host/src/runtime/communication-runtime.ts)已分开：包根目录有 `communication.json` 时默认宿主安装它，玩家行动里出现“给 X 发短信”（正文在表单里填），NPC 的规则链为 core → 短信 → 状态 → 活动，自主行动可在 `autonomy.json` 里列出 `experiment:message`。玩家短信走独立提交（同 `/status`），活动进行中不能发。电话实验仍未加入默认宿主。作者 argumentSchema 提供动态正文；本地模型参数 Schema 的必填项取实际候选契约的共同字段，不再默认要求活动专用字段。
 
 > [活动组合实验](../studies/cross-scene-activity-20261010.md)由活动策略先裁定通信定义是否允许，再执行通信规则；接收消息不改变游戏回合，也不自动授权发送或接听。
 
@@ -40,7 +40,7 @@
 
 NPC 的发布范围可选 `scene_public`（公开）、`direct`（仅指定对象）、`private`（指定对象获得完整内容，旁观者仅观察交流发生）和 `self`（仅自己）。`direct/private` 必须指定当前可见的其他角色；`scene_public/self` 不指定接收对象。省略 scope 时，有接收对象默认 direct，否则默认 scene_public。标准和本地模型接口、执行结果后的续写、预设 output 转换及活动发布校验均支持这些字段；不新增事件协议或状态机制。self 不刺激其他角色，private 的发生观察仍可触发旁观者反应。活动表达许可继续生效。
 
-例如玩家悄悄对汤汤说“别声张”，汤汤若省略 scope 回应，这句回应会全场可闻。2026-10-20 试玩中她在叙述里写了“压低嗓子”，实际仍是公开发布，把秘密泄给了旁观者。为此，[角色回合](../../../packages/application/src/character-turn.ts)给 stimulus 中“`direct/private` 且收件人含本角色”的来话附加 `audienceHint`，提醒回应受众需要自己用 scope 选择、叙述不改变受众。它只是上下文提示，不替角色决定是否私下回应，也不改变默认值或 Rulebook。自动测试只覆盖标记出现的条件；真实模型是否因此改选受众尚未试玩验证。
+例如玩家悄悄对汤汤说“别声张”，汤汤若省略 scope 回应，这句回应会全场可闻。2026-10-20 试玩中她在叙述里写了“压低嗓子”，实际仍是公开发布，把秘密泄给了旁观者。为此，[角色回合](../../../packages/core/src/application/character-turn.ts)给 stimulus 中“`direct/private` 且收件人含本角色”的来话附加 `audienceHint`，提醒回应受众需要自己用 scope 选择、叙述不改变受众。它只是上下文提示，不替角色决定是否私下回应，也不改变默认值或 Rulebook。自动测试只覆盖标记出现的条件；真实模型是否因此改选受众尚未试玩验证。
 
 事件、授权观察、自观察、记忆 Source 与玩家公开视图保留片段顺序。记忆仍将其记为角色发表的内容，不证明叙述中的受控结果。预设 output/history/display 规则逐片段按 speech 或 narration 类型处理；显示规则只修改投影副本。
 
@@ -56,7 +56,7 @@ NPC 的发布范围可选 `scene_public`（公开）、`direct`（仅指定对�
 
 2026-10-17 核对：例如角色已获授权看到钥匙由玩家保管，最终模型文本会提醒“当前不由你保管”，避免把取出或转交保管直接描写成已完成。角色自己保管时提示转交仍需交互成功；`lastObserved` 只提示当前归属和位置未确认。误认、说谎、回忆、假设、尝试及普通接触仍允许。
 
-[物品投影](../../../packages/application/src/character-visible-items.ts)只给已有授权行补上作者定义的名称；[模型文本](../../../packages/provider-chat/src/character-context-text.ts)在副本中添加提示，不从玩家提及生成新的物品行或否定事实，不泄露未观察到的持有人，不把提示写成观察、记忆来源或权威事件。没有新状态机制、额外模型调用或语义审查阶段，规则与事件仍负责裁定保管变化。
+[物品投影](../../../packages/core/src/application/character-visible-items.ts)只给已有授权行补上作者定义的名称；[模型文本](../../../packages/providers/src/chat/character-context-text.ts)在副本中添加提示，不从玩家提及生成新的物品行或否定事实，不泄露未观察到的持有人，不把提示写成观察、记忆来源或权威事件。没有新状态机制、额外模型调用或语义审查阶段，规则与事件仍负责裁定保管变化。
 
 [物品边界回归](../../../tests/scenarios/item-narrative-boundaries.test.ts)覆盖当前保管、交互后刷新、秘密转移、旧观察和错认保留，并检查渲染不修改原请求。自动化不能证明任意自然语言绝不越权；本次未重跑真实模型对照或重建发行包。此前的 [Narrative Guardian 影子实验已归档](../../archive/narrative-guardian-shadow-20261017.md)，当前宿主不再接入该审查器；物品提示独立工作。
 
@@ -76,7 +76,7 @@ NPC 的发布范围可选 `scene_public`（公开）、`direct`（仅指定对�
 
 例如角色先说“我去后室看看”，开启宿主 continueAfterPublish 实验选项后，首次行动前的表达成功提交且仍有两次调用余量时，角色可在同一激活内再决定移动或结束；移动后照常看到真实结果。它替代实验模式的“首句表达立即结束”，默认关闭，不从台词自动生成动作。
 
-2026-10-25 起，玩家也可以在本局抽屉“运行参数 → 普通反应周期”里把“角色发言后可接着行动”设为 1 打开它（[play-settings.ts](../../../desktop/play-settings.ts) 的 `continueAfterPublish`，默认 0），宿主在设置为 1 或实验选项打开时启用；它属于游玩设置，末端重新生成按设置区分环境。在玩家真实存档（《屋檐下的心动日程》第 2 天傍晚、Core 记忆、deepseek-flash 思考低）的两份副本上做 9 步对照：关闭时玩家让 GPT 去书房叫 Claude，GPT 走到书房后后续表达格式失败，两人整晚留在书房；打开时 Claude 被叫到厨房，之后角色实际执行了泡茶、去卧室等操作。代价是调用 26 → 48 次、未命中输入 token 约 21 万 → 53 万；其中一部分来自更多角色同场后的正常反应。单次对照，样本小。
+2026-10-25 起，玩家也可以在本局抽屉“运行参数 → 普通反应周期”里把“角色发言后可接着行动”设为 1 打开它（[play-settings.ts](../../../apps/host/src/play-settings.ts) 的 `continueAfterPublish`，默认 0），宿主在设置为 1 或实验选项打开时启用；它属于游玩设置，末端重新生成按设置区分环境。在玩家真实存档（《屋檐下的心动日程》第 2 天傍晚、Core 记忆、deepseek-flash 思考低）的两份副本上做 9 步对照：关闭时玩家让 GPT 去书房叫 Claude，GPT 走到书房后后续表达格式失败，两人整晚留在书房；打开时 Claude 被叫到厨房，之后角色实际执行了泡茶、去卧室等操作。代价是调用 26 → 48 次、未命中输入 token 约 21 万 → 53 万；其中一部分来自更多角色同场后的正常反应。单次对照，样本小。
 
 最多三次决策步骤，首次表达后的第二次表达直接结束；自主机会仍最多一次受控行动，普通机会保留原先的一次/两次行动上限。格式修正、召回和后续决策沿用当前模型调用及时间预算，不增加调度机会。每一步重新构建授权上下文，已发表表达可见且可被打断，已提交动作与表达保留。活动和外部发布审计路径不启用（2026-10-19 起不再因变量脚本关闭），启动器未增加设置项；末端候选环境记录该开关。真实对照及限制见[实验记录](../studies/interaction-continuity-20261012.md)。
 
@@ -96,19 +96,19 @@ NPC 的发布范围可选 `scene_public`（公开）、`direct`（仅指定对�
 
 随后加入即时行动与计划表达的区分：已经决定立即执行且工具提供对应动作时直接选择动作；建议、愿望、征求同意、等待和犹豫仍可正常表达。只有规则裁定的行动改变权威状态。新增段落没有将全部计划都强制转成动作，配对重放及完整轨迹验证见[即时行动提示实验](../studies/action-intent-prompt-20261012.md)。
 
-2026-10-22 核对：[操作说明](../../../packages/provider-chat/src/character-action-explanations.ts)仍按已有 affordances 生成 actionExplanations。例如“前往旅馆”附对应的 perform/move 参数；物品交互使用作者给出的操作标签和已有目标，携带 `argumentSchema` 提醒填写必要参数，不再为旧拿取、交付、放下定义提供专用语义模板。未知效果不猜测，关闭 perform 时不提供说明。它不增加操作或改变权限、世界裁定路径。2026-10-12 的配对验证只说明当时版本，见[操作语义说明实验](../studies/action-semantics-20261012.md)；当前作者规则的真实样本范围见[项目状态](../PROJECT-STATE.md#验证到了哪一步)。
+2026-10-22 核对：[操作说明](../../../packages/providers/src/chat/character-action-explanations.ts)仍按已有 affordances 生成 actionExplanations。例如“前往旅馆”附对应的 perform/move 参数；物品交互使用作者给出的操作标签和已有目标，携带 `argumentSchema` 提醒填写必要参数，不再为旧拿取、交付、放下定义提供专用语义模板。未知效果不猜测，关闭 perform 时不提供说明。它不增加操作或改变权限、世界裁定路径。2026-10-12 的配对验证只说明当时版本，见[操作语义说明实验](../studies/action-semantics-20261012.md)；当前作者规则的真实样本范围见[项目状态](../PROJECT-STATE.md#验证到了哪一步)。
 
 普通场景尽可能自由表达。活动可以显式收窄对白、外显表现、移动与交互能力，见[受控交互](controlled-interaction.md)。扩展玩法先复用交互定义和可信包内脚本，不把题材动作全部加入 core 枚举。
 
 程序没有直接修改物品归属，不代表叙事一致性已经通过。真实试玩仍有自由叙述虚构受控事实、私语送达等问题；其他角色相信未提交转移也属于体验失败，不能把任意自然语言永不越权当成已证明保证。
 
-2026-10-17 修复定向表达的静默丢失：例如 A 向另一房间的 B 私语，现会明确拒绝整次发布；即使另一个指定收件人在场，也不会部分送达。普通 `direct/private` 要求全部收件人属于发布时当前场景的有效观察者（包括成员、位置、生命周期及可见性），Rulebook 和观察投递复用 [场景读取与观察者过滤](../../../packages/kernel/src/scene-state.ts)。拒绝不产生 `character.speak`，仅发话者收到失败结果；场外对象和同场旁观者都不会因此获知内容、收到发生观察或获得反应机会。成功发布时 `private` 的同场非收件人仍只收到 occurrence_only；`direct` 的非收件人没有观察。之后入场也不会补发旧表达。普通发话不提供远程通信，短信和电话仍走各自授权交互。
+2026-10-17 修复定向表达的静默丢失：例如 A 向另一房间的 B 私语，现会明确拒绝整次发布；即使另一个指定收件人在场，也不会部分送达。普通 `direct/private` 要求全部收件人属于发布时当前场景的有效观察者（包括成员、位置、生命周期及可见性），Rulebook 和观察投递复用 [场景读取与观察者过滤](../../../packages/core/src/kernel/scene-state.ts)。拒绝不产生 `character.speak`，仅发话者收到失败结果；场外对象和同场旁观者都不会因此获知内容、收到发生观察或获得反应机会。成功发布时 `private` 的同场非收件人仍只收到 occurrence_only；`direct` 的非收件人没有观察。之后入场也不会补发旧表达。普通发话不提供远程通信，短信和电话仍走各自授权交互。
 
 NPC 的模型 Schema 继续只列当前可见收件人；选错时沿用已有一次格式修正，明确提示原话未发表、未传达。如果合法形状的提案到达执行裁定后因收件人不可达而被拒，Character Turn 最多额外重新决策一次，消耗原有模型调用和时间预算；预算足够时可自行移动、改换合法表达或结束。没有显式调用上限的入口，恢复过程仍以原有 maxCalls 限制调用；已经执行成功的动作保留，行动前表达被拒则不执行附带动作。未知 ID、重复收件人和非法字段仍是输出错误。失败反馈不揭示目标的远处位置或隐藏状态。
 
 本次自动回归覆盖两种 scope 的同场接受、场外／离场／不可见／不可用拒绝、混合收件人整次拒绝、玩家真实提交和后续同场新发话、观察隔离与记忆来源、NPC 失败反馈／自主重新选择／预算及重试上限，以及原有通信实验。本机 8045 / gemini-3.8-flash 在新目录 `.tmp/speech-delivery-live-1792167062418/` 完成两次故障注入：执行拒绝后的真实决策为 abstain，Schema 修正后的真实决策为向同场 Bob 公开问候；两次均未传播注入的场外私语。错误提案为人工注入，不能计作模型自然出错率，也未验证长期互动或自主移动后的交流体验。证据为该目录 `result.json` 与两个子目录的 `world.sqlite`；本次未重建发行包。2026-10-16 原探针未按本次提交的事务筛选发生观察，不能作为 direct 会产生 occurrence_only 的依据。
 
-依据：[现行原型契约](../prototype-contract.md)、[World Pack 手册](../guides/world-pack-authoring.md)、[G1/G2 验收](../../archive/prototype-g1-g4/PROTOTYPE-G1-G2-ACCEPTANCE.md)、[Gemini 试玩](../../archive/prototype-g1-g4/PROTOTYPE-GEMINI-PLAYTEST-2026-09-28.md)。代码：[交互执行包](../../../packages/interaction-runtime)、[基础交互](../../../packages/interactions-basic)、[Character Turn](../../../packages/application/src/character-turn.ts)。
+依据：[现行原型契约](../prototype-contract.md)、[World Pack 手册](../guides/world-pack-authoring.md)、[G1/G2 验收](../../archive/prototype-g1-g4/PROTOTYPE-G1-G2-ACCEPTANCE.md)、[Gemini 试玩](../../archive/prototype-g1-g4/PROTOTYPE-GEMINI-PLAYTEST-2026-09-28.md)。代码：[交互执行包](../../../packages/core/src/interactions)、[基础交互](../../../packages/plugins/src/basic-interactions)、[Character Turn](../../../packages/core/src/application/character-turn.ts)。
 
 ### 2026-10-09：官方同居包的 Gemini 料理验证
 

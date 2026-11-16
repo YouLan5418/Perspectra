@@ -7,8 +7,8 @@ import { resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { createContext, Script } from 'node:vm'
 import { afterEach, expect, it, vi } from 'vitest'
-import { brandId } from '@harness-world/contracts'
-import { HostCapabilities } from '../../desktop/host-capabilities.ts'
+import { brandId } from '@perspectra/sdk/contracts'
+import { HostCapabilities } from '../../apps/host/src/host-capabilities.ts'
 
 interface Bridge {
   port: number

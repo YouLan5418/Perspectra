@@ -1,9 +1,9 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import { join } from 'node:path'
-import { brandId, type WorldJsonObject } from '@harness-world/contracts'
-import { currentLocation } from '@harness-world/kernel'
-import { CharacterViewBuilder, WorldStore } from '@harness-world/store-sqlite'
-import { partyList, partyMembers, unlockedDoors } from '../../packages/official-rpg/src/rules.ts'
+import { brandId, type WorldJsonObject } from '@perspectra/sdk/contracts'
+import { currentLocation } from '@perspectra/core/kernel'
+import { CharacterViewBuilder, WorldStore } from '@perspectra/core/store'
+import { partyList, partyMembers, unlockedDoors } from '../../packages/plugins/src/rpg/rules.ts'
 import { openRpgFixture, type RpgFixture, type RpgFixtureOptions } from '../support/rpg-fixture.ts'
 
 const PLAYER = 'character:player',

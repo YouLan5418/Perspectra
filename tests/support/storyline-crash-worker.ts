@@ -3,8 +3,8 @@ import fs from 'node:fs'
 import promises from 'node:fs/promises'
 import { syncBuiltinESMExports } from 'node:module'
 import { basename, dirname } from 'node:path'
-import type { CoreRunner } from '../../packages/official-memory-core/src/python-worker.ts'
-import { LauncherCore } from '../../desktop/launcher-core.ts'
+import type { CoreRunner } from '../../packages/memory-core/src/python-worker.ts'
+import { LauncherCore } from '../../apps/launcher/backend/core.ts'
 import { fakeModels } from './fake-provider.ts'
 
 // Test-only fault injection: no hooks or recovery machinery in production code.

@@ -2,7 +2,7 @@ import { expect, it } from 'vitest'
 import { runInNewContext } from 'node:vm'
 import { createParticipantPicker } from '../../packages/frontend/src/participant-picker.ts'
 import { DEFAULT_SCRIPT } from '../../packages/frontend/src/default-template.ts'
-import { HOST_ACTIVITY_PAGE } from '../../desktop/host/host-page.ts'
+import { HOST_ACTIVITY_PAGE } from '../../apps/host/src/runtime/host-page.ts'
 
 class Element {
   children: Element[] = []

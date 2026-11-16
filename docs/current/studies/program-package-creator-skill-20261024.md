@@ -70,7 +70,7 @@ build-info.json 记录根 package.json 版本 0.3.1、源提交 `048e98f5df0cd79
 
 ## 这次修正的打包问题
 
-旧脚本未收录 CLI，固定复制三个试玩包；现在复用[已有 CLI](../../../packages/world-pack/process/cli-entry.ts)打包并复制创作 Skill，移除试玩包复制。Skill 是作者工具，未新增宿主协议、插件层或角色控制机制。
+旧脚本未收录 CLI，固定复制三个试玩包；现在复用[已有 CLI](../../../apps/host/src/cli/worldpack.ts)打包并复制创作 Skill，移除试玩包复制。Skill 是作者工具，未新增宿主协议、插件层或角色控制机制。
 
 完整离线检查发现当前 venv 依赖基础 Python 的 site-packages，而旧脚本会丢掉它，导致 numpy 缺失。初始候选因此未通过；candidate2 已修正并重新验证。前端模板使用 function.toString()，源码加载器及整包构建的局部符号重命名会影响逐字比较；验收现在按同一 esbuild 目标构建，并规范化内嵌脚本局部名称，继续比较 HTML/CSS 和可观察字符串。没有修改玩家运行协议来适配检查。
 

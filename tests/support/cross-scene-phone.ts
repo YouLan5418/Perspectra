@@ -1,4 +1,4 @@
-import type { WorldJsonObject, WorldJsonValue, WorldEventDraft } from '@harness-world/contracts'
+import type { WorldJsonObject, WorldJsonValue, WorldEventDraft } from '@perspectra/sdk/contracts'
 import {
   currentCharacterLifecycle,
   rejectRulebookResolution,
@@ -7,9 +7,9 @@ import {
   type RulebookResolver,
   type RulebookResolutionContext,
   type RulebookResolution,
-} from '@harness-world/kernel'
+} from '@perspectra/core/kernel'
 import { CrossSceneCommunication } from './cross-scene-communication.ts'
-import { characterExecutionResult } from '../../packages/application/src/character-execution-result.ts'
+import { characterExecutionResult } from '../../packages/core/src/application/character-execution-result.ts'
 
 const object = (value: WorldJsonValue | undefined): WorldJsonObject | undefined =>
   value !== null && typeof value === 'object' && !Array.isArray(value) ? (value as WorldJsonObject) : undefined

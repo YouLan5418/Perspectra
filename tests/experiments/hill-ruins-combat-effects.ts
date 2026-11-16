@@ -2,7 +2,7 @@ import { cpSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { basename, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import type { RpgConfig } from '../../packages/official-rpg/src/config.ts'
+import type { RpgConfig } from '../../packages/plugins/src/rpg/config.ts'
 
 // Make a fresh playable variant without changing the example pack or its existing Lens scenarios.
 const source = fileURLToPath(new URL('../../examples/world-packs/hill-ruins/', import.meta.url))

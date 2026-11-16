@@ -2,10 +2,10 @@ import { mkdtemp, readFile, readdir, writeFile, rm, mkdir, cp } from 'node:fs/pr
 import { join, resolve } from 'node:path'
 import { tmpdir } from 'node:os'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { LauncherCore } from '../../desktop/launcher-core.ts'
-import { modelConnection } from '../../desktop/model-connections.ts'
-import { WorldHostRuntime } from '../../desktop/host/world-runtime.ts'
-import { projectPlayerView } from '../../desktop/host/frontend-adapter.ts'
+import { LauncherCore } from '../../apps/launcher/backend/core.ts'
+import { modelConnection } from '../../apps/host/src/model-connections.ts'
+import { WorldHostRuntime } from '../../apps/host/src/runtime/world-runtime.ts'
+import { projectPlayerView } from '../../apps/host/src/runtime/frontend-adapter.ts'
 import { fakeModels, startFakeProvider, type FakeAnswer } from '../support/fake-provider.ts'
 
 vi.mock('node:fs/promises', async importOriginal => {

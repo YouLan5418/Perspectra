@@ -36,9 +36,9 @@ Perspectra-0.1.0-test1-win-x64/
 ## 2. 实现与实际问题
 
 - `apps/launcher/src-tauri/src/main.rs`：优先从 EXE 同级 runtime 启动绝对路径 Node，设置独立 Python/模型/缓存路径；正式构建缺依赖直接报错，源码回退仅用于 debug。优先使用随包 WebView2，保持现有 Windows Job 子进程清理。
-- `desktop/launcher-core.ts`：便携模式调用打包 playtest.mjs。新增独立模型连接测试，只发送固定公开短文本，不回显服务正文，不保存密钥。
+- `apps/launcher/backend/core.ts`：便携模式调用打包 playtest.mjs。新增独立模型连接测试，只发送固定公开短文本，不回显服务正文，不保存密钥。
 - `apps/launcher/src/services/desktop.ts`、`SettingsDialog.vue`：接入连接测试与可读状态；明确它不验证游戏的结构化输出能力。
-- `desktop/save-preflight.ts` / 新 `save-preflight-entry.ts`、`desktop/main.ts`、`package.json`：拆分可复用存档校验与 CLI 入口，修复 bundle 后 import.meta CLI 判断误触发导致 Launcher 直接退出。
+- `apps/host/src/save-preflight.ts` / 新 `save-preflight-entry.ts`、`apps/host/src/main.ts`、`package.json`：拆分可复用存档校验与 CLI 入口，修复 bundle 后 import.meta CLI 判断误触发导致 Launcher 直接退出。
 - `experiments/hindsight-core/vector_core.py`：便携缓存写入实例数据目录，运行依赖不被修改。
 - `e5-assets.json`：修正 ONNX 资产仓库为 Xenova；固定 revision 和六个 SHA-256 不变。
 - `scripts/release/`：新增构建、冒烟、许可收集、ZIP/CRC/SHA-256 归档脚本和玩家文档。复制 Python 时展开 junction；归档拒绝链接。首次清单遗漏 candidate_admission.py/minimal_delivery.py，已补齐，最终导入检查通过。

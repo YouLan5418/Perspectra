@@ -2,11 +2,11 @@
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
-import type { StoredWorldEvent, WorldJsonObject } from '@harness-world/contracts'
-import { currentEntityState } from '@harness-world/kernel'
-import { createClaimClassifier } from '../../../packages/official-jev-audit/src/jev-shadow-claims-client.ts'
-import { acquisitionWindow, holderEvidence, reconcilePlacement } from '../../../packages/official-jev-audit/src/jev-shadow-window.ts'
-import type { ShadowRecord } from '../../../packages/official-jev-audit/src/jev-shadow.ts'
+import type { StoredWorldEvent, WorldJsonObject } from '@perspectra/sdk/contracts'
+import { currentEntityState } from '@perspectra/core/kernel'
+import { createClaimClassifier } from '../../../packages/jev-audit/src/jev-shadow-claims-client.ts'
+import { acquisitionWindow, holderEvidence, reconcilePlacement } from '../../../packages/jev-audit/src/jev-shadow-window.ts'
+import type { ShadowRecord } from '../../../packages/jev-audit/src/jev-shadow.ts'
 
 const directory = resolve(process.argv[2] ?? '')
 if (!process.argv[2] || existsSync(directory)) throw new Error('provide new evidence directory')

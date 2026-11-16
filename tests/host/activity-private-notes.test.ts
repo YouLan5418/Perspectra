@@ -2,9 +2,9 @@ import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:f
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { afterEach, expect, it, vi } from 'vitest'
-import { brandId, type ActivityState, type WorldJsonObject } from '@harness-world/contracts'
-import { CharacterViewBuilder, WorldStore } from '@harness-world/store-sqlite'
-import type { WorldHostCore } from '../../desktop/host/world-runtime.ts'
+import { brandId, type ActivityState, type WorldJsonObject } from '@perspectra/sdk/contracts'
+import { CharacterViewBuilder, WorldStore } from '@perspectra/core/store'
+import type { WorldHostCore } from '../../apps/host/src/runtime/world-runtime.ts'
 import { createRoleplayCore } from '../support/roleplay-runtime.ts'
 import { startFakeProvider, fakeModels } from '../support/fake-provider.ts'
 

@@ -1,14 +1,14 @@
-import { CommunicationPolicy } from '@harness-world/official-communication'
-import { guardedCommunication } from '../../desktop/host/gameplay-services.ts'
+import { CommunicationPolicy } from '@perspectra/providers/communication'
+import { guardedCommunication } from '../../apps/host/src/runtime/gameplay-services.ts'
 import { Context } from '@deepseek-ai/cordis'
 import { afterEach, expect, it, vi } from 'vitest'
-import { createWorldInstanceScope } from '@harness-world/runtime-cordis'
+import { createWorldInstanceScope } from '@perspectra/core/runtime'
 import {
   callPluginAsync,
   callPluginSync,
   createPluginCallContext,
   hostCallback,
-} from '../../desktop/host/plugin-runtime.ts'
+} from '../../apps/host/src/runtime/plugin-runtime.ts'
 const scopes: Awaited<ReturnType<typeof createWorldInstanceScope>>[] = []
 afterEach(async () => {
   vi.restoreAllMocks()

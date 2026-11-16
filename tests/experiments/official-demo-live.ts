@@ -2,12 +2,12 @@ import { createRoleplayCore } from '../support/roleplay-runtime.ts'
 import assert from 'node:assert/strict'
 import { cpSync, mkdirSync, writeFileSync } from 'node:fs'
 import { resolve, join } from 'node:path'
-import { brandId, type WorldJsonObject } from '@harness-world/contracts'
-import { WorldStore, CharacterViewBuilder } from '@harness-world/store-sqlite'
-import { currentEntityState, currentLocation } from '@harness-world/kernel'
-import { WorldHostCore } from '../../desktop/host/world-runtime.ts'
-import { projectPlayerView } from '../../desktop/host/frontend-adapter.ts'
-import { environmentRoleModels } from '../../desktop/model-connections.ts'
+import { brandId, type WorldJsonObject } from '@perspectra/sdk/contracts'
+import { WorldStore, CharacterViewBuilder } from '@perspectra/core/store'
+import { currentEntityState, currentLocation } from '@perspectra/core/kernel'
+import { WorldHostCore } from '../../apps/host/src/runtime/world-runtime.ts'
+import { projectPlayerView } from '../../apps/host/src/runtime/frontend-adapter.ts'
+import { environmentRoleModels } from '../../apps/host/src/model-connections.ts'
 
 // Real role provider; scripts substitute only the explicitly authored prologue/seed.
 const root=resolve('.tmp/official-live-'+Date.now());mkdirSync(root,{recursive:true})

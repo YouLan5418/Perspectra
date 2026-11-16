@@ -2,7 +2,7 @@ import { spawn } from 'node:child_process'
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { basename, join, relative, resolve } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
-import { preflightSave } from '../../desktop/save-preflight.ts'
+import { preflightSave } from '../../apps/host/src/save-preflight.ts'
 
 const directories: string[] = []
 afterEach(async () => {
@@ -97,7 +97,7 @@ describe('desktop launch boundary', () => {
       const pack = resolve('examples/world-packs', packName)
       expect((await preflightSave(pack, directory)).kind).toBe('new')
       const bundled = process.env.HCW_TEST_DESKTOP_BUNDLE === '1'
-      const entry = bundled ? resolve('dist/backend/playtest.mjs') : resolve('desktop/host/web-entry.ts')
+      const entry = bundled ? resolve('dist/backend/playtest.mjs') : resolve('apps/host/src/runtime/web-entry.ts')
       const child = spawn(
         process.execPath,
         [

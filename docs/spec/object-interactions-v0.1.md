@@ -88,7 +88,7 @@ take/drop 的 arguments 必须是空对象，give 必须只含 recipientId。新
 
 | Evidence | Finding | Path |
 |---|---|---|
-| `packages/kernel/src/interactions.test.ts` | 完整持有循环、物品竞争、过期条件和损坏前缀均有确定性结果 | 保持闭合效果执行 |
+| `packages/core/src/kernel/interactions.test.ts` | 完整持有循环、物品竞争、过期条件和损坏前缀均有确定性结果 | 保持闭合效果执行 |
 | `tests/interaction.integration.test.ts` | 根轮、反应轮、Context、Memory、幂等与导入导出闭环通过 | 新世界显式启用 |
 | `packages/world-pack/src/creator-cli.test.ts` | 目录激活严格校验；旧 Pack 拒绝误启用 | 创作者目录纳入 Manifest Hash |
 | `tests/crash.test.ts` | 新增三个 v5 交互组硬终止窗口通过 | 沿用耐久 Provider response 恢复，不重发模型调用 |

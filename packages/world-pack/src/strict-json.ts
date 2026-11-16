@@ -1,4 +1,4 @@
-import { canonicalizeWorldJson, type WorldJsonValue } from '@harness-world/contracts'
+import { canonicalizeWorldJson, type WorldJsonValue } from '@perspectra/sdk/contracts'
 import { failWorldPackContract } from './diagnostics.ts'
 
 class StrictWorldJsonReader {

@@ -11,7 +11,7 @@ import {
   resolveRoleModels,
   runtimeRoleModels,
   type ModelConnection,
-} from '../../desktop/model-connections.ts'
+} from '../../apps/host/src/model-connections.ts'
 
 const id = '6f1c2a4e-1d0b-4c39-9a51-0d6c1b7e2f10'
 const openai: ModelConnection = {

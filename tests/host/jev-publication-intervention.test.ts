@@ -2,14 +2,10 @@ import { expect, it } from 'vitest'
 import {
   auditBeforePublication,
   type InterventionRecord,
-} from '../../packages/official-jev-audit/src/jev-publication-intervention.ts'
-import type {
-  ClaimAnswer,
-  ClaimQuestion,
-  ClaimKind,
-} from '../../packages/official-jev-audit/src/jev-shadow-claims-client.ts'
-import type { StoredWorldEvent } from '@harness-world/contracts'
-import type { CharacterTurnRequest } from '../../packages/application/src/character-turn.ts'
+} from '../../packages/jev-audit/src/jev-publication-intervention.ts'
+import type { ClaimAnswer, ClaimQuestion, ClaimKind } from '../../packages/jev-audit/src/jev-shadow-claims-client.ts'
+import type { StoredWorldEvent } from '@perspectra/sdk/contracts'
+import type { CharacterTurnRequest } from '../../packages/core/src/application/character-turn.ts'
 
 const request: CharacterTurnRequest = {
   continuation: false,

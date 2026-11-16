@@ -2,10 +2,10 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import type { Server } from 'node:http'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
-import type { LlmInstance, MemoryInstance, RulesInstance, SeamProvider } from '@harness-world/plugin-sdk'
+import type { LlmInstance, MemoryInstance, RulesInstance, SeamProvider } from '@perspectra/sdk'
 import { afterEach, expect, it } from 'vitest'
-import { pluginSetChanges } from '../../desktop/host/plugin-set.ts'
-import { WorldHostRuntime } from '../../desktop/host/world-runtime.ts'
+import { pluginSetChanges } from '../../apps/host/src/runtime/plugin-set.ts'
+import { WorldHostRuntime } from '../../apps/host/src/runtime/world-runtime.ts'
 import { createChatServer, fakeModels } from '../support/fake-provider.ts'
 
 const roots: string[] = [],

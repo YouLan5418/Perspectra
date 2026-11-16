@@ -1,0 +1,21 @@
+{
+  "name": "@perspectra/core",
+  "version": "0.3.5",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/application/index.ts",
+    "./kernel": "./src/kernel/index.ts",
+    "./store": "./src/store/index.ts",
+    "./runtime": "./src/runtime/index.ts",
+    "./memory": "./src/memory/index.ts",
+    "./interactions": "./src/interactions/index.ts",
+    "./presentation": "./src/presentation/index.ts",
+    "./agents": "./src/agents/index.ts"
+  },
+  "dependencies": {
+    "@deepseek-ai/cordis": "4.0.1",
+    "ajv": "8.17.1",
+    "@perspectra/sdk": "workspace:*"
+  }
+}

@@ -2,10 +2,10 @@ import { appendFileSync, readFileSync, rmSync, unlinkSync, writeFileSync, readdi
 import { join } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 import { afterEach, expect, it } from 'vitest'
-import { officialStatusProvider } from '@harness-world/official-status'
-import { officialActivitiesProvider } from '@harness-world/official-activities'
-import type { WorldJsonObject } from '@harness-world/contracts'
-import { assembleRoleplay, officialRpgContent } from '../../desktop/official-bundle.ts'
+import { officialStatusProvider } from '@perspectra/providers/status'
+import { officialActivitiesProvider } from '@perspectra/providers/activities'
+import type { WorldJsonObject } from '@perspectra/sdk/contracts'
+import { assembleRoleplay, officialRpgContent } from '../../apps/host/src/official-bundle.ts'
 import { copyRpgFixture, openRpgWorld } from '../support/rpg-fixture.ts'
 
 const cleanup: (() => void | Promise<void>)[] = []

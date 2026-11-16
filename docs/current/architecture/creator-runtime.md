@@ -9,7 +9,7 @@
 
 例如同伴在地图战斗中使用技能，实际执行的是所属 GameplayDefinition 注册的 Handler；RPG 锁门和金库访问走 restrictions，随行移动走单层 afterAction。TRPG 主持人的暗骰及笔记仍只形成指定接收者的观察。Host 把已有状态／活动操作信封转换为公共操作 ID；注册前由 bindNativeGameplay 绑定当前世界选中的 State／Activity Provider。唯一 Handler 调用所选实例生成候选，核心复核权限、状态和原子提交，不绕过替换实现调用生成时捕获的官方计算。源码接通与测试证据见 [B6 记录](../../superpowers/plans/2026-11-15-composable-engine-b6-rpg-trpg.md)，原阶段审查已完成，本次九项修正见[复核记录](../../superpowers/plans/2026-11-15-composable-engine-b6-followup.md)，已通过三组新的独立复验；不代表真实模型或发行验收。
 
-[nativeGameplay](../../../packages/plugin-sdk/src/native-gameplay.ts)把动态配置中的纯状态／活动计算展开为共同定义、参数 Schema 和操作。活动 behavior 保留初始化、policy、调度、自动开始、发布后计算和恢复条件，正式 resolve 只在 operations 中注册。status-result／activity-result 是核心识别的提案数据；公共执行器用已有解析器归一化，再与普通效果共同检查所属状态、冲突归并、活动身份／阶段、可信物理范围和受众。发布后派生与原表达属于同一个候选提交。 所选状态实例负责初始化、policy 与 resolve；所选活动实例负责初始化、policy、resolve、schedule、发布后计算等既有能力。状态结果按声明归属过滤初值，后续候选仍由核心作共同校验。 当 State Provider 同时处理基础脚本与原生玩法时，宿主以 projectKnownStatus 提供该调用者完整授权的 known view，复制冻结后交给 policy；Handler truth 和模块状态投影仍只含所属状态。
+[nativeGameplay](../../../packages/sdk/src/native-gameplay.ts)把动态配置中的纯状态／活动计算展开为共同定义、参数 Schema 和操作。活动 behavior 保留初始化、policy、调度、自动开始、发布后计算和恢复条件，正式 resolve 只在 operations 中注册。status-result／activity-result 是核心识别的提案数据；公共执行器用已有解析器归一化，再与普通效果共同检查所属状态、冲突归并、活动身份／阶段、可信物理范围和受众。发布后派生与原表达属于同一个候选提交。 所选状态实例负责初始化、policy 与 resolve；所选活动实例负责初始化、policy、resolve、schedule、发布后计算等既有能力。状态结果按声明归属过滤初值，后续候选仍由核心作共同校验。 当 State Provider 同时处理基础脚本与原生玩法时，宿主以 projectKnownStatus 提供该调用者完整授权的 known view，复制冻结后交给 policy；Handler truth 和模块状态投影仍只含所属状态。
 
 WorldApplication 默认绑定同一事实前缀的物理视图，角色输入不包含他人认知或私有状态。裁定只获得模块自有状态真值；候选按已知数据收窄。需要队伍位移或指定实体掉落的定义显式声明 physicalEffects，核心仍验证最终效果。公开 startActivity 给每次开始分配新身份并绑定玩家与 NPC；resume 复核恢复钩子或共址条件。骰子能力只在当前调用期间有效。包清单与共同脚本装配由 B7 接通，默认 UI 由 B8 接通。
 
@@ -23,9 +23,9 @@ WorldApplication 默认绑定同一事实前缀的物理视图，角色输入不
 
 例如搜查候选直接指向当前地点，查看线索候选指向已知线索。offer.targetId 保留为受控目标；B8 起 ui.targetKind 只承担展示分类，实际 targetRef.kind 由身份推导，正式入口使用与候选相同的受限材料复核目标；不能通过替换或撤销后的目标执行。示例状态统一以 `clues` 作为声明键和读字段，使用默认所属投影与核心行动者告知，避免手工名称映射。必要的其他接收者告知仍须显式声明，不能据此向旁观者暴露完整状态。
 
-例如角色搜查档案室后，本人获得线索，同房人只看到翻找，房外人不收到材料。[搜证定义](../../../packages/plugin-sdk/src/gameplay.example.ts)现在实际通过公共引擎、真实 CharacterTurn 和原子提交运行，不再只验证作者类型。当前原生集成覆盖搜证、跨模块计算、派生冲突、最终伤害／倒地、活动私有材料、所属周期结算和生命周期；真实模型、默认界面、游戏包装载与发行包尚未验收。
+例如角色搜查档案室后，本人获得线索，同房人只看到翻找，房外人不收到材料。[搜证定义](../../../packages/sdk/src/gameplay.example.ts)现在实际通过公共引擎、真实 CharacterTurn 和原子提交运行，不再只验证作者类型。当前原生集成覆盖搜证、跨模块计算、派生冲突、最终伤害／倒地、活动私有材料、所属周期结算和生命周期；真实模型、默认界面、游戏包装载与发行包尚未验收。
 
-引擎消费端用 [WorldApplication.createGameplayRuntime](../../../packages/application/src/world-application.ts)绑定已有 scope、分支与执行引擎，再 register(definition, config, context?) 并等待 initialize()。作者定义只依赖 SDK；注册、执行与受众检查在 [gameplay-runtime](../../../packages/application/src/gameplay-runtime.ts)。装配后不追加定义，Context 释放时撤销所属注册；实例关闭使旧计算方法和执行入口失效。已有 WorldApplication 玩家入口与受控角色回合自动消费所属分支的原生规则。
+引擎消费端用 [WorldApplication.createGameplayRuntime](../../../packages/core/src/application/world-application.ts)绑定已有 scope、分支与执行引擎，再 register(definition, config, context?) 并等待 initialize()。作者定义只依赖 SDK；注册、执行与受众检查在 [gameplay-runtime](../../../packages/core/src/application/gameplay-runtime.ts)。装配后不追加定义，Context 释放时撤销所属注册；实例关闭使旧计算方法和执行入口失效。已有 WorldApplication 玩家入口与受控角色回合自动消费所属分支的原生规则。
 
 initializeState 明确返回现有 StatusTruth 的 public／characters，替代 B1 未绑定归属的扁平初值。声明状态时必须有初值，无状态模块可省略。恢复已有值时检查声明和 Schema，不用初始化覆盖不匹配的事实。projectState 的候选输入只含该角色已知且属于本模块的状态；裁定消费所属真值。角色上下文和新鲜度检查同时纳入授权的原生材料。
 
@@ -57,19 +57,19 @@ RPG Maker 方向暂停继续扩展自研 RPG Core 战斗规则。[桥接骨架](
 
 2026-10-24 创作资源：仓库的 [perspectra-creator](../../../skills/perspectra-creator/SKILL.md) 通过 [CLI 构建函数](../../../scripts/build/build-worldpack-cli.mjs)复制到程序的同名 skills 目录，整合原创世界包、旧 tavern-to-perspectra 的静态卡片提取／容量分析及迁移流程、原生预设创作与模板。脚手架使用随包 Node，卡片提取使用随包 Python；不执行原卡脚本，不依赖旧 Skill 或仓库。它不增加运行时插件或预装试玩包。[Skill 检查脚本](../../../scripts/release/verify-creator-skill.mjs)在独立环境验证脚手架、防覆盖、文档示例、合成 PNG／JSON 卡的数据保留，以及原生预设模板和非法字段／宏拒绝；真实迁移作品与角色体验仍需单独验收。
 
-预设创作可让同行者少写总结、保留自己的语气；不会授予其读取信件秘密的权限。CLI 进程新增 `preset validate <file> [--pack]`，直接复用 [rolePreset](../../../packages/provider-chat/src/preset.ts) 和[预设库导入](../../../packages/provider-chat/src/preset-library.ts)校验；包推荐模式只接受裸 RolePreset，预设库模式支持交换格式。它只检查字段、宏与正则语法，不执行文本替换、不写入预设库、不证明风格效果。世界包 validate 仍不自动加载预设扩展，需分别检查；详见[预设创作](../../../skills/perspectra-creator/references/presets.md)。
+预设创作可让同行者少写总结、保留自己的语气；不会授予其读取信件秘密的权限。CLI 进程新增 `preset validate <file> [--pack]`，直接复用 [rolePreset](../../../packages/providers/src/chat/preset.ts) 和[预设库导入](../../../packages/providers/src/chat/preset-library.ts)校验；包推荐模式只接受裸 RolePreset，预设库模式支持交换格式。它只检查字段、宏与正则语法，不执行文本替换、不写入预设库、不证明风格效果。世界包 validate 仍不自动加载预设扩展，需分别检查；详见[预设创作](../../../skills/perspectra-creator/references/presets.md)。
 
-2026-10-24 创作校验入口：例如作者修改同行者拿钥匙的作品后，可在程序目录调用 `worldpack.cmd validate <源目录>`，让创作 Skill 读取退出码及 JSON 诊断。便携构建复用 [CLI 进程入口](../../../packages/world-pack/process/cli-entry.ts)和[构建函数](../../../scripts/build/build-worldpack-cli.mjs)，随包 Node 与 jieba-wasm 执行，不依赖创作者的源码环境；`--version` 给出程序与格式版本，`--help` 说明范围。B7 起 CLI 执行所选定义的元数据及纯配置校验，包内共同定义在 VM 中读取；不执行玩法行动或启动完整宿主；`test` 仅编译适配，不执行声明断言。独立目录、空 PATH、中文和空格路径以及错误码已由[隔离检查](../../../scripts/release/verify-worldpack-cli.mjs)覆盖；这次不涉及角色协议，也未据此声称真实模型体验或完整发行包通过。操作见[创作指南](../guides/world-pack-authoring.md#6-校验与试玩)。
+2026-10-24 创作校验入口：例如作者修改同行者拿钥匙的作品后，可在程序目录调用 `worldpack.cmd validate <源目录>`，让创作 Skill 读取退出码及 JSON 诊断。便携构建复用 [CLI 进程入口](../../../apps/host/src/cli/worldpack.ts)和[构建函数](../../../scripts/build/build-worldpack-cli.mjs)，随包 Node 与 jieba-wasm 执行，不依赖创作者的源码环境；`--version` 给出程序与格式版本，`--help` 说明范围。B7 起 CLI 执行所选定义的元数据及纯配置校验，包内共同定义在 VM 中读取；不执行玩法行动或启动完整宿主；`test` 仅编译适配，不执行声明断言。独立目录、空 PATH、中文和空格路径以及错误码已由[隔离检查](../../../scripts/release/verify-worldpack-cli.mjs)覆盖；这次不涉及角色协议，也未据此声称真实模型体验或完整发行包通过。操作见[创作指南](../guides/world-pack-authoring.md#6-校验与试玩)。
 
 2026-10-22 核对：例如留守者自主去拿钥匙，包内 `scripts/status.js` 的作者模板提供 `status:take`，`autonomy.json` 再允许它在本次机会使用这一操作。活动 policy 同样用 `status:take`／`status:drop`／`status:give` 引用拿、放、给；这些操作不再由基础交互包安装。模板、目标筛选和执行复查见[物品操作](../guides/activity-and-variables.md#对物品做的操作2026-10-22当前源码)。下方示例已按现行 ID 更新，带日期的旧试玩结果不等于新模板已完成同样验收。
 
-2026-10-21 宿主整理：当前实现位于 `desktop/host`。例如创作者查看角色体力时，检查响应的 `statusTruth` 返回已提交状态真值，控制台“状态”页读取同一字段；旧 `variables` 字段已移除。它是宿主认证后的只读能力，玩家公开接口仍按既有权限过滤，不因更名扩大可读范围。活动自己的 public/private/internal 变量保持原含义。模型请求、Context、调度与状态裁定规则没有因目录整理改写；源码和构建验证不代表新的真实模型体验验收。
+2026-10-21 宿主整理：当前实现位于 `apps/host/src/runtime`。例如创作者查看角色体力时，检查响应的 `statusTruth` 返回已提交状态真值，控制台“状态”页读取同一字段；旧 `variables` 字段已移除。它是宿主认证后的只读能力，玩家公开接口仍按既有权限过滤，不因更名扩大可读范围。活动自己的 public/private/internal 变量保持原含义。模型请求、Context、调度与状态裁定规则没有因目录整理改写；源码和构建验证不代表新的真实模型体验验收。
 
 2026-10-19 知识条件扩展：例如同行者在前室、眼前能确认钥匙且本次刺激来自玩家时，才交付钥匙背景。`when` 继续使用 JSON Schema，保留 public／self／characters 的已知值条件，另可检查接收者、当前位置、授权场景、当前／旧物品、本人活动、刺激与 knownStatus 的 current。活动授权视图增加稳定 activityKey；不读取隐藏世界真值，也不新增状态副本或自动事件链。字段与示例见[世界设定指南](../guides/world-knowledge.md#按场景物品活动与本次刺激筛选)。[Core／DeepSeek 真实试玩](../studies/knowledge-conditions-deepseek-playtest-20261019.md)的 39 次请求交付均符合预期，角色查看钱包前后分别使用过时／有效材料；这是短样本，来源表达仍有扩写，发行包未重建。
 
 2026-10-19：作者可以用 `scripts/status.js` 声明金钱、HP、游戏时间这类常驻状态，以及带 JSON Schema 的对象、数组，例如按任务 ID 保存阶段和记录。操作 policy 按行动者已知状态决定哪些选项出现，执行前重查；知识条目的 when 用 Schema 判断同一份已知状态。实际变化仍由 resolve 或每轮钩子裁定，不自动启动递归事件链。真实值只在世界事件里，每个角色和玩家只知道告知过自己的值；活动 resolve 也可以在返回中附带 `status` 变化，并收到第六个参数 truth；状态和操作可用 `activities` 收窄到指定活动。它替代已删除的包变量。完整契约、上限与已知限制见[活动与状态指南](../guides/activity-and-variables.md#3-状态2026-10-19当前源码)，样例见[集市钱袋](../../../examples/world-packs/status-market/README.md)。源码与自动测试已接通，未做真实模型试玩，发行包未重建。
 
-2026-10-18：例如花房角色依据人设、预设、记忆和对话历史改变对玩家的看法，不另设好感度或信任分数。最初切片的关系数值、面板及门槛已撤销；变量优先承载玩法明确追踪的客观变化，沿已有活动、交互及规则维护。源包仍可登记 `knowledge.json`，由 [KnowledgeSelection](../../../packages/official-knowledge/src/selection.ts) 按权限和关键词交付背景设定，不占用活动。配置和预算见[作者指南](../guides/world-knowledge.md)。移除分数后已做离线验证，真实模型未重跑，发行包未更新。
+2026-10-18：例如花房角色依据人设、预设、记忆和对话历史改变对玩家的看法，不另设好感度或信任分数。最初切片的关系数值、面板及门槛已撤销；变量优先承载玩法明确追踪的客观变化，沿已有活动、交互及规则维护。源包仍可登记 `knowledge.json`，由 [KnowledgeSelection](../../../packages/providers/src/knowledge/selection.ts) 按权限和关键词交付背景设定，不占用活动。配置和预算见[作者指南](../guides/world-knowledge.md)。移除分数后已做离线验证，真实模型未重跑，发行包未更新。
 
 创作者观测接口见[调试接口](../creator-debug-api.md)：例如钥匙从同行者交给留守者，可以查询保管与地点历史、实际观察受众、对应行动参数和裁定，再检查角色当次使用的预设与上下文。2026-10-15 已接通事件历史和可重启读取的私有调用记录，继续沿用宿主权限；仅查询不会触发作者脚本、召回或模型调用。
 
@@ -125,13 +125,13 @@ World Pack 用于定义人物、地点、物品、认知、场景、叙事与 In
 
 当前主动 Activity 优先拥有参与者调度，自主调度跳过这些参与者；非参与者仍可因声明的玩家活动操作自主处理，不获得活动私有上下文。没有活动参与者排程或声明 `serial` 的决策实现，且未启用 `--serial-scheduling` 时（2026-10-19 起不再检查变量脚本），自主机会复用上述动态队列及其公平优先级；其他入口保留普通、自主、后续反应的分段处理。多角色预算不足时不保证全部轮到，场外任务仍逐个执行。独立测量控制 stagedAutonomy 可保留旧分段方式，未加入 Launcher 设置。源码与实测见[接入记录](../studies/autonomy-dynamic-dispatch-20261011.md)。尚不支持动态脚本触发、自动目标完成判定、墙钟自治或后台常驻。
 
-实现：[自主解析与策略](../../../packages/official-scheduler/src/autonomy-policy.ts)、[授权与执行适配](../../../desktop/host/autonomy-runtime.ts)、[宿主](../../../desktop/host/world-runtime.ts)、[启动器参数](../../../desktop/play-settings.ts)。自动回归见[自主调度测试](../../../tests/scenarios/character-autonomy.test.ts)，真实模型情况见[实验记录](../studies/character-autonomy-20261011.md)。本分支源码能力不代表发行包已更新。
+实现：[自主解析与策略](../../../packages/providers/src/scheduler/autonomy-policy.ts)、[授权与执行适配](../../../apps/host/src/runtime/autonomy-runtime.ts)、[宿主](../../../apps/host/src/runtime/world-runtime.ts)、[启动器参数](../../../apps/host/src/play-settings.ts)。自动回归见[自主调度测试](../../../tests/scenarios/character-autonomy.test.ts)，真实模型情况见[实验记录](../studies/character-autonomy-20261011.md)。本分支源码能力不代表发行包已更新。
 
 Interaction 定义和绑定提供玩法可选行为，规则负责重要状态的资格与结果。角色与地点定义不等于运行中当前位置；运行时通过提交事件和当前 view 获得状态。创作者仅在当前玩法明确追踪的机制中增加状态约束，不必结构化所有叙事细节。
 
 ## 包内活动
 
-例如作者可以固定与同行者猜数字，也可以让玩家选择邀请留守者约会；被邀请者自己通过操作接受或拒绝。当前活动桥位于实验宿主。可信本地脚本声明 title、operations，以及固定 npcIds 或动态 participants（player-select、人数与可选候选白名单），可选 opening 作为玩家看到的开场文案（参与者仍收到固定开场行）；initialize 收到本次实际选定的 npcIds，policy 决定各主体表达／操作许可，resolve 同步裁定。`schedule(state)` 与 `onOutcome(result, state)` 接收完整已提交活动状态，包括 internal 和所有参与者的 private，只返回 wait 或一次参与角色激活，不把这些输入传给角色或前端。policy、resume 仍读取对应主体的授权视图。可选 simulate(request) 只接收本次角色的授权请求，为该角色提供局部固定演出决策，null 表示调用真实模型；不因此获得完整活动状态，仅替换响应来源，不改变预设输出处理、格式校验、Rulebook、事务提交或观察分发。源码见[活动桥](../../../desktop/host/activity-runtime.ts)。
+例如作者可以固定与同行者猜数字，也可以让玩家选择邀请留守者约会；被邀请者自己通过操作接受或拒绝。当前活动桥位于实验宿主。可信本地脚本声明 title、operations，以及固定 npcIds 或动态 participants（player-select、人数与可选候选白名单），可选 opening 作为玩家看到的开场文案（参与者仍收到固定开场行）；initialize 收到本次实际选定的 npcIds，policy 决定各主体表达／操作许可，resolve 同步裁定。`schedule(state)` 与 `onOutcome(result, state)` 接收完整已提交活动状态，包括 internal 和所有参与者的 private，只返回 wait 或一次参与角色激活，不把这些输入传给角色或前端。policy、resume 仍读取对应主体的授权视图。可选 simulate(request) 只接收本次角色的授权请求，为该角色提供局部固定演出决策，null 表示调用真实模型；不因此获得完整活动状态，仅替换响应来源，不改变预设输出处理、格式校验、Rulebook、事务提交或观察分发。源码见[活动桥](../../../apps/host/src/runtime/activity-runtime.ts)。
 
 每场最多 8 个 NPC，玩家身份由宿主绑定，开始时参与者须存在且属于玩家当前授权场景；动态名单开始后固定，暂停与恢复保留同一名单。状态 public 只在参与者间共享，private 仅给对应角色，internal 不进入角色视图；脚本不能直接写世界或调用模型。活动结果按参与者或 self 投递，非参与者不获得活动视图、许可限制或活动调度资格，仍按普通交流和行动的观察权限知情。结果范围 self 只限制结果收件人，不能补救把秘密写进 public 的错误。接口例子和旁观者边界见[活动指南](../guides/activity-and-variables.md)。
 
@@ -139,7 +139,7 @@ Interaction 定义和绑定提供玩法可选行为，规则负责重要状态�
 
 每次活动输入最多串行 4 次角色激活、每次最多 2 次决策机会，主动 recall 可追加一次补问；最多 12 次模型调用，活动链 90 秒。预算耗尽或失败保留已提交状态，允许显式重试或逃生，不精确恢复未提交机会。
 
-`ai-girls-hosted-guess` 展示主持角色私有答案与多 NPC 有界链；默认能力限制不替角色决定情绪、策略和台词；作者显式声明的固定演出可通过 simulate 提供同格式决策。完整活动结果附带身份／阶段元数据以形成授权经历。当前源码网页与 Launcher 默认使用 Core 记忆，缺少 Python/E5 时明确失败；后台整理仍需显式启动，未整理时长期交付为空。只有显式 `--memory-none` 才不用长期记忆，这只用于离线开发，见[启动参数](../../../desktop/host/launch-arguments.ts)与[创作者试玩](../guides/creator-playtest.md)。
+`ai-girls-hosted-guess` 展示主持角色私有答案与多 NPC 有界链；默认能力限制不替角色决定情绪、策略和台词；作者显式声明的固定演出可通过 simulate 提供同格式决策。完整活动结果附带身份／阶段元数据以形成授权经历。当前源码网页与 Launcher 默认使用 Core 记忆，缺少 Python/E5 时明确失败；后台整理仍需显式启动，未整理时长期交付为空。只有显式 `--memory-none` 才不用长期记忆，这只用于离线开发，见[启动参数](../../../apps/host/src/runtime/launch-arguments.ts)与[创作者试玩](../guides/creator-playtest.md)。
 
 2026-10-24 创作边界澄清：例如作者可以在送礼后写入角色专属的心动印象，引导接下来的反应，也可以显式编排剧情与固定演出。尊重角色主体性不要求每个游戏包都采用完全自主的感情发展；作者可以用已有状态与活动机制影响角色，仍须遵守信息接收范围，以及位置、物品等权威事实的正式提交规则。[屋檐下的心动日程](../../../examples/world-packs/model-girls-sweet-days/README.md)保留这种引导，弱化部分绝对结论；这些包内选择不构成引擎对其他作者的限制。
 
@@ -147,15 +147,15 @@ Interaction 定义和绑定提供玩法可选行为，规则负责重要状态�
 
 例如作者想知道“深夜冰箱”为什么没触发：把起点设成“傍晚，玩家走进厨房”，推演逐步列出玩家移动被规则接受、自动事件检查里“时段是深夜”为 ✘，角色没有被叫醒，回合结束钩子推进了时间；作者不必开游戏，也不必读脚本。
 
-[desktop/lens](../../../desktop/lens) 把世界包源目录变成只读视图，并在一份临时副本上启动**真实的** [WorldHostRuntime](../../../desktop/host/world-runtime.ts)，只做两处替换：数据目录是临时目录，模型是[桩](../../../desktop/lens/stub-model.ts)（角色默认弃权，或照推演计划说话、尝试行动，仍经规则裁定）。没有另写一套简化规则；起点（状态初始值、场景位置、跳过的自动开场活动）是在运行时启动前改写临时副本里的初始数据，不在运行中途写入事实。宿主为此新增了只读接口：[ActivitiesRuntime](../../../desktop/host/activities-runtime.ts) 报告每个 autoStart 活动的逐条检查（`lastAutoStart` 取最近一轮，`evaluateAutoStart` 按已提交状态重算且不开始任何活动）和活动声明，没有检查结果时用 `skipped` 说明原因（有活动在进行、活动有暂停进度、hook 返回 null）；ActivityRuntime 接受 `when` 里的 `[标签, 布尔值]`，标签不改变触发语义。
+[apps/host/src/lens](../../../apps/host/src/lens) 把世界包源目录变成只读视图，并在一份临时副本上启动**真实的** [WorldHostRuntime](../../../apps/host/src/runtime/world-runtime.ts)，只做两处替换：数据目录是临时目录，模型是[桩](../../../tests/support/stub-model.ts)（角色默认弃权，或照推演计划说话、尝试行动，仍经规则裁定）。没有另写一套简化规则；起点（状态初始值、场景位置、跳过的自动开场活动）是在运行时启动前改写临时副本里的初始数据，不在运行中途写入事实。宿主为此新增了只读接口：[ActivitiesRuntime](../../../apps/host/src/runtime/activities-runtime.ts) 报告每个 autoStart 活动的逐条检查（`lastAutoStart` 取最近一轮，`evaluateAutoStart` 按已提交状态重算且不开始任何活动）和活动声明，没有检查结果时用 `skipped` 说明原因（有活动在进行、活动有暂停进度、hook 返回 null）；ActivityRuntime 接受 `when` 里的 `[标签, 布尔值]`，标签不改变触发语义。
 
-文件分工：[view.ts](../../../desktop/lens/view.ts) 生成按分类、有稳定 id 的条目列表，[diff.ts](../../../desktop/lens/diff.ts) 按条目比较，[store.ts](../../../desktop/lens/store.ts) 在包源目录的 `.perspectra-lens/` 里保存“已看过”快照、命名对比点、待改清单与推演脚本，[scenario.ts](../../../desktop/lens/scenario.ts) 解析并执行推演脚本，[session.ts](../../../desktop/lens/session.ts) 把一次打开的视图、基准、清单与一个推演串行起来，供 [LauncherCore](../../../desktop/launcher-core.ts) 的 `lens-*` 操作和 [Launcher 透视窗口](../../../apps/launcher/src/lens/LensWindow.vue)使用；[cli.ts](../../../desktop/lens/cli.ts) 是 AI 用的只读命令行（`worldpack.cmd lens view|requests|simulate`）。只有窗口的“已看过”能移动基准，只有窗口能新增或关闭待改条目。
+文件分工：[view.ts](../../../packages/world-pack/src/lens/view.ts) 生成按分类、有稳定 id 的条目列表，[diff.ts](../../../packages/world-pack/src/lens/diff.ts) 按条目比较，[store.ts](../../../apps/host/src/lens/store.ts) 在包源目录的 `.perspectra-lens/` 里保存“已看过”快照、命名对比点、待改清单与推演脚本，[scenario.ts](../../../apps/host/src/lens/scenario.ts) 解析并执行推演脚本，[session.ts](../../../apps/host/src/lens/session.ts) 把一次打开的视图、基准、清单与一个推演串行起来，供 [LauncherCore](../../../apps/launcher/backend/core.ts) 的 `lens-*` 操作和 [Launcher 透视窗口](../../../apps/launcher/src/lens/LensWindow.vue)使用；[cli.ts](../../../apps/host/src/lens/cli.ts) 是 AI 用的只读命令行（`worldpack.cmd lens view|requests|simulate`）。只有窗口的“已看过”能移动基准，只有窗口能新增或关闭待改条目。
 
-2026-11-01：透视从 Launcher 窗口里的面板改成独立的本机网页，这样作者能和 AI 的窗口并排看，长操作也不再占住 Launcher 的请求队列，不用先载入包，校验失败的包也能看到原因。[server.ts](../../../desktop/lens/server.ts) 只监听 127.0.0.1，令牌随 `#token=` 传给页面（和创作者页面同样的做法），会话在页面请求时才打开，文件监听发现包改动后由页面提示“重新读取”。页面入口在 [apps/launcher/src/lens/main.ts](../../../apps/launcher/src/lens/main.ts)，单独构建到 `dist-lens`，发行包复制到 `runtime/lens-assets`。Launcher 的 `lens-open` 只负责启动服务并返回地址，由 Rust 校验后交给系统浏览器；原来逐项转发的 `lens-*` 操作已删除。
+2026-11-01：透视从 Launcher 窗口里的面板改成独立的本机网页，这样作者能和 AI 的窗口并排看，长操作也不再占住 Launcher 的请求队列，不用先载入包，校验失败的包也能看到原因。[server.ts](../../../apps/host/src/lens/server.ts) 只监听 127.0.0.1，令牌随 `#token=` 传给页面（和创作者页面同样的做法），会话在页面请求时才打开，文件监听发现包改动后由页面提示“重新读取”。页面入口在 [apps/launcher/src/lens/main.ts](../../../apps/launcher/src/lens/main.ts)，单独构建到 `dist-lens`，发行包复制到 `runtime/lens-assets`。Launcher 的 `lens-open` 只负责启动服务并返回地址，由 Rust 校验后交给系统浏览器；原来逐项转发的 `lens-*` 操作已删除。
 
-2026-11-07（一次从零创作走查后）：例如小林的推演计划是“拿蛋糕、吃蛋糕”，拿完后的跟进机会只允许说话，以前桩模型照样交出“吃”，运行时把它当无效输出丢掉，不留记录。现在 [simulation.ts](../../../desktop/lens/simulation.ts) 读请求里的 `canPerform`，把行动留到她下一次机会；计划对不上她当时的选项时，按玩家步骤同一套匹配列出可用项。这两种情况都在逐步经过里记一条 `plan` 行。推演结果带 `passed` 和 `unusedNpcPlans`，没通过时 CLI 退出码为 2。`worldpack --help` 新增 `lens` 一项。推演临时目录不可写时，报错写出目录和可能原因。运行时本身没有改动。
+2026-11-07（一次从零创作走查后）：例如小林的推演计划是“拿蛋糕、吃蛋糕”，拿完后的跟进机会只允许说话，以前桩模型照样交出“吃”，运行时把它当无效输出丢掉，不留记录。现在 [simulation.ts](../../../apps/host/src/lens/simulation.ts) 读请求里的 `canPerform`，把行动留到她下一次机会；计划对不上她当时的选项时，按玩家步骤同一套匹配列出可用项。这两种情况都在逐步经过里记一条 `plan` 行。推演结果带 `passed` 和 `unusedNpcPlans`，没通过时 CLI 退出码为 2。`worldpack --help` 新增 `lens` 一项。推演临时目录不可写时，报错写出目录和可能原因。运行时本身没有改动。
 
-2026-11-08：推演每一步多了 `perceived`，按角色列出这一步进入她授权视图的观察。它直接用 [CharacterViewBuilder](../../../packages/store-sqlite/src/character-view.ts) 在已提交事件上构建，和角色调用拿到的是同一份，透视没有另写一套“谁该知道”的判断。观察内容按说话、移动、带 `resultDescription` 的行动结果转成一行文字，其余形状原样显示为 JSON。脚本期望新增 `knows` / `doesNotKnow`，按子串匹配该角色到目前为止的全部观察。透视是作者工具，能看到所有角色的视图；这不改变角色之间的权限边界。
+2026-11-08：推演每一步多了 `perceived`，按角色列出这一步进入她授权视图的观察。它直接用 [CharacterViewBuilder](../../../packages/core/src/store/character-view.ts) 在已提交事件上构建，和角色调用拿到的是同一份，透视没有另写一套“谁该知道”的判断。观察内容按说话、移动、带 `resultDescription` 的行动结果转成一行文字，其余形状原样显示为 JSON。脚本期望新增 `knows` / `doesNotKnow`，按子串匹配该角色到目前为止的全部观察。透视是作者工具，能看到所有角色的视图；这不改变角色之间的权限边界。
 
 作者操作与用法见[包透视指南](../guides/pack-lens.md)。边界：
 
@@ -168,7 +168,7 @@ Interaction 定义和绑定提供玩法可选行为，规则负责重要状态�
 
 例如作者在包里写一份 `rpg.json`：遗迹一层有守卫、铁门需要钥匙，澄是同伴。玩家进入遗迹时，宿主已经为这张地图生成了一场活动，澄随队长走进来，战斗伤害、掉落和锁门由程序裁定，留在家里的阿茹收不到战斗内容。
 
-官方机制包 [official-rpg](../../../packages/official-rpg) 由清单 plugins 选择，读取锁定的 rpg.json（或显式 config 路径），展开原生状态、地图活动、限制与派生定义。必须同时显式选择 official-dice。Host 的 [pack-content.ts](../../../desktop/host/pack-content.ts) 负责通用装载，规则由共同执行边界裁定。存档用 gameplayData 的插件身份及数据版本检查兼容，代码／配置摘要仅用于尾部候选环境比较；分享和读档继续核对实际状态。详见 [B6 记录](../../superpowers/plans/2026-11-15-composable-engine-b6-rpg-trpg.md)与 [B7 记录](../../superpowers/plans/2026-11-15-composable-engine-b7-packs.md)。未把源码和自动化结果视作真实模型或发行验收。
+官方机制包 [official-rpg](../../../packages/plugins/src/rpg) 由清单 plugins 选择，读取锁定的 rpg.json（或显式 config 路径），展开原生状态、地图活动、限制与派生定义。必须同时显式选择 official-dice。Host 的 [pack-content.ts](../../../apps/host/src/runtime/pack-content.ts) 负责通用装载，规则由共同执行边界裁定。存档用 gameplayData 的插件身份及数据版本检查兼容，代码／配置摘要仅用于尾部候选环境比较；分享和读档继续核对实际状态。详见 [B6 记录](../../superpowers/plans/2026-11-15-composable-engine-b6-rpg-trpg.md)与 [B7 记录](../../superpowers/plans/2026-11-15-composable-engine-b7-packs.md)。未把源码和自动化结果视作真实模型或发行验收。
 
 2026-11-08 建立的 ctx.content 接缝继续使用。B7 将内容发现改为按 plugins 显式选择，不再根据根目录 JSON 中的 plugin 字段自动装载。所选插件需已安装、版本匹配并被允许执行；未选择的玩法不会因配置文件存在而启动。纯校验由声明式 Schema 和注入的 validateConfig 执行，不调用 generate；宿主打开时才展开原生定义并检查重复注册。第三方元数据传入开档、尾轮、分享与 Lens 预检，避免后续入口遗失同一选择。Lens 的 RPG 只读视图仍属于其自己的展示逻辑。
 
@@ -176,7 +176,7 @@ Interaction 定义和绑定提供玩法可选行为，规则负责重要状态�
 
 例如作者在包里写一份 `trpg.json`：玩家请阿茹当主持人，选剧本《雨夜古宅》。阿茹自己决定接不接；接下后，玩家说“撬开书房的门”，阿茹要求一次敏捷检定，程序掷出的点数只发给玩家和阿茹，澄只知道有过检定；没参加的梅看不到活动结果和点数，但 AI 参与者在局内说的话按普通发言公开，她听得见。
 
-官方玩法包 [official-trpg](../../../packages/official-trpg) 经 `ctx.content` 读取 `trpg.json`（需登记在 `assetFiles`），在清单显式选择 official-trpg 与 official-dice 后，展开键为 trpg 的原生活动，复用上一节的组合校验和数据版本检查。点数来自 `ctx.dice`（[official-dice](../../../packages/official-dice)）：活动脚本在 `resolve` 里调用宿主注入的 `rollDice`，取数记入活动目录每轮的随机记录，所以回看、分支、重新生成都重放同一点数。点数通过活动结果的 `privateNotes` 只作为指定参与者的观察提交。主持人的裁定质量靠模型，程序只保证点数可信、可见范围正确。作者说明见[跑团玩法](../guides/trpg.md)，验收包是 [rainy-manor](../../../examples/world-packs/rainy-manor/README.md)。源码已接通并有宿主自动测试；2026-11-09 有一次 GLM-5.3-Flash 的脚本化试玩（[记录](../studies/2026-11-09-rainy-manor-playtest.md)），未做真人试玩或发行包验收。
+官方玩法包 [official-trpg](../../../packages/plugins/src/trpg) 经 `ctx.content` 读取 `trpg.json`（需登记在 `assetFiles`），在清单显式选择 official-trpg 与 official-dice 后，展开键为 trpg 的原生活动，复用上一节的组合校验和数据版本检查。点数来自 `ctx.dice`（[official-dice](../../../packages/plugins/src/dice)）：活动脚本在 `resolve` 里调用宿主注入的 `rollDice`，取数记入活动目录每轮的随机记录，所以回看、分支、重新生成都重放同一点数。点数通过活动结果的 `privateNotes` 只作为指定参与者的观察提交。主持人的裁定质量靠模型，程序只保证点数可信、可见范围正确。作者说明见[跑团玩法](../guides/trpg.md)，验收包是 [rainy-manor](../../../examples/world-packs/rainy-manor/README.md)。源码已接通并有宿主自动测试；2026-11-09 有一次 GLM-5.3-Flash 的脚本化试玩（[记录](../studies/2026-11-09-rainy-manor-playtest.md)），未做真人试玩或发行包验收。
 
 ## 创作入口与限制
 
@@ -184,15 +184,15 @@ Interaction 定义和绑定提供玩法可选行为，规则负责重要状态�
 
 随包 Skill 与宿主应按同一次构建使用。产品 0.3.1、源格式 v5 和编译器 0.5.0 相同，也不能证明完整活动状态调度等 10-28 新增能力可用；应核对 build-info 与当次验收记录。仓库文档和 Skill 的更新不会修改已发布的 candidate4，所需随包文档与构建步骤见[构建说明](../../../scripts/release/BUILD.md)。
 
-Launcher 游戏库（2026-10-16）界面配色由全局设置的主题色决定（樱色默认，另有灯火、月夜、森林；保存在 launcher.json 的 preferences.palette，经 PERSPECTRA_PALETTE 传给游戏进程）（2026-10-22 起主题色设置已删除：官方舞台和宿主外壳改为黑白、跟随系统；启动器保留原默认配色；旧 launcher.json 里的 palette 读取时忽略、下次保存时去掉。），以世界包封面作为首屏：在包根目录放 `cover.webp`、`cover.png` 或 `cover.jpg`（≤4 MB，建议 16:9 横图、主体偏右，左下留给标题），[launcher-core](../../../desktop/launcher-core.ts) 载入或启动时读取，经单独的 `pack-cover` 请求交给页面，不随 2.5 秒快照轮询重复传输；简介取 `world.json` 的 `description`。封面不进入编译产物，也不改变包 Hash。缺少封面时启动器按标题首字生成排版封面。（2026-10-17 改版后封面铺满整个窗口，“游玩准备”与折叠的“引擎与创作者工具”已由本局抽屉取代，见[首轮真实 Core 接入](../launcher-core-integration.md)顶部说明。）已用浏览器 Mock 与 `launcher-core` 测试核对；Tauri 真机窗口与发行包未验收。
+Launcher 游戏库（2026-10-16）界面配色由全局设置的主题色决定（樱色默认，另有灯火、月夜、森林；保存在 launcher.json 的 preferences.palette，经 PERSPECTRA_PALETTE 传给游戏进程）（2026-10-22 起主题色设置已删除：官方舞台和宿主外壳改为黑白、跟随系统；启动器保留原默认配色；旧 launcher.json 里的 palette 读取时忽略、下次保存时去掉。），以世界包封面作为首屏：在包根目录放 `cover.webp`、`cover.png` 或 `cover.jpg`（≤4 MB，建议 16:9 横图、主体偏右，左下留给标题），[launcher-core](../../../apps/launcher/backend/core.ts) 载入或启动时读取，经单独的 `pack-cover` 请求交给页面，不随 2.5 秒快照轮询重复传输；简介取 `world.json` 的 `description`。封面不进入编译产物，也不改变包 Hash。缺少封面时启动器按标题首字生成排版封面。（2026-10-17 改版后封面铺满整个窗口，“游玩准备”与折叠的“引擎与创作者工具”已由本局抽屉取代，见[首轮真实 Core 接入](../launcher-core-integration.md)顶部说明。）已用浏览器 Mock 与 `launcher-core` 测试核对；Tauri 真机窗口与发行包未验收。
 
-实现：[活动桥](../../../desktop/host/activity-runtime.ts)、[活动选择](../../../desktop/host/activities-runtime.ts)、[World Pack 工具](../../../packages/world-pack)、[主持示例](../../../examples/world-packs/ai-girls-hosted-guess)。当前不承诺任意玩法零宿主改动、多活动并行或不可信脚本沙箱。短冒烟不等于长试玩验收。
+实现：[活动桥](../../../apps/host/src/runtime/activity-runtime.ts)、[活动选择](../../../apps/host/src/runtime/activities-runtime.ts)、[World Pack 工具](../../../packages/world-pack)、[主持示例](../../../examples/world-packs/ai-girls-hosted-guess)。当前不承诺任意玩法零宿主改动、多活动并行或不可信脚本沙箱。短冒烟不等于长试玩验收。
 
 ### 多个独立玩法，一次运行一个（2026-10-10）
 
 例如玩家暂停猜数字、讨论周末计划、再回来继续猜：assetFiles 可登记 scripts/activities/guess.js 与 scripts/activities/weekend.js，每场各有状态、参与者和操作。它替代原先整个包只能使用一套活动的约束，没有新增并行调度。原 scripts/activity.js 作为 default 活动继续使用。
 
-2026-10-21：例如回报巡查后弭弗在场，就自动开始“名单”剧情。活动脚本可写可选的 `autoStart(truth, world, previous)`，返回 `when` 布尔数组（全真才满足，长度即条件数目）、可选 `npcIds` 与只给玩家的 `notice`（替换玩家看到的固定开场行，参与者仍收到固定行）。[宿主](../../../desktop/host/world-runtime.ts)在被接受的玩家回合依次完成角色反应和 `onRoundEnd` 后检查一次；没有活动运行时，条件数目最多的候选开始，平局从本轮随机记录中抽取，重新生成按记录回放。开始复用玩家开始路径，事件带 `source: 'auto'`、action.resolved 为 `sourceRole: 'director'`，不计玩家回合；每轮至多一场，不连锁。脚本或开始校验失败不提交，记 `debug.autoStartError`。2026-10-24 起，写了 `autoStart` 的活动只在条件全部满足时列出手动“开始”，[活动桥](../../../desktop/host/activity-runtime.ts)对手动开始请求按同一条件重查；暂停后的继续不受影响。活动仍不能移动角色。作者接口见[活动指南](../guides/activity-and-variables.md#按条件自动开始2026-10-21当前源码)；自动测试已覆盖，另有一次 8 回合 DeepSeek 短试玩确认了触发时机、提示投递与轮次计数，发行包未重建。
+2026-10-21：例如回报巡查后弭弗在场，就自动开始“名单”剧情。活动脚本可写可选的 `autoStart(truth, world, previous)`，返回 `when` 布尔数组（全真才满足，长度即条件数目）、可选 `npcIds` 与只给玩家的 `notice`（替换玩家看到的固定开场行，参与者仍收到固定行）。[宿主](../../../apps/host/src/runtime/world-runtime.ts)在被接受的玩家回合依次完成角色反应和 `onRoundEnd` 后检查一次；没有活动运行时，条件数目最多的候选开始，平局从本轮随机记录中抽取，重新生成按记录回放。开始复用玩家开始路径，事件带 `source: 'auto'`、action.resolved 为 `sourceRole: 'director'`，不计玩家回合；每轮至多一场，不连锁。脚本或开始校验失败不提交，记 `debug.autoStartError`。2026-10-24 起，写了 `autoStart` 的活动只在条件全部满足时列出手动“开始”，[活动桥](../../../apps/host/src/runtime/activity-runtime.ts)对手动开始请求按同一条件重查；暂停后的继续不受影响。活动仍不能移动角色。作者接口见[活动指南](../guides/activity-and-variables.md#按条件自动开始2026-10-21当前源码)；自动测试已覆盖，另有一次 8 回合 DeepSeek 短试玩确认了触发时机、提示投递与轮次计数，发行包未重建。
 
 ActivitiesRuntime 选择唯一正在运行的 ActivityRuntime，只向该活动交付角色请求、许可和调度；没有 active 时使用普通规则。活动事件以 activityKey 区分，暂停保留进度并关闭 active，旧操作因身份／revision 或非 active 被拒绝。开始／继续在写入租约内检查没有另一 active；状态、玩家管理观察和世界 tick 同事务提交。继续使用当前授权 world 检查作者 resume 条件；没有 hook 时要求同场。暂停／恢复不改真实世界位置或物品，不续跑未提交计算。放弃暂停进度和前台逃生保留已提交经历，其他暂停活动不变。
 
@@ -211,7 +211,7 @@ ActivitiesRuntime 选择唯一正在运行的 ActivityRuntime，只向该活动�
 
 NPC 固定台词发表时，可选 `onPublished(state, actorId, expression)` 返回新的 game，或 null。宿主仅在活动中的参与角色发表合法 speak 时调用，将发表与进度更新原子提交；提交失败不会跳过该句。该 hook 是同步裁定，不直接发言、调用模型或启动独立引擎。
 
-`initialize` 另收到玩家授权的 `world`、`previous`（玩家自己的上次活动视图或 null）和同一事件前缀的 `truth`（公共状态与本次参与者的角色状态，无状态机制时为 null）。例如 RPG 根据当前生命安排首回合。`resolve` 的第五参数 `world` 包含当前行动主体授权的位置、最近移动序号、可观察角色与可见物品。可信活动裁定额外收到同一事件前缀的 `participantHeldItems`，仅列出同场参与者持有的物品 ID 和持有者 ID。例如队友没目睹玩家穿上护甲，规则仍按当前持有事实计算抗性。宿主只把这份数据传给 `resolve`，角色与前端接收活动的授权结果视图。条件不满足可返回唯一字段 `rejectReason`（非空、最多 2000 字符），不提交活动变更。 [活动桥](../../../desktop/host/activity-runtime.ts)
+`initialize` 另收到玩家授权的 `world`、`previous`（玩家自己的上次活动视图或 null）和同一事件前缀的 `truth`（公共状态与本次参与者的角色状态，无状态机制时为 null）。例如 RPG 根据当前生命安排首回合。`resolve` 的第五参数 `world` 包含当前行动主体授权的位置、最近移动序号、可观察角色与可见物品。可信活动裁定额外收到同一事件前缀的 `participantHeldItems`，仅列出同场参与者持有的物品 ID 和持有者 ID。例如队友没目睹玩家穿上护甲，规则仍按当前持有事实计算抗性。宿主只把这份数据传给 `resolve`，角色与前端接收活动的授权结果视图。条件不满足可返回唯一字段 `rejectReason`（非空、最多 2000 字符），不提交活动变更。 [活动桥](../../../apps/host/src/runtime/activity-runtime.ts)
 
 [官方包](../../../examples/world-packs/model-girls-official/README.md) 使用这些入口完成 112 条序章表达，其中 5 条为玩家中性问题。最后请求收留后活动结束，后续输入走真实模型。生活活动只提交开场种子；米饭制作另由已有交互扩展机制裁定。自动实验核对完整表达与零角色 provider 调用；后续本机 Gemini 已完成拒绝、正式料理、私密交流、蛋糕目击和归档后回访的短场景验收，见 [真实记录](../../../examples/world-packs/model-girls-official/LIVE-VALIDATION.md)。默认反应时间截止及未覆盖组合仍明确保留。
 

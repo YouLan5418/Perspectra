@@ -4,7 +4,7 @@
 
 本机 `D:/Perspectra/Perspectra-0.3.1-win-x64-candidate5-20261029/runtime/playtest.mjs` 已备份后更新，并用安装目录内的 Node 与运行文件重新启动临时世界，核对默认舞台及宿主页面均包含新控件、包校验和序章配置读取通过。原始发行 ZIP 未重新打包。相关 28 项测试、类型检查及修改文件的 Lint、格式检查通过；文档链接检查仍被两个既有 studies 文档中的历史断链阻断，本次修改页没有新增断链。
 
-2026-10-29 核对隐藏回合与玩家活动信息：例如夜里轮到预言家，舞台等待提示只显示“正在回复中”，不点名正在处理的角色；玩家自己抽到的身份则来自 `PlayerView.activity.private`，活动卡片以“只有你知道”展示可呈现的字段。各场活动的 `activities[].private` 也只包含玩家自己的部分，其他角色 private 和 internal 不发给页面。实现见[默认模板](../../packages/frontend/src/default-template.ts)与[玩家投影](../../desktop/host/frontend-adapter.ts)。
+2026-10-29 核对隐藏回合与玩家活动信息：例如夜里轮到预言家，舞台等待提示只显示“正在回复中”，不点名正在处理的角色；玩家自己抽到的身份则来自 `PlayerView.activity.private`，活动卡片以“只有你知道”展示可呈现的字段。各场活动的 `activities[].private` 也只包含玩家自己的部分，其他角色 private 和 internal 不发给页面。实现见[默认模板](../../packages/frontend/src/default-template.ts)与[玩家投影](../../apps/host/src/runtime/frontend-adapter.ts)。
 
 匿名提示只是默认舞台的显示选择：公共 `responders` 仍可读到场内处理者的名字，活动 revision 仍会暴露操作次数，不能宣称玩家接口已经隐藏夜间行动者。活动调度读取完整状态与角色只能读取本人视图是两条不同边界，见[活动与状态](guides/activity-and-variables.md)。本次只核对源码；10-28 的自动化与真实模型记录见[狼人杀复核](../../examples/world-packs/model-girls-werewolf/PLAYTEST.md)，不代表本次完成浏览器手动试玩或发行包验收。
 
@@ -32,8 +32,8 @@
 | --- | --- | --- |
 | 情景舞台 | [默认模板](../../packages/frontend/src/default-template.ts)、[舞台样式](../../packages/frontend/src/stage-style.ts) | 授权在场角色、包内背景与立绘、stage.json 的取景和差分；缺少素材时回退占位，移动后检查地点与角色移除，窄屏检查按钮与文本 |
 | 阅读与历史 | [阅读游标](../../packages/frontend/src/reading-playback.ts)、默认模板 | 逐个显示已有 expression segments，点击、空格、自动、跳过；检查重复快照不重播、后续结果追加、候选替换、读完仍等待；独立历史面板暂停自动阅读，保留草稿 |
-| 普通操作与活动 | [玩家投影](../../packages/frontend/src/player-view.ts)、[宿主](../../desktop/host/host-page.ts) | 保留四种发言范围、接收者、动态 optionId、参与者选择、重新生成；参数表单沿用宿主；检查三态切换、限制表达、参数提交、主动收起、暂停、恢复与逃生 |
-| 资源与打包 | [素材适配](../../desktop/host/frontend-server.ts)、[构建复制](../../scripts/build/copy-frontend-assets.mjs)、[便携构建](../../scripts/release/build-portable.mjs) | 固定公开 PNG 路径；源码与 bundle 均可读取。检查 PNG 成功返回且原沙箱 CSP 保留 |
+| 普通操作与活动 | [玩家投影](../../packages/frontend/src/player-view.ts)、[宿主](../../apps/host/src/runtime/host-page.ts) | 保留四种发言范围、接收者、动态 optionId、参与者选择、重新生成；参数表单沿用宿主；检查三态切换、限制表达、参数提交、主动收起、暂停、恢复与逃生 |
+| 资源与打包 | [素材适配](../../apps/host/src/runtime/frontend-server.ts)、[构建复制](../../scripts/build/copy-frontend-assets.mjs)、[便携构建](../../scripts/release/build-portable.mjs) | 固定公开 PNG 路径；源码与 bundle 均可读取。检查 PNG 成功返回且原沙箱 CSP 保留 |
 
 本轮先选择增量实现。没有修改世界提交、活动执行或角色输出协议。原聊天布局由情景舞台替代，原动态行动和发言控件保留；阅读游标替代主舞台中的整页聊天滚动，不新增世界进度。
 

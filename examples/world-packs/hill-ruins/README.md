@@ -37,7 +37,7 @@ corepack pnpm@11.7.0 experience:web --memory-none --pack examples/world-packs/hi
 ## 验证状态（2026-11-08）
 
 - `corepack pnpm@11.7.0 worldpack validate examples/world-packs/hill-ruins`：通过。
-- 三份推演（`node --import tsx desktop/lens/cli.ts simulate examples/world-packs/hill-ruins <名字>.json`）都是 `passed: true`，退出码 0：
+- 三份推演（`node --import tsx apps/host/src/lens/cli.ts simulate examples/world-packs/hill-ruins <名字>.json`）都是 `passed: true`，退出码 0：
   - `clear-and-rest`：澄入队，到遗迹一层开战，打赢，铁钥匙落地，拿钥匙，铁门放行，二层拿药水，回家睡觉，生命回满。
   - `defeat-back-home`：带着重伤战败，传送回客厅，生命为 1，阿茹不知道战斗。
   - `aru-knows-nothing`：阿茹只知道他们离开，不知道遗迹和战斗。

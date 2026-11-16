@@ -2,12 +2,12 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
-import { SceneDecisionService } from '@harness-world/application'
-import { brandId, interactionPackageDescription, WorldError, type WorldJsonValue } from '@harness-world/contracts'
-import { FrozenInteractionRulebook, WorldBootstrap, type RulebookEvent } from '@harness-world/kernel'
+import { SceneDecisionService } from '@perspectra/core'
+import { brandId, interactionPackageDescription, WorldError, type WorldJsonValue } from '@perspectra/sdk/contracts'
+import { FrozenInteractionRulebook, WorldBootstrap, type RulebookEvent } from '@perspectra/core/kernel'
 import { createItemCustodyTestPackage } from '../fixtures/item-custody-package.ts'
-import { adaptCompiledWorldPack, compileWorldPackSource } from '@harness-world/world-pack'
-import { CharacterRuntimeAvailabilityService, WorldStore } from '@harness-world/store-sqlite'
+import { adaptCompiledWorldPack, compileWorldPackSource } from '@perspectra/world-pack'
+import { CharacterRuntimeAvailabilityService, WorldStore } from '@perspectra/core/store'
 
 const SCENE_IDS = {
   player: 'character:player',

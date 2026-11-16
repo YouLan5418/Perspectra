@@ -6,7 +6,7 @@
 
 ## 已接通
 
-新增 [official-contexts](../../../packages/official-contexts/src/index.ts)，持有稳定 ID、有序默认组合和同 ID 替换。宿主不再在 decide 中手写官方扩充顺序。复用 decisions 的 open/context/decide/close 与错误报告，没有新增服务注册表或排序框架。
+新增 [official-contexts](../../../packages/providers/src/contexts/index.ts)，持有稳定 ID、有序默认组合和同 ID 替换。宿主不再在 decide 中手写官方扩充顺序。复用 decisions 的 open/context/decide/close 与错误报告，没有新增服务注册表或排序框架。
 
 公开 `WorldServices.contextSources` 给官方和第三方相同的授权投影能力。已知状态与设定继续使用 WorldGameplay 中的既有筛选算法；这个阶段拆分组合，不声称已经把玩法实现整体搬成插件。来源不返回完整真值，不向模型或 Provider 传入模型凭证。基础角色视图、活动约束、裁定和提交不属于可停用扩充。
 

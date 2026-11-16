@@ -41,7 +41,7 @@ corepack pnpm@11.7.0 format
 corepack pnpm@11.7.0 test
 
 # 按修改文件选择相关测试，必须在命令中填写路径
-corepack pnpm@11.7.0 test:related packages/store-sqlite/src/store.test.ts
+corepack pnpm@11.7.0 test:related packages/core/src/store/store.test.ts
 
 # 按需单独运行仍有诊断价值的旧测试，例如观察隔离
 corepack pnpm@11.7.0 test:related tests/integration/observation-session.test.ts

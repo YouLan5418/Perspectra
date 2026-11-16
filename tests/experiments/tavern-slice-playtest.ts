@@ -2,9 +2,9 @@ import { createRuntimeWithCore } from '../support/core-memory-options.ts'
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
 import { isAbsolute, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { WorldHostRuntime } from '../../desktop/host/world-runtime.ts'
-import type { WorldJsonObject } from '@harness-world/contracts'
-import { environmentRoleModels } from '../../desktop/model-connections.ts'
+import { WorldHostRuntime } from '../../apps/host/src/runtime/world-runtime.ts'
+import type { WorldJsonObject } from '@perspectra/sdk/contracts'
+import { environmentRoleModels } from '../../apps/host/src/model-connections.ts'
 
 const inputs = [
   '花房很安静。我今天不想赶路，可以在这里陪你坐一会儿吗？',

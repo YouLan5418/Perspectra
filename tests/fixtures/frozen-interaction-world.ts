@@ -10,12 +10,12 @@ import {
   type WorldAddress,
   type WorldEventDraft,
   type WorldJsonObject,
-} from '@harness-world/contracts'
+} from '@perspectra/sdk/contracts'
 import {
   characterInteractionManifestRegistries,
   type CompiledWorldManifestV10,
   type CompiledWorldSpec,
-} from '@harness-world/kernel'
+} from '@perspectra/core/kernel'
 import { createItemCustodyTestPackage } from './item-custody-package.ts'
 
 /** The trusted package the Host installs. A world selects from it; it can never add to it. */

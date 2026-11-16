@@ -8,8 +8,8 @@
  * 上限数字优先从宿主源码导入；无法导入的常量在注释里标明出处，不在本脚本里另立一套。
  */
 import { basename, resolve } from 'node:path'
-import { rolePreset, type TextRule } from '../../packages/provider-chat/src/preset.ts'
-import { CONTEXT_PROFILES } from '@harness-world/contracts'
+import { rolePreset, type TextRule } from '../../packages/providers/src/chat/preset.ts'
+import { CONTEXT_PROFILES } from '@perspectra/sdk/contracts'
 import { readTavernCard } from './tavern-black-shores-slice.ts'
 
 const KIB = 1024
@@ -83,7 +83,7 @@ console.log(`卡名：${data.name ?? '(无)'}  作者：${data.creator ?? '(无)
 
 // ── 1. 世界书 ────────────────────────────────────────────────
 // documents 与文件数上限见 packages/world-pack/src/schema.ts（MAX_DOCUMENTS / MAX_EXPLICIT_FILES），
-// 交付预算与整条投递规则见 packages/official-knowledge/src/selection.ts（maximumCharacters ≤ 65536，整条超出即跳过）。
+// 交付预算与整条投递规则见 packages/providers/src/knowledge/selection.ts（maximumCharacters ≤ 65536，整条超出即跳过）。
 console.log('\n【世界书 → documents.json + knowledge.json】')
 const size = (entry: CardEntry): number => entry.content?.length ?? 0
 const enabled = entries.filter(entry => entry.enabled !== false)
@@ -119,7 +119,7 @@ line('记忆召回上限', profiles)
 line('知识召回策略', '关键词子串匹配，任意条命中即投递；可选 when（JSON Schema）按接收者已知状态过滤')
 
 // ── 2. 状态 ─────────────────────────────────────────────────
-// 上限见 desktop/host/pack-status.ts：状态 ≤64、操作 ≤32、单值 16 KiB、总量 512 KiB、脚本 64 KiB。
+// 上限见 apps/host/src/runtime/pack-status.ts：状态 ≤64、操作 ≤32、单值 16 KiB、总量 512 KiB、脚本 64 KiB。
 console.log('\n【变量 → scripts/status.js】')
 const MAXIMUM_STATUSES = 64, MAXIMUM_OPERATIONS = 32
 const VALUE_LIMIT = 16 * KIB, TOTAL_LIMIT = 512 * KIB, SCRIPT_LIMIT = 64 * KIB
@@ -145,7 +145,7 @@ if (schemaScript !== undefined) {
 
 // ── 3. 正则脚本 → 文本规则 ───────────────────────────────────
 console.log('\n【正则脚本 → 预设文本规则】')
-const MAXIMUM_REPLACEMENT = 4000 // packages/provider-chat/src/preset.ts
+const MAXIMUM_REPLACEMENT = 4000 // packages/providers/src/chat/preset.ts
 const rules: TextRule[] = []
 const oversize: string[] = []
 const skipped: string[] = []

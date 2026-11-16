@@ -241,7 +241,7 @@ flowchart TB
 
 参数 Schema 为各侧提供共同的参数约束，原生类型声明提供编辑与编译检查。注册边界复用现有 Schema 校验能力，实施时核对泛型参数、Schema 与实际输出的对应关系。
 
-2026-11-12 B1 已固定上述作者类型：[gameplay.ts](../../../packages/plugin-sdk/src/gameplay.ts)提供异构操作玩法定义、参数／结果 Schema、授权 offer、可信 resolve、NPC／玩家说明、必要服务、数据版本、玩家展示及模块级 afterAction／onCycleEnd；[results.ts](../../../packages/plugin-sdk/src/results.ts)固定业务拒绝、插件故障与周期结果声明；[gameplay-contract.ts](../../../packages/application/src/gameplay-contract.ts)只编译参数／结果 Schema并校验、复制外部 unknown。具体见 [B1 记录](../../superpowers/plans/2026-11-12-composable-engine-b1-contract.md)。B2 已接入实例 Context／Fiber、装载许可与调用保护，并通过主代理定向验收，见 [B2 记录](../../superpowers/plans/2026-11-12-composable-engine-b2-lifecycle.md)。B3 的公共资源装配、实际调度驱动与周期源码已通过独立审查；B4 原生注册与受控效果适配源码已接通，独立审查通过；状态初值明确归属，活动结果有独立 Schema／接收者投影，公开计算方法与后置冲突通过所属模块组织。实际范围见 [B4 记录](../../superpowers/plans/2026-11-13-composable-engine-b4-gameplay.md)。通用 UI 与作者配置的 B8 接通边界见[展示与配置指南](../guides/gameplay-presentation.md)。
+2026-11-12 B1 已固定上述作者类型：[gameplay.ts](../../../packages/sdk/src/gameplay.ts)提供异构操作玩法定义、参数／结果 Schema、授权 offer、可信 resolve、NPC／玩家说明、必要服务、数据版本、玩家展示及模块级 afterAction／onCycleEnd；[results.ts](../../../packages/sdk/src/results.ts)固定业务拒绝、插件故障与周期结果声明；[gameplay-contract.ts](../../../packages/core/src/application/gameplay-contract.ts)只编译参数／结果 Schema并校验、复制外部 unknown。具体见 [B1 记录](../../superpowers/plans/2026-11-12-composable-engine-b1-contract.md)。B2 已接入实例 Context／Fiber、装载许可与调用保护，并通过主代理定向验收，见 [B2 记录](../../superpowers/plans/2026-11-12-composable-engine-b2-lifecycle.md)。B3 的公共资源装配、实际调度驱动与周期源码已通过独立审查；B4 原生注册与受控效果适配源码已接通，独立审查通过；状态初值明确归属，活动结果有独立 Schema／接收者投影，公开计算方法与后置冲突通过所属模块组织。实际范围见 [B4 记录](../../superpowers/plans/2026-11-13-composable-engine-b4-gameplay.md)。通用 UI 与作者配置的 B8 接通边界见[展示与配置指南](../guides/gameplay-presentation.md)。
 
 ### 4.6 自描述的授权与接入
 
@@ -1010,13 +1010,13 @@ pacing 的候选计算与正式效果应用分别采用其所在路径的语义�
 | 调度预算契约 | B3 源码接通实际激活、并发与期限的请求硬预算，阶段待独立验收 | 正式执行边界检查硬预算，周期换界沿用宿主执行范围的剩余额度 |
 | 记忆归档与角色模型 | 已有来源、归档前缀、迟到结果检查及按角色模型映射 | 将这些边界和正常调用能力写入公共契约 |
 
-对应源码见 [默认组合](../../../desktop/official-bundle.ts)、[调度桥](../../../packages/application/src/scheduler-round.ts)、[状态脚本](../../../packages/official-status/src/index.ts)、[活动脚本](../../../packages/official-activities/src/index.ts)、[RPG 内容](../../../packages/official-rpg/src/content.ts)、[TRPG 内容](../../../packages/official-trpg/src/content.ts)、[规则契约](../../../packages/plugin-sdk/src/rules.ts)与 [Lens 模拟](../../../desktop/lens/simulation.ts)。
+对应源码见 [默认组合](../../../apps/host/src/official-bundle.ts)、[调度桥](../../../packages/core/src/application/scheduler-round.ts)、[状态脚本](../../../packages/providers/src/status/index.ts)、[活动脚本](../../../packages/providers/src/activities/index.ts)、[RPG 内容](../../../packages/plugins/src/rpg/content.ts)、[TRPG 内容](../../../packages/plugins/src/trpg/content.ts)、[规则契约](../../../packages/sdk/src/rules.ts)与 [Lens 模拟](../../../apps/host/src/lens/simulation.ts)。
 
-本轮补充核对了[插件装载](../../../desktop/host-plugins.ts)、[机制保护](../../../desktop/host/gameplay-services.ts)、[世界运行与关闭](../../../desktop/host/world-runtime.ts)、[分支级 Cordis](../../../packages/runtime-cordis/src/runtime.ts)、[生成内容与存档检查](../../../desktop/host/pack-content.ts)及[工具链生成器注入](../../../packages/world-pack/src/pack-content.ts)。这些路径说明当前实现基础，目标行为仍按后续实施与验收记录确认。
+本轮补充核对了[插件装载](../../../apps/host/src/host-plugins.ts)、[机制保护](../../../apps/host/src/runtime/gameplay-services.ts)、[世界运行与关闭](../../../apps/host/src/runtime/world-runtime.ts)、[分支级 Cordis](../../../packages/core/src/runtime/runtime.ts)、[生成内容与存档检查](../../../apps/host/src/runtime/pack-content.ts)及[工具链生成器注入](../../../packages/world-pack/src/pack-content.ts)。这些路径说明当前实现基础，目标行为仍按后续实施与验收记录确认。
 
-作者能力的基础见[状态 SDK](../../../packages/plugin-sdk/src/status.ts)、[活动 SDK](../../../packages/plugin-sdk/src/activities.ts)、[操作说明](../../../packages/provider-chat/src/character-action-explanations.ts)、[玩家视图](../../../packages/frontend/src/player-view.ts)、[默认舞台](../../../packages/frontend/src/default-template.ts)、[Lens 剧本](../../../desktop/lens/scenario.ts)与[现有推演命令](../../../desktop/lens/cli.ts)。
+作者能力的基础见[状态 SDK](../../../packages/sdk/src/status.ts)、[活动 SDK](../../../packages/sdk/src/activities.ts)、[操作说明](../../../packages/providers/src/chat/character-action-explanations.ts)、[玩家视图](../../../packages/frontend/src/player-view.ts)、[默认舞台](../../../packages/frontend/src/default-template.ts)、[Lens 剧本](../../../apps/host/src/lens/scenario.ts)与[现有推演命令](../../../apps/host/src/lens/cli.ts)。
 
-本轮契约修订另依据[当前调度 SDK](../../../packages/plugin-sdk/src/scheduler.ts)、[决策执行能力](../../../packages/plugin-sdk/src/character-loop.ts)、[授权记忆来源](../../../packages/memory/src/authorized-sources.ts)、[长期记忆归档](../../../packages/official-memory-core/src/core-memory.ts)、[记忆来源时间](../../../packages/official-memory-core/python/bridge/core_bridge.py)和[角色模型选择](../../../packages/official-llm/src/role-providers.ts)。[开发指令](../../../AGENTS.md)已按新预算目标同步，SDK 与运行时差距继续通过对应批次处理。
+本轮契约修订另依据[当前调度 SDK](../../../packages/sdk/src/scheduler.ts)、[决策执行能力](../../../packages/sdk/src/character-loop.ts)、[授权记忆来源](../../../packages/core/src/memory/authorized-sources.ts)、[长期记忆归档](../../../packages/memory-core/src/core-memory.ts)、[记忆来源时间](../../../packages/memory-core/python/bridge/core_bridge.py)和[角色模型选择](../../../packages/providers/src/llm/role-providers.ts)。[开发指令](../../../AGENTS.md)已按新预算目标同步，SDK 与运行时差距继续通过对应批次处理。
 
 ### 16.2 旧内容字段的处理
 

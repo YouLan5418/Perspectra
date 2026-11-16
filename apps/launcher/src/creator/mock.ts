@@ -1,8 +1,8 @@
-import type { StoredWorldEvent, WorldAddress, WorldJsonObject } from '@harness-world/contracts'
-import type { InspectedRequest } from '@harness-world/provider-chat'
-import type { CreatorInspectionSnapshot } from '../../../../desktop/host/creator-inspection.ts'
-import type { CreatorHistoryItem, CreatorHistorySnapshot } from '../../../../desktop/host/creator-history.ts'
-import type { CreatorRecord, CreatorRecordsSnapshot, CreatorScope } from '../../../../desktop/host/creator-records.ts'
+import type { StoredWorldEvent, WorldAddress, WorldJsonObject } from '@perspectra/sdk/contracts'
+import type { InspectedRequest } from '@perspectra/providers/chat'
+import type { CreatorInspectionSnapshot } from '../../../host/src/runtime/creator-inspection.ts'
+import type { CreatorHistoryItem, CreatorHistorySnapshot } from '../../../host/src/runtime/creator-history.ts'
+import type { CreatorRecord, CreatorRecordsSnapshot, CreatorScope } from '../../../host/src/runtime/creator-records.ts'
 
 /** 浏览器预览用的固定样例：结构与真实接口一致，便于在没有运行实例时检查界面。 */
 const address = { tenantId: 'local', worldId: 'snow-inn', branchId: 'main' } as unknown as WorldAddress

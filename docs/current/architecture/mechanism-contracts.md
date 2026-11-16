@@ -39,7 +39,7 @@ B2 用户架构复核后的故障收口：规则异常和非法效果报告 Plug
 | 内容 | 人物、世界、事件池、美术与玩法配置 | 世界包格式；不靠内容文本授予重要事实 |
 | 宿主与默认组合 | desktop 入口、执行适配与 official-bundle | 明确选择机制和玩法；准备输入、管理资源，不复制机制算法 |
 
-[SDK 根入口](../../../packages/plugin-sdk/src/index.ts)保持不变。其内部按 world、scheduler、character-loop、memory、llm、rules、decisions、knowledge、status、activities、communication、autonomy、capabilities、frontend、player-feed、host、results、gameplay 和 version 分组。rules／frontend 的公共数据来自 contracts；包 exports 仍只有根入口，没有新增子路径、npm 发布或另一套脚本 SDK。
+[SDK 根入口](../../../packages/sdk/src/index.ts)保持不变。其内部按 world、scheduler、character-loop、memory、llm、rules、decisions、knowledge、status、activities、communication、autonomy、capabilities、frontend、player-feed、host、results、gameplay 和 version 分组。rules／frontend 的公共数据来自 contracts；包 exports 仍只有根入口，没有新增子路径、npm 发布或另一套脚本 SDK。
 
 ## 2. 注册、身份与生命周期
 
@@ -53,24 +53,24 @@ B2 用户架构复核后的故障收口：规则异常和非法效果报告 Plug
 
 | 服务／源码契约 | 计算输入与返回 | 核心或宿主保留的检查 |
 | --- | --- | --- |
-| [scheduler](../../../packages/plugin-sdk/src/scheduler.ts) | 单例调度器与 `registerWakeup` 叠加唤醒源、合并候选、活动机会、策略限额与同一受控 turn | 角色与刺激引用归属、整项可选提名校验、核心错误透传、请求硬预算；来源不选择另一套执行器 |
-| [characterLoop](../../../packages/plugin-sdk/src/character-loop.ts) | 当前激活的 prepare／decide／submit 能力 | 不允许伪造 actor、前缀或受众；续写真实结果，能力结束后失效 |
-| [memory](../../../packages/plugin-sdk/src/memory.ts) | 授权角色请求，返回记忆投影；可声明实际记忆窗口 | 角色经验来源与结果投影；文件快照沿已有记忆协议 |
-| [llm](../../../packages/plugin-sdk/src/llm.ts) | 最终授权请求与模型调用；完整通道或发送适配二选一 | 凭证由入口配置；输出仍经格式、许可与规则检查，失败不改投其他模型 |
-| [rules](../../../packages/plugin-sdk/src/rules.ts) | 基础规则层的前缀、行动与 next | 提案只能含核心认识的事实，与已提交托管或位置矛盾的效果按插件出错拒绝；真实提交仍由核心负责 |
-| [gameplay](../../../packages/plugin-sdk/src/gameplay.ts) | 强类型操作／公开方法、限制、所属状态与活动、可选 `wakeupSources`、结果投影、afterAction 与 onCycleEnd | B4/B5 的 application/gameplay-runtime 已接通原生注册、结构化拒绝和执行；共同脚本与包清单 B7、通用 UI 和作者配置 B8 已接通 |
-| [decisions](../../../packages/plugin-sdk/src/decisions.ts) | 授权上下文扩充或决策包装 | 最终角色输出和行动照常复核；公开 ContextSources 调用所选机制 |
-| [knowledge](../../../packages/plugin-sdk/src/knowledge.ts) | 当前角色授权 Context，选择作者材料 | 官方保持文档受众与条件范围；缺席时不扩充，不用全量真值代替 |
-| [status](../../../packages/plugin-sdk/src/status.ts) | policy／prepareModule 只见已知值；可信 resolve／轮末可见 truth，返回候选 | 声明、Schema、归属、告知、物品与真实执行者；异步原生执行和结果未知留宿主 |
-| [activities](../../../packages/plugin-sdk/src/activities.ts) | policy／simulate 使用角色作用域；可信规则和调度可见完整活动状态；选择只见摘要 | private／internal 隔离、参与者、唯一前台、合法开始、开始／暂停／恢复／放弃／逃生的状态迁移、随机记录、状态联动和原子提交 |
-| [communication](../../../packages/plugin-sdk/src/communication.ts) | 公开定义与已授权联系人；contacts 可用本角色已知状态收窄，prepare 返回投递候选 | 候选和正式路径重查、信封和实际发送者、收件权限与观察原子提交；不授予远端物理资格 |
-| [autonomy](../../../packages/plugin-sdk/src/autonomy.ts) | 已提交交易摘要计算到期角色；许可钩子收窄行动 | 声明身份、范围、机会、实际地点和效果；继续消费同一 scheduler／characterLoop |
+| [scheduler](../../../packages/sdk/src/scheduler.ts) | 单例调度器与 `registerWakeup` 叠加唤醒源、合并候选、活动机会、策略限额与同一受控 turn | 角色与刺激引用归属、整项可选提名校验、核心错误透传、请求硬预算；来源不选择另一套执行器 |
+| [characterLoop](../../../packages/sdk/src/character-loop.ts) | 当前激活的 prepare／decide／submit 能力 | 不允许伪造 actor、前缀或受众；续写真实结果，能力结束后失效 |
+| [memory](../../../packages/sdk/src/memory.ts) | 授权角色请求，返回记忆投影；可声明实际记忆窗口 | 角色经验来源与结果投影；文件快照沿已有记忆协议 |
+| [llm](../../../packages/sdk/src/llm.ts) | 最终授权请求与模型调用；完整通道或发送适配二选一 | 凭证由入口配置；输出仍经格式、许可与规则检查，失败不改投其他模型 |
+| [rules](../../../packages/sdk/src/rules.ts) | 基础规则层的前缀、行动与 next | 提案只能含核心认识的事实，与已提交托管或位置矛盾的效果按插件出错拒绝；真实提交仍由核心负责 |
+| [gameplay](../../../packages/sdk/src/gameplay.ts) | 强类型操作／公开方法、限制、所属状态与活动、可选 `wakeupSources`、结果投影、afterAction 与 onCycleEnd | B4/B5 的 application/gameplay-runtime 已接通原生注册、结构化拒绝和执行；共同脚本与包清单 B7、通用 UI 和作者配置 B8 已接通 |
+| [decisions](../../../packages/sdk/src/decisions.ts) | 授权上下文扩充或决策包装 | 最终角色输出和行动照常复核；公开 ContextSources 调用所选机制 |
+| [knowledge](../../../packages/sdk/src/knowledge.ts) | 当前角色授权 Context，选择作者材料 | 官方保持文档受众与条件范围；缺席时不扩充，不用全量真值代替 |
+| [status](../../../packages/sdk/src/status.ts) | policy／prepareModule 只见已知值；可信 resolve／轮末可见 truth，返回候选 | 声明、Schema、归属、告知、物品与真实执行者；异步原生执行和结果未知留宿主 |
+| [activities](../../../packages/sdk/src/activities.ts) | policy／simulate 使用角色作用域；可信规则和调度可见完整活动状态；选择只见摘要 | private／internal 隔离、参与者、唯一前台、合法开始、开始／暂停／恢复／放弃／逃生的状态迁移、随机记录、状态联动和原子提交 |
+| [communication](../../../packages/sdk/src/communication.ts) | 公开定义与已授权联系人；contacts 可用本角色已知状态收窄，prepare 返回投递候选 | 候选和正式路径重查、信封和实际发送者、收件权限与观察原子提交；不授予远端物理资格 |
+| [autonomy](../../../packages/sdk/src/autonomy.ts) | 已提交交易摘要计算到期角色；许可钩子收窄行动 | 声明身份、范围、机会、实际地点和效果；继续消费同一 scheduler／characterLoop |
 
-基础服务另见 [capabilities](../../../packages/plugin-sdk/src/capabilities.ts)、[frontend](../../../packages/plugin-sdk/src/frontend.ts)、[player-feed](../../../packages/plugin-sdk/src/player-feed.ts)：原生能力、纯前端表达和玩家可见订阅分开，不把它们的返回混成世界事实。
+基础服务另见 [capabilities](../../../packages/sdk/src/capabilities.ts)、[frontend](../../../packages/sdk/src/frontend.ts)、[player-feed](../../../packages/sdk/src/player-feed.ts)：原生能力、纯前端表达和玩家可见订阅分开，不把它们的返回混成世界事实。
 
 计算接口的同步／异步性质保持各自契约，不强行统一 hook。知识、状态、活动、通信和自主的只读查询／候选计算不获得数据库提交回调。异步模型、记忆、角色能力和原生会话仍走对应接口。新增效果必须由核心认识并裁定，不能任意新增事件绕过提交。
 
-B1 的最小 Schema 边界见 [gameplay-contract](../../../packages/application/src/gameplay-contract.ts)。它只返回未知外部数据的参数／结果解析结果，不调用作者 resolve，也不授予角色资格。最小搜证定义见 [gameplay.example](../../../packages/plugin-sdk/src/gameplay.example.ts)，验证范围与未接通批次见 [B1 记录](../../superpowers/plans/2026-11-12-composable-engine-b1-contract.md)。
+B1 的最小 Schema 边界见 [gameplay-contract](../../../packages/core/src/application/gameplay-contract.ts)。它只返回未知外部数据的参数／结果解析结果，不调用作者 resolve，也不授予角色资格。最小搜证定义见 [gameplay.example](../../../packages/sdk/src/gameplay.example.ts)，验证范围与未接通批次见 [B1 记录](../../superpowers/plans/2026-11-12-composable-engine-b1-contract.md)。
 
 ## 4. 当前外部作者格式
 
@@ -87,7 +87,7 @@ B1 的最小 Schema 边界见 [gameplay-contract](../../../packages/application/
 
 ## 5. 当前默认组合与显式停用
 
-[assembleRoleplay](../../../desktop/official-bundle.ts)是桌面入口明确选择的默认 RP 安装，包含交互实现、机制和模型装配器。`WorldHostRuntime.create` 未提供 composition 时选择此组合；`WorldHostCore.create` 必须接收完整 composition，不补玩法。选定调度器打开失败时停止打开。
+[assembleRoleplay](../../../apps/host/src/official-bundle.ts)是桌面入口明确选择的默认 RP 安装，包含交互实现、机制和模型装配器。`WorldHostRuntime.create` 未提供 composition 时选择此组合；`WorldHostCore.create` 必须接收完整 composition，不补玩法。选定调度器打开失败时停止打开。
 
 显式 composition 的 mechanisms 就是实际选择。省略 knowledge／memory 等可选机制后，回合和重生都不补回默认。包声明了状态、活动、通信或自主资产却省略对应机制，会在激活前报错；scheduler、characterLoop 与模型通道／模型装配器为此宿主的必要能力。WorldApplication 的无具体玩法入口是最小核心，验收见[M7 记录](../studies/2026-11-core-migration-m7.md)。
 

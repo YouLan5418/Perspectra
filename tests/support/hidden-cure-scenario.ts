@@ -1,11 +1,11 @@
 import { join, resolve } from 'node:path'
-import { brandId } from '@harness-world/contracts'
-import { characterVisibleItems } from '@harness-world/application'
-import { currentEntityState, currentLocation, type CompiledWorldManifest } from '@harness-world/kernel'
-import { CharacterViewBuilder, WorldStore } from '@harness-world/store-sqlite'
-import { CognitionProjectionRebuilder } from '../../packages/store-sqlite/src/cognition-projection.ts'
-import { playSettings } from '../../desktop/play-settings.ts'
-import type { WorldHostRuntime } from '../../desktop/host/world-runtime.ts'
+import { brandId } from '@perspectra/sdk/contracts'
+import { characterVisibleItems } from '@perspectra/core'
+import { currentEntityState, currentLocation, type CompiledWorldManifest } from '@perspectra/core/kernel'
+import { CharacterViewBuilder, WorldStore } from '@perspectra/core/store'
+import { CognitionProjectionRebuilder } from '../../packages/core/src/store/cognition-projection.ts'
+import { playSettings } from '../../apps/host/src/play-settings.ts'
+import type { WorldHostRuntime } from '../../apps/host/src/runtime/world-runtime.ts'
 
 export const packPath = resolve('examples/world-packs/hidden-cure')
 export const settings = playSettings({

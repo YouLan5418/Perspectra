@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { WorldApplication } from '@harness-world/application'
+import { WorldApplication } from '@perspectra/core'
 import {
   brandId,
   hashWorldJson,
@@ -11,7 +11,7 @@ import {
   type WorldJsonValue,
   type WorldJsonObject,
   type StoredWorldEvent,
-} from '@harness-world/contracts'
+} from '@perspectra/sdk/contracts'
 import {
   FrozenInteractionRulebook,
   createCoreRulebookRegistry,
@@ -21,9 +21,9 @@ import {
   runtimeManifestFromStored,
   type CompiledWorldManifestV10,
   type RulebookEvent,
-} from '@harness-world/kernel'
-import { interactionPackageHash } from '@harness-world/interaction-runtime'
-import { WorldStore } from '@harness-world/store-sqlite'
+} from '@perspectra/core/kernel'
+import { interactionPackageHash } from '@perspectra/core/interactions'
+import { WorldStore } from '@perspectra/core/store'
 import {
   basicInteractionPackage,
   frozenGenesisEvents,

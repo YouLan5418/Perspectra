@@ -20,14 +20,14 @@ export async function buildWorldPackCli(output) {
   }
   const result = await build({
     ...options,
-    entryPoints: ['packages/world-pack/process/cli-entry.ts'],
+    entryPoints: ['apps/host/src/cli/worldpack.ts'],
     outfile: join(runtime, 'worldpack.mjs'),
   })
   await writeFile(join(runtime, 'worldpack.mjs'), result.outputFiles[0].contents)
   // The read-only pack lens for AI agents (`worldpack lens ...`), bundled beside the creator CLI.
   const lens = await build({
     ...options,
-    entryPoints: ['desktop/lens/cli.ts'],
+    entryPoints: ['apps/host/src/lens/cli.ts'],
     outfile: join(runtime, 'lens.mjs'),
   })
   await writeFile(join(runtime, 'lens.mjs'), lens.outputFiles[0].contents)

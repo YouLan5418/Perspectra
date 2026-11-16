@@ -1,0 +1,30 @@
+{
+  "name": "@perspectra/providers",
+  "version": "0.3.5",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./activities": "./src/activities/index.ts",
+    "./character-loop": "./src/character-loop/index.ts",
+    "./communication": "./src/communication/index.ts",
+    "./contexts": "./src/contexts/index.ts",
+    "./knowledge": "./src/knowledge/index.ts",
+    "./llm": "./src/llm/index.ts",
+    "./memory-none": "./src/memory-none/index.ts",
+    "./scheduler": "./src/scheduler/index.ts",
+    "./status": "./src/status/index.ts",
+    "./chat": "./src/chat/index.ts",
+    "./chat/preset": "./src/chat/preset.ts",
+    "./chat/prompt-cache": "./src/chat/prompt-cache.ts",
+    "./chat/preset-library": "./src/chat/preset-library.ts",
+    "./chat/preset-macros": "./src/chat/preset-macros.ts",
+    "./chat/preset-regex": "./src/chat/preset-regex.ts",
+    "./scripted-model": "./src/scripted-model/index.ts"
+  },
+  "dependencies": {
+    "@perspectra/sdk": "workspace:*",
+    "acorn": "8.15.0",
+    "ajv": "8.17.1",
+    "@earendil-works/pi-ai": "1.4.0"
+  }
+}

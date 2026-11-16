@@ -20,7 +20,7 @@
 
 玩家或 NPC 在厨房对那锅米选择“用电饭煲煮一锅白米饭”：作者在官方包 [status.js](../../../examples/world-packs/model-girls-official/scripts/status.js) 里检查米仍是 raw-rice-kit、电饭煲就放在这里，成功后同一物品的外观变成 cooked-rice；“把这锅饭吃完”只接受熟饭，变成 empty-meal-container。对白说“饭好了”不能使这些变化成立。
 
-2026-10-22 起，料理、修理和拿起／放下／交给都由各包的 `scripts/status.js` 定义。原 `package:home-meal`、`package:dinner-party` 及内置 `base:take`、`base:drop`、`base:give` 已移除；[基础交互包](../../../packages/interactions-basic/src/basic.ts)只保留牵手与松手。所有 v5 示例包已改用[物品规则模板](../../../examples/templates/item-rules.js)，在各自脚本顶部的 `ITEM_RULES` 列出可拿、可放、可给的物品。引用已删除定义的旧包需先修改，不能按旧规则继续编译。
+2026-10-22 起，料理、修理和拿起／放下／交给都由各包的 `scripts/status.js` 定义。原 `package:home-meal`、`package:dinner-party` 及内置 `base:take`、`base:drop`、`base:give` 已移除；[基础交互包](../../../packages/plugins/src/basic-interactions/basic.ts)只保留牵手与松手。所有 v5 示例包已改用[物品规则模板](../../../examples/templates/item-rules.js)，在各自脚本顶部的 `ITEM_RULES` 列出可拿、可放、可给的物品。引用已删除定义的旧包需先修改，不能按旧规则继续编译。
 
 作者用操作的 `targets` 指定物品，`resolve` 第六参数接收目标物品 ID，返回 `items` 改外观或交接。宿主检查够得着、单一持有者、交给同场角色或放在行动者脚下等边界；通过后与本次行动的对白、状态变化和授权观察原子提交。`policy(known, actorId, place)` 可按手里和脚下的物品收窄目标，生成候选和执行前都会检查。官方包和晚宴包也用它筛选料理／修理条件；未被 policy 收窄的条件仍须在 resolve 中检查并返回作者拒绝理由。完整接口见[对物品做的操作](../guides/activity-and-variables.md#对物品做的操作2026-10-22当前源码)，分阶段设计记录见[作者定义物品规则](../../superpowers/specs/2026-10-22-author-item-rules-design.md)。
 

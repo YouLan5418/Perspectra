@@ -1,8 +1,8 @@
-import type { CharacterId, WorldAddress } from '@harness-world/contracts'
-import type { OpportunityScheduleLimits, WakeupSource } from '@harness-world/plugin-sdk'
-import type { WorldStore } from '@harness-world/store-sqlite'
-import { createSchedulerRound, type ActivationTurn } from '../../packages/application/src/scheduler-round.ts'
-import { runOfficialSchedule } from '../../packages/official-scheduler/src/index.ts'
+import type { CharacterId, WorldAddress } from '@perspectra/sdk/contracts'
+import type { OpportunityScheduleLimits, WakeupSource } from '@perspectra/sdk'
+import type { WorldStore } from '@perspectra/core/store'
+import { createSchedulerRound, type ActivationTurn } from '../../packages/core/src/application/scheduler-round.ts'
+import { runOfficialSchedule } from '../../packages/providers/src/scheduler/index.ts'
 
 /** The official scheduler over a real round, for tests that exercise its behavior directly. */
 export function runActivations(input: {

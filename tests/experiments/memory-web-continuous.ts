@@ -4,12 +4,12 @@ import { randomBytes } from 'node:crypto'
 import { once } from 'node:events'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
-import type { WorldJsonObject } from '@harness-world/contracts'
-import { WorldStore } from '@harness-world/store-sqlite'
-import { WorldHostRuntime } from '../../desktop/host/world-runtime.ts'
-import { createHostServer } from '../../desktop/host/http-server.ts'
-import { coreRunner } from '../../packages/official-memory-core/src/python-worker.ts'
-import { environmentRoleModels } from '../../desktop/model-connections.ts'
+import type { WorldJsonObject } from '@perspectra/sdk/contracts'
+import { WorldStore } from '@perspectra/core/store'
+import { WorldHostRuntime } from '../../apps/host/src/runtime/world-runtime.ts'
+import { createHostServer } from '../../apps/host/src/runtime/http-server.ts'
+import { coreRunner } from '../../packages/memory-core/src/python-worker.ts'
+import { environmentRoleModels } from '../../apps/host/src/model-connections.ts'
 const root = resolve(process.argv[2] ?? '')
 if (!process.argv[2] || existsSync(root)) throw new Error('specify a new data directory')
 mkdirSync(root, { recursive:true })
@@ -30,7 +30,7 @@ save('protocol.json',{ phase:'6.5',model,pack:'examples/world-packs/prototype-g1
   limits:['one continuous trajectory, no randomized control; page UI not automated',
     'manual refresh rebuilds generic observations; no known-family lineage update in this path'] })
 const run = coreRunner({HCW_LOCAL_MODEL:model,HCW_HINDSIGHT_UTILITY_TRACE:join(root,'utility.jsonl')})
-const measuredRun: import('../../packages/official-memory-core/src/python-worker.ts').CoreRunner = async(input,signal)=>{
+const measuredRun: import('../../packages/memory-core/src/python-worker.ts').CoreRunner = async(input,signal)=>{
     const start=performance.now(), result=await run(input,signal)
     const path=join(root,'bridge.jsonl')
     const {appendFileSync}=await import('node:fs')

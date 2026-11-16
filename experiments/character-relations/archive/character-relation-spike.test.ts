@@ -1,6 +1,6 @@
 // 历史研究脚本；路径、样本和模型可能绑定原始记录，不属于游戏启动或默认验收。
 import { describe, expect, it } from 'vitest'
-import { brandId, canonicalizeWorldJson, type WorldAddress, type WorldEventDraft } from '@harness-world/contracts'
+import { brandId, canonicalizeWorldJson, type WorldAddress, type WorldEventDraft } from '@perspectra/sdk/contracts'
 import {
   prototypeHoldHand,
   prototypeParticipantTransition,

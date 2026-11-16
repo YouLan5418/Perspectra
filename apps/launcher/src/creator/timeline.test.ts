@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import type { StoredWorldEvent, WorldAddress } from '@harness-world/contracts'
-import type { CreatorHistoryItem } from '../../../../desktop/host/creator-history.ts'
-import type { CreatorRecord } from '../../../../desktop/host/creator-records.ts'
+import type { StoredWorldEvent, WorldAddress } from '@perspectra/sdk/contracts'
+import type { CreatorHistoryItem } from '../../../host/src/runtime/creator-history.ts'
+import type { CreatorRecord } from '../../../host/src/runtime/creator-records.ts'
 import { buildTrace, type RecordSummary } from './model.ts'
 import {
   buildClock,

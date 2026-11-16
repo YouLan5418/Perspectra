@@ -1,8 +1,8 @@
 import { Context } from '@deepseek-ai/cordis'
-import { createWorldInstanceScope } from '@harness-world/runtime-cordis'
+import { createWorldInstanceScope } from '@perspectra/core/runtime'
 import { expect, it } from 'vitest'
-import { guardedDice } from '../../desktop/host/gameplay-services.ts'
-import { callPluginSync, createPluginCallContext, hostCapability } from '../../desktop/host/plugin-runtime.ts'
+import { guardedDice } from '../../apps/host/src/runtime/gameplay-services.ts'
+import { callPluginSync, createPluginCallContext, hostCapability } from '../../apps/host/src/runtime/plugin-runtime.ts'
 
 it('keeps a dice failure attributed to dice through an activity callback without leaking native text', async () => {
   const scope = await createWorldInstanceScope(new Context())

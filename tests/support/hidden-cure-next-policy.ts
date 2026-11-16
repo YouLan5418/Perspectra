@@ -1,5 +1,5 @@
-import type { PlayerView } from '@harness-world/frontend'
-import { actionText } from '../../desktop/host/http-server.ts'
+import type { PlayerView } from '@perspectra/frontend'
+import { actionText } from '../../apps/host/src/runtime/http-server.ts'
 import { command, object } from './hidden-cure-scenario.ts'
 
 /** The player policy receives only the same authorized projection as the UI.

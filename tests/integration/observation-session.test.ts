@@ -2,15 +2,15 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { brandId, type WorldAddress } from '@harness-world/contracts'
-import { DeterministicPresenter } from '@harness-world/presentation'
+import { brandId, type WorldAddress } from '@perspectra/sdk/contracts'
+import { DeterministicPresenter } from '@perspectra/core/presentation'
 import {
   CharacterViewBuilder,
   SessionDeliveryAdapter,
   SessionOutboxWorker,
   WorldOutbox,
   WorldStore,
-} from '@harness-world/store-sqlite'
+} from '@perspectra/core/store'
 
 describe('Phase 2 Observation and Session acceptance', () => {
   it('keeps multi-character futures private and closes the Outbox/Session/Presentation path', async () => {

@@ -7,8 +7,8 @@
 ## 源码已接通
 
 - `SchedulerRound.phase` 区分场景、自主与活动。场景可携带自主机会，由调度实现决定先后或交错；活动后的单独自主处理也调用同一实例。没有增加新的调度服务。
-- [官方入口](../../../packages/official-scheduler/src/index.ts)决定整合或分段，[自主策略](../../../packages/official-scheduler/src/autonomy.ts)与[活动策略](../../../packages/official-scheduler/src/activity.ts)持有循环、停止条件、超时与官方预算。宿主删除旧机会循环和 `#callBudget`。
-- [活动桥](../../../desktop/host/activity-round.ts)只提供合法下一参与者、绑定的 turn 和真实结果推进。每次执行前重查参与者，拒绝非法角色及并行活动执行；插件不能伪造 outcome。[自主桥](../../../desktop/host/autonomy-round.ts)只整理本轮声明的机会和执行能力。
+- [官方入口](../../../packages/providers/src/scheduler/index.ts)决定整合或分段，[自主策略](../../../packages/providers/src/scheduler/autonomy.ts)与[活动策略](../../../packages/providers/src/scheduler/activity.ts)持有循环、停止条件、超时与官方预算。宿主删除旧机会循环和 `#callBudget`。
+- [活动桥](../../../apps/host/src/runtime/activity-round.ts)只提供合法下一参与者、绑定的 turn 和真实结果推进。每次执行前重查参与者，拒绝非法角色及并行活动执行；插件不能伪造 outcome。[自主桥](../../../apps/host/src/runtime/autonomy-round.ts)只整理本轮声明的机会和执行能力。
 - 观察仍以序号引用并检查归属。活动按序号排序取最近 8 条；分段自主保留原授权视图顺序。已有刺激顺序回归曾发现两者不能混用，修正后通过。
 - 分段自主的真实发送计数由官方调度传入 `beforeModelCall`，包括格式重试和决策中间件重复发送。`calls` 保留原决策计数口径。第三方不传回调时，宿主不强制执行官方预算。
 - 第三方调度返回后，宿主取消并等待它留下的 turn；即使插件自传 signal，也合并宿主取消信号。关闭存储后不能继续调用旧 round。

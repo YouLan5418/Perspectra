@@ -2,14 +2,18 @@ import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:f
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { afterEach, expect, it } from 'vitest'
-import { assembleRoleplay, type WorldComposition } from '../../desktop/official-bundle.ts'
-import { WorldHostCore, WorldHostRuntime, type WorldHostCoreOptions } from '../../desktop/host/world-runtime.ts'
-import { LensSimulation } from '../../desktop/lens/simulation.ts'
-import { LensSession } from '../../desktop/lens/session.ts'
-import { exportStoryNode, importStoryNode } from '../../desktop/story-share.ts'
+import { assembleRoleplay, type WorldComposition } from '../../apps/host/src/official-bundle.ts'
+import {
+  WorldHostCore,
+  WorldHostRuntime,
+  type WorldHostCoreOptions,
+} from '../../apps/host/src/runtime/world-runtime.ts'
+import { LensSimulation } from '../../apps/host/src/lens/simulation.ts'
+import { LensSession } from '../../apps/host/src/lens/session.ts'
+import { exportStoryNode, importStoryNode } from '../../apps/host/src/story-share.ts'
 import { startFakeProvider, fakeModels } from '../support/fake-provider.ts'
-import type { SeamProvider, StatusInstance } from '@harness-world/plugin-sdk'
-import { PluginFaultError } from '../../desktop/host/plugin-runtime.ts'
+import type { SeamProvider, StatusInstance } from '@perspectra/sdk'
+import { PluginFaultError } from '../../apps/host/src/runtime/plugin-runtime.ts'
 
 const roots: string[] = [],
   runtimes: WorldHostRuntime[] = [],

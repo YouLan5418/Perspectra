@@ -1,7 +1,7 @@
 import { build } from 'esbuild'
 
 await build({
-  entryPoints: ['desktop/host/web-entry.ts'],
+  entryPoints: ['apps/host/src/runtime/web-entry.ts'],
   outfile: 'dist/backend/playtest.mjs',
   bundle: true,
   platform: 'node',

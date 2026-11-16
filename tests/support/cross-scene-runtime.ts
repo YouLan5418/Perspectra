@@ -1,4 +1,4 @@
-import { officialCharacterLoop } from '@harness-world/official-character-loop'
+import { officialCharacterLoop } from '@perspectra/providers/character-loop'
 import { randomUUID } from 'node:crypto'
 import { coreAdapter } from './core-adapter.ts'
 import { readFileSync, mkdirSync, existsSync, unlinkSync } from 'node:fs'
@@ -9,28 +9,28 @@ import {
   interactionPackageDescription,
   RECALL_KEYWORD_TOKENIZER_ID,
   type WorldJsonObject,
-} from '@harness-world/contracts'
-import { adaptCompiledWorldPack, compileWorldPackSource } from '@harness-world/world-pack'
-import { createInstalledInteractionPackages } from '@harness-world/interactions-basic'
-import { WorldBootstrap, FrozenInteractionRulebook, createCoreRulebookRegistry } from '@harness-world/kernel'
+} from '@perspectra/sdk/contracts'
+import { adaptCompiledWorldPack, compileWorldPackSource } from '@perspectra/world-pack'
+import { createInstalledInteractionPackages } from '@perspectra/plugins/basic-interactions'
+import { WorldBootstrap, FrozenInteractionRulebook, createCoreRulebookRegistry } from '@perspectra/core/kernel'
 import {
   WorldStore,
   WriterLeaseService,
   CharacterRuntimeAvailabilityService,
   CharacterViewBuilder,
   SessionDeliveryAdapter,
-} from '@harness-world/store-sqlite'
-import { AuthorizedSourceStore } from '@harness-world/memory'
-import { CharacterTurn, type CharacterTurnRequest } from '../../packages/application/src/character-turn.ts'
+} from '@perspectra/core/store'
+import { AuthorizedSourceStore } from '@perspectra/core/memory'
+import { CharacterTurn, type CharacterTurnRequest } from '../../packages/core/src/application/character-turn.ts'
 import { runActivations } from './run-activations.ts'
 import { CrossSceneCommunication, communicationInstruction } from './cross-scene-communication.ts'
 import { CrossScenePhone, phoneCalls, type PhoneOperation } from './cross-scene-phone.ts'
-import { SceneDecisionService } from '../../packages/application/src/scene-decision.ts'
+import { SceneDecisionService } from '../../packages/core/src/application/scene-decision.ts'
 import { loadActivities } from './activity-runtime.ts'
-import { playerTranscript } from '../../desktop/host/player-transcript.ts'
-import { saveStoryNode } from '../../desktop/story-nodes.ts'
-import { CoreMemoryAdapter, type MemoryContextBudget } from '../../packages/official-memory-core/src/core-memory.ts'
-import type { CoreRunner } from '../../packages/official-memory-core/src/python-worker.ts'
+import { playerTranscript } from '../../apps/host/src/runtime/player-transcript.ts'
+import { saveStoryNode } from '../../apps/host/src/story-nodes.ts'
+import { CoreMemoryAdapter, type MemoryContextBudget } from '../../packages/memory-core/src/core-memory.ts'
+import type { CoreRunner } from '../../packages/memory-core/src/python-worker.ts'
 
 export async function crossSceneRuntime(
   dataDirectory: string,

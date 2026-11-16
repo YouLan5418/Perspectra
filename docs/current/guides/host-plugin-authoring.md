@@ -243,9 +243,9 @@ export default async function myBgm(ctx) {
 
 当前宿主 API 为 `2.3`（既有 2.0、2.1 插件仍可加载），插件须导出 `export const hostApi = '2.0'`。装载器在调用插件之前比较版本：主版本必须相同，宿主次版本不低于声明值；未声明或不兼容时跳过并提示。2.0 中，同一个调度器也负责自主和活动处理；旧 1.x 插件需核对接口并更新声明，不会自动回退到旧调度行为。其他服务的调用形状未在本次改变，但也须更新主版本声明。
 
-所有接口类型集中在 [@harness-world/plugin-sdk](../../../packages/plugin-sdk/src/index.ts)：`HostServices` 列出服务，`SchedulerRound` 等定义参数与事件形状。宿主直接引用这些类型。该包尚未发布到 npm，也不随便携包附带；仓库外开发时可参照源码或复制类型。
+所有接口类型集中在 [@perspectra/sdk](../../../packages/sdk/src/index.ts)：`HostServices` 列出服务，`SchedulerRound` 等定义参数与事件形状。宿主直接引用这些类型。该包尚未发布到 npm，也不随便携包附带；仓库外开发时可参照源码或复制类型。
 
-目前使用项目依赖的 `@deepseek-ai/cordis@4.0.1`。装载器接受默认导出的函数、类或 `{ apply(ctx) {} }` 对象；资源注册用 `ctx.effect(() => register(...))`，退出时返回的注销函数随插件释放。外部文件入口必须是 `.mjs` 或可由 Node 按 ESM 解析的 `.js`，不直接执行 TypeScript。B2 的加载器只导入已允许且启用的模块，显式核心实现初始化失败停止启动；清单仅声明语音／音乐、玩家可见订阅或外部能力的外围插件可报告后跳过。原始异常正文不会写进宿主生成的提示；注册仍应放进 `ctx.effect`。加载入口见[宿主插件](../host-plugins.md)，类型定义见 [plugin-sdk](../../../packages/plugin-sdk/src/index.ts)。
+目前使用项目依赖的 `@deepseek-ai/cordis@4.0.1`。装载器接受默认导出的函数、类或 `{ apply(ctx) {} }` 对象；资源注册用 `ctx.effect(() => register(...))`，退出时返回的注销函数随插件释放。外部文件入口必须是 `.mjs` 或可由 Node 按 ESM 解析的 `.js`，不直接执行 TypeScript。B2 的加载器只导入已允许且启用的模块，显式核心实现初始化失败停止启动；清单仅声明语音／音乐、玩家可见订阅或外部能力的外围插件可报告后跳过。原始异常正文不会写进宿主生成的提示；注册仍应放进 `ctx.effect`。加载入口见[宿主插件](../host-plugins.md)，类型定义见 [plugin-sdk](../../../packages/sdk/src/index.ts)。
 
 | 接口 | 用途 |
 | --- | --- |
@@ -290,7 +290,7 @@ export default function (ctx) {
 - `round.activity.next()` 给出当前合法参与者；你可以不给机会、只处理一次或继续处理。每次 `turn` 前宿主重查参与者，完成后用真实结果推进活动。不能跳过法定次序、伪造 outcome，或同时执行两个活动参与者。`resultUnknown()` 为真时应停止。
 - 返回 `{ calls, wave, terminalReason, activations }`。`failed`、`interrupted`、`call_limit`、`wave_limit`、`character_limit` 有各自的玩家提示，其他值都显示为本轮已结束。
 - 只需要补充角色唤醒来源而不替换整个调度器时，可在声明 `services: ['scheduler']` 后调用 `ctx.effect(() => ctx.scheduler.registerWakeup({ id: 'my-wakeup', version: '1.0.0', open: async world => ({ nominate: input => [...] }) }))`。提名只表达角色机会与已属于该角色的观察序号；可选唤醒源抛错或返回越权刺激时会被跳过并告警，其他唤醒源与正常反应继续运行。
-- 进阶接口 `onCommitted` 和 `continuationOf` 用于动态并发和过期重算，可参考[官方实现](../../../packages/official-scheduler/src/index.ts)。
+- 进阶接口 `onCommitted` 和 `continuationOf` 用于动态并发和过期重算，可参考[官方实现](../../../packages/providers/src/scheduler/index.ts)。
 
 需要定义自己的服务时，可以 `import { Service } from '@deepseek-ai/cordis'`，宿主会把它指向自己运行的那一份，插件不用也不要自带。
 
@@ -329,7 +329,7 @@ export default function (ctx) {
 - `project` 是唯一必需的方法，每次角色决策前调用，返回的 `context` 交给模型。放进 `memories` 的内容排在场景信息之前，也参与[按需知识](world-knowledge.md)的条件匹配；其他字段名也能送达，排在已知字段之后。角色提示不会解释这些内容，要让它们自己说得清楚。
 - `world.authorizedSources` 只返回这个角色有权知道的内容，每个世界实例的进度由宿主保存。
 - 记忆 Provider 的 `shortTermAfterSeq` 现在由实际执行交付的决策步骤转接。默认官方记忆步骤自动转接；自定义步骤须按下方 2.2 接口明确配对。没有步骤提供截断回调时，使用最近 16 条观察和 8 条自身表达；不会仅因 Core 还开着就裁掉归档前缀。
-- 其他方法都可选：`startRefresh` 手动整理，`backgroundState` 显示进度，`snapshotArchives` / `restoreArchives` 随节点保存。类型见 [plugin-sdk](../../../packages/plugin-sdk/src/index.ts) 的 `MemoryInstance`。
+- 其他方法都可选：`startRefresh` 手动整理，`backgroundState` 显示进度，`snapshotArchives` / `restoreArchives` 随节点保存。类型见 [plugin-sdk](../../../packages/sdk/src/index.ts) 的 `MemoryInstance`。
 
 **由作者负责的部分。** `world.world` 还能读所有事件和任意角色的视图，只用 `authorizedSources` 才不会把一个角色的私有内容交给另一个角色。插件拿不到玩家的模型设置和 Key，要调用模型需要自己配置，费用和凭据由作者说明。
 
@@ -462,7 +462,7 @@ export default function (ctx) {
 - `serial: true` 让角色逐个处理，并关闭发布后继续行动。`committed(headSeq)` 在世界就绪时报告一次，之后每次刷新时报告当前的 head，可能跳过几次提交，也可能重复。`debug()` 的内容并入状态的 debug。
 - `world.candidate` 为真时是作为重新生成候选打开的，会往外发请求、写日志的实现应该跳过。玩家选中候选后这个实例继续运行，下次打开世界时才变成假。
 
-`open` 失败时世界不打开。`context` 或 `decide` 抛错时这一轮失败，提示里有插件 ID，已提交内容保留。[JEV 审计](../../../packages/official-jev-audit/src/index.ts) 是一个完整的官方例子。
+`open` 失败时世界不打开。`context` 或 `decide` 抛错时这一轮失败，提示里有插件 ID，已提交内容保留。[JEV 审计](../../../packages/jev-audit/src/index.ts) 是一个完整的官方例子。
 
 自动测试覆盖以上行为。`simple-llm` 经真实加载器在真实模型下跑过一次短局；`ctx.decisions` 还没有在真实模型下用第三方插件试过。
 

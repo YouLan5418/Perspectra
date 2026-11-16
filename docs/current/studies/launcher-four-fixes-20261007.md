@@ -42,9 +42,9 @@ Core 的决策 schema 使用严格分支；当前本机 Gemini 网关入口另�
 - `tests/experiments/playtest-server.ts`：当前选项显示名称的内部状态字段。
 - `tests/experiments/playtest-frozen-runtime.ts`：仅筛选当前选项引用的角色名；接入格式修正；区分格式/服务失败提示。
 - `tests/experiments/pack-activity.ts`：一次 schema 格式修正及兼容 wire 表达。
-- `packages/application/src/prototype-character-turn.ts`：格式异常与传输异常的失败分类。
+- `packages/core/src/application/prototype-character-turn.ts`：格式异常与传输异常的失败分类。
 - `tests/experiments/playtest-host-page.ts`：统一操作通知。
-- `desktop/launcher-core.ts`：字体偏好持久化及读取校验。
+- `apps/launcher/backend/core.ts`：字体偏好持久化及读取校验。
 - `apps/launcher/src/core-types.ts`、`stores/launcher.ts`、`components/SettingsDialog.vue`：设置保存与快照恢复。
 
 回归：`tests/host/frontend-api.test.ts`、`pack-activity.test.ts`、`launcher-core.test.ts`。

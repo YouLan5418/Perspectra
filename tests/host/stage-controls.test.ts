@@ -1,6 +1,6 @@
 import { expect, it, vi } from 'vitest'
 import { runInNewContext } from 'node:vm'
-import { HOST_ACTIVITY_PAGE } from '../../desktop/host/host-page.ts'
+import { HOST_ACTIVITY_PAGE } from '../../apps/host/src/runtime/host-page.ts'
 import { stagePreferences } from '../../packages/frontend/src/stage-preferences.ts'
 import { playerViewPatch, type PlayerView } from '../../packages/frontend/src/player-view.ts'
 

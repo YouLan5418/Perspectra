@@ -14,13 +14,13 @@ import {
   loadHostPlugins,
   type HostPlugins,
   type PlayerFeedEvent,
-} from '../../desktop/host-plugins.ts'
+} from '../../apps/host/src/host-plugins.ts'
 import {
   hostPluginNativeAllowed,
   hostPluginSettings,
   shouldLoadHostPlugin,
-} from '../../desktop/host-plugin-settings.ts'
-import { HOST_API_VERSION, hostApiCompatible } from '@harness-world/plugin-sdk'
+} from '../../apps/host/src/host-plugin-settings.ts'
+import { HOST_API_VERSION, hostApiCompatible } from '@perspectra/sdk'
 import { moduleRows } from '../../apps/launcher/src/stores/modules.ts'
 
 const roots: string[] = [],

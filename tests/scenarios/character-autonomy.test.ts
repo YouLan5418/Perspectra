@@ -4,23 +4,23 @@ import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { randomUUID } from 'node:crypto'
 import { afterEach, expect, it, vi } from 'vitest'
-import { type WorldJsonObject } from '@harness-world/contracts'
+import { type WorldJsonObject } from '@perspectra/sdk/contracts'
 import {
   currentEntityState,
   currentLocation,
   createCoreRulebookRegistry,
   type CompiledWorldManifest,
-} from '@harness-world/kernel'
-import { WorldStore } from '@harness-world/store-sqlite'
-import { compileWorldPackSource } from '@harness-world/world-pack'
-import { createInstalledInteractionPackages } from '@harness-world/interactions-basic'
-import { interactionPackageDescription } from '@harness-world/contracts'
-import { playSettings } from '../../desktop/play-settings.ts'
+} from '@perspectra/core/kernel'
+import { WorldStore } from '@perspectra/core/store'
+import { compileWorldPackSource } from '@perspectra/world-pack'
+import { createInstalledInteractionPackages } from '@perspectra/plugins/basic-interactions'
+import { interactionPackageDescription } from '@perspectra/sdk/contracts'
+import { playSettings } from '../../apps/host/src/play-settings.ts'
 import { loadAutonomy, parseAutonomy } from '../support/autonomy-runtime.ts'
-import { WorldHostRuntime, type WorldHostOptions } from '../../desktop/host/world-runtime.ts'
-import { projectPlayerView } from '../../desktop/host/frontend-adapter.ts'
-import { WAIT_ACTION } from '../../desktop/host/http-server.ts'
-import type { PlaySettings } from '../../desktop/play-settings.ts'
+import { WorldHostRuntime, type WorldHostOptions } from '../../apps/host/src/runtime/world-runtime.ts'
+import { projectPlayerView } from '../../apps/host/src/runtime/frontend-adapter.ts'
+import { WAIT_ACTION } from '../../apps/host/src/runtime/http-server.ts'
+import type { PlaySettings } from '../../apps/host/src/play-settings.ts'
 import { createChatServer, fakeModels } from '../support/fake-provider.ts'
 
 const roots: string[] = [],

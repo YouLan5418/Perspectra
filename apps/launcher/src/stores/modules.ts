@@ -1,4 +1,4 @@
-import type { HostPluginSettings } from '../../../../desktop/host-plugin-settings.ts'
+import type { HostPluginSettings } from '@perspectra/host/plugin-settings'
 
 /** The part of a plugin's manifest this needs; a missing or broken manifest has no `manifest`. */
 type ManifestInfo =

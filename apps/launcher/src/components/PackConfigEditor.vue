@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, inject, onBeforeUnmount, onMounted, ref } from 'vue'
-import type { PackConfigDocument } from '../../../../desktop/pack-config.ts'
+import type { PackConfigDocument } from '../../../host/src/pack-config.ts'
 import { useLauncherStore } from '../stores/launcher.ts'
 const store = useLauncherStore()
 const document = ref<PackConfigDocument>()

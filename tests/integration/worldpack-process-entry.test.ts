@@ -18,7 +18,7 @@ function run(args: readonly string[]): Promise<ProcessResult> {
   return new Promise((resolve, reject) => {
     const child = spawn(
       process.execPath,
-      ['--no-warnings', tsxCli, join(root, 'packages/world-pack/process/cli-entry.ts'), ...args],
+      ['--no-warnings', tsxCli, join(root, 'apps/host/src/cli/worldpack.ts'), ...args],
       {
         cwd: root,
         stdio: ['pipe', 'pipe', 'pipe'],

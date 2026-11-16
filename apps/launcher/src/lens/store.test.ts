@@ -1,6 +1,6 @@
 import { beforeEach, expect, it, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
-import type { LensSnapshot } from '../../../../desktop/lens/session.ts'
+import type { LensSnapshot } from '../../../host/src/lens/session.ts'
 
 const bridge = vi.hoisted(() => ({ lensRequest: vi.fn(), lensStatus: vi.fn() }))
 vi.mock('./api.ts', () => ({
@@ -8,7 +8,7 @@ vi.mock('./api.ts', () => ({
   lensRequest: bridge.lensRequest,
   lensStatus: bridge.lensStatus,
 }))
-import { conditionItems } from '../../../../desktop/lens/ids.ts'
+import { conditionItems } from '@perspectra/world-pack/lens/ids'
 import { useLensStore } from './store.ts'
 
 const source = { kind: 'json', file: 'characters.json', pointer: '/characters/0' } as const

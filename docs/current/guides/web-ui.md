@@ -77,7 +77,7 @@
 
 只支持 API 1 和表中六种能力；未知能力不授予。入口引用 `/frontend/sdk.js`，再引用 `/frontend/custom/app.js`、CSS、图片等。默认沙箱不能使用内联脚本、外部脚本、fetch 或 WebSocket；社区模板由不允许同源权限的 iframe 承载。已明确授权的受信任模式使用独立来源并开放网络与浏览器存储，详见授权交付。示例见 [AI 美少女前端](../../../examples/world-packs/ai-girls-awaken-v10/frontend/index.html)。
 
-包内文件快照最多 2048 个、单文件 64 MiB、总计 512 MiB；不跟随符号链接或目录连接。缺少目录时默认回退；除上述只改默认舞台的资源外，存在目录但入口或 manifest 不合规则启动失败。支持 HTML、CSS、JS/MJS、JSON、常见图片、字体和音频；准确扩展名见 [加载器](../../../desktop/host/pack-frontend.ts)。
+包内文件快照最多 2048 个、单文件 64 MiB、总计 512 MiB；不跟随符号链接或目录连接。缺少目录时默认回退；除上述只改默认舞台的资源外，存在目录但入口或 manifest 不合规则启动失败。支持 HTML、CSS、JS/MJS、JSON、常见图片、字体和音频；准确扩展名见 [加载器](../../../apps/host/src/runtime/pack-frontend.ts)。
 
 静态素材可以无令牌读取，**不得放密钥、NPC 私密资料或数据库副本**。资源接口只返回当前包已加载素材的虚拟 URL，不能读取任意路径。前端文件不改变世界内容编译 Hash；修改后重新启动游戏生效。
 
@@ -163,7 +163,7 @@ const { url } = await api.resource("assets/banner.svg");
 
 ## 公开活动选项
 
-view.activity 提供 title、active、phase、public、private；view.activities 列出各场的 key、title、active、suspended、phase、public、private。public 是活动参与者共享内容；这里的 private **只含玩家自己那份记录**，不是按角色 ID 索引的全部私有状态。其他角色的 private、internal 和脚本玩家来源不返回。默认舞台将可展示的玩家私有字段放在活动卡片的“只有你知道”区域。源码见[玩家投影](../../../desktop/host/frontend-adapter.ts)与[PlayerView](../../../packages/frontend/src/player-view.ts)。
+view.activity 提供 title、active、phase、public、private；view.activities 列出各场的 key、title、active、suspended、phase、public、private。public 是活动参与者共享内容；这里的 private **只含玩家自己那份记录**，不是按角色 ID 索引的全部私有状态。其他角色的 private、internal 和脚本玩家来源不返回。默认舞台将可展示的玩家私有字段放在活动卡片的“只有你知道”区域。源码见[玩家投影](../../../apps/host/src/runtime/frontend-adapter.ts)与[PlayerView](../../../packages/frontend/src/player-view.ts)。
 
 view.actions 包含当前活动操作及开始／暂停／继续／放弃与再次请求角色处理选项，仍通过 perform 提交。有参数时使用当前选项的 argumentSchema 与 SDK 的 arguments 字段；动态开始选项另提供 participantSelection（min、max、当前候选 id/name），使用 `api.perform(optionId, actionId, npcIds)` 或 request 的 perform payload `{ optionId, npcIds }`。提交时重新检查当前候选、人数和参数；默认舞台与宿主面板提供选人和参数表单。这些入口不授予任意脚本调用权限。
 

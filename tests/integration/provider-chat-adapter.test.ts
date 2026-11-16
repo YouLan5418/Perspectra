@@ -6,7 +6,7 @@ import {
   type ChatCallObservation,
   type ChatProviderOptions,
   type ProviderProtocol,
-} from '@harness-world/provider-chat'
+} from '@perspectra/providers/chat'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { startFakeProvider, streamingFetch, type FakeAnswer, type FakeProviderCall } from '../support/fake-provider.ts'
 

@@ -4,9 +4,9 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { DatabaseSync, type SQLInputValue } from 'node:sqlite'
 import { afterEach, describe, expect, it } from 'vitest'
-import { openContextDatabase } from '@harness-world/agents'
-import { brandId, worldAddressKey, type WorldAddress } from '@harness-world/contracts'
-import { WorldStore } from '@harness-world/store-sqlite'
+import { openContextDatabase } from '@perspectra/core/agents'
+import { brandId, worldAddressKey, type WorldAddress } from '@perspectra/sdk/contracts'
+import { WorldStore } from '@perspectra/core/store'
 
 const HISTORY_ROWS = 10_000
 const MAX_EVENT_WINDOW = 128

@@ -1,7 +1,7 @@
-import { loadHostPlugins } from '../../desktop/host-plugins.ts'
-import { assembleRoleplay } from '../../desktop/official-bundle.ts'
+import { loadHostPlugins } from '../../apps/host/src/host-plugins.ts'
+import { assembleRoleplay } from '../../apps/host/src/official-bundle.ts'
 import { createRequire } from 'node:module'
-import type { ContentGameplay } from '@harness-world/plugin-sdk'
+import type { ContentGameplay } from '@perspectra/sdk'
 import { existsSync, readFileSync, writeFileSync, mkdirSync, rmSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { afterEach, expect, it, vi } from 'vitest'
@@ -11,11 +11,11 @@ import {
   validatePluginConfig,
   parseWorldPackSourceManifestV5,
   type CompiledWorldPackV5,
-} from '@harness-world/world-pack'
-import { interactionPackageDescription } from '@harness-world/contracts'
-import { defaultInteractionPackages } from '../../desktop/official-bundle.ts'
-import { officialPackPlugins } from '../../desktop/official-pack-metadata.ts'
-import { packValidationCatalog, validateInstalledPack } from '../../desktop/pack-validation.ts'
+} from '@perspectra/world-pack'
+import { interactionPackageDescription } from '@perspectra/sdk/contracts'
+import { defaultInteractionPackages } from '../../apps/host/src/official-bundle.ts'
+import { officialPackPlugins } from '../../apps/host/src/official-pack-metadata.ts'
+import { packValidationCatalog, validateInstalledPack } from '../../apps/host/src/pack-validation.ts'
 import { copyRpgFixture, openRpgWorld } from '../support/rpg-fixture.ts'
 
 const cleanup: (() => void | Promise<void>)[] = []

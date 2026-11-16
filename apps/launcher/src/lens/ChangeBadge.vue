@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { LensChange } from '../../../../desktop/lens/diff.ts'
+import type { LensChange } from '@perspectra/world-pack/lens/diff'
 
 /** 与对比基准相比的改动标记；`child` 表示条目本身没变、但它下面有条目变了。 */
 defineProps<{ change?: LensChange | undefined; child?: boolean }>()

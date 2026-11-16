@@ -26,9 +26,9 @@
 
 ## M1 实际结果
 
-知识选择从宿主 PackKnowledge 移至 [official-knowledge](../../../packages/official-knowledge/src/index.ts)，通过 Cordis `ctx.knowledge` 注册；宿主 API 增量升至 2.5，2.0～2.4 插件继续可加载。旧文件删除，不保留兼容包装或双实现。默认 Provider 由 official-bundle 装配，WorldGameplay 不再持有知识机制。
+知识选择从宿主 PackKnowledge 移至 [official-knowledge](../../../packages/providers/src/knowledge/index.ts)，通过 Cordis `ctx.knowledge` 注册；宿主 API 增量升至 2.5，2.0～2.4 插件继续可加载。旧文件删除，不保留兼容包装或双实现。默认 Provider 由 official-bundle 装配，WorldGameplay 不再持有知识机制。
 
-[knowledge-source](../../../desktop/host/knowledge-source.ts)保留资产锁及大小验证，只给所选知识 Provider 提供配置和内容描述；其他机制的通用 WorldServices 不自动获得作者原始材料。所选机制属于可信代码，仍需正确实施受众筛选，这不是沙箱。共享 [knownStatusView](../../../packages/contracts/src/known-status-view.ts) 仅转换已有数据，不增加读取权限。
+[knowledge-source](../../../apps/host/src/runtime/knowledge-source.ts)保留资产锁及大小验证，只给所选知识 Provider 提供配置和内容描述；其他机制的通用 WorldServices 不自动获得作者原始材料。所选机制属于可信代码，仍需正确实施受众筛选，这不是沙箱。共享 [knownStatusView](../../../packages/sdk/src/contracts/known-status-view.ts) 仅转换已有数据，不增加读取权限。
 
 [knowledge-seam](../../../tests/host/knowledge-seam.test.ts) 验证外部 `.mjs` 实际注册并被官方 context 步骤消费、打开失败不回退、选择异常归因和保留输入、候选实例独立关闭及公开 identity 改变后拒绝重生。既有知识场景继续验证关键词、受众、已知状态条件、优先级和预算；没有改变角色输出、事实提交或数据库格式。
 

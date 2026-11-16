@@ -1,10 +1,10 @@
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
-import type { WorldJsonObject } from '@harness-world/contracts'
-import { CharacterViewBuilder, WorldStore } from '@harness-world/store-sqlite'
-import { environmentRoleModels } from '../../desktop/model-connections.ts'
-import { WorldHostRuntime } from '../../desktop/host/world-runtime.ts'
-import { WAIT_ACTION, type HostAction, type HostState } from '../../desktop/host/http-server.ts'
+import type { WorldJsonObject } from '@perspectra/sdk/contracts'
+import { CharacterViewBuilder, WorldStore } from '@perspectra/core/store'
+import { environmentRoleModels } from '../../apps/host/src/model-connections.ts'
+import { WorldHostRuntime } from '../../apps/host/src/runtime/world-runtime.ts'
+import { WAIT_ACTION, type HostAction, type HostState } from '../../apps/host/src/runtime/http-server.ts'
 
 // Real-model play of hill-ruins through the default frontend's paths: speech via submit, buttons via perform.
 // Usage: node --import tsx tests/experiments/hill-ruins-live.ts [outputDir] [--model=opencode-go/glm-5.3-flash]

@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest'
-import { statusValueText } from '../../desktop/host/gameplay-projection.ts'
+import { statusValueText } from '../../apps/host/src/runtime/gameplay-projection.ts'
 
 // Real-model play 2026-11-08: the status bar showed 队伍 ["character:cheng"], 已开的门 [...] and 装备 {}.
 const names = new Map([

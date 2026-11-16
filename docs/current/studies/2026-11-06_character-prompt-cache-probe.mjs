@@ -4,9 +4,9 @@ import { openAICompletionsApi } from '@earendil-works/pi-ai/api/openai-completio
 import { anthropicMessagesApi } from '@earendil-works/pi-ai/api/anthropic-messages.lazy'
 import { googleGenerativeAIApi } from '@earendil-works/pi-ai/api/google-generative-ai.lazy'
 import { normalizeContext } from '@earendil-works/pi-ai/utils/transcript'
-import { piModel } from '../../../packages/provider-chat/src/pi-model.ts'
-import { createChatProvider } from '../../../packages/provider-chat/src/provider.ts'
-import { RequestInspector } from '../../../packages/provider-chat/src/request-inspector.ts'
+import { piModel } from '../../../packages/providers/src/chat/pi-model.ts'
+import { createChatProvider } from '../../../packages/providers/src/chat/provider.ts'
+import { RequestInspector } from '../../../packages/providers/src/chat/request-inspector.ts'
 
 const originalFetch = globalThis.fetch
 let networkAttempts = 0

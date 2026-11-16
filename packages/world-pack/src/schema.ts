@@ -42,7 +42,7 @@ import {
   type WorldJsonValue,
   type UntrustedJsonFail,
   type UntrustedJsonFailure,
-} from '@harness-world/contracts'
+} from '@perspectra/sdk/contracts'
 import {
   WORLD_PACK_CORE_PROFILES,
   WORLD_PACK_CHARACTER_LIFECYCLES_V2,

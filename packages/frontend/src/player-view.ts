@@ -1,4 +1,4 @@
-import { canonicalizeWorldJson, type CharacterId, type WorldJsonObject } from '@harness-world/contracts'
+import { canonicalizeWorldJson, type CharacterId, type WorldJsonObject } from '@perspectra/sdk/contracts'
 
 export interface PlayerAction {
   readonly actionType: 'move' | 'interact'
@@ -13,7 +13,7 @@ export type PlayerPanel =
       readonly properties: readonly {
         key: string
         label: string
-        value: import('@harness-world/contracts').WorldJsonValue
+        value: import('@perspectra/sdk/contracts').WorldJsonValue
       }[]
     }
   | {
@@ -85,7 +85,7 @@ export interface PlayerView {
     holderId: string | null
     holderName?: string
     self?: boolean
-    value: import('@harness-world/contracts').WorldJsonValue
+    value: import('@perspectra/sdk/contracts').WorldJsonValue
     /** The value as the player reads it: character, place and item ids replaced by their names. */
     valueText?: string
     current: boolean
@@ -99,7 +99,7 @@ export interface PlayerView {
     holderId: string | null
     holderName?: string
     self?: boolean
-    value: import('@harness-world/contracts').WorldJsonValue
+    value: import('@perspectra/sdk/contracts').WorldJsonValue
   }[]
   /** Items the player can see now: `held` by the player, lying `here`, or `with` someone present (since a
    * handover the player saw). `kind` is the item's current look as the author wrote it. */
@@ -117,7 +117,7 @@ export interface PlayerView {
     speakerId?: CharacterId
     text: string
     player: boolean
-    segments?: readonly import('@harness-world/contracts').ExpressionSegment[]
+    segments?: readonly import('@perspectra/sdk/contracts').ExpressionSegment[]
     /** The player let this round pass (the `wait` action). `text` is empty; show what you like, or nothing. */
     pause?: true
   }[]

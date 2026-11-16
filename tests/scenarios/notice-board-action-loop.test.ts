@@ -1,9 +1,9 @@
-import { officialCharacterLoop } from '@harness-world/official-character-loop'
+import { officialCharacterLoop } from '@perspectra/providers/character-loop'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, expect, it } from 'vitest'
-import { CharacterTurn } from '../../packages/application/src/character-turn.ts'
+import { CharacterTurn } from '../../packages/core/src/application/character-turn.ts'
 import {
   openActionWorld,
   actionContext,
@@ -15,7 +15,7 @@ import {
   terminalText,
 } from '../support/notice-board-action-fixture.ts'
 import { npc, player, bob } from '../support/notice-board-fixture.ts'
-import type { WorldJsonObject } from '@harness-world/contracts'
+import type { WorldJsonObject } from '@perspectra/sdk/contracts'
 const cleanup: (() => void)[] = []
 afterEach(() => {
   for (const f of cleanup.splice(0).reverse()) f()

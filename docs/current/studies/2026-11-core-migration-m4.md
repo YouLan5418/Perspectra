@@ -8,17 +8,17 @@
 
 | 位置 | 职责 |
 | --- | --- |
-| [contracts/activity](../../../packages/contracts/src/activity.ts) | 共享活动数据、请求、自动开场检查与作者透视形状，替代其他模块从旧宿主类导入类型 |
-| [ActivityStateRules](../../../packages/application/src/activity-state.ts) | 声明及操作 Schema、已提交状态、参与者、private 归属、阶段／轮次与角色作用域投影；不执行 VM、不写数据库 |
-| [official-activities](../../../packages/official-activities/src/index.ts) | 解释既有活动钩子，默认前台／最近／首项选择，自动开始最多条件优先及平局随机；不依赖 application、kernel、store 或 desktop 实现 |
-| [activity-source](../../../desktop/host/activity-source.ts) | 发现已声明活动，验证路径、普通文件、尺寸、资产散列，交付锁定文本 |
-| [activity-world](../../../desktop/host/activity-world.ts) | 授权世界读取与 actorWorldView，供活动、状态、原生桥共用；不反向依赖活动执行 |
-| [activity-service](../../../desktop/host/activity-service.ts) | 核对所选机制与资产 key 一致，复制输入／输出，绑定方法并归因异常 |
-| [ActivityRuntime](../../../desktop/host/activity-runtime.ts) | 准备授权输入，检查玩家／NPC 的真实执行者与许可，绑定现有 Rulebook 和 executeWorldRound；保留开始、暂停、继续、放弃、逃生、观察与活动／状态原子效果 |
-| [ActivitiesRuntime](../../../desktop/host/activities-runtime.ts) | 当前前缀缓存、唯一前台与自动开始资格检查，调用选择机制，提供现有回合随机记录，管理连接与取消 |
-| [official-bundle](../../../desktop/official-bundle.ts)／[加载器](../../../desktop/host-plugins.ts)／Launcher | 通过同一公开 Cordis API 注册官方默认，记录实际 ID／version；选择与实现分开 |
+| [contracts/activity](../../../packages/sdk/src/contracts/activity.ts) | 共享活动数据、请求、自动开场检查与作者透视形状，替代其他模块从旧宿主类导入类型 |
+| [ActivityStateRules](../../../packages/core/src/application/activity-state.ts) | 声明及操作 Schema、已提交状态、参与者、private 归属、阶段／轮次与角色作用域投影；不执行 VM、不写数据库 |
+| [official-activities](../../../packages/providers/src/activities/index.ts) | 解释既有活动钩子，默认前台／最近／首项选择，自动开始最多条件优先及平局随机；不依赖 application、kernel、store 或 desktop 实现 |
+| [activity-source](../../../apps/host/src/runtime/activity-source.ts) | 发现已声明活动，验证路径、普通文件、尺寸、资产散列，交付锁定文本 |
+| [activity-world](../../../apps/host/src/runtime/activity-world.ts) | 授权世界读取与 actorWorldView，供活动、状态、原生桥共用；不反向依赖活动执行 |
+| [activity-service](../../../apps/host/src/runtime/activity-service.ts) | 核对所选机制与资产 key 一致，复制输入／输出，绑定方法并归因异常 |
+| [ActivityRuntime](../../../apps/host/src/runtime/activity-runtime.ts) | 准备授权输入，检查玩家／NPC 的真实执行者与许可，绑定现有 Rulebook 和 executeWorldRound；保留开始、暂停、继续、放弃、逃生、观察与活动／状态原子效果 |
+| [ActivitiesRuntime](../../../apps/host/src/runtime/activities-runtime.ts) | 当前前缀缓存、唯一前台与自动开始资格检查，调用选择机制，提供现有回合随机记录，管理连接与取消 |
+| [official-bundle](../../../apps/host/src/official-bundle.ts)／[加载器](../../../apps/host/src/host-plugins.ts)／Launcher | 通过同一公开 Cordis API 注册官方默认，记录实际 ID／version；选择与实现分开 |
 
-旧 desktop/host/pack-activity.ts 与 pack-activities.ts 已删除，不保留代理类或第二份解释器。WorldGameplay 接收已经打开的活动实例，不能自行制造官方默认。基础核心规则由组合显式提供，活动内部不再回退创建默认规则。测试夹具也显式组合机制与执行适配。
+旧 apps/host/src/runtime/pack-activity.ts 与 pack-activities.ts 已删除，不保留代理类或第二份解释器。WorldGameplay 接收已经打开的活动实例，不能自行制造官方默认。基础核心规则由组合显式提供，活动内部不再回退创建默认规则。测试夹具也显式组合机制与执行适配。
 
 计划原文曾将 state／game 校验整体归机制；本批按不可替换的事实／隐私边界收窄：参与者、持久状态形状和授权投影留核心，具体脚本计算与候选策略才可替换。这与 M3 的 StatusState 切分一致，没有把旧活动宿主整类公开成插件接口。宿主仍有活动专用执行适配，不宣称完成全部最小核心验收。
 

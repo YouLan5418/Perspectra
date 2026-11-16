@@ -1,14 +1,14 @@
 // 历史研究脚本；路径、样本和模型可能绑定原始记录，不属于游戏启动或默认验收。
-import { jevPublicationAudit, jevShadowAudit } from '../../../packages/official-jev-audit/src/index.ts'
+import { jevPublicationAudit, jevShadowAudit } from '@perspectra/jev-audit'
 import { appendFileSync, existsSync, mkdirSync, writeFileSync } from 'node:fs'
 import { createHash } from 'node:crypto'
 import { resolve } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
-import { currentEntityState } from '@harness-world/kernel'
-import { WorldHostRuntime } from '../../../desktop/host/world-runtime.ts'
-import { type ShadowRecord } from '../../../packages/official-jev-audit/src/jev-shadow.ts'
-import { createClaimClassifier } from '../../../packages/official-jev-audit/src/jev-shadow-claims-client.ts'
-import { environmentRoleModels } from '../../../desktop/model-connections.ts'
+import { currentEntityState } from '@perspectra/core/kernel'
+import { WorldHostRuntime } from '../../../apps/host/src/runtime/world-runtime.ts'
+import { type ShadowRecord } from '../../../packages/jev-audit/src/jev-shadow.ts'
+import { createClaimClassifier } from '../../../packages/jev-audit/src/jev-shadow-claims-client.ts'
+import { environmentRoleModels } from '../../../apps/host/src/model-connections.ts'
 
 const mode = process.argv.includes('--correct') ? 'correct' : 'baseline'
 const explicit = true, probe = true
@@ -18,7 +18,7 @@ if (!process.argv[2] || process.argv[2]!.startsWith('--') || existsSync(resolve(
 mkdirSync(directory,{recursive:true})
 const classify = createClaimClassifier(process.env.OPENROUTER_JEV_KEY ?? '')
 const records: ShadowRecord[] = []
-const interventions: import('../../../packages/official-jev-audit/src/jev-publication-intervention.ts').InterventionRecord[] = []
+const interventions: import('../../../packages/jev-audit/src/jev-publication-intervention.ts').InterventionRecord[] = []
 const write = async (record: ShadowRecord) => { records.push(record);appendFileSync(resolve(directory,'jev-shadow.jsonl'),JSON.stringify(record)+'\n') }
 const items = [{entityId:'entity:brass-key',name:'黄铜钥匙',aliases:['钥匙']},{entityId:'entity:thermos',name:'保温杯'}]
 function rows(path: string) {

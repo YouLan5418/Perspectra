@@ -12,19 +12,19 @@
 
 例如玩家输入引起角色回答，随后活动自动开场、角色再处理新刺激，这些激活共享一次请求的次数、并发和期限。角色已正式拿到钥匙而表达中断时，拿取事实和执行结果保留；abstain 不伪造一次已接受的行动。
 
-[WorldApplication.createExecutionEngine](../../../packages/application/src/world-application.ts)绑定已有实例 scope 和分支；[执行协调器](../../../packages/application/src/execution-engine.ts)通过 beginRequest、openCycle／runCycle／runScheduledCycle 和受控 activate 提供无玩家输入的系统周期。公共默认值为 27 次激活、2 并发、270 秒。Host 按请求类型和实际已启用的普通、自主、活动、节奏来源授予额度，缺席来源不叠加；单角色请求只授予一次激活，程序化 executionBudget 可覆盖入口配置。设置用于授予上限，实际激活、业务决策和发送分别计数。周期换界不刷新额度，关闭请求、周期或实例后旧能力失效。调度器报告不能覆盖核心已经观察到的停止或失败。
+[WorldApplication.createExecutionEngine](../../../packages/core/src/application/world-application.ts)绑定已有实例 scope 和分支；[执行协调器](../../../packages/core/src/application/execution-engine.ts)通过 beginRequest、openCycle／runCycle／runScheduledCycle 和受控 activate 提供无玩家输入的系统周期。公共默认值为 27 次激活、2 并发、270 秒。Host 按请求类型和实际已启用的普通、自主、活动、节奏来源授予额度，缺席来源不叠加；单角色请求只授予一次激活，程序化 executionBudget 可覆盖入口配置。设置用于授予上限，实际激活、业务决策和发送分别计数。周期换界不刷新额度，关闭请求、周期或实例后旧能力失效。调度器报告不能覆盖核心已经观察到的停止或失败。
 
 正常周期通过明确的核心内部 CoreCycleEndHook 结算适配器，按内部依赖次序及稳定插件／钩子 ID 排序；每个钩子复用 executeWorldRound 单独原子提交，后续故障保留先前已提交效果，故障原文不外传。结算后激活仍使用原请求的剩余额度。该低层适配器的原始快照／事件不作为作者 API 交付。B4 已接通作者 GameplayCycleEndInput／GameplayEffect 的所属投影与受控校验，已通过独立审查；现有 status／pacing 的 B5 迁移见本节开头；静观的原有先结算顺序保留。
 
 例如周期结算敲响钟声，NPC 应在本次请求剩余预算内获得处理钟声的机会。公共 runScheduledCycle 与 Host 现共用 completeScheduled 组织收尾；普通场景默认重新绑定结算后的观察前缀，其他场景可用 settlementRounds 工厂重新绑定活动等机会。旧自主提名不会自动重复，内部重绑定方法不交给调度插件。一次 stale 激活可由调度器有界重规划；只有最终停止原因决定周期是否中断。取消与真实提交错误同拍时，核心保留已观察到的原错误。上述修正已通过独立复审，放行范围限于 B3 源码与自动化。
 
-实际调度调用、读取资格、回调来源、未完成工作收尾和原子激活准入位于 [scheduler-execution](../../../packages/application/src/scheduler-execution.ts)。WorldApplication.withExecutionResources 复用现有分支并绑定角色回合的真实地址、Store、租约和可用性资源；Host 只提供模型、玩法适配与机会策略，调用同一协调器。测试可直接用这些入口驱动真实 CharacterTurn，无需 Desktop 或 HTTP Stub。Host／Tail 另提供 processStimulus(afterSeq)，处理已提交观察而不合成玩家文本或静观行动；它使旧候选失去重放资格，未把系统周期记成玩家输入。
+实际调度调用、读取资格、回调来源、未完成工作收尾和原子激活准入位于 [scheduler-execution](../../../packages/core/src/application/scheduler-execution.ts)。WorldApplication.withExecutionResources 复用现有分支并绑定角色回合的真实地址、Store、租约和可用性资源；Host 只提供模型、玩法适配与机会策略，调用同一协调器。测试可直接用这些入口驱动真实 CharacterTurn，无需 Desktop 或 HTTP Stub。Host／Tail 另提供 processStimulus(afterSeq)，处理已提交观察而不合成玩家文本或静观行动；它使旧候选失去重放资格，未把系统周期记成玩家输入。
 
 周期结算错误有明确端侧提示和脱敏日志；关闭资格错误和核心回调错误保持来源。结算中的 observation.upsert 在同一事务登记已有 cognitiveJobs，再按原授权捕获路径消费，原始观察和后台归档安装仍分别计量。
 
 B5 审查修正已收口整体停止资格与输入边界：官方调度器汇总各分项终态，任一分项被预算或期限截断就不进行正常周期结算，其他已经完成的事实仍保留。可选自动活动条件和可选唤醒源只降级作者故障，已标记的核心读取错误原样传播。手动短信以请求键复用已有提交记录；同键重试不再投递、激活或结算，同键改内容拒绝，联系人后来变更也不重新裁定旧提交，路由输入统一纳入当前执行周期观测。通信 prepare 的非法候选在所属提供者边界内报告 invalidResult，收件资格和事实提交仍由核心校验。
 
-[发送计量](../../../packages/application/src/execution-observation.ts)与业务 decision 次数分开。实际 LLM.send／dispatch 记录发送，official-llm 注入 provider-chat 的真实 fetch 尝试观察，格式重试产生新发送，HTTP 重试按实际尝试记录。Google 和不透明原生 transport 无 HTTP 尝试观测时明确记未知范围；缺失 usage 不用 SDK 默认零冒充。后台记忆退出当前请求的计量上下文。结果为返回时快照，晚到用量不改写已经返回的对象。
+[发送计量](../../../packages/core/src/application/execution-observation.ts)与业务 decision 次数分开。实际 LLM.send／dispatch 记录发送，official-llm 注入 provider-chat 的真实 fetch 尝试观察，格式重试产生新发送，HTTP 重试按实际尝试记录。Google 和不透明原生 transport 无 HTTP 尝试观测时明确记未知范围；缺失 usage 不用 SDK 默认零冒充。后台记忆退出当前请求的计量上下文。结果为返回时快照，晚到用量不改写已经返回的对象。
 
 玩家 debug 只包含汇总计数、终态和数值用量，不转发 NPC performResult／activation 数组；完整执行详情仍只在受信任的创作者检查入口。核心、模拟模型和 Host 自动回归的实际结果见 [B3 记录](../../superpowers/plans/2026-11-12-composable-engine-b3-execution.md)。本批没有真实模型、原生界面或发行包体验验收。
 
@@ -32,9 +32,9 @@ B5 审查修正已收口整体停止资格与输入边界：官方调度器汇�
 
 例如调查成员已走到另一间房，合法活动结果仍按接收者投影送给他，但不能借这个受众资格取得远端物品。原生正常活动转换现在复核全部适用限制和最终业务不变量，强制逃离保留例外；同步校验返回 Promise 即所属插件故障。候选保留声明目标，搜查绑定地点、查看绑定线索，正式入口复核当前目标。业务拒绝的稳定 code／details 随正式结果和幂等重放保留，默认仅向行动者展示文案。具体证据和独立复审状态见 [B4 记录](../../superpowers/plans/2026-11-13-composable-engine-b4-gameplay.md)。
 
-例如战斗限制移动，既有玩家 submit 和受控 CharacterTurn 都重查该限制；伤害方法和后置派生的合法效果仍在同一个原子提交中。[GameplayRuntime](../../../packages/application/src/gameplay-runtime.ts)由已有实例 scope 拥有，注册模块、操作、方法、限制与活动，核心按分支接入规则。原生授权材料也进入角色上下文和决策新鲜度比较，避免漏掉影响自身认知的状态变化。初值、派生、活动投影和结果格式化的实际入口及限制见[创作者运行时](creator-runtime.md)与[B4 记录](../../superpowers/plans/2026-11-13-composable-engine-b4-gameplay.md)。此处尚未包含游戏包装载和默认 UI。
+例如战斗限制移动，既有玩家 submit 和受控 CharacterTurn 都重查该限制；伤害方法和后置派生的合法效果仍在同一个原子提交中。[GameplayRuntime](../../../packages/core/src/application/gameplay-runtime.ts)由已有实例 scope 拥有，注册模块、操作、方法、限制与活动，核心按分支接入规则。原生授权材料也进入角色上下文和决策新鲜度比较，避免漏掉影响自身认知的状态变化。初值、派生、活动投影和结果格式化的实际入口及限制见[创作者运行时](creator-runtime.md)与[B4 记录](../../superpowers/plans/2026-11-13-composable-engine-b4-gameplay.md)。此处尚未包含游戏包装载和默认 UI。
 
-2026-11-12 B2 经用户架构复核修正并通过独立审查：例如关闭世界 A 后，世界 B 继续使用自己的 Provider；A 的晚到结果不能继续调用宿主能力。实例作用域由 [WorldApplication](../../../packages/application/src/world-application.ts) 从既有根 Context 派生，[实例 scope](../../../packages/runtime-cordis/src/instance-scope.ts) 将服务绑定、取消与资源清理归所属 Fiber 管理。宿主统一消费 [插件调用保护](../../../desktop/host/plugin-runtime.ts)，取消主动结束异步等待，原生异常不向玩家展开。选定调度器打开失败时停止，已删除官方身份保护特例和打开失败回退。B3 源码已接通公共执行与请求硬预算，验收状态见下文；自动化、界面与未验收范围分别记录在 [B2 施工记录](../../superpowers/plans/2026-11-12-composable-engine-b2-lifecycle.md)。
+2026-11-12 B2 经用户架构复核修正并通过独立审查：例如关闭世界 A 后，世界 B 继续使用自己的 Provider；A 的晚到结果不能继续调用宿主能力。实例作用域由 [WorldApplication](../../../packages/core/src/application/world-application.ts) 从既有根 Context 派生，[实例 scope](../../../packages/core/src/runtime/instance-scope.ts) 将服务绑定、取消与资源清理归所属 Fiber 管理。宿主统一消费 [插件调用保护](../../../apps/host/src/runtime/plugin-runtime.ts)，取消主动结束异步等待，原生异常不向玩家展开。选定调度器打开失败时停止，已删除官方身份保护特例和打开失败回退。B3 源码已接通公共执行与请求硬预算，验收状态见下文；自动化、界面与未验收范围分别记录在 [B2 施工记录](../../superpowers/plans/2026-11-12-composable-engine-b2-lifecycle.md)。
 
 2026-11-05 M6：默认 RP 经 assembleRoleplay 明确选择，WorldHostCore 只接收完整组合；所选交互目录贯穿编译、规则和候选比较。WorldAdapters 不装配机制，透视起点和分享预检使用所选状态服务。见[共同契约](mechanism-contracts.md)和[M6 记录](../studies/2026-11-core-migration-m6.md)。
 
@@ -42,57 +42,57 @@ B5 审查修正已收口整体停止资格与输入边界：官方调度器汇�
 
 2026-11-05 M4：例如猜数字与 RPG 战斗共用活动机制，各自保留包内脚本。`ctx.activities` 选择独立的解释器与候选策略；宿主 ActivityRuntime／ActivitiesRuntime 只准备授权输入并调用核心执行。参与者、private／internal 隔离、前台唯一性和随机回放继续受检查。旧活动 VM 已迁至 official-activities；源码、自动验证与体验限制见[M4 记录](../studies/2026-11-core-migration-m4.md)。
 
-2026-11-05 M3：例如更换状态解释器后，非法余额和越权告知仍不能提交。`ctx.status` 通过 [official-status](../../../packages/official-status/src/index.ts)解释状态与模块脚本；[StatusState](../../../packages/application/src/status-state.ts)保留事实校验和授权投影，[StatusRuntime](../../../desktop/host/status-runtime.ts)准备合法操作并沿核心提交。每世界独立实例，源码与构建验证见[M3 记录](../studies/2026-11-core-migration-m3.md)。
+2026-11-05 M3：例如更换状态解释器后，非法余额和越权告知仍不能提交。`ctx.status` 通过 [official-status](../../../packages/providers/src/status/index.ts)解释状态与模块脚本；[StatusState](../../../packages/core/src/application/status-state.ts)保留事实校验和授权投影，[StatusRuntime](../../../apps/host/src/runtime/status-runtime.ts)准备合法操作并沿核心提交。每世界独立实例，源码与构建验证见[M3 记录](../studies/2026-11-core-migration-m3.md)。
 
-2026-11-04 M2：例如玩家状态操作等待外部设备时关闭世界，返回结果必须丢弃。状态、活动和通信的即时提交现复用核心 [executeWorldRound](../../../packages/application/src/world-round-execution.ts)，负责绑定玩家、租约、前缀、取消与原子提交；各宿主适配保留业务和受众检查。物品效果检查迁入 application。WorldApplication 不再隐式安装基础交互包，桌面默认组合显式提供；最小入口与验证边界见[M2 记录](../studies/2026-11-core-migration-m2.md)。
+2026-11-04 M2：例如玩家状态操作等待外部设备时关闭世界，返回结果必须丢弃。状态、活动和通信的即时提交现复用核心 [executeWorldRound](../../../packages/core/src/application/world-round-execution.ts)，负责绑定玩家、租约、前缀、取消与原子提交；各宿主适配保留业务和受众检查。物品效果检查迁入 application。WorldApplication 不再隐式安装基础交互包，桌面默认组合显式提供；最小入口与验证边界见[M2 记录](../studies/2026-11-core-migration-m2.md)。
 
-2026-11-04 M1：例如同行者听到“黑海岸”后收到相关设定，宿主先用 [knowledge-source](../../../desktop/host/knowledge-source.ts)验证配置资产，再把必要内容描述交给所选知识 Provider。`ctx.knowledge` 通过 Cordis 注册；默认组合在记忆之后、决策扩充之前打开它，knowledge context 步骤调用其 select。受众与条件筛选在 [official-knowledge](../../../packages/official-knowledge/src/selection.ts)，WorldAdapters 不再持有 PackKnowledge。候选世界独立 open/close，公开 identity 纳入重生环境比较。源码接通和最小启动探针不等于完整最小核心已完成，见[M0／M1 记录](../studies/2026-11-core-migration-m01.md)。
+2026-11-04 M1：例如同行者听到“黑海岸”后收到相关设定，宿主先用 [knowledge-source](../../../apps/host/src/runtime/knowledge-source.ts)验证配置资产，再把必要内容描述交给所选知识 Provider。`ctx.knowledge` 通过 Cordis 注册；默认组合在记忆之后、决策扩充之前打开它，knowledge context 步骤调用其 select。受众与条件筛选在 [official-knowledge](../../../packages/providers/src/knowledge/selection.ts)，WorldAdapters 不再持有 PackKnowledge。候选世界独立 open/close，公开 identity 纳入重生环境比较。源码接通和最小启动探针不等于完整最小核心已完成，见[M0／M1 记录](../studies/2026-11-core-migration-m01.md)。
 
-2026-11-04 阶段 11：例如服务消费者排在提供者之前，加载器会在装载结束后再次核对 Cordis 就绪状态，未执行的插件不记为生效。官方默认选择、决策顺序和世界打开顺序集中到 [official-bundle](../../../desktop/official-bundle.ts)；加载器通过公开 register／effect 填充空位，直接宿主复用同一组合策略。模型凭证工厂仍按世界装配。源码与限制见[阶段 11 记录](../studies/2026-11-plugin-first-phase-11.md)。
+2026-11-04 阶段 11：例如服务消费者排在提供者之前，加载器会在装载结束后再次核对 Cordis 就绪状态，未执行的插件不记为生效。官方默认选择、决策顺序和世界打开顺序集中到 [official-bundle](../../../apps/host/src/official-bundle.ts)；加载器通过公开 register／effect 填充空位，直接宿主复用同一组合策略。模型凭证工厂仍按世界装配。源码与限制见[阶段 11 记录](../studies/2026-11-plugin-first-phase-11.md)。
 
-2026-11-04 阶段 10：例如角色先拿钥匙再决定如何回应，主干 [CharacterTurn](../../../packages/application/src/character-turn.ts)构造授权请求并裁定、提交申请；[official-character-loop](../../../packages/official-character-loop/src/index.ts)决定调用次数、是否续写及不可达发言的一次修正。第三方 `ctx.characterLoop` 使用同一组绑定当前 NPC 的 prepare/decide/submit 能力，没有存储、租约或 commitRound。请求与结果返回副本，准备过的申请只消费一次；取消、过期前缀、角色并发和激活结束后的调用由主干拒绝。循环自身失败保留已提交行动，不伪装成模型故障。世界、重生候选与节点重开独立 open/close，公开 identity 纳入候选环境比较。接口取舍见[设计记录](../../superpowers/specs/2026-11-04-character-loop.md)，验证与未验收范围见[阶段记录](../studies/2026-11-plugin-first-phase-10.md)。
+2026-11-04 阶段 10：例如角色先拿钥匙再决定如何回应，主干 [CharacterTurn](../../../packages/core/src/application/character-turn.ts)构造授权请求并裁定、提交申请；[official-character-loop](../../../packages/providers/src/character-loop/index.ts)决定调用次数、是否续写及不可达发言的一次修正。第三方 `ctx.characterLoop` 使用同一组绑定当前 NPC 的 prepare/decide/submit 能力，没有存储、租约或 commitRound。请求与结果返回副本，准备过的申请只消费一次；取消、过期前缀、角色并发和激活结束后的调用由主干拒绝。循环自身失败保留已提交行动，不伪装成模型故障。世界、重生候选与节点重开独立 open/close，公开 identity 纳入候选环境比较。接口取舍见[设计记录](../../superpowers/specs/2026-11-04-character-loop.md)，验证与未验收范围见[阶段记录](../studies/2026-11-plugin-first-phase-10.md)。
 
-2026-11-04 阶段 9：例如只换模型地址但保留角色预设，宿主现在可把 `ctx.llm.registerTransport` 注册的实例交给官方模型包装。[official-llm](../../../packages/official-llm/src/index.ts)保留预设组合与输出/展示，[transport](../../../packages/official-llm/src/transport.ts)执行标准调用、超时、检查和完成记录。完整通道替换保持原语义。世界实例记录官方包装与适配器组合，失败不回退；Core 记忆仍走原配置。当前玩家输入实际为确定性命令/发言解析，不因旧 Manifest 名称而误拒绝发送模式。验收范围见[阶段 9](../studies/2026-11-plugin-first-phase-9.md)。
+2026-11-04 阶段 9：例如只换模型地址但保留角色预设，宿主现在可把 `ctx.llm.registerTransport` 注册的实例交给官方模型包装。[official-llm](../../../packages/providers/src/llm/index.ts)保留预设组合与输出/展示，[transport](../../../packages/providers/src/llm/transport.ts)执行标准调用、超时、检查和完成记录。完整通道替换保持原语义。世界实例记录官方包装与适配器组合，失败不回退；Core 记忆仍走原配置。当前玩家输入实际为确定性命令/发言解析，不因旧 Manifest 名称而误拒绝发送模式。验收范围见[阶段 9](../studies/2026-11-plugin-first-phase-9.md)。
 
 2026-11-04 接缝修复：记忆交付的源异常保留实际 Provider 归因，外层另抛异常时仍归到外层；自主后续反应沿用自主阶段声明的总时限，不再意外回落到 30 秒。调度器未给合法活动角色机会时明确提示等待，返回无效活动结果则报告错误，不自动改用官方实现。存档提示合并内部上下文步骤，文件仍保留逐项 ID/版本。历史窗口改由交付步骤声明，详见[修复记录](../studies/2026-11-plugin-first-regression-fixes.md)。
 
-2026-11-04 阶段 8：例如插件只想减少角色本次收到的设定，而保留记忆、状态和表情，现在可替换 `official-context-knowledge`，不用重写整条决策。默认扩充顺序由 [official-contexts](../../../packages/official-contexts/src/index.ts) 定义，经同一 decisions 生命周期执行。宿主提供公开 `contextSources`，复用原有授权选择；不直接传全量状态。源码选项 `plugins.decisionOrder` 可调整顺序或省略官方步骤，组合变化参与候选环境比较。基础上下文与玩法约束不在该列表中；阶段 9 的传输分离也已接通，见上方补充。验证限制见[阶段 8 记录](../studies/2026-11-plugin-first-phase-8.md)。
+2026-11-04 阶段 8：例如插件只想减少角色本次收到的设定，而保留记忆、状态和表情，现在可替换 `official-context-knowledge`，不用重写整条决策。默认扩充顺序由 [official-contexts](../../../packages/providers/src/contexts/index.ts) 定义，经同一 decisions 生命周期执行。宿主提供公开 `contextSources`，复用原有授权选择；不直接传全量状态。源码选项 `plugins.decisionOrder` 可调整顺序或省略官方步骤，组合变化参与候选环境比较。基础上下文与玩法约束不在该列表中；阶段 9 的传输分离也已接通，见上方补充。验证限制见[阶段 8 记录](../studies/2026-11-plugin-first-phase-8.md)。
 
-2026-11-04 调度接缝：例如同伴在普通聊天后自主行动，进入活动时又必须等到合法轮次，这两类处理机会与普通反应现在都交给同一个 `ctx.scheduler` 实例。[官方调度器](../../../packages/official-scheduler/src/index.ts)负责整合／分段选择，[自主策略](../../../packages/official-scheduler/src/autonomy.ts)与[活动策略](../../../packages/official-scheduler/src/activity.ts)负责循环、期限和官方预算。宿主的 [activity-round](../../../desktop/host/activity-round.ts) 只桥接合法下一参与者、真实 turn 和 outcome；[autonomy-round](../../../desktop/host/autonomy-round.ts)只整理当次到期机会。宿主不保留旧机会循环或全局调用预算，取消、失效世界检查、授权、裁定和原子提交仍由主干执行。接口升级为 2.0；请求对照、自动测试与真实体验的不同验收范围见[阶段 7 记录](../studies/2026-11-plugin-first-phase-7.md)。
+2026-11-04 调度接缝：例如同伴在普通聊天后自主行动，进入活动时又必须等到合法轮次，这两类处理机会与普通反应现在都交给同一个 `ctx.scheduler` 实例。[官方调度器](../../../packages/providers/src/scheduler/index.ts)负责整合／分段选择，[自主策略](../../../packages/providers/src/scheduler/autonomy.ts)与[活动策略](../../../packages/providers/src/scheduler/activity.ts)负责循环、期限和官方预算。宿主的 [activity-round](../../../apps/host/src/runtime/activity-round.ts) 只桥接合法下一参与者、真实 turn 和 outcome；[autonomy-round](../../../apps/host/src/runtime/autonomy-round.ts)只整理当次到期机会。宿主不保留旧机会循环或全局调用预算，取消、失效世界检查、授权、裁定和原子提交仍由主干执行。接口升级为 2.0；请求对照、自动测试与真实体验的不同验收范围见[阶段 7 记录](../studies/2026-11-plugin-first-phase-7.md)。
 
 以下有界与次序策略描述官方调度器；第三方仍可选择机会策略。正式激活统一受 B3 请求额度限制，B2 的异步等待随请求取消或实例关闭主动结束，可信原生同步代码不能被抢占。外部 `requestCharacter` 是显式角色请求，也使用同一受控入口。角色激活由核心 CharacterTurn 准备受控能力，循环算法已在阶段 10 经 ctx.characterLoop 开放替换。
 
-2026-11-03 规则层和内部拆分：例如开发者想让“上锁的房间”在所有世界都进不去，用 `ctx.rules` 包在核心规则外面，玩家和角色的发言、移动和核心互动都受约束；状态操作、活动操作和短信有自己的规则，不经过它。核心规则现在在一个世界实例里只有一个来源（[rule-layers.ts](../../../desktop/host/rule-layers.ts)）。世界包的玩法模块留在宿主内，由 [world-gameplay.ts](../../../desktop/host/world-adapters.ts) 持有，不能作为整体替换，因为世界包脚本就是写给它们的。轮次、输入分发、投影和创作者查询已移出 `world-runtime.ts`，行为不变。写法见[增加世界规则](../guides/host-plugin-authoring.md#增加世界规则)。
+2026-11-03 规则层和内部拆分：例如开发者想让“上锁的房间”在所有世界都进不去，用 `ctx.rules` 包在核心规则外面，玩家和角色的发言、移动和核心互动都受约束；状态操作、活动操作和短信有自己的规则，不经过它。核心规则现在在一个世界实例里只有一个来源（[rule-layers.ts](../../../apps/host/src/runtime/rule-layers.ts)）。世界包的玩法模块留在宿主内，由 [world-gameplay.ts](../../../apps/host/src/runtime/world-adapters.ts) 持有，不能作为整体替换，因为世界包脚本就是写给它们的。轮次、输入分发、投影和创作者查询已移出 `world-runtime.ts`，行为不变。写法见[增加世界规则](../guides/host-plugin-authoring.md#增加世界规则)。
 
-2026-11-03 决策接缝：例如开发者想让角色走自己的本地模型，或在角色开口前加一段天气，可以用 `ctx.llm`、`ctx.decisions`。角色决策的公共部分在 [character-decision.ts](../../../desktop/host/character-decision.ts)，官方模型调用在 [official-llm](../../../packages/official-llm/src/index.ts)。官方组合下的模型请求与改动前逐字相同。写法见[替换模型通道](../guides/host-plugin-authoring.md#替换模型通道)。
+2026-11-03 决策接缝：例如开发者想让角色走自己的本地模型，或在角色开口前加一段天气，可以用 `ctx.llm`、`ctx.decisions`。角色决策的公共部分在 [character-decision.ts](../../../apps/host/src/runtime/character-decision.ts)，官方模型调用在 [official-llm](../../../packages/providers/src/llm/index.ts)。官方组合下的模型请求与改动前逐字相同。写法见[替换模型通道](../guides/host-plugin-authoring.md#替换模型通道)。
 
 组件、事件前缀与授权视图的具体寿命、失效条件和维护要求集中在[运行时缓存设计](runtime-caches.md)（2026-10-30 核对）；本页说明整体调用流程。
 
 2026-10-30 读取与组件复用：例如固定序章的一条对白在准备、裁定和刷新中反复查询活动，宿主复用活动目录的世界库连接，并从上一已提交序号增量读取活动状态；关闭当前运行实例时一并释放。角色准备和玩家即时投影用已读取的同一前缀构建授权视图，复用既有投影与过滤逻辑并复制数据。模型返回后和取得写租约后仍检查最新世界头；头未改变时沿用本次决策已读事件，改变时重新读取。活动缓存不能提交世界事实，写租约、原子提交和回合备份保留。活动菜单与玩家场景刷新共用同一前缀；没有 autoStart hook 时不再准备无用的完整世界上下文，见[创作者运行时](creator-runtime.md#活动状态读取与连接复用2026-10-30)。
 
-例如玩家提交后轮到 NPC 处理，[WorldApplication.yieldWriter](../../../packages/application/src/world-application.ts)只交还写租约，保留同一 Cordis 分支实例的 Store、收件箱、投递与记忆组件，替代每个阶段都释放并重建整套组件。下次应用访问由 RoundCoordinator.resumeWriter 重新取得受当前分支运行状态约束的租约与 fencingToken，并处理未完成的授权记忆任务；恢复失败时完整释放该实例并报错。租约交接不保持 SQLite 事务，下一阶段仍必须取得自己的写权限。正常回合备份可在已交还租约的连接上进行；手动存档、逃生、维护、隔离恢复和实例关闭保留完整 release／dispose 路径。组件占用句柄和少量内存直到明确释放，候选与节点建立独立实例，不共享这些组件。源码、对照与恢复验证范围见[分支复用记录](../studies/2026-10-30_branch-runtime-reuse-report.md)。
+例如玩家提交后轮到 NPC 处理，[WorldApplication.yieldWriter](../../../packages/core/src/application/world-application.ts)只交还写租约，保留同一 Cordis 分支实例的 Store、收件箱、投递与记忆组件，替代每个阶段都释放并重建整套组件。下次应用访问由 RoundCoordinator.resumeWriter 重新取得受当前分支运行状态约束的租约与 fencingToken，并处理未完成的授权记忆任务；恢复失败时完整释放该实例并报错。租约交接不保持 SQLite 事务，下一阶段仍必须取得自己的写权限。正常回合备份可在已交还租约的连接上进行；手动存档、逃生、维护、隔离恢复和实例关闭保留完整 release／dispose 路径。组件占用句柄和少量内存直到明确释放，候选与节点建立独立实例，不共享这些组件。源码、对照与恢复验证范围见[分支复用记录](../studies/2026-10-30_branch-runtime-reuse-report.md)。
 
 WorldStore 的审计连接在创建、激活或分叉等实际审计操作时打开，普通读取和回合提交不附带审计库初始化；审计文件错误也在实际使用审计时报告，失败仍先于相应世界变更。首次恢复、完整历史与记忆来源读取仍有增长成本，第二轮对照及验收范围见[本轮记录](../studies/2026-10-30_sqlite-activity-performance-round2-report.md)。
 
 2026-10-30 单步前缀复用：例如新包序章点一次“继续”，活动、角色、记忆追赶、状态结算、自主判断和最后刷新通过 WorldStore.withEventReadCache 共享该操作的已解析完整前缀；每次读取仍核对当前世界头，普通追加只补读新事件，目标旧前缀仍截断返回。AsyncLocalStorage 隔离并发操作，按绝对数据库路径与分支区分，结束或抛错时停用并清空；没有新增跨步历史快照或数据库格式。事件对象深冻结，返回独立数组，显式 verifyBranchIntegrity 始终直接读取数据库。单步内相同头的已提交历史视为不可变快照，手工改写旧行不会刷新该步快照。首次读取、投影与备份仍有随历史增长的成本，源码、45 步对照与代价见[单步前缀记录](../studies/2026-10-30_event-prefix-reuse-report.md)。
 
-2026-10-26 双插件入口：例如澄向外部设备操作，仍由原有 [CharacterTurn](../../../packages/application/src/character-turn.ts)选择行动并续写。[包模块](../../../desktop/host/pack-modules.ts)把规则组合进 PackStatus，[原生目录与会话](../../../desktop/host-capabilities.ts)提供按世界绑定的异步执行和有限 NPC 请求回调。Rulebook 先检查候选／执行权限，再在现有提交租约内等待能力，最后走原有状态校验与原子提交；不在等待期间保持 SQLite 写事务。关闭、暂停或注销时取消等待，外部执行后本地失败会阻止继续操作。含外部写能力的世界禁用故事节点、候选切换与重新生成；HTTP 初始化不授予相应按钮能力。接口、源码／构建测试与未验收范围见[双入口指南](../guides/dual-plugin-entrypoints.md)，真实模型、MZ 工程和发行包未验收。
+2026-10-26 双插件入口：例如澄向外部设备操作，仍由原有 [CharacterTurn](../../../packages/core/src/application/character-turn.ts)选择行动并续写。[包模块](../../../apps/host/src/runtime/pack-modules.ts)把规则组合进 PackStatus，[原生目录与会话](../../../apps/host/src/host-capabilities.ts)提供按世界绑定的异步执行和有限 NPC 请求回调。Rulebook 先检查候选／执行权限，再在现有提交租约内等待能力，最后走原有状态校验与原子提交；不在等待期间保持 SQLite 写事务。关闭、暂停或注销时取消等待，外部执行后本地失败会阻止继续操作。含外部写能力的世界禁用故事节点、候选切换与重新生成；HTTP 初始化不授予相应按钮能力。接口、源码／构建测试与未验收范围见[双入口指南](../guides/dual-plugin-entrypoints.md)，真实模型、MZ 工程和发行包未验收。
 
 2026-10-24 核对 BGM 插件：例如玩家仍读着平静对白，已发布但尚未读到的争执不会提前换曲。可信 Cordis 插件通过 `frontendServices.registerBgm` 发布音频曲库和段落选曲回调；宿主按与语音相同的授权段落核对输入，选曲后重验候选内容，经 MessagePort 返回曲目和音频字节。默认舞台跟随阅读游标，完成循环、同曲不重启、淡入淡出、音量和静音；音乐开关只在当前页面有效。没有新增世界事件、模型阶段或浏览器网络权限。源码、自动化与浏览器验证范围见[插件制作指南](../guides/host-plugin-authoring.md#验证范围)，发行包未重建。
 
 2026-10-23 核对默认舞台：例如玩家拿起保温杯后，物品提示与状态抽屉随授权快照更新；在设置中调字号、外观立即生效，点“保存进度”打开节点名称弹框。宿主将 `items`、`statusBar`、`statusTruth`、`responders` 与现有字段一起转发；场景只增加已知当前位置 ID，供包内背景匹配。设置在宿主的浏览器站点存储，保存复用现有 `/api/story-save`；两种桥操作仅允许官方默认舞台，不给社区前端增加管理权限。声音通过已有 `speech` 注入点播放，不新增合成器。美术资源、设置范围、验证边界见[默认界面指南](../guides/web-ui.md#官方默认界面布局)。未修改角色 Context、规则提交、世界事实或节点格式，未重建发行包。
 
-2026-10-22 核对物品链路：例如角色选择拿起摘要，再把它交给在场角色，[状态桥](../../../desktop/host/status-runtime.ts)先用包内 `policy(known, actorId, place)` 筛选目标，执行时重查许可与可达性，再调用 `resolve(truth, actorId, operationId, parameters, world, targetId)`。作者返回 `items` 改外观或去向；宿主校验后生成 `entity.upsert`／`entity.transferred`，与本次行动的对白、状态结果和授权观察原子提交。玩家附带的一句话仍按[同回合表达与行动](interaction.md)的先后顺序分别提交，不因此合并成一个事务。
+2026-10-22 核对物品链路：例如角色选择拿起摘要，再把它交给在场角色，[状态桥](../../../apps/host/src/runtime/status-runtime.ts)先用包内 `policy(known, actorId, place)` 筛选目标，执行时重查许可与可达性，再调用 `resolve(truth, actorId, operationId, parameters, world, targetId)`。作者返回 `items` 改外观或去向；宿主校验后生成 `entity.upsert`／`entity.transferred`，与本次行动的对白、状态结果和授权观察原子提交。玩家附带的一句话仍按[同回合表达与行动](interaction.md)的先后顺序分别提交，不因此合并成一个事务。
 
 拿起／放下／交给由各 v5 示例包的 `scripts/status.js` 提供，标准写法在[作者模板](../../../examples/templates/item-rules.js)；宿主基础交互只保留牵手与松手，旧料理／修理模块也已删除。活动与自主许可引用 `status:take` 等 ID。相关自动测试场景已核对，本次未重跑；本次真实模型证据仅限《赔罪晚宴》A 路线和 hidden-cure-next D2，后者交给了玩家而非伊蕾，见[项目状态](../PROJECT-STATE.md#验证到了哪一步)。下列旧日期实验保留当时结论，不能视为作者模板已重验。
 
 2026-10-19 知识筛选扩展：每次角色请求装入已有授权活动与已知状态后，知识 when 除状态值外，还可检查接收者、当前位置、场景人物、当前／旧物品、本次激活刺激、本人活动与状态 current。活动视图增加稳定 activityKey；仍在 Core／原生记忆交付后、预设准备前选择材料，不新增模型阶段、世界读取或调度机会。[Core／DeepSeek 短试玩](../studies/knowledge-conditions-deepseek-playtest-20261019.md)的 39 次请求全部成功且交付符合预期；源码模式验证不代表 Launcher 人工操作或发行包已验收。字段、自动回归与未验收范围见[世界设定指南](../guides/world-knowledge.md)。
 
-2026-10-19：例如同行者偷走玩家 30 金币后，玩家状态栏仍显示“余额 100（上次确认）”，查看钱包后才变成 70。包可以登记 `scripts/status.js` 声明经裁定的常驻状态，[StatusRuntime](../../../desktop/host/status-runtime.ts) 在新世界首次打开时提交初始 `status.updated`；NPC 的状态操作作为 `interact` 候选经 Rulebook 裁定，玩家用 `/status <操作> <JSON>` 走同一裁定并单独成轮；每次玩家输入被受理且角色反应结束后运行一次可选的每轮钩子（活动中的输入同样）。包变量（`scripts/variables.js`、`pack-variables.json`、`/vars`）已删除，原先因包变量关闭的动态调度、continueAfterPublish 与 beforeActionExpression 门槛一并去掉，下文相应位置已注明。`status.updated` 登记进全局事件清单，所有旧存档打开时报错，需要新建。作者契约与限制见[活动与状态指南](../guides/activity-and-variables.md#3-状态2026-10-19当前源码)。源码与自动测试已接通，未做真实模型试玩，发行包未重建。
+2026-10-19：例如同行者偷走玩家 30 金币后，玩家状态栏仍显示“余额 100（上次确认）”，查看钱包后才变成 70。包可以登记 `scripts/status.js` 声明经裁定的常驻状态，[StatusRuntime](../../../apps/host/src/runtime/status-runtime.ts) 在新世界首次打开时提交初始 `status.updated`；NPC 的状态操作作为 `interact` 候选经 Rulebook 裁定，玩家用 `/status <操作> <JSON>` 走同一裁定并单独成轮；每次玩家输入被受理且角色反应结束后运行一次可选的每轮钩子（活动中的输入同样）。包变量（`scripts/variables.js`、`pack-variables.json`、`/vars`）已删除，原先因包变量关闭的动态调度、continueAfterPublish 与 beforeActionExpression 门槛一并去掉，下文相应位置已注明。`status.updated` 登记进全局事件清单，所有旧存档打开时报错，需要新建。作者契约与限制见[活动与状态指南](../guides/activity-and-variables.md#3-状态2026-10-19当前源码)。源码与自动测试已接通，未做真实模型试玩，发行包未重建。
 
-例如两个角色先后私下查看钱包，先行动者的续写只能拿到自己那次查看的结果，不能拿到后行动者的余额。[角色回合](../../../packages/application/src/character-turn.ts)用该行动已有的事件引用限定结果读取前缀，当前场景和授权上下文仍按最新前缀生成；状态结果还核对行动者与操作。回合钩子只由新提交的玩家输入触发，同一输入的幂等重放或活动的 NPC 重试不触发。轮次从已有玩家提交推导，同次事务中的多个玩家动作只算一轮，快捷活动的开始与执行两次提交合算一轮；先前钩子返回 null 或失败仍计入已发生轮次，不写额外状态文件。自动回归覆盖并发私有结果隔离、输入重放和无状态提交后的轮次推进，尚未做这组修复的真实模型试玩。
+例如两个角色先后私下查看钱包，先行动者的续写只能拿到自己那次查看的结果，不能拿到后行动者的余额。[角色回合](../../../packages/core/src/application/character-turn.ts)用该行动已有的事件引用限定结果读取前缀，当前场景和授权上下文仍按最新前缀生成；状态结果还核对行动者与操作。回合钩子只由新提交的玩家输入触发，同一输入的幂等重放或活动的 NPC 重试不触发。轮次从已有玩家提交推导，同次事务中的多个玩家动作只算一轮，快捷活动的开始与执行两次提交合算一轮；先前钩子返回 null 或失败仍计入已发生轮次，不写额外状态文件。自动回归覆盖并发私有结果隔离、输入重放和无状态提交后的轮次推进，尚未做这组修复的真实模型试玩。
 
-例如角色自己的委托记录进入 done 后，出现领奖选项，并收到领奖说明；其他角色没有观察到这份记录，就不会因此获得说明。状态值现支持带 Schema 的对象、数组，仍按状态键整体更新和告知。状态 policy 只收到由 knownStatus 生成的 `{ public, self, characters }`，在候选生成及提交前检查；resolve 才读取最新 truth 并裁定加钱与已领取标志。角色请求先装入 knownStatus，再由[知识选择器](../../../packages/official-knowledge/src/selection.ts)按受众、when Schema、关键词和预算选择材料。条件不会直接调度角色或启动自动事件链。相关自动回归覆盖嵌套校验失败无提交、领奖去重、私有条件隔离，以及结构化状态随分叉和重新生成回滚；未做这组扩展的真实模型试玩，发行包未重建。
+例如角色自己的委托记录进入 done 后，出现领奖选项，并收到领奖说明；其他角色没有观察到这份记录，就不会因此获得说明。状态值现支持带 Schema 的对象、数组，仍按状态键整体更新和告知。状态 policy 只收到由 knownStatus 生成的 `{ public, self, characters }`，在候选生成及提交前检查；resolve 才读取最新 truth 并裁定加钱与已领取标志。角色请求先装入 knownStatus，再由[知识选择器](../../../packages/providers/src/knowledge/selection.ts)按受众、when Schema、关键词和预算选择材料。条件不会直接调度角色或启动自动事件链。相关自动回归覆盖嵌套校验失败无提交、领奖去重、私有条件隔离，以及结构化状态随分叉和重新生成回滚；未做这组扩展的真实模型试玩，发行包未重建。
 
 2026-10-18：保留[原型遗留处理](../studies/phase8-prototype-transition-audit-20261018.md)的前两步。例如玩家说话后，RoundCoordinator 只裁定和提交玩家行动，NPC 由既有单角色循环处理；旧批量 participant、Reaction Worker、Director 模型、Context Pipeline、Reflection、Checkpoint 和 NPC Provider Call／Quality 已移除。保留玩家输入解释专用记录、授权 Source 捕获、原生认知任务及 Presenter；不改库结构或历史事件读取。2026-10-21 起旧 Reaction Cycle 的存储、门面 API 与提交拦截全部删除：world 库迁移 v20 删掉四张 Cycle 表。曾运行过 Cycle 的旧存档不再维护：其 bundle hash 覆盖了已删除的行，完整性检查会失败。Manifest 的 reactionPolicy 字段为保持哈希仍被编译和解析，运行时不读取。当前模型请求内容保持改前版本：第三步心理呈现调整因对照中的行动选择退化迹象已撤回。宿主目录整理与 Source／摘要解耦仍延期。
 
@@ -138,7 +138,7 @@ WorldStore 的审计连接在创建、激活或分叉等实际审计操作时打
 
 ## 一次输入
 
-例如在源码仓库直接运行构建后的后端，宿主仍应找到源码 Python，而不是把 `.mjs` 扩展名当成安装包的证明。2026-10-21 核对：[游戏入口](../../../desktop/host/web-entry.ts)已使用正式宿主目录；Python worker 和末端回合身份共用[目录选择](../../../packages/official-memory-core/src/python-paths.ts)，只在设置 `PERSPECTRA_RUNTIME_ROOT` 时读取安装目录。构建后端与便携包共用 Python 源码复制清单；具体布局与验证范围见 [Core 说明](../../../packages/official-memory-core/README.md)。这次修复不改变角色协议、调度、记忆算法或世界提交。
+例如在源码仓库直接运行构建后的后端，宿主仍应找到源码 Python，而不是把 `.mjs` 扩展名当成安装包的证明。2026-10-21 核对：[游戏入口](../../../apps/host/src/runtime/web-entry.ts)已使用正式宿主目录；Python worker 和末端回合身份共用[目录选择](../../../packages/memory-core/src/python-paths.ts)，只在设置 `PERSPECTRA_RUNTIME_ROOT` 时读取安装目录。构建后端与便携包共用 Python 源码复制清单；具体布局与验证范围见 [Core 说明](../../../packages/memory-core/README.md)。这次修复不改变角色协议、调度、记忆算法或世界提交。
 
 默认关闭的 recentExecutionEvidence 开关在已有记忆交付之后计算近期执行证据投影，再复用本次角色模型调用。没有新增规划阶段、调度机会、世界事件或持久化策略；关闭时不添加字段、提示或候选环境键。具体来源、预算和对照边界见[跨回合执行证据实验](../studies/goal-progress-context-20261013.md)。
 
@@ -157,22 +157,22 @@ WorldStore 的审计连接在创建、激活或分叉等实际审计操作时打
 3. `CharacterTurn` 用当前提交前缀构建角色 view、场景、认知、授权观察和自身表达。角色地点来自该前缀的角色 view，不使用初始设定代替当前位置。
 4. 默认使用 Core：通过宿主 Core 桥加入该角色长期 Delivery，启动前检查 Python 与 E5 是否存在；记忆经 `ctx.memory` 接缝接入，可由插件替换；`--memory-none` 用于离线开发，角色没有长期记忆。最终模型呈现合并按事件排序的授权观察与自身表达，去除宿主追踪字段，并将动态信息放在历史之后；原始宿主请求仍保留完整记忆证据。详见[模型上下文呈现](cognition-memory.md#模型上下文呈现)。
 5. Character Agent 调用模型，自主选择回应、放弃或提出行动。模型提案经过协议检查和 Action / Rulebook 裁定，不能直接写世界库。
-6. Commit 完整返回后更新玩家授权投影。已提交 NPC 回复可在后续反应尚未结束时显示；页面通过轮询取完整结果，没有 token 流或草稿发布。活动面板随同一投影更新（2026-10-31）：例如 RPG 里玩家普通攻击提交后，守卫剩余生命和“轮到谁”在下一位队友还在调用模型时就已显示，之后每位 NPC 的操作提交也各刷新一次，不再等整轮结束。实现是 [world-runtime.ts](../../../desktop/host/world-runtime.ts) 的 `#projectCommitted` 一并重算玩家自己的活动视图，`activityAction` 在激活下一位参与者前先投影一次。自动测试覆盖“玩家操作后、NPC 决策中”的面板；NPC 提交后的刷新走同一函数，未单独测试，真实模型试玩未验收。
+6. Commit 完整返回后更新玩家授权投影。已提交 NPC 回复可在后续反应尚未结束时显示；页面通过轮询取完整结果，没有 token 流或草稿发布。活动面板随同一投影更新（2026-10-31）：例如 RPG 里玩家普通攻击提交后，守卫剩余生命和“轮到谁”在下一位队友还在调用模型时就已显示，之后每位 NPC 的操作提交也各刷新一次，不再等整轮结束。实现是 [world-runtime.ts](../../../apps/host/src/runtime/world-runtime.ts) 的 `#projectCommitted` 一并重算玩家自己的活动视图，`activityAction` 在激活下一位参与者前先投影一次。自动测试覆盖“玩家操作后、NPC 决策中”的面板；NPC 提交后的刷新走同一函数，未单独测试，真实模型试玩未验收。
 7. 已授权的新观察可以触发后续 Reaction Round；执行预算或期限到达后结束。启动器普通入口默认 3 波、8 次 NPC 调用、每角色 2 次激活、120 秒期限，可在包级运行参数中调整，下次启动生效。直接使用旧实验 tuning 或未传期限的底层调用仍保留 30 秒回退值。
 
 完整玩家回合包含一次玩家操作及其引发的全部有界处理，结算与关键投递完成后才标记结束。[末端回合重新生成](../tail-round-regeneration.md)从该操作前的完整起点隔离重演，成功后追加并选中新候选，末端的 ‹ i/n › 可原子切换完整结果；继续输入后关闭上一组切换。只冻结长期档案，新观察照常传播。内部候选不进入正式转录。
 
-玩家点击序章“继续”时，读取已初始化的数据库不再反复占用 SQLite 写锁。2026-10-14 核对的[连接初始化](../../../packages/store-sqlite/src/sqlite.ts)每次仍检查数据库标识和版本，仅在尚未使用 WAL 时设置日志模式；连接自己的 `synchronous=FULL`、外键和等待超时仍在打开时设置。标识与版本已匹配时不启动迁移事务；新数据库、未写入标识的数据库及版本升级继续原子初始化，错误标识、未来版本和迁移失败继续报错。2026-10-30 的分支复用延长常规阶段所用连接的生命，不改变这些配置、世界提交或回合备份。
+玩家点击序章“继续”时，读取已初始化的数据库不再反复占用 SQLite 写锁。2026-10-14 核对的[连接初始化](../../../packages/core/src/store/sqlite.ts)每次仍检查数据库标识和版本，仅在尚未使用 WAL 时设置日志模式；连接自己的 `synchronous=FULL`、外键和等待超时仍在打开时设置。标识与版本已匹配时不启动迁移事务；新数据库、未写入标识的数据库及版本升级继续原子初始化，错误标识、未来版本和迁移失败继续报错。2026-10-30 的分支复用延长常规阶段所用连接的生命，不改变这些配置、世界提交或回合备份。
 
-同一回合里，串行和动态调度的[候选收集](../../../packages/official-scheduler/src/index.ts)只读取上次消费序号之后、截至当前已提交头的 `observation.upsert`，复用已有 `readEventsRange`，避免先解析全量历史。分叉仍继承有效的父线前缀，不读取父线的后续事件；观察受众、因果深度、模型预算及提交前重校验保持原有规则。[局部优化实测](../studies/prologue-performance-20261010.md#两项局部优化2026-10-14)区分自动回归、无模型后端测量与尚未完成的真实体验验收。
+同一回合里，串行和动态调度的[候选收集](../../../packages/providers/src/scheduler/index.ts)只读取上次消费序号之后、截至当前已提交头的 `observation.upsert`，复用已有 `readEventsRange`，避免先解析全量历史。分叉仍继承有效的父线前缀，不读取父线的后续事件；观察受众、因果深度、模型预算及提交前重校验保持原有规则。[局部优化实测](../studies/prologue-performance-20261010.md#两项局部优化2026-10-14)区分自动回归、无模型后端测量与尚未完成的真实体验验收。
 
-2026-10-30 核对角色视图读取：例如 Claude 处理自己听到的私语时，[CharacterViewBuilder](../../../packages/store-sqlite/src/character-view.ts)让场景、自身经历和[观察投影](../../../packages/store-sqlite/src/projection.ts)复用同一前缀的数据。独立入口读取所需事件；宿主单步内借用共享完整前缀。调用者已有事件时，rebuildFromEvents 筛选并复制所需事件，沿用同一投影逻辑。观察、认识、目标和可见性仍按角色筛选，remove 事件仍参与投影，其附加元数据不作为角色创建证据。不可变事件完全相同时，按地址、角色和序号复用已构建视图，返回副本，避免记忆追赶与刷新重复投影；每次构建仍核对世界头，旧前缀排除后续事件，不保留跨步历史缓存。Core 快照省去未使用返回视图的旧优化仍保留，见[记忆读取复用](cognition-memory.md#授权材料与分层整理)与[历史实测](../studies/prologue-performance-20261010.md#视图读取复用2026-10-14)。
+2026-10-30 核对角色视图读取：例如 Claude 处理自己听到的私语时，[CharacterViewBuilder](../../../packages/core/src/store/character-view.ts)让场景、自身经历和[观察投影](../../../packages/core/src/store/projection.ts)复用同一前缀的数据。独立入口读取所需事件；宿主单步内借用共享完整前缀。调用者已有事件时，rebuildFromEvents 筛选并复制所需事件，沿用同一投影逻辑。观察、认识、目标和可见性仍按角色筛选，remove 事件仍参与投影，其附加元数据不作为角色创建证据。不可变事件完全相同时，按地址、角色和序号复用已构建视图，返回副本，避免记忆追赶与刷新重复投影；每次构建仍核对世界头，旧前缀排除后续事件，不保留跨步历史缓存。Core 快照省去未使用返回视图的旧优化仍保留，见[记忆读取复用](cognition-memory.md#授权材料与分层整理)与[历史实测](../studies/prologue-performance-20261010.md#视图读取复用2026-10-14)。
 
 普通反应只从授权 `observation.upsert` 中选择候选。满足当前普通路径条件时，调度器按已提交观察动态派发，而不等整波完成：最多两个在途激活，场外至多一个；派发时地点不能与在途角色相同，同一角色不并行。当前场景候选优先，其次优先较少 stale 重算、已完成激活次数较少的角色，同级再随机排序。每个在途任务先预留模型调用预算；新提交产生的授权观察会立即唤醒调度器并占用空闲名额。这里的最大波次限制因果深度，而不是要求一批角色全部结束后才能继续。同一角色、同一预算来源的待处理观察保留最深深度；较浅的新观察或 stale 重算合并不会降低深度，也不能因此派生超出最大深度的激活，超限观察以 `wave_limit` 收束。
 
 动态调度只在没有 `--serial-scheduling`、活动参与者排程和声明 `serial` 的决策实现的普通路径启用（2026-10-19 起删除了“包变量脚本”条件；带状态脚本的包照常动态调度）；其他入口沿用原有串行调度。角色等待模型时不持写租约。模型返回后先检查授权投影；提交轮到该角色时先取写租约、核对最新世界头，只在前缀已改变时重新读历史，再在租约内重新检查授权 view、认知、当前可见角色、可见物品和可用 affordances。单独的全局提交序号或 sourceAgeTicks 相对时间变化不会使角色状态过期；Rulebook 仍按最新前缀重裁定并原子提交。
 
-例如 Claude 准备回应新消息时，初始请求和用于判断过期的基准都来自同一个提交前缀。[Character Turn](../../../packages/application/src/character-turn.ts)在这次同步准备中复用已读取的历史与角色 view，各只构建一次；没有跨调用缓存。模型返回后或取得写租约后，如果世界头已改变，仍重新读取历史、构建当前授权状态并与基准比较。已有的无关提交接受、新信息引发 stale、重算预算和串行事实提交继续适用。[受控对照](../studies/prologue-performance-20261010.md#时间戳读取与动态准备复用2026-10-14)验证初始模型请求完全一致，并单独测量该准备阶段；固定序章不走这条动态路径。
+例如 Claude 准备回应新消息时，初始请求和用于判断过期的基准都来自同一个提交前缀。[Character Turn](../../../packages/core/src/application/character-turn.ts)在这次同步准备中复用已读取的历史与角色 view，各只构建一次；没有跨调用缓存。模型返回后或取得写租约后，如果世界头已改变，仍重新读取历史、构建当前授权状态并与基准比较。已有的无关提交接受、新信息引发 stale、重算预算和串行事实提交继续适用。[受控对照](../studies/prologue-performance-20261010.md#时间戳读取与动态准备复用2026-10-14)验证初始模型请求完全一致，并单独测量该准备阶段；固定序章不走这条动态路径。
 
 stale 会计入总模型调用预算，但不计为完成的一次激活。调度器对同一待处理机会最多自动重算一次；第二次连续 stale 会停止该角色本轮剩余处理。完成一次非 stale 激活后清零该角色的连续 stale 计数。角色已 inactive 会停止该角色本轮调度，不会把整个 Reaction Cycle 标成 interrupted。某个角色的模型失败会停止该角色；其他已在途处理会收束，周期按实际失败结果报告。若受控行动已经提交、只有结果续写过期，重算只续写真实提交结果；再次 stale 时可丢弃迟到续写，不会重放或撤销已提交行动。细节与实测见[动态调度实验记录](../studies/dynamic-scheduling-20261011.md)。
 
@@ -192,11 +192,11 @@ Core 长期整理在排队前冻结授权 Source 前缀。后台运行期间前�
 
 2026-10-17 保存入口改为游戏宿主页工具栏：例如晚餐后点“保存进度”，再由 Launcher 导出该节点。宿主的 `POST /api/story-save` 校验 token、标题和现有静止条件，复用原保存机制；删除 Launcher 的 `story-save` 和子进程保存 IPC。历史节点导出仍只读副本，切换、分叉与导入要求停止游戏，见[故事线](../storylines.md)。本轮未改变世界事实或存档格式。
 
-同日后端新增 `open-creator`，返回当前宿主的 `/creator/#token=…`，Rust 只允许 `http://127.0.0.1:<有效端口>` 和指定页面路径。创作者静态资源由 [creator assets](../../../desktop/host/creator-assets.ts) 提供，私有数据仍只由鉴权 HTTP 接口返回；旧 Launcher 创作者透传已删除，见[接口说明](../creator-debug-api.md)。
+同日后端新增 `open-creator`，返回当前宿主的 `/creator/#token=…`，Rust 只允许 `http://127.0.0.1:<有效端口>` 和指定页面路径。创作者静态资源由 [creator assets](../../../apps/host/src/runtime/creator-assets.ts) 提供，私有数据仍只由鉴权 HTTP 接口返回；旧 Launcher 创作者透传已删除，见[接口说明](../creator-debug-api.md)。
 
 运行中可保存连接、实例模型、预设、阅读／声音与游玩参数；当前子进程使用启动快照，下次启动才采用新设置。模型 Key 在 Rust 的启动／连接测试请求中读取，游戏入口启动时构造模型与记忆 runner，没有发现运行中的游戏重新读取连接或 Key。危险操作继续拒绝；撤销前端信任仍通过 IPC 立即生效。相关 HTTP、子进程与 Rust 校验测试通过，打包后无模型接口冒烟通过；新 Launcher UI 由另一分支交付，原生点击、真实模型体验与完整便携发行包尚未验收。
 
-核心实现入口：[网页宿主](../../../desktop/host/world-runtime.ts)、[Character Turn](../../../packages/application/src/character-turn.ts)、[网页玩家视图](../../../desktop/host/player-transcript.ts)、[Core 桥](../../../packages/official-memory-core/src/core-memory.ts)。性能证据见[研究索引](../studies/ai-girls/README.md)。一次真实轨迹仍出现普通反应约 30 秒中断；增量显示没有消除整轮等待。
+核心实现入口：[网页宿主](../../../apps/host/src/runtime/world-runtime.ts)、[Character Turn](../../../packages/core/src/application/character-turn.ts)、[网页玩家视图](../../../apps/host/src/runtime/player-transcript.ts)、[Core 桥](../../../packages/memory-core/src/core-memory.ts)。性能证据见[研究索引](../studies/ai-girls/README.md)。一次真实轨迹仍出现普通反应约 30 秒中断；增量显示没有消除整轮等待。
 
 ## 玩家等待提示（2026-10-09）
 
@@ -204,16 +204,16 @@ Core 长期整理在排队前冻结授权 Source 前缀。后台运行期间前�
 
 例：玩家离开 B、C 所在的客厅去厨房找 A。A 回应后也走去客厅，厨房只剩玩家。此时 B、C 对“玩家离开”“A 到来”的反应仍在计算，但都发生在玩家场景之外。宿主据此把玩家视图显示为“可以回应”，不点名场外角色；玩家这时发言、点行动按钮或保存节点，会先取消这些未提交的场外计算再执行，已提交的观察和行动保留。若玩家场景内有角色正在处理，状态显示“正在回复中”，玩家可以等，也可以照常插话；默认舞台不显示处理者名字。
 
-实现上，运行时把交给 `runOfficialSchedule` 的 `turn` 包一层，记录正在运行的角色，在 `state()` 中与当前场景成员比对，得到 `responders`（场内正在处理的角色名）和 `background`（只剩场外处理且允许插话）。默认舞台只用 `responders` 判断是否显示“正在回复中”，不显示名字：狼人杀这类隐藏回合里，夜里被激活的人名本身就是身份信息（2026-10-28）。想看具体是谁，用创作者页面。`projectPlayerView` 在 `background` 时输出 `ready`，不再透出 `canInterrupt` 和处理阶段文案。[TailRoundRuntime](../../../desktop/host/tail-runtime.ts) 的 `perform` 现在和发言共用同一中止入口；`background` 时保存节点也会先中止。中止信号会传到模型 HTTP 请求，取消不需要等模型返回。自动测试见 [dynamic-scheduling.test.ts](../../../tests/scenarios/dynamic-scheduling.test.ts)；2026-10-17 晚宴包真实模型试玩中，玩家反馈离场后等待明显缩短，未做计时对照；发行包未更新。已知限制：玩家行动较快时，场外连锁会被截短；刚完成一个场内角色、下一个尚未派发的瞬间，状态可能短暂显示为可回应。
+实现上，运行时把交给 `runOfficialSchedule` 的 `turn` 包一层，记录正在运行的角色，在 `state()` 中与当前场景成员比对，得到 `responders`（场内正在处理的角色名）和 `background`（只剩场外处理且允许插话）。默认舞台只用 `responders` 判断是否显示“正在回复中”，不显示名字：狼人杀这类隐藏回合里，夜里被激活的人名本身就是身份信息（2026-10-28）。想看具体是谁，用创作者页面。`projectPlayerView` 在 `background` 时输出 `ready`，不再透出 `canInterrupt` 和处理阶段文案。[TailRoundRuntime](../../../apps/host/src/runtime/tail-runtime.ts) 的 `perform` 现在和发言共用同一中止入口；`background` 时保存节点也会先中止。中止信号会传到模型 HTTP 请求，取消不需要等模型返回。自动测试见 [dynamic-scheduling.test.ts](../../../tests/scenarios/dynamic-scheduling.test.ts)；2026-10-17 晚宴包真实模型试玩中，玩家反馈离场后等待明显缩短，未做计时对照；发行包未更新。已知限制：玩家行动较快时，场外连锁会被截短；刚完成一个场内角色、下一个尚未派发的瞬间，状态可能短暂显示为可回应。
 
 
 ## 角色思考强度
 
 例如默认角色用 Flash、Claude 用强模型时，玩家在启动器“模型 → 修改”设置默认模型，再在“按角色单独设置”为 Claude 选择另一连接、模型和思考强度。记忆整理可跟随同层决策或单独选择。未覆盖角色使用默认层；新实例仅沿用最近保存的默认决策和默认记忆选择，不复制旧实例的角色覆盖。
 
-2026-10-17 核对：[modelEnvironment](../../../desktop/model-connections.ts) 用 `PERSPECTRA_ROLE_MODELS` 传递无 Key 的解析目标，`PERSPECTRA_MODEL_KEYS` 传递被引用的连接 Key；[游戏入口](../../../desktop/host/web-entry.ts)合并后立即删除后一个环境变量。运行时为各角色建立自己的 provider，整体替换协议、地址、模型、思考强度与 Key。记忆按不同配置复用 runner 组，每组 Python 只接收该组的连接 Key，档案与授权 scope 仍按角色隔离。具体传递和进程边界见[Launcher 接入](../launcher-core-integration.md#3-数据与进程)。
+2026-10-17 核对：[modelEnvironment](../../../apps/host/src/model-connections.ts) 用 `PERSPECTRA_ROLE_MODELS` 传递无 Key 的解析目标，`PERSPECTRA_MODEL_KEYS` 传递被引用的连接 Key；[游戏入口](../../../apps/host/src/runtime/web-entry.ts)合并后立即删除后一个环境变量。运行时为各角色建立自己的 provider，整体替换协议、地址、模型、思考强度与 Key。记忆按不同配置复用 runner 组，每组 Python 只接收该组的连接 Key，档案与授权 scope 仍按角色隔离。具体传递和进程边界见[Launcher 接入](../launcher-core-integration.md#3-数据与进程)。
 
-2026-10-27：Launcher 不再额外传 `HCW_LOCAL_*`，默认决策目标也只从 `PERSPECTRA_ROLE_MODELS` 读取；源码入口无该变量时改读 `PERSPECTRA_MODEL_*` 拼出单一目标。`local` / `--deepseek` / `--ollama` 入口已删除，原先挂在入口名上的行为改由协议决定：OpenAI 兼容与 Anthropic 使用扁平决策 Schema，任何目标都可用 Core 记忆与按角色模型，默认超时统一为游玩设置或 60 秒。调用经 [provider-chat](../../../packages/provider-chat/src/provider.ts) 交给 pi-ai，见[模型接口协议](../model-protocols.md)。
+2026-10-27：Launcher 不再额外传 `HCW_LOCAL_*`，默认决策目标也只从 `PERSPECTRA_ROLE_MODELS` 读取；源码入口无该变量时改读 `PERSPECTRA_MODEL_*` 拼出单一目标。`local` / `--deepseek` / `--ollama` 入口已删除，原先挂在入口名上的行为改由协议决定：OpenAI 兼容与 Anthropic 使用扁平决策 Schema，任何目标都可用 Core 记忆与按角色模型，默认超时统一为游玩设置或 60 秒。调用经 [provider-chat](../../../packages/providers/src/chat/provider.ts) 交给 pi-ai，见[模型接口协议](../model-protocols.md)。
 
 玩家可选择关闭、低、中、高思考强度，保存后在下一次启动生效，仅影响角色决策及行动结果续写。玩家输入解析不新增模型配置；记忆 Utility 使用角色生效的记忆模型和既有参数，不沿用决策思考档位。模型选择不会重写存档事件。源码已接通，发行包尚未重建。
 

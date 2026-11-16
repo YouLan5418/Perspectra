@@ -63,11 +63,11 @@ def metrics(entries):
 
 
 def target_preflight(root, card_metrics):
-    specs = [('desktop/host/pack-knowledge.ts', 'MAX_CHARACTERS', 'knowledge_context_utf16_units'),
-             ('desktop/host/pack-knowledge.ts', 'MAX_ENTRIES', 'knowledge_entries'),
-             ('desktop/host/pack-knowledge.ts', 'MAX_KEYWORDS', 'keywords_per_entry'),
-             ('desktop/host/pack-knowledge.ts', 'MAX_KEYWORD_LENGTH', 'keyword_utf16_units'),
-             ('desktop/host/pack-knowledge.ts', 'MAX_CONFIG_BYTES', 'knowledge_config_utf8_bytes'),
+    specs = [('apps/host/src/runtime/pack-knowledge.ts', 'MAX_CHARACTERS', 'knowledge_context_utf16_units'),
+             ('apps/host/src/runtime/pack-knowledge.ts', 'MAX_ENTRIES', 'knowledge_entries'),
+             ('apps/host/src/runtime/pack-knowledge.ts', 'MAX_KEYWORDS', 'keywords_per_entry'),
+             ('apps/host/src/runtime/pack-knowledge.ts', 'MAX_KEYWORD_LENGTH', 'keyword_utf16_units'),
+             ('apps/host/src/runtime/pack-knowledge.ts', 'MAX_CONFIG_BYTES', 'knowledge_config_utf8_bytes'),
              ('packages/world-pack/src/compiler.ts', 'MAX_MARKDOWN_BYTES', 'markdown_utf8_bytes'),
              ('packages/world-pack/src/compiler.ts', 'MAX_JSON_BYTES', 'json_utf8_bytes'),
              ('packages/world-pack/src/compiler.ts', 'MAX_TOTAL_BYTES', 'source_total_utf8_bytes'),

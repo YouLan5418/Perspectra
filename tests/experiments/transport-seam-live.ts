@@ -3,10 +3,10 @@ import assert from 'node:assert/strict'
 import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { randomUUID } from 'node:crypto'
-import { loadHostPlugins } from '../../desktop/host-plugins.ts'
-import { WorldHostRuntime } from '../../desktop/host/world-runtime.ts'
-import { environmentRoleModels } from '../../desktop/model-connections.ts'
-import { playSettings } from '../../desktop/play-settings.ts'
+import { loadHostPlugins } from '../../apps/host/src/host-plugins.ts'
+import { WorldHostRuntime } from '../../apps/host/src/runtime/world-runtime.ts'
+import { environmentRoleModels } from '../../apps/host/src/model-connections.ts'
+import { playSettings } from '../../apps/host/src/play-settings.ts'
 
 const endpoint = process.env.PERSPECTRA_MODEL_ENDPOINT
 const model = process.env.PERSPECTRA_MODEL

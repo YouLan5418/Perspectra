@@ -1,6 +1,6 @@
-import type { FrontendBgmTrack, FrontendSpeechInput } from '@harness-world/contracts'
+import type { FrontendBgmTrack, FrontendSpeechInput } from '@perspectra/sdk/contracts'
 
-export type { FrontendBgmPlugin, FrontendBgmTrack } from '@harness-world/contracts'
+export type { FrontendBgmPlugin, FrontendBgmTrack } from '@perspectra/sdk/contracts'
 
 export interface FrontendBgmService {
   selectTrack(input: FrontendSpeechInput, signal: AbortSignal): Promise<{ id: string; title: string } | null>

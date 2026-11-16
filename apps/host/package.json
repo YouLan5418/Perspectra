@@ -1,0 +1,23 @@
+{
+  "name": "@perspectra/host",
+  "version": "0.3.5",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./runtime": "./src/runtime/world-runtime.ts",
+    "./composition": "./src/official-bundle.ts",
+    "./simulation": "./src/lens/simulation.ts",
+    "./play-settings": "./src/play-settings.ts",
+    "./plugin-settings": "./src/host-plugin-settings.ts"
+  },
+  "dependencies": {
+    "@perspectra/frontend": "workspace:*",
+    "@perspectra/world-pack": "workspace:*",
+    "@perspectra/sdk": "workspace:*",
+    "@perspectra/plugins": "workspace:*",
+    "@perspectra/memory-core": "workspace:*",
+    "@perspectra/providers": "workspace:*",
+    "@perspectra/core": "workspace:*",
+    "@perspectra/jev-audit": "workspace:*"
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "name": "@perspectra/jev-audit",
+  "version": "0.3.5",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@perspectra/sdk": "workspace:*",
+    "@perspectra/core": "workspace:*"
+  }
+}

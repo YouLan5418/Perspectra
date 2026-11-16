@@ -2,10 +2,15 @@ import { once } from 'node:events'
 import { resolve } from 'node:path'
 import type { AddressInfo } from 'node:net'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { createHostServer, HostBusyError, type HostRuntime, type HostState } from '../../desktop/host/http-server.ts'
-import { HOST_ACTIVITY_PAGE } from '../../desktop/host/host-page.ts'
-import { loadPackWeb, type PackWeb } from '../../desktop/host/pack-frontend.ts'
-import type { FrontendHostServices } from '@harness-world/frontend'
+import {
+  createHostServer,
+  HostBusyError,
+  type HostRuntime,
+  type HostState,
+} from '../../apps/host/src/runtime/http-server.ts'
+import { HOST_ACTIVITY_PAGE } from '../../apps/host/src/runtime/host-page.ts'
+import { loadPackWeb, type PackWeb } from '../../apps/host/src/runtime/pack-frontend.ts'
+import type { FrontendHostServices } from '@perspectra/frontend'
 
 const token = 'a'.repeat(64)
 const state: HostState = {

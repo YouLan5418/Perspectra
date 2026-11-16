@@ -15,7 +15,7 @@
 | 工程规范 | 较好 | 类型与导入纪律好，检查器有效；缺 formatter、lint 范围偏窄、默认门禁漏掉大量单测 |
 | 可维护性 | 中等偏弱 | 两套提交管线、整套退役 Reaction 基础设施、49 方法门面、多份重复校验工具 |
 | 可读性 | 中等偏弱 | 压缩风格、历史阶段词、超长条件表达式、遗留 director 语义 |
-| 目录分层 | 基本合理 | 包级方向正确、无循环；但 desktop/ 三合一、application 兼任组合根、launcher 深导入包内部 |
+| 目录分层 | 基本合理 | 包级方向正确、无循环；但 apps/host/src/ 三合一、application 兼任组合根、launcher 深导入包内部 |
 
 ## 1. 审查范围与方法
 
@@ -25,12 +25,12 @@
 
 | 入口 | 路径 | 说明 |
 | --- | --- | --- |
-| 网页游戏宿主 | [web-entry.ts](../../../desktop/host/web-entry.ts) → [world-runtime.ts](../../../desktop/host/world-runtime.ts) | experience:web，源码与发行共用 |
-| Launcher 后端 | [launcher-entry.ts](../../../desktop/launcher-entry.ts) → [launcher-core.ts](../../../desktop/launcher-core.ts) | Tauri 经 stdin/stdout 桥调用 |
+| 网页游戏宿主 | [web-entry.ts](../../../apps/host/src/runtime/web-entry.ts) → [world-runtime.ts](../../../apps/host/src/runtime/world-runtime.ts) | experience:web，源码与发行共用 |
+| Launcher 后端 | [launcher-entry.ts](../../../apps/launcher/backend/entry.ts) → [launcher-core.ts](../../../apps/launcher/backend/core.ts) | Tauri 经 stdin/stdout 桥调用 |
 | Launcher 前端 | [apps/launcher/src](../../../apps/launcher/src) | Vue 页面、创作者页面、IPC 服务 |
-| 世界包工具 | [cli-entry.ts](../../../packages/world-pack/process/cli-entry.ts) | pnpm worldpack |
+| 世界包工具 | [cli-entry.ts](../../../apps/host/src/cli/worldpack.ts) | pnpm worldpack |
 | 旧 Electron 外壳 | main.ts（已删除） | 仓库保留入口，仍参与 desktop:build |
-| Python Core | [python 目录](../../../desktop/host/memory/python) | 宿主记忆适配，非 packages/memory |
+| Python Core | [python 目录](../../../apps/host/src/runtime/memory/python) | 宿主记忆适配，非 packages/core/src/memory |
 
 packages/* 作为上述入口的依赖被阅读，重点是 contracts、kernel、store-sqlite、application、memory、world-pack、frontend、runtime-cordis。
 
@@ -72,13 +72,13 @@ contracts（零依赖）
 
 | 层 | 判断 | 说明 |
 | --- | --- | --- |
-| packages/contracts | 合理 | 纯类型 + 规范序列化/哈希，零内部依赖；但 world-json.ts 依赖 node:crypto，不是浏览器安全包 |
-| packages/store-sqlite | 偏重但合理 | 共享持久化底座；同时承载 19 段迁移、Reaction、Inbox/Outbox、认知任务 |
-| packages/kernel | 职责混合 | 规则裁定 + 场景归约 + WorldBootstrap；同时含已死的 WorldKernel |
-| packages/application | 职责混合 | 领域服务 + 组合根（直接 new Store/Memory、挂 Cordis） |
+| packages/sdk/src/contracts | 合理 | 纯类型 + 规范序列化/哈希，零内部依赖；但 world-json.ts 依赖 node:crypto，不是浏览器安全包 |
+| packages/core/src/store | 偏重但合理 | 共享持久化底座；同时承载 19 段迁移、Reaction、Inbox/Outbox、认知任务 |
+| packages/core/src/kernel | 职责混合 | 规则裁定 + 场景归约 + WorldBootstrap；同时含已死的 WorldKernel |
+| packages/core/src/application | 职责混合 | 领域服务 + 组合根（直接 new Store/Memory、挂 Cordis） |
 | packages/world-pack | 反向耦合 | 因 creator-cli 的 activate 命令依赖 application |
-| desktop/host | 事实上的应用层 | 8842 行，超过任何单个 package；未独立成包 |
-| apps/launcher | 边界穿透 | 五级相对路径直接引用 packages/provider-chat/src/* |
+| apps/host/src/runtime | 事实上的应用层 | 8842 行，超过任何单个 package；未独立成包 |
+| apps/launcher | 边界穿透 | 五级相对路径直接引用 packages/providers/src/chat/* |
 
 ## 3. 问题清单
 
@@ -87,18 +87,18 @@ contracts（零依赖）
 | ID | 严重度 | 问题 | 主要位置 |
 | --- | --- | --- | --- |
 | P1-1 | 高 | WorldKernel 是完整但无人调用的第二套玩家提交流程，文档却指向它 | world-kernel.ts（已删除）、[code-walkthrough.md](../architecture/code-walkthrough.md) |
-| P1-2 | 高 | 玩家与 NPC 两条提交/观察管线重复且已出现细节差异 | [round-coordinator.ts](../../../packages/application/src/round-coordinator.ts)、[character-turn.ts](../../../packages/application/src/character-turn.ts) |
-| P1-3 | 高 | Reaction Cycle 已无生产者，但协议、存储、门面 API、拦截逻辑全部保留 | reaction-cycle.ts（已删除）、[world-store.ts](../../../packages/store-sqlite/src/world-store.ts) |
-| P2-1 | 中高 | WorldApplication 49 个公开方法，宿主只用 8 个；组合根与运维 API 混在一起 | [world-application.ts](../../../packages/application/src/world-application.ts) |
+| P1-2 | 高 | 玩家与 NPC 两条提交/观察管线重复且已出现细节差异 | [round-coordinator.ts](../../../packages/core/src/application/round-coordinator.ts)、[character-turn.ts](../../../packages/core/src/application/character-turn.ts) |
+| P1-3 | 高 | Reaction Cycle 已无生产者，但协议、存储、门面 API、拦截逻辑全部保留 | reaction-cycle.ts（已删除）、[world-store.ts](../../../packages/core/src/store/world-store.ts) |
+| P2-1 | 中高 | WorldApplication 49 个公开方法，宿主只用 8 个；组合根与运维 API 混在一起 | [world-application.ts](../../../packages/core/src/application/world-application.ts) |
 | P2-2 | 中 | 大文件承担过多职责，单类持有过多可变状态 | world-store、local-memory、schema、world-runtime |
-| P2-3 | 中 | untrusted-JSON 校验工具复制三份，语义已漂移 | [world-spec.ts](../../../packages/kernel/src/world-spec.ts)、[schema.ts](../../../packages/world-pack/src/schema.ts) |
+| P2-3 | 中 | untrusted-JSON 校验工具复制三份，语义已漂移 | [world-spec.ts](../../../packages/core/src/kernel/world-spec.ts)、[schema.ts](../../../packages/world-pack/src/schema.ts) |
 | P2-4 | 中 | 默认测试门禁漏掉 59 个包级单测，含玩家提交与存储核心 | [vitest.regression.config.ts](../../../vitest.regression.config.ts) |
 | P2-5 | 中 | 无 formatter、lint 规则少且不含 launcher/scripts | package.json、oxlint 默认配置 |
-| P2-6 | 中 | desktop/ 同时是 Launcher 后端、游戏宿主和旧 Electron 外壳 | main.ts（已删除）、[launcher-core.ts](../../../desktop/launcher-core.ts) |
+| P2-6 | 中 | apps/host/src/ 同时是 Launcher 后端、游戏宿主和旧 Electron 外壳 | main.ts（已删除）、[launcher-core.ts](../../../apps/launcher/backend/core.ts) |
 | P3-1 | 低 | launcher 通过五级相对路径进入包内部，靠正则白名单放行 | [PresetContentEditor.vue](../../../apps/launcher/src/components/PresetContentEditor.vue)、[check-host-boundaries.mjs](../../../scripts/check-host-boundaries.mjs) |
 | P3-2 | 低 | 版本轴分散且存在交叉判断 | world-spec.ts、world-store.ts、local-memory.ts |
 | P3-3 | 低 | 历史阶段词、director 命名、中英文错误混用 | 多处 |
-| P3-4 | 低 | 无消费者的配置、重复 script、false 常量导出 | world-host.example.yml（已删除）、package.json、[local-memory.ts](../../../packages/memory/src/local-memory.ts) |
+| P3-4 | 低 | 无消费者的配置、重复 script、false 常量导出 | world-host.example.yml（已删除）、package.json、[local-memory.ts](../../../packages/core/src/memory/local-memory.ts) |
 
 ## 4. 详细发现
 
@@ -110,11 +110,11 @@ world-kernel.ts（已删除） 共 243 行，实现了完整的 submitPlayerInpu
 
 ~~~text
 git grep -l "\bWorldKernel\b" -- packages desktop apps tests
-→ packages/kernel/src/world-kernel.test.ts
-→ packages/kernel/src/world-kernel.ts
+→ packages/core/src/kernel/world-kernel.test.ts
+→ packages/core/src/kernel/world-kernel.ts
 ~~~
 
-实际生产路径在 [round-coordinator.ts](../../../packages/application/src/round-coordinator.ts)。更严重的是文档仍把它当作生产节点：
+实际生产路径在 [round-coordinator.ts](../../../packages/core/src/application/round-coordinator.ts)。更严重的是文档仍把它当作生产节点：
 
 - [code-walkthrough.md](../architecture/code-walkthrough.md) 第 3 节把 world-kernel.ts 与 world-store.ts 并列为"裁定结果、事件与事务提交"；
 - [modules.md](../architecture/modules.md) 把 WorldKernel 列为 kernel 的阅读起点；
@@ -125,7 +125,7 @@ git grep -l "\bWorldKernel\b" -- packages desktop apps tests
 
 ### P1-2 玩家与 NPC 两条平行、已开始分叉的提交管线
 
-RoundCoordinator.#commitClaimed（[round-coordinator.ts:321](../../../packages/application/src/round-coordinator.ts)）与 CharacterTurn.run 的提交段（[character-turn.ts:420](../../../packages/application/src/character-turn.ts)）各自实现几乎相同的语义：
+RoundCoordinator.#commitClaimed（[round-coordinator.ts:321](../../../packages/core/src/application/round-coordinator.ts)）与 CharacterTurn.run 的提交段（[character-turn.ts:420](../../../packages/core/src/application/character-turn.ts)）各自实现几乎相同的语义：
 
 1. 用 Rulebook 裁定动作；
 2. 生成 observation.upsert，并按场景受众裁剪内容；
@@ -153,10 +153,10 @@ RoundCoordinator.#commitClaimed（[round-coordinator.ts:321](../../../packages/a
 证据：
 
 - reaction-cycle.ts（已删除） 1945 行，配套 2112 行测试；
-- WorldStore.commitRound 仍接受 reactionCycle / reactionSettlement，并参与 bundle hash（[world-store.ts:991](../../../packages/store-sqlite/src/world-store.ts)）；
+- WorldStore.commitRound 仍接受 reactionCycle / reactionSettlement，并参与 bundle hash（[world-store.ts:991](../../../packages/core/src/store/world-store.ts)）；
 - WorldApplication 仍公开 reactionCycle / listReactionCycles / cancelReactionCycle；
 - 生产入口没有任何地方创建 Cycle：git grep "reactionCycle:" 只命中 testkit、reaction-cycle.test.ts、player-only-assembly.test.ts；
-- RoundCoordinator（[244](../../../packages/application/src/round-coordinator.ts)、[363](../../../packages/application/src/round-coordinator.ts)）与 CharacterTurn（[169](../../../packages/application/src/character-turn.ts)）又会在发现未完成 Cycle 时拒绝执行；
+- RoundCoordinator（[244](../../../packages/core/src/application/round-coordinator.ts)、[363](../../../packages/core/src/application/round-coordinator.ts)）与 CharacterTurn（[169](../../../packages/core/src/application/character-turn.ts)）又会在发现未完成 Cycle 时拒绝执行；
 - 文档称旧 NPC Reaction 已退役，但没有说明 store 与门面 API 仍然保留。
 
 **影响**：阅读 world-store.commitRound 必须先理解一套不会再产生的状态；新同学容易误以为 NPC 仍走 Reaction；store 的复杂度与测试成本持续存在。
@@ -164,7 +164,7 @@ RoundCoordinator.#commitClaimed（[round-coordinator.ts:321](../../../packages/a
 
 ### P2-1 WorldApplication：49 个公开方法的门面 + 组合根
 
-[world-application.ts](../../../packages/application/src/world-application.ts) 共 1388 行，公开 49 个方法，覆盖：
+[world-application.ts](../../../packages/core/src/application/world-application.ts) 共 1388 行，公开 49 个方法，覆盖：
 
 - 玩家提交与文本解释；
 - 回合状态、事件历史、Authority 查询；
@@ -183,12 +183,12 @@ RoundCoordinator.#commitClaimed（[round-coordinator.ts:321](../../../packages/a
 
 | 文件 | 行数 | 混在一起的职责 |
 | --- | --- | --- |
-| [world-store.ts](../../../packages/store-sqlite/src/world-store.ts) | 2076 | 19 段 schema/迁移、事件读写、commit 事务、完整性校验、Inbox/Outbox、认知任务、澄清记录、Reaction |
+| [world-store.ts](../../../packages/core/src/store/world-store.ts) | 2076 | 19 段 schema/迁移、事件读写、commit 事务、完整性校验、Inbox/Outbox、认知任务、澄清记录、Reaction |
 | reaction-cycle.ts（已删除） | 1945 | 退役机制的全部状态机 |
-| [local-memory.ts](../../../packages/memory/src/local-memory.ts) | 1627 | 8 个 schema 版本、捕获、召回、关键词索引、摘要、诊断 |
-| [world-application.ts](../../../packages/application/src/world-application.ts) | 1388 | 见 P2-1 |
+| [local-memory.ts](../../../packages/core/src/memory/local-memory.ts) | 1627 | 8 个 schema 版本、捕获、召回、关键词索引、摘要、诊断 |
+| [world-application.ts](../../../packages/core/src/application/world-application.ts) | 1388 | 见 P2-1 |
 | [schema.ts](../../../packages/world-pack/src/schema.ts) | 1361 | 手写解析 20+ 种源文件 |
-| [world-runtime.ts](../../../desktop/host/world-runtime.ts) | 1119 | 60+ 个可变字段、模型装配、调度、状态投影、活动/状态/知识/自主性 |
+| [world-runtime.ts](../../../apps/host/src/runtime/world-runtime.ts) | 1119 | 60+ 个可变字段、模型装配、调度、状态投影、活动/状态/知识/自主性 |
 
 WorldHostCore 的字段声明在 104-245 行；#activateCharacters（832-965）同时处理活动链、自主性、普通反应、预算、提示文案与错误标志。local-memory 把 SQLite 迁移、关键词倒排、摘要分组和召回诊断放在一个类里。
 
@@ -198,9 +198,9 @@ WorldHostCore 的字段声明在 104-245 行；#activateCharacters（832-965）�
 
 objectAt / textAt / hashAt / arrayAt / unique / exactKeys 在两处各有一份：
 
-- [world-spec.ts:385-425](../../../packages/kernel/src/world-spec.ts)；
+- [world-spec.ts:385-425](../../../packages/core/src/kernel/world-spec.ts)；
 - [schema.ts:151-258](../../../packages/world-pack/src/schema.ts)；
-- [frozen-interactions.ts](../../../packages/kernel/src/frozen-interactions.ts) 还有第三份 exactKeys。
+- [frozen-interactions.ts](../../../packages/core/src/kernel/frozen-interactions.ts) 还有第三份 exactKeys。
 
 object()（断言为普通对象）在 17 个生产文件中重复定义。语义已经漂移：world-spec 的 exactKeys 要求"键集合完全相等"，world-pack 的是"required + optional 允许清单"；textAt 的错误文本也不同。
 
@@ -212,7 +212,7 @@ object()（断言为普通对象）在 17 个生产文件中重复定义。语�
 [vitest.regression.config.ts](../../../vitest.regression.config.ts) 的 include 是：
 
 ~~~text
-packages/store-sqlite/src/character-view.test.ts
+packages/core/src/store/character-view.test.ts
 packages/world-pack/src/compiler-v5.test.ts
 tests/host/**/*.test.ts
 tests/desktop/**/*.test.ts
@@ -222,11 +222,11 @@ tests/integration/**/*.test.ts
 
 默认 test 与 CI 都只跑这 89 个文件。按目录规则统计，另有 **59 个 packages/**/*.test.ts**（约 1.3 万行）不在默认门禁内，包括：
 
-- packages/application/src/round-coordinator.test.ts（生产玩家提交管线）；
-- packages/store-sqlite/src/store.test.ts（1266 行）；
-- packages/store-sqlite/src/reaction-cycle.test.ts（2112 行）；
-- packages/memory/src/local-memory.test.ts、cognitive-memory.test.ts；
-- packages/provider-chat/src/wire.test.ts。
+- packages/core/src/application/round-coordinator.test.ts（生产玩家提交管线）；
+- packages/core/src/store/store.test.ts（1266 行）；
+- packages/core/src/store/reaction-cycle.test.ts（2112 行）；
+- packages/core/src/memory/local-memory.test.ts、cognitive-memory.test.ts；
+- packages/providers/src/chat/wire.test.ts。
 
 scenarios/integration 会间接覆盖部分路径，但单元级不变量（不经过宿主装配）默认不验证。同时那两个"包级代表"是按单个文件名硬编码的，新增单测不会自动纳入。
 
@@ -235,16 +235,16 @@ scenarios/integration 会间接覆盖部分路径，但单元级不变量（不�
 ### P2-5 格式与 lint 缺口
 
 - **没有 formatter**：仓库无 prettier/biome/dprint 配置，只有 .editorconfig。
-- **风格摆动**：同一仓库里既有完全展开的代码，也有接近压缩的写法，例如 [character-turn.ts:420-531](../../../packages/application/src/character-turn.ts)（循环体几乎无空格）、[activation-cycle.ts:110-180](../../../packages/official-scheduler/src/index.ts)（单字母变量密集）、[services/desktop.ts:27-37](../../../apps/launcher/src/services/desktop.ts)（1 空格缩进）。
+- **风格摆动**：同一仓库里既有完全展开的代码，也有接近压缩的写法，例如 [character-turn.ts:420-531](../../../packages/core/src/application/character-turn.ts)（循环体几乎无空格）、[activation-cycle.ts:110-180](../../../packages/providers/src/scheduler/index.ts)（单字母变量密集）、[services/desktop.ts:27-37](../../../apps/launcher/src/services/desktop.ts)（1 空格缩进）。
 - **lint 覆盖窄**：oxlint 默认规则、无配置文件、96 条规则；lint 脚本不含 apps/launcher、scripts、config；没有类型感知规则，any 与非空断言不会被拦截。
-- **显式 any**：约 80 处词法命中、38 个文件，其中 [runtime-cordis.ts:12-13](../../../packages/runtime-cordis/src/runtime.ts) 的公共接口直接使用 any。
+- **显式 any**：约 80 处词法命中、38 个文件，其中 [runtime-cordis.ts:12-13](../../../packages/core/src/runtime/runtime.ts) 的公共接口直接使用 any。
 - **非空断言**：源码中形如 x! 的断言约 250 处，round-coordinator.ts 单文件 19 处，world-runtime.ts 12 处。多数处在不变量之后，但一旦不变量破坏，报错是 Cannot read properties of undefined，而不是领域错误。
 
 **建议**：引入 formatter（prettier 或 dprint 任一）并一次性格式化；把 launcher/scripts 纳入 lint；先不加严格新规则，只固定格式，再逐步处理公共接口的 any。
 
-### P2-6 desktop/ 三合一
+### P2-6 apps/host/src/ 三合一
 
-desktop/ 同时包含：
+apps/host/src/ 同时包含：
 
 1. **Launcher 后端**：launcher-core.ts、model-connections.ts、model-presets.ts、play-settings.ts、story-nodes.ts、story-share.ts；
 2. **游戏宿主**：host/（8842 行）；
@@ -252,16 +252,16 @@ desktop/ 同时包含：
 
 两套启动器各自实现设置读写、包枚举、后端子进程管理：Electron 用 launcher.json + saves/，LauncherCore 用另一份索引与实例目录。长期必然漂移。
 
-**建议**：明确 Electron 外壳的产品状态——若不随产品发布，移出 main 字段并停止打包；若保留，至少复用 launcher-core 的设置/枚举逻辑。中期把 desktop/host 独立命名为应用层（如 apps/host），避免"宿主"藏在工具目录里。
+**建议**：明确 Electron 外壳的产品状态——若不随产品发布，移出 main 字段并停止打包；若保留，至少复用 launcher-core 的设置/枚举逻辑。中期把 apps/host/src/runtime 独立命名为应用层（如 apps/host），避免"宿主"藏在工具目录里。
 
 ### P3-1 launcher 深导入与正则白名单
 
 [PresetContentEditor.vue](../../../apps/launcher/src/components/PresetContentEditor.vue) 直接：
 
 ~~~ts
-import { rolePreset, ... } from '../../../../packages/provider-chat/src/preset.ts'
-import { presetMacros } from '../../../../packages/provider-chat/src/preset-macros.ts'
-import { REGEX_WORKER_PROGRAM } from '../../../../packages/provider-chat/src/preset-regex.ts'
+import { rolePreset, ... } from '../../../../packages/providers/src/chat/preset.ts'
+import { presetMacros } from '../../../../packages/providers/src/chat/preset-macros.ts'
+import { REGEX_WORKER_PROGRAM } from '../../../../packages/providers/src/chat/preset-regex.ts'
 ~~~
 
 [check-host-boundaries.mjs](../../../scripts/check-host-boundaries.mjs) 用一条正则 directModules 允许 launcher 直接引用这几个文件。provider-chat 没有 subpath exports，所以这不是"故意绕过"，而是缺少稳定入口。
@@ -295,7 +295,7 @@ import { REGEX_WORKER_PROGRAM } from '../../../../packages/provider-chat/src/pre
 
 - world-host.example.yml（已删除） 的 maxConcurrentBranches / rescanIntervalMs 没有加载器，引用的 packages/operations 已不存在；
 - experience:web 与 experience:web:flash 完全相同，后者只被归档文档引用；
-- TENCENTDB_MEMORY_ENABLED = false（[local-memory.ts:235](../../../packages/memory/src/local-memory.ts)）为导出常量但无人使用；
+- TENCENTDB_MEMORY_ENABLED = false（[local-memory.ts:235](../../../packages/core/src/memory/local-memory.ts)）为导出常量但无人使用；
 - logical-transfer.ts 保留 v5/v6/v7 Authority 兼容解析，但生产入口不调用该服务。
 
 **建议**：删除或在文件头标注"迁移期兼容，禁止新写入"。
@@ -373,10 +373,10 @@ node scripts/docs/check-links.mjs
 
 | 项 | 处理 | 说明 |
 | --- | --- | --- |
-| P1-1 | 已完成 | 删除 WorldKernel 及其测试；仍在用的 PlayerRoundResult、RoundExecutionLane、parsePlayerRoundResult 迁入 [round-coordinator.ts](../../../packages/application/src/round-coordinator.ts)；code-walkthrough 与 modules 改为以 RoundCoordinator 为玩家提交入口 |
+| P1-1 | 已完成 | 删除 WorldKernel 及其测试；仍在用的 PlayerRoundResult、RoundExecutionLane、parsePlayerRoundResult 迁入 [round-coordinator.ts](../../../packages/core/src/application/round-coordinator.ts)；code-walkthrough 与 modules 改为以 RoundCoordinator 为玩家提交入口 |
 | P1-3 | 已完成（删除） | 删除 store 状态机、contracts 存储契约、CommitRoundRequest 两个字段、门面 API、各处拦截、reaction-evidence 与 stable-call-budget；world 库迁移 v20 删四张表，开过/结算过 Cycle 的历史回合标记 legacy_reaction_link，完整性检查不再重算其 bundle hash 中已删除部分；未完成旧 Cycle 直接丢弃。Manifest 的 reactionPolicy 作为已哈希数据保留 |
 | P3-4（部分） | 已完成 | 删除 world-host.example.yml、experience:web:flash、TENCENTDB_MEMORY_ENABLED；logical-transfer（含 v4–v8 兼容）随 Reaction 表一并删除，WorldApplication 去掉 exportAuthority/importAuthority |
-| P1-2 | 已完成（观察段） | 新增 [action-observations.ts](../../../packages/application/src/action-observations.ts)，两条路径共用移动路线可见性、完整/仅知发生内容、观察 ID 与玩家投递；受众计算、预算与提示仍各自保留 |
+| P1-2 | 已完成（观察段） | 新增 [action-observations.ts](../../../packages/core/src/application/action-observations.ts)，两条路径共用移动路线可见性、完整/仅知发生内容、观察 ID 与玩家投递；受众计算、预算与提示仍各自保留 |
 
 P1-2 统一后的行为变化：NPC 观察 ID 由字符串拼接改为 deterministicId('observation:scene-result', …)；玩家回合的观察投递给所有作为观察者的玩家会话（此前只投递提交者）；NPC 投递 payload 去掉无人读取的 observationType；同一观察者若同时出现在完整与仅知发生两组，统一按仅知发生处理（现有受众计算不会产生这种重叠）。
 
@@ -386,7 +386,7 @@ P1-2 统一后的行为变化：NPC 观察 ID 由字符串拼接改为 determini
 | --- | --- | --- |
 | 旧存档兼容 | 已删除 | 去掉 legacy_reaction_link；v20 迁移只删 Cycle 表，曾运行过 Cycle 的旧存档不再通过完整性检查 |
 | P2-4 | 已完成 | 默认回归按目录运行全部 packages/**/*.test.ts（57 个文件约 17 秒）；覆盖率统计加入 desktop |
-| P2-6 | 已完成（删除） | 删除 Electron 外壳、electron/electron-builder 依赖、desktop/desktop:release 脚本与 main 字段；desktop:build 只保留后端打包 |
+| P2-6 | 已完成（删除） | 删除 Electron 外壳、electron/electron-builder 依赖、apps/host/src/desktop:release 脚本与 main 字段；desktop:build 只保留后端打包 |
 | P2-3 | 已完成 | 新增 contracts/untrusted-json.ts，Manifest、world-pack 源文件与冻结交互三处读取共用；失败方式由调用方决定。其余 17 处 object() 多为带各自用户文案的一行判断，未统一 |
 | P2-1 | 已完成（拆分保留） | WorldApplication 保留组合根、生命周期与游玩方法；只读查询移到 app.read（WorldReadQueries），备份/分叉/维护/隔离恢复移到 app.admin（WorldAdministration），两者经 WorldBranchAccess 访问分支；没有删除方法，组合根未上移到宿主 |
 | P2-2 | 部分完成 | world-store 的建表与迁移移到 world-schema.ts；local-memory 的迁移与摘要分组移到 memory-schema.ts / memory-summaries.ts；WorldHostCore#activateCharacters 拆为建回合、活动链、场景反应、提示文案四个方法。WorldStore 类内的 Inbox/Outbox/认知任务与 world-pack schema.ts 未拆 |
@@ -425,12 +425,12 @@ P1-2 统一后的行为变化：NPC 观察 ID 由字符串拼接改为 determini
 | 项 | 状态 | 复核依据 |
 | --- | --- | --- |
 | P1-1 死 WorldKernel | ✅ 已解决 | 源码与测试删除；`code-walkthrough`、`modules` 改指 RoundCoordinator；全仓 grep 为 0 |
-| P1-2 双提交管线 | ◐ 部分完成 | [action-observations.ts](../../../packages/application/src/action-observations.ts) 统一观察事件、观察 ID 与 Outbox；受众编排、Authority 与 `commitRound` 仍分两条 |
+| P1-2 双提交管线 | ◐ 部分完成 | [action-observations.ts](../../../packages/core/src/application/action-observations.ts) 统一观察事件、观察 ID 与 Outbox；受众编排、Authority 与 `commitRound` 仍分两条 |
 | P1-3 Reaction Cycle | ✅ 已解决 | contracts、store 状态机、提交字段、门面 API、守卫全部删除；world schema v20 实际删除四张表；`reactionPolicy` 仅作哈希数据保留 |
 | P2-1 WorldApplication 门面 | ◐ 部分完成 | 主类降到 15 个游玩方法 + `read`（15 个查询）+ `admin`（13 个管理）；组合根仍在 application，`read/admin` 目前只有测试调用 |
 | P2-2 大文件/职责 | ◐ 部分完成 | `world-schema`、`memory-schema`、`memory-summaries` 已拆出，宿主激活拆为四个方法；`world-pack/schema.ts`、`WorldHostCore` 字段集合与 `local-memory.ts` 仍大 |
 | P2-3 校验工具重复 | ✅ 已解决 | `contracts/untrusted-json.ts` 被 Manifest、world-pack 源文件与冻结交互三处共用 |
-| P2-4 测试门禁 | ✅ 已解决 | 默认回归纳入全部 `packages/**/*.test.ts`；757→1338 项；coverage 已含 `desktop/**/*.ts` |
+| P2-4 测试门禁 | ✅ 已解决 | 默认回归纳入全部 `packages/**/*.test.ts`；757→1338 项；coverage 已含 `apps/host/src/**/*.ts` |
 | P2-5 格式与 lint | ✅ 已解决 | Prettier 3.6.2 + `format:check`；lint 扩到 launcher/scripts 且 0 warning；`action-group.ts` 收尾后通过 |
 | P2-6 Electron 三合一 | ✅ 已解决 | 外壳、依赖、脚本、`main` 字段删除；本轮补齐 4 处文档残留 |
 | P3-1 launcher 深导入 | ✅ 已解决 | `provider-chat` subpath exports；launcher 全部包名导入；边界白名单删除 |
@@ -440,10 +440,10 @@ P1-2 统一后的行为变化：NPC 观察 ID 由字符串拼接改为 determini
 
 ### 8.3 本轮修复
 
-1. **格式门禁**：删除 `packages/contracts/src/action-group.ts` 文件末尾多余空行；`format:check` 通过。CI 增加 `Check formatting` 步骤。
+1. **格式门禁**：删除 `packages/sdk/src/contracts/action-group.ts` 文件末尾多余空行；`format:check` 通过。CI 增加 `Check formatting` 步骤。
 2. **CI 构建覆盖**：CI 增加 `Build Launcher`（`launcher:build`），覆盖只有 Vite 构建才能发现的 Vue 模板错误。
-3. **死构建项**：删除 `desktop/save-preflight-entry.ts` 与 `desktop:build` 中的 save-preflight bundle；可复用的 `preflightSave` 仍由 LauncherCore 与 story-share 直接调用。
-4. **空导入**：删除 `packages/application/src/world-application.ts` 中拆 `admin` 后留下的 `import {}`。
+3. **死构建项**：删除 `apps/host/src/save-preflight-entry.ts` 与 `desktop:build` 中的 save-preflight bundle；可复用的 `preflightSave` 仍由 LauncherCore 与 story-share 直接调用。
+4. **空导入**：删除 `packages/core/src/application/world-application.ts` 中拆 `admin` 后留下的 `import {}`。
 5. **命名收尾**：`character-turn.ts` 的 `single-turn prototype` 错误与 `prototype-memory:` correlationId、`runtime-tuning.ts` 注释、一个测试名称改为现行说法。
 6. **文档同步**：`guides/local-runbook.md`、`architecture/runtime.md`、`scripts/release/BUILD.md`、`architecture/code-walkthrough.md` 删除 Electron / worldDirector 残留；`AGENTS.md` 的 `check` 描述改为包含全部包内单测。
 7. **换行稳定**：新增 `.gitattributes`（`* text=auto eol=lf`），保证 Windows/CI 以 LF 检出，避免 `format:check` 因 CRLF 全仓误报。
@@ -452,8 +452,8 @@ P1-2 统一后的行为变化：NPC 观察 ID 由字符串拼接改为 determini
 ### 8.4 仍未处理
 
 - P1-2 的 Authority 构造与 `commitRound` 仍由玩家、NPC 两条路径分别实现；观察与投递已经统一，剩余风险低于原问题。
-- P2-1 的组合根仍在 `packages/application`；`read` / `admin` 是结构拆分，尚未形成真实消费者边界。
-- P2-2 的 `packages/world-pack/src/schema.ts`、`desktop/host/world-runtime.ts` 的字段集合与 `packages/memory/src/local-memory.ts` 仍大；本轮按"小问题"范围未继续拆分。
+- P2-1 的组合根仍在 `packages/core/src/application`；`read` / `admin` 是结构拆分，尚未形成真实消费者边界。
+- P2-2 的 `packages/world-pack/src/schema.ts`、`apps/host/src/runtime/world-runtime.ts` 的字段集合与 `packages/core/src/memory/local-memory.ts` 仍大；本轮按"小问题"范围未继续拆分。
 - `check` 现在包含 1338 项测试；本机完整门禁 83.74s（默认并发），2 worker 回归 235.81s。`AGENTS.md` 已不再称其为"轻量"，如果日常需要更快入口，可另加只跑类型、Lint 与格式的组合。
 
 ### 8.5 复核结论

@@ -55,7 +55,7 @@
 
 默认角色顺序按characterId排序，为Claude→DeepSeek→GLM→GPT。点名GPT的普通发言仍可能被其他同场角色观察，调度没有据自然语言点名将GPT提前；因此点名不能保证最快回应。该观察不意味着应剥夺其他角色自行回应的机会。
 
-源码依据：`tests/experiments/playtest-view.ts`的`playtestModelCharacters`排序；`packages/application/src/prototype-activation-cycle.ts`的顺序await与期限；`tests/experiments/playtest-frozen-runtime.ts`的`submit`最终refresh及缓存state；`tests/experiments/hindsight-python.ts`的逐次execFile；`experiments/hindsight-core/vector_core.py`的进程内`_MODELS`及查询文件缓存。
+源码依据：`tests/experiments/playtest-view.ts`的`playtestModelCharacters`排序；`packages/core/src/application/prototype-activation-cycle.ts`的顺序await与期限；`tests/experiments/playtest-frozen-runtime.ts`的`submit`最终refresh及缓存state；`tests/experiments/hindsight-python.ts`的逐次execFile；`experiments/hindsight-core/vector_core.py`的进程内`_MODELS`及查询文件缓存。
 
 网关usage仍报告reasoning_tokens；Character请求现有`thinking: disabled`不据此证明网关实际关闭了推理。模型/网关对该参数的解释没有在本轮核验，不能把全部延迟归因于推理token。
 

@@ -8,14 +8,14 @@
 
 | 位置 | 变化 |
 | --- | --- |
-| [immediate-action](../../../packages/application/src/immediate-action.ts) | 玩家即时行动的事实、场景迁移、观察和行动记录统一构造，复用 actionObservations |
-| [world-view](../../../packages/application/src/world-view.ts) | 由 desktop/host/activity-world 移入，授权世界视图属于核心 |
-| [status-operations](../../../packages/application/src/status-operations.ts) | 许可解析、操作准入、结果解析、受众、选项和轮次计数；不读库、不执行脚本 |
-| [activity-lifecycle](../../../packages/application/src/activity-lifecycle.ts) | 开始、暂停、恢复、放弃、逃生的状态迁移，事件和结果观察；逃生不接收脚本输入 |
-| [activity-projection](../../../packages/application/src/activity-projection.ts) | 选项、许可过滤、表达和决策检查、结果解析、调度校验 |
-| [ActivityRuntime](../../../desktop/host/activity-runtime.ts) | 删除只有测试才会走的本地随机序列和读取路径，统一由活动目录提供 |
-| [world-runtime](../../../desktop/host/world-runtime.ts) | 五个打开方法共用 `#openMechanism`，状态 guard 移到 [gameplay-services](../../../desktop/host/gameplay-services.ts) |
-| [静态边界](../../../scripts/check-host-boundaries.mjs) | `desktop/` 不能直接调用 `.commitRound(` |
+| [immediate-action](../../../packages/core/src/application/immediate-action.ts) | 玩家即时行动的事实、场景迁移、观察和行动记录统一构造，复用 actionObservations |
+| [world-view](../../../packages/core/src/application/world-view.ts) | 由 apps/host/src/runtime/activity-world 移入，授权世界视图属于核心 |
+| [status-operations](../../../packages/core/src/application/status-operations.ts) | 许可解析、操作准入、结果解析、受众、选项和轮次计数；不读库、不执行脚本 |
+| [activity-lifecycle](../../../packages/core/src/application/activity-lifecycle.ts) | 开始、暂停、恢复、放弃、逃生的状态迁移，事件和结果观察；逃生不接收脚本输入 |
+| [activity-projection](../../../packages/core/src/application/activity-projection.ts) | 选项、许可过滤、表达和决策检查、结果解析、调度校验 |
+| [ActivityRuntime](../../../apps/host/src/runtime/activity-runtime.ts) | 删除只有测试才会走的本地随机序列和读取路径，统一由活动目录提供 |
+| [world-runtime](../../../apps/host/src/runtime/world-runtime.ts) | 五个打开方法共用 `#openMechanism`，状态 guard 移到 [gameplay-services](../../../apps/host/src/runtime/gameplay-services.ts) |
+| [静态边界](../../../scripts/check-host-boundaries.mjs) | `apps/host/src/` 不能直接调用 `.commitRound(` |
 
 没有新增包、事件、存档字段、Provider 方法或 HOST API 版本。脚本解释仍在 official-*，身份绑定、Store 与租约、外部能力和随机数记录留在宿主。
 
@@ -28,7 +28,7 @@
 
 由此明确了一处语义变化：统一观察后，行动者总能收到自己的结果。以前玩家路径上 `{ characters: [] }` 或只列别人时，玩家自己不收到结果观察。
 
-实施中还引入过一个回归并已修复：结果观察一度带上脚本替玩家说的台词，历史里出现两次。全量检查抓到了它，回归用例在 [immediate-action.test](../../../packages/application/src/immediate-action.test.ts)。
+实施中还引入过一个回归并已修复：结果观察一度带上脚本替玩家说的台词，历史里出现两次。全量检查抓到了它，回归用例在 [immediate-action.test](../../../packages/core/src/application/immediate-action.test.ts)。
 
 ## 行数：低于方案估算
 

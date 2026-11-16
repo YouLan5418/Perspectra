@@ -1,5 +1,5 @@
-import type { CharacterId, WorldAddress } from '@harness-world/contracts'
-import type { AuthorizedSourceStore } from '@harness-world/memory'
+import type { CharacterId, WorldAddress } from '@perspectra/sdk/contracts'
+import type { AuthorizedSourceStore } from '@perspectra/core/memory'
 
 /** This character's captured sources mentioning `text`: what they were allowed to experience. */
 export function sourcesMatching(

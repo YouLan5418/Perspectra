@@ -1,10 +1,10 @@
-import type { PlaySettings, ReadingPreferences, AudioPreferences } from '../../../desktop/play-settings.ts'
-import type { HostPluginSettings } from '../../../desktop/host-plugin-settings.ts'
-import type { PluginManifest } from '@harness-world/plugin-sdk'
+import type { PlaySettings, ReadingPreferences, AudioPreferences } from '@perspectra/host/play-settings'
+import type { HostPluginSettings } from '@perspectra/host/plugin-settings'
+import type { PluginManifest } from '@perspectra/sdk'
 export type { PluginManifest }
 /** What the launcher knows about a plugin file: its manifest, that it has none, or why it is unreadable. */
 export type PluginManifestInfo = { manifest: PluginManifest } | { missing: true } | { error: string }
-import type { PackRolePresets, RolePreset, RolePresetMapping } from '@harness-world/provider-chat/preset'
+import type { PackRolePresets, RolePreset, RolePresetMapping } from '@perspectra/providers/chat/preset'
 export type { PackRolePresets, RolePreset, RolePresetMapping }
 export interface PresetChoice extends RolePresetMapping {
   mode: 'auto' | 'global' | 'custom'
@@ -16,8 +16,8 @@ export type {
   DecisionTarget,
   CharacterModels,
   InstanceModels,
-} from '../../../desktop/model-connections.ts'
-import type { ModelConnection, InstanceModels } from '../../../desktop/model-connections.ts'
+} from '../../host/src/model-connections.ts'
+import type { ModelConnection, InstanceModels } from '../../host/src/model-connections.ts'
 export type ThinkingLevel = 'off' | 'low' | 'medium' | 'high'
 export interface CoreSnapshot {
   packs: { id: string; version: string; title: string; path: string; hash: string }[]
@@ -44,7 +44,7 @@ export interface CoreSnapshot {
     { kind: 'default' | 'custom'; mode: 'sandbox' | 'trusted'; digest: string; capabilities: string[] }
   >
   presets: {
-    library: import('@harness-world/provider-chat/preset-library').LibraryPreset[]
+    library: import('@perspectra/providers/chat/preset-library').LibraryPreset[]
     characters: Record<string, { id: string; name: string }[]>
     global: RolePreset
     instances: Record<string, PresetChoice>

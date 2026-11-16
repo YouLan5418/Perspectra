@@ -22,7 +22,7 @@
 
 ## 2. 交还写权限时怎样保留组件
 
-入口见 [WorldApplication](../../../packages/application/src/world-application.ts)、[RoundCoordinator](../../../packages/application/src/round-coordinator.ts)，宿主调用见 [WorldHostCore](../../../desktop/host/world-runtime.ts)。
+入口见 [WorldApplication](../../../packages/core/src/application/world-application.ts)、[RoundCoordinator](../../../packages/core/src/application/round-coordinator.ts)，宿主调用见 [WorldHostCore](../../../apps/host/src/runtime/world-runtime.ts)。
 
 1. 宿主在玩家提交、活动操作、自动开始、状态结算、NPC 激活及末端结算的常规交接处调用 `yieldWriter(address)`。
 2. 未挂载该分支时不额外创建组件；已挂载时只归还本协调器的写租约，并标记已归还。重复归还不重复处理，不影响其他写入方的租约。
@@ -38,7 +38,7 @@
 
 ## 3. 一步内怎样共享事件前缀
 
-源码见 [WorldStore](../../../packages/store-sqlite/src/world-store.ts)。`WorldHostCore.turn`、`activityAction`、`requestCharacter` 用 `withEventReadCache` 包住自身等待链，包括各自的收尾刷新。它覆盖 Core 操作；[TailRoundRuntime](../../../desktop/host/tail-runtime.ts)在其外侧执行的结算、备份、候选安装和恢复，不因此进入这个读取范围。
+源码见 [WorldStore](../../../packages/core/src/store/world-store.ts)。`WorldHostCore.turn`、`activityAction`、`requestCharacter` 用 `withEventReadCache` 包住自身等待链，包括各自的收尾刷新。它覆盖 Core 操作；[TailRoundRuntime](../../../apps/host/src/runtime/tail-runtime.ts)在其外侧执行的结算、备份、候选安装和恢复，不因此进入这个读取范围。
 
 AsyncLocalStorage 按调用上下文传递范围，服务不必在构造时接收缓存参数。同一步新开的 Store 连接也能复用；各 Store 仍独立拥有和关闭自己的 SQLite 连接。嵌套启用时复用当前活动范围，独立并发操作各自创建范围，不共享前缀表。
 
@@ -65,7 +65,7 @@ AsyncLocalStorage 按调用上下文传递范围，服务不必在构造时接�
 
 ## 4. 授权视图怎样避免重复投影
 
-源码见 [CharacterViewBuilder](../../../packages/store-sqlite/src/character-view.ts)。例如 A 看过自己的私密观察，后续记忆追赶与画面刷新又请求同一前缀，可以复用投影；B 仍必须取得自己的视图。
+源码见 [CharacterViewBuilder](../../../packages/core/src/store/character-view.ts)。例如 A 看过自己的私密观察，后续记忆追赶与画面刷新又请求同一前缀，可以复用投影；B 仍必须取得自己的视图。
 
 缓存以最后一条相关事件对象作为 WeakMap 的弱键，内部按地址、角色 ID 和目标序号区分。命中还要求相关事件数量、顺序和每个对象身份完全相同，不只比较最后一条事件或序号。每次入口仍检查目标序号不晚于当前世界头。
 
@@ -93,9 +93,9 @@ AsyncLocalStorage 按调用上下文传递范围，服务不必在构造时接�
 
 | 源码与证据 | 已确认的行为 | 修改时的验证路径 |
 | --- | --- | --- |
-| [分支复用回归](../../../packages/application/src/branch-runtime-reuse.test.ts) | 保留实例、交接后同步私密来源、竞争租约不被清理、失败与维护屏障 | 改交接时核对重新取得写权限、记忆同步及失败清理 |
-| [读取范围回归](../../../packages/store-sqlite/src/event-read-cache.test.ts) | 跨连接补读、旧前缀、分支／库隔离、并发、失败和过期后台任务、显式完整性验证 | 改范围时核对正确前缀、生命周期和损坏路径 |
-| [视图回归](../../../packages/store-sqlite/src/character-view.test.ts) | 私密过滤、删除事件、旧前缀和独立副本 | 改投影缓存时比较完整视图与 Hash，验证修改副本不影响后续调用 |
+| [分支复用回归](../../../packages/core/src/application/branch-runtime-reuse.test.ts) | 保留实例、交接后同步私密来源、竞争租约不被清理、失败与维护屏障 | 改交接时核对重新取得写权限、记忆同步及失败清理 |
+| [读取范围回归](../../../packages/core/src/store/event-read-cache.test.ts) | 跨连接补读、旧前缀、分支／库隔离、并发、失败和过期后台任务、显式完整性验证 | 改范围时核对正确前缀、生命周期和损坏路径 |
+| [视图回归](../../../packages/core/src/store/character-view.test.ts) | 私密过滤、删除事件、旧前缀和独立副本 | 改投影缓存时比较完整视图与 Hash，验证修改副本不影响后续调用 |
 | [45 步实测](../studies/2026-10-30_event-prefix-reuse-report.md) | 同一新包离线状态、转录、头、事件类型及完整授权视图一致 | 按同包、同配置复测，计数与无插桩耗时分别记录 |
 
 分支交接轮 139 项相关回归通过，含五项强制中断恢复；单步前缀轮 192 项通过，五项强制中断测试未重跑。文档合并不把这些既有结果表述为新执行的测试。真实模型、GUI、Tauri 与发行包仍未据本次优化验收。

@@ -1,7 +1,11 @@
 import { Context } from '@deepseek-ai/cordis'
 import { afterEach, expect, it } from 'vitest'
-import { brandId } from '@harness-world/contracts'
-import { HostCapabilities, type CapabilityProvider, type CapabilityWorld } from '../../desktop/host-capabilities.ts'
+import { brandId } from '@perspectra/sdk/contracts'
+import {
+  HostCapabilities,
+  type CapabilityProvider,
+  type CapabilityWorld,
+} from '../../apps/host/src/host-capabilities.ts'
 
 const contexts: Context[] = []
 afterEach(async () => {

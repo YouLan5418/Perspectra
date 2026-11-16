@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 import { syncBuiltinESMExports } from 'node:module'
 import { basename } from 'node:path'
-import { WorldHostRuntime } from '../../desktop/host/world-runtime.ts'
+import { WorldHostRuntime } from '../../apps/host/src/runtime/world-runtime.ts'
 import { fakeModels } from './fake-provider.ts'
 
 const config = JSON.parse(process.argv[2]!) as {

@@ -1,5 +1,5 @@
 import { readFile } from 'node:fs/promises'
-import { brandId, hashWorldJson, type InteractionPackageDescription } from '@harness-world/contracts'
+import { brandId, hashWorldJson, type InteractionPackageDescription } from '@perspectra/sdk/contracts'
 import { WorldPackCompilerV5, canonicalWorldPackBytesV5, verifyCompiledWorldPackV5 } from './compiler.ts'
 import type {
   CompiledWorldPackV5,
@@ -10,7 +10,7 @@ import type {
 import { WORLD_PACK_LIMITS_PROFILE_V2 } from './contracts.ts'
 import { parseStrictWorldJson } from './strict-json.ts'
 
-export async function readStrictJson(path: string): Promise<import('@harness-world/contracts').WorldJsonValue> {
+export async function readStrictJson(path: string): Promise<import('@perspectra/sdk/contracts').WorldJsonValue> {
   const bytes = await readFile(path)
   let text: string
   try {

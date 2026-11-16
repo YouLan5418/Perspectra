@@ -1,6 +1,6 @@
 import { expect, it } from 'vitest'
-import { StatusState } from '@harness-world/application'
-import { StatusScripts } from '@harness-world/official-status'
+import { StatusState } from '@perspectra/core'
+import { StatusScripts } from '@perspectra/providers/status'
 
 const moduleSource = `globalThis.packPlugin = {
   definition: {

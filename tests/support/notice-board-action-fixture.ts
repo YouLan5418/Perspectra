@@ -1,4 +1,4 @@
-import { officialCharacterLoop } from '@harness-world/official-character-loop'
+import { officialCharacterLoop } from '@perspectra/providers/character-loop'
 /** Lab-only evidence acquisition. A staff reply is speech, a terminal read is display evidence. */
 import {
   brandId,
@@ -9,12 +9,12 @@ import {
   type InteractionPackageImplementation,
   type WorldEventDraft,
   type WorldJsonObject,
-} from '@harness-world/contracts'
-import { interactionPackageHash } from '@harness-world/interaction-runtime'
+} from '@perspectra/sdk/contracts'
+import { interactionPackageHash } from '@perspectra/core/interactions'
 import { createNoticeBoardPackage, noticeBoardContext, noticeBoardResult } from './notice-board-capability.ts'
 import { conflictingBoardWorld, secondBoardId } from './notice-board-conflict-fixture.ts'
 import { openCapabilityWorld, npc, inspectDecision } from './notice-board-fixture.ts'
-import { CharacterTurn } from '../../packages/application/src/character-turn.ts'
+import { CharacterTurn } from '../../packages/core/src/application/character-turn.ts'
 
 export const askId = 'experiment:ask_staff',
   terminalId = 'experiment:inspect_terminal'

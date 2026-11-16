@@ -2,9 +2,9 @@ import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { expect, it } from 'vitest'
-import { WorldHostRuntime } from '../../desktop/host/world-runtime.ts'
-import { WorldStore } from '@harness-world/store-sqlite'
-import { currentEntityState } from '@harness-world/kernel'
+import { WorldHostRuntime } from '../../apps/host/src/runtime/world-runtime.ts'
+import { WorldStore } from '@perspectra/core/store'
+import { currentEntityState } from '@perspectra/core/kernel'
 import { fakeModels, startFakeProvider } from '../support/fake-provider.ts'
 
 for (const protocol of ['openai', 'anthropic', 'google'] as const) {

@@ -1,6 +1,6 @@
 import { createRequire } from 'node:module'
-import type { ContentGameplay } from '@harness-world/plugin-sdk'
-import { assembleRoleplay } from '../../desktop/official-bundle.ts'
+import type { ContentGameplay } from '@perspectra/sdk'
+import { assembleRoleplay } from '../../apps/host/src/official-bundle.ts'
 import { createRuntimeWithCore } from '../support/core-memory-options.ts'
 import {
   cpSync,
@@ -17,13 +17,18 @@ import {
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { afterEach, expect, it } from 'vitest'
-import type { WorldJsonObject } from '@harness-world/contracts'
-import { WorldStore } from '@harness-world/store-sqlite'
+import type { WorldJsonObject } from '@perspectra/sdk/contracts'
+import { WorldStore } from '@perspectra/core/store'
 import { sweetWithoutPacing } from '../support/sweet-without-pacing.ts'
-import { LensSimulation, matchAction, sweepStaleLensCopies, type LensStart } from '../../desktop/lens/simulation.ts'
-import { applyScenario, parseScenario } from '../../desktop/lens/scenario.ts'
-import { startStubModel } from '../../desktop/lens/stub-model.ts'
-import type { HostAction, HostState } from '../../desktop/host/http-server.ts'
+import {
+  LensSimulation,
+  matchAction,
+  sweepStaleLensCopies,
+  type LensStart,
+} from '../../apps/host/src/lens/simulation.ts'
+import { applyScenario, parseScenario } from '../../apps/host/src/lens/scenario.ts'
+import { startStubModel } from '../support/stub-model.ts'
+import type { HostAction, HostState } from '../../apps/host/src/runtime/http-server.ts'
 
 const PACK = sweetWithoutPacing()
 const PLAYER = 'character:player',

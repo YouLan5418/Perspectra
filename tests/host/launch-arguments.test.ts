@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { parseHostLaunchArguments } from '../../desktop/host/launch-arguments.ts'
-import { DEFAULT_RUNTIME_TUNING } from '../../desktop/host/runtime-tuning.ts'
+import { parseHostLaunchArguments } from '../../apps/host/src/runtime/launch-arguments.ts'
+import { DEFAULT_RUNTIME_TUNING } from '../../apps/host/src/runtime/runtime-tuning.ts'
 
 describe('creator playtest launch arguments', () => {
   it('accepts a v5 source directory and data directory in any order', () => {

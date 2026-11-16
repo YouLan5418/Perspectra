@@ -53,7 +53,7 @@ impl Bridge {
         } else if cfg!(debug_assertions) {
             let repository = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../..");
             command = Command::new("node");
-            command.current_dir(repository).args(["--import", "tsx", "desktop/launcher-entry.ts"])
+            command.current_dir(repository).args(["--import", "tsx", "apps/launcher/backend/entry.ts"])
                 .env_remove("PERSPECTRA_RUNTIME_ROOT");
         } else {
             return Err("便携包 runtime 目录缺失，请完整解压后启动。".into());

@@ -34,7 +34,7 @@ corepack pnpm@11.7.0 test:related tests/desktop/preset-library.test.ts tests/sce
 
 **实际结果**：索引内仍有两个实例，初始化对象能创建，但全局 `snapshot()` 抛出 JSON 解析异常。原生界面显示“我的游戏 0”“本机初始化未完成”，健康实例也不可选择。未观察到索引被改写或健康实例数据丢失。
 
-**原因**：`desktop/story-nodes.ts:17–22` 对可见节点直接读取并解析；`desktop/launcher-core.ts:149–161` 构建全局快照时同步读取所有实例故事节点，任意一个错误向上传播到整个快照。`apps/launcher/src/stores/launcher.ts:134` 在快照失败时无法完成初始化。
+**原因**：`apps/host/src/story-nodes.ts:17–22` 对可见节点直接读取并解析；`apps/launcher/backend/core.ts:149–161` 构建全局快照时同步读取所有实例故事节点，任意一个错误向上传播到整个快照。`apps/launcher/src/stores/launcher.ts:134` 在快照失败时无法完成初始化。
 
 **建议修复边界**：读取列表时将错误限定在对应实例/节点，显示明确的损坏提示并保留健康实例可用性；损坏节点继续禁止恢复、分叉和导出。不要自动修复、删除或将损坏文件视作有效节点，也不要吞掉错误假装正常。无需增加全局恢复系统。
 
@@ -46,7 +46,7 @@ corepack pnpm@11.7.0 test:related tests/desktop/preset-library.test.ts tests/sce
 
 **实际结果**：玩家输入已提交；角色预设展开失败。受控传输计数为 **0**，即没有实际模型请求，却显示“角色模型服务未完成请求”，调试结果为 `provider_failed`。失败角色没有提交后续行动或表达，未发现权限越界。
 
-**原因**：保存校验检查结构与长度，没有复用宏语法检查；宏在 `packages/provider-chat/src/preset-macros.ts:22` 展开时才拒绝。`tests/experiments/playtest-frozen-runtime.ts:196–197` 在请求准备阶段展开预设，抛出错误后被角色调用路径的 `provider_failed` 分类及 `playtest-frozen-runtime.ts:608` 提示覆盖。
+**原因**：保存校验检查结构与长度，没有复用宏语法检查；宏在 `packages/providers/src/chat/preset-macros.ts:22` 展开时才拒绝。`tests/experiments/playtest-frozen-runtime.ts:196–197` 在请求准备阶段展开预设，抛出错误后被角色调用路径的 `provider_failed` 分类及 `playtest-frozen-runtime.ts:608` 提示覆盖。
 
 **建议修复边界**：为启用节点复用宏解析规则，保存与导入前拒绝确定无效的宏，指出节点和错误；不应依赖玩家手动打开预览。保留调用前的运行校验，并将预设准备失败与网络/模型服务失败分开提示。不要通过猜测替换未知宏，或调用模型修复配置。需要明确语法检查与依赖实际上下文的求值检查的区别。
 
@@ -67,7 +67,7 @@ Launcher 的全局快照在每个实例的故事历史读取边界捕获错误�
 
 有意识接受的粒度：一个节点损坏时，该实例整份历史暂不可用于分叉，不尝试拼接不完整的父子链。该实例的当前游戏进度不是由快照错误自动判定为损坏；启动仍经过原有运行校验。健康实例不受影响。
 
-变更：`desktop/launcher-core.ts`、Launcher 的 `core-types.ts` / `types.ts`、`GameDetail.vue` / `StorylineDialog.vue`。
+变更：`apps/launcher/backend/core.ts`、Launcher 的 `core-types.ts` / `types.ts`、`GameDetail.vue` / `StorylineDialog.vue`。
 
 ### 6.2 宏输入校验与错误分类
 
@@ -77,7 +77,7 @@ Launcher 的全局快照在每个实例的故事历史读取边界捕获错误�
 
 请求准备期间的预设展开或文本处理失败分类为 `preset_failed`，使用“角色预设处理失败，请检查提示节点与文本规则”；网络请求失败仍为 `provider_failed`。取消信号保持原有中断行为，详细错误原因不进入玩家输出。
 
-变更：`desktop/model-presets.ts`、`packages/provider-chat/src/preset.ts` / `preset-macros.ts` / `preset-library.ts`、`packages/application/src/prototype-character-turn.ts`、`tests/experiments/playtest-frozen-runtime.ts`。
+变更：`apps/host/src/model-presets.ts`、`packages/providers/src/chat/preset.ts` / `preset-macros.ts` / `preset-library.ts`、`packages/core/src/application/prototype-character-turn.ts`、`tests/experiments/playtest-frozen-runtime.ts`。
 
 ### 6.3 复验结果
 

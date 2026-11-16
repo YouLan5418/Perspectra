@@ -2,12 +2,12 @@ import { createRoleplayCore } from '../support/roleplay-runtime.ts'
 import { cpSync, mkdirSync, writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import assert from 'node:assert/strict'
-import { type WorldJsonObject } from '@harness-world/contracts'
-import { WorldStore } from '@harness-world/store-sqlite'
-import { currentEntityState } from '@harness-world/kernel'
-import { playSettings } from '../../desktop/play-settings.ts'
-import { projectPlayerView } from '../../desktop/host/frontend-adapter.ts'
-import { environmentRoleModels } from '../../desktop/model-connections.ts'
+import { type WorldJsonObject } from '@perspectra/sdk/contracts'
+import { WorldStore } from '@perspectra/core/store'
+import { currentEntityState } from '@perspectra/core/kernel'
+import { playSettings } from '../../apps/host/src/play-settings.ts'
+import { projectPlayerView } from '../../apps/host/src/runtime/frontend-adapter.ts'
+import { environmentRoleModels } from '../../apps/host/src/model-connections.ts'
 if (!process.argv[2]) throw new TypeError('用法：tests/experiments/official-demo-live-cake.ts <official-demo-live 的输出目录；其中须含 life/>')
 const root=resolve(process.argv[2]),directory=join(root,'cake-'+Date.now());mkdirSync(directory,{recursive:true});cpSync(join(root,'life'),directory,{recursive:true})
 const settings=playSettings({reactionDeadlineSeconds:120,publicationCharacters:600})

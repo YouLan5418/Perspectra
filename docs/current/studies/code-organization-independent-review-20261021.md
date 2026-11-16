@@ -14,11 +14,11 @@
 
 | 范围 | 结论与实现入口 |
 | --- | --- |
-| 玩家与 NPC 观察统一 | [action-observations.ts](../../../packages/application/src/action-observations.ts)保留完整/仅知发生的区别，移动起点与终点按见证权限分别交付；两条调用路径仍经过裁定和原子提交。玩家的完整原话仍受所有步骤受众条件限制 |
-| WorldApplication 拆分 | [只读查询](../../../packages/application/src/world-read-queries.ts)、[管理操作](../../../packages/application/src/world-administration.ts)沿用分支访问与完整性守卫；这属于职责整理，不构成新的玩家权限接口 |
-| 旧 Reaction Cycle 删除 | [world-schema.ts](../../../packages/store-sqlite/src/world-schema.ts)的 v20 删除旧表，当前 NPC 激活走现行角色路径。曾运行旧 Cycle 的存档不再保证可用，这是分支记录中已明确接受的不兼容范围；本轮未操作历史存档 |
-| 宿主激活拆分 | [world-runtime.ts](../../../desktop/host/world-runtime.ts)仍先处理活动机会，再处理场景反应与自主机会；规则提交、权限投影和预算保持现行路径 |
-| Core 文件迁移与发行路径 | [Python 路径](../../../packages/official-memory-core/src/python-paths.ts)区分源码与安装根，[复制脚本](../../../scripts/build/copy-memory-runtime.mjs)共用运行载荷；自动测试覆盖隔离布局，本轮进一步验证构建产物用真实 Core 重开 |
+| 玩家与 NPC 观察统一 | [action-observations.ts](../../../packages/core/src/application/action-observations.ts)保留完整/仅知发生的区别，移动起点与终点按见证权限分别交付；两条调用路径仍经过裁定和原子提交。玩家的完整原话仍受所有步骤受众条件限制 |
+| WorldApplication 拆分 | [只读查询](../../../packages/core/src/application/world-read-queries.ts)、[管理操作](../../../packages/core/src/application/world-administration.ts)沿用分支访问与完整性守卫；这属于职责整理，不构成新的玩家权限接口 |
+| 旧 Reaction Cycle 删除 | [world-schema.ts](../../../packages/core/src/store/world-schema.ts)的 v20 删除旧表，当前 NPC 激活走现行角色路径。曾运行旧 Cycle 的存档不再保证可用，这是分支记录中已明确接受的不兼容范围；本轮未操作历史存档 |
+| 宿主激活拆分 | [world-runtime.ts](../../../apps/host/src/runtime/world-runtime.ts)仍先处理活动机会，再处理场景反应与自主机会；规则提交、权限投影和预算保持现行路径 |
+| Core 文件迁移与发行路径 | [Python 路径](../../../packages/memory-core/src/python-paths.ts)区分源码与安装根，[复制脚本](../../../scripts/build/copy-memory-runtime.mjs)共用运行载荷；自动测试覆盖隔离布局，本轮进一步验证构建产物用真实 Core 重开 |
 | 格式化与 Launcher | 核对已修复的多语句 Vue 处理器、provider-chat 子路径导入；实际执行两次 Vite 构建，避免只依赖类型检查 |
 
 仍存在可选的进一步整理：玩家与 NPC 的 Authority 构造、提交编排未完全合并，WorldHostCore 和部分 schema 文件仍较大。这些不作为本轮必须扩大的实施范围。
@@ -50,7 +50,7 @@
 
 条件场景复用[既有驱动](../../../tests/experiments/knowledge-conditions-playtest.ts)，只在忽略目录的副本中替换官方认证、端点与模型，保留原测试场景和独立选择预期。涵盖场景人物、物品可见/保管、私语刺激、本人背景、状态新鲜度与活动本人私有材料。角色先明确旧余额 100 不确定，实际 perform 查看后才回答 130。活动里按作者提供的机会讲解自己的纸签，没有猜测别人或内部答案；但“纸料阴干、竹炭吸湿”等细节仍是模型扩写。
 
-正式宿主组通过真实 HTTP API 驱动[web-entry.ts](../../../desktop/host/web-entry.ts)，默认 Python/E5 Core，未替换成原生记忆或 mock。启动请求采集后，对所有候选的记录按 record ID 去重，得到 20 次角色调用。私语检测结果：留守者 8 次实际请求均未包含虚构暗号，其 Core 档案也未包含；同行者的档案包含暗号，重开后私下复述正确。
+正式宿主组通过真实 HTTP API 驱动[web-entry.ts](../../../apps/host/src/runtime/web-entry.ts)，默认 Python/E5 Core，未替换成原生记忆或 mock。启动请求采集后，对所有候选的记录按 record ID 去重，得到 20 次角色调用。私语检测结果：留守者 8 次实际请求均未包含虚构暗号，其 Core 档案也未包含；同行者的档案包含暗号，重开后私下复述正确。
 
 两个角色的 Core 均安装前缀 148，约 15.2 秒完成：同行者 55 条 facts / 5 个 episodes / 4 条 observations，留守者 33 / 4 / 6。保存节点后通过 IPC 正常关闭源码后端，再用刚构建的 `dist/backend/playtest.mjs` 打开同一实例；转录、角色位置、物品状态以及两角色已安装档案逐项一致。再次对话成功，末端重新生成得到 2 个候选。此组未执行候选切回、历史节点恢复或分享导入。
 
@@ -62,8 +62,8 @@
 
 | 证据 | 发现 | 后续定位路径 |
 | --- | --- | --- |
-| 宿主 `turns.json` 的 player-take，seq42、48、54；`analysis.json` 的 jarAt54 | 留守者先说“壶我先留着”“壶我拿着”，同行者 seq48 附和“壶他留着”；截至 seq54 壶仍为前室、无保管者。不是单纯触碰描写；另一角色已经短暂采用了未经裁定的保管说法 | [角色回合](../../../packages/application/src/character-turn.ts)、[模型上下文呈现](../../../packages/provider-chat/src/character-context-text.ts) |
-| world 事件 seq68 的 `entity.transferred` 与最终 creator 真值 | 下一轮留守者才正式 take；最终保温壶由留守者保管，钥匙由玩家保管，完整性校验通过。文本没有直接修改数据库，但不能据此称语义一致性已经通过 | [基础交互](../../../packages/interactions-basic/src/index.ts)、[宿主](../../../desktop/host/world-runtime.ts) |
+| 宿主 `turns.json` 的 player-take，seq42、48、54；`analysis.json` 的 jarAt54 | 留守者先说“壶我先留着”“壶我拿着”，同行者 seq48 附和“壶他留着”；截至 seq54 壶仍为前室、无保管者。不是单纯触碰描写；另一角色已经短暂采用了未经裁定的保管说法 | [角色回合](../../../packages/core/src/application/character-turn.ts)、[模型上下文呈现](../../../packages/providers/src/chat/character-context-text.ts) |
+| world 事件 seq68 的 `entity.transferred` 与最终 creator 真值 | 下一轮留守者才正式 take；最终保温壶由留守者保管，钥匙由玩家保管，完整性校验通过。文本没有直接修改数据库，但不能据此称语义一致性已经通过 | [基础交互](../../../packages/plugins/src/basic-interactions/index.ts)、[宿主](../../../apps/host/src/runtime/world-runtime.ts) |
 | [较早整理版本的官方试玩](code-organization-deepseek-playtest-20261021.md)已记录相似表现 | 当前样本再次复现，未证明是后续整理新增，也未证明已修复 | 对该具体场景做最小同模型复核；本轮不追加语义模型、过滤阶段或闭合动作枚举 |
 
 条件场景中仍有重复确认和自行补充场景细节；宿主样本一轮触及反应预算。它们不构成已证明的程序权限漏洞，但属于继续改善体验的依据。

@@ -1,13 +1,13 @@
 import assert from 'node:assert/strict'
 import { appendFileSync, mkdirSync, writeFileSync } from 'node:fs'
 import { resolve, join } from 'node:path'
-import { brandId, type WorldJsonObject } from '@harness-world/contracts'
-import { createChatProvider, characterTurnCall, type ChatCall } from '@harness-world/provider-chat'
+import { brandId, type WorldJsonObject } from '@perspectra/sdk/contracts'
+import { createChatProvider, characterTurnCall, type ChatCall } from '@perspectra/providers/chat'
 import { runActivations } from '../support/run-activations.ts'
-import { gatewayTurnCall } from '../../packages/official-llm/src/gateway-turn-call.ts'
+import { gatewayTurnCall } from '../../packages/providers/src/llm/gateway-turn-call.ts'
 import { crossSceneRuntime } from '../support/cross-scene-runtime.ts'
 import { CrossScenePhone, phoneCalls } from '../support/cross-scene-phone.ts'
-import { decideWithFormatRetry } from '../../desktop/host/decision-format.ts'
+import { decideWithFormatRetry } from '../../apps/host/src/runtime/decision-format.ts'
 
 const directory = process.argv[2], medium = process.argv[3]
 if (!directory || !['sms', 'phone'].includes(medium ?? '')) throw new TypeError('用法：指定新目录与 sms 或 phone')

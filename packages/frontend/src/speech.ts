@@ -1,9 +1,9 @@
-import type { FrontendSpeechAudio, FrontendSpeechInput } from '@harness-world/contracts'
+import type { FrontendSpeechAudio, FrontendSpeechInput } from '@perspectra/sdk/contracts'
 import type { PlayerView } from './player-view.ts'
 import type { stagePreferences } from './stage-preferences.ts'
 import type { FrontendBgmService } from './bgm.ts'
 
-export type { FrontendSpeechAudio, FrontendSpeechInput } from '@harness-world/contracts'
+export type { FrontendSpeechAudio, FrontendSpeechInput } from '@perspectra/sdk/contracts'
 
 /** Optional host service; implementations own provider configuration and any cache. */
 export interface FrontendHostServices {

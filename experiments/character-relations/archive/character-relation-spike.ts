@@ -4,7 +4,7 @@ import {
   deterministicId,
   type WorldAddress,
   type WorldEventDraft,
-} from '@harness-world/contracts'
+} from '@perspectra/sdk/contracts'
 
 export interface PrototypeResolution {
   readonly status: 'accepted' | 'rejected'

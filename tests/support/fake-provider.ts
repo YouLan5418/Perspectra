@@ -1,6 +1,6 @@
 import { createServer, type IncomingMessage, type RequestListener, type ServerResponse } from 'node:http'
-import type { ProviderProtocol } from '@harness-world/provider-chat'
-import type { RuntimeRoleModels } from '../../desktop/model-connections.ts'
+import type { ProviderProtocol } from '@perspectra/providers/chat'
+import type { RuntimeRoleModels } from '../../apps/host/src/model-connections.ts'
 
 /** What the fake endpoint was asked. `userText` is the last user turn's plain text, whatever shape the protocol uses. */
 export interface FakeProviderCall {

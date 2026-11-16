@@ -1,5 +1,5 @@
-import type { SeamProvider, StatusInstance } from '@harness-world/plugin-sdk'
-import { StatusScripts } from '@harness-world/official-status'
+import type { SeamProvider, StatusInstance } from '@perspectra/sdk'
+import { StatusScripts } from '@perspectra/providers/status'
 import { Context } from '@deepseek-ai/cordis'
 import { type Server } from 'node:http'
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
@@ -7,20 +7,20 @@ import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { afterEach, expect, it } from 'vitest'
-import { interactionPackageDescription, type WorldJsonObject } from '@harness-world/contracts'
-import { createInstalledInteractionPackages } from '@harness-world/interactions-basic'
-import { compileWorldPackSource } from '@harness-world/world-pack'
-import { WorldStore } from '@harness-world/store-sqlite'
-import { WorldHostRuntime } from '../../desktop/host/world-runtime.ts'
-import { projectPlayerView } from '../../desktop/host/frontend-adapter.ts'
+import { interactionPackageDescription, type WorldJsonObject } from '@perspectra/sdk/contracts'
+import { createInstalledInteractionPackages } from '@perspectra/plugins/basic-interactions'
+import { compileWorldPackSource } from '@perspectra/world-pack'
+import { WorldStore } from '@perspectra/core/store'
+import { WorldHostRuntime } from '../../apps/host/src/runtime/world-runtime.ts'
+import { projectPlayerView } from '../../apps/host/src/runtime/frontend-adapter.ts'
 import { statusFromSource } from '../support/status-runtime.ts'
-import { PackModules } from '../../desktop/host/pack-modules.ts'
+import { PackModules } from '../../apps/host/src/runtime/pack-modules.ts'
 import {
   HostCapabilities,
   MissingCapabilityError,
   type CapabilityProvider,
   type CapabilityWorld,
-} from '../../desktop/host-capabilities.ts'
+} from '../../apps/host/src/host-capabilities.ts'
 import { createChatServer, fakeModels } from '../support/fake-provider.ts'
 
 const PLAYER = 'character:player',

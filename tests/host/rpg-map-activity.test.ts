@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import { join } from 'node:path'
-import { brandId, type WorldJsonObject } from '@harness-world/contracts'
-import { CharacterViewBuilder, WorldStore } from '@harness-world/store-sqlite'
+import { brandId, type WorldJsonObject } from '@perspectra/sdk/contracts'
+import { CharacterViewBuilder, WorldStore } from '@perspectra/core/store'
 import { openRpgFixture, type RpgFixture, type RpgFixtureOptions } from '../support/rpg-fixture.ts'
 
 const PLAYER = 'character:player',

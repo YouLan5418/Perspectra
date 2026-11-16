@@ -14,7 +14,7 @@ import {
   SlidersHorizontal,
   Users,
 } from '@lucide/vue'
-import type { LensSection } from '../../../../desktop/lens/view.ts'
+import type { LensSection } from '@perspectra/world-pack/lens/view'
 import { useLensStore, type LensViewName } from './store.ts'
 import { SECTION_LABEL } from './format.ts'
 import CharactersLens from './CharactersLens.vue'

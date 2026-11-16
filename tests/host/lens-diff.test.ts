@@ -1,6 +1,6 @@
 import { expect, it } from 'vitest'
-import { diffLensViews } from '../../desktop/lens/diff.ts'
-import type { LensField, LensItem, LensView } from '../../desktop/lens/view.ts'
+import { diffLensViews } from '../../packages/world-pack/src/lens/diff.ts'
+import type { LensField, LensItem, LensView } from '../../packages/world-pack/src/lens/view.ts'
 
 const item = (id: string, fields: LensField[], pointer = '/a/0'): LensItem => ({
   id,

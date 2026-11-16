@@ -2,7 +2,7 @@ import { EventEmitter, once } from 'node:events'
 import { createServer, Server } from 'node:http'
 import type { AddressInfo } from 'node:net'
 import { afterEach, expect, it } from 'vitest'
-import { BLOCKED_PORTS, listenOnSafePort } from '../../desktop/safe-port.ts'
+import { BLOCKED_PORTS, listenOnSafePort } from '../../apps/host/src/safe-port.ts'
 import { avoidBlockedPorts } from '../support/avoid-blocked-ports.ts'
 
 const open: Server[] = []

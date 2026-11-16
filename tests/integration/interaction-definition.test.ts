@@ -6,10 +6,10 @@ import {
   type InteractionHostContext,
   type InteractionPackageImplementation,
   type InteractionWorldSelection,
-} from '@harness-world/contracts'
-import { InteractionRegistry, interactionPackageHash } from '@harness-world/interaction-runtime'
+} from '@perspectra/sdk/contracts'
+import { InteractionRegistry, interactionPackageHash } from '@perspectra/core/interactions'
 import { createItemCustodyTestPackage } from '../fixtures/item-custody-package.ts'
-import { currentEntityState, type RulebookEvent } from '@harness-world/kernel'
+import { currentEntityState, type RulebookEvent } from '@perspectra/core/kernel'
 import {
   immutable,
   integer,
@@ -21,7 +21,7 @@ import {
   reference,
   target,
   text,
-} from '../../packages/interaction-runtime/src/validation.ts'
+} from '../../packages/core/src/interactions/validation.ts'
 
 const address = {
   tenantId: brandId('tenant:i1', 'TenantId'),

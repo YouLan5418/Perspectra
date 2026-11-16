@@ -8,14 +8,14 @@
 
 | 层 | 当前入口 | 职责 |
 | --- | --- | --- |
-| 数据契约 | [contracts/status](../../../packages/contracts/src/status.ts)、[plugin-sdk](../../../packages/plugin-sdk/src/index.ts) | 既有状态／操作／事件数据类型与脚本限额；StatusSource、StatusInstance、ctx.status |
-| 核心状态事实与授权投影 | [StatusState](../../../packages/application/src/status-state.ts) | 检查声明、值、Schema、归属、活动范围、告知对象与真实值；truth／known／playerTruth、初始值和轮末结果校验；不含 VM 或存储 |
-| 内部机制 | [official-status](../../../packages/official-status/src/index.ts)、[模块脚本适配](../../../packages/official-status/src/modules.ts) | 解释 statusScript 与 packPlugin，组合现有脚本，计算 policy／resolve／轮末与 prepare；只返回数据 |
-| 宿主资产与执行适配 | [status-source](../../../desktop/host/status-source.ts)、[StatusRuntime](../../../desktop/host/status-runtime.ts) | 校验资产；准备真实执行者和授权场景；重查许可、角色参数与物品可达性；把合法结果交 M2 核心执行 |
-| 原生能力桥 | [PackModules](../../../desktop/host/pack-modules.ts) | 读取声明与锁定模块文本、核对依赖／方法、调用所选机制 prepareModule；管理异步原生调用、暂存结果、提交确认及失败清理，不执行 VM |
-| 默认装配与交付 | [official-bundle](../../../desktop/official-bundle.ts)、[加载器](../../../desktop/host-plugins.ts)、Launcher | 通过 Cordis effect 注册官方默认，选择与实现分开；缺失槽位由默认组合提供，已选机制打开失败不回退 |
+| 数据契约 | [contracts/status](../../../packages/sdk/src/contracts/status.ts)、[plugin-sdk](../../../packages/sdk/src/index.ts) | 既有状态／操作／事件数据类型与脚本限额；StatusSource、StatusInstance、ctx.status |
+| 核心状态事实与授权投影 | [StatusState](../../../packages/core/src/application/status-state.ts) | 检查声明、值、Schema、归属、活动范围、告知对象与真实值；truth／known／playerTruth、初始值和轮末结果校验；不含 VM 或存储 |
+| 内部机制 | [official-status](../../../packages/providers/src/status/index.ts)、[模块脚本适配](../../../packages/providers/src/status/modules.ts) | 解释 statusScript 与 packPlugin，组合现有脚本，计算 policy／resolve／轮末与 prepare；只返回数据 |
+| 宿主资产与执行适配 | [status-source](../../../apps/host/src/runtime/status-source.ts)、[StatusRuntime](../../../apps/host/src/runtime/status-runtime.ts) | 校验资产；准备真实执行者和授权场景；重查许可、角色参数与物品可达性；把合法结果交 M2 核心执行 |
+| 原生能力桥 | [PackModules](../../../apps/host/src/runtime/pack-modules.ts) | 读取声明与锁定模块文本、核对依赖／方法、调用所选机制 prepareModule；管理异步原生调用、暂存结果、提交确认及失败清理，不执行 VM |
+| 默认装配与交付 | [official-bundle](../../../apps/host/src/official-bundle.ts)、[加载器](../../../apps/host/src/host-plugins.ts)、Launcher | 通过 Cordis effect 注册官方默认，选择与实现分开；缺失槽位由默认组合提供，已选机制打开失败不回退 |
 
-旧 desktop/host/pack-status.ts 已删除，不保留代理类或第二套实现。状态规则解释不再由 WorldGameplay 自行选择；它接收已准备好的 StatusRuntime。活动当前仍在宿主，复用此适配的状态查询和 activityEvent，不运行另一套状态解释器。
+旧 apps/host/src/runtime/pack-status.ts 已删除，不保留代理类或第二套实现。状态规则解释不再由 WorldGameplay 自行选择；它接收已准备好的 StatusRuntime。活动当前仍在宿主，复用此适配的状态查询和 activityEvent，不运行另一套状态解释器。
 
 Lens 起点重写与分享导入仍明确使用官方只读预检组合，复用同一个 StatusScripts／StatusState，已移除旧静态加载调用。它们尚不加载任意用户解释器处理预检；完整创作者查询与扩展装配收口留给 M6。
 

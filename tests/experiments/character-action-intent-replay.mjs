@@ -2,9 +2,9 @@
 import { readFileSync, writeFileSync, mkdirSync, mkdtempSync } from 'node:fs'
 import { resolve, join } from 'node:path'
 import Ajv from 'ajv'
-import { gatewayTurnCall } from '../../packages/official-llm/src/gateway-turn-call.ts'
-import { characterActionIntentPrinciples, characterTurnCall } from '../../packages/provider-chat/src/character-turn-call.ts'
-import { characterActionExplanations, characterActionExplanationsNote } from '../../packages/provider-chat/src/character-action-explanations.ts'
+import { gatewayTurnCall } from '../../packages/providers/src/llm/gateway-turn-call.ts'
+import { characterActionIntentPrinciples, characterTurnCall } from '../../packages/providers/src/chat/character-turn-call.ts'
+import { characterActionExplanations, characterActionExplanationsNote } from '../../packages/providers/src/chat/character-action-explanations.ts'
 
 const base=resolve('output/interaction-continuity')
 const source=join(base,'comparison-wzCBNH','perform-availability-review.json')

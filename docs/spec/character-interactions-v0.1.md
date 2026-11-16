@@ -392,12 +392,12 @@ Memory 文案只能陈述可观察行为。例如“玩家牵住了 Alice 的手
 |---:|---|---|---|
 | P0 | `docs/adr/ADR-0087-*`、本规格 | 冻结产品语义、版本与非目标 | Proposed 被误当作已授权实现 |
 | P0 | `packages/contracts` | Resolution Authority、PlayerSubmission、Relation Event/Observation、候选 Round Authority 升级 | Hash 与历史协议漂移 |
-| P0 | `packages/kernel/src/world-spec.ts` | Manifest v9、interaction-catalog/v2、Registry Hash、严格解析 | 旧 Manifest 被隐式升级 |
-| P0 | `packages/kernel/src/interactions.ts` | 拆分目录解析、Affordance 与闭合 operation resolver；增加关系前缀重建 | 通用 interact 退化为任意效果 DSL |
-| P0 | `packages/kernel/src/rulebook.ts`、Registry | 接收可信 Authority；move/lifecycle 联动结束关系；复用 Core Resolver `builtin:speak-move@2`，仅由 Manifest v9 capability gate 开启新语义 | 特权可伪造、历史 @3 被误用或版本 fallback |
-| P0 | `packages/application/src/round-coordinator.ts` | 玩家组预裁定、S1、phase 0 组、Authority 与 provisional/final 绑定 | 候选与正式 Event 分歧 |
-| P0 | `packages/application/src/context-pipeline.ts` | 用 S1 生成 direct target Affordance，先裁剪再 Recall/Renderer | 提交前隐私泄漏 |
-| P1 | `packages/application/src/player-input.ts`、WorldApplication | player-intent/v1 状态机、clarification、Round enqueue | 重试改写、FIFO 旁路、额外延迟 |
+| P0 | `packages/core/src/kernel/world-spec.ts` | Manifest v9、interaction-catalog/v2、Registry Hash、严格解析 | 旧 Manifest 被隐式升级 |
+| P0 | `packages/core/src/kernel/interactions.ts` | 拆分目录解析、Affordance 与闭合 operation resolver；增加关系前缀重建 | 通用 interact 退化为任意效果 DSL |
+| P0 | `packages/core/src/kernel/rulebook.ts`、Registry | 接收可信 Authority；move/lifecycle 联动结束关系；复用 Core Resolver `builtin:speak-move@2`，仅由 Manifest v9 capability gate 开启新语义 | 特权可伪造、历史 @3 被误用或版本 fallback |
+| P0 | `packages/core/src/application/round-coordinator.ts` | 玩家组预裁定、S1、phase 0 组、Authority 与 provisional/final 绑定 | 候选与正式 Event 分歧 |
+| P0 | `packages/core/src/application/context-pipeline.ts` | 用 S1 生成 direct target Affordance，先裁剪再 Recall/Renderer | 提交前隐私泄漏 |
+| P1 | `packages/core/src/application/player-input.ts`、WorldApplication | player-intent/v1 状态机、clarification、Round enqueue | 重试改写、FIFO 旁路、额外延迟 |
 | P1 | `packages/store-sqlite` | 解释终态、Authority/Logical 迁移、Crash 恢复 | 部分写入或旧库误开 |
 | P1 | `packages/memory`、Presenter、Session | 关系 Observation 捕获与确定性呈现 | 把行为提升为心理事实 |
 | P1 | World Pack / creator CLI | v2 目录校验、示例和激活入口 | 文案伪装成额外语义 |
@@ -583,11 +583,11 @@ Memory 文案只能陈述可观察行为。例如“玩家牵住了 Alice 的手
 
 | ID | 不可变观察 | 来源 |
 |---|---|---|
-| E-001 | v8 已有声明式目录、闭合 operation、最新前缀重验和动态 Affordance | `packages/kernel/src/interactions.ts`、ADR-0086 |
-| E-002 | 玩家基础裁定发生在 Provider 调用前；现有协调器已把名为 `world-player-candidate-s1` 的 Hash 传入 `#freezeParticipants`，最终玩家 Action 再于 phase 0 进入候选前缀。该 Hash 尚未绑定 provisional Event、Observation、Affordance 或 rule trace | `packages/application/src/round-coordinator.ts` |
-| E-003 | Root NPC Context 当前只携带 playerAction，Affordance 仍基于旧 history | `packages/application/src/context-pipeline.ts` |
-| E-004 | 生产普通文本仍直接成为 speak，显式动作依赖命令 | `packages/application/src/player-input.ts`、实施规格 D-003 |
-| E-005 | Round Authority 已保存 sourceRole、完整 Action、Resolution 与 ruleTraceHash | ADR-0044、`packages/application/src/round-coordinator.ts` |
+| E-001 | v8 已有声明式目录、闭合 operation、最新前缀重验和动态 Affordance | `packages/core/src/kernel/interactions.ts`、ADR-0086 |
+| E-002 | 玩家基础裁定发生在 Provider 调用前；现有协调器已把名为 `world-player-candidate-s1` 的 Hash 传入 `#freezeParticipants`，最终玩家 Action 再于 phase 0 进入候选前缀。该 Hash 尚未绑定 provisional Event、Observation、Affordance 或 rule trace | `packages/core/src/application/round-coordinator.ts` |
+| E-003 | Root NPC Context 当前只携带 playerAction，Affordance 仍基于旧 history | `packages/core/src/application/context-pipeline.ts` |
+| E-004 | 生产普通文本仍直接成为 speak，显式动作依赖命令 | `packages/core/src/application/player-input.ts`、实施规格 D-003 |
+| E-005 | Round Authority 已保存 sourceRole、完整 Action、Resolution 与 ruleTraceHash | ADR-0044、`packages/core/src/application/round-coordinator.ts` |
 | E-006 | 自由表现文本曾把未裁定移动传播到 Observation/Memory | 真实试玩缺陷记录与 ADR-0085 的闭合表现纠偏 |
 | E-007 | DeepSeek 无效率从 46% 降至 5.9%，qwen 仍为 4/4 拒绝；去掉组合子后小样本 2/2 接受 | `docs/archive/prototype-g1-g4/2026-09-10_修复后真实模型复测记录.md` |
 

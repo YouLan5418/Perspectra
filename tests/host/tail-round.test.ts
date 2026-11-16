@@ -8,20 +8,20 @@ import { join, resolve } from 'node:path'
 import { randomUUID } from 'node:crypto'
 import { afterEach, expect, it, vi } from 'vitest'
 import { DatabaseSync } from 'node:sqlite'
-import { CharacterViewBuilder, WorldStore } from '@harness-world/store-sqlite'
-import { currentEntityState } from '@harness-world/kernel'
-import { brandId, type WorldJsonObject } from '@harness-world/contracts'
-import { WorldHostRuntime } from '../../desktop/host/world-runtime.ts'
-import type { CoreRunner } from '../../packages/official-memory-core/src/python-worker.ts'
+import { CharacterViewBuilder, WorldStore } from '@perspectra/core/store'
+import { currentEntityState } from '@perspectra/core/kernel'
+import { brandId, type WorldJsonObject } from '@perspectra/sdk/contracts'
+import { WorldHostRuntime } from '../../apps/host/src/runtime/world-runtime.ts'
+import type { CoreRunner } from '../../packages/memory-core/src/python-worker.ts'
 import { knownTime, statusMarketWithoutRoundHook } from '../fixtures/status-market-no-hook.ts'
-import { readTailSelection } from '../../desktop/tail-storage.ts'
-import { readStoryNodes } from '../../desktop/story-nodes.ts'
-import { preflightSave } from '../../desktop/save-preflight.ts'
+import { readTailSelection } from '../../apps/host/src/tail-storage.ts'
+import { readStoryNodes } from '../../apps/host/src/story-nodes.ts'
+import { preflightSave } from '../../apps/host/src/save-preflight.ts'
 import { frontendActionRequest, playerViewPatch } from '../../packages/frontend/src/player-view.ts'
-import { FrontendActions, projectPlayerView } from '../../desktop/host/frontend-adapter.ts'
+import { FrontendActions, projectPlayerView } from '../../apps/host/src/runtime/frontend-adapter.ts'
 import { itemDecision, withItemRules } from '../support/item-rules.ts'
 import { Context } from '@deepseek-ai/cordis'
-import { PlayerFeed, type PlayerFeedEvent, type PlayerFeedLine } from '../../desktop/host-plugins.ts'
+import { PlayerFeed, type PlayerFeedEvent, type PlayerFeedLine } from '../../apps/host/src/host-plugins.ts'
 import { createChatServer, fakeModels } from '../support/fake-provider.ts'
 
 const roots: string[] = [],
@@ -469,7 +469,7 @@ it('does not install a completed background archive during a round and discards 
   await f.runtime.waitForMemory()
   expect(readdirSync(join(f.data, 'memory-core')).filter(n => n.endsWith('.json'))).toHaveLength(2)
 
-  const { CoreMemoryAdapter } = await import('../../packages/official-memory-core/src/core-memory.ts')
+  const { CoreMemoryAdapter } = await import('../../packages/memory-core/src/core-memory.ts')
   let valid = true,
     releaseExpired!: () => void,
     expiredEntered!: () => void
@@ -614,7 +614,7 @@ it('preserves private observation boundaries in candidate contexts and refuses a
   const companion = f.requests.filter(input => actor(input) === 'character:companion')
   expect(JSON.stringify(friend)).not.toContain('银杏电台')
   expect(JSON.stringify(companion)).toContain('银杏电台')
-  const { WorldApplication } = await import('@harness-world/application')
+  const { WorldApplication } = await import('@perspectra/core')
   const original = WorldApplication.prototype.deliver
   let settlements = 0
   const spy = vi.spyOn(WorldApplication.prototype, 'deliver').mockImplementation(function (

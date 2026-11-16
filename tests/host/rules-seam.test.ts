@@ -2,10 +2,10 @@ import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:f
 import type { Server } from 'node:http'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
-import type { RulesInstance, SeamProvider } from '@harness-world/plugin-sdk'
-import { WorldStore } from '@harness-world/store-sqlite'
+import type { RulesInstance, SeamProvider } from '@perspectra/sdk'
+import { WorldStore } from '@perspectra/core/store'
 import { afterEach, expect, it, vi } from 'vitest'
-import { WorldHostRuntime } from '../../desktop/host/world-runtime.ts'
+import { WorldHostRuntime } from '../../apps/host/src/runtime/world-runtime.ts'
 import { createChatServer, fakeModels } from '../support/fake-provider.ts'
 
 const roots: string[] = [],

@@ -6,7 +6,7 @@ import type { AddressInfo } from 'node:net'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
-import { createHostServer, type HostRuntime } from '../../desktop/host/http-server.ts'
+import { createHostServer, type HostRuntime } from '../../apps/host/src/runtime/http-server.ts'
 
 const token = 'a'.repeat(64)
 const meta = { title: '晚餐', storyline: '支线', characters: [{ id: 'npc:a', name: '甲' }] }

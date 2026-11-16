@@ -3,14 +3,14 @@
   "recordedFrom": "Commands and results executed in the author session; this file is an index, not raw process output.",
   "automatedRegression": [
     {
-      "command": "corepack pnpm@11.7.0 test:related tests/prototype/character-autonomy.test.ts tests/prototype/dynamic-scheduling.test.ts packages/application/src/character-visible-items.test.ts --fileParallelism=false",
+      "command": "corepack pnpm@11.7.0 test:related tests/prototype/character-autonomy.test.ts tests/prototype/dynamic-scheduling.test.ts packages/core/src/application/character-visible-items.test.ts --fileParallelism=false",
       "matchedFiles": 2,
       "passedTests": 33,
       "exitCode": 0,
       "note": "The third filter matched no file; correct visible-items test was run separately."
     },
     {
-      "command": "corepack pnpm@11.7.0 test:related tests/prototype/character-visible-items.test.ts tests/p2.integration.test.ts packages/store-sqlite/src/character-view.test.ts packages/interaction-runtime/src/runtime.test.ts --fileParallelism=false",
+      "command": "corepack pnpm@11.7.0 test:related tests/prototype/character-visible-items.test.ts tests/p2.integration.test.ts packages/core/src/store/character-view.test.ts packages/core/src/interactions/runtime.test.ts --fileParallelism=false",
       "matchedFiles": 3,
       "passedTests": 7,
       "exitCode": 0,

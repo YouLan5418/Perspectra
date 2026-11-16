@@ -6,19 +6,19 @@ import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'n
 import { tmpdir } from 'node:os'
 import { basename, join, resolve, sep } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import type { WorldJsonObject } from '@harness-world/contracts'
-import { CharacterViewBuilder, WorldStore } from '@harness-world/store-sqlite'
-import { AuthorizedSourceStore } from '@harness-world/memory'
-import { WorldHostRuntime } from '../../desktop/host/world-runtime.ts'
+import type { WorldJsonObject } from '@perspectra/sdk/contracts'
+import { CharacterViewBuilder, WorldStore } from '@perspectra/core/store'
+import { AuthorizedSourceStore } from '@perspectra/core/memory'
+import { WorldHostRuntime } from '../../apps/host/src/runtime/world-runtime.ts'
 import {
   DEFAULT_MEMORY_CONTEXT_BUDGET,
   MEMORY_DELIVERY_BUDGET,
   estimateContextTokens,
   type MemoryContextBudget,
-} from '../../packages/official-memory-core/src/core-memory.ts'
-import { createHostServer } from '../../desktop/host/http-server.ts'
-import { parseHostLaunchArguments } from '../../desktop/host/launch-arguments.ts'
-import type { CoreRunner } from '../../packages/official-memory-core/src/python-worker.ts'
+} from '../../packages/memory-core/src/core-memory.ts'
+import { createHostServer } from '../../apps/host/src/runtime/http-server.ts'
+import { parseHostLaunchArguments } from '../../apps/host/src/runtime/launch-arguments.ts'
+import type { CoreRunner } from '../../packages/memory-core/src/python-worker.ts'
 import { createChatServer, fakeModels } from '../support/fake-provider.ts'
 
 const roots: string[] = [],
@@ -37,7 +37,7 @@ afterEach(async () => {
 async function fixture(
   run: CoreRunner,
   options: {
-    playSettings?: import('../../desktop/play-settings.ts').PlaySettings
+    playSettings?: import('../../apps/host/src/play-settings.ts').PlaySettings
     memoryContextBudget?: MemoryContextBudget
     publish?: boolean
   } = {},
@@ -802,7 +802,7 @@ describe('optional web Core memory', () => {
 })
 
 it('delivers the configured recall budget to Core while preserving authorized evidence checks', async () => {
-  const { playSettings } = await import('../../desktop/play-settings.ts')
+  const { playSettings } = await import('../../apps/host/src/play-settings.ts')
   const inputs: WorldJsonObject[] = []
   const run: CoreRunner = async input => {
     inputs.push(input)

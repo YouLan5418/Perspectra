@@ -2,8 +2,8 @@ import { cpSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } f
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { afterEach, expect, it } from 'vitest'
-import type { WorldJsonObject } from '@harness-world/contracts'
-import { WorldStore } from '@harness-world/store-sqlite'
+import type { WorldJsonObject } from '@perspectra/sdk/contracts'
+import { WorldStore } from '@perspectra/core/store'
 import { fakeModels, startFakeProvider } from '../support/fake-provider.ts'
 import { createRoleplayCore } from '../support/roleplay-runtime.ts'
 

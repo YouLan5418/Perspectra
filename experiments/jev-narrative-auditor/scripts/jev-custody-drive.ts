@@ -1,22 +1,22 @@
 // 历史研究脚本；路径、样本和模型可能绑定原始记录，不属于游戏启动或默认验收。
-import { jevShadowAudit } from '../../../packages/official-jev-audit/src/index.ts'
+import { jevShadowAudit } from '@perspectra/jev-audit'
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { createHash } from 'node:crypto'
-import { brandId, type StoredWorldEvent, type WorldAddress, type WorldJsonObject } from '@harness-world/contracts'
-import { currentEntityState } from '@harness-world/kernel'
-import { WorldStore } from '@harness-world/store-sqlite'
-import { WorldHostRuntime } from '../../../desktop/host/world-runtime.ts'
-import { createClaimClassifier } from '../../../packages/official-jev-audit/src/jev-shadow-claims-client.ts'
-import { JevShadow, type ShadowRecord } from '../../../packages/official-jev-audit/src/jev-shadow.ts'
-import { environmentRoleModels } from '../../../desktop/model-connections.ts'
+import { brandId, type StoredWorldEvent, type WorldAddress, type WorldJsonObject } from '@perspectra/sdk/contracts'
+import { currentEntityState } from '@perspectra/core/kernel'
+import { WorldStore } from '@perspectra/core/store'
+import { WorldHostRuntime } from '../../../apps/host/src/runtime/world-runtime.ts'
+import { createClaimClassifier } from '../../../packages/jev-audit/src/jev-shadow-claims-client.ts'
+import { JevShadow, type ShadowRecord } from '../../../packages/jev-audit/src/jev-shadow.ts'
+import { environmentRoleModels } from '../../../apps/host/src/model-connections.ts'
 
 const directory = resolve(process.argv[2] ?? '')
 if (!process.argv[2] || existsSync(directory)) throw new Error('provide a new output directory')
 mkdirSync(directory, { recursive: true })
 const classify = createClaimClassifier(process.env.OPENROUTER_JEV_KEY ?? '')
-const sources = ['packages/official-jev-audit/src/jev-shadow-claims-client.ts', 'packages/provider-chat/src/character-turn-call.ts',
-  'packages/application/src/character-execution-result.ts', 'packages/official-jev-audit/src/jev-shadow-window.ts']
+const sources = ['packages/jev-audit/src/jev-shadow-claims-client.ts', 'packages/providers/src/chat/character-turn-call.ts',
+  'packages/core/src/application/character-execution-result.ts', 'packages/jev-audit/src/jev-shadow-window.ts']
 writeFileSync(resolve(directory, 'sources.json'), JSON.stringify(Object.fromEntries(sources.map(path => [path, readFileSync(path, 'utf8')])), null, 2))
 const address: WorldAddress = { tenantId: brandId('custody08', 'TenantId'), worldId: brandId('probe', 'WorldId'), branchId: brandId('main', 'BranchId') }
 const characters = [{ characterId: 'char:a', name: '林澄' }, { characterId: 'char:b', name: '陆遥' }]

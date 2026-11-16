@@ -3,9 +3,9 @@ import { randomUUID } from 'node:crypto'
 import { cpSync, mkdirSync, mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
-import { brandId, type WorldJsonObject } from '@harness-world/contracts'
-import { AuthorizedSourceStore } from '@harness-world/memory'
-import { CharacterViewBuilder, WorldStore } from '@harness-world/store-sqlite'
+import { brandId, type WorldJsonObject } from '@perspectra/sdk/contracts'
+import { AuthorizedSourceStore } from '@perspectra/core/memory'
+import { CharacterViewBuilder, WorldStore } from '@perspectra/core/store'
 import { openRpgWorld } from '../support/rpg-fixture.ts'
 
 // What characters remember of a TRPG game. Long-term memory distills each character's authorized sources

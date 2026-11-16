@@ -3,7 +3,7 @@ import { existsSync, mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, expect, it } from 'vitest'
-import { WorldApplication } from '@harness-world/application'
+import { WorldApplication } from '@perspectra/core'
 import { basicInteractionPackage, frozenInteractionWorld } from '../fixtures/frozen-interaction-world.ts'
 
 const fixtures: { app: WorldApplication; directory: string }[] = []

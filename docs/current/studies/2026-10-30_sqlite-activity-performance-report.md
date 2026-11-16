@@ -6,8 +6,8 @@
 
 | 证据 | 发现 | 修改路径 |
 | --- | --- | --- |
-| E1：原生记忆的常规序章推进打开 146 个连接，其中世界库 88、审计库 45、会话库 6、记忆库 7 | 普通读取反复初始化审计库；活动目录和单活动分别打开世界库 | [WorldStore](../../../packages/store-sqlite/src/world-store.ts)按需创建审计连接；[PackActivities](https://github.com/YouLan5418/Perspectra/blob/36d3efd8/desktop/host/pack-activities.ts)复用目录所属的世界库连接 |
-| E2：缓存命中时查询当前活动 100 次，原来仍打开 400 个连接；修改后没有新连接或事件重读 | 两层状态缓存没有复用读取入口 | 目录维护已提交前缀和各活动最新完整状态，[PackActivity](https://github.com/YouLan5418/Perspectra/blob/36d3efd8/desktop/host/pack-activity.ts)通过目录读取当前状态；返回值仍独立复制 |
+| E1：原生记忆的常规序章推进打开 146 个连接，其中世界库 88、审计库 45、会话库 6、记忆库 7 | 普通读取反复初始化审计库；活动目录和单活动分别打开世界库 | [WorldStore](../../../packages/core/src/store/world-store.ts)按需创建审计连接；[PackActivities](https://github.com/YouLan5418/Perspectra/blob/36d3efd8/apps/host/src/runtime/pack-activities.ts)复用目录所属的世界库连接 |
+| E2：缓存命中时查询当前活动 100 次，原来仍打开 400 个连接；修改后没有新连接或事件重读 | 两层状态缓存没有复用读取入口 | 目录维护已提交前缀和各活动最新完整状态，[PackActivity](https://github.com/YouLan5418/Perspectra/blob/36d3efd8/apps/host/src/runtime/pack-activity.ts)通过目录读取当前状态；返回值仍独立复制 |
 | E3：世界头改变后，原来从序号零读取全部活动更新 | 活动状态重读量随活动历史增长 | 首次恢复读取既有活动更新，之后只查询上一前缀之后的 `activity.updated`；每个活动只保留最新事件 |
 | E4：同一第 112 次操作前快照的八组交替测量，中位数从 2511 ms 降到 1976 ms | 本机完整末端回合等待减少约 21.3%，仍有明显波动 | 保留完整备份、记忆捕获、规则和提交，测量外层 WorldHostRuntime.activityAction |
 
@@ -19,7 +19,7 @@ E1 的修改后连接数为世界库 59、审计库 0、会话库 6、记忆库 
 
 例如模型等待期间又有角色发表了合法表达，下次活动读取仍检查最新世界头，并查询新增活动事件；只涉及普通表达时，活动状态可以保持原值。未提交的规则结果不进入活动缓存，提交失败后仍返回原状态。规则裁定使用调用者传入的正式事件前缀，不能把缓存当作写入世界的权限。
 
-缓存替代目录与单活动的重复状态读取，不新增持久化格式或数据库。每个目录保留一个世界库连接和各活动最新完整状态，返回及脚本调用使用独立副本。节点、重新生成和候选切换创建各自的运行实例；[WorldHostCore.close](../../../desktop/host/world-runtime.ts)在关闭应用后释放活动目录，目录加载失败也关闭已打开连接。测试与实验直接拥有活动目录时，同样负责关闭。
+缓存替代目录与单活动的重复状态读取，不新增持久化格式或数据库。每个目录保留一个世界库连接和各活动最新完整状态，返回及脚本调用使用独立副本。节点、重新生成和候选切换创建各自的运行实例；[WorldHostCore.close](../../../apps/host/src/runtime/world-runtime.ts)在关闭应用后释放活动目录，目录加载失败也关闭已打开连接。测试与实验直接拥有活动目录时，同样负责关闭。
 
 单独构造的 PackActivity 仍使用原有局部读取路径。角色授权上下文、模型决策、可用性和记忆视图没有加入跨调用缓存。初次恢复仍读取活动历史；运行实例关闭后缓存丢弃，不恢复未提交计算。
 

@@ -1,11 +1,11 @@
 import { resolve } from 'node:path'
 import { expect, it } from 'vitest'
-import { SpeakMoveRulebook, currentLocation, currentEntityState } from '../../packages/kernel/src/rulebook.ts'
-import { brandId, interactionPackageDescription, parseExpressionSegments } from '@harness-world/contracts'
+import { SpeakMoveRulebook, currentLocation, currentEntityState } from '../../packages/core/src/kernel/rulebook.ts'
+import { brandId, interactionPackageDescription, parseExpressionSegments } from '@perspectra/sdk/contracts'
 import { createItemCustodyTestPackage } from '../fixtures/item-custody-package.ts'
-import { adaptCompiledWorldPack, compileWorldPackSource } from '@harness-world/world-pack'
+import { adaptCompiledWorldPack, compileWorldPackSource } from '@perspectra/world-pack'
 import { frozenInteractionWorld } from '../fixtures/frozen-interaction-world.ts'
-import type { WorldEventDraft } from '@harness-world/contracts'
+import type { WorldEventDraft } from '@perspectra/sdk/contracts'
 
 it.each(['direct', 'private'])('rejects every recipient of %s speech when any target is unreachable', scope => {
   const world = frozenInteractionWorld(),

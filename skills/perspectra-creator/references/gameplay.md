@@ -125,7 +125,7 @@ model-preset.json、role-presets.json 和 frontend/ 是宿主独立读取的扩�
 
 ## 包透视与推演脚本
 
-作者想看清包、核对改动或让你“按清单改”时，用 `worldpack.cmd lens`（源码环境用 `node --import tsx desktop/lens/cli.ts`），三条命令都只读：
+作者想看清包、核对改动或让你“按清单改”时，用 `worldpack.cmd lens`（源码环境用 `node --import tsx apps/host/src/lens/cli.ts`），三条命令都只读：
 
 - `lens view <源目录>`：输出透视结果和相对作者“已看过”基准的改动；
 - `lens requests <源目录>`：输出作者待改清单里未关闭的条目（含位置和当时的值）；

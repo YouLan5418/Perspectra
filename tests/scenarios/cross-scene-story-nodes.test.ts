@@ -3,9 +3,9 @@ import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'no
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { afterEach, expect, it } from 'vitest'
-import { brandId, type WorldJsonObject } from '@harness-world/contracts'
-import { restoreStoryNode, readStoryNodes } from '../../desktop/story-nodes.ts'
-import { exportStoryNode, importStoryNode } from '../../desktop/story-share.ts'
+import { brandId, type WorldJsonObject } from '@perspectra/sdk/contracts'
+import { restoreStoryNode, readStoryNodes } from '../../apps/host/src/story-nodes.ts'
+import { exportStoryNode, importStoryNode } from '../../apps/host/src/story-share.ts'
 import { crossSceneRuntime } from '../support/cross-scene-runtime.ts'
 import { CrossScenePhone } from '../support/cross-scene-phone.ts'
 

@@ -1,5 +1,5 @@
 /** Conflicting inscriptions; neither is a host verdict about the registration office. */
-import { brandId, hashWorldJson, type WorldJsonObject, type WorldEventDraft } from '@harness-world/contracts'
+import { brandId, hashWorldJson, type WorldJsonObject, type WorldEventDraft } from '@perspectra/sdk/contracts'
 import { capabilityWorld, openCapabilityWorld } from './notice-board-fixture.ts'
 
 export const secondBoardId = 'entity:distant-board'

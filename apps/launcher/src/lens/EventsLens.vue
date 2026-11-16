@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import type { LensItem } from '../../../../desktop/lens/view.ts'
+import type { LensItem } from '@perspectra/world-pack/lens/view'
 import { useLensStore } from './store.ts'
 import { autoStartStatus, conditionRows, fieldValue, showValue } from './format.ts'
 import ChangeBadge from './ChangeBadge.vue'
@@ -15,7 +15,7 @@ const conditions = computed(
 const keyOf = (item: LensItem) => item.id.slice('event:'.length)
 
 /** 条件行以透视结果里的条件条目为准（改动标记、选中都挂在它们上面），此刻算出的 ✔/✘ 叠在上面；
- * id 规则与透视结果共用 desktop/lens/ids.ts。 */
+ * id 规则与透视结果共用 packages/world-pack/src/lens/ids.ts。 */
 const checkRows = (item: LensItem) =>
   conditionRows(item.id, store.childrenOf(item.id), conditions.value.get(keyOf(item)))
 const removedChecks = (item: LensItem) =>

@@ -1,7 +1,7 @@
-import { publicationSourceText } from '@harness-world/contracts'
+import { publicationSourceText } from '@perspectra/sdk/contracts'
 /** Deterministic authorized Source delivery for the simplification experiment. */
-import { canonicalizeWorldJson, type WorldJsonObject, type WorldJsonValue } from '@harness-world/contracts'
-import type { CharacterTurnRequest } from '../../packages/application/src/character-turn.ts'
+import { canonicalizeWorldJson, type WorldJsonObject, type WorldJsonValue } from '@perspectra/sdk/contracts'
+import type { CharacterTurnRequest } from '../../packages/core/src/application/character-turn.ts'
 import type { openActionWorld } from './notice-board-action-fixture.ts'
 const object = (v: unknown): WorldJsonObject =>
   v !== null && typeof v === 'object' && !Array.isArray(v) ? (v as WorldJsonObject) : {}

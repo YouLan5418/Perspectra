@@ -1,0 +1,13 @@
+{
+  "name": "@perspectra/memory-core",
+  "version": "0.3.5",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./paths": "./src/python-paths.ts"
+  },
+  "dependencies": {
+    "@perspectra/sdk": "workspace:*"
+  }
+}

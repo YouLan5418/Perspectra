@@ -19,7 +19,7 @@ process.env.HCW_HINDSIGHT_PYTHON ??= resolve(
   process.platform === 'win32' ? 'Scripts/python.exe' : 'bin/python',
 )
 process.env.HCW_HINDSIGHT_ONNX_DIR ??= resolve('.tmp/hindsight-e5-small')
-process.env.HCW_HINDSIGHT_CORE_DIR = resolve('packages/official-memory-core/python/core')
+process.env.HCW_HINDSIGHT_CORE_DIR = resolve('packages/memory-core/python/core')
 process.env.HF_HUB_OFFLINE = '1'
 process.env.TRANSFORMERS_OFFLINE = '1'
 process.env.PYTHONDONTWRITEBYTECODE = '1'
@@ -38,7 +38,7 @@ const request = {
     observations: [],
   },
 }
-const source = await import('@harness-world/official-memory-core')
+const source = await import('@perspectra/memory-core')
 delete process.env.PERSPECTRA_RUNTIME_ROOT
 assert.equal(
   (await source.coreRunner()(request, AbortSignal.timeout(30000))).archive.scope.characterId,
@@ -46,7 +46,7 @@ assert.equal(
 )
 await build({
   stdin: {
-    contents: "export { coreRunner } from '@harness-world/official-memory-core'",
+    contents: "export { coreRunner } from '@perspectra/memory-core'",
     resolveDir: resolve('.'),
     sourcefile: 'memory-layout-entry.ts',
   },
@@ -88,9 +88,7 @@ for (const layout of ['source', 'bundled', 'portable']) {
     ...process.env,
     PERSPECTRA_RUNTIME_ROOT: runtimeRoot,
     HCW_HINDSIGHT_CORE_DIR:
-      layout === 'source'
-        ? resolve('packages/official-memory-core/python/core')
-        : join(runtimeRoot, 'memory-core/python/core'),
+      layout === 'source' ? resolve('packages/memory-core/python/core') : join(runtimeRoot, 'memory-core/python/core'),
   }
   const entry = layout === 'portable' ? join(runtime, 'playtest.mjs') : resolve('dist/backend/playtest.mjs')
   const child = spawn(

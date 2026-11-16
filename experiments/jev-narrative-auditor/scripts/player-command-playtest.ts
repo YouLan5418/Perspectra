@@ -1,14 +1,14 @@
 // 历史研究脚本；路径、样本和模型可能绑定原始记录，不属于游戏启动或默认验收。
-import { jevShadowAudit } from '../../../packages/official-jev-audit/src/index.ts'
+import { jevShadowAudit } from '@perspectra/jev-audit'
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
-import type { WorldJsonObject } from '@harness-world/contracts'
-import { currentEntityState } from '@harness-world/kernel'
-import { WorldStore } from '@harness-world/store-sqlite'
-import { WorldHostRuntime } from '../../../desktop/host/world-runtime.ts'
-import { createClaimClassifier } from '../../../packages/official-jev-audit/src/jev-shadow-claims-client.ts'
-import type { ShadowRecord } from '../../../packages/official-jev-audit/src/jev-shadow.ts'
-import { environmentRoleModels } from '../../../desktop/model-connections.ts'
+import type { WorldJsonObject } from '@perspectra/sdk/contracts'
+import { currentEntityState } from '@perspectra/core/kernel'
+import { WorldStore } from '@perspectra/core/store'
+import { WorldHostRuntime } from '../../../apps/host/src/runtime/world-runtime.ts'
+import { createClaimClassifier } from '../../../packages/jev-audit/src/jev-shadow-claims-client.ts'
+import type { ShadowRecord } from '../../../packages/jev-audit/src/jev-shadow.ts'
+import { environmentRoleModels } from '../../../apps/host/src/model-connections.ts'
 
 const directory = resolve(process.argv[2] ?? '')
 if (!process.argv[2] || existsSync(directory)) throw new Error('provide a new output directory')
@@ -25,8 +25,8 @@ writeFileSync(resolve(directory, 'protocol.json'), JSON.stringify({ inputs, mode
   purpose: 'plain input never chooses controlled player actions; exact commands and autonomous NPC responses',
   shadowOnly: true }, null, 2))
 writeFileSync(resolve(directory, 'sources.json'), JSON.stringify(Object.fromEntries([
-  'packages/application/src/player-intent-preparation.ts', 'packages/application/src/player-input.ts',
-  'packages/application/src/character-turn.ts', 'desktop/host/world-runtime.ts',
+  'packages/core/src/application/player-intent-preparation.ts', 'packages/core/src/application/player-input.ts',
+  'packages/core/src/application/character-turn.ts', 'apps/host/src/runtime/world-runtime.ts',
 ].map(path => [path, readFileSync(path, 'utf8')])), null, 2))
 globalThis.fetch = async (url, init) => {
   const response = await nativeFetch(url, init)

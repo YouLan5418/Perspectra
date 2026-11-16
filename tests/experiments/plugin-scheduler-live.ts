@@ -9,10 +9,10 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 
 import { dirname, resolve } from 'node:path'
 import { isDeepStrictEqual } from 'node:util'
 import { setTimeout as delay } from 'node:timers/promises'
-import type { WorldJsonObject } from '@harness-world/contracts'
-import { WorldHostCore } from '../../desktop/host/world-runtime.ts'
-import { environmentRoleModels } from '../../desktop/model-connections.ts'
-import { playSettings } from '../../desktop/play-settings.ts'
+import type { WorldJsonObject } from '@perspectra/sdk/contracts'
+import { WorldHostCore } from '../../apps/host/src/runtime/world-runtime.ts'
+import { environmentRoleModels } from '../../apps/host/src/model-connections.ts'
+import { playSettings } from '../../apps/host/src/play-settings.ts'
 
 const [mode, scenario, destination] = process.argv.slice(2)
 assert(['record', 'replay', 'live'].includes(mode!) && destination, 'expected mode, case and evidence file')

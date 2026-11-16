@@ -2,10 +2,10 @@ import { spawnSync } from 'node:child_process'
 import { DatabaseSync } from 'node:sqlite'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
-import { brandId, worldAddressKey, type WorldAddress, type WorldJsonObject } from '@harness-world/contracts'
-import { WorldStore } from '@harness-world/store-sqlite'
-import { CognitiveMemoryService } from '@harness-world/memory'
-import { WorldHostRuntime } from '../../desktop/host/world-runtime.ts'
+import { brandId, worldAddressKey, type WorldAddress, type WorldJsonObject } from '@perspectra/sdk/contracts'
+import { WorldStore } from '@perspectra/core/store'
+import { CognitiveMemoryService } from '@perspectra/core/memory'
+import { WorldHostRuntime } from '../../apps/host/src/runtime/world-runtime.ts'
 
 export type Ref = { sourceId: string; sourceHash: string; epistemicKind: string;
   worldSeq: number; characterId: string; worldAddress: WorldAddress }
@@ -97,7 +97,7 @@ const started: { turns: Array<Record<string, unknown>>; address?: WorldAddress }
   : { turns: [] }
 let shadow: Shadow | undefined = existsSync(shadowPath) ? JSON.parse(readFileSync(shadowPath, 'utf8')) as Shadow : undefined
 function core(input: WorldJsonObject): Record<string, unknown> {
-  const run = spawnSync(process.env.HCW_HINDSIGHT_PYTHON || 'python', [resolve('packages/official-memory-core/python/core/core.py')], {
+  const run = spawnSync(process.env.HCW_HINDSIGHT_PYTHON || 'python', [resolve('packages/memory-core/python/core/core.py')], {
     input: JSON.stringify(input), encoding: 'utf8', maxBuffer: 32 * 1024 * 1024, timeout: 180_000,
     env: { ...process.env, PYTHONIOENCODING: 'utf-8' },
   })
@@ -158,7 +158,7 @@ async function checkpoint(address: WorldAddress, turn: number): Promise<void> {
 }
 let activeTurnText = ''
 let activeTurnNumber = 0
-function adaptRequest(request: import('../../packages/application/src/character-turn.ts').CharacterTurnRequest) {
+function adaptRequest(request: import('../../packages/core/src/application/character-turn.ts').CharacterTurnRequest) {
   if (mode === 'existing' || shadow === undefined
     || (request.context.character as WorldJsonObject).characterId !== companion) return request
   const query = typeof request.recallEvidence?.query === 'string'

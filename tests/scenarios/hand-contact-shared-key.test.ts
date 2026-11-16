@@ -2,8 +2,8 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { expect, it } from 'vitest'
-import { brandId, interactionPackageDescription, resolutionAuthority } from '@harness-world/contracts'
-import { compileWorldPackSource, type CompiledWorldPackV5 } from '@harness-world/world-pack'
+import { brandId, interactionPackageDescription, resolutionAuthority } from '@perspectra/sdk/contracts'
+import { compileWorldPackSource, type CompiledWorldPackV5 } from '@perspectra/world-pack'
 import { loadStatus } from '../support/status-runtime.ts'
 import {
   createCoreRulebookRegistry,
@@ -11,10 +11,10 @@ import {
   currentEntityState,
   currentLocation,
   type CompiledWorldManifest,
-} from '@harness-world/kernel'
-import { createInstalledInteractionPackages } from '@harness-world/interactions-basic'
-import { WorldStore } from '@harness-world/store-sqlite'
-import { WorldHostRuntime } from '../../desktop/host/world-runtime.ts'
+} from '@perspectra/core/kernel'
+import { createInstalledInteractionPackages } from '@perspectra/plugins/basic-interactions'
+import { WorldStore } from '@perspectra/core/store'
+import { WorldHostRuntime } from '../../apps/host/src/runtime/world-runtime.ts'
 import { createChatServer, fakeModels } from '../support/fake-provider.ts'
 
 const keyAction = {

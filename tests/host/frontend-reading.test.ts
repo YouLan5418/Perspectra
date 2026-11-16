@@ -3,10 +3,10 @@ import { runInNewContext } from 'node:vm'
 import { createReadingPlayback } from '../../packages/frontend/src/reading-playback.ts'
 import { DEFAULT_PAGE, DEFAULT_SCRIPT } from '../../packages/frontend/src/default-template.ts'
 import { playerViewPatch } from '../../packages/frontend/src/player-view.ts'
-import { projectPlayerView } from '../../desktop/host/frontend-adapter.ts'
-import type { HostState } from '../../desktop/host/http-server.ts'
-import { brandId, type CharacterView } from '@harness-world/contracts'
-import { playerTranscript, sceneChangedAt } from '../../desktop/host/player-transcript.ts'
+import { projectPlayerView } from '../../apps/host/src/runtime/frontend-adapter.ts'
+import type { HostState } from '../../apps/host/src/runtime/http-server.ts'
+import { brandId, type CharacterView } from '@perspectra/sdk/contracts'
+import { playerTranscript, sceneChangedAt } from '../../apps/host/src/runtime/player-transcript.ts'
 
 const line = (seq: number, text: string) => ({ seq, speaker: 'GPT-6', text, player: false })
 it('keeps same-name and remote speaker identities from authorized observations through segmented reading', () => {

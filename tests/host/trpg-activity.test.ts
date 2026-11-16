@@ -3,11 +3,11 @@ import { randomUUID } from 'node:crypto'
 import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
-import { brandId, type WorldJsonObject } from '@harness-world/contracts'
-import { CharacterViewBuilder, WorldStore } from '@harness-world/store-sqlite'
-import { NativeActivity } from '@harness-world/official-activities'
-import { officialTrpgContent } from '@harness-world/official-trpg'
-import { currentWorldDirectory } from '../../desktop/tail-storage.ts'
+import { brandId, type WorldJsonObject } from '@perspectra/sdk/contracts'
+import { CharacterViewBuilder, WorldStore } from '@perspectra/core/store'
+import { NativeActivity } from '@perspectra/providers/activities'
+import { officialTrpgContent } from '@perspectra/plugins/trpg'
+import { currentWorldDirectory } from '../../apps/host/src/tail-storage.ts'
 import { openRpgWorld } from '../support/rpg-fixture.ts'
 
 // The TRPG activity on the real host runtime. The host is an AI character played by the fake model: each host
@@ -677,7 +677,7 @@ describe('the native trpg activity', () => {
 })
 
 it('the package fixture and the test pack share one trpg.json', () => {
-  expect(readFileSync(resolve('packages/official-trpg/src/fixtures/rainy-manor.trpg.json'))).toEqual(
+  expect(readFileSync(resolve('packages/plugins/src/trpg/fixtures/rainy-manor.trpg.json'))).toEqual(
     readFileSync(join(FIXTURE, 'trpg.json')),
   )
 })

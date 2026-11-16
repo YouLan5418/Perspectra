@@ -74,7 +74,7 @@ shadcn-vue 采用本地源码组件，只保留所需的 Button 和 Dialog；Luc
 | `docs/current/assets/launcher-v1/main.png` | 新增 | 主界面截图 |
 | `docs/current/assets/launcher-v1/native-file-selection.png` | 新增 | 原生选择文件后返回 Launcher 的截图 |
 
-本次没有修改 `desktop/`、Core 的 `packages/`、既有测试业务逻辑或历史试玩数据。工作区中另有 `examples/world-packs/tavern-social/text/opening.zh-CN.md` 的修改，不属于本次 Launcher 交付。
+本次没有修改 `apps/host/src/`、Core 的 `packages/`、既有测试业务逻辑或历史试玩数据。工作区中另有 `examples/world-packs/tavern-social/text/opening.zh-CN.md` 的修改，不属于本次 Launcher 交付。
 
 本机另经授权安装 Rust/Cargo 1.99.0 stable MSVC 最小工具链，用户 PATH 已注册。调试可执行程序位于 `apps/launcher/src-tauri/target/debug/perspectra-launcher.exe`；构建目录、WebView 测试配置、脚本和临时日志属于被忽略的本地产物，不作为源码文件提交。
 
@@ -318,10 +318,10 @@ corepack pnpm@11.7.0 --filter @perspectra/launcher tauri build --debug --no-bund
 
 | Evidence：现有证据 | Finding：实际差异 | Path：建议处理 |
 | --- | --- | --- |
-| 旧 desktop/main.ts 使用 Electron；新入口位于 apps/launcher/src-tauri | 两种桌面外壳曾并行 | 2026-10-21 已删除 Electron 外壳 |
-| desktop/main.ts 的 launchBackend 直接运行 [desktop/host/web-entry.ts](../../desktop/host/web-entry.ts)，并传递实验 tuning | 当前桌面启动边界依赖实验代码，不宜直接成为新 Launcher 的完整业务 API | 接入时提取最小正式运行入口，复用现有 Core，不复制实验控制面板 |
-| desktop/main.ts 的 SaveInfo、LaunchRequest、savesRoot 按 saves 和 saveId 组织 | 新 UI 采用“包 → 实例 → 故事线”，无法直接把旧 saveId 视为完整故事线关系 | 先确定实际需要保留的数据及映射，再选择迁移、明确不兼容或有限复用 |
-| [branch-operation-coordinator.ts](../../packages/application/src/branch-operation-coordinator.ts) 暴露 forkAtHead，并读取父分支 headSeq | 已读协调入口从当前头创建分支；没有据此证明 Launcher 的“任意历史节点开始”已接通 | 下一阶段核对历史节点与可恢复世界状态，扩展或复用最小必要路径；本次仅实现内存线路关系 |
+| 旧 apps/host/src/main.ts 使用 Electron；新入口位于 apps/launcher/src-tauri | 两种桌面外壳曾并行 | 2026-10-21 已删除 Electron 外壳 |
+| apps/host/src/main.ts 的 launchBackend 直接运行 [apps/host/src/runtime/web-entry.ts](../../apps/host/src/runtime/web-entry.ts)，并传递实验 tuning | 当前桌面启动边界依赖实验代码，不宜直接成为新 Launcher 的完整业务 API | 接入时提取最小正式运行入口，复用现有 Core，不复制实验控制面板 |
+| apps/host/src/main.ts 的 SaveInfo、LaunchRequest、savesRoot 按 saves 和 saveId 组织 | 新 UI 采用“包 → 实例 → 故事线”，无法直接把旧 saveId 视为完整故事线关系 | 先确定实际需要保留的数据及映射，再选择迁移、明确不兼容或有限复用 |
+| [branch-operation-coordinator.ts](../../packages/core/src/application/branch-operation-coordinator.ts) 暴露 forkAtHead，并读取父分支 headSeq | 已读协调入口从当前头创建分支；没有据此证明 Launcher 的“任意历史节点开始”已接通 | 下一阶段核对历史节点与可恢复世界状态，扩展或复用最小必要路径；本次仅实现内存线路关系 |
 | [prototype-contract.md](prototype-contract.md) 的首次实验范围是单世界分支 | 用户本次明确要求的多故事线 UI 超出原契约首轮运行范围 | 本文记录 Launcher 范围扩展；保留权限和事实约束，不宣称多故事线 Core 或分享已验收 |
 | 根目录 tsconfig/check 仍面向 packages、tests、desktop | 默认门禁通过并不覆盖新 apps/launcher | 使用 launcher:check 和 Launcher 构建；需要统一 CI 时再明确纳入 |
 | 当前 types.ts 是前端摘要类型，StorylineShare 标为 prototype | 与 Core 的品牌 ID、完整地址和可执行存档不是同一个模型 | 正式接入复用 Core 类型和数据，不把占位分享对象升级为正式协议 |

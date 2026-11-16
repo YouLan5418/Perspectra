@@ -35,11 +35,11 @@
 
 ## 实现入口
 
-- 动态角色候选、优先级、预算预留、因果深度和任务收束：[prototype-activation-cycle.ts](../../../packages/official-scheduler/src/index.ts)
-- 角色视图比较、模型调用、串行提交队列和写租约：[prototype-character-turn.ts](../../../packages/application/src/character-turn.ts)
-- 普通入口启用条件、活动与自主阶段：[playtest-frozen-runtime.ts](../../../desktop/host/world-runtime.ts)
-- 插话中止、等待末端回合收束：[playtest-tail-runtime.ts](../../../desktop/host/tail-runtime.ts)
-- 命令行对照开关：[playtest-launch.ts](../../../desktop/host/launch-arguments.ts)
+- 动态角色候选、优先级、预算预留、因果深度和任务收束：[prototype-activation-cycle.ts](../../../packages/providers/src/scheduler/index.ts)
+- 角色视图比较、模型调用、串行提交队列和写租约：[prototype-character-turn.ts](../../../packages/core/src/application/character-turn.ts)
+- 普通入口启用条件、活动与自主阶段：[playtest-frozen-runtime.ts](../../../apps/host/src/runtime/world-runtime.ts)
+- 插话中止、等待末端回合收束：[playtest-tail-runtime.ts](../../../apps/host/src/runtime/tail-runtime.ts)
+- 命令行对照开关：[playtest-launch.ts](../../../apps/host/src/runtime/launch-arguments.ts)
 - 一次输入与调度概述：[当前运行时](../architecture/runtime.md)、[代码路线](../architecture/code-walkthrough.md)
 
 ## 对照驱动与样例包
@@ -105,6 +105,6 @@
 
 | 迁移前路径（上述提交） | 当前源码 |
 | --- | --- |
-| `tests/experiments/playtest-frozen-runtime.ts` | [world-runtime.ts](../../../desktop/host/world-runtime.ts) |
-| `tests/experiments/playtest-tail-runtime.ts` | [tail-runtime.ts](../../../desktop/host/tail-runtime.ts) |
-| `tests/experiments/playtest-launch.ts` | [launch-arguments.ts](../../../desktop/host/launch-arguments.ts) |
+| `tests/experiments/playtest-frozen-runtime.ts` | [world-runtime.ts](../../../apps/host/src/runtime/world-runtime.ts) |
+| `tests/experiments/playtest-tail-runtime.ts` | [tail-runtime.ts](../../../apps/host/src/runtime/tail-runtime.ts) |
+| `tests/experiments/playtest-launch.ts` | [launch-arguments.ts](../../../apps/host/src/runtime/launch-arguments.ts) |

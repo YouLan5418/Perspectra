@@ -308,7 +308,7 @@ it('applies appearance without changing the running instance', async () => {
 })
 
 it('saves play settings for the selected package and restores global reading preferences', async () => {
-  const { playSettings } = await import('../../../../desktop/play-settings.ts')
+  const { playSettings } = await import('@perspectra/host/play-settings')
   const store = useLauncherStore()
   await store.initialize()
   const settings = playSettings({ maximumWaves: 5 })

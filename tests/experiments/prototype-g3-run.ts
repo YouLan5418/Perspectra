@@ -1,7 +1,7 @@
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
-import { WorldHostRuntime } from '../../desktop/host/world-runtime.ts'
-import { environmentRoleModels } from '../../desktop/model-connections.ts'
+import { WorldHostRuntime } from '../../apps/host/src/runtime/world-runtime.ts'
+import { environmentRoleModels } from '../../apps/host/src/model-connections.ts'
 
 // One continuous world. Run in checkpoints with the same data directory; inspect each checkpoint before continuing.
 const inputs = [

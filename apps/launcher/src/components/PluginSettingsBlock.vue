@@ -2,7 +2,7 @@
 import { computed, onUnmounted, ref, watch } from 'vue'
 import { PLUGIN_SKIP_REASON, useLauncherStore } from '../stores/launcher.ts'
 import { filledPluginId } from '../stores/modules.ts'
-import type { HostPluginSettings } from '../../../../desktop/host-plugin-settings.ts'
+import type { HostPluginSettings } from '@perspectra/host/plugin-settings'
 import type { PluginManifestInfo, PluginManifest } from '../core-types.ts'
 import { Button } from './ui/button/index.ts'
 

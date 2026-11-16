@@ -5,11 +5,11 @@ import {
   readingPreferences,
   audioPreferences,
   launcherPreferencesFromStage,
-} from '../../desktop/play-settings.ts'
-import { parseHostLaunchArguments } from '../../desktop/host/launch-arguments.ts'
-import { characterTurnCall } from '@harness-world/provider-chat'
-import { parseExpressionSegments } from '@harness-world/contracts'
-import { gatewayTurnCall } from '../../packages/official-llm/src/gateway-turn-call.ts'
+} from '../../apps/host/src/play-settings.ts'
+import { parseHostLaunchArguments } from '../../apps/host/src/runtime/launch-arguments.ts'
+import { characterTurnCall } from '@perspectra/providers/chat'
+import { parseExpressionSegments } from '@perspectra/sdk/contracts'
+import { gatewayTurnCall } from '../../packages/providers/src/llm/gateway-turn-call.ts'
 it('validates local settings and rejects contradictory memory limits', () => {
   expect(playSettings({})).toEqual(DEFAULT_PLAY_SETTINGS)
   expect(playSettings({ maximumWaves: 5 }).maximumWaves).toBe(5)

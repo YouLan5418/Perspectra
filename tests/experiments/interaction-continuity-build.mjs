@@ -17,27 +17,27 @@ const actionSemantics=process.argv.includes('--action-semantics')
 const beforeAction=process.argv.includes('--before-action')
 if([publishLoop,decisionThinking,intentClarity,actionSemantics,beforeAction].filter(Boolean).length>1)throw new Error('Compare one mechanism at a time')
 const changed = [
-  'packages/application/src/character-turn.ts',
-  'packages/provider-chat/src/character-context-text.ts',
-  'packages/provider-chat/src/character-turn-call.ts',
-  'packages/official-llm/src/gateway-turn-call.ts',
-  'desktop/host/activity-runtime.ts',
-  'desktop/host/world-runtime.ts',
-  'desktop/host/tail-runtime.ts',
+  'packages/core/src/application/character-turn.ts',
+  'packages/providers/src/chat/character-context-text.ts',
+  'packages/providers/src/chat/character-turn-call.ts',
+  'packages/providers/src/llm/gateway-turn-call.ts',
+  'apps/host/src/runtime/activity-runtime.ts',
+  'apps/host/src/runtime/world-runtime.ts',
+  'apps/host/src/runtime/tail-runtime.ts',
 ]
 const digest = value => createHash('sha256').update(value).digest('hex')
 const sources = Object.fromEntries(changed.map(path=>{
   const current=readFileSync(join(root,path),'utf8')
-  const baseline=actionSemantics ? path==='packages/provider-chat/src/character-context-text.ts'
+  const baseline=actionSemantics ? path==='packages/providers/src/chat/character-context-text.ts'
     ? current.replace('const explanations = (request.canPerform ?? !request.continuation) ? characterActionExplanations(context) : []',
       'const explanations: WorldJsonObject[] = []').replace(' + characterActionExplanationsNote','') : current
-    : intentClarity ? path==='packages/provider-chat/src/character-turn-call.ts'
+    : intentClarity ? path==='packages/providers/src/chat/character-turn-call.ts'
     ? current.replace(/  \+ characterActionIntentPrinciples\r?\n/,'') : current
-    : decisionThinking ? path==='packages/provider-chat/src/character-turn-call.ts'
+    : decisionThinking ? path==='packages/providers/src/chat/character-turn-call.ts'
     ? current.replace('content: characterDecisionPrinciples + characterContextNote','content: characterContextNote') : current
     : publishLoop||beforeAction?current:git('show',`${revision}:${path}`)
-  if(intentClarity&&path==='packages/provider-chat/src/character-turn-call.ts'&&baseline===current)throw new Error('Intent paragraph not removed from baseline')
-  if(actionSemantics&&path==='packages/provider-chat/src/character-context-text.ts'&&baseline===current)throw new Error('Semantic rendering not disabled in baseline')
+  if(intentClarity&&path==='packages/providers/src/chat/character-turn-call.ts'&&baseline===current)throw new Error('Intent paragraph not removed from baseline')
+  if(actionSemantics&&path==='packages/providers/src/chat/character-context-text.ts'&&baseline===current)throw new Error('Semantic rendering not disabled in baseline')
   return [path,{baseline,experiment:current}]
 }))
 const entry = 'tests/experiments/hidden-cure-next.ts'
@@ -103,6 +103,6 @@ for(const arm of arms) {
 }
 writeFileSync(join(directory,'build.json'),JSON.stringify({revision,model:'gemini-3.8-flash',endpoint:'http://127.0.0.1:8045/v1/chat/completions',
   cases:publishLoop||decisionThinking||intentClarity||actionSemantics||beforeAction?['D3','E']:['D2','D3','E'],publishLoop,decisionThinking,intentClarity,actionSemantics,beforeAction,scheduleTieRandom:0.5,driverHash:digest(driver),
-  auxiliarySources:{'packages/provider-chat/src/character-action-explanations.ts':digest(readFileSync('packages/provider-chat/src/character-action-explanations.ts'))},
+  auxiliarySources:{'packages/providers/src/chat/character-action-explanations.ts':digest(readFileSync('packages/providers/src/chat/character-action-explanations.ts'))},
   sources:Object.fromEntries(Object.entries(sources).map(([path,versions])=>[path,Object.fromEntries(Object.entries(versions).map(([mode,value])=>[mode,digest(value)]))])),executions},null,2)+'\n')
 console.log(JSON.stringify({directory,revision,executions}))

@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest'
-import type { WorldJsonObject } from '@harness-world/contracts'
+import type { WorldJsonObject } from '@perspectra/sdk/contracts'
 import { inscriptionReadings } from '../support/notice-board-evidence-delivery.ts'
 
 // Self-contained test evidence; the real experiment uses the audited frozen archive.

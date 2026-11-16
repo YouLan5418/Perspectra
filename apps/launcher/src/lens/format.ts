@@ -1,7 +1,7 @@
-import type { LensRequestState, LensRequestView } from '../../../../desktop/lens/store.ts'
-import type { AutoStartEvaluation } from '@harness-world/contracts'
-import type { LensField, LensItem, LensSection, LensSource } from '../../../../desktop/lens/view.ts'
-import { conditionItems } from '../../../../desktop/lens/ids.ts'
+import type { LensRequestState, LensRequestView } from '../../../host/src/lens/store.ts'
+import type { AutoStartEvaluation } from '@perspectra/sdk/contracts'
+import type { LensField, LensItem, LensSection, LensSource } from '@perspectra/world-pack/lens/view'
+import { conditionItems } from '@perspectra/world-pack/lens/ids'
 
 export const SECTION_LABEL: Record<LensSection, string> = {
   characters: '角色',

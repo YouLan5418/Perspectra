@@ -10,13 +10,13 @@
 
 ### 源码已经接通的路线
 
-1. [模型连接](../../../desktop/model-connections.ts)：ModelConnection 只保存 id、name、protocol、endpoint；校验拒绝未知字段。resolveRoleModels → modelEnvironment → runtimeRoleModels 把连接转换为角色目标，经进程环境传递，凭证另行处理。
+1. [模型连接](../../../apps/host/src/model-connections.ts)：ModelConnection 只保存 id、name、protocol、endpoint；校验拒绝未知字段。resolveRoleModels → modelEnvironment → runtimeRoleModels 把连接转换为角色目标，经进程环境传递，凭证另行处理。
 2. [Launcher 编辑器](../../../apps/launcher/src/components/ModelSettingsDialog.vue)：save 显式挑选上述四个字段，新增连接配置不能只改后端类型。
-3. [官方角色 Provider](../../../packages/official-llm/src/role-providers.ts)：已经按角色建立独立 ChatProvider，角色相同不等于共用同一个 Provider 对象；独立对象本身不会创建供应商缓存命名空间。
-4. [官方模型插件](../../../packages/official-llm/src/index.ts)：在每次 open(world) 中创建角色调用实例，适合管理与此次运行同寿命的缓存标识。
-5. [发送适配器](../../../packages/provider-chat/src/provider.ts)：经 pi-ai 的 streamSimple 发送，显式 cacheRetention: 'none'，没有 sessionId，也没有向 DeepSeek Chat 写入 user_id。onPayload 已提供最后一次调整供应商请求的位置。
-6. [请求检查器](../../../packages/provider-chat/src/request-inspector.ts)：只能保留输入、输出、合计；inspected(message) 又把 SDK 的非缓存输入误当成总输入，丢弃 cacheRead/cacheWrite。轻量 onCall 目前没有 token 用量。
-7. [角色文本](../../../packages/provider-chat/src/character-context-text.ts)：已经去除部分不稳定宿主元数据并调整字段顺序。当前经历和处境仍合并成一个 user JSON 字符串。
+3. [官方角色 Provider](../../../packages/providers/src/llm/role-providers.ts)：已经按角色建立独立 ChatProvider，角色相同不等于共用同一个 Provider 对象；独立对象本身不会创建供应商缓存命名空间。
+4. [官方模型插件](../../../packages/providers/src/llm/index.ts)：在每次 open(world) 中创建角色调用实例，适合管理与此次运行同寿命的缓存标识。
+5. [发送适配器](../../../packages/providers/src/chat/provider.ts)：经 pi-ai 的 streamSimple 发送，显式 cacheRetention: 'none'，没有 sessionId，也没有向 DeepSeek Chat 写入 user_id。onPayload 已提供最后一次调整供应商请求的位置。
+6. [请求检查器](../../../packages/providers/src/chat/request-inspector.ts)：只能保留输入、输出、合计；inspected(message) 又把 SDK 的非缓存输入误当成总输入，丢弃 cacheRead/cacheWrite。轻量 onCall 目前没有 token 用量。
+7. [角色文本](../../../packages/providers/src/chat/character-context-text.ts)：已经去除部分不稳定宿主元数据并调整字段顺序。当前经历和处境仍合并成一个 user JSON 字符串。
 
 调用路径：Launcher 连接配置 → resolveRoleModels → modelEnvironment → web-entry/runtimeRoleModels → official-llm.open → createRoleProviders → createChatProvider → pi-ai → 供应商。缓存设置必须完整经过此路径，不能只加一个 UI 开关。
 
@@ -99,7 +99,7 @@ cacheMode 随 resolved/runtime 目标经过完整进程链路。源码入口也�
 
 这替代“新增本地玩家账号、安装身份、持久缓存命名空间文件”的方案，不叠加新的身份系统。不上送玩家名字、角色私密资料、本地绝对路径或凭证。缓存 ID 不进入模型消息、世界事件、记忆或权威事实，也不参加世界状态校验。
 
-当前 [world-runtime](../../../desktop/host/world-runtime.ts) 的 tenant 是固定 web-playtest，worldId 由世界包摘要派生，branch 是固定 main；它们不能直接区分多个玩家的同一世界包。worldVersion 在 [tail-runtime](../../../desktop/host/tail-runtime.ts) 中可能来自已有选择或重生成版本，不等于全局玩家身份。不要为缓存修改这些世界地址。
+当前 [world-runtime](../../../apps/host/src/runtime/world-runtime.ts) 的 tenant 是固定 web-playtest，worldId 由世界包摘要派生，branch 是固定 main；它们不能直接区分多个玩家的同一世界包。worldVersion 在 [tail-runtime](../../../apps/host/src/runtime/tail-runtime.ts) 中可能来自已有选择或重生成版本，不等于全局玩家身份。不要为缓存修改这些世界地址。
 
 明确接受：进程重启、切换存档、重开运行实例或生成新候选后需要重新预热。首版不追求跨启动保温，也不持久化 UUID；如果实测表明频繁冷启动有明显成本，再复用已有 Launcher 实例/故事线身份设计持久命名空间，同时核对故事分享与复制语义。未来统一代调服务才需要服务端确认的玩家/租户命名空间，此次不引入账号系统。
 
@@ -111,7 +111,7 @@ DeepSeek 策略保持 SDK 不主动添加前缀标记，只在 onPayload 写入�
 
 首版前缀策略仅在最终请求中已确认稳定的系统前缀边界打点，不默认给动态 user JSON 写缓存；按协议处理现有系统块/首段系统消息，保留文本与消息顺序。SDK 自带落点不符合要求时，在现有 onPayload 中定点处理，而不是修改 pi-ai。默认使用供应商短 TTL，不自动预热或开启长期存储。
 
-这只能复用稳定系统前缀，不能承诺 Claude 已经复用完整的角色经历。如果系统前缀不足最小长度，允许正常调用且没有命中，不补无意义文本。缓存点前的工具定义也参与匹配，而 [角色决策 Schema](../../../packages/provider-chat/src/character-turn-call.ts) 与 [网关 Schema](../../../packages/official-llm/src/gateway-turn-call.ts)会随受众、可执行操作和续写阶段变化；设置角色 ID 无法消除这些失效条件。
+这只能复用稳定系统前缀，不能承诺 Claude 已经复用完整的角色经历。如果系统前缀不足最小长度，允许正常调用且没有命中，不补无意义文本。缓存点前的工具定义也参与匹配，而 [角色决策 Schema](../../../packages/providers/src/chat/character-turn-call.ts) 与 [网关 Schema](../../../packages/providers/src/llm/gateway-turn-call.ts)会随受众、可执行操作和续写阶段变化；设置角色 ID 无法消除这些失效条件。
 
 在真实对照确认收益不足后，才评估第二次小改动：把稳定角色材料/已归档经历与动态处境分成可复用块。该步骤会影响模型上下文呈现，须单独进行角色行为和认知隔离验收；不借此稳定成过宽的工具 Schema，不绕过 Host 校验，也不合并角色上下文。
 
@@ -119,12 +119,12 @@ DeepSeek 策略保持 SDK 不主动添加前缀标记，只在 onPayload 写入�
 
 | 位置 | 预计改动 |
 | --- | --- |
-| desktop/model-connections.ts | 可选策略校验、解析、进程传递、源码环境入口；默认 auto |
+| apps/host/src/model-connections.ts | 可选策略校验、解析、进程传递、源码环境入口；默认 auto |
 | Launcher ModelSettingsDialog 与相关 store | 编辑、保存和显示策略；沿用 API Key 管理 |
-| packages/official-llm/src/role-providers.ts | 给角色 Provider 传策略及固定 UUID |
-| packages/official-llm/src/index.ts | 在 open 生命周期内创建角色缓存标识；关闭后释放 |
-| packages/provider-chat/src/provider.ts，必要时同包一个小 helper | 根据策略设置 SDK 选项和最终请求；修正用量；不修改采样、思考、重试与角色输出 |
-| packages/provider-chat/src/request-inspector.ts | 保存缓存读写与总输入语义 |
+| packages/providers/src/llm/role-providers.ts | 给角色 Provider 传策略及固定 UUID |
+| packages/providers/src/llm/index.ts | 在 open 生命周期内创建角色缓存标识；关闭后释放 |
+| packages/providers/src/chat/provider.ts，必要时同包一个小 helper | 根据策略设置 SDK 选项和最终请求；修正用量；不修改采样、思考、重试与角色输出 |
+| packages/providers/src/chat/request-inspector.ts | 保存缓存读写与总输入语义 |
 | 创作者 RequestsView/DetailPanel 与类型 | 显示真实可获得的缓存计数及其 SDK 来源 |
 | docs/current/model-protocols.md、architecture/cognition-memory.md 及受影响章节 | 说明策略、上下文边界、观测口径、未覆盖能力；保留发行包与实测范围区别 |
 
@@ -165,7 +165,7 @@ DeepSeek 策略保持 SDK 不主动添加前缀标记，只在 onPayload 写入�
 
 依据：[OpenRouter 官方缓存与会话说明](https://openrouter.ai/docs/guides/best-practices/prompt-caching)、[OpenCode Go 官方会话请求头说明](https://opencode.ai/v2/docs/console/go/)。区域 OpenRouter 主机仍沿用原始地址，不切换区域；支持条件见[官方区域说明](https://openrouter.ai/blog/announcements/us-in-region-routing/)。手动指定这两种策略可供二级中转透传，不表示任意中转均已验收。
 
-cacheMode 已贯通 ModelConnection → ResolvedModel → RuntimeModel → LlmModel → ChatProvider；记忆目标不携带该设置。SDK 仍使用 none 来抑制其默认末尾缓存点，适配器随后精确注入选中策略。没有把所有调用统一改为 short，没有修改调度、角色上下文内容、规则与事实提交，也没有更改插件 SDK 或 pi-ai 依赖版本。新增公开的浏览器安全子路径 @harness-world/provider-chat/prompt-cache，Launcher 和创作者构建通过它读取标签/解析逻辑，避免引入 Node 模块或跨包私有文件。
+cacheMode 已贯通 ModelConnection → ResolvedModel → RuntimeModel → LlmModel → ChatProvider；记忆目标不携带该设置。SDK 仍使用 none 来抑制其默认末尾缓存点，适配器随后精确注入选中策略。没有把所有调用统一改为 short，没有修改调度、角色上下文内容、规则与事实提交，也没有更改插件 SDK 或 pi-ai 依赖版本。新增公开的浏览器安全子路径 @perspectra/providers/chat/prompt-cache，Launcher 和创作者构建通过它读取标签/解析逻辑，避免引入 Node 模块或跨包私有文件。
 
 验证结果：
 

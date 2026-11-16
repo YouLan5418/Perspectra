@@ -3,16 +3,16 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { build } from 'esbuild'
 import { afterEach, expect, it } from 'vitest'
-import { brandId, hashWorldJson, type WorldAddress, type WorldEventDraft } from '@harness-world/contracts'
+import { brandId, hashWorldJson, type WorldAddress, type WorldEventDraft } from '@perspectra/sdk/contracts'
 import {
   StatusState,
   WorldApplication,
   adjudicateItemChanges,
   executeWorldRound,
   type WorldRoundEffects,
-} from '@harness-world/application'
-import { currentEntityState, currentLocation } from '@harness-world/kernel'
-import { WorldStore, WriterLeaseService } from '@harness-world/store-sqlite'
+} from '@perspectra/core'
+import { currentEntityState, currentLocation } from '@perspectra/core/kernel'
+import { WorldStore, WriterLeaseService } from '@perspectra/core/store'
 import { frozenInteractionWorld } from '../fixtures/frozen-interaction-world.ts'
 
 // M7: no official model, memory, RP default, activity script or gameplay package. The core alone keeps entities,
@@ -284,7 +284,7 @@ it('gives a forked branch the committed facts and then keeps both branches apart
 
 it('bundles the core entry without any official mechanism, gameplay package or host adapter', async () => {
   const { metafile } = await build({
-    entryPoints: ['packages/application/src/index.ts'],
+    entryPoints: ['packages/core/src/application/index.ts'],
     bundle: true,
     write: false,
     metafile: true,

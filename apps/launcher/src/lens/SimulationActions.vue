@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import type { WorldJsonObject, WorldJsonValue } from '@harness-world/contracts'
-import type { HostAction } from '../../../../desktop/host/http-server.ts'
-import type { LensStep } from '../../../../desktop/lens/simulation.ts'
+import type { WorldJsonObject, WorldJsonValue } from '@perspectra/sdk/contracts'
+import type { HostAction } from '../../../host/src/runtime/http-server.ts'
+import type { LensStep } from '../../../host/src/lens/simulation.ts'
 import { useLensStore } from './store.ts'
 
 /** 玩家此刻可做的事：移动和交互来自 availableActions，活动操作来自各活动的视图。需要参数的操作按 schema 给出输入框；

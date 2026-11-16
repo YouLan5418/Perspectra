@@ -3,8 +3,8 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { expect, it } from 'vitest'
-import { rolePreset } from '../../packages/provider-chat/src/preset.ts'
-import { presetCall } from '../../packages/provider-chat/src/preset-runtime.ts'
+import { rolePreset } from '../../packages/providers/src/chat/preset.ts'
+import { presetCall } from '../../packages/providers/src/chat/preset-runtime.ts'
 
 it('imports the active prompt order and both input/history placements through the CLI', () => {
   const root = mkdtempSync(join(tmpdir(), 'tavern-import-'))
@@ -39,7 +39,7 @@ it('imports the active prompt order and both input/history placements through th
     )
     const run = spawnSync(
       process.execPath,
-      ['--import', 'tsx', 'packages/provider-chat/process/tavern-import.ts', input, '--out', output],
+      ['--import', 'tsx', 'apps/host/src/cli/preset-import.ts', input, '--out', output],
       { cwd: resolve('.'), encoding: 'utf8' },
     )
     expect(run.status, run.stderr).toBe(0)

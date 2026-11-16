@@ -8,16 +8,16 @@
 
 | 位置 | 职责 |
 | --- | --- |
-| [contracts/gameplay](../../../packages/contracts/src/gameplay.ts) | CommunicationDefinition、AutonomousRole 与触发数据；消息信封、机制操作 ID 与活动管理标识集中在公开契约 |
-| [official-communication](../../../packages/official-communication/src/index.ts) | 消息参数、选项、正文／说明与角色指引；通过 ctx.communication 注册，不读取数据库、不返回事件 |
-| [official-scheduler/autonomy-policy](../../../packages/official-scheduler/src/autonomy-policy.ts) | 解析既有自主声明、按交易计数触发频率、计算许可和指引；通过独立 ctx.autonomy 注册，Provider ID 为 official-autonomy |
-| [CommunicationRules](../../../packages/application/src/communication-state.ts) | 联系人声明、实际信封和收发身份检查；验证计算提案，生成已认识的 speech／收件观察事实 |
-| [autonomy-state](../../../packages/application/src/autonomy-state.ts) | 验证 NPC 身份、有限机会及地点／目标／操作声明；自主行动不能突破声明上限 |
-| [gameplay-source](../../../desktop/host/gameplay-source.ts) | 复用已有 packJsonAsset 的路径、普通文件、64 KiB、资产大小和散列检查，提供锁定配置及公开标识 |
-| [gameplay-services](../../../desktop/host/gameplay-services.ts) | 检查实例契约、复制输入和结果、归因机制异常；没有配置不能无声明安装通信或自主状态 |
-| [CommunicationRuntime](../../../desktop/host/communication-runtime.ts) | 绑定基础规则、真实输入与 executeWorldRound，保留手动入口的玩家绑定、观察和原子提交 |
-| [AutonomyRuntime](../../../desktop/host/autonomy-runtime.ts) | 从已提交事件／Authority 提取去重交易摘要，检查选中角色、生命周期、地点、行动与实际效果边界，将机会交现有调度器 |
-| [WorldGameplay](https://github.com/YouLan5418/Perspectra/blob/91292dbf/desktop/host/world-gameplay.ts)／默认组合／Launcher | 接收选中实例并装配执行适配；不再读取配置或制造默认机制，模块页展示所选服务 |
+| [contracts/gameplay](../../../packages/sdk/src/contracts/gameplay.ts) | CommunicationDefinition、AutonomousRole 与触发数据；消息信封、机制操作 ID 与活动管理标识集中在公开契约 |
+| [official-communication](../../../packages/providers/src/communication/index.ts) | 消息参数、选项、正文／说明与角色指引；通过 ctx.communication 注册，不读取数据库、不返回事件 |
+| [official-scheduler/autonomy-policy](../../../packages/providers/src/scheduler/autonomy-policy.ts) | 解析既有自主声明、按交易计数触发频率、计算许可和指引；通过独立 ctx.autonomy 注册，Provider ID 为 official-autonomy |
+| [CommunicationRules](../../../packages/core/src/application/communication-state.ts) | 联系人声明、实际信封和收发身份检查；验证计算提案，生成已认识的 speech／收件观察事实 |
+| [autonomy-state](../../../packages/core/src/application/autonomy-state.ts) | 验证 NPC 身份、有限机会及地点／目标／操作声明；自主行动不能突破声明上限 |
+| [gameplay-source](../../../apps/host/src/runtime/gameplay-source.ts) | 复用已有 packJsonAsset 的路径、普通文件、64 KiB、资产大小和散列检查，提供锁定配置及公开标识 |
+| [gameplay-services](../../../apps/host/src/runtime/gameplay-services.ts) | 检查实例契约、复制输入和结果、归因机制异常；没有配置不能无声明安装通信或自主状态 |
+| [CommunicationRuntime](../../../apps/host/src/runtime/communication-runtime.ts) | 绑定基础规则、真实输入与 executeWorldRound，保留手动入口的玩家绑定、观察和原子提交 |
+| [AutonomyRuntime](../../../apps/host/src/runtime/autonomy-runtime.ts) | 从已提交事件／Authority 提取去重交易摘要，检查选中角色、生命周期、地点、行动与实际效果边界，将机会交现有调度器 |
+| [WorldGameplay](https://github.com/YouLan5418/Perspectra/blob/91292dbf/apps/host/src/runtime/world-gameplay.ts)／默认组合／Launcher | 接收选中实例并装配执行适配；不再读取配置或制造默认机制，模块页展示所选服务 |
 
 旧 pack-communication.ts 与 pack-autonomy.ts 已删除，不保留并行生产实现。自主策略并入已有 official-scheduler 包，没有另建 scheduler 包或自主执行循环；ctx.autonomy 是配置／纯策略的独立选择，与 ctx.scheduler 的机会消耗分开。预算、动态并发、分段测量控制、角色续写均复用原路径。
 

@@ -1,10 +1,10 @@
-import { officialCharacterLoop } from '@harness-world/official-character-loop'
+import { officialCharacterLoop } from '@perspectra/providers/character-loop'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { expect, it } from 'vitest'
-import { type WorldJsonObject } from '@harness-world/contracts'
-import { CharacterTurn } from '../../packages/application/src/character-turn.ts'
+import { type WorldJsonObject } from '@perspectra/sdk/contracts'
+import { CharacterTurn } from '../../packages/core/src/application/character-turn.ts'
 import { npc, inspectDecision } from '../support/notice-board-fixture.ts'
 import { boardText, noticeBoardContext, noticeBoardResult } from '../support/notice-board-capability.ts'
 import {

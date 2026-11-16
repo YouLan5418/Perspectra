@@ -1,6 +1,6 @@
-import type { StoredWorldEvent, WorldJsonObject } from '@harness-world/contracts'
+import type { StoredWorldEvent, WorldJsonObject } from '@perspectra/sdk/contracts'
 import type { PlacementClaim } from './jev-shadow-claims-client.ts'
-import { currentEntityState, currentLocation } from '@harness-world/kernel'
+import { currentEntityState, currentLocation } from '@perspectra/core/kernel'
 
 export interface AuditWindow {
   readonly roundId: string | null

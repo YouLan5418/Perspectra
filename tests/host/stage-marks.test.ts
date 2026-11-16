@@ -5,8 +5,8 @@ import type { Server } from 'node:http'
 import type { AddressInfo } from 'node:net'
 import { resolve, sep, join } from 'node:path'
 import { tmpdir } from 'node:os'
-import { loadPackWeb, saveStageMarks, type StageMarks } from '../../desktop/host/pack-frontend.ts'
-import { createHostServer, type HostRuntime } from '../../desktop/host/http-server.ts'
+import { loadPackWeb, saveStageMarks, type StageMarks } from '../../apps/host/src/runtime/pack-frontend.ts'
+import { createHostServer, type HostRuntime } from '../../apps/host/src/runtime/http-server.ts'
 
 const token = 'a'.repeat(64)
 const roots: string[] = [],

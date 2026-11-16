@@ -1,10 +1,10 @@
 import { createServer } from 'node:http'
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
-import type { WorldJsonObject } from '@harness-world/contracts'
-import { WorldHostRuntime } from '../../desktop/host/world-runtime.ts'
-import type { HostState } from '../../desktop/host/http-server.ts'
-import { environmentRoleModels } from '../../desktop/model-connections.ts'
+import type { WorldJsonObject } from '@perspectra/sdk/contracts'
+import { WorldHostRuntime } from '../../apps/host/src/runtime/world-runtime.ts'
+import type { HostState } from '../../apps/host/src/runtime/http-server.ts'
+import { environmentRoleModels } from '../../apps/host/src/model-connections.ts'
 
 // A model-free run of examples/world-packs/status-market: scripted NPC decisions drive a theft, the player
 // buys and checks the purse, and the round hook advances time. Only the player's status bar and the

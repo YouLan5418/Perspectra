@@ -1,8 +1,8 @@
 import { setImmediate as nextTurn } from 'node:timers/promises'
-import type { StoredWorldEvent, WorldAddress, WorldJsonObject } from '@harness-world/contracts'
+import type { StoredWorldEvent, WorldAddress, WorldJsonObject } from '@perspectra/sdk/contracts'
 import { claimCriteria, type ClaimQuestion, type ClaimAnswer, type TemporalClaim } from './jev-shadow-claims-client.ts'
 import { acquisitionWindow, holderEvidence, publicationWindow, reconcilePlacement, type PlacementAudit, type AuditWindow, type HolderEvidence } from './jev-shadow-window.ts'
-import { currentEntityState } from '@harness-world/kernel'
+import { currentEntityState } from '@perspectra/core/kernel'
 
 export interface AuditItem { readonly entityId: string; readonly name: string; readonly aliases?: readonly string[] }
 export interface AuditCharacter { readonly characterId: string; readonly name: string }

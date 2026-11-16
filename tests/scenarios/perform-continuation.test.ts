@@ -1,33 +1,33 @@
-import { officialCharacterLoop } from '@harness-world/official-character-loop'
+import { officialCharacterLoop } from '@perspectra/providers/character-loop'
 import { coreAdapter } from '../support/core-adapter.ts'
 import Ajv from 'ajv'
-import { gatewayTurnCall } from '../../packages/official-llm/src/gateway-turn-call.ts'
+import { gatewayTurnCall } from '../../packages/providers/src/llm/gateway-turn-call.ts'
 import { DatabaseSync } from 'node:sqlite'
-import { AuthorizedSourceStore } from '@harness-world/memory'
-import { CharacterViewBuilder } from '@harness-world/store-sqlite'
+import { AuthorizedSourceStore } from '@perspectra/core/memory'
+import { CharacterViewBuilder } from '@perspectra/core/store'
 import {
   publicationSourceText,
   checkExpressionPolicy,
   parseExpressionSegments,
   RECALL_KEYWORD_TOKENIZER_ID,
   type ExpressionSegment,
-} from '@harness-world/contracts'
-import { DeterministicPresenter } from '@harness-world/presentation'
-import { playerTranscript } from '../../desktop/host/player-transcript.ts'
-import { projectPlayerView } from '../../desktop/host/frontend-adapter.ts'
-import type { HostState } from '../../desktop/host/http-server.ts'
-import { CoreMemoryAdapter } from '../../packages/official-memory-core/src/core-memory.ts'
+} from '@perspectra/sdk/contracts'
+import { DeterministicPresenter } from '@perspectra/core/presentation'
+import { playerTranscript } from '../../apps/host/src/runtime/player-transcript.ts'
+import { projectPlayerView } from '../../apps/host/src/runtime/frontend-adapter.ts'
+import type { HostState } from '../../apps/host/src/runtime/http-server.ts'
+import { CoreMemoryAdapter } from '../../packages/memory-core/src/core-memory.ts'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, expect, it, vi } from 'vitest'
-import { brandId, hashWorldJson, type WorldEventDraft, type WorldJsonObject } from '@harness-world/contracts'
-import { createCoreRulebookRegistry, currentEntityState, currentLocation } from '@harness-world/kernel'
-import { CharacterRuntimeAvailabilityService, WorldStore, WriterLeaseService } from '@harness-world/store-sqlite'
-import { characterTurnCall } from '@harness-world/provider-chat'
-import { CharacterTurn, type CharacterTurnRequest } from '../../packages/application/src/character-turn.ts'
+import { brandId, hashWorldJson, type WorldEventDraft, type WorldJsonObject } from '@perspectra/sdk/contracts'
+import { createCoreRulebookRegistry, currentEntityState, currentLocation } from '@perspectra/core/kernel'
+import { CharacterRuntimeAvailabilityService, WorldStore, WriterLeaseService } from '@perspectra/core/store'
+import { characterTurnCall } from '@perspectra/providers/chat'
+import { CharacterTurn, type CharacterTurnRequest } from '../../packages/core/src/application/character-turn.ts'
 import { frozenInteractionWorld, basicInteractionPackage } from '../fixtures/frozen-interaction-world.ts'
-import { decideWithFormatRetry } from '../../desktop/host/decision-format.ts'
+import { decideWithFormatRetry } from '../../apps/host/src/runtime/decision-format.ts'
 
 const cleanup: (() => void)[] = []
 afterEach(() => {

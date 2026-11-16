@@ -301,10 +301,10 @@ corepack pnpm@11.7.0 test:crash
 | Evidence | 来源 | 观察 |
 |---|---|---|
 | E-001 | [Memory 包](../../packages/memory/package.json) | 存在独立包级边界 |
-| E-002 | [Service](../../packages/memory/src/cognitive-context.ts) | 内部构造 Store 并形成固定 Recall Plan |
-| E-003 | [Store](../../packages/memory/src/local-memory.ts) | 捕获、检索、回执与摘要集中 |
-| E-004 | [契约](../../packages/contracts/src/memory-v2.ts) | 算法为 v1 literal，结果与 Receipt 已类型化 |
-| E-005 | [Context](../../packages/agents/src/context-v2.ts) | 独立 Hash 验证与容量裁剪 |
+| E-002 | [Service](../../packages/core/src/memory/cognitive-context.ts) | 内部构造 Store 并形成固定 Recall Plan |
+| E-003 | [Store](../../packages/core/src/memory/local-memory.ts) | 捕获、检索、回执与摘要集中 |
+| E-004 | [契约](../../packages/sdk/src/contracts/memory-v2.ts) | 算法为 v1 literal，结果与 Receipt 已类型化 |
+| E-005 | [Context](../../packages/core/src/agents/context-v2.ts) | 独立 Hash 验证与容量裁剪 |
 | E-006 | ADR-0067 / 0068 / 0071 / 0081 | 来源、摘要、反思与恢复集合不可绕过 |
 
 Finding F-001：E-001～E-003 支持包内职责拆分，不要求独立服务。Finding F-002：E-004～E-005 要求策略与消费契约一起版本化。Finding F-003：E-003、E-006 要求经历索引与权威认知分离，并保留精确历史结果。

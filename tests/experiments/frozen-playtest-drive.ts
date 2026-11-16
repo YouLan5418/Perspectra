@@ -1,9 +1,9 @@
 import { appendFileSync, mkdirSync, writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
-import type { WorldAddress } from '@harness-world/contracts'
-import { WorldStore } from '@harness-world/store-sqlite'
-import { WorldHostRuntime } from '../../desktop/host/world-runtime.ts'
-import { environmentRoleModels } from '../../desktop/model-connections.ts'
+import type { WorldAddress } from '@perspectra/sdk/contracts'
+import { WorldStore } from '@perspectra/core/store'
+import { WorldHostRuntime } from '../../apps/host/src/runtime/world-runtime.ts'
+import { environmentRoleModels } from '../../apps/host/src/model-connections.ts'
 
 /**
  * Manual: a real model plays the frozen world through **the page's own runtime**, turn after turn,

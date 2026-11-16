@@ -25,11 +25,134 @@
       "@/*": [
         "./src/*"
       ],
-      "@harness-world/provider-chat/*": [
-        "../../packages/provider-chat/src/*.ts"
+      "@perspectra/frontend": [
+        "../../packages/frontend/src/index.ts"
       ],
-      "@harness-world/*": [
-        "../../packages/*/src/index.ts"
+      "@perspectra/testkit": [
+        "../../packages/testkit/src/index.ts"
+      ],
+      "@perspectra/world-pack": [
+        "../../packages/world-pack/src/index.ts"
+      ],
+      "@perspectra/world-pack/lens/view": [
+        "../../packages/world-pack/src/lens/view.ts"
+      ],
+      "@perspectra/world-pack/lens/ids": [
+        "../../packages/world-pack/src/lens/ids.ts"
+      ],
+      "@perspectra/world-pack/lens/rpg-view": [
+        "../../packages/world-pack/src/lens/rpg-view.ts"
+      ],
+      "@perspectra/world-pack/lens/diff": [
+        "../../packages/world-pack/src/lens/diff.ts"
+      ],
+      "@perspectra/world-pack/cli": [
+        "../../packages/world-pack/src/creator-cli.ts"
+      ],
+      "@perspectra/sdk/contracts": [
+        "../../packages/sdk/src/contracts/index.ts"
+      ],
+      "@perspectra/sdk": [
+        "../../packages/sdk/src/index.ts"
+      ],
+      "@perspectra/plugins/dice": [
+        "../../packages/plugins/src/dice/index.ts"
+      ],
+      "@perspectra/plugins/pacing": [
+        "../../packages/plugins/src/pacing/index.ts"
+      ],
+      "@perspectra/plugins/rpg": [
+        "../../packages/plugins/src/rpg/index.ts"
+      ],
+      "@perspectra/plugins/trpg": [
+        "../../packages/plugins/src/trpg/index.ts"
+      ],
+      "@perspectra/plugins/basic-interactions": [
+        "../../packages/plugins/src/basic-interactions/index.ts"
+      ],
+      "@perspectra/memory-core": [
+        "../../packages/memory-core/src/index.ts"
+      ],
+      "@perspectra/providers/activities": [
+        "../../packages/providers/src/activities/index.ts"
+      ],
+      "@perspectra/providers/character-loop": [
+        "../../packages/providers/src/character-loop/index.ts"
+      ],
+      "@perspectra/providers/communication": [
+        "../../packages/providers/src/communication/index.ts"
+      ],
+      "@perspectra/providers/contexts": [
+        "../../packages/providers/src/contexts/index.ts"
+      ],
+      "@perspectra/providers/knowledge": [
+        "../../packages/providers/src/knowledge/index.ts"
+      ],
+      "@perspectra/providers/llm": [
+        "../../packages/providers/src/llm/index.ts"
+      ],
+      "@perspectra/providers/memory-none": [
+        "../../packages/providers/src/memory-none/index.ts"
+      ],
+      "@perspectra/providers/scheduler": [
+        "../../packages/providers/src/scheduler/index.ts"
+      ],
+      "@perspectra/providers/status": [
+        "../../packages/providers/src/status/index.ts"
+      ],
+      "@perspectra/providers/chat": [
+        "../../packages/providers/src/chat/index.ts"
+      ],
+      "@perspectra/providers/chat/preset": [
+        "../../packages/providers/src/chat/preset.ts"
+      ],
+      "@perspectra/providers/chat/prompt-cache": [
+        "../../packages/providers/src/chat/prompt-cache.ts"
+      ],
+      "@perspectra/providers/chat/preset-library": [
+        "../../packages/providers/src/chat/preset-library.ts"
+      ],
+      "@perspectra/providers/chat/preset-macros": [
+        "../../packages/providers/src/chat/preset-macros.ts"
+      ],
+      "@perspectra/providers/chat/preset-regex": [
+        "../../packages/providers/src/chat/preset-regex.ts"
+      ],
+      "@perspectra/providers/scripted-model": [
+        "../../packages/providers/src/scripted-model/index.ts"
+      ],
+      "@perspectra/core": [
+        "../../packages/core/src/application/index.ts"
+      ],
+      "@perspectra/core/kernel": [
+        "../../packages/core/src/kernel/index.ts"
+      ],
+      "@perspectra/core/store": [
+        "../../packages/core/src/store/index.ts"
+      ],
+      "@perspectra/core/runtime": [
+        "../../packages/core/src/runtime/index.ts"
+      ],
+      "@perspectra/core/memory": [
+        "../../packages/core/src/memory/index.ts"
+      ],
+      "@perspectra/core/interactions": [
+        "../../packages/core/src/interactions/index.ts"
+      ],
+      "@perspectra/core/presentation": [
+        "../../packages/core/src/presentation/index.ts"
+      ],
+      "@perspectra/core/agents": [
+        "../../packages/core/src/agents/index.ts"
+      ],
+      "@perspectra/jev-audit": [
+        "../../packages/jev-audit/src/index.ts"
+      ],
+      "@perspectra/host/play-settings": [
+        "../../apps/host/src/play-settings.ts"
+      ],
+      "@perspectra/host/plugin-settings": [
+        "../../apps/host/src/host-plugin-settings.ts"
       ]
     }
   },

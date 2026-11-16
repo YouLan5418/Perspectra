@@ -6,7 +6,7 @@
 
 ## 源码接通
 
-新增 `ctx.characterLoop`，hostApi 2.4。官方策略进入 [official-character-loop](../../../packages/official-character-loop/src/index.ts)，仅使用公开激活能力；原 [CharacterTurn](../../../packages/application/src/character-turn.ts)保留角色绑定、授权请求、前缀检查、串行提交、写租约、规则、受众与观察。没有宿主暗藏的默认循环，直接构造执行器的测试夹具也明确传入官方实现。
+新增 `ctx.characterLoop`，hostApi 2.4。官方策略进入 [official-character-loop](../../../packages/providers/src/character-loop/index.ts)，仅使用公开激活能力；原 [CharacterTurn](../../../packages/core/src/application/character-turn.ts)保留角色绑定、授权请求、前缀检查、串行提交、写租约、规则、受众与观察。没有宿主暗藏的默认循环，直接构造执行器的测试夹具也明确传入官方实现。
 
 每次激活只获得 prepare／decide／submit 与只读调用计数、真实操作结果；请求和结果均为副本，prepare 不接受执行角色或前缀。申请只消费一次，结束、取消与过期后的调用被拒绝。同一存储对象上的同一角色不能被两个执行器同时激活；异步能力不可重叠。模型计算不持有 SQLite 事务，操作提交后续写失败仍保留操作。
 

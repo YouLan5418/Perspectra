@@ -79,7 +79,7 @@ Perspectra 的基本思路是**以角色为主体，以世界为载体，以规�
 
 目前没有可下载的程序包。之前的预发行版打包得较早，已经落后于现在的代码，请从源码运行。
 
-需要 Node.js 22.19+ 或 24+，使用仓库锁定的 pnpm。原生 Launcher 开发还需要 Rust/Cargo、Windows 构建工具和 [Python/E5 记忆环境](packages/official-memory-core/README.md)。
+需要 Node.js 22.19+ 或 24+，使用仓库锁定的 pnpm。原生 Launcher 开发还需要 Rust/Cargo、Windows 构建工具和 [Python/E5 记忆环境](packages/memory-core/README.md)。
 
 ```powershell
 corepack pnpm@11.7.0 install --frozen-lockfile
@@ -182,7 +182,7 @@ corepack pnpm@11.7.0 launcher:check
 
 ![代码分层：世界包、可替换的机制、宿主、核心；另有启动器、舞台、模型服务和长期记忆在不同进程里运行](docs/current/assets/readme/layers.zh.svg)
 
-读代码时可以从上往下看：世界包里的脚本由 `packages/official-*` 解释，`desktop/host` 把结果绑定到真实角色，最后由 `packages/application` 和 `packages/store-sqlite` 提交。图由 `node scripts/docs/readme-diagrams.mjs` 生成。各模块的职责见[模块地图](docs/current/architecture/modules.md)。
+读代码时可以从上往下看：世界包里的脚本由 `packages/providers · plugins` 解释，`apps/host/src/runtime` 把结果绑定到真实角色，最后由 `packages/core/src/application` 和 `packages/core/src/store` 提交。图由 `node scripts/docs/readme-diagrams.mjs` 生成。各模块的职责见[模块地图](docs/current/architecture/modules.md)。
 
 | 想了解什么 | 入口 |
 | --- | --- |

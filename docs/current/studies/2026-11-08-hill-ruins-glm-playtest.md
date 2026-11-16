@@ -20,7 +20,7 @@
 
 **原因：** 记录行动时，程序把这次结算里出现的第一条物品转移当成了行动者本人的物品操作。但活动结果掉落的物品不是她亲手做的，它的 `interactionId` 是这次行动自己的 id。
 
-**修复：** 新增 [`actorTransfer`](../../../packages/application/src/item-effects.ts)，只有不是规则结果的转移才算行动者本人的物品操作。玩家立即行动、协调回合、角色回合三处都改用它。回归测试在 [rpg-perform-path.test.ts](../../../tests/host/rpg-perform-path.test.ts)：没有修复时失败，修复后通过。
+**修复：** 新增 [`actorTransfer`](../../../packages/core/src/application/item-effects.ts)，只有不是规则结果的转移才算行动者本人的物品操作。玩家立即行动、协调回合、角色回合三处都改用它。回归测试在 [rpg-perform-path.test.ts](../../../tests/host/rpg-perform-path.test.ts)：没有修复时失败，修复后通过。
 
 第三局确认画面上是“玩家使用火球术，遗迹守卫生命 6 → 0。……敌人全部倒下，战斗胜利。有东西掉在了地上。”。完整检查通过，共 2065 个测试。
 

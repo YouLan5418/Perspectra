@@ -8,7 +8,7 @@
 
 宿主 API 升至 2.3，新增 `ctx.llm.registerTransport`，与 `register` 共用原有单例槽位。完整通道与发送适配器互斥，Cordis 注册仍按插件生命周期回滚；Launcher 从清单 `llmMode: 'transport'` 显示“官方预设 + 插件名”，同一 llm 模块预测冲突。
 
-[官方模型包装](../../../packages/official-llm/src/index.ts)保留准备与文本处理，[transport.ts](../../../packages/official-llm/src/transport.ts)负责调用、超时、记录与失败反馈；预设解析从角色连接中独立复用，没有新增包。发送返回后仍走主干格式、受众、裁定和提交。脚本演出依旧不发送，也不应用模型输出规则。
+[官方模型包装](../../../packages/providers/src/llm/index.ts)保留准备与文本处理，[transport.ts](../../../packages/providers/src/llm/transport.ts)负责调用、超时、记录与失败反馈；预设解析从角色连接中独立复用，没有新增包。发送返回后仍走主干格式、受众、裁定和提交。脚本演出依旧不发送，也不应用模型输出规则。
 
 适配器通过 model 与 schemaMode 声明模型名及标准 Schema 形状，不依赖未使用的官方连接协议。send 收到 messages/schema/generation，不包含原模型连接、Key、原始授权请求对象或检查器。自己的凭证由 secret 配置传入。返回 `{ value, httpStatus? }`，HTTP 错误可携带 httpStatus；官方检查和玩家提示能关联实际适配器与 401 等状态。没有自动回退官方发送。
 
@@ -16,7 +16,7 @@
 
 ## 玩家输入与 Core 的实际边界
 
-最初按旧名称把 player-intent/v1 当成模型解释开关，会错误拒绝当前大多数包。读到 [preparePlayerIntent](../../../packages/application/src/player-intent-preparation.ts) 后确认其只产生 directSubmission：当前命令与发言解析不调用模型 dispatch，因此不需要这项启动拒绝。发送模式不提供模型 dispatch，现有宿主回调若请求它会明确报不支持，不会转向原模型。
+最初按旧名称把 player-intent/v1 当成模型解释开关，会错误拒绝当前大多数包。读到 [preparePlayerIntent](../../../packages/core/src/application/player-intent-preparation.ts) 后确认其只产生 directSubmission：当前命令与发言解析不调用模型 dispatch，因此不需要这项启动拒绝。发送模式不提供模型 dispatch，现有宿主回调若请求它会明确报不支持，不会转向原模型。
 
 Core 不走本适配器，继续使用原记忆连接和预算；原决策连接的协议、Key 与思考档位不转交给适配器。本阶段不修改 Core 的传输接口，也不声称一个发送插件已经替换全系统模型调用。
 

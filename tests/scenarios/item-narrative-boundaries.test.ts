@@ -1,7 +1,7 @@
 import { expect, it } from 'vitest'
-import { brandId, type WorldJsonObject } from '@harness-world/contracts'
-import { characterVisibleItems } from '../../packages/application/src/character-visible-items.ts'
-import { characterRequestText } from '../../packages/provider-chat/src/character-context-text.ts'
+import { brandId, type WorldJsonObject } from '@perspectra/sdk/contracts'
+import { characterVisibleItems } from '../../packages/core/src/application/character-visible-items.ts'
+import { characterRequestText } from '../../packages/providers/src/chat/character-context-text.ts'
 import { frozenInteractionWorld } from '../fixtures/frozen-interaction-world.ts'
 
 const f = frozenInteractionWorld(),

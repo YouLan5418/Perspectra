@@ -1,12 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import type { RolePreset } from '@harness-world/provider-chat/preset'
-import {
-  namedPreset,
-  importPresets,
-  exportPresets,
-  type NamedPreset,
-} from '@harness-world/provider-chat/preset-library'
+import type { RolePreset } from '@perspectra/providers/chat/preset'
+import { namedPreset, importPresets, exportPresets, type NamedPreset } from '@perspectra/providers/chat/preset-library'
 import { useLauncherStore } from '../stores/launcher.ts'
 import { savePresetFile } from '../services/desktop.ts'
 const props = defineProps<{ preset: RolePreset; canApply: boolean }>()

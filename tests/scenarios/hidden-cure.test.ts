@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { expect, it } from 'vitest'
-import { WorldHostRuntime } from '../../desktop/host/world-runtime.ts'
+import { WorldHostRuntime } from '../../apps/host/src/runtime/world-runtime.ts'
 import { command, object, packPath, settings, snapshot, takeRecord } from '../support/hidden-cure-scenario.ts'
 import { createChatServer, fakeModels } from '../support/fake-provider.ts'
 

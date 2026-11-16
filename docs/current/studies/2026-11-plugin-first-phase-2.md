@@ -10,11 +10,11 @@
 | --- | --- |
 | 记忆接缝 | 新增 `ctx.memory`，宿主 API 升到 `1.2`。每个世界实例打开一次，只有 `project` 必需 |
 | 原生召回 | 删除。`--memory-native` 改为 `--memory-none`，只用于离线开发和测试，角色没有长期记忆 |
-| `packages/memory` | 只保留授权来源捕获，属于主干，不可替换 |
-| Core | 移到 [official-memory-core](../../../packages/official-memory-core/README.md)，只依赖公开接口。模型配置由入口组装时带入，插件拿不到 |
+| `packages/core/src/memory` | 只保留授权来源捕获，属于主干，不可替换 |
+| Core | 移到 [official-memory-core](../../../packages/memory-core/README.md)，只依赖公开接口。模型配置由入口组装时带入，插件拿不到 |
 | 模型提示 | 删除“可以使用 recall”的说明和 `canRecall` 字段。旧提示这样写，工具却不提供，这是唯一有意的请求变化 |
 | 存档 | 已有 `memory.sqlite` 经 v9 迁移丢弃原生表，来源行和哈希不变 |
-| 随机端口 | 本机动态端口从 1024 开始，可能落到浏览器禁用的端口。服务和测试现在都会避开，见 [safe-port.ts](../../../desktop/safe-port.ts) |
+| 随机端口 | 本机动态端口从 1024 开始，可能落到浏览器禁用的端口。服务和测试现在都会避开，见 [safe-port.ts](../../../apps/host/src/safe-port.ts) |
 
 ## 接口够用吗
 
@@ -26,7 +26,7 @@ Core 走公开接口就能运行，但 `MemoryInstance` 有 15 个可选方法�
 
 | 项目 | 变化 |
 | --- | --- |
-| `packages/memory` 生产代码 | 2,897 → 880 行 |
+| `packages/core/src/memory` 生产代码 | 2,897 → 880 行 |
 | `world-runtime.ts` | 阶段 1 结束时 2,319 → 2,267 行，比分支开始时的 2,255 行仍多 12 行 |
 | 本阶段生产代码（`desktop`、`packages`、`apps`、`scripts`，不含测试） | 增加约 1,210 行，删除约 3,200 行 |
 | 研究驱动 | 删除依赖原生召回的约 22 个脚本，历史记录里有的链接因此失效 |

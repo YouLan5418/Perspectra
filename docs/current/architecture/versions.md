@@ -4,7 +4,7 @@
 
 核对日期：2026-10-21。2026-11-04～05 追加核对宿主插件 API；其余版本表未在本次重新核对。
 
-宿主插件 API 当前为 `2.8`（新增通信和自主策略机制，保留 2.7 的活动机制、2.6 的状态脚本机制、2.5 的知识选择、2.4 的角色循环、2.3 的发送适配器和 2.2 的记忆窗口声明；2.0～2.7 插件仍可加载，自定义记忆的窗口转接需适配），定义在 [plugin-sdk/version](../../../packages/plugin-sdk/src/version.ts)，仍经[根入口](../../../packages/plugin-sdk/src/index.ts)导出。调度接缝新增自主与活动阶段，因此显式升级主版本；1.x 插件不执行，需适配并更新声明。此版本不改变世界包、数据库或角色输出协议。
+宿主插件 API 当前为 `2.8`（新增通信和自主策略机制，保留 2.7 的活动机制、2.6 的状态脚本机制、2.5 的知识选择、2.4 的角色循环、2.3 的发送适配器和 2.2 的记忆窗口声明；2.0～2.7 插件仍可加载，自定义记忆的窗口转接需适配），定义在 [plugin-sdk/version](../../../packages/sdk/src/version.ts)，仍经[根入口](../../../packages/sdk/src/index.ts)导出。调度接缝新增自主与活动阶段，因此显式升级主版本；1.x 插件不执行，需适配并更新声明。此版本不改变世界包、数据库或角色输出协议。
 
 先看一个例子：作者用 `worldpack-source/v5` 写好世界包，宿主编译出 Manifest v10，玩家开局后世界库升到 user_version 20、记忆库升到 8。之后玩家每说一句话，RoundCoordinator 就提交一份 Round Authority v6。这些版本号各管一件事，互不推导；下表把它们放在一处，并写明遇到别的值时会怎样。
 
@@ -15,21 +15,21 @@
 | 版本轴 | 当前值 | 定义位置 | 旧值处理 |
 | --- | --- | --- | --- |
 | 世界包源格式 | `worldpack-source/v5` | [world-pack contracts](../../../packages/world-pack/src/contracts.ts) | 其他版本直接拒绝，不上转 |
-| Manifest | `schemaVersion: 10` | [world-spec.ts](../../../packages/kernel/src/world-spec.ts) | 读取已存 Manifest 时只接受 10 |
+| Manifest | `schemaVersion: 10` | [world-spec.ts](../../../packages/core/src/kernel/world-spec.ts) | 读取已存 Manifest 时只接受 10 |
 | Manifest 内容包 | `contentPack.schemaVersion: 2` | 同上 | 只接受 2 |
 | 运行时能力 | `publicSpeechObservationVersion 1`、`cognitionProjectionVersion 1`、`sceneDecisionVersion 2`、`cognitiveMemoryVersion 2`、`agentContextVersion 2` | 同上 | 必须恰好等于这些值，否则拒绝 |
-| 核心规则 | `builtin:speak-move` v2 | [rulebook-registry.ts](../../../packages/kernel/src/rulebook-registry.ts) | 注册表只有 v2；世界包声明别的版本会在激活时找不到规则 |
-| 交互目录 | `interaction-catalog/v3` | [interaction-definition.ts](../../../packages/contracts/src/interaction-definition.ts) | 只接受 v3 |
-| 反应策略 | `reaction-policy/v1` | [reaction-policy.ts](../../../packages/contracts/src/reaction-policy.ts) | 只作为已哈希的 Manifest 数据保留，运行时不读取 |
+| 核心规则 | `builtin:speak-move` v2 | [rulebook-registry.ts](../../../packages/core/src/kernel/rulebook-registry.ts) | 注册表只有 v2；世界包声明别的版本会在激活时找不到规则 |
+| 交互目录 | `interaction-catalog/v3` | [interaction-definition.ts](../../../packages/sdk/src/contracts/interaction-definition.ts) | 只接受 v3 |
+| 反应策略 | `reaction-policy/v1` | [reaction-policy.ts](../../../packages/sdk/src/contracts/reaction-policy.ts) | 只作为已哈希的 Manifest 数据保留，运行时不读取 |
 
 ## 2. 提交与运行时记录
 
 | 版本轴 | 当前值 | 定义位置 | 说明 |
 | --- | --- | --- | --- |
-| 玩家回合 Authority | `schemaVersion: 6` | [round-coordinator.ts](../../../packages/application/src/round-coordinator.ts) | 与回合事件同一事务提交，哈希进 bundle |
-| NPC 行动 Authority | 无版本号 | [character-turn.ts](../../../packages/application/src/character-turn.ts) | 记录行动者、行动、裁定状态与 resolutionAuthority |
-| 场景决策 | `scene-decision/v2` | [scene-decision.ts](../../../packages/application/src/scene-decision.ts) | 运行时计算，不持久化 |
-| 角色预设库 | `PRESET_SCHEMA_VERSION 1` | [preset-library.ts](../../../packages/provider-chat/src/preset-library.ts) | Launcher 保存的预设文件 |
+| 玩家回合 Authority | `schemaVersion: 6` | [round-coordinator.ts](../../../packages/core/src/application/round-coordinator.ts) | 与回合事件同一事务提交，哈希进 bundle |
+| NPC 行动 Authority | 无版本号 | [character-turn.ts](../../../packages/core/src/application/character-turn.ts) | 记录行动者、行动、裁定状态与 resolutionAuthority |
+| 场景决策 | `scene-decision/v2` | [scene-decision.ts](../../../packages/core/src/application/scene-decision.ts) | 运行时计算，不持久化 |
+| 角色预设库 | `PRESET_SCHEMA_VERSION 1` | [preset-library.ts](../../../packages/providers/src/chat/preset-library.ts) | Launcher 保存的预设文件 |
 
 ## 3. SQLite 数据库
 
@@ -37,12 +37,12 @@
 
 | 数据库 | 当前 user_version | 迁移定义 |
 | --- | --- | --- |
-| world.sqlite | 20 | [world-schema.ts](../../../packages/store-sqlite/src/world-schema.ts)；v20 删除已退役的 Reaction Cycle 表 |
-| memory.sqlite | 8 | [memory-schema.ts](../../../packages/memory/src/memory-schema.ts) |
-| context.sqlite | 7 | [context-database.ts](../../../packages/agents/src/context-database.ts) |
-| session.sqlite | 2 | [session-delivery.ts](../../../packages/store-sqlite/src/session-delivery.ts) |
-| 运维审计库 | 2 | [operational-audit.ts](../../../packages/store-sqlite/src/operational-audit.ts) |
-| 投影库、快照库 | 1 | [sqlite.ts](../../../packages/store-sqlite/src/sqlite.ts) 的 `openOwnedDatabase` |
+| world.sqlite | 20 | [world-schema.ts](../../../packages/core/src/store/world-schema.ts)；v20 删除已退役的 Reaction Cycle 表 |
+| memory.sqlite | 8 | [memory-schema.ts](../../../packages/core/src/memory/memory-schema.ts) |
+| context.sqlite | 7 | [context-database.ts](../../../packages/core/src/agents/context-database.ts) |
+| session.sqlite | 2 | [session-delivery.ts](../../../packages/core/src/store/session-delivery.ts) |
+| 运维审计库 | 2 | [operational-audit.ts](../../../packages/core/src/store/operational-audit.ts) |
+| 投影库、快照库 | 1 | [sqlite.ts](../../../packages/core/src/store/sqlite.ts) 的 `openOwnedDatabase` |
 
 ## 4. 改版本时
 

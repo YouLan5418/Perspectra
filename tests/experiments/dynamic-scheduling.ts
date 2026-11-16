@@ -3,11 +3,11 @@ import { createServer } from 'node:http'
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
 import { resolve, join } from 'node:path'
 import { setTimeout as delay } from 'node:timers/promises'
-import type { WorldJsonObject } from '@harness-world/contracts'
-import { WorldHostRuntime } from '../../desktop/host/world-runtime.ts'
-import type { HostState } from '../../desktop/host/http-server.ts'
-import { projectPlayerView } from '../../desktop/host/frontend-adapter.ts'
-import { environmentRoleModels } from '../../desktop/model-connections.ts'
+import type { WorldJsonObject } from '@perspectra/sdk/contracts'
+import { WorldHostRuntime } from '../../apps/host/src/runtime/world-runtime.ts'
+import type { HostState } from '../../apps/host/src/runtime/http-server.ts'
+import { projectPlayerView } from '../../apps/host/src/runtime/frontend-adapter.ts'
+import { environmentRoleModels } from '../../apps/host/src/model-connections.ts'
 
 // A local, reproducible scheduling comparison. Only public player output and timings are saved.
 const live = process.argv.slice(2).includes('--live')

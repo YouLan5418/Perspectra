@@ -1,8 +1,8 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import type { ActivityHooks, ContentGenerator, StatusModuleHooks } from '@harness-world/plugin-sdk'
-import { assembleRoleplay } from '../../desktop/official-bundle.ts'
+import type { ActivityHooks, ContentGenerator, StatusModuleHooks } from '@perspectra/sdk'
+import { assembleRoleplay } from '../../apps/host/src/official-bundle.ts'
 import { copyRpgFixture, openRpgWorld } from '../support/rpg-fixture.ts'
 
 // 非 RPG 的玩法内容插件示例：读取 cards.json 注册原生状态模块与原生活动，并按持久数据兼容声明校验存档。

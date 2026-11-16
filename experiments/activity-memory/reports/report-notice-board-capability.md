@@ -23,12 +23,12 @@
 
 具体代码证据：
 
-- `packages/application/src/prototype-character-turn.ts`：publish 转为 speak；perform 已支持 move/interact。解析提案、规则裁定、原子提交后才开始后续模型调用。
-- `packages/kernel/src/frozen-interactions.ts` 与 `packages/interaction-runtime/src/registry.ts`：包注册和绑定已经存在；affordance view 运行与 resolve 相同的规则计划，但不执行 effect；执行仍重新核验当前状态。
-- `packages/application/src/character-execution-result.ts`：默认反馈只描述交互是否成功，不能提供牌面；本轮用已存在的 hook 补上该能力的反馈。
+- `packages/core/src/application/prototype-character-turn.ts`：publish 转为 speak；perform 已支持 move/interact。解析提案、规则裁定、原子提交后才开始后续模型调用。
+- `packages/core/src/kernel/frozen-interactions.ts` 与 `packages/core/src/interactions/registry.ts`：包注册和绑定已经存在；affordance view 运行与 resolve 相同的规则计划，但不执行 effect；执行仍重新核验当前状态。
+- `packages/core/src/application/character-execution-result.ts`：默认反馈只描述交互是否成功，不能提供牌面；本轮用已存在的 hook 补上该能力的反馈。
 - `tests/experiments/pack-activity.ts`：活动已通过动态 interact 选项、当前策略和版本检查承载脚本动作。本轮无需改 Activity，也不新建另一套活动调度。
 - `tests/experiments/pack-variables.ts`：其独立文件写入不与世界事件共用事务，故本轮不将读取结果写到这条路径。
-- `packages/memory/src/local-memory.ts`：只捕获该角色授权的 observation.upsert；发言始终为 reported_speech，非发言可保留显式 direct_observation。
+- `packages/core/src/memory/local-memory.ts`：只捕获该角色授权的 observation.upsert；发言始终为 reported_speech，非发言可保留显式 direct_observation。
 - PrototypeCharacterTurn 已复用 writer lease、SceneDecisionService、Round 和 WorldStore.commitRound；不需要再创建 Capability Round 或另一条结果提交管线。
 
 ## 3. 最小设计与实际实现

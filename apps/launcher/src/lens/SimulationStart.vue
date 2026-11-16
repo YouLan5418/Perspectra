@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import type { WorldJsonValue } from '@harness-world/contracts'
-import type { LensStart } from '../../../../desktop/lens/simulation.ts'
+import type { WorldJsonValue } from '@perspectra/sdk/contracts'
+import type { LensStart } from '../../../host/src/lens/simulation.ts'
 import { useLensStore } from './store.ts'
 import { fieldValue, showValue } from './format.ts'
 

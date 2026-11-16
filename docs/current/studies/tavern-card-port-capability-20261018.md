@@ -42,11 +42,11 @@
 | 状态栏 / 常驻状态面板 | `PlayerView` 封闭，SDK 无变量通道 | **缺** | [player-view.ts:5](../../../packages/frontend/src/player-view.ts) |
 | 563 条关键词世界书 | 包内无关键词声明字段；召回 = 角色记忆全文词元检索 | **缺** | [schema.ts:361](../../../packages/world-pack/src/schema.ts) 拒未知字段 |
 | 长文本知识入库 | `documents.json` + `usage:"memory_seed"` → 该角色一条初始 observation | 部分可用 | [compiler.ts:553](../../../packages/world-pack/src/compiler.ts) |
-| `world_context` / `portrayal` 文档 | 编译进 manifest，无运行时消费者 | 未接通 | 仅 [world-spec.ts:249](../../../packages/kernel/src/world-spec.ts) 引用 |
+| `world_context` / `portrayal` 文档 | 编译进 manifest，无运行时消费者 | 未接通 | 仅 [world-spec.ts:249](../../../packages/core/src/kernel/world-spec.ts) 引用 |
 | CG 图卡、立绘 | 无内置机制；自定义前端可放图并 `resource()` 取 URL | 需自建 | [frontend-v1.md:44](../../current/frontend-v1.md) |
 | 16 个开局 | 无多开局概念；player-slots 恰好 1 个 | 需变通 | [schema.ts:1120](../../../packages/world-pack/src/schema.ts) |
 | 22 条正则（去 AI 腔等） | `preset:import` 可转成 input/history/display 三阶段文本规则 | 数量超限 | 见下节 |
-| 状态栏/开场两条巨型替换 | 替换文本上限 4,000 字符 | **会被跳过** | [preset.ts:56](../../../packages/provider-chat/src/preset.ts) |
+| 状态栏/开场两条巨型替换 | 替换文本上限 4,000 字符 | **会被跳过** | [preset.ts:56](../../../packages/providers/src/chat/preset.ts) |
 
 ## 三、缺口（按对还原体验的影响排序）
 

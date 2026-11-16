@@ -1,7 +1,7 @@
-import { brandId, type WorldAddress } from '@harness-world/contracts'
+import { brandId, type WorldAddress } from '@perspectra/sdk/contracts'
 import { expect, it, vi } from 'vitest'
-import type { WakeupSource } from '@harness-world/plugin-sdk'
-import { createSchedulerRound } from '../../packages/application/src/scheduler-round.ts'
+import type { WakeupSource } from '@perspectra/sdk'
+import { createSchedulerRound } from '../../packages/core/src/application/scheduler-round.ts'
 
 const a = brandId('character:a', 'CharacterId'),
   b = brandId('character:b', 'CharacterId')

@@ -2,8 +2,8 @@
 // Usage: DEEPSEEK_API_KEY=... node --import tsx tests/experiments/unified-provider-smoke.ts
 import { mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
-import { WorldHostRuntime } from '../../desktop/host/world-runtime.ts'
-import { environmentRoleModels } from '../../desktop/model-connections.ts'
+import { WorldHostRuntime } from '../../apps/host/src/runtime/world-runtime.ts'
+import { environmentRoleModels } from '../../apps/host/src/model-connections.ts'
 
 const key = process.env.DEEPSEEK_API_KEY
 if (!key) throw new Error('DEEPSEEK_API_KEY missing')

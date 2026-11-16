@@ -2,7 +2,7 @@
 
 > **状态：只读审查记录。** 本文没有修改任何代码，也没有运行会调用真实模型、OpenRouter 或付费接口的脚本。
 >
-> **范围：** `tests/experiments/` 全部 139 个文件；顶层 `experiments/`；`desktop/`、`packages/`、`apps/launcher`、`scripts/` 中对这些目录的引用。
+> **范围：** `tests/experiments/` 全部 139 个文件；顶层 `experiments/`；`apps/host/src/`、`packages/`、`apps/launcher`、`scripts/` 中对这些目录的引用。
 >
 > **结论：** 最严重的问题不是单个文件起错名，而是三层职责错位——**`tests/experiments` 承担正式宿主，`experiments` 承担默认 Core 记忆，生产包反向依赖这两个"实验"目录**。单文件命名问题大多由这三层错位派生。
 
@@ -50,11 +50,11 @@
 **事实：**
 
 - [package.json](../../../package.json#L15) 的 `desktop:build` 把 [playtest-web-entry.ts](../../../tests/experiments/playtest-web-entry.ts) 打包成发行用的 `dist/backend/playtest.mjs`；[package.json](../../../package.json#L19-L20) 的 `experience:web` 也指向它。
-- [desktop/launcher-core.ts](../../../desktop/launcher-core.ts#L471) 在未设置 `PERSPECTRA_RUNTIME_ROOT` 时直接以 tsx 启动这个测试目录入口。
+- [apps/launcher/backend/core.ts](../../../apps/launcher/backend/core.ts#L471) 在未设置 `PERSPECTRA_RUNTIME_ROOT` 时直接以 tsx 启动这个测试目录入口。
 - [scripts/release/build-portable.mjs](../../../scripts/release/build-portable.mjs#L26) 把同一入口编进便携发行包。
-- [desktop/tail-runtime-identity.ts](../../../desktop/tail-runtime-identity.ts#L23-L30) 把 12 个 `tests/experiments/*.ts` 文件与 `package.json`、`pnpm-lock.yaml` 一起算作运行时身份哈希。
-- [desktop/story-share.ts](../../../desktop/story-share.ts#L10-L11) 在真实故事导入导出逻辑中导入 `PlaytestMemoryCore` 与 `PackStatus`；[#L108](../../../desktop/story-share.ts#L108)、[#L113](../../../desktop/story-share.ts#L113) 实际执行它们。
-- [desktop/main.ts](../../../desktop/main.ts#L9)、[desktop/renderer.ts](../../../desktop/renderer.ts#L4) 从 [playtest-tuning.ts](../../../tests/experiments/playtest-tuning.ts) 导入。
+- [apps/host/src/tail-runtime-identity.ts](../../../apps/host/src/tail-runtime-identity.ts#L23-L30) 把 12 个 `tests/experiments/*.ts` 文件与 `package.json`、`pnpm-lock.yaml` 一起算作运行时身份哈希。
+- [apps/host/src/story-share.ts](../../../apps/host/src/story-share.ts#L10-L11) 在真实故事导入导出逻辑中导入 `PlaytestMemoryCore` 与 `PackStatus`；[#L108](../../../apps/host/src/story-share.ts#L108)、[#L113](../../../apps/host/src/story-share.ts#L113) 实际执行它们。
+- [apps/host/src/main.ts](../../../apps/host/src/main.ts#L9)、[apps/host/src/renderer.ts](../../../apps/host/src/renderer.ts#L4) 从 [playtest-tuning.ts](../../../tests/experiments/playtest-tuning.ts) 导入。
 - [scripts/release/verify-portable.mjs](../../../scripts/release/verify-portable.mjs#L6) 从测试目录导入宿主页面，用于发行校验。
 
 **影响：**
@@ -68,7 +68,7 @@
 **事实：**
 
 - [build-portable.mjs](../../../scripts/release/build-portable.mjs#L31-L33) 把 `experiments/hindsight-core/*.py`、`experiments/activity-memory/*.py` 复制进发行运行时。
-- [tail-runtime-identity.ts](../../../desktop/tail-runtime-identity.ts#L33) 把这两个目录的 Python 文件计入运行时身份。
+- [tail-runtime-identity.ts](../../../apps/host/src/tail-runtime-identity.ts#L33) 把这两个目录的 Python 文件计入运行时身份。
 - [playtest-memory-core.ts](../../../tests/experiments/playtest-memory-core.ts#L10) 导入 `experiments/hindsight-core/alias-history.ts`。
 - [hindsight-python.ts](../../../tests/experiments/hindsight-python.ts#L27) 与[同一文件的第 55 行](../../../tests/experiments/hindsight-python.ts#L55) 执行 `experiments/activity-memory/core_bridge.py`。
 - 默认 Core 记忆不是可选实验：[playtest-launch.ts](../../../tests/experiments/playtest-launch.ts#L59-L62) 说明 Core 是默认值，原生记忆是显式的离线选择。
@@ -85,9 +85,9 @@
 | --- | --- | --- |
 | [packages/frontend/src/player-view.ts](../../../packages/frontend/src/player-view.ts#L2) | `playtest-server.ts` | 类型导入，运行时擦除，但类型检查依赖测试目录 |
 | [apps/launcher/src/creator/source.ts](../../../apps/launcher/src/creator/source.ts#L1-L3) | `creator-debug.ts`、`creator-history.ts`、`creator-records.ts` | 类型导入 |
-| [desktop/story-share.ts](../../../desktop/story-share.ts#L10-L11) | `playtest-memory-core.ts`、`pack-status.ts` | **运行时代码** |
-| [desktop/main.ts](../../../desktop/main.ts#L9)、[desktop/renderer.ts](../../../desktop/renderer.ts#L4) | `playtest-tuning.ts` | 运行时代码/类型 |
-| [desktop/launcher-core.ts](../../../desktop/launcher-core.ts#L19-L20) | `playtest-pack-web.ts`、`hindsight-python.ts` | 运行时代码 |
+| [apps/host/src/story-share.ts](../../../apps/host/src/story-share.ts#L10-L11) | `playtest-memory-core.ts`、`pack-status.ts` | **运行时代码** |
+| [apps/host/src/main.ts](../../../apps/host/src/main.ts#L9)、[apps/host/src/renderer.ts](../../../apps/host/src/renderer.ts#L4) | `playtest-tuning.ts` | 运行时代码/类型 |
+| [apps/launcher/backend/core.ts](../../../apps/launcher/backend/core.ts#L19-L20) | `playtest-pack-web.ts`、`hindsight-python.ts` | 运行时代码 |
 | [scripts/release/verify-portable.mjs](../../../scripts/release/verify-portable.mjs#L6) | `playtest-host-page.ts` | 发行验证代码 |
 
 **影响：** `packages` 与 `apps` 无法独立构建或发布；"测试目录"成为公共 API 的事实来源。类型导入虽然不在运行时生效，但仍让 `tsc` 和 IDE 把测试目录当作上层依赖。
@@ -124,7 +124,7 @@
 ### N5. `PlaytestMemoryCore` / `playtest-memory-core.ts`：生产记忆核心
 
 - 位置：[playtest-memory-core.ts](../../../tests/experiments/playtest-memory-core.ts#L53-L54)。
-- 事实：它是 Core 记忆的宿主适配器，负责快照、授权来源查询、档案恢复和背景整理；[story-share.ts](../../../desktop/story-share.ts#L113) 在真实故事分享校验中使用。
+- 事实：它是 Core 记忆的宿主适配器，负责快照、授权来源查询、档案恢复和背景整理；[story-share.ts](../../../apps/host/src/story-share.ts#L113) 在真实故事分享校验中使用。
 - 影响：名字让人以为只在试玩里用，容易在重构时绕过其授权检查或恢复逻辑。
 
 ### N6. `createPlaytestServer` / `playtest-server.ts`：正式 HTTP API
@@ -188,7 +188,7 @@
 ### N16. `character-relation-spike.ts`：被正式实现取代的原型
 
 - 位置：[character-relation-spike.ts](../../../tests/experiments/character-relation-spike.ts#L47)、[#L99](../../../tests/experiments/character-relation-spike.ts#L99)。
-- 事实：现行握手规则在 [kernel/interactions.ts](../../../packages/kernel/src/interactions.ts#L27) 与 [interactions-basic/basic.ts](../../../packages/interactions-basic/src/basic.ts#L135)；spike 只被自己的测试引用。
+- 事实：现行握手规则在 [kernel/interactions.ts](../../../packages/core/src/kernel/interactions.ts#L27) 与 [interactions-basic/basic.ts](../../../packages/plugins/src/basic-interactions/basic.ts#L135)；spike 只被自己的测试引用。
 - 影响：`spike` 名称本身诚实，但 174 行接近正式规则的实现容易被误认为当前 Rulebook；两边行为若分叉会制造"测试通过但游戏不同"的假象。
 
 ---
@@ -281,7 +281,7 @@
 ### U4. 导出说明声称包含"包变量"
 
 - [ExportDialog.vue](../../../apps/launcher/src/components/ExportDialog.vue#L43) 写"文件包含……长期记忆和包变量"。
-- 故事分享的实际文件清单见 [story-share.ts](../../../desktop/story-share.ts#L16)：只有 world/session/memory 文件，没有独立的包变量；包变量功能本身已退役。
+- 故事分享的实际文件清单见 [story-share.ts](../../../apps/host/src/story-share.ts#L16)：只有 world/session/memory 文件，没有独立的包变量；包变量功能本身已退役。
 
 ---
 
@@ -308,7 +308,7 @@
 
 ### C5. 正式 NPC 主循环自称 experiment
 
-- [prototype-character-turn.ts](../../../packages/application/src/prototype-character-turn.ts#L507) 的注释："This experiment does not fabricate a legacy batch Authority or provider-replay receipt."
+- [prototype-character-turn.ts](../../../packages/core/src/application/prototype-character-turn.ts#L507) 的注释："This experiment does not fabricate a legacy batch Authority or provider-replay receipt."
 - 项目整体是原型，`prototype` 前缀可接受；但在正式路径中称"this experiment"会强化"可丢弃"的印象，与 `frozen/playtest` 命名形成叠加。
 
 ### C6. 同名的历史源码副本
@@ -357,7 +357,7 @@
 
 ### 10.1 先收口边界（P0）
 
-1. 把生产面从 `tests/experiments` 移出，放到真正承载体（如 `desktop/` 或独立 host 包）；文件内容不变，只改 import。最小清单见附录 A。
+1. 把生产面从 `tests/experiments` 移出，放到真正承载体（如 `apps/host/src/` 或独立 host 包）；文件内容不变，只改 import。最小清单见附录 A。
 2. 把 `experiments/hindsight-core`、`experiments/activity-memory` 中运行时必需的 Python/TS 文件迁到记忆包或发行运行时目录；其余历史报告留在 `experiments`。
 3. 迁移后同步 `package.json` 构建脚本、`build-portable.mjs`、`tail-runtime-identity.ts`、`story-share.ts`、`player-view.ts` 与创作者页面的类型导入。
 4. 不需要新增 Host 框架或兼容层；这是目录与依赖方向调整。
@@ -481,7 +481,7 @@ git grep -n "decideActivityFormat\|localPrototypeTurnCall" -- tests/experiments
 - [scripted-performance.ts](../../../tests/experiments/scripted-performance.ts#L10)：`performance` 指"脚本化演出"，不是性能基准；注释明确无真实模型。
 - [storyline-crash-worker.ts](../../../tests/experiments/storyline-crash-worker.ts#L9)：故障注入只发生在子进程 worker 内，不进入生产路径。
 - [status-market-offline.ts](../../../tests/experiments/status-market-offline.ts#L8)：虽然没有外部模型，但仍起本地 HTTP server；本文只在 C4 提示措辞，不把它当行为缺陷。
-- [packages/kernel/src/frozen-interactions.ts](../../../packages/kernel/src/frozen-interactions.ts#L1)：这里的 `frozen` 指冻结交互注册表，语义准确。
+- [packages/core/src/kernel/frozen-interactions.ts](../../../packages/core/src/kernel/frozen-interactions.ts#L1)：这里的 `frozen` 指冻结交互注册表，语义准确。
 - `ActivitiesView.vue` 中的"公开变量/私有变量"：活动状态确实有 public/private/internal 三级，这里的"变量"不是已退役的包变量。
 - `official-demo.ts` 本身没有运行时缺陷；本文只质疑"demo"这个名字与其零模型调用行为不符。
 

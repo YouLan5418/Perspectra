@@ -1,6 +1,6 @@
-import type { StoredWorldEvent } from '@harness-world/contracts'
-import type { CreatorHistoryItem } from '../../../../desktop/host/creator-history.ts'
-import type { CreatorRecord } from '../../../../desktop/host/creator-records.ts'
+import type { StoredWorldEvent } from '@perspectra/sdk/contracts'
+import type { CreatorHistoryItem } from '../../../host/src/runtime/creator-history.ts'
+import type { CreatorRecord } from '../../../host/src/runtime/creator-records.ts'
 
 /** 轨迹条目类型。颜色与文字标签同时表示，不依赖单一色相。 */
 export type TraceKind =

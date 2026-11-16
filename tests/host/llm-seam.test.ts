@@ -1,4 +1,4 @@
-import { loadHostPlugins } from '../../desktop/host-plugins.ts'
+import { loadHostPlugins } from '../../apps/host/src/host-plugins.ts'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { createServer, type Server } from 'node:http'
 import { tmpdir } from 'node:os'
@@ -11,9 +11,9 @@ import type {
   LlmTransportInstance,
   SeamProvider,
   WorldServices,
-} from '@harness-world/plugin-sdk'
+} from '@perspectra/sdk'
 import { afterEach, expect, it, vi } from 'vitest'
-import { WorldHostRuntime } from '../../desktop/host/world-runtime.ts'
+import { WorldHostRuntime } from '../../apps/host/src/runtime/world-runtime.ts'
 import { createChatServer, fakeModels } from '../support/fake-provider.ts'
 
 const roots: string[] = [],

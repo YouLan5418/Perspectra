@@ -3,8 +3,8 @@ import { join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { tmpdir } from 'node:os'
 import { afterEach, expect, it, vi } from 'vitest'
-import { startLensServer, type LensServer } from '../../desktop/lens/server.ts'
-import type { LensSnapshot } from '../../desktop/lens/session.ts'
+import { startLensServer, type LensServer } from '../../apps/host/src/lens/server.ts'
+import type { LensSnapshot } from '../../apps/host/src/lens/session.ts'
 
 import { sweetWithoutPacing } from '../support/sweet-without-pacing.ts'
 const SWEET = sweetWithoutPacing()

@@ -38,10 +38,10 @@
 
 | 部分 | 归谁 | 位置 |
 | --- | --- | --- |
-| 从角色授权观察捕获来源行 | 主干，不可替换 | [authorized-sources.ts](../../../packages/memory/src/authorized-sources.ts)，存在 `memory.sqlite` |
-| 打开实例、每次决策前调用 `project` | 宿主 | `MemoryInstance`（[plugin-sdk](../../../packages/plugin-sdk/src/index.ts)）、[world-runtime.ts](../../../desktop/host/world-runtime.ts) |
-| 默认长期记忆 | 官方插件，可替换 | [official-memory-core](../../../packages/official-memory-core/README.md) |
-| 不要长期记忆 | `--memory-none` | [official-memory-none](../../../packages/official-memory-none/src/index.ts) |
+| 从角色授权观察捕获来源行 | 主干，不可替换 | [authorized-sources.ts](../../../packages/core/src/memory/authorized-sources.ts)，存在 `memory.sqlite` |
+| 打开实例、每次决策前调用 `project` | 宿主 | `MemoryInstance`（[plugin-sdk](../../../packages/sdk/src/index.ts)）、[world-runtime.ts](../../../apps/host/src/runtime/world-runtime.ts) |
+| 默认长期记忆 | 官方插件，可替换 | [official-memory-core](../../../packages/memory-core/README.md) |
+| 不要长期记忆 | `--memory-none` | [official-memory-none](../../../packages/providers/src/memory-none/index.ts) |
 
 `project` 收到这次决策的请求，返回可以改动 `context` 的新请求。第三方实现通过 `world.authorizedSources(角色, 截止序号)` 取来源，不需要自己判断授权。当前由交付步骤转接 `shortTermAfterSeq`；没有步骤声明窗口时，角色只看到最近 16 条观察和 8 条自身表达。
 
@@ -53,9 +53,9 @@ Source 是角色获授权的原始经历，保留来源身份、类型和提交�
 
 构建沿 Retain → Group → Consolidate → 索引顺序推进，旧 Source / Atom 前缀可复用。每个角色档案独立，引用回到该角色授权 Source；宿主复核世界、角色、前缀和引用权限。角色 identity/设定来自 Manifest，当前位置来自同一调用前缀的当前 view。
 
-2026-10-14 核对的读取复用只减少重复计算：例如 Claude 的 Core 快照仍从它自己的授权经历捕获 Source，并完整同步到指定前缀；[宿主快照](../../../packages/official-memory-core/src/core-memory.ts)改用已有 `catchUpReceipt()`，保留原有记忆提交、来源校验及失败传播，省去原 `catchUp()` 为返回值额外构建、随后未被宿主使用的 view。实际捕获仍需要角色视图，该视图内部的场景、自身经历与观察投影共用一次事件读取。删除事件、角色创建判断、角色隔离和前缀 Hash 有回归；[同数据前缀对照](../studies/prologue-performance-20261010.md#视图读取复用2026-10-14)验证角色视图 Hash 和捕获来源一致。已有档案继续完整验证来源，调试只读检查仍不执行 catch-up。
+2026-10-14 核对的读取复用只减少重复计算：例如 Claude 的 Core 快照仍从它自己的授权经历捕获 Source，并完整同步到指定前缀；[宿主快照](../../../packages/memory-core/src/core-memory.ts)改用已有 `catchUpReceipt()`，保留原有记忆提交、来源校验及失败传播，省去原 `catchUp()` 为返回值额外构建、随后未被宿主使用的 view。实际捕获仍需要角色视图，该视图内部的场景、自身经历与观察投影共用一次事件读取。删除事件、角色创建判断、角色隔离和前缀 Hash 有回归；[同数据前缀对照](../studies/prologue-performance-20261010.md#视图读取复用2026-10-14)验证角色视图 Hash 和捕获来源一致。已有档案继续完整验证来源，调试只读检查仍不执行 catch-up。
 
-快照为 Claude 的已有授权来源补充知晓时间时，[WorldStore](../../../packages/store-sqlite/src/world-store.ts)的 `readEventTicks()` 只查询指定前缀的 `seq` 与 `tick`，替代原来为取时间戳而读取、解析全部事件正文的步骤。时间戳与完整事件查询共用分叉范围计算，父线未来不进入子线；调用拒绝未来或非法前缀，来源缺少对应时间戳仍报错。权限筛选与正文来源校验继续由原有记忆捕获及档案验证执行，这个时间戳接口本身不验证事件正文，也不把额外事件内容送给角色。嵌套分叉、缺失时间戳、来源篡改和同步失败已有回归；[分项实测与整体限制](../studies/prologue-performance-20261010.md#时间戳读取与动态准备复用2026-10-14)分别记录。
+快照为 Claude 的已有授权来源补充知晓时间时，[WorldStore](../../../packages/core/src/store/world-store.ts)的 `readEventTicks()` 只查询指定前缀的 `seq` 与 `tick`，替代原来为取时间戳而读取、解析全部事件正文的步骤。时间戳与完整事件查询共用分叉范围计算，父线未来不进入子线；调用拒绝未来或非法前缀，来源缺少对应时间戳仍报错。权限筛选与正文来源校验继续由原有记忆捕获及档案验证执行，这个时间戳接口本身不验证事件正文，也不把额外事件内容送给角色。嵌套分叉、缺失时间戳、来源篡改和同步失败已有回归；[分项实测与整体限制](../studies/prologue-performance-20261010.md#时间戳读取与动态准备复用2026-10-14)分别记录。
 
 ## 当前 Recall 与 Delivery
 
@@ -81,9 +81,9 @@ Core 不再按 16 条观察／8 条自身表达截断；首次整理前保留授
 
 宽准入仍可能交付无关认识，关键原因也可能未被选进 Delivery；持续目标牵引、人物自然度和长期认识更新收益未全面验收。一般认识家族发现和多分支更新未全面验收。当前便携候选包已包含 Python/Core/E5 资产；干净 Windows 环境及长期稳定性验收仍见[候选包记录](../studies/launcher-portable-test3-20261009.md)。程序隔离与自由文本语义一致性仍分别验收。
 
-当前环境准备见 [Core 记忆说明](../../../packages/official-memory-core/README.md)。2026-10-21 已核对宿主适配与 Python 文件迁移、源码和发行目录解析；这一整理没有重新验收角色长期记忆体验。
+当前环境准备见 [Core 记忆说明](../../../packages/memory-core/README.md)。2026-10-21 已核对宿主适配与 Python 文件迁移、源码和发行目录解析；这一整理没有重新验收角色长期记忆体验。
 
-历史运行与实验证据：[Activity Memory](../../../experiments/activity-memory/README.md)、[Hindsight Core](../../../experiments/hindsight-core/README.md)、[AI Girls 研究](../studies/ai-girls/README.md)。源码：[原生记忆](../../../packages/memory)、[宿主 Core](../../../packages/official-memory-core/src/core-memory.ts)、[Python 桥](../../../packages/official-memory-core/python/bridge/core_bridge.py)、[候选准入](../../../packages/official-memory-core/python/bridge/candidate_admission.py)、[极简 Delivery](../../../packages/official-memory-core/python/bridge/minimal_delivery.py)。
+历史运行与实验证据：[Activity Memory](../../../experiments/activity-memory/README.md)、[Hindsight Core](../../../experiments/hindsight-core/README.md)、[AI Girls 研究](../studies/ai-girls/README.md)。源码：[原生记忆](../../../packages/core/src/memory)、[宿主 Core](../../../packages/memory-core/src/core-memory.ts)、[Python 桥](../../../packages/memory-core/python/bridge/core_bridge.py)、[候选准入](../../../packages/memory-core/python/bridge/candidate_admission.py)、[极简 Delivery](../../../packages/memory-core/python/bridge/minimal_delivery.py)。
 
 ### 官方序章的经历边界
 
@@ -106,9 +106,9 @@ Claude 私下听到一句暗号后，模型历史仍包含原始话语、private
 
 2026-11-07 前缀稳定：例如 Claude 说完话后获得续写机会，两次请求开头的角色决策契约现在逐字相同。随步骤或回合变化的五类说明（发言后是否还有机会、续写时"你刚才已经正式发表了表达"、执行证据说明、活动玩法说明、行动前表达说明）原文不变，移到 user 消息 JSON 的最后一个字段 `turnInstructions`，位于 context 和各标记之后；契约里加一句说明它与契约同样有效。工具定义、授权上下文内容和消息条数都没有变。用当天 54 次请求记录离线核算，续写的公共前缀可从 7.9% 升到约 56.6%，下一回合从 14.2% 升到约 34.0%；尚未用真实模型复测命中率和角色行为。设计见[缓存前缀方案](../../superpowers/specs/2026-11-07-character-call-cache-prefix-design.md)。
 
-同日补充，工具定义固定：例如 GPT 续写到第二步、或者独自留在卧室时，官方 gateway 工具定义以前会去掉 `perform`、`direct`/`private` 受众，并按当前场景列出目的地、交互目标和接收者。工具定义排在所有消息之前，一变，后面数万字符的经历也无法复用；当晚的 22 次 GLM 请求里，有 7 对相邻请求因此只剩约 1% 的公共前缀。现在 [gatewayTurnCall](../../../packages/official-llm/src/gateway-turn-call.ts) 只给固定结构：`decision` 总含 abstain/publish/perform，`scope` 总是四种，`addresseeIds`、`locationId`、交互引用只限定类型。实际可选的目的地、交互和在场的人照旧在 `context.affordances` 与 `context.scene`；本步不能执行时，`turnInstructions` 写明"本步不能 perform"。开启行动前表达时，`before` 在每一步都出现在工具里，宿主仍只在可以 perform 时接受它。宿主与规则的校验不变：续写预算用完后的 perform、不在场的接收者（不投递，按"表达未送达"让角色重新决定）、不存在的目的地或交互（规则拒绝并返回结果）都照旧被拒。发给模型的工具少了枚举引导，但宿主仍按带当前选项的严格 schema 校验输出（[character-decision.ts](../../../desktop/host/character-decision.ts)），选错目的地或交互照旧触发一次格式重试；只有受众改由投递时检查。活动进行中（如投票）参数带有每步都变的 revision，工具本来就无法稳定，这时仍按作者的参数 schema 发送；Google 协议使用的 oneOf 工具仍按当前选项生成，也未改。
+同日补充，工具定义固定：例如 GPT 续写到第二步、或者独自留在卧室时，官方 gateway 工具定义以前会去掉 `perform`、`direct`/`private` 受众，并按当前场景列出目的地、交互目标和接收者。工具定义排在所有消息之前，一变，后面数万字符的经历也无法复用；当晚的 22 次 GLM 请求里，有 7 对相邻请求因此只剩约 1% 的公共前缀。现在 [gatewayTurnCall](../../../packages/providers/src/llm/gateway-turn-call.ts) 只给固定结构：`decision` 总含 abstain/publish/perform，`scope` 总是四种，`addresseeIds`、`locationId`、交互引用只限定类型。实际可选的目的地、交互和在场的人照旧在 `context.affordances` 与 `context.scene`；本步不能执行时，`turnInstructions` 写明"本步不能 perform"。开启行动前表达时，`before` 在每一步都出现在工具里，宿主仍只在可以 perform 时接受它。宿主与规则的校验不变：续写预算用完后的 perform、不在场的接收者（不投递，按"表达未送达"让角色重新决定）、不存在的目的地或交互（规则拒绝并返回结果）都照旧被拒。发给模型的工具少了枚举引导，但宿主仍按带当前选项的严格 schema 校验输出（[character-decision.ts](../../../apps/host/src/runtime/character-decision.ts)），选错目的地或交互照旧触发一次格式重试；只有受众改由投递时检查。活动进行中（如投票）参数带有每步都变的 revision，工具本来就无法稳定，这时仍按作者的参数 schema 发送；Google 协议使用的 oneOf 工具仍按当前选项生成，也未改。
 
-2026-11-07 去重：例如 DeepSeek 刚说完"夜场券啊"，续写请求里这句只以 self 出现一次，不再同时以"这次行动已经成功执行"的 observed 结果重复出现。[CharacterTurn](../../../packages/application/src/character-turn.ts) 在截取最近观察窗口前，去掉本角色已成功发言的执行结果观察，空出的名额留给别人的事件；被拒绝、失败的发言和自己的移动、交互结果不受影响。self 发言随之保留非公开的 scope 与接收对象，私聊、定向发言的受众不因去重丢失。2026-11-07 试玩中，Claude 一次请求的 76 条历史里有 13 条是自己发言的重复。这次只改了模型上下文，没有改世界事件或记忆来源；自己的移动仍有 self 与 observed 两条，尚未处理。模型不再接收排序序号、追踪 action/observation ID、证据 Hash、提交前缀和来源索引引用等保管字段；来源类型、正文、受众、认识置信与立场、记忆年龄保留。当前位置从 `character.locationId` 移到 `context.locationId`，系统说明同步解释该字段。
+2026-11-07 去重：例如 DeepSeek 刚说完"夜场券啊"，续写请求里这句只以 self 出现一次，不再同时以"这次行动已经成功执行"的 observed 结果重复出现。[CharacterTurn](../../../packages/core/src/application/character-turn.ts) 在截取最近观察窗口前，去掉本角色已成功发言的执行结果观察，空出的名额留给别人的事件；被拒绝、失败的发言和自己的移动、交互结果不受影响。self 发言随之保留非公开的 scope 与接收对象，私聊、定向发言的受众不因去重丢失。2026-11-07 试玩中，Claude 一次请求的 76 条历史里有 13 条是自己发言的重复。这次只改了模型上下文，没有改世界事件或记忆来源；自己的移动仍有 self 与 observed 两条，尚未处理。模型不再接收排序序号、追踪 action/observation ID、证据 Hash、提交前缀和来源索引引用等保管字段；来源类型、正文、受众、认识置信与立场、记忆年龄保留。当前位置从 `character.locationId` 移到 `context.locationId`，系统说明同步解释该字段。
 
 2026-11-06 缓存接入：例如两个角色共用一条中转连接，官方角色 Provider 在本次运行中分别持有固定会话 UUID，并按连接策略传给上游；标识不进入角色上下文。只在已知系统前缀设置显式缓存点，经历和处境仍为单条 JSON，没有为缓存合并角色材料或改变授权。总输入统计已包含缓存读写；SDK 缺省零值不等于明确未命中。策略与实际边界见[模型接口缓存说明](../model-protocols.md#角色缓存适配与观测)。
 
@@ -116,15 +116,15 @@ Claude 私下听到一句暗号后，模型历史仍包含原始话语、private
 
 调整前 `history` 排在第二位，它每次都会追加，导致其后约五千字符的稳定内容无法复用；`stimulus` 名义上最后写入，实际因对象键顺序停在场景之前。2026-10-24 用 deepseek-flash、本机《屋檐下的心动日程》与同一套 11 步对白做 A/B（新旧顺序各 2 局，其余完全相同）：实际缓存命中率 47.8% → 63.8%，每次调用未命中输入 token 3447 → 2436（约 −29%）；回复长度、套话与第一人称旁白无差异，两组角色都回应了最新输入。两组各出现叙事疏漏：旧顺序一次虚构“红茶已喝完”，新顺序一局中 Claude 写出尚未购买的黄铜书签，并两次以“他”指代屋主。样本小，未观察到系统性退化，也不能证明行为等价。
 
-`history` 是否只在末尾追加，取决于记忆模式。例如 GPT 已有 20 条经历时又听到一句话：Core 记忆（Launcher 默认）把记忆边界之后的经历全部放进 `history`，两次记忆整理之间只在末尾追加，整理后边界前移一次；当时的本地记忆（现已删除；`--memory-none` 沿用同一窗口）只取最近 16 条观察与 8 条自我表达（[character-turn.ts](../../../packages/application/src/character-turn.ts) 的 `recentObservations` / `recentSelfObservations`），超出后每来一条新经历就从开头挤出最旧一条，`history` 整体前移，前缀从开头断开。2026-10-24 用固定回复模型让玩家连说 30 句验证：本地记忆下 GPT 的 `history` 停在 16 条，之后 17 次请求都从开头断开；Core 记忆下从 4 条增长到 33 条，29 次全部纯追加。上文 A/B 与早期试玩驱动使用本地记忆，较长的对局里观察到的约两成“开头不同”即来自这一滑动窗口，并非初始观察排序不稳定。本地记忆路径的这一缓存损失作为已知限制保留，未改动窗口规则。
+`history` 是否只在末尾追加，取决于记忆模式。例如 GPT 已有 20 条经历时又听到一句话：Core 记忆（Launcher 默认）把记忆边界之后的经历全部放进 `history`，两次记忆整理之间只在末尾追加，整理后边界前移一次；当时的本地记忆（现已删除；`--memory-none` 沿用同一窗口）只取最近 16 条观察与 8 条自我表达（[character-turn.ts](../../../packages/core/src/application/character-turn.ts) 的 `recentObservations` / `recentSelfObservations`），超出后每来一条新经历就从开头挤出最旧一条，`history` 整体前移，前缀从开头断开。2026-10-24 用固定回复模型让玩家连说 30 句验证：本地记忆下 GPT 的 `history` 停在 16 条，之后 17 次请求都从开头断开；Core 记忆下从 4 条增长到 33 条，29 次全部纯追加。上文 A/B 与早期试玩驱动使用本地记忆，较长的对局里观察到的约两成“开头不同”即来自这一滑动窗口，并非初始观察排序不稳定。本地记忆路径的这一缓存损失作为已知限制保留，未改动窗口规则。
 
-公开状态的变化（2026-10-25）：例如屋主在深夜说完“晚安”就结束今天，GPT 第二天清晨被自主行动唤起。以前她的刺激为空，最近的经历停在那句晚安，`knownStatus` 里的“清晨”只是一个状态值，她常常接着道晚安；不在同一房间的角色连推进时段的旁白都看不到。现在宿主在每次角色调用前，把她最近一次被提交的行动（`action.resolved` 的 `actorId` 是她；从未行动则以初始状态为准）时知道的公开状态，与现在知道的值比较，值不同的公开状态（`holderId` 为空且当前已确认）列为 `context.statusChanges`：`[{ key, label, from, to }]`，例如“天数 1→2、今日时段 深夜→清晨”，停电时还有“全屋供电 true→false”。只从已提交事件推导，不新增存储，重启或重新生成同一回合给出相同结果；它不授予新的知识，列出的都是她本来就能在 `knownStatus` 里看到的公开值。系统说明同步解释这个字段；自主行动提示保留“没有新消息不代表发生了你不知道的事”，并补充“statusChanges 里的变化已经发生，请按现在的时段与处境行动”。实现见 [status-state.ts](../../../packages/application/src/status-state.ts) 的 `publicStatusChanges` 与 [world-runtime.ts](../../../desktop/host/world-runtime.ts)。
+公开状态的变化（2026-10-25）：例如屋主在深夜说完“晚安”就结束今天，GPT 第二天清晨被自主行动唤起。以前她的刺激为空，最近的经历停在那句晚安，`knownStatus` 里的“清晨”只是一个状态值，她常常接着道晚安；不在同一房间的角色连推进时段的旁白都看不到。现在宿主在每次角色调用前，把她最近一次被提交的行动（`action.resolved` 的 `actorId` 是她；从未行动则以初始状态为准）时知道的公开状态，与现在知道的值比较，值不同的公开状态（`holderId` 为空且当前已确认）列为 `context.statusChanges`：`[{ key, label, from, to }]`，例如“天数 1→2、今日时段 深夜→清晨”，停电时还有“全屋供电 true→false”。只从已提交事件推导，不新增存储，重启或重新生成同一回合给出相同结果；它不授予新的知识，列出的都是她本来就能在 `knownStatus` 里看到的公开值。系统说明同步解释这个字段；自主行动提示保留“没有新消息不代表发生了你不知道的事”，并补充“statusChanges 里的变化已经发生，请按现在的时段与处境行动”。实现见 [status-state.ts](../../../packages/core/src/application/status-state.ts) 的 `publicStatusChanges` 与 [world-runtime.ts](../../../apps/host/src/runtime/world-runtime.ts)。
 
 验证：场景测试覆盖“推进到深夜、说晚安、结束今天”后 GPT 收到天数与时段变化，同一晚相邻请求没有变化。2026-10-25 用 deepseek-flash 做受控回放：取真实的第二天清晨 GPT 自主请求，去掉她对晚安的回应，使最后一条经历是屋主的“晚安”，同一请求各发 6 次。旧提示且无 `statusChanges` 时 3 次接着道晚安或说“明早”、1 次关灯离开、2 次 abstain；新提示加 `statusChanges` 时 5 次按清晨说话、1 次移动。另跑 4 局完整对局（Core 记忆，新旧各 2 局），`statusChanges` 在每次推进时段与睡醒后的唤起中正确送达；这 4 局里没有自然出现“晚安未回应就入睡”的条件，因此行为差异以受控回放为证据。样本小，未覆盖停电、打工外出等其他状态变化的真实表现。
 
 工具 Schema、Action 参数、交互目标与绑定引用、Activity 和作者变量保留原样；历史中的 parameters / arguments 也不按元数据字段名过滤。Rulebook、Core 归档与模型追踪继续使用原始宿主请求，结果续写仅去除外层 operationId / eventRefs，保留实际行动、状态与结果描述。没有新增输出协议、持久化格式或缓存服务。
 
-2026-10-12 的[操作语义说明实验](../studies/action-semantics-20261012.md)在这一最终呈现步骤增加了 actionExplanations。2026-10-22 核对：[当前实现](../../../packages/provider-chat/src/character-action-explanations.ts)仍只按本次 affordances 和角色自己当前场所的已有名称生成说明，例如“前往旅馆”对应已有 move 参数；物品操作使用作者标签与目标，并携带参数契约，不再对旧保管定义使用专用文案模板。它不查询其他角色私密信息或远处物品，不猜自定义效果，不增加操作；关闭 perform 时不提供说明。观察、记忆与世界提交格式未因此改变；旧实验的开销和真实验证结论只适用于当时版本，当前作者规则样本见[项目状态](../PROJECT-STATE.md#验证到了哪一步)。
+2026-10-12 的[操作语义说明实验](../studies/action-semantics-20261012.md)在这一最终呈现步骤增加了 actionExplanations。2026-10-22 核对：[当前实现](../../../packages/providers/src/chat/character-action-explanations.ts)仍只按本次 affordances 和角色自己当前场所的已有名称生成说明，例如“前往旅馆”对应已有 move 参数；物品操作使用作者标签与目标，并携带参数契约，不再对旧保管定义使用专用文案模板。它不查询其他角色私密信息或远处物品，不猜自定义效果，不增加操作；关闭 perform 时不提供说明。观察、记忆与世界提交格式未因此改变；旧实验的开销和真实验证结论只适用于当时版本，当前作者规则样本见[项目状态](../PROJECT-STATE.md#验证到了哪一步)。
 
 针对同一盲测第 17–22 轮的 35 个旧请求作离线对比，模型用户消息估算总量减少 25.4%；同角色相邻 31 对请求的系统说明加用户文本，共同前缀加权比例从 2.47% 升到 94.63%。这是文本稳定性与本地估算，未计供应商工具序列化、缓存路由与实际 tokenizer，不能视为真实缓存命中率。85 项相关回归通过，涵盖原始宿主证据仍可归档、私密发生记录及行动结果续写。真实模型样例与剩余限制见[玩家验收记录](../../../examples/world-packs/model-girls-official/PLAYER-VALIDATION.md)。
 

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import type { LensItem } from '../../../../desktop/lens/view.ts'
+import type { LensItem } from '@perspectra/world-pack/lens/view'
 import { useLensStore } from './store.ts'
 import { fieldValue, showValue } from './format.ts'
 import ChangeBadge from './ChangeBadge.vue'

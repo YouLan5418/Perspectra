@@ -1,18 +1,18 @@
 // 历史研究脚本；路径、样本和模型可能绑定原始记录，不属于游戏启动或默认验收。
-import { jevShadowAudit } from '../../../packages/official-jev-audit/src/index.ts'
+import { jevShadowAudit } from '@perspectra/jev-audit'
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { createHash } from 'node:crypto'
-import { bindPlayerIntentCandidate, type WorldJsonObject, type WorldJsonValue } from '@harness-world/contracts'
-import { createCoreRulebookRegistry, currentEntityState, type CompiledWorldManifest, type RulebookEvent } from '@harness-world/kernel'
-import { createBasicInteractionPackage } from '@harness-world/interactions-basic'
-import { PlayerInputJobs, WorldStore, type PlayerInputJob } from '@harness-world/store-sqlite'
-import { createChatProvider } from '@harness-world/provider-chat'
-import { preparePlayerIntent } from '../../../packages/application/src/player-intent-preparation.ts'
-import { WorldHostRuntime } from '../../../desktop/host/world-runtime.ts'
-import { createClaimClassifier } from '../../../packages/official-jev-audit/src/jev-shadow-claims-client.ts'
-import type { ShadowRecord } from '../../../packages/official-jev-audit/src/jev-shadow.ts'
-import { environmentRoleModels } from '../../../desktop/model-connections.ts'
+import { bindPlayerIntentCandidate, type WorldJsonObject, type WorldJsonValue } from '@perspectra/sdk/contracts'
+import { createCoreRulebookRegistry, currentEntityState, type CompiledWorldManifest, type RulebookEvent } from '@perspectra/core/kernel'
+import { createBasicInteractionPackage } from '@perspectra/plugins/basic-interactions'
+import { PlayerInputJobs, WorldStore, type PlayerInputJob } from '@perspectra/core/store'
+import { createChatProvider } from '@perspectra/providers/chat'
+import { preparePlayerIntent } from '../../../packages/core/src/application/player-intent-preparation.ts'
+import { WorldHostRuntime } from '../../../apps/host/src/runtime/world-runtime.ts'
+import { createClaimClassifier } from '../../../packages/jev-audit/src/jev-shadow-claims-client.ts'
+import type { ShadowRecord } from '../../../packages/jev-audit/src/jev-shadow.ts'
+import { environmentRoleModels } from '../../../apps/host/src/model-connections.ts'
 
 const directory = resolve(process.argv[2] ?? '')
 if (!process.argv[2] || existsSync(directory)) throw new Error('provide a new output directory')
@@ -20,9 +20,9 @@ const key = process.env.DEEPSEEK_API_KEY
 if (!key) throw new Error('DEEPSEEK_API_KEY missing')
 mkdirSync(directory, { recursive: true })
 const packPath = resolve('experiments/jev-narrative-auditor/holdout-2026-09-27/live-pack')
-const files = ['packages/application/src/player-intent-preparation.ts', 'packages/provider-chat/src/character-turn-call.ts',
-  'packages/application/src/character-turn.ts', 'packages/contracts/src/player-submission.ts',
-  'packages/application/src/round-coordinator.ts', 'packages/memory/src/local-memory.ts', 'packages/official-jev-audit/src/jev-shadow-window.ts']
+const files = ['packages/core/src/application/player-intent-preparation.ts', 'packages/providers/src/chat/character-turn-call.ts',
+  'packages/core/src/application/character-turn.ts', 'packages/sdk/src/contracts/player-submission.ts',
+  'packages/core/src/application/round-coordinator.ts', 'packages/core/src/memory/local-memory.ts', 'packages/jev-audit/src/jev-shadow-window.ts']
 writeFileSync(resolve(directory, 'sources.json'), JSON.stringify(Object.fromEntries(files.map(path => [path, readFileSync(path, 'utf8')])), null, 2))
 const log = (file: string, value: unknown) => appendFileSync(resolve(directory, file), JSON.stringify(value) + '\n')
 const sha = (value: unknown) => createHash('sha256').update(JSON.stringify(value)).digest('hex')

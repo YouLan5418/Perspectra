@@ -3,8 +3,8 @@ import { createRoleplayCore } from '../support/roleplay-runtime.ts'
 import { mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
-import { createHostServer } from '../../desktop/host/http-server.ts'
-import { environmentRoleModels } from '../../desktop/model-connections.ts'
+import { createHostServer } from '../../apps/host/src/runtime/http-server.ts'
+import { environmentRoleModels } from '../../apps/host/src/model-connections.ts'
 
 const dataDirectory = mkdtempSync(join(tmpdir(), 'perspectra-inventory-'))
 const runtime = await createRoleplayCore({

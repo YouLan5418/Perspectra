@@ -1,9 +1,9 @@
 import { once } from 'node:events'
 import type { AddressInfo } from 'node:net'
 import { afterEach, expect, it } from 'vitest'
-import { createTrustedFrontendServer, type FrontendPolicy } from '../../desktop/host/frontend-server.ts'
-import { loadPackWeb } from '../../desktop/host/pack-frontend.ts'
-import { createHostServer, type HostState, type HostRuntime } from '../../desktop/host/http-server.ts'
+import { createTrustedFrontendServer, type FrontendPolicy } from '../../apps/host/src/runtime/frontend-server.ts'
+import { loadPackWeb } from '../../apps/host/src/runtime/pack-frontend.ts'
+import { createHostServer, type HostState, type HostRuntime } from '../../apps/host/src/runtime/http-server.ts'
 import { resolve } from 'node:path'
 const servers: ReturnType<typeof createHostServer>[] = []
 afterEach(async () => {

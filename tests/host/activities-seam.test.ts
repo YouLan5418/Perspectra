@@ -2,12 +2,12 @@ import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:f
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { afterEach, expect, it, vi } from 'vitest'
-import { ActivitiesScripts } from '@harness-world/official-activities'
-import type { ActivitiesInstance, SeamProvider } from '@harness-world/plugin-sdk'
-import type { ActivityState, WorldJsonObject } from '@harness-world/contracts'
-import { WorldStore } from '@harness-world/store-sqlite'
-import { loadHostPlugins, type HostPlugins } from '../../desktop/host-plugins.ts'
-import { WorldHostRuntime } from '../../desktop/host/world-runtime.ts'
+import { ActivitiesScripts } from '@perspectra/providers/activities'
+import type { ActivitiesInstance, SeamProvider } from '@perspectra/sdk'
+import type { ActivityState, WorldJsonObject } from '@perspectra/sdk/contracts'
+import { WorldStore } from '@perspectra/core/store'
+import { loadHostPlugins, type HostPlugins } from '../../apps/host/src/host-plugins.ts'
+import { WorldHostRuntime } from '../../apps/host/src/runtime/world-runtime.ts'
 import { startFakeProvider, fakeModels } from '../support/fake-provider.ts'
 
 const roots: string[] = [],

@@ -1,13 +1,13 @@
-import { officialContextOrder } from '../../desktop/official-bundle.ts'
-import { loadHostPlugins } from '../../desktop/host-plugins.ts'
+import { officialContextOrder } from '../../apps/host/src/official-bundle.ts'
+import { loadHostPlugins } from '../../apps/host/src/host-plugins.ts'
 import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import type { Server } from 'node:http'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
-import type { DecisionInstance, SeamProvider } from '@harness-world/plugin-sdk'
-import { WorldStore } from '@harness-world/store-sqlite'
+import type { DecisionInstance, SeamProvider } from '@perspectra/sdk'
+import { WorldStore } from '@perspectra/core/store'
 import { afterEach, expect, it, vi } from 'vitest'
-import { WorldHostRuntime } from '../../desktop/host/world-runtime.ts'
+import { WorldHostRuntime } from '../../apps/host/src/runtime/world-runtime.ts'
 import { createChatServer, fakeModels } from '../support/fake-provider.ts'
 
 const roots: string[] = [],
@@ -244,7 +244,7 @@ it('replaces one official step while projecting memory exactly once per decision
           id: 'counted-memory',
           version: '1.0.0',
           open: async () => ({
-            project: async <T extends import('@harness-world/plugin-sdk').MemoryRequest>(request: T) => {
+            project: async <T extends import('@perspectra/sdk').MemoryRequest>(request: T) => {
               projections++
               return { ...request, context: { ...request.context, recalled: true } }
             },

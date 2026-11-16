@@ -11,11 +11,11 @@ import {
   type InteractionPackageImplementation,
   type WorldEventDraft,
   type WorldJsonObject,
-} from '@harness-world/contracts'
-import { createCoreRulebookRegistry, type CompiledWorldManifestV10 } from '@harness-world/kernel'
-import { WorldStore, WriterLeaseService, CharacterRuntimeAvailabilityService } from '@harness-world/store-sqlite'
-import { AuthorizedSourceStore } from '@harness-world/memory'
-import { SceneDecisionService } from '../../packages/application/src/scene-decision.ts'
+} from '@perspectra/sdk/contracts'
+import { createCoreRulebookRegistry, type CompiledWorldManifestV10 } from '@perspectra/core/kernel'
+import { WorldStore, WriterLeaseService, CharacterRuntimeAvailabilityService } from '@perspectra/core/store'
+import { AuthorizedSourceStore } from '@perspectra/core/memory'
+import { SceneDecisionService } from '../../packages/core/src/application/scene-decision.ts'
 import { frozenInteractionWorld, basicInteractionPackage } from '../fixtures/frozen-interaction-world.ts'
 import { createNoticeBoardPackage, inspectId, boardText, privateText } from './notice-board-capability.ts'
 

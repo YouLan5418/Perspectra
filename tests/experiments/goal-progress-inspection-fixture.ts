@@ -1,6 +1,6 @@
 import { canonicalizeWorldJson, hashWorldJson, type InteractionDefinitionSpec, type InteractionExecutionContext,
-  type InteractionPackageImplementation, type WorldEventDraft } from '@harness-world/contracts'
-import { interactionPackageHash } from '@harness-world/interaction-runtime'
+  type InteractionPackageImplementation, type WorldEventDraft } from '@perspectra/sdk/contracts'
+import { interactionPackageHash } from '@perspectra/core/interactions'
 
 const ref=(id:string)=>({id,version:1})
 const lock=(id:string)=>({ref:ref(id),dependencies:[],implementationHash:hashWorldJson('goal-progress-author-fixture',{id,revision:1})})

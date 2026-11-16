@@ -1,11 +1,11 @@
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
-import { currentEntityState, currentLocation } from '@harness-world/kernel'
-import { WorldStore } from '@harness-world/store-sqlite'
-import { playSettings } from '../../desktop/play-settings.ts'
-import { projectPlayerView } from '../../desktop/host/frontend-adapter.ts'
-import { WorldHostRuntime } from '../../desktop/host/world-runtime.ts'
-import { environmentRoleModels } from '../../desktop/model-connections.ts'
+import { currentEntityState, currentLocation } from '@perspectra/core/kernel'
+import { WorldStore } from '@perspectra/core/store'
+import { playSettings } from '../../apps/host/src/play-settings.ts'
+import { projectPlayerView } from '../../apps/host/src/runtime/frontend-adapter.ts'
+import { WorldHostRuntime } from '../../apps/host/src/runtime/world-runtime.ts'
+import { environmentRoleModels } from '../../apps/host/src/model-connections.ts'
 
 // 《赔罪晚宴》真实模型短试玩：固定玩家路线，NPC 全部由本机模型决定。只写作者证据到 .tmp，不写凭证。
 const packPath=resolve('examples/world-packs/model-girls-dinner-v2')

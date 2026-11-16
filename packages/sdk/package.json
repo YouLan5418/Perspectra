@@ -1,0 +1,17 @@
+{
+  "name": "@perspectra/sdk",
+  "version": "0.3.5",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./contracts": "./src/contracts/index.ts",
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@deepseek-ai/cordis": "4.0.1",
+    "ajv": "8.17.1"
+  },
+  "devDependencies": {
+    "typescript": "6.0.3"
+  }
+}

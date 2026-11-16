@@ -1,8 +1,8 @@
 import { readFileSync, writeFileSync, rmSync, existsSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { afterEach, expect, it } from 'vitest'
-import { readPackConfiguration, savePackConfiguration } from '../../desktop/pack-config.ts'
-import { LauncherCore } from '../../desktop/launcher-core.ts'
+import { readPackConfiguration, savePackConfiguration } from '../../apps/host/src/pack-config.ts'
+import { LauncherCore } from '../../apps/launcher/backend/core.ts'
 import { copyRpgFixture } from '../support/rpg-fixture.ts'
 import { investigationFixture } from '../support/investigation-fixture.ts'
 const roots: string[] = []

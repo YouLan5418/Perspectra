@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest'
-import type { LensItem } from '../../../../desktop/lens/view.ts'
+import type { LensItem } from '@perspectra/world-pack/lens/view'
 import { autoStartStatus, conditionRows, requestsForAi } from './format.ts'
 
 const base = { activityKey: 'fridge', title: '冰箱', started: false } as const

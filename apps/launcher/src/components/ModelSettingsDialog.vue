@@ -7,7 +7,7 @@ import {
   effectivePromptCacheMode,
   promptCacheLabels,
   type PromptCacheMode,
-} from '@harness-world/provider-chat/prompt-cache'
+} from '@perspectra/providers/chat/prompt-cache'
 import { Button } from './ui/button/index.ts'
 import DialogFrame from './DialogFrame.vue'
 const props = defineProps<{ open: boolean }>()

@@ -2,10 +2,10 @@ import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } f
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { afterEach, expect, it } from 'vitest'
-import type { PacingInstance, SeamProvider } from '@harness-world/plugin-sdk'
-import { WorldHostRuntime } from '../../desktop/host/world-runtime.ts'
-import { assembleRoleplay, type WorldComposition } from '../../desktop/official-bundle.ts'
-import { PluginFaultError } from '../../desktop/host/plugin-runtime.ts'
+import type { PacingInstance, SeamProvider } from '@perspectra/sdk'
+import { WorldHostRuntime } from '../../apps/host/src/runtime/world-runtime.ts'
+import { assembleRoleplay, type WorldComposition } from '../../apps/host/src/official-bundle.ts'
+import { PluginFaultError } from '../../apps/host/src/runtime/plugin-runtime.ts'
 import { fakeModels } from '../support/fake-provider.ts'
 
 const cleanups: (() => Promise<void> | void)[] = []

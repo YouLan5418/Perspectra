@@ -10,14 +10,14 @@ import {
   interactionPackageDescription,
   type InteractionPackageDescription,
   type WorldJsonValue,
-} from '@harness-world/contracts'
+} from '@perspectra/sdk/contracts'
 import { createItemCustodyTestPackage } from '../../../tests/fixtures/item-custody-package.ts'
 import {
   SpeakMoveRulebook,
   characterInteractionManifestRegistries,
   runtimeManifestFromStored,
-} from '@harness-world/kernel'
-import { InteractionRegistry } from '@harness-world/interaction-runtime'
+} from '@perspectra/core/kernel'
+import { InteractionRegistry } from '@perspectra/core/interactions'
 import { WorldPackCompilerV5, canonicalWorldPackBytesV5, verifyCompiledWorldPackV5 } from './compiler.ts'
 import {
   WorldPackInspector,

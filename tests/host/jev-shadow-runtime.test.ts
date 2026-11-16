@@ -2,16 +2,16 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { afterEach, expect, it, vi } from 'vitest'
-import { jevShadowAudit } from '../../packages/official-jev-audit/src/index.ts'
-import { currentEntityState } from '@harness-world/kernel'
-import { WorldStore } from '@harness-world/store-sqlite'
-import { WorldHostRuntime } from '../../desktop/host/world-runtime.ts'
-import { type ShadowRecord } from '../../packages/official-jev-audit/src/jev-shadow.ts'
+import { jevShadowAudit } from '../../packages/jev-audit/src/index.ts'
+import { currentEntityState } from '@perspectra/core/kernel'
+import { WorldStore } from '@perspectra/core/store'
+import { WorldHostRuntime } from '../../apps/host/src/runtime/world-runtime.ts'
+import { type ShadowRecord } from '../../packages/jev-audit/src/jev-shadow.ts'
 import {
   claimCriteria,
   type ClaimQuestion,
   type ClaimKind,
-} from '../../packages/official-jev-audit/src/jev-shadow-claims-client.ts'
+} from '../../packages/jev-audit/src/jev-shadow-claims-client.ts'
 import { createChatServer, fakeModels } from '../support/fake-provider.ts'
 
 afterEach(() => vi.restoreAllMocks())

@@ -2,8 +2,8 @@ import { mkdtempSync, writeFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, expect, it, vi } from 'vitest'
-import { loadHostPlugins, type HostPlugins } from '../../desktop/host-plugins.ts'
-import { composeWorldSeams } from '../../desktop/official-bundle.ts'
+import { loadHostPlugins, type HostPlugins } from '../../apps/host/src/host-plugins.ts'
+import { composeWorldSeams } from '../../apps/host/src/official-bundle.ts'
 
 const roots: string[] = [],
   sessions: HostPlugins[] = []

@@ -1,21 +1,21 @@
-import { officialCharacterLoop } from '@harness-world/official-character-loop'
+import { officialCharacterLoop } from '@perspectra/providers/character-loop'
 import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { expect, it } from 'vitest'
-import { WorldApplication } from '@harness-world/application'
+import { WorldApplication } from '@perspectra/core'
 import {
   brandId,
   interactionPackageDescription,
   resolutionAuthority,
   type WorldJsonObject,
-} from '@harness-world/contracts'
+} from '@perspectra/sdk/contracts'
 import { createItemCustodyTestPackage } from '../fixtures/item-custody-package.ts'
-import { InteractionRegistry } from '@harness-world/interaction-runtime'
-import { createCoreRulebookRegistry, currentEntityState } from '@harness-world/kernel'
-import { CharacterRuntimeAvailabilityService, WorldStore, WriterLeaseService } from '@harness-world/store-sqlite'
-import { adaptCompiledWorldPack, compileWorldPackSource } from '@harness-world/world-pack'
-import { CharacterTurn } from '../../packages/application/src/character-turn.ts'
+import { InteractionRegistry } from '@perspectra/core/interactions'
+import { createCoreRulebookRegistry, currentEntityState } from '@perspectra/core/kernel'
+import { CharacterRuntimeAvailabilityService, WorldStore, WriterLeaseService } from '@perspectra/core/store'
+import { adaptCompiledWorldPack, compileWorldPackSource } from '@perspectra/world-pack'
+import { CharacterTurn } from '../../packages/core/src/application/character-turn.ts'
 
 it('executes the exact offered definition, then publishes freely from its committed result', async () => {
   const directory = mkdtempSync(join(tmpdir(), 'perspectra-package-turn-'))

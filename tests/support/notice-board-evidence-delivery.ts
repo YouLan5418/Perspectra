@@ -1,5 +1,5 @@
 /** Deterministic delivery of existing authorized inscription atoms, no cognition rewrite. */
-import type { WorldJsonObject } from '@harness-world/contracts'
+import type { WorldJsonObject } from '@perspectra/sdk/contracts'
 
 const labels: Record<string, string> = { 'entity:hall-board': '大厅公告牌', 'entity:distant-board': '窗口指示牌' }
 function object(value: unknown): WorldJsonObject {

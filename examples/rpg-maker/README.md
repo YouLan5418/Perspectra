@@ -11,7 +11,7 @@
 | [PerspectraBridge.js](PerspectraBridge.js) | 作者 MZ 工程的 `js/plugins`，在插件管理器中启用；保留此文件名 | 连接桌面桥，读取队员视图、接收白名单事件请求、请求 AI 同伴处理 |
 | [rpg-maker-bridge.mjs](../host-plugins/rpg-maker-bridge.mjs) 和 [transport.mjs](../host-plugins/rpg-maker/transport.mjs) | Perspectra 本地宿主插件目录，两个文件按原相对位置一起保留 | 提供 `rpg-maker@0.1.0` 能力及底层 `ctx.rpgMaker` 服务，一个游戏只绑定一个世界会话 |
 | [pack-module.js](pack-module.js) 和 [plugins.example.json](plugins.example.json) | 按下节复制到世界包并登记资产 | 以本人私有状态记录已确认视图；事件请求仅确认排队 |
-| [桥接测试](../../tests/desktop/rpg-maker-bridge.test.ts) | 本仓库 | 真实 Cordis、真实 TCP、真实桥接脚本；RPG Maker 对象使用小型接口替身 |
+| [桥接测试](../../tests/apps/host/src/rpg-maker-bridge.test.ts) | 本仓库 | 真实 Cordis、真实 TCP、真实桥接脚本；RPG Maker 对象使用小型接口替身 |
 
 这条路径走 Cordis 能力入口（上一轮的 `ctx.gameplay` 规则生成器已删除）。外部游戏运行时是异步、有独立生命周期的进程，不能装进每个 hook 100ms 的同步活动脚本里。
 
@@ -67,7 +67,7 @@ $env:PERSPECTRA_RPG_MAKER_TOKEN = [Convert]::ToHexString([Security.Cryptography.
 ## 复现当前测试
 
 ```powershell
-corepack pnpm@11.7.0 test:related tests/desktop/rpg-maker-bridge.test.ts tests/desktop/host-plugins.test.ts
+corepack pnpm@11.7.0 test:related tests/apps/host/src/rpg-maker-bridge.test.ts tests/apps/host/src/host-plugins.test.ts
 ```
 
 本桥接覆盖队员视图裁剪、隐藏信息不导出、事件白名单与忙碌拒绝、错误令牌、Cordis 卸载清理、超时不自动重试，以及原生能力角色映射和 MZ 请求 NPC 回调。另有包模块及真实宿主入口测试。它们没有加载官方引擎、打开编辑器、运行真实战斗、调用真实模型或证明商业发行兼容性。

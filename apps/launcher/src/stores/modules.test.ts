@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest'
-import type { HostPluginSettings } from '../../../../desktop/host-plugin-settings.ts'
+import type { HostPluginSettings } from '@perspectra/host/plugin-settings'
 import type { PluginManifestInfo } from '../core-types.ts'
 import { filledPluginId, moduleRows, pickProvider } from './modules'
 

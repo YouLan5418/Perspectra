@@ -2,9 +2,9 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { brandId, hashWorldJson } from '@harness-world/contracts'
-import { WorldStore } from '@harness-world/store-sqlite'
-import { runtimeManifestFromStored, WorldBootstrap, type CompiledWorldSpec } from '@harness-world/kernel'
+import { brandId, hashWorldJson } from '@perspectra/sdk/contracts'
+import { WorldStore } from '@perspectra/core/store'
+import { runtimeManifestFromStored, WorldBootstrap, type CompiledWorldSpec } from '@perspectra/core/kernel'
 
 describe('retired Manifest versions', () => {
   it('rejects retired stored Manifest versions instead of constructing runtime facts', () => {

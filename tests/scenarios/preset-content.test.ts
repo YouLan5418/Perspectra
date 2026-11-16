@@ -2,18 +2,18 @@ import { afterEach, expect, it, vi } from 'vitest'
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
-import { type CharacterView, type WorldJsonObject } from '@harness-world/contracts'
-import { rolePreset, type RolePreset, type TextRule } from '../../packages/provider-chat/src/preset.ts'
-import { presetMacros } from '../../packages/provider-chat/src/preset-macros.ts'
+import { type CharacterView, type WorldJsonObject } from '@perspectra/sdk/contracts'
+import { rolePreset, type RolePreset, type TextRule } from '../../packages/providers/src/chat/preset.ts'
+import { presetMacros } from '../../packages/providers/src/chat/preset-macros.ts'
 import {
   presetCall,
   presetContext,
   presetOutput,
   presetDisplay,
   processPresetText,
-} from '../../packages/provider-chat/src/preset-runtime.ts'
-import { WorldHostRuntime } from '../../desktop/host/world-runtime.ts'
-import { WorldStore } from '@harness-world/store-sqlite'
+} from '../../packages/providers/src/chat/preset-runtime.ts'
+import { WorldHostRuntime } from '../../apps/host/src/runtime/world-runtime.ts'
+import { WorldStore } from '@perspectra/core/store'
 import { fakeModels, streamingFetch } from '../support/fake-provider.ts'
 const roots: string[] = []
 afterEach(async () => {

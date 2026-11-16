@@ -1,9 +1,9 @@
 import { defineStore } from 'pinia'
 import { computed, ref, shallowRef } from 'vue'
-import type { LensSnapshot } from '../../../../desktop/lens/session.ts'
-import type { LensChange } from '../../../../desktop/lens/diff.ts'
-import type { LensNpcPlan, LensStart, LensStep } from '../../../../desktop/lens/simulation.ts'
-import type { LensItem, LensSection } from '../../../../desktop/lens/view.ts'
+import type { LensSnapshot } from '../../../host/src/lens/session.ts'
+import type { LensChange } from '@perspectra/world-pack/lens/diff'
+import type { LensNpcPlan, LensStart, LensStep } from '../../../host/src/lens/simulation.ts'
+import type { LensItem, LensSection } from '@perspectra/world-pack/lens/view'
 import { lensConnected, lensRequest, lensStatus } from './api.ts'
 import { mockLensSnapshot } from '../mock.ts'
 

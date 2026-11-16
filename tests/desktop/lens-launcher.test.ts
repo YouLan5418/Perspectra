@@ -3,8 +3,8 @@ import { existsSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { tmpdir } from 'node:os'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { LauncherCore } from '../../desktop/launcher-core.ts'
-import type { LensSnapshot } from '../../desktop/lens/session.ts'
+import { LauncherCore } from '../../apps/launcher/backend/core.ts'
+import type { LensSnapshot } from '../../apps/host/src/lens/session.ts'
 
 const SWEET = resolve('examples/world-packs/model-girls-sweet-days')
 const CONNECTION = '6f1c2a4e-1d0b-4c39-9a51-0d6c1b7e2f10'

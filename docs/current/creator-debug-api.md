@@ -46,7 +46,7 @@ const detail = await response.json()
 
 ## 返回内容与含义
 
-类型定义见 [CreatorInspectionSnapshot](../../desktop/host/creator-inspection.ts)，实现见 [运行宿主](../../desktop/host/world-runtime.ts)。
+类型定义见 [CreatorInspectionSnapshot](../../apps/host/src/runtime/creator-inspection.ts)，实现见 [运行宿主](../../apps/host/src/runtime/world-runtime.ts)。
 
 | 字段 | 内容与边界 |
 | --- | --- |
@@ -74,7 +74,7 @@ const detail = await response.json()
 
 例如创作者检查“玩家声称交出了钥匙，但钥匙仍在自己手里”：先按物品查询取得、转交、随携带者移动和失败尝试，再打开相关对白及实际观察，最后用行动关联查询模型记录。发言不能单独证明转交成功。
 
-`GET /api/creator-history` 的类型及推导实现见 [creator-history.ts](../../desktop/host/creator-history.ts)。读取完整已提交前缀后再分页，不受玩家 transcript 窗口限制，不执行预设、模型、召回或记忆整理。
+`GET /api/creator-history` 的类型及推导实现见 [creator-history.ts](../../apps/host/src/runtime/creator-history.ts)。读取完整已提交前缀后再分页，不受玩家 transcript 窗口限制，不执行预设、模型、召回或记忆整理。
 
 | 参数 | 含义 |
 | --- | --- |
@@ -93,7 +93,7 @@ const detail = await response.json()
 
 ## 查看调用、思考和当时生效的预设
 
-`GET /api/creator-records` 的类型和本地记录实现见 [creator-records.ts](../../desktop/host/creator-records.ts)。列表仅返回摘要，点击后以 recordId 读取正文。
+`GET /api/creator-records` 的类型和本地记录实现见 [creator-records.ts](../../apps/host/src/runtime/creator-records.ts)。列表仅返回摘要，点击后以 recordId 读取正文。
 
 | 参数 | 含义 |
 | --- | --- |

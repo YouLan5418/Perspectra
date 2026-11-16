@@ -2,11 +2,11 @@ import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } f
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { afterEach, expect, it } from 'vitest'
-import type { WorldJsonObject } from '@harness-world/contracts'
-import { frontendActionRequest } from '@harness-world/frontend'
-import { WorldStore } from '@harness-world/store-sqlite'
-import { FrontendActions, projectPlayerView } from '../../desktop/host/frontend-adapter.ts'
-import { WorldHostRuntime } from '../../desktop/host/world-runtime.ts'
+import type { WorldJsonObject } from '@perspectra/sdk/contracts'
+import { frontendActionRequest } from '@perspectra/frontend'
+import { WorldStore } from '@perspectra/core/store'
+import { FrontendActions, projectPlayerView } from '../../apps/host/src/runtime/frontend-adapter.ts'
+import { WorldHostRuntime } from '../../apps/host/src/runtime/world-runtime.ts'
 import { fakeModels, startFakeProvider } from '../support/fake-provider.ts'
 
 const cleanups: (() => Promise<void> | void)[] = []

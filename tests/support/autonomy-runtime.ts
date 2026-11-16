@@ -1,8 +1,8 @@
-import { AutonomyPolicy } from '@harness-world/official-scheduler'
-import type { CompiledWorldPackV5 } from '@harness-world/world-pack'
-import type { AutonomySource } from '@harness-world/plugin-sdk'
-import { AutonomyRuntime } from '../../desktop/host/autonomy-runtime.ts'
-import { loadAutonomySource } from '../../desktop/host/gameplay-source.ts'
+import { AutonomyPolicy } from '@perspectra/providers/scheduler'
+import type { CompiledWorldPackV5 } from '@perspectra/world-pack'
+import type { AutonomySource } from '@perspectra/sdk'
+import { AutonomyRuntime } from '../../apps/host/src/runtime/autonomy-runtime.ts'
+import { loadAutonomySource } from '../../apps/host/src/runtime/gameplay-source.ts'
 export function parseAutonomy(config: unknown, pack: CompiledWorldPackV5, playerId: string) {
   const characterIds = pack.content.characters.map(character => String(character.characterId))
   const source: AutonomySource = {

@@ -2,10 +2,10 @@ import { createRuntimeWithCore } from '../support/core-memory-options.ts'
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
 import { isAbsolute, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import type { WorldJsonObject } from '@harness-world/contracts'
-import { WorldHostRuntime } from '../../desktop/host/world-runtime.ts'
-import { loadPackWeb } from '../../desktop/host/pack-frontend.ts'
-import { environmentRoleModels } from '../../desktop/model-connections.ts'
+import type { WorldJsonObject } from '@perspectra/sdk/contracts'
+import { WorldHostRuntime } from '../../apps/host/src/runtime/world-runtime.ts'
+import { loadPackWeb } from '../../apps/host/src/runtime/pack-frontend.ts'
+import { environmentRoleModels } from '../../apps/host/src/model-connections.ts'
 
 /**
  * Real provider run of per-line expressions: the pack's stage.json declares expressions for some characters,

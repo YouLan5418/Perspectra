@@ -11,7 +11,7 @@
 
 ## 1. 首批范围与不变量
 
-基础包为 `@harness-world/interactions-basic`，执行宿主为 `@harness-world/interaction-runtime`。
+基础包为 `@perspectra/plugins/basic-interactions`，执行宿主为 `@perspectra/core/interactions`。
 首批精确定义为 `base:take@1`、`base:drop@1`、`base:give@1`、`base:hold-hand@1`、`base:end-contact@1`。
 拥抱、待签收交付、请求/同意协议不在首批。五项是本次迁移目录，不是未来基础包的闭合枚举。
 

@@ -42,13 +42,13 @@
 
 主要源码：
 
-- [宿主装配与激活](../../../desktop/host/world-runtime.ts)：WorldApplication 的选项、角色请求回调、#activateCharacters。
-- [WorldApplication](../../../packages/application/src/world-application.ts)：WorldBranchComponentFactory.create、externalCharacterActivations、分支组件和保留 API。
-- [RoundCoordinator](../../../packages/application/src/round-coordinator.ts)：processCognitiveJobs、participant 模型处理、Reflection 与提交。
-- [新角色循环](../../../packages/application/src/character-turn.ts)、[新调度](../../../packages/official-scheduler/src/index.ts)：实际 NPC 决策与结果提交。
-- 旧 `packages/application/src/context-pipeline.ts`、`reaction-scheduler.ts`（第二步已删除，见 Git 调查基点）。
-- [Core 桥](../../../packages/official-memory-core/src/core-memory.ts)：#snapshot、授权 Source 查询与 catchUpReceipt。
-- [角色请求协议](../../../packages/provider-chat/src/character-turn-call.ts)、[认知初始事件编译](../../../packages/world-pack/src/compiler.ts)、旧 `packages/agents/src/reflection.ts`（第二步已删除）。
+- [宿主装配与激活](../../../apps/host/src/runtime/world-runtime.ts)：WorldApplication 的选项、角色请求回调、#activateCharacters。
+- [WorldApplication](../../../packages/core/src/application/world-application.ts)：WorldBranchComponentFactory.create、externalCharacterActivations、分支组件和保留 API。
+- [RoundCoordinator](../../../packages/core/src/application/round-coordinator.ts)：processCognitiveJobs、participant 模型处理、Reflection 与提交。
+- [新角色循环](../../../packages/core/src/application/character-turn.ts)、[新调度](../../../packages/providers/src/scheduler/index.ts)：实际 NPC 决策与结果提交。
+- 旧 `packages/core/src/application/context-pipeline.ts`、`reaction-scheduler.ts`（第二步已删除，见 Git 调查基点）。
+- [Core 桥](../../../packages/memory-core/src/core-memory.ts)：#snapshot、授权 Source 查询与 catchUpReceipt。
+- [角色请求协议](../../../packages/providers/src/chat/character-turn-call.ts)、[认知初始事件编译](../../../packages/world-pack/src/compiler.ts)、旧 `packages/core/src/agents/reflection.ts`（第二步已删除）。
 
 ## 用运行追踪验证“装配但没用”和“确实还在运行”
 
@@ -90,7 +90,7 @@ Get-Content .tmp/phase8-prototype-audit/result.json
 
 Evidence E3：[原型契约](../prototype-contract.md) 顶部仍保留 Proposed、首次交付未实现等起始文字，后面又追加多轮进展，末段还保留旧的 G0～G4 未通过状态；[G1/G2 记录](../../archive/prototype-g1-g4/PROTOTYPE-G1-G2-ACCEPTANCE.md) 仍列 G2-1 格式修正待办。
 
-Evidence E4：当前 PrototypeCharacterTurn 已提供 reserveFormatRetry，宿主调用 [decideActivityFormat](https://github.com/YouLan5418/Perspectra/blob/36d3efd8/desktop/host/pack-activity.ts) 在预算内进行格式修正；[当前架构入口](../architecture/README.md) 已解释新的实际调用链与发行范围。
+Evidence E4：当前 PrototypeCharacterTurn 已提供 reserveFormatRetry，宿主调用 [decideActivityFormat](https://github.com/YouLan5418/Perspectra/blob/36d3efd8/apps/host/src/runtime/pack-activity.ts) 在预算内进行格式修正；[当前架构入口](../architecture/README.md) 已解释新的实际调用链与发行范围。
 
 Finding F2（E3、E4）：一些历史“未完成”只是记录没有跟随实现收口，不能继续作为当前待办；另一些确实是更新回路或默认入口没接上。仅按旧清单补功能，会误把已经改道的设计重新装回当前运行时。有界非法输出诊断的完整 G2 验收本次未逐项复核，不在此宣布通过。
 
@@ -164,7 +164,7 @@ Path P3：若进入实施，先在**不改变模型 Context、存档格式与玩
 
 ## 第一步实施记录：跳过空 NPC 装配（已被第二步替代）
 
-2026-10-18，用户确认执行后完成。本步仅修改 [WorldBranchComponentFactory.create](../../../packages/application/src/world-application.ts) 的装配条件：Manifest 启用 Context 且存在显式 Round 参与者或应用内 Reaction Worker 时，才创建 Phase8ContextPipeline 及旧 NPC Provider Call／Quality。CognitiveMemoryService、启动及提交后的认知任务继续装配和执行。
+2026-10-18，用户确认执行后完成。本步仅修改 [WorldBranchComponentFactory.create](../../../packages/core/src/application/world-application.ts) 的装配条件：Manifest 启用 Context 且存在显式 Round 参与者或应用内 Reaction Worker 时，才创建 Phase8ContextPipeline 及旧 NPC Provider Call／Quality。CognitiveMemoryService、启动及提交后的认知任务继续装配和执行。
 
 没有注册旧参与者、并由外部单角色循环处理 NPC 的网页宿主，现在跳过这些对象及其 Context 连接。它仍会通过 PlayerIntentWorker 按需打开 context.sqlite，专门保存玩家输入解释的调用记录；同库也会创建现有表结构。因此不以该文件或旧表存在与否判断默认 NPC 管线是否在运行，也不迁移或清空已有数据库。
 
@@ -218,7 +218,7 @@ Path P5：下一步单独调整七类初始心理材料在模型 Context 中的�
 
 - `corepack pnpm@11.7.0 typecheck`、`corepack pnpm@11.7.0 lint` 通过。
 - `corepack pnpm@11.7.0 test --maxWorkers=1`：69 个文件、586 项通过，包括原型玩法、记忆来源、故事节点、末端回合及强制中断恢复用例。这是当前原型默认套件，不是全部历史测试。
-- `corepack pnpm@11.7.0 test:related packages/application/src packages/agents/src packages/provider-chat/src packages/runtime-cordis/src tests/integration/player-intent.test.ts tests/integration/interaction-pack.test.ts --maxWorkers=1`：23 个文件、99 项通过，补充提交协调、玩家解释、传输、生命周期和交互扩展验证。
+- `corepack pnpm@11.7.0 test:related packages/core/src/application/src packages/core/src/agents/src packages/providers/src/chat/src packages/core/src/runtime/src tests/integration/player-intent.test.ts tests/integration/interaction-pack.test.ts --maxWorkers=1`：23 个文件、99 项通过，补充提交协调、玩家解释、传输、生命周期和交互扩展验证。
 - `player-only-assembly.test.ts` 单独复核 4 项通过，包含维护排空与旧未完成 Cycle 拒绝路径；`interaction-package-turn.test.ts` 已包含在默认套件中。
 - `node scripts/docs/check-links.mjs` 通过：12 页、373 个本地链接，模块地图完整；本报告另检查 26 个本地链接通过。
 - 10 组当前模型请求改前／改后对照一致；没有新增当前 NPC Context 字段或改变调用提示。
@@ -233,7 +233,7 @@ Path P5：下一步单独调整七类初始心理材料在模型 Context 中的�
 
 ### 改了什么
 
-仅修改 [characterRequestText](../../../packages/provider-chat/src/character-context-text.ts) 的最终模型呈现与既有上下文说明。宿主内部 request.context.cognition、作者 cognitionFiles、投影、规则、Source、Core 档案与原生记忆查询条件均保留。
+仅修改 [characterRequestText](../../../packages/providers/src/chat/character-context-text.ts) 的最终模型呈现与既有上下文说明。宿主内部 request.context.cognition、作者 cognitionFiles、投影、规则、Source、Core 档案与原生记忆查询条件均保留。
 
 | 交付内容 | 最终模型文本中的处理 |
 | --- | --- |
@@ -347,6 +347,6 @@ Path P6（当时结论，已被第四步修正）：第三步短试玩不足以�
 
 | 迁移前路径（上述提交） | 当前源码 |
 | --- | --- |
-| `tests/experiments/playtest-frozen-runtime.ts` | [world-runtime.ts](../../../desktop/host/world-runtime.ts) |
-| `tests/experiments/playtest-memory-core.ts` | [core-memory.ts](../../../packages/official-memory-core/src/core-memory.ts) |
-| `tests/experiments/pack-activity.ts` | [pack-activity.ts](https://github.com/YouLan5418/Perspectra/blob/36d3efd8/desktop/host/pack-activity.ts) |
+| `tests/experiments/playtest-frozen-runtime.ts` | [world-runtime.ts](../../../apps/host/src/runtime/world-runtime.ts) |
+| `tests/experiments/playtest-memory-core.ts` | [core-memory.ts](../../../packages/memory-core/src/core-memory.ts) |
+| `tests/experiments/pack-activity.ts` | [pack-activity.ts](https://github.com/YouLan5418/Perspectra/blob/36d3efd8/apps/host/src/runtime/pack-activity.ts) |

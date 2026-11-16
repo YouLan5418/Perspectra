@@ -1,13 +1,13 @@
-import { WorldHostRuntime } from '../../desktop/host/world-runtime.ts'
+import { WorldHostRuntime } from '../../apps/host/src/runtime/world-runtime.ts'
 import { afterEach, expect, it, vi } from 'vitest'
 import { mkdtemp, readFile, writeFile, rm, cp } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
 import { tmpdir } from 'node:os'
 import { randomUUID } from 'node:crypto'
-import { ModelPresets, packPreset } from '../../desktop/model-presets.ts'
-import { LauncherCore } from '../../desktop/launcher-core.ts'
-import { rolePreset } from '../../packages/provider-chat/src/preset.ts'
-import { createChatProvider } from '../../packages/provider-chat/src/provider.ts'
+import { ModelPresets, packPreset } from '../../apps/host/src/model-presets.ts'
+import { LauncherCore } from '../../apps/launcher/backend/core.ts'
+import { rolePreset } from '../../packages/providers/src/chat/preset.ts'
+import { createChatProvider } from '../../packages/providers/src/chat/provider.ts'
 import { fakeModels, startFakeProvider, streamingFetch } from '../support/fake-provider.ts'
 const roots: string[] = []
 afterEach(async () => {

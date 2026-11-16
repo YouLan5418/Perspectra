@@ -104,7 +104,7 @@ corepack pnpm@11.7.0 experience:web --pack examples/world-packs/model-girls-dinn
 
 1. DeepSeek 16:20 一慌就做了凉拌冷盘，消耗掉了食材。灶台修好后大家在叙事里说着切鸡下锅，世界状态却已锁死在冷盘上，开席只能吃冷盘。**已修复**：冷盘中间还摆着生鸡，灶台修好后可以再做成家常菜或大餐（有自动测试，未重新试玩）。
 2. 修灶台仍然发生在场外，但这次由 Claude 在玩家回来时转告："GLM 刚刚五分钟不到就把灶台修好了。"
-3. DeepSeek 做菜后，转录里在她名下出现"行动者刚刚成功执行交互（物品：晚宴食材）……当前状态请以本次可见场景为准"。这不是角色说的话，而是受控操作的系统结果行：`dinner:*` 没有专门文案，落到了通用兜底句。**已修复**：宿主对包自定义的状态变化改为报告新状态，例如"晚宴食材现在是：家常晚饭：……"（[character-execution-result.ts](../../../packages/application/src/character-execution-result.ts)，有单元测试，未重新试玩）。
+3. DeepSeek 做菜后，转录里在她名下出现"行动者刚刚成功执行交互（物品：晚宴食材）……当前状态请以本次可见场景为准"。这不是角色说的话，而是受控操作的系统结果行：`dinner:*` 没有专门文案，落到了通用兜底句。**已修复**：宿主对包自定义的状态变化改为报告新状态，例如"晚宴食材现在是：家常晚饭：……"（[character-execution-result.ts](../../../packages/core/src/application/character-execution-result.ts)，有单元测试，未重新试玩）。
 4. GLM 最后没有入座，她跑去书房找人了。
 
 ### 第三次：完全不同的"捣蛋鬼"路线（不加任何内容）

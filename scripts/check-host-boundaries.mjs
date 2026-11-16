@@ -1,138 +1,144 @@
-// Check maintained production sources, and keep the default regression independent of experiment drivers.
-// Frozen experiment captures are outside this boundary.
+// Enforce maintained production dependency directions; tests and frozen experiments have separate scopes.
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { dirname, join, relative, resolve } from 'node:path'
-
+import { builtinModules } from 'node:module'
 const root = resolve(process.argv[2] ?? '.')
 const errors = []
 let checked = 0
-const repositoryPath = file => relative(root, file).replaceAll('\\', '/')
-function walk(directory, visit, include) {
-  for (const entry of readdirSync(directory, { withFileTypes: true })) {
-    if (['node_modules', 'dist', 'dist-creator', 'dist-lens', 'target', 'assets'].includes(entry.name)) continue
-    const file = join(directory, entry.name)
-    if (entry.isDirectory()) {
-      walk(file, visit, include)
+const pathOf = file => relative(root, file).replaceAll('\\', '/')
+function walk(dir, visit) {
+  if (!existsSync(dir)) return
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    if (['node_modules', 'dist', 'dist-creator', 'dist-lens', 'target', 'assets', '__pycache__'].includes(entry.name))
       continue
-    }
-    if (include(file)) visit(file)
+    const file = join(dir, entry.name)
+    if (entry.isDirectory()) walk(file, visit)
+    else if (/\.(?:ts|vue|mjs|rs|py|js)$/.test(file)) visit(file)
   }
 }
-function* relativeImports(file, source) {
-  for (const match of source.matchAll(
-    /(?:\bimport\s+(type\s+)?[^'";]*?\bfrom|\bexport\s+[^'";]*?\bfrom|\bimport\s*\()\s*['"](\.[^'"]+)['"]/g,
-  )) {
-    yield { typeOnly: match[1] !== undefined, target: repositoryPath(resolve(dirname(file), match[2])) }
-  }
+function imports(source) {
+  return [
+    ...source.matchAll(
+      /\b(?:(?:import|export)\s+(type\s+)?[^'";]*?\bfrom\s*|import\s*\(\s*|import\s*(?=['"])|require\s*\(\s*)['"]([^'"]+)['"]/g,
+    ),
+  ].map(match => ({ specifier: match[2], typeOnly: match[1] !== undefined }))
 }
+// These are the real entry composition/discovery sites, not arbitrary Host adapters.
+const compositions = new Set(
+  [
+    'official-bundle.ts',
+    'official-pack-metadata.ts',
+    'memory-composition.ts',
+    'cli/worldpack.ts',
+    'pack-validation.ts',
+    'pack-config.ts',
+    'save-preflight.ts',
+    'runtime/web-entry.ts',
+    'story-share.ts',
+    'lens/simulation.ts',
+  ].map(file => 'apps/host/src/' + file),
+)
+const browserExports = new Set([
+  '@perspectra/host/play-settings',
+  '@perspectra/host/plugin-settings',
+  '@perspectra/world-pack/lens/ids',
+  '@perspectra/world-pack/lens/diff',
+  ...['preset', 'preset-library', 'preset-macros', 'preset-regex', 'prompt-cache'].map(
+    name => '@perspectra/providers/chat/' + name,
+  ),
+])
 function check(file) {
-  const source = readFileSync(file, 'utf8')
+  if (/\.(?:test|spec)\.ts$/.test(file)) return
+  const path = pathOf(file),
+    source = readFileSync(file, 'utf8')
   checked++
-  const experimentPath = /(?:tests\/experiments|experiments\/(?:activity-memory|hindsight-core))\//
-  // Also check literal path segments: join(repository, 'tests', 'experiments', 'entry.ts').
+  const owner = path.match(/^packages\/([^/]+)\//)?.[1]
+  const fail = reason => errors.push(path + ': ' + reason)
   const constructedPaths = [...source.matchAll(/\b(?:join|resolve)\s*\(([^()]*)\)/g)].map(match =>
     [...match[1].matchAll(/['"]([^'"\r\n]+)['"]/g)].map(part => part[1]).join('/'),
   )
-  if (experimentPath.test(source) || constructedPaths.some(path => experimentPath.test(path))) {
-    errors.push(file + ': production source depends on an experiment path')
-  }
-  const path = repositoryPath(file)
-  if (path.startsWith('packages/frontend/') && /from\s+['"][^'"]*\/desktop\//.test(source)) {
-    errors.push(file + ': frontend contracts depend on the desktop host')
-  }
-  // Replaceable means the host cannot know which implementation runs: only the default bundle names them.
   if (
-    (path.startsWith('desktop/') || path.startsWith('packages/application/')) &&
-    path !== 'desktop/official-bundle.ts' &&
-    path !== 'desktop/official-pack-metadata.ts' &&
-    /from\s+['"]@harness-world\/official-/.test(source)
-  ) {
-    errors.push(file + ': only desktop/official-bundle.ts may import an official implementation')
-  }
-  if (
-    /^packages\/(?:application|kernel|store-sqlite)\//.test(path) &&
-    /from\s+['"]@harness-world\/interactions-basic['"]/.test(source)
-  ) {
-    errors.push(file + ': core must receive its gameplay install from composition')
-  }
-  if (
-    path.startsWith('packages/official-') &&
-    // The JEV experiment folds committed events with the kernel's pure readers; it adjudicates nothing.
-    !path.startsWith('packages/official-jev-audit/') &&
-    /^import\s+(?!type\b)[^'"]*from\s+['"](?:@harness-world\/(?:application|store-sqlite|kernel|memory)|[^'"]*\/desktop\/)/m.test(
-      source,
+    /(?:tests\/experiments|experiments\/(?:activity-memory|hindsight-core))\//.test(source) ||
+    constructedPaths.some(p => /(?:tests\/experiments|experiments\/(?:activity-memory|hindsight-core))\//.test(p))
+  )
+    fail('production source depends on an experiment path')
+  for (const { specifier, typeOnly } of imports(source)) {
+    if (specifier.startsWith('@harness-world/')) fail('obsolete package name: ' + specifier)
+    const target = specifier.startsWith('.') ? pathOf(resolve(dirname(file), specifier)) : specifier
+    if (owner && target.startsWith('apps/'))
+      fail('core must not depend on host adapters; library depends on application: ' + target)
+    if (owner === 'sdk' && /^@perspectra\/(?!sdk(?:\/|$))/.test(target))
+      fail('plugin SDK contracts must not import implementations: ' + target)
+    if (
+      owner === 'core' &&
+      /^@perspectra\/(?:providers|plugins|memory-core|jev-audit|host|frontend|world-pack)(?:\/|$)/.test(target)
     )
-  ) {
-    errors.push(file + ': an official implementation may use only the public plugin surface at runtime')
-  }
-  if (
-    path.startsWith('packages/plugin-sdk/') &&
-    /^import\s+(?!type\b)[^'";]*from\s+['"](?:@harness-world\/(?:official-|application|store-sqlite|memory)|[^'"]*\/desktop\/)/m.test(
-      source,
+      fail('core must receive its gameplay install from composition')
+    if (
+      ['providers', 'plugins', 'memory-core'].includes(owner) &&
+      /^@perspectra\/core(?:\/|$)/.test(target) &&
+      !(owner === 'plugins' && target === '@perspectra/core/interactions')
     )
-  ) {
-    errors.push(file + ': plugin SDK contracts must not import implementations at runtime')
+      fail('implementation must use SDK or explicitly granted pure interfaces')
+    if (owner === 'world-pack' && /^@perspectra\/(?:host|providers|memory-core|jev-audit)(?:\/|$)/.test(target))
+      fail('static tools depend on runtime composition')
+    if (owner === 'frontend' && /^@perspectra\/(?!sdk(?:\/|$)|frontend(?:\/|$))/.test(target))
+      fail('frontend depends on Node implementation')
+    if (
+      !typeOnly &&
+      path.startsWith('apps/launcher/src/') &&
+      (target.startsWith('node:') ||
+        builtinModules.includes(target) ||
+        target.startsWith('apps/host/') ||
+        target.startsWith('apps/launcher/backend/') ||
+        (target.startsWith('@perspectra/') && !browserExports.has(target)))
+    )
+      fail('Launcher browser must use browser-safe public exports: ' + target)
+    if (
+      !typeOnly &&
+      path.startsWith('apps/host/src/') &&
+      !compositions.has(path) &&
+      /^@perspectra\/(?:providers|plugins|memory-core|jev-audit)(?:\/|$)/.test(target) &&
+      !target.startsWith('@perspectra/providers/chat')
+    )
+      fail('official implementations must be selected at a Host composition entry: ' + target)
+    const targetOwner = target.match(/^packages\/([^/]+)\/src\//)?.[1]
+    if (
+      targetOwner &&
+      targetOwner !== owner &&
+      !(file.endsWith('.mjs') && target === 'packages/frontend/src/default-template.ts')
+    )
+      fail('use @perspectra/' + targetOwner + ' instead of ' + target)
   }
-  if (path.startsWith('desktop/') && /\.commitRound\(/.test(source)) {
-    errors.push(file + ': the host commits only through the core execution path')
-  }
-  checkPackageImports(file, path, source)
+  if (path.startsWith('apps/') && /\.commitRound\(/.test(source))
+    fail('the host commits only through the core execution path')
 }
-// Sources reach another package only through its @harness-world entry; the launcher resolves the
-// browser-safe @harness-world/provider-chat subpaths through its Vite and TypeScript aliases. Plain-Node
-// release scripts cannot resolve package names at all, so they alone may read type declarations and the
-// default frontend template directly.
-const releaseScriptModules = /^packages\/frontend\/src\/default-template\.ts$/
-function checkPackageImports(file, path, source) {
-  const ownPackage = path.match(/^packages\/([^/]+)\//)?.[1]
-  const plainNode = path.endsWith('.mjs')
-  for (const { typeOnly, target } of relativeImports(file, source)) {
-    if (['application', 'kernel', 'store-sqlite'].includes(ownPackage) && target.startsWith('desktop/'))
-      errors.push(file + ': core must not depend on host adapters')
-    const targetPackage = target.match(/^packages\/([^/]+)\/src\//)?.[1]
-    if (targetPackage === undefined || targetPackage === ownPackage) continue
-    if (plainNode && (typeOnly || releaseScriptModules.test(target))) continue
-    errors.push(file + ': imports ' + target + '; use @harness-world/' + targetPackage)
-  }
-}
-const production = file => /\.(?:ts|vue|mjs|rs|py)$/.test(file) && !/\.(?:test|spec)\.ts$/.test(file)
 for (const directory of [
-  'desktop',
   'packages',
+  'apps/host/src',
+  'apps/launcher/backend',
   'apps/launcher/src',
   'apps/launcher/src-tauri/src',
-  'scripts/release',
   'scripts/build',
-]) {
-  walk(join(root, directory), check, production)
-}
-const authorPacks = join(root, 'examples/world-packs')
-if (existsSync(authorPacks))
-  walk(
-    authorPacks,
-    file => {
-      const source = readFileSync(file, 'utf8')
-      if (
-        /(?:from\s*|import\s*\(|require\s*\()\s*['"](?:@harness-world\/plugin-sdk|@deepseek-ai\/cordis)(?:['"/])/u.test(
-          source,
-        )
-      )
-        errors.push(file + ': world-pack scripts use author hooks, not the native SDK')
-    },
-    file => /\/(?:scripts|plugins)\/.+\.js$/u.test(repositoryPath(file)),
-  )
+  'scripts/release',
+])
+  walk(join(root, directory), check)
+walk(join(root, 'tests'), file => {
+  if (pathOf(file).startsWith('tests/experiments/')) return
+  for (const { specifier } of imports(readFileSync(file, 'utf8')))
+    if (specifier.startsWith('.') && pathOf(resolve(dirname(file), specifier)).startsWith('tests/experiments/'))
+      errors.push(pathOf(file) + ': regression imports experiment driver; move shared code to tests/support')
+})
 check(join(root, 'package.json'))
-// Live drivers may reuse regression support, never the other way round.
-walk(
-  join(root, 'tests'),
-  file => {
-    for (const { target } of relativeImports(file, readFileSync(file, 'utf8'))) {
-      if (target.startsWith('tests/experiments/'))
-        errors.push(file + ': regression source imports ' + target + '; move shared code to tests/support')
-    }
-  },
-  file => file.endsWith('.ts') && !repositoryPath(file).startsWith('tests/experiments/'),
-)
+walk(join(root, 'examples/world-packs'), file => {
+  if (!/\/(?:scripts|plugins)\/.+\.js$/.test(pathOf(file))) return
+  if (
+    /(?:from\s*|import\s*\(|require\s*\()\s*['"](?:@perspectra\/sdk|@deepseek-ai\/cordis)(?:['"/])/.test(
+      readFileSync(file, 'utf8'),
+    )
+  )
+    errors.push(pathOf(file) + ': world-pack scripts use author hooks, not the native SDK')
+})
 if (errors.length) {
   console.error(errors.join('\n'))
   process.exitCode = 1

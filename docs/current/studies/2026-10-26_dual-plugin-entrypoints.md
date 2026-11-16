@@ -12,9 +12,9 @@
 
 | Evidence | Finding | Path |
 | --- | --- | --- |
-| [目录与会话测试](../../../tests/desktop/host-capabilities.test.ts) | 不同世界分别打开服务，Schema、角色绑定、卸载取消与会话清理可验证 | [HostCapabilities](../../../desktop/host-capabilities.ts)负责原生注册，Cordis effect 持有注销函数 |
-| [双入口场景测试](../../../tests/scenarios/dual-plugins.test.ts) | 包规则、权限筛选、私有 Context、原子提交、queued、可选依赖和失败暂停通过真实宿主执行 | [PackModules](../../../desktop/host/pack-modules.ts)组合成 PackStatus，复用现有 Rulebook 与状态事件 |
-| [源码和构建入口测试](../../../tests/host/capability-plugin-entry.test.ts) | 外部 .mjs 与包模块经过真实入口装载，HTTP 操作可执行；无配对保存时不授予保存／重生成能力 | [web-entry](../../../desktop/host/web-entry.ts)、[HTTP 初始化](../../../desktop/host/http-server.ts)及 TailRoundRuntime 消费实际能力 |
+| [目录与会话测试](../../../tests/desktop/host-capabilities.test.ts) | 不同世界分别打开服务，Schema、角色绑定、卸载取消与会话清理可验证 | [HostCapabilities](../../../apps/host/src/host-capabilities.ts)负责原生注册，Cordis effect 持有注销函数 |
+| [双入口场景测试](../../../tests/scenarios/dual-plugins.test.ts) | 包规则、权限筛选、私有 Context、原子提交、queued、可选依赖和失败暂停通过真实宿主执行 | [PackModules](../../../apps/host/src/runtime/pack-modules.ts)组合成 PackStatus，复用现有 Rulebook 与状态事件 |
+| [源码和构建入口测试](../../../tests/host/capability-plugin-entry.test.ts) | 外部 .mjs 与包模块经过真实入口装载，HTTP 操作可执行；无配对保存时不授予保存／重生成能力 | [web-entry](../../../apps/host/src/runtime/web-entry.ts)、[HTTP 初始化](../../../apps/host/src/runtime/http-server.ts)及 TailRoundRuntime 消费实际能力 |
 | [MZ 双端脚本测试](../../../tests/desktop/rpg-maker-bridge.test.ts) | 真实 TCP、队员映射、白名单、绑定 NPC 回调和断线行为可测试，MZ 对象仍为替身 | [桥接说明与模板](../../../examples/rpg-maker/README.md)，拿到实际工程后再做战斗适配 |
 
 包用 `plugins.json` 声明模块、资产、角色和精确版本依赖；操作成为普通 `status:<模块>-<操作>`。纯规则只在包内执行，需要外部能力的规则分为同步 prepare、原生异步 invoke、同步 resolve。prepare 仅接收已知状态；resolve 延用可信作者裁定真值的权限，输出仍受宿主状态、物品和受众校验。

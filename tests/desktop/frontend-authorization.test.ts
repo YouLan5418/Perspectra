@@ -3,9 +3,9 @@ import { cp, mkdtemp, mkdir, readFile, readdir, rm, writeFile, rename } from 'no
 import { join, resolve } from 'node:path'
 import { tmpdir } from 'node:os'
 import { afterEach, expect, it } from 'vitest'
-import { FrontendAuthorizations, type FrontendIdentity } from '../../desktop/frontend-authorization.ts'
-import { loadPackWeb } from '../../desktop/host/pack-frontend.ts'
-import { LauncherCore } from '../../desktop/launcher-core.ts'
+import { FrontendAuthorizations, type FrontendIdentity } from '../../apps/host/src/frontend-authorization.ts'
+import { loadPackWeb } from '../../apps/host/src/runtime/pack-frontend.ts'
+import { LauncherCore } from '../../apps/launcher/backend/core.ts'
 const roots: string[] = []
 afterEach(async () => {
   for (const root of roots.splice(0)) await rm(root, { recursive: true, force: true })

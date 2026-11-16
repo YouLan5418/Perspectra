@@ -3,7 +3,7 @@ import { basename } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { activitySource } from './activity.mjs'
 
-// Matches SCRIPT_SOURCE_LIMIT in desktop/host/pack-status.ts. Valid configs stay well below it today
+// Matches SCRIPT_SOURCE_LIMIT in apps/host/src/runtime/pack-status.ts. Valid configs stay well below it today
 // (about 134 KB at every validation maximum); the check guards future growth of battle-runtime.js.
 export const HOST_SOURCE_LIMIT = 256 * 1024
 

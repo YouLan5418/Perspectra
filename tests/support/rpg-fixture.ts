@@ -1,10 +1,10 @@
 import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
-import type { WorldJsonObject } from '@harness-world/contracts'
-import { WorldStore } from '@harness-world/store-sqlite'
-import type { WorldComposition } from '../../desktop/official-bundle.ts'
-import { WorldHostRuntime } from '../../desktop/host/world-runtime.ts'
+import type { WorldJsonObject } from '@perspectra/sdk/contracts'
+import { WorldStore } from '@perspectra/core/store'
+import type { WorldComposition } from '../../apps/host/src/official-bundle.ts'
+import { WorldHostRuntime } from '../../apps/host/src/runtime/world-runtime.ts'
 import { fakeModels, startFakeProvider } from './fake-provider.ts'
 
 // tests/fixtures/rpg-pack registers rpg.json; the host generates its activities, status module and rules. This

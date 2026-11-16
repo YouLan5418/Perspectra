@@ -1,4 +1,4 @@
-import type { WorldJsonObject } from '@harness-world/contracts'
+import type { WorldJsonObject } from '@perspectra/sdk/contracts'
 
 export interface HistoricalEpisode { tick: number; actor: string; kind: 'speech' | 'seen'; text: string }
 export interface BehaviorProbe { id: string; stimulus: string; rubric: string }

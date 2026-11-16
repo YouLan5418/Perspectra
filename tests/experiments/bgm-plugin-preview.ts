@@ -1,7 +1,7 @@
 /** Model-free real-host fixture for BGM browser acceptance; does not open a world or save. */
 import { fileURLToPath } from 'node:url'
-import { createHostServer, type HostState } from '../../desktop/host/http-server.ts'
-import { loadHostPlugins } from '../../desktop/host-plugins.ts'
+import { createHostServer, type HostState } from '../../apps/host/src/runtime/http-server.ts'
+import { loadHostPlugins } from '../../apps/host/src/host-plugins.ts'
 
 const plugins = await loadHostPlugins(process.argv.includes('--no-bgm') ? [] : [{
   id: 'demo-bgm', enabled: true,

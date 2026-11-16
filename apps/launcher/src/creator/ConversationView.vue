@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { ArrowDownToLine } from '@lucide/vue'
-import type { InspectedRequest } from '@harness-world/provider-chat'
+import type { InspectedRequest } from '@perspectra/providers/chat'
 import { asRecord, durationLabel, KIND_LABEL, timeLabel } from './format.ts'
 import type { ConversationEntry, TraceNode } from './model.ts'
 import { useCreatorStore } from './store.ts'

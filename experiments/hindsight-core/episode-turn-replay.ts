@@ -2,10 +2,10 @@
 import { spawnSync } from 'node:child_process'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
-import { createChatProvider } from '@harness-world/provider-chat'
-import { type WorldJsonObject } from '@harness-world/contracts'
-import { gatewayTurnCall } from '../../desktop/host/gateway-turn-call.ts'
-import type { CharacterTurnRequest } from '../../packages/application/src/character-turn.ts'
+import { createChatProvider } from '@perspectra/providers/chat'
+import { type WorldJsonObject } from '@perspectra/sdk/contracts'
+import { gatewayTurnCall } from '../../apps/host/src/runtime/gateway-turn-call.ts'
+import type { CharacterTurnRequest } from '../../packages/core/src/application/character-turn.ts'
 
 type Ref={sourceId:string;worldSeq:number;characterId:string;worldAddress:WorldJsonObject}
 type Source=Ref & {knownTick:number}
@@ -29,7 +29,7 @@ const positions=indexed.units.flatMap((u,i)=>u.sourceRefs.every(r=>recent.has(r.
 const units=positions.map(i=>indexed.units[i]!),ids=new Set(units.map(u=>u.id))
 const index={...indexed,units,vectors:positions.map(i=>indexed.vectors[i]!),links:indexed.links.filter(e=>ids.has(String(e[0]))&&ids.has(String(e[1])))}
 const run=spawnSync(process.env.HCW_HINDSIGHT_PYTHON||resolve('.tmp/hindsight-vector-venv/Scripts/python.exe'),
- [resolve('packages/official-memory-core/python/core/vector_core.py')],{input:JSON.stringify({operation:'recall',scope:data.scope,index,query:trace.query,limit:8}),
+ [resolve('packages/memory-core/python/core/vector_core.py')],{input:JSON.stringify({operation:'recall',scope:data.scope,index,query:trace.query,limit:8}),
  encoding:'utf8',env:{...process.env,PYTHONIOENCODING:'utf-8'},maxBuffer:64*1024*1024,timeout:120_000})
 if(run.error||run.status!==0)throw new Error(run.error?.message??run.stderr.slice(-2000))
 const recall=JSON.parse(run.stdout) as {results:Unit[]}

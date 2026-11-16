@@ -3,12 +3,12 @@ import { cpSync, mkdtempSync, rmSync, statSync, writeFileSync, mkdirSync } from 
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { afterEach, beforeAll, expect, it } from 'vitest'
-import { LensStore } from '../../desktop/lens/store.ts'
-import type { LensItem, LensView } from '../../desktop/lens/view.ts'
+import { LensStore } from '../../apps/host/src/lens/store.ts'
+import type { LensItem, LensView } from '../../packages/world-pack/src/lens/view.ts'
 
 import { sweetWithoutPacing } from '../support/sweet-without-pacing.ts'
 const SOURCE = sweetWithoutPacing()
-const CLI = resolve('desktop/lens/cli.ts')
+const CLI = resolve('apps/host/src/lens/cli.ts')
 const roots: string[] = []
 afterEach(() => {
   for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 })
@@ -195,7 +195,7 @@ it('serve refuses a folder that is not a pack, and a missing path', async () => 
 }, 60_000)
 
 it('worldpack simulate exposes the formal in-process scenario and measured boundaries', async () => {
-  const cli = resolve('packages/world-pack/process/cli-entry.ts')
+  const cli = resolve('apps/host/src/cli/worldpack.ts')
   const source = resolve('examples/world-packs/investigation')
   const result = await command(cli, 'simulate', source, join(source, 'scenario.json'))
   expect(result.code).toBe(0)

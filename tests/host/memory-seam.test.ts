@@ -2,12 +2,12 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import type { Server } from 'node:http'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
-import type { MemoryInstance, MemoryRequest, SeamProvider, WorldServices } from '@harness-world/plugin-sdk'
+import type { MemoryInstance, MemoryRequest, SeamProvider, WorldServices } from '@perspectra/sdk'
 import { afterEach, expect, it, vi } from 'vitest'
-import { officialContextOrder } from '../../desktop/official-bundle.ts'
-import { WorldHostRuntime } from '../../desktop/host/world-runtime.ts'
-import { restoreStoryNode } from '../../desktop/story-nodes.ts'
-import { exportStoryNode, importStoryNode } from '../../desktop/story-share.ts'
+import { officialContextOrder } from '../../apps/host/src/official-bundle.ts'
+import { WorldHostRuntime } from '../../apps/host/src/runtime/world-runtime.ts'
+import { restoreStoryNode } from '../../apps/host/src/story-nodes.ts'
+import { exportStoryNode, importStoryNode } from '../../apps/host/src/story-share.ts'
 import { createChatServer, fakeModels } from '../support/fake-provider.ts'
 
 const roots: string[] = [],

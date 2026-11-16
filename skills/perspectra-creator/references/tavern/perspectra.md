@@ -4,20 +4,20 @@
 
 | 体验 | 优先查看 | 核查要点 |
 | --- | --- | --- |
-| 人物/信息差 | `packages/application/src/character-turn.ts`、`packages/agents`、`examples/world-packs/model-girls-dinner/cognition.json` | 按谁构建Context、初始认知的来源、谁能收到秘密 |
-| 作者知识 | `desktop/host/pack-knowledge.ts`、`tests/scenarios/pack-story-slice.test.ts` | audience→when→关键词→预算，扫描输入、正文是否插值 |
-| 长期记忆 | `desktop/host/memory/core-memory.ts`、`docs/current/architecture/cognition-memory.md` | 原生/Core入口、授权Source、整理/召回、分支前缀、成本 |
-| 物品/交互 | `desktop/host/pack-status.ts`、`examples/templates/item-rules.js`、`packages/kernel/src/rulebook.ts` | 候选过滤和执行重查、可达/归属、受众、原子提交、实际安装能力 |
+| 人物/信息差 | `packages/core/src/application/character-turn.ts`、`packages/agents`、`examples/world-packs/model-girls-dinner/cognition.json` | 按谁构建Context、初始认知的来源、谁能收到秘密 |
+| 作者知识 | `apps/host/src/runtime/pack-knowledge.ts`、`tests/scenarios/pack-story-slice.test.ts` | audience→when→关键词→预算，扫描输入、正文是否插值 |
+| 长期记忆 | `apps/host/src/runtime/memory/core-memory.ts`、`docs/current/architecture/cognition-memory.md` | 原生/Core入口、授权Source、整理/召回、分支前缀、成本 |
+| 物品/交互 | `apps/host/src/runtime/pack-status.ts`、`examples/templates/item-rules.js`、`packages/core/src/kernel/rulebook.ts` | 候选过滤和执行重查、可达/归属、受众、原子提交、实际安装能力 |
 | 变量/任务/时间 | `examples/world-packs/status-market`、`tests/host/pack-status-runtime.test.ts` | schema对象/数组、truth/known/current、policy/resolve/onRoundEnd、失败不提交与一次领奖 |
-| 活动/演出 | `desktop/host/pack-activity.ts`、`pack-activities.ts`、官方包活动示例 | 实际hook、成员/操作限制、public/private/internal、状态同事务、暂停恢复 |
+| 活动/演出 | `apps/host/src/runtime/pack-activity.ts`、`pack-activities.ts`、官方包活动示例 | 实际hook、成员/操作限制、public/private/internal、状态同事务、暂停恢复 |
 | 条件剧情 | `WorldHostRuntime` autoStart链、`tests/scenarios/activity-auto-start.test.ts` | 检查时机、一次一场、资格、notice与观察的区别 |
 | 自主行动 | `pack-autonomy.ts`、`world-runtime.ts`、`tests/scenarios/character-autonomy.test.ts` | 触发、独立预算、区域/白名单、场外机会、取消 |
-| 预设/风格 | `packages/provider-chat/src/preset*.ts`、`docs/current/model-presets.md` | 节点位置、宏、文本规则阶段/限制、不改受控动作 |
+| 预设/风格 | `packages/providers/src/chat/preset*.ts`、`docs/current/model-presets.md` | 节点位置、宏、文本规则阶段/限制、不改受控动作 |
 | 前端 | `docs/current/guides/web-ui.md`、`pack-frontend.ts`、`frontend-adapter.ts`、`packages/frontend` | SDK实际view/actions/perform、当前optionId、参数、沙箱/网络 |
-| 专属模型 | `desktop/model-connections.ts`、`desktop/host/role-providers.ts`、`world-runtime.ts` | decision/memory路由、凭据留宿主 |
-| 存档分支 | `desktop/story-nodes.ts`、`docs/current/storylines.md`及测试 | 节点保存/恢复内容，不当成章节导演 |
+| 专属模型 | `apps/host/src/model-connections.ts`、`apps/host/src/runtime/role-providers.ts`、`world-runtime.ts` | decision/memory路由、凭据留宿主 |
+| 存档分支 | `apps/host/src/story-nodes.ts`、`docs/current/storylines.md`及测试 | 节点保存/恢复内容，不当成章节导演 |
 
-上表未写目录的宿主文件以`desktop/host/`为根。只复制当前源格式且当前宿主可编译的示例；`tavern-social`等可能是不能运行的历史材料。命令/格式从当前package.json、schema、示例读取。
+上表未写目录的宿主文件以`apps/host/src/runtime/`为根。只复制当前源格式且当前宿主可编译的示例；`tavern-social`等可能是不能运行的历史材料。命令/格式从当前package.json、schema、示例读取。
 
 常见误判：
 

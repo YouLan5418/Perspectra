@@ -8,10 +8,10 @@ import { createRoleplayCore } from '../support/roleplay-runtime.ts'
 import { existsSync, mkdirSync, writeFileSync, appendFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { randomUUID } from 'node:crypto'
-import { brandId, type WorldJsonObject } from '@harness-world/contracts'
-import { CharacterViewBuilder, WorldStore } from '@harness-world/store-sqlite'
-import { playSettings } from '../../desktop/play-settings.ts'
-import { environmentRoleModels } from '../../desktop/model-connections.ts'
+import { brandId, type WorldJsonObject } from '@perspectra/sdk/contracts'
+import { CharacterViewBuilder, WorldStore } from '@perspectra/core/store'
+import { playSettings } from '../../apps/host/src/play-settings.ts'
+import { environmentRoleModels } from '../../apps/host/src/model-connections.ts'
 
 const models = environmentRoleModels(process.env)
 

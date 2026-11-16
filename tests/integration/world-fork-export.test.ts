@@ -3,16 +3,16 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { WorldApplication } from '@harness-world/application'
-import { brandId } from '@harness-world/contracts'
-import { currentCharacterRelations } from '@harness-world/kernel'
+import { WorldApplication } from '@perspectra/core'
+import { brandId } from '@perspectra/sdk/contracts'
+import { currentCharacterRelations } from '@perspectra/core/kernel'
 import {
   BranchAdministration,
   ProjectionRebuilder,
   SnapshotStore,
   WorldArchiveService,
   WorldStore,
-} from '@harness-world/store-sqlite'
+} from '@perspectra/core/store'
 import { frozenInteractionWorld } from '../fixtures/frozen-interaction-world.ts'
 
 /**

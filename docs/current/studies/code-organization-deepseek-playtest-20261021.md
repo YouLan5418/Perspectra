@@ -17,7 +17,7 @@
 
 第一组复用[条件知识试玩驱动](../../../tests/experiments/knowledge-conditions-playtest.ts)，在忽略的 `.tmp` 副本中仅替换官方认证、接口与模型配置，并补上脱敏错误观察。19 个步骤覆盖实际 take/give、状态核实、场景变化、私语刺激、活动本人私有材料及活动退出。NPC 的表达、行动与沉默均由真实模型决定，未脚本化结果。
 
-第二组使用[正式网页入口](../../../desktop/host/web-entry.ts)启动 `prototype-g1`。首条输入通过 Playwright 实际发送，随后通过同一真实宿主 HTTP 接口继续九次玩家输入；保存进度、重开页面和候选切换使用实际浏览器。开启现有创作者请求采集，核对授权请求、转录、物品真值和 Core 档案。没有修改生产源码、提示词、Schema、调度或存储。
+第二组使用[正式网页入口](../../../apps/host/src/runtime/web-entry.ts)启动 `prototype-g1`。首条输入通过 Playwright 实际发送，随后通过同一真实宿主 HTTP 接口继续九次玩家输入；保存进度、重开页面和候选切换使用实际浏览器。开启现有创作者请求采集，核对授权请求、转录、物品真值和 Core 档案。没有修改生产源码、提示词、Schema、调度或存储。
 
 用户切换到官方 API 前的 OpenCode 失败样本单独保留，不计入以下数量。
 
@@ -51,8 +51,8 @@
 
 | 证据 | 结论 | 后续定位入口 |
 | --- | --- | --- |
-| `after-ui-state.json` 的 seq42，与 `creator-before-followup.json` 的保温壶状态 | publish 表现与已裁定保管状态不一致 | [角色回合](../../../packages/application/src/character-turn.ts)、[模型上下文呈现](../../../packages/provider-chat/src/character-context-text.ts) |
-| `turns.json` 中 seq58、seq75 | 后续角色能依据真值纠正；实际转移仍需 perform | [物品交互](../../../packages/interactions-basic)、[世界宿主](../../../desktop/host/world-runtime.ts) |
+| `after-ui-state.json` 的 seq42，与 `creator-before-followup.json` 的保温壶状态 | publish 表现与已裁定保管状态不一致 | [角色回合](../../../packages/core/src/application/character-turn.ts)、[模型上下文呈现](../../../packages/providers/src/chat/character-context-text.ts) |
+| `turns.json` 中 seq58、seq75 | 后续角色能依据真值纠正；实际转移仍需 perform | [物品交互](../../../packages/plugins/src/basic-interactions)、[世界宿主](../../../apps/host/src/runtime/world-runtime.ts) |
 
 建议下一步先围绕这个具体场景做最小复核，区分临时触碰、实际保管与承诺表达；本轮没有追加语义模型、过滤阶段或动作枚举。
 

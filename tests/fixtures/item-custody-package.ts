@@ -24,8 +24,8 @@ import {
   type WorldJsonObject,
   ACTION_GROUP_CUES,
   type ActionGroupCue,
-} from '@harness-world/contracts'
-import { interactionPackageHash } from '@harness-world/interaction-runtime'
+} from '@perspectra/sdk/contracts'
+import { interactionPackageHash } from '@perspectra/core/interactions'
 
 const ref = (id: string): InteractionRef => ({ id, version: 1 })
 const implementation = (id: string): InteractionImplementationLock => ({

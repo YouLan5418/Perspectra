@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import type { LensNpcPlan, LensStep, LensTraceLine } from '../../../../desktop/lens/simulation.ts'
+import type { LensNpcPlan, LensStep, LensTraceLine } from '../../../host/src/lens/simulation.ts'
 import { useLensStore } from './store.ts'
 import SimulationStart from './SimulationStart.vue'
 import SimulationActions from './SimulationActions.vue'

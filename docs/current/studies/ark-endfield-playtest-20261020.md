@@ -142,7 +142,7 @@
 
 **不一致发生在“叙事地点”与“世界地点”之间。** 庄方宜说去“总桩 / 桩下”，但那不是地点表里的地点；模型只能选最近的合法目的地，于是世界把她落到了 `location:valley`（seq 772）。她到了谷地仍在说“桩那边我自己走了一趟”。**玩家看到的是“她去了桩”，世界记录的是“她去了谷地”。**
 
-同类问题还有“移动到了另一个地点。”——这是 [playtest-view.ts](../../../desktop/host/player-transcript.ts) 第 78 行的兜底文案：观察者拿不到 NPC 的目的地名称时就这么写。它作为**角色台词**出现在转录里，读起来像 bug 而不像隐私保护。（试玩后已改为第三人称旁白，见第四节。）
+同类问题还有“移动到了另一个地点。”——这是 [playtest-view.ts](../../../apps/host/src/runtime/player-transcript.ts) 第 78 行的兜底文案：观察者拿不到 NPC 的目的地名称时就这么写。它作为**角色台词**出现在转录里，读起来像 bug 而不像隐私保护。（试玩后已改为第三人称旁白，见第四节。）
 
 ### 3.6 玩家体验（B-）
 
@@ -204,4 +204,4 @@
 
 | 迁移前路径（上述提交） | 当前源码 |
 | --- | --- |
-| `tests/experiments/playtest-view.ts` | [player-transcript.ts](../../../desktop/host/player-transcript.ts) |
+| `tests/experiments/playtest-view.ts` | [player-transcript.ts](../../../apps/host/src/runtime/player-transcript.ts) |

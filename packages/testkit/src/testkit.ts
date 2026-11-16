@@ -6,7 +6,7 @@ import {
   type FaultInjector,
   type FaultPoint,
   type WorldAddress,
-} from '@harness-world/contracts'
+} from '@perspectra/sdk/contracts'
 
 /** Mutable clock controlled only by a test. */
 export class DeterministicClock {

@@ -2,8 +2,8 @@ import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSyn
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, expect, it } from 'vitest'
-import { LensStore } from '../../desktop/lens/store.ts'
-import type { LensItem, LensView } from '../../desktop/lens/view.ts'
+import { LensStore } from '../../apps/host/src/lens/store.ts'
+import type { LensItem, LensView } from '../../packages/world-pack/src/lens/view.ts'
 
 const item = (value: number, id = 'character:a'): LensItem => ({
   id,

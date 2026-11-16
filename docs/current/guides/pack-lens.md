@@ -22,7 +22,7 @@
 | `worldpack.cmd lens requests <源目录>` | AI | 输出未关闭（open 或 changed）的待改清单 |
 | `worldpack.cmd lens simulate <源目录> <脚本.json>` | AI | 跑一份推演脚本，输出逐步经过与期望结果 |
 
-用源码而不是发行包时，把 `worldpack.cmd lens` 换成 `node --import tsx desktop/lens/cli.ts`，参数相同。脚本名可以是一个文件路径，也可以是 `.perspectra-lens/scenarios/` 下的文件名。输出是单行 JSON；命令失败时退出码为 1，stderr 带 `{"error":{"code","message"}}`。`simulate` 跑完但没通过（有一步报错或有期望未满足）时，结果照常输出到 stdout，顶层 `passed` 为 `false`，退出码为 2。
+用源码而不是发行包时，把 `worldpack.cmd lens` 换成 `node --import tsx apps/host/src/lens/cli.ts`，参数相同。脚本名可以是一个文件路径，也可以是 `.perspectra-lens/scenarios/` 下的文件名。输出是单行 JSON；命令失败时退出码为 1，stderr 带 `{"error":{"code","message"}}`。`simulate` 跑完但没通过（有一步报错或有期望未满足）时，结果照常输出到 stdout，顶层 `passed` 为 `false`，退出码为 2。
 
 `view`、`requests`、`simulate` 三条命令都是只读的：读透视不会移动“已看过”基准，也不能新增或关闭待改条目。`serve` 只把页面交给作者；“已看过”和待改清单的写操作要用页面地址里的令牌，这个令牌只给打开页面的人，服务只监听本机。
 

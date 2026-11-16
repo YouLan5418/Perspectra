@@ -8,16 +8,16 @@ it('rejects experiment dependencies and package internals while allowing current
   const root = mkdtempSync(join(tmpdir(), 'host-boundaries-'))
   try {
     for (const directory of [
-      'desktop',
+      'apps/host/src',
       'packages/frontend',
-      'packages/application',
+      'packages/core',
       'apps/launcher/src',
       'apps/launcher/src-tauri/src',
       'scripts/release',
       'scripts/build',
       'tests/scenarios',
       'tests/experiments',
-      'packages/plugin-sdk',
+      'packages/sdk',
       'examples/world-packs/sample/scripts',
     ]) {
       mkdirSync(join(root, directory), { recursive: true })
@@ -28,48 +28,48 @@ it('rejects experiment dependencies and package internals while allowing current
       "join(repository, 'tests', 'experiments', 'playtest-web-entry.ts')",
       "resolve(repository, 'experiments', 'hindsight-core', 'core.py')",
     ]) {
-      writeFileSync(join(root, 'desktop/entry.ts'), source)
+      writeFileSync(join(root, 'apps/host/src/entry.ts'), source)
       const result = spawnSync(process.execPath, [resolve('scripts/check-host-boundaries.mjs'), root], {
         encoding: 'utf8',
       })
       expect(result.status).toBe(1)
       expect(result.stderr).toContain('production source depends on an experiment path')
     }
-    writeFileSync(join(root, 'desktop/entry.ts'), 'await store.commitRound(request)')
+    writeFileSync(join(root, 'apps/host/src/entry.ts'), 'await store.commitRound(request)')
     const directCommit = spawnSync(process.execPath, [resolve('scripts/check-host-boundaries.mjs'), root], {
       encoding: 'utf8',
     })
     expect(directCommit.status).toBe(1)
     expect(directCommit.stderr).toContain('the host commits only through the core execution path')
-    writeFileSync(join(root, 'desktop/entry.ts'), "join(repository, 'desktop', 'host', 'web-entry.ts')")
+    writeFileSync(join(root, 'apps/host/src/entry.ts'), "join(repository, 'apps/host/src', 'host', 'web-entry.ts')")
     writeFileSync(
       join(root, 'packages/frontend/player.ts'),
-      "import type { Host } from '../../../desktop/host/world-runtime.ts'",
+      "import type { Host } from '../../apps/host/src/runtime/world-runtime.ts'",
     )
     expect(
       spawnSync(process.execPath, [resolve('scripts/check-host-boundaries.mjs'), root], { encoding: 'utf8' }).status,
     ).toBe(1)
     writeFileSync(join(root, 'packages/frontend/player.ts'), 'export interface Player {}')
     writeFileSync(
-      join(root, 'packages/application/world.ts'),
-      "import { install } from '@harness-world/interactions-basic'",
+      join(root, 'packages/core/world.ts'),
+      "import { install } from '@perspectra/plugins/basic-interactions'",
     )
     const implicitGameplay = spawnSync(process.execPath, [resolve('scripts/check-host-boundaries.mjs'), root], {
       encoding: 'utf8',
     })
     expect(implicitGameplay.status).toBe(1)
     expect(implicitGameplay.stderr).toContain('core must receive its gameplay install from composition')
-    writeFileSync(join(root, 'packages/application/world.ts'), 'export {}')
-    writeFileSync(join(root, 'packages/application/world.ts'), "import type { Host } from '../../desktop/entry.ts'")
+    writeFileSync(join(root, 'packages/core/world.ts'), 'export {}')
+    writeFileSync(join(root, 'packages/core/world.ts'), "import type { Host } from '../../apps/host/src/entry.ts'")
     expect(
       spawnSync(process.execPath, [resolve('scripts/check-host-boundaries.mjs'), root], { encoding: 'utf8' }).stderr,
     ).toContain('core must not depend on host adapters')
-    writeFileSync(join(root, 'packages/application/world.ts'), 'export {}')
-    writeFileSync(join(root, 'packages/plugin-sdk/contract.ts'), "import { Factory } from '@harness-world/application'")
+    writeFileSync(join(root, 'packages/core/world.ts'), 'export {}')
+    writeFileSync(join(root, 'packages/sdk/contract.ts'), "import { Factory } from '@perspectra/core'")
     expect(
       spawnSync(process.execPath, [resolve('scripts/check-host-boundaries.mjs'), root], { encoding: 'utf8' }).stderr,
     ).toContain('plugin SDK contracts must not import implementations')
-    writeFileSync(join(root, 'packages/plugin-sdk/contract.ts'), 'export interface Contract {}')
+    writeFileSync(join(root, 'packages/sdk/contract.ts'), 'export interface Contract {}')
     writeFileSync(
       join(root, 'examples/world-packs/sample/scripts/rules.js'),
       "import { Service } from '@deepseek-ai/cordis'",
@@ -80,29 +80,55 @@ it('rejects experiment dependencies and package internals while allowing current
     writeFileSync(join(root, 'examples/world-packs/sample/scripts/rules.js'), 'globalThis.activityScript = {}')
 
     writeFileSync(
-      join(root, 'desktop/entry.ts'),
-      "import { CharacterTurn } from '../packages/application/src/character-turn.ts'",
+      join(root, 'apps/host/src/entry.ts'),
+      "import { CharacterTurn } from '../../../packages/core/src/application/character-turn.ts'",
     )
     const internal = spawnSync(process.execPath, [resolve('scripts/check-host-boundaries.mjs'), root], {
       encoding: 'utf8',
     })
     expect(internal.status).toBe(1)
-    expect(internal.stderr).toContain('use @harness-world/application')
-    writeFileSync(join(root, 'desktop/entry.ts'), "import { CharacterTurn } from '@harness-world/application'")
+    expect(internal.stderr).toContain('use @perspectra/core')
+    writeFileSync(join(root, 'apps/host/src/entry.ts'), "import { CharacterTurn } from '@perspectra/core'")
     writeFileSync(
       join(root, 'apps/launcher/src/view.ts'),
       [
-        "import type { InspectedRequest } from '@harness-world/provider-chat'",
-        "import { rolePreset } from '@harness-world/provider-chat/preset'",
+        "import type { InspectedRequest } from '@perspectra/providers/chat'",
+        "import { rolePreset } from '@perspectra/providers/chat/preset'",
       ].join('\n'),
     )
     expect(
       spawnSync(process.execPath, [resolve('scripts/check-host-boundaries.mjs'), root], { encoding: 'utf8' }).status,
     ).toBe(0)
+    for (const specifier of [
+      '@perspectra/core/store',
+      '@perspectra/memory-core',
+      '@perspectra/providers/status',
+      'node:fs',
+      'fs',
+    ]) {
+      writeFileSync(join(root, 'apps/launcher/src/view.ts'), `import * as implementation from '${specifier}'`)
+      const result = spawnSync(process.execPath, [resolve('scripts/check-host-boundaries.mjs'), root], {
+        encoding: 'utf8',
+      })
+      expect(result.status).toBe(1)
+      expect(result.stderr).toContain('Launcher browser must use browser-safe public exports')
+    }
+    writeFileSync(
+      join(root, 'apps/launcher/src/view.ts'),
+      "import type { InspectorSnapshot } from '@perspectra/providers/chat'",
+    )
+    writeFileSync(
+      join(root, 'apps/host/src/entry.ts'),
+      "import { officialStatusProvider } from '@perspectra/providers/status'",
+    )
+    expect(
+      spawnSync(process.execPath, [resolve('scripts/check-host-boundaries.mjs'), root], { encoding: 'utf8' }).stderr,
+    ).toContain('official implementations must be selected at a Host composition entry')
+    writeFileSync(join(root, 'apps/host/src/entry.ts'), "import { CharacterTurn } from '@perspectra/core'")
     // The launcher no longer reaches into package sources, not even for browser-safe modules.
     writeFileSync(
       join(root, 'apps/launcher/src/view.ts'),
-      "import { rolePreset } from '../../../packages/provider-chat/src/preset.ts'",
+      "import { rolePreset } from '../../../packages/providers/src/chat/preset.ts'",
     )
     expect(
       spawnSync(process.execPath, [resolve('scripts/check-host-boundaries.mjs'), root], { encoding: 'utf8' }).status,

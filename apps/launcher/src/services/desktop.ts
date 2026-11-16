@@ -1,5 +1,5 @@
 import { invoke, isTauri } from '@tauri-apps/api/core'
-import type { PackConfigDocument } from '../../../../desktop/pack-config.ts'
+import type { PackConfigDocument } from '../../../host/src/pack-config.ts'
 export async function readPackConfiguration(packageId: string): Promise<PackConfigDocument> {
   return invoke<PackConfigDocument>('launcher_request', { request: { operation: 'pack-config-read', packageId } })
 }

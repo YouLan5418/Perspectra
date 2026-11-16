@@ -1,5 +1,5 @@
 // @ts-check
-/** @type {import('@harness-world/plugin-sdk').ContentGameplay} */
+/** @type {import('@perspectra/sdk').ContentGameplay} */
 module.exports = {
   id: 'example-investigation', version: '1', dataVersion: 2, requiredServices: ['status'],
   configSchema: {

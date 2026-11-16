@@ -1,6 +1,6 @@
 # 创作者：跑团玩法
 
-2026-11-09 当前源码（分支 `feat/rpg-plugin`）：官方跑团机制 [official-trpg](../../../packages/official-trpg) 按世界包里的 `trpg.json` 生成一个叫 `trpg` 的活动：玩家请一名 AI 角色当主持人，其余角色保留各自的性格参与。验证范围分开看：
+2026-11-09 当前源码（分支 `feat/rpg-plugin`）：官方跑团机制 [official-trpg](../../../packages/plugins/src/trpg) 按世界包里的 `trpg.json` 生成一个叫 `trpg` 的活动：玩家请一名 AI 角色当主持人，其余角色保留各自的性格参与。验证范围分开看：
 
 - **源码已接通**：配置校验、活动脚本（筹备、邀请、提出行动、检定、主持人工具、聚光、结束）、可信掷骰、私密点数进记忆、宿主载入与存档摘要、包透视与 `worldpack validate`。
 - **自动测试范围**：上述各项有单元测试和真实宿主测试，见第 7 节；验收包 [雨夜古宅](../../../examples/world-packs/rainy-manor/README.md) 的三份推演通过。
@@ -22,7 +22,7 @@
 ## 2. 它怎么接入
 
 - 在 `worldpack.source.json` 的 `assetFiles` 里登记 `trpg.json`。没有登记的世界里没有跑团。
-- 宿主打开世界时读 `trpg.json`，生成一个活动（键 `trpg`），不写回包目录。代码入口：[配置解析](../../../packages/official-trpg/src/config.ts)、[内容生成](../../../packages/official-trpg/src/content.ts)、[活动脚本](../../../packages/official-trpg/src/activity.ts)；取舍见[决策记录](../../superpowers/specs/2026-11-08-trpg-decisions.md)，设计见[跑团活动设计](../../superpowers/specs/2026-11-08-trpg-activity-design.md)。
+- 宿主打开世界时读 `trpg.json`，生成一个活动（键 `trpg`），不写回包目录。代码入口：[配置解析](../../../packages/plugins/src/trpg/config.ts)、[内容生成](../../../packages/plugins/src/trpg/content.ts)、[活动脚本](../../../packages/plugins/src/trpg/activity.ts)；取舍见[决策记录](../../superpowers/specs/2026-11-08-trpg-decisions.md)，设计见[跑团活动设计](../../superpowers/specs/2026-11-08-trpg-activity-design.md)。
 - 包里不能再有叫 `trpg` 的活动，重名会拒绝。包里必须有玩家角色。
 - 程序没有跑团机制或版本不同，包在世界创建前就失败（和 `rpg.json` 一样的提示）。没有 `trpg.json` 的包行为不变。
 - 点数来自官方骰子机制 `official-dice`，活动脚本在 `resolve` 里用宿主注入的 `rollDice` 取数。需要自己写别的活动用骰子时，见[活动与状态](activity-and-variables.md)。
@@ -121,7 +121,7 @@
 
 ## 7. 验证了什么，没验证什么
 
-- 自动测试：[config.test.ts](../../../packages/official-trpg/src/config.test.ts)；真实宿主：`tests/host/trpg-activity.test.ts`（可见范围、暗骰、主持人错误、重新生成重放同一点数、聚光）、`tests/host/trpg-pack.test.ts`（载入与坏配置）、`tests/host/trpg-memory.test.ts`（记忆里标明是游戏）、`tests/host/trpg-dice-agreement.test.ts`（骰子语法一致）。
+- 自动测试：[config.test.ts](../../../packages/plugins/src/trpg/config.test.ts)；真实宿主：`tests/host/trpg-activity.test.ts`（可见范围、暗骰、主持人错误、重新生成重放同一点数、聚光）、`tests/host/trpg-pack.test.ts`（载入与坏配置）、`tests/host/trpg-memory.test.ts`（记忆里标明是游戏）、`tests/host/trpg-dice-agreement.test.ts`（骰子语法一致）。
 - 验收包：[雨夜古宅](../../../examples/world-packs/rainy-manor/README.md) 的三份推演通过（剧本局、题目局、暗骰）。
 - 真实模型：[雨夜古宅试玩记录](../studies/2026-11-09-rainy-manor-playtest.md)，两局，玩家一方是脚本。
 - **未验证**：真人试玩；主持人用错工具后的恢复，`note`、`content`、`set-stat` 的实际使用；主持人拒绝邀请；待处理行动排满之后；Launcher 窗口里的实际观感；发行包。

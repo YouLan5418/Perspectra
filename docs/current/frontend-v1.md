@@ -1,6 +1,6 @@
 # 游戏前端 V1：最小沙箱实验
 
-> 2026-10-29 核对：本文主体保留初版沙箱实验的实现与验收证据，不是现行完整 SDK 字段清单。当前制作入口是[自定义前端指南](guides/web-ui.md)，字段以[PlayerView](../../packages/frontend/src/player-view.ts)和[玩家投影](../../desktop/host/frontend-adapter.ts)为准。活动已通过公共接口提供 public 与玩家自己的 private；默认舞台不显示处理者名字，但公共 responders 仍可能包含场内处理者，尚未对玩家隐藏该信息。本次只同步说明，未重跑浏览器、真实模型或发行包验收。
+> 2026-10-29 核对：本文主体保留初版沙箱实验的实现与验收证据，不是现行完整 SDK 字段清单。当前制作入口是[自定义前端指南](guides/web-ui.md)，字段以[PlayerView](../../packages/frontend/src/player-view.ts)和[玩家投影](../../apps/host/src/runtime/frontend-adapter.ts)为准。活动已通过公共接口提供 public 与玩家自己的 private；默认舞台不显示处理者名字，但公共 responders 仍可能包含场内处理者，尚未对玩家隐藏该信息。本次只同步说明，未重跑浏览器、真实模型或发行包验收。
 
 > 2026-10-24：默认舞台已接入 TTS 播放器和 Cordis BGM 消费接口；社区模板可声明 `bgm` 后，经 SDK 选择与读取插件注册的音乐。旧日期中“没有播放器／BGM 接线”的结论只适用于当时。现行制作步骤及验证边界见[插件指南](guides/host-plugin-authoring.md)。
 

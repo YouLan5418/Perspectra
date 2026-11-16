@@ -2,7 +2,7 @@ import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:f
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { afterEach, expect, it } from 'vitest'
-import { brandId, resolutionAuthority, type WorldJsonObject } from '@harness-world/contracts'
+import { brandId, resolutionAuthority, type WorldJsonObject } from '@perspectra/sdk/contracts'
 import { crossSceneRuntime } from '../support/cross-scene-runtime.ts'
 import { CrossScenePhone } from '../support/cross-scene-phone.ts'
 

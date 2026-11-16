@@ -1,10 +1,10 @@
 import { spawnSync } from 'node:child_process'
 import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
-import { brandId, type WorldAddress, type WorldJsonObject } from '@harness-world/contracts'
-import { WorldStore } from '@harness-world/store-sqlite'
-import { WorldHostRuntime } from '../../desktop/host/world-runtime.ts'
-import type { CharacterTurnRequest } from '../../packages/application/src/character-turn.ts'
+import { brandId, type WorldAddress, type WorldJsonObject } from '@perspectra/sdk/contracts'
+import { WorldStore } from '@perspectra/core/store'
+import { WorldHostRuntime } from '../../apps/host/src/runtime/world-runtime.ts'
+import type { CharacterTurnRequest } from '../../packages/core/src/application/character-turn.ts'
 
 type Ref = { sourceId: string; sourceHash: string; epistemicKind: string;
   worldSeq: number; characterId: string; worldAddress: WorldAddress }
@@ -45,7 +45,7 @@ writeFileSync(resolve(root, exploratory ? 'protocol-exploratory.json' : 'protoco
   exploratory, assessment: ['old reminder remembered', 'latest reminder remembered', 'old/current distinction',
     'private-source isolation', 'source traceability'] }, null, 2))
 function core(input: WorldJsonObject): Recall {
-  const run = spawnSync(process.env.HCW_HINDSIGHT_PYTHON || 'python', [resolve('packages/official-memory-core/python/core/core.py')], {
+  const run = spawnSync(process.env.HCW_HINDSIGHT_PYTHON || 'python', [resolve('packages/memory-core/python/core/core.py')], {
     input: JSON.stringify(input), encoding:'utf8', maxBuffer:32*1024*1024, timeout:180_000,
     env:{...process.env, PYTHONIOENCODING:'utf-8'},
   })

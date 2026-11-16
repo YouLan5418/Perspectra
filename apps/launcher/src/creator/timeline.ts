@@ -1,4 +1,4 @@
-import type { CreatorRecord } from '../../../../desktop/host/creator-records.ts'
+import type { CreatorRecord } from '../../../host/src/runtime/creator-records.ts'
 import { asArray, asRecord, text } from './format.ts'
 import type { RecordSummary } from './model.ts'
 import type { TraceKind, TraceNode } from './types.ts'

@@ -3,8 +3,8 @@ import type { Server } from 'node:http'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { afterEach, expect, it } from 'vitest'
-import { WorldHostRuntime } from '../../desktop/host/world-runtime.ts'
-import { jevPublicationAudit, jevShadowAudit, takeClaimKey } from '../../packages/official-jev-audit/src/index.ts'
+import { WorldHostRuntime } from '../../apps/host/src/runtime/world-runtime.ts'
+import { jevPublicationAudit, jevShadowAudit, takeClaimKey } from '../../packages/jev-audit/src/index.ts'
 import { createChatServer, fakeModels } from '../support/fake-provider.ts'
 
 const roots: string[] = [],

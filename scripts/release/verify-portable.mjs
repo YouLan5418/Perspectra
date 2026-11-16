@@ -8,7 +8,7 @@ const expectedFrontend = await build({
   stdin: {
     contents:
       "export {DEFAULT_PAGE,DEFAULT_STYLE,DEFAULT_SCRIPT} from './packages/frontend/src/default-template.ts';" +
-      "export {HOST_ACTIVITY_PAGE} from './desktop/host/host-page.ts';",
+      "export {HOST_ACTIVITY_PAGE} from './apps/host/src/runtime/host-page.ts';",
     resolveDir: process.cwd(),
     sourcefile: 'portable-frontend-check.ts',
   },

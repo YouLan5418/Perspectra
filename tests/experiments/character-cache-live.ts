@@ -3,11 +3,11 @@ import { resolve } from 'node:path'
 import { randomUUID } from 'node:crypto'
 import { DatabaseSync } from 'node:sqlite'
 import Ajv from 'ajv'
-import { brandId, type WorldJsonObject } from '@harness-world/contracts'
-import { RequestInspector, type ChatCallObservation } from '@harness-world/provider-chat'
-import { createRoleProviders } from '../../packages/official-llm/src/role-providers.ts'
-import { gatewayTurnCall } from '../../packages/official-llm/src/gateway-turn-call.ts'
-import { playSettings } from '../../desktop/play-settings.ts'
+import { brandId, type WorldJsonObject } from '@perspectra/sdk/contracts'
+import { RequestInspector, type ChatCallObservation } from '@perspectra/providers/chat'
+import { createRoleProviders } from '../../packages/providers/src/llm/role-providers.ts'
+import { gatewayTurnCall } from '../../packages/providers/src/llm/gateway-turn-call.ts'
+import { playSettings } from '../../apps/host/src/play-settings.ts'
 
 // Controlled request replay. Saved observations are selected by their original owner; no world is opened for writing.
 const deepseek = process.argv.includes('--deepseek')

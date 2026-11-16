@@ -1,9 +1,9 @@
 // 历史研究脚本；路径、样本和模型可能绑定原始记录，不属于游戏启动或默认验收。
 import { readFileSync, mkdirSync, writeFileSync, appendFileSync, existsSync } from 'node:fs'
 import { resolve } from 'node:path'
-import { brandId, type StoredWorldEvent, type WorldAddress, type WorldJsonObject } from '@harness-world/contracts'
-import { JevShadow, type ShadowRecord, type Publication, type HolderQuestion } from '../../../packages/official-jev-audit/src/jev-shadow.ts'
-import { createClaimClassifier } from '../../../packages/official-jev-audit/src/jev-shadow-claims-client.ts'
+import { brandId, type StoredWorldEvent, type WorldAddress, type WorldJsonObject } from '@perspectra/sdk/contracts'
+import { JevShadow, type ShadowRecord, type Publication, type HolderQuestion } from '../../../packages/jev-audit/src/jev-shadow.ts'
+import { createClaimClassifier } from '../../../packages/jev-audit/src/jev-shadow-claims-client.ts'
 
 // Constructed event history, using verbatim publications from the frozen real incident.
 // This tests the temporal counterfactual; it is not a new real playtest or real stored history.

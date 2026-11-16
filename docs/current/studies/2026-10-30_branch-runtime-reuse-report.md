@@ -10,9 +10,9 @@
 
 | 证据 | 发现 | 修改路径 |
 | --- | --- | --- |
-| E1：同一末段操作创建分支组件四次；每次重新连接世界、会话与记忆库 | 写权限交接与组件销毁绑定，重复创建服务没有玩法收益 | [WorldApplication](../../../packages/application/src/world-application.ts)新增 yieldWriter，保留原分支；既有 release 仍完整释放 |
-| E2：NPC、活动脚本需要自己的写租约；外部提交可能留下待处理授权记忆任务 | 不能只保留旧租约，也不能省略原挂载时的记忆同步 | [RoundCoordinator](../../../packages/application/src/round-coordinator.ts)交还租约后，恢复时重新 acquire 并处理 cognitiveJobs；失败则完整释放并报错 |
-| E3：常规提交、活动、NPC、状态收尾和末端结算原来使用同一完整释放入口 | 普通阶段交接可以复用，存档与管理操作仍需要显式清理 | [WorldHostCore](../../../desktop/host/world-runtime.ts)六处常规交接改用 yieldWriter；手动存档、逃生和恢复等完整释放路径保留 |
+| E1：同一末段操作创建分支组件四次；每次重新连接世界、会话与记忆库 | 写权限交接与组件销毁绑定，重复创建服务没有玩法收益 | [WorldApplication](../../../packages/core/src/application/world-application.ts)新增 yieldWriter，保留原分支；既有 release 仍完整释放 |
+| E2：NPC、活动脚本需要自己的写租约；外部提交可能留下待处理授权记忆任务 | 不能只保留旧租约，也不能省略原挂载时的记忆同步 | [RoundCoordinator](../../../packages/core/src/application/round-coordinator.ts)交还租约后，恢复时重新 acquire 并处理 cognitiveJobs；失败则完整释放并报错 |
+| E3：常规提交、活动、NPC、状态收尾和末端结算原来使用同一完整释放入口 | 普通阶段交接可以复用，存档与管理操作仍需要显式清理 | [WorldHostCore](../../../apps/host/src/runtime/world-runtime.ts)六处常规交接改用 yieldWriter；手动存档、逃生和恢复等完整释放路径保留 |
 | E4：修改后同一操作重建 0 次，新连接 26 次；历史读取次数和行数一致 | 减少的是组件和连接开销，没有扩大事件缓存或跳过历史校验 | 沿用现有 Cordis 生命周期，最终 dispose 仍关闭全部组件；没有新增连接池、包或持久化格式 |
 
 组件只增加一个临时的“已交还写权限”标记，替代交接时销毁再创建。下次应用访问原分支时恢复写权限；另一写入方仍持有租约、分支已进入维护或记忆同步失败，都返回原错误并清理组件，不抢占或释放他人的租约。

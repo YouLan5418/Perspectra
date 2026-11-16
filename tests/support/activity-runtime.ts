@@ -1,14 +1,14 @@
-import { ActivityScript, ActivitiesScripts } from '@harness-world/official-activities'
-import { createCoreRulebookRegistry, type RulebookRegistry } from '@harness-world/kernel'
-import { WorldStore } from '@harness-world/store-sqlite'
-import type { WorldAddress } from '@harness-world/contracts'
-import type { CompiledWorldPackV5 } from '@harness-world/world-pack'
-import { ActivityRuntime } from '../../desktop/host/activity-runtime.ts'
-import { ActivitiesRuntime } from '../../desktop/host/activities-runtime.ts'
-import { loadActivitySource } from '../../desktop/host/activity-source.ts'
-import type { StatusRuntime } from '../../desktop/host/status-runtime.ts'
+import { ActivityScript, ActivitiesScripts } from '@perspectra/providers/activities'
+import { createCoreRulebookRegistry, type RulebookRegistry } from '@perspectra/core/kernel'
+import { WorldStore } from '@perspectra/core/store'
+import type { WorldAddress } from '@perspectra/sdk/contracts'
+import type { CompiledWorldPackV5 } from '@perspectra/world-pack'
+import { ActivityRuntime } from '../../apps/host/src/runtime/activity-runtime.ts'
+import { ActivitiesRuntime } from '../../apps/host/src/runtime/activities-runtime.ts'
+import { loadActivitySource } from '../../apps/host/src/runtime/activity-source.ts'
+import type { StatusRuntime } from '../../apps/host/src/runtime/status-runtime.ts'
 export { ActivityRuntime, ActivitiesRuntime }
-export { readActivityWorld } from '@harness-world/application'
+export { readActivityWorld } from '@perspectra/core'
 export function activityFromSource(
   source: string,
   worldPath: string,

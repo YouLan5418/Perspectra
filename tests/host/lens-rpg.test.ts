@@ -1,11 +1,11 @@
 import { readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
-import { diffLensViews } from '../../desktop/lens/diff.ts'
-import { LensStore } from '../../desktop/lens/store.ts'
-import { applyScenario } from '../../desktop/lens/scenario.ts'
-import { LensSimulation } from '../../desktop/lens/simulation.ts'
-import { buildLensView, type LensItem } from '../../desktop/lens/view.ts'
+import { diffLensViews } from '../../packages/world-pack/src/lens/diff.ts'
+import { LensStore } from '../../apps/host/src/lens/store.ts'
+import { applyScenario } from '../../apps/host/src/lens/scenario.ts'
+import { LensSimulation } from '../../apps/host/src/lens/simulation.ts'
+import { buildLensView, type LensItem } from '../../packages/world-pack/src/lens/view.ts'
 import { copyRpgFixture } from '../support/rpg-fixture.ts'
 
 const PLAYER = 'character:player',

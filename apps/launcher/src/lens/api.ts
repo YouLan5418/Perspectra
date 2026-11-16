@@ -1,4 +1,4 @@
-import type { LensSnapshot } from '../../../../desktop/lens/session.ts'
+import type { LensSnapshot } from '../../../host/src/lens/session.ts'
 
 /** 透视页面与本机透视服务的通信。令牌由 `#token=` 传入，没有令牌时是浏览器预览。 */
 let token = ''

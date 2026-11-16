@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { reactive, ref, watch } from 'vue'
-import { PLAY_SETTING_FIELDS, DEFAULT_PLAY_SETTINGS, playSettings } from '../../../../desktop/play-settings.ts'
+import { PLAY_SETTING_FIELDS, DEFAULT_PLAY_SETTINGS, playSettings } from '@perspectra/host/play-settings'
 import { useLauncherStore } from '../stores/launcher.ts'
 import DialogFrame from './DialogFrame.vue'
 import { Button } from './ui/button/index.ts'

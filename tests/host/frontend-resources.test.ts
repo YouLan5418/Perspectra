@@ -3,8 +3,8 @@ import { join, resolve, sep } from 'node:path'
 import { tmpdir } from 'node:os'
 import { afterEach, expect, it } from 'vitest'
 import type { IncomingMessage, ServerResponse } from 'node:http'
-import { FRONTEND_RESOURCE_LIMITS, loadPackWeb } from '../../desktop/host/pack-frontend.ts'
-import { frontendAsset } from '../../desktop/host/frontend-server.ts'
+import { FRONTEND_RESOURCE_LIMITS, loadPackWeb } from '../../apps/host/src/runtime/pack-frontend.ts'
+import { frontendAsset } from '../../apps/host/src/runtime/frontend-server.ts'
 
 const roots: string[] = []
 afterEach(async () => {

@@ -8,9 +8,9 @@
 
 | 项目 | 结果 |
 | --- | --- |
-| 调度算法 | 从 `application` 移到 [official-scheduler](../../../packages/official-scheduler/src/index.ts)，运行时不依赖 `store-sqlite` 和 `application` |
-| 回合接口 | [createSchedulerRound](../../../packages/application/src/scheduler-round.ts) 替调度器读事件；调度器按序号指定观察，序号不属于该角色时拒绝 |
-| 宿主 | `WorldHostCore` 每个实例打开一个调度器，不再直接 import 调度实现，只有 [official-bundle.ts](../../../desktop/official-bundle.ts) 能引用官方包，边界脚本检查这一点 |
+| 调度算法 | 从 `application` 移到 [official-scheduler](../../../packages/providers/src/scheduler/index.ts)，运行时不依赖 `store-sqlite` 和 `application` |
+| 回合接口 | [createSchedulerRound](../../../packages/core/src/application/scheduler-round.ts) 替调度器读事件；调度器按序号指定观察，序号不属于该角色时拒绝 |
+| 宿主 | `WorldHostCore` 每个实例打开一个调度器，不再直接 import 调度实现，只有 [official-bundle.ts](../../../apps/host/src/official-bundle.ts) 能引用官方包，边界脚本检查这一点 |
 | 第三方异常 | 抛错、非法结果、打开和关闭失败都有处理；调度器忘记等待的角色回合会被取消并等待结束；已提交内容保留 |
 | 插件写法 | 与 DSH 一致，可以 `import { Service } from '@deepseek-ai/cordis'`；解析钩子把它指向宿主这一份 |
 
@@ -41,7 +41,7 @@
 
 ## 后续判断
 
-- **记忆（阶段 2）：** 接口已知，最大的未知是拆分 `packages/memory` 时来源捕获对召回表的依赖。
+- **记忆（阶段 2）：** 接口已知，最大的未知是拆分 `packages/core/src/memory` 时来源捕获对召回表的依赖。
 - **决策管道（阶段 3）：** `#decide` 边界清楚，拆它才会明显减少 `world-runtime.ts` 的行数。
 - **规则与玩法（阶段 4）：** 仍是最难的。本阶段没有碰它，工作量判断没有变化，仍要先摸底。
 
