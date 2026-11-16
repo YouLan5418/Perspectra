@@ -58,8 +58,8 @@ const incompatibleRpg = (): WorldComposition =>
     content: [
       {
         ...officialRpgContent,
-        dataVersion: 3,
-        supportedDataVersions: [3],
+        dataVersion: 4,
+        supportedDataVersions: [4],
       },
     ],
   })
@@ -114,7 +114,7 @@ describe('rpg.json in a pack', () => {
     expect(record.gameplayData).toEqual({
       'official-rpg': {
         pluginVersion: '1',
-        dataVersion: 2,
+        dataVersion: 3,
         statuses: expect.arrayContaining([
           { key: 'rpg-hp', type: 'number', owner: 'character' },
           { key: 'rpg-equipment', type: 'object', owner: 'character' },
@@ -176,7 +176,7 @@ describe('rpg.json in a pack', () => {
     worlds.splice(worlds.indexOf(withNewCopy), 1)
 
     await expect(open(pack, data, { composition: incompatibleRpg() })).rejects.toThrow(
-      'official-rpg 插件的数据版本与存档不兼容（存档 dataVersion 2，当前支持 3）',
+      'official-rpg 插件的数据版本与存档不兼容（存档 dataVersion 3，当前支持 4）',
     )
 
     const missingMap = structuredClone(config)

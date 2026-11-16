@@ -75,6 +75,8 @@ export function createBattleStage(
         title.firstElementChild!.className = 'battle-kicker'
         const actor = battle.units.find(unit => unit.id === battle.turn)?.name ?? '等待裁定'
         heading.append(title, helpers.el('p', `第 ${battle.round} 回合 · ${actor}`))
+        if (battle.sharedValues?.length)
+          heading.append(helpers.el('p', battle.sharedValues.map(row => `${row.label} ${row.value}`).join(' · ')))
         const teams = helpers.el('div')
         teams.className = 'battle-teams'
         for (const team of ['party', 'enemy'] as const) {
@@ -98,6 +100,8 @@ export function createBattleStage(
             hp.value = unit.hp
             hp.setAttribute('aria-label', unit.name + '生命')
             card.append(row, hp)
+            for (const value of [...(unit.attributes ?? []), ...(unit.resources ?? [])])
+              card.append(helpers.el('p', `${value.label} ${value.value} / ${value.max}`))
             if (unit.shield)
               card.append(helpers.el('p', `护盾 ${unit.shield.amount} · 剩余 ${unit.shield.remaining} 次行动`))
             for (const status of unit.statuses ?? [])

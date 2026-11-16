@@ -1,3 +1,4 @@
+import { EMPTY_BATTLE_VALUES, valueSkillProblem, type RpgValueDisplay } from './battle-values.ts'
 import { onlyHealing, skillTargetSide } from './combat-effects.ts'
 import type { ActivityHooks } from '@perspectra/sdk'
 import type { OfficialRpgBattleView, WorldJsonObject } from '@perspectra/sdk/contracts'
@@ -32,6 +33,38 @@ export function officialRpgBattleView(
     !(game.turn === null || typeof game.turn === 'string')
   )
     return
+  // Whitelist only the already authorized projection; never request activity internal or world truth.
+  const numbers = (raw: unknown): RpgValueDisplay[] | undefined => {
+    if (!Array.isArray(raw)) return
+    const result: RpgValueDisplay[] = []
+    for (const row of raw) {
+      if (
+        !row ||
+        typeof row !== 'object' ||
+        typeof row.key !== 'string' ||
+        typeof row.label !== 'string' ||
+        !Number.isSafeInteger(row.value) ||
+        !Number.isSafeInteger(row.min) ||
+        !Number.isSafeInteger(row.max) ||
+        row.value < row.min ||
+        row.value > row.max
+      )
+        return
+      result.push({ key: row.key, label: row.label, value: row.value, min: row.min, max: row.max })
+    }
+    return result
+  }
+  const values = pub.battleValues as WorldJsonObject | undefined
+  const shared = values ? numbers(values.shared) : []
+  if (!shared || (values && !Array.isArray(values.units))) return
+  const unitValues = new Map<string, { attributes: RpgValueDisplay[]; resources: RpgValueDisplay[] }>()
+  for (const raw of (values?.units ?? []) as WorldJsonObject[]) {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return
+    const attributes = numbers(raw.attributes),
+      resources = numbers(raw.resources)
+    if (typeof raw.unitId !== 'string' || !attributes || !resources) return
+    unitValues.set(raw.unitId, { attributes, resources })
+  }
   const units: OfficialRpgBattleView['units'][number][] = []
   for (const raw of pub.units) {
     if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return
@@ -90,6 +123,7 @@ export function officialRpgBattleView(
       team: raw.team,
       hp: raw.hp,
       maxHp: raw.maxHp,
+      ...(unitValues.has(raw.id) ? unitValues.get(raw.id)! : {}),
       ...(shield ? { shield: { amount: Number(shield.amount), remaining: Number(shield.remaining) } } : {}),
       ...(statuses.length ? { statuses } : {}),
     })
@@ -115,12 +149,27 @@ export function officialRpgBattleView(
       const missing = Object.keys(skill.cost).find(
         key => typeof stats?.[key] !== 'number' || Number(stats[key]) < skill.cost[key]!,
       )
+      const ownValues = unitValues.get(actorId)
+      const numericProblem = valueSkillProblem(
+        skill,
+        config.battleValues ?? EMPTY_BATTLE_VALUES,
+        Object.fromEntries((ownValues?.resources ?? []).map(row => [row.key, row.value])),
+        ref =>
+          (ref.scope === 'shared'
+            ? shared
+            : ref.kind === 'attribute'
+              ? ownValues?.attributes
+              : ownValues?.resources
+          )?.find(row => row.key === ref.key)?.value ?? 0,
+      )
       return {
         name: skill.name,
         targets,
         ...(missing
           ? { unavailable: (config.stats.find(stat => stat.key === missing)?.label ?? missing) + '不足' }
-          : {}),
+          : numericProblem
+            ? { unavailable: numericProblem }
+            : {}),
       }
     })
   return {
@@ -133,6 +182,7 @@ export function officialRpgBattleView(
     turn: game.turn,
     lastResult: typeof pub.lastResult === 'string' ? pub.lastResult : '',
     units,
+    ...(shared.length ? { sharedValues: shared } : {}),
     skills,
   }
 }

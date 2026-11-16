@@ -54,7 +54,7 @@
 ```
 - `target` 必填，按施法者相对关系解释：`opponent` 对手、`ally` 同侧、`self` 本人。必须在场存活；没有复活行为。`scope` 为 `one`（默认）或 `all`，self 即使 all 也只影响本人。
 - `effects` 必须有 1–8 项，按声明顺序对目标结算。费用在验证当前候选、角色技能、目标和资源后只扣一次，不按目标数或效果数重复扣。纯治疗没有受伤目标时拒绝；净化无负面状态仍是可施放的有效行动。
-- 玩家、同伴和敌人共享同一个效果解释器。敌人按配置顺序选第一个有合法目标的技能，沿用最低生命/随机目标策略；敌人没有资源池，配置校验禁止带费用技能。随机目标使用核心记录的骰子 `roll`，不使用 Math.random 或按修订号伪随机。
+- 玩家、同伴和敌人共享同一个效果解释器。敌人按配置顺序选第一个有合法目标的技能，沿用最低生命/随机目标策略；敌人没有世界统计资源池，禁止带 cost 的技能；可使用本批活动内 resourceCost。随机目标使用核心记录的骰子 `roll`，不使用 Math.random 或按修订号伪随机。
 - 已删除技能顶层 `kind/power/element/inflicts` 和绝对目标 `party/enemy`。旧配置不能加载；迁移说明见下文。
 
 ### equipment：装备
@@ -99,7 +99,7 @@
 
 ### 破坏性迁移（本批不兼容旧版）
 
-官方 RPG 持久数据版本提升为 2，只支持 `[2]`；旧版本存档不保证重开，不提供自动迁移或兼容分支。插件标识和包声明版本仍为 official-rpg / 1；这里的 2 是持久数据版本。
+官方 RPG 持久数据版本提升为 3，只支持 `[3]`；旧版本存档不保证重开，不提供自动迁移或兼容分支。插件标识和包声明版本仍为 official-rpg / 1；这里的 3 是持久数据版本。
 
 1. 旧技能 `{kind:"damage",power:P,element:E,inflicts:S}` 改为 `target:"opponent", effects:[{kind:"damage",amount:P,element:E},{kind:"status",status:S}]`，不存在的可选字段不要填写；治疗改为 ally＋heal 效果。
 2. 上一批 effect 技能删除顶层 kind，绝对 party/enemy 改为施法者相对 ally/opponent（敌方技能注意反转），自身专用技能用 self。
@@ -212,3 +212,7 @@
 - 自动测试：[config.test.ts](../../../packages/plugins/src/rpg/config.test.ts)、[status-module.test.ts](../../../packages/plugins/src/rpg/status-module.test.ts)、[map-activity.test.ts](../../../packages/plugins/src/rpg/map-activity.test.ts)；真实宿主：`tests/host/rpg-map-activity.test.ts`、`rpg-perform-path.test.ts`、`rpg-party.test.ts`、`rpg-pack.test.ts`、`lens-rpg.test.ts`、`rpg-story-share.test.ts`。
 - 验收包：[山脚遗迹](../../../examples/world-packs/hill-ruins/README.md) 的三份推演通过（通关并回家睡觉、战败回家、阿茹不知道战斗细节）。
 - **未验证**：真实模型下的同伴入队意愿、演出自然度、战斗节奏、一局下来的体验；Launcher 窗口与默认舞台上的实际观感；发行包。这些属于下一步手动试玩。
+
+## 作者声明的活动内数值
+
+现在可用 battleValues 声明共享值、单位属性和独立资源，例如暴雨降低火球威力、受击增加怒气、消耗怒气发动技能、架势归零施加破防。配置、边界、时序和复制例子见[战斗数值指南](../../../examples/rpg-values/README.md)。所有结果仍由官方 RPG 活动裁定，默认和专属舞台读取同一授权投影；没有跨活动写回或隐藏数值模式。此批持久数据版本 3，仅接受 3，旧存档不兼容。

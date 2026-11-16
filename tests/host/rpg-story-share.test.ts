@@ -85,12 +85,12 @@ it('sharing a story node of an rpg.json pack preflights with persistent data com
     content: [
       {
         ...officialRpgContent,
-        dataVersion: 3,
-        supportedDataVersions: [3],
+        dataVersion: 4,
+        supportedDataVersions: [4],
       },
     ],
   })
-  const mismatch = 'official-rpg 插件的数据版本与存档不兼容（存档 dataVersion 2，当前支持 3）'
+  const mismatch = 'official-rpg 插件的数据版本与存档不兼容（存档 dataVersion 3，当前支持 4）'
   await expect(importStoryNode(archive, receiver, pack, node.packHash, incompatible)).rejects.toThrow(mismatch)
   const fork = join(root, 'fork')
   restoreStoryNode(data, node.id, fork, node.packHash)

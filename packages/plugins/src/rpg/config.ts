@@ -1,3 +1,13 @@
+import type { RpgBattleValues, RpgInitialValues, RpgValueAdjustment, RpgValueRequirement } from './battle-values.ts'
+import {
+  parseBattleValues,
+  parseInitialValues,
+  parseAdjustments,
+  parseRequirements,
+  parseResourceCost,
+  parseAttributeModifiers,
+  parseValueEffect,
+} from './value-config.ts'
 import { OFFICIAL_RPG_ID, OFFICIAL_RPG_VERSION } from './plugin.ts'
 
 export interface RpgStat {
@@ -7,6 +17,7 @@ export interface RpgStat {
   locations?: string[]
 }
 export interface RpgCharacter {
+  battleValues?: RpgInitialValues
   stats: Record<string, number>
   attack: number
   defense: number
@@ -21,10 +32,19 @@ export interface RpgSkill {
   cost: Record<string, number>
   target: 'ally' | 'opponent' | 'self'
   effects: RpgEffect[]
+  resourceCost?: Record<string, number>
+  requires?: RpgValueRequirement[]
 }
-export type RpgVitalEffect = { kind: 'damage' | 'heal'; amount: number; element?: 'fire' }
+export type RpgVitalEffect = {
+  kind: 'damage' | 'heal'
+  amount: number
+  element?: 'fire'
+  adjustments?: RpgValueAdjustment[]
+  resistance?: string
+}
 export type RpgEffect =
   | RpgVitalEffect
+  | { kind: 'value'; scope: 'shared' | 'actor' | 'target'; key: string; delta: number }
   | { kind: 'status'; status: string }
   | { kind: 'shield'; amount: number; turns: number }
   | { kind: 'cleanse'; polarity: 'negative' }
@@ -36,6 +56,7 @@ export interface RpgCombatStatus {
   polarity: 'positive' | 'negative'
   tick?: RpgVitalEffect
   modifiers?: RpgCombatModifiers
+  attributeModifiers?: Record<string, number>
 }
 export interface RpgEquipment {
   slot: string
@@ -45,6 +66,7 @@ export interface RpgEquipment {
   resistances?: { fire: number }
 }
 export interface RpgEnemy {
+  battleValues?: RpgInitialValues
   name: string
   hp: number
   attack: number
@@ -85,6 +107,7 @@ export type RpgDefeat = NonNullable<RpgConfig['defeat']>
 export type RpgRetreat = RpgConfig['retreat']
 export type RpgParty = NonNullable<RpgConfig['party']>
 export interface RpgConfig {
+  battleValues: RpgBattleValues
   plugin: { id: string; version: string }
   stats: RpgStat[]
   characters: Record<string, RpgCharacter>
@@ -150,6 +173,7 @@ export function parseRpgConfig(value: unknown, pack: RpgPackIds): RpgConfig {
     'characters',
     'skills',
     'combatStatuses',
+    'battleValues',
     'equipment',
     'consumables',
     'rest',
@@ -203,6 +227,7 @@ export function parseRpgConfig(value: unknown, pack: RpgPackIds): RpgConfig {
     return out
   }
 
+  const battleValues = parseBattleValues(root.battleValues, root.combatStatuses)
   const element = (value: unknown, path: string) => oneOf(value, path, ['fire'])
   const positive = (value: unknown, path: string) => {
     const result = count(value, path)
@@ -211,10 +236,18 @@ export function parseRpgConfig(value: unknown, pack: RpgPackIds): RpgConfig {
   }
   const vital = (value: unknown, path: string): RpgVitalEffect => {
     const row = record(value, path)
-    only(row, path, ['kind', 'amount', 'element'])
+    only(row, path, ['kind', 'amount', 'element', 'adjustments', 'resistance'])
     const kind = oneOf(row.kind, `${path}.kind`, ['damage', 'heal'])
-    if (kind === 'heal' && row.element !== undefined) fail(path, '治疗不配置伤害元素')
+    if (kind === 'heal' && (row.element !== undefined || row.resistance !== undefined)) fail(path, '治疗不配置伤害元素')
+    if (
+      row.resistance !== undefined &&
+      (typeof row.resistance !== 'string' || !Object.hasOwn(battleValues.attributes, row.resistance))
+    )
+      fail(path + '.resistance', '未知单位属性')
+    const adjustments = parseAdjustments(row.adjustments, path + '.adjustments', battleValues)
     return {
+      ...(adjustments ? { adjustments } : {}),
+      ...(row.resistance === undefined ? {} : { resistance: row.resistance as string }),
       kind,
       amount: positive(row.amount, `${path}.amount`),
       ...(row.element === undefined ? {} : { element: element(row.element, `${path}.element`) }),
@@ -226,7 +259,7 @@ export function parseRpgConfig(value: unknown, pack: RpgPackIds): RpgConfig {
         const path = `combatStatuses.${id}`
         if (!STAT_KEY.test(id)) fail(path, '状态 ID 需要是小写字母开头的小写字母、数字、连字符，至多 33 字符')
         const status = record(value, path)
-        only(status, path, ['name', 'turns', 'timing', 'polarity', 'tick', 'modifiers'])
+        only(status, path, ['name', 'turns', 'timing', 'polarity', 'tick', 'modifiers', 'attributeModifiers'])
         const name = text(status.name, `${path}.name`)
         if (name.length > 36) fail(`${path}.name`, '显示名称至多 36 字')
         const turns = positive(status.turns, `${path}.turns`)
@@ -242,12 +275,22 @@ export function parseRpgConfig(value: unknown, pack: RpgPackIds): RpgConfig {
             modifiers[key as keyof RpgCombatModifiers] = value as number
           }
         }
-        if (status.tick === undefined && status.modifiers === undefined) fail(path, '状态需要 tick 或 modifiers')
+        if (status.tick === undefined && status.modifiers === undefined && status.attributeModifiers === undefined)
+          fail(path, '状态需要 tick 或 modifiers')
         return [
           id,
           {
             name,
             turns,
+            ...(status.attributeModifiers === undefined
+              ? {}
+              : {
+                  attributeModifiers: parseAttributeModifiers(
+                    status.attributeModifiers,
+                    path + '.attributeModifiers',
+                    battleValues,
+                  )!,
+                }),
             timing: oneOf(status.timing, `${path}.timing`, ['after-action', 'round-end']),
             polarity: oneOf(status.polarity, `${path}.polarity`, ['positive', 'negative']),
             ...(status.tick === undefined ? {} : { tick: vital(status.tick, `${path}.tick`) }),
@@ -263,13 +306,14 @@ export function parseRpgConfig(value: unknown, pack: RpgPackIds): RpgConfig {
   const skills = list(root.skills ?? [], 'skills').map((row, i): RpgSkill => {
     const path = `skills[${i}]`
     const skill = record(row, path)
-    only(skill, path, ['id', 'name', 'scope', 'cost', 'target', 'effects'])
+    only(skill, path, ['id', 'name', 'scope', 'cost', 'target', 'effects', 'resourceCost', 'requires'])
     const cost = amounts(skill.cost ?? {}, `${path}.cost`, false)
     if (Object.hasOwn(cost, 'hp')) fail(`${path}.cost.hp`, '技能消耗不支持生命')
     const target = oneOf(skill.target, `${path}.target`, ['ally', 'opponent', 'self'])
     const effects = list(skill.effects, `${path}.effects`).map((value, j): RpgEffect => {
       const at = `${path}.effects[${j}]`,
         effect = record(value, at)
+      if (effect.kind === 'value') return parseValueEffect(effect, at, battleValues)
       if (effect.kind === 'damage' || effect.kind === 'heal') return vital(effect, at)
       if (effect.kind === 'status') {
         only(effect, at, ['kind', 'status'])
@@ -301,6 +345,12 @@ export function parseRpgConfig(value: unknown, pack: RpgPackIds): RpgConfig {
       target,
       effects,
       cost,
+      ...(skill.resourceCost === undefined
+        ? {}
+        : { resourceCost: parseResourceCost(skill.resourceCost, path + '.resourceCost', battleValues)! }),
+      ...(skill.requires === undefined
+        ? {}
+        : { requires: parseRequirements(skill.requires, path + '.requires', battleValues)! }),
     }
   })
   const skillIds = skills.map(s => s.id)
@@ -312,8 +362,11 @@ export function parseRpgConfig(value: unknown, pack: RpgPackIds): RpgConfig {
     const path = `characters.${id}`
     character(id, path)
     const c = record(row, path)
-    only(c, path, ['stats', 'attack', 'defense', 'speed', 'skills', 'slots'])
+    only(c, path, ['stats', 'attack', 'defense', 'speed', 'skills', 'slots', 'battleValues'])
     characters[id] = {
+      ...(c.battleValues === undefined
+        ? {}
+        : { battleValues: parseInitialValues(c.battleValues, path + '.battleValues', battleValues)! }),
       stats: amounts(c.stats, `${path}.stats`, true),
       attack: count(c.attack, `${path}.attack`),
       defense: count(c.defense, `${path}.defense`),
@@ -371,10 +424,13 @@ export function parseRpgConfig(value: unknown, pack: RpgPackIds): RpgConfig {
     const path = `enemies.${id}`
     text(id, path)
     const e = record(row, path)
-    only(e, path, ['name', 'hp', 'attack', 'defense', 'speed', 'skills', 'strategy', 'lines'])
+    only(e, path, ['name', 'hp', 'attack', 'defense', 'speed', 'skills', 'strategy', 'lines', 'battleValues'])
     const lines = record(e.lines ?? {}, `${path}.lines`)
     only(lines, `${path}.lines`, ['encounter', 'defeated'])
     enemies[id] = {
+      ...(e.battleValues === undefined
+        ? {}
+        : { battleValues: parseInitialValues(e.battleValues, path + '.battleValues', battleValues)! }),
       name: text(e.name, `${path}.name`),
       hp: count(e.hp, `${path}.hp`),
       attack: count(e.attack, `${path}.attack`),
@@ -529,6 +585,7 @@ export function parseRpgConfig(value: unknown, pack: RpgPackIds): RpgConfig {
     characters,
     skills,
     combatStatuses,
+    battleValues,
     equipment,
     consumables,
     ...(rest ? { rest } : {}),

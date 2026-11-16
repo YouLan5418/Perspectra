@@ -54,6 +54,7 @@ export function generateMapActivities(config: RpgConfig, options: MapActivityOpt
       characters: config.characters,
       skills: config.skills.filter(s => used.has(s.id)),
       combatStatuses: config.combatStatuses,
+      battleValues: config.battleValues,
       equipment: config.equipment,
       ...(config.defeat ? { defeat: config.defeat } : {}),
       retreat: config.retreat,

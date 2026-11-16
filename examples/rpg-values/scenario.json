@@ -1,0 +1,11 @@
+{
+  "title": "怒气、架势、暴雨与自定义耐火",
+  "steps": [
+    { "move": "location:ruin-1" },
+    { "activity": "rpg-map-ruin-1", "operation": "skill", "parameters": { "skill": "压制", "target": "遗迹守卫" }, "expect": { "resolution": { "status": "accepted" }, "knows": { "character:player": ["玩家的怒气 0 → 3", "遗迹守卫的架势 4 → 2"] } } },
+    { "activity": "rpg-map-ruin-1", "operation": "skill", "parameters": { "skill": "压制", "target": "遗迹守卫" }, "expect": { "knows": { "character:player": ["玩家的怒气 3 → 6", "获得状态：破防"] } } },
+    { "activity": "rpg-map-ruin-1", "operation": "skill", "parameters": { "skill": "怒击", "target": "遗迹守卫" }, "expect": { "knows": { "character:player": ["玩家的怒气 6 → 1", "玩家的怒气 1 → 4"] } } },
+    { "activity": "rpg-map-ruin-1", "operation": "skill", "parameters": { "skill": "唤雨", "target": "玩家" }, "expect": { "knows": { "character:player": "暴雨 2 → 5" } } },
+    { "activity": "rpg-map-ruin-1", "operation": "skill", "parameters": { "skill": "雨中火球", "target": "遗迹守卫" }, "expect": { "status": { "character:player.rpg-hp": 25 }, "knows": { "character:player": "生命 92 → 87" }, "doesNotKnow": { "character:aru": ["怒气", "架势", "暴雨", "破防"] } } }
+  ]
+}

@@ -1,3 +1,11 @@
+export interface BattleNumberView {
+  readonly key: string
+  readonly label: string
+  readonly value: number
+  readonly min: number
+  readonly max: number
+}
+
 /** Read-only, player-authorized projection for the bundled official RPG battle stage. */
 export interface OfficialRpgBattleView {
   readonly kind: 'official-rpg-battle'
@@ -8,12 +16,15 @@ export interface OfficialRpgBattleView {
   readonly round: number
   readonly turn: string | null
   readonly lastResult: string
+  readonly sharedValues?: readonly BattleNumberView[]
   readonly units: readonly {
     readonly id: string
     readonly name: string
     readonly team: 'party' | 'enemy'
     readonly hp: number
     readonly maxHp: number
+    readonly attributes?: readonly BattleNumberView[]
+    readonly resources?: readonly BattleNumberView[]
     readonly shield?: { readonly amount: number; readonly remaining: number }
     readonly statuses?: readonly {
       readonly name: string

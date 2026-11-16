@@ -1,0 +1,21 @@
+{
+  "battleValues": {
+    "shared": { "rain": { "label": "暴雨", "initial": 2, "min": 0, "max": 5 } },
+    "attributes": { "heat-resist": { "label": "耐火", "initial": 0, "min": 0, "max": 75 } },
+    "resources": {
+      "rage": { "label": "怒气", "initial": 0, "min": 0, "max": 10, "onHpLoss": 3 },
+      "posture": { "label": "架势", "initial": 4, "min": 0, "max": 4, "onZeroStatus": "broken" }
+    }
+  },
+  "combatStatuses": {
+    "broken": { "name": "破防", "turns": 3, "timing": "after-action", "polarity": "negative", "modifiers": { "defense": -3 } },
+    "insulated": { "name": "隔热", "turns": 3, "timing": "after-action", "polarity": "positive", "attributeModifiers": { "heat-resist": 25 } }
+  },
+  "skills": [
+    { "id": "pressure", "name": "压制", "target": "opponent", "effects": [{ "kind": "damage", "amount": 1 }, { "kind": "value", "scope": "target", "key": "posture", "delta": -2 }] },
+    { "id": "rage-strike", "name": "怒击", "target": "opponent", "resourceCost": { "rage": 5 }, "effects": [{ "kind": "damage", "amount": 4 }, { "kind": "value", "scope": "target", "key": "posture", "delta": -2 }] },
+    { "id": "rain", "name": "唤雨", "target": "self", "effects": [{ "kind": "value", "scope": "shared", "key": "rain", "delta": 3 }] },
+    { "id": "rainfire", "name": "雨中火球", "target": "opponent", "requires": [{ "value": { "scope": "shared", "key": "rain" }, "atLeast": 1 }], "effects": [{ "kind": "damage", "amount": 12, "element": "fire", "resistance": "heat-resist", "adjustments": [{ "value": { "scope": "shared", "key": "rain" }, "multiplier": -1 }] }] },
+    { "id": "insulate", "name": "隔热术", "target": "ally", "effects": [{ "kind": "status", "status": "insulated" }] }
+  ]
+}

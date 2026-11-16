@@ -46,6 +46,18 @@ export function rpgLensItems(rpg: RpgJson, name: (id: string) => string): LensIt
     ],
     source: at(''),
   })
+  for (const [group, rows] of Object.entries((rpg.battleValues ?? {}) as Record<string, Json>))
+    for (const [key, value] of Object.entries(rows))
+      add({
+        id: `rpg:battle-value/${group}/${key}`,
+        section: 'rpg',
+        title: String(value.label),
+        fields: [
+          { key: 'scope', label: '范围', value: group },
+          { key: 'definition', label: '配置', value: JSON.stringify(value) },
+        ],
+        source: at(`/battleValues/${group}/${key}`),
+      })
   for (const [id, row] of Object.entries((rpg.characters ?? {}) as Record<string, Json>))
     add({
       id: 'rpg:character/' + id,
@@ -72,6 +84,10 @@ export function rpgLensItems(rpg: RpgJson, name: (id: string) => string): LensIt
         { key: 'target', label: '合法目标侧', value: skill.target },
         { key: 'scope', label: '范围', value: skill.scope === 'all' ? '全体' : '单体' },
         { key: 'cost', label: '消耗一次', value: amounts(skill.cost) },
+        ...(skill.resourceCost
+          ? [{ key: 'resourceCost', label: '战斗资源费用', value: amounts(skill.resourceCost) }]
+          : []),
+        ...(skill.requires ? [{ key: 'requires', label: '战斗数值条件', value: JSON.stringify(skill.requires) }] : []),
         { key: 'effects', label: '依次结算', value: JSON.stringify(skill.effects) },
         {
           key: 'statuses',
@@ -97,6 +113,9 @@ export function rpgLensItems(rpg: RpgJson, name: (id: string) => string): LensIt
         { key: 'timing', label: '结算时机', value: status.timing },
         { key: 'polarity', label: '状态分类', value: status.polarity },
         ...(status.tick ? [{ key: 'tick', label: '周期效果', value: JSON.stringify(status.tick) }] : []),
+        ...(status.attributeModifiers
+          ? [{ key: 'attributeModifiers', label: '自定义属性修正', value: JSON.stringify(status.attributeModifiers) }]
+          : []),
         ...(status.modifiers ? [{ key: 'modifiers', label: '属性修正', value: JSON.stringify(status.modifiers) }] : []),
       ],
       source: at(`/combatStatuses/${id}`),

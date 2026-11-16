@@ -1,4 +1,15 @@
 import {
+  EMPTY_BATTLE_VALUES,
+  initialBattleValues,
+  clampValue,
+  adjustedAmount,
+  valueSkillProblem,
+  type RpgBattleValues,
+  type RpgValueState,
+  type RpgValueRef,
+  type RpgValuesProjection,
+} from './battle-values.ts'
+import {
   activeModifiers,
   combatAttributes,
   damageAfterMitigation,
@@ -23,6 +34,7 @@ import type {
 import { RPG_MAP_ACTIVITY_PHASES, heldEquipmentBonus, maxStatKey, statKey, type RpgItemSnapshot } from './state.ts'
 
 export interface MapBattleConfig {
+  readonly battleValues?: RpgBattleValues
   readonly title: string
   readonly playerId: string
   readonly npcIds: readonly string[]
@@ -104,6 +116,8 @@ interface MapBattlePublicState {
   队伍?: string
   敌人?: string
   状态?: string
+  battleValues?: RpgValuesProjection
+  数值?: string
   combatEffects?: {
     unitId: string
     statuses: {
@@ -124,6 +138,7 @@ interface MapBattleGameState {
   public: MapBattlePublicState
   private: Record<string, Record<string, never>>
   internal: {
+    values?: RpgValueState
     present: string[]
     conditions: BattleCondition[]
     shields?: BattleShield[]
@@ -173,6 +188,26 @@ export function createRpgMapBattleHooks(config: MapBattleConfig): ActivityHooks 
   const statLabel = (key: string): string => config.stats.find(stat => stat.key === key)?.label ?? key
   const skillById = (id: string): RpgSkill | undefined => config.skills.find(skill => skill.id === id)
   const statusById = (id: string): RpgCombatStatus | undefined => config.combatStatuses[id]
+  const valueDefs = config.battleValues ?? EMPTY_BATTLE_VALUES
+  const initialFor = (id: string) =>
+    config.characters[id]?.battleValues ?? config.enemies.find(e => e.id === id)?.battleValues
+  const attributeValue = (game: MapBattleGameState, id: string, key: string) => {
+    const def = valueDefs.attributes[key]!
+    const modifiers = game.internal.conditions
+      .filter(row => row.unitId === id)
+      .reduce((sum, row) => sum + (statusById(row.statusId)?.attributeModifiers?.[key] ?? 0), 0)
+    return clampValue((initialFor(id)?.attributes?.[key] ?? def.initial) + modifiers, def)
+  }
+  const readValue = (game: MapBattleGameState, actor: string, target: string, ref: RpgValueRef): number =>
+    ref.scope === 'shared'
+      ? game.internal.values!.shared[ref.key]!
+      : ref.kind === 'attribute'
+        ? attributeValue(game, ref.scope === 'actor' ? actor : target, ref.key)
+        : (game.internal.values!.units[ref.scope === 'actor' ? actor : target]?.[ref.key] ?? 0)
+  const valueProblem = (game: MapBattleGameState, actor: string, skill: RpgSkill) =>
+    valueSkillProblem(skill, valueDefs, game.internal.values?.units[actor] ?? {}, ref =>
+      readValue(game, actor, actor, ref),
+    )
   const enemies = config.enemies
   const enemyName = (id: string): string => enemies.find(enemy => enemy.id === id)?.name ?? id
   const unitNames = [...party.map(nameOf), ...enemies.map(enemy => enemy.name)]
@@ -256,6 +291,35 @@ export function createRpgMapBattleHooks(config: MapBattleConfig): ActivityHooks 
 
   const summarize = (game: MapBattleGameState): MapBattleGameState => {
     const pub = game.public
+    if (game.internal.values) {
+      const display = (group: RpgBattleValues['shared'], read: (key: string) => number) =>
+        Object.entries(group).map(([key, def]) => ({
+          key,
+          label: def.label,
+          min: def.min,
+          max: def.max,
+          value: read(key),
+        }))
+      pub.battleValues = {
+        shared: display(valueDefs.shared, key => game.internal.values!.shared[key]!),
+        units: pub.units
+          .filter(unit => unit.team === 'enemy' || game.internal.present.includes(unit.id))
+          .map(unit => ({
+            unitId: unit.id,
+            attributes: display(valueDefs.attributes, key => attributeValue(game, unit.id, key)),
+            resources: display(valueDefs.resources, key => game.internal.values!.units[unit.id]?.[key] ?? 0),
+          })),
+      }
+      pub['数值'] = [
+        ...pub.battleValues.shared.map(row => `${row.label} ${row.value}`),
+        ...pub.battleValues.units.flatMap(unit =>
+          [...unit.attributes, ...unit.resources].map(
+            row =>
+              `${nameOf(unit.unitId) === unit.unitId ? enemyName(unit.unitId) : nameOf(unit.unitId)}：${row.label} ${row.value}/${row.max}`,
+          ),
+        ),
+      ].join('；')
+    }
     pub['队伍'] = pub.units
       .filter((unit): unit is PartyUnit => unit.team === 'party' && unit.hp !== null)
       .map(unit => {
@@ -417,6 +481,8 @@ export function createRpgMapBattleHooks(config: MapBattleConfig): ActivityHooks 
     for (const key of Object.keys(used.cost)) {
       if ((own.stats[key] ?? 0) < used.cost[key]!) return `${statLabel(key)}不足`
     }
+    const unavailableValue = valueProblem(game, cue.characterId, used)
+    if (unavailableValue) return unavailableValue
     if (cue.target) {
       const target = game.public.units.find(unit => unit.id === cue.target)
       if (!target || (target.hp ?? 0) <= 0) return `${enemyName(cue.target)}已经倒下`
@@ -510,6 +576,13 @@ export function createRpgMapBattleHooks(config: MapBattleConfig): ActivityHooks 
           conditions: [],
         },
       }
+      game.internal.values = initialBattleValues(
+        valueDefs,
+        game.public.units.map(unit => {
+          const values = initialFor(unit.id)
+          return { id: unit.id, ...(values ? { values } : {}) }
+        }),
+      )
       if (fighting && !game.public.cleared) syncPartyStats(game, truth, world)
       const enter = game.public.visit === 1 ? cuesFor('enter') : []
       return queue(game, 'enter', enter, afterEnter) as unknown as WorldJsonObject
@@ -646,6 +719,28 @@ export function createRpgMapBattleHooks(config: MapBattleConfig): ActivityHooks 
           activeModifiers(unit.id, game.internal.conditions, config.combatStatuses),
         )
 
+      const applyStatus = (victim: BattleUnit, statusId: string) => {
+        const status = statusById(statusId)!
+        const current = game.internal.conditions.find(
+          entry => entry.unitId === victim.id && entry.statusId === statusId,
+        )
+        if (current) current.remaining = status.turns
+        else game.internal.conditions.push({ unitId: victim.id, statusId, remaining: status.turns })
+        descriptions.push(`${victim.name}${current ? '的状态持续时间刷新：' : '获得状态：'}${status.name}。`)
+      }
+      const changeValue = (scope: 'shared' | 'unit', key: string, delta: number, unit?: BattleUnit) => {
+        const def = scope === 'shared' ? valueDefs.shared[key]! : valueDefs.resources[key]!
+        const bag = scope === 'shared' ? game.internal.values!.shared : game.internal.values!.units[unit!.id]!
+        const before = bag[key]!,
+          after = clampValue(before + delta, def)
+        bag[key] = after
+        if (before !== after) descriptions.push(`${unit ? unit.name + '的' : ''}${def.label} ${before} → ${after}。`)
+        // One positive-to-zero transition, one status; status application cannot write resources or recurse.
+        if (scope === 'unit' && before > 0 && after === 0 && (unit!.hp ?? 0) > 0) {
+          const status = valueDefs.resources[key]!.onZeroStatus
+          if (status) applyStatus(unit!, status)
+        }
+      }
       const hurt = (victim: BattleUnit, damage: number, label: string) => {
         const shield = game.internal.shields!.find(entry => entry.unitId === victim.id)
         if (shield) {
@@ -661,7 +756,12 @@ export function createRpgMapBattleHooks(config: MapBattleConfig): ActivityHooks 
         const from = victim.hp ?? 0
         victim.hp = Math.max(0, from - damage)
         descriptions.push(`${label}，${victim.name}生命 ${from} → ${victim.hp}。`)
-        if (victim.hp > 0) return
+        if (victim.hp > 0) {
+          if (victim.hp < from)
+            for (const [key, def] of Object.entries(valueDefs.resources))
+              if (def.onHpLoss) changeValue('unit', key, def.onHpLoss, victim)
+          return
+        }
         game.internal.conditions = game.internal.conditions.filter(effect => effect.unitId !== victim.id)
         game.internal.shields = game.internal.shields!.filter(effect => effect.unitId !== victim.id)
         if (victim.team === 'enemy') descriptions.push(enemyLine(victim, 'defeated'))
@@ -671,23 +771,42 @@ export function createRpgMapBattleHooks(config: MapBattleConfig): ActivityHooks 
         if (actor.team === 'party') {
           for (const key of Object.keys(used.cost)) actor.stats[key] = (actor.stats[key] ?? 0) - used.cost[key]!
         }
+        for (const [key, cost] of Object.entries(used.resourceCost ?? {})) changeValue('unit', key, -cost, actor)
+        const once = new Set<number>()
         for (const victim of targets) {
           const label = `${actor.name}使用${used.name}`
-          for (const effect of used.effects) {
-            if ((victim.hp ?? 0) <= 0) break
-            if (effect.kind === 'heal') {
+          for (const [effectIndex, effect] of used.effects.entries()) {
+            if ((victim.hp ?? 0) <= 0 && !(effect.kind === 'value' && effect.scope !== 'target')) continue
+            if (effect.kind === 'value') {
+              if (effect.scope !== 'target' && once.has(effectIndex)) continue
+              once.add(effectIndex)
+              changeValue(
+                effect.scope === 'shared' ? 'shared' : 'unit',
+                effect.key,
+                effect.delta,
+                effect.scope === 'shared' ? undefined : effect.scope === 'actor' ? actor : victim,
+              )
+            } else if (effect.kind === 'heal') {
               const from = victim.hp ?? 0
-              victim.hp = Math.min(victim.maxHp ?? from, from + effect.amount)
+              victim.hp = Math.min(
+                victim.maxHp ?? from,
+                from +
+                  adjustedAmount(effect.amount, effect.adjustments, ref => readValue(game, actor.id, victim.id, ref)),
+              )
               descriptions.push(`${label}，${victim.name}生命 ${from} → ${victim.hp}。`)
             } else if (effect.kind === 'damage') {
               const source = attributes(actor),
                 target = attributes(victim)
               const damage = damageAfterMitigation(
-                effect.amount,
+                adjustedAmount(effect.amount, effect.adjustments, ref => readValue(game, actor.id, victim.id, ref)),
                 source.attack,
                 target.defense,
-                target.fireResistance,
-                effect.element,
+                Math.min(
+                  75,
+                  (effect.element === 'fire' ? target.fireResistance : 0) +
+                    (effect.resistance ? attributeValue(game, victim.id, effect.resistance) : 0),
+                ),
+                effect.resistance ? 'fire' : effect.element,
                 victim.guarded,
               )
               hurt(victim, damage, label)
@@ -703,14 +822,7 @@ export function createRpgMapBattleHooks(config: MapBattleConfig): ActivityHooks 
                 `${label}，${victim.name}${removed.length ? '解除：' + removed.map(entry => statusById(entry.statusId)!.name).join('、') : '没有可解除的负面状态'}。`,
               )
             } else if (effect.kind === 'status') {
-              const status = statusById(effect.status)!
-              const current = game.internal.conditions.find(
-                entry => entry.unitId === victim.id && entry.statusId === effect.status,
-              )
-              if (current) current.remaining = status.turns
-              else
-                game.internal.conditions.push({ unitId: victim.id, statusId: effect.status, remaining: status.turns })
-              descriptions.push(`${victim.name}${current ? '的状态持续时间刷新：' : '获得状态：'}${status.name}。`)
+              applyStatus(victim, effect.status)
             } else if (effect.kind === 'shield') {
               game.internal.shields = game.internal.shields!.filter(entry => entry.unitId !== victim.id)
               game.internal.shields.push({ unitId: victim.id, amount: effect.amount, remaining: effect.turns })
@@ -730,13 +842,28 @@ export function createRpgMapBattleHooks(config: MapBattleConfig): ActivityHooks 
           const tick = status.tick
           if (tick?.kind === 'damage') {
             const target = attributes(unit)
-            const damage = damageAfterMitigation(tick.amount, 0, 0, target.fireResistance, tick.element, false, true)
+            const damage = damageAfterMitigation(
+              adjustedAmount(tick.amount, tick.adjustments, ref => readValue(game, unit.id, unit.id, ref)),
+              0,
+              0,
+              Math.min(
+                75,
+                (tick.element === 'fire' ? target.fireResistance : 0) +
+                  (tick.resistance ? attributeValue(game, unit.id, tick.resistance) : 0),
+              ),
+              tick.resistance ? 'fire' : tick.element,
+              false,
+              true,
+            )
             hurt(unit, damage, `${status.name}造成 ${damage} 点伤害`)
             if (tick.element === 'fire' && target.fireResistance > 0)
               descriptions.push(`${unit.name}的火焰抗性降低了伤害。`)
           } else if (tick?.kind === 'heal') {
             const from = unit.hp ?? 0
-            unit.hp = Math.min(unit.maxHp ?? from, from + tick.amount)
+            unit.hp = Math.min(
+              unit.maxHp ?? from,
+              from + adjustedAmount(tick.amount, tick.adjustments, ref => readValue(game, unit.id, unit.id, ref)),
+            )
             descriptions.push(`${status.name}恢复生命，${unit.name}生命 ${from} → ${unit.hp}。`)
           }
           effect.remaining--
@@ -784,7 +911,10 @@ export function createRpgMapBattleHooks(config: MapBattleConfig): ActivityHooks 
           // All actors use the same effect list; the enemy policy chooses the first currently legal skill.
           const used = enemy?.skills
             .map(skillById)
-            .find((skill): skill is RpgSkill => !!skill && targetsFor(skill).length > 0)
+            .find(
+              (skill): skill is RpgSkill =>
+                !!skill && !valueProblem(game, next.id, skill) && targetsFor(skill).length > 0,
+            )
           const standing = used ? targetsFor(used) : []
           if (!used || !standing.length) {
             next.guarded = true
@@ -868,6 +998,7 @@ export function createRpgMapBattleHooks(config: MapBattleConfig): ActivityHooks 
           (scripted ? unavailableCueReason(cueNow, game) : null) ||
           (!validTarget(victim) ? '这个技能不能对该目标使用。' : null) ||
           (missingCost ? `${statLabel(missingCost)}不足，什么都没有发生。` : null) ||
+          valueProblem(game, actorId, used) ||
           (heal && targets.every(unit => unit.hp === unit.maxHp) ? '目标生命已满，不消耗魔力。' : null)
         if (problem) {
           if (!scripted) return reject(problem)

@@ -29,12 +29,12 @@ corepack pnpm@11.7.0 exec tsx tests/experiments/rpg-mv-simulate.ts
 { "name": "破甲", "turns": 3, "timing": "after-action", "polarity": "negative", "modifiers": { "defense": -3 } }
 ```
 
-把 effects.json 的 combatStatuses 合入 rpg.json，把 skills 追加，再在角色 skills 列表声明学会的技能。敌人也使用相同列表和解释器，但没有资源池，不能引用带 cost 的技能。目标按施法者相对关系使用 ally/opponent/self；状态 timing 必须写明 after-action 或 round-end。
+把 effects.json 的 combatStatuses 合入 rpg.json，把 skills 追加，再在角色 skills 列表声明学会的技能。敌人也使用相同列表和解释器，但没有世界统计资源池，不能引用带 cost 的技能；活动内资源费用见 ../rpg-values/README.md。目标按施法者相对关系使用 ally/opponent/self；状态 timing 必须写明 after-action 或 round-end。
 
 先验证技能与目标、一次扣费，再按列表处理效果；伤害统一走基础攻防与状态修正→火抗→一次性防御→护盾→HP。DoT 不使用基础攻防或一次性防御。状态同 ID 刷新不叠层；净化移除 negative，保留 positive 和护盾。
 
 ## 破坏性迁移
 
-本批不兼容旧配置或旧存档。移除技能顶层 kind/power/element/inflicts，改为 target＋effects；旧状态 damage/element 改 tick，并声明 timing/polarity。持久数据版本改为 2，仅支持 2；没有兼容分支或自动迁移。旧包声明的插件版本仍是 official-rpg/1，和持久数据版本是两回事。
+本批不兼容旧配置或旧存档。移除技能顶层 kind/power/element/inflicts，改为 target＋effects；旧状态 damage/element 改 tick，并声明 timing/polarity。持久数据版本改为 3，仅支持 3；没有兼容分支或自动迁移。旧包声明的插件版本仍是 official-rpg/1，和持久数据版本是两回事。
 
 详细边界见[作者指南](../../docs/current/guides/rpg.md#破坏性迁移本批不兼容旧版)和[实现／来源记录](../../docs/superpowers/plans/2026-11-15-rpg-mv-design.md)。未引入 MV 整体运行时、MZ、素材或第三方插件；未实现 MV 项目/插件导入。
