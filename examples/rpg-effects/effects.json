@@ -1,11 +1,69 @@
 {
   "combatStatuses": {
-    "venom": { "name": "侵蚀", "turns": 3, "tick": { "kind": "damage", "amount": 4 } },
-    "renewal": { "name": "再生", "turns": 3, "tick": { "kind": "heal", "amount": 5 } }
+    "venom": {
+      "name": "侵蚀",
+      "turns": 3,
+      "tick": {
+        "kind": "damage",
+        "amount": 4
+      },
+      "timing": "after-action",
+      "polarity": "negative"
+    },
+    "renewal": {
+      "name": "再生",
+      "turns": 3,
+      "tick": {
+        "kind": "heal",
+        "amount": 5
+      },
+      "timing": "after-action",
+      "polarity": "positive"
+    }
   },
   "skills": [
-    { "id": "ward", "name": "护盾术", "kind": "effect", "target": "party", "effects": [{ "kind": "shield", "amount": 12, "turns": 2 }], "cost": { "mp": 1 } },
-    { "id": "venom", "name": "侵蚀术", "kind": "effect", "target": "enemy", "effects": [{ "kind": "status", "status": "venom" }], "cost": { "mp": 1 } },
-    { "id": "renewal", "name": "再生术", "kind": "effect", "target": "party", "effects": [{ "kind": "status", "status": "renewal" }], "cost": { "mp": 1 } }
+    {
+      "id": "ward",
+      "name": "护盾术",
+      "effects": [
+        {
+          "kind": "shield",
+          "amount": 12,
+          "turns": 2
+        }
+      ],
+      "cost": {
+        "mp": 1
+      },
+      "target": "ally"
+    },
+    {
+      "id": "venom",
+      "name": "侵蚀术",
+      "effects": [
+        {
+          "kind": "status",
+          "status": "venom"
+        }
+      ],
+      "cost": {
+        "mp": 1
+      },
+      "target": "opponent"
+    },
+    {
+      "id": "renewal",
+      "name": "再生术",
+      "effects": [
+        {
+          "kind": "status",
+          "status": "renewal"
+        }
+      ],
+      "cost": {
+        "mp": 1
+      },
+      "target": "ally"
+    }
   ]
 }

@@ -39,9 +39,9 @@ writeFileSync(
 )
 
 const rpg = read('rpg.json') as RpgConfig
-rpg.combatStatuses = { burn: { name: '灼烧', turns: 3, damage: 3, element: 'fire' } }
+rpg.combatStatuses = { burn: {name: '灼烧',turns: 3,timing:'after-action',polarity:'negative',tick:{kind:'damage',amount:3,element:'fire'}} }
 const fire = rpg.skills.find(skill => skill.id === 'fire')!
-Object.assign(fire, { power: 10, element: 'fire', inflicts: 'burn' })
+Object.assign(fire, { effects: [{ kind: 'damage', amount: 10, element: 'fire' }, { kind: 'status', status: 'burn' }] })
 rpg.skills.push({ ...fire, id: 'golem-fire', name: '守卫火球', scope: 'all', cost: {} })
 rpg.enemies.golem!.skills = ['golem-fire']
 rpg.enemies.golem!.attack = 4

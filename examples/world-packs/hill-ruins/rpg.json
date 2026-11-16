@@ -61,30 +61,45 @@
     {
       "id": "strike",
       "name": "普通攻击",
-      "kind": "damage",
       "scope": "one",
-      "power": 8,
-      "cost": {}
+      "cost": {},
+      "target": "opponent",
+      "effects": [
+        {
+          "kind": "damage",
+          "amount": 8
+        }
+      ]
     },
     {
       "id": "fire",
       "name": "火球术",
-      "kind": "damage",
       "scope": "one",
-      "power": 16,
       "cost": {
         "mp": 3
-      }
+      },
+      "target": "opponent",
+      "effects": [
+        {
+          "kind": "damage",
+          "amount": 16
+        }
+      ]
     },
     {
       "id": "heal",
       "name": "治疗术",
-      "kind": "heal",
       "scope": "one",
-      "power": 14,
       "cost": {
         "mp": 3
-      }
+      },
+      "target": "ally",
+      "effects": [
+        {
+          "kind": "heal",
+          "amount": 14
+        }
+      ]
     }
   ],
   "equipment": {

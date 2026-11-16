@@ -41,8 +41,12 @@ const strongerFire = (): WorldComposition =>
         ...officialRpgContent,
         identity: { fireBonus: 1 },
         generate: (value, pack) => {
-          const config = structuredClone(value) as { skills: { id: string; power: number }[] }
-          config.skills = config.skills.map(s => (s.id === 'fire' ? { ...s, power: s.power + 1 } : s))
+          const config = structuredClone(value) as { skills: { id: string; effects: { amount: number }[] }[] }
+          config.skills = config.skills.map(s =>
+            s.id === 'fire'
+              ? { ...s, effects: [{ ...s.effects[0], amount: s.effects[0]!.amount + 1 }, ...s.effects.slice(1)] }
+              : s,
+          )
           return officialRpgContent.generate(config, pack)
         },
       },
@@ -54,8 +58,8 @@ const incompatibleRpg = (): WorldComposition =>
     content: [
       {
         ...officialRpgContent,
-        dataVersion: 2,
-        supportedDataVersions: [2],
+        dataVersion: 3,
+        supportedDataVersions: [3],
       },
     ],
   })
@@ -110,7 +114,7 @@ describe('rpg.json in a pack', () => {
     expect(record.gameplayData).toEqual({
       'official-rpg': {
         pluginVersion: '1',
-        dataVersion: 1,
+        dataVersion: 2,
         statuses: expect.arrayContaining([
           { key: 'rpg-hp', type: 'number', owner: 'character' },
           { key: 'rpg-equipment', type: 'object', owner: 'character' },
@@ -172,7 +176,7 @@ describe('rpg.json in a pack', () => {
     worlds.splice(worlds.indexOf(withNewCopy), 1)
 
     await expect(open(pack, data, { composition: incompatibleRpg() })).rejects.toThrow(
-      'official-rpg 插件的数据版本与存档不兼容（存档 dataVersion 1，当前支持 2）',
+      'official-rpg 插件的数据版本与存档不兼容（存档 dataVersion 2，当前支持 3）',
     )
 
     const missingMap = structuredClone(config)

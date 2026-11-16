@@ -75,14 +75,21 @@ it('applies defense and fire resistance before shield, while DoT leaves the one-
       addRpgEffectsExample(c)
       c.characters['character:player'].defense = 3
       c.equipment['entity:iron-sword'] = { slot: 'weapon', resistances: { fire: 20 } }
-      c.combatStatuses.burn = { name: '燃烧', turns: 3, damage: 3, element: 'fire' }
+      c.combatStatuses.burn = {
+        name: '燃烧',
+        turns: 3,
+        timing: 'after-action',
+        polarity: 'negative',
+        tick: { kind: 'damage', amount: 3, element: 'fire' },
+      }
       c.skills.push({
         id: 'enemy-fire',
         name: '守卫火球',
-        kind: 'damage',
-        power: 10,
-        element: 'fire',
-        inflicts: 'burn',
+        target: 'opponent',
+        effects: [
+          { kind: 'damage', amount: 10, element: 'fire' },
+          { kind: 'status', status: 'burn' },
+        ],
       })
       c.enemies.golem.attack = 4
       c.enemies.golem.skills = ['enemy-fire']

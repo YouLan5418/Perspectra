@@ -75,14 +75,17 @@ it('copies only authorized shield and status labels, omitting absent units and e
     {
       unitId: player,
       shield: { amount: 4, remaining: 2, secret: 'private-shield' },
-      statuses: [{ name: '再生', remaining: 1, statusId: 'hidden-id' }],
+      statuses: [{ name: '再生', remaining: 1, timing: 'after-action', polarity: 'positive', statusId: 'hidden-id' }],
     },
-    { unitId: 'character:cheng', statuses: [{ name: 'absent-status', remaining: 2 }] },
+    {
+      unitId: 'character:cheng',
+      statuses: [{ name: 'absent-status', remaining: 2, timing: 'after-action', polarity: 'negative' }],
+    },
   ]
   const view = officialRpgBattleView(hooks, scoped, player, [player])!
   expect(view.units[0]).toMatchObject({
     shield: { amount: 4, remaining: 2 },
-    statuses: [{ name: '再生', remaining: 1 }],
+    statuses: [{ name: '再生', remaining: 1, timing: 'after-action', polarity: 'positive' }],
   })
   expect(JSON.stringify(view)).not.toMatch(/private-shield|hidden-id|absent-status/)
   pub.combatEffects = [{ unitId: player, shield: { amount: -1, remaining: 2 }, statuses: [] }]

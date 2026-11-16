@@ -133,10 +133,23 @@ describe('generateMapActivities', () => {
   it('ticks a condition after its holder acts, refreshes it on hit, and removes it after three turns', () => {
     const script = hooks(
       generate(c => {
-        c.combatStatuses = { burn: { name: '灼烧', turns: 3, damage: 3, element: 'fire' } }
+        c.combatStatuses = {
+          burn: {
+            name: '灼烧',
+            turns: 3,
+            timing: 'after-action',
+            polarity: 'negative',
+            tick: { kind: 'damage', amount: 3, element: 'fire' },
+          },
+        }
         Object.assign(
           c.skills.find((skill: Json) => skill.id === 'fire'),
-          { element: 'fire', inflicts: 'burn', power: 10 },
+          {
+            effects: [
+              { kind: 'damage', amount: 10, element: 'fire' },
+              { kind: 'status', status: 'burn' },
+            ],
+          },
         )
         c.enemies.golem.hp = 100
         c.enemies.golem.skills = []

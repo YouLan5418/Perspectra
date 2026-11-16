@@ -17,28 +17,25 @@ export interface RpgCharacter {
 export interface RpgSkill {
   id: string
   name: string
-  kind: 'damage' | 'heal' | 'effect'
   scope: 'one' | 'all'
-  power: number
   cost: Record<string, number>
-  element?: 'fire'
-  inflicts?: string
-  /** Explicit target side for effect-only skills. */
-  target?: 'party' | 'enemy'
-  effects?: RpgEffect[]
+  target: 'ally' | 'opponent' | 'self'
+  effects: RpgEffect[]
 }
 export type RpgVitalEffect = { kind: 'damage' | 'heal'; amount: number; element?: 'fire' }
 export type RpgEffect =
   | RpgVitalEffect
   | { kind: 'status'; status: string }
   | { kind: 'shield'; amount: number; turns: number }
+  | { kind: 'cleanse'; polarity: 'negative' }
+export type RpgCombatModifiers = Partial<Record<'attack' | 'defense' | 'fireResistance', number>>
 export interface RpgCombatStatus {
   name: string
   turns: number
-  /** Legacy periodic damage remains readable without changing persisted condition instances. */
-  damage?: number
-  element?: 'fire'
+  timing: 'after-action' | 'round-end'
+  polarity: 'positive' | 'negative'
   tick?: RpgVitalEffect
+  modifiers?: RpgCombatModifiers
 }
 export interface RpgEquipment {
   slot: string
@@ -209,7 +206,7 @@ export function parseRpgConfig(value: unknown, pack: RpgPackIds): RpgConfig {
   const element = (value: unknown, path: string) => oneOf(value, path, ['fire'])
   const positive = (value: unknown, path: string) => {
     const result = count(value, path)
-    if (result < 1) fail(path, '至少为 1')
+    if (result < 1 || result > 9999) fail(path, '需要 1 到 9999 的整数')
     return result
   }
   const vital = (value: unknown, path: string): RpgVitalEffect => {
@@ -229,83 +226,81 @@ export function parseRpgConfig(value: unknown, pack: RpgPackIds): RpgConfig {
         const path = `combatStatuses.${id}`
         if (!STAT_KEY.test(id)) fail(path, '状态 ID 需要是小写字母开头的小写字母、数字、连字符，至多 33 字符')
         const status = record(value, path)
-        only(status, path, ['name', 'turns', 'damage', 'element', 'tick'])
+        only(status, path, ['name', 'turns', 'timing', 'polarity', 'tick', 'modifiers'])
         const name = text(status.name, `${path}.name`)
         if (name.length > 36) fail(`${path}.name`, '显示名称至多 36 字')
-        const turns = count(status.turns, `${path}.turns`)
-        if (turns < 1) fail(`${path}.turns`, '至少持续 1 回合')
-        if (status.tick !== undefined) {
-          if (status.damage !== undefined || status.element !== undefined)
-            fail(path, 'tick 不能与旧 damage/element 混用')
-          return [id, { name, turns, tick: vital(status.tick, `${path}.tick`) }]
+        const turns = positive(status.turns, `${path}.turns`)
+        if (turns > 99) fail(`${path}.turns`, '最多持续 99 次结算')
+        const modifiers: RpgCombatModifiers = {}
+        if (status.modifiers !== undefined) {
+          const values = record(status.modifiers, `${path}.modifiers`)
+          only(values, `${path}.modifiers`, ['attack', 'defense', 'fireResistance'])
+          if (!Object.keys(values).length) fail(`${path}.modifiers`, '不可为空')
+          for (const [key, value] of Object.entries(values)) {
+            if (typeof value !== 'number' || !Number.isSafeInteger(value) || Math.abs(value) > 1000)
+              fail(`${path}.modifiers.${key}`, '修正需要 -1000 到 1000 的整数')
+            modifiers[key as keyof RpgCombatModifiers] = value as number
+          }
         }
-        const damage = count(status.damage, `${path}.damage`)
-        if (damage < 1) fail(`${path}.damage`, '每回合伤害至少为 1')
+        if (status.tick === undefined && status.modifiers === undefined) fail(path, '状态需要 tick 或 modifiers')
         return [
           id,
           {
             name,
             turns,
-            damage,
-            ...(status.element === undefined ? {} : { element: element(status.element, `${path}.element`) }),
+            timing: oneOf(status.timing, `${path}.timing`, ['after-action', 'round-end']),
+            polarity: oneOf(status.polarity, `${path}.polarity`, ['positive', 'negative']),
+            ...(status.tick === undefined ? {} : { tick: vital(status.tick, `${path}.tick`) }),
+            ...(status.modifiers === undefined ? {} : { modifiers }),
           },
         ]
       },
     ),
   )
 
+  if (Object.keys(combatStatuses).length > 32) fail('combatStatuses', '最多 32 个战斗状态')
+
   const skills = list(root.skills ?? [], 'skills').map((row, i): RpgSkill => {
     const path = `skills[${i}]`
     const skill = record(row, path)
-    only(skill, path, ['id', 'name', 'kind', 'scope', 'power', 'cost', 'element', 'inflicts', 'target', 'effects'])
-    const kind = oneOf(skill.kind, `${path}.kind`, ['damage', 'heal', 'effect'])
+    only(skill, path, ['id', 'name', 'scope', 'cost', 'target', 'effects'])
     const cost = amounts(skill.cost ?? {}, `${path}.cost`, false)
     if (Object.hasOwn(cost, 'hp')) fail(`${path}.cost.hp`, '技能消耗不支持生命')
-    if (kind === 'heal' && (skill.element !== undefined || skill.inflicts !== undefined))
-      fail(path, '只有伤害技能能配置伤害元素或附加战斗状态')
-    if (kind === 'effect' && (skill.power !== undefined || skill.element !== undefined || skill.inflicts !== undefined))
-      fail(path, 'effect 技能用 effects 声明效果，不混用 power/element/inflicts')
-    if (kind !== 'effect' && skill.target !== undefined) fail(`${path}.target`, '只有 effect 技能声明目标侧')
-    const target = kind === 'effect' ? oneOf(skill.target, `${path}.target`, ['party', 'enemy']) : undefined
-    const effects =
-      skill.effects === undefined
-        ? undefined
-        : list(skill.effects, `${path}.effects`).map((value, j): RpgEffect => {
-            const at = `${path}.effects[${j}]`,
-              effect = record(value, at)
-            if (effect.kind === 'damage' || effect.kind === 'heal') return vital(effect, at)
-            if (effect.kind === 'status') {
-              only(effect, at, ['kind', 'status'])
-              return {
-                kind: 'status',
-                status: known(Object.keys(combatStatuses), effect.status, `${at}.status`, '战斗状态'),
-              }
-            }
-            if (effect.kind === 'shield') {
-              only(effect, at, ['kind', 'amount', 'turns'])
-              return {
-                kind: 'shield',
-                amount: positive(effect.amount, `${at}.amount`),
-                turns: positive(effect.turns, `${at}.turns`),
-              }
-            }
-            return fail(`${at}.kind`, '只支持 damage/heal/status/shield')
-          })
-    if (effects && (!effects.length || effects.length > 8)) fail(`${path}.effects`, '需要 1 到 8 个效果')
-    if (kind === 'effect' && !effects) fail(`${path}.effects`, 'effect 技能必须声明效果')
+    const target = oneOf(skill.target, `${path}.target`, ['ally', 'opponent', 'self'])
+    const effects = list(skill.effects, `${path}.effects`).map((value, j): RpgEffect => {
+      const at = `${path}.effects[${j}]`,
+        effect = record(value, at)
+      if (effect.kind === 'damage' || effect.kind === 'heal') return vital(effect, at)
+      if (effect.kind === 'status') {
+        only(effect, at, ['kind', 'status'])
+        return {
+          kind: 'status',
+          status: known(Object.keys(combatStatuses), effect.status, `${at}.status`, '战斗状态'),
+        }
+      }
+      if (effect.kind === 'cleanse') {
+        only(effect, at, ['kind', 'polarity'])
+        return { kind: 'cleanse', polarity: oneOf(effect.polarity, `${at}.polarity`, ['negative']) }
+      }
+      if (effect.kind === 'shield') {
+        if (positive(effect.turns, `${at}.turns`) > 99) fail(`${at}.turns`, '最多 99 次行动')
+        only(effect, at, ['kind', 'amount', 'turns'])
+        return {
+          kind: 'shield',
+          amount: positive(effect.amount, `${at}.amount`),
+          turns: positive(effect.turns, `${at}.turns`),
+        }
+      }
+      return fail(`${at}.kind`, '只支持 damage/heal/status/shield/cleanse')
+    })
+    if (!effects.length || effects.length > 8) fail(`${path}.effects`, '需要 1 到 8 个效果')
     return {
       id: text(skill.id, `${path}.id`),
       name: text(skill.name, `${path}.name`),
-      kind,
       scope: oneOf(skill.scope ?? 'one', `${path}.scope`, ['one', 'all']),
-      power: kind === 'effect' ? 0 : count(skill.power, `${path}.power`),
-      ...(target ? { target } : {}),
-      ...(effects ? { effects } : {}),
+      target,
+      effects,
       cost,
-      ...(skill.element === undefined ? {} : { element: element(skill.element, `${path}.element`) }),
-      ...(skill.inflicts === undefined
-        ? {}
-        : { inflicts: known(Object.keys(combatStatuses), skill.inflicts, `${path}.inflicts`, '战斗状态') }),
     }
   })
   const skillIds = skills.map(s => s.id)

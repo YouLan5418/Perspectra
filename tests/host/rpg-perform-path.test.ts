@@ -64,17 +64,26 @@ it.each([
   const f = await fixture(
     c => {
       c.maps[0].scripted = []
-      c.combatStatuses = { burn: { name: '灼烧', turns: 3, damage: 3, element: 'fire' } }
+      c.combatStatuses = {
+        burn: {
+          name: '灼烧',
+          turns: 3,
+          timing: 'after-action',
+          polarity: 'negative',
+          tick: { kind: 'damage', amount: 3, element: 'fire' },
+        },
+      }
       c.characters[PLAYER].defense = 3
       c.equipment['entity:iron-sword'] = { slot: 'weapon', resistances: { fire: 20 } }
       c.skills.push({
         id: 'golem-fire',
         name: '守卫火球',
-        kind: 'damage',
         scope: 'all',
-        power: 10,
-        element: 'fire',
-        inflicts: 'burn',
+        target: 'opponent',
+        effects: [
+          { kind: 'damage', amount: 10, element: 'fire' },
+          { kind: 'status', status: 'burn' },
+        ],
       })
       c.enemies.golem.attack = 4
       c.enemies.golem.skills = ['golem-fire']
@@ -122,10 +131,23 @@ it('restores remaining burn turns in a story branch and commits its killing tick
   const f = await fixture(c => {
     delete c.characters[CHENG]
     for (const map of c.maps) map.scripted = []
-    c.combatStatuses = { burn: { name: '灼烧', turns: 3, damage: 3, element: 'fire' } }
+    c.combatStatuses = {
+      burn: {
+        name: '灼烧',
+        turns: 3,
+        timing: 'after-action',
+        polarity: 'negative',
+        tick: { kind: 'damage', amount: 3, element: 'fire' },
+      },
+    }
     Object.assign(
       c.skills.find((skill: Json) => skill.id === 'fire'),
-      { element: 'fire', inflicts: 'burn', power: 10 },
+      {
+        effects: [
+          { kind: 'damage', amount: 10, element: 'fire' },
+          { kind: 'status', status: 'burn' },
+        ],
+      },
     )
     c.enemies.golem.skills = []
     c.enemies.golem.hp = 19
@@ -183,7 +205,14 @@ function expectOnlyArrivals(f: RpgFixture, from: number) {
 it('a defeat on the player turn sent as a world action tells those at home only that the party arrived', async () => {
   const f = await fixture(c => {
     c.maps[0].scripted = []
-    c.skills.push({ id: 'quake', name: '震地', kind: 'damage', scope: 'all', power: 100, cost: {} })
+    c.skills.push({
+      id: 'quake',
+      name: '震地',
+      scope: 'all',
+      cost: {},
+      target: 'opponent',
+      effects: [{ kind: 'damage', amount: 100 }],
+    })
     c.enemies.golem.skills = ['quake']
     c.enemies.golem.speed = 25
   })

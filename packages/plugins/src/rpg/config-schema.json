@@ -108,36 +108,28 @@
             "type": "string",
             "minLength": 1
           },
-          "kind": {
-            "enum": [
-              "damage",
-              "heal",
-              "effect"
-            ]
-          },
           "scope": {
             "enum": [
               "one",
               "all"
             ]
           },
-          "power": {
-            "type": "integer",
-            "minimum": 0
-          },
           "cost": {
             "type": "object",
             "additionalProperties": {
               "type": "integer",
               "minimum": 0
+            },
+            "properties": {
+              "hp": false
             }
           },
-          "element": {
-            "const": "fire"
-          },
-          "inflicts": {
-            "type": "string",
-            "minLength": 1
+          "target": {
+            "enum": [
+              "ally",
+              "opponent",
+              "self"
+            ]
           },
           "effects": {
             "type": "array",
@@ -149,14 +141,12 @@
                   "type": "object",
                   "properties": {
                     "kind": {
-                      "enum": [
-                        "damage",
-                        "heal"
-                      ]
+                      "const": "damage"
                     },
                     "amount": {
                       "type": "integer",
-                      "minimum": 1
+                      "minimum": 1,
+                      "maximum": 9999
                     },
                     "element": {
                       "const": "fire"
@@ -166,28 +156,25 @@
                     "kind",
                     "amount"
                   ],
-                  "additionalProperties": false,
-                  "allOf": [
-                    {
-                      "if": {
-                        "properties": {
-                          "kind": {
-                            "const": "heal"
-                          }
-                        }
-                      },
-                      "then": {
-                        "not": {
-                          "required": [
-                            "element"
-                          ],
-                          "properties": {
-                            "element": {}
-                          }
-                        }
-                      }
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "const": "heal"
+                    },
+                    "amount": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 9999
                     }
-                  ]
+                  },
+                  "required": [
+                    "kind",
+                    "amount"
+                  ],
+                  "additionalProperties": false
                 },
                 {
                   "type": "object",
@@ -214,11 +201,13 @@
                     },
                     "amount": {
                       "type": "integer",
-                      "minimum": 1
+                      "minimum": 1,
+                      "maximum": 9999
                     },
                     "turns": {
                       "type": "integer",
-                      "minimum": 1
+                      "minimum": 1,
+                      "maximum": 99
                     }
                   },
                   "required": [
@@ -227,206 +216,158 @@
                     "turns"
                   ],
                   "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "const": "cleanse"
+                    },
+                    "polarity": {
+                      "const": "negative"
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "polarity"
+                  ],
+                  "additionalProperties": false
                 }
               ]
             }
-          },
-          "target": {
-            "enum": [
-              "party",
-              "enemy"
-            ]
           }
         },
         "required": [
           "id",
           "name",
-          "kind"
+          "target",
+          "effects"
         ],
-        "additionalProperties": false,
-        "allOf": [
-          {
-            "if": {
-              "properties": {
-                "kind": {
-                  "const": "effect"
-                }
-              }
-            },
-            "then": {
-              "required": [
-                "target",
-                "effects"
-              ],
-              "not": {
-                "anyOf": [
-                  {
-                    "required": [
-                      "power"
-                    ],
-                    "properties": {
-                      "power": {}
-                    }
-                  },
-                  {
-                    "required": [
-                      "element"
-                    ],
-                    "properties": {
-                      "element": {}
-                    }
-                  },
-                  {
-                    "required": [
-                      "inflicts"
-                    ],
-                    "properties": {
-                      "inflicts": {}
-                    }
-                  }
-                ]
-              },
-              "properties": {
-                "target": {},
-                "effects": {}
-              }
-            },
-            "else": {
-              "required": [
-                "power"
-              ],
-              "not": {
-                "required": [
-                  "target"
-                ],
-                "properties": {
-                  "target": {}
-                }
-              },
-              "properties": {
-                "power": {}
-              }
-            }
-          }
-        ]
+        "additionalProperties": false
       }
     },
     "combatStatuses": {
       "type": "object",
+      "maxProperties": 32,
       "additionalProperties": {
         "type": "object",
         "properties": {
           "name": {
             "type": "string",
-            "minLength": 1
+            "minLength": 1,
+            "maxLength": 36
           },
           "turns": {
             "type": "integer",
-            "minimum": 1
+            "minimum": 1,
+            "maximum": 99
           },
-          "damage": {
-            "type": "integer",
-            "minimum": 1
+          "timing": {
+            "enum": [
+              "after-action",
+              "round-end"
+            ]
           },
-          "element": {
-            "const": "fire"
+          "polarity": {
+            "enum": [
+              "positive",
+              "negative"
+            ]
           },
           "tick": {
-            "type": "object",
-            "properties": {
-              "kind": {
-                "enum": [
-                  "damage",
-                  "heal"
-                ]
-              },
-              "amount": {
-                "type": "integer",
-                "minimum": 1
-              },
-              "element": {
-                "const": "fire"
-              }
-            },
-            "required": [
-              "kind",
-              "amount"
-            ],
-            "additionalProperties": false,
-            "allOf": [
+            "oneOf": [
               {
-                "if": {
-                  "properties": {
-                    "kind": {
-                      "const": "heal"
-                    }
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "const": "damage"
+                  },
+                  "amount": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 9999
+                  },
+                  "element": {
+                    "const": "fire"
                   }
                 },
-                "then": {
-                  "not": {
-                    "required": [
-                      "element"
-                    ],
-                    "properties": {
-                      "element": {}
-                    }
+                "required": [
+                  "kind",
+                  "amount"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "const": "heal"
+                  },
+                  "amount": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 9999
                   }
-                }
+                },
+                "required": [
+                  "kind",
+                  "amount"
+                ],
+                "additionalProperties": false
               }
             ]
+          },
+          "modifiers": {
+            "type": "object",
+            "minProperties": 1,
+            "properties": {
+              "attack": {
+                "type": "integer",
+                "minimum": -1000,
+                "maximum": 1000
+              },
+              "defense": {
+                "type": "integer",
+                "minimum": -1000,
+                "maximum": 1000
+              },
+              "fireResistance": {
+                "type": "integer",
+                "minimum": -1000,
+                "maximum": 1000
+              }
+            },
+            "additionalProperties": false
           }
         },
         "required": [
           "name",
-          "turns"
+          "turns",
+          "timing",
+          "polarity"
         ],
         "additionalProperties": false,
-        "oneOf": [
+        "anyOf": [
           {
-            "required": [
-              "tick"
-            ],
-            "not": {
-              "anyOf": [
-                {
-                  "required": [
-                    "damage"
-                  ],
-                  "properties": {
-                    "damage": {}
-                  }
-                },
-                {
-                  "required": [
-                    "element"
-                  ],
-                  "properties": {
-                    "element": {}
-                  }
-                }
-              ]
-            },
             "properties": {
               "tick": {}
-            }
+            },
+            "required": [
+              "tick"
+            ]
           },
           {
-            "required": [
-              "damage"
-            ],
-            "not": {
-              "required": [
-                "tick"
-              ],
-              "properties": {
-                "tick": {}
-              }
-            },
             "properties": {
-              "damage": {}
-            }
+              "modifiers": {}
+            },
+            "required": [
+              "modifiers"
+            ]
           }
         ]
+      },
+      "propertyNames": {
+        "pattern": "^[a-z][a-z0-9-]{0,32}$"
       }
     },
     "equipment": {

@@ -69,28 +69,23 @@ export function rpgLensItems(rpg: RpgJson, name: (id: string) => string): LensIt
       section: 'rpg',
       title: String(skill.name),
       fields: [
+        { key: 'target', label: '合法目标侧', value: skill.target },
+        { key: 'scope', label: '范围', value: skill.scope === 'all' ? '全体' : '单体' },
+        { key: 'cost', label: '消耗一次', value: amounts(skill.cost) },
+        { key: 'effects', label: '依次结算', value: JSON.stringify(skill.effects) },
         {
-          key: 'kind',
-          label: '效果',
-          value: skill.kind === 'effect' ? '声明效果' : skill.kind === 'heal' ? '治疗' : '伤害',
+          key: 'statuses',
+          label: '附加状态',
+          value: (skill.effects as Json[])
+            .filter(effect => effect.kind === 'status')
+            .map(effect => String(rpg.combatStatuses?.[effect.status]?.name ?? effect.status))
+            .join('、'),
         },
-        { key: 'scope', label: '目标', value: skill.scope === 'all' ? '全体' : '单体' },
-        ...(skill.power === undefined ? [] : [{ key: 'power', label: '威力', value: skill.power }]),
-        ...(skill.effects ? [{ key: 'effects', label: '依次结算', value: JSON.stringify(skill.effects) }] : []),
-        { key: 'cost', label: '消耗', value: amounts(skill.cost) },
-        ...(skill.element === 'fire' ? [{ key: 'element', label: '伤害元素', value: '火焰' }] : []),
-        ...(skill.inflicts
-          ? [
-              {
-                key: 'inflicts',
-                label: '附加状态',
-                value: String(rpg.combatStatuses?.[skill.inflicts]?.name ?? skill.inflicts),
-              },
-            ]
-          : []),
       ],
       source: at(`/skills/${index}`),
-      ...(skill.inflicts ? { links: ['rpg:combat-status/' + skill.inflicts] } : {}),
+      links: (skill.effects as Json[])
+        .filter(effect => effect.kind === 'status')
+        .map(effect => 'rpg:combat-status/' + effect.status),
     })
   for (const [id, status] of Object.entries((rpg.combatStatuses ?? {}) as Record<string, Json>))
     add({
@@ -98,12 +93,11 @@ export function rpgLensItems(rpg: RpgJson, name: (id: string) => string): LensIt
       section: 'rpg',
       title: String(status.name),
       fields: [
-        { key: 'turns', label: '持续回合', value: status.turns },
-        {
-          key: 'tick',
-          label: '持有者行动后结算',
-          value: JSON.stringify(status.tick ?? { kind: 'damage', amount: status.damage, element: status.element }),
-        },
+        { key: 'turns', label: '持续次数', value: status.turns },
+        { key: 'timing', label: '结算时机', value: status.timing },
+        { key: 'polarity', label: '状态分类', value: status.polarity },
+        ...(status.tick ? [{ key: 'tick', label: '周期效果', value: JSON.stringify(status.tick) }] : []),
+        ...(status.modifiers ? [{ key: 'modifiers', label: '属性修正', value: JSON.stringify(status.modifiers) }] : []),
       ],
       source: at(`/combatStatuses/${id}`),
     })

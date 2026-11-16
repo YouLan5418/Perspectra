@@ -1,0 +1,16 @@
+{
+  "combatStatuses": {
+    "fracture": { "name": "破甲", "turns": 3, "timing": "after-action", "polarity": "negative", "modifiers": { "defense": -3 } },
+    "focus": { "name": "振奋", "turns": 2, "timing": "round-end", "polarity": "positive", "modifiers": { "attack": 3 } },
+    "burn": { "name": "燃烧", "turns": 3, "timing": "after-action", "polarity": "negative", "tick": { "kind": "damage", "amount": 3, "element": "fire" } },
+    "renewal": { "name": "再生", "turns": 3, "timing": "after-action", "polarity": "positive", "tick": { "kind": "heal", "amount": 5 } }
+  },
+  "skills": [
+    { "id": "sunder", "name": "破甲击", "target": "opponent", "cost": { "mp": 1 }, "effects": [{ "kind": "status", "status": "fracture" }, { "kind": "damage", "amount": 2 }] },
+    { "id": "flame", "name": "燃烧火球", "target": "opponent", "cost": { "mp": 2 }, "effects": [{ "kind": "damage", "amount": 10, "element": "fire" }, { "kind": "status", "status": "burn" }] },
+    { "id": "hot-ward", "name": "炽热护盾", "target": "self", "cost": { "mp": 1 }, "effects": [{ "kind": "shield", "amount": 16, "turns": 2 }, { "kind": "status", "status": "burn" }] },
+    { "id": "cleanse", "name": "净化振奋", "target": "ally", "cost": { "mp": 1 }, "effects": [{ "kind": "cleanse", "polarity": "negative" }, { "kind": "status", "status": "focus" }] },
+    { "id": "renew", "name": "再生术", "target": "ally", "cost": { "mp": 1 }, "effects": [{ "kind": "status", "status": "renewal" }] },
+    { "id": "enemy-strike", "name": "守卫攻击", "target": "opponent", "effects": [{ "kind": "damage", "amount": 3 }] }
+  ]
+}

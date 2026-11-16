@@ -206,7 +206,14 @@ describe('RPG map activities', () => {
     const f = await fixture({
       config: c => {
         c.maps[0].scripted = []
-        c.skills.push({ id: 'quake', name: '震地', kind: 'damage', scope: 'all', power: 100, cost: {} })
+        c.skills.push({
+          id: 'quake',
+          name: '震地',
+          scope: 'all',
+          cost: {},
+          target: 'opponent',
+          effects: [{ kind: 'damage', amount: 100 }],
+        })
         c.enemies.golem.skills = ['quake']
       },
       decide: chengUses('普通攻击'),

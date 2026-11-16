@@ -1,0 +1,13 @@
+{
+  "title": "破甲、燃烧、护盾、净化与胜利",
+  "steps": [
+    { "move": "location:ruin-1" },
+    { "activity": "rpg-map-ruin-1", "operation": "skill", "parameters": { "skill": "破甲击", "target": "遗迹守卫" }, "expect": { "resolution": { "status": "accepted" }, "status": { "character:player.rpg-mp": 7 }, "knows": { "character:player": "生命 50 → 46" } } },
+    { "activity": "rpg-map-ruin-1", "operation": "skill", "parameters": { "skill": "燃烧火球", "target": "遗迹守卫" }, "expect": { "resolution": { "status": "accepted" }, "status": { "character:player.rpg-mp": 5 }, "knows": { "character:player": ["生命 46 → 34", "燃烧造成 3 点伤害"] } } },
+    { "activity": "rpg-map-ruin-1", "operation": "skill", "parameters": { "skill": "炽热护盾", "target": "玩家" }, "expect": { "resolution": { "status": "accepted" }, "status": { "character:player.rpg-hp": 34 }, "knows": { "character:player": "护盾吸收 3" } } },
+    { "activity": "rpg-map-ruin-1", "operation": "skill", "parameters": { "skill": "净化振奋", "target": "玩家" }, "expect": { "resolution": { "status": "accepted" }, "status": { "character:player.rpg-mp": 3 }, "knows": { "character:player": "解除：燃烧" } } },
+    { "activity": "rpg-map-ruin-1", "operation": "skill", "parameters": { "skill": "普通攻击", "target": "遗迹守卫" }, "expect": { "knows": { "character:player": "生命 25 → 14" } } },
+    { "activity": "rpg-map-ruin-1", "operation": "skill", "parameters": { "skill": "普通攻击", "target": "遗迹守卫" } },
+    { "activity": "rpg-map-ruin-1", "operation": "skill", "parameters": { "skill": "普通攻击", "target": "遗迹守卫" }, "expect": { "status": { "character:player.rpg-hp": 28 }, "knows": { "character:player": "战斗胜利" }, "doesNotKnow": { "character:aru": ["破甲", "燃烧", "护盾"] } } }
+  ]
+}

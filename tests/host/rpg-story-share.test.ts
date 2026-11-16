@@ -58,8 +58,8 @@ it('sharing a story node of an rpg.json pack preflights with persistent data com
         ...officialRpgContent,
         identity: { firePowerBonus: 1 },
         generate(config, facts) {
-          const copy = structuredClone(config) as { skills: { id: string; power: number }[] }
-          copy.skills.find(skill => skill.id === 'fire')!.power++
+          const copy = structuredClone(config) as { skills: { id: string; effects: { amount: number }[] }[] }
+          copy.skills.find(skill => skill.id === 'fire')!.effects[0]!.amount++
           return officialRpgContent.generate(copy, facts)
         },
       },
@@ -85,12 +85,12 @@ it('sharing a story node of an rpg.json pack preflights with persistent data com
     content: [
       {
         ...officialRpgContent,
-        dataVersion: 2,
-        supportedDataVersions: [2],
+        dataVersion: 3,
+        supportedDataVersions: [3],
       },
     ],
   })
-  const mismatch = 'official-rpg 插件的数据版本与存档不兼容（存档 dataVersion 1，当前支持 2）'
+  const mismatch = 'official-rpg 插件的数据版本与存档不兼容（存档 dataVersion 2，当前支持 3）'
   await expect(importStoryNode(archive, receiver, pack, node.packHash, incompatible)).rejects.toThrow(mismatch)
   const fork = join(root, 'fork')
   restoreStoryNode(data, node.id, fork, node.packHash)

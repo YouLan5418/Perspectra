@@ -63,7 +63,7 @@ export function officialRpgBattleView(
         Number(shield.remaining) <= 0)
     )
       return
-    const statuses: { name: string; remaining: number }[] = []
+    const statuses: NonNullable<OfficialRpgBattleView['units'][number]['statuses']>[number][] = []
     if (display) {
       if (!Array.isArray(display.statuses)) return
       for (const row of display.statuses) {
@@ -76,7 +76,12 @@ export function officialRpgBattleView(
           Number(row.remaining) <= 0
         )
           return
-        statuses.push({ name: row.name, remaining: Number(row.remaining) })
+        if (
+          (row.timing !== 'after-action' && row.timing !== 'round-end') ||
+          (row.polarity !== 'positive' && row.polarity !== 'negative')
+        )
+          return
+        statuses.push({ name: row.name, remaining: Number(row.remaining), timing: row.timing, polarity: row.polarity })
       }
     }
     units.push({
@@ -97,7 +102,9 @@ export function officialRpgBattleView(
   const skills = config.skills
     .filter(skill => config.characters[actorId]?.skills.includes(skill.id))
     .map(skill => {
-      const eligible = units.filter(unit => unit.hp > 0 && unit.team === skillTargetSide(skill))
+      const eligible = units.filter(
+        unit => unit.hp > 0 && unit.team === skillTargetSide(skill) && (skill.target !== 'self' || unit.id === actorId),
+      )
       const targets = eligible
         .filter(
           unit =>

@@ -94,8 +94,14 @@ it('runs non-fire periodic damage and healing after the holder acts, refreshes, 
 
 it('DoT bypasses one-shot guard but consumes shields before HP, and healing ticks restore HP', () => {
   const f = fixture(c => {
-    c.combatStatuses.rot = { name: '腐蚀', turns: 3, tick: { kind: 'damage', amount: 6 } }
-    c.skills.find((s: Json) => s.id === 'strike').inflicts = 'rot'
+    c.combatStatuses.rot = {
+      name: '腐蚀',
+      turns: 3,
+      tick: { kind: 'damage', amount: 6 },
+      timing: 'after-action',
+      polarity: 'negative',
+    }
+    c.skills.find((s: Json) => s.id === 'strike').effects.push({ kind: 'status', status: 'rot' })
   })
   f.step('护盾术') // enemy hit: shield 4, rot awaits holder action
   f.step() // rot 6 absorbs 4 and hurts 2; guard still halves enemy's 8
@@ -118,19 +124,27 @@ it('settles lethal periodic damage and clears all effects at victory or defeat',
   expect(win.game.public.cleared).toBe(true)
   expect(win.game.internal).toMatchObject({ conditions: [], shields: [] })
   const lose = fixture(c => {
-    c.skills.find((s: Json) => s.id === 'strike').power = 100
+    c.skills.find((s: Json) => s.id === 'strike').effects[0].amount = 100
   })
   lose.step('再生术')
   expect(lose.game.phase).toBe('defeat')
   expect(lose.game.internal).toMatchObject({ conditions: [], shields: [] })
 })
 
-it('loads legacy burn unchanged and rejects ambiguous or executable effect declarations', () => {
+it('accepts only the new format and rejects legacy or executable effect declarations', () => {
   const raw = referenceJson() as Json
-  raw.combatStatuses = { burn: { name: '燃烧', turns: 3, damage: 3, element: 'fire' } }
+  raw.combatStatuses = {
+    burn: {
+      name: '燃烧',
+      turns: 3,
+      timing: 'after-action',
+      polarity: 'negative',
+      tick: { kind: 'damage', amount: 3, element: 'fire' },
+    },
+  }
   expect(parseRpgConfig(raw, referencePack).combatStatuses.burn).toEqual(raw.combatStatuses.burn)
-  raw.combatStatuses.burn.tick = { kind: 'heal', amount: 3 }
-  expect(() => parseRpgConfig(raw, referencePack)).toThrow('不能与旧')
+  raw.combatStatuses.burn.damage = 3
+  expect(() => parseRpgConfig(raw, referencePack)).toThrow('不认识的字段')
   delete raw.combatStatuses
   addRpgEffectsExample(raw)
   raw.skills.at(-1).effects = [{ kind: 'script', code: 'throw 1' }]
@@ -142,9 +156,8 @@ it('enemy effect skills execute against their declared side, including damage an
     c.skills.push({
       id: 'enemy-effect',
       name: '冲击',
-      kind: 'effect',
-      target: 'party',
-      effects: [{ kind: 'damage', amount: 8 }],
+      target: 'opponent',
+      effects: [...[{ kind: 'damage', amount: 8 }]],
     })
     c.enemies.golem.skills = ['enemy-effect']
   })
@@ -154,9 +167,8 @@ it('enemy effect skills execute against their declared side, including damage an
     c.skills.push({
       id: 'enemy-ward',
       name: '守卫护盾',
-      kind: 'effect',
-      target: 'enemy',
-      effects: [{ kind: 'shield', amount: 10, turns: 1 }],
+      target: 'self',
+      effects: [...[{ kind: 'shield', amount: 10, turns: 1 }]],
     })
     c.enemies.golem.skills = ['enemy-ward']
   })
@@ -173,10 +185,150 @@ it('a shield granted by someone else counts the holder next valid action, includ
   const f = fixture(c => {
     c.enemies.golem.skills = []
     const ward = c.skills.find((skill: Json) => skill.id === 'ward')
-    ward.target = 'enemy'
+    ward.target = 'opponent'
     ward.effects[0].turns = 1
   })
   f.step('护盾术', '遗迹守卫')
   expect(f.game.internal.shields).toEqual([])
   expect(f.game.public.lastResult).toContain('护盾到期')
+})
+
+it('uses freshly applied armor modifiers within the same multi-effect action and refreshes without stacking', () => {
+  const f = fixture(c => {
+    c.enemies.golem.skills = []
+    c.combatStatuses.fracture = {
+      name: '破甲',
+      turns: 3,
+      timing: 'after-action',
+      polarity: 'negative',
+      modifiers: { defense: -3 },
+    }
+    c.skills.push({
+      id: 'sunder',
+      name: '破甲击',
+      target: 'opponent',
+      cost: { mp: 3 },
+      effects: [
+        { kind: 'status', status: 'fracture' },
+        { kind: 'damage', amount: 8 },
+      ],
+    })
+    c.characters[player].skills.push('sunder')
+  })
+  f.step('破甲击', '遗迹守卫')
+  expect(f.game.public.units.find((u: Json) => u.id === 'golem').hp).toBe(40)
+  expect(f.game.public.units[0].stats.mp).toBe(97)
+  f.step('破甲击', '遗迹守卫')
+  expect(f.game.internal.conditions).toEqual([{ unitId: 'golem', statusId: 'fracture', remaining: 2 }])
+  expect(f.game.public.units[0].stats.mp).toBe(94)
+})
+
+it('keeps round-end bonuses through enemy action, then expires simultaneous modifiers at the boundary', () => {
+  const f = fixture(c => {
+    c.combatStatuses.attack = {
+      name: '攻击提升',
+      turns: 1,
+      timing: 'round-end',
+      polarity: 'positive',
+      modifiers: { attack: 3 },
+    }
+    c.combatStatuses.defense = {
+      name: '防御提升',
+      turns: 1,
+      timing: 'round-end',
+      polarity: 'positive',
+      modifiers: { defense: 3 },
+    }
+    c.skills.push({
+      id: 'boost',
+      name: '振奋',
+      target: 'self',
+      effects: [
+        { kind: 'status', status: 'attack' },
+        { kind: 'status', status: 'defense' },
+      ],
+    })
+    c.characters[player].skills.push('boost')
+  })
+  expect(f.step('振奋', '遗迹守卫').rejectReason).toBeTruthy()
+  f.step('振奋')
+  expect(f.game.public.units[0].hp).toBe(35)
+  expect(f.game.internal.conditions).toEqual([])
+  expect(f.game.public.lastResult).toContain('攻击提升结束')
+  expect(f.game.public.lastResult).toContain('防御提升结束')
+  f.step('普通攻击', '遗迹守卫')
+  expect(f.game.public.units.find((u: Json) => u.id === 'golem').hp).toBe(42)
+})
+
+it('cleanses negatives in declared order, preserves positive statuses and does not tick removed states', () => {
+  const f = fixture(c => {
+    c.enemies.golem.skills = []
+    c.combatStatuses.poison = {
+      name: '毒',
+      turns: 2,
+      timing: 'after-action',
+      polarity: 'negative',
+      tick: { kind: 'damage', amount: 8 },
+    }
+    c.combatStatuses.boost = {
+      name: '提升',
+      turns: 2,
+      timing: 'after-action',
+      polarity: 'positive',
+      modifiers: { attack: 2 },
+    }
+    c.skills.push({
+      id: 'clean',
+      name: '洗净',
+      target: 'self',
+      effects: [
+        { kind: 'status', status: 'poison' },
+        { kind: 'status', status: 'boost' },
+        { kind: 'cleanse', polarity: 'negative' },
+      ],
+    })
+    c.characters[player].skills.push('clean')
+  })
+  f.step('洗净')
+  expect(f.game.public.units[0].hp).toBe(40)
+  expect(f.game.internal.conditions).toEqual([{ unitId: player, statusId: 'boost', remaining: 1 }])
+})
+
+it('bounds lifecycle and modifier declarations and refuses obsolete skill formats', () => {
+  for (const edit of [
+    (c: Json) => {
+      c.skills[0].power = 8
+    },
+    (c: Json) => {
+      c.skills[0].target = 'enemy'
+    },
+    (c: Json) => {
+      c.combatStatuses.x = {
+        name: 'X',
+        turns: 100,
+        timing: 'after-action',
+        polarity: 'negative',
+        modifiers: { defense: -1 },
+      }
+    },
+    (c: Json) => {
+      c.combatStatuses.x = {
+        name: 'X',
+        turns: 1,
+        timing: 'arbitrary',
+        polarity: 'negative',
+        modifiers: { defense: -1 },
+      }
+    },
+    (c: Json) => {
+      c.combatStatuses.x = {
+        name: 'X',
+        turns: 1,
+        timing: 'after-action',
+        polarity: 'negative',
+        modifiers: { defense: -1001 },
+      }
+    },
+  ])
+    expect(() => fixture(edit)).toThrow()
 })
