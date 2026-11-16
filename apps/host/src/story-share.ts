@@ -115,7 +115,7 @@ function decode(path: string): { node: StoryNode; files: Record<string, Buffer> 
   return { node: meta as unknown as StoryNode, files: decoded }
 }
 /** Validate a disposable copy, never migrate or write the sender's immutable node. */
-async function validate(
+export async function validateStorySnapshot(
   directory: string,
   node: StoryNode,
   packPath: string,
@@ -267,7 +267,7 @@ export async function exportStoryNode(
   try {
     mkdirSync(check)
     for (const name of node.files) writeFileSync(join(check, name), Buffer.from(files[name]!, 'base64'))
-    await validate(check, node, packPath, composition)
+    await validateStorySnapshot(check, node, packPath, composition)
     writeFileSync(temporary, JSON.stringify({ kind: 'perspectra-story-node', node, files }), { flag: 'wx' })
     renameSync(temporary, destination)
   } finally {
@@ -298,7 +298,7 @@ export async function importStoryNode(
     const check = join(temporary, '.check')
     mkdirSync(check)
     for (const name of node.files) writeFileSync(join(check, name), shared.files[name]!)
-    await validate(check, node, packPath, composition)
+    await validateStorySnapshot(check, node, packPath, composition)
     rmSync(check, { recursive: true, force: true })
     writeFileSync(join(nodeRoot, 'node.json'), JSON.stringify(node))
     restoreStoryNode(temporary, node.id, join(temporary, '.runtime'), packHash)

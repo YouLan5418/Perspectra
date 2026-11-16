@@ -6,7 +6,7 @@ import { Button } from './ui/button/index.ts'
 import DialogFrame from './DialogFrame.vue'
 
 const props = defineProps<{ open: boolean }>()
-const emit = defineEmits<{ close: []; import: []; export: [nodeId: string] }>()
+const emit = defineEmits<{ close: []; import: []; export: [nodeId: string]; backup: []; restore: [] }>()
 const store = useLauncherStore()
 const selectedNodeId = ref('')
 const name = ref('我的新故事')
@@ -40,6 +40,15 @@ async function fork() {
   >
     <p v-if="store.currentInstance?.storyError" role="alert">{{ store.currentInstance.storyError }}</p>
 
+    <div class="dialog-actions">
+      <Button
+        variant="outline"
+        :disabled="store.busy || !store.currentInstance || !!store.currentInstance.storyError"
+        @click="emit('backup')"
+        >备份整个存档实例</Button
+      >
+      <Button variant="outline" :disabled="store.busy || store.running" @click="emit('restore')">恢复备份</Button>
+    </div>
     <div class="storyline-list">
       <button
         v-for="line in store.currentInstance?.storylines"

@@ -33,6 +33,7 @@ import {
   type PackRolePresets,
   type RolePreset,
 } from '@perspectra/providers/chat'
+import { exportStoryTree, importStoryTree } from '../../host/src/story-backup.ts'
 import { exportStoryNode, importStoryNode } from '../../host/src/story-share.ts'
 import { readStoryNodes, restoreStoryNode, storyId } from '../../host/src/story-nodes.ts'
 import { ModelPresets, packPreset, packRolePresets, presetChoice } from '../../host/src/model-presets.ts'
@@ -896,6 +897,51 @@ export class LauncherCore {
         this.#characters[pack.id] = characters
         this.#setBundled(pack.id, bundled)
         await this.#describe(pack, compiled)
+        return this.snapshot()
+      }
+      case 'tree-backup': {
+        const instance = this.#instance(request.instanceId)
+        const pack = this.#index.packs.find(p => p.id === instance.packageId)!
+        await exportStoryTree(
+          join(this.root, 'instances', instance.id),
+          {
+            name: instance.name,
+            packHash: instance.packHash,
+            currentStorylineId: instance.currentStorylineId,
+            storylines: instance.storylines,
+          },
+          text(request.path, '备份路径'),
+          pack.path,
+        )
+        return this.snapshot()
+      }
+      case 'tree-restore': {
+        this.#idle()
+        const pack = this.#index.packs.find(p => p.id === request.packageId)
+        if (!pack) throw new Error('请先载入对应游戏包。')
+        const name = text(request.name, '新实例名称', 80)
+        const imported = await importStoryTree(
+          text(request.path, '备份文件'),
+          join(this.root, 'instances'),
+          pack.path,
+          pack.hash,
+        )
+        const instance: Instance = {
+          ...imported.tree,
+          id: imported.id,
+          name,
+          packageId: pack.id,
+          packageVersion: pack.version,
+          lastPlayedAt: null,
+        }
+        try {
+          const models = this.#newModels(undefined, pack.id)
+          if (models) instance.models = models
+          await this.#save({ ...this.#index, instances: [...this.#index.instances, instance] })
+        } catch (error) {
+          await rm(join(this.root, 'instances', imported.id), { recursive: true, force: true })
+          throw error
+        }
         return this.snapshot()
       }
       case 'story-export': {

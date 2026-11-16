@@ -832,6 +832,21 @@ export const useLauncherStore = defineStore('launcher', () => {
       notice.value = error instanceof Error ? error.message : '透视打开失败。'
     }
   }
+  async function backupTree(path: string): Promise<boolean> {
+    if (!real) return false
+    if (!(await action('tree-backup', { instanceId: selectedInstanceId.value, path }))) return false
+    notice.value = '整棵已保存存档树已备份；未保存进度未包含。请妥善保管私密备份。'
+    return true
+  }
+  async function restoreTree(path: string, name: string): Promise<boolean> {
+    if (!real) return false
+    const previous = new Set(instances.value.map(instance => instance.id))
+    if (!(await action('tree-restore', { packageId: selectedPackageId.value, path, name }))) return false
+    selectedInstanceId.value =
+      instances.value.find(instance => !previous.has(instance.id))?.id ?? selectedInstanceId.value
+    notice.value = '整树已恢复为独立实例，原实例保留；无独立保存头的线路从已保存叉点继续。恢复未调用模型。'
+    return true
+  }
   async function exportStory(nodeId: string, path: string): Promise<boolean> {
     if (!real) return false
     if (!(await action('story-export', { instanceId: selectedInstanceId.value, nodeId, path }))) return false
@@ -866,6 +881,8 @@ export const useLauncherStore = defineStore('launcher', () => {
     preferencesDirty,
     resetPreferencesDraft,
     applyPreferences,
+    backupTree,
+    restoreTree,
     exportStory,
     importStory,
     selectStoryline,

@@ -133,3 +133,13 @@ export async function chooseDataDirectory(): Promise<string | null> {
   const path = await open({ title: '选择新的数据目录（重启后生效）', directory: true, multiple: false })
   return typeof path === 'string' ? path : null
 }
+
+export async function chooseTreeBackup(restore: boolean): Promise<string | null> {
+  if (!isTauri()) return null
+  const { open, save } = await import('@tauri-apps/plugin-dialog')
+  const filters = [{ name: 'Perspectra 整树备份', extensions: ['perspectra-backup'] }]
+  const path = restore
+    ? await open({ title: '恢复备份', multiple: false, filters })
+    : await save({ title: '备份整个存档实例', defaultPath: '存档实例.perspectra-backup', filters })
+  return typeof path === 'string' ? path : null
+}
