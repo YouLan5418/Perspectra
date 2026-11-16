@@ -17,7 +17,13 @@ export function copyCards(config: WorldJsonObject = {}) {
   const path = join(pack, 'cards.json')
   writeFileSync(
     path,
-    JSON.stringify({ ...JSON.parse(readFileSync(path, 'utf8')), seed: 3, npcMode: 'model', ...config }),
+    JSON.stringify({
+      ...JSON.parse(readFileSync(path, 'utf8')),
+      seed: 3,
+      npcMode: 'model',
+      reward: undefined,
+      ...config,
+    }),
   )
   return { root, pack, data, cleanup: () => rmSync(root, { recursive: true, force: true }) }
 }

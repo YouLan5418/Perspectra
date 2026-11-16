@@ -240,4 +240,6 @@ NPC 固定台词发表时，可选 `onPublished(state, actorId, expression)` 返
 
 ## 卡牌活动（2026-11-16）
 
-玩家支付攻击，另一席防御或第三席援助，等待点均可保存。`official-cards` 通过现有 `nativeGameplay` 展开原生操作，把持久纯牌局放入所属 Activity；公开桌面和本人私有数据分别投影，自定义舞台只提交既有操作。它不依赖 RPG，不增加 Core/SDK 服务。三个规则、固定公开响应包络、全树分叉验证与末端重生成限制见[指南](../guides/cards.md)和[验收](../../superpowers/plans/2026-11-16-card-activity-foundation.md)。
+玩家支付攻击，另一席防御或第三席援助，等待点均可保存。`official-cards` 通过现有 `nativeGameplay` 展开原生操作，把持久纯牌局放入所属 Activity；公开桌面和本人私有数据分别投影，自定义舞台只提交既有操作。它不依赖 RPG，不增加 Core/SDK 服务。三个规则、固定公开响应包络、全树分叉验证与末端重新生成支持范围见[指南](../guides/cards.md)和[验收](../../superpowers/plans/2026-11-16-card-activity-foundation.md)。
+
+2026-11-16 奖励补验：卡牌样板通过作者显式 `reward` 配置，在竞价胜局的原生活动结果中同时提出 `cards-credit` 所属角色状态变化，终局和积分经公共执行器同事务提交。纯牌局引擎仍只产出结果，其他包默认无奖励状态。真实Host防重、节点/完整树恢复、分叉和无效奖励整批拒绝见[验收记录](../../superpowers/plans/2026-11-16-card-activity-foundation.md#奖励收口补验)。卡牌本版不支持末端重新生成，按用户确认不把它列为待修项；普通恢复与确定性重放继续支持。

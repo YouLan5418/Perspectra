@@ -1,3 +1,4 @@
+import { cardRewardState, CARD_CREDIT_LIMIT, type CardRewardConfig } from './rewards.ts'
 import { nativeGameplay, type ContentGenerator } from '@perspectra/sdk'
 import type { WorldJsonObject } from '@perspectra/sdk/contracts'
 import { createCardActivity, scopedCardView, validateCardActivities } from './activity.ts'
@@ -22,10 +23,22 @@ export function createCardsContent(rulePacks: readonly RulePack[] = officialCard
         npcIds: { type: 'array', minItems: 2, maxItems: 8, uniqueItems: true, items: { type: 'string' } },
         seed: { type: 'integer', minimum: 1, maximum: 4294967295 },
         npcMode: { type: 'string', enum: ['model', 'deterministic'] },
+        reward: {
+          type: 'object',
+          additionalProperties: false,
+          required: ['rule', 'amount', 'minimumBid'],
+          properties: {
+            rule: { type: 'string', enum: ['auction'] },
+            amount: { type: 'integer', minimum: 1, maximum: CARD_CREDIT_LIMIT },
+            minimumBid: { type: 'integer', minimum: 0, maximum: 9 },
+          },
+        },
       },
     },
     validateConfig(raw, pack) {
-      const config = raw as { npcIds: string[] }
+      const config = raw as { npcIds: string[]; reward?: CardRewardConfig }
+      if (config.reward && (!pack.playerId || !rulePacks.some(rule => rule.id === config.reward!.rule)))
+        return [{ path: '/reward', message: '奖励需要玩家与所选竞价规则' }]
       return config.npcIds.flatMap((id, i) =>
         pack.characterIds.includes(id) && id !== pack.playerId
           ? []
@@ -33,19 +46,37 @@ export function createCardsContent(rulePacks: readonly RulePack[] = officialCard
       )
     },
     generate(raw, pack) {
-      const config = raw as { npcIds: string[]; seed?: number; npcMode?: 'model' | 'deterministic' }
+      const config = raw as {
+        npcIds: string[]
+        seed?: number
+        npcMode?: 'model' | 'deterministic'
+        reward?: CardRewardConfig
+      }
       const scope = crypto.randomUUID().replaceAll('-', '').slice(0, 20)
       const activities = rulePacks.map(rule => ({
         key: `cards-${rule.id}`,
         activity: createCardActivity(
           rule,
-          { ...config, names: { ...pack.names }, npcMode: config.npcMode ?? 'deterministic' },
+          {
+            ...config,
+            ...(pack.playerId ? { playerId: pack.playerId } : {}),
+            names: { ...pack.names },
+            npcMode: config.npcMode ?? 'deterministic',
+          },
           scope,
         ),
       }))
       const rules = new Map(rulePacks.map(rule => [`cards-${rule.id}`, rule]))
-      const definition = nativeGameplay({ id: 'official-cards', version: '1', dataVersion: 1, activities })
+      const status = config.reward ? cardRewardState(pack.characterIds) : undefined
+      const definition = nativeGameplay({
+        id: 'official-cards',
+        version: '1',
+        dataVersion: 1,
+        activities,
+        ...(status ? { status } : {}),
+      })
       return {
+        ...(status ? { statusModules: [status] } : {}),
         gameplayConfig: {},
         activities,
         gameplay: [

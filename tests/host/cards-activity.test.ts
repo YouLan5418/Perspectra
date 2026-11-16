@@ -210,7 +210,7 @@ it('rejects an old instance action at exactly the same activity/request/revision
   await expect(actions.perform({ ...request, actionId: randomUUID(), requestId: randomUUID() })).rejects.toThrow()
   expect(fork.events()).toHaveLength(acceptedCount)
 }, 60_000)
-it('records the generic tail replay limitation safely: a fresh instance refuses the old card operation and retains the committed result', async () => {
+it('keeps unsupported card tail regeneration safely rejected and retains the committed result', async () => {
   const f = await open()
   await startCards(f, 'auction')
   await chooseCard(f, 'bid:5')

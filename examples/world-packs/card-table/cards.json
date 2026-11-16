@@ -3,5 +3,10 @@
     "character:qing",
     "character:mo"
   ],
-  "npcMode": "deterministic"
+  "npcMode": "deterministic",
+  "reward": {
+    "rule": "auction",
+    "amount": 3,
+    "minimumBid": 6
+  }
 }

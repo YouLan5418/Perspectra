@@ -1,3 +1,4 @@
+import { cardRewardResult, type CardRewardConfig } from './rewards.ts'
 import type { ActivityHooks } from '@perspectra/sdk'
 import { canonicalizeWorldJson, type ActivityGame, type WorldJsonObject } from '@perspectra/sdk/contracts'
 import { createTable, project, submit, validate, type Table, type RulePack, type Data } from './engine.ts'
@@ -8,6 +9,8 @@ export interface CardActivityConfig {
   /** Optional reproducible demo seed. Otherwise one recorded Host draw seeds the pure engine. */
   seed?: number
   npcMode: 'model' | 'deterministic'
+  reward?: CardRewardConfig
+  playerId?: string
 }
 const object = (value: unknown) => value as WorldJsonObject
 export const tableOf = (game: ActivityGame) => game.internal.table as unknown as Table
@@ -97,7 +100,7 @@ export function createCardActivity(rule: RulePack, config: CardActivityConfig, s
         operations: ownChoices(scoped).some(row => row.choices.length) ? [operation] : [],
       }
     },
-    resolve(state, actor, requestedOperation, parameters) {
+    resolve(state, actor, requestedOperation, parameters, _world, truth) {
       if (requestedOperation !== operation) return { rejectReason: '牌桌操作所属实例已失效。' }
       const table = tableOf(state.game)
       try {
@@ -107,11 +110,13 @@ export function createCardActivity(rule: RulePack, config: CardActivityConfig, s
           seat: String(parameters.seat),
           choice: String(parameters.choice),
         })
+        const reward = cardRewardResult(table, next, config.reward, config.playerId ?? state.participants[0]!, truth)
         const lines = next.log.slice(table.log.length)
         return {
           game: toGame(next, rule),
           description: lines.join('\n') || '牌桌选择已提交。',
           audience: 'participants',
+          ...(reward ? { status: reward } : {}),
         }
       } catch (error) {
         if (error instanceof Error && /^CARD_(UNAUTHORIZED|STALE_REQUEST|ILLEGAL_CHOICE)$/.test(error.message))

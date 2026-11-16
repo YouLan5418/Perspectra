@@ -175,9 +175,70 @@
     "restoreVisibilityFollowup": "engine/activity 10/10 and 8 corruption probes rejected; colors/identity only"
   },
   "knownLimits": [
-    "Card tail regeneration refuses old instance-scoped operation; original committed result remains. Node restore/fork and pure accepted-input replay work.",
+    "Card tail regeneration is unsupported in this version by user decision, not a pending acceptance task. Existing safe rejection is retained; ordinary node restore/fork and pure deterministic accepted-input replay remain supported.",
     "Request envelopes/progress and Host actor/responders/revision metadata are public. Secret rights require fixed public envelopes and private choices/empty responses.",
-    "No world reward issuance. Future cross-match result consumers must atomically deduplicate by Activity.id.",
+    "Only author-opted-in auction player victories above the minimum bid award branch-local private cards-credit, atomically with the terminal Activity. No external payments or globally shared balances.",
     "No multiplayer, board/store, DSL, complete third-party card library, paid-model long-play, Windows/Tauri release acceptance."
-  ]
+  ],
+  "rewardFollowup": {
+    "baseSha": "fe2f04d72e91fd7f538894394861d22d8472ce67",
+    "historicalFullSuiteNote": "baselineFull/frozenFull above are evidence from the prior foundation commit; the full suite was not rerun for this scoped reward follow-up.",
+    "policy": {
+      "rule": "auction",
+      "playerVictoryOnly": true,
+      "amount": 3,
+      "minimumBid": 6,
+      "ownerState": "cards-credit",
+      "balanceMaximum": 1000000,
+      "authorOptInRequired": true
+    },
+    "rewardHost": {
+      "filesPassed": 1,
+      "testsPassed": 4,
+      "status": "passed"
+    },
+    "cardsAndSaveRegression": {
+      "filesPassed": 8,
+      "testsPassed": 26,
+      "durationSeconds": 33.38,
+      "status": "passed"
+    },
+    "rpgTrpgAndSaveRegression": {
+      "filesPassed": 8,
+      "testsPassed": 54,
+      "durationSeconds": 145.44,
+      "status": "passed"
+    },
+    "checks": {
+      "typecheck": "passed",
+      "lint": "exit 0; unrelated existing warnings",
+      "format": "passed",
+      "boundaries": "454 production files passed",
+      "docs": "104 pre-existing missing targets; no new missing targets; exit 1"
+    },
+    "transactionEvidence": "Terminal activity.updated and reward status.updated share transactionId; one award event. Repeated/reopened/restored/imported terminal data does not propose another reward.",
+    "branchEvidence": "From the same 7/6 sealed-bid waiting node, final bid5 wins balance3, final bid8 loses balance0; original node remains balance0 and pending.",
+    "invalidRewardEvidence": "A second eligible win beyond balanceMaximum is rejected by the real status Schema before commit; final input, terminal state, and balance remain unchanged. This is not an injected database I/O failure.",
+    "privacyEvidence": "NPC requests/continuations do not receive player credit3; reward-enabled identity stage retains opponent counts only and excludes roles/internal/rng.",
+    "notRerun": [
+      "full repository suite",
+      "browser reward interaction",
+      "paid model play",
+      "database I/O failure injection"
+    ],
+    "independentReview": {
+      "model": "gpt-6.1-sol",
+      "agent": "/root/cards_host_review",
+      "rewardTestsPassed": 4,
+      "typecheck": "passed",
+      "finalStatus": "approved"
+    },
+    "packValidation": {
+      "command": "validate",
+      "packHash": "sha256:2bb454f34e3d4ea3389311b2bff55e585aa79f79414f01d75b4aa79f6ee98a20",
+      "packId": "pack:card-table",
+      "packVersion": "1.0.0",
+      "status": "valid"
+    }
+  }
 }
