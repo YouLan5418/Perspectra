@@ -28,6 +28,7 @@ import { canonicalizeWorldJson, type WorldJsonObject } from '@perspectra/sdk/con
 import type { ActionAffordance } from '@perspectra/core/kernel'
 
 export interface HostState {
+  readonly battle?: import('@perspectra/sdk/contracts').OfficialRpgBattleView
   /** Already scoped to the player by the common gameplay runtime. Never module truth. */
   readonly gameplay?: readonly {
     readonly moduleId: string

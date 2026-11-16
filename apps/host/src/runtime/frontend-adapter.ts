@@ -210,6 +210,7 @@ export function projectPlayerView(state: HostState): PlayerView {
     })
   }
   return {
+    ...(state.battle ? { battle: structuredClone(state.battle) } : {}),
     expression: {
       speech:
         expressionPolicy?.speech === 'none' ? 'none' : expressionPolicy?.speech === 'choices' ? 'choices' : 'free',

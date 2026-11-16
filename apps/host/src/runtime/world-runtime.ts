@@ -1,3 +1,5 @@
+import { officialRpgBattleView } from '../official-bundle.ts'
+import type { OfficialRpgBattleView } from '@perspectra/sdk/contracts'
 import { assertServiceRequirements } from '@perspectra/world-pack'
 import { bindNativeGameplay } from '@perspectra/sdk'
 import { createWorldCast } from './world-cast.ts'
@@ -445,6 +447,7 @@ export class WorldHostCore implements HostRuntime {
       if (error !== undefined) this.#error = error
     },
   }
+  #battleView: OfficialRpgBattleView | undefined
   #activityView: WorldJsonObject | undefined
   #activityViews: WorldJsonObject[] | undefined
   /** Whether the last refresh allowed a wait; polling must not reopen the store to ask. */
@@ -942,6 +945,7 @@ export class WorldHostCore implements HostRuntime {
     this.#presentationWarning = warning
     return {
       gameplay,
+      ...(this.#battleView ? { battle: structuredClone(this.#battleView) } : {}),
       playerFeedback: { phase: this.#phaseLabel, message: [this.#notice, warning].filter(Boolean).join(' ') },
       busy: this.#busy,
       canInterrupt,
@@ -2668,6 +2672,22 @@ export class WorldHostCore implements HostRuntime {
   #projectActivity(world: ActivityWorld | undefined): void {
     this.#activityView = this.#gameplay.activity?.view(this.#playerId, world)
     this.#activityViews = this.#gameplay.activity?.views(this.#playerId, world)
+    this.#battleView = undefined
+    const view = this.#activityView
+    const generated = this.#generated?.activities.find(
+      entry => entry.key === view?.activityKey && entry.generator === 'official-rpg',
+    )
+    if (view && generated) {
+      try {
+        this.#battleView = officialRpgBattleView(generated.activity, view, this.#playerId, [
+          this.#playerId,
+          ...(this.#currentScene?.recipients ?? []).map(person => person.id),
+        ])
+      } catch {
+        // A presentation failure never changes the activity or removes the generic controls.
+        this.#battleView = undefined
+      }
+    }
   }
 
   async #refresh(): Promise<void> {

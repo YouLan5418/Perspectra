@@ -10,3 +10,4 @@ export { generateStatusModule, RPG_MODULE_ID, type RpgStatusModule } from './sta
 export { generateMapActivities, mapActivityKey, type MapActivityOptions } from './map-activity.ts'
 export { createRpgRules, OFFICIAL_RPG_RULES_ID } from './rules.ts'
 export { officialRpgContent } from './content.ts'
+export { officialRpgBattleView } from './battle-view.ts'

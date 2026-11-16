@@ -33,6 +33,7 @@ export type PlayerPluginControl = {
   | { readonly kind: 'select'; readonly value: string; readonly options: readonly { value: string; label: string }[] }
 )
 export interface PlayerView {
+  battle?: import('@perspectra/sdk/contracts').OfficialRpgBattleView
   game: { title: string }
   player: { name: string }
   scene: {
@@ -152,6 +153,7 @@ export const PLAYER_VIEW_PATCH_FIELDS = [
   'actions',
   'tailRound',
   'settings',
+  'battle',
   'activity',
   'activities',
   'feedback',

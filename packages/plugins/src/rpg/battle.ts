@@ -1,3 +1,4 @@
+import { registerOfficialBattle } from './battle-view.ts'
 import type { ActivityState, StatusTruth, WorldJsonObject } from '@perspectra/sdk/contracts'
 import type { ActivityHooks, MemoryRequest } from '@perspectra/sdk'
 import type {
@@ -398,7 +399,7 @@ export function createRpgMapBattleHooks(config: MapBattleConfig): ActivityHooks 
       : { kind: 'wait' }
   }
 
-  return {
+  const hooks: ActivityHooks = {
     definition: { title: config.title, npcIds: [...config.npcIds], operations },
     phases: RPG_MAP_ACTIVITY_PHASES,
 
@@ -854,4 +855,6 @@ export function createRpgMapBattleHooks(config: MapBattleConfig): ActivityHooks 
       }
     },
   }
+  registerOfficialBattle(hooks, config)
+  return hooks
 }

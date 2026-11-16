@@ -172,3 +172,5 @@ export function composeModelChannel(
 }
 
 export { GameplayScript } from '@perspectra/providers/activities'
+
+export { officialRpgBattleView } from '@perspectra/plugins/rpg'
