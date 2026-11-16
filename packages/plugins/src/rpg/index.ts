@@ -11,3 +11,6 @@ export { generateMapActivities, mapActivityKey, type MapActivityOptions } from '
 export { createRpgRules, OFFICIAL_RPG_RULES_ID } from './rules.ts'
 export { officialRpgContent } from './content.ts'
 export { officialRpgBattleView } from './battle-view.ts'
+
+export { officialRpgStageRenderer } from './stage-renderer.ts'
+export type { OfficialRpgBattleView } from './battle-presentation.ts'

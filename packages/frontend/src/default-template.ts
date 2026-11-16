@@ -1,4 +1,10 @@
-import { BATTLE_STAGE_HTML, BATTLE_STAGE_STYLE, createBattleStage } from './battle-stage.ts'
+import {
+  ACTIVITY_STAGE_HTML,
+  ACTIVITY_STAGE_STYLE,
+  createActivityStage,
+  activityStageRendererSource,
+} from './activity-stage.ts'
+import type { ActivityStageRenderer } from '@perspectra/sdk/contracts'
 import { GAMEPLAY_WIDGETS } from './gameplay-widgets.ts'
 import { createReadingPlayback } from './reading-playback.ts'
 import { STAGE_STYLE } from './stage-style.ts'
@@ -78,9 +84,9 @@ export const DEFAULT_PAGE = String.raw`<!doctype html>
     <label for="save-title">节点名称</label><input id="save-title" maxlength="80" autocomplete="off" required>
     <p id="save-result" role="status" class="hint"></p><div class="save-buttons"><button id="save-cancel" type="button">取消</button><button id="save-confirm" class="primary" type="button">保存进度</button></div>
   </div></dialog>
-</main>${BATTLE_STAGE_HTML}<script src="/frontend/sdk.js"></script><script src="/frontend/default.js"></script></body></html>`
+</main>${ACTIVITY_STAGE_HTML}<script src="/frontend/sdk.js"></script><script src="/frontend/default.js"></script></body></html>`
 
-export const DEFAULT_STYLE = STAGE_STYLE + BATTLE_STAGE_STYLE
+export const DEFAULT_STYLE = STAGE_STYLE + ACTIVITY_STAGE_STYLE
 
 /** Status bar rows grouped by holder, in the order the view lists them; a stale value reads "上次确认". */
 function statusBarRows(view: {
@@ -140,18 +146,19 @@ export const DEFAULT_SCRIPT = String.raw`(() => {
  const normalizePreferences=(${stagePreferences.toString()});
  let preferences=normalizePreferences({}),stageAssets=[],stageConfig=null,canSave=false,hasSpeech=false,hasBgm=false,saving=false,preferencesVersion=0;
  let latest,posting=false,pending,attached=null,connected=false,historyKey='',actionsKey='',waitOption=null,statusKey='',canRegenerate=false,requestVersion=0,submittedPlayers=0;
- let battleOpen=false,battleId=null,battleFocus=null;
- const battleStage=(${createBattleStage.toString()})(node('battle-stage'),(optionId,args)=>send('perform',{optionId,...(Object.keys(args).length?{arguments:args}:{})}),()=>advance());
- function updateBattle(disabled,reading){
-   const root=node('battle-stage'),main=document.querySelector('main');
-   const visible=battleOpen&&latest?.battle?.activityId===battleId&&latest?.status!=='paused';
+ let stageOpen=false,stageId=null,stageFocus=null;
+ const activityStage=(${createActivityStage.toString()})(node('activity-stage'),/*ACTIVITY_STAGE_RENDERERS*/[],(optionId,args)=>send('perform',{optionId,...(Object.keys(args).length?{arguments:args}:{})}),()=>advance());
+ function updateActivityStage(disabled,reading){
+   const root=node('activity-stage'),main=document.querySelector('main');
+   const visible=stageOpen&&latest?.activityStage?.activityId===stageId&&latest?.status!=='paused';
+   if(!visible)activityStage.clear();
    if(visible){
-     try{battleStage.update(latest,disabled,reading,playback.current()?.text||'继续阅读当前演出',node('notice').textContent)}
-     catch{battleOpen=false;parent.postMessage({type:'official-battle-failed',activityId:battleId},'*');node('notice').textContent='战斗视图无法显示，已返回通用卡片。'}
+     try{activityStage.update(latest,disabled,reading,playback.current()?.text||'继续阅读当前演出',node('notice').textContent)}
+     catch{stageOpen=false;parent.postMessage({type:'activity-stage-failed',activityId:stageId,revision:latest?.activityStage?.revision,renderer:latest?.activityStage?.renderer},'*');node('notice').textContent='活动视图无法显示，已返回通用卡片。'}
    }
-   const show=visible&&battleOpen,was=!root.hidden;root.hidden=!show;main.inert=show;
-   if(show&&!was){battleFocus=document.activeElement;root.focus({preventScroll:true})}
-   if(!show&&was&&battleFocus?.isConnected)battleFocus.focus({preventScroll:true});
+   const show=visible&&stageOpen,was=!root.hidden;root.hidden=!show;main.inert=show;
+   if(show&&!was){stageFocus=document.activeElement;root.focus({preventScroll:true})}
+   if(!show&&was&&stageFocus?.isConnected)stageFocus.focus({preventScroll:true});
  }
 
  // Never name who is replying: in hidden turns (who is awake at night) the name alone gives the game away.
@@ -224,7 +231,7 @@ export const DEFAULT_SCRIPT = String.raw`(() => {
    for(const control of node('activity-card').querySelectorAll('#activity-options button,#activity-options select,#activity-options input,#activity-options textarea,#activity-manage button'))control.disabled=actionDisabled;
   const retryAllowed=['ready','error'].includes(latest?.status)||(pending?.method==='speak'&&latest?.canInterrupt===true);
   node('retry').hidden=!pending;node('retry').disabled=posting||!connected||!retryAllowed;
-   updateBattle(actionDisabled,readingBlocked);
+   updateActivityStage(actionDisabled,readingBlocked);
    parent.postMessage({type:'frontend-reading',pending:readingBlocked,historyOpen:!node('history-panel').hidden,mode,historySignature:JSON.stringify((latest?.history||[]).map(line=>[line.seq,line.speaker,line.text,line.segments]))},'*');
    const tail=latest?.tailRound,count=tail?.candidateIds?.length||1,index=tail?.candidateIndex||1;
    roundTools.hidden=!tail?.id||!canRegenerate;
@@ -753,10 +760,10 @@ export const DEFAULT_SCRIPT = String.raw`(() => {
  node('settings-toggle').onclick=()=>{const open=node('settings-panel').hidden;drawer(open?'settings-panel':null);if(open)node('settings-close').focus();controls()};node('settings-close').onclick=()=>{drawer(null);node('settings-toggle').focus();controls()};
  node('reply-context').onclick=()=>{composerExpanded=false;controls()};
  node('reply-context').onkeydown=event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();event.stopPropagation();composerExpanded=false;controls();node('dialogue').focus()}};
- document.addEventListener('keydown',event=>{if(node('save-dialog').open)return;if(event.key==='Escape'){if(battleOpen){parent.postMessage({type:'official-battle-close',activityId:battleId},'*');return}if(!node('character-menu').hidden){node('character-menu').hidden=true;return}if(!node('audience-menu').hidden){audienceMenu(false);node('audience-button').focus();return}const toggle=document.querySelector('.stage-tools button[aria-expanded="true"]');drawer(null);composerExpanded=false;controls();toggle?.focus();return}if((event.key===' '||event.key==='Enter')&&!['INPUT','TEXTAREA','SELECT','BUTTON','SUMMARY'].includes(document.activeElement?.tagName)){event.preventDefault();advance()}});
+ document.addEventListener('keydown',event=>{if(node('save-dialog').open)return;if(event.key==='Escape'){if(stageOpen){parent.postMessage({type:'activity-stage-close',activityId:stageId,revision:latest?.activityStage?.revision,renderer:latest?.activityStage?.renderer},'*');return}if(!node('character-menu').hidden){node('character-menu').hidden=true;return}if(!node('audience-menu').hidden){audienceMenu(false);node('audience-button').focus();return}const toggle=document.querySelector('.stage-tools button[aria-expanded="true"]');drawer(null);composerExpanded=false;controls();toggle?.focus();return}if((event.key===' '||event.key==='Enter')&&!['INPUT','TEXTAREA','SELECT','BUTTON','SUMMARY'].includes(document.activeElement?.tagName)){event.preventDefault();advance()}});
  let lastWheel=0;
  document.addEventListener('wheel',event=>{
-   if(battleOpen)return;
+   if(stageOpen)return;
    if(['INPUT','TEXTAREA','SELECT'].includes(document.activeElement?.tagName))return;
    if(event.target.closest('.panel,.character-menu,.audience-menu,.activity-card,dialog,.composer,.dialogue'))return;
    const now=Date.now();
@@ -764,6 +771,16 @@ export const DEFAULT_SCRIPT = String.raw`(() => {
    if(event.deltaY<-40&&node('history-panel').hidden){lastWheel=now;historyPanel(true)}
    else if(event.deltaY>40&&node('history-panel').hidden){lastWheel=now;advance()}
  },{passive:true});
- api.subscribe(event=>{if(event.type==='presentation'){if(typeof event.battleOpen==='boolean'){battleOpen=event.battleOpen;battleId=event.battleId||null}activityOpen=event.activityOpen===true;if(activityOpen)composerExpanded=false;controls()}if(event.view){connected=true;render(event.view)}if(event.type==='disconnected'){connected=false;node('status').textContent='连接断开';node('status').dataset.state='disconnected';controls()}});
+ api.subscribe(event=>{if(event.type==='presentation'){if(typeof event.stageOpen==='boolean'){stageOpen=event.stageOpen;stageId=event.stageId||null}activityOpen=event.activityOpen===true;if(activityOpen)composerExpanded=false;controls()}if(event.view){connected=true;render(event.view)}if(event.type==='disconnected'){connected=false;node('status').textContent='连接断开';node('status').dataset.state='disconnected';controls()}});
  controls();api.ready.then(info=>{canRegenerate=info.capabilities.includes('regenerate');hasSpeech=info.capabilities.includes('speech');hasBgm=info.capabilities.includes('bgm');node('setting-bgm').disabled=!hasBgm;node('setting-bgm').checked=hasBgm;node('bgm-hint').textContent=hasBgm?'随阅读进度切换音乐':'尚未安装背景音乐插件';canSave=info.canSave===true;stageAssets=info.stageAssets||[];stageConfig=info.stageConfig||null;preferences=normalizePreferences(info.stagePreferences,{...info.view.settings?.reading,...info.view.settings?.audio,...(info.view.settings?.appearance?{appearance:info.view.settings.appearance}:{})});applyPreferences();node('setting-voiceEnabled').disabled=!hasSpeech;node('voice-hint').textContent=hasSpeech?'朗读当前角色的对白':'尚未安装语音服务';node('save-unavailable').hidden=canSave;connected=true;render(info.view)}).catch(error=>{node('notice').textContent=error.message;controls()});
 })();`
+
+/** Explicit trusted renderer composition; generic default assets contain no gameplay imports. */
+export function defaultFrontendAssets(renderers: readonly ActivityStageRenderer[] = []) {
+  const registered = activityStageRendererSource(renderers)
+  return {
+    page: DEFAULT_PAGE,
+    style: DEFAULT_STYLE + '\n' + registered.style,
+    script: DEFAULT_SCRIPT.replace('/*ACTIVITY_STAGE_RENDERERS*/[]', () => registered.script),
+  }
+}

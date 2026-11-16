@@ -1,3 +1,4 @@
+import type { ActivityStageView } from './contracts/activity-stage.ts'
 import type { JSONSchemaType } from 'ajv'
 import type {
   ActionAffordance,
@@ -299,12 +300,15 @@ export interface GameplaySelectControl {
 export type GameplayControl = GameplayBooleanControl | GameplaySelectControl
 
 export interface GameplayPlayerView {
+  readonly stage?: ActivityStageView
   readonly panels?: readonly GameplayPanel[]
   readonly controls?: readonly GameplayControl[]
 }
 
 /** The player view only receives state already authorized for the current player. */
 export interface GameplayPlayerViewInput<TState extends WorldJsonObject> {
+  /** Only this module’s active activities scoped to the participating player; never internal. */
+  readonly activities?: readonly WorldJsonObject[]
   readonly playerId: CharacterId
   readonly state: Readonly<Partial<TState>>
 }

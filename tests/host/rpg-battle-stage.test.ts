@@ -1,3 +1,4 @@
+import { rpgView } from '../support/rpg-stage-view.ts'
 import { randomUUID } from 'node:crypto'
 import { afterEach, expect, it } from 'vitest'
 import { FrontendActions, projectPlayerView } from '../../apps/host/src/runtime/frontend-adapter.ts'
@@ -50,27 +51,27 @@ const request = (optionId: string, args?: WorldJsonObject) => ({
 it('projects official player combat only and uses the real deduplicated perform/commit path', async () => {
   const f = await battle(),
     before = await f.view()
-  expect(before.battle).toMatchObject({ kind: 'official-rpg-battle', round: 1, turn: 'character:player' })
-  expect(before.battle!.units.find(unit => unit.team === 'enemy')!.hp).toBe(50)
-  expect(before.battle!.skills.find(skill => skill.name === '普通攻击')!.targets).toEqual(['遗迹守卫'])
-  expect(before.battle!.skills.find(skill => skill.name === '治疗术')!.targets).toEqual([])
-  expect(JSON.stringify(before.battle)).not.toMatch(/internal|private|strategy|pending|conditions/)
+  expect(rpgView(before)).toMatchObject({ kind: 'official-rpg-battle', round: 1, turn: 'character:player' })
+  expect(rpgView(before)!.units.find(unit => unit.team === 'enemy')!.hp).toBe(50)
+  expect(rpgView(before)!.skills.find(skill => skill.name === '普通攻击')!.targets).toEqual(['遗迹守卫'])
+  expect(rpgView(before)!.skills.find(skill => skill.name === '治疗术')!.targets).toEqual([])
+  expect(JSON.stringify(rpgView(before))).not.toMatch(/internal|private|strategy|pending|conditions/)
   const skill = before.actions.find(
     option => option.argumentSchema?.properties && 'skill' in (option.argumentSchema.properties as WorldJsonObject),
   )!
   const input = request(skill.id, { skill: '普通攻击', target: '遗迹守卫' })
   const [left, right] = await Promise.all([f.actions.perform(input), f.actions.perform(input)])
-  expect(left.battle).toEqual(right.battle)
-  expect(left.battle!.round).toBe(2)
-  expect(left.battle!.units.find(unit => unit.team === 'enemy')!.hp).toBeLessThan(50)
-  expect(left.battle!.revision).toBeGreaterThan(before.battle!.revision)
+  expect(rpgView(left)).toEqual(rpgView(right))
+  expect(rpgView(left)!.round).toBe(2)
+  expect(rpgView(left)!.units.find(unit => unit.team === 'enemy')!.hp).toBeLessThan(50)
+  expect(rpgView(left)!.revision).toBeGreaterThan(rpgView(before)!.revision)
   const count = f.events().length
   await f.actions.perform(input)
   expect(f.events().length).toBe(count)
   await expect(f.actions.perform(request(skill.id, { skill: '普通攻击', target: '遗迹守卫' }))).rejects.toThrow()
   expect(f.events().length).toBe(count)
   const committed = (await f.runtime.state()).activity!.game as WorldJsonObject
-  expect(left.battle!.units.map(unit => unit.hp)).toEqual(
+  expect(rpgView(left)!.units.map(unit => unit.hp)).toEqual(
     (committed.public as WorldJsonObject).units instanceof Array
       ? ((committed.public as WorldJsonObject).units as WorldJsonObject[]).map(unit => unit.hp)
       : [],
@@ -82,13 +83,13 @@ it('returns to generic presentation on suspension and escape without resetting p
     before = await f.view()
   const suspend = before.actions.find(option => option.kind === 'manage' && option.label.startsWith('暂停'))!
   const paused = await f.actions.perform(request(suspend.id))
-  expect(paused.battle).toBeUndefined()
+  expect(rpgView(paused)).toBeUndefined()
   const resume = paused.actions.find(option => option.label.startsWith('继续'))!
   const resumed = await f.actions.perform(request(resume.id))
-  expect(resumed.battle!.activityId).toBe(before.battle!.activityId)
-  expect(resumed.battle!.units).toEqual(before.battle!.units)
+  expect(rpgView(resumed)!.activityId).toBe(rpgView(before)!.activityId)
+  expect(rpgView(resumed)!.units).toEqual(rpgView(before)!.units)
   await f.runtime.escape()
-  expect((await f.view()).battle).toBeUndefined()
+  expect(rpgView(await f.view())).toBeUndefined()
 })
 
 it('removes the battle projection after a real finishing hit', async () => {
@@ -98,7 +99,7 @@ it('removes the battle projection after a real finishing hit', async () => {
     option => option.argumentSchema?.properties && 'skill' in (option.argumentSchema.properties as WorldJsonObject),
   )!
   const after = await f.actions.perform(request(skill.id, { skill: '普通攻击', target: '遗迹守卫' }))
-  expect(after.battle).toBeUndefined()
+  expect(rpgView(after)).toBeUndefined()
   expect(f.events().some(event => event.eventType === 'activity.updated')).toBe(true)
 })
 

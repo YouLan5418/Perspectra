@@ -1,7 +1,8 @@
 import { EMPTY_BATTLE_VALUES, valueSkillProblem, type RpgValueDisplay } from './battle-values.ts'
 import { onlyHealing, skillTargetSide } from './combat-effects.ts'
 import type { ActivityHooks } from '@perspectra/sdk'
-import type { OfficialRpgBattleView, WorldJsonObject } from '@perspectra/sdk/contracts'
+import type { WorldJsonObject } from '@perspectra/sdk/contracts'
+import type { OfficialRpgBattleView } from './battle-presentation.ts'
 import type { MapBattleConfig } from './battle.ts'
 
 // Object identity, not a pack-supplied title, key or claimed mode. Weak keys follow the native instance lifetime.

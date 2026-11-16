@@ -1,3 +1,4 @@
+import { officialRpgBattleView } from './battle-view.ts'
 import configSchema from './config-schema.json' with { type: 'json' }
 import { ConfigInputError } from './config.ts'
 import type { ContentGenerator } from '@perspectra/sdk'
@@ -49,6 +50,32 @@ export const officialRpgContent: ContentGenerator = {
     })
     const gameplay = {
       ...definition,
+      playerView: ({
+        playerId,
+        activities: scoped = [],
+      }: import('@perspectra/sdk').GameplayPlayerViewInput<WorldJsonObject>) => {
+        for (const activity of scoped) {
+          const entry = activities.find(entry => entry.key === activity.activityKey)
+          if (!entry) continue
+          const view = officialRpgBattleView(
+            entry.activity,
+            activity,
+            playerId,
+            Array.isArray(activity.presentParticipants) ? (activity.presentParticipants as string[]) : [playerId],
+          )
+          if (view)
+            return {
+              stage: {
+                renderer: 'official-rpg.battle',
+                activityKey: view.activityKey,
+                activityId: view.activityId,
+                revision: view.revision,
+                payload: view as unknown as WorldJsonObject,
+              },
+            }
+        }
+        return {}
+      },
       physicalEffects: { characters: Object.keys(config.characters), entities: pack.entityIds },
       restrictions: [
         {

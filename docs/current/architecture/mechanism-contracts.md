@@ -121,3 +121,7 @@ world-pack 库仍接收公开安装目录；CLI 进程显式选基础交互，�
 ## 官方 RPG 活动内作者数值
 
 2026-11-15 独立数值批次：RPG 的 battleValues 声明共享值、单位只读属性与可付费资源。它们只由既有活动规则写入 game.internal，public 授权投影供默认卡片和官方战斗视图使用，不接通任意世界变量。受击与正数归零是插件内有限结算，不是核心通用事件接口。当前格式、持久版本 3 和验证范围见[作者数值记录](../../superpowers/plans/2026-11-15-rpg-author-values.md)及[配置指南](../../../examples/rpg-values/README.md)。
+
+## 通用活动专属舞台（2026-11-16）
+
+沿用 B8 的模块 playerView 注册、授权和错误隔离，补入所属活动的玩家 scoped 输入，并验证 stage 与当前活动 id/revision 的绑定；可信宿主组装渲染器，前端仍走现有 perform。Core 只读展示路径有改动，权威提交、通用调度及存档机制不变。见[当前接口与边界](../guides/activity-stages.md)。

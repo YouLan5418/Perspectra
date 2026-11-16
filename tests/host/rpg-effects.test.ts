@@ -1,3 +1,4 @@
+import { rpgView } from '../support/rpg-stage-view.ts'
 import { afterEach, expect, it } from 'vitest'
 import { randomUUID } from 'node:crypto'
 import { join } from 'node:path'
@@ -33,17 +34,17 @@ async function perform(f: Pick<RpgFixture, 'runtime'>, label: string, args?: Rec
 it('commits shield and periodic state through offered skills; rejected targets neither tick nor spend', async () => {
   const f = await open()
   const shield = await perform(f, '使用技能', { skill: '护盾术', target: '玩家' })
-  expect(shield.battle!.units[0]).toMatchObject({ hp: 40, shield: { amount: 4, remaining: 2 } })
+  expect(rpgView(shield)!.units[0]).toMatchObject({ hp: 40, shield: { amount: 4, remaining: 2 } })
   const before = f.events().filter(row => row.eventType === 'activity.updated').length
   await expect(perform(f, '使用技能', { skill: '护盾术', target: '遗迹守卫' })).rejects.toThrow('不能对该目标')
   expect(f.events().filter(row => row.eventType === 'activity.updated')).toHaveLength(before)
-  expect((await view(f)).battle!.units[0]!.shield).toEqual({ amount: 4, remaining: 2 })
+  expect(rpgView(await view(f))!.units[0]!.shield).toEqual({ amount: 4, remaining: 2 })
   const poisoned = await perform(f, '使用技能', { skill: '侵蚀术', target: '遗迹守卫' })
-  expect(poisoned.battle!.units.find(unit => unit.team === 'enemy')).toMatchObject({
+  expect(rpgView(poisoned)!.units.find(unit => unit.team === 'enemy')).toMatchObject({
     hp: 46,
     statuses: [{ name: '侵蚀', remaining: 2 }],
   })
-  expect(JSON.stringify(poisoned.battle)).not.toMatch(/internal|statusId|private|strategy/)
+  expect(JSON.stringify(rpgView(poisoned))).not.toMatch(/internal|statusId|private|strategy/)
 })
 it('keeps shields and status durations across activity pause/resume and a saved branch reopen', async () => {
   const f = await open()
@@ -51,19 +52,19 @@ it('keeps shields and status durations across activity pause/resume and a saved 
   const current = await perform(f, '使用技能', { skill: '护盾术', target: '玩家' })
   const pause = current.actions.find(row => row.label.startsWith('暂停'))!
   await perform(f, pause.label)
-  expect((await view(f)).battle).toBeUndefined()
+  expect(rpgView(await view(f))).toBeUndefined()
   const paused = await view(f),
     resume = paused.actions.find(row => row.label.startsWith('继续'))!
   const resumed = await perform(f, resume.label)
-  expect(resumed.battle!.units).toEqual(current.battle!.units)
+  expect(rpgView(resumed)!.units).toEqual(rpgView(current)!.units)
   const node = await f.runtime.saveNode('护盾与再生')
   const path = join(f.data, '..', 'effects-branch')
   restoreStoryNode(f.data, node.id, path, node.packHash)
   const branch = await openRpgWorld(f.pack, path)
   try {
-    expect((await view(branch)).battle!.units).toEqual(resumed.battle!.units)
+    expect(rpgView(await view(branch))!.units).toEqual(rpgView(resumed)!.units)
     for (const world of [f, branch]) await perform(world, '防御')
-    expect((await view(branch)).battle!.units).toEqual((await view(f)).battle!.units)
+    expect(rpgView(await view(branch))!.units).toEqual(rpgView(await view(f))!.units)
   } finally {
     await branch.close()
   }
@@ -100,10 +101,10 @@ it('applies defense and fire resistance before shield, while DoT leaves the one-
   await f.runtime.submit('/status rpg-equip@entity:iron-sword {}')
   await f.move('location:ruin-1')
   const ward = await perform(f, '使用技能', { skill: '护盾术', target: '玩家' })
-  expect(ward.battle!.units[0]).toMatchObject({ hp: 40, shield: { amount: 4, remaining: 2 } })
+  expect(rpgView(ward)!.units[0]).toMatchObject({ hp: 40, shield: { amount: 4, remaining: 2 } })
   const guarded = await perform(f, '防御')
-  expect(guarded.battle!.units[0]!.hp).toBe(38)
-  expect(guarded.battle!.units[0]!.shield).toBeUndefined()
-  expect(guarded.battle!.lastResult).toContain('燃烧造成 2 点伤害')
-  expect(guarded.battle!.lastResult).toContain('护盾破碎')
+  expect(rpgView(guarded)!.units[0]!.hp).toBe(38)
+  expect(rpgView(guarded)!.units[0]!.shield).toBeUndefined()
+  expect(rpgView(guarded)!.lastResult).toContain('燃烧造成 2 点伤害')
+  expect(rpgView(guarded)!.lastResult).toContain('护盾破碎')
 })

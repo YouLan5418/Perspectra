@@ -1,6 +1,6 @@
-import type { PlayerView } from './player-view.ts'
+import type { ActivityStageRenderer, ActivityStageRenderContext, WorldJsonObject } from '@perspectra/sdk/contracts'
+import type { OfficialRpgBattleView } from './battle-presentation.ts'
 
-export const BATTLE_STAGE_HTML = `<section id="battle-stage" class="battle-stage" aria-label="官方 RPG 战斗" tabindex="-1" hidden></section>`
 export const BATTLE_STAGE_STYLE = `
 .battle-stage[hidden]{display:none!important}
 .battle-stage{position:fixed;inset:0;z-index:1000;overflow:auto;box-sizing:border-box;padding:clamp(16px,4vw,48px);background:var(--ink-0,#faf9f6);color:var(--text,#222);display:flex;flex-direction:column;gap:20px}
@@ -15,13 +15,9 @@ export const BATTLE_STAGE_STYLE = `
 `
 
 /** Bundled only: no loader, URLs or world rules. The caller owns perform, reading and view switching. */
-export function createBattleStage(
-  root: HTMLElement,
-  perform: (optionId: string, args: Record<string, unknown>) => void,
-  read: () => void,
-) {
-  let current: PlayerView | undefined,
-    blocked = true,
+export function createBattleStage(root: HTMLElement) {
+  root.classList.add('battle-stage')
+  let blocked = true,
     signature = ''
   const helpers = {
     el<K extends keyof HTMLElementTagNameMap>(tag: K, text?: string) {
@@ -29,45 +25,19 @@ export function createBattleStage(
       if (text !== undefined) node.textContent = text
       return node
     },
-    identity(view: PlayerView) {
-      return JSON.stringify([
-        view.battle?.activityId,
-        view.battle?.revision,
-        view.tailRound?.worldVersion,
-        view.tailRound?.id,
-        view.tailRound?.candidateIds?.[(view.tailRound.candidateIndex ?? 1) - 1],
-      ])
-    },
   }
   return {
-    update(view: PlayerView, disabled: boolean, reading: boolean, dialogue: string, notice: string) {
-      current = view
+    update(payload: WorldJsonObject, context: ActivityStageRenderContext) {
+      const { disabled, reading, dialogue, notice, read } = context
       blocked = disabled
-      const battle = view.battle
+      const battle = payload as unknown as OfficialRpgBattleView
       if (!battle || battle.kind !== 'official-rpg-battle' || !battle.units.length)
         throw Error('Battle view incomplete')
-      const options = view.actions.filter(
-        option =>
-          (option.kind === 'activity' || option.kind === 'manage') &&
-          option.target?.kind === 'activity' &&
-          option.target.id === battle.activityKey,
-      )
-      const key = JSON.stringify([battle, options, helpers.identity(view)])
+      const options = context.actions
+      const key = JSON.stringify([battle, options, context.identity])
       if (key !== signature) {
         signature = key
-        const snapshot = helpers.identity(view)
-        const request = {
-          send(id: string, args: Record<string, unknown> = {}) {
-            if (
-              blocked ||
-              !current ||
-              helpers.identity(current) !== snapshot ||
-              !current.actions.some(option => option.id === id)
-            )
-              return
-            perform(id, args)
-          },
-        }
+        const request = { send: context.perform }
         const heading = helpers.el('div')
         heading.className = 'battle-summary'
         const title = helpers.el('div')
@@ -191,4 +161,11 @@ export function createBattleStage(
       readingButton.disabled = !reading
     },
   }
+}
+
+export const officialRpgStageRenderer: ActivityStageRenderer = {
+  id: 'official-rpg.battle',
+  moduleId: 'official-rpg',
+  style: BATTLE_STAGE_STYLE,
+  create: createBattleStage,
 }

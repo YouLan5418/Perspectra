@@ -210,7 +210,22 @@ export function projectPlayerView(state: HostState): PlayerView {
     })
   }
   return {
-    ...(state.battle ? { battle: structuredClone(state.battle) } : {}),
+    activityStage: (() => {
+      const current = state.activity
+      const stages = (state.gameplay ?? []).flatMap(row =>
+        row.view.stage ? [{ ...row.view.stage, moduleId: row.moduleId }] : [],
+      )
+      const matching = stages.filter(
+        stage =>
+          current &&
+          (current.game as WorldJsonObject)?.active &&
+          !current.suspended &&
+          stage.activityId === current.id &&
+          stage.activityKey === current.activityKey &&
+          stage.revision === current.revision,
+      )
+      return matching.length === 1 ? structuredClone(matching[0]!) : null
+    })(),
     expression: {
       speech:
         expressionPolicy?.speech === 'none' ? 'none' : expressionPolicy?.speech === 'choices' ? 'choices' : 'free',

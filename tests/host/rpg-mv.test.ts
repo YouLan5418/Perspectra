@@ -1,3 +1,4 @@
+import { rpgView } from '../support/rpg-stage-view.ts'
 import { afterEach, expect, it } from 'vitest'
 import { randomUUID } from 'node:crypto'
 import { rmSync } from 'node:fs'
@@ -81,7 +82,7 @@ it('charges a multi-effect cast once, rejects stale/unauthorized targets, and cl
   expect(game(f).internal.conditions.filter((c: Json) => c.unitId === 'character:player')).toEqual([
     { unitId: 'character:player', statusId: 'focus', remaining: 1 },
   ])
-  expect(view.battle!.units[0]!.statuses).toEqual([
+  expect(rpgView(view)!.units[0]!.statuses).toEqual([
     { name: '振奋', remaining: 1, timing: 'round-end', polarity: 'positive' },
   ])
   expect(game(f).public.units[0].stats.mp).toBe(3)

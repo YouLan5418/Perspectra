@@ -1,6 +1,7 @@
 import { createServer } from 'node:http'
 import type { IncomingMessage, ServerResponse } from 'node:http'
-import { FRONTEND_SDK, DEFAULT_PAGE, DEFAULT_STYLE, DEFAULT_SCRIPT } from '@perspectra/frontend'
+import { FRONTEND_SDK, defaultFrontendAssets } from '@perspectra/frontend'
+import { officialStageRenderers } from '../official-bundle.ts'
 import type { PackWeb } from './pack-frontend.ts'
 import { readFileSync } from 'node:fs'
 
@@ -22,6 +23,7 @@ export function frontendAsset(
   pack: PackWeb | undefined,
   hostOrigin: string,
   mode: 'sandbox' | 'trusted',
+  defaults = defaultFrontendAssets(officialStageRenderers),
 ): boolean {
   const url = new URL(request.url ?? '/', 'http://127.0.0.1')
   if (request.method !== 'GET' || !url.pathname.startsWith('/frontend/')) return false
@@ -34,14 +36,14 @@ export function frontendAsset(
       contentType: 'text/html; charset=utf-8',
       bytes:
         pack?.theme && url.searchParams.get('theme') === '1'
-          ? DEFAULT_PAGE.replace(
+          ? defaults.page.replace(
               DEFAULT_STYLESHEET,
               DEFAULT_STYLESHEET + '<link rel="stylesheet" href="/frontend/custom/theme.css">',
             )
-          : DEFAULT_PAGE,
+          : defaults.page,
     },
-    '/frontend/default.css': { contentType: 'text/css; charset=utf-8', bytes: DEFAULT_STYLE },
-    '/frontend/default.js': { contentType: 'text/javascript; charset=utf-8', bytes: DEFAULT_SCRIPT },
+    '/frontend/default.css': { contentType: 'text/css; charset=utf-8', bytes: defaults.style },
+    '/frontend/default.js': { contentType: 'text/javascript; charset=utf-8', bytes: defaults.script },
   }
   let path = ''
   try {

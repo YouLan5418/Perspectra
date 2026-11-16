@@ -156,7 +156,7 @@ iframe{
   #notice,#memory-status{left:12px}
 }
 </style></head><body>
-<header><div class="brand"><strong>Perspectra</strong><small>游玩中</small></div><span id="frontend-status" role="status">正在载入</span><div class="toolbar"><span id="host-tail-tools" hidden><button id="host-candidate-prev" type="button" aria-label="上一个候选">‹</button><span id="host-candidate-count"></span><button id="host-candidate-next" type="button" aria-label="下一个候选">›</button><button id="regenerate" type="button" aria-label="重新生成" title="重新生成此回合" disabled>↻</button></span><details id="tools"><summary>工具 ···</summary><div class="tool-menu"><button id="cancel-regenerate" type="button" hidden>取消重新生成</button><button id="reload-frontend" type="button">重新加载界面</button><button id="default-frontend" type="button">切换官方默认界面</button><button id="memory" type="button" hidden>整理长期记忆</button><p>这些操作不会清空已提交的进度。</p></div></details><button id="battle-toggle" type="button" hidden aria-pressed="false">打开战斗界面</button><button id="save-progress" type="button">保存进度</button><button id="escape" type="button" title="逃生：中止活动并恢复自由互动">中止活动</button></div></header>
+<header><div class="brand"><strong>Perspectra</strong><small>游玩中</small></div><span id="frontend-status" role="status">正在载入</span><div class="toolbar"><span id="host-tail-tools" hidden><button id="host-candidate-prev" type="button" aria-label="上一个候选">‹</button><span id="host-candidate-count"></span><button id="host-candidate-next" type="button" aria-label="下一个候选">›</button><button id="regenerate" type="button" aria-label="重新生成" title="重新生成此回合" disabled>↻</button></span><details id="tools"><summary>工具 ···</summary><div class="tool-menu"><button id="cancel-regenerate" type="button" hidden>取消重新生成</button><button id="reload-frontend" type="button">重新加载界面</button><button id="default-frontend" type="button">切换官方默认界面</button><button id="memory" type="button" hidden>整理长期记忆</button><p>这些操作不会清空已提交的进度。</p></div></details><button id="stage-toggle" type="button" hidden aria-pressed="false">打开活动界面</button><button id="save-progress" type="button">保存进度</button><button id="escape" type="button" title="逃生：中止活动并恢复自由互动">中止活动</button></div></header>
 <p id="notice" role="status"></p><p id="memory-status" role="status"></p>
 <details id="game" hidden><summary class="activity-heading"><small>当前活动</small><strong id="title"></strong><span id="activity-toggle"></span><span id="card-status"></span></summary><p id="round"></p><p id="activity-objective"></p><dl id="activity-state"></dl><p class="activity-section-label">可执行操作</p><div id="options"></div><p id="activity-feedback" role="status"></p><div id="management"></div></details>
 <iframe id="experience" title="游戏界面" sandbox="allow-scripts" referrerpolicy="no-referrer"></iframe>
@@ -177,25 +177,26 @@ iframe{
     const value=await response.json();if(!response.ok){const error=new Error(value.error||'公开接口请求失败');error.status=response.status;throw error}return value;
   }
   function post(value){if(port)port.postMessage(value)}
-  let battleSession=null,battleOpen=false,battleFailed=null;
-  function presentBattle(){post({type:'presentation',activityOpen:!!node('game').open&&!node('game').hidden,battleOpen,battleId:battleSession});node('battle-toggle').textContent=battleOpen?'切回默认界面':'打开战斗界面';node('battle-toggle').setAttribute('aria-pressed',String(battleOpen))}
-  function syncBattle(){
-    const battle=init?.frontend==='default'&&playerView?.status!=='paused'?playerView?.battle:null;
-    const id=battle?.kind==='official-rpg-battle'?battle.activityId:null;
-    if(id!==battleSession){battleSession=id;battleOpen=!!id;battleFailed=null}
-    node('battle-toggle').hidden=!id||battleFailed===id;
-    if(!id||battleFailed===id)battleOpen=false;
-    presentBattle();
+  let stageSession=null,stageOpen=false,stageFailed=null,stageBinding=null;
+  function presentStage(){post({type:'presentation',activityOpen:!!node('game').open&&!node('game').hidden,stageOpen,stageId:stageSession});node('stage-toggle').textContent=stageOpen?'切回默认界面':'打开活动界面';node('stage-toggle').setAttribute('aria-pressed',String(stageOpen))}
+  function syncStage(){
+    const stage=init?.frontend==='default'&&playerView?.status!=='paused'?playerView?.activityStage:null;
+    const id=stage?.activityId||null;
+    const binding=stage?JSON.stringify([stage.moduleId,stage.renderer,id]):null;
+    if(binding!==stageBinding){stageBinding=binding;stageSession=id;stageOpen=!!id;stageFailed=null}
+    node('stage-toggle').hidden=!id||stageFailed===id;
+    if(!id||stageFailed===id)stageOpen=false;
+    presentStage();
   }
-  node('battle-toggle').onclick=()=>{if(!battleSession||battleFailed===battleSession)return;battleOpen=!battleOpen;presentBattle()};
+  node('stage-toggle').onclick=()=>{if(!stageSession||stageFailed===stageSession)return;stageOpen=!stageOpen;presentStage()};
   window.addEventListener('message',event=>{
-    if(init?.frontend!=='default'||event.source!==frame.contentWindow||event.origin!=='null'||event.data?.activityId!==battleSession)return;
-    if(event.data.type==='official-battle-failed'){battleFailed=battleSession;battleOpen=false;syncBattle()}
-    if(event.data.type==='official-battle-close'){battleOpen=false;presentBattle()}
+    if(init?.frontend!=='default'||event.source!==frame.contentWindow||event.origin!=='null'||event.data?.activityId!==stageSession||event.data?.revision!==playerView?.activityStage?.revision||event.data?.renderer!==playerView?.activityStage?.renderer)return;
+    if(event.data.type==='activity-stage-failed'){stageFailed=stageSession;stageOpen=false;syncStage()}
+    if(event.data.type==='activity-stage-close'){stageOpen=false;presentStage()}
   });
 
   function applyView(next,notify=true){
-    if(!playerView){playerView=next;syncBattle();return}
+    if(!playerView){playerView=next;syncStage();return}
     const changes={};
     const selected=tail=>tail?.candidateIds?.[(tail.candidateIndex||1)-1]||null;
     const candidateChanged=playerView.tailRound?.id&&playerView.tailRound.id===next.tailRound?.id&&selected(playerView.tailRound)!==selected(next.tailRound);
@@ -207,7 +208,7 @@ iframe{
       if(prefix)changes.historyAppend=next.history.slice(playerView.history.length);else changes.history=next.history;
     }
     if(init?.frontend==='default'&&JSON.stringify(playerView.history)!==JSON.stringify(next.history)){readingPending=true;if(!changes.historyAppend)shownActivity=next.activity?{title:next.activity.title,game:{active:next.activity.active,phase:next.activity.phase,public:next.activity.public}}:null;node('game').open=false;panelPresentation()}
-    playerView=next;if(notify&&Object.keys(changes).length)post({type:'view-patch',changes});syncBattle();
+    playerView=next;if(notify&&Object.keys(changes).length)post({type:'view-patch',changes});syncStage();
   }
   async function connect(){
     if(connected||!frameLoaded||!frontendReady||!init)return;
@@ -257,7 +258,7 @@ iframe{
     };
     port.start();
     frame.contentWindow.postMessage({type:'frontend-connect',apiVersion:1},init.frontendMode==='trusted'?init.frontendOrigin:'*',[channel.port2]);
-    post({type:'initialized',apiVersion:1,frontendMode:init.frontendMode,capabilities:init.capabilities,view:playerView,...(init.frontend==='default'?{stagePreferences:readPreferences(),stageAssets:init.stageAssets,stageConfig:init.stageConfig,canSave:init.canSave}:{})});panelPresentation();syncBattle();
+    post({type:'initialized',apiVersion:1,frontendMode:init.frontendMode,capabilities:init.capabilities,view:playerView,...(init.frontend==='default'?{stagePreferences:readPreferences(),stageAssets:init.stageAssets,stageConfig:init.stageConfig,canSave:init.canSave}:{})});panelPresentation();syncStage();
     node('frontend-status').textContent=init.frontend==='default'?'官方默认模板 · 沙箱':init.frontendMode==='trusted'?'游戏包前端 · 受信任':'游戏包前端 · 沙箱';
   }
   window.addEventListener('message',event=>{
@@ -285,7 +286,7 @@ iframe{
     revoke();useDefault=fallback;
     init=await publicApi('init'+(fallback?'?template=default':''));
     readingPending=init.frontend==='default';historyOpen=false;signature='';if(latest)render(latest);
-    playerView=init.view;syncBattle();
+    playerView=init.view;syncStage();
     frame.setAttribute('sandbox',init.frontendMode==='trusted'?'allow-scripts allow-same-origin':'allow-scripts');
     frame.src=init.frontend==='custom'&&!fallback?(init.frontendOrigin||'')+'/frontend/custom/index.html':'/frontend/default.html'+(init.theme&&!fallback?'?theme=1':'');
     setTimeout(()=>{if(!connected)node('frontend-status').textContent='前端未连接；可重新加载或切换默认模板'},5000);

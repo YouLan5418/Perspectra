@@ -1038,12 +1038,40 @@ export class GameplayRuntime {
     return [...this.#modules.values()].map(module => {
       try {
         const view = this.#call(module, 'playerView', () => {
+          const activities: WorldJsonObject[] = (module.definition.activities ?? []).flatMap(definition => {
+            const state = activityProgress(snapshot.events).get(definition.key)
+            if (!state || !state.game.active || !state.participants.includes(playerId)) return []
+            return [
+              {
+                ...new ActivityStateRules(
+                  definition.behavior?.definition ?? { title: definition.title, operations: definition.operations },
+                  this.#player(),
+                  definition.key,
+                  definition.behavior?.phases,
+                ).scoped(state, playerId),
+                presentParticipants: state.participants.filter(
+                  id => id === playerId || this.#scene(snapshot.events, playerId).includes(id),
+                ),
+              },
+            ]
+          })
           const projected = gameplayPresentation(
             module.definition.playerView?.({
               playerId,
+              activities: readonlyData(activities),
               state: readonlyData(this.#project(module, snapshot.events, playerId, true)),
             }) ?? {},
           )
+          if (
+            projected.stage &&
+            !activities.some(
+              activity =>
+                activity.activityKey === projected.stage!.activityKey &&
+                activity.id === projected.stage!.activityId &&
+                activity.revision === projected.stage!.revision,
+            )
+          )
+            throw new TypeError('GAMEPLAY_STAGE_ACTIVITY_INVALID')
           for (const control of projected.controls ?? []) {
             const operation = this.#operations.get(control.operation.id)
             if (

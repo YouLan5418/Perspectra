@@ -1,3 +1,4 @@
+import { rpgView } from '../support/rpg-stage-view.ts'
 import { afterEach, expect, it } from 'vitest'
 import { randomUUID } from 'node:crypto'
 import { join } from 'node:path'
@@ -31,7 +32,7 @@ it('commits authored values, rejects unaffordable/invalid/stale requests, projec
   const start = projectPlayerView(await f.runtime.state()),
     before = structuredClone(game(f)),
     old = start.actions.find(a => a.label === '使用技能')!
-  expect(start.battle?.skills.find(s => s.name === '怒击')?.unavailable).toBe('怒气不足')
+  expect(rpgView(start)?.skills.find(s => s.name === '怒击')?.unavailable).toBe('怒气不足')
   await expect(act(f, '怒击')).rejects.toThrow()
   expect(game(f)).toEqual(before)
   await act(f, '压制')
@@ -40,7 +41,7 @@ it('commits authored values, rejects unaffordable/invalid/stale requests, projec
   expect(game(f).internal.values.units.golem.posture).toBe(0)
   expect(game(f).internal.values.units['character:player'].posture).toBe(4)
   const eligible = projectPlayerView(await f.runtime.state())
-  expect(eligible.battle?.skills.find(s => s.name === '怒击')?.unavailable).toBeUndefined()
+  expect(rpgView(eligible)?.skills.find(s => s.name === '怒击')?.unavailable).toBeUndefined()
   const snapshot = structuredClone(game(f))
   await expect(act(f, '怒击', '玩家')).rejects.toThrow()
   expect(game(f)).toEqual(snapshot)
@@ -57,7 +58,7 @@ it('commits authored values, rejects unaffordable/invalid/stale requests, projec
     committed = structuredClone(game(f))
   expect(committed.internal.values.units['character:player'].rage).toBe(4)
   expect(committed.internal.conditions.find((c: Json) => c.statusId === 'broken').remaining).toBe(1)
-  const projected = result.battle!
+  const projected = rpgView(result)!
   for (const unit of projected.units) {
     const numbers = committed.public.battleValues.units.find((row: Json) => row.unitId === unit.id)
     expect(unit.resources).toEqual(numbers.resources)
@@ -139,22 +140,22 @@ it('preserves authored values over pause/resume and a real saved branch reopen',
       payload: { optionId: option.id },
     })
   }
-  expect((await perform(f, '暂停')).battle).toBeUndefined()
+  expect(rpgView(await perform(f, '暂停'))).toBeUndefined()
   const resumed = await perform(f, '继续')
-  expect(resumed.battle!.units).toEqual(before.battle!.units)
-  expect(resumed.battle!.sharedValues).toEqual(before.battle!.sharedValues)
+  expect(rpgView(resumed)!.units).toEqual(rpgView(before)!.units)
+  expect(rpgView(resumed)!.sharedValues).toEqual(rpgView(before)!.sharedValues)
   const node = await f.runtime.saveNode('活动内数值'),
     path = join(f.data, '..', 'values-branch')
   restoreStoryNode(f.data, node.id, path, node.packHash)
   const branch = await openRpgWorld(f.pack, path)
   try {
     const restored = projectPlayerView(await branch.runtime.state())
-    expect(restored.battle!.units).toEqual(resumed.battle!.units)
-    expect(restored.battle!.sharedValues).toEqual(resumed.battle!.sharedValues)
+    expect(rpgView(restored)!.units).toEqual(rpgView(resumed)!.units)
+    expect(rpgView(restored)!.sharedValues).toEqual(rpgView(resumed)!.sharedValues)
     const a = await perform(f, '防御'),
       b = await perform(branch, '防御')
-    expect(a.battle!.units).toEqual(b.battle!.units)
-    expect(a.battle!.sharedValues).toEqual(b.battle!.sharedValues)
+    expect(rpgView(a)!.units).toEqual(rpgView(b)!.units)
+    expect(rpgView(a)!.sharedValues).toEqual(rpgView(b)!.sharedValues)
   } finally {
     await branch.close()
   }

@@ -1,3 +1,5 @@
+import { officialRpgStageRenderer } from '@perspectra/plugins/rpg'
+import type { ActivityStageRenderer } from '@perspectra/sdk/contracts'
 import type { InteractionPackageImplementation } from '@perspectra/sdk/contracts'
 import { officialCommunicationProvider } from '@perspectra/providers/communication'
 import { officialActivitiesProvider } from '@perspectra/providers/activities'
@@ -173,4 +175,5 @@ export function composeModelChannel(
 
 export { GameplayScript } from '@perspectra/providers/activities'
 
-export { officialRpgBattleView } from '@perspectra/plugins/rpg'
+/** Explicit trusted builtin display install. World packs cannot supply renderers. */
+export const officialStageRenderers: readonly ActivityStageRenderer[] = [officialRpgStageRenderer]

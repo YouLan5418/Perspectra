@@ -702,13 +702,19 @@ it('projects activity results to remote participants and current scene witnesses
   expect(projection.mock.calls.length).toBe(3)
 })
 
-function archiveWorld(): CompiledWorldSpec {
+function archiveWorld(observerBinding = false): CompiledWorldSpec {
   const world = JSON.parse(
     JSON.stringify(frozenInteractionWorld()).replaceAll('location:room', 'location:archive'),
   ) as CompiledWorldSpec
   // One actor and the player share the archive; Bob is outside and cannot witness a search.
   const manifest = {
     ...world.manifest,
+    playerBindings: observerBinding
+      ? [
+          ...world.manifest.playerBindings,
+          { ...world.manifest.playerBindings[0]!, principalId: 'principal:observer', characterId: npc },
+        ]
+      : world.manifest.playerBindings,
     characters: world.manifest.characters.map(character =>
       character.characterId === 'character:bob' ? { ...character, locationId: 'location:next' } : character,
     ),
@@ -735,7 +741,7 @@ function archiveWorld(): CompiledWorldSpec {
     genesisHash: hashWorldJson('world-genesis-plan', genesisEvents),
   }
 }
-async function fixture() {
+async function fixture(observerBinding = false) {
   const root = mkdtempSync(join(tmpdir(), 'native-gameplay-'))
   const path = join(root, 'world.sqlite')
   const app = new WorldApplication({
@@ -748,7 +754,7 @@ async function fixture() {
     await app.close()
     rmSync(root, { recursive: true, force: true })
   })
-  const world = archiveWorld()
+  const world = archiveWorld(observerBinding)
   app.activate(world)
   const address = world.manifest.address,
     scope = await app.createInstanceScope()
@@ -1991,4 +1997,83 @@ it('B8 isolates one invalid presentation and a control attempting another module
   expect(view.find(row => row.moduleId === 'bad:view')?.view).toEqual({})
   expect(faults).toHaveLength(1)
   expect(JSON.stringify(view)).not.toContain('clue:archive-letter')
+})
+
+it('activity stages reuse B8 ownership, participant scoping, fault isolation and module disposal', async () => {
+  const f = await fixture(true)
+  const hooks: ActivityHooks = {
+    definition: { title: 'stage', npcIds: [], operations: [] },
+    phases: ['ready'],
+    initialize: () => ({
+      active: true,
+      phase: 'ready',
+      turn: player,
+      round: 1,
+      public: { count: 0 },
+      private: { [player]: { own: 'OWN_ONLY' } },
+      internal: { secret: 'NEVER_PROJECT' },
+    }),
+    policy: () => ({
+      speech: 'free',
+      speechChoices: [],
+      narration: true,
+      move: false,
+      interactions: [],
+      operations: [],
+    }),
+    resolve: () => ({ rejectReason: 'none' }),
+    schedule: () => ({ kind: 'wait' }),
+    onOutcome: () => ({ kind: 'wait' }),
+  }
+  const seen: unknown[] = []
+  const definition = nativeGameplay({
+    id: 'stage-owner',
+    version: '1',
+    dataVersion: 1,
+    activities: [{ key: 'stage', activity: hooks }],
+  })
+  const dispose = f.gameplay.register(
+    {
+      ...definition,
+      playerView: input => {
+        seen.push(input.activities)
+        const current = input.activities?.[0]
+        return current
+          ? {
+              stage: {
+                renderer: 'fixture.counter',
+                activityKey: String(current.activityKey),
+                activityId: String(current.id),
+                revision: Number(current.revision),
+                payload: { count: 0 },
+              },
+            }
+          : {}
+      },
+    },
+    {},
+  )
+  let forged: import('@perspectra/sdk/contracts').ActivityStageView | undefined
+  f.gameplay.register({ ...empty('stage-impostor'), playerView: () => (forged ? { stage: forged } : {}) }, {})
+  await f.gameplay.initialize()
+  await f.gameplay.startActivity('principal:player', 'stage', [])
+  const view = await f.gameplay.playerView('principal:player')
+  expect(view[0]!.view.stage).toBeTruthy()
+  expect(JSON.stringify(seen)).not.toContain('NEVER_PROJECT')
+  expect(JSON.stringify(seen)).toContain('OWN_ONLY')
+  seen.length = 0
+  expect((await f.gameplay.playerView('principal:observer'))[0]!.view.stage).toBeUndefined()
+  expect(seen).toEqual([[]])
+  forged = view[0]!.view.stage
+  const faults: unknown[] = []
+  const isolated = await f.gameplay.playerView('principal:player', fault => faults.push(fault))
+  expect(isolated[0]!.view.stage).toBeTruthy()
+  expect(isolated[1]!.view).toEqual({})
+  expect(faults).toHaveLength(1)
+  await f.gameplay.controlActivity('principal:player', 'stage', 'suspend')
+  expect((await f.gameplay.playerView('principal:player', () => {}))[0]!.view.stage).toBeUndefined()
+  dispose()
+  expect((await f.gameplay.playerView('principal:player', () => {})).some(row => row.moduleId === 'stage-owner')).toBe(
+    false,
+  )
 })

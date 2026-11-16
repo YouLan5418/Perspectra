@@ -1,3 +1,6 @@
+import { defaultFrontendAssets } from '@perspectra/frontend'
+import { officialStageRenderers } from '../official-bundle.ts'
+import type { ActivityStageRenderer } from '@perspectra/sdk/contracts'
 import type { InspectorSnapshot } from '@perspectra/providers/chat'
 import { creatorRecordsQuery, type CreatorRecordsQuery, type CreatorRecordsSnapshot } from './creator-records.ts'
 import { creatorHistoryQuery, type CreatorHistoryQuery, type CreatorHistorySnapshot } from './creator-history.ts'
@@ -28,7 +31,6 @@ import { canonicalizeWorldJson, type WorldJsonObject } from '@perspectra/sdk/con
 import type { ActionAffordance } from '@perspectra/core/kernel'
 
 export interface HostState {
-  readonly battle?: import('@perspectra/sdk/contracts').OfficialRpgBattleView
   /** Already scoped to the player by the common gameplay runtime. Never module truth. */
   readonly gameplay?: readonly {
     readonly moduleId: string
@@ -283,8 +285,10 @@ export function createHostServer(
   policy: FrontendPolicy = { mode: 'sandbox', origin: '', revision: 0 },
   services: FrontendHostServices = {},
   creatorDirectory: URL | null = creatorAssetDirectory(),
+  stageRenderers: readonly ActivityStageRenderer[] = officialStageRenderers,
 ): Server {
   if (!/^[a-f0-9]{64}$/.test(token)) throw new TypeError('playtest token must be 32 random bytes in hexadecimal')
+  const builtinFrontend = defaultFrontendAssets(stageRenderers)
   const frontendActions = new FrontendActions(runtime)
   let subscriptions = 0
   // Marks saved from the creator page reach the next stage that opens, without restarting the game.
@@ -319,7 +323,7 @@ export function createHostServer(
         response.end(HOST_ACTIVITY_PAGE)
         return
       }
-      if (frontendAsset(request, response, packWeb, origin, 'sandbox')) return
+      if (frontendAsset(request, response, packWeb, origin, 'sandbox', builtinFrontend)) return
       if (url.pathname.startsWith('/frontend-api/')) {
         if (request.headers.origin !== undefined && request.headers.origin !== origin) {
           json(response, 403, { error: '公开接口仅供同源宿主桥调用' })

@@ -132,7 +132,7 @@ it('clears removed controls and panels over the actual SDK patch transport', asy
   const sent: unknown[] = []
   const apply = runInNewContext(
     'let playerView=before; const init={frontend:"custom"};' + HOST_ACTIVITY_PAGE.slice(start, end) + ';applyView',
-    { before, post: (value: unknown) => sent.push(value), syncBattle() {} },
+    { before, post: (value: unknown) => sent.push(value), syncStage() {} },
   )
   apply(after)
   expect(sent).toContainEqual({ type: 'view-patch', changes: patch })

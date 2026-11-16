@@ -1,12 +1,14 @@
 # 默认情景舞台
 
+2026-11-16：专属舞台现已统一为 B8 playerView 的 stage 投影与可信渲染器登记，旧 Host battle 专用传输已移除。RPG 和独立计数活动走同一条路径；当前接口、生命周期与回退见[活动舞台指南](guides/activity-stages.md)。以下日期条目保留各批历史范围。
+
 2026-11-15 MV 启发式战斗：状态显示现在区分“剩余次数行动”和“剩余轮”，并显示配置中的破甲、燃烧、振奋等名称。实际规则使用唯一的 target/effects 格式，读[迁移与试玩](../../examples/rpg-mv/README.md)。全屏和通用卡片仍共用受控提交；以下较早条目记录各批历史状态，不作为旧配置兼容承诺。
 
 2026-11-15 护盾与持续效果补充：官方战斗单位卡片增加授权的护盾吸收量／剩余行动次数、状态显示名／剩余次数；通用卡片仍使用同一个技能表单，浏览器不结算。规则和独立试玩见[官方 RPG 指南](guides/rpg.md#持续效果与护盾)。单玩家真实 Host 与临时 SQLite 浏览器验证施盾、侵蚀、再生及两种视图继续同一战斗。
 
 2026-11-15 官方 RPG 战斗舞台：例如进入官方原生遗迹战斗后，内置全屏视图显示玩家授权的敌我血量、回合、自己的技能和合法目标。宿主外壳的“切回默认界面”只换视图；通用卡片可继续同一场战斗，再打开保持当前进度。默认舞台 DOM、草稿和阅读游标保留，暂停、结束、强退或失效回到默认界面。只按官方工厂对象身份识别，不按活动名猜模式；TRPG 与作者脚本活动继续使用通用卡片。渲染不完整或失败时回退。
 
-实现从 [Host 投影](../../apps/host/src/runtime/world-runtime.ts) 经[官方只读投影](../../packages/plugins/src/rpg/battle-view.ts)、[玩家视图](../../packages/frontend/src/player-view.ts)到[战斗组件](../../packages/frontend/src/battle-stage.ts)，提交仍为现有 `perform`。浏览器单玩家真实规则回合、视图切换、草稿、窄屏和故障回退已验证；多人浏览器流程发现已有读视图／写租约冲突，在通用卡片同样复现，未在本批改动核心。详细范围及未验收项见[本批记录](../superpowers/plans/2026-11-15-official-rpg-battle-stage.md)。
+历史全屏批次从 [Host 投影](../../apps/host/src/runtime/world-runtime.ts) 经[官方只读投影](../../packages/plugins/src/rpg/battle-view.ts)、[玩家视图](../../packages/frontend/src/player-view.ts)到[战斗组件](../../packages/plugins/src/rpg/stage-renderer.ts)，提交仍为现有 `perform`。浏览器单玩家真实规则回合、视图切换、草稿、窄屏和故障回退已验证；多人浏览器流程发现已有读视图／写租约冲突，在通用卡片同样复现，未在本批改动核心。详细范围及未验收项见[本批记录](../superpowers/plans/2026-11-15-official-rpg-battle-stage.md)。
 
 无计费模型试玩：仓库根目录运行 `corepack pnpm@11.7.0 exec tsx tests/experiments/rpg-battle-preview.ts`，打开终端 URL，读完后使用技能。该入口创建临时 SQLite，退出删除，仅使用回环假模型。它验证实际规则和前端，并非真实角色模型体验。
 

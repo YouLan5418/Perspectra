@@ -6,6 +6,28 @@ export function gameplayPresentation(value: GameplayPlayerView): GameplayPlayerV
   canonicalizeWorldJson(value as unknown as WorldJsonValue)
   if (!value || typeof value !== 'object' || Array.isArray(value) || JSON.stringify(value).length > 262144)
     throw new TypeError('GAMEPLAY_PRESENTATION_INVALID')
+  if (value.stage !== undefined) {
+    const stage = value.stage
+    if (
+      !stage ||
+      typeof stage !== 'object' ||
+      Array.isArray(stage) ||
+      Object.keys(stage).some(key => !['renderer', 'activityKey', 'activityId', 'revision', 'payload'].includes(key)) ||
+      typeof stage.renderer !== 'string' ||
+      !/^[a-z][a-z0-9.-]{0,79}$/u.test(stage.renderer) ||
+      typeof stage.activityKey !== 'string' ||
+      !stage.activityKey ||
+      typeof stage.activityId !== 'string' ||
+      !stage.activityId ||
+      !Number.isSafeInteger(stage.revision) ||
+      stage.revision < 1 ||
+      !stage.payload ||
+      typeof stage.payload !== 'object' ||
+      Array.isArray(stage.payload) ||
+      JSON.stringify(stage.payload).length > 65536
+    )
+      throw new TypeError('GAMEPLAY_STAGE_INVALID')
+  }
   const text = (part: unknown): part is string => typeof part === 'string' && part.length <= 16384
   const rows = <T>(parts: readonly T[] | undefined, valid: (row: T) => boolean): void => {
     if (parts === undefined) return
