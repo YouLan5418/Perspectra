@@ -69,9 +69,14 @@ export function rpgLensItems(rpg: RpgJson, name: (id: string) => string): LensIt
       section: 'rpg',
       title: String(skill.name),
       fields: [
-        { key: 'kind', label: '效果', value: skill.kind === 'heal' ? '治疗' : '伤害' },
+        {
+          key: 'kind',
+          label: '效果',
+          value: skill.kind === 'effect' ? '声明效果' : skill.kind === 'heal' ? '治疗' : '伤害',
+        },
         { key: 'scope', label: '目标', value: skill.scope === 'all' ? '全体' : '单体' },
-        { key: 'power', label: '威力', value: skill.power },
+        ...(skill.power === undefined ? [] : [{ key: 'power', label: '威力', value: skill.power }]),
+        ...(skill.effects ? [{ key: 'effects', label: '依次结算', value: JSON.stringify(skill.effects) }] : []),
         { key: 'cost', label: '消耗', value: amounts(skill.cost) },
         ...(skill.element === 'fire' ? [{ key: 'element', label: '伤害元素', value: '火焰' }] : []),
         ...(skill.inflicts
@@ -94,8 +99,11 @@ export function rpgLensItems(rpg: RpgJson, name: (id: string) => string): LensIt
       title: String(status.name),
       fields: [
         { key: 'turns', label: '持续回合', value: status.turns },
-        { key: 'damage', label: '每回合基础伤害', value: status.damage },
-        { key: 'element', label: '伤害元素', value: '火焰' },
+        {
+          key: 'tick',
+          label: '持有者行动后结算',
+          value: JSON.stringify(status.tick ?? { kind: 'damage', amount: status.damage, element: status.element }),
+        },
       ],
       source: at(`/combatStatuses/${id}`),
     })

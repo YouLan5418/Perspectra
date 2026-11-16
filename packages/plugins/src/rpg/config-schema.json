@@ -111,7 +111,8 @@
           "kind": {
             "enum": [
               "damage",
-              "heal"
+              "heal",
+              "effect"
             ]
           },
           "scope": {
@@ -137,16 +138,177 @@
           "inflicts": {
             "type": "string",
             "minLength": 1
+          },
+          "effects": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 8,
+            "items": {
+              "oneOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "enum": [
+                        "damage",
+                        "heal"
+                      ]
+                    },
+                    "amount": {
+                      "type": "integer",
+                      "minimum": 1
+                    },
+                    "element": {
+                      "const": "fire"
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "amount"
+                  ],
+                  "additionalProperties": false,
+                  "allOf": [
+                    {
+                      "if": {
+                        "properties": {
+                          "kind": {
+                            "const": "heal"
+                          }
+                        }
+                      },
+                      "then": {
+                        "not": {
+                          "required": [
+                            "element"
+                          ],
+                          "properties": {
+                            "element": {}
+                          }
+                        }
+                      }
+                    }
+                  ]
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "const": "status"
+                    },
+                    "status": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "status"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "const": "shield"
+                    },
+                    "amount": {
+                      "type": "integer",
+                      "minimum": 1
+                    },
+                    "turns": {
+                      "type": "integer",
+                      "minimum": 1
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "amount",
+                    "turns"
+                  ],
+                  "additionalProperties": false
+                }
+              ]
+            }
+          },
+          "target": {
+            "enum": [
+              "party",
+              "enemy"
+            ]
           }
         },
         "required": [
           "id",
           "name",
-          "kind",
-          "scope",
-          "power"
+          "kind"
         ],
-        "additionalProperties": false
+        "additionalProperties": false,
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "kind": {
+                  "const": "effect"
+                }
+              }
+            },
+            "then": {
+              "required": [
+                "target",
+                "effects"
+              ],
+              "not": {
+                "anyOf": [
+                  {
+                    "required": [
+                      "power"
+                    ],
+                    "properties": {
+                      "power": {}
+                    }
+                  },
+                  {
+                    "required": [
+                      "element"
+                    ],
+                    "properties": {
+                      "element": {}
+                    }
+                  },
+                  {
+                    "required": [
+                      "inflicts"
+                    ],
+                    "properties": {
+                      "inflicts": {}
+                    }
+                  }
+                ]
+              },
+              "properties": {
+                "target": {},
+                "effects": {}
+              }
+            },
+            "else": {
+              "required": [
+                "power"
+              ],
+              "not": {
+                "required": [
+                  "target"
+                ],
+                "properties": {
+                  "target": {}
+                }
+              },
+              "properties": {
+                "power": {}
+              }
+            }
+          }
+        ]
       }
     },
     "combatStatuses": {
@@ -160,23 +322,111 @@
           },
           "turns": {
             "type": "integer",
-            "minimum": 0
+            "minimum": 1
           },
           "damage": {
             "type": "integer",
-            "minimum": 0
+            "minimum": 1
           },
           "element": {
             "const": "fire"
+          },
+          "tick": {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "enum": [
+                  "damage",
+                  "heal"
+                ]
+              },
+              "amount": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "element": {
+                "const": "fire"
+              }
+            },
+            "required": [
+              "kind",
+              "amount"
+            ],
+            "additionalProperties": false,
+            "allOf": [
+              {
+                "if": {
+                  "properties": {
+                    "kind": {
+                      "const": "heal"
+                    }
+                  }
+                },
+                "then": {
+                  "not": {
+                    "required": [
+                      "element"
+                    ],
+                    "properties": {
+                      "element": {}
+                    }
+                  }
+                }
+              }
+            ]
           }
         },
         "required": [
           "name",
-          "turns",
-          "damage",
-          "element"
+          "turns"
         ],
-        "additionalProperties": false
+        "additionalProperties": false,
+        "oneOf": [
+          {
+            "required": [
+              "tick"
+            ],
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "damage"
+                  ],
+                  "properties": {
+                    "damage": {}
+                  }
+                },
+                {
+                  "required": [
+                    "element"
+                  ],
+                  "properties": {
+                    "element": {}
+                  }
+                }
+              ]
+            },
+            "properties": {
+              "tick": {}
+            }
+          },
+          {
+            "required": [
+              "damage"
+            ],
+            "not": {
+              "required": [
+                "tick"
+              ],
+              "properties": {
+                "tick": {}
+              }
+            },
+            "properties": {
+              "damage": {}
+            }
+          }
+        ]
       }
     },
     "equipment": {

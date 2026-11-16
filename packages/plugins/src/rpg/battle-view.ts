@@ -1,3 +1,4 @@
+import { onlyHealing, skillTargetSide } from './combat-effects.ts'
 import type { ActivityHooks } from '@perspectra/sdk'
 import type { OfficialRpgBattleView, WorldJsonObject } from '@perspectra/sdk/contracts'
 import type { MapBattleConfig } from './battle.ts'
@@ -48,7 +49,45 @@ export function officialRpgBattleView(
     )
       return
     if (raw.team === 'party' && !present.includes(raw.id)) continue
-    units.push({ id: raw.id, name: raw.name, team: raw.team, hp: raw.hp, maxHp: raw.maxHp })
+    const display = Array.isArray(pub.combatEffects)
+      ? (pub.combatEffects.find(
+          row => row && typeof row === 'object' && !Array.isArray(row) && row.unitId === raw.id,
+        ) as WorldJsonObject | undefined)
+      : undefined
+    const shield = display?.shield as WorldJsonObject | undefined
+    if (
+      shield &&
+      (!Number.isSafeInteger(shield.amount) ||
+        Number(shield.amount) <= 0 ||
+        !Number.isSafeInteger(shield.remaining) ||
+        Number(shield.remaining) <= 0)
+    )
+      return
+    const statuses: { name: string; remaining: number }[] = []
+    if (display) {
+      if (!Array.isArray(display.statuses)) return
+      for (const row of display.statuses) {
+        if (
+          !row ||
+          typeof row !== 'object' ||
+          Array.isArray(row) ||
+          typeof row.name !== 'string' ||
+          !Number.isSafeInteger(row.remaining) ||
+          Number(row.remaining) <= 0
+        )
+          return
+        statuses.push({ name: row.name, remaining: Number(row.remaining) })
+      }
+    }
+    units.push({
+      id: raw.id,
+      name: raw.name,
+      team: raw.team,
+      hp: raw.hp,
+      maxHp: raw.maxHp,
+      ...(shield ? { shield: { amount: Number(shield.amount), remaining: Number(shield.remaining) } } : {}),
+      ...(statuses.length ? { statuses } : {}),
+    })
   }
   if (!units.some(unit => unit.id === actorId) || !units.some(unit => unit.team === 'enemy')) return
   const own = pub.units.find(
@@ -58,11 +97,11 @@ export function officialRpgBattleView(
   const skills = config.skills
     .filter(skill => config.characters[actorId]?.skills.includes(skill.id))
     .map(skill => {
-      const eligible = units.filter(unit => unit.hp > 0 && (skill.kind === 'heal') === (unit.team === 'party'))
+      const eligible = units.filter(unit => unit.hp > 0 && unit.team === skillTargetSide(skill))
       const targets = eligible
         .filter(
           unit =>
-            skill.kind !== 'heal' ||
+            !onlyHealing(skill) ||
             (skill.scope === 'all' ? eligible.some(target => target.hp < target.maxHp) : unit.hp < unit.maxHp),
         )
         .map(unit => unit.name)

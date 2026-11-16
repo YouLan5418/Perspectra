@@ -14,6 +14,8 @@ export interface OfficialRpgBattleView {
     readonly team: 'party' | 'enemy'
     readonly hp: number
     readonly maxHp: number
+    readonly shield?: { readonly amount: number; readonly remaining: number }
+    readonly statuses?: readonly { readonly name: string; readonly remaining: number }[]
   }[]
   /** Only the player's learned skills; targets are names accepted by the existing operation. */
   readonly skills: readonly {

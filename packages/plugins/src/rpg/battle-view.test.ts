@@ -67,3 +67,24 @@ it('falls back on incomplete views and every non-running battle state', () => {
     officialRpgBattleView(hooks, { ...scoped, game: { ...game, public: { units: [{}] } } }, player, [player]),
   ).toBeUndefined()
 })
+
+it('copies only authorized shield and status labels, omitting absent units and extra state fields', () => {
+  const { hooks, scoped } = fixture()
+  const pub = (scoped.game as WorldJsonObject).public as Record<string, WorldJsonObject[string]>
+  pub.combatEffects = [
+    {
+      unitId: player,
+      shield: { amount: 4, remaining: 2, secret: 'private-shield' },
+      statuses: [{ name: '再生', remaining: 1, statusId: 'hidden-id' }],
+    },
+    { unitId: 'character:cheng', statuses: [{ name: 'absent-status', remaining: 2 }] },
+  ]
+  const view = officialRpgBattleView(hooks, scoped, player, [player])!
+  expect(view.units[0]).toMatchObject({
+    shield: { amount: 4, remaining: 2 },
+    statuses: [{ name: '再生', remaining: 1 }],
+  })
+  expect(JSON.stringify(view)).not.toMatch(/private-shield|hidden-id|absent-status/)
+  pub.combatEffects = [{ unitId: player, shield: { amount: -1, remaining: 2 }, statuses: [] }]
+  expect(officialRpgBattleView(hooks, scoped, player, [player])).toBeUndefined()
+})

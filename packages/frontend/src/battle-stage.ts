@@ -98,6 +98,10 @@ export function createBattleStage(
             hp.value = unit.hp
             hp.setAttribute('aria-label', unit.name + '生命')
             card.append(row, hp)
+            if (unit.shield)
+              card.append(helpers.el('p', `护盾 ${unit.shield.amount} · 剩余 ${unit.shield.remaining} 次行动`))
+            for (const status of unit.statuses ?? [])
+              card.append(helpers.el('p', `${status.name} · 剩余 ${status.remaining} 次行动`))
             box.append(card)
           }
           teams.append(box)
