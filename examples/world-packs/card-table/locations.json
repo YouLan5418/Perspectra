@@ -1,0 +1,9 @@
+{
+  "schemaVersion": "worldpack-locations/v1",
+  "locations": [
+    {
+      "locationId": "location:living-room",
+      "name": "客厅"
+    }
+  ]
+}

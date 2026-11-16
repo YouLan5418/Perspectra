@@ -1,0 +1,7 @@
+{
+  "npcIds": [
+    "character:qing",
+    "character:mo"
+  ],
+  "npcMode": "deterministic"
+}

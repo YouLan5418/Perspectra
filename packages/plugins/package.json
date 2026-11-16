@@ -8,7 +8,8 @@
     "./pacing": "./src/pacing/index.ts",
     "./rpg": "./src/rpg/index.ts",
     "./trpg": "./src/trpg/index.ts",
-    "./basic-interactions": "./src/basic-interactions/index.ts"
+    "./basic-interactions": "./src/basic-interactions/index.ts",
+    "./cards": "./src/cards/index.ts"
   },
   "dependencies": {
     "@perspectra/sdk": "workspace:*",

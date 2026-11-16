@@ -1,0 +1,183 @@
+{
+  "date": "2026-11-16",
+  "node": "24.19.0",
+  "branch": "codex/card-activity-foundation",
+  "baselineSha": "8c6a33f03e444275e031870656ee98d5da150942",
+  "targeted": {
+    "filesPassed": 7,
+    "testsPassed": 22,
+    "status": "passed"
+  },
+  "rpgTrpgStageSaveRegression": {
+    "filesPassed": 7,
+    "testsPassed": 47,
+    "status": "passed"
+  },
+  "coreMemoryAndTailIsolatedRegression": {
+    "filesPassed": 2,
+    "testsPassed": 52,
+    "status": "passed"
+  },
+  "static": {
+    "typecheck": "passed",
+    "lint": "exit 0; unrelated existing warnings",
+    "format": "passed",
+    "boundaries": "453 production files passed",
+    "gitDiffCheck": "passed"
+  },
+  "docs": {
+    "baselineMissingTargets": 104,
+    "currentMissingTargets": 104,
+    "newMissingTargets": 0,
+    "exitCode": 1
+  },
+  "baselineFull": {
+    "filesPassed": 251,
+    "filesFailed": 12,
+    "testsPassed": 2425,
+    "testsFailed": 42,
+    "testsSkipped": 4,
+    "durationSeconds": 615.93,
+    "failedTests": [
+      "tests/desktop/desktop-launch.test.ts > desktop launch boundary > starts autonomy-scheduling with an external character loop, serves authorized state and closes",
+      "tests/desktop/desktop-launch.test.ts > desktop launch boundary > starts cross-scene-sms with an external character loop, serves authorized state and closes",
+      "tests/desktop/desktop-launch.test.ts > desktop launch boundary > starts hand-in-hand with an external character loop, serves authorized state and closes",
+      "tests/desktop/desktop-launch.test.ts > desktop launch boundary > starts scripted-performance with an external character loop, serves authorized state and closes",
+      "tests/desktop/launcher-core.test.ts > model connections in the launcher index > revoke still applies immediately",
+      "tests/desktop/model-presets.test.ts > routes each character's decision call to its own model and endpoint",
+      "tests/desktop/model-presets.test.ts > routes each real Core character call to its selected preset without cross-character prompts",
+      "tests/desktop/story-nodes.test.ts > rejects future or foreign node memory before opening a fork and retains the restore marker",
+      "tests/desktop/story-nodes.test.ts > shares one historical node across independent launchers, preserves installed memories and excludes future and caches",
+      "tests/host/capability-plugin-entry.test.ts > loads capability plugins through both source and bundled host entries and exposes real player actions",
+      "tests/scenarios/activity-auto-start.test.ts > rejects malformed hook results and host-refused starts without committing anything",
+      "tests/scenarios/activity-auto-start.test.ts > starts an activity whose conditions all hold after the player round, once, without counting a player round",
+      "tests/scenarios/cross-scene-core-memory.test.ts > Core sources stay authorized and node rollback/share preserve their actual prefix (phone=false)",
+      "tests/scenarios/cross-scene-core-memory.test.ts > Core sources stay authorized and node rollback/share preserve their actual prefix (phone=true)",
+      "tests/scenarios/cross-scene-story-nodes.test.ts > restores and shares an unanswered ringing call without replaying the old activation",
+      "tests/scenarios/cross-scene-story-nodes.test.ts > shares only the saved communication prefix, rebuilds native memory and continues independently (phone=false)",
+      "tests/scenarios/cross-scene-story-nodes.test.ts > shares only the saved communication prefix, rebuilds native memory and continues independently (phone=true)",
+      "tests/scenarios/model-girls-sweet-days.test.ts > keeps a blackout through cooking and overnight rest until power is actually repaired",
+      "tests/scenarios/model-girls-sweet-days.test.ts > plays a cooperative RPG to victory with characters choosing their own actions",
+      "tests/scenarios/model-girls-sweet-days.test.ts > plays fixed branching dialogue for each gift-scene participant without a model request",
+      "tests/scenarios/model-girls-undercover.test.ts > needs at least two heroines, keeps every word private and settles time, prize and privilege together",
+      "tests/scenarios/pacing-activities.test.ts > does not intervene when the draw says no, and the round still ends normally",
+      "tests/scenarios/pacing-activities.test.ts > leaves an activity it does not manage to the existing rule, first and outside the cooldown",
+      "tests/scenarios/pacing-activities.test.ts > shows the creator why, and nobody else",
+      "tests/scenarios/pacing-activities.test.ts > starts one of two ready events, by the recorded draw",
+      "tests/scenarios/pacing-activities.test.ts > waits out the cooldown, and starts nothing and records nothing meanwhile",
+      "tests/scenarios/pacing-beats.test.ts > classifies a perception and a thought differently in the record",
+      "tests/scenarios/pacing-beats.test.ts > commits nothing of a beat with an invalid value, and names why",
+      "tests/scenarios/pacing-beats.test.ts > commits the change, the words and the stimuli as one beat, advancing the tick once",
+      "tests/scenarios/pacing-beats.test.ts > does not commit when apply throws, and tries again next round",
+      "tests/scenarios/pacing-beats.test.ts > gives a script the seat of every character and the recorded random",
+      "tests/scenarios/pacing-beats.test.ts > gives the named character a chance it may decline, and no physical change",
+      "tests/scenarios/pacing-beats.test.ts > keeps a stimulus from everyone it does not name",
+      "tests/scenarios/pacing-beats.test.ts > leaves out only the beat whose condition throws, and carries on next round",
+      "tests/scenarios/pacing-beats.test.ts > records a beat with no change, and it counts for the cooldown",
+      "tests/scenarios/pacing-beats.test.ts > refuses a beat with a long text",
+      "tests/scenarios/pacing-beats.test.ts > refuses a beat with an activity-scoped status",
+      "tests/scenarios/pacing-beats.test.ts > refuses a beat with an empty text",
+      "tests/scenarios/pacing-beats.test.ts > refuses a beat with an instruction kind",
+      "tests/scenarios/pacing-beats.test.ts > refuses a beat with an undeclared character",
+      "tests/scenarios/pacing-beats.test.ts > refuses a beat with the player",
+      "tests/scenarios/pacing-beats.test.ts > refuses a beat with too many"
+    ]
+  },
+  "frozenFull": {
+    "filesPassed": 257,
+    "filesFailed": 13,
+    "testsPassed": 2446,
+    "testsFailed": 43,
+    "testsSkipped": 4,
+    "durationSeconds": 658.45,
+    "failedTests": [
+      "tests/desktop/desktop-launch.test.ts > desktop launch boundary > starts autonomy-scheduling with an external character loop, serves authorized state and closes",
+      "tests/desktop/desktop-launch.test.ts > desktop launch boundary > starts cross-scene-sms with an external character loop, serves authorized state and closes",
+      "tests/desktop/desktop-launch.test.ts > desktop launch boundary > starts hand-in-hand with an external character loop, serves authorized state and closes",
+      "tests/desktop/desktop-launch.test.ts > desktop launch boundary > starts scripted-performance with an external character loop, serves authorized state and closes",
+      "tests/desktop/launcher-core.test.ts > model connections in the launcher index > revoke still applies immediately",
+      "tests/desktop/model-presets.test.ts > routes each character's decision call to its own model and endpoint",
+      "tests/desktop/model-presets.test.ts > routes each real Core character call to its selected preset without cross-character prompts",
+      "tests/desktop/story-nodes.test.ts > rejects future or foreign node memory before opening a fork and retains the restore marker",
+      "tests/desktop/story-nodes.test.ts > shares one historical node across independent launchers, preserves installed memories and excludes future and caches",
+      "tests/host/capability-plugin-entry.test.ts > loads capability plugins through both source and bundled host entries and exposes real player actions",
+      "tests/host/tail-round.test.ts > recovers a complete selected result after forced process termination at switch-after",
+      "tests/scenarios/activity-auto-start.test.ts > rejects malformed hook results and host-refused starts without committing anything",
+      "tests/scenarios/activity-auto-start.test.ts > starts an activity whose conditions all hold after the player round, once, without counting a player round",
+      "tests/scenarios/cross-scene-core-memory.test.ts > Core sources stay authorized and node rollback/share preserve their actual prefix (phone=false)",
+      "tests/scenarios/cross-scene-core-memory.test.ts > Core sources stay authorized and node rollback/share preserve their actual prefix (phone=true)",
+      "tests/scenarios/cross-scene-story-nodes.test.ts > restores and shares an unanswered ringing call without replaying the old activation",
+      "tests/scenarios/cross-scene-story-nodes.test.ts > shares only the saved communication prefix, rebuilds native memory and continues independently (phone=false)",
+      "tests/scenarios/cross-scene-story-nodes.test.ts > shares only the saved communication prefix, rebuilds native memory and continues independently (phone=true)",
+      "tests/scenarios/model-girls-sweet-days.test.ts > keeps a blackout through cooking and overnight rest until power is actually repaired",
+      "tests/scenarios/model-girls-sweet-days.test.ts > plays a cooperative RPG to victory with characters choosing their own actions",
+      "tests/scenarios/model-girls-sweet-days.test.ts > plays fixed branching dialogue for each gift-scene participant without a model request",
+      "tests/scenarios/model-girls-undercover.test.ts > needs at least two heroines, keeps every word private and settles time, prize and privilege together",
+      "tests/scenarios/pacing-activities.test.ts > does not intervene when the draw says no, and the round still ends normally",
+      "tests/scenarios/pacing-activities.test.ts > leaves an activity it does not manage to the existing rule, first and outside the cooldown",
+      "tests/scenarios/pacing-activities.test.ts > shows the creator why, and nobody else",
+      "tests/scenarios/pacing-activities.test.ts > starts one of two ready events, by the recorded draw",
+      "tests/scenarios/pacing-activities.test.ts > waits out the cooldown, and starts nothing and records nothing meanwhile",
+      "tests/scenarios/pacing-beats.test.ts > classifies a perception and a thought differently in the record",
+      "tests/scenarios/pacing-beats.test.ts > commits nothing of a beat with an invalid value, and names why",
+      "tests/scenarios/pacing-beats.test.ts > commits the change, the words and the stimuli as one beat, advancing the tick once",
+      "tests/scenarios/pacing-beats.test.ts > does not commit when apply throws, and tries again next round",
+      "tests/scenarios/pacing-beats.test.ts > gives a script the seat of every character and the recorded random",
+      "tests/scenarios/pacing-beats.test.ts > gives the named character a chance it may decline, and no physical change",
+      "tests/scenarios/pacing-beats.test.ts > keeps a stimulus from everyone it does not name",
+      "tests/scenarios/pacing-beats.test.ts > leaves out only the beat whose condition throws, and carries on next round",
+      "tests/scenarios/pacing-beats.test.ts > records a beat with no change, and it counts for the cooldown",
+      "tests/scenarios/pacing-beats.test.ts > refuses a beat with a long text",
+      "tests/scenarios/pacing-beats.test.ts > refuses a beat with an activity-scoped status",
+      "tests/scenarios/pacing-beats.test.ts > refuses a beat with an empty text",
+      "tests/scenarios/pacing-beats.test.ts > refuses a beat with an instruction kind",
+      "tests/scenarios/pacing-beats.test.ts > refuses a beat with an undeclared character",
+      "tests/scenarios/pacing-beats.test.ts > refuses a beat with the player",
+      "tests/scenarios/pacing-beats.test.ts > refuses a beat with too many"
+    ]
+  },
+  "comparison": {
+    "commonFailedTests": 42,
+    "baselineOnlyFailedTests": [],
+    "currentOnlyFailedTests": [
+      "tests/host/tail-round.test.ts > recovers a complete selected result after forced process termination at switch-after"
+    ]
+  },
+  "currentOnlyFailureRetry": {
+    "command": "corepack pnpm@11.7.0 test:related tests/host/tail-round.test.ts -t 'recovers a complete selected result after forced process termination at switch-after' --maxWorkers=1",
+    "passed": 1,
+    "skipped": 24,
+    "durationSeconds": 8.85,
+    "status": "passed; original full-run timeout retained"
+  },
+  "browser": {
+    "entered": true,
+    "playedCard": true,
+    "defenseCancelled": true,
+    "saved": true,
+    "suspended": true,
+    "resumed": true,
+    "exited": true,
+    "mobileOverflow": false,
+    "errors": []
+  },
+  "packValidation": {
+    "command": "validate",
+    "packHash": "sha256:88884d75696a000f828f75ca90627e256d4d1478a48a729a978b5eceedc15c9a",
+    "packId": "pack:card-table",
+    "packVersion": "1.0.0",
+    "status": "valid"
+  },
+  "independentReviews": {
+    "model": "gpt-6.1-sol",
+    "engine": "passed after 3 findings fixed",
+    "host": "22/22 plus tsc passed",
+    "restoreVisibilityFollowup": "engine/activity 10/10 and 8 corruption probes rejected; colors/identity only"
+  },
+  "knownLimits": [
+    "Card tail regeneration refuses old instance-scoped operation; original committed result remains. Node restore/fork and pure accepted-input replay work.",
+    "Request envelopes/progress and Host actor/responders/revision metadata are public. Secret rights require fixed public envelopes and private choices/empty responses.",
+    "No world reward issuance. Future cross-match result consumers must atomically deduplicate by Activity.id.",
+    "No multiplayer, board/store, DSL, complete third-party card library, paid-model long-play, Windows/Tauri release acceptance."
+  ]
+}

@@ -1,0 +1,25 @@
+{
+  "schemaVersion": "worldpack-cognition/v2",
+  "characters": [
+    {
+      "characterId": "character:player",
+      "observations": [],
+      "goals": []
+    },
+    {
+      "characterId": "character:qing",
+      "observations": [],
+      "goals": []
+    },
+    {
+      "characterId": "character:mo",
+      "observations": [],
+      "goals": []
+    },
+    {
+      "characterId": "character:viewer",
+      "observations": [],
+      "goals": []
+    }
+  ]
+}

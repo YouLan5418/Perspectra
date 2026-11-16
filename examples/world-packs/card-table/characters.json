@@ -1,0 +1,49 @@
+{
+  "schemaVersion": "worldpack-characters/v3",
+  "characters": [
+    {
+      "characterId": "character:player",
+      "displayName": "玩家",
+      "controllerClass": "manual",
+      "pronouns": "你",
+      "initialLocationId": "location:living-room",
+      "portrayal": {
+        "summary": "纸灯牌桌的原创占位角色，依据自己获授权的信息选择行动。",
+        "speakingStyle": "简短直接。"
+      }
+    },
+    {
+      "characterId": "character:qing",
+      "displayName": "青",
+      "controllerClass": "scripted",
+      "pronouns": "她",
+      "initialLocationId": "location:living-room",
+      "portrayal": {
+        "summary": "纸灯牌桌的原创占位角色，依据自己获授权的信息选择行动。",
+        "speakingStyle": "简短直接。"
+      }
+    },
+    {
+      "characterId": "character:mo",
+      "displayName": "墨",
+      "controllerClass": "scripted",
+      "pronouns": "她",
+      "initialLocationId": "location:living-room",
+      "portrayal": {
+        "summary": "纸灯牌桌的原创占位角色，依据自己获授权的信息选择行动。",
+        "speakingStyle": "简短直接。"
+      }
+    },
+    {
+      "characterId": "character:viewer",
+      "displayName": "旁观者",
+      "controllerClass": "scripted",
+      "pronouns": "她",
+      "initialLocationId": "location:living-room",
+      "portrayal": {
+        "summary": "纸灯牌桌的原创占位角色，依据自己获授权的信息选择行动。",
+        "speakingStyle": "简短直接。"
+      }
+    }
+  ]
+}

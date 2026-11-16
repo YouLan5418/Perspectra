@@ -1,0 +1,25 @@
+{
+  "schemaVersion": "worldpack-memory/v2",
+  "characters": [
+    {
+      "characterId": "character:player",
+      "profile": "standard",
+      "attentionTopics": []
+    },
+    {
+      "characterId": "character:qing",
+      "profile": "standard",
+      "attentionTopics": []
+    },
+    {
+      "characterId": "character:mo",
+      "profile": "standard",
+      "attentionTopics": []
+    },
+    {
+      "characterId": "character:viewer",
+      "profile": "standard",
+      "attentionTopics": []
+    }
+  ]
+}

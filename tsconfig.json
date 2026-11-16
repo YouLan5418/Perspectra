@@ -151,6 +151,9 @@
       ],
       "@perspectra/host/plugin-settings": [
         "./apps/host/src/host-plugin-settings.ts"
+      ],
+      "@perspectra/plugins/cards": [
+        "./packages/plugins/src/cards/index.ts"
       ]
     }
   },

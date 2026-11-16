@@ -1,3 +1,4 @@
+import { officialCardsContent, officialCardsStageRenderer } from '@perspectra/plugins/cards'
 import { officialRpgStageRenderer } from '@perspectra/plugins/rpg'
 import type { ActivityStageRenderer } from '@perspectra/sdk/contracts'
 import type { InteractionPackageImplementation } from '@perspectra/sdk/contracts'
@@ -75,7 +76,7 @@ export interface HostSeams {
 }
 
 /** Installed content generators; the pack selects their IDs in its plugins manifest. */
-export { officialRpgContent, officialTrpgContent }
+export { officialRpgContent, officialTrpgContent, officialCardsContent }
 
 /** Explicit entry composition. An omitted optional mechanism stays absent in this selection. */
 export interface WorldComposition {
@@ -116,7 +117,7 @@ export const officialWorldOrder = [
 ] as const
 
 /** The official gameplay generators: rpg.json and trpg.json. */
-const officialContent: readonly ContentGenerator[] = [officialRpgContent, officialTrpgContent]
+const officialContent: readonly ContentGenerator[] = [officialRpgContent, officialTrpgContent, officialCardsContent]
 
 /** Direct hosts and the plugin loader share the same default choices and decision ordering. */
 export function composeWorldSeams(plugins: Partial<HostSeams> = {}) {
@@ -176,4 +177,7 @@ export function composeModelChannel(
 export { GameplayScript } from '@perspectra/providers/activities'
 
 /** Explicit trusted builtin display install. World packs cannot supply renderers. */
-export const officialStageRenderers: readonly ActivityStageRenderer[] = [officialRpgStageRenderer]
+export const officialStageRenderers: readonly ActivityStageRenderer[] = [
+  officialRpgStageRenderer,
+  officialCardsStageRenderer,
+]

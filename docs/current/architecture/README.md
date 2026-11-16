@@ -1,5 +1,7 @@
 # 当前代码技术文档
 
+2026-11-16：独立 `official-cards` 使用现有原生玩法/Activity、授权投影和可信舞台注册；三个规则共用纯牌局引擎。接通、信息包络、存档和已知重生成限制见[卡牌指南](../guides/cards.md)及[验收记录](../../superpowers/plans/2026-11-16-card-activity-foundation.md)。
+
 2026-11-15 B10：`@perspectra/*` 包与 Host／Launcher 入口迁移见[模块地图](modules.md)、[代码路线](code-walkthrough.md)及[B10 验收记录](../../superpowers/plans/2026-11-15-composable-engine-b10-packages.md)。以下旧批次条目只表示各自当时范围。
 
 2026-11-15 B8：默认动作分组／参数表单、通用控件、授权只读面板与 Launcher 源包配置编辑已接通，三组独立复验及主代理验收通过。详见 [展示与配置指南](../guides/gameplay-presentation.md)和 [B8 记录](../../superpowers/plans/2026-11-15-composable-engine-b8-presentation.md)。停在 B8，不进入 B9；以下历史批次说明保留当时证据。

@@ -55,3 +55,5 @@ corepack pnpm@11.7.0 exec tsx tests/experiments/activity-stage-preview.ts fallba
 ```
 
 每次只运行一条，打开打印的 URL。rpg 可打一回合；lab 点击“增加计数”，切回默认卡片继续，再打开专属界面；fallback 故意令渲染器抛错，默认卡片仍可增加计数。Ctrl+C 清理临时 SQLite。当前云容器需设置 COREPACK_HOME=/tmp/perspectra-corepack。不接触计费模型。
+
+2026-11-16：`official-cards.table` 作为另一可信内置渲染器在相同登记清单装配；仅接收卡牌插件的授权 playerView，操作继续经过公共 perform。详见[卡牌指南](cards.md)。

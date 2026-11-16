@@ -32,6 +32,7 @@ export default defineConfig({
       { find: /^@perspectra\/plugins\/dice$/, replacement: `${root}packages/plugins/src/dice/index.ts` },
       { find: /^@perspectra\/plugins\/pacing$/, replacement: `${root}packages/plugins/src/pacing/index.ts` },
       { find: /^@perspectra\/plugins\/rpg$/, replacement: `${root}packages/plugins/src/rpg/index.ts` },
+      { find: /^@perspectra\/plugins\/cards$/, replacement: `${root}packages/plugins/src/cards/index.ts` },
       { find: /^@perspectra\/plugins\/trpg$/, replacement: `${root}packages/plugins/src/trpg/index.ts` },
       {
         find: /^@perspectra\/providers\/activities$/,

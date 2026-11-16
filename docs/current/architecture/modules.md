@@ -28,7 +28,7 @@
 | [sdk](../../../packages/sdk) | `@perspectra/sdk` 的强类型作者与能力契约；`/contracts` 的 ID、事件、规则、JSON 和展示数据 | 不依赖实现；[玩法定义](../../../packages/sdk/src/gameplay.ts)、[基础契约](../../../packages/sdk/src/contracts/index.ts) |
 | [core](../../../packages/core) | 根入口 WorldApplication；`/kernel`、`/store`、`/runtime`、`/memory`、`/interactions`、`/presentation`、`/agents` | 权威事实、授权投影、原子提交、分支、资源、受控执行；不导入具体能力或玩法。[执行](../../../packages/core/src/application/execution-engine.ts)、[玩法裁定](../../../packages/core/src/application/gameplay-runtime.ts)、[提交协调](../../../packages/core/src/application/round-coordinator.ts) |
 | [providers](../../../packages/providers) | `/activities`、`/status`、`/knowledge`、`/communication`、`/contexts`、`/character-loop`、`/scheduler`、`/llm`、`/memory-none`、`/scripted-model`、`/chat` | 默认可替换实现；脚本模型只替代调用传输，保留正式 DecisionService 授权组装。浏览器使用 `/chat/preset` 等纯子入口，不加载模型适配 |
-| [plugins](../../../packages/plugins) | `/rpg`、`/trpg`、`/dice`、`/pacing`、`/basic-interactions` | 原生玩法；基础交互通过 core/interactions 复用纯实现。自主机会策略与调度共享实现，实际保留在 providers/scheduler |
+| [plugins](../../../packages/plugins) | `/rpg`、`/trpg`、`/cards`、`/dice`、`/pacing`、`/basic-interactions` | 原生玩法；基础交互通过 core/interactions 复用纯实现。自主机会策略与调度共享实现，实际保留在 providers/scheduler |
 | [memory-core](../../../packages/memory-core) | Python 长期记忆、进程桥与资源；`/paths` 只含路径和持久 ID | Host 按需加载 [memory-composition](../../../apps/host/src/memory-composition.ts)，静态校验不加载 Python 适配 |
 | [world-pack](../../../packages/world-pack) | 格式、编译、注入校验；`/lens/view`、`/lens/ids`、`/lens/rpg-view`、`/lens/diff` 静态分析 | 不导入 Host。静态 view 接收最小 LensOpening 结构；动态模拟及其断言留在 Host，避免工具库反向依赖具体装配 |
 | [frontend](../../../packages/frontend) | 公共客户端、默认舞台、参数表单、控件与授权只读面板 | 不依赖 Node Host；[默认模板](../../../packages/frontend/src/default-template.ts)、[通用展示](../../../packages/frontend/src/gameplay-widgets.ts) |
@@ -42,3 +42,5 @@
 搜证：CLI → Host Lens `runScenario`／`LensSimulation` → WorldApplication 公共执行周期 → `gameplay-runtime`／`round-coordinator` → SQLite → Lens 正式裁定、角色观察和玩家面板断言。详见[代码路线](code-walkthrough.md)。
 
 Launcher 与 Host 同为应用代码：Launcher 管理实例与连接，Host 提供装配及运行。它们不把玩法规则复制进管理端。Host 的 `/play-settings` 与 `/plugin-settings` 是共享纯配置公共出口，Launcher 可在浏览器导入；真实 browser 打包闭包各只有一个文件，其他 Node Host 运行时导入仍被禁止。源码导入检查、SDK／RPG 实际加载探针、静态校验和隔离目录入口测试分别验证不同边界，不能互相替代。
+
+2026-11-16：`plugins/cards` 包含无 Host 依赖的纯牌局、三个规则、原生活动适配和可信舞台；复用公共保存树与操作，不依赖 RPG，详见[卡牌指南](../guides/cards.md)。

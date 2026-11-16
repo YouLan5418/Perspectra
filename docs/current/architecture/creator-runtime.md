@@ -237,3 +237,7 @@ NPC 固定台词发表时，可选 `onPublished(state, actorId, expression)` 返
 结果包含逐步真实裁定、角色观察、实际模型输入和玩家玩法投影。状态回放直接读临时 SQLite 的已提交事件，包含共同玩法状态；候选缺失和正式拒绝分开处理。`fault` 匹配实际插件故障，状态断言检查失败后未提交的效果；`contextExcludes` 必须有实际请求才可通过。全部输出属于作者诊断，不回流角色共享上下文。
 
 [搜证示例](../../../examples/world-packs/investigation/README.md)包含显式启用、实现和三步剧本。计时与实际验证见 [B9 记录](../../superpowers/plans/2026-11-15-composable-engine-b9-simulation.md)；实际 HTTP 桩仍留在旧测试支持文件，不在新的 Lens 执行路径中。没有实施 B10 包迁移或 B11 真实模型／发行验收。
+
+## 卡牌活动（2026-11-16）
+
+玩家支付攻击，另一席防御或第三席援助，等待点均可保存。`official-cards` 通过现有 `nativeGameplay` 展开原生操作，把持久纯牌局放入所属 Activity；公开桌面和本人私有数据分别投影，自定义舞台只提交既有操作。它不依赖 RPG，不增加 Core/SDK 服务。三个规则、固定公开响应包络、全树分叉验证与末端重生成限制见[指南](../guides/cards.md)和[验收](../../superpowers/plans/2026-11-16-card-activity-foundation.md)。
