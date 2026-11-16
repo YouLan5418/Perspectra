@@ -45,6 +45,8 @@ function bridge(frontend: string) {
     node: () => ({}),
     post: (value: unknown) => replies.push(value),
     panelPresentation() {},
+    // The extracted bridge delegates lifecycle synchronization to its enclosing shell.
+    syncStage: vi.fn(),
     readPreferences: () => ({}),
     normalizePreferences: stagePreferences,
     localStorage: { setItem: vi.fn() },
@@ -73,6 +75,7 @@ it('allows only the bundled stage to save or persist local display preferences',
     expect.objectContaining({ ok: false, error: '仅官方默认舞台可使用此操作' }),
   ])
   const bundled = bridge('default')
+  expect(bundled.context.syncStage).toHaveBeenCalledOnce()
   await bundled.send('saveProgress', { title: '窗边' })
   expect(bundled.api).toHaveBeenCalledWith('/api/story-save', { title: '窗边' })
   await bundled.send('saveProgress', { title: '窗边', path: 'private' })
@@ -121,7 +124,8 @@ it('forwards changed visible items, known status and responders through both pat
   }
   const changes = playerViewPatch(before, after)
   expect(changes).toMatchObject({ items: after.items, statusBar: after.statusBar, responders: after.responders })
-  const post = vi.fn()
+  const post = vi.fn(),
+    syncStage = vi.fn()
   const start = HOST_ACTIVITY_PAGE.indexOf('  function applyView('),
     end = HOST_ACTIVITY_PAGE.indexOf('  async function connect()', start)
   runInNewContext(HOST_ACTIVITY_PAGE.slice(start, end) + ';applyView(next)', {
@@ -129,6 +133,8 @@ it('forwards changed visible items, known status and responders through both pat
     next: after,
     init: { frontend: 'custom' },
     post,
+    syncStage,
   })
   expect(post).toHaveBeenCalledWith({ type: 'view-patch', changes })
+  expect(syncStage).toHaveBeenCalledOnce()
 })
