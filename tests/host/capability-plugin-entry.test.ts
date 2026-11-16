@@ -28,6 +28,15 @@ export default function (ctx) {
 }
 `,
   )
+  await writeFile(
+    join(outside, 'host-cordis.plugin.json'),
+    JSON.stringify({
+      id: 'host-cordis',
+      name: 'Cordis identity fixture',
+      version: '1.0.0',
+      services: [],
+    }),
+  )
   const model = createChatServer((request, response) => {
     request.resume()
     request.on('end', () => {

@@ -34,6 +34,16 @@ function fixture() {
   return { app, worldPath, memoryPath, address: world.manifest.address }
 }
 
+async function resume(f: ReturnType<typeof fixture>) {
+  const scope = await f.app.createInstanceScope()
+  try {
+    await f.app.withExecutionResources({ scope, address: f.address }, async () => {})
+    return await f.app.head(f.address)
+  } finally {
+    await scope.close()
+  }
+}
+
 it('retains components while yielding, captures externally committed authorized sources on resume, and still disposes on release', async () => {
   const f = fixture(),
     creates = vi.spyOn(WorldBranchComponentFactory.prototype, 'create'),
@@ -78,7 +88,7 @@ it('retains components while yielding, captures externally committed authorized 
       correlationId: 'external-reuse',
     })
     expect(writer.release(f.address, lease.ownerId, lease.fencingToken)).toBe(true)
-    expect(await f.app.head(f.address)).toMatchObject({ headSeq: committed.headSeq })
+    expect(await resume(f)).toMatchObject({ headSeq: committed.headSeq })
     expect(creates).toHaveBeenCalledTimes(1)
     expect(store.readCognitiveJobs(f.address)).toEqual([])
     const memory = new DatabaseSync(f.memoryPath, { readOnly: true })
@@ -111,7 +121,7 @@ it('refuses to resume over another writer and never releases that writer during 
     await f.app.head(f.address)
     await f.app.yieldWriter(f.address)
     const lease = writer.acquire(f.address, 'contending-writer')
-    await expect(f.app.head(f.address)).rejects.toMatchObject({ envelope: { errorCode: 'WORLDSTORE_BUSY' } })
+    await expect(resume(f)).rejects.toMatchObject({ envelope: { errorCode: 'WORLDSTORE_BUSY' } })
     expect(f.app.activeBranchCount).toBe(0)
     expect(writer.renew(f.address, lease.ownerId, lease.fencingToken).fencingToken).toBe(lease.fencingToken)
     writer.release(f.address, lease.ownerId, lease.fencingToken)
@@ -130,7 +140,7 @@ it('releases the reacquired writer and retained stores when resume synchronizati
     vi.spyOn(RoundCoordinator.prototype, 'processCognitiveJobs').mockImplementationOnce(() => {
       throw new Error('resume synchronization failed')
     })
-    await expect(f.app.head(f.address)).rejects.toThrow('resume synchronization failed')
+    await expect(resume(f)).rejects.toThrow('resume synchronization failed')
     expect(f.app.activeBranchCount).toBe(0)
     const lease = writer.acquire(f.address, 'after-failed-resume')
     expect(writer.release(f.address, lease.ownerId, lease.fencingToken)).toBe(true)
@@ -147,7 +157,7 @@ it('checks the current maintenance barrier before resuming a retained branch', a
     await f.app.yieldWriter(f.address)
     administration.setAdmission(f.address, 'draining', 'reuse barrier', 'reuse:drain')
     administration.enterMaintenance(f.address, 'reuse barrier', 'reuse:maintenance')
-    await expect(f.app.head(f.address)).rejects.toMatchObject({ envelope: { errorCode: 'BRANCH_DRAINING' } })
+    await expect(resume(f)).rejects.toMatchObject({ envelope: { errorCode: 'BRANCH_DRAINING' } })
     expect(f.app.activeBranchCount).toBe(0)
   } finally {
     administration.close()

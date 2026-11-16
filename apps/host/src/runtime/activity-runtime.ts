@@ -246,6 +246,31 @@ export class ActivityRuntime {
       actorId = String(object(context.character).characterId)
     if (!state?.game.active || !state.participants.includes(actorId)) return context
     const policy = this.policy(state, actorId)
+    // A read projection cannot regrant an operation removed by an outer role rule.
+    const allowed = (context.affordances as unknown as ActionAffordance[]).flatMap(offer => offer.interactions ?? [])
+    const projected = this.filterAffordances(
+      context.affordances as unknown as ActionAffordance[],
+      state,
+      actorId,
+      canPerform,
+    ).map(offer =>
+      offer.actionType !== 'interact'
+        ? offer
+        : {
+            ...offer,
+            interactions: (offer.interactions ?? []).flatMap(option => {
+              const original = allowed.find(
+                candidate =>
+                  candidate.bindingId === option.bindingId &&
+                  object(candidate.definitionRef).id === object(option.definitionRef).id &&
+                  object(candidate.definitionRef).version === object(option.definitionRef).version &&
+                  object(candidate.targetRef).kind === object(option.targetRef).kind &&
+                  object(candidate.targetRef).id === object(option.targetRef).id,
+              )
+              return original ? [original] : []
+            }),
+          },
+    )
     return {
       ...context,
       activity: this.scoped(state, actorId),
@@ -254,12 +279,7 @@ export class ActivityRuntime {
         speechChoices: policy.speechChoices,
         narration: policy.narration,
       },
-      affordances: this.filterAffordances(
-        context.affordances as unknown as ActionAffordance[],
-        state,
-        actorId,
-        canPerform,
-      ) as unknown as WorldJsonObject[],
+      affordances: projected as unknown as WorldJsonObject[],
     }
   }
   /** Optional response source, with only the current character's authorized request.

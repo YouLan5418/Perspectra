@@ -159,6 +159,7 @@ it.each([false, true])(
     expect(Object.keys(shared.files).sort()).toEqual([
       'core-memory.json',
       'memory-aliases.json',
+      'plugin-set.json',
       'session.sqlite',
       'world.sqlite',
     ])

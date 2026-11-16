@@ -989,30 +989,29 @@ pacing 的候选计算与正式效果应用分别采用其所在路径的语义�
 
 ## 16. 旧清单与当前实现的对应
 
-### 16.1 已核对的实际问题
+### 16.1 当前接通状态与验收边界
 
-| 当前实现 | 观察到的耦合 | 本稿目标 |
+2026-11-16 已同步 B10 集成代码并完成 B11 本轮验收。以下记录实际接通结果；原生桌面窗口、干净机器、真实长期记忆和完整长局仍未验收，详见 [B11 记录](../../superpowers/plans/2026-11-16-composable-engine-b11-acceptance.md)。
+
+| 路径 | 当前实现 | 实际验证与限制 |
 | --- | --- | --- |
-| official-bundle | 默认组合补齐多个机制与玩法相关提供者 | 依游戏包和玩家选择解析出明确组合 |
-| scheduler-round | autonomous 选择专用执行器 | 统一受控激活，机会来源通过公开契约表达 |
-| official-status／official-activities | 主要以脚本文本作为定义来源 | 原生定义注册与脚本适配共用机制接口 |
-| RPG／TRPG content | B6.3 已把配置展开为实际注册的原生状态、活动、Handler、限制和派生，独立复审通过 | 保留配置校验，包清单和共同脚本适配留 B7 |
-| plugin-sdk rules | B1 已将公共规则数据归入 contracts，kernel 保留算法并重导出 | 后续只通过现行执行入口适配，不为旧类型增加兼容分支 |
-| Lens simulation | B9 通过 WorldHostRuntime 的公共执行周期装配，使用进程内模型传输 | 包迁移留 B10；真实模型及发行验收留 B11 |
-| host-plugins 与 scheduler 打开逻辑 | B2 已删除调度回退，导入前检查 nativeAllowed，按清单与实际核心注册判断必要性 | B7 再接游戏包显式玩法组合 |
-| gameplay-services | B2 已统一输入输出复制与插件故障，结构化业务拒绝仍经原路径；核心回调按来源传播 | B4 接原生玩法定义与派生 |
-| Cordis 分支与宿主关闭逻辑 | B2 已由真实实例 Fiber 持有资源，关闭先撤资格，晚到回收与有界清理已有定向证据 | B3 再绑定公共执行周期 |
-| generatedContent 检查 | B6 已改为 gameplayData 持久数据契约，读档／分享先只读校验必要记录、状态值和活动阶段；待独立复审 | 摘要用于未提交候选比较，普通读档允许声明兼容的文案与逻辑修复 |
-| status／activities SDK | 新作者定义已给出具体类型；现行 Provider 定义和多项钩子仍返回 unknown | B4 接通注册与执行时复用新契约，宿主边界继续执行运行校验 |
-| character-action-explanations | 模型层按已有选项重建操作说明 | 操作用途和结果表述归定义，通用模板消费授权投影 |
-| PlayerView 与默认舞台 | B8 已接通开放展示分组、有限参数表单、pluginControls 和两种授权只读面板，完整／增量请求闭环 | 更复杂展示继续由自定义前端承担，不引入动态 UI 框架 |
-| Lens simulation／scenario | B9 保留正式 DecisionService 授权组装，仅替换模型传输；simulate、提交／拒绝／上下文／面板／故障断言已接通 | 参见 B9 施工记录的测试与测量范围 |
-| 调度预算契约 | B3 源码接通实际激活、并发与期限的请求硬预算，阶段待独立验收 | 正式执行边界检查硬预算，周期换界沿用宿主执行范围的剩余额度 |
-| 记忆归档与角色模型 | 已有来源、归档前缀、迟到结果检查及按角色模型映射 | 将这些边界和正常调用能力写入公共契约 |
+| official-bundle／游戏包组合 | B7 显式 plugins 与可选 services 硬要求；未启用玩法不隐式安装，指定实现失败不静默回退 | B11 默认回归及隔离作者工具通过 |
+| 调度与机会来源 | B3 公共受控激活、请求硬预算和执行周期；B5 普通／自主／节奏通过共同执行链 | 自动预算、取消与失败路径通过；真实自主代表场景已执行 |
+| 状态／活动定义 | B4 原生定义注册，B7 共同脚本适配，限制合取、唯一处理器及单层派生 | 原生与脚本回归、搜证代表场景通过 |
+| RPG／TRPG content | 配置展开为实例所属的原生状态、活动、规则与授权结果 | 真实模型正式使用技能、作者数值和主持操作；不推断完整一局体验 |
+| SDK 与包边界 | B10 收敛为轻量 SDK、Core、默认 Providers、玩法集合、独立重记忆、包工具和前端 | 独立导入、静态 CLI 和便携入口通过；包数不是架构不变量 |
+| Cordis 生命周期 | 实例根 Fiber 持有本实例资源，Context 隔离服务解析与注册范围 | 多实例、取消、晚到资源与关闭失败路径有自动证据 |
+| 插件异常与提交 | 结构化业务拒绝；未捕获异常作为 PluginFault；已提交事实不因续写失败回滚 | 官方接口自动回归通过，可信原生代码仍非安全沙箱 |
+| 数据兼容 | 普通读档／分享先只读检查必要数据声明、实际 Schema 和阶段 | 不以代码摘要拒绝兼容文案修复；不新增旧版本兼容承诺 |
+| 角色操作说明 | 定义的用途／参数与已有 projectState 授权投影供默认决策消费；RPG 派生自己掌握的技能说明 | 大技能表不重复持久化，新增说明排除敌人策略与其他角色成本／效果表，既有参数枚举仍可能含全队技能名 |
+| PlayerView 与舞台 | B8 开放分组、有限参数表单、控件与两类只读面板；后续官方 RPG 专属舞台按注册装配 | B11 实际浏览器在通用／专属舞台看到相同数值，窄屏无横向溢出 |
+| Lens／simulate | B9 保留正式决策授权组装，使用进程内脚本传输，通过公共执行器提交／拒绝／断言 | 离线工具和作者 Skill 通过；性能以 B9 分阶段测量为准，不承诺整条链 50 ms |
+| 并发读取与写租约 | 已挂载分支的只读入口不重新恢复协调器写租约；执行入口保留原检查 | B11 修复前准确复现、回归通过，便携浏览器 NPC 接续通过；首次挂载保持原行为 |
+| 记忆与模型入口 | 统一能力入口支持角色路由，授权来源与实际调用计量保留 | 本轮真实模型采用 memory-none；Python／E5 可运行不等于真实长期记忆体验验收 |
 
 对应源码见 [默认组合](../../../apps/host/src/official-bundle.ts)、[调度桥](../../../packages/core/src/application/scheduler-round.ts)、[状态脚本](../../../packages/providers/src/status/index.ts)、[活动脚本](../../../packages/providers/src/activities/index.ts)、[RPG 内容](../../../packages/plugins/src/rpg/content.ts)、[TRPG 内容](../../../packages/plugins/src/trpg/content.ts)、[规则契约](../../../packages/sdk/src/rules.ts)与 [Lens 模拟](../../../apps/host/src/lens/simulation.ts)。
 
-本轮补充核对了[插件装载](../../../apps/host/src/host-plugins.ts)、[机制保护](../../../apps/host/src/runtime/gameplay-services.ts)、[世界运行与关闭](../../../apps/host/src/runtime/world-runtime.ts)、[分支级 Cordis](../../../packages/core/src/runtime/runtime.ts)、[生成内容与存档检查](../../../apps/host/src/runtime/pack-content.ts)及[工具链生成器注入](../../../packages/world-pack/src/pack-content.ts)。这些路径说明当前实现基础，目标行为仍按后续实施与验收记录确认。
+本轮补充核对了[插件装载](../../../apps/host/src/host-plugins.ts)、[机制保护](../../../apps/host/src/runtime/gameplay-services.ts)、[世界运行与关闭](../../../apps/host/src/runtime/world-runtime.ts)、[分支级 Cordis](../../../packages/core/src/runtime/runtime.ts)、[生成内容与存档检查](../../../apps/host/src/runtime/pack-content.ts)及[工具链生成器注入](../../../packages/world-pack/src/pack-content.ts)。这些路径与当前表格共同说明接通状态，体验和发行结论仍以对应验收范围为准。
 
 作者能力的基础见[状态 SDK](../../../packages/sdk/src/status.ts)、[活动 SDK](../../../packages/sdk/src/activities.ts)、[操作说明](../../../packages/providers/src/chat/character-action-explanations.ts)、[玩家视图](../../../packages/frontend/src/player-view.ts)、[默认舞台](../../../packages/frontend/src/default-template.ts)、[Lens 剧本](../../../apps/host/src/lens/scenario.ts)与[现有推演命令](../../../apps/host/src/lens/cli.ts)。
 

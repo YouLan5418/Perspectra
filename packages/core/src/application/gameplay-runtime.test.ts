@@ -2077,3 +2077,68 @@ it('activity stages reuse B8 ownership, participant scoping, fault isolation and
     false,
   )
 })
+
+it('passes only authorized module state into decision projections and copies derived knowledge', async () => {
+  const f = await fixture()
+  const inputs: any[] = []
+  const module = defineGameplay<WorldJsonObject, Empty, null>()({
+    id: 'knowledge:owner',
+    version: '1',
+    dataVersion: 1,
+    requiredServices: ['status'],
+    operations: [],
+    configSchema: { type: 'object', properties: {}, required: [], additionalProperties: false },
+    states: [
+      {
+        key: 'public-value',
+        label: 'Public',
+        type: 'string',
+        owner: 'public',
+        alwaysKnown: true,
+        schema: { type: 'string' },
+        playerTruth: false,
+        bar: false,
+      },
+      {
+        key: 'secret',
+        label: 'Secret',
+        type: 'string',
+        owner: 'character',
+        alwaysKnown: false,
+        schema: { type: 'string' },
+        playerTruth: false,
+        bar: false,
+      },
+    ],
+    initializeState: ({ characterIds }) => ({
+      public: { 'public-value': 'PUBLIC' },
+      characters: Object.fromEntries(
+        characterIds.map(id => [
+          id,
+          { secret: id === player ? 'PLAYER_SECRET' : id === npc ? 'NPC_SECRET' : 'OTHER_SECRET' },
+        ]),
+      ),
+    }),
+    projectState: ({ actorId, state }) => {
+      inputs.push(structuredClone(state))
+      return { ...state, abilities: [{ actorId, effects: ['derived'] }] }
+    },
+  })
+  f.gameplay.register(module, {})
+  await f.gameplay.initialize()
+  const before = JSON.stringify(f.events())
+  const first = f.gameplay.projectContext(f.events(), player, {}) as any
+  const value = first.gameplay.find((m: any) => m.moduleId === 'knowledge:owner').state
+  expect(value.public).toEqual({ 'public-value': 'PUBLIC' })
+  expect(JSON.stringify(inputs)).not.toContain('NPC_SECRET')
+  expect(JSON.stringify(first)).not.toContain('NPC_SECRET')
+  expect(value.characters[player].secret).toBe('PLAYER_SECRET')
+  value.abilities[0].effects.push('tampered')
+  value.characters[player].secret = 'TAMPERED'
+  const again = f.gameplay.projectContext(f.events(), player, {}) as any
+  expect(JSON.stringify(again)).not.toMatch(/tampered|TAMPERED/)
+  const npcView = f.gameplay.projectContext(f.events(), npc, {})
+  expect(JSON.stringify(npcView)).toContain('NPC_SECRET')
+  expect(JSON.stringify(npcView)).not.toContain('PLAYER_SECRET')
+  expect(JSON.stringify(f.events())).toBe(before)
+})

@@ -586,3 +586,40 @@ it.each([
   expect(result.status).toBe('failed')
   expect(settle).not.toHaveBeenCalled()
 })
+
+it('keeps concurrent player-view reads from taking the writer lease before an NPC publishes', async () => {
+  const { app, scope, engine, address } = await fixture()
+  const gameplay = await app.createGameplayRuntime({ scope, address, engine, availableServices: [] })
+  await gameplay.initialize()
+  await app.withExecutionResources({ scope, address }, async resources => {
+    const before = resources.store.head(address).headSeq
+    const turn = resources.createTurn({
+      loop: {
+        async run(activation) {
+          activation.prepare({ canPerform: false, continuation: false })
+          // The browser refreshes PlayerView while an asynchronous model request is in flight.
+          await gameplay.playerView('principal:player')
+          const player = brandId('character:player', 'CharacterId')
+          await app.head(address)
+          await app.playerAffordancesForPrincipal(address, 'principal:player', player)
+          await app.characterViewForPrincipal(address, 'principal:player', player)
+          await app.read.eventHistory(address)
+          await app.read.characterView(address, player)
+          await app.read.characterAvailability(address, player)
+          await app.admin.deadLetters(address)
+          await activation.submit({ decision: 'publish', segments: [{ type: 'speech', text: '看到了。' }] })
+          return 'published'
+        },
+      },
+      decide: async () => {
+        throw new Error('no model expected')
+      },
+      rulebooks: (await import('@perspectra/core/kernel')).createCoreRulebookRegistry({
+        interactionPackages: [basicInteractionPackage],
+      }),
+    })
+    const result = await turn.run(brandId('character:npc', 'CharacterId'))
+    expect(result.publicationCommitted).toBe(true)
+    expect(resources.store.head(address).headSeq).toBeGreaterThan(before)
+  })
+})

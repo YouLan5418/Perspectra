@@ -1,3 +1,5 @@
+import { ActivityRuntime } from '../../apps/host/src/runtime/activity-runtime.ts'
+import { createCoreRulebookRegistry } from '@perspectra/core/kernel'
 import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
@@ -305,4 +307,41 @@ it('rejects activation outside participants without undoing the committed start'
   await expect(f.begin()).rejects.toThrow('调度请求了未授权角色')
   expect(f.state().game.active).toBe(true)
   expect(f.state().participants).not.toContain('character:friend')
+})
+
+it('never regrants an activity option removed by an outer role rule and preserves the permitted template', async () => {
+  let mechanism: ActivitiesInstance['entries'][number] | undefined
+  const f = await start(
+    decorated(instance => {
+      mechanism = instance.entries[0]!
+    }),
+  )
+  await f.begin()
+  const actor = 'character:player'
+  const activity = new ActivityRuntime(
+    mechanism!,
+    '',
+    f.runtime.address,
+    actor,
+    'default',
+    undefined,
+    createCoreRulebookRegistry({ interactionPackages: [] }),
+    { randomSource: () => 0.5, readCurrent: f.state },
+  )
+  const options = activity.options(f.state(), actor)
+  const allowed = {
+    ...structuredClone(options.find(option => (option.definitionRef as WorldJsonObject).id === 'activity:quit')!),
+    argumentSchema: { type: 'object', properties: { keep: { const: 'original' } } },
+  }
+  const context = {
+    character: { characterId: actor },
+    affordances: [{ actionType: 'interact', interactions: [allowed] }],
+  }
+  const projected = activity.projectContext(context, true)
+  const interactions = (projected.affordances as WorldJsonObject[]).flatMap(
+    offer => (offer.interactions as WorldJsonObject[]) ?? [],
+  )
+  expect(interactions).toEqual([allowed])
+  expect(JSON.stringify(interactions)).not.toContain('activity:guess')
+  expect(f.state().game.active).toBe(true)
 })

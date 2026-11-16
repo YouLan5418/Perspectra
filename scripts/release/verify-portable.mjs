@@ -7,7 +7,10 @@ import { build, transform } from 'esbuild'
 const expectedFrontend = await build({
   stdin: {
     contents:
-      "export {DEFAULT_PAGE,DEFAULT_STYLE,DEFAULT_SCRIPT} from './packages/frontend/src/default-template.ts';" +
+      "import {defaultFrontendAssets} from './packages/frontend/src/default-template.ts';" +
+      "import {officialStageRenderers} from './apps/host/src/official-bundle.ts';" +
+      'const assets=defaultFrontendAssets(officialStageRenderers);' +
+      'export const DEFAULT_PAGE=assets.page,DEFAULT_STYLE=assets.style,DEFAULT_SCRIPT=assets.script;' +
       "export {HOST_ACTIVITY_PAGE} from './apps/host/src/runtime/host-page.ts';",
     resolveDir: process.cwd(),
     sourcefile: 'portable-frontend-check.ts',
@@ -16,6 +19,9 @@ const expectedFrontend = await build({
   platform: 'node',
   target: 'node24',
   format: 'esm',
+  banner: {
+    js: "import {createRequire as __createRequire} from 'node:module'; const require=__createRequire(process.cwd()+'/package.json');",
+  },
   write: false,
 })
 const { DEFAULT_PAGE, DEFAULT_STYLE, DEFAULT_SCRIPT, HOST_ACTIVITY_PAGE } = await import(

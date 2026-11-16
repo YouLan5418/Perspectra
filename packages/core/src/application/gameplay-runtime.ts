@@ -1099,6 +1099,7 @@ export class GameplayRuntime {
     const modules = [...this.#modules.values()].map(module => ({
       moduleId: module.definition.id,
       known: module.state.known(statusEvents(events, module), actorId),
+      ...(module.definition.projectState ? { state: this.#project(module, events, actorId, true) } : {}),
     }))
     const active = [...activityProgress(events)].find(
       ([key, state]) =>

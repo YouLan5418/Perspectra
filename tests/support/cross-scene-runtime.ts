@@ -276,6 +276,8 @@ export async function crossSceneRuntime(
           undefined,
           undefined,
           memoryCore?.snapshotArchives(characterIds) ?? {},
+          undefined,
+          { seams: {} },
         )
       } finally {
         saving = false

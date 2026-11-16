@@ -3,6 +3,7 @@ import { execFileSync } from 'node:child_process'
 import { cp, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
+import { pathToFileURL } from 'node:url'
 import { expect, it } from 'vitest'
 
 it('imports SDK and RPG through their declared exports without core, model or Python implementations', async () => {
@@ -44,7 +45,7 @@ it('validates the search pack with model and Python modules unavailable', async 
       process.execPath,
       [
         '--import',
-        guard,
+        pathToFileURL(guard).href,
         '--import',
         'tsx',
         resolve('apps/host/src/cli/worldpack.ts'),
@@ -74,7 +75,8 @@ it('runs the bundled CLI and search assertions outside the checkout', async () =
   const directory = await mkdtemp(join(tmpdir(), 'perspectra-cli-layout-'))
   try {
     const entry = join(directory, 'worldpack.mjs')
-    await build({
+    const bundled = await build({
+      write: false,
       entryPoints: ['apps/host/src/cli/worldpack.ts'],
       outfile: entry,
       bundle: true,
@@ -85,6 +87,7 @@ it('runs the bundled CLI and search assertions outside the checkout', async () =
         js: "import {createRequire as __createRequire} from 'node:module'; const require=__createRequire(import.meta.url);",
       },
     })
+    await writeFile(entry, bundled.outputFiles[0]!.contents)
     const pack = resolve('examples/world-packs/investigation')
     const options = {
       cwd: directory,

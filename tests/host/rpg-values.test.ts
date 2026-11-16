@@ -108,6 +108,17 @@ it('NPCs and enemies use the same resource effects/cost chain and host RNG repla
   await f.runtime.submit('开始。')
   const view = await act(f, '压制'),
     first = structuredClone(game(f))
+  const chengCall = f.inputs.find(input => (input.context as Json).activity?.game.turn === 'character:cheng')!
+  const knowledge = (chengCall.context as Json).gameplay.find((m: Json) => m.moduleId === 'official-rpg').state
+    .battleKnowledge
+  expect(knowledge.skills.find((s: Json) => s.id === 'pressure').effects).toContainEqual({
+    kind: 'value',
+    scope: 'target',
+    key: 'posture',
+    delta: -2,
+  })
+  expect(JSON.stringify(knowledge)).not.toContain('enemy-strike')
+  expect((chengCall.context as Json).activity.game).not.toHaveProperty('internal')
   expect(first.public.lastResult).toContain('澄使用压制')
   expect(first.public.lastResult).toContain('遗迹守卫使用怒击')
   expect(first.internal.values.units.golem.rage).toBe(1)

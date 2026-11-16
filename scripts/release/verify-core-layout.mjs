@@ -46,7 +46,7 @@ assert.equal(
 )
 await build({
   stdin: {
-    contents: "export { coreRunner } from '@perspectra/memory-core'",
+    contents: "export { coreRunner, createCoreWorker } from '@perspectra/memory-core'",
     resolveDir: resolve('.'),
     sourcefile: 'memory-layout-entry.ts',
   },
@@ -86,6 +86,10 @@ for (const layout of ['source', 'bundled', 'portable']) {
   const runtimeRoot = layout === 'source' ? undefined : layout === 'bundled' ? resolve('dist/backend') : runtime
   const env = {
     ...process.env,
+    PERSPECTRA_ROLE_MODELS: undefined,
+    PERSPECTRA_MODEL_ENDPOINT: 'http://127.0.0.1:9/v1/chat/completions',
+    PERSPECTRA_MODEL: 'offline-layout-test',
+    PERSPECTRA_MODEL_API_KEY: '',
     PERSPECTRA_RUNTIME_ROOT: runtimeRoot,
     HCW_HINDSIGHT_CORE_DIR:
       layout === 'source' ? resolve('packages/memory-core/python/core') : join(runtimeRoot, 'memory-core/python/core'),

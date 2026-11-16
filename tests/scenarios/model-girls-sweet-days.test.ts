@@ -1,3 +1,4 @@
+import { playSettings, type PlaySettings } from '../../apps/host/src/play-settings.ts'
 import { createRoleplayCore } from '../support/roleplay-runtime.ts'
 import { type Server } from 'node:http'
 import { afterEach, expect, it } from 'vitest'
@@ -36,6 +37,7 @@ async function fixture(
   includePrologue = false,
   battleAgent = false,
   pacing = false,
+  settings: Partial<PlaySettings> = {},
 ) {
   const root = mkdtempSync(join(tmpdir(), 'model-girls-sweet-days-'))
   roots.push(root)
@@ -136,6 +138,7 @@ async function fixture(
     dataDirectory: data,
     models: fakeModels('http://127.0.0.1:' + port + '/v1/chat/completions', 'openai', 'fixture'),
     timeoutMs: 5000,
+    playSettings: playSettings(settings),
   })
   runtimes.push(runtime)
   const events = () => {
@@ -345,7 +348,7 @@ it('triggers starlight-finale autoStart when turning on the star projector and s
 })
 
 it('keeps a blackout through cooking and overnight rest until power is actually repaired', async () => {
-  const f = await fixture()
+  const f = await fixture(undefined, undefined, false, false, false, { autonomyOpportunities: 0 })
   // Buy strawberry cake in entrance shop first
   await f.act('前往 玄关与街角商店')
   await f.act('付款购买限定草莓小蛋糕')
@@ -398,7 +401,11 @@ it('rejects morning sleep without committing a day change', async () => {
 it('plays fixed branching dialogue for each gift-scene participant without a model request', async () => {
   const f = await fixture(
     { 'character:claude': 'location:living-room', 'character:deepseek': 'location:living-room' },
-    { decision: 'publish', segments: [{ type: 'speech', text: '我听到了，还想再说几句。' }] },
+    { decision: 'abstain' },
+    false,
+    false,
+    false,
+    { autonomyOpportunities: 0 },
   )
   await f.act('前往 玄关与街角商店')
   await f.act('付款购买限定草莓小蛋糕')

@@ -29,7 +29,12 @@
         "status:eat-cake",
         "base:hold-hand",
         "base:end-contact",
-        "experiment:message"
+        "experiment:message",
+        "activity:attack",
+        "activity:magic",
+        "activity:heal",
+        "activity:guard",
+        "activity:vote"
       ],
       "locationIds": [
         "location:living-room",
@@ -69,7 +74,12 @@
         "status:brew-single-tea",
         "base:hold-hand",
         "base:end-contact",
-        "experiment:message"
+        "experiment:message",
+        "activity:attack",
+        "activity:magic",
+        "activity:heal",
+        "activity:guard",
+        "activity:vote"
       ],
       "locationIds": [
         "location:living-room",
@@ -109,7 +119,12 @@
         "status:eat-cake",
         "base:hold-hand",
         "base:end-contact",
-        "experiment:message"
+        "experiment:message",
+        "activity:attack",
+        "activity:magic",
+        "activity:heal",
+        "activity:guard",
+        "activity:vote"
       ],
       "locationIds": [
         "location:living-room",

@@ -278,9 +278,12 @@ it('rejects future or foreign node memory before opening a fork and retains the 
     else if (kind === 'foreign') cached.archive.scope.characterId = 'character:friend'
     else cached.archive.sources[0].text = '来自另一条世界线的内容'
     writeFileSync(path, JSON.stringify(saved))
-    await expect(f.create(target)).rejects.toThrow(
-      kind === 'source' ? 'memory source prefix changed' : 'another role, world or future prefix',
-    )
+    await expect(f.create(target)).rejects.toMatchObject({
+      name: 'PluginFault',
+      pluginId: 'official-memory-core',
+      operation: 'restoreArchives',
+      invalidResult: false,
+    })
     expect(existsSync(join(target, 'rebuild-memory.json'))).toBe(true)
     expect(JSON.stringify(f.events())).toBe(original)
   }
@@ -394,6 +397,7 @@ it('shares one historical node across independent launchers, preserves installed
   expect(Object.keys(content.files).sort()).toEqual([
     'core-memory.json',
     'memory-aliases.json',
+    'plugin-set.json',
     'session.sqlite',
     'world.sqlite',
   ])

@@ -48,6 +48,7 @@ async function world(beats: Record<string, string>) {
   const file = join(packPath, 'worldpack.source.json'),
     manifest = JSON.parse(readFileSync(file, 'utf8'))
   manifest.assetFiles = ['scripts/status.js', 'scripts/pacing.js']
+  manifest.plugins = { ...manifest.plugins, 'official-pacing': {}, 'pack-scripts': {} }
   writeFileSync(file, JSON.stringify(manifest))
   const requests: { actor: string; text: string }[] = []
   const server = await startFakeProvider('openai', call => {
@@ -107,7 +108,8 @@ it('commits nothing of a beat with an invalid value, and names why', async () =>
   await f.round([0, 0, 0])
   expect(f.beats()).toEqual([])
   expect(f.observations(COMPANION)).not.toContain(SEEN)
-  expect(f.decision()).toMatchObject({ kind: 'none', reason: { why: 'beat-failed', beatId: 'bad' } })
+  expect((await f.runtime.state()).debug.execution).toMatchObject({ status: 'failed' })
+  expect((await f.runtime.state()).notice).toContain('插件 official-pacing')
 })
 
 it.each([
@@ -122,7 +124,8 @@ it.each([
   const f = await world({ bad: `${always}, apply: () => ({ ${body} })` })
   await f.round([0, 0, 0])
   expect(f.beats()).toEqual([])
-  expect(f.decision()).toMatchObject({ reason: { why: 'beat-failed' } })
+  expect((await f.runtime.state()).debug.execution).toMatchObject({ status: 'failed' })
+  expect((await f.runtime.state()).notice).toContain('插件 official-pacing')
 })
 
 it('keeps a stimulus from everyone it does not name', async () => {
@@ -175,7 +178,9 @@ it('does not commit when apply throws, and tries again next round', async () => 
   })
   await f.round([0, 0, 0])
   expect(f.beats()).toEqual([])
-  expect(f.decision()).toMatchObject({ reason: { why: 'beat-failed', error: expect.stringContaining('还不行') } })
+  expect((await f.runtime.state()).debug.execution).toMatchObject({ status: 'failed' })
+  expect((await f.runtime.state()).notice).toContain('插件 official-pacing')
+  expect(JSON.stringify(await f.runtime.state())).not.toContain('还不行')
   await f.round([0, 0, 0])
   expect(f.beats()).toHaveLength(1)
 })

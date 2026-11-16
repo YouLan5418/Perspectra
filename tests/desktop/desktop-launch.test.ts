@@ -94,6 +94,24 @@ describe('desktop launch boundary', () => {
         ctx.effect(() => () => writeFileSync(new URL('./plugin-closed', import.meta.url), 'yes'));
       }`,
       )
+      await writeFile(
+        join(pluginDirectory, 'speech.plugin.json'),
+        JSON.stringify({
+          id: 'tts',
+          name: 'Test runtime services',
+          version: '1.0.0',
+          services: [
+            'communication',
+            'autonomy',
+            'activities',
+            'status',
+            'knowledge',
+            'characterLoop',
+            'llm',
+            'frontendServices',
+          ],
+        }),
+      )
       const pack = resolve('examples/world-packs', packName)
       expect((await preflightSave(pack, directory)).kind).toBe('new')
       const bundled = process.env.HCW_TEST_DESKTOP_BUNDLE === '1'

@@ -24,7 +24,7 @@ export interface MountedBranch {
 export interface WorldBranchAccess {
   readonly options: WorldApplicationOptions
   assertOpen(): void
-  branch(address: WorldAddress): Promise<MountedBranch>
+  branch(address: WorldAddress, resumeWriter?: boolean): Promise<MountedBranch>
   release(address: WorldAddress): Promise<void>
   integrityGuard<T>(
     address: WorldAddress,

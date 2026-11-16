@@ -237,3 +237,10 @@ NPC 固定台词发表时，可选 `onPublished(state, actorId, expression)` 返
 结果包含逐步真实裁定、角色观察、实际模型输入和玩家玩法投影。状态回放直接读临时 SQLite 的已提交事件，包含共同玩法状态；候选缺失和正式拒绝分开处理。`fault` 匹配实际插件故障，状态断言检查失败后未提交的效果；`contextExcludes` 必须有实际请求才可通过。全部输出属于作者诊断，不回流角色共享上下文。
 
 [搜证示例](../../../examples/world-packs/investigation/README.md)包含显式启用、实现和三步剧本。计时与实际验证见 [B9 记录](../../superpowers/plans/2026-11-15-composable-engine-b9-simulation.md)；实际 HTTP 桩仍留在旧测试支持文件，不在新的 Lens 执行路径中。没有实施 B10 包迁移或 B11 真实模型／发行验收。
+
+
+## B11：作者定义在真实模型中的消费（2026-11-16）
+
+例如给澄一个“先削弱守卫架势”的目标，她会从自己的技能效果说明里选择压制或破甲击，裁定结果确认后再发表。RPG 使用已有的原生 `projectState`，由共同 GameplayRuntime 将授权结果放入决策上下文；没有改通用 Prompt 模板，也不把技能定义重复写进持久活动状态。作者数值、护盾和持续效果均有真实模型实际操作，完整长局质量另行验收。
+
+活动桥在投影模型候选时，保留上游许可过滤后的原始选项及参数 Schema，只能收窄，不能按活动 policy 重新生成已被剔除的动作。同居示例为角色显式声明其实际使用的 attack／magic／heal／guard／vote 许可。没有恢复默认全部放行。B10 包迁移已集成；当前自动化、真实模型与便携入口结果见 [B11 记录](../../superpowers/plans/2026-11-16-composable-engine-b11-acceptance.md)。

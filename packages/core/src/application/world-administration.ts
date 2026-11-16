@@ -46,7 +46,7 @@ export class WorldAdministration {
   }
 
   async deadLetters(address: WorldAddress): Promise<DeadLetterRecord[]> {
-    return (await this.#access.branch(address)).store.deadLetters()
+    return (await this.#access.branch(address, false)).store.deadLetters()
   }
 
   async retryDeadLetter(address: WorldAddress, deliveryId: DeliveryId, correlationId: string): Promise<void> {

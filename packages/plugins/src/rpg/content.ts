@@ -1,3 +1,4 @@
+import { battleKnowledge } from './battle-knowledge.ts'
 import { officialRpgBattleView } from './battle-view.ts'
 import configSchema from './config-schema.json' with { type: 'json' }
 import { ConfigInputError } from './config.ts'
@@ -50,6 +51,11 @@ export const officialRpgContent: ContentGenerator = {
     })
     const gameplay = {
       ...definition,
+      projectState: ({ actorId, state }: Parameters<NonNullable<typeof definition.projectState>>[0]) =>
+        ({
+          ...state,
+          battleKnowledge: battleKnowledge(config, actorId),
+        }) as unknown as WorldJsonObject,
       playerView: ({
         playerId,
         activities: scoped = [],

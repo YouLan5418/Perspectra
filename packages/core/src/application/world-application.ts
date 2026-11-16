@@ -424,12 +424,16 @@ export class WorldApplication {
     const access: WorldBranchAccess = {
       options,
       assertOpen: () => this.#assertOpen(),
-      branch: address => this.#branch(address),
+      branch: (address, resumeWriter) => this.#branch(address, resumeWriter),
       release: address => this.release(address),
       integrityGuard: (address, source, operation) => this.#integrityGuard(address, source, operation),
       projectionRead: (address, correlationId, operation) => this.#projectionRead(address, correlationId, operation),
     }
-    this.read = new WorldReadQueries(access)
+    this.read = new WorldReadQueries({
+      ...access,
+      branch: address => this.#branch(address, false),
+      integrityGuard: (address, source, operation) => this.#integrityGuard(address, source, operation, false),
+    })
     this.admin = new WorldAdministration(access)
     this.#interactionPackages = options.interactionPackages ?? []
     this.#frozenInteractions = new FrozenInteractionRulebook(this.#interactionPackages)
@@ -526,7 +530,8 @@ export class WorldApplication {
       read: async () => {
         this.#assertOpen()
         options.scope.assertActive()
-        const current = await this.#branch(address)
+        // Snapshot reads can run while an NPC is awaiting its model. They must not reclaim its writer lease.
+        const current = await this.#branch(address, false)
         const record = current.store.store.readManifest(address)!
         return {
           head: current.store.store.head(address),
@@ -1085,7 +1090,7 @@ export class WorldApplication {
   }
 
   async head(address: WorldAddress) {
-    return this.#integrityGuard(address, 'world.head', branch => branch.store.store.head(address))
+    return this.#integrityGuard(address, 'world.head', branch => branch.store.store.head(address), false)
   }
 
   /** Current player options use the same Rulebook candidate snapshot as command interpretation. */
@@ -1096,40 +1101,45 @@ export class WorldApplication {
     asOfWorldSeq?: number,
   ): Promise<readonly ActionAffordance[]> {
     assertProtocolString(principalId, 'principalId')
-    return this.#integrityGuard(address, 'view.affordances', branch => {
-      const record = branch.store.store.readManifest(address)
-      if (record === undefined) throw new Error('active world has no Manifest')
-      const manifest = runtimeManifestFromStoredRecord(record)
-      if (
-        !manifest.playerBindings.some(
-          binding => binding.principalId === principalId && binding.characterId === characterId,
-        )
-      ) {
-        failWorld({
-          errorCode: 'UNAUTHORIZED',
-          category: 'admission',
-          message: 'principal is not bound to the requested affordances',
-          retryable: false,
-          correlationId: `affordances:${principalId}:${characterId}`,
+    return this.#integrityGuard(
+      address,
+      'view.affordances',
+      branch => {
+        const record = branch.store.store.readManifest(address)
+        if (record === undefined) throw new Error('active world has no Manifest')
+        const manifest = runtimeManifestFromStoredRecord(record)
+        if (
+          !manifest.playerBindings.some(
+            binding => binding.principalId === principalId && binding.characterId === characterId,
+          )
+        ) {
+          failWorld({
+            errorCode: 'UNAUTHORIZED',
+            category: 'admission',
+            message: 'principal is not bound to the requested affordances',
+            retryable: false,
+            correlationId: `affordances:${principalId}:${characterId}`,
+            address,
+          })
+        }
+        const asOf = asOfWorldSeq ?? branch.store.store.head(address).headSeq
+        const resolver = this.#rulebooks.resolve(
+          manifest.rulebook.rulebookId,
+          manifest.rulebook.version,
+          `affordances:${principalId}:${characterId}`,
           address,
+        )
+        return resolver.affordances({
+          manifest,
+          events: branch.store.store.readEvents(address, asOf),
+          characterId,
+          manifestHash: record.manifestHash,
+          asOfWorldSeq: asOf,
+          resolutionAuthority: resolutionAuthority('player', 'manual_player_immediate'),
         })
-      }
-      const asOf = asOfWorldSeq ?? branch.store.store.head(address).headSeq
-      const resolver = this.#rulebooks.resolve(
-        manifest.rulebook.rulebookId,
-        manifest.rulebook.version,
-        `affordances:${principalId}:${characterId}`,
-        address,
-      )
-      return resolver.affordances({
-        manifest,
-        events: branch.store.store.readEvents(address, asOf),
-        characterId,
-        manifestHash: record.manifestHash,
-        asOfWorldSeq: asOf,
-        resolutionAuthority: resolutionAuthority('player', 'manual_player_immediate'),
-      })
-    })
+      },
+      false,
+    )
   }
   /** Player-facing view access: a principal may read only the Character bound to it by the frozen Manifest. */
   async characterViewForPrincipal(
@@ -1139,27 +1149,32 @@ export class WorldApplication {
     asOfWorldSeq?: number,
   ): Promise<CharacterView> {
     assertProtocolString(principalId, 'principalId')
-    return this.#integrityGuard(address, 'view.character', branch => {
-      const manifest = runtimeManifestFromStoredRecord(branch.store.store.readManifest(address))
-      if (
-        !manifest.playerBindings.some(
-          binding => binding.principalId === principalId && binding.characterId === characterId,
-        )
-      ) {
-        failWorld({
-          errorCode: 'UNAUTHORIZED',
-          category: 'admission',
-          message: 'principal is not bound to the requested CharacterView',
-          retryable: false,
-          correlationId: `view:${principalId}:${characterId}`,
-          address,
+    return this.#integrityGuard(
+      address,
+      'view.character',
+      branch => {
+        const manifest = runtimeManifestFromStoredRecord(branch.store.store.readManifest(address))
+        if (
+          !manifest.playerBindings.some(
+            binding => binding.principalId === principalId && binding.characterId === characterId,
+          )
+        ) {
+          failWorld({
+            errorCode: 'UNAUTHORIZED',
+            category: 'admission',
+            message: 'principal is not bound to the requested CharacterView',
+            retryable: false,
+            correlationId: `view:${principalId}:${characterId}`,
+            address,
+          })
+        }
+        return this.#projectionRead(address, `view:${worldAddressKey(address)}:${characterId}`, () => {
+          const asOf = asOfWorldSeq ?? branch.store.store.head(address).headSeq
+          return new CharacterViewBuilder(branch.store.store).rebuildAt(address, characterId, asOf)
         })
-      }
-      return this.#projectionRead(address, `view:${worldAddressKey(address)}:${characterId}`, () => {
-        const asOf = asOfWorldSeq ?? branch.store.store.head(address).headSeq
-        return new CharacterViewBuilder(branch.store.store).rebuildAt(address, characterId, asOf)
-      })
-    })
+      },
+      false,
+    )
   }
 
   async deliver(address: WorldAddress, correlationId: string): Promise<number> {
@@ -1171,7 +1186,7 @@ export class WorldApplication {
     }
   }
 
-  /** Yield only the writer lease; the next application operation resumes the same branch components. */
+  /** Yield only the writer lease; the next write operation resumes the same branch components. */
   async yieldWriter(address: WorldAddress): Promise<void> {
     const pending = this.#branches.get(worldAddressKey(address))
     if (pending === undefined) return
@@ -1234,8 +1249,9 @@ export class WorldApplication {
     address: WorldAddress,
     source: string,
     operation: (branch: MountedBranch) => T | Promise<T>,
+    resumeWriter = true,
   ): Promise<T> {
-    const branch = await this.#branch(address)
+    const branch = await this.#branch(address, resumeWriter)
     try {
       return await operation(branch)
     } catch (error: unknown) {
@@ -1281,14 +1297,14 @@ export class WorldApplication {
     }
   }
 
-  async #branch(address: WorldAddress): Promise<MountedBranch> {
+  async #branch(address: WorldAddress, resumeWriter = true): Promise<MountedBranch> {
     this.#assertOpen()
     const key = worldAddressKey(address)
     const current = this.#branches.get(key)
     if (current !== undefined) {
       const branch = await current
       try {
-        branch.kernel.resumeWriter()
+        if (resumeWriter) branch.kernel.resumeWriter()
         return branch
       } catch (error) {
         await this.release(address)

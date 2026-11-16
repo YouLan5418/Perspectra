@@ -34,6 +34,7 @@ async function world(pacing: object | undefined) {
     manifest = JSON.parse(readFileSync(file, 'utf8'))
   manifest.assetFiles.push('scripts/activities/dice.js')
   if (pacing) {
+    manifest.plugins['official-pacing'] = {}
     writeFileSync(
       join(packPath, 'scripts/pacing.js'),
       `globalThis.pacingScript = { definition: ${JSON.stringify(pacing)}, beats: {} }`,

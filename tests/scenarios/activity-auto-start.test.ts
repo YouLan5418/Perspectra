@@ -133,11 +133,12 @@ it('starts an activity whose conditions all hold after the player round, once, w
   expect(f.starts()).toHaveLength(0)
   await f.runtime.submit('/status raise {}')
   const [start] = f.starts()
-  expect(start && data(start)).toMatchObject({ activityKey: 'other', source: 'auto' })
-  const sameTransaction = f.events().filter(event => event.transactionId === start!.transactionId)
-  expect(sameTransaction.find(event => event.eventType === 'action.resolved')?.data).toMatchObject({
-    sourceRole: 'director',
+  expect(start && data(start)).toMatchObject({
+    activityKey: 'other',
+    source: { kind: 'cycle', cycleId: expect.any(String) },
   })
+  const sameTransaction = f.events().filter(event => event.transactionId === start!.transactionId)
+  expect(sameTransaction.some(event => event.eventType === 'action.resolved')).toBe(false)
   // Delivered exactly like a manual start: player and companion observe the opening.
   expect(
     sameTransaction
@@ -237,7 +238,11 @@ it('rejects malformed hook results and host-refused starts without committing an
     const f = await fixture({ other: hook }, dynamic)
     await f.runtime.submit('/status wait {}')
     expect(f.events().filter(event => event.eventType === 'activity.updated')).toHaveLength(0)
-    expect(((await f.runtime.state()).debug as WorldJsonObject).autoStartError).toEqual(expect.any(String))
+    const state = await f.runtime.state()
+    if (dynamic) {
+      expect(state.debug.execution).toMatchObject({ status: 'failed' })
+      expect(state.notice).toContain('周期结算失败')
+    } else expect(state.notice).toContain('本次未能提供额外处理机会')
   }
 })
 

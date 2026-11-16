@@ -252,7 +252,7 @@ it('routes each real Core character call to its selected preset without cross-ch
       models: fakeModels('http://127.0.0.1:9/v1/chat/completions'),
       presetMapping: { characters: { 'character:foreign': { prompt: 'not allowed' } } },
     }),
-  ).rejects.toThrow('此包之外')
+  ).rejects.toMatchObject({ name: 'PluginFault', pluginId: 'official-llm', operation: 'open', invalidResult: false })
 })
 it("routes each character's decision call to its own model and endpoint", async () => {
   const calls: { url: string; model: unknown; key: string | null; actor: string }[] = []
@@ -339,7 +339,7 @@ it("routes each character's decision call to its own model and endpoint", async 
         characters: { 'character:foreign': { decision: other, memory: other } },
       },
     }),
-  ).rejects.toThrow('此包之外')
+  ).rejects.toMatchObject({ name: 'PluginFault', pluginId: 'official-llm', operation: 'open', invalidResult: false })
 })
 it('offers package role presets and assigns them to one instance without touching other mappings', async () => {
   const dir = await root(),
