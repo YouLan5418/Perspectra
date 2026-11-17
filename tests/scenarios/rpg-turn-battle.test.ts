@@ -4,8 +4,7 @@ import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { randomUUID } from 'node:crypto'
 import { afterEach, expect, it } from 'vitest'
-import { interactionPackageDescription, type WorldJsonObject } from '@perspectra/sdk/contracts'
-import { createInstalledInteractionPackages } from '@perspectra/plugins/basic-interactions'
+import { type WorldJsonObject } from '@perspectra/sdk/contracts'
 import { compileWorldPackSource } from '@perspectra/world-pack'
 import { WorldStore } from '@perspectra/core/store'
 import { WorldHostRuntime } from '../../apps/host/src/runtime/world-runtime.ts'
@@ -39,10 +38,7 @@ async function fixture(fault = false) {
     const script = join(packPath, 'scripts/activities/battle.js')
     writeFileSync(script, readFileSync(script, 'utf8').replace("set(targetId, 'hp', hp)", "set(targetId, 'hp', -1)"))
   }
-  const compiled = await compileWorldPackSource(
-    packPath,
-    createInstalledInteractionPackages().map(interactionPackageDescription),
-  )
+  const compiled = await compileWorldPackSource(packPath, [])
   const status = loadStatus(packPath, compiled)!
   const requests: WorldJsonObject[] = []
   let tactics: 'guard' | 'abstain' = 'guard'

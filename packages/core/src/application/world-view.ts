@@ -3,6 +3,7 @@ import {
   currentLocation,
   currentEntityState,
   currentCharacterLifecycle,
+  currentSceneStates,
   type CompiledWorldManifest,
   type RulebookEvent,
 } from '@perspectra/core/kernel'
@@ -89,6 +90,9 @@ export function gameplayWorldView(
         {
           locationId: currentLocation(events, row.characterId) ?? null,
           lifecycle: currentCharacterLifecycle(events, row.characterId) ?? 'active',
+          sceneIds: currentSceneStates(events)
+            .filter(scene => scene.lifecycle === 'active' && scene.participantIds.includes(row.characterId))
+            .map(scene => scene.sceneId),
         },
       ]),
     ),

@@ -5,7 +5,7 @@ import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { WorldApplication } from '@perspectra/core'
 import { brandId } from '@perspectra/sdk/contracts'
-import { currentCharacterRelations } from '@perspectra/core/kernel'
+import { currentEntityState } from '@perspectra/core/kernel'
 import {
   BranchAdministration,
   ProjectionRebuilder,
@@ -22,12 +22,12 @@ import { frozenInteractionWorld } from '../fixtures/frozen-interaction-world.ts'
  */
 const compiled = frozenInteractionWorld()
 const address = compiled.manifest.address
-const holdHand = {
+const takeCup = {
   actionType: 'interact',
   parameters: {
-    targetRef: { kind: 'character', id: 'character:npc' },
-    bindingId: 'binding:character:npc:base:hold-hand',
-    definitionRef: { id: 'base:hold-hand', version: 1 },
+    targetRef: { kind: 'entity', id: 'entity:cup' },
+    bindingId: 'binding:entity:cup:base:take',
+    definitionRef: { id: 'base:take', version: 1 },
     arguments: {},
   },
 }
@@ -46,11 +46,11 @@ const submit = (application: WorldApplication, key: string, branch = address) =>
     idempotencyKey: key,
     principalId: 'principal:player',
     correlationId: `frozen-deploy:${key}`,
-    action: holdHand,
+    action: takeCup,
   })
 
 describe('a v10 world outside its own round', () => {
-  it('forks, and the child holds hands on its own', async () => {
+  it('forks, and the child uses its own frozen item rules', async () => {
     const root = mkdtempSync(join(tmpdir(), 'frozen-fork-'))
     const worldPath = join(root, 'world.sqlite')
     const child = { ...address, branchId: brandId('branch:child', 'BranchId') }
@@ -84,7 +84,7 @@ describe('a v10 world outside its own round', () => {
       expect(
         (authority.resolutions as readonly Record<string, unknown>[]).some(entry => entry.interaction !== undefined),
       ).toBe(true)
-      expect(events.filter(event => event.eventType === 'character.relation-started')).toHaveLength(1)
+      expect(events.filter(event => event.eventType === 'entity.transferred')).toHaveLength(1)
     } finally {
       rmSync(root, { recursive: true, force: true })
     }
@@ -173,7 +173,7 @@ describe('a v10 world outside its own round', () => {
     }
   }, 60_000)
 
-  it('backs up and restores a world that still holds hands afterwards', async () => {
+  it('backs up and restores a world that preserves item custody afterwards', async () => {
     const root = mkdtempSync(join(tmpdir(), 'frozen-backup-'))
     const worldPath = join(root, 'world.sqlite')
     const backupPath = join(root, 'world.backup')
@@ -213,8 +213,7 @@ describe('a v10 world outside its own round', () => {
       const after = new WorldStore(restoredPath)
       const restoredEvents = after.readEvents(address)
       after.close()
-      expect(restoredEvents.filter(event => event.eventType === 'character.relation-ended')).toHaveLength(1)
-      expect(currentCharacterRelations(restoredEvents).filter(relation => relation.active)).toEqual([])
+      expect(currentEntityState(restoredEvents, 'entity:cup')?.holderId).toBe('character:player')
     } finally {
       rmSync(root, { recursive: true, force: true })
     }

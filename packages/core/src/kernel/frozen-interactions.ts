@@ -20,7 +20,7 @@ import {
   type InteractionPerformanceAcceptance,
 } from '@perspectra/sdk/contracts'
 import { FrozenInteractionWorld, InteractionRegistry } from '@perspectra/core/interactions'
-import { currentCharacterRelations, currentSceneStates } from './interactions.ts'
+import { currentSceneStates } from './interactions.ts'
 import {
   SpeakMoveRulebook,
   currentCharacterLifecycle,
@@ -90,7 +90,7 @@ function candidatePrefixHash(events: readonly RulebookEvent[]): WorldHash {
  *
  * The authorization set is the Host's own reading of "what this character can reach", not a second
  * copy of the definitions' rules: co-located or Scene-sharing characters, items the actor holds or
- * that lie unheld where the actor is, and active relations the actor is a party to. The rules still
+ * that lie unheld where the actor is. The rules still
  * re-verify each of those, so a guessed identifier is refused here before any rule even runs.
  */
 export function interactionHostSnapshot(
@@ -131,22 +131,6 @@ export function interactionHostSnapshot(
     entityStates.set(entity.entityId, state)
     targets.push({ ref: { kind: 'entity', id: entity.entityId }, state })
   }
-  // Relations keep the four facts the frozen vocabulary names. The relation prefix reader is shared
-  // with the closed catalog path rather than duplicated: a second reader could disagree with the first
-  // about what a well-formed relation prefix is, and the runtime still has no relation-kind branch.
-  const relations = currentCharacterRelations(events)
-  for (const relation of relations) {
-    targets.push({
-      ref: { kind: 'relation', id: relation.relationId },
-      state: {
-        interactionId: relation.interactionId,
-        initiatorId: relation.initiatorId,
-        targetId: relation.targetId,
-        active: relation.active,
-      },
-    })
-  }
-
   const actor = characterStates.get(actorId)
   const actorLocation = actor?.locationId as string | null | undefined
   const actorScenes = actor?.sceneIds as readonly string[] | undefined
@@ -162,11 +146,6 @@ export function interactionHostSnapshot(
     if (state.holderId === actorId) authorizedTargets.push({ kind: 'entity', id: entityId })
     else if (state.holderId === null && typeof actorLocation === 'string' && state.locationId === actorLocation) {
       authorizedTargets.push({ kind: 'entity', id: entityId })
-    }
-  }
-  for (const relation of relations) {
-    if (relation.active && (relation.initiatorId === actorId || relation.targetId === actorId)) {
-      authorizedTargets.push({ kind: 'relation', id: relation.relationId })
     }
   }
   return { targets, authorizedTargets }

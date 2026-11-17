@@ -1,7 +1,7 @@
 {
   "sourceSchemaVersion": "worldpack-source/v5",
   "packId": "pack:dynamic-scheduling",
-  "packVersion": "1.0.0",
+  "packVersion": "2.0.0",
   "worldFile": "world.json",
   "characterFiles": [
     "characters.json"
@@ -30,7 +30,8 @@
   "documentFiles": [],
   "markdownFiles": [],
   "assetFiles": [
-    "scripts/status.js"
+    "scripts/status.js",
+    "scripts/gameplay.cjs"
   ],
   "assertionFiles": [
     "assertions.json"
@@ -40,5 +41,10 @@
   "interactionFile": "interactions.json",
   "plugins": {
     "pack-scripts": {}
+  },
+  "scripts": {
+    "gameplay": {
+      "entry": "scripts/gameplay.cjs"
+    }
   }
 }

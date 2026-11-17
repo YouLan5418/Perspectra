@@ -3,8 +3,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { tmpdir } from 'node:os'
-import { brandId, interactionPackageDescription, type WorldJsonObject } from '@perspectra/sdk/contracts'
-import { createInstalledInteractionPackages } from '@perspectra/plugins/basic-interactions'
+import { brandId, type WorldJsonObject } from '@perspectra/sdk/contracts'
 import { adaptCompiledWorldPack, compileWorldPackSource, type CompiledWorldPackV5 } from '@perspectra/world-pack'
 import { currentEntityState } from '@perspectra/core/kernel'
 import { WorldStore } from '@perspectra/core/store'
@@ -92,10 +91,7 @@ it('refuses an item action the policy did not offer, without changing the world'
 
 it('tells an actor whose item operation the author refused where the item still is, if it can see it', async () => {
   const f = await fixture()
-  const pack = (await compileWorldPackSource(
-    f.packPath,
-    createInstalledInteractionPackages().map(interactionPackageDescription),
-  )) as CompiledWorldPackV5
+  const pack = (await compileWorldPackSource(f.packPath, [])) as CompiledWorldPackV5
   const status = loadStatus(f.packPath, pack)!
   const refused = (actorId: string, operation: string) =>
     status.executionResult({

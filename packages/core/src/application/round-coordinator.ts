@@ -27,7 +27,6 @@ import {
   type WorldJsonValue,
 } from '@perspectra/sdk/contracts'
 import {
-  characterRelationObservations,
   createCoreRulebookRegistry,
   parsePlayerActionInput,
   resolveManifestation,
@@ -850,7 +849,7 @@ export class RoundCoordinator {
       const publicSpeech = resolution.events.find(event => event.eventType === 'character.speak')
       const publicManifestation = resolvedEvents.find(event => event.eventType === 'character.manifested')
       const publicInteraction = actorTransfer(item.action.actionId, resolution.events)
-      const relations = characterRelationObservations(actionPrefix, resolution.events)
+
       // Only the player's own move action carries her route; a move another action's result made is recorded like
       // any other mover's below, so those she arrives among see her come and nothing of the action.
       const ownMove = item.action.actionType === 'move'
@@ -897,7 +896,6 @@ export class RoundCoordinator {
           ...(publicSpeech === undefined ? {} : { speech: publicSpeech.data }),
           ...(publicManifestation === undefined ? {} : { manifestation: publicManifestation.data }),
           ...(publicInteraction === undefined ? {} : { interaction: publicInteraction.data }),
-          ...(relations.length === 0 ? {} : { relations }),
         },
         // Keep the complete source distinct from the extracted expression and adjudicated facts.
         // A partial audience must never receive a private sibling clause or a move destination.

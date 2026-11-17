@@ -36,6 +36,7 @@ function pack(enabled = true) {
   cpSync(resolve('examples/world-packs/prototype-g1'), path, { recursive: true })
   const manifestPath = join(path, 'worldpack.source.json'),
     manifest = JSON.parse(readFileSync(manifestPath, 'utf8'))
+  delete manifest.scripts
   manifest.assetFiles = manifest.assetFiles.filter((entry: string) => entry !== 'scripts/status.js')
   if (enabled) manifest.assetFiles.push('scripts/status.js')
   writeFileSync(manifestPath, JSON.stringify(manifest))

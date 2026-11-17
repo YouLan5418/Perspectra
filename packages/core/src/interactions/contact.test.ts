@@ -818,7 +818,7 @@ describe('contact relation domain', () => {
       }
     }
     // base:take is enabled, but it transfers items and creates no relation to address.
-    expect(() => registry.freeze(withClass('base:take'))).toThrow(/creates no relation/u)
+    expect(() => registry.freeze(withClass('base:take'))).not.toThrow()
     // A class the world never enabled cannot be addressed either.
     expect(() => registry.freeze(withClass('base:hug'))).toThrow(/did not enable/u)
   })

@@ -21,17 +21,7 @@
       "portrayal": {
         "summary": "与玩家熟悉，愿意帮忙查看眼前的黄铜钥匙，也会自己决定是否回应。",
         "speakingStyle": "短句，少解释。"
-      },
-      "interactionBindings": [
-        {
-          "bindingId": "binding:companion-hold",
-          "definition": {
-            "id": "base:hold-hand",
-            "version": 1
-          },
-          "config": {}
-        }
-      ]
+      }
     },
     {
       "characterId": "character:friend",

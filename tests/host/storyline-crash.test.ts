@@ -65,6 +65,7 @@ async function fixture() {
   writeFileSync(join(pack, 'scripts/status.js'), statusMarketWithoutRoundHook())
   const source = JSON.parse(readFileSync(join(pack, 'worldpack.source.json'), 'utf8'))
   source.assetFiles = ['scripts/status.js']
+  delete source.scripts
   writeFileSync(join(pack, 'worldpack.source.json'), JSON.stringify(source))
   const core = new LauncherCore(resolve('.'), root)
   await core.initialize()

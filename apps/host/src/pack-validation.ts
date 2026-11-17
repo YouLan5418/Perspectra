@@ -1,8 +1,6 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
-import { interactionPackageDescription } from '@perspectra/sdk/contracts'
-import { createInstalledInteractionPackages } from '@perspectra/plugins/basic-interactions'
 import {
   compileWorldPackSource,
   validatePackAuthoring,
@@ -65,10 +63,7 @@ export async function validateInstalledPack(
     JSON.parse(readFileSync(join(packPath, 'worldpack.source.json'), 'utf8')),
   )
   const content = await packValidationCatalog(source, settings)
-  const pack = await compileWorldPackSource(
-    packPath,
-    createInstalledInteractionPackages().map(interactionPackageDescription),
-  )
+  const pack = await compileWorldPackSource(packPath, [])
   validatePackAuthoring(pack, file => readFileSync(join(packPath, file), 'utf8'), {
     content,
     validateScript: validatePackScript,

@@ -126,7 +126,7 @@ globalThis.activityScript = {
       speechChoices: [],
       narration: true,
       move: false,
-      interactions: ['base:hold-hand', 'base:end-contact'],
+      interactions: ['contact:hold-hand', 'contact:end-contact'],
       operations: isPlayer && view.game.active ? [...ops, 'leave'] : [],
     }
   },

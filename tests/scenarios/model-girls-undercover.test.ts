@@ -4,8 +4,7 @@ import { afterEach, expect, it } from 'vitest'
 import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { tmpdir } from 'node:os'
-import { interactionPackageDescription, type WorldJsonObject } from '@perspectra/sdk/contracts'
-import { createInstalledInteractionPackages } from '@perspectra/plugins/basic-interactions'
+import { type WorldJsonObject } from '@perspectra/sdk/contracts'
 import { compileWorldPackSource } from '@perspectra/world-pack'
 import { WorldStore } from '@perspectra/core/store'
 import { loadStatus } from '../support/status-runtime.ts'
@@ -61,10 +60,7 @@ async function fixture() {
     s.lifecycle = s.participantIds.length ? 'active' : 'created'
   }
   writeFileSync(join(pack, 'scenes.json'), JSON.stringify(scenes))
-  const compiled = await compileWorldPackSource(
-    pack,
-    createInstalledInteractionPackages().map(interactionPackageDescription),
-  )
+  const compiled = await compileWorldPackSource(pack, [])
   const status = loadStatus(pack, compiled)!
 
   // What each heroine was shown, by character.

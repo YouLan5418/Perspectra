@@ -6,8 +6,7 @@ import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { randomUUID } from 'node:crypto'
 import { afterEach, expect, it } from 'vitest'
-import { brandId, interactionPackageDescription, type WorldJsonObject } from '@perspectra/sdk/contracts'
-import { createInstalledInteractionPackages } from '@perspectra/plugins/basic-interactions'
+import { brandId, type WorldJsonObject } from '@perspectra/sdk/contracts'
 import { compileWorldPackSource, type CompiledWorldPackV5 } from '@perspectra/world-pack'
 import { CharacterRuntimeAvailabilityService, WorldStore, WriterLeaseService } from '@perspectra/core/store'
 import { createCoreRulebookRegistry, currentEntityState, RulebookRegistry } from '@perspectra/core/kernel'
@@ -157,6 +156,7 @@ async function fixture(
   writeFileSync(join(packPath, 'scripts/status.js'), script === 'items' ? withItemRules(variant) : variant)
   const source = JSON.parse(readFileSync(join(packPath, 'worldpack.source.json'), 'utf8'))
   source.assetFiles = ['scripts/status.js']
+  delete source.scripts
   if (script === 'quests' || script === 'invalidQuests' || script === 'openQuests') {
     for (const file of ['knowledge.json', 'documents.json', 'task-reward.md']) {
       writeFileSync(join(packPath, file), readFileSync(resolve('examples/world-packs/status-market', file)))
@@ -180,10 +180,7 @@ async function fixture(
     source.assetFiles.push('scripts/activity.js')
   }
   writeFileSync(join(packPath, 'worldpack.source.json'), JSON.stringify(source))
-  const pack = (await compileWorldPackSource(
-    packPath,
-    createInstalledInteractionPackages().map(interactionPackageDescription),
-  )) as CompiledWorldPackV5
+  const pack = (await compileWorldPackSource(packPath, [])) as CompiledWorldPackV5
   const requests: WorldJsonObject[] = []
   let decide: Decide = () => ({ decision: 'abstain' })
   const server = createChatServer((request, response) => {
@@ -285,12 +282,7 @@ it('interleaved private status operations keep each continuation bound to its ow
   const store = new WorldStore(path),
     leases = new WriterLeaseService(path)
   const availability = new CharacterRuntimeAvailabilityService(path)
-  const core = createCoreRulebookRegistry({ interactionPackages: createInstalledInteractionPackages() }).resolve(
-    'builtin:speak-move',
-    2,
-    'test',
-    address,
-  )
+  const core = createCoreRulebookRegistry({ interactionPackages: [] }).resolve('builtin:speak-move', 2, 'test', address)
   const rules = new RulebookRegistry()
   rules.register('builtin:speak-move', 2, f.status.resolver(core, path, address, PLAYER))
   const continuations = new Map<string, WorldJsonObject>()

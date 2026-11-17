@@ -21,17 +21,7 @@
       "portrayal": {
         "summary": "与玩家熟悉。上个月向玩家借了三十一直没还，玩家从没催过；当面还钱总觉得难为情，宁愿找机会悄悄放回玩家的钱袋，也不想让对方知道是自己做的。会自己决定要不要这么做、要不要回应。",
         "speakingStyle": "短句，少解释。"
-      },
-      "interactionBindings": [
-        {
-          "bindingId": "binding:companion-hold",
-          "definition": {
-            "id": "base:hold-hand",
-            "version": 1
-          },
-          "config": {}
-        }
-      ]
+      }
     },
     {
       "characterId": "character:friend",

@@ -1,8 +1,7 @@
 import { readFileSync, writeFileSync, renameSync, unlinkSync, rmSync, realpathSync, openSync, closeSync } from 'node:fs'
 import { dirname, join, relative, isAbsolute } from 'node:path'
 import { randomUUID } from 'node:crypto'
-import { interactionPackageDescription, type WorldJsonObject } from '@perspectra/sdk/contracts'
-import { createInstalledInteractionPackages } from '@perspectra/plugins/basic-interactions'
+import { type WorldJsonObject } from '@perspectra/sdk/contracts'
 import {
   compileWorldPackSource,
   selectedPluginConfig,
@@ -33,10 +32,7 @@ const inside = (root: string, file: string) => {
   return file
 }
 async function inspect(packPath: string, settings: readonly HostPluginSettings[]) {
-  const pack = await compileWorldPackSource(
-    packPath,
-    createInstalledInteractionPackages().map(interactionPackageDescription),
-  )
+  const pack = await compileWorldPackSource(packPath, [])
   const catalog = await packValidationCatalog(pack, settings)
   return { pack, catalog }
 }

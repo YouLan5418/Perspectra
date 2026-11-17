@@ -21,17 +21,7 @@
       "portrayal": {
         "summary": "你在前室整理桌面，愿意自然招呼来到这里的人，也有自己的判断。",
         "speakingStyle": "短句，少解释。"
-      },
-      "interactionBindings": [
-        {
-          "bindingId": "binding:companion-hold",
-          "definition": {
-            "id": "base:hold-hand",
-            "version": 1
-          },
-          "config": {}
-        }
-      ]
+      }
     },
     {
       "characterId": "character:friend",

@@ -2,17 +2,15 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { expect, it } from 'vitest'
-import { brandId, interactionPackageDescription, resolutionAuthority } from '@perspectra/sdk/contracts'
+import { brandId, resolutionAuthority } from '@perspectra/sdk/contracts'
 import { compileWorldPackSource, type CompiledWorldPackV5 } from '@perspectra/world-pack'
 import { loadStatus } from '../support/status-runtime.ts'
 import {
   createCoreRulebookRegistry,
-  currentCharacterRelations,
   currentEntityState,
   currentLocation,
   type CompiledWorldManifest,
 } from '@perspectra/core/kernel'
-import { createInstalledInteractionPackages } from '@perspectra/plugins/basic-interactions'
 import { WorldStore } from '@perspectra/core/store'
 import { WorldHostRuntime } from '../../apps/host/src/runtime/world-runtime.ts'
 import { createChatServer, fakeModels } from '../support/fake-provider.ts'
@@ -167,9 +165,14 @@ it('closes the frozen G1 combination: hand contact, shared key, two NPCs and two
 
     await submit(
       'hold',
-      '/act interact {"targetRef":{"kind":"character","id":"character:companion"},"bindingId":"binding:companion-hold","definitionRef":{"id":"base:hold-hand","version":1},"arguments":{}}',
+      '/act interact {"targetRef":{"kind":"character","id":"character:companion"},"bindingId":"gameplay","definitionRef":{"id":"contact:hold-hand","version":1},"arguments":{"partnerId":"character:companion"}}',
     )
-    expect(currentCharacterRelations(events()).filter(relation => relation.active)).toHaveLength(1)
+    expect(
+      events()
+        .filter(event => event.eventType === 'status.updated')
+        .flatMap(event => (event.data as { changes: { key: string; holderId: string; value: unknown }[] }).changes)
+        .findLast(change => change.key === 'contact-partners' && change.holderId === 'character:player')?.value,
+    ).toEqual(['character:companion'])
 
     await submit('take', '/act speak {"text":"同行者，请拿起黄铜钥匙。"}')
     expect(currentEntityState(events(), 'entity:brass-key')?.holderId).toBe('character:companion')
@@ -197,11 +200,8 @@ it('closes the frozen G1 combination: hand contact, shared key, two NPCs and two
     const store = new WorldStore(resolve(root, 'world.sqlite'))
     try {
       const packPath = resolve('examples/world-packs/prototype-g1')
-      const pack = (await compileWorldPackSource(
-        packPath,
-        createInstalledInteractionPackages().map(interactionPackageDescription),
-      )) as CompiledWorldPackV5
-      const core = createCoreRulebookRegistry({ interactionPackages: createInstalledInteractionPackages() }).resolve(
+      const pack = (await compileWorldPackSource(packPath, [])) as CompiledWorldPackV5
+      const core = createCoreRulebookRegistry({ interactionPackages: [] }).resolve(
         'builtin:speak-move',
         2,
         'test',

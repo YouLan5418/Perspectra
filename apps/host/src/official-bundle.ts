@@ -6,7 +6,6 @@ import { officialActivitiesProvider } from '@perspectra/providers/activities'
 import { officialStatusProvider } from '@perspectra/providers/status'
 import { officialPacingProvider } from '@perspectra/plugins/pacing'
 import { officialDiceProvider } from '@perspectra/plugins/dice'
-import { createInstalledInteractionPackages } from '@perspectra/plugins/basic-interactions'
 export { composeDecisions, officialContextOrder } from '@perspectra/providers/contexts'
 import { composeDecisions } from '@perspectra/providers/contexts'
 import { officialLlmProvider } from '@perspectra/providers/llm'
@@ -42,7 +41,7 @@ export { officialLlmProvider, llmTimeoutMs, type ModelOptions } from '@perspectr
 export { CORE_MEMORY_ID, coreMemoryRoot, coreAssetDirectory } from '@perspectra/memory-core/paths'
 
 /** The default gameplay install, explicitly supplied by desktop entry composition. */
-export const defaultInteractionPackages = createInstalledInteractionPackages
+export const defaultInteractionPackages = (): readonly InteractionPackageImplementation[] => []
 
 /** The implementation in force for each replaceable seam. */
 export interface HostSeams {

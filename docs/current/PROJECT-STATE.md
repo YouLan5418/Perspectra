@@ -40,7 +40,7 @@ candidate4 的统一 Skill 内含原 tavern-to-perspectra 提取器、容量分�
 
 例如 NPC 想拿起工具箱、修好灶台，再把工具箱交给别人：这些规则现由每个世界包的 `scripts/status.js` 定义。作者用 targets 指定物品，resolve 接收目标 ID 并返回外观／去向变化；宿主检查权限、可达性、单一持有者与合法去向，再与本次行动的对白、状态结果和授权观察原子提交。台词不会直接改变物品状态。
 
-宿主不再内置拿／放／给或料理／修理规则，基础包只剩牵手与松手。所有 v5 示例包已用[作者模板](../../examples/templates/item-rules.js)，在 `ITEM_RULES` 列物品，活动与自主配置引用 `status:take`／`status:drop`／`status:give`。policy 可按手里和脚下物品筛选目标，执行前重查；玩家的“交给”是一个物品选项加“交给谁”参数，旧 `/take`、`/give`、`/drop` 已删除，调试使用 `/status take@entity:xxx {}`。细节和有意接受的限制见[物品操作](guides/activity-and-variables.md#对物品做的操作2026-10-22当前源码)。
+宿主不再内置拿／放／给或料理／修理规则，牵手与松手也由世界包的 `scripts/gameplay.cjs` 提供。所有 v5 示例包已用[作者模板](../../examples/templates/item-rules.js)，在 `ITEM_RULES` 列物品，活动与自主配置引用 `status:take`／`status:drop`／`status:give`。policy 可按手里和脚下物品筛选目标，执行前重查；玩家的“交给”是一个物品选项加“交给谁”参数，旧 `/take`、`/give`、`/drop` 已删除，调试使用 `/status take@entity:xxx {}`。细节和有意接受的限制见[物品操作](guides/activity-and-variables.md#对物品做的操作2026-10-22当前源码)。
 
 ## test3 之后源码新增了什么（2026-10-15 ～ 10-18）
 

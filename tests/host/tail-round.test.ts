@@ -58,6 +58,7 @@ async function fixture(core = false, build?: CoreRunner, playerFeed?: PlayerFeed
   )
   const source = JSON.parse(readFileSync(join(pack, 'worldpack.source.json'), 'utf8'))
   source.assetFiles = ['scripts/status.js', 'scripts/activity.js']
+  delete source.scripts
   writeFileSync(join(pack, 'worldpack.source.json'), JSON.stringify(source))
   let decide: (input: WorldJsonObject) => unknown | Promise<unknown> = () => ({ decision: 'abstain' })
   const requests: WorldJsonObject[] = [],

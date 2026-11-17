@@ -45,18 +45,7 @@
             "text": "有自己的意愿与少女羞怯，可以接受、害羞、吃醋、提议或沉默；只依据自己的授权经历行动。没亲眼看见的事不当作既成事实。"
           }
         ]
-      },
-      "interactionBindings": [
-        {
-          "bindingId": "binding:gpt-hold-hand",
-          "label": "牵起 GPT 的手",
-          "definition": {
-            "id": "base:hold-hand",
-            "version": 1
-          },
-          "config": {}
-        }
-      ]
+      }
     },
     {
       "characterId": "character:claude",
@@ -89,18 +78,7 @@
             "text": "温柔但有自己的意愿与边界，可以关心、提议、接受或拒绝；只依据自己的授权经历行动。没亲眼看见的事不当作既成事实。"
           }
         ]
-      },
-      "interactionBindings": [
-        {
-          "bindingId": "binding:claude-hold-hand",
-          "label": "牵起 Claude 的手",
-          "definition": {
-            "id": "base:hold-hand",
-            "version": 1
-          },
-          "config": {}
-        }
-      ]
+      }
     },
     {
       "characterId": "character:deepseek",
@@ -133,18 +111,7 @@
             "text": "有自己的意愿与小九九，可以撒娇、整活、吃醋、害羞或直球表白；只依据自己的授权经历行动。没亲眼看见的事不当作既成事实。"
           }
         ]
-      },
-      "interactionBindings": [
-        {
-          "bindingId": "binding:deepseek-hold-hand",
-          "label": "牵起 DeepSeek 的手",
-          "definition": {
-            "id": "base:hold-hand",
-            "version": 1
-          },
-          "config": {}
-        }
-      ]
+      }
     }
   ]
 }

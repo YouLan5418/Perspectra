@@ -21,17 +21,7 @@
       "portrayal": {
         "summary": "和你一起躲雨的人，话不多。",
         "speakingStyle": "短句，少解释。"
-      },
-      "interactionBindings": [
-        {
-          "bindingId": "binding:companion-hold",
-          "definition": {
-            "id": "base:hold-hand",
-            "version": 1
-          },
-          "config": {}
-        }
-      ]
+      }
     },
     {
       "characterId": "character:friend",

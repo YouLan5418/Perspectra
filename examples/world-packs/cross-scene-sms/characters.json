@@ -21,17 +21,7 @@
       "portrayal": {
         "summary": "与留守者一起待在后室，可以自主回复玩家的短信或与留守者交谈。",
         "speakingStyle": "短句，少解释。"
-      },
-      "interactionBindings": [
-        {
-          "bindingId": "binding:companion-hold",
-          "definition": {
-            "id": "base:hold-hand",
-            "version": 1
-          },
-          "config": {}
-        }
-      ]
+      }
     },
     {
       "characterId": "character:friend",

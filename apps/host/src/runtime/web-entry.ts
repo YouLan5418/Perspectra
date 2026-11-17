@@ -19,8 +19,6 @@ import { WorldHostRuntime, isV5SourcePackDirectory } from './world-runtime.ts'
 import { createHostServer } from './http-server.ts'
 import { loadPackWeb, saveStageMarks, type StageMarks } from './pack-frontend.ts'
 import { compileWorldPackSource, type CompiledWorldPackV5 } from '@perspectra/world-pack'
-import { interactionPackageDescription } from '@perspectra/sdk/contracts'
-import { createInstalledInteractionPackages } from '@perspectra/plugins/basic-interactions'
 import { defaultGameDirectory } from './player-transcript.ts'
 import { MissingCapabilityError } from '../host-capabilities.ts'
 
@@ -68,10 +66,7 @@ async function main(): Promise<void> {
     process.stdout.write(`Jev 影子审计已启用：已发布的对白和叙述将发送到 OpenRouter。日志：${logPath}\n`)
   }
   const packWeb = await loadPackWeb(packPath)
-  const compiled = (await compileWorldPackSource(
-    packPath,
-    createInstalledInteractionPackages().map(interactionPackageDescription),
-  )) as CompiledWorldPackV5
+  const compiled = (await compileWorldPackSource(packPath, [])) as CompiledWorldPackV5
   const playerId = compiled.content.playerSlots[0]?.characterId
   const creatorMeta = {
     title: compiled.content.world.title,

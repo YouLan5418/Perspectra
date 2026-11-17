@@ -698,8 +698,9 @@ it('projects activity results to remote participants and current scene witnesses
   expect(
     delivered.some(value => value.observerId === npc && JSON.stringify(value).includes('PUBLIC_ACTIVITY_OUTCOME')),
   ).toBe(true)
-  // The non-participant is now physically with the actor, so it receives only its own explicit projection.
-  expect(projection.mock.calls.length).toBe(3)
+  // Physical co-location alone does not authorize a non-participant outside the active Scene.
+  expect(delivered.some(value => value.observerId === 'character:bob')).toBe(false)
+  expect(projection.mock.calls.length).toBe(2)
 })
 
 function archiveWorld(observerBinding = false): CompiledWorldSpec {

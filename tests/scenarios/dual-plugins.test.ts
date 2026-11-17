@@ -7,8 +7,7 @@ import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { afterEach, expect, it } from 'vitest'
-import { interactionPackageDescription, type WorldJsonObject } from '@perspectra/sdk/contracts'
-import { createInstalledInteractionPackages } from '@perspectra/plugins/basic-interactions'
+import { type WorldJsonObject } from '@perspectra/sdk/contracts'
 import { compileWorldPackSource } from '@perspectra/world-pack'
 import { WorldStore } from '@perspectra/core/store'
 import { WorldHostRuntime } from '../../apps/host/src/runtime/world-runtime.ts'
@@ -78,10 +77,7 @@ async function fixture(
     const plugin = await import(pathToFileURL(resolve('examples/host-plugins/demo-device.mjs')).href)
     await root.plugin(plugin.default)
   }
-  const compiled = await compileWorldPackSource(
-    paths.packPath,
-    createInstalledInteractionPackages().map(interactionPackageDescription),
-  )
+  const compiled = await compileWorldPackSource(paths.packPath, [])
   const modules = PackModules.load(paths.packPath, compiled, catalog)!
   const status = statusFromSource({ modules: modules.sources }, compiled)
   const requests: WorldJsonObject[] = []
@@ -459,6 +455,7 @@ it('loads the shipped RPG Maker pack adapter and commits only the actor-scoped o
       const manifestPath = join(path, 'worldpack.source.json'),
         manifest = JSON.parse(readFileSync(manifestPath, 'utf8'))
       manifest.assetFiles = ['plugins.json', 'plugins/rpg-maker.js']
+      delete manifest.scripts
       writeFileSync(manifestPath, JSON.stringify(manifest))
     },
   })

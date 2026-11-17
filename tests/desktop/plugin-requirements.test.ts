@@ -3,8 +3,6 @@ import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { compileWorldPackSource, verifyCompiledWorldPackV5 } from '@perspectra/world-pack'
-import { interactionPackageDescription } from '@perspectra/sdk/contracts'
-import { createInstalledInteractionPackages } from '@perspectra/plugins/basic-interactions'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { loadHostPlugins } from '../../apps/host/src/host-plugins.ts'
 import { LauncherCore } from '../../apps/launcher/backend/core.ts'
@@ -33,8 +31,7 @@ async function packWith(requiresPlugins: unknown): Promise<string> {
   await writeFile(file, JSON.stringify({ ...source, requiresPlugins }, null, 2))
   return pack
 }
-const compile = (pack: string) =>
-  compileWorldPackSource(pack, createInstalledInteractionPackages().map(interactionPackageDescription))
+const compile = (pack: string) => compileWorldPackSource(pack, [])
 
 const local = {
   id: '6f1c2a4e-1d0b-4c39-9a51-0d6c1b7e2f10',

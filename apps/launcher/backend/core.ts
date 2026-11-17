@@ -55,8 +55,6 @@ import { mkdir, readFile, rename, rm, writeFile, copyFile } from 'node:fs/promis
 import { join, resolve } from 'node:path'
 import { compileWorldPackSource, type CompiledWorldPackV5 } from '@perspectra/world-pack'
 import { readPackConfiguration, savePackConfiguration } from '../../host/src/pack-config.ts'
-import { interactionPackageDescription } from '@perspectra/sdk/contracts'
-import { createInstalledInteractionPackages } from '@perspectra/plugins/basic-interactions'
 import { preflightSave } from '../../host/src/save-preflight.ts'
 import { loadPackWeb } from '../../host/src/runtime/pack-frontend.ts'
 import {
@@ -514,10 +512,7 @@ export class LauncherCore {
       try {
         const recommended = await packPreset(pack.path)
         const bundled = await packRolePresets(pack.path)
-        const compiled = (await compileWorldPackSource(
-          pack.path,
-          createInstalledInteractionPackages().map(interactionPackageDescription),
-        )) as CompiledWorldPackV5
+        const compiled = (await compileWorldPackSource(pack.path, [])) as CompiledWorldPackV5
         await this.#describe(pack, compiled)
         // The author edited the pack since it was loaded: new instances follow the files as they are now.
         if (compiled.packHash !== pack.hash)
@@ -866,10 +861,7 @@ export class LauncherCore {
       case 'load': {
         this.#idle()
         const path = resolve(text(request.path, '世界包目录'))
-        const compiled = (await compileWorldPackSource(
-          path,
-          createInstalledInteractionPackages().map(interactionPackageDescription),
-        )) as CompiledWorldPackV5
+        const compiled = (await compileWorldPackSource(path, [])) as CompiledWorldPackV5
         await loadPackWeb(path)
         const recommended = await packPreset(path)
         const characters = packCharacters(compiled)

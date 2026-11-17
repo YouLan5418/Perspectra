@@ -12,9 +12,9 @@ it('binds exact event ordinals, rejects drift, and redacts restricted views befo
     actionType: 'interact',
     actionVersion: 2,
     parameters: {
-      targetRef: { kind: 'character', id: 'character:npc' },
-      bindingId: 'binding:character:npc:base:hold-hand',
-      definitionRef: { id: 'base:hold-hand', version: 1 },
+      targetRef: { kind: 'entity', id: 'entity:cup' },
+      bindingId: 'binding:entity:cup:base:take',
+      definitionRef: { id: 'base:take', version: 1 },
       arguments: {},
     },
   } as const
@@ -42,13 +42,13 @@ it('binds exact event ordinals, rejects drift, and redacts restricted views befo
   const corrupted = structuredClone(provisional)
   corrupted.binding.events[0]!.draftOrdinal = 4
   expect(() => verifyPlayerProvisional(corrupted, action, resolution)).toThrow('differs')
-  const fullView = provisionalReactionView({ provisional, visibility: 'full' }, world.genesisEvents)
-  expect(fullView).toMatchObject({ observation: { relations: [{ relationKind: 'hand_hold' }] } })
+  const fullView = provisionalReactionView({ provisional, visibility: 'full' })
+  expect(fullView).toMatchObject({ observation: { effects: [{ eventType: 'entity.transferred' }] } })
   expect(JSON.stringify(fullView)).not.toContain('relationId')
   for (const visibility of ['none', 'occurrence_only'] as const) {
-    const view = provisionalReactionView({ provisional, visibility }, world.genesisEvents)
+    const view = provisionalReactionView({ provisional, visibility })
     expect(JSON.stringify(view)).not.toContain('character:npc')
-    expect(JSON.stringify(view)).not.toContain('hold-hand')
+    expect(JSON.stringify(view)).not.toContain('base:take')
   }
   const rejected = bindPlayerProvisional(world.manifest.address, 10, world.manifestHash, action, {
     status: 'rejected',

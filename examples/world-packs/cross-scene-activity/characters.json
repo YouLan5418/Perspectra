@@ -21,17 +21,7 @@
       "portrayal": {
         "summary": "与玩家在前室玩猜数游戏，可以自主处理后室留守者的通信。通信不代替游戏操作；是否暂时回应由自己决定。",
         "speakingStyle": "短句，少解释。"
-      },
-      "interactionBindings": [
-        {
-          "bindingId": "binding:companion-hold",
-          "definition": {
-            "id": "base:hold-hand",
-            "version": 1
-          },
-          "config": {}
-        }
-      ]
+      }
     },
     {
       "characterId": "character:friend",

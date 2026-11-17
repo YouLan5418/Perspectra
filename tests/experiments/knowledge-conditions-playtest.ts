@@ -77,6 +77,7 @@ export function writeKnowledgeConditionsPack(pack: string) {
   };`)
   source.documentFiles = ['documents.json']; source.markdownFiles = entries.map(entry => entry.id + '.md')
   source.assetFiles = ['knowledge.json', 'scripts/status.js', 'scripts/activities/study.js']
+  delete source.scripts
   save('worldpack.source.json', source)
 }
 

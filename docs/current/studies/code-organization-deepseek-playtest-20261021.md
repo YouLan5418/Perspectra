@@ -52,7 +52,7 @@
 | 证据 | 结论 | 后续定位入口 |
 | --- | --- | --- |
 | `after-ui-state.json` 的 seq42，与 `creator-before-followup.json` 的保温壶状态 | publish 表现与已裁定保管状态不一致 | [角色回合](../../../packages/core/src/application/character-turn.ts)、[模型上下文呈现](../../../packages/providers/src/chat/character-context-text.ts) |
-| `turns.json` 中 seq58、seq75 | 后续角色能依据真值纠正；实际转移仍需 perform | [物品交互](../../../packages/plugins/src/basic-interactions)、[世界宿主](../../../apps/host/src/runtime/world-runtime.ts) |
+| `turns.json` 中 seq58、seq75 | 后续角色能依据真值纠正；实际转移仍需 perform | `../../../packages/plugins/src/basic-interactions`（已删除；现见[世界包牵手模板](../../../examples/templates/hand-contact.cjs)）、[世界宿主](../../../apps/host/src/runtime/world-runtime.ts) |
 
 建议下一步先围绕这个具体场景做最小复核，区分临时触碰、实际保管与承诺表达；本轮没有追加语义模型、过滤阶段或动作枚举。
 

@@ -2,8 +2,6 @@ import { currentWorldDirectory } from './tail-storage.ts'
 import { existsSync, readdirSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
-import { interactionPackageDescription } from '@perspectra/sdk/contracts'
-import { createInstalledInteractionPackages } from '@perspectra/plugins/basic-interactions'
 import { compileWorldPackSource, type CompiledWorldPackV5 } from '@perspectra/world-pack'
 
 export interface SavePreflightResult {
@@ -14,10 +12,7 @@ export interface SavePreflightResult {
 
 /** Read the saved Manifest without opening a writable WorldStore or migrating old data. */
 export async function preflightSave(packPath: string, dataDirectory: string): Promise<SavePreflightResult> {
-  const pack = (await compileWorldPackSource(
-    resolve(packPath),
-    createInstalledInteractionPackages().map(interactionPackageDescription),
-  )) as CompiledWorldPackV5
+  const pack = (await compileWorldPackSource(resolve(packPath), [])) as CompiledWorldPackV5
   const databasePath = resolve(currentWorldDirectory(dataDirectory), 'world.sqlite')
   if (!existsSync(databasePath)) {
     if (existsSync(dataDirectory) && readdirSync(dataDirectory).length > 0) {

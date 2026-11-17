@@ -25,10 +25,6 @@ export default defineConfig({
       { find: /^@perspectra\/frontend$/, replacement: `${root}packages/frontend/src/index.ts` },
       { find: /^@perspectra\/jev-audit$/, replacement: `${root}packages/jev-audit/src/index.ts` },
       { find: /^@perspectra\/memory-core$/, replacement: `${root}packages/memory-core/src/index.ts` },
-      {
-        find: /^@perspectra\/plugins\/basic-interactions$/,
-        replacement: `${root}packages/plugins/src/basic-interactions/index.ts`,
-      },
       { find: /^@perspectra\/plugins\/dice$/, replacement: `${root}packages/plugins/src/dice/index.ts` },
       { find: /^@perspectra\/plugins\/pacing$/, replacement: `${root}packages/plugins/src/pacing/index.ts` },
       { find: /^@perspectra\/plugins\/rpg$/, replacement: `${root}packages/plugins/src/rpg/index.ts` },
@@ -101,7 +97,6 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       include: [
-        'packages/plugins/src/basic-interactions/**/*.ts',
         'packages/core/src/interactions/**/*.ts',
         'packages/core/src/agents/**/*.ts',
         'packages/core/src/application/**/*.ts',

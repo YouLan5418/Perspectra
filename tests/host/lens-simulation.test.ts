@@ -509,6 +509,7 @@ it('B9 native and script definitions produce equal committed state and authorize
   delete manifest.scripts
   manifest.plugins = { 'example-investigation': { config: 'investigation.json' } }
   manifest.assetFiles = ['investigation.json']
+  delete manifest.scripts
   writeFileSync(file, JSON.stringify(manifest))
   writeFileSync(join(pack, 'investigation.json'), JSON.stringify({ energy: 2 }))
   const definition = createRequire(import.meta.url)(resolve('examples/gameplay/investigation.cjs')) as ContentGameplay

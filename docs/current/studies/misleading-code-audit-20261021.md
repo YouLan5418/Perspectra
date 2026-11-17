@@ -188,7 +188,7 @@
 ### N16. `character-relation-spike.ts`：被正式实现取代的原型
 
 - 位置：[character-relation-spike.ts](../../../tests/experiments/character-relation-spike.ts#L47)、[#L99](../../../tests/experiments/character-relation-spike.ts#L99)。
-- 事实：现行握手规则在 [kernel/interactions.ts](../../../packages/core/src/kernel/interactions.ts#L27) 与 [interactions-basic/basic.ts](../../../packages/plugins/src/basic-interactions/basic.ts#L135)；spike 只被自己的测试引用。
+- 事实：现行握手规则在 [kernel/interactions.ts](../../../packages/core/src/kernel/interactions.ts#L27) 与 `../../../packages/plugins/src/basic-interactions/basic.ts#L135`（已删除；现见[世界包牵手模板](../../../examples/templates/hand-contact.cjs)）；spike 只被自己的测试引用。
 - 影响：`spike` 名称本身诚实，但 174 行接近正式规则的实现容易被误认为当前 Rulebook；两边行为若分叉会制造"测试通过但游戏不同"的假象。
 
 ---

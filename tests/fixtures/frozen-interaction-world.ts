@@ -82,26 +82,16 @@ export function frozenInteractionWorld(profile?: ReactionProfileId): CompiledWor
   const catalog: InteractionCatalogV3 = {
     version: 'interaction-catalog/v3',
     packages: [basicInteractionPackage.lock],
-    definitions: basicInteractionPackage.definitions.map(definition => ({
-      ref: { id: definition.spec.id, version: definition.spec.version },
-      definitionHash: hashWorldJson('interaction-definition/v1', definition.spec),
-      implementationHash: definition.implementationHash,
-    })),
-    bindings: [
-      ...entityBindings,
-      {
-        bindingId: 'binding:character:npc:base:hold-hand',
-        targetRef: { kind: 'character' as const, id: npc },
-        definitionRef: ref('base:hold-hand'),
-        config: {},
-      },
-      {
-        bindingId: 'binding:release',
-        targetRef: { kind: 'relation' as const, id: 'base:hold-hand' },
-        definitionRef: ref('base:end-contact'),
-        config: {},
-      },
-    ].sort((left, right) => (left.bindingId < right.bindingId ? -1 : left.bindingId > right.bindingId ? 1 : 0)),
+    definitions: basicInteractionPackage.definitions
+      .filter(definition => !['base:hold-hand', 'base:end-contact'].includes(definition.spec.id))
+      .map(definition => ({
+        ref: { id: definition.spec.id, version: definition.spec.version },
+        definitionHash: hashWorldJson('interaction-definition/v1', definition.spec),
+        implementationHash: definition.implementationHash,
+      })),
+    bindings: [...entityBindings].sort((left, right) =>
+      left.bindingId < right.bindingId ? -1 : left.bindingId > right.bindingId ? 1 : 0,
+    ),
   }
   const specHash = hashWorldJson('v10-interaction-test-spec', { address, locations, entities, characters })
   const genesisPlanHash = hashWorldJson('v10-interaction-test-genesis', { address, locations, entities, characters })

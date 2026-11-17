@@ -1,7 +1,7 @@
 {
   "sourceSchemaVersion": "worldpack-source/v5",
   "packId": "pack:multiple-activities",
-  "packVersion": "1.0.0",
+  "packVersion": "2.0.0",
   "worldFile": "world.json",
   "characterFiles": [
     "characters.json"
@@ -33,7 +33,8 @@
     "scripts/activities/guess.js",
     "scripts/activities/weekend.js",
     "scripts/activities/invite.js",
-    "scripts/status.js"
+    "scripts/status.js",
+    "scripts/gameplay.cjs"
   ],
   "assertionFiles": [
     "assertions.json"
@@ -44,5 +45,10 @@
   "plugins": {
     "pack-scripts": {},
     "official-dice": {}
+  },
+  "scripts": {
+    "gameplay": {
+      "entry": "scripts/gameplay.cjs"
+    }
   }
 }

@@ -37,6 +37,7 @@ function pack(withStatus = false) {
   cpSync(resolve('examples/world-packs/prototype-g1'), path, { recursive: true })
   const file = join(path, 'worldpack.source.json'),
     manifest = JSON.parse(readFileSync(file, 'utf8'))
+  delete manifest.scripts
   if (!withStatus) manifest.assetFiles = []
   else
     writeFileSync(
@@ -108,8 +109,9 @@ it('keeps absent optional mechanisms disabled through rounds and candidate regen
   const record = JSON.parse(readFileSync(join(f.root, 'plugin-set.json'), 'utf8'))
   expect(Object.keys(record.seams).sort()).toEqual(['characterLoop', 'llm', 'scheduler'])
 })
-it('does not manufacture the standard interaction catalog for an explicit empty install', async () => {
-  await expect(start({ ...assembleRoleplay(), interactionPackages: [] })).rejects.toThrow()
+it('opens an explicit empty interaction install without manufacturing a base package', async () => {
+  expect(assembleRoleplay().interactionPackages).toEqual([])
+  await expect(start({ ...assembleRoleplay(), interactionPackages: [] })).resolves.toBeDefined()
 })
 it('refuses required status assets when the selected composition omits the status mechanism', async () => {
   const standard = assembleRoleplay(),

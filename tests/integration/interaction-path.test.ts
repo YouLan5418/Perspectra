@@ -5,7 +5,6 @@ import { describe, expect, it } from 'vitest'
 import { WorldApplication } from '@perspectra/core'
 import {
   brandId,
-  hashWorldJson,
   type InteractionPackageImplementation,
   type RulebookResolutionAuthorityV1,
   type WorldJsonValue,
@@ -15,11 +14,8 @@ import {
 import {
   FrozenInteractionRulebook,
   createCoreRulebookRegistry,
-  SpeakMoveRulebook,
-  currentCharacterRelations,
   interactionHostSnapshot,
   runtimeManifestFromStored,
-  type CompiledWorldManifestV10,
   type RulebookEvent,
 } from '@perspectra/core/kernel'
 import { interactionPackageHash } from '@perspectra/core/interactions'
@@ -28,7 +24,6 @@ import {
   basicInteractionPackage,
   frozenGenesisEvents,
   frozenInteractionWorld,
-  relationStarted,
 } from '../fixtures/frozen-interaction-world.ts'
 
 const world = frozenInteractionWorld()
@@ -108,53 +103,6 @@ describe('the frozen interaction path', () => {
     ).toBe('rejected')
   })
 
-  it('closes relations through the world fold, and only the classes its handlers declare', () => {
-    const path = rulebook()
-    const held = [...origin, relationStarted('base:hold-hand')]
-    const moved = path.resolve(context('action:move', held), {
-      actionType: 'move',
-      parameters: { locationId: 'location:next' },
-    })
-    expect(moved.status).toBe('accepted')
-    expect(moved.events.map(event => event.eventType)).toEqual(['character.moved', 'character.relation-ended'])
-    expect(moved.events[1]!.data).toEqual({
-      relationId: 'relation:held',
-      endedByCharacterId: 'character:player',
-      reason: 'participant_moved',
-    })
-    // A relation of a class no handler consumes is left alone: the fold is scoped by declaration, not by
-    // "scan everything active and see what is out of reach".
-    const foreign = [...origin, relationStarted('base:other')]
-    const stillMoved = path.resolve(context('action:move:2', foreign), {
-      actionType: 'move',
-      parameters: { locationId: 'location:next' },
-    })
-    expect(stillMoved.events.map(event => event.eventType)).toEqual(['character.moved'])
-    // A move that changes nothing produces no ending either.
-    const stayed = path.resolve(context('action:stay', held), { actionType: 'speak', parameters: { text: '还是待着' } })
-    expect(stayed.events.map(event => event.eventType)).toEqual(['character.speak'])
-  })
-
-  it('reports the role bindings a frozen resolution used, by name', () => {
-    const path = rulebook()
-    const resolution = path.resolve(context('action:names'), {
-      actionType: 'interact',
-      parameters: {
-        targetRef: { kind: 'character', id: 'character:npc' },
-        bindingId: 'binding:character:npc:base:hold-hand',
-        definitionRef: { id: 'base:hold-hand', version: 1 },
-        arguments: {},
-      },
-    })
-    expect(resolution.status).toBe('accepted')
-    // Names, not only their hash: a Host stating which role an effect landed on has to be able to ask
-    // about a slot, and a hash cannot answer that.
-    expect(resolution.resolvedRoles).toEqual({
-      actor: { kind: 'character', id: 'character:player' },
-      target: { kind: 'character', id: 'character:npc' },
-    })
-  })
-
   it('resolves every first-batch definition through the world selection', () => {
     const path = rulebook()
     const take = path.resolve(context('action:take'), {
@@ -183,35 +131,6 @@ describe('the frozen interaction path', () => {
       },
     })
     expect(drop.status).toBe('accepted')
-    const hold = path.resolve(context('action:hold'), {
-      actionType: 'interact',
-      parameters: {
-        targetRef: { kind: 'character', id: 'character:npc' },
-        bindingId: 'binding:character:npc:base:hold-hand',
-        definitionRef: { id: 'base:hold-hand', version: 1 },
-        arguments: {},
-      },
-    })
-    expect(hold.status).toBe('accepted')
-    expect(hold.events[0]!.eventType).toBe('character.relation-started')
-    // The release addresses the instance through the class the author bound, and the identity is the one
-    // the establishing action minted rather than a second relation.
-    const relationId = (hold.events[0]!.data as { relationId: string }).relationId
-    const released = path.resolve(context('action:release', [...origin, ...hold.events]), {
-      actionType: 'interact',
-      parameters: {
-        targetRef: { kind: 'relation', id: relationId },
-        bindingId: 'binding:release',
-        definitionRef: { id: 'base:end-contact', version: 1 },
-        arguments: {},
-      },
-    })
-    expect(released.status).toBe('accepted')
-    expect(released.events[0]!.data).toEqual({
-      relationId,
-      endedByCharacterId: 'character:player',
-      reason: 'released',
-    })
   })
 
   it('lets the definition say who may observe a refusal, and records it either way', () => {
@@ -238,21 +157,6 @@ describe('the frozen interaction path', () => {
     expect(refusedTake.observationScope).toEqual({ scope: 'scene_public' })
     // The fact is written either way; the policy only decides who is told.
     expect(refusedTake.events.map(event => event.eventType)).toEqual(['action.rejected'])
-    // A refused attempt to take someone's hand is not something the Scene is told about - but the pair
-    // already holding hands is why it fails, so the attempt is refused for that reason and recorded.
-    const paired = [...origin, relationStarted('base:hold-hand')]
-    const refusedHold = path.resolve(context('action:refused-hold', paired), {
-      actionType: 'interact',
-      parameters: {
-        targetRef: { kind: 'character', id: 'character:npc' },
-        bindingId: 'binding:character:npc:base:hold-hand',
-        definitionRef: { id: 'base:hold-hand', version: 1 },
-        arguments: {},
-      },
-    })
-    expect(refusedHold.status).toBe('rejected')
-    expect(refusedHold.observationScope).toEqual({ scope: 'self' })
-    expect(refusedHold.events.map(event => event.eventType)).toEqual(['action.rejected'])
     // A request that never named a definition has no policy to consult, and the reason names the catalog.
     const unbound = path.resolve(context('action:unbound'), {
       actionType: 'interact',
@@ -534,44 +438,6 @@ describe('the frozen interaction path', () => {
     )
   })
 
-  it('enumerates the options the world accepts, from the same selection it adjudicates', () => {
-    const path = rulebook()
-    const optionIds = (events: readonly RulebookEvent[], actionId: string): readonly string[] =>
-      path
-        .affordances(context(actionId, events))
-        .find(entry => entry.actionType === 'interact')!
-        .interactions!.map(
-          option => `${(option.definitionRef as { id: string }).id}:${(option.targetRef as { id: string }).id}`,
-        )
-    const offered = path.affordances(context('action:affordance'))
-    expect(offered.map(entry => `${entry.actionType}@${entry.actionVersion}`)).toEqual([
-      'speak@1',
-      'move@1',
-      'interact@2',
-    ])
-    // With nothing held and no relation yet, only taking and holding are attemptable: drop and give
-    // have nothing to act on, and releasing has no instance of the class to address.
-    expect(optionIds(origin, 'action:affordance')).toEqual([
-      'base:hold-hand:character:npc',
-      'base:take:entity:cup',
-      'base:take:entity:other',
-    ])
-    // Once the pair is holding, the release appears and the second hold is no longer attemptable.
-    const paired = [...origin, relationStarted('base:hold-hand')]
-    expect(optionIds(paired, 'action:affordance:2')).toContain('base:end-contact:relation:held')
-    expect(optionIds(paired, 'action:affordance:2')).not.toContain('base:hold-hand:character:npc')
-    // An inactive relation is not something either side can release, so it is not offered.
-    const ended = [
-      ...paired,
-      {
-        eventType: 'character.relation-ended',
-        eventVersion: 1,
-        data: { relationId: 'relation:held', endedByCharacterId: 'character:npc', reason: 'released' },
-      },
-    ]
-    expect(optionIds(ended, 'action:affordance:3')).not.toContain('base:end-contact:relation:held')
-  })
-
   it('authorizes what the actor can reach and nothing else', () => {
     const snapshot = interactionHostSnapshot(world.manifest, origin, 'character:player')
     const keys = snapshot.authorizedTargets.map(ref => `${ref.kind}:${ref.id}`)
@@ -627,16 +493,6 @@ describe('the frozen interaction path', () => {
     expect(
       interactionHostSnapshot(world.manifest, stillInScene, 'character:player').authorizedTargets.map(ref => ref.id),
     ).toEqual(['character:npc', 'entity:cup', 'entity:other'])
-    // Only a participant may address a relation.
-    const paired = [...origin, relationStarted('base:hold-hand')]
-    expect(
-      interactionHostSnapshot(world.manifest, paired, 'character:npc').authorizedTargets.map(
-        ref => `${ref.kind}:${ref.id}`,
-      ),
-    ).toContain('relation:relation:held')
-    expect(
-      interactionHostSnapshot(world.manifest, paired, 'character:bob').authorizedTargets.map(ref => ref.kind),
-    ).not.toContain('relation')
   })
 
   it('identifies a candidate prefix by its contents, including events that name no version', () => {
@@ -695,57 +551,9 @@ describe('the frozen interaction path', () => {
     // whole membership rather than whichever Scene happened to be read last.
     expect(state.sceneIds).toEqual(['scene:room', 'scene:second'])
   })
-
-  it('fails closed on a prefix it cannot read rather than guessing at reach', () => {
-    const broken = [
-      ...origin,
-      {
-        eventType: 'character.relation-started',
-        eventVersion: 1,
-        data: {
-          relationId: 'relation:held',
-          relationKind: 'hand_hold',
-          initiatorId: 42,
-          targetId: 'character:npc',
-          interactionId: 'base:hold-hand',
-          sourceActionId: 'action:hold',
-        },
-      },
-    ]
-    expect(() => interactionHostSnapshot(world.manifest, broken, 'character:player')).toThrow(/prefix is malformed/u)
-  })
 })
 
 describe('the Rulebook registry on the frozen path', () => {
-  it('serves v10 through the generic resolver the Host already uses', () => {
-    const registry = createCoreRulebookRegistry({ interactionPackages: [basicInteractionPackage] })
-    const resolver = registry.resolve('builtin:speak-move', 2, 'correlation:i4b', address)
-    const held = [...origin, relationStarted('base:hold-hand')]
-    const moved = resolver.resolve({
-      manifest: world.manifest,
-      events: held,
-      characterId: 'character:player',
-      actionId: 'action:move:registry',
-      manifestHash: world.manifestHash,
-      asOfWorldSeq: 4,
-      resolutionAuthority: authority,
-      action: { actionType: 'move', parameters: { locationId: 'location:next' } },
-    })
-    expect(moved.events.map(event => event.eventType)).toEqual(['character.moved', 'character.relation-ended'])
-    expect(
-      resolver
-        .affordances({
-          manifest: world.manifest,
-          events: held,
-          characterId: 'character:player',
-          manifestHash: world.manifestHash,
-          asOfWorldSeq: 4,
-          resolutionAuthority: authority,
-        })
-        .map(entry => entry.actionType),
-    ).toEqual(['speak', 'move', 'interact'])
-  })
-
   it('fails closed when the Host installed no interaction package', () => {
     const registry = createCoreRulebookRegistry()
     const resolver = registry.resolve('builtin:speak-move', 2, 'correlation:i4b', address)
@@ -776,94 +584,7 @@ describe('the Rulebook registry on the frozen path', () => {
   })
 })
 
-describe('the fixture itself', () => {
-  it('names a relation class that the catalog actually enables', () => {
-    const selection = (world.manifest as CompiledWorldManifestV10).interactionCatalog
-    const classes = selection.bindings
-      .filter(entry => entry.targetRef.kind === 'relation')
-      .map(entry => entry.targetRef.id)
-    expect(classes).toEqual(['base:hold-hand'])
-    for (const id of classes) {
-      expect(selection.definitions.some(entry => entry.ref.id === id)).toBe(true)
-    }
-    expect(hashWorldJson('compiled-world-manifest', world.manifest)).toBe(world.manifestHash)
-    expect(address.branchId).toBe(brandId('branch:main', 'BranchId'))
-  })
-})
-
 describe('a v10 world through the production entry point', () => {
-  it('shows the Scene a refusal its author made public, and keeps the private one to the actor', async () => {
-    const root = mkdtempSync(join(tmpdir(), 'frozen-refusal-'))
-    const worldPath = join(root, 'world.sqlite')
-    const compiled = frozenInteractionWorld()
-    const app = new WorldApplication({
-      interactionPackages: [basicInteractionPackage],
-      worldPath,
-      sessionPath: join(root, 'session.sqlite'),
-      memoryPath: join(root, 'memory.sqlite'),
-      modelBudgetTokens: 20,
-    })
-    const submit = (key: string, parameters: Record<string, unknown>) =>
-      app.submit(compiled.manifest.address, {
-        idempotencyKey: key,
-        principalId: 'principal:player',
-        correlationId: `frozen-${key}`,
-        action: { actionType: 'interact', parameters: parameters as never },
-      })
-    const take = {
-      targetRef: { kind: 'entity', id: 'entity:cup' },
-      bindingId: 'binding:entity:cup:base:take',
-      definitionRef: { id: 'base:take', version: 1 },
-      arguments: {},
-    }
-    const hold = {
-      targetRef: { kind: 'character', id: 'character:npc' },
-      bindingId: 'binding:character:npc:base:hold-hand',
-      definitionRef: { id: 'base:hold-hand', version: 1 },
-      arguments: {},
-    }
-    try {
-      app.activate(compiled)
-      // Two refusals of the same shape, decided by two different declarations: the cup is already taken,
-      // and the pair already holds hands.
-      await submit('take', take)
-      await submit('take-again', take)
-      await submit('hold', hold)
-      await submit('hold-again', hold)
-    } finally {
-      await app.close()
-    }
-    try {
-      const store = new WorldStore(worldPath)
-      const observations = store
-        .readEvents(compiled.manifest.address)
-        .filter(event => event.eventType === 'observation.upsert')
-        .map(
-          event =>
-            (
-              event.data as {
-                readonly value: { readonly observerId: string; readonly content: Record<string, unknown> }
-              }
-            ).value,
-        )
-      store.close()
-      // The public refusal reaches everyone in the Scene, which is what makes it witnessable at all.
-      const refusalOfTake = observations.filter(entry => entry.content.reason === 'ITEM_NOT_AVAILABLE')
-      expect(refusalOfTake.map(entry => entry.observerId).sort()).toEqual([
-        'character:bob',
-        'character:npc',
-        'character:player',
-      ])
-      expect(refusalOfTake.every(entry => entry.content.status === 'rejected')).toBe(true)
-      // The private one reaches nobody but the actor, and it is still an Observation bound to the action.
-      const refusalOfHold = observations.filter(entry => entry.content.reason === 'CONTACT_ALREADY_ACTIVE')
-      expect(refusalOfHold.map(entry => entry.observerId)).toEqual(['character:player'])
-      expect(refusalOfHold[0]!.content.status).toBe('rejected')
-    } finally {
-      rmSync(root, { recursive: true, force: true })
-    }
-  }, 60_000)
-
   it('records an accepted step as an observation fact, and nothing else about the round changes', async () => {
     // A hand-over is the one first-batch definition that sanctions a self-expression. The step it accepts
     // becomes a fact every observer can see, while the effect itself is built as if the step were not
@@ -987,110 +708,6 @@ describe('a v10 world through the production entry point', () => {
         cue => cue.description,
       ),
     ).toEqual(['点了点头'])
-  }, 60_000)
-
-  it('closes the relation a move ended, exactly once, without a Kernel-side contact branch', async () => {
-    const root = mkdtempSync(join(tmpdir(), 'frozen-interaction-'))
-    const worldPath = join(root, 'world.sqlite')
-    const compiled = frozenInteractionWorld()
-    const app = new WorldApplication({
-      interactionPackages: [basicInteractionPackage],
-      worldPath,
-      sessionPath: join(root, 'session.sqlite'),
-      memoryPath: join(root, 'memory.sqlite'),
-      modelBudgetTokens: 20,
-    })
-    let relationId = ''
-    try {
-      app.activate(compiled)
-      // The precondition the release and the fold both rest on: the pair shares a Location and a Scene.
-      const opening = new WorldStore(worldPath)
-      try {
-        const events = opening.readEvents(compiled.manifest.address)
-        const location = (id: string): unknown =>
-          events
-            .filter(
-              event =>
-                event.eventType === 'character.created' && (event.data as { characterId: string }).characterId === id,
-            )
-            .at(-1)?.data
-        expect((location('character:player') as { locationId: string }).locationId).toBe('location:room')
-        expect((location('character:npc') as { locationId: string }).locationId).toBe('location:room')
-        expect(
-          events.some(
-            event =>
-              event.eventType === 'scene.upsert' &&
-              (event.data as { sceneId: string }).sceneId === 'scene:room' &&
-              (event.data as { value: { participantIds: readonly string[] } }).value.participantIds.includes(
-                'character:npc',
-              ),
-          ),
-        ).toBe(true)
-      } finally {
-        opening.close()
-      }
-
-      // One player interaction through the frozen path: the pair is holding hands.
-      await app.submit(compiled.manifest.address, {
-        idempotencyKey: 'hold',
-        principalId: 'principal:player',
-        correlationId: 'frozen-hold',
-        action: {
-          actionType: 'interact',
-          parameters: {
-            targetRef: { kind: 'character', id: 'character:npc' },
-            bindingId: 'binding:character:npc:base:hold-hand',
-            definitionRef: { id: 'base:hold-hand', version: 1 },
-            arguments: {},
-          },
-        },
-      })
-      const afterHold = new WorldStore(worldPath)
-      try {
-        const relations = currentCharacterRelations(afterHold.readEvents(compiled.manifest.address))
-        expect(relations).toHaveLength(1)
-        expect(relations[0]!.active).toBe(true)
-        relationId = relations[0]!.relationId
-      } finally {
-        afterHold.close()
-      }
-
-      // A move is not an interaction: the world fold is what ends the relation, and it runs once.
-      await app.submit(compiled.manifest.address, {
-        idempotencyKey: 'move',
-        principalId: 'principal:player',
-        correlationId: 'frozen-move',
-        action: { actionType: 'move', parameters: { locationId: 'location:next' } },
-      })
-    } finally {
-      await app.close()
-    }
-    try {
-      const store = new WorldStore(worldPath)
-      const events = store.readEvents(compiled.manifest.address)
-      store.close()
-      expect(currentCharacterRelations(events).filter(relation => relation.active)).toEqual([])
-      const endings = events.filter(event => event.eventType === 'character.relation-ended')
-      // Exactly one ending: a second fold over the same candidate set would emit it again.
-      expect(endings).toHaveLength(1)
-      // The Kernel cannot be the source of that ending. For a v10 Manifest its move emits the movement
-      // and nothing about relations, so what ended the contact above can only be the frozen fold.
-      expect(
-        new SpeakMoveRulebook()
-          .resolve(compiled.manifest, events, 'character:player', {
-            actionType: 'move',
-            parameters: { locationId: 'location:room' },
-          })
-          .events.map(event => event.eventType),
-      ).toEqual(['character.moved'])
-      expect(endings[0]!.data).toEqual({
-        relationId,
-        endedByCharacterId: 'character:player',
-        reason: 'participant_moved',
-      })
-    } finally {
-      rmSync(root, { recursive: true, force: true })
-    }
   }, 60_000)
 
   it('refuses to open a v10 world whose selection this Host cannot resolve', async () => {

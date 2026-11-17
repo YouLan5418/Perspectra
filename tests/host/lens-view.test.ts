@@ -99,9 +99,7 @@ it('keyless knowledge entries still get unique ids, and shared rules have a neut
   } finally {
     rmSync(root, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 })
   }
-  const rule = item('rule:base:hold-hand')
-  expect(rule.title).toBe('base:hold-hand')
-  expect(rule.fields.some(f => f.key === 'onRoundEnd' || f.key === 'actors')).toBe(false)
+  expect(view.items.some(rule => rule.id === 'rule:base:hold-hand')).toBe(false)
   expect(item('rule:status:cook-simple').fields.some(f => f.key === 'onRoundEnd')).toBe(true)
 }, 60_000)
 

@@ -47,6 +47,7 @@ function pack(beats: Record<string, string>, intensity = 'low', cooldown = 0): s
   const file = join(packPath, 'worldpack.source.json'),
     manifest = JSON.parse(readFileSync(file, 'utf8'))
   manifest.assetFiles = ['scripts/status.js', 'scripts/pacing.js']
+  delete manifest.scripts
   manifest.plugins = { ...manifest.plugins, 'official-pacing': {} }
   writeFileSync(file, JSON.stringify(manifest))
   return packPath

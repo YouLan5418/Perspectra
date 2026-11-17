@@ -6,7 +6,6 @@ import { resolve, relative } from 'node:path'
 import { brandId, worldAddressKey, resolutionAuthority, RECALL_KEYWORD_TOKENIZER_ID,
   type WorldAddress, type WorldJsonObject } from '@perspectra/sdk/contracts'
 import { createCoreRulebookRegistry, type CompiledWorldManifest } from '@perspectra/core/kernel'
-import { createBasicInteractionPackage } from '@perspectra/plugins/basic-interactions'
 import { CharacterViewBuilder } from '@perspectra/core/store'
 import { WorldStore, WriterLeaseService } from '@perspectra/core/store'
 import { CognitiveMemoryService } from '@perspectra/core/memory'

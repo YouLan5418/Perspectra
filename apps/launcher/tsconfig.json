@@ -67,9 +67,6 @@
       "@perspectra/plugins/trpg": [
         "../../packages/plugins/src/trpg/index.ts"
       ],
-      "@perspectra/plugins/basic-interactions": [
-        "../../packages/plugins/src/basic-interactions/index.ts"
-      ],
       "@perspectra/memory-core": [
         "../../packages/memory-core/src/index.ts"
       ],

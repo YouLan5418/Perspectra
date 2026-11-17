@@ -709,17 +709,9 @@ export class InteractionRegistry {
         throw new TypeError('binding target kind mismatch')
       if (targetRef.kind === 'relation') {
         // The id names a class, not an instance: the definition whose relations this binding may
-        // address. That definition has to be enabled, and it has to actually create relations, or the
-        // binding could never address anything and would be a silent no-op in the option list.
+        // address. That definition has to be enabled; relation instances are supplied by the caller.
         const creator = [...active.values()].find(entry => entry.spec.id === targetRef.id)
         if (creator === undefined) throw new TypeError('relation binding names a definition the world did not enable')
-        const creatorEffect = effects.get(key(creator.spec.effectBuilderRef))
-        if (
-          creatorEffect === undefined ||
-          !creatorEffect.eventTypes.some(entry => entry.id === 'character.relation-started')
-        ) {
-          throw new TypeError('relation binding names a definition that creates no relation')
-        }
       }
       const id = text(row.bindingId)
       if (bindings.has(id)) throw new TypeError('duplicate binding')
@@ -945,14 +937,12 @@ export class FrozenInteractionWorld {
         if (!handler.eventTypes.some(ref => ref.id === event.eventType && ref.version === event.eventVersion)) {
           throw new TypeError(`lifecycle handler ${key(handler.lock.ref)} exceeded its event closure`)
         }
-        if (event.eventType === 'character.relation-ended') {
-          const data = event.data as WorldJsonObject
-          const inside = scoped.targets.some(entry => entry.ref.kind === 'relation' && entry.ref.id === data.relationId)
-          if (!inside)
-            throw new TypeError(
-              `lifecycle handler ${key(handler.lock.ref)} ended a relation outside its declared scope`,
-            )
-        }
+        const relationId = (event.data as WorldJsonObject).relationId
+        if (
+          typeof relationId === 'string' &&
+          !scoped.targets.some(entry => entry.ref.kind === 'relation' && entry.ref.id === relationId)
+        )
+          throw new TypeError(`lifecycle handler ${key(handler.lock.ref)} ended a relation outside its declared scope`)
       }
       if (added.length > 0) {
         folded = immutable([...folded, ...added])

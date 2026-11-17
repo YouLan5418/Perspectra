@@ -7,7 +7,7 @@ import {
   type WorldHash,
   type WorldJsonObject,
 } from '@perspectra/sdk/contracts'
-import { characterRelationObservations, type RulebookEvent, type RulebookResolution } from '@perspectra/core/kernel'
+import { type RulebookEvent, type RulebookResolution } from '@perspectra/core/kernel'
 
 export function bindPlayerProvisional(
   address: WorldAddress,
@@ -102,15 +102,12 @@ export function verifyPlayerProvisional(
 }
 
 /** Visibility is selected by Scene policy before Recall; opaque binding Hashes carry no action text. */
-export function provisionalReactionView(
-  input: ProvisionalReactionInput,
-  history: readonly RulebookEvent[],
-): WorldJsonObject {
+export function provisionalReactionView(input: ProvisionalReactionInput): WorldJsonObject {
   if (input.steps !== undefined)
     return {
       version: 'provisional-reaction-group/v1',
       provisionalResolutionHash: provisionalInputHash(input),
-      steps: input.steps.map(step => provisionalReactionView(step, history)),
+      steps: input.steps.map(step => provisionalReactionView(step)),
     }
   const { provisional, visibility } = input
   const binding = provisional.binding
@@ -126,7 +123,6 @@ export function provisionalReactionView(
       actorId: binding.action.actorId,
       status: binding.status,
       reason: binding.reason,
-      relations: characterRelationObservations(history, events),
       effects: events
         .filter(event =>
           ['character.speak', 'character.moved', 'entity.transferred', 'character.manifested'].includes(

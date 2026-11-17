@@ -3,8 +3,6 @@ import { randomUUID } from 'node:crypto'
 import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
-import { interactionPackageDescription } from '@perspectra/sdk/contracts'
-import { createInstalledInteractionPackages } from '@perspectra/plugins/basic-interactions'
 import { compileWorldPackSource } from '@perspectra/world-pack'
 import { composeWorldSeams } from '../../apps/host/src/official-bundle.ts'
 import { loadPackContent } from '../../apps/host/src/runtime/pack-content.ts'
@@ -13,8 +11,7 @@ import { openRpgWorld } from '../support/rpg-fixture.ts'
 const FIXTURE = resolve('tests/fixtures/trpg-pack')
 type Json = Record<string, any>
 const readJson = (path: string): Json => JSON.parse(readFileSync(path, 'utf8'))
-const compile = (pack: string) =>
-  compileWorldPackSource(pack, createInstalledInteractionPackages().map(interactionPackageDescription))
+const compile = (pack: string) => compileWorldPackSource(pack, [])
 
 const roots: string[] = []
 const copy = (edit?: (pack: string) => void) => {
@@ -74,6 +71,7 @@ describe('trpg.json in a pack', () => {
     const { pack } = copy(pack => {
       const source = readJson(join(pack, 'worldpack.source.json'))
       source.assetFiles = []
+      delete source.scripts
       source.plugins = {}
       writeFileSync(join(pack, 'worldpack.source.json'), JSON.stringify(source))
       rmSync(join(pack, 'trpg.json'))

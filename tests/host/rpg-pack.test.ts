@@ -1,8 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { interactionPackageDescription } from '@perspectra/sdk/contracts'
-import { createInstalledInteractionPackages } from '@perspectra/plugins/basic-interactions'
 import { compileWorldPackSource } from '@perspectra/world-pack'
 import { assembleRoleplay, officialRpgContent, type WorldComposition } from '../../apps/host/src/official-bundle.ts'
 import { loadActivitySource } from '../../apps/host/src/runtime/activity-source.ts'
@@ -31,8 +29,7 @@ const withoutRpg = (pack: string) => {
   writeJson(join(pack, 'worldpack.source.json'), source)
   rmSync(join(pack, 'rpg.json'))
 }
-const compile = (pack: string) =>
-  compileWorldPackSource(pack, createInstalledInteractionPackages().map(interactionPackageDescription))
+const compile = (pack: string) => compileWorldPackSource(pack, [])
 /** 保持同一持久数据版本与状态／活动结构，仅调整火球术数值的兼容插件组合。 */
 const strongerFire = (): WorldComposition =>
   assembleRoleplay({

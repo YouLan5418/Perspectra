@@ -3,8 +3,7 @@ import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:f
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { afterEach, expect, it } from 'vitest'
-import { interactionPackageDescription, type WorldJsonObject } from '@perspectra/sdk/contracts'
-import { createInstalledInteractionPackages } from '@perspectra/plugins/basic-interactions'
+import { type WorldJsonObject } from '@perspectra/sdk/contracts'
 import { compileWorldPackSource } from '@perspectra/world-pack'
 import { KnowledgeSelection } from '@perspectra/providers/knowledge'
 import { loadKnowledgeSource } from '../../apps/host/src/runtime/knowledge-source.ts'
@@ -53,8 +52,7 @@ function fixture() {
   })
   return path
 }
-const compile = (path: string) =>
-  compileWorldPackSource(path, createInstalledInteractionPackages().map(interactionPackageDescription))
+const compile = (path: string) => compileWorldPackSource(path, [])
 const run = (...args: string[]) =>
   spawnSync(process.execPath, [resolve('skills/perspectra-creator/scripts/split-knowledge.mjs'), ...args], {
     encoding: 'utf8',

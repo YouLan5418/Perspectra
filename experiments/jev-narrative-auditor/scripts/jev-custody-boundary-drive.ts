@@ -5,7 +5,6 @@ import { resolve } from 'node:path'
 import { createHash } from 'node:crypto'
 import { bindPlayerIntentCandidate, type WorldJsonObject, type WorldJsonValue } from '@perspectra/sdk/contracts'
 import { createCoreRulebookRegistry, currentEntityState, type CompiledWorldManifest, type RulebookEvent } from '@perspectra/core/kernel'
-import { createBasicInteractionPackage } from '@perspectra/plugins/basic-interactions'
 import { PlayerInputJobs, WorldStore, type PlayerInputJob } from '@perspectra/core/store'
 import { createChatProvider } from '@perspectra/providers/chat'
 import { preparePlayerIntent } from '../../../packages/core/src/application/player-intent-preparation.ts'
@@ -35,7 +34,7 @@ if (process.argv.includes('--probe')) {
   const stored = store.readManifest(runtime.address)!
   const manifest = stored.manifest as CompiledWorldManifest
   const base = store.readEvents(runtime.address)
-  const resolver = createCoreRulebookRegistry({ interactionPackages: [createBasicInteractionPackage()] })
+  const resolver = createCoreRulebookRegistry({ interactionPackages: [] })
     .resolve(manifest.rulebook.rulebookId, manifest.rulebook.version, 'custody10:probe')
   const profile = { version: 'player-intent-profile/v1' as const, providerId: 'chat-completions',
     modelId: 'deepseek-flash', maxOutputTokens: 1024, timeoutMs: 60000 }

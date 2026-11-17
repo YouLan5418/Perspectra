@@ -813,7 +813,7 @@ BGM、TTS 和只读 PlayerFeed 订阅可以采用外围扩展语义。同一个�
 | `@perspectra/core` | 实体、基础规则、事件存储、授权状态、来源捕获、受控执行、分支与实例生命周期 | kernel、store-sqlite、application、interaction-runtime、memory 的授权来源、presentation、runtime-cordis 和必要宿主执行边界 |
 | `@perspectra/providers` | 默认 scheduler、decision、state、activity、communication、llm 和 memory-none，含作者脚本适配及推演所需的轻量替代实现 | 相关 official 包与 provider-chat，按能力子目录和导出组织 |
 | `@perspectra/memory-core` | Python／E5 长期记忆实现及进程适配 | official-memory-core，保留独立资源与依赖边界 |
-| `@perspectra/plugins` | autonomy、dice、pacing、rpg、trpg、basic-interactions 等官方玩法和策略 | 对应 official 玩法与 interactions-basic，按子路径使用 |
+| `@perspectra/plugins` | dice、pacing、rpg、trpg 等官方玩法和策略 | 按子路径使用；牵手／松手已迁入世界包脚本 |
 | `@perspectra/world-pack` | 游戏包格式、注入式配置校验、编译、打包、静态透视分析及推演剧本解析与断言 | world-pack 与 Lens 的内容分析、动作匹配及剧本能力 |
 | `@perspectra/frontend` | 玩家视图、客户端契约、默认舞台、通用动作表单、控件与只读面板、阅读进度及音频播放接口 | frontend，继续服务现有玩家入口 |
 

@@ -56,6 +56,7 @@ async function fixture() {
   writeFileSync(join(pack, 'scripts/activity.js'), activity)
   const source = JSON.parse(readFileSync(join(pack, 'worldpack.source.json'), 'utf8'))
   source.assetFiles = ['scripts/status.js', 'scripts/activity.js']
+  delete source.scripts
   writeFileSync(join(pack, 'worldpack.source.json'), JSON.stringify(source))
   const requests: WorldJsonObject[] = []
   let follow = false,

@@ -571,12 +571,16 @@ export class GameplayRuntime {
     )
   }
   #scene(events: readonly RulebookEvent[], actorId: CharacterId): string[] {
+    const visible = this.#world(events, actorId).characterIds
+    const authorized = Array.isArray(visible) ? new Set([actorId, ...visible]) : undefined
     const location = currentLocation(events, actorId)
     return this.options.manifest.characters
       .filter(
         row =>
           row.characterId === actorId ||
-          (location !== undefined && currentLocation(events, row.characterId) === location),
+          (authorized
+            ? authorized.has(row.characterId)
+            : location !== undefined && currentLocation(events, row.characterId) === location),
       )
       .map(row => row.characterId)
   }

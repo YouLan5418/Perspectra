@@ -48,6 +48,7 @@ async function world(beats: Record<string, string>) {
   const file = join(packPath, 'worldpack.source.json'),
     manifest = JSON.parse(readFileSync(file, 'utf8'))
   manifest.assetFiles = ['scripts/status.js', 'scripts/pacing.js']
+  delete manifest.scripts
   manifest.plugins = { ...manifest.plugins, 'official-pacing': {}, 'pack-scripts': {} }
   writeFileSync(file, JSON.stringify(manifest))
   const requests: { actor: string; text: string }[] = []

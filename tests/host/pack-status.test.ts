@@ -3,8 +3,6 @@ import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:f
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { interactionPackageDescription } from '@perspectra/sdk/contracts'
-import { createBasicInteractionPackage } from '@perspectra/plugins/basic-interactions'
 import type { RulebookEvent } from '@perspectra/core/kernel'
 import { compileWorldPackSource, type CompiledWorldPackV5 } from '@perspectra/world-pack'
 import { statusFromSource, loadStatus, type StatusEventData } from '../support/status-runtime.ts'
@@ -24,8 +22,7 @@ const quests = ((source: string) => {
 let root: string, packPath: string, pack: CompiledWorldPackV5, plain: CompiledWorldPackV5
 beforeAll(async () => {
   root = mkdtempSync(join(tmpdir(), 'pack-status-'))
-  const compile = (path: string) =>
-    compileWorldPackSource(path, [interactionPackageDescription(createBasicInteractionPackage())])
+  const compile = (path: string) => compileWorldPackSource(path, [])
   plain = (await compile(original)) as CompiledWorldPackV5
   packPath = join(root, 'pack')
   cpSync(original, packPath, { recursive: true })

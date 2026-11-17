@@ -40,6 +40,7 @@ function pack(pacing = true): string {
   const file = join(packPath, 'worldpack.source.json'),
     manifest = JSON.parse(readFileSync(file, 'utf8'))
   manifest.assetFiles = pacing ? ['scripts/status.js', 'scripts/pacing.js'] : ['scripts/status.js']
+  delete manifest.scripts
   manifest.plugins = { 'pack-scripts': {}, ...(pacing ? { 'official-pacing': {} } : {}) }
   writeFileSync(file, JSON.stringify(manifest))
   return packPath

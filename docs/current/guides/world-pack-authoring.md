@@ -136,13 +136,13 @@ NPC 自行决定回应或沉默，以及台词、情绪和行动。不要在调�
 
 ## 4. 交互定义和绑定
 
-例如让玩家牵起汤汤的手，使用 [hand-in-hand 的 interactions.json](../../../examples/world-packs/hand-in-hand/interactions.json) 中的定义和角色绑定；松手通过 relationBindings，而不是靠一句台词删除关系。当前宿主的基础交互包只提供 `base:hold-hand` 和 `base:end-contact`，仍需包显式声明定义版本与绑定。
+例如让玩家牵起同行者的手，复制 [牵手模板](../../../examples/templates/hand-contact.cjs)到包内 `scripts/gameplay.cjs`，修改顶部的 `CONTACT_TARGETS`。在 `worldpack.source.json` 的 `assetFiles` 中登记该文件，并声明 `"scripts": { "gameplay": { "entry": "scripts/gameplay.cjs" } }`。完整例子见 [hand-in-hand](../../../examples/world-packs/hand-in-hand/worldpack.source.json)。牵手与松手分别是 `contact:hold-hand` 和 `contact:end-contact`，使用 `partnerId` 参数；状态、双方解除和离场清理由同一脚本定义。`interactions.json` 无需选择旧基础包或关系绑定。
 
 例如要拿起钥匙、把它放下或交给别人，复制[物品规则模板](../../../examples/templates/item-rules.js)到包内 `scripts/status.js`，在顶部 `ITEM_RULES` 分别列出允许 take、drop、give 的物品 ID，并按完整示例把模板并入脚本定义、policy 和 resolve；在 assetFiles 登记脚本。模板是可修改的作者代码，不是宿主内置能力。操作声明的 `targets` 绑定物品；`resolve` 第六参数接收目标 ID，返回 `items` 改外观或以 `to: { holderId }`／`{ locationId }` 交接。宿主校验后与本次行动的对白、状态结果和观察原子提交，详见[物品接口](activity-and-variables.md#对物品做的操作2026-10-22当前源码)。JSON 声明不能凭空安装新实现，超出现有脚本结果能力的机制仍可能需要扩展宿主。
 
 物品操作的名字来自脚本中的 `label`。例如 `entities.json` 写 `"name": "一锅米"`，操作写 `label: '拿起{item}'`，菜单显示“拿起一锅米”；料理操作可直接写“用电饭煲煮一锅白米饭”。模板中的交给只产生一个“把一锅米交给”选项，点击后通过“交给谁”填写 `recipientId`；不为每个接收者生成一个选项。`characterParameters: ['recipientId']` 让宿主检查接收者属于当前授权场景，模板再拒绝交给自己。界面使用宿主返回的选项与参数契约，不自行拼接 optionId。物品应写 `name`，名称也会进入角色看到的物品描述；它只影响显示，不改变裁定或权威归属。
 
-内置牵手等绑定仍可写 `label`（1–60 字），没写时有“牵起某人的手”等通用说法；relationBindings 暂不支持自定义 label。拿／放／给不再使用绑定上的内置名称兜底。`base:take`／`base:drop`／`base:give` 和旧料理／修理核心模块已删除；活动 policy、`autonomy.json` 统一引用 `status:take`／`status:drop`／`status:give`。旧包需修改脚本与引用后新建实例。
+普通原生交互绑定仍可写 `label`（1–60 字）。世界包玩法操作直接声明 `offer` 标签及 `ui`；前端不再提供牵手／松手专用名称兜底。拿／放／给使用 `status:take`／`status:drop`／`status:give`，牵手／松手使用包内的 `contact:*` 操作。旧包修改脚本、活动和自主许可引用后需新建实例，宿主不保留旧定义兼容入口。
 
 ## 5. 扩展玩法和界面
 

@@ -22,7 +22,6 @@ import {
   type WorldJsonValue,
 } from '@perspectra/sdk/contracts'
 import {
-  characterRelationObservations,
   currentCharacterLifecycle,
   type CompiledWorldManifest,
   type RulebookRegistry,
@@ -703,7 +702,7 @@ export class CharacterTurn {
                 )
                 const speech = resolution.events.find(event => event.eventType === 'character.speak')
                 const transfer = actorTransfer(actionId, resolution.events)
-                const relations = characterRelationObservations(history, resolution.events)
+
                 // The same move reaches both scenes, but neither scene alone grants the whole route.
                 // Only her own move action carries her route: when another action's result moved her, such as an
                 // activity operation that sends the party home, those she arrives among see her come, never the
@@ -755,7 +754,6 @@ export class CharacterTurn {
                       : {}),
                     ...(speech === undefined ? {} : { speech: speech.data }),
                     ...(transfer === undefined ? {} : { interaction: transfer.data }),
-                    ...(relations.length === 0 ? {} : { relations }),
                   },
                   perObserver: observerId => ({
                     resultDescription: String(feedback.description).replaceAll(

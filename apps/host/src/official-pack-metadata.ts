@@ -13,7 +13,6 @@ export const officialPackPlugins: readonly PackPluginDescriptor[] = [
   { id: 'official-autonomy', version: '1', configFile: 'autonomy.json' },
   { id: 'official-pacing', version: '1' },
   { id: 'official-communication', version: '1', configFile: 'communication.json' },
-  { id: 'basic-interactions', version: '1' },
   // Existing source scripts remain explicitly opt-in until their authors migrate.
   { id: 'pack-scripts', version: '1' },
 ]

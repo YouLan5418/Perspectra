@@ -7,8 +7,7 @@
     "./dice": "./src/dice/index.ts",
     "./pacing": "./src/pacing/index.ts",
     "./rpg": "./src/rpg/index.ts",
-    "./trpg": "./src/trpg/index.ts",
-    "./basic-interactions": "./src/basic-interactions/index.ts"
+    "./trpg": "./src/trpg/index.ts"
   },
   "dependencies": {
     "@perspectra/sdk": "workspace:*",

@@ -4,8 +4,7 @@ import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { afterEach, expect, it } from 'vitest'
 import { compileWorldPackSource } from '@perspectra/world-pack'
-import { createInstalledInteractionPackages } from '@perspectra/plugins/basic-interactions'
-import { interactionPackageDescription, type WorldJsonObject } from '@perspectra/sdk/contracts'
+import { type WorldJsonObject } from '@perspectra/sdk/contracts'
 import { KnowledgeSelection } from '@perspectra/providers/knowledge'
 import { loadKnowledgeSource } from '../../apps/host/src/runtime/knowledge-source.ts'
 import type { CompiledWorldPackV5 } from '@perspectra/world-pack'
@@ -61,11 +60,9 @@ async function packFixture() {
   source.documentFiles = ['documents.json']
   source.markdownFiles = ['setting.md', 'lore.md']
   source.assetFiles = ['knowledge.json']
+  delete source.scripts
   write('worldpack.source.json', source)
-  const pack = await compileWorldPackSource(
-    path,
-    createInstalledInteractionPackages().map(interactionPackageDescription),
-  )
+  const pack = await compileWorldPackSource(path, [])
   return { root, path, pack, knowledgeConfig }
 }
 const context = (actor: string, speech = ''): WorldJsonObject => ({
@@ -259,12 +256,15 @@ it('accepts a lorebook-sized pack: 600 entries, long keyword lists and a single 
   writeFileSync(join(path, 'knowledge.json'), config)
   writeFileSync(
     join(path, 'worldpack.source.json'),
-    JSON.stringify({ ...source, documentFiles: ['documents.json'], markdownFiles, assetFiles: ['knowledge.json'] }),
+    JSON.stringify({
+      ...source,
+      scripts: undefined,
+      documentFiles: ['documents.json'],
+      markdownFiles,
+      assetFiles: ['knowledge.json'],
+    }),
   )
-  const pack = await compileWorldPackSource(
-    path,
-    createInstalledInteractionPackages().map(interactionPackageDescription),
-  )
+  const pack = await compileWorldPackSource(path, [])
   const delivered = loadKnowledge(path, pack)!.select(context('character:friend', '提到巨型条目和条目599号'))
     .entries as WorldJsonObject[]
   expect(delivered.map(row => row.documentId)).toEqual(['document:lore-0', 'document:lore-599'])

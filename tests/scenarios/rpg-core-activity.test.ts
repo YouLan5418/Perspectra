@@ -6,8 +6,7 @@ import { pathToFileURL } from 'node:url'
 import { randomUUID } from 'node:crypto'
 import { spawnSync } from 'node:child_process'
 import { afterEach, expect, it } from 'vitest'
-import { interactionPackageDescription, type WorldJsonObject } from '@perspectra/sdk/contracts'
-import { createInstalledInteractionPackages } from '@perspectra/plugins/basic-interactions'
+import { type WorldJsonObject } from '@perspectra/sdk/contracts'
 import { compileWorldPackSource } from '@perspectra/world-pack'
 import { WorldStore } from '@perspectra/core/store'
 import { WorldHostRuntime } from '../../apps/host/src/runtime/world-runtime.ts'
@@ -54,10 +53,7 @@ function packFixture(modify?: (config: MutableObject) => void) {
 }
 async function fixture(modify?: (config: MutableObject) => void) {
   const files = packFixture(modify)
-  const compiled = await compileWorldPackSource(
-    files.packPath,
-    createInstalledInteractionPackages().map(interactionPackageDescription),
-  )
+  const compiled = await compileWorldPackSource(files.packPath, [])
   const status = loadStatus(files.packPath, compiled)!
   const requests: WorldJsonObject[] = []
   let mode: 'fire' | 'guard' | 'abstain' = 'fire'

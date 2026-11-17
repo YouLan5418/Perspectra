@@ -2,7 +2,7 @@
 
 2026-11-05 M5：例如后室同伴收到玩家短信后，自主处理自己的目标。通信选项与消息计算由 ctx.communication 提供，自主配置、触发频率和许可由 ctx.autonomy 提供；两者不直接提交事件。CommunicationRules 与执行适配绑定真实收发者，AutonomyRuntime 提取交易摘要并检查声明范围，机会继续交现有 scheduler／characterLoop。源码与验证边界见[M5 记录](../studies/2026-11-core-migration-m5.md)。
 
-2026-11-04 M2：例如作者只需要实体与普通发言，可显式选择空交互目录；源包、编译目录和存档读取均允许它，未安装的非空选择仍拒绝。核心应用不自动补基础交互，默认桌面组合显式提供。物品变更由核心 [item-effects](../../../packages/core/src/application/item-effects.ts)校验后提交，具体玩法仍来自作者规则；范围见[M2 记录](../studies/2026-11-core-migration-m2.md)。
+2026-11-04 M2：例如作者只需要实体与普通发言，可显式选择空交互目录；源包、编译目录和存档读取均允许它，未安装的非空选择仍拒绝。核心应用与默认桌面组合均不再提供基础交互包，牵手由世界包脚本显式定义。物品变更由核心 [item-effects](../../../packages/core/src/application/item-effects.ts)校验后提交，具体玩法仍来自作者规则；范围见[M2 记录](../studies/2026-11-core-migration-m2.md)。
 
 2026-10-22 核对：例如玩家选择“把钥匙交给”，再在“交给谁”中选择汤汤。这是一个物品选项加 `recipientId` 参数；每个接收者不再单独占一个选项。拿起、放下、交给以及料理／修理都由各包的 `scripts/status.js` 裁定，宿主不再安装旧的三种物品规则；标准写法见[作者模板](../../../examples/templates/item-rules.js)和[物品操作接口](../guides/activity-and-variables.md#对物品做的操作2026-10-22当前源码)。候选按作者 policy 筛选，执行前重新检查，成功后才提交权威物品变化与授权观察。下列带日期的验收记录保留当时的入口和选项形态。
 
@@ -24,7 +24,7 @@
 
 自由文本表达角色的说法、姿态或意图，不独立证明重要状态变化。玩家普通自然语言不会自动执行移动、取物或交接；日常游玩使用页面提供的当前选项。创作者调试物品操作可用 `/status take@entity:brass-key {}` 等写法；`/take`、`/give`、`/drop` 已删除，`/act` 保留用于其他受控行动调试。
 
-角色决策协议中的 perform 表示尝试受控行动，publish 发布对白与叙述；内部表现动作也保留 perform 名称，需区分所在层次。move 是位置变化；拿起、放下、交给来自作者状态脚本，在 `interact` 中使用 bindingId `status`、definitionRef `status:take`／`status:drop`／`status:give`。是否提供某个行为取决于包内操作声明、当前目标、作者 policy 和活动／自主许可；宿主不会自动给所有物品补上拿取能力。内置规则只剩 `base:hold-hand` 与 `base:end-contact`，仍须由包显式绑定。
+角色决策协议中的 perform 表示尝试受控行动，publish 发布对白与叙述；内部表现动作也保留 perform 名称，需区分所在层次。move 是位置变化；拿起、放下、交给来自作者状态脚本，在 `interact` 中使用 bindingId `status`、definitionRef `status:take`／`status:drop`／`status:give`。是否提供某个行为取决于包内操作声明、当前目标、作者 policy 和活动／自主许可；宿主不会自动给所有物品补上拿取能力。牵手和松手使用世界包 `scripts.gameplay` 声明的 `contact:hold-hand` 与 `contact:end-contact`，状态和离场解除由包内脚本负责。
 
 声明式 Interaction 描述可选能力、绑定与参数。模型选择并提出动作，Action / Rulebook 检查当前资格、存在性、位置与重要状态约束，接受后通过 Event 提交。世界事件日志是已提交权威事实的来源；模型生成文本和主观记忆不能代替它。
 
@@ -108,7 +108,7 @@ NPC 的模型 Schema 继续只列当前可见收件人；选错时沿用已有�
 
 本次自动回归覆盖两种 scope 的同场接受、场外／离场／不可见／不可用拒绝、混合收件人整次拒绝、玩家真实提交和后续同场新发话、观察隔离与记忆来源、NPC 失败反馈／自主重新选择／预算及重试上限，以及原有通信实验。本机 8045 / gemini-3.8-flash 在新目录 `.tmp/speech-delivery-live-1792167062418/` 完成两次故障注入：执行拒绝后的真实决策为 abstain，Schema 修正后的真实决策为向同场 Bob 公开问候；两次均未传播注入的场外私语。错误提案为人工注入，不能计作模型自然出错率，也未验证长期互动或自主移动后的交流体验。证据为该目录 `result.json` 与两个子目录的 `world.sqlite`；本次未重建发行包。2026-10-16 原探针未按本次提交的事务筛选发生观察，不能作为 direct 会产生 occurrence_only 的依据。
 
-依据：[现行原型契约](../prototype-contract.md)、[World Pack 手册](../guides/world-pack-authoring.md)、[G1/G2 验收](../../archive/prototype-g1-g4/PROTOTYPE-G1-G2-ACCEPTANCE.md)、[Gemini 试玩](../../archive/prototype-g1-g4/PROTOTYPE-GEMINI-PLAYTEST-2026-09-28.md)。代码：[交互执行包](../../../packages/core/src/interactions)、[基础交互](../../../packages/plugins/src/basic-interactions)、[Character Turn](../../../packages/core/src/application/character-turn.ts)。
+依据：[现行原型契约](../prototype-contract.md)、[World Pack 手册](../guides/world-pack-authoring.md)、[G1/G2 验收](../../archive/prototype-g1-g4/PROTOTYPE-G1-G2-ACCEPTANCE.md)、[Gemini 试玩](../../archive/prototype-g1-g4/PROTOTYPE-GEMINI-PLAYTEST-2026-09-28.md)。代码：[交互执行包](../../../packages/core/src/interactions)、`../../../packages/plugins/src/basic-interactions`（已删除；现见[世界包牵手模板](../../../examples/templates/hand-contact.cjs)）、[Character Turn](../../../packages/core/src/application/character-turn.ts)。
 
 ### 2026-10-09：官方同居包的 Gemini 料理验证
 

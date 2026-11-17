@@ -259,7 +259,7 @@ return { changes: [], reveals: [], items: [{ entityId: targetId, kind: 'cooked-r
 - 只给满足已声明条件的目标：`policy(known, actorId, place)` 的第三个参数是 `{ locationId, items }`，`items` 给出行动者拿着或脚下的物品现状（entityId、kind、holderId、locationId），也包括未列为操作目标的工具，例如电饭煲；不含别人手里的物品。返回值可多写 `targets: { 操作ID: [物品ID] }`，只能收窄该操作已声明的目标；空数组隐藏该操作的全部物品选项。执行时宿主用最新输入再检查，伪造或失效请求不能绕过。模板据此只对地上物品提供拿起，只对自己持有的物品提供放下／交给；官方包和晚宴包还筛选料理／修理条件。policy 没有检查的条件仍须在 resolve 中检查，不能把“出现选项”当成成功保证。
 - 模板的“交给”每件物品只提供一个选项，以 `characterParameters: ['recipientId']` 和参数 schema 声明“交给谁”，不按接收者展开选项。宿主要求接收者在当前授权场景中，模板再拒绝交给自己。
 - 玩家调试命令写作 `/status <操作>@<物品ID> <JSON 参数>`，例如 `/status take@entity:brass-key {}`、`/status drop@entity:brass-key {}`、`/status give@entity:brass-key {"recipientId":"character:companion"}`。须以包内实际物品和角色 ID 为准；`/take`、`/give`、`/drop` 已删除。活动 policy 与 `autonomy.json` 用 `status:take`／`status:drop`／`status:give` 等定义 ID 引用操作。
-- 这取代了内置拿／放／给，以及核心里的煮饭、吃饭、修理、三种做菜；`home.ts`、`dinner.ts` 已删除。宿主基础规则只保留牵手／松手。见[晚宴规则](../../../examples/world-packs/model-girls-dinner-v2/scripts/status.js)与[分阶段设计记录](../../superpowers/specs/2026-10-22-author-item-rules-design.md)。旧版物品规则只在[测试夹具](../../../tests/fixtures/item-custody-package.ts)中保留，宿主不安装它，不能作为作者继续使用旧定义的入口。
+- 这取代了内置拿／放／给，以及核心里的煮饭、吃饭、修理、三种做菜；`home.ts`、`dinner.ts` 已删除。牵手／松手由世界包的 `scripts/gameplay.cjs` 提供，宿主不再安装基础交互包。见[晚宴规则](../../../examples/world-packs/model-girls-dinner-v2/scripts/status.js)与[分阶段设计记录](../../superpowers/specs/2026-10-22-author-item-rules-design.md)。旧版物品规则只在[测试夹具](../../../tests/fixtures/item-custody-package.ts)中保留，宿主不安装它，不能作为作者继续使用旧定义的入口。
 
 ### 作者物品规则的验证范围
 

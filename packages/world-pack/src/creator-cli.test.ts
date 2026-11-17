@@ -1,11 +1,10 @@
-import { officialPackPlugins } from '../../../apps/host/src/official-pack-metadata.ts'
+import { officialPackPlugins, validatePackScript } from '../../../apps/host/src/official-pack-metadata.ts'
 import { cp, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { afterEach, describe, expect, it } from 'vitest'
 import { createErrorEnvelope, interactionPackageDescription, WorldError } from '@perspectra/sdk/contracts'
-import { createBasicInteractionPackage } from '@perspectra/plugins/basic-interactions'
 import { executeWorldPackCli, parseWorldPackCliInvocation, worldPackCliErrorEnvelope } from './creator-cli.ts'
 import { failWorldPackContract } from './diagnostics.ts'
 
@@ -26,7 +25,7 @@ function parsed(line: string): Record<string, unknown> {
 }
 
 const source = fileURLToPath(new URL('../../../examples/world-packs/hand-in-hand/', import.meta.url))
-const installed = [interactionPackageDescription(createBasicInteractionPackage())]
+const installed: ReturnType<typeof interactionPackageDescription>[] = []
 
 describe('World Pack creator CLI', () => {
   it.each([
@@ -89,6 +88,7 @@ describe('World Pack creator CLI', () => {
       parsed(
         await executeWorldPackCli(['validate', source], {
           interactionPackages: installed,
+          validateScript: validatePackScript,
           content: officialPackPlugins,
         }),
       ),
@@ -99,7 +99,11 @@ describe('World Pack creator CLI', () => {
     })
     expect(
       parsed(
-        await executeWorldPackCli(['test', source], { interactionPackages: installed, content: officialPackPlugins }),
+        await executeWorldPackCli(['test', source], {
+          interactionPackages: installed,
+          validateScript: validatePackScript,
+          content: officialPackPlugins,
+        }),
       ),
     ).toMatchObject({
       command: 'test',
@@ -109,6 +113,7 @@ describe('World Pack creator CLI', () => {
       parsed(
         await executeWorldPackCli(['compile', source, '--out', artifact], {
           interactionPackages: installed,
+          validateScript: validatePackScript,
           content: officialPackPlugins,
         }),
       ),
@@ -121,11 +126,13 @@ describe('World Pack creator CLI', () => {
     expect(
       parsed(
         await executeWorldPackCli(['activate', artifact, '--data-dir', join(root, 'runtime')], {
-          interactionImplementations: [createBasicInteractionPackage()],
+          interactionImplementations: [],
         }),
       ),
     ).toMatchObject({ command: 'activate', status: 'activated' })
-    await expect(executeWorldPackCli(['validate', source])).rejects.toThrow(/is not installed by the Host/u)
+    await expect(executeWorldPackCli(['validate', source])).rejects.toThrow(
+      /not installed|no common gameplay script validator/u,
+    )
 
     const document = JSON.parse(await readFile(artifact, 'utf8')) as {
       compiledSchemaVersion: string
@@ -150,7 +157,11 @@ describe('World Pack creator CLI', () => {
     const manifest = JSON.parse(await readFile(path, 'utf8')) as Record<string, unknown>
     await writeFile(path, JSON.stringify({ ...manifest, sourceSchemaVersion: 'worldpack-source/v99' }))
     await expect(
-      executeWorldPackCli(['validate', unknown], { interactionPackages: installed, content: officialPackPlugins }),
+      executeWorldPackCli(['validate', unknown], {
+        interactionPackages: installed,
+        validateScript: validatePackScript,
+        content: officialPackPlugins,
+      }),
     ).rejects.toThrow(/must be worldpack-source\/v5/u)
 
     const invalid = join(root, 'invalid.worldpack.json')

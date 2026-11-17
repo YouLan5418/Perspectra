@@ -5,8 +5,7 @@ import { afterEach, expect, it } from 'vitest'
 import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { tmpdir } from 'node:os'
-import { interactionPackageDescription, type WorldJsonObject } from '@perspectra/sdk/contracts'
-import { createInstalledInteractionPackages } from '@perspectra/plugins/basic-interactions'
+import { type WorldJsonObject } from '@perspectra/sdk/contracts'
 import { compileWorldPackSource } from '@perspectra/world-pack'
 import { WorldStore } from '@perspectra/core/store'
 import { currentEntityState, currentLocation } from '@perspectra/core/kernel'
@@ -80,10 +79,7 @@ async function fixture(
     scene.lifecycle = scene.participantIds.length ? 'active' : 'created'
   }
   writeFileSync(join(pack, 'scenes.json'), JSON.stringify(scenes))
-  const compiled = await compileWorldPackSource(
-    pack,
-    createInstalledInteractionPackages().map(interactionPackageDescription),
-  )
+  const compiled = await compileWorldPackSource(pack, [])
   const status = loadStatus(pack, compiled)!
   // Context of every character request, in call order, for tests that check what a character was told.
   const contexts: WorldJsonObject[] = []

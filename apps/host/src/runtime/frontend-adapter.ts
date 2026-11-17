@@ -64,8 +64,8 @@ export function projectPlayerView(state: HostState): PlayerView {
         const targetName = state.actionNames?.[String(target.id)] ?? String(target.id)
         const recipient =
           typeof args.recipientId === 'string' ? (state.actionNames?.[args.recipientId] ?? args.recipientId) : undefined
-        // The author names an action on its binding; the contact rules have a plain fallback, and any other
-        // unnamed action reads as an interaction with its target rather than showing a definition ID. A
+        // The author names an action on its binding; an unnamed action reads as an interaction
+        // with its target rather than showing a definition ID. A
         // recipient is always named, so the same action for different people stays apart.
         const ui = option.ui as WorldJsonObject | undefined
         const authored = state.actionLabels?.[option.bindingId]
@@ -75,12 +75,7 @@ export function projectPlayerView(state: HostState): PlayerView {
               definition.id.startsWith('status:') ||
               definition.id === 'experiment:message'
             ? String(option.label ?? definition.id)
-            : (authored ??
-                {
-                  'base:hold-hand': '牵起 ' + targetName + ' 的手',
-                  'base:end-contact': '松开 ' + targetName,
-                }[definition.id] ??
-                '与 ' + targetName + ' 互动') + (recipient === undefined ? '' : '（给 ' + recipient + '）')
+            : (authored ?? '与 ' + targetName + ' 互动') + (recipient === undefined ? '' : '（给 ' + recipient + '）')
         const targetId = String(target.id)
         const characterArguments = (
           Array.isArray(ui?.characterArguments)

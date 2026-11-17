@@ -707,7 +707,11 @@ export class WorldHostCore implements HostRuntime {
       )
       if (generated) runtime.#scope.own('pack:gameplay', generated, () => generated.close())
       runtime.#communicationSource = loadCommunicationSource(options.packPath, pack)
-      runtime.#autonomySource = loadAutonomySource(options.packPath, pack)
+      runtime.#autonomySource = loadAutonomySource(
+        options.packPath,
+        pack,
+        generated?.gameplay.flatMap(definition => definition.operations.map(operation => operation.id)) ?? [],
+      )
       runtime.#activitySource = activitySource
       runtime.#knowledgeSource = loadKnowledgeSource(options.packPath, pack)
       runtime.#statusSource = statusSource

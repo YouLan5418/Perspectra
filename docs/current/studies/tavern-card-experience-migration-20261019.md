@@ -249,7 +249,7 @@
 | 2 | 长期记忆与历史经历 | **已实现** | [认知与记忆](../architecture/cognition-memory.md)：软触发约 170k、整理较老约 120k、保留约 16k 原文衔接；来源 → 原子 → 片段 → 认识的分层；另有原生记忆路径 | 170k 是本地估算而非供应商分词器；未真实跨越 170k 验收 |
 | 3 | 角色自主回应与调度 | **已实现（实验入口）** | [prototype-activation-cycle.ts](../../../packages/core/src/application/prototype-activation-cycle.ts) 含自主阶段；[autonomy.json](../../../examples/world-packs/character-autonomy/autonomy.json) 声明触发动作、回合频率、机会数、可用交互与区域；[play-settings.ts](../../../apps/host/src/play-settings.ts) 暴露五项预算参数 | 自主配置不在世界包 schema 的字段表里，是宿主按资源登记读取的声明；玩家空闲时不跑后台计时器；多自主角色未验收 |
 | 4 | 世界状态与变量 | **已实现（已重写为“状态”）** | [活动与状态](../guides/activity-and-variables.md)：作者脚本声明状态与操作，真实值只以世界事件提交；对象、数组需带 JSON Schema；操作可按角色已知状态筛选 | 模型不能写变量，叙事内的变量更新块不被解析；每条可写字段都要改写成裁定分支；状态 64 个、操作 32 个、合计 512 KiB 上限 |
-| 5 | 地点、物品、关系 | **已实现** | 地点与实体清单；物品转移走内建交互（[basic.ts](../../../packages/plugins/src/basic-interactions/basic.ts)）；关系走建立与解除两类定义，解除需放在关系绑定里 | 位置与归属不能绕过规则改；目击记录不等于当前归属 |
+| 5 | 地点、物品、关系 | **已实现** | 地点与实体清单；物品转移走内建交互（`../../../packages/plugins/src/basic-interactions/basic.ts`（已删除；现见[世界包牵手模板](../../../examples/templates/hand-contact.cjs)））；关系走建立与解除两类定义，解除需放在关系绑定里 | 位置与归属不能绕过规则改；目击记录不等于当前归属 |
 | 6 | Interaction（规则化交互） | **已实现** | 已安装交互包 + 定义 ID / 版本锁定；interactions-basic 提供拿取 / 放下 / 给予 / 建立关系 / 解除关系，以及料理、修复、做饭等包定义 | JSON 不能凭空安装新规则；新玩法要么扩宿主，要么走活动 + 状态 |
 | 7 | Activity（活动机制） | **已实现** | 固定入口的作者活动脚本：定义、初始化、许可、裁定、调度、结果钩子，以及可选的固定演出与恢复检查；多活动可暂停 / 继续 / 放弃；单场最多 8 个 NPC、16 个操作 | 必须登记；一次只跑一个；裁定函数同步有界（64 KiB / 100 ms） |
 | 8 | 角色预设、提示节点、文本规则 | **已实现** | 包根目录可选预设文件；酒馆预设可离线转换；见[预设说明](../model-presets.md) 与 [preset.ts](../../../packages/providers/src/chat/preset.ts) | 文本规则上限 32 条、单条替换上限 4000 字符——酒馆的巨型状态栏替换会被跳过 |

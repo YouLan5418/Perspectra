@@ -73,6 +73,7 @@ async function fixture(
   writeFileSync(join(pack, 'scripts/status.js'), statusScript)
   const manifest = JSON.parse(readFileSync(join(pack, 'worldpack.source.json'), 'utf8'))
   manifest.assetFiles = ['scripts/activities/guess.js', 'scripts/activities/other.js', 'scripts/status.js']
+  delete manifest.scripts
   writeFileSync(join(pack, 'worldpack.source.json'), JSON.stringify(manifest))
   const inputs: WorldJsonObject[] = []
   const server = createChatServer((request, response) => {

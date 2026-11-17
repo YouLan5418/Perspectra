@@ -32,6 +32,7 @@ it('executes the exact offered definition, then publishes freely from its commit
   ]
   writeFileSync(join(packPath, 'entities.json'), JSON.stringify(entities))
   const selection = JSON.parse(readFileSync(join(packPath, 'interactions.json'), 'utf8'))
+  selection.packages.push({ id: installed.lock.ref.id, version: installed.lock.ref.version })
   selection.definitions.push({ id: 'base:take', version: 1 })
   writeFileSync(join(packPath, 'interactions.json'), JSON.stringify(selection))
   const pack = await compileWorldPackSource(packPath, [interactionPackageDescription(installed)])

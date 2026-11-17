@@ -1,7 +1,7 @@
 {
   "sourceSchemaVersion": "worldpack-source/v5",
   "packId": "pack:model-girls-sweet-days",
-  "packVersion": "0.1.0",
+  "packVersion": "1.0.0",
   "worldFile": "world.json",
   "characterFiles": [
     "characters.json"
@@ -42,7 +42,8 @@
     "scripts/activities/jealousy-moment.js",
     "scripts/activities/starlight-finale.js",
     "scripts/pacing.js",
-    "autonomy.json"
+    "autonomy.json",
+    "scripts/gameplay.cjs"
   ],
   "assertionFiles": [
     "assertions.json"
@@ -56,5 +57,10 @@
     "pack-scripts": {},
     "official-pacing": {},
     "official-dice": {}
+  },
+  "scripts": {
+    "gameplay": {
+      "entry": "scripts/gameplay.cjs"
+    }
   }
 }

@@ -74,7 +74,7 @@ function interactionFixture(): string {
     join(root, 'interactions.json'),
     JSON.stringify({
       schemaVersion: 'worldpack-interactions/v1',
-      packages: [{ id: 'package:interactions-basic', version: 1 }],
+      packages: [],
       definitions: [],
       relationBindings: [],
     }),

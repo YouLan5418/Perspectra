@@ -13,8 +13,6 @@ import {
 } from '@perspectra/core/kernel'
 import { WorldStore } from '@perspectra/core/store'
 import { compileWorldPackSource } from '@perspectra/world-pack'
-import { createInstalledInteractionPackages } from '@perspectra/plugins/basic-interactions'
-import { interactionPackageDescription } from '@perspectra/sdk/contracts'
 import { playSettings } from '../../apps/host/src/play-settings.ts'
 import { loadAutonomy, parseAutonomy } from '../support/autonomy-runtime.ts'
 import { WorldHostRuntime, type WorldHostOptions } from '../../apps/host/src/runtime/world-runtime.ts'
@@ -387,12 +385,9 @@ it.each(['location', 'interaction', 'target'])(
       ).toHaveLength(0)
     }
     // Keep independently checking execution authority, even when the model boundary rejects first.
-    const compiled = await compileWorldPackSource(
-      f.pack,
-      createInstalledInteractionPackages().map(interactionPackageDescription),
-    )
+    const compiled = await compileWorldPackSource(f.pack, [])
     const policy = loadAutonomy(f.pack, compiled, 'character:player')!
-    const base = createCoreRulebookRegistry({ interactionPackages: createInstalledInteractionPackages() })
+    const base = createCoreRulebookRegistry({ interactionPackages: [] })
     const rules = policy
       .rulebooks(base.resolve('builtin:speak-move', 2, 'test', f.runtime.address))
       .resolve('builtin:speak-move', 2, 'test', f.runtime.address)
@@ -700,10 +695,7 @@ it('retains the staged-autonomy measurement control while ordinary dispatch stay
 
 it('rejects invalid creator declarations and ignores an unregistered local autonomy file', async () => {
   const packPath = resolve('examples/world-packs/character-autonomy')
-  const pack = await compileWorldPackSource(
-    packPath,
-    createInstalledInteractionPackages().map(interactionPackageDescription),
-  )
+  const pack = await compileWorldPackSource(packPath, [])
   const value = JSON.parse(readFileSync(join(packPath, 'autonomy.json'), 'utf8'))
   for (const patch of [
     { characterId: 'character:player' },

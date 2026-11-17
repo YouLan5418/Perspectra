@@ -20,8 +20,20 @@
 
 玩家或 NPC 在厨房对那锅米选择“用电饭煲煮一锅白米饭”：作者在官方包 [status.js](../../../examples/world-packs/model-girls-official/scripts/status.js) 里检查米仍是 raw-rice-kit、电饭煲就放在这里，成功后同一物品的外观变成 cooked-rice；“把这锅饭吃完”只接受熟饭，变成 empty-meal-container。对白说“饭好了”不能使这些变化成立。
 
-2026-10-22 起，料理、修理和拿起／放下／交给都由各包的 `scripts/status.js` 定义。原 `package:home-meal`、`package:dinner-party` 及内置 `base:take`、`base:drop`、`base:give` 已移除；[基础交互包](../../../packages/plugins/src/basic-interactions/basic.ts)只保留牵手与松手。所有 v5 示例包已改用[物品规则模板](../../../examples/templates/item-rules.js)，在各自脚本顶部的 `ITEM_RULES` 列出可拿、可放、可给的物品。引用已删除定义的旧包需先修改，不能按旧规则继续编译。
+2026-10-22 起，料理、修理和拿起／放下／交给都由各包的 `scripts/status.js` 定义。原 `package:home-meal`、`package:dinner-party` 及内置 `base:take`、`base:drop`、`base:give` 已移除；牵手与松手也已在 2026-11-17 迁入世界包的 `scripts/gameplay.cjs`，官方基础交互包已删除。所有 v5 示例包已改用[物品规则模板](../../../examples/templates/item-rules.js)，在各自脚本顶部的 `ITEM_RULES` 列出可拿、可放、可给的物品。引用已删除定义的旧包需先修改，不能按旧规则继续编译。
 
 作者用操作的 `targets` 指定物品，`resolve` 第六参数接收目标物品 ID，返回 `items` 改外观或交接。宿主检查够得着、单一持有者、交给同场角色或放在行动者脚下等边界；通过后与本次行动的对白、状态变化和授权观察原子提交。`policy(known, actorId, place)` 可按手里和脚下的物品收窄目标，生成候选和执行前都会检查。官方包和晚宴包也用它筛选料理／修理条件；未被 policy 收窄的条件仍须在 resolve 中检查并返回作者拒绝理由。完整接口见[对物品做的操作](../guides/activity-and-variables.md#对物品做的操作2026-10-22当前源码)，分阶段设计记录见[作者定义物品规则](../../superpowers/specs/2026-10-22-author-item-rules-design.md)。
 
 源码链路与相关自动测试场景已核对，本次文档同步未重跑测试。此次真实模型证据仅有 DeepSeek 的《赔罪晚宴》A 路线和 hidden-cure-next D2 单次样本；前者出现 NPC 自选做菜和修灶台被作者理由拒绝，后者用模板拿取并把摘要交给了玩家，未交给伊蕾。它们不证明全部玩法或接收对象选择已验收，详见[项目状态](../PROJECT-STATE.md#验证到了哪一步)；发行包包含情况未核对。
+
+## 世界包里的牵手与松手（2026-11-17）
+
+例如玩家牵起同行者的手，同行者可以随后自行松手；玩家走到另一地点时，这次移动与双方解除牵手的状态在同一事务提交。台词不会直接修改关系。
+
+[牵手模板](../../../examples/templates/hand-contact.cjs)和 [hand-in-hand 的脚本](../../../examples/world-packs/hand-in-hand/scripts/gameplay.cjs)复用现有 GameplayDefinition：`contact-partners` 保存每个角色的客观牵手名单，`contact-may-initiate` 表达作者授予的操作资格；`contact:hold-hand`／`contact:end-contact` 自描述参数、候选、裁定、NPC 用途和玩家标签；`restrictions` 复核同地点、共享场景和参与资格；`afterAction` 根据主结果快照解除失去接触条件的关系。
+
+当前模板沿用玩家主动牵手、任一方可以松手的策略，接触不代表喜欢或同意。作者可以直接修改初始化和目标名单，允许 NPC 主动发起。双方名单必须对称，状态与派生效果复用现有校验和原子提交。角色只收到自己的名单，同场目击者收到结果观察，房外角色不获得这次互动。
+
+核心已删除 `hand_hold` 专用状态、关系开始／结束事件投影和牵手受众拼装。宿主不预装基础交互包，前端使用脚本声明的标签。原有 13 个显式绑定牵手的示例包已携带各自的脚本，原本不开放牵手的包保持不开放。脚本是可复制、修改、删除的世界内容。
+
+自动测试覆盖双方松手、重复与越权拒绝、离场原子解除、重开存档、派生失败回滚、私有状态隔离和作者修改 NPC 资格。最终 `corepack pnpm@11.7.0 check` 通过：275 个测试文件、2,541 项测试，以及类型、Lint、格式与 456 个生产文件的依赖边界检查；Launcher 类型检查和 103 项测试通过。30 个当前 v5 示例包均编译通过，14 个玩法脚本通过预检查。独立 GPT-6.1 Sol 复审在修复观察受众问题后未发现本次范围内的 P1/P2。旧 `base:hold-hand`／`base:end-contact` 世界包需修改后新建存档；未实现历史存档转换，未重建发行包。2026-11-17 另用真实 `opencode-go/deepseek-v4.1-flash` 在新建临时世界完成两轮短验证：玩家正式牵手；NPC 根据请求选择 `contact:end-contact`，事件记录实际执行者为 NPC，双方名单清空；再次牵手后玩家离场，移动与双方解除同事务提交。房外角色未收到这些牵手／松手事务的观察。复现入口为 [hand-contact-live.ts](../../../tests/experiments/hand-contact-live.ts)，运行 `node --import tsx tests/experiments/hand-contact-live.ts`；可用环境变量 `PERSPECTRA_CONTACT_ENDPOINT`／`PERSPECTRA_CONTACT_MODEL` 指定模型。结论限于这条短交互链，未验证长期关系体验、全部世界包的真实模型表现或发行包。

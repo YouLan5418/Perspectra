@@ -4,8 +4,7 @@ import { join } from 'node:path'
 import { expect, it } from 'vitest'
 import { WorldStore } from '@perspectra/core/store'
 import { currentEntityState } from '@perspectra/core/kernel'
-import { brandId, interactionPackageDescription } from '@perspectra/sdk/contracts'
-import { createInstalledInteractionPackages } from '@perspectra/plugins/basic-interactions'
+import { brandId } from '@perspectra/sdk/contracts'
 import { compileWorldPackSource } from '@perspectra/world-pack'
 import { goals, nextRoot, prepareTakenRecord } from '../support/hidden-cure-next-content.ts'
 import { createEPolicy } from '../support/hidden-cure-next-policy.ts'
@@ -17,10 +16,7 @@ it('establishes the blocked condition through accepted player actions before NPC
   try {
     const results = await prepareTakenRecord(join(nextRoot, 'D3'), path)
     expect(results.map(result => result.status)).toEqual(['accepted', 'accepted', 'accepted'])
-    const pack = await compileWorldPackSource(
-      join(nextRoot, 'D3'),
-      createInstalledInteractionPackages().map(interactionPackageDescription),
-    )
+    const pack = await compileWorldPackSource(join(nextRoot, 'D3'), [])
     const store = new WorldStore(join(path, 'world.sqlite'))
     try {
       const events = store.readEvents({

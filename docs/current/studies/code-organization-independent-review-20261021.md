@@ -63,7 +63,7 @@
 | 证据 | 发现 | 后续定位路径 |
 | --- | --- | --- |
 | 宿主 `turns.json` 的 player-take，seq42、48、54；`analysis.json` 的 jarAt54 | 留守者先说“壶我先留着”“壶我拿着”，同行者 seq48 附和“壶他留着”；截至 seq54 壶仍为前室、无保管者。不是单纯触碰描写；另一角色已经短暂采用了未经裁定的保管说法 | [角色回合](../../../packages/core/src/application/character-turn.ts)、[模型上下文呈现](../../../packages/providers/src/chat/character-context-text.ts) |
-| world 事件 seq68 的 `entity.transferred` 与最终 creator 真值 | 下一轮留守者才正式 take；最终保温壶由留守者保管，钥匙由玩家保管，完整性校验通过。文本没有直接修改数据库，但不能据此称语义一致性已经通过 | [基础交互](../../../packages/plugins/src/basic-interactions/index.ts)、[宿主](../../../apps/host/src/runtime/world-runtime.ts) |
+| world 事件 seq68 的 `entity.transferred` 与最终 creator 真值 | 下一轮留守者才正式 take；最终保温壶由留守者保管，钥匙由玩家保管，完整性校验通过。文本没有直接修改数据库，但不能据此称语义一致性已经通过 | `../../../packages/plugins/src/basic-interactions/index.ts`（已删除；现见[世界包牵手模板](../../../examples/templates/hand-contact.cjs)）、[宿主](../../../apps/host/src/runtime/world-runtime.ts) |
 | [较早整理版本的官方试玩](code-organization-deepseek-playtest-20261021.md)已记录相似表现 | 当前样本再次复现，未证明是后续整理新增，也未证明已修复 | 对该具体场景做最小同模型复核；本轮不追加语义模型、过滤阶段或闭合动作枚举 |
 
 条件场景中仍有重复确认和自行补充场景细节；宿主样本一轮触及反应预算。它们不构成已证明的程序权限漏洞，但属于继续改善体验的依据。

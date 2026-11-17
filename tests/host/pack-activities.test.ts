@@ -7,8 +7,7 @@ import { randomUUID } from 'node:crypto'
 import { afterEach, expect, it, vi } from 'vitest'
 import { WorldStore } from '@perspectra/core/store'
 import type { WorldJsonObject } from '@perspectra/sdk/contracts'
-import { brandId, interactionPackageDescription, resolutionAuthority } from '@perspectra/sdk/contracts'
-import { createInstalledInteractionPackages } from '@perspectra/plugins/basic-interactions'
+import { brandId, resolutionAuthority } from '@perspectra/sdk/contracts'
 import { WorldBranchComponentFactory } from '@perspectra/core'
 import { compileWorldPackSource } from '@perspectra/world-pack'
 import { createCoreRulebookRegistry, type CompiledWorldManifest } from '@perspectra/core/kernel'
@@ -70,6 +69,7 @@ async function fixture(secondHook = '', dynamic?: { min: number; max: number; ca
   }
   const manifest = JSON.parse(readFileSync(join(pack, 'worldpack.source.json'), 'utf8'))
   manifest.assetFiles = ['scripts/activities/guess.js', 'scripts/activities/other.js']
+  delete manifest.scripts
   writeFileSync(join(pack, 'worldpack.source.json'), JSON.stringify(manifest))
   const inputs: WorldJsonObject[] = []
   const hooks: { onModel?: () => Promise<void> } = {}
@@ -176,10 +176,7 @@ it('shows the player operation in the activity panel while the next participant 
 
 it('does not load world history for fixed-roster menus or absent automatic-start hooks', async () => {
   const f = await fixture(),
-    pack = await compileWorldPackSource(
-      f.pack,
-      createInstalledInteractionPackages().map(interactionPackageDescription),
-    ),
+    pack = await compileWorldPackSource(f.pack, []),
     catalog = loadActivities(
       f.pack,
       pack,
@@ -187,7 +184,7 @@ it('does not load world history for fixed-roster menus or absent automatic-start
       f.runtime.address,
       'character:player',
       undefined,
-      createCoreRulebookRegistry({ interactionPackages: createInstalledInteractionPackages() }),
+      createCoreRulebookRegistry({ interactionPackages: [] }),
     )!
   try {
     const reads = vi.spyOn(WorldStore.prototype, 'readEvents')
@@ -203,10 +200,7 @@ it('does not load world history for fixed-roster menus or absent automatic-start
 it('shares committed activity state, reads only the new prefix, and closes its retained connection', async () => {
   const f = await fixture(),
     active = await choose(f.runtime, '开始 guess'),
-    pack = await compileWorldPackSource(
-      f.pack,
-      createInstalledInteractionPackages().map(interactionPackageDescription),
-    ),
+    pack = await compileWorldPackSource(f.pack, []),
     catalog = loadActivities(
       f.pack,
       pack,
@@ -214,7 +208,7 @@ it('shares committed activity state, reads only the new prefix, and closes its r
       f.runtime.address,
       'character:player',
       undefined,
-      createCoreRulebookRegistry({ interactionPackages: createInstalledInteractionPackages() }),
+      createCoreRulebookRegistry({ interactionPackages: [] }),
     )!
   const beforeSeq = Number(active.debug.headSeq)
   try {
@@ -416,7 +410,7 @@ it('selects a visible partner, isolates the bystander, and retains the selected 
     'character:player',
     'other',
     undefined,
-    createCoreRulebookRegistry({ interactionPackages: createInstalledInteractionPackages() }),
+    createCoreRulebookRegistry({ interactionPackages: [] }),
   )
   const context = { character: { characterId: 'character:companion' }, affordances: [] }
   expect(activity.projectContext(context, true)).toEqual(context)
@@ -459,7 +453,7 @@ it('selects a visible partner, isolates the bystander, and retains the selected 
     'character:player',
     'other',
     undefined,
-    createCoreRulebookRegistry({ interactionPackages: createInstalledInteractionPackages() }),
+    createCoreRulebookRegistry({ interactionPackages: [] }),
   )
   expect(() => malicious.schedule()).toThrow('未授权角色')
   const publicStart = f.events().length
@@ -545,7 +539,7 @@ it('lets only the selected invitee accept or decline and keeps invitation accept
     'character:player',
     'other',
     undefined,
-    createCoreRulebookRegistry({ interactionPackages: createInstalledInteractionPackages() }),
+    createCoreRulebookRegistry({ interactionPackages: [] }),
   )
   const store = new WorldStore(join(f.data, 'world.sqlite'))
   try {
@@ -604,10 +598,7 @@ it('skips other activities’ start checks while one runs and offers the same st
 /** The `other` activity with an autoStart hook, read through a standalone catalog over the fixture world. */
 async function autoStartCatalog(hook: string) {
   const f = await fixture('\nactivityScript.autoStart = ' + hook + ';\n'),
-    pack = await compileWorldPackSource(
-      f.pack,
-      createInstalledInteractionPackages().map(interactionPackageDescription),
-    ),
+    pack = await compileWorldPackSource(f.pack, []),
     catalog = loadActivities(
       f.pack,
       pack,
@@ -615,7 +606,7 @@ async function autoStartCatalog(hook: string) {
       f.runtime.address,
       'character:player',
       undefined,
-      createCoreRulebookRegistry({ interactionPackages: createInstalledInteractionPackages() }),
+      createCoreRulebookRegistry({ interactionPackages: [] }),
     )!
   catalogs.push(catalog)
   return { f, catalog }
@@ -668,7 +659,7 @@ it('rejects bad label shapes', async () => {
       'character:player',
       'other',
       undefined,
-      createCoreRulebookRegistry({ interactionPackages: createInstalledInteractionPackages() }),
+      createCoreRulebookRegistry({ interactionPackages: [] }),
     )
     expect(() => activity.autoStartCandidate(world)).toThrow('自动开始条件必须是 1–32 个布尔值或 [标签, 布尔值]')
   }
@@ -679,7 +670,7 @@ it('rejects bad label shapes', async () => {
     'character:player',
     'other',
     undefined,
-    createCoreRulebookRegistry({ interactionPackages: createInstalledInteractionPackages() }),
+    createCoreRulebookRegistry({ interactionPackages: [] }),
   )
   expect(longest.autoStartCandidate(world)?.checks).toEqual([{ label: '长'.repeat(80), met: true }])
 })

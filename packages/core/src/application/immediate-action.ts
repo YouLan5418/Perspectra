@@ -6,12 +6,7 @@ import {
   type WorldJsonObject,
   type WorldJsonValue,
 } from '@perspectra/sdk/contracts'
-import {
-  characterRelationObservations,
-  type CompiledWorldManifest,
-  type RulebookEvent,
-  type RulebookResolution,
-} from '@perspectra/core/kernel'
+import { type CompiledWorldManifest, type RulebookEvent, type RulebookResolution } from '@perspectra/core/kernel'
 import { actionObservations, movementRoute } from './action-observations.ts'
 import { actorTransfer } from './item-effects.ts'
 import { moveEffects, otherMoverObservations } from './move-effects.ts'
@@ -66,7 +61,7 @@ export function immediateActionDrafts(input: {
   const speech =
     action.actionType === 'speak' ? result.events.find(event => event.eventType === 'character.speak') : undefined
   const transfer = actorTransfer(actionId, result.events)
-  const relations = characterRelationObservations(events, result.events)
+
   const observed = actionObservations({
     roundId: brandId(actionId, 'InteractionRoundId'),
     actionId,
@@ -81,7 +76,6 @@ export function immediateActionDrafts(input: {
     shared: {
       ...(speech === undefined ? {} : { speech: speech.data }),
       ...(transfer === undefined ? {} : { interaction: transfer.data }),
-      ...(relations.length === 0 ? {} : { relations }),
     },
     perObserver: observerId => ({
       resultDescription: input.description.replaceAll('你', observerId === actorId ? '你' : '行动者'),

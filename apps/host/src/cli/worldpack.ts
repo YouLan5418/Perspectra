@@ -4,7 +4,6 @@ import { parseWorldPackSourceManifestV5 } from '@perspectra/world-pack'
 import { join } from 'node:path'
 import { canonicalizeWorldJson, interactionPackageDescription, type WorldJsonValue } from '@perspectra/sdk/contracts'
 import { officialPackPlugins, validatePackScript } from '../official-pack-metadata.ts'
-import { createInstalledInteractionPackages } from '@perspectra/plugins/basic-interactions'
 import {
   executeWorldPackCli,
   worldPackCliErrorEnvelope,
@@ -20,7 +19,7 @@ import { importPresets, PRESET_FORMAT, PRESET_SCHEMA_VERSION } from '@perspectra
 
 // The trusted packages this Host installs, which a `worldpack-source/v5` Pack selects from. The library
 // stays content-agnostic; the process entry is what knows the install.
-const interactionImplementations = createInstalledInteractionPackages()
+const interactionImplementations: import('@perspectra/sdk/contracts').InteractionPackageImplementation[] = []
 const interactionPackages = interactionImplementations.map(interactionPackageDescription)
 
 try {

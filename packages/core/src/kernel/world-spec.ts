@@ -439,8 +439,6 @@ export function characterInteractionManifestRegistries(): ManifestRegistries {
       'character.visible-state-upserted',
       // Frozen interactions, relations and creator activity state.
       'entity.transferred',
-      'character.relation-ended',
-      'character.relation-started',
       'activity.updated',
       'status.updated',
     ]),

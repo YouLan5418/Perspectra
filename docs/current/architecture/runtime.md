@@ -49,7 +49,7 @@ B5 审查修正已收口整体停止资格与输入边界：官方调度器汇�
 
 2026-11-05 M3：例如更换状态解释器后，非法余额和越权告知仍不能提交。`ctx.status` 通过 [official-status](../../../packages/providers/src/status/index.ts)解释状态与模块脚本；[StatusState](../../../packages/core/src/application/status-state.ts)保留事实校验和授权投影，[StatusRuntime](../../../apps/host/src/runtime/status-runtime.ts)准备合法操作并沿核心提交。每世界独立实例，源码与构建验证见[M3 记录](../studies/2026-11-core-migration-m3.md)。
 
-2026-11-04 M2：例如玩家状态操作等待外部设备时关闭世界，返回结果必须丢弃。状态、活动和通信的即时提交现复用核心 [executeWorldRound](../../../packages/core/src/application/world-round-execution.ts)，负责绑定玩家、租约、前缀、取消与原子提交；各宿主适配保留业务和受众检查。物品效果检查迁入 application。WorldApplication 不再隐式安装基础交互包，桌面默认组合显式提供；最小入口与验证边界见[M2 记录](../studies/2026-11-core-migration-m2.md)。
+2026-11-04 M2：例如玩家状态操作等待外部设备时关闭世界，返回结果必须丢弃。状态、活动和通信的即时提交现复用核心 [executeWorldRound](../../../packages/core/src/application/world-round-execution.ts)，负责绑定玩家、租约、前缀、取消与原子提交；各宿主适配保留业务和受众检查。物品效果检查迁入 application。WorldApplication 与桌面默认组合均不再安装基础交互包；最小入口与验证边界见[M2 记录](../studies/2026-11-core-migration-m2.md)。
 
 2026-11-04 M1：例如同行者听到“黑海岸”后收到相关设定，宿主先用 [knowledge-source](../../../apps/host/src/runtime/knowledge-source.ts)验证配置资产，再把必要内容描述交给所选知识 Provider。`ctx.knowledge` 通过 Cordis 注册；默认组合在记忆之后、决策扩充之前打开它，knowledge context 步骤调用其 select。受众与条件筛选在 [official-knowledge](../../../packages/providers/src/knowledge/selection.ts)，WorldAdapters 不再持有 PackKnowledge。候选世界独立 open/close，公开 identity 纳入重生环境比较。源码接通和最小启动探针不等于完整最小核心已完成，见[M0／M1 记录](../studies/2026-11-core-migration-m01.md)。
 
@@ -89,7 +89,7 @@ WorldStore 的审计连接在创建、激活或分叉等实际审计操作时打
 
 2026-10-22 核对物品链路：例如角色选择拿起摘要，再把它交给在场角色，[状态桥](../../../apps/host/src/runtime/status-runtime.ts)先用包内 `policy(known, actorId, place)` 筛选目标，执行时重查许可与可达性，再调用 `resolve(truth, actorId, operationId, parameters, world, targetId)`。作者返回 `items` 改外观或去向；宿主校验后生成 `entity.upsert`／`entity.transferred`，与本次行动的对白、状态结果和授权观察原子提交。玩家附带的一句话仍按[同回合表达与行动](interaction.md)的先后顺序分别提交，不因此合并成一个事务。
 
-拿起／放下／交给由各 v5 示例包的 `scripts/status.js` 提供，标准写法在[作者模板](../../../examples/templates/item-rules.js)；宿主基础交互只保留牵手与松手，旧料理／修理模块也已删除。活动与自主许可引用 `status:take` 等 ID。相关自动测试场景已核对，本次未重跑；本次真实模型证据仅限《赔罪晚宴》A 路线和 hidden-cure-next D2，后者交给了玩家而非伊蕾，见[项目状态](../PROJECT-STATE.md#验证到了哪一步)。下列旧日期实验保留当时结论，不能视为作者模板已重验。
+拿起／放下／交给由各 v5 示例包的 `scripts/status.js` 提供，标准写法在[作者模板](../../../examples/templates/item-rules.js)；牵手与松手也已迁入世界包的 `scripts/gameplay.cjs`，官方基础交互包已删除，旧料理／修理模块也已删除。活动与自主许可引用 `status:take` 等 ID。相关自动测试场景已核对，本次未重跑；本次真实模型证据仅限《赔罪晚宴》A 路线和 hidden-cure-next D2，后者交给了玩家而非伊蕾，见[项目状态](../PROJECT-STATE.md#验证到了哪一步)。下列旧日期实验保留当时结论，不能视为作者模板已重验。
 
 2026-10-19 知识筛选扩展：每次角色请求装入已有授权活动与已知状态后，知识 when 除状态值外，还可检查接收者、当前位置、场景人物、当前／旧物品、本次激活刺激、本人活动与状态 current。活动视图增加稳定 activityKey；仍在 Core／原生记忆交付后、预设准备前选择材料，不新增模型阶段、世界读取或调度机会。[Core／DeepSeek 短试玩](../studies/knowledge-conditions-deepseek-playtest-20261019.md)的 39 次请求全部成功且交付符合预期；源码模式验证不代表 Launcher 人工操作或发行包已验收。字段、自动回归与未验收范围见[世界设定指南](../guides/world-knowledge.md)。
 

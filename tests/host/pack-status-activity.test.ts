@@ -4,8 +4,7 @@ import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { randomUUID } from 'node:crypto'
 import { afterEach, expect, it } from 'vitest'
-import { interactionPackageDescription, resolutionAuthority, type WorldJsonObject } from '@perspectra/sdk/contracts'
-import { createInstalledInteractionPackages } from '@perspectra/plugins/basic-interactions'
+import { resolutionAuthority, type WorldJsonObject } from '@perspectra/sdk/contracts'
 import { createCoreRulebookRegistry, type CompiledWorldManifest } from '@perspectra/core/kernel'
 import { compileWorldPackSource, type CompiledWorldPackV5 } from '@perspectra/world-pack'
 import { WorldStore } from '@perspectra/core/store'
@@ -65,11 +64,9 @@ async function fixture() {
   )
   const manifest = JSON.parse(readFileSync(join(packPath, 'worldpack.source.json'), 'utf8'))
   manifest.assetFiles = ['scripts/status.js', 'scripts/activities/duel.js']
+  delete manifest.scripts
   writeFileSync(join(packPath, 'worldpack.source.json'), JSON.stringify(manifest))
-  const pack = (await compileWorldPackSource(
-    packPath,
-    createInstalledInteractionPackages().map(interactionPackageDescription),
-  )) as CompiledWorldPackV5
+  const pack = (await compileWorldPackSource(packPath, [])) as CompiledWorldPackV5
   const requests: WorldJsonObject[] = []
   let decide: Decide = () => ({ decision: 'abstain' })
   const server = createChatServer((request, response) => {
@@ -122,10 +119,10 @@ async function fixture() {
     runtime.address,
     PLAYER,
     status,
-    createCoreRulebookRegistry({ interactionPackages: createInstalledInteractionPackages() }),
+    createCoreRulebookRegistry({ interactionPackages: [] }),
   )!
   catalogs.push(activities)
-  const core = createCoreRulebookRegistry({ interactionPackages: createInstalledInteractionPackages() }).resolve(
+  const core = createCoreRulebookRegistry({ interactionPackages: [] }).resolve(
     'builtin:speak-move',
     2,
     'test',

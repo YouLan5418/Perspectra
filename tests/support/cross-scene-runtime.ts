@@ -11,7 +11,6 @@ import {
   type WorldJsonObject,
 } from '@perspectra/sdk/contracts'
 import { adaptCompiledWorldPack, compileWorldPackSource } from '@perspectra/world-pack'
-import { createInstalledInteractionPackages } from '@perspectra/plugins/basic-interactions'
 import { WorldBootstrap, FrozenInteractionRulebook, createCoreRulebookRegistry } from '@perspectra/core/kernel'
 import {
   WorldStore,
@@ -47,7 +46,7 @@ export async function crossSceneRuntime(
 ) {
   mkdirSync(dataDirectory, { recursive: true })
   const packPath = resolve(options.packPath ?? `examples/world-packs/cross-scene-${options.phone ? 'phone' : 'sms'}`)
-  const installed = createInstalledInteractionPackages()
+  const installed: import('@perspectra/sdk/contracts').InteractionPackageImplementation[] = []
   const pack = await compileWorldPackSource(packPath, installed.map(interactionPackageDescription))
   let compiled = adaptCompiledWorldPack(pack, {
     address: {
