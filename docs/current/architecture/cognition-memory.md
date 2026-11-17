@@ -1,5 +1,7 @@
 # 当前认知与记忆
 
+2026-11-17 Node 迁移：例如“我不确定他来了”不能被 Atom 截取成“他来了”，行动成功与否仍来自授权规则结果；Node 版 Source／Atom／Episode／Observation 校验、整理和前缀复用已实现，17 项非空档案／完整提示词／拒绝路径与原 Python 对照相同。本机 E5 的 query／passage token、向量和排序通过真实对照（12 输入，最大坐标误差 0），独立 Windows x64 目录实际 E5 推理通过。**默认运行时仍是 Python**；Node 整理尚未连接真实模型，Recall／Delivery、完整 Host 装配、旧档／故事树恢复和无 Python 发行均未验收。证据及下一阶段见[迁移记录](../../../experiments/node-memory/README.md)。以下现行入口描述不提前改写为 Node。
+
 2026-11-04 记忆替换修复：例如 Core 已归档旧约定，自定义步骤却没有交付档案，宿主现在不会继续按 Core 的边界裁掉近期上下文。历史窗口由实际交付的 DecisionInstance.shortTermAfterSeq 声明，默认官方记忆步骤配对 contextSources.memory 与 memoryAfterSeq；无声明时回到近期窗口并在必要时提示。后台 Core 继续运行不代表角色已经读到其档案。接口示例与旧 2.1 自定义步骤适配见[插件指南](../guides/host-plugin-authoring.md#替换记忆步骤时配对交付与窗口22)。
 
 2026-11-04 上下文组合：官方记忆投影现在是 `official-context-memory` 决策步骤，默认仍先于状态与设定。可单独替换或停用它；记忆 Provider 本身的整理、档案、来源授权和生命周期不变。组合与权限测试范围见[阶段 8](../studies/2026-11-plugin-first-phase-8.md)。

@@ -2,6 +2,8 @@
 
 角色召回一段经历时，宿主先按该角色的观察权限准备来源，再由 Python Core 检索与整理。Python 结果继续经过宿主的范围和前缀检查，不直接修改世界事实。
 
+2026-11-17 Node 迁移正在进行：本地 E5 的真实 token、向量和排序已与 Python 对照通过，Source → Atom → Episode → Observation 及前缀复用已有独立 Node 实现和非空档案对照。默认入口仍使用下表 Python 路径；Recall／Delivery、真实整理模型和整套无 Python 发行尚未迁移验收，见[迁移记录](../../experiments/node-memory/README.md)。
+
 | 内容 | 位置 |
 | --- | --- |
 | 角色快照、授权交付与后台整理 | [core-memory.ts](src/core-memory.ts) |

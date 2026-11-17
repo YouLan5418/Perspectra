@@ -7,6 +7,8 @@ strictDepBuilds: true
 verifyDepsBeforeRun: false
 
 allowBuilds:
+  # CPU bindings ship in the pinned npm package; do not download optional CUDA payloads.
+  onnxruntime-node: false
   esbuild: true
   electron: true
   electron-winstaller: true

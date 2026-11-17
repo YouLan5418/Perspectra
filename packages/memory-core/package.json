@@ -8,6 +8,8 @@
     "./paths": "./src/python-paths.ts"
   },
   "dependencies": {
-    "@perspectra/sdk": "workspace:*"
+    "@huggingface/tokenizers": "0.2.0",
+    "@perspectra/sdk": "workspace:*",
+    "onnxruntime-node": "1.22.0"
   }
 }
