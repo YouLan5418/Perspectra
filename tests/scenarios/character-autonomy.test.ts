@@ -152,7 +152,9 @@ it('wakes an off-scene role with its own goal and no private player stimulus, th
     context(input).autonomy
       ? input.continuation
         ? publish('我来讨论今天的安排。')
-        : move('location:front-room')
+        : input.canPerform && context(input).locationId !== 'location:front-room'
+          ? move('location:front-room')
+          : { decision: 'abstain' }
       : actor(input) === 'character:companion' &&
           context(input).history &&
           JSON.stringify(context(input).history).includes('今天的安排')
@@ -162,13 +164,16 @@ it('wakes an off-scene role with its own goal and no private player stimulus, th
   const state = await f.runtime.submit(
     '/act speak {"text":"私语暗号青竹","scope":"private","addresseeIds":["character:companion"]}',
   )
-  expect(state.error).toBe(false)
+  expect(state.error, JSON.stringify({ notice: state.notice, debug: state.debug })).toBe(false)
   const calls = autonomous(f.requests)
-  expect(calls).toHaveLength(2)
-  expect(context(calls[0]!).stimulus).toEqual([])
-  expect(JSON.stringify(calls[0])).toContain('想清楚今天自己的安排')
+  // A later ordinary reaction can still include the role's own goal. Count the
+  // off-scene decision and its result-aware continuation, not that projection.
+  const goalCalls = calls.filter(input => context(input).locationId !== 'location:front-room' || input.continuation)
+  expect(goalCalls).toHaveLength(2)
+  expect(context(goalCalls[0]!).stimulus).toEqual([])
+  expect(JSON.stringify(goalCalls[0])).toContain('想清楚今天自己的安排')
   expect(JSON.stringify(calls)).not.toContain('私语暗号青竹')
-  expect(calls[1]!.result).toMatchObject({ status: 'accepted' })
+  expect(goalCalls[1]!.result).toMatchObject({ status: 'accepted' })
   expect(currentLocation(f.events(), 'character:friend')).toBe('location:front-room')
   expect(state.transcript.some(line => line.text.includes('我们一起商量'))).toBe(true)
   expect(state.debug.autonomy).toMatchObject({ autonomousCalls: 2 })

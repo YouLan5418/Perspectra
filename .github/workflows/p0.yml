@@ -2,20 +2,32 @@ name: Prototype checks
 
 on:
   push:
+    branches: [main]
   pull_request:
+  merge_group:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: checks-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: pwsh
 
 jobs:
-  check:
-    runs-on: windows-latest
+  static:
+    name: Static checks
+    runs-on: windows-2025
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v6
-      - uses: actions/setup-node@v6
         with:
-          node-version: 24.x
-      - name: Enable the locked package manager
-        run: corepack enable
-      - name: Install dependencies
-        run: corepack pnpm@11.7.0 install --frozen-lockfile
+          persist-credentials: false
+      - uses: ./.github/actions/setup
       - name: Typecheck runtime and desktop
         run: corepack pnpm@11.7.0 typecheck
       - name: Check production source boundaries
@@ -24,11 +36,92 @@ jobs:
         run: corepack pnpm@11.7.0 lint
       - name: Check formatting
         run: corepack pnpm@11.7.0 format:check
-      - name: Check Launcher
-        run: corepack pnpm@11.7.0 launcher:check
+
+  launcher:
+    name: Launcher checks
+    runs-on: windows-2025
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup
+      - name: Typecheck Launcher
+        run: corepack pnpm@11.7.0 --filter @perspectra/launcher typecheck
+      - name: Test Launcher
+        run: corepack pnpm@11.7.0 --filter @perspectra/launcher test --reporter=default --reporter=junit --outputFile=../../.tmp/ci/launcher.xml
       - name: Build Launcher
         run: corepack pnpm@11.7.0 launcher:build
-      - name: Run prototype tests
-        # SQLite, local HTTP and crash suites compete for resources on hosted
-        # Windows runners. Keep every test and its deadline; serialize files.
-        run: corepack pnpm@11.7.0 test --maxWorkers=1
+      - name: Save Launcher test report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: launcher-tests-${{ github.run_attempt }}
+          path: .tmp/ci/launcher.xml
+          include-hidden-files: true
+          retention-days: 14
+
+  regression:
+    name: Regression ${{ matrix.shard }}/4
+    runs-on: windows-2025
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup
+        with:
+          memory: 'true'
+      - name: Run all default regression tests, shard ${{ matrix.shard }}/4
+        # Each runner has its own SQLite/HTTP/process fixtures. Files remain
+        # serial inside each shard; no retries, exclusions or relaxed assertions.
+        run: corepack pnpm@11.7.0 test --maxWorkers=1 --shard=${{ matrix.shard }}/4 --reporter=default --reporter=junit --outputFile=.tmp/ci/regression-${{ matrix.shard }}.xml
+      - name: Save regression test report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: regression-${{ matrix.shard }}-${{ github.run_attempt }}
+          path: .tmp/ci/regression-${{ matrix.shard }}.xml
+          include-hidden-files: true
+          retention-days: 14
+
+  build:
+    name: Runtime build checks
+    runs-on: windows-2025
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup
+        with:
+          memory: 'true'
+      - name: Build backend and copy runtime assets
+        run: corepack pnpm@11.7.0 desktop:build
+      - name: Verify isolated creator CLI
+        run: node scripts/release/verify-worldpack-cli.mjs
+
+  # Keep the existing check name for branch protection. Skipped, failed and
+  # cancelled dependencies must never turn into a successful aggregate check.
+  check:
+    if: always()
+    needs: [static, launcher, regression, build]
+    runs-on: windows-2025
+    timeout-minutes: 5
+    env:
+      JOB_RESULTS: ${{ toJSON(needs) }}
+    steps:
+      - name: Require every check to succeed
+        run: |
+          $results = $env:JOB_RESULTS | ConvertFrom-Json
+          $failed = $false
+          "| Job | Result |`n| --- | --- |" >> $env:GITHUB_STEP_SUMMARY
+          foreach ($job in $results.PSObject.Properties) {
+            "| $($job.Name) | $($job.Value.result) |" >> $env:GITHUB_STEP_SUMMARY
+            if ($job.Value.result -ne 'success') { $failed = $true }
+          }
+          if ($failed) { throw 'One or more required CI jobs did not succeed. Inspect the named job and its test report.' }

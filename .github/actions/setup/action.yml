@@ -1,0 +1,42 @@
+name: Set up Perspectra checks
+description: Install locked dependencies and optionally verify the real local memory runtime.
+inputs:
+  memory:
+    description: Prepare frozen E5 assets and check native inference.
+    default: 'false'
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-node@v6
+      with:
+        node-version-file: .node-version
+        package-manager-cache: false
+    - name: Locate the locked pnpm store
+      id: store
+      shell: pwsh
+      run: |
+        $storePath = corepack pnpm@11.7.0 store path --silent
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+        "path=$storePath" >> $env:GITHUB_OUTPUT
+    - name: Cache dependency downloads
+      uses: actions/cache@v4
+      with:
+        path: ${{ steps.store.outputs.path }}
+        key: pnpm-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('.node-version', 'pnpm-lock.yaml', 'pnpm-workspace.yaml') }}
+    - name: Install locked dependencies
+      shell: pwsh
+      run: corepack pnpm@11.7.0 install --frozen-lockfile
+    - name: Cache frozen E5 assets
+      if: inputs.memory == 'true'
+      uses: actions/cache@v4
+      with:
+        path: .tmp/hindsight-e5-small
+        key: e5-${{ runner.os }}-${{ hashFiles('packages/memory-core/e5-assets.json') }}
+    - name: Prepare and verify frozen E5 assets
+      if: inputs.memory == 'true'
+      shell: pwsh
+      run: node scripts/setup-memory-assets.mjs .tmp/hindsight-e5-small
+    - name: Check SQLite and native Node memory inference
+      if: inputs.memory == 'true'
+      shell: pwsh
+      run: node --import tsx scripts/ci/check-environment.ts
