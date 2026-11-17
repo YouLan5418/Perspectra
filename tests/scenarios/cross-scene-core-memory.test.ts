@@ -7,7 +7,7 @@ import { restoreStoryNode } from '../../apps/host/src/story-nodes.ts'
 import { exportStoryNode, importStoryNode } from '../../apps/host/src/story-share.ts'
 import { crossSceneRuntime } from '../support/cross-scene-runtime.ts'
 import { CrossScenePhone } from '../support/cross-scene-phone.ts'
-import type { CoreRunner } from '../../packages/memory-core/src/python-worker.ts'
+import type { CoreRunner } from '../../packages/memory-core/src/node/worker-client.ts'
 
 const packPath = resolve('examples/world-packs/cross-scene-activity'),
   friend = 'character:friend',

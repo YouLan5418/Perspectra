@@ -33,7 +33,7 @@
 | 机制 | 调度、记忆、角色循环、剧情节奏等可替换的部分。官方提供默认实现，玩家可以换成插件 |
 | 宿主、核心 | 宿主把一局游戏装配起来；核心保存世界事实、保证角色只看到自己能看到的。核心不可替换 |
 | Launcher、舞台 | Launcher 是桌面启动器，管理作品、存档和模型；游戏本身在浏览器里的“舞台”页面里玩 |
-| Core 记忆 | 角色的长期记忆，用 Python 子进程实现；和桌面后端 LauncherCore 不是一回事 |
+| Core 记忆 | 角色的长期记忆，用 Node worker 实现；和桌面后端 LauncherCore 不是一回事 |
 
 ## 为什么做 Perspectra
 
@@ -79,7 +79,7 @@ Perspectra 的基本思路是**以角色为主体，以世界为载体，以规�
 
 目前没有可下载的程序包。之前的预发行版打包得较早，已经落后于现在的代码，请从源码运行。
 
-需要 Node.js 22.19+ 或 24+，使用仓库锁定的 pnpm。原生 Launcher 开发还需要 Rust/Cargo、Windows 构建工具和 [Python/E5 记忆环境](packages/memory-core/README.md)。
+需要 Node.js 22.19+ 或 24+，使用仓库锁定的 pnpm。原生 Launcher 开发还需要 Rust/Cargo、Windows 构建工具和 [Node/E5 记忆环境](packages/memory-core/README.md)。
 
 ```powershell
 corepack pnpm@11.7.0 install --frozen-lockfile
@@ -96,7 +96,7 @@ corepack pnpm@11.7.0 experience:web `
   --data-dir .tmp/my-playtest
 ```
 
-地址与模型只是本机验证示例，请按自己的服务修改。如需认证，通过环境设置 `PERSPECTRA_MODEL_API_KEY`，不要写入世界包、脚本或仓库。打开终端打印的完整本机地址；其中的令牌不要公开分享。源码网页入口默认使用 Core 记忆，需准备 Python/E5；仅离线开发可显式加 `--memory-none`，此时角色没有长期记忆。
+地址与模型只是本机验证示例，请按自己的服务修改。如需认证，通过环境设置 `PERSPECTRA_MODEL_API_KEY`，不要写入世界包、脚本或仓库。打开终端打印的完整本机地址；其中的令牌不要公开分享。源码网页入口默认使用 Core 记忆，需准备本地 E5 资产（无需 Python）；仅离线开发可显式加 `--memory-none`，此时角色没有长期记忆。
 
 模型适配经 pi-ai，支持 OpenAI 兼容、Anthropic Messages 与 Google Gemini 协议；DeepSeek、Ollama 按 OpenAI 兼容地址配置，见[模型接口协议](docs/current/model-protocols.md)。
 

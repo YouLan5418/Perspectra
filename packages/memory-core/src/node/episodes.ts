@@ -1,5 +1,5 @@
 /** Port of episode_core.py. The injected utility selects quotes and groupings;
- * deterministic validation owns evidence identity. Not selected by the provider yet. */
+ * deterministic validation owns evidence identity. */
 import type { WorldJsonObject } from '@perspectra/sdk/contracts'
 import {
   checkScope,

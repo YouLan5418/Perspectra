@@ -1,5 +1,7 @@
 # 当前运行时
 
+2026-11-17 记忆运行时已切换 Node：角色的长期整理、E5 编码、召回与交付在独立 Node worker 执行，源码及 Launcher 不再启动 Python。启动前检查本地 worker 和固定 E5 资产，模型配置分组与角色来源隔离保留。下文 2026-10 的 Python 环境说明仅描述历史版本；当前准备命令及目录见 [Core 说明](../../../packages/memory-core/README.md)，验证范围见[迁移记录](../../../experiments/node-memory/README.md)。旧存档继续受运行时身份检查约束，不因移植而跳过。
+
 2026-11-17 核对：以重构后的 main `97d4dcde` 为基线，普通观察与通用唤醒机会合并时优先普通预算；后台竞争时减少可选调用预留，最后一次普通调用仅允许表达。玩家操作提交通过请求自身的回调确认，前端按 actionId 解除提交锁，复用统一视图字段清单；核心硬预算、权限和周期结算判定保留。例子、测试与真实模型短测见[主干调度优化](../studies/2026-11-17-main-scheduling-responsiveness.md)。
 
 
@@ -141,7 +143,7 @@ WorldStore 的审计连接在创建、激活或分叉等实际审计操作时打
 
 ## 一次输入
 
-例如在源码仓库直接运行构建后的后端，宿主仍应找到源码 Python，而不是把 `.mjs` 扩展名当成安装包的证明。2026-10-21 核对：[游戏入口](../../../apps/host/src/runtime/web-entry.ts)已使用正式宿主目录；Python worker 和末端回合身份共用[目录选择](../../../packages/memory-core/src/python-paths.ts)，只在设置 `PERSPECTRA_RUNTIME_ROOT` 时读取安装目录。构建后端与便携包共用 Python 源码复制清单；具体布局与验证范围见 [Core 说明](../../../packages/memory-core/README.md)。这次修复不改变角色协议、调度、记忆算法或世界提交。
+例如在源码仓库直接运行构建后的后端，宿主仍应找到源码 Node worker，而不是把 `.mjs` 扩展名当成安装包的证明。[游戏入口](../../../apps/host/src/runtime/web-entry.ts)使用正式宿主目录；记忆 worker 和末端回合身份共用[目录选择](../../../packages/memory-core/src/node-paths.ts)，只在设置 `PERSPECTRA_RUNTIME_ROOT` 时读取安装目录。构建后端与便携包共用 Node worker 打包与 CPU 原生依赖复制逻辑；具体布局与验证范围见 [Core 说明](../../../packages/memory-core/README.md)。
 
 默认关闭的 recentExecutionEvidence 开关在已有记忆交付之后计算近期执行证据投影，再复用本次角色模型调用。没有新增规划阶段、调度机会、世界事件或持久化策略；关闭时不添加字段、提示或候选环境键。具体来源、预算和对照边界见[跨回合执行证据实验](../studies/goal-progress-context-20261013.md)。
 
@@ -158,7 +160,7 @@ WorldStore 的审计连接在创建、激活或分叉等实际审计操作时打
 1. 网页宿主接收玩家输入。普通自由表达与显式 `/act` 操作分开处理；有活动时，先经过当前活动策略。
 2. 玩家行动经现有裁定与提交路径形成世界事件。宿主按角色可见的新刺激提供处理机会。
 3. `CharacterTurn` 用当前提交前缀构建角色 view、场景、认知、授权观察和自身表达。角色地点来自该前缀的角色 view，不使用初始设定代替当前位置。
-4. 默认使用 Core：通过宿主 Core 桥加入该角色长期 Delivery，启动前检查 Python 与 E5 是否存在；记忆经 `ctx.memory` 接缝接入，可由插件替换；`--memory-none` 用于离线开发，角色没有长期记忆。最终模型呈现合并按事件排序的授权观察与自身表达，去除宿主追踪字段，并将动态信息放在历史之后；原始宿主请求仍保留完整记忆证据。详见[模型上下文呈现](cognition-memory.md#模型上下文呈现)。
+4. 默认使用 Core：通过宿主 Core 桥加入该角色长期 Delivery，启动前检查 Node worker 与 E5 是否存在；记忆经 `ctx.memory` 接缝接入，可由插件替换；`--memory-none` 用于离线开发，角色没有长期记忆。最终模型呈现合并按事件排序的授权观察与自身表达，去除宿主追踪字段，并将动态信息放在历史之后；原始宿主请求仍保留完整记忆证据。详见[模型上下文呈现](cognition-memory.md#模型上下文呈现)。
 5. Character Agent 调用模型，自主选择回应、放弃或提出行动。模型提案经过协议检查和 Action / Rulebook 裁定，不能直接写世界库。
 6. Commit 完整返回后更新玩家授权投影。已提交 NPC 回复可在后续反应尚未结束时显示；页面通过轮询取完整结果，没有 token 流或草稿发布。活动面板随同一投影更新（2026-10-31）：例如 RPG 里玩家普通攻击提交后，守卫剩余生命和“轮到谁”在下一位队友还在调用模型时就已显示，之后每位 NPC 的操作提交也各刷新一次，不再等整轮结束。实现是 [world-runtime.ts](../../../apps/host/src/runtime/world-runtime.ts) 的 `#projectCommitted` 一并重算玩家自己的活动视图，`activityAction` 在激活下一位参与者前先投影一次。自动测试覆盖“玩家操作后、NPC 决策中”的面板；NPC 提交后的刷新走同一函数，未单独测试，真实模型试玩未验收。
 7. 已授权的新观察可以触发后续 Reaction Round；执行预算或期限到达后结束。启动器普通入口默认 3 波、8 次 NPC 调用、每角色 2 次激活、120 秒期限，可在包级运行参数中调整，下次启动生效。直接使用旧实验 tuning 或未传期限的底层调用仍保留 30 秒回退值。
@@ -216,7 +218,7 @@ Core 长期整理在排队前冻结授权 Source 前缀。后台运行期间前�
 
 例如默认角色用 Flash、Claude 用强模型时，玩家在启动器“模型 → 修改”设置默认模型，再在“按角色单独设置”为 Claude 选择另一连接、模型和思考强度。记忆整理可跟随同层决策或单独选择。未覆盖角色使用默认层；新实例仅沿用最近保存的默认决策和默认记忆选择，不复制旧实例的角色覆盖。
 
-2026-10-17 核对：[modelEnvironment](../../../apps/host/src/model-connections.ts) 用 `PERSPECTRA_ROLE_MODELS` 传递无 Key 的解析目标，`PERSPECTRA_MODEL_KEYS` 传递被引用的连接 Key；[游戏入口](../../../apps/host/src/runtime/web-entry.ts)合并后立即删除后一个环境变量。运行时为各角色建立自己的 provider，整体替换协议、地址、模型、思考强度与 Key。记忆按不同配置复用 runner 组，每组 Python 只接收该组的连接 Key，档案与授权 scope 仍按角色隔离。具体传递和进程边界见[Launcher 接入](../launcher-core-integration.md#3-数据与进程)。
+2026-10-17 核对：[modelEnvironment](../../../apps/host/src/model-connections.ts) 用 `PERSPECTRA_ROLE_MODELS` 传递无 Key 的解析目标，`PERSPECTRA_MODEL_KEYS` 传递被引用的连接 Key；[游戏入口](../../../apps/host/src/runtime/web-entry.ts)合并后立即删除后一个环境变量。运行时为各角色建立自己的 provider，整体替换协议、地址、模型、思考强度与 Key。记忆按不同配置复用 runner 组，每组 Node worker 只接收该组的连接 Key，档案与授权 scope 仍按角色隔离。具体传递和进程边界见[Launcher 接入](../launcher-core-integration.md#3-数据与进程)。
 
 2026-10-27：Launcher 不再额外传 `HCW_LOCAL_*`，默认决策目标也只从 `PERSPECTRA_ROLE_MODELS` 读取；源码入口无该变量时改读 `PERSPECTRA_MODEL_*` 拼出单一目标。`local` / `--deepseek` / `--ollama` 入口已删除，原先挂在入口名上的行为改由协议决定：OpenAI 兼容与 Anthropic 使用扁平决策 Schema，任何目标都可用 Core 记忆与按角色模型，默认超时统一为游玩设置或 60 秒。调用经 [provider-chat](../../../packages/providers/src/chat/provider.ts) 交给 pi-ai，见[模型接口协议](../model-protocols.md)。
 

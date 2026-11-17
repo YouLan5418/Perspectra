@@ -82,7 +82,7 @@ NPC 处理途中玩家也可以插话，规则见下一节末尾。
 
 [CharacterTurn](../../../packages/core/src/application/character-turn.ts)准备当前角色视图、场景、认知、授权观察、自身表达与可尝试操作。[CharacterViewBuilder](../../../packages/core/src/store/character-view.ts)按角色和事件前缀重建信息。[上下文文本](../../../packages/providers/src/chat/character-context-text.ts)负责模型侧可读呈现，预设参与请求和输出处理。
 
-长期记忆经 `ctx.memory` 接缝接入，官方实现是 Core：[CoreMemoryAdapter](../../../packages/memory-core/src/core-memory.ts)投影请求，经 [Python 桥](../../../packages/memory-core/src/python-worker.ts)调用记忆实现。Core 的 Retain／Group／Consolidate 是提炼、分组和形成认识，不是世界裁定。详见[认知与记忆](cognition-memory.md)。
+长期记忆经 `ctx.memory` 接缝接入，官方实现是 Core：[CoreMemoryAdapter](../../../packages/memory-core/src/core-memory.ts)投影请求，经 [Node worker](../../../packages/memory-core/src/node/worker-client.ts)调用记忆实现。Core 的 Retain／Group／Consolidate 是提炼、分组和形成认识，不是世界裁定。详见[认知与记忆](cognition-memory.md)。
 
 调用格式见 [character-turn-call.ts](../../../packages/providers/src/chat/character-turn-call.ts)，OpenAI 兼容与 Anthropic 协议的扁平 Schema 见 [gateway-turn-call.ts](../../../packages/providers/src/llm/gateway-turn-call.ts)，实际发送经 [provider.ts](../../../packages/providers/src/chat/provider.ts) 交给 pi-ai。合法 JSON 仍需检查协议与行动资格。
 

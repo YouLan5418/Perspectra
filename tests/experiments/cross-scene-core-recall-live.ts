@@ -4,7 +4,7 @@ import { join, resolve } from 'node:path'
 import { createChatProvider, characterTurnCall, type ChatCall } from '@perspectra/providers/chat'
 import type { WorldJsonObject } from '@perspectra/sdk/contracts'
 import { crossSceneRuntime } from '../support/cross-scene-runtime.ts'
-import { coreRunner, createCoreWorker } from '../../packages/memory-core/src/python-worker.ts'
+import { coreRunner, createCoreWorker } from '../../packages/memory-core/src/node/worker-client.ts'
 import { gatewayTurnCall } from '../../packages/providers/src/llm/gateway-turn-call.ts'
 import { decideWithFormatRetry } from '../../apps/host/src/runtime/decision-format.ts'
 

@@ -15,7 +15,7 @@ import { CharacterTurn, type CharacterTurnResult } from '../../packages/core/src
 import { characterExecutionResult } from '../../packages/core/src/application/character-execution-result.ts'
 import { WorldHostRuntime } from '../../apps/host/src/runtime/world-runtime.ts'
 import { loadStatus, type KnownStatus } from '../support/status-runtime.ts'
-import type { CoreRunner } from '../../packages/memory-core/src/python-worker.ts'
+import type { CoreRunner } from '../../packages/memory-core/src/node/worker-client.ts'
 import { restoreStoryNode } from '../../apps/host/src/story-nodes.ts'
 import { projectPlayerView } from '../../apps/host/src/runtime/frontend-adapter.ts'
 import { WAIT_ACTION } from '../../apps/host/src/runtime/http-server.ts'

@@ -13,7 +13,7 @@ import {
 import type { WorldReader } from '@perspectra/sdk'
 import type { MemoryRequest } from '@perspectra/sdk'
 import { identityEntry } from './alias-history.ts'
-import type { CoreRunner } from './python-worker.ts'
+import type { CoreRunner } from './node/worker-client.ts'
 
 function object(value: WorldJsonValue | undefined): WorldJsonObject {
   if (value === null || value === undefined || Array.isArray(value) || typeof value !== 'object')
@@ -71,7 +71,7 @@ interface BuildJob {
   failure?: unknown
 }
 
-/** Host adapter only. Python never receives a world path, status values or other roles' views. */
+/** Host adapter only. The Core worker receives authorized snapshots, never world paths or other roles' views. */
 export class CoreMemoryAdapter {
   readonly #directory: string
   readonly #aliases = new Map<string, WorldJsonObject[]>()

@@ -3,7 +3,7 @@ import fs from 'node:fs'
 import promises from 'node:fs/promises'
 import { syncBuiltinESMExports } from 'node:module'
 import { basename, dirname } from 'node:path'
-import type { CoreRunner } from '../../packages/memory-core/src/python-worker.ts'
+import type { CoreRunner } from '../../packages/memory-core/src/node/worker-client.ts'
 import { LauncherCore } from '../../apps/launcher/backend/core.ts'
 import { fakeModels } from './fake-provider.ts'
 

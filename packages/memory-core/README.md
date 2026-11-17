@@ -1,40 +1,31 @@
 # 官方长期记忆（Core）
 
-角色召回一段经历时，宿主先按该角色的观察权限准备来源，再由 Python Core 检索与整理。Python 结果继续经过宿主的范围和前缀检查，不直接修改世界事实。
+例如角色回忆玩家曾说“明天来喝茶”，宿主只交给它有权知道的来源；Core 提炼经历、整理可修正认识，召回时保留来源类型及反证标记，不把对白当成已裁定的世界事实。
 
-2026-11-17 Node 迁移正在进行：本地 E5 的真实 token、向量和排序已与 Python 对照通过，Source → Atom → Episode → Observation 及前缀复用已有独立 Node 实现和非空档案对照。默认入口仍使用下表 Python 路径；Recall／Delivery、真实整理模型和整套无 Python 发行尚未迁移验收，见[迁移记录](../../experiments/node-memory/README.md)。
+默认实现为 Node.js / TypeScript。记忆构建、E5 索引、召回与交付均在 Node worker 中运行，Host 和 Launcher 不需要 Python。保留现有 `official-memory-core` 接缝、档案结构和宿主授权校验；更换实现会改变运行时身份，不承诺旧运行时存档直接重开，也不放宽身份检查。
 
 | 内容 | 位置 |
 | --- | --- |
-| 角色快照、授权交付与后台整理 | [core-memory.ts](src/core-memory.ts) |
-| Python 解释器、单次请求与常驻 worker | [python-worker.ts](src/python-worker.ts) |
-| 授权名称来源 | [alias-history.ts](src/alias-history.ts) |
-| Python 请求、候选准入和极简交付 | [python/bridge](python/bridge) |
-| 检索、认识投影、vendor 和资产清单 | [python/core](python/core) |
+| 授权快照、后台整理、预算与故事节点档案 | [core-memory.ts](src/core-memory.ts) |
+| Provider 与按模型配置分组 | [core-provider.ts](src/core-provider.ts) |
+| Node worker 生命周期 | [worker-client.ts](src/node/worker-client.ts) |
+| build / recall / reproject | [runtime.ts](src/node/runtime.ts) |
+| Source / Atom / Episode / Observation | [archive.ts](src/node/archive.ts)、[episodes.ts](src/node/episodes.ts)、[retain-prefix.ts](src/node/retain-prefix.ts) |
+| 本地 E5、检索与交付 | [e5.ts](src/node/e5.ts)、[retrieval.ts](src/node/retrieval.ts)、[admission.ts](src/node/admission.ts)、[delivery.ts](src/node/delivery.ts) |
+| 模型协议传输 | [utility.ts](src/node/utility.ts) |
+| 固定资产与许可证 | [e5-assets.json](e5-assets.json)、[LICENSE-hindsight](LICENSE-hindsight) |
 
-在仓库根目录准备环境；权重与环境仍保存在忽略的 `.tmp` 中：
-
-```powershell
-python -m venv .tmp/hindsight-vector-venv
-& .tmp/hindsight-vector-venv/Scripts/python.exe -m pip install -r packages/memory-core/python/core/requirements-vector.txt
-& .tmp/hindsight-vector-venv/Scripts/python.exe packages/memory-core/python/core/setup-vector.py
-```
-
-`setup-vector.py` 会下载并校验固定 revision 的模型资产。`HCW_HINDSIGHT_PYTHON` 与 `HCW_HINDSIGHT_ONNX_DIR` 仍可指定现有环境和权重。游戏默认使用 Core。`--memory-none` 不启动 Core，角色没有长期记忆，只用于离线开发和测试；第三方记忆插件也可以替换它，见[替换长期记忆](../../docs/current/guides/host-plugin-authoring.md#替换长期记忆)。
-
-在源码仓库根目录运行 TypeScript 入口或构建后的 `dist/backend/playtest.mjs` 时，不设置 `PERSPECTRA_RUNTIME_ROOT`，两者均使用源码 Python 目录。便携包设置该变量为 `runtime` 的绝对路径，Python 位于其下 `memory-core/python/{core,bridge}`；Rust 桥和发行验证另行设置包内 Python、模型与缓存目录。运行时身份与 Node worker 共用 [python-paths.ts](python-paths.ts)，缺失 Python 源文件仍直接失败；`--memory-none` 和第三方记忆不组装 Core，也就不需要这些文件。
-
-`desktop:build` 也复制这份 Python 源码到 `dist/backend/memory-core/python`；从该目录运行构建后的后端时将 `PERSPECTRA_RUNTIME_ROOT` 设置为 `dist/backend`。这一步不打包解释器或 E5。Python 模块内的仓库根目录回退只用于源码布局。
-
-历史对照与 Python 回归仍保存在 `experiments/activity-memory`、`experiments/hindsight-core`。从仓库根目录运行其中的离线测试时，显式给出当前实现和历史研究辅助模块的搜索路径：
+在仓库根目录安装锁定依赖并准备本地权重：
 
 ```powershell
-$memoryTestPaths = @('packages/memory-core/python/core', 'packages/memory-core/python/bridge', 'experiments/activity-memory', 'experiments/hindsight-core') | ForEach-Object { (Resolve-Path -LiteralPath $_).Path }
-$env:PYTHONPATH = $memoryTestPaths -join [IO.Path]::PathSeparator
-$env:PYTHONDONTWRITEBYTECODE = '1'
-& .tmp/hindsight-vector-venv/Scripts/python.exe -m unittest discover -s experiments/activity-memory -p test_candidate_admission.py
-& .tmp/hindsight-vector-venv/Scripts/python.exe -m unittest discover -s experiments/activity-memory -p test_core_bridge.py
-& .tmp/hindsight-vector-venv/Scripts/python.exe -m unittest discover -s experiments/activity-memory -p test_native_protocol.py
+corepack pnpm@11.7.0 install --frozen-lockfile
+node scripts/setup-memory-assets.mjs
 ```
 
-这三组测试不调用真实模型。历史研究脚本可能调用模型、读取固定记录或写入证据目录，运行前须查看各自的说明。
+准备脚本下载并校验固定 revision 的六项资产，默认保存到 `.tmp/hindsight-e5-small`。已有文件也必须通过哈希校验；不自动覆盖损坏资产。可用 `HCW_HINDSIGHT_ONNX_DIR` 或脚本第一个参数指定目录。**运行时不会下载权重，也没有 Python 回退。** `--memory-none` 只用于明确不需要长期记忆的开发与测试；第三方记忆插件可通过现有接缝替换 Core。
+
+源码入口默认读取本包 Node 源文件。设置 `PERSPECTRA_RUNTIME_ROOT` 时读取 `memory-core/node/core-worker.mjs`，模型位于 `models/e5-small`；构建后的 worker 外置 `onnxruntime-node` CPU 原生依赖。源码与发行布局的实际验证结果见[迁移记录](../../experiments/node-memory/README.md)。
+
+`python/` 只保留为离线算法对照依据，不参与默认启动、Host 身份计算或发行装配。历史研究脚本仍可能需要独立 Python 环境；它们不是玩家运行条件。Node 迁移保留当前 quality 检索和 minimal Delivery，不接回旧实验检索或复杂 Delivery 分支。
+
+自动测试、真实本地 E5、真实整理模型、完整角色试玩及发行包验收分别记录；其中任何一项通过都不代表其他项已完成。

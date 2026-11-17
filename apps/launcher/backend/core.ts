@@ -51,7 +51,7 @@ import {
 import { FrontendAuthorizations, type FrontendIdentity } from '../../host/src/frontend-authorization.ts'
 import { spawn, type ChildProcess } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
-import { mkdir, readFile, rename, rm, writeFile, access, copyFile } from 'node:fs/promises'
+import { mkdir, readFile, rename, rm, writeFile, copyFile } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
 import { compileWorldPackSource, type CompiledWorldPackV5 } from '@perspectra/world-pack'
 import { readPackConfiguration, savePackConfiguration } from '../../host/src/pack-config.ts'
@@ -59,7 +59,6 @@ import { interactionPackageDescription } from '@perspectra/sdk/contracts'
 import { createInstalledInteractionPackages } from '@perspectra/plugins/basic-interactions'
 import { preflightSave } from '../../host/src/save-preflight.ts'
 import { loadPackWeb } from '../../host/src/runtime/pack-frontend.ts'
-import { corePythonExecutable } from '../../host/src/official-bundle.ts'
 import {
   checkPluginRequirements,
   readPackRequirements,
@@ -280,14 +279,6 @@ export class LauncherCore {
     this.#pluginManifests = Object.fromEntries(
       await Promise.all(plugins.map(async plugin => [plugin.id, await inspectPlugin(plugin.path)] as const)),
     )
-  }
-  /** Core is the default memory, so a plugin that holds that seam spares the player from installing Python. */
-  async needsCorePython(): Promise<boolean> {
-    await this.#readPluginManifests()
-    return !(this.#index.preferences.hostPlugins ?? []).some(plugin => {
-      const info = this.#pluginManifests[plugin.id]
-      return shouldLoadHostPlugin(plugin) && info && 'manifest' in info && info.manifest.services.includes('memory')
-    })
   }
   /** Refuses when a required plugin is not in force, listing everything at once; returns what optional ones lack. */
   async checkPackPlugins(packPath: string): Promise<string> {
@@ -1184,19 +1175,6 @@ export class LauncherCore {
           })
         }
         this.#optionalPluginNote = await this.checkPackPlugins(pack.path)
-        if (await this.needsCorePython())
-          try {
-            await access(corePythonExecutable())
-          } catch (error) {
-            const code = (error as NodeJS.ErrnoException).code
-            if (code === 'ENOENT')
-              throw new Error(
-                '本机记忆所需的 Python 环境不存在。请准备开发环境，或设置 HCW_HINDSIGHT_PYTHON 后重启启动器。',
-              )
-            if (code === 'EACCES' || code === 'EPERM')
-              throw new Error('无法访问本机记忆所需的 Python 环境（权限不足）。请检查运行环境的访问权限。')
-            throw error
-          }
         try {
           await mkdir(directory, { recursive: true })
         } catch (error) {

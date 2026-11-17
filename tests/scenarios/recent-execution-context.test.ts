@@ -8,7 +8,7 @@ import { currentEntityState } from '@perspectra/core/kernel'
 import { WorldHostRuntime } from '../../apps/host/src/runtime/world-runtime.ts'
 import { restoreStoryNode } from '../../apps/host/src/story-nodes.ts'
 import { playSettings } from '../../apps/host/src/play-settings.ts'
-import type { CoreRunner } from '../../packages/memory-core/src/python-worker.ts'
+import type { CoreRunner } from '../../packages/memory-core/src/node/worker-client.ts'
 import { createChatServer, fakeModels } from '../support/fake-provider.ts'
 
 it('keeps disabled requests unchanged and isolates private evidence across a real saved-node fork', async () => {

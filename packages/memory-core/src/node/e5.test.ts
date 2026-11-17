@@ -7,7 +7,7 @@ import { e5Batches, meanNormalize, NodeE5, E5_REVISION } from './e5.ts'
 import { createE5Worker } from './e5-client.ts'
 
 it('keeps the frozen E5 identity and Python code-point batching, including stable ties', async () => {
-  const manifest = JSON.parse(await readFile('packages/memory-core/python/core/e5-assets.json', 'utf8'))
+  const manifest = JSON.parse(await readFile('packages/memory-core/e5-assets.json', 'utf8'))
   expect(E5_REVISION).toBe(manifest.revision)
   expect(e5Batches(['a', 'bbb'])).toEqual([[0, 1]])
   expect(e5Batches(['😀', '中', 'abc', 'def', '', 'x', 'y', 'z', '12345'])).toEqual([[8, 2, 3, 0, 1, 5, 6, 7], [4]])

@@ -8,7 +8,7 @@ import type { WorldJsonObject } from '@perspectra/sdk/contracts'
 import { WorldStore } from '@perspectra/core/store'
 import { WorldHostRuntime } from '../../apps/host/src/runtime/world-runtime.ts'
 import { createHostServer } from '../../apps/host/src/runtime/http-server.ts'
-import { coreRunner } from '../../packages/memory-core/src/python-worker.ts'
+import { coreRunner } from '../../packages/memory-core/src/node/worker-client.ts'
 import { environmentRoleModels } from '../../apps/host/src/model-connections.ts'
 const root = resolve(process.argv[2] ?? '')
 if (!process.argv[2] || existsSync(root)) throw new Error('specify a new data directory')
@@ -30,7 +30,7 @@ save('protocol.json',{ phase:'6.5',model,pack:'examples/world-packs/prototype-g1
   limits:['one continuous trajectory, no randomized control; page UI not automated',
     'manual refresh rebuilds generic observations; no known-family lineage update in this path'] })
 const run = coreRunner({HCW_LOCAL_MODEL:model,HCW_HINDSIGHT_UTILITY_TRACE:join(root,'utility.jsonl')})
-const measuredRun: import('../../packages/memory-core/src/python-worker.ts').CoreRunner = async(input,signal)=>{
+const measuredRun: import('../../packages/memory-core/src/node/worker-client.ts').CoreRunner = async(input,signal)=>{
     const start=performance.now(), result=await run(input,signal)
     const path=join(root,'bridge.jsonl')
     const {appendFileSync}=await import('node:fs')

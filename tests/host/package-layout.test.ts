@@ -1,6 +1,6 @@
 import { build } from 'esbuild'
 import { execFileSync } from 'node:child_process'
-import { cp, mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { access, cp, mkdtemp, mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
@@ -72,7 +72,8 @@ it('validates the search pack with model and Python modules unavailable', async 
 })
 
 it('runs the bundled CLI and search assertions outside the checkout', async () => {
-  const directory = await mkdtemp(join(tmpdir(), 'perspectra-cli-layout-'))
+  await mkdir('.tmp', { recursive: true })
+  const directory = await mkdtemp(resolve('.tmp/perspectra-cli-layout-'))
   try {
     const entry = join(directory, 'worldpack.mjs')
     const bundled = await build({
@@ -127,6 +128,58 @@ it('runs the bundled CLI and search assertions outside the checkout', async () =
     await rm(directory, { recursive: true, force: true })
   }
 }, 60_000)
+
+it('copies Node Core workers and native CPU dependencies without Python or test sources', async () => {
+  await mkdir('.tmp', { recursive: true })
+  const directory = await mkdtemp(resolve('.tmp/perspectra-node-runtime-layout-'))
+  try {
+    execFileSync(process.execPath, [
+      '--input-type=module',
+      '-e',
+      `const {copyMemoryRuntime}=await import(${JSON.stringify(new URL('../../scripts/build/copy-memory-runtime.mjs', import.meta.url).href)}); await copyMemoryRuntime(${JSON.stringify(directory)})`,
+    ])
+    await access(join(directory, 'memory-core/node/core-worker.mjs'))
+    await access(join(directory, 'memory-core/node/e5-worker.mjs'))
+    await access(join(directory, 'node_modules/onnxruntime-node/package.json'))
+    await access(join(directory, 'node_modules/onnxruntime-common/package.json'))
+    await access(join(directory, 'node_modules/onnxruntime-common/dist/cjs/package.json'))
+    await access(join(directory, 'node_modules/onnxruntime-common/dist/esm/package.json'))
+    const native = join(directory, 'node_modules/onnxruntime-node/bin/napi-v6', process.platform, process.arch)
+    await access(join(native, 'onnxruntime_binding.node'))
+    await access(
+      join(
+        native,
+        process.platform === 'win32'
+          ? 'onnxruntime.dll'
+          : process.platform === 'linux'
+            ? 'libonnxruntime.so.1'
+            : 'libonnxruntime.1.22.0.dylib',
+      ),
+    )
+    await expect(access(join(directory, 'python'))).rejects.toThrow()
+    await expect(access(join(directory, 'memory-core/python'))).rejects.toThrow()
+    const output = join(directory, 'creator-payload')
+    execFileSync(process.execPath, [
+      '--input-type=module',
+      '-e',
+      `const {buildWorldPackCli}=await import(${JSON.stringify(new URL('../../scripts/build/build-worldpack-cli.mjs', import.meta.url).href)}); await buildWorldPackCli(${JSON.stringify(output)})`,
+    ])
+    const shippedFiles: string[] = []
+    const visit = async (folder: string): Promise<void> => {
+      for (const entry of await readdir(folder, { withFileTypes: true })) {
+        const path = join(folder, entry.name)
+        if (entry.isDirectory()) await visit(path)
+        else shippedFiles.push(path.slice(output.length + 1).replaceAll('\\', '/'))
+      }
+    }
+    await visit(join(output, 'skills/perspectra-creator'))
+    expect(shippedFiles.filter(path => /\.py(?:c)?$/iu.test(path))).toEqual([])
+    expect(shippedFiles.filter(path => /(?:^|\/)(?:__tests__|tests?)\//iu.test(path))).toEqual([])
+    expect(shippedFiles.filter(path => /\.(?:test|spec)\.(?:[cm]?[jt]s|tsx?)$/iu.test(path))).toEqual([])
+  } finally {
+    await rm(directory, { recursive: true, force: true })
+  }
+}, 120_000)
 
 it('loads the shared Launcher settings as browser-only public exports', async () => {
   for (const name of ['play-settings', 'plugin-settings']) {

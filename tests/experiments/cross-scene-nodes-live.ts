@@ -9,7 +9,7 @@ import { crossSceneRuntime } from '../support/cross-scene-runtime.ts'
 import { CrossScenePhone } from '../support/cross-scene-phone.ts'
 import { gatewayTurnCall } from '../../packages/providers/src/llm/gateway-turn-call.ts'
 import { decideWithFormatRetry } from '../../apps/host/src/runtime/decision-format.ts'
-import { createCoreWorker, coreRunner } from '../../packages/memory-core/src/python-worker.ts'
+import { createCoreWorker, coreRunner } from '../../packages/memory-core/src/node/worker-client.ts'
 
 const directory = process.argv[2], medium = process.argv[3]
 const core = process.argv[4] === 'core'

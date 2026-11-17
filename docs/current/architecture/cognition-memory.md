@@ -1,6 +1,6 @@
 # 当前认知与记忆
 
-2026-11-17 Node 迁移：例如“我不确定他来了”不能被 Atom 截取成“他来了”，行动成功与否仍来自授权规则结果；Node 版 Source／Atom／Episode／Observation 校验、整理和前缀复用已实现，17 项非空档案／完整提示词／拒绝路径与原 Python 对照相同。本机 E5 的 query／passage token、向量和排序通过真实对照（12 输入，最大坐标误差 0），独立 Windows x64 目录实际 E5 推理通过。**默认运行时仍是 Python**；Node 整理尚未连接真实模型，Recall／Delivery、完整 Host 装配、旧档／故事树恢复和无 Python 发行均未验收。证据及下一阶段见[迁移记录](../../../experiments/node-memory/README.md)。以下现行入口描述不提前改写为 Node。
+2026-11-17 Node 迁移：例如“我不确定他来了”不能被 Atom 截取成“他来了”，行动成功与否仍来自授权规则结果。默认 Core 的整理、索引、quality Recall、候选准入和 minimal Delivery 已移到 Node worker；Host 和 Launcher 无需 Python。原 Python 只保留作离线对照。自动测试、真实 E5、模型试玩与发行验证分别记录于[迁移记录](../../../experiments/node-memory/README.md)，下述较早日期的记录保留其历史范围。
 
 2026-11-04 记忆替换修复：例如 Core 已归档旧约定，自定义步骤却没有交付档案，宿主现在不会继续按 Core 的边界裁掉近期上下文。历史窗口由实际交付的 DecisionInstance.shortTermAfterSeq 声明，默认官方记忆步骤配对 contextSources.memory 与 memoryAfterSeq；无声明时回到近期窗口并在必要时提示。后台 Core 继续运行不代表角色已经读到其档案。接口示例与旧 2.1 自定义步骤适配见[插件指南](../guides/host-plugin-authoring.md#替换记忆步骤时配对交付与窗口22)。
 
@@ -32,7 +32,7 @@
 
 > [工具耗时排查](../studies/core-utility-timing-20261010.md)确认 Python Core 的 thinking.disabled 未约束本机 Gemini 网关。按用户要求，当前 Gemini 的 OpenAI 兼容 Core 请求先发 reasoning_effort=low，仅超时后重试一次，移除该字段并改发 thinking.disabled；第二次失败停止。每次仍为 120 秒，并记录实际尝试的参数档位。非超时错误不触发这条回退；其他模型与原生协议沿用既有配置。客户端字段不证明网关真正关闭思考或执行输出上限。
 
-这是了解 Perspectra 当前记忆的首选入口。源码网页与 Launcher 默认都走下述简化 Core 路径；`--memory-none` 只用于不装 Python 的离线开发和测试，角色没有长期记忆。记忆路径已接入不表示全部长期角色体验均已验收。
+这是了解 Perspectra 当前记忆的首选入口。源码网页与 Launcher 默认都走下述简化 Core 路径；`--memory-none` 只用于不需要长期记忆的离线开发和测试，角色没有长期记忆。记忆路径已接入不表示全部长期角色体验均已验收。
 
 ## 记忆接缝
 
@@ -47,7 +47,7 @@
 
 `project` 收到这次决策的请求，返回可以改动 `context` 的新请求。第三方实现通过 `world.authorizedSources(角色, 截止序号)` 取来源，不需要自己判断授权。当前由交付步骤转接 `shortTermAfterSeq`；没有步骤声明窗口时，角色只看到最近 16 条观察和 8 条自身表达。
 
-以下 Source / Atom / Episode / Observation 分层、候选准入和极简 Delivery 描述官方 Core；其他实现不必使用这套 Python 流程。
+以下 Source / Atom / Episode / Observation 分层、候选准入和极简 Delivery 描述官方 Core；其他实现不必使用这套分层流程。
 
 ## 授权材料与分层整理
 
@@ -65,7 +65,7 @@ Source 是角色获授权的原始经历，保留来源身份、类型和提交�
 
 源码网页预算最多 6 项、12000 JSON 字符；未显式配置的独立对照脚本仍可采用 3 项／4500。Core 模式关闭重复原生 prepareStimulus 和主动 recall，授权 Source catch-up 保留。JEV 是可选实验对照，当前不是必经步骤；不把历史复杂 Delivery 规则恢复为正常入口。
 
-例如 Claude 使用独立记忆模型、其他角色使用默认模型时，2026-10-17 源码会按协议、地址、模型和 Key 去重为两组 runner；每组按需启动一个长生命周期 Python Core 进程供顺序召回复用 E5 编码器，后台 Build 另起进程。档案和 scope 仍逐角色、逐请求提供，不共享私有经历。每组只接收自己的 Key，不写入数据目录；不同组的 E5 内存开销叠加。取消运行中任务会终止进程，下次调用重建，关闭宿主回收所有组。模型继承与传递见[运行时](runtime.md#角色思考强度)，此次改动未重建发行包。
+例如 Claude 使用独立记忆模型、其他角色使用默认模型时，源码按协议、地址、模型和 Key 去重为两组 runner；每组按需启动一个长生命周期 Node worker 供顺序召回复用 E5 编码器，后台 Build 使用独立 worker。档案和 scope 仍逐角色、逐请求提供，不共享私有经历。每组只接收自己的 Key，不写入数据目录；不同组的 E5 内存开销叠加。取消运行中任务会终止 worker，下次调用重建，关闭宿主回收所有组。模型继承与传递见[运行时](runtime.md#角色思考强度)，此次改动未重建发行包。
 
 ## 短期上下文与后台长期整理
 
@@ -81,11 +81,11 @@ Core 不再按 16 条观察／8 条自身表达截断；首次整理前保留授
 
 同批 196 条 Source、16 次 Utility 的一次后台重放为 148.063 秒，启动请求 0.411 秒；期间对话、移动和房间隔离通过。尚未真实跨越 170k，也未完成 32k/64k/128k/192k 成组对照，不能据此宣称大窗口延迟和压缩质量已验收。
 
-宽准入仍可能交付无关认识，关键原因也可能未被选进 Delivery；持续目标牵引、人物自然度和长期认识更新收益未全面验收。一般认识家族发现和多分支更新未全面验收。当前便携候选包已包含 Python/Core/E5 资产；干净 Windows 环境及长期稳定性验收仍见[候选包记录](../studies/launcher-portable-test3-20261009.md)。程序隔离与自由文本语义一致性仍分别验收。
+宽准入仍可能交付无关认识，关键原因也可能未被选进 Delivery；持续目标牵引、人物自然度和长期认识更新收益未全面验收。一般认识家族发现和多分支更新未全面验收。旧便携候选包曾包含 Python/Core/E5 资产；本次 Node 发行布局见迁移记录；干净 Windows 环境及长期稳定性验收仍见[候选包记录](../studies/launcher-portable-test3-20261009.md)。程序隔离与自由文本语义一致性仍分别验收。
 
 当前环境准备见 [Core 记忆说明](../../../packages/memory-core/README.md)。2026-10-21 已核对宿主适配与 Python 文件迁移、源码和发行目录解析；这一整理没有重新验收角色长期记忆体验。
 
-历史运行与实验证据：[Activity Memory](../../../experiments/activity-memory/README.md)、[Hindsight Core](../../../experiments/hindsight-core/README.md)、[AI Girls 研究](../studies/ai-girls/README.md)。源码：[原生记忆](../../../packages/core/src/memory)、[宿主 Core](../../../packages/memory-core/src/core-memory.ts)、[Python 桥](../../../packages/memory-core/python/bridge/core_bridge.py)、[候选准入](../../../packages/memory-core/python/bridge/candidate_admission.py)、[极简 Delivery](../../../packages/memory-core/python/bridge/minimal_delivery.py)。
+历史运行与实验证据：[Activity Memory](../../../experiments/activity-memory/README.md)、[Hindsight Core](../../../experiments/hindsight-core/README.md)、[AI Girls 研究](../studies/ai-girls/README.md)。源码：[原生记忆](../../../packages/core/src/memory)、[宿主 Core](../../../packages/memory-core/src/core-memory.ts)、[Node 运行时](../../../packages/memory-core/src/node/runtime.ts)、[候选准入](../../../packages/memory-core/src/node/admission.ts)、[极简 Delivery](../../../packages/memory-core/src/node/delivery.ts)。
 
 ### 官方序章的经历边界
 

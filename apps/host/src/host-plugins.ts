@@ -556,7 +556,7 @@ export async function loadHostPlugins(
   /** Per plugin ID, secret field values the launcher read from the credential store. */
   secrets: Readonly<Record<string, Readonly<Record<string, string>>>> = {},
   /** What fills a seam no plugin took and the bundle cannot assemble alone, such as Core with its models.
-   * Called only when needed: a player who replaced Core does not need its Python. */
+   * Called only when needed, so a replacement provider does not initialize the bundled default. */
   defaults: { readonly memory?: () => SeamProvider<MemoryInstance> } = {},
   options: HostPluginLoadOptions = {},
 ): Promise<HostPlugins> {

@@ -37,19 +37,21 @@ impl Bridge {
         let mut command;
         if portable.is_dir() {
             if !portable.join("node.exe").is_file() || !portable.join("launcher.mjs").is_file()
-                || !portable.join("python/python.exe").is_file() || !portable.join("playtest.mjs").is_file() {
+                || !portable.join("playtest.mjs").is_file()
+                || !portable.join("memory-core/node/core-worker.mjs").is_file()
+                || !portable.join("node_modules/onnxruntime-node/package.json").is_file()
+                || !portable.join("node_modules/onnxruntime-common/package.json").is_file()
+                || !portable.join("node_modules/onnxruntime-node/bin/napi-v6/win32/x64/onnxruntime_binding.node").is_file()
+                || !portable.join("node_modules/onnxruntime-node/bin/napi-v6/win32/x64/onnxruntime.dll").is_file()
+                || !portable.join("models/e5-small").is_dir() {
                 return Err("便携包运行文件缺失，请重新完整解压测试包。".into());
             }
             command = Command::new(portable.join("node.exe"));
             command.current_dir(&portable).arg(portable.join("launcher.mjs"));
             command.env("PERSPECTRA_RUNTIME_ROOT", &portable)
-                .env("HCW_HINDSIGHT_PYTHON", portable.join("python/python.exe"))
-                .env("HCW_HINDSIGHT_CORE_DIR", portable.join("memory-core/python/core"))
                 .env("HCW_HINDSIGHT_ONNX_DIR", portable.join("models/e5-small"))
                 .env("HCW_HINDSIGHT_CACHE_DIR", root.join("memory-cache"))
-                .env("PYTHONNOUSERSITE", "1").env("PYTHONDONTWRITEBYTECODE", "1")
-                .env("HF_HUB_OFFLINE", "1").env("TRANSFORMERS_OFFLINE", "1")
-                .env_remove("PYTHONHOME").env_remove("PYTHONPATH");
+                .env_remove("HCW_HINDSIGHT_PYTHON");
         } else if cfg!(debug_assertions) {
             let repository = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../..");
             command = Command::new("node");

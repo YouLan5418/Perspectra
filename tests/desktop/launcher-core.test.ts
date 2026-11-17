@@ -81,7 +81,6 @@ process.send(existsSync(startup) ? JSON.parse(readFileSync(startup, 'utf8')) : {
 `,
   )
   vi.stubEnv('PERSPECTRA_RUNTIME_ROOT', runtime)
-  vi.stubEnv('HCW_HINDSIGHT_PYTHON', process.execPath)
   return {
     core,
     instanceId,
@@ -94,25 +93,14 @@ process.send(existsSync(startup) ? JSON.parse(readFileSync(startup, 'utf8')) : {
   }
 }
 describe('real Launcher metadata and authority boundary', () => {
-  it('explains a missing memory interpreter before starting Core or changing saved progress', async () => {
-    const core = await service()
-    await core.handle({ operation: 'connection-save', connection: local })
-    const [instance] = await withPack(core)
-    await core.handle({
-      operation: 'configure',
-      instanceId: instance!.id,
-      models: { decision: { connectionId: local.id, model: 'fixture' } },
-    })
-    const before = await readFile(join(core.root, 'launcher.json'), 'utf8')
+  it('starts the default memory runtime without checking for a Python interpreter', async () => {
+    const { core, instanceId } = await runningService()
     vi.stubEnv('HCW_HINDSIGHT_PYTHON', join(core.root, 'missing-python.exe'))
     try {
-      await expect(core.handle({ operation: 'start', instanceId: instance!.id })).rejects.toThrow(
-        '本机记忆所需的 Python 环境不存在',
-      )
+      await core.handle({ operation: 'start', instanceId })
+      expect(core.snapshot().core.state).toBe('running')
+      await core.handle({ operation: 'stop' })
       expect(core.snapshot().core.state).toBe('idle')
-      expect(core.snapshot().instances[0]!.lastPlayedAt).toBeNull()
-      expect(await readFile(join(core.root, 'launcher.json'), 'utf8')).toBe(before)
-      await expect(readdir(join(core.root, 'instances', instance!.id))).rejects.toMatchObject({ code: 'ENOENT' })
     } finally {
       vi.unstubAllEnvs()
       await core.stop()
@@ -130,7 +118,6 @@ describe('real Launcher metadata and authority boundary', () => {
       models: { decision: { connectionId: deepseek.id, model: 'deepseek-chat' } },
     })
     const before = await readFile(join(core.root, 'launcher.json'), 'utf8')
-    vi.stubEnv('HCW_HINDSIGHT_PYTHON', process.execPath)
     try {
       for (const code of ['EPERM', 'EACCES']) {
         vi.mocked(mkdir).mockRejectedValueOnce(Object.assign(new Error('private path and diagnostic'), { code }))

@@ -1,5 +1,5 @@
 /** Node port of python/core/vendor/hindsight_api/engine/onnx_slices.py.
- * Hindsight MIT attribution: ../../python/core/vendor/LICENSE. Not yet selected by the provider.
+ * Hindsight MIT attribution: ../../LICENSE-hindsight.
  * Assets are local, frozen and verified before tokenizer/native session initialization. */
 import { createHash } from 'node:crypto'
 import { readFile } from 'node:fs/promises'

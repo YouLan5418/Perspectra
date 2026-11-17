@@ -14,7 +14,7 @@
 | [tests/support](../../../tests/support) | 回归测试共享装配与夹具 | [说明](../../../tests/support/README.md) |
 | [tests/experiments](../../../tests/experiments) | 非默认运行的研究与真实模型探针 | 默认回归与生产代码不可反向依赖 |
 | [experiments](../../../experiments) | 冻结研究与历史证据 | [索引](../../../experiments/README.md) |
-| [scripts/build](../../../scripts/build) | Node 产物、CLI 与独立资源复制 | [backend](../../../scripts/build/build-backend.mjs)、[CLI](../../../scripts/build/build-worldpack-cli.mjs)、[Python 资源](../../../scripts/build/copy-memory-runtime.mjs) |
+| [scripts/build](../../../scripts/build) | Node 产物、CLI 与独立资源复制 | [backend](../../../scripts/build/build-backend.mjs)、[CLI](../../../scripts/build/build-worldpack-cli.mjs)、[Node 记忆资源](../../../scripts/build/copy-memory-runtime.mjs) |
 | [scripts/release](../../../scripts/release) | Windows 便携包组装与检查 | [构建说明](../../../scripts/release/BUILD.md)，B10 不运行 B11 发行验收 |
 | [世界包示例](../../../examples/world-packs) | 显式选择玩法的作者内容 | [搜证场景](../../../examples/world-packs/investigation/scenario.json) |
 | [作者 Skill](../../../skills/perspectra-creator) | 随程序提供的创作指导与工具 | [入口](../../../skills/perspectra-creator/SKILL.md) |
@@ -29,7 +29,7 @@
 | [core](../../../packages/core) | 根入口 WorldApplication；`/kernel`、`/store`、`/runtime`、`/memory`、`/interactions`、`/presentation`、`/agents` | 权威事实、授权投影、原子提交、分支、资源、受控执行；不导入具体能力或玩法。[执行](../../../packages/core/src/application/execution-engine.ts)、[玩法裁定](../../../packages/core/src/application/gameplay-runtime.ts)、[提交协调](../../../packages/core/src/application/round-coordinator.ts) |
 | [providers](../../../packages/providers) | `/activities`、`/status`、`/knowledge`、`/communication`、`/contexts`、`/character-loop`、`/scheduler`、`/llm`、`/memory-none`、`/scripted-model`、`/chat` | 默认可替换实现；脚本模型只替代调用传输，保留正式 DecisionService 授权组装。浏览器使用 `/chat/preset` 等纯子入口，不加载模型适配 |
 | [plugins](../../../packages/plugins) | `/rpg`、`/trpg`、`/dice`、`/pacing`、`/basic-interactions` | 原生玩法；基础交互通过 core/interactions 复用纯实现。自主机会策略与调度共享实现，实际保留在 providers/scheduler |
-| [memory-core](../../../packages/memory-core) | Python 长期记忆、进程桥与资源；`/paths` 只含路径和持久 ID | Host 按需加载 [memory-composition](../../../apps/host/src/memory-composition.ts)，静态校验不加载 Python 适配 |
+| [memory-core](../../../packages/memory-core) | Node 长期记忆、worker 与资源；`/paths` 只含路径和持久 ID | Host 按需加载 [memory-composition](../../../apps/host/src/memory-composition.ts)，静态校验不加载记忆 worker |
 | [world-pack](../../../packages/world-pack) | 格式、编译、注入校验；`/lens/view`、`/lens/ids`、`/lens/rpg-view`、`/lens/diff` 静态分析 | 不导入 Host。静态 view 接收最小 LensOpening 结构；动态模拟及其断言留在 Host，避免工具库反向依赖具体装配 |
 | [frontend](../../../packages/frontend) | 公共客户端、默认舞台、参数表单、控件与授权只读面板 | 不依赖 Node Host；[默认模板](../../../packages/frontend/src/default-template.ts)、[通用展示](../../../packages/frontend/src/gameplay-widgets.ts) |
 | [jev-audit](../../../packages/jev-audit) | 独立实验审计与可选插件 | 仅显式实验启动参数触发动态导入，不进入默认 RP 组合 |

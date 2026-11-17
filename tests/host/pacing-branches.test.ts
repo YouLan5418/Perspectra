@@ -9,7 +9,7 @@ import { restoreStoryNode } from '../../apps/host/src/story-nodes.ts'
 import { WorldHostRuntime, type WorldHostOptions } from '../../apps/host/src/runtime/world-runtime.ts'
 import { createRoleplayCore } from '../support/roleplay-runtime.ts'
 import { LensSimulation } from '../../apps/host/src/lens/simulation.ts'
-import type { CoreRunner } from '../../packages/memory-core/src/python-worker.ts'
+import type { CoreRunner } from '../../packages/memory-core/src/node/worker-client.ts'
 import { createRuntimeWithCore } from '../support/core-memory-options.ts'
 import { fakeModels, startFakeProvider } from '../support/fake-provider.ts'
 

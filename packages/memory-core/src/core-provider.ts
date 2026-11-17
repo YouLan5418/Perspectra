@@ -2,10 +2,10 @@ import type { CharacterId, WorldJsonObject } from '@perspectra/sdk/contracts'
 import type { MemoryRequest } from '@perspectra/sdk'
 import type { MemoryInstance, SeamProvider } from '@perspectra/sdk'
 import { CoreMemoryAdapter, type MemoryBuildOptions, type MemoryContextBudget } from './core-memory.ts'
-import { assertCoreEnvironment, coreRunnerGroups, type CoreRunner, type MemoryRunners } from './python-worker.ts'
+import { assertCoreEnvironment, coreRunnerGroups, type CoreRunner, type MemoryRunners } from './node/worker-client.ts'
 
-import { CORE_MEMORY_ID } from './python-paths.ts'
-export { CORE_MEMORY_ID } from './python-paths.ts'
+import { CORE_MEMORY_ID } from './node-paths.ts'
+export { CORE_MEMORY_ID } from './node-paths.ts'
 
 /** The play settings Core reads. */
 export interface CoreMemorySettings {
@@ -27,16 +27,16 @@ export interface CoreProviderOptions {
   readonly settings: CoreMemorySettings
   readonly run?: CoreRunner
   readonly buildRun?: CoreRunner
-  /** Starts the Core runners for one memory model; defaults to a lazy Python worker plus one-shot builds. */
+  /** Starts the Core runners for one memory model; defaults to a lazy Node worker plus isolated builds. */
   readonly runners?: (environment: NodeJS.ProcessEnv) => MemoryRunners
   readonly buildConcurrency?: Omit<MemoryBuildOptions, 'run'>
   readonly contextBudget?: MemoryContextBudget
 }
 
-/** Long-term memory that distills each character's authorized experience through the Python Core. */
+/** Long-term memory that distills each character's authorized experience through the Node Core. */
 export function coreMemoryProvider(options: CoreProviderOptions): SeamProvider<MemoryInstance> {
-  // Only the default runners start Python; injected runners (tests, studies) bring their own. Checked while
-  // assembling, so a machine without Python is refused before any save directory exists.
+  // The default runners use Node worker threads; injected runners (tests, studies) bring their own. Check
+  // fixed E5 assets while assembling, before any save directory exists.
   if (options.runners === undefined && (options.run === undefined || options.buildRun === undefined))
     assertCoreEnvironment()
   return {

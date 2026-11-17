@@ -2,8 +2,7 @@ import { build } from 'esbuild'
 import { cp, mkdir, readFile, writeFile, readdir, stat, access } from 'node:fs/promises'
 import { resolve, join, dirname } from 'node:path'
 import { execFileSync } from 'node:child_process'
-import { createHash } from 'node:crypto'
-import { copyMemoryRuntime } from '../build/copy-memory-runtime.mjs'
+import { copyMemoryAssets, copyMemoryRuntime } from '../build/copy-memory-runtime.mjs'
 import { buildWorldPackCli } from '../build/build-worldpack-cli.mjs'
 const { version } = JSON.parse(await readFile('package.json', 'utf8'))
 const output = resolve(process.argv[2] ?? 'dist/portable/Perspectra-' + version + '-win-x64')
@@ -21,43 +20,19 @@ try {
   if (error.code !== 'ENOENT') throw error
   throw Error('Run launcher:build first; creator or lens page is missing.')
 }
-const pythonHome = process.env.PERSPECTRA_BUILD_PYTHON_HOME ?? readFileSyncConfig()
-function readFileSyncConfig() {
-  const text = execFileSync(
-    process.execPath,
-    ['-e', "process.stdout.write(require('fs').readFileSync('.tmp/hindsight-vector-venv/pyvenv.cfg','utf8'))"],
-    { encoding: 'utf8' },
-  )
-  const match = text.match(/^home = (.+)$/m)
-  if (!match) throw Error('Python base not found')
-  return match[1].trim()
-}
 const runtime = join(output, 'runtime')
 await mkdir(runtime, { recursive: true })
-const filter = path => !path.split(/[\\/]/).some(p => p === '__pycache__' || p === '.cache')
 await cp(process.execPath, join(runtime, 'node.exe'))
 await cp(resolve('.tmp/portable-release-assets/webview2'), join(runtime, 'webview2'), {
   recursive: true,
   dereference: true,
 })
 await cp(resolve('.tmp/portable-release-assets/NODE-LICENSE.txt'), join(runtime, 'NODE-LICENSE.txt'))
-await cp(pythonHome, join(runtime, 'python'), {
-  recursive: true,
-  dereference: true,
-  // A --system-site-packages venv gets numpy/ONNX from its base Python; retain those dependencies.
-  filter,
-})
 const crt = resolve(process.env.PERSPECTRA_BUILD_CRT_DIR ?? '.tmp/portable-release-assets/msvc-crt')
 for (const file of await readdir(crt)) {
   if (!file.endsWith('.dll')) continue
-  for (const directory of [output, runtime, join(runtime, 'python')]) await cp(join(crt, file), join(directory, file))
+  for (const directory of [output, runtime]) await cp(join(crt, file), join(directory, file))
 }
-
-await cp(resolve('.tmp/hindsight-vector-venv/Lib/site-packages'), join(runtime, 'python/Lib/site-packages'), {
-  recursive: true,
-  dereference: true,
-  filter,
-})
 const cli = await buildWorldPackCli(output)
 const inputs = new Set(Object.keys(cli.metafile.inputs).map(path => resolve(path)))
 await cp(resolve('packages/frontend/assets'), join(runtime, 'frontend-assets'), { recursive: true })
@@ -82,15 +57,8 @@ for (const [entry, file] of [
   })
   for (const path of Object.keys(result.metafile.inputs)) inputs.add(resolve(path))
 }
-await copyMemoryRuntime(runtime)
-const assets = JSON.parse(await readFile('packages/memory-core/python/core/e5-assets.json', 'utf8'))
-for (const [file, expected] of Object.entries(assets.files)) {
-  const source = resolve('.tmp/hindsight-e5-small', file),
-    bytes = await readFile(source)
-  if (createHash('sha256').update(bytes).digest('hex') !== expected) throw Error('Model asset hash mismatch: ' + file)
-  await mkdir(dirname(join(runtime, 'models/e5-small', file)), { recursive: true })
-  await writeFile(join(runtime, 'models/e5-small', file), bytes)
-}
+const memoryDependencies = await copyMemoryRuntime(runtime)
+const assets = await copyMemoryAssets(runtime)
 await mkdir(join(output, 'licenses'), { recursive: true })
 await cp(
   resolve('.tmp/portable-release-assets/MSVC-RUNTIME-LICENSE.docx'),
@@ -98,7 +66,7 @@ await cp(
 )
 await cp(resolve('.tmp/portable-release-assets/E5-MODEL-CARD.md'), join(output, 'licenses/E5-MODEL-CARD.md'))
 await cp(resolve('.tmp/portable-release-assets/E5-BASE-MODEL-CARD.md'), join(output, 'licenses/E5-BASE-MODEL-CARD.md'))
-await cp(resolve('packages/memory-core/python/core/vendor/LICENSE'), join(output, 'licenses/HINDSIGHT-LICENSE.txt'))
+await cp(resolve('packages/memory-core/LICENSE-hindsight'), join(output, 'licenses/HINDSIGHT-LICENSE.txt'))
 const packages = new Map()
 for (const file of inputs) {
   if (!file.includes('node_modules')) continue
@@ -114,6 +82,7 @@ for (const file of inputs) {
     folder = parent
   }
 }
+for (const dependency of memoryDependencies) packages.set(dependency.name, dependency)
 for (const data of packages.values()) {
   const target = join(output, 'licenses', data.name.replaceAll('/', '_'))
   await mkdir(target, { recursive: true })
@@ -150,7 +119,8 @@ await writeFile(
       platform: 'win-x64',
       webview2: '154.0.4258.62',
       node: process.version,
-      python: execFileSync(join(runtime, 'python/python.exe'), ['--version'], { encoding: 'utf8' }).trim(),
+      memoryRuntime: 'Node worker',
+      onnxruntimeNode: memoryDependencies.find(dependency => dependency.name === 'onnxruntime-node')?.version,
       msvc: '14.50.35719.0',
       model: assets.repoId,
       baseModel: 'intfloat/multilingual-e5-small',

@@ -51,6 +51,6 @@
 
 创作 Skill 可以先读取 `--version` 和 `--help`，针对该版本生成源包，循环运行 `validate` 修正诊断，再运行 `test` 检查适配。预设要单独用 `preset validate`；它不执行文本匹配、不写入预设库、不调用模型，语法有效不代表风格效果或正则运行时行为通过。较早的 0.3.1 候选没有此命令，需实际检查帮助。请分别记录静态通过、宿主启动、真实模型试玩结果。CLI 不提供模板生成、酒馆自动迁移或跨版本存档迁移。
 
-程序附带的 [perspectra-creator Skill](skills/perspectra-creator/SKILL.md) 提供空白源包脚手架、人物与私有知识写法、物品规则模板，已整合原 tavern-to-perspectra 的静态提取、容量分析、迁移和验收流程，还附带原生预设创作指南及两种模板。酒馆卡提取使用随包 Python，原脚本、EJS 和正则保留为数据，所需行为由 AI 按当前规则重写；不是自动运行原卡的兼容器。脚手架使用随包 Node，不需要 pnpm、源码或全局 Python。安装整个 Skill 目录到所用 AI 工具后，提供本程序解压路径及创作需求即可；作品输出到自己的新目录。
+程序附带的 [perspectra-creator Skill](skills/perspectra-creator/SKILL.md) 提供空白源包脚手架、人物与私有知识写法、物品规则模板，已整合原 tavern-to-perspectra 的静态提取、容量分析、迁移和验收流程，还附带原生预设创作指南及两种模板。酒馆卡提取使用随包 Node 脚本；原脚本、EJS 和正则保留为数据，所需行为由 AI 按当前规则重写，不自动运行原卡，也不是兼容器。工具不需要 pnpm、源码或 Python。安装整个 Skill 目录到所用 AI 工具后，提供本程序解压路径及创作需求即可；作品输出到自己的新目录。
 
 按任务继续读 Skill 内的[源包与人物](skills/perspectra-creator/references/world-pack.md)、[玩法扩展](skills/perspectra-creator/references/gameplay.md)与[预设](skills/perspectra-creator/references/presets.md)。玩法说明覆盖多活动、自动开始、隐藏回合、状态栏、角色自主、短信、插件和只换美术的舞台；具体目标程序的加载与运行仍需验证。这些参考随 Skill 一起分发，不需要另装源码文档。

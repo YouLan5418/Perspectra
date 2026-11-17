@@ -1,9 +1,9 @@
 # 离线提取器
 
-旧 tavern-to-perspectra 提取器现已随本 Skill 放在 scripts/tavern。Python 3.10+标准库，无需安装包、联网或node_modules；打包版使用程序自带 Python。输入PNG或JSON文件，或仅第一层扫描这两类文件的目录。PNG支持tEXt/zTXt/iTXt，识别V1平铺及V2/V3声明，不声称完整schema认证。
+离线提取器随本 Skill 放在 scripts/tavern，使用 Node 内置库，无需安装包、联网或 node_modules；打包版使用程序自带 Node。输入PNG或JSON文件，或仅第一层扫描这两类文件的目录。PNG支持tEXt/zTXt/iTXt，识别V1平铺及V2/V3声明，不声称完整schema认证。
 
 ```powershell
-& '<程序目录>/runtime/python/python.exe' -B '<skill-root>/scripts/tavern/extract_cards.py' '<输入>' --out '<不存在的输出目录>'
+& '<程序目录>/runtime/node.exe' '<skill-root>/scripts/tavern/extract_cards.mjs' '<输入>' --out '<不存在的输出目录>'
 ```
 
 脚本不渲染、调用模型、执行代码或编译卡内正则。路径由输入顺序和字节摘要生成，不使用卡名/条目ID。输出目录不得覆盖。每输入的绝对来源和SHA-256在manifest中；PNG验证块边界/CRC/IHDR/IEND/尾部，保留非IDAT块原始base64载荷。

@@ -19,7 +19,7 @@ import { projectPlayerView, FrontendActions } from '../../apps/host/src/runtime/
 import { ActivityRuntime, activityFromSource, readActivityWorld } from '../support/activity-runtime.ts'
 import { loadActivities, type ActivitiesRuntime } from '../support/activity-runtime.ts'
 import { restoreStoryNode } from '../../apps/host/src/story-nodes.ts'
-import type { CoreRunner } from '../../packages/memory-core/src/python-worker.ts'
+import type { CoreRunner } from '../../packages/memory-core/src/node/worker-client.ts'
 import { createChatServer, fakeModels } from '../support/fake-provider.ts'
 
 const roots: string[] = [],

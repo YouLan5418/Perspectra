@@ -18,7 +18,7 @@ import {
 } from '../../packages/memory-core/src/core-memory.ts'
 import { createHostServer } from '../../apps/host/src/runtime/http-server.ts'
 import { parseHostLaunchArguments } from '../../apps/host/src/runtime/launch-arguments.ts'
-import type { CoreRunner } from '../../packages/memory-core/src/python-worker.ts'
+import type { CoreRunner } from '../../packages/memory-core/src/node/worker-client.ts'
 import { createChatServer, fakeModels } from '../support/fake-provider.ts'
 
 const roots: string[] = [],
@@ -233,7 +233,7 @@ describe('optional web Core memory', () => {
     expect(() => parseHostLaunchArguments(['--memory-core', '--memory-core'])).toThrow('once')
     expect(() => parseHostLaunchArguments(['--ollama'])).toThrow('unsupported host argument')
   })
-  it('refuses to start default Core without Python or E5, before creating the save directory', async () => {
+  it('refuses to start default Core without fixed E5 assets, before creating the save directory', async () => {
     const root = mkdtempSync(join(tmpdir(), 'memory-web-test-core-env-'))
     roots.push(root)
     const data = join(root, 'data'),
@@ -244,12 +244,9 @@ describe('optional web Core memory', () => {
         memoryCore: true,
       }
     vi.stubEnv('HCW_HINDSIGHT_PYTHON', join(root, 'missing-python.exe'))
+    vi.stubEnv('HCW_HINDSIGHT_ONNX_DIR', join(root, 'no-e5'))
     try {
-      await expect(createRuntimeWithCore(options)).rejects.toThrow('Python 环境不存在')
-      writeFileSync(join(root, 'python.exe'), '')
-      vi.stubEnv('HCW_HINDSIGHT_PYTHON', join(root, 'python.exe'))
-      vi.stubEnv('HCW_HINDSIGHT_ONNX_DIR', join(root, 'no-e5'))
-      await expect(createRuntimeWithCore(options)).rejects.toThrow('E5 编码器不存在')
+      await expect(createRuntimeWithCore(options)).rejects.toThrow('E5 资产不完整')
       expect(readdirSync(root)).not.toContain('data')
     } finally {
       vi.unstubAllEnvs()

@@ -23,7 +23,7 @@ description: 为 Perspectra 创作与修改世界游玩包和原生模型预设�
 
 先确定用户的 Perspectra 解压目录，读取 `build-info.json`、`创作校验.md`，实际执行 `worldpack.cmd --version` 和 `--help`。本 Skill 的脚手架核对目标是 Perspectra 0.3.5、`worldpack-source/v5`、`worldpack/v5`、编译器 0.5.0（2026-11-07 用 0.3.5 发行包实际生成并校验通过；0.3.1 起格式与编译器相同）。版本号不一致时比较格式与编译器，再用目标 CLI 检查；格式不兼容时保留设计工作，明确需要对应版本的创作资源，不猜旧字段。
 
-程序用户不必有仓库、pnpm 或全局 Node／Python。JS 脚手架使用 `<程序目录>/runtime/node.exe`；酒馆卡提取使用 `<程序目录>/runtime/python/python.exe`。以下路径占位符均替换成实际路径，相对源路径以终端工作目录为准。程序尚未定位时可以继续设计与编辑已有文件，不能声称已验证兼容。
+程序用户不必有仓库、pnpm 或全局 Node。JS 脚手架和酒馆卡提取都使用 `<程序目录>/runtime/node.exe`。以下路径占位符均替换成实际路径，相对源路径以终端工作目录为准。程序尚未定位时可以继续设计与编辑已有文件，不能声称已验证兼容。
 
 本次玩法说明核对到 2026-10-29 main 的 `ea4e3ea`；完整活动状态调度、玩家自己的活动 private 和匿名等待提示对应 2026-10-28 的宿主／舞台修复。产品、格式和编译器版本相同，不表示这些宿主能力相同；10-24 的 candidate4 验收不覆盖它们。优先使用目标程序随附的 Skill，对照 build-info 的 sourceCommit、sourceDirty、buildTime 与该包的验收记录；sourceDirty 为 true 时提交号不是完整构建快照。无法确认时先完成设计，在目标 Launcher 新实例中检查实际 hook 输入和玩家视图，再报告兼容范围。复制新版 Skill 不会升级旧程序。
 

@@ -5,7 +5,7 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
-    "./paths": "./src/python-paths.ts"
+    "./paths": "./src/node-paths.ts"
   },
   "dependencies": {
     "@huggingface/tokenizers": "0.2.0",

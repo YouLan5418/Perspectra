@@ -30,7 +30,7 @@ import { loadActivities } from './activity-runtime.ts'
 import { playerTranscript } from '../../apps/host/src/runtime/player-transcript.ts'
 import { saveStoryNode } from '../../apps/host/src/story-nodes.ts'
 import { CoreMemoryAdapter, type MemoryContextBudget } from '../../packages/memory-core/src/core-memory.ts'
-import type { CoreRunner } from '../../packages/memory-core/src/python-worker.ts'
+import type { CoreRunner } from '../../packages/memory-core/src/node/worker-client.ts'
 
 export async function crossSceneRuntime(
   dataDirectory: string,

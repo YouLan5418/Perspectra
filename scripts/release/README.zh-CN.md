@@ -4,9 +4,9 @@
 
 Windows 本机工作区启动问题（2026-10-24）：若从受限开发工作区的 dist/portable 目录直接运行时没有窗口，日志出现 WebView2 `0x800700AA`，可能是 EXE 继承了工作区的 Low Mandatory Level 标签。请把原 ZIP 完整重新解压到普通用户目录后运行；本次同一 candidate4 ZIP 在普通目录已打开完整界面。无需修改系统安全设置或删除启动器配置、存档。它不代表所有 0x800700AA 错误都有同一原因。
 
-本包自带 Node、Python、固定 WebView2 与离线 E5 记忆编码模型。不需要安装 Rust、Cargo、Node 或 Python。模型对话仍需要你自己的 OpenAI 兼容、Anthropic 或 Google 模型服务和网络。
+本包自带 Node、固定 WebView2 与离线 E5 记忆编码模型。启动游戏和运行记忆 Core 不要求安装或携带 Python，也不需要安装 Rust、Cargo 或 Node。模型对话仍需要你自己的 OpenAI 兼容、Anthropic 或 Google 模型服务和网络。
 
-本文按 2026-10-29 当前源码同步；具体 ZIP 包含哪些能力，以本包 build-info.json 和验收记录.md 为准。产品版本相同不表示构建内容相同，替换文档或 Skill 不会升级程序。10-24 candidate4 的既有验收不覆盖后续统一 Provider、狼人杀相关宿主修复或本次创作资源更新。
+本文按 2026-11-17 当前源码同步；具体 ZIP 包含哪些能力，以本包 build-info.json 和验收记录.md 为准。产品版本相同不表示构建内容相同，替换文档或 Skill 不会升级程序。10-24 candidate4 的既有验收不覆盖后续统一 Provider、狼人杀相关宿主修复或本次 Node 记忆运行时更新。
 
 ## 第一次运行
 
@@ -19,7 +19,7 @@ Windows 本机工作区启动问题（2026-10-24）：若从受限开发工作�
 
 创作者可以在终端调用随包 `worldpack.cmd`，无需源码和开发工具。先运行 `--version`、`--help`，再用 `validate` 检查自己的源包；完整命令、JSON 诊断和验收边界见[创作校验](创作校验.md)。
 
-随包 [perspectra-creator Skill](skills/perspectra-creator/SKILL.md) 整合原创世界包、酒馆 PNG／JSON 卡迁移和原生预设创作。附带 Node 脚手架、物品模板、随包 Python 可运行的静态卡片提取／容量分析，以及包推荐和预设库交换模板；不执行原卡脚本。将整个 `skills/perspectra-creator` 目录复制到所用 AI 工具的 Skill 目录，再告诉它 Perspectra 解压位置与创作需求。预设用 `worldpack.cmd preset validate` 单独检查，作品通过 Launcher 新实例验收。它不会自动安装 Skill 或发布作品，生成作品放在自己的新目录。
+随包 [perspectra-creator Skill](skills/perspectra-creator/SKILL.md) 整合原创世界包、酒馆 PNG／JSON 卡迁移和原生预设创作，提供 Node 脚手架、物品模板、卡片提取与容量分析脚本，以及包推荐和预设库交换模板；不执行原卡脚本。将整个 `skills/perspectra-creator` 目录复制到所用 AI 工具的 Skill 目录，再告诉它 Perspectra 解压位置与创作需求。预设用 `worldpack.cmd preset validate` 单独检查，作品通过 Launcher 新实例验收。它不会自动安装 Skill 或发布作品，生成作品放在自己的新目录。
 
 ## 保存、故事线与退出
 

@@ -1,6 +1,6 @@
 # Launcher 首轮真实 Core 接入
 
-> **怎么读这一页。** 本页从 2026-10-06 首轮接入记录起步，后面多次补充。第 1、3 节已同步到 2026-10-18 的当前源码；第 5、6 节里“分叉、连接测试未接入”“依赖本机源码”之类的首轮限制只是历史记录，现在已不成立。故事线的当前行为见[故事线](storylines.md)，便携包的发布门禁见 [test3 构建记录](studies/launcher-portable-test3-20261009.md)。
+> **怎么读这一页。** 本页从 2026-10-06 首轮接入记录起步，后面多次补充。Launcher 的交互流程与数据边界已多次更新；2026-11-17 起默认记忆运行时改为 Node worker，不再依赖随包 Python。首轮和 2026-10-17 的验证记录保留为历史证据，不表示当前二进制或便携包已重建。故事线的当前行为见[故事线](storylines.md)，便携包的发布门禁见 [发行构建说明](../../scripts/release/BUILD.md)。
 
 ## 当前 Launcher 长什么样（2026-10-17 改版，当前源码）
 
@@ -13,7 +13,13 @@
 
 验证范围：启动器单测、浏览器 Mock 预览、真实 playtest 服务器（创作者页、保存接口）。Tauri 无边框窗口实机点击、真实模型试玩和发行包未验收。
 
-模型连接（2026-10-17）：可保存多条连接，Key 存 Windows 凭据管理器；每个实例选自己的模型，角色决策与记忆整理还能按角色分别选，见[模型接口协议](model-protocols.md)。以上改动都还没有重建进便携包。
+模型连接（2026-10-17）：可保存多条连接，Key 存 Windows 凭据管理器；每个实例选自己的模型，角色决策与记忆整理还能按角色分别选，见[模型接口协议](model-protocols.md)。
+
+### Node Core 运行时（2026-11-17 当前源码）
+
+Launcher 继续以 Rust 启动本机 Node 桥接；桥接启动网页 Core Host。Host 默认使用官方 Node Memory Core，Core 和 E5 编码分别运行在 Node worker_threads 中。源码开发时 worker 从 `packages/memory-core/src/node/*.ts` 启动；隔离发行布局使用 `runtime/memory-core/node/*.mjs`，ONNX CPU 原生库由 `runtime/node_modules/onnxruntime-node` 与 `onnxruntime-common` 提供。E5 固定资产放在 `runtime/models/e5-small`，也可通过 `HCW_HINDSIGHT_ONNX_DIR` 指向本地目录。运行时不下载模型或启动 Python。
+
+首次开发准备可运行 `node scripts/setup-memory-assets.mjs`；该命令只负责开发／构建时准备六个固定资产，实际目录按 `HCW_HINDSIGHT_ONNX_DIR` 或默认 `.tmp/hindsight-e5-small` 选择。它们以根部 `packages/memory-core/e5-assets.json` 校验，构建后复制到 Node runtime。发行布局验证命令为 `node scripts/release/verify-core-layout.mjs`，会实际启动源码 TS、仓库 cwd 的 bundled backend（无 `PERSPECTRA_RUNTIME_ROOT`）与隔离 Node runtime 三种布局，并对每种布局执行 Core worker、384 维 CPU E5 编码及默认 Core HTTP Host 检查。
 
 ## 首轮接入记录（2026-10-06）
 
@@ -43,11 +49,15 @@ corepack pnpm@11.7.0 --filter @perspectra/launcher tauri build --debug --no-bund
 & '.\apps\launcher\src-tauri\target\debug\perspectra-launcher.exe'
 ```
 
-本机需要 Node 24、Rust/Cargo，以及现有 Core 记忆的 Python/E5 环境；环境准备沿用 [记忆实验说明](../../experiments/activity-memory/README.md)，不重新建设运行时。Rust 的 Cargo 若未进入当前终端 PATH，重新打开终端。
+本机需要 Node 24、Rust/Cargo 和六个固定 E5 资产。开发环境无需为默认 Core 安装 Python。Rust 的 Cargo 若未进入当前终端 PATH，重新打开终端。
 
-开发入口默认检查 Windows 的 `.tmp/hindsight-vector-venv/Scripts/python.exe`，E5 权重默认读取 `.tmp/hindsight-e5-small`；可分别用 `HCW_HINDSIGHT_PYTHON` 与 `HCW_HINDSIGHT_ONNX_DIR` 覆盖，再重启启动器。缺少 Python 时现在显示明确的准备提示，不再只显示“本机操作失败”，并且在启动 Core 或改变实例进度前退出。当前源码工作区本机缺失的两个目录已用目录链接复用现有便携候选包的 Python 与 E5：候选包目录需要保留，移动后须重建链接或设置覆盖路径；不将本机链接打包或写入版本控制。
+Core 默认从 `.tmp/hindsight-e5-small` 读取本地 E5 资产；可用 `HCW_HINDSIGHT_ONNX_DIR` 覆盖。未准备齐六个固定文件时，Host 会在 Core 启动前报告缺失资产。便携运行时把资产放在 `runtime/models/e5-small` 并设置对应目录，不使用 Python 可执行文件、`HCW_HINDSIGHT_PYTHON` 或 Python Core 路径。
 
-2026-10-17 验证：最近两个已游玩实例只读预检均为 resume，包 Hash 匹配；最近实例的独立副本经真实 LauncherCore 启动成功，页面 200、未鉴权状态接口 401、66 条历史可读，模型调用 0，正常停止。Python/E5 离线编码形状 `[1,384]` 且数值有限。此项只验证继续启动，不验证新一轮真实模型表现；原存档未写入。
+2026-10-17 历史验证：最近两个已游玩实例只读预检均为 resume，包 Hash 匹配；最近实例的独立副本经 LauncherCore 启动成功，页面 200、未鉴权状态接口 401、66 条历史可读，模型调用 0，正常停止。当时的 Python/E5 离线编码结果只描述旧运行时，不能作为当前 Node runtime 的验收证据；原存档未写入。
+
+2026-11-17 Node 切换验收：主线报告默认 Host 集成已通过，覆盖 4 个角色、非空真实 E5 build/recall、save/restore/recall，且测试环境没有 Python 可执行文件。本轮发行任务另在 `.tmp/core-layout-0ygqoK/result.json` 记录三布局启动、Core worker 与本地 E5 编码均通过；三次 HTTP 状态均为 200，默认 `memoryMode` 为 `core`，没有外部模型请求。`tests/host/package-layout.test.ts` 的 5 项测试通过，检查 Node worker、平台原生依赖、发行 Skill 过滤器及 Python 路径缺席。
+
+本轮没有运行 Cargo/Tauri 构建，没有替换 Launcher EXE，也没有生成或重发完整便携包。因此这些检查只证明当前源码与隔离 Node runtime 布局；已有 launcher.exe 或 ZIP 是否包含 Rust 源码改动，仍取决于它们各自的构建时间。
 
 2026-10-17 核对 Windows 开发启动：例如 Vite 和 Rust 编译成功后，窗口创建却报 WebView2 `0x800700AA`「请求的资源在使用中」，本机已复现为开发目录产物继承低完整性标签。同一份 EXE 放在正常用户应用目录后可创建窗口。[开发启动脚本](../../apps/launcher/scripts/desktop.mjs)因此为 Windows 的 `launcher:desktop` 默认设置 `CARGO_TARGET_DIR=%LOCALAPPDATA%/Perspectra/launcher-dev-target`，只调整原生开发构建输出位置；已有显式 `CARGO_TARGET_DIR` 保持不变，直接调用 `tauri build` 的输出位置也不变。未修改工作区、WebView2 安装或游戏数据目录的权限。修复后以新实验数据目录运行实际 `launcher:desktop --no-watch`，Rust 编译并从上述目录运行，Perspectra 窗口创建成功且保持响应，Node 桥接与数据目录初始化成功；Launcher 类型检查及 39 项测试、脚本语法与 Lint、文档链接通过。验收窗口已关闭且 1420 端口释放；没有启动游戏，不替代真实模型和完整玩法验收。
 
@@ -104,11 +114,11 @@ corepack pnpm@11.7.0 --filter @perspectra/launcher tauri build --debug --no-bund
 
 2026-10-17 修复包故障隔离：例如一个已载入游戏的目录被移动，Launcher 仍能打开，其他游戏仍可选择。初始化和刷新包推荐时逐包检查源码与包内 `model-preset.json`；失败包保留索引与实例，清除派生的角色列表、推荐、说明和封面，通过 `packDetails[包 ID].error` 让界面显示校验失败并禁止开始。恢复文件后重新载入相同包可清除错误，不删除存档。`launcher.json`、全局预设设置和预设库自身损坏仍明确失败，不以空配置替代。该修复有缺失目录、损坏源码、损坏包预设和重新载入的自动回归，尚未在原生窗口实测或重建发行包。
 
-API Key 不进入索引、包、参数列表或分享对象；启动时 Rust 桥从凭据管理器读出，经 stdio 请求交给 Node。Node 用 `PERSPECTRA_ROLE_MODELS` 传递已解析的默认及角色决策／记忆目标（不含 Key），用 `PERSPECTRA_MODEL_KEYS` 只传递这些目标引用的连接 Key。2026-10-27 起默认决策也只从前者读取，不再另传 `HCW_LOCAL_*`；Launcher 启动子进程时会清空自身环境里的 `HCW_LOCAL_*` 与 `PERSPECTRA_MODEL_*`。游戏入口在内存中合并目标与 Key，随即删除 `process.env.PERSPECTRA_MODEL_KEYS`；每组 Python 记忆进程显式覆盖 `HCW_LOCAL_API_KEY`，无 Key 时传空串，不继承另一连接的默认 Key。各角色的决策目标整体替换，不继承默认连接的 Key 或思考强度。
+API Key 不进入索引、包、参数列表或分享对象；启动时 Rust 桥从凭据管理器读出，经 stdio 请求交给 Node。Node 用 `PERSPECTRA_ROLE_MODELS` 传递已解析的默认及角色决策／记忆目标（不含 Key），用 `PERSPECTRA_MODEL_KEYS` 只传递这些目标引用的连接 Key。2026-10-27 起默认决策也只从前者读取，不再另传 `HCW_LOCAL_*`；Launcher 启动子进程时会清空自身环境里的 `HCW_LOCAL_*` 与 `PERSPECTRA_MODEL_*`。游戏入口在内存中合并目标与 Key，随即删除 `process.env.PERSPECTRA_MODEL_KEYS`；每个 Node Core worker 只接收其所用模型的配置，不继承另一连接的 Key，E5 编码 worker 不接收模型凭证。各角色的决策目标整体替换，不继承默认连接的 Key 或思考强度。
 
-记忆按协议、地址、模型和 Key 相同的配置复用一组 runner；每组有按需启动的召回 worker，以及独立启动的后台整理进程。角色档案、授权 Source 和 scope 仍分别传入，模型相同不合并记忆；不同配置可能各加载一份 E5，接受额外内存开销。Core 自己管理已提交数据；Launcher 不返回角色私有 Context、记忆档案或模型正文。私有调查日志仍遵循现有运行时说明。
+记忆按协议、地址、模型和 Key 相同的配置复用一组 runner；每组有按需启动的召回 worker，以及独立的后台整理 worker。角色档案、授权 Source 和 scope 仍分别传入，模型相同不合并记忆；不同配置可能各加载一份 E5，接受额外内存开销。Core 自己管理已提交数据；Launcher 不返回角色私有 Context、记忆档案或模型正文。私有调查日志仍遵循现有运行时说明。
 
-进程关系为 Tauri → Node 桥接 → 既有网页 Core → 按需启动的 Python 记忆进程。停止首先使用已有 IPC shutdown，超过等待期限才清理自己拥有的游戏进程树。Windows Job Object 用于 Launcher 意外退出时回收桥接及其后代，不承担未提交反应的精确恢复。
+进程关系为 Tauri → Node 桥接与网页 Core → Core/E5 Node worker_threads。停止首先使用已有 IPC shutdown，超过等待期限才清理自己拥有的游戏进程树。Windows Job Object 用于 Launcher 意外退出时回收桥接及其后代，不承担未提交反应的精确恢复。
 
 本机验收可通过环境变量 `PERSPECTRA_LAUNCHER_DATA_DIR` 指定新的实验根目录。正常用户无需设置。所有本轮实验都使用仓库 `.tmp` 中新建目录，没有写入 `D:/worlds` 或旧 Electron 存档。
 
@@ -118,7 +128,7 @@ API Key 不进入索引、包、参数列表或分享对象；启动时 Rust 桥
 
 真实实例只显示“主故事线”与“已保存的世界进度”；没有从数据库接入历史轮数，因此不显示虚构轮数。插画仍是 Launcher 的通用装饰，没有宣称从包中读取封面。
 
-## 5. 验收记录
+## 6. 首轮验收记录（2026-10-17）
 
 | 检查 | 结果 |
 | --- | --- |
@@ -142,9 +152,10 @@ API Key 不进入索引、包、参数列表或分享对象；启动时 Rust 桥
 
 原生脚本位于 `.tmp/launcher-core-verify/`；截图原始文件位于 `output/playwright/launcher-core-native-main.png` 与 `launcher-core-native-running.png`。验收用临时 WebView 调试配置不进入交付配置。
 
-## 6. 当前接受的限制
+## 7. 当前接受的限制
 
-- 当前 exe 依赖本机 Node、仓库位置、node_modules、Python 与 E5；源码工作区闭环已接通，可独立分发的安装包尚未实现。
+- 旧 Python Core 与 Node Core 的运行时身份不同，旧快照／story node 不承诺跨运行时兼容；身份检查保持严格，不自动重写历史存档。此切换不扫描、修改或自动迁移 `D:/worlds`。
+- 本轮没有重建 Tauri Launcher EXE 或完整发行包；需要使用包含本次 Rust 与 Node payload 改动的构建产物，不能仅替换随包文档来升级运行时。
 - 只接受 v5 世界包源目录，不接受 ZIP；不自动迁移旧世界。2026-10-25 起同 ID 的包内容变了（作者改了包文件）时，启动器启动或重新载入会更新记录的包指纹：还没玩过的实例开始时直接采用当前包；已有进度的实例拒绝开始，提示新建实例或恢复原包。
 - 每个实例一个主分支；历史分叉、故事线导入导出、角色独立模型映射与独立连接测试均未接入。
 - 已接通 OpenAI 兼容、Anthropic Messages 与 Google Gemini 原生协议；配置、预设差异和真实模型验收限制见[模型接口协议](model-protocols.md)。Launcher 未接入 Ollama 专用协议、Vertex AI 或 OAuth。

@@ -19,7 +19,11 @@ export function createE5Worker(directory: string, entry = new URL('./e5-worker.t
     ): Promise<{ tokens: number[][]; vectors: number[][] }> {
       if (closed || signal.aborted) return Promise.reject(new Error('E5 request cancelled'))
       if (pending) return Promise.reject(new Error('E5 worker is busy'))
-      worker ??= new Worker(entry, { workerData: { directory }, env: {}, execArgv: [] })
+      worker ??= new Worker(entry, {
+        workerData: { directory },
+        env: {},
+        execArgv: entry.pathname.endsWith('.ts') ? ['--experimental-transform-types'] : [],
+      })
       const active = worker
       return new Promise((resolve, reject) => {
         const abort = () => {

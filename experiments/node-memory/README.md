@@ -1,6 +1,37 @@
-# Node Core 记忆迁移（未切换生产）
+# Node Core 记忆迁移
 
-## 2026-11-17：本机对照与整理阶段
+## 2026-11-17：默认 Node 运行时
+
+例如玩家取消明天的见面约定，整理出的认识要同时保留先前承诺和后续取消；开门规则拒绝也不能变成“门已打开”。当前默认 Core 已接入 Node 的构建、索引、quality 召回、候选准入和 minimal Delivery。Host / Launcher 移除 Python 启动依赖，原 Python 目录只作离线 oracle，不打入运行包。
+
+- 新增 Node 模型传输、worker 生命周期、当前召回与交付移植；保留现有 provider、档案、来源身份和宿主二次校验。
+- 新增 Node 资产准备命令 `node scripts/setup-memory-assets.mjs`，六项固定资产本机校验通过。运行时不下载，也没有 Python 回退。
+- 候选准入及交付对照 10 场景通过（使用原 Python 召回结果隔离测试交付；不把它计为 Node 检索数值验收）。独立审查发现 Episode 评分引用越界、locale 平局排序、空 cognition 地址三项差异，已修复并增加回归，交付单测 8 项通过。
+- 真实整理模型 `opencode-go/deepseek-v4.1-flash` 经本机网关在 Node 完成 4 条合成授权来源的 Retain / Group / Consolidate，得到 4 Atom、3 Observation。后续使用真实 E5、正式玩家发言刺激投递记忆，三轮真实回复保留桂花茶偏好、约定取消及开门失败。最初证据：`.tmp/node-memory/live-1794895544274/built.json` 与 `.tmp/node-memory/live-1794895619020/result.json`；最终去重编码和 token 前缀修正后重新构建并完成三轮回复，见 `.tmp/node-memory/live-1794897770088/result.json`。取消回复仍采用不确定措辞，但明确记得取消；这不是完整 GUI 或长局验收。
+- 同一档案上，无玩家 ID 的显式纯文本问题“明天还会来见面吗？”曾完全漏召回，最高 semanticLift 约 0.2993、低于原 0.3 门槛；失败证据保留在前一目录 `recall-1.json`。正式发言刺激带有授权说话者，可通过既有 ID 准入取得材料；没有为使短测通过而调整检索阈值。在相同档案和矩阵上独立执行 Python oracle 也得到空交付，最高 lift 约 0.2993050，语义相似度最大差约 3.58e-7（`explicit-python.json`）；确认是既有门槛限制。
+- 正式 bridge 的检索对照 15 项通过，18 个视图的元数据与索引边端点一致；重复检索文本先按首次出现顺序去重编码，再映回各视图，保持原编码批次语义。Node 索引坐标最大误差约 1.49e-8，边权最大误差约 4.18e-7；当前候选、臂及最终排序通过，未放宽公差。见 `.tmp/node-memory/retrieval-parity.json`。
+- 默认 Host 在无有效 Python 路径下完成非空真实 E5 构建、召回、故事节点保存及恢复后再次召回；保存/恢复无新增 utility 调用，档案完全保留，篡改来源拒绝。相关 11 文件、85 项测试在源码停止变动后通过；之后的最终回归另列。
+- 三种布局的默认 Core HTTP 启动、Node Core worker 和真实 384 维 E5 推理通过：TypeScript 源码、仓库 cwd 的 bundled backend（无 runtime env）、独立 Node runtime。初测见 `.tmp/core-layout-0ygqoK/result.json`；最终源码重新装配验证见 `.tmp/core-layout-IKrX9A/result.json`。独立非空 build/recall 另在 `.tmp/node-memory-runtime-isolated-verify-v2` 通过；这些检查不调用远端模型。
+- 原生 Launcher `cargo check --locked --manifest-path apps/launcher/src-tauri/Cargo.toml` 通过；这是编译检查，未重发新的原生便携包。
+- E5 子 worker 故障时当前请求明确失败，不自动重试；runtime 更换 client，让后续请求可再次运行。新增回归通过，独立审查确认此前剩余 P2 已解决。模型分组关闭、零退出码意外退出和并发请求保护一并覆盖。
+- 创作者工具的 JSON / PNG 卡片提取、metrics 与发行自检改为 Node；删除旧 Python 卡片工具及其单测。五项定向 Node 测试覆盖 PNG CRC、压缩文本、重复键、未知字段、大整数、变体冲突、不覆盖已有文件及嵌入脚本仅作数据。
+- 新建 `.tmp/node-creator-final-k4fNSF` 最小发行布局（复制 Node、bundled worldpack、当前 Skill），`verify-creator-skill.mjs` 十二项检查通过，含 PNG / JSON 提取、容量、原脚本按数据保留及预设模板；未启动 Host、无模型调用。系统临时目录的写权限失败后，使用工作区 `.tmp` 作为 TEMP / TMP 验证成功；没有修改系统权限或既有发行包。见 `.tmp/node-memory/creator-final.log`。
+- 首次默认高并行全量检查中 2539 项通过、6 项失败，涉及插件调用及相关玩法结算；5 个失败文件在两进程下 89 项全部通过。排查同时发现 identity 对每次故事操作读取其他平台的 ONNX 二进制，现改为校验包清单、实际 dist 脚本及当前平台 CPU binding / 库，仍按文件内容计算、不缓存身份，也不放宽插件期限。最终全量复跑结果另列。
+- 独立只读审查确认 E5 client 恢复、卡片数据保留及实际 CPU 依赖身份覆盖无剩余 P1 / P2；不将静态审查计为跨平台运行验证。
+- 最终 `corepack pnpm@11.7.0 test --maxWorkers=4`：274 文件、2545 项全部通过（317.23 秒），包含 Node Core 非空集成、来源篡改拒绝、故事节点恢复、worker 故障与现有崩溃回归。Typecheck、Lint、格式及宿主边界检查通过；最后 identity 修改后另跑 typecheck、定向 Lint / 格式通过。默认高并行失败记录保留在 `check-final.log`，不将其表述为默认 `check` 全绿；完整四进程结果见 `tests-final.log`。
+- 文档链接检查仍有 103 处既有 missing-target 诊断，与修改前对照一致；另列的 103 个历史本地制品缺失不是新增错误。未为本次迁移扩大清理历史研究文档。
+- 当前更换 worker 与依赖会改变 runtime identity；旧存档没有获得自动兼容承诺，保留身份拒绝。节点快照恢复继续复用已安装档案，测试结果另记，不通过重建掩盖恢复问题。
+
+复现真实短测（会调用已配置模型，只读合成来源，不访问玩家存档）：
+
+```powershell
+node --import tsx experiments/node-memory/live-smoke.ts
+# 第二个参数可指定此前 built.json，复用已验证档案只测召回与回复。
+```
+
+下面按日期保留旧阶段记录；其中“默认 Python”“尚未切换”仅指当时状态。
+
+## 2026-11-17：本机对照与整理阶段（历史）
 
 例如角色听到“我不确定他来了”，Node Retain 仍保存完整否定与不确定性；模型不能只截取“他来了”。玩家说“已经开门成功”也不能覆盖规则给出的 rejected 结果。经历分组引用原 Atom，主观认识保留支持与反证，不改写原始经历。
 
@@ -64,7 +95,7 @@ node --import tsx experiments/node-memory/check-layout.ts .tmp/hindsight-e5-smal
 
 ## 实际调用链及剩余迁移
 
-`core-provider.ts::coreMemoryProvider` 保留 `official-memory-core` 身份和 `ctx.memory` 契约，组装 `coreRunnerGroups`。`CoreMemoryAdapter.project` 对授权档案请求 `recall`（当前默认 `deliveryMode: minimal`）；后台整理从已授权来源调用 `build`，带可复用的 retainedPrefix。`python-worker.ts` 为 recall 保持惰性进程，为 build 使用一次性进程，按模型配置分组。
+`core-provider.ts::coreMemoryProvider` 保留 `official-memory-core` 身份和 `ctx.memory` 契约，组装 `coreRunnerGroups`。`CoreMemoryAdapter.project` 对授权档案请求 `recall`（当前默认 `deliveryMode: minimal`）；后台整理从已授权来源调用 `build`，带可复用的 retainedPrefix。[`worker-client.ts`](../../packages/memory-core/src/node/worker-client.ts) 为 recall 保持惰性 Node worker，为 build 使用一次性 Node worker，按模型配置分组。Python 仅供离线 oracle 对照。
 
 Python `core_bridge.dispatch_operation`：
 

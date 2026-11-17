@@ -1,5 +1,5 @@
 import { execFileSync, spawn } from 'node:child_process'
-import { randomUUID } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 import { resolve, join, dirname } from 'node:path'
 import { mkdir, writeFile, readFile, access, readdir } from 'node:fs/promises'
 import { build, transform } from 'esbuild'
@@ -53,6 +53,9 @@ const buildInfo = JSON.parse(await readFile(join(root, 'build-info.json'), 'utf8
 if (buildInfo.includesDemoPacks !== false || (await readdir(root)).includes('examples')) {
   throw Error('Expected a program-only payload without demo packs')
 }
+if (process.platform !== 'win32' || process.arch !== 'x64') throw Error('Windows x64 portable verification required')
+if (buildInfo.memoryRuntime !== 'Node worker' || !buildInfo.onnxruntimeNode)
+  throw Error('Expected the Node memory runtime in build-info.json')
 execFileSync(process.execPath, ['scripts/release/verify-worldpack-cli.mjs', root], {
   stdio: 'inherit',
   windowsHide: true,
@@ -60,20 +63,111 @@ execFileSync(process.execPath, ['scripts/release/verify-worldpack-cli.mjs', root
 await access(join(root, 'runtime/creator-assets/index.html'))
 await access(join(root, 'runtime/lens-assets/index.html'))
 const runtime = join(root, 'runtime')
+async function checkNodeOnly(directory, relative = '') {
+  for (const entry of await readdir(directory, { withFileTypes: true })) {
+    const path = join(directory, entry.name),
+      name = relative ? relative + '/' + entry.name : entry.name
+    if (entry.isSymbolicLink()) throw Error('Portable runtime contains a link: ' + name)
+    if (entry.isDirectory()) {
+      if (/^(?:python|__pycache__)$/iu.test(entry.name))
+        throw Error('Portable runtime contains a Python directory: ' + name)
+      await checkNodeOnly(path, name)
+    } else if (/\.(?:py|pyc)$/iu.test(entry.name)) {
+      throw Error('Portable runtime contains Python source or bytecode: ' + name)
+    }
+  }
+}
+await checkNodeOnly(runtime)
+for (const path of [
+  'memory-core/node/core-worker.mjs',
+  'memory-core/node/e5-worker.mjs',
+  'node_modules/onnxruntime-node/package.json',
+  'node_modules/onnxruntime-common/package.json',
+  'node_modules/onnxruntime-common/dist/cjs/package.json',
+  'node_modules/onnxruntime-common/dist/esm/package.json',
+  'node_modules/onnxruntime-node/bin/napi-v6/win32/x64/onnxruntime_binding.node',
+  'node_modules/onnxruntime-node/bin/napi-v6/win32/x64/onnxruntime.dll',
+])
+  await access(join(runtime, path))
+const onnxInfo = JSON.parse(await readFile(join(runtime, 'node_modules/onnxruntime-node/package.json'), 'utf8')),
+  commonInfo = JSON.parse(await readFile(join(runtime, 'node_modules/onnxruntime-common/package.json'), 'utf8')),
+  commonCjs = JSON.parse(
+    await readFile(join(runtime, 'node_modules/onnxruntime-common/dist/cjs/package.json'), 'utf8'),
+  ),
+  commonEsm = JSON.parse(
+    await readFile(join(runtime, 'node_modules/onnxruntime-common/dist/esm/package.json'), 'utf8'),
+  ),
+  assets = JSON.parse(await readFile('packages/memory-core/e5-assets.json', 'utf8'))
+if (onnxInfo.version !== buildInfo.onnxruntimeNode || commonInfo.version !== onnxInfo.version)
+  throw Error('Portable ONNX Runtime package versions disagree with build-info.json')
+if (commonCjs.type !== 'commonjs' || commonEsm.type !== 'module')
+  throw Error('Portable onnxruntime-common module metadata is incomplete')
+for (const [file, expected] of Object.entries(assets.files)) {
+  const bytes = await readFile(join(runtime, 'models/e5-small', file))
+  if (createHash('sha256').update(bytes).digest('hex') !== expected)
+    throw Error('Portable E5 asset hash mismatch: ' + file)
+}
+for (const path of ['python', 'python.exe', 'memory-core/python']) {
+  try {
+    await access(join(runtime, path))
+    throw Error('Portable payload still contains a Python runtime path: ' + path)
+  } catch (error) {
+    if (error.message?.startsWith('Portable payload')) throw error
+    if (error.code !== 'ENOENT') throw error
+  }
+}
+const nodeSmoke = join(data, 'node-e5-smoke.mjs')
+await writeFile(
+  nodeSmoke,
+  `import assert from 'node:assert/strict'
+import { Worker } from 'node:worker_threads'
+import { join } from 'node:path'
+import { pathToFileURL } from 'node:url'
+const runtime = process.argv[2]
+const worker = new Worker(pathToFileURL(join(runtime, 'memory-core/node/e5-worker.mjs')), {
+  workerData: { directory: join(runtime, 'models/e5-small') },
+  execArgv: [],
+})
+try {
+  const result = await new Promise((resolve, reject) => {
+    worker.once('error', reject)
+    worker.once('message', reply => reply.error ? reject(new Error(reply.error)) : resolve(reply.result))
+    worker.postMessage({ texts: ['便携 Node CPU E5 编码验收'], query: false })
+  })
+  assert.equal(result.vectors.length, 1)
+  assert.equal(result.vectors[0].length, 384)
+  assert(result.vectors[0].every(Number.isFinite))
+  process.stdout.write(JSON.stringify({ encoder: 'onnxruntime-node CPU', vectors: 1, dimensions: 384 }) + '\\n')
+} finally {
+  await worker.terminate()
+}
+`,
+)
+const cleanEnv = { ...process.env, PATH: 'C:\\Windows\\System32;C:\\Windows\\System32\\WindowsPowerShell\\v1.0' }
+for (const name of [
+  'HCW_HINDSIGHT_PYTHON',
+  'HCW_HINDSIGHT_CORE_DIR',
+  'HF_HUB_OFFLINE',
+  'TRANSFORMERS_OFFLINE',
+  'PYTHONHOME',
+  'PYTHONPATH',
+  'PYTHONNOUSERSITE',
+  'PYTHONDONTWRITEBYTECODE',
+])
+  delete cleanEnv[name]
+const nodeMemoryResult = execFileSync(join(runtime, 'node.exe'), [nodeSmoke, runtime], {
+  cwd: runtime,
+  env: cleanEnv,
+  encoding: 'utf8',
+  windowsHide: true,
+  timeout: 120_000,
+})
+await writeFile(join(data, 'node-memory-result.json'), nodeMemoryResult)
 const env = {
-  ...process.env,
-  PATH: 'C:\\Windows\\System32;C:\\Windows\\System32\\WindowsPowerShell\\v1.0',
+  ...cleanEnv,
   PERSPECTRA_RUNTIME_ROOT: runtime,
-  HCW_HINDSIGHT_PYTHON: join(runtime, 'python/python.exe'),
-  HCW_HINDSIGHT_CORE_DIR: join(runtime, 'memory-core/python/core'),
   HCW_HINDSIGHT_ONNX_DIR: join(runtime, 'models/e5-small'),
   HCW_HINDSIGHT_CACHE_DIR: join(data, 'cache'),
-  HF_HUB_OFFLINE: '1',
-  TRANSFORMERS_OFFLINE: '1',
-  PYTHONNOUSERSITE: '1',
-  PYTHONDONTWRITEBYTECODE: '1',
-  PYTHONHOME: undefined,
-  PYTHONPATH: undefined,
 }
 const child = spawn(join(runtime, 'node.exe'), [join(runtime, 'launcher.mjs'), join(data, 'launcher')], {
   cwd: runtime,
@@ -194,6 +288,7 @@ try {
         coreStopped: true,
         frontendMatchesSource: true,
         programOnly: true,
+        nodeMemory: JSON.parse(nodeMemoryResult),
         creatorCliPassed: true,
         sourcePack,
       },
@@ -206,16 +301,3 @@ try {
   child.stdin.end()
   if (child.exitCode === null) await new Promise(resolve => child.once('exit', resolve))
 }
-const python = spawn(
-  join(runtime, 'python/python.exe'),
-  ['-I', '-B', resolve('scripts/release/verify-python.py'), runtime],
-  { cwd: runtime, env, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] },
-)
-let output = '',
-  error = ''
-python.stdout.on('data', s => (output += s))
-python.stderr.on('data', s => (error += s))
-const code = await new Promise(resolve => python.once('exit', resolve))
-if (code !== 0) throw Error('Python smoke failed: ' + error.slice(-1500))
-await writeFile(join(data, 'python-result.json'), output)
-console.log(output.trim())

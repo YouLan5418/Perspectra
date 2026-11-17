@@ -32,7 +32,7 @@ async function main(): Promise<void> {
   const packPath = launch.packPath ?? (process.env.HCW_PLAYTEST_PACK?.trim() || undefined)
   const dataDirectory =
     launch.dataDirectory ?? (process.env.HCW_PLAYTEST_DATA_DIRECTORY?.trim() || defaultGameDirectory())
-  // Keys stay in this process's memory only; the Core Python workers receive just the key of their own target.
+  // Keys stay in this process's memory only; each Core Node worker receives just its own model key.
   const models = process.env.PERSPECTRA_ROLE_MODELS
     ? runtimeRoleModels(
         JSON.parse(process.env.PERSPECTRA_ROLE_MODELS),

@@ -8,12 +8,13 @@ Tauri 2 + Vue 3 本机启动器。当前已接通 v5 世界包目录、独立实
 
 ```powershell
 corepack pnpm@11.7.0 install --frozen-lockfile
+node scripts/setup-memory-assets.mjs
 corepack pnpm@11.7.0 launcher:desktop
 corepack pnpm@11.7.0 launcher:check
 corepack pnpm@11.7.0 --filter @perspectra/launcher tauri build --no-bundle
 ```
 
-开发机需要 Node、仓库依赖、Rust/Cargo、Windows 构建工具，以及 [Core 记忆环境](../../packages/memory-core/README.md) 的 Python/E5。`launcher:dev` 仅运行浏览器 Mock 展示，不能启动真实 Core。
+开发机需要 Node、仓库依赖、Rust/Cargo、Windows 构建工具，以及由 Node setup 脚本准备的六个固定 E5 资产。默认 Core 不依赖 Python。`launcher:dev` 仅运行浏览器 Mock 展示，不能启动真实 Core。
 
 ### 启动器图标
 
@@ -29,7 +30,7 @@ corepack pnpm@11.7.0 --filter @perspectra/launcher tauri icon "D:/DeepSeek Harne
 
 ## Windows x64 便携候选版
 
-便携包在 EXE 同级 `runtime` 中自带 Node、Python、E5、固定 WebView2 和 C++ 运行库，玩家无需安装开发工具。正式构建缺少运行依赖时明确报错；源码回退仅用于 debug。
+便携包在 EXE 同级 `runtime` 中自带 Node、Node Core/E5 worker、ONNX CPU 原生依赖、固定 E5 资产、固定 WebView2 和 C++ 运行库；玩家无需安装 Node、Python 或开发工具。正式构建缺少运行依赖时明确报错；源码回退仅用于 debug。
 
 2026-10-24 原生启动复核：工作区内的 candidate4 EXE 带 Low Mandatory Level 标签，创建 WebView2 时报 0x800700AA 并退出；将原 ZIP 完整重新解压到普通用户目录后，同一摘要的 EXE 已打开完整界面。开发工作区的限制不写入 ZIP；请在普通目录验收便携包，不通过修改系统权限或删除现有配置解决。完整过程见[本轮验收记录](../../docs/current/studies/program-package-creator-skill-20261024.md)。
 

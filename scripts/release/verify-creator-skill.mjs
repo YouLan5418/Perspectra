@@ -47,7 +47,7 @@ const validate = () => {
 }
 validate()
 
-// Use the shipped Python with a synthetic card, never the creator's private card collection.
+// Use the shipped Node runtime with a synthetic card, never the creator's private card collection.
 const card = {
   spec: 'chara_card_v3',
   spec_version: '3.0',
@@ -106,18 +106,8 @@ await writeFile(
   ]),
 )
 const extracted = join(work, '提取结果')
-const python = join(root, 'runtime/python', process.platform === 'win32' ? 'python.exe' : 'bin/python3')
-const extraction = spawnSync(
-  python,
-  ['-B', join(skill, 'scripts/tavern/extract_cards.py'), input, '--out', extracted],
-  {
-    cwd: work,
-    env: { ...env, PYTHONHOME: undefined, PYTHONPATH: undefined, PYTHONNOUSERSITE: '1' },
-    windowsHide: true,
-    encoding: 'utf8',
-    timeout: 30_000,
-  },
-)
+const extractor = join(skill, 'scripts/tavern/extract_cards.mjs')
+const extraction = run(extractor, [input, '--out', extracted])
 assert.equal(extraction.status, 0, extraction.stderr)
 const extractionReport = JSON.parse(extraction.stdout)
 assert.equal(extractionReport.inputs, 2)
@@ -133,16 +123,7 @@ for (const item of extractionManifest) {
   )
   await access(join(variant, 'capacity.json'))
 }
-const repeatedExtraction = spawnSync(
-  python,
-  ['-B', join(skill, 'scripts/tavern/extract_cards.py'), input, '--out', extracted],
-  {
-    cwd: work,
-    env: { ...env, PYTHONHOME: undefined, PYTHONPATH: undefined },
-    windowsHide: true,
-    encoding: 'utf8',
-  },
-)
+const repeatedExtraction = run(extractor, [input, '--out', extracted])
 assert.notEqual(repeatedExtraction.status, 0)
 
 // Reuse the actual native validator for both exchange files and bare pack recommendations.

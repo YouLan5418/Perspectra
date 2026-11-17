@@ -39,7 +39,7 @@ import type {
 
 export { officialMemoryNoneProvider } from '@perspectra/providers/memory-none'
 export { officialLlmProvider, llmTimeoutMs, type ModelOptions } from '@perspectra/providers/llm'
-export { CORE_MEMORY_ID, corePythonExecutable, corePythonRoot } from '@perspectra/memory-core/paths'
+export { CORE_MEMORY_ID, coreMemoryRoot, coreAssetDirectory } from '@perspectra/memory-core/paths'
 
 /** The default gameplay install, explicitly supplied by desktop entry composition. */
 export const defaultInteractionPackages = createInstalledInteractionPackages
