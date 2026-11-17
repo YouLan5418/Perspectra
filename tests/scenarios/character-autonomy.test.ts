@@ -577,7 +577,7 @@ it('reserves the shared autonomous budget before dispatching multiple due roles'
     { autonomyNpcCalls: 3, autonomyReactionWaves: 0 },
   )
   f.setDecision(input => (input.continuation ? { decision: 'abstain' } : move('location:back-room')))
-  const state = await f.runtime.submit('自行安排')
+  const state = await f.runtime.submit('/act speak {"text":"自行安排","scope":"self"}')
   expect(state.error).toBe(false)
   expect(state.debug.autonomy).toMatchObject({ autonomousCalls: 2, terminalReason: 'call_limit' })
   expect(f.requests.map(actor)).toEqual(['character:companion', 'character:companion'])

@@ -179,8 +179,8 @@ export interface HostRuntime {
   creatorHistory?(query?: CreatorHistoryQuery): CreatorHistorySnapshot
   state(): Promise<HostState>
   processStimulus?(afterSeq?: number): Promise<HostState>
-  submit(text: string): Promise<HostState>
-  perform?(action: HostAction, line?: PlayerLine): Promise<HostState>
+  submit(text: string, idempotencyKey?: string, onCommitted?: () => void): Promise<HostState>
+  perform?(action: HostAction, line?: PlayerLine, idempotencyKey?: string, onCommitted?: () => void): Promise<HostState>
   activityAction?(request: ActivityRequest): Promise<HostState>
   escape?(): Promise<HostState>
   refreshMemory?(): Promise<HostState>
@@ -366,12 +366,12 @@ export function createHostServer(
                 }
               : {}),
             capabilities,
-            view: projectPlayerView(await runtime.state()),
+            view: await frontendActions.view(),
           })
           return
         }
         if (request.method === 'GET' && url.pathname === '/frontend-api/v1/view') {
-          json(response, 200, projectPlayerView(await runtime.state()))
+          json(response, 200, await frontendActions.view())
           return
         }
         if (
@@ -540,7 +540,7 @@ export function createHostServer(
                 policyRevision = policy.revision
                 response.write('data: ' + JSON.stringify({ type: 'frontend-policy', mode: policy.mode }) + '\n\n')
               }
-              const next = projectPlayerView(await runtime.state())
+              const next = await frontendActions.view()
               const changes = previous ? playerViewPatch(previous, next) : null
               if (!response.destroyed && (!previous || changes))
                 response.write(

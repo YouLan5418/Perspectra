@@ -249,6 +249,90 @@ it('retains failed action IDs and does not execute a failed request again', asyn
   expect(JSON.stringify(await first.json())).not.toContain('PRIVATE_MODEL_BODY')
   expect(submit).toHaveBeenCalledOnce()
 })
+it('binds transient progress to the current request callback and never trusts an old interruptible view', async () => {
+  type RuntimeCall = { onCommitted: () => void; finish: () => void }
+  let state: HostState = { ...privateState(), busy: true, canInterrupt: true, background: true }
+  const calls: RuntimeCall[] = []
+  const perform = vi.fn(
+    async (_action: unknown, _line: unknown, _actionId: unknown, onCommitted: () => void) =>
+      await new Promise<HostState>(done => calls.push({ onCommitted, finish: () => done(state) })),
+  )
+  const actions = new FrontendActions({ state: async () => state, perform } as unknown as HostRuntime)
+  const view = () =>
+    (actions as unknown as { view(): Promise<{ inputProgress?: { actionId: string; committed: true } }> }).view()
+  const send = (requestId: string, actionId: string) =>
+    actions.perform({ requestId, actionId, operation: 'perform', payload: { optionId: 'move:room-2' } })
+  const first = send('request:first', 'action:first')
+
+  await vi.waitFor(() => expect(calls).toHaveLength(1))
+  expect(perform).toHaveBeenCalledWith(
+    { actionType: 'move', parameters: { locationId: 'room-2' } },
+    undefined,
+    'action:first',
+    expect.any(Function),
+  )
+  expect((await view()).inputProgress).toBeUndefined()
+  calls[0]!.onCommitted()
+  const firstView = await actions.view()
+  expect(firstView.inputProgress).toEqual({ actionId: 'action:first', committed: true })
+
+  const second = send('request:second', 'action:second')
+  await vi.waitFor(() => expect(calls).toHaveLength(2))
+  expect((await view()).inputProgress).toBeUndefined()
+  expect(JSON.parse(JSON.stringify(playerViewPatch(firstView, await actions.view())))).toMatchObject({
+    inputProgress: null,
+  })
+  state = { ...state, canInterrupt: false, background: false }
+  calls[1]!.onCommitted()
+  expect((await view()).inputProgress).toBeUndefined()
+  state = { ...state, canInterrupt: true, background: true }
+  expect((await view()).inputProgress).toEqual({ actionId: 'action:second', committed: true })
+
+  calls[0]!.finish()
+  await first
+  expect((await view()).inputProgress).toEqual({ actionId: 'action:second', committed: true })
+  calls[1]!.finish()
+  await second
+  expect((await view()).inputProgress).toBeUndefined()
+})
+it('passes the request action ID and commit callback for speech and hides progress during an uninterruptible activity', async () => {
+  let state: HostState = {
+    ...privateState(),
+    busy: true,
+    canInterrupt: false,
+    background: false,
+    activity: {
+      activityKey: 'battle',
+      title: '战斗',
+      id: 'activity:battle',
+      revision: 1,
+      participants: ['character:player'],
+      game: { active: true, turn: 'character:player', phase: 'playing', public: {}, private: {} },
+    },
+  }
+  let onCommitted!: () => void, release!: () => void
+  const blocked = new Promise<void>(done => (release = done))
+  const submit = vi.fn(async (_text: string, _actionId: string, committed: () => void) => {
+    onCommitted = committed
+    await blocked
+    return state
+  })
+  const actions = new FrontendActions({ state: async () => state, submit } as unknown as HostRuntime)
+  const request = actions.perform({
+    requestId: 'request:speech',
+    actionId: 'action:speech',
+    operation: 'speak',
+    payload: { text: '你好' },
+  })
+
+  await vi.waitFor(() => expect(submit).toHaveBeenCalledOnce())
+  expect(submit).toHaveBeenCalledWith('你好', 'action:speech', expect.any(Function))
+  onCommitted()
+  state = { ...state, canInterrupt: false }
+  expect((await actions.view()).inputProgress).toBeUndefined()
+  release()
+  await request
+})
 it('accepts only current Core-provided options, rejects fabricated actions, parameters and admin operations', async () => {
   const { send, runtime } = await fixture()
   expect((await send('perform', { optionId: 'move:secret' }, 'fake')).status).toBe(400)
@@ -258,7 +342,12 @@ it('accepts only current Core-provided options, rejects fabricated actions, para
   expect((await send('writeEvent', { event: 'taken' }, 'admin')).status).toBe(400)
   expect(runtime.perform).not.toHaveBeenCalled()
   expect((await send('perform', { optionId: 'move:room-2' }, 'valid')).status).toBe(200)
-  expect(runtime.perform).toHaveBeenCalledWith({ actionType: 'move', parameters: { locationId: 'room-2' } })
+  expect(runtime.perform).toHaveBeenCalledWith(
+    { actionType: 'move', parameters: { locationId: 'room-2' } },
+    undefined,
+    'valid',
+    expect.any(Function),
+  )
 })
 it('accepts participant choices only on a current dynamic activity start and rejects unavailable or changed candidates', async () => {
   const { send, runtime, setState } = await fixture()
@@ -285,10 +374,15 @@ it('accepts participant choices only on a current dynamic activity start and rej
   expect((await send('perform', { optionId: 'move:room-2', npcIds: ['visible'] }, 'fixed')).status).toBe(400)
   expect(runtime.perform).not.toHaveBeenCalled()
   expect((await send('perform', { optionId: option.id, npcIds: ['visible'] }, 'selected')).status).toBe(200)
-  expect(runtime.perform).toHaveBeenCalledWith({
-    ...option.action,
-    parameters: { ...option.action.parameters, startParameters: { npcIds: ['visible'] } },
-  })
+  expect(runtime.perform).toHaveBeenCalledWith(
+    {
+      ...option.action,
+      parameters: { ...option.action.parameters, startParameters: { npcIds: ['visible'] } },
+    },
+    undefined,
+    'selected',
+    expect.any(Function),
+  )
   setState({
     ...state,
     activities: [{ ...state.activities[0]!, participantSelection: { min: 1, max: 1, candidates: [] } }],
@@ -457,7 +551,11 @@ it('submits dialogue and multiline narration once, retaining both in the retry i
   expect((await send('speak', payload)).status).toBe(200)
   expect((await send('speak', payload, 'action:test', 'request:retry')).status).toBe(200)
   expect(runtime.submit).toHaveBeenCalledOnce()
-  expect(runtime.submit).toHaveBeenCalledWith('/act speak ' + JSON.stringify(payload))
+  expect(runtime.submit).toHaveBeenCalledWith(
+    '/act speak ' + JSON.stringify(payload),
+    'action:test',
+    expect.any(Function),
+  )
   expect((await send('speak', { ...payload, narration: '不同描写' })).status).toBe(400)
   expect((await send('speak', { text: '', narration: '纯描写' }, 'action:narration')).status).toBe(200)
   expect((await send('speak', { text: '', narration: '' }, 'action:empty')).status).toBe(400)
@@ -507,7 +605,11 @@ it.each(['scene_public', 'direct', 'private', 'self'])(
       addresseeIds: scope === 'direct' || scope === 'private' ? ['character:visible'] : [],
     }
     expect((await send('speak', payload)).status).toBe(200)
-    expect(runtime.submit).toHaveBeenCalledExactlyOnceWith('/act speak ' + JSON.stringify(payload))
+    expect(runtime.submit).toHaveBeenCalledExactlyOnceWith(
+      '/act speak ' + JSON.stringify(payload),
+      'action:test',
+      expect.any(Function),
+    )
     expect((await send('speak', payload, 'action:test', 'request:retry')).status).toBe(200)
     expect(runtime.submit).toHaveBeenCalledOnce()
     expect(
@@ -728,10 +830,15 @@ it('keeps an offer’s fixed inputs out of the form and lets them win over what 
   expect((await send('perform', { optionId: 'move:room-2', arguments: { number: 1 } }, 'no-inputs')).status).toBe(400)
   expect(runtime.perform).not.toHaveBeenCalled()
   expect((await send('perform', { optionId: guess.id, arguments: { number: 7 } }, 'guess')).status).toBe(200)
-  expect(runtime.perform).toHaveBeenCalledWith({
-    ...guess.action,
-    parameters: { ...guess.action.parameters, arguments: { number: 7, activityId: 'activity:1', revision: 3 } },
-  })
+  expect(runtime.perform).toHaveBeenCalledWith(
+    {
+      ...guess.action,
+      parameters: { ...guess.action.parameters, arguments: { number: 7, activityId: 'activity:1', revision: 3 } },
+    },
+    undefined,
+    'guess',
+    expect.any(Function),
+  )
 })
 it('sends a line with an action as one turn and checks its audience and character inputs against the scene', async () => {
   const { send, runtime, setState } = await fixture()
@@ -759,6 +866,8 @@ it('sends a line with an action as one turn and checks its audience and characte
   expect(runtime.perform).toHaveBeenCalledWith(
     { ...steal.action, parameters: { ...steal.action.parameters, arguments: { targetId: 'character:visible' } } },
     { speech: line, order: 'after' },
+    'turn',
+    expect.any(Function),
   )
   expect(runtime.submit).not.toHaveBeenCalled()
 })
@@ -845,6 +954,9 @@ it('B8 routes finite select controls via the current formal offer and rejects re
   expect((await send('setPluginControl', { id: 'rules/mode', value: 'quiet' }, 'quiet-mode')).status).toBe(200)
   expect(runtime.perform).toHaveBeenCalledWith(
     expect.objectContaining({ parameters: expect.objectContaining({ arguments: { fixed: 1, mode: 'quiet' } }) }),
+    undefined,
+    'quiet-mode',
+    expect.any(Function),
   )
   setState({ ...state, availableActions: [] })
   expect((await send('setPluginControl', { id: 'rules/mode', value: 'normal' }, 'stale-mode')).status).toBe(400)

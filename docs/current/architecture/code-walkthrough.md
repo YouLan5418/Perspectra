@@ -1,5 +1,8 @@
 # 一次输入的代码路线
 
+2026-11-17 核对：以重构后的 main `97d4dcde` 为基线，普通观察与通用唤醒机会合并时优先普通预算；后台竞争时减少可选调用预留，最后一次普通调用仅允许表达。玩家操作提交通过请求自身的回调确认，前端按 actionId 解除提交锁，复用统一视图字段清单；核心硬预算、权限和周期结算判定保留。例子、测试与真实模型短测见[主干调度优化](../studies/2026-11-17-main-scheduling-responsiveness.md)。
+
+
 2026-11-15 B10：包职责与应用目录已收敛，完整图见 [迁移记录](../../superpowers/plans/2026-11-15-composable-engine-b10-packages.md)。对照 B9 提交 `76d818dc` 阅读时，旧 `desktop/` 对应 `apps/host/src/`，旧 Launcher 管理文件对应 `apps/launcher/backend/`，旧 application 对应 `packages/core/src/application/`。
 
 搜证的最短阅读路线：
@@ -71,7 +74,7 @@ NPC 处理途中玩家也可以插话，规则见下一节末尾。
 
 **角色自主行动。** 世界包可以声明某些角色到时间会主动做点什么。[AutonomyRuntime](../../../apps/host/src/runtime/autonomy-runtime.ts) 在玩家成功提交后提取交易摘要，交给 [AutonomyPolicy](../../../packages/providers/src/scheduler/autonomy-policy.ts) 计算谁“到点了”，再复核合法角色与范围，把机会和普通反应交给同一个 runOfficialSchedule，共用并发和提交队列，但调用预算和时限分开算。被唤醒只是多一次处理机会，不会让角色多知道任何东西。实现见[接入记录](../studies/autonomy-dynamic-dispatch-20261011.md)，作者怎么声明见[创作者运行时](creator-runtime.md#关键角色自主行动2026-10-11实验分支)。
 
-**玩家插话。** 只要宿主公开的 `canInterrupt` 为真，玩家就能在 NPC 处理途中继续说话或点行动按钮。[TailRoundRuntime](../../../apps/host/src/runtime/tail-runtime.ts) 会取消旧回合还没提交的 NPC 计算，已经提交的保留。如果只剩玩家场景外的角色在处理，页面直接显示可以回应；场内仍在处理的角色列在 `responders` 里。活动进行中不开放插话。见[运行时](runtime.md)。
+**玩家插话。** 玩家输入提交后，宿主在允许打断时按本次 actionId 给出 `inputProgress`，默认舞台匹配后解除提交锁。场内 NPC 处理中可继续说话，仍遵守阅读限制；行动按钮要求 ready/error。只剩场外角色时，公开视图为 ready，可以继续发言或行动。[TailRoundRuntime](../../../apps/host/src/runtime/tail-runtime.ts) 取消旧回合尚未提交的计算，已提交事实保留。场内处理者列在 `responders`，默认舞台只显示处理提示、不点名；活动期间不开放插话。见[运行时](runtime.md)。
 
 角色随时可以放弃。调度只决定“给不给一次机会”，从不替角色写台词或定情绪。
 

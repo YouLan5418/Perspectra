@@ -311,6 +311,7 @@ it('accepts a new player input through the frontend before the off-scene model r
   })
   await entered.promise
   expect(projectPlayerView(await f.runtime.state()).canInterrupt).toBe(true)
+  expect((await actions.view()).inputProgress).toEqual({ actionId: 'first', committed: true })
   f.setDecision(() => ({ decision: 'abstain' }))
   const second = actions.perform({
     operation: 'speak',
@@ -325,6 +326,7 @@ it('accepts a new player input through the frontend before the off-scene model r
   )
   await second
   await first
+  expect((await actions.view()).inputProgress).toBeUndefined()
   const selection = readTailSelection(f.data)!
   expect(selection.tail?.input).toEqual({ text: '现在听我这句' })
   expect(f.events().some(event => JSON.stringify(event.data).includes('不能迟到提交的回复'))).toBe(false)
@@ -337,35 +339,54 @@ it('accepts a new player input through the frontend before the off-scene model r
   expect(regenerated.transcript.filter(line => line.player && line.text === '现在听我这句')).toHaveLength(1)
 }, 60000)
 
-it('presents off-scene work as idle and lets a move button cancel it', async () => {
-  const f = await fixture(),
-    entered = deferred(),
-    slow = deferred()
-  f.setDecision(async input => {
-    if (actor(input) === 'character:friend') {
-      entered.resolve()
-      await slow.promise
-      return publish('玩家走后的场外嘀咕')
-    }
-    return { decision: 'abstain' }
-  })
-  const first = f.runtime.submit(enterFront)
-  await entered.promise
-  await vi.waitFor(async () => expect((await f.runtime.state()).background).toBe(true), { timeout: 10000 })
-  const state = await f.runtime.state()
-  expect(state.busy).toBe(true)
-  expect(state.responders).toEqual([])
-  const view = projectPlayerView(state)
-  expect(view.status).toBe('ready')
-  expect(view.canInterrupt).toBeUndefined()
-  expect(view.responders).toBeUndefined()
-  expect(JSON.stringify(view)).not.toContain('留守者 正在')
-  const second = await f.runtime.perform({ actionType: 'move', parameters: { locationId: 'location:back-room' } })
-  await first
-  expect(second.busy).toBe(false)
-  expect(currentLocation(f.events(), 'character:player')).toBe('location:back-room')
-  expect(f.events().some(event => JSON.stringify(event.data).includes('玩家走后的场外嘀咕'))).toBe(false)
-}, 60000)
+it.each([false, true])(
+  'acknowledges a move before off-scene work finishes and lets the next move cancel it (with speech=%s)',
+  async withSpeech => {
+    const f = await fixture(),
+      entered = deferred(),
+      slow = deferred()
+    f.setDecision(async input => {
+      if (actor(input) === 'character:friend') {
+        entered.resolve()
+        await slow.promise
+        return publish('玩家走后的场外嘀咕')
+      }
+      return { decision: 'abstain' }
+    })
+    const actions = new FrontendActions(f.runtime)
+    const first = actions.perform({
+      operation: 'perform',
+      payload: { optionId: 'move:location:front-room', ...(withSpeech ? { say: { text: '我去前室。' } } : {}) },
+      actionId: 'move:first',
+      requestId: 'move:first',
+    })
+    await entered.promise
+    await vi.waitFor(async () => expect((await f.runtime.state()).background).toBe(true), { timeout: 10000 })
+    const state = await f.runtime.state()
+    expect(state.busy).toBe(true)
+    expect(state.responders).toEqual([])
+    const view = await actions.view()
+    expect(view.status).toBe('ready')
+    expect(view.canInterrupt).toBeUndefined()
+    expect(view.responders).toBeUndefined()
+    expect(view.inputProgress).toEqual({ actionId: 'move:first', committed: true })
+    expect(currentLocation(f.events(), 'character:player')).toBe('location:front-room')
+    expect(JSON.stringify(view)).not.toContain('留守者 正在')
+    f.setDecision(() => ({ decision: 'abstain' }))
+    const second = await actions.perform({
+      operation: 'perform',
+      payload: { optionId: 'move:location:back-room' },
+      actionId: 'move:second',
+      requestId: 'move:second',
+    })
+    await first
+    expect(second.status).toBe('ready')
+    expect((await actions.view()).inputProgress).toBeUndefined()
+    expect(currentLocation(f.events(), 'character:player')).toBe('location:back-room')
+    expect(f.events().some(event => JSON.stringify(event.data).includes('玩家走后的场外嘀咕'))).toBe(false)
+  },
+  60000,
+)
 
 it('names only in-scene roles that are forming a response', async () => {
   const f = await fixture(),

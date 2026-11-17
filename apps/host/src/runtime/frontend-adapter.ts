@@ -396,7 +396,18 @@ export function projectPlayerView(state: HostState): PlayerView {
 /** Per-running-session deduplication, including in-flight and failed results. Never evicts IDs. */
 export class FrontendActions {
   #requests = new Map<string, { fingerprint: string; result: Promise<PlayerView> }>()
+  #input: { actionId: string; committed: boolean } | undefined
   constructor(readonly runtime: HostRuntime) {}
+  async view(): Promise<PlayerView> {
+    const input = this.#input,
+      committed = input?.committed === true
+    const state = await this.runtime.state()
+    const view = projectPlayerView(state)
+    // The callback belongs to this input, while interruptibility belongs to the current world phase.
+    if (committed && input === this.#input && state.canInterrupt)
+      view.inputProgress = { actionId: input.actionId, committed: true }
+    return view
+  }
   perform(request: FrontendActionRequest): Promise<PlayerView> {
     const fingerprint = Buffer.from(
       canonicalizeWorldJson({ operation: request.operation, payload: request.payload as WorldJsonObject }),
@@ -404,110 +415,125 @@ export class FrontendActions {
     const previous = this.#requests.get(request.actionId)
     if (previous) {
       if (previous.fingerprint !== fingerprint) throw new TypeError('同一 actionId 不能对应不同操作')
-      return previous.result.then(async () => projectPlayerView(await this.runtime.state()))
+      return previous.result.then(() => this.view())
     }
     if (this.#requests.size >= 4096) throw new RangeError('本会话操作数量达到上限，请保存后重新启动')
-    const result = Promise.resolve().then(async () => {
-      if (request.operation === 'setPluginControl') {
-        const state = await this.runtime.state(),
-          view = projectPlayerView(state)
-        const control = view.pluginControls?.find(row => row.id === request.payload.id)
-        const value = request.payload.value
-        if (!control || control.disabled) throw new TypeError('此玩法设置当前不可用，请刷新后重试')
-        if (
-          control.kind === 'boolean'
-            ? typeof value !== 'boolean'
-            : typeof value !== 'string' || !control.options.some(option => option.value === value)
-        )
-          throw new TypeError('玩法设置的值不在允许范围内')
-        if (control.scope === 'runtime') {
-          if (control.id !== 'runtime:pacing' || !this.runtime.setPacing) throw new TypeError('运行偏好不可用')
-          return projectPlayerView(await this.runtime.setPacing(value as boolean))
+    const input = { actionId: request.actionId, committed: false }
+    if (request.operation === 'speak' || request.operation === 'perform') this.#input = input
+    const onCommitted = () => {
+      input.committed = true
+    }
+    const result = Promise.resolve()
+      .then(async () => {
+        if (request.operation === 'setPluginControl') {
+          const state = await this.runtime.state(),
+            view = projectPlayerView(state)
+          const control = view.pluginControls?.find(row => row.id === request.payload.id)
+          const value = request.payload.value
+          if (!control || control.disabled) throw new TypeError('此玩法设置当前不可用，请刷新后重试')
+          if (
+            control.kind === 'boolean'
+              ? typeof value !== 'boolean'
+              : typeof value !== 'string' || !control.options.some(option => option.value === value)
+          )
+            throw new TypeError('玩法设置的值不在允许范围内')
+          if (control.scope === 'runtime') {
+            if (control.id !== 'runtime:pacing' || !this.runtime.setPacing) throw new TypeError('运行偏好不可用')
+            return projectPlayerView(await this.runtime.setPacing(value as boolean))
+          }
+          const definition = state.gameplay
+            ?.flatMap(module =>
+              (module.view.controls ?? []).filter(row => module.moduleId + '/' + row.id === control.id),
+            )
+            .at(0)
+          const options = view.actions.filter(
+            row =>
+              (row.action.parameters.definitionRef as WorldJsonObject | undefined)?.id === definition?.operation.id,
+          )
+          if (!definition || options.length !== 1) throw new TypeError('设置操作当前不可用')
+          // Reuse the current-offer checks and the formal action path below.
+          request = {
+            ...request,
+            operation: 'perform',
+            payload: {
+              optionId: options[0]!.id,
+              arguments: { [definition.operation.argument]: value },
+            },
+          }
         }
-        const definition = state.gameplay
-          ?.flatMap(module => (module.view.controls ?? []).filter(row => module.moduleId + '/' + row.id === control.id))
-          .at(0)
-        const options = view.actions.filter(
-          row => (row.action.parameters.definitionRef as WorldJsonObject | undefined)?.id === definition?.operation.id,
-        )
-        if (!definition || options.length !== 1) throw new TypeError('设置操作当前不可用')
-        // Reuse the current-offer checks and the formal action path below.
-        request = {
-          ...request,
-          operation: 'perform',
-          payload: {
-            optionId: options[0]!.id,
-            arguments: { [definition.operation.argument]: value },
-          },
+        if (request.operation === 'cancelRegeneration') {
+          if (!this.runtime.cancelRegeneration) throw new TypeError('取消不可用')
+          return projectPlayerView(await this.runtime.cancelRegeneration())
         }
-      }
-      if (request.operation === 'cancelRegeneration') {
-        if (!this.runtime.cancelRegeneration) throw new TypeError('取消不可用')
-        return projectPlayerView(await this.runtime.cancelRegeneration())
-      }
-      if (request.operation === 'selectCandidate') {
-        if (!this.runtime.selectCandidate) throw new TypeError('候选切换不可用')
+        if (request.operation === 'selectCandidate') {
+          if (!this.runtime.selectCandidate) throw new TypeError('候选切换不可用')
+          return projectPlayerView(
+            await this.runtime.selectCandidate(
+              request.payload.tailId as string,
+              request.payload.candidateId as string,
+              request.actionId,
+            ),
+          )
+        }
+        if (request.operation === 'regenerate') {
+          if (!this.runtime.regenerate) throw new TypeError('重新生成不可用')
+          return projectPlayerView(await this.runtime.regenerate(request.payload.tailId as string, request.actionId))
+        }
+        const visible = async () => projectPlayerView(await this.runtime.state()).scene?.recipients ?? []
+        const checkRecipients = async (recipients: readonly unknown[] | undefined) => {
+          if (!recipients?.length) return
+          const present = await visible()
+          if (recipients.some(id => !present.some(character => character.id === id)))
+            throw new TypeError('接收对象已不在当前可见场景，请重新选择')
+        }
+        if (request.operation === 'speak') {
+          await checkRecipients(request.payload.addresseeIds as string[] | undefined)
+          const text =
+            Object.hasOwn(request.payload, 'narration') || Object.hasOwn(request.payload, 'scope')
+              ? '/act speak ' + JSON.stringify(request.payload)
+              : (request.payload.text as string)
+          return projectPlayerView(await this.runtime.submit(text, request.actionId, onCommitted))
+        }
+        const view = projectPlayerView(await this.runtime.state())
+        const option = view.actions.find(a => a.id === request.payload.optionId)
+        if (!option || !this.runtime.perform) throw new TypeError('该操作不在玩家当前可用操作中')
+        const selected = request.payload.npcIds as string[] | undefined,
+          selection = option.participantSelection
+        if (selection) {
+          if (
+            !selected ||
+            selected.length < selection.min ||
+            selected.length > selection.max ||
+            selected.some(id => !selection.candidates.some(candidate => candidate.id === id))
+          )
+            throw new TypeError('请选择当前可用的活动参与者')
+        } else if (selected !== undefined) throw new TypeError('此操作不接受参与者选择')
+        let action: HostAction = selection
+          ? { ...option.action, parameters: { ...option.action.parameters, startParameters: { npcIds: selected! } } }
+          : option.action
+        // Player inputs fill only the offer's open fields; the rules still check them against the full schema.
+        const supplied = request.payload.arguments as WorldJsonObject | undefined
+        if (supplied !== undefined) {
+          const open = option.argumentSchema?.properties as WorldJsonObject | undefined
+          if (!open) throw new TypeError('此操作不接受参数')
+          if (Object.keys(supplied).some(key => !Object.hasOwn(open, key)))
+            throw new TypeError('行动参数不在可填写范围内')
+          await checkRecipients(option.characterArguments?.map(key => supplied[key]).filter(id => id !== undefined))
+          const fixed = action.parameters.arguments as WorldJsonObject
+          action = { ...action, parameters: { ...action.parameters, arguments: { ...supplied, ...fixed } } }
+        }
+        const say = request.payload.say as WorldJsonObject | undefined
+        if (say !== undefined) await checkRecipients(say.addresseeIds as string[] | undefined)
+        if (say === undefined)
+          return projectPlayerView(await this.runtime.perform(action, undefined, request.actionId, onCommitted))
+        const order = request.payload.order === 'after' ? 'after' : 'before'
         return projectPlayerView(
-          await this.runtime.selectCandidate(
-            request.payload.tailId as string,
-            request.payload.candidateId as string,
-            request.actionId,
-          ),
+          await this.runtime.perform(action, { speech: say, order }, request.actionId, onCommitted),
         )
-      }
-      if (request.operation === 'regenerate') {
-        if (!this.runtime.regenerate) throw new TypeError('重新生成不可用')
-        return projectPlayerView(await this.runtime.regenerate(request.payload.tailId as string, request.actionId))
-      }
-      const visible = async () => projectPlayerView(await this.runtime.state()).scene?.recipients ?? []
-      const checkRecipients = async (recipients: readonly unknown[] | undefined) => {
-        if (!recipients?.length) return
-        const present = await visible()
-        if (recipients.some(id => !present.some(character => character.id === id)))
-          throw new TypeError('接收对象已不在当前可见场景，请重新选择')
-      }
-      if (request.operation === 'speak') {
-        await checkRecipients(request.payload.addresseeIds as string[] | undefined)
-        const text =
-          Object.hasOwn(request.payload, 'narration') || Object.hasOwn(request.payload, 'scope')
-            ? '/act speak ' + JSON.stringify(request.payload)
-            : (request.payload.text as string)
-        return projectPlayerView(await this.runtime.submit(text))
-      }
-      const view = projectPlayerView(await this.runtime.state())
-      const option = view.actions.find(a => a.id === request.payload.optionId)
-      if (!option || !this.runtime.perform) throw new TypeError('该操作不在玩家当前可用操作中')
-      const selected = request.payload.npcIds as string[] | undefined,
-        selection = option.participantSelection
-      if (selection) {
-        if (
-          !selected ||
-          selected.length < selection.min ||
-          selected.length > selection.max ||
-          selected.some(id => !selection.candidates.some(candidate => candidate.id === id))
-        )
-          throw new TypeError('请选择当前可用的活动参与者')
-      } else if (selected !== undefined) throw new TypeError('此操作不接受参与者选择')
-      let action: HostAction = selection
-        ? { ...option.action, parameters: { ...option.action.parameters, startParameters: { npcIds: selected! } } }
-        : option.action
-      // Player inputs fill only the offer's open fields; the rules still check them against the full schema.
-      const supplied = request.payload.arguments as WorldJsonObject | undefined
-      if (supplied !== undefined) {
-        const open = option.argumentSchema?.properties as WorldJsonObject | undefined
-        if (!open) throw new TypeError('此操作不接受参数')
-        if (Object.keys(supplied).some(key => !Object.hasOwn(open, key)))
-          throw new TypeError('行动参数不在可填写范围内')
-        await checkRecipients(option.characterArguments?.map(key => supplied[key]).filter(id => id !== undefined))
-        const fixed = action.parameters.arguments as WorldJsonObject
-        action = { ...action, parameters: { ...action.parameters, arguments: { ...supplied, ...fixed } } }
-      }
-      const say = request.payload.say as WorldJsonObject | undefined
-      if (say !== undefined) await checkRecipients(say.addresseeIds as string[] | undefined)
-      if (say === undefined) return projectPlayerView(await this.runtime.perform(action))
-      const order = request.payload.order === 'after' ? 'after' : 'before'
-      return projectPlayerView(await this.runtime.perform(action, { speech: say, order }))
-    })
+      })
+      .finally(() => {
+        if (this.#input === input) this.#input = undefined
+      })
     this.#requests.set(request.actionId, { fingerprint, result })
     return result
   }

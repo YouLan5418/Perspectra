@@ -279,6 +279,23 @@ const embedded = (name: string, next: string) =>
       DEFAULT_SCRIPT.indexOf(';\n const ' + next + '='),
     ),
   )
+it('unlocks only the request whose committed action ID appears in the public progress view', () => {
+  const start = DEFAULT_SCRIPT.indexOf(' function committedInput(')
+  const end = DEFAULT_SCRIPT.indexOf('\n function render(view)', start)
+  expect(start).toBeGreaterThan(0)
+  const committedInput = runInNewContext('(' + DEFAULT_SCRIPT.slice(start, end).trim() + ')') as (
+    view: { inputProgress?: { actionId: string; committed: true }; canInterrupt?: boolean },
+    request: { actionId: string },
+  ) => boolean
+
+  expect(
+    committedInput({ inputProgress: { actionId: 'action:current', committed: true } }, { actionId: 'action:current' }),
+  ).toBe(true)
+  expect(
+    committedInput({ inputProgress: { actionId: 'action:other', committed: true } }, { actionId: 'action:current' }),
+  ).toBe(false)
+  expect(committedInput({ canInterrupt: true }, { actionId: 'action:current' })).toBe(false)
+})
 it("lists an activity's public state and then what only the player knows", () => {
   const start = DEFAULT_SCRIPT.indexOf(' const activityRows=') + ' const activityRows='.length
   const activityRows = runInNewContext(DEFAULT_SCRIPT.slice(start, DEFAULT_SCRIPT.indexOf(';\n', start))) as (

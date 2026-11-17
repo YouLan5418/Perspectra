@@ -145,7 +145,7 @@ export const DEFAULT_SCRIPT = String.raw`(() => {
  const api=window.Perspectra,node=id=>document.getElementById(id);
  const normalizePreferences=(${stagePreferences.toString()});
  let preferences=normalizePreferences({}),stageAssets=[],stageConfig=null,canSave=false,hasSpeech=false,hasBgm=false,saving=false,preferencesVersion=0;
- let latest,posting=false,pending,attached=null,connected=false,historyKey='',actionsKey='',waitOption=null,statusKey='',canRegenerate=false,requestVersion=0,submittedPlayers=0;
+ let latest,posting=false,pending,attached=null,connected=false,historyKey='',actionsKey='',waitOption=null,statusKey='',canRegenerate=false,requestVersion=0;
  let stageOpen=false,stageId=null,stageFocus=null;
  const activityStage=(${createActivityStage.toString()})(node('activity-stage'),/*ACTIVITY_STAGE_RENDERERS*/[],(optionId,args)=>send('perform',{optionId,...(Object.keys(args).length?{arguments:args}:{})}),()=>advance());
  function updateActivityStage(disabled,reading){
@@ -248,14 +248,16 @@ export const DEFAULT_SCRIPT = String.raw`(() => {
  history.onscroll=()=>{node('latest').hidden=history.scrollHeight-history.scrollTop-history.clientHeight<70};
  node('latest').onclick=bottom;
  ${GAMEPLAY_WIDGETS}
+ function committedInput(view,request){return !!request&&view.inputProgress?.committed===true&&view.inputProgress.actionId===request.actionId}
  function render(view){
    renderPluginControls(view);
    renderGameplayPanels(view);
    waitOption=view.actions.find(option=>option.id==='wait');
    view={...view,history:view.history.filter(line=>!line.pause),actions:view.actions.filter(option=>option!==waitOption)};
-   if(posting&&pending?.method==='speak'&&view.canInterrupt&&view.history.filter(line=>line.player).length>submittedPlayers){
-     if(node('input').value.trim()===pending.payload.text)node('input').value='';
-     if(node('narration').value.trim()===(pending.payload.narration||''))node('narration').value='';
+   if(posting&&committedInput(view,pending)){
+     const line=pending.method==='speak'?pending.payload:pending.payload.say;
+     if(line){if(node('input').value.trim()===line.text)node('input').value='';if(node('narration').value.trim()===(line.narration||''))node('narration').value=''}
+     if(pending.method==='perform'&&attached?.option.id===pending.payload.optionId)detach();
      posting=false;pending=null;requestVersion++;
    }
    const candidate=tail=>tail?.candidateIds?.[(tail.candidateIndex||1)-1]||null;
@@ -425,7 +427,7 @@ export const DEFAULT_SCRIPT = String.raw`(() => {
  new ResizeObserver(()=>{const card=node('activity-card');if(!card.style.maxHeight||card.hidden)return;const room=Math.max(96,activityRoom());card.style.maxHeight=room+'px';if(parseFloat(card.style.height)>room)card.style.height=room+'px'}).observe(document.querySelector('.stage-bottom'));
  async function refresh(expectedVersion){try{const view=await api.getView();if(expectedVersion!==requestVersion)return;connected=true;render(view)}catch(error){if(expectedVersion!==requestVersion)return;node('notice').textContent=error.message;connected=false;node('status').textContent='连接断开';node('status').dataset.state='disconnected';controls()}}
  async function submit(request){
-   const version=++requestVersion;submittedPlayers=latest?.history.filter(line=>line.player).length||0;
+   const version=++requestVersion;
    posting=true;controls();if(!request.quiet)node('notice').textContent='正在提交……';
    try{await api.request(request.method,request.payload,request.actionId);if(version!==requestVersion)return;
      const view=await api.getView();if(version!==requestVersion)return;

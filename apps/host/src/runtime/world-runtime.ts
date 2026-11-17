@@ -140,7 +140,15 @@ import {
   WorldStore,
 } from '@perspectra/core/store'
 import { adaptCompiledWorldPack, compileWorldPackSource, type CompiledWorldPackV5 } from '@perspectra/world-pack'
-import { actionText, HostBusyError, isWait, type HostAction, type HostRuntime, type HostState } from './http-server.ts'
+import {
+  actionText,
+  HostBusyError,
+  isWait,
+  type HostAction,
+  type HostRuntime,
+  type HostState,
+  type PlayerLine,
+} from './http-server.ts'
 import { modelCharacters, playerTranscript, sceneChangedAt } from './player-transcript.ts'
 import { DEFAULT_RUNTIME_TUNING, type RuntimeTuning } from './runtime-tuning.ts'
 import { PackModules } from './pack-modules.ts'
@@ -1020,8 +1028,8 @@ export class WorldHostCore implements HostRuntime {
    * One player turn. A caller that is retrying an input the world already recorded passes that input's own
    * key: the store is idempotent by key, so the retry completes the queued input instead of adding another.
    */
-  async submit(text: string, idempotencyKey?: string): Promise<HostState> {
-    return this.turn([text], idempotencyKey)
+  async submit(text: string, idempotencyKey?: string, onCommitted?: () => void): Promise<HostState> {
+    return this.turn([text], idempotencyKey, onCommitted)
   }
 
   /**
@@ -1031,10 +1039,10 @@ export class WorldHostCore implements HostRuntime {
    * committed still gets its reactions. No inputs is waiting: the round passes, then those who act on their
    * own get their turn.
    */
-  async turn(inputs: readonly string[], idempotencyKey?: string): Promise<HostState> {
-    return WorldStore.withEventReadCache(() => this.#turn(inputs, idempotencyKey))
+  async turn(inputs: readonly string[], idempotencyKey?: string, onCommitted?: () => void): Promise<HostState> {
+    return WorldStore.withEventReadCache(() => this.#turn(inputs, idempotencyKey, onCommitted))
   }
-  async #turn(inputs: readonly string[], idempotencyKey?: string): Promise<HostState> {
+  async #turn(inputs: readonly string[], idempotencyKey?: string, onCommitted?: () => void): Promise<HostState> {
     if (this.#busy || this.#escaping || this.#closing) throw new HostBusyError('请等待当前行动完成。')
     if (this.#paused) {
       this.#notice = 'NPC 已暂停：这次输入没有提交。恢复后再试。'
@@ -1073,6 +1081,7 @@ export class WorldHostCore implements HostRuntime {
         if (!outcome.accepted) break
       }
       const committed = (await this.#application.head(this.#address)).headSeq > this.#rootBeforeSeq
+      if (committed) onCommitted?.()
       this.#cycleSettlementEnabled = committed || !inputs.length
       if (react) {
         await this.#refresh()
@@ -1589,8 +1598,13 @@ export class WorldHostCore implements HostRuntime {
   }
 
   /** Structured UI choices remain proposals and follow the same Rulebook path as /act. */
-  async perform(action: HostAction): Promise<HostState> {
-    if (isWait(action)) return this.turn([])
+  async perform(
+    action: HostAction,
+    _line?: PlayerLine,
+    idempotencyKey?: string,
+    onCommitted?: () => void,
+  ): Promise<HostState> {
+    if (isWait(action)) return this.turn([], idempotencyKey, onCommitted)
     if (
       action.actionType === 'interact' &&
       (action.parameters.definitionRef as WorldJsonObject | undefined)?.id === 'host:activity-quick'
@@ -1650,7 +1664,7 @@ export class WorldHostCore implements HostRuntime {
         requestId: randomUUID(),
       })
     }
-    return this.submit(actionText(action))
+    return this.submit(actionText(action), idempotencyKey, onCommitted)
   }
   /**
    * What actually became of an input whose turn failed.

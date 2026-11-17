@@ -284,7 +284,7 @@ export class TailRoundRuntime {
       gameplayDigests,
     })
   }
-  async #run(input: TailRecord['input'], idempotencyKey?: string): Promise<HostState> {
+  async #run(input: TailRecord['input'], idempotencyKey?: string, onCommitted?: () => void): Promise<HostState> {
     this.#begin()
     this.#runtime.holdCognition()
     const roundId = randomUUID(),
@@ -302,9 +302,9 @@ export class TailRoundRuntime {
       const pacingOff = !this.#runtime.pacingEnabled
       const result =
         'text' in input
-          ? await this.#runtime.submit(input.text, idempotencyKey)
+          ? await this.#runtime.submit(input.text, idempotencyKey, onCommitted)
           : 'texts' in input
-            ? await this.#runtime.turn(input.texts, idempotencyKey)
+            ? await this.#runtime.turn(input.texts, idempotencyKey, onCommitted)
             : await this.#runtime.activityAction(input.activity as ActivityRequest)
       if (result.paused || this.#escaping) return result
       const head = await this.#runtime.settleRound()
@@ -361,26 +361,31 @@ export class TailRoundRuntime {
     return this.state()
   }
 
-  async submit(text: string, idempotencyKey?: string): Promise<HostState> {
+  async submit(text: string, idempotencyKey?: string, onCommitted?: () => void): Promise<HostState> {
     if (this.#busy || this.#interrupting) await this.#interruptIfBusy()
-    await this.#run({ text }, idempotencyKey)
+    await this.#run({ text }, idempotencyKey, onCommitted)
     return this.state()
   }
   /** A `line` said with an in-world action makes one turn with it, recorded and regenerated as one round. */
-  async perform(action: HostAction, line?: PlayerLine): Promise<HostState> {
+  async perform(
+    action: HostAction,
+    line?: PlayerLine,
+    idempotencyKey?: string,
+    onCommitted?: () => void,
+  ): Promise<HostState> {
     if (line !== undefined) {
       const id = String((action.parameters.definitionRef as WorldJsonObject | undefined)?.id ?? '')
       if (id.startsWith('host:')) throw new TypeError('活动管理操作不能附带发言')
       if (this.#busy || this.#interrupting) await this.#interruptIfBusy()
       const say = '/act speak ' + JSON.stringify(line.speech),
         act = actionText(action)
-      await this.#run({ texts: line.order === 'after' ? [act, say] : [say, act] })
+      await this.#run({ texts: line.order === 'after' ? [act, say] : [say, act] }, idempotencyKey, onCommitted)
       return this.state()
     }
     if (this.#busy || this.#interrupting) await this.#interruptIfBusy()
     // Waiting is a turn without input, recorded and regenerated like any other.
     if (isWait(action)) {
-      await this.#run({ texts: [] })
+      await this.#run({ texts: [] }, idempotencyKey, onCommitted)
       return this.state()
     }
     if (
@@ -439,7 +444,7 @@ export class TailRoundRuntime {
         requestId: randomUUID(),
       })
     }
-    return this.submit(actionText(action))
+    return this.submit(actionText(action), idempotencyKey, onCommitted)
   }
   async activityAction(activity: ActivityRequest): Promise<HostState> {
     await this.#run({ activity: structuredClone(activity) })

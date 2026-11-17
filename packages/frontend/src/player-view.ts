@@ -57,6 +57,8 @@ export interface PlayerView {
   }[]
   status: 'ready' | 'busy' | 'paused' | 'error'
   canInterrupt?: boolean
+  /** Only the current input's committed ID, while NPC follow-up can be interrupted. No world metadata. */
+  inputProgress?: { actionId: string; committed: true } | null
   /** In-scene roles currently forming a response; off-scene roles are never listed. */
   responders?: string[]
   expression?: { speech: 'free' | 'none' | 'choices'; speechChoices: string[]; narration: boolean }
@@ -148,6 +150,7 @@ export const PLAYER_VIEW_PATCH_FIELDS = [
   'scene',
   'status',
   'canInterrupt',
+  'inputProgress',
   'responders',
   'expression',
   'actions',

@@ -121,6 +121,7 @@ it('forwards changed visible items, known status and responders through both pat
     items: [{ id: 'cup', name: '杯子', kind: '杯', where: 'held' }],
     statusBar: [{ key: 'time', label: '时间', holderId: null, value: '18:21', current: true }],
     responders: ['同行者'],
+    inputProgress: { actionId: 'action:move', committed: true },
   }
   const changes = playerViewPatch(before, after)
   expect(changes).toMatchObject({ items: after.items, statusBar: after.statusBar, responders: after.responders })

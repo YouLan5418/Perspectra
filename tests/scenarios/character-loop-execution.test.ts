@@ -119,6 +119,21 @@ it('does not turn a plugin success claim into a published world fact', async () 
   expect(f.store.head(f.address)).toEqual(before)
 })
 
+it.each([speech, take])('keeps the last model call expression-only even if it returns $decision', async output => {
+  const decide = vi.fn(async (request: CharacterTurnRequest) => {
+    expect(request.canPerform).toBe(false)
+    return output
+  })
+  const f = fixture(officialCharacterLoop, decide)
+  const result = await f.turn.run(npc, { maxCalls: 1, maxModelCalls: 1 })
+  expect(result.calls).toBe(1)
+  expect(decide).toHaveBeenCalledTimes(1)
+  expect(f.store.readEvents(f.address).filter(event => event.eventType === 'entity.transferred')).toEqual([])
+  expect(f.store.readEvents(f.address).filter(event => event.eventType === 'character.speak')).toHaveLength(
+    output.decision === 'publish' ? 1 : 0,
+  )
+})
+
 it('cancels and settles a decision the loop abandoned without blaming the model', async () => {
   let settled = false
   const onLoopFailure = vi.fn()

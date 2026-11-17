@@ -65,19 +65,47 @@ export async function runOfficialSchedule(
       : { calls: 0, wave: 0, terminalReason: 'quiescent', activations: [] }
   if (round.autonomy && (!round.allowConcurrent || round.autonomy.staged)) {
     const { autonomy: _autonomy, ...scene } = round
+    const stimuli = new Map(round.autonomy.stimuli)
     const ordinary = await runSceneSchedule(
       {
         ...scene,
-        characterIds: scene.characterIds.filter(id => !round.autonomy!.roles.some(role => role.characterId === id)),
+        turn: async (id, input) => {
+          // Absorbing an opportunity must also deliver its explicit authorized stimulus.
+          const result = await round.turn(id, {
+            ...input,
+            stimulusSeqs: [
+              ...new Set([...input.stimulusSeqs, ...(stimuli.get(id) ?? []).filter(seq => seq > round.afterSeq)]),
+            ],
+          })
+          if (result.status !== 'stale') stimuli.delete(id)
+          return result
+        },
       },
       options,
     )
     if (round.signal.aborted) return ordinary
     const counts = new Map(round.initialCounts)
-    for (const activation of ordinary.activations)
+    const lastStatus = new Map<CharacterId, SchedulerTurnResult['status']>()
+    for (const activation of ordinary.activations) {
       counts.set(activation.characterId, (counts.get(activation.characterId) ?? 0) + 1)
-    const autonomous = await runAutonomousSchedule({ ...round, phase: 'opportunity', initialCounts: counts }, next =>
-      runSceneSchedule(next, options),
+      lastStatus.set(activation.characterId, activation.result.status)
+    }
+    const roles = round.autonomy.roles.map(role => ({
+      ...role,
+      // Do not restart a stopped actor in another mode, especially after a committed stale action.
+      opportunities: ['inactive', 'failed', 'interrupted', 'stale'].includes(lastStatus.get(role.characterId) ?? '')
+        ? 0
+        : Math.max(
+            0,
+            role.opportunities -
+              ordinary.activations.filter(
+                entry => entry.characterId === role.characterId && !['inactive', 'stale'].includes(entry.result.status),
+              ).length,
+          ),
+    }))
+    const autonomous = await runAutonomousSchedule(
+      { ...round, autonomy: { ...round.autonomy, roles }, phase: 'opportunity', initialCounts: counts },
+      next => runSceneSchedule(next, options),
     )
     return {
       ...ordinary,
@@ -133,12 +161,14 @@ async function runSceneSchedule(round: OpportunityRound, options: ScheduleOption
     for (const characterId of order) {
       if (signal.aborted) return { calls, wave, terminalReason: 'interrupted', activations }
       // Reserve the result-aware reply slot; a second operation is offered only with a third slot reserved.
-      if (calls + 2 > limits.maximumNpcCalls) return { calls, wave, terminalReason: 'call_limit', activations }
+      if (calls >= limits.maximumNpcCalls) return { calls, wave, terminalReason: 'call_limit', activations }
       const result = await round.turn(characterId, {
         signal,
         stimulusSeqs: pending.get(characterId)!,
-        ...(options.strictCallBudget ? { maxModelCalls: limits.maximumNpcCalls - calls } : {}),
-        maxCalls: calls + 3 <= limits.maximumNpcCalls ? 3 : 2,
+        ...(options.strictCallBudget || calls + 1 === limits.maximumNpcCalls
+          ? { maxModelCalls: limits.maximumNpcCalls - calls }
+          : {}),
+        maxCalls: calls + 3 <= limits.maximumNpcCalls ? 3 : calls + 2 <= limits.maximumNpcCalls ? 2 : 1,
       })
       calls += result.calls
       activations.push({ characterId, result })
@@ -191,7 +221,13 @@ async function runDynamicActivations(round: OpportunityRound, options: ScheduleO
     continuationOf?: Continuation
     continuationKind?: Kind
   }
-  type Job = { observations: Pending['observations']; kind: Kind; depth: number; continuationOf?: Continuation }
+  type Job = {
+    observations: Pending['observations']
+    kind: Kind
+    depth: number
+    continuationOf?: Continuation
+    absorbsAutonomy: boolean
+  }
   type Completed = { id: CharacterId; result: SchedulerTurnResult } | { id: CharacterId; error: unknown }
   const phase = (phaseLimits: ActivationLimits, phaseSignal: AbortSignal) => ({
     limits: phaseLimits,
@@ -244,7 +280,7 @@ async function runDynamicActivations(round: OpportunityRound, options: ScheduleO
         ...explicit
           .filter(
             seq =>
-              !(existing?.observations ?? []).some(entry => entry.seq === seq) &&
+              !(existing?.observations ?? []).some(entry => entry.seq === seq && entry.kind === 'autonomous') &&
               seq > (consumed.get(id) ?? round.afterSeq),
           )
           .map(seq => ({ seq, kind: 'autonomous' as const, depth: 0 })),
@@ -256,29 +292,27 @@ async function runDynamicActivations(round: OpportunityRound, options: ScheduleO
     const head = round.headSeq()
     for (const observation of round.observationsSince(cursor, head)) {
       const id = observation.characterId
-      const autonomous = opportunities.has(id),
-        kind = autonomous ? 'autonomous' : source,
+      const kind = source,
         current = phases[kind]
       if (
-        (!autonomous && !round.characterIds.includes(id)) ||
+        (!opportunities.has(id) && !round.characterIds.includes(id)) ||
         stopped.has(id) ||
         current.signal.aborted ||
-        (!autonomous && source === 'autonomyReaction' && current.limits.maximumWaves === 0) ||
-        (autonomous && (opportunities.get(id) ?? 0) <= 0) ||
+        (source === 'autonomyReaction' && current.limits.maximumWaves === 0) ||
         observation.seq <= (consumed.get(id) ?? round.afterSeq)
       )
         continue
       if (!root && !observation.substantive) continue
-      if (!autonomous && depth > current.limits.maximumWaves) {
+      if (depth > current.limits.maximumWaves) {
         current.waveLimit = true
         continue
       }
-      if (!autonomous && (counts.get(id) ?? 0) >= current.limits.maximumCallsPerCharacter && !running.has(id)) {
+      if ((counts.get(id) ?? 0) >= current.limits.maximumCallsPerCharacter && !running.has(id)) {
         current.characterLimit = true
         continue
       }
       const existing = pending.get(id)
-      const nextDepth = autonomous ? 0 : depth
+      const nextDepth = depth
       pending.set(id, {
         ...existing,
         observations: [...(existing?.observations ?? []), { seq: observation.seq, kind, depth: nextDepth }],
@@ -309,13 +343,14 @@ async function runDynamicActivations(round: OpportunityRound, options: ScheduleO
       entry.continuationKind ??
       (entry.depths.ordinary !== undefined
         ? 'ordinary'
-        : entry.depths.autonomous !== undefined
-          ? 'autonomous'
-          : 'autonomyReaction')
+        : entry.depths.autonomyReaction !== undefined
+          ? 'autonomyReaction'
+          : 'autonomous')
     return {
       observations: entry.observations,
       kind,
       depth: entry.depths[kind]!,
+      absorbsAutonomy: entry.depths.autonomous !== undefined,
       ...(entry.continuationOf ? { continuationOf: entry.continuationOf } : {}),
     }
   }
@@ -381,9 +416,11 @@ async function runDynamicActivations(round: OpportunityRound, options: ScheduleO
             observations: [...(performed ? [] : task.job.observations), ...(next?.observations ?? [])],
             depths: {
               ...next?.depths,
+              ...(task.job.absorbsAutonomy ? { autonomous: 0 } : {}),
               [task.job.kind]: Math.max(task.job.depth, next?.depths[task.job.kind] ?? task.job.depth),
             },
-            ...(continuation ? { continuationOf: continuation, continuationKind: task.job.kind } : {}),
+            continuationKind: task.job.kind,
+            ...(continuation ? { continuationOf: continuation } : {}),
           })
           continue
         }
@@ -395,7 +432,8 @@ async function runDynamicActivations(round: OpportunityRound, options: ScheduleO
           continue
         }
         counts.set(completion.id, (counts.get(completion.id) ?? 0) + 1)
-        if (task.job.kind === 'autonomous') opportunities.set(completion.id, opportunities.get(completion.id)! - 1)
+        if (task.job.absorbsAutonomy)
+          opportunities.set(completion.id, Math.max(0, (opportunities.get(completion.id) ?? 0) - 1))
         consecutiveStale.delete(completion.id)
         if (result.asOfWorldSeq !== undefined) discardConsumed(completion.id, result.asOfWorldSeq)
         if (result.status === 'failed' || result.status === 'interrupted') {
@@ -404,14 +442,8 @@ async function runDynamicActivations(round: OpportunityRound, options: ScheduleO
           current.failed ||= result.status === 'failed'
           current.interrupted ||= result.status === 'interrupted'
         }
-        if (task.job.kind === 'autonomous') {
-          if ((opportunities.get(completion.id) ?? 0) > 0) seedAutonomous(completion.id)
-          else pending.delete(completion.id)
-        } else if ((counts.get(completion.id) ?? 0) >= limits.maximumCallsPerCharacter && pending.has(completion.id)) {
-          for (const kind of Object.keys(pending.get(completion.id)!.depths) as Kind[])
-            phases[kind].characterLimit = true
-          pending.delete(completion.id)
-        }
+        // Finishing an autonomous opportunity never erases a newer, unread observation.
+        if (task.job.absorbsAutonomy && (opportunities.get(completion.id) ?? 0) > 0) seedAutonomous(completion.id)
       }
       if (signal.aborted) break
       // Each former stage keeps its deadline; timing out one stage does not cancel unrelated work.
@@ -438,8 +470,19 @@ async function runDynamicActivations(round: OpportunityRound, options: ScheduleO
         )
       for (const { id } of order) {
         if (running.size >= concurrency) break
-        const job = jobFor(pending.get(id)!),
-          current = phases[job.kind]
+        const entry = pending.get(id)!
+        let job = jobFor(entry)
+        let current = phases[job.kind]
+        if (
+          !entry.continuationKind &&
+          job.kind !== 'autonomous' &&
+          entry.depths.autonomous !== undefined &&
+          (current.limits.maximumNpcCalls - current.calls - current.reserved <= 0 ||
+            (counts.get(id) ?? 0) >= current.limits.maximumCallsPerCharacter)
+        ) {
+          job = { ...job, kind: 'autonomous', depth: 0 }
+          current = phases.autonomous
+        }
         if (job.kind !== 'autonomous' && (counts.get(id) ?? 0) >= current.limits.maximumCallsPerCharacter) {
           pending.delete(id)
           current.characterLimit = true
@@ -453,20 +496,25 @@ async function runDynamicActivations(round: OpportunityRound, options: ScheduleO
           continue
         // At most one off-scene request; leave a slot for newly ready foreground reactions.
         if (!present.has(id) && [...running.keys()].some(other => !present.has(other))) continue
-        const minimum = job.continuationOf ? 1 : 2
+        // Off-scene work leaves optional third calls for foreground decisions and their successors.
+        const competing =
+          !present.has(id) &&
+          ([...pending].some(([other, entry]) => present.has(other) && jobFor(entry).kind === job.kind) ||
+            [...running].some(([other, task]) => present.has(other) && task.job.kind === job.kind))
         const reserve = Math.min(
-          job.continuationOf ? 1 : 3,
+          job.continuationOf ? 1 : competing ? 2 : 3,
           current.limits.maximumNpcCalls - current.calls - current.reserved,
         )
-        if (reserve < minimum) continue
+        if (reserve < (job.kind === 'autonomous' && !job.continuationOf ? 2 : 1)) continue
         pending.delete(id)
         current.reserved += reserve
         current.wave = Math.max(current.wave, job.depth)
         const promise = round
           .turn(id, {
             signal: current.signal,
-            stimulusSeqs: job.observations.map(entry => entry.seq),
-            maxCalls: job.kind === 'autonomous' ? 2 : reserve === 3 ? 3 : 2,
+            // One sequence may have several live scheduling sources, but is delivered only once.
+            stimulusSeqs: [...new Set(job.observations.map(entry => entry.seq))],
+            maxCalls: reserve === 1 ? 1 : job.kind === 'autonomous' ? 2 : reserve === 3 ? 3 : 2,
             maxModelCalls: reserve,
             ...(job.continuationOf ? { continuationOf: job.continuationOf } : {}),
             onCommitted: through => {
