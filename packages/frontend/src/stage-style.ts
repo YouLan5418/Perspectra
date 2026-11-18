@@ -1,3 +1,4 @@
+import { COMPONENT_STYLE } from './stage-components.ts'
 import { PARTICIPANT_PICKER_STYLE } from './participant-picker.ts'
 
 export const STAGE_STYLE = String.raw`
@@ -531,4 +532,5 @@ main:is([data-mode="reading"],[data-mode="response"]):has(+ #activity-stage[hidd
 }
 @media(prefers-reduced-motion:reduce){#send-cluster::before,#send-cluster #audience-inline{animation:none}}
 
+${COMPONENT_STYLE}
 `

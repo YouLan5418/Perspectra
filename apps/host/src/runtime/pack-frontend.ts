@@ -2,6 +2,8 @@ import { createHash } from 'node:crypto'
 import { lstat, readFile, readdir, realpath, rename, writeFile } from 'node:fs/promises'
 import { extname, join, relative, resolve, sep } from 'node:path'
 
+import { readPackComponents, type PackComponents } from './pack-components.ts'
+
 export const FRONTEND_CAPABILITIES = [
   'view',
   'history',
@@ -35,6 +37,7 @@ export interface PackWeb {
   readonly manifest: FrontendManifest
   readonly digest: string
   /** frontend/stage.json, checked at load: how the default stage frames each character's portrait. */
+  readonly components?: PackComponents
   readonly stage?: StageConfig
 }
 /** A box on the base portrait, as fractions of its width and height: [left, top, width, height]. */
@@ -283,25 +286,30 @@ export async function loadPackWeb(packPath: string): Promise<PackWeb | undefined
     stage =
       staging === undefined ? undefined : stageConfig(staging.bytes, path => assets.has('/frontend/custom/' + path))
   // Static stage artwork and styles need no executable page or capability manifest.
+  const componentFile = assets.get('/frontend/custom/components.json')
   if (
     !entry &&
     [...assets.keys()].every(
       path =>
+        path === '/frontend/custom/components.json' ||
         path === '/frontend/custom/theme.css' ||
         path === '/frontend/custom/stage.json' ||
         /^\/frontend\/custom\/(portraits|backgrounds)\/(?:[^/]+\/)*[^/]+\.(png|webp|jpe?g)$/i.test(path),
     )
-  )
+  ) {
+    const components = componentFile && readPackComponents(componentFile.bytes)
     return {
       theme: assets.has('/frontend/custom/theme.css'),
+      ...(components ? { components } : {}),
       assets,
       digest,
       manifest: { apiVersion: 1, capabilities: [] },
       ...(stage === undefined ? {} : { stage }),
     }
+  }
   if (!entry || !source)
     throw new Error(
-      'frontend/ 必须包含 index.html 与 manifest.json；默认舞台可只放 theme.css、stage.json、portraits/ 和 backgrounds/。',
+      'frontend/ 必须包含 index.html 与 manifest.json；默认舞台可只放 theme.css、stage.json、components.json、portraits/ 和 backgrounds/。',
     )
   const data = JSON.parse(source.bytes.toString('utf8')) as Record<string, unknown>
   if (
