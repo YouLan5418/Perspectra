@@ -30,3 +30,24 @@
 同日 gemini-3.7-flash 的实际角色请求返回 HTTP 429（`.tmp/multiple-activities-live-1791628169413/report.json`）；gemini-3.5-flash 返回 HTTP 200，但正文是型号已下线的通知，未通过角色协议。模型列表中的名字不代表实际可用。实验默认型号采用本次成功的 gemini-3.8-flash，仍可用环境变量覆盖。
 
 动态邀请真实模型实验：`node --import tsx tests/experiments/activity-invitation-live.ts`。2026-10-10 使用同一 8046 / gemini-3.8-flash，选择留守者后由该角色正式提交接受，并表达“好啊，我答应了。不过接下来具体要做什么，你有什么打算吗？”。随后暂停、恢复、结束成功，恢复的完整玩家活动视图一致，无自动移动。同行者收到一条公开表达观察，没有活动元数据。首次角色处理约 33 秒。报告位于仓库本机 `.tmp/activity-invitation-live-1791632484336/report.json`；这次真实样本没有覆盖拒绝、多人邀请或前端人工操作。
+
+## 官方舞台的活动入口与记录
+
+这个包把可发现的活动放到桌面右上的「活动一览」，把「故事记录」放到对白旁。窄屏会把活动移回对白旁，地点标题移回左上。进入「活动一览」可以查看当前可用的邀约；选好参与者并明确提交后，才会发出邀请。
+
+完整八组件示例见 [frontend/components.json](frontend/components.json)。沿用 version 1，原来的[四组件示例](../status-market/frontend/components.json)仍可直接使用。要只配置一项，可以从这一行开始：
+
+```json
+{"version":1,"components":{"activity":{"anchor":"toolbar","label":"活动一览","narrow":{"anchor":"story"}}}}
+```
+
+| ID | 可用位置（首项为默认） | 可选内置图标 | 组件保留的内容 |
+| --- | --- | --- | --- |
+| location | heading、toolbar | compass | 当前已展示的地点按钮和世界标题成组移动；点击地点仍查阅移动面板。原有情境移动键与索引保留。 |
+| history | toolbar、story | book | 打开、关闭已授权的故事记录，可设置 label。 |
+| activity | story、toolbar | flag | 查阅已知的活动或进行中的活动，可设置 label。显隐、启动、结束和参与者选择仍由原控件与宿主处理。 |
+| statusSummary | heading、toolbar | meter | 「状态」、摘要值、阅读截点及详情开关成组移动。正在回应或处理中仍由独立的官方提示展示。 |
+
+`heading` 指顶部地点区，`toolbar` 指顶部工具栏，`story` 指对白旁的游戏操作区。只设外观时，新四项保留原来的位置。显式设置 anchor 或 order 的组件排在该区固定控件之后，按 0–9 从小到大排列，默认值 5；同值沿用 inventory、nearby、location、history、activity、statusSummary 的固定次序。Tab 随实际按钮的排列顺序行进。空间不足时，窄屏工具栏或对白旁操作区可横向滚动。
+
+新四项都可以指定 size（standard / large）、shape（soft / pill）和 tone（forest / indigo）。仅 history、activity 支持 1–6 字的短文案；地点、状态值和未读说明由舞台提供。宽度 ≤640 CSS 像素时叠加 narrow 对象，跨回桌面后恢复桌面位置。错误字段会记入宿主诊断并按字段回退。

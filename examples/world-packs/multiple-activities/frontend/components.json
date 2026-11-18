@@ -1,0 +1,90 @@
+{
+  "version": 1,
+  "components": {
+    "inventory": {
+      "anchor": "toolbar",
+      "order": 2,
+      "label": "行囊",
+      "icon": "bag",
+      "shape": "soft",
+      "tone": "forest",
+      "narrow": {
+        "anchor": "story",
+        "order": 8
+      }
+    },
+    "nearby": {
+      "anchor": "toolbar",
+      "order": 1,
+      "label": "四下看看",
+      "icon": "diamond",
+      "shape": "pill",
+      "tone": "forest",
+      "narrow": {
+        "anchor": "toolbar"
+      }
+    },
+    "sendAudience": {
+      "anchor": "footer-inset",
+      "size": "large",
+      "icon": "arrow",
+      "tone": "indigo",
+      "narrow": {
+        "anchor": "footer-end",
+        "size": "standard"
+      }
+    },
+    "identity": {
+      "anchor": "above-waist",
+      "icon": "dots",
+      "shape": "soft",
+      "tone": "indigo",
+      "narrow": {
+        "anchor": "waist",
+        "size": "large"
+      }
+    },
+    "location": {
+      "anchor": "toolbar",
+      "order": 0,
+      "icon": "compass",
+      "tone": "forest",
+      "narrow": {
+        "anchor": "heading"
+      }
+    },
+    "history": {
+      "anchor": "story",
+      "order": 4,
+      "label": "故事记录",
+      "icon": "book",
+      "tone": "indigo",
+      "narrow": {
+        "anchor": "toolbar",
+        "order": 3
+      }
+    },
+    "activity": {
+      "anchor": "toolbar",
+      "order": 3,
+      "label": "活动一览",
+      "icon": "flag",
+      "tone": "forest",
+      "narrow": {
+        "anchor": "story",
+        "order": 6
+      }
+    },
+    "statusSummary": {
+      "anchor": "heading",
+      "order": 4,
+      "icon": "meter",
+      "shape": "soft",
+      "tone": "indigo",
+      "narrow": {
+        "anchor": "toolbar",
+        "order": 4
+      }
+    }
+  }
+}

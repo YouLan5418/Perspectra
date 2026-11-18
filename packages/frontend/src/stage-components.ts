@@ -3,11 +3,33 @@
 export const COMPONENT_SCRIPT = String.raw`
  const componentWidth=matchMedia('(max-width:640px)');
  const componentSlots={
+   heading:document.querySelector('.scene-heading>div'),
    index:document.querySelector('.index-browse'),
    story:document.querySelector('.stage-action-bar'),
    toolbar:document.querySelector('.stage-tools')
  };
+ const navigationParts=[
+   ['inventory','inventory-toggle','背包','index'],
+   ['nearby','nearby-toggle','周围物品','story'],
+   ['location','scene',null,'heading'],
+   ['history','history-toggle','记录','toolbar'],
+   ['activity','activity-discover','活动','story'],
+   ['statusSummary','status-toggle',null,'heading']
+ ];
  let currentComponents={},lastComponentLayout='';
+ const nativePositions=new Map();
+ let locationGroup;
+ function placed(style){return style?.anchor!==undefined||style?.order!==undefined}
+ function rememberPosition(element){
+   if(nativePositions.has(element))return;
+   const marker=document.createComment('official position');
+   element.after(marker);nativePositions.set(element,marker);
+ }
+ function placeNode(parent,child,before=null){
+   if(child.parentElement===parent&&(child.nextSibling===before||child.nextElementSibling===before))return;
+   if(parent.moveBefore&&child.isConnected)parent.moveBefore(child,before);
+   else parent.insertBefore(child,before);
+ }
  function componentAppearance(element,style){
    for(const key of ['size','shape','tone','icon','anchor']){
      const attr='data-pack-'+key;
@@ -19,10 +41,11 @@ export const COMPONENT_SCRIPT = String.raw`
    if(!settings)return;
    for(const [id,spec] of Object.entries(settings))
      currentComponents[id]={...spec,...(componentWidth.matches?spec.narrow:{})};
-   for(const [id,elementId,semantic] of [['inventory','inventory-toggle','背包'],['nearby','nearby-toggle','周围物品']]){
+   for(const [id,elementId,semantic] of navigationParts){
      const style=currentComponents[id];if(!style)continue;
      const button=node(elementId);
      componentAppearance(button,style);
+     if(!semantic)continue;
      button.firstChild.nodeValue=(style.label||semantic)+(id==='inventory'?' ':'');
      if(style.label){
        button.setAttribute('aria-label',style.label+'（'+semantic+'）');
@@ -34,26 +57,53 @@ export const COMPONENT_SCRIPT = String.raw`
      node('characters').dataset.packIdentity='true';
      for(const label of document.querySelectorAll('.character-name'))componentAppearance(label,currentComponents.identity);
    }
+   if((placed(settings.location)||placed(settings.location?.narrow))&&!locationGroup){
+     const heading=node('scene').closest('h2');
+     locationGroup=document.createElement('div');locationGroup.className='pack-location-group';
+     heading.before(locationGroup);placeNode(locationGroup,heading);placeNode(locationGroup,node('title'));
+   }
+   let arranged=false;
+   for(const [id,elementId] of navigationParts.slice(2)){
+     if(!placed(settings[id])&&!placed(settings[id]?.narrow))continue;
+     rememberPosition(id==='location'?locationGroup:node(elementId));
+     if(placed(currentComponents[id]))arranged=true;
+   }
+   const main=document.querySelector('main');
+   if(arranged)main.dataset.packNavigation='true';else delete main.dataset.packNavigation;
    lastComponentLayout='';
  }
  function placeComponents(contextVisible){
    const {inventory,nearby}=currentComponents;
-   if(!inventory&&!nearby)return;
-   const bag=node('inventory-toggle'),around=node('nearby-toggle');
-   const bagSlot=node('action-panel').hidden?(inventory?.anchor||'index'):'index';
-   const aroundSlot=nearby?.anchor||'story';
-   const layout=[bagSlot,aroundSlot,inventory?.order,nearby?.order].join('/');
+   const entries=[];
    const active=document.activeElement;
+   for(const [id,elementId,,fallback] of navigationParts){
+     const style=currentComponents[id];
+     if(!style&&!(id==='inventory'&&nearby)&&!(id==='nearby'&&inventory))continue;
+     const element=id==='location'?locationGroup:node(elementId);
+     if(id!=='inventory'&&id!=='nearby'&&!placed(style)){
+       if(nativePositions.has(element))entries.push({element,slot:'native',order:0});
+       continue;
+     }
+     const slot=id==='inventory'&&!node('action-panel').hidden?'index':style?.anchor||fallback;
+     entries.push({element,slot,order:style?.order??5});
+   }
+   if(!entries.length)return;
+   const layout=entries.map(row=>row.slot+':'+row.order).join('/');
    if(layout!==lastComponentLayout){
      lastComponentLayout=layout;
-     const entries=[[bag,bagSlot,inventory?.order??5],[around,aroundSlot,nearby?.order??5]];
-     for(const [element,slot] of entries.sort((a,b)=>a[2]-b[2])){
-       const parent=componentSlots[slot];
-       if(parent.lastElementChild!==element)parent.append(element);
+     // Physical order is also Tab order. Move only out-of-place nodes, from the end of each slot.
+     for(const {element,slot} of entries){
+       if(slot==='native'){const marker=nativePositions.get(element);placeNode(marker.parentElement,element,marker)}
+     }
+     for(const [slot,parent] of Object.entries(componentSlots)){
+       const group=entries.filter(row=>row.slot===slot).sort((a,b)=>a.order-b.order);
+       let before=null;
+       for(const {element} of group.reverse()){placeNode(parent,element,before);before=element}
      }
    }
-   bag.hidden=bagSlot!=='index'&&!contextVisible;
-   if((active===bag||active===around)&&(!isVisible(active)||document.activeElement!==active))
+   const bag=node('inventory-toggle');
+   if(inventory||nearby)bag.hidden=bag.parentElement!==componentSlots.index&&!contextVisible;
+   if(entries.some(row=>row.element.contains(active))&&(!isVisible(active)||document.activeElement!==active))
      (isVisible(active)?active:node('actions-toggle')).focus({preventScroll:true});
  }
  componentWidth.addEventListener('change',()=>{selectComponents();controls()});
@@ -86,7 +136,26 @@ button[data-pack-icon="diamond"]::before{content:"◇" / "";margin-inline-end:.3
 #send-cluster[data-pack-icon="arrow"] #send svg{display:none}
 #send-cluster[data-pack-icon="arrow"] #send::after{content:"➤" / "";font:20px/1 sans-serif}
 #send-cluster[data-pack-anchor="footer-inset"]{margin-inline-end:16px;max-width:calc(100% - 80px)}
-@media(pointer:coarse){.stage-tools button[data-stage-component]{min-height:44px;min-width:44px}}
+@media(pointer:coarse){.stage-tools :is(#inventory-toggle,#nearby-toggle),[data-pack-navigation] .stage-tools button[data-stage-component]{min-height:44px;min-width:44px}}
+button[data-pack-icon="compass"]::before{content:"⌖" / "";margin-inline-end:.35em}
+button[data-pack-icon="book"]::before{content:"≡" / "";margin-inline-end:.35em}
+button[data-pack-icon="flag"]::before{content:"⚑" / "";margin-inline-end:.35em}
+button[data-pack-icon="meter"]::before{content:"◴" / ""}
+[data-pack-navigation] .scene-heading:has(>div:empty){display:none}
+[data-pack-navigation] .world-header{justify-content:space-between}
+[data-pack-navigation] .stage-tools{margin-inline-start:auto;min-width:0;max-width:100%;flex-wrap:wrap}
+[data-pack-navigation] .stage-tools .status-bar{margin:0}
+.pack-location-group{min-width:0;max-width:100%}
+.pack-location-group #scene{max-width:100%;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.stage-tools .pack-location-group{max-width:min(32vw,18em)}
+#status-toggle[data-pack-tone] :is(.status-cut,.status-chevron,.status-preview){color:inherit}
+.stage-tools .pack-location-group h1{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+[data-pack-navigation] .stage-action-bar{max-width:100%;overflow-x:auto;scrollbar-width:thin;padding:4px;margin:-4px}
+[data-pack-navigation] .stage-bottom:has(>#status:not([hidden])) .stage-action-bar{max-width:calc(100% - 10em)}
+@media(max-width:640px){
+  [data-pack-navigation] .stage-tools{flex-wrap:nowrap;justify-content:safe end;overflow-x:auto;scrollbar-width:thin;padding:4px}
+  [data-pack-navigation] .stage-tools>*{flex:none}
+}
 /* The rail can scroll if all contextual entries coexist with unusually long labels. */
 .stage-action-bar:has(#inventory-toggle),
 .stage-action-bar:has(#nearby-toggle[aria-label]){max-width:100%;overflow-x:auto;scrollbar-width:thin;padding:3px;margin:-3px}

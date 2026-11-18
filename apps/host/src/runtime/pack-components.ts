@@ -4,12 +4,25 @@ const regions = {
   nearby: ['toolbar', 'story'],
   sendAudience: ['footer-end', 'footer-inset'],
   identity: ['waist', 'above-waist'],
+  location: ['heading', 'toolbar'],
+  history: ['toolbar', 'story'],
+  activity: ['story', 'toolbar'],
+  statusSummary: ['heading', 'toolbar'],
 } as const
 type Component = keyof typeof regions
 type Style = Partial<Record<'anchor' | 'size' | 'tone' | 'shape' | 'icon' | 'label', string>> & { order?: number }
 export type PackComponents = Partial<Record<Component, Style & { narrow?: Style }>>
 const isRecord = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v)
-const symbols = { inventory: ['bag'], nearby: ['diamond'], sendAudience: ['arrow'], identity: ['dots'] } as const
+const symbols = {
+  inventory: ['bag'],
+  nearby: ['diamond'],
+  sendAudience: ['arrow'],
+  identity: ['dots'],
+  location: ['compass'],
+  history: ['book'],
+  activity: ['flag'],
+  statusSummary: ['meter'],
+} as const
 const safeKey = (s: string) => s.replace(/[^A-Za-z0-9_-]/gu, '?').slice(0, 40)
 
 export function readPackComponents(
@@ -40,18 +53,19 @@ export function readPackComponents(
       issue(path + ' 应为对象，已忽略。')
       return result
     }
-    const navigation = id === 'inventory' || id === 'nearby'
+    const movable = ['inventory', 'nearby', 'location', 'statusSummary', 'history', 'activity'].includes(id)
+    const renameable = ['inventory', 'nearby', 'history', 'activity'].includes(id)
     for (const [key, v] of Object.entries(value)) {
       if (key === 'narrow' && allowNarrow) {
         const override = style(id, v, path + '.narrow', false)
         if (Object.keys(override).length) result.narrow = override
         continue
       }
-      if (key === 'order' && navigation && typeof v === 'number' && Number.isInteger(v) && v >= 0 && v <= 9) {
+      if (key === 'order' && movable && typeof v === 'number' && Number.isInteger(v) && v >= 0 && v <= 9) {
         result.order = v
         continue
       }
-      if (key === 'label' && navigation && typeof v === 'string' && /^[\p{L}\p{N}][\p{L}\p{N} ·-]{0,5}$/u.test(v)) {
+      if (key === 'label' && renameable && typeof v === 'string' && /^[\p{L}\p{N}][\p{L}\p{N} ·-]{0,5}$/u.test(v)) {
         result.label = v
         continue
       }
@@ -72,9 +86,9 @@ export function readPackComponents(
       } else {
         const hint = allowed.length
           ? '可选 ' + allowed.join(' / ')
-          : key === 'order' && navigation
+          : key === 'order' && movable
             ? '需要 0–9 的整数'
-            : key === 'label' && navigation
+            : key === 'label' && renameable
               ? '需要 1–6 个字，以文字或数字开头'
               : '不支持此字段'
         issue(path + '.' + safeKey(key) + '：' + hint + '，已忽略。')
