@@ -545,6 +545,7 @@ export class TailRoundRuntime {
       this.#runtime = this.#candidate
       this.#candidate = undefined
       await this.#keepPacingChoice()
+      this.#runtime.selectWorldEventBranch()
       feed.open()
       this.#runtime.publishPlayerFeed()
       this.#regenerating = false
@@ -639,6 +640,7 @@ export class TailRoundRuntime {
       })
       this.#runtime = this.#candidate
       this.#candidate = undefined
+      this.#runtime.selectWorldEventBranch()
       feed.open()
       this.#runtime.publishPlayerFeed()
       this.#regenerating = false

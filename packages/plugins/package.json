@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./world-events": "./src/world-events/index.ts",
     "./dice": "./src/dice/index.ts",
     "./pacing": "./src/pacing/index.ts",
     "./rpg": "./src/rpg/index.ts",

@@ -1,5 +1,7 @@
 # 当前代码技术文档
 
+2026-11-18 独立世界事件的作者声明、角色观察、Cordis 消费和分支恢复见[世界事件](world-events.md)。
+
 2026-11-16 B11：8025 DeepSeek Flash 已真实使用 RPG 技能、持续效果及作者数值；修复技能认知材料缺失、活动候选重新放宽及浏览器刷新抢写租约。默认检查 264 文件／2476 项、Launcher 103 项通过，隔离便携入口和实际浏览器回合通过。范围、独立复审及未验收的原生窗口／干净机器／长局见 [B11 记录](../../superpowers/plans/2026-11-16-composable-engine-b11-acceptance.md)。
 
 2026-11-15 B10：`@perspectra/*` 包与 Host／Launcher 入口迁移见[模块地图](modules.md)、[代码路线](code-walkthrough.md)及[B10 验收记录](../../superpowers/plans/2026-11-15-composable-engine-b10-packages.md)。以下旧批次条目只表示各自当时范围。

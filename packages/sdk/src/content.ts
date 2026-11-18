@@ -33,6 +33,7 @@ export interface GeneratedActivity {
 
 /** 玩法插件根据包内配置文件构造的原生状态模块、原生活动与规则层。 */
 export interface GeneratedContent {
+  readonly worldEventRules?: readonly string[]
   /** Override the generator input only when generated definitions close over config rather than consuming it. */
   readonly gameplayConfig?: WorldJsonObject
   readonly gameplay?: readonly ContentGameplay[]

@@ -6,9 +6,11 @@ import { officialRpgContent } from '@perspectra/plugins/rpg'
 import { officialTrpgContent } from '@perspectra/plugins/trpg'
 import type { PackPluginDescriptor } from '@perspectra/world-pack'
 
+import { officialWorldEvents } from '@perspectra/plugins/world-events'
 export const officialPackPlugins: readonly PackPluginDescriptor[] = [
   officialRpgContent,
   officialTrpgContent,
+  officialWorldEvents,
   { id: 'official-dice', version: '1' },
   { id: 'official-autonomy', version: '1', configFile: 'autonomy.json' },
   { id: 'official-pacing', version: '1' },
@@ -16,7 +18,7 @@ export const officialPackPlugins: readonly PackPluginDescriptor[] = [
   // Existing source scripts remain explicitly opt-in until their authors migrate.
   { id: 'pack-scripts', version: '1' },
 ]
-export const officialPackContent = [officialRpgContent, officialTrpgContent]
+export const officialPackContent = [officialRpgContent, officialTrpgContent, officialWorldEvents]
 
 /** Pure author preflight. Script functions execute in their VM; no world/provider is opened. */
 export function validatePackScript(source: string, config: WorldJsonObject, pack: CompiledWorldPackV5): void {

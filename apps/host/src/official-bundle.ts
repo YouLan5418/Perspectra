@@ -16,6 +16,7 @@ import { officialCharacterLoopProvider } from '@perspectra/providers/character-l
 import { officialKnowledgeProvider } from '@perspectra/providers/knowledge'
 import { officialRpgContent } from '@perspectra/plugins/rpg'
 import { officialTrpgContent } from '@perspectra/plugins/trpg'
+import { officialWorldEvents } from '@perspectra/plugins/world-events'
 import type {
   ContentGenerator,
   DecisionInstance,
@@ -45,6 +46,7 @@ export const defaultInteractionPackages = (): readonly InteractionPackageImpleme
 
 /** The implementation in force for each replaceable seam. */
 export interface HostSeams {
+  readonly worldEventConsumers?: readonly import('./world-event-registry.ts').WorldEventConsumer[]
   /** Installed, permitted native gameplay metadata for explicit pack selection. */
   readonly packPlugins?: readonly import('@perspectra/world-pack').PackPluginDescriptor[]
   readonly knowledge?: SeamProvider<KnowledgeInstance>
@@ -114,8 +116,7 @@ export const officialWorldOrder = [
   'characterLoop',
 ] as const
 
-/** The official gameplay generators: rpg.json and trpg.json. */
-const officialContent: readonly ContentGenerator[] = [officialRpgContent, officialTrpgContent]
+const officialContent: readonly ContentGenerator[] = [officialRpgContent, officialTrpgContent, officialWorldEvents]
 
 /** Direct hosts and the plugin loader share the same default choices and decision ordering. */
 export function composeWorldSeams(plugins: Partial<HostSeams> = {}) {

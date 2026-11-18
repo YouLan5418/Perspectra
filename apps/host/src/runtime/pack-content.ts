@@ -1,9 +1,10 @@
 import { GameplayScript } from '../official-bundle.ts'
 import { officialPackPlugins, validatePackScript } from '../official-pack-metadata.ts'
-import { validatePackComposition, type PackPluginDescriptor } from '@perspectra/world-pack'
 import { createHash } from 'node:crypto'
 import { canonicalizeWorldJson, type WorldJsonValue } from '@perspectra/sdk/contracts'
 import {
+  parseEventBook,
+  type EventBook,
   resolveSupportedDataVersions,
   type ContentGenerator,
   type GeneratedActivity,
@@ -13,7 +14,13 @@ import {
   type StatusModuleSource,
   type ContentGameplay,
 } from '@perspectra/sdk'
-import { generatePackContent, type CompiledWorldPackV5 } from '@perspectra/world-pack'
+import {
+  packContentFacts,
+  generatePackContent,
+  validatePackComposition,
+  type PackPluginDescriptor,
+  type CompiledWorldPackV5,
+} from '@perspectra/world-pack'
 import { lockedPackAsset } from './pack-modules.ts'
 import type {
   PluginSetRecord,
@@ -29,6 +36,7 @@ export interface LoadedPluginDataCompatibility {
 
 /** 玩法插件为当前包构造的原生状态模块、原生活动、规则层与持久数据兼容声明。 */
 export interface PackContent {
+  readonly worldEvents?: EventBook
   readonly scriptDefinitions: ReadonlySet<ContentGameplay>
   readonly configs: ReadonlyMap<ContentGameplay, import('@perspectra/sdk/contracts').WorldJsonObject>
   close(): void
@@ -98,7 +106,25 @@ export function loadPackContent(
   const moduleBy = new Map<string, string>(),
     activityBy = new Map<string, string>()
 
+  let worldEvents: EventBook | undefined
   for (const { generator, config, generated } of results) {
+    if (generated.worldEventRules !== undefined) {
+      if (worldEvents || (pack.plugins?.[generator.id]?.config ?? generator.configFile) !== 'world-events.json')
+        throw new TypeError('world-events requires one selected producer for world-events.json')
+      const book = parseEventBook(
+        JSON.parse(lockedPackAsset(packPath, pack, 'world-events.json')),
+        packContentFacts(pack),
+      )
+      if (!Array.isArray(generated.worldEventRules) || generated.worldEventRules.length > book.rules.length)
+        throw new TypeError('world-events: invalid candidate rule IDs')
+      const ids = new Set(generated.worldEventRules)
+      if ([...ids].some(id => !book.rules.some(rule => rule.id === id)))
+        throw new TypeError('undeclared world event rule')
+      worldEvents = {
+        rules: book.rules.filter(rule => ids.has(rule.id)),
+        grants: book.grants.filter(grant => Object.hasOwn(pack.plugins ?? {}, grant.plugin)),
+      }
+    }
     gameplay.push(...(generated.gameplay ?? []))
     for (const definition of generated.gameplay ?? [])
       if (!configs.has(definition))
@@ -178,6 +204,7 @@ export function loadPackContent(
     hashes[generator.id] = digest
   }
   return {
+    ...(worldEvents ? { worldEvents } : {}),
     gameplay,
     statusModules,
     activities,

@@ -1,6 +1,6 @@
 /** Major.minor. A new service or optional field raises the minor; any change a plugin could trip over
  * raises the major. A plugin exports `hostApi` with the lowest version it needs. */
-export const HOST_API_VERSION = '2.11'
+export const HOST_API_VERSION = '2.12'
 
 /** Same major, and this host's minor at least the one the plugin asks for. */
 export function hostApiCompatible(required: unknown, host: string = HOST_API_VERSION): boolean {

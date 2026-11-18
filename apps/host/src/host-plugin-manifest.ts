@@ -19,6 +19,7 @@ const SERVICES = [
   'decisions',
   'rules',
   'content',
+  'worldEvents',
   'memory',
 ] as const
 const FIELD_NAME = /^[a-zA-Z][a-zA-Z0-9_]{0,39}$/u

@@ -4,6 +4,10 @@ B8 共同 GameplayDefinition 可提供通用操作、面板与绑定正式操作
 
 2026-11-05 M6：先按[共同契约](../architecture/mechanism-contracts.md)区分核心、内部机制、包内脚本与交付适配。API 仍为 2.8，SDK 根导出不变，不导入内部文件作为未发布子路径。显式组合、透视与分享选择见[装配说明](../architecture/mechanism-contracts.md#5-默认组合与显式停用)。
 
+## 消费已提交世界事件（2.12）
+
+世界包声明触发条件和授权，独立演出或剧情插件通过 `ctx.worldEvents.subscribe` 接收结构化发生记录。配置样例、空效果回执与重开语义见[独立世界事件](../architecture/world-events.md)。
+
 ## 替换骰子（2.11）
 
 例如想让活动里的 `rollDice('d20')` 改成优势骰（掷两次取高），只换骰子机制，不改活动脚本。插件通过 `ctx.effect(() => ctx.dice.register(provider))` 注册单例，清单 services 写 `dice`，模块声明 `hostApi = '2.11'`；没有插件注册时用官方 `official-dice`。

@@ -58,6 +58,8 @@ import {
   type ActivitiesInstance,
 } from '@perspectra/sdk'
 
+import { installWorldEventRegistry, type WorldEventConsumer } from './world-event-registry.ts'
+
 // Cordis 4.0.1 exposes FiberState only as an ambient const enum in its declarations.
 const CORDIS_ACTIVE = 2
 
@@ -590,6 +592,9 @@ export async function loadHostPlugins(
   const services = new FrontendServices(root)
   const capabilities = new HostCapabilities(root)
   const playerFeed = new PlayerFeed(root)
+  let eventConsumers: WorldEventConsumer[] = []
+  const bindWorldEvents = installWorldEventRegistry(root)
+  const eventOwners = new Map<number, { id: string; allowed: boolean }>()
   const scheduler = new SchedulerSlot(root, recordCoreRegistration)
   const characterLoop = new CharacterLoopSlot(root, recordCoreRegistration)
   const knowledge = new KnowledgeSlot(root, recordCoreRegistration)
@@ -666,7 +671,7 @@ export async function loadHostPlugins(
       }
       if (
         options.gameplayIds &&
-        manifest?.services.some(service => ['rules', 'content'].includes(service)) &&
+        manifest?.services.some(service => ['rules', 'content', 'worldEvents'].includes(service)) &&
         (!manifest.id || !options.gameplayIds.includes(manifest.id))
       )
         continue
@@ -721,6 +726,17 @@ export async function loadHostPlugins(
         fiber = root.plugin(module.default as Plugin, structuredClone(config))
         fiberUid = fiber.uid ?? undefined
         if (fiberUid === undefined) throw new Error('插件实例未获得有效归属。')
+        if (
+          manifest?.id &&
+          [...eventOwners.values()].some(
+            owner => owner.id === manifest.id && (owner.allowed || manifest.services.includes('worldEvents')),
+          )
+        )
+          throw new Error('重复插件身份')
+        eventOwners.set(fiberUid, {
+          id: manifest?.id ?? '',
+          allowed: !!manifest?.id && manifest.services.includes('worldEvents'),
+        })
         pending.push({ id: plugin.id, optional, uid: fiberUid, fiber })
         // Cordis await settles PENDING immediately; it does not wait for a missing inject service.
         // Finish active setup in settings order so an async first registration retains its priority.
@@ -775,6 +791,7 @@ export async function loadHostPlugins(
         }
       }
     }
+    eventConsumers = bindWorldEvents(eventOwners)
     installOfficialBundle(root, defaults.memory)
   } catch (error) {
     await closeRoot(false)
@@ -807,6 +824,7 @@ export async function loadHostPlugins(
       ...(decisions.providers.length ? { decisions: decisions.providers } : {}),
       ...(rules.providers.length ? { rules: rules.providers } : {}),
       content: content.generators,
+      worldEventConsumers: eventConsumers,
       packPlugins: candidates
         .filter(plugin => loaded.has(plugin.id))
         .flatMap(plugin => {

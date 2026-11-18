@@ -1,0 +1,127 @@
+import type { ContentPackFacts } from './content.ts'
+
+export type Witness = 'scene' | 'global' | { readonly holds: string }
+export interface EventRule {
+  readonly id: string
+  readonly type: string
+  readonly round: number
+  readonly location: string
+  readonly witnesses: readonly Witness[]
+  readonly observation: string
+  readonly set: BooleanWrite
+}
+export interface BooleanWrite {
+  readonly key: string
+  readonly value: boolean
+}
+export interface EventGrant {
+  readonly plugin: string
+  readonly type: string
+  readonly mode: 'live' | 'durable'
+  readonly effect?: BooleanWrite
+}
+export interface EventBook {
+  readonly rules: readonly EventRule[]
+  readonly grants: readonly EventGrant[]
+}
+export interface WorldEventEnvelope {
+  readonly type: string
+  readonly occurrenceId: string
+}
+export interface WorldEventConsumerScope {
+  readonly signal: AbortSignal
+}
+export type EventSubscription =
+  | {
+      readonly mode: 'live'
+      readonly type: string
+      open(scope: WorldEventConsumerScope): (event: WorldEventEnvelope) => void
+    }
+  | {
+      readonly mode: 'durable'
+      readonly type: string
+      open(scope: WorldEventConsumerScope): (event: WorldEventEnvelope) => 'ack' | 'apply'
+    }
+export interface WorldEventsApi {
+  subscribe(subscription: EventSubscription): () => void
+}
+
+function object(raw: unknown, keys: readonly string[]): Record<string, unknown> {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw) || Object.keys(raw).some(k => !keys.includes(k)))
+    throw new TypeError('world-events: unexpected field or invalid object (' + keys.join(', ') + ')')
+  return raw as Record<string, unknown>
+}
+function list(raw: unknown, max: number): unknown[] {
+  if (!Array.isArray(raw) || raw.length > max) throw new TypeError('world-events: invalid list')
+  return raw
+}
+function id(raw: unknown): string {
+  if (typeof raw !== 'string' || !/^[a-z][a-z0-9.:-]{0,95}$/.test(raw)) throw new TypeError('world-events: invalid ID')
+  return raw
+}
+export function worldEventType(raw: unknown): string {
+  if (typeof raw !== 'string' || !/^[a-z][a-z0-9.-]{0,63}@[1-9][0-9]{0,3}$/.test(raw))
+    throw new TypeError('world-events: expected versioned event type')
+  return raw
+}
+function write(raw: unknown): BooleanWrite {
+  const row = object(raw, ['key', 'value'])
+  if (typeof row.value !== 'boolean') throw new TypeError('world-events: expected boolean effect')
+  return { key: id(row.key), value: row.value }
+}
+export function parseEventBook(raw: unknown, pack: ContentPackFacts): EventBook {
+  const book = object(raw, ['rules', 'grants'])
+  const rules = list(book.rules, 32).map((entry): EventRule => {
+    const rule = object(entry, ['id', 'type', 'round', 'location', 'audience', 'observation', 'set'])
+    if (
+      typeof rule.round !== 'number' ||
+      !Number.isSafeInteger(rule.round) ||
+      rule.round < 1 ||
+      typeof rule.location !== 'string' ||
+      !pack.locationIds.includes(rule.location) ||
+      typeof rule.observation !== 'string' ||
+      !rule.observation.trim() ||
+      rule.observation.length > 512
+    )
+      throw new TypeError('world-events: invalid round, location or observation')
+    const audience = rule.audience === undefined ? 'scene' : rule.audience
+    const members =
+      typeof audience === 'object' && audience && 'anyOf' in audience
+        ? list(object(audience, ['anyOf']).anyOf, 4)
+        : [audience]
+    if (!members.length) throw new TypeError('world-events: empty anyOf')
+    const witnesses = members.map((raw): Witness => {
+      if (raw === 'scene' || raw === 'global') return raw
+      const item = object(raw, ['holds']).holds
+      if (typeof item !== 'string' || !pack.entityIds.includes(item))
+        throw new TypeError('world-events: unknown held item')
+      return { holds: item }
+    })
+    return {
+      id: id(rule.id),
+      type: worldEventType(rule.type),
+      round: rule.round,
+      location: rule.location,
+      witnesses,
+      observation: rule.observation,
+      set: write(rule.set),
+    }
+  })
+  const grants = list(book.grants ?? [], 64).map((entry): EventGrant => {
+    const grant = object(entry, ['plugin', 'type', 'mode', 'effect'])
+    if ((grant.mode !== 'durable' && grant.mode !== 'live') || (grant.effect !== undefined && grant.mode !== 'durable'))
+      throw new TypeError('world-events: invalid subscription grant')
+    return {
+      plugin: id(grant.plugin),
+      type: worldEventType(grant.type),
+      mode: grant.mode,
+      ...(grant.effect === undefined ? {} : { effect: write(grant.effect) }),
+    }
+  })
+  if (
+    new Set(rules.map(r => r.id)).size !== rules.length ||
+    new Set(grants.map(g => JSON.stringify([g.plugin, g.type, g.mode]))).size !== grants.length
+  )
+    throw new TypeError('world-events: duplicate rule or grant')
+  return { rules, grants }
+}

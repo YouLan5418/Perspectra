@@ -59,6 +59,7 @@
       "@perspectra/plugins/pacing": [
         "./packages/plugins/src/pacing/index.ts"
       ],
+      "@perspectra/plugins/world-events": ["./packages/plugins/src/world-events/index.ts"],
       "@perspectra/plugins/rpg": [
         "./packages/plugins/src/rpg/index.ts"
       ],

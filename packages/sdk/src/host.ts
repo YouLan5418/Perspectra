@@ -34,6 +34,7 @@ export interface HostServices {
   llm: LlmSlotApi
   decisions: DecisionsApi
   rules: RulesApi
+  worldEvents: import('./world-events.ts').WorldEventsApi
   content: ContentApi
 }
 

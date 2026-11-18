@@ -25,6 +25,10 @@ export default defineConfig({
       { find: /^@perspectra\/frontend$/, replacement: `${root}packages/frontend/src/index.ts` },
       { find: /^@perspectra\/jev-audit$/, replacement: `${root}packages/jev-audit/src/index.ts` },
       { find: /^@perspectra\/memory-core$/, replacement: `${root}packages/memory-core/src/index.ts` },
+      {
+        find: /^@perspectra\/plugins\/world-events$/,
+        replacement: `${root}packages/plugins/src/world-events/index.ts`,
+      },
       { find: /^@perspectra\/plugins\/dice$/, replacement: `${root}packages/plugins/src/dice/index.ts` },
       { find: /^@perspectra\/plugins\/pacing$/, replacement: `${root}packages/plugins/src/pacing/index.ts` },
       { find: /^@perspectra\/plugins\/rpg$/, replacement: `${root}packages/plugins/src/rpg/index.ts` },

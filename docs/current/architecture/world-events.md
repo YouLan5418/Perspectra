@@ -1,0 +1,51 @@
+# 独立世界事件和插件消费
+
+核对日期为 2026-11-18。料理进行到第 4 个玩家回合时，作者可以让厨房停电。料理继续占用原活动位。世界包在 `plugins` 选用 `official-world-events`，在 `assetFiles` 锁定 `world-events.json`，并用包自己的基础状态脚本声明公共布尔值 `power`。要让已安装的演出插件收到通知，还需要在包的 `plugins` 选用该插件，并在规则文件中授权。
+
+```json
+{
+  "rules": [{
+    "id": "kitchen-blackout",
+    "type": "power.outage@1",
+    "round": 4,
+    "location": "location:kitchen",
+    "audience": { "anyOf": ["scene", { "holds": "entity:radio-1" }] },
+    "set": { "key": "power", "value": false },
+    "observation": "灯熄灭了。"
+  }],
+  "grants": [{ "plugin": "stage-cue", "type": "power.outage@1", "mode": "live" }]
+}
+```
+
+`ctx.content` 生成器只提出该文件里声明的规则 ID。Host 从锁定的原始文件独立核对可选规则、状态写入和消费授权。状态写入限基础包的公共布尔状态，排除原生玩法、模块和活动专用状态。规则按声明顺序在首个达到或超过阈值的合格结算周期执行一次。宿主在写租约内用同一已提交前缀判定回合、规则标记和受众。省略受众即同场，使用发生地点唯一活跃场景的见证资格。同一地点若有多个独立活跃场景，地点无法确定同场受众，此项不给任何人授权；组合中的持有物等条件仍各自有效。`global` 含所有活跃角色，包括玩家和暂未被调度的 NPC。持有按具体实体 ID 查询。一层 `anyOf` 最多四项，死亡、离开或失能角色统一排除。没有见证者时仍可改变状态。
+
+每次发生有独立发生 ID。状态、各见证者观察及含规则标记的发生记录由同一结算事务提交。见证写入已有的 `eventNotice`。这类事实没有行动裁定的 `status: accepted`，默认调度器不会只因看见停电就唤醒 NPC。角色在下一次有资格行动时仍可读取自己的观察。活动保留自己的进度、参与者与结算。发生记录保存在现有 round authority，Host 用每一分支的有效事务前缀重建索引。[宿主实现](../../../apps/host/src/runtime/world-events.ts) · [结算入口](../../../packages/core/src/application/world-round-execution.ts)
+
+## 订阅
+
+原生插件须获得宿主执行许可，在自己的静态清单中声明 `worldEvents`，再于 Cordis 初始化期间注册。例如：
+
+```js
+export const hostApi = '2.12'
+export default ctx => {
+  ctx.effect(() => ctx.worldEvents.subscribe({
+    type: 'power.outage@1',
+    mode: 'live',
+    open({ signal }) {
+      return event => {
+        if (!signal.aborted) recordLocalCue(event.occurrenceId)
+      }
+    }
+  }))
+}
+```
+
+示例中的 `recordLocalCue` 由演出插件实现，只记录服务内部的提示。[离线演出消费者](../../../tests/fixtures/world-event-stage-cue.mjs)是可独立装载的模块，测试把它的交付记录保存在一次性目录。Host 按注册 Fiber 的真实插件身份、包选择、发生时和当前授权交集交付。回调只拿到版本化类型与发生 ID。每个挂载实例首次交付时单独打开处理器，关闭时取消 signal。启动后新增订阅须重新装载插件。玩家与 NPC 通过各自获准的观察阅读内容。内部服务通知不提供玩家已读证明，不能直接当成一条可展示的旁白。
+
+| 模式 | 实际保证 |
+| --- | --- |
+| live | 活跃实例从选中时的首部向前读取，确认提交后每次发生最多尝试一次。回调失败、重启或选中已有候选均不补播。 |
+| durable | 仅在后续合格周期处理。同一插件对同一次发生返回 `ack`，或返回 `apply` 选择包在该 grant 的 `effect` 预先声明的布尔写入。同步回调抛错或返回非法值时只推迟该消费者。 |
+| 重开与回退 | 效果与回执同事务。空效果回执沿用正常结算 tick。事务前中断可再次调用处理器，涉及外部系统的动作需自行幂等。分叉继承分叉点之前的发生与回执。未选候选不调用消费者，选中后 durable 在下一合格周期补处理，故重生成当回合可能暂缺原分支已经落下的消费效果。 |
+
+消费接口没有发布或活动控制方法。授权的 `apply` 可以写入事先声明的效果，后续规则仍需等合法结算时机。同一事务中多条规则的受众统一取事务前的触发快照。生产者身份不进入消费信封或一次性标记。代码入口见 [SDK](../../../packages/sdk/src/world-events.ts)、[官方内容插件](../../../packages/plugins/src/world-events/index.ts)及[故障与分支回归](../../../tests/host/world-events.test.ts)。
