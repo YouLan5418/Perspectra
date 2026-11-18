@@ -63,6 +63,8 @@ export interface HostState {
     readonly id: string
     readonly name: string
     readonly kind: string
+    /** Visible row confirming the latest pickup, only while this player holds the item. */
+    readonly pickupResultSeq?: number
     readonly where: 'held' | 'here' | 'with'
     readonly holderId?: string
     readonly holderName?: string

@@ -59,6 +59,14 @@ it('offers only the item actions that can succeed, and moves the thermos by the 
   expect(await f.labels()).toEqual(['拿起保温杯'])
   await f.runtime.perform((await f.option('拿起保温杯')).action)
   expect(thermos().holderId).toBe('character:player')
+  const picked = projectPlayerView(await f.runtime.state())
+  const pickupSeq = picked.items!.find(item => item.id === 'entity:thermos')?.pickupResultSeq
+  expect(pickupSeq).toEqual(expect.any(Number))
+  expect(picked.history.find(line => line.seq === pickupSeq)).toMatchObject({
+    player: true,
+    text: '保温杯 已交由玩家保管。',
+  })
+  expect(JSON.stringify(picked.history)).not.toContain('entity:thermos')
   expect(await f.labels()).toEqual(['放下保温杯', '把保温杯交给'])
   const give = await f.option('把保温杯交给')
   expect(give.characterArguments).toEqual(['recipientId'])
@@ -67,6 +75,11 @@ it('offers only the item actions that can succeed, and moves the thermos by the 
     parameters: { ...give.action.parameters, arguments: { recipientId: 'character:companion' } },
   })
   expect(thermos().holderId).toBe('character:companion')
+  const after = projectPlayerView(await f.runtime.state())
+  expect(after.items!.some(item => item.pickupResultSeq !== undefined)).toBe(false)
+  expect(after.history.find(line => line.seq === pickupSeq)).toEqual(
+    picked.history.find(line => line.seq === pickupSeq),
+  )
   expect(await f.labels()).toEqual([])
   // The bystander saw the hand-over, as with the built-in give.
   const witnessed = f

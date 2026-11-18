@@ -62,7 +62,8 @@ export function generateMapActivities(config: RpgConfig, options: MapActivityOpt
     }
     if (Buffer.byteLength(JSON.stringify(mapConfig)) > MAP_CONFIG_LIMIT)
       throw new RangeError(`maps[${i}]：地图活动配置超过 256 KiB`)
-    const activity = createRpgMapBattleHooks(mapConfig)
+    // Visibility belongs to the player projection, outside the per-map rule payload budget.
+    const activity = createRpgMapBattleHooks({ ...mapConfig, stats: config.stats })
     return { key, activity }
   })
 }

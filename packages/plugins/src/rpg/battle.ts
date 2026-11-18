@@ -4,6 +4,7 @@ import {
   clampValue,
   adjustedAmount,
   valueSkillProblem,
+  costShortfall,
   type RpgBattleValues,
   type RpgValueState,
   type RpgValueRef,
@@ -30,6 +31,7 @@ import type {
   RpgNarration,
   RpgRetreat,
   RpgSkill,
+  RpgStat,
 } from './config.ts'
 import { RPG_MAP_ACTIVITY_PHASES, heldEquipmentBonus, maxStatKey, statKey, type RpgItemSnapshot } from './state.ts'
 
@@ -45,7 +47,7 @@ export interface MapBattleConfig {
   readonly enemies: readonly (RpgEnemy & { readonly id: string })[]
   readonly drops: readonly string[]
   readonly scripted: readonly RpgCue[]
-  readonly stats: readonly { readonly key: string; readonly label: string }[]
+  readonly stats: readonly Readonly<RpgStat>[]
   readonly characters: Readonly<Record<string, RpgCharacter>>
   readonly skills: readonly RpgSkill[]
   readonly combatStatuses: Readonly<Record<string, RpgCombatStatus>>
@@ -479,7 +481,7 @@ export function createRpgMapBattleHooks(config: MapBattleConfig): ActivityHooks 
     if (!own || own.hp === null) return null
     if (own.hp <= 0) return `${nameOf(cue.characterId)}已经倒下`
     for (const key of Object.keys(used.cost)) {
-      if ((own.stats[key] ?? 0) < used.cost[key]!) return `${statLabel(key)}不足`
+      if (costShortfall(own.stats[key] ?? 0, used.cost[key]!) > 0) return `${statLabel(key)}不足`
     }
     const unavailableValue = valueProblem(game, cue.characterId, used)
     if (unavailableValue) return unavailableValue
@@ -993,7 +995,7 @@ export function createRpgMapBattleHooks(config: MapBattleConfig): ActivityHooks 
               (used.target !== 'self' || unit.id === actorId),
           )
         const targets = used.scope === 'all' ? units.filter(validTarget) : victim ? [victim] : []
-        const missingCost = Object.keys(used.cost).find(key => (own.stats[key] ?? 0) < used.cost[key]!)
+        const missingCost = Object.keys(used.cost).find(key => costShortfall(own.stats[key] ?? 0, used.cost[key]!) > 0)
         const problem =
           (scripted ? unavailableCueReason(cueNow, game) : null) ||
           (!validTarget(victim) ? '这个技能不能对该目标使用。' : null) ||

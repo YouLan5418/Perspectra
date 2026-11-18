@@ -6,7 +6,11 @@ import {
 } from './activity-stage.ts'
 import type { ActivityStageRenderer } from '@perspectra/sdk/contracts'
 import { GAMEPLAY_WIDGETS } from './gameplay-widgets.ts'
+import { createRpgReading } from './rpg-reading.ts'
 import { createReadingPlayback } from './reading-playback.ts'
+import { createStatusPlayback } from './status-playback.ts'
+import { actionReplyOutcome } from './request-outcome.ts'
+import { createSuccessFeedback } from './success-feedback.ts'
 import { STAGE_STYLE } from './stage-style.ts'
 import { stagePreferences } from './stage-preferences.ts'
 import { createBgmPlayback } from './bgm-playback.ts'
@@ -17,43 +21,69 @@ export const DEFAULT_PAGE = String.raw`<!doctype html>
 <title>Perspectra 对话</title><link rel="stylesheet" href="/frontend/default.css"></head>
 <body><main>
   <div class="backdrop" aria-hidden="true"><img id="background" alt="" hidden></div>
-  <header class="world-header"><div class="scene-heading"><div><h2 id="scene">正在进入情景</h2><h1 id="title">正在进入世界</h1><div id="status-bar" class="status-bar" role="group" aria-label="你知道的状态" hidden></div></div></div><nav class="stage-tools" aria-label="舞台工具"><span id="plugin-tools" hidden></span><button id="history-toggle" type="button" aria-expanded="false" aria-controls="history-panel">记录</button><button id="actions-toggle" type="button" aria-expanded="false" aria-controls="action-panel">行动 <span id="action-count">0</span></button><button id="inventory-toggle" type="button" aria-expanded="false" aria-controls="inventory-panel">背包 <span id="inventory-count">0</span></button><button id="status-toggle" type="button" aria-expanded="false" aria-controls="status-panel">状态</button><button id="settings-toggle" type="button" aria-expanded="false" aria-controls="settings-panel">设置</button></nav></header>
+  <header class="world-header"><div class="scene-heading"><div><h2><button id="scene" class="scene-move" type="button" aria-controls="move-panel" aria-expanded="false">正在进入情景</button></h2><h1 id="title">正在进入世界</h1><button id="status-toggle" class="status-bar" type="button" aria-expanded="false" aria-controls="status-panel"><span>状态</span><span id="status-bar" class="status-preview-list" hidden></span><span id="status-cut" class="status-cut" hidden></span><span class="status-chevron" aria-hidden="true">▾</span></button></div></div><nav class="stage-tools" aria-label="辅助工具"><span id="plugin-tools" hidden></span><button id="history-toggle" type="button" aria-expanded="false" aria-controls="history-panel">记录</button><button id="settings-toggle" type="button" aria-expanded="false" aria-controls="settings-panel">设置</button></nav></header>
   <div id="characters" aria-label="当前可见角色"></div><div id="character-menu" class="character-menu" role="menu" hidden></div>
+  <span id="success-announcement" class="visually-hidden" role="status"></span>
   <div class="stage-notifications" aria-live="polite"><p id="movement-toast" class="movement-toast" hidden></p><p id="item-toast" class="movement-toast" hidden></p></div>
-  <section id="activity-card" class="activity-card" aria-label="当前活动" hidden><button id="activity-heading" class="activity-heading" type="button" aria-expanded="true"><small>当前活动</small><strong id="activity-title"></strong><span id="activity-phase"></span></button><div id="activity-body"><p id="activity-objective"></p><dl id="activity-state"></dl><div id="activity-options"></div><p id="activity-result" class="hint" role="status"></p><div id="activity-manage" class="activity-manage"></div></div></section>
-  <section class="stage-bottom" aria-label="故事与对话"><span id="status" class="status" role="status">正在连接</span>
-    <div class="dialogue-wrap" id="dialogue-wrap"><div class="dialogue-meta"><strong id="speaker" class="speaker-label">序幕</strong><span id="reading-count" class="reading-count"></span></div><button id="dialogue" class="dialogue" type="button" aria-label="阅读下一段">世界正在醒来……</button><div id="auto-progress" class="auto-progress" hidden><div id="auto-progress-bar" class="auto-progress-bar"></div></div><div id="feedback" class="feedback"><p id="notice" role="status"></p><button id="retry" class="secondary" type="button" hidden>重试同一操作</button></div><div class="dialogue-footer"><span id="continue-hint">点击继续</span><button id="auto-read" type="button" aria-pressed="false">自动</button><button id="skip-read" type="button" title="跳到已经发生的最新内容">跳过</button>      <div id="round-tools" class="round-tools" role="group" aria-label="末端回合候选" hidden><button id="candidate-prev" type="button" aria-label="上一个候选" title="上一个候选">‹</button><span id="candidate-count" aria-live="polite"></span><button id="candidate-next" type="button" aria-label="下一个候选" title="下一个候选">›</button><button id="regenerate-round" type="button" aria-label="重新生成" title="重新生成此回合"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M20 7v5h-5M4 17v-5h5"/><path d="M6 6a8 8 0 0 1 13 3l1 3M4 12l1 3a8 8 0 0 0 13 3"/></svg></button><button id="cancel-round" type="button" aria-label="取消重新生成" title="取消重新生成" hidden>停止</button></div>
+  <section id="activity-card" class="activity-card" aria-label="当前活动" hidden><button id="activity-heading" class="activity-heading" type="button" aria-expanded="true"><small>当前活动</small><strong id="activity-title"></strong><span id="activity-phase"></span></button><div id="activity-body"><p id="activity-objective" hidden></p><dl id="activity-state"></dl><p id="activity-result" class="hint" role="status" hidden></p><div id="activity-options"></div><div id="activity-manage" class="activity-manage"></div><details id="activity-rules" hidden><summary>规则与说明</summary><p id="activity-instructions"></p></details></div></section>
+  <section class="stage-bottom" aria-label="故事与对话"><nav class="stage-action-bar" aria-label="游戏操作"><button id="actions-toggle" type="button" aria-expanded="false" aria-controls="action-panel">行动</button><button id="activity-discover" type="button" aria-controls="activity-drawer" aria-expanded="false" hidden>活动</button><button id="move-toggle" type="button" aria-controls="move-panel" aria-expanded="false">移动</button><button id="nearby-toggle" type="button" aria-controls="nearby-panel" aria-expanded="false">周围物品</button></nav><span id="status" class="status" role="status">正在连接</span>
+    <div class="dialogue-wrap" id="dialogue-wrap"><div class="dialogue-meta"><strong id="speaker" class="speaker-label">序幕</strong><span id="reading-count" class="reading-count"></span></div><div id="dialogue" class="dialogue" tabindex="-1"><span id="dialogue-text">世界正在醒来……</span><span id="read-arrow" aria-hidden="true" hidden></span></div><div id="auto-progress" class="auto-progress" hidden><div id="auto-progress-bar" class="auto-progress-bar"></div></div><div id="feedback" class="feedback"><p id="notice" role="status"></p><p id="host-notice"></p><div id="request-feedback" class="request-feedback" hidden><div class="request-copy" aria-live="polite"><strong id="request-title"></strong><p id="request-detail"></p></div><div class="request-controls"><button id="check-result" type="button">检查结果</button><button id="review-request" type="button">重新选择</button><button id="dismiss-request" type="button" aria-label="收起操作提示">×</button></div></div></div><div class="dialogue-footer"><button id="pickup-item" type="button" hidden>查看物品</button><button id="auto-read" type="button" aria-pressed="false">自动</button><button id="skip-read" type="button" title="跳到已经发生的最新内容">跳过</button>      <div id="round-tools" class="round-tools" role="group" aria-label="末端回合候选" hidden><button id="candidate-prev" type="button" aria-label="上一个候选" title="上一个候选">‹</button><span id="candidate-count" aria-live="polite"></span><button id="candidate-next" type="button" aria-label="下一个候选" title="下一个候选">›</button><button id="regenerate-round" type="button" aria-label="重新生成" title="重新生成此回合"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M20 7v5h-5M4 17v-5h5"/><path d="M6 6a8 8 0 0 1 13 3l1 3M4 12l1 3a8 8 0 0 0 13 3"/></svg></button><button id="cancel-round" type="button" aria-label="取消重新生成" title="取消重新生成" hidden>停止</button></div>
 </div></div>
-<div id="reply-bar" class="reply-bar" hidden><button id="reply-open" type="button">说点什么…</button><button id="reply-wait" type="button" hidden title="不说也不做，让这一轮过去">静观</button></div>
+<div id="reply-bar" class="reply-bar" hidden><button id="reply-open" type="button">说点什么…</button></div>
       <div class="composer" id="composer" hidden><div class="reply-context" id="reply-context" role="button" tabindex="0" title="点击返回对白"><span id="reply-speaker"></span><p id="reply-summary"></p></div>
+        <div id="composer-unread" class="composer-unread" hidden><span id="composer-unread-text" role="status"></span><button id="composer-read" type="button">先读未读</button><button id="composer-skip" type="button">跳过并继续编辑</button></div>
         <div class="composer-body"><div class="composer-main">
         <div id="expression-choices" class="expression-choices"></div><label class="visually-hidden" for="input">写下你的回应</label><textarea id="input" maxlength="2000" placeholder="说出你想对角色说的话……" rows="2"></textarea>
-        <div class="composer-footer"><div class="audience-picker" id="audience-picker">
-          <button id="audience-button" class="audience-button" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="audience-menu"><span class="audience-dot" aria-hidden="true"></span><span id="audience-badge">公开发言</span><span class="chevron" aria-hidden="true">▴</span></button>
-          <div id="audience-menu" class="audience-menu" hidden>
+        <div class="composer-footer">
+        <span id="attached-action" class="attached-action" hidden><span id="attached-label"></span><select id="attached-order" aria-label="说和做的顺序"><option value="before">先说后做</option><option value="after">先做后说</option></select><button id="attached-clear" type="button" aria-label="取消这个行动">×</button></span>
+
+
+        <details class="composer-more"><summary>更多</summary><div class="composer-more-body"><details class="narration-composer" id="narration-panel"><summary title="描写你的动作、神态或语气（可选），与发言一起发送">描写</summary><label class="visually-hidden" for="narration">细节描写</label><textarea id="narration" maxlength="2000" placeholder="动作、神态或语气（可选）" rows="1" title="不会直接改变位置或物品归属"></textarea></details><button id="composer-actions" type="button" aria-controls="action-panel" aria-expanded="false" title="挑一个行动；输入框有字时，它会和这句话一起提交">＋ 行动</button><button id="composer-message" type="button" aria-controls="message-panel" title="给不在身边的人发消息，单独发送" hidden>短信</button><button id="wait" type="button" hidden title="不说也不做，让这一轮过去">静观</button><span class="composer-keys">Enter 发送 · Shift+Enter 换行</span></div></details><div id="send-cluster" class="send-cluster"><div id="audience-inline" class="audience-inline"><div class="audience-picker" id="audience-picker">
+          <button id="audience-button" class="audience-button" type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="audience-menu"><span class="audience-dot" aria-hidden="true"></span><span id="audience-badge">公开</span><span class="chevron" aria-hidden="true">▴</span></button>
+          <div id="audience-menu" class="audience-menu" role="dialog" aria-label="设置发言受众" hidden>
             <fieldset class="audience-options"><legend>谁能听到这句话</legend>
               <label data-tip="当前场景里有权观察的角色都会收到完整内容。"><input type="radio" name="speech-scope" value="scene_public" checked><span>公开</span><small>在场的人都能听到</small></label>
               <label data-tip="只有选定的角色收到内容，其他角色不会观察到这次发言。"><input type="radio" name="speech-scope" value="direct"><span>定向</span><small>只说给一个人</small></label>
               <label data-tip="只有选定的角色收到内容；其他有权观察的角色只知道你们在私下交谈。"><input type="radio" name="speech-scope" value="private"><span>私密</span><small>悄悄话，旁人只看到在交谈</small></label>
               <label data-tip="只留给你自己，不会传播给任何角色。"><input type="radio" name="speech-scope" value="self"><span>仅自己</span><small>不让任何角色知道</small></label>
             </fieldset>
+            <div id="recipient-panel" hidden><label for="speech-recipient">接收对象</label><select id="speech-recipient"></select><p id="recipient-hint" class="hint" hidden></p></div>
+            <p id="audience-detail"></p><button id="audience-done" type="button">完成</button>
           </div>
-        </div>
-        <div id="recipient-panel" hidden><label for="speech-recipient">对</label><select id="speech-recipient"></select><p id="recipient-hint" class="hint" hidden>当前没有可接收发言的角色。</p></div>
-<details class="narration-composer" id="narration-panel"><summary title="描写你的动作、神态或语气（可选），与发言一起发送">描写</summary><label class="visually-hidden" for="narration">细节描写</label><textarea id="narration" maxlength="2000" placeholder="动作、神态或语气（可选）" rows="1" title="不会直接改变位置或物品归属"></textarea></details>
-        <span id="attached-action" class="attached-action" hidden><span id="attached-label"></span><select id="attached-order" aria-label="说和做的顺序"><option value="before">先说后做</option><option value="after">先做后说</option></select><button id="attached-clear" type="button" aria-label="取消这个行动">×</button></span>
-        <button id="composer-actions" type="button" aria-controls="action-panel" title="挑一个行动；输入框有字时，它会和这句话一起提交">＋ 行动</button>
-        <button id="composer-message" type="button" aria-controls="message-panel" title="给不在身边的人发消息，单独发送" hidden>短信</button>
-        <span class="composer-keys">Enter 发送 · Shift+Enter 换行</span><span class="composer-submit"><button id="wait" type="button" hidden title="不说也不做，让这一轮过去">静观</button><button id="send" type="button">发送 <span aria-hidden="true">↑</span></button></span></div>
+        </div></div><span class="composer-submit"><button id="send" type="button" aria-label="发送"><svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m21 3-7.1 18-4.1-6.8L3 10.1 21 3Z"/><path d="M21 3 9.8 14.2"/></svg></button></span></div></div>
         <p id="audience-preview" class="visually-hidden" aria-live="polite"></p>
         </div></div>
       </div>
   </section>
   <section id="history-panel" class="panel history-panel" aria-label="文字记录" hidden><div class="panel-header"><span>文字记录 · <span id="player"></span></span><button id="history-close" type="button" aria-label="关闭文字记录">×</button></div><section id="history" aria-label="玩家可见对话记录"></section><button id="latest" class="latest secondary" type="button" hidden>回到最新对话 ↓</button></section>
-  <section id="action-panel" class="panel action-panel" aria-label="可用行动" hidden><div class="panel-header"><span>当前可用行动</span><button id="actions-close" type="button" aria-label="关闭行动">×</button></div><div id="actions"></div></section>
+  <section id="action-panel" class="panel action-panel" aria-label="行动索引" hidden>
+    <div class="panel-header"><span>行动</span><button id="actions-close" type="button" aria-label="关闭行动">×</button></div>
+    <div class="index-filters">
+      <label class="visually-hidden" for="action-search">查找行动</label><input id="action-search" type="search" placeholder="查找行动、地点或对象" autocomplete="off">
+      <label class="visually-hidden" for="action-category">按意图分类</label><select id="action-category"><option value="">全部</option><option value="move">前往地点</option><option value="item">使用物品</option><option value="character">交流与互动</option><option value="activity">参加活动</option><option value="other">其他</option></select>
+      <p id="action-gate" class="hint" role="status" hidden></p>
+    </div>
+    <div id="actions" class="panel-body">
+      <nav class="index-browse" aria-label="查阅场景">
+        <button id="index-browse-move" type="button">查阅地点</button><button id="index-browse-nearby" type="button">查阅周围物品</button><button id="inventory-toggle" type="button" aria-expanded="false" aria-controls="inventory-panel">背包 <span id="inventory-count">0</span></button>
+      </nav>
+      <section id="index-moves" class="action-group" hidden></section><div id="other-actions"></div>
+      <p id="action-empty" class="no-actions" hidden></p>
+    </div>
+  </section>
+  <section id="activity-drawer" class="panel" aria-label="活动" hidden>
+    <div class="panel-header"><span>活动</span><button id="activity-drawer-close" type="button" aria-label="关闭活动">×</button></div>
+    <div class="panel-body move-body"><p id="activity-drawer-hint" class="hint" role="status"></p><div id="activity-discover-list" class="action-group"></div></div>
+  </section>
+  <section id="move-panel" class="panel" aria-label="移动地点" hidden><div class="panel-header"><span>移动地点</span><button id="move-close" type="button" aria-label="关闭移动">×</button></div><div class="panel-body move-body"><p id="move-current"></p><p id="move-hint" class="hint" role="status"></p><div id="move-list" class="action-group"></div></div></section>
   <section id="message-panel" class="panel message-panel" aria-label="短信" hidden><div class="panel-header"><span id="message-title">短信</span><button id="message-close" type="button" aria-label="关闭短信">×</button></div><div class="panel-body message-body"><label for="message-to">发给</label><select id="message-to"></select><label for="message-text">内容</label><textarea id="message-text" rows="4" placeholder="写下要发出的内容……"></textarea><p id="message-hint" class="hint">对方不在身边也能收到；同一房间的人看不到内容。</p><button id="message-send" class="primary" type="button">发送</button></div></section>
+  <section id="character-panel" class="panel" aria-label="角色详情" hidden>
+    <div class="panel-header"><span id="character-detail-name"></span><button id="character-close" type="button" aria-label="关闭角色详情">×</button></div>
+    <div id="character-detail-body" class="panel-body"></div>
+  </section>
+  <section id="nearby-panel" class="panel inventory-panel" aria-label="周围物品" hidden><div class="panel-header"><span>周围 · 场景物品</span><button id="nearby-close" type="button" aria-label="关闭周围物品">×</button></div><div id="nearby-list" class="panel-body"></div></section>
   <section id="inventory-panel" class="panel inventory-panel" aria-label="背包" hidden><div class="panel-header"><span>背包 · 随身物品</span><button id="inventory-close" type="button" aria-label="关闭背包">×</button></div><div id="inventory-list" class="panel-body"></div></section>
-  <section id="status-panel" class="panel status-panel" aria-label="状态" hidden><div class="panel-header"><span>状态</span><button id="status-close" type="button" aria-label="关闭状态">×</button></div><div class="panel-body"><div id="status-list"></div><div id="gameplay-panels"></div></div></section>
+  <section id="status-panel" class="panel status-panel" aria-label="状态" hidden><div class="panel-header"><span>状态</span><button id="status-close" type="button" aria-label="关闭状态">×</button></div><div class="panel-body"><p id="status-read-note" class="status-read-note" role="status" hidden></p><div id="status-list"></div><div id="gameplay-panels"></div></div></section>
   <section id="settings-panel" class="panel settings-panel" aria-label="设置" hidden>
     <div class="panel-header"><span>舞台设置</span><button id="settings-close" type="button" aria-label="关闭设置">×</button></div>
     <div class="panel-body settings-body">
@@ -141,30 +171,106 @@ function statusBarRows(view: {
 
 export const DEFAULT_SCRIPT = String.raw`(() => {
  const participantPicker=(${createParticipantPicker.toString()});
+ const battleReading=/*BATTLE_READING*/null;
  const playback=(${createReadingPlayback.toString()})();
+ const statusPlayback=(${createStatusPlayback.toString()})();
+ const classifyReply=(${actionReplyOutcome.toString()});
+ const successFeedback=(${createSuccessFeedback.toString()})();
  const api=window.Perspectra,node=id=>document.getElementById(id);
  const normalizePreferences=(${stagePreferences.toString()});
  let preferences=normalizePreferences({}),stageAssets=[],stageConfig=null,canSave=false,hasSpeech=false,hasBgm=false,saving=false,preferencesVersion=0;
- let latest,posting=false,pending,attached=null,connected=false,historyKey='',actionsKey='',waitOption=null,statusKey='',canRegenerate=false,requestVersion=0;
- let stageOpen=false,stageId=null,stageFocus=null;
+ let latest,posting=false,pending,attached=null,connected=false,historyKey='',messageKey='',waitOption=null,statusKey='',canRegenerate=false,requestVersion=0;
+ let stageOpen=false,stageId=null,stageFocus=null,stageReadingKey=null;
+ let activityReadOffers=[],activityReadKey='',activityReadActive=false;
+ let requestIssue=null,checking=false,expiredTail=null;
+ const expiredOffers=new Set();
+ function hasActiveActivity(view){
+   return !!(view?.activity?.active||view?.activities?.some(activity=>activity.active));
+ }
+ let audienceHovered=false,recipientLost=false,editorContext=null,wasResponse=false,resumeDraft=false;
  const activityStage=(${createActivityStage.toString()})(node('activity-stage'),/*ACTIVITY_STAGE_RENDERERS*/[],(optionId,args)=>send('perform',{optionId,...(Object.keys(args).length?{arguments:args}:{})}),()=>advance());
  function updateActivityStage(disabled,reading){
    const root=node('activity-stage'),main=document.querySelector('main');
-   const visible=stageOpen&&latest?.activityStage?.activityId===stageId&&latest?.status!=='paused';
-   if(!visible)activityStage.clear();
-   if(visible){
-     try{activityStage.update(latest,disabled,reading,playback.current()?.text||'继续阅读当前演出',node('notice').textContent)}
+   const through=battleReading?.boundary(reading?playback.current()?.seq:undefined);
+   const ending=through!==undefined;
+   const visible=ending||(stageOpen&&latest?.activityStage?.activityId===stageId&&latest?.status!=='paused');
+   const stagePresentation=ending?{readingTitle:'阅读战斗叙事'}:visible&&activityStage.presentationFor(latest);
+   if(!visible){
+     activityStage.clear();
+     stageReadingKey=null;
+   }else if(reading){
+     // The authorized payload can already contain the next round's numbers. Read before rendering it.
+     const readingKey=ending?'ending:'+through:JSON.stringify([stageId,latest.activityStage.renderer]);
+     if(stageReadingKey!==readingKey){
+       activityStage.clear();
+       const next=document.createElement('button');
+       next.type='button';next.className='battle-reading';next.onclick=()=>advance();
+       if(stagePresentation){
+         root.classList.add('battle-stage','battle-reader');
+         const layout=document.createElement('div'),heading=document.createElement('h2'),count=document.createElement('small'),line=document.createElement('p'),buttons=document.createElement('div'),skip=document.createElement('button');
+         layout.className='battle-layout';heading.textContent=stagePresentation.readingTitle;count.className='battle-reading-count';line.className='battle-reading-line';buttons.className='battle-choices';
+         line.setAttribute('aria-live','polite');next.textContent='继续阅读';next.classList.add('battle-primary');skip.type='button';skip.textContent='跳过未读';skip.onclick=()=>node('skip-read').click();
+         buttons.append(next,skip);layout.append(count,heading,line,buttons);root.append(layout);
+       }else root.append(next);
+       stageReadingKey=readingKey;
+       if(root.contains(document.activeElement)||document.activeElement===document.body)next.focus({preventScroll:true});
+     }
+     const unit=playback.current();
+     if(stagePresentation){
+       root.querySelector('.battle-reading-count').textContent=ending?'战斗记录':playback.remaining()+' 段未读';
+       root.querySelector('.battle-reading-line').textContent=[unit?.speaker,unit?.text].filter(Boolean).join('\n')||'当前活动有未读内容';
+     }else root.firstElementChild.textContent=(unit?.text||'当前活动有未读内容')+'\n继续阅读';
+   }else{
+     const restore=stageReadingKey!==null&&root.contains(document.activeElement);
+     if(stageReadingKey!==null){activityStage.clear();stageReadingKey=null}
+     try{
+       const phase=pending&&!posting?'unconfirmed':['expired','rejected'].includes(requestIssue?.kind)?'error':latest.status==='busy'?(latest.responders?.length?'responding':'processing'):posting?'submitting':latest.status==='error'?'error':'ready';
+       const resources=stagePresentation?(latest.statusBar||[]).filter(row=>row.self&&row.current&&stagePresentation.selfStatusKeys.includes(row.key)):[];
+       const presentation=stagePresentation?{
+         phase,resources:resources.map(row=>row.label+' '+(row.valueText??String(row.value))),
+         retry:requestIssue?.kind==='unknown'&&!checking?checkResult:undefined,
+       }:undefined;
+       let notice=requestIssue?requestCopy(requestIssue).join('。'):node('notice').textContent||node('host-notice').textContent;
+       if(battleReading?.battle(latest)){
+         // The ordinary stage's last host notice has no request identity. Keep actionable issues and real errors.
+         notice=requestIssue?requestCopy(requestIssue).join('。'):latest.status==='error'?'处理未完成，请查看已读记录和当前可用操作。':'';
+         const cast=pending?.battleSkill,stage=latest.activityStage;
+         if(posting&&cast?.id===stage.activityId&&cast.revision===stage.revision&&['submitting','processing'].includes(phase))notice='正在结算'+cast.name;
+       }else if(stagePresentation){
+         if(['submitting','responding','processing'].includes(phase))notice='';
+         else notice=notice.replace(/^游戏操作已提交。\s*/,'');
+       }
+       const stageView=expiredOffers.size?{...latest,actions:latest.actions.filter(option=>!expiredOffers.has(option.id))}:latest;
+       activityStage.update(stageView,disabled||(stagePresentation&&!!pending),false,'',notice,presentation);
+       if(restore)root.querySelector('.battle-actions button:enabled')?.focus({preventScroll:true});
+     }
      catch{stageOpen=false;parent.postMessage({type:'activity-stage-failed',activityId:stageId,revision:latest?.activityStage?.revision,renderer:latest?.activityStage?.renderer},'*');node('notice').textContent='活动视图无法显示，已返回通用卡片。'}
    }
-   const show=visible&&stageOpen,was=!root.hidden;root.hidden=!show;main.inert=show;
-   if(show&&!was){stageFocus=document.activeElement;root.focus({preventScroll:true})}
+   const show=visible&&(ending||stageOpen),was=!root.hidden;root.hidden=!show;main.inert=show;
+   if(show&&!was){stageFocus=document.activeElement;(root.querySelector('.battle-reading')||root).focus({preventScroll:true})}
    if(!show&&was&&stageFocus?.isConnected)stageFocus.focus({preventScroll:true});
  }
 
  // Never name who is replying: in hidden turns (who is awake at night) the name alone gives the game away.
- const statusText=(view,reading)=>({ready:reading?'阅读中':'可以回应',busy:view.responders?.length?'正在回复中':view.canInterrupt?'可以接着说':view.tailRound?.regenerating?'正在处理回合':'正在回复中',paused:'已暂停',error:'处理未完成'})[view.status];
+ const statusText=(view,reading)=>({ready:reading?'阅读中':'可以回应',busy:view.tailRound?.regenerating?'正在处理回合':view.responders?.length?'角色正在回应':'正在处理',paused:'已暂停',error:'处理未完成'})[view.status];
  // Public fields first, then what only the player knows (its private record, e.g. a dealt role); flat lists read as one line.
- const activityRows=(shown,own)=>{const hidden=['statusText','lastResult','objective','instructions','description','phaseLabel'],labels={round:'回合',clues:'线索',funds:'资金',stock:'库存',score:'得分',attempts:'次数',health:'生命',phase:'阶段'},text=value=>Array.isArray(value)?(value.some(item=>item!==null&&typeof item==='object')?'':value.join('、')):typeof value==='boolean'?(value?'是':'否'):value===null||typeof value==='object'?'':String(value),rows=[];for(const [source,mine] of [[shown||{},false],[own||{},true]])for(const [name,value] of Object.entries(source)){const shownValue=text(value);if((!mine&&hidden.includes(name))||!shownValue)continue;rows.push({label:labels[name]||name,value:shownValue,own:mine})}return rows};
+ const activityRows=(shown,own)=>{
+   const hidden=['statusText','lastResult','objective','instructions','description','phaseLabel'];
+   const labels={round:'回合',clues:'线索',funds:'资金',stock:'库存',score:'得分',attempts:'次数',health:'生命',phase:'阶段',inviter:'发出者',invitee:'受邀角色'};
+   const text=value=>{
+     if(Array.isArray(value))return value.some(item=>item!==null&&typeof item==='object')?'':value.map(text).filter(Boolean).join('、');
+     if(typeof value==='boolean')return value?'是':'否';
+     if(value===null||typeof value==='object')return '';
+     if(typeof value==='string'&&/^character:[a-zA-Z0-9:_-]+$/.test(value))return readableCharacter(value)?.name||'';
+     return String(value);
+   };
+   const rows=[];
+   for(const [source,mine] of [[shown||{},false],[own||{},true]])for(const [name,value] of Object.entries(source)){
+     const shownValue=text(value);if((!mine&&hidden.includes(name))||!shownValue)continue;
+     rows.push({label:labels[name]||name,value:shownValue,own:mine});
+   }
+   return rows;
+ };
  // Keep statusRows and roundTools adjacent and in this order: frontend-reading tests extract the helper by these markers.
  const statusRows=(${statusBarRows.toString()});
  const roundTools=node('round-tools');
@@ -179,70 +285,167 @@ export const DEFAULT_SCRIPT = String.raw`(() => {
  function audience(){
    const scope=speechScope(),direct=scope==='direct'||scope==='private',select=node('speech-recipient');
    node('recipient-panel').hidden=!direct;
-   node('recipient-hint').hidden=!!latest?.scene?.recipients?.length;
-   const name=select.value?select.selectedOptions[0].textContent:'指定角色';
-   node('audience-badge').textContent=({scene_public:'公开发言',direct:'定向发言',private:'私密交流',self:'自我表达'})[scope];
+   node('recipient-hint').hidden=!recipientLost&&!!displayedScene?.recipients?.length;
+   node('recipient-hint').textContent=recipientLost?'原接收对象当前不可用，请重新选择。':'当前没有可接收发言的角色。';
+   const name=select.value?select.selectedOptions[0].textContent:recipientLost?'请重选对象':'选择对象';
+   const label=({scene_public:'公开',direct:'定向 · '+name,private:'私聊 · '+name,self:'仅自己'})[scope];
+   node('audience-badge').textContent=label;
+   node('audience-button').setAttribute('aria-label','设置发言受众：'+label);
    const preview=({scene_public:'发送效果：当前场景有权观察的角色将收到完整内容。',direct:'发送效果：只有 '+name+' 收到内容，其他角色不会获得这次发言的观察。',private:'发送效果：只有 '+name+' 收到内容，其他有权观察的角色仅知道发生了私密交流。',self:'发送效果：只有玩家自己保留这段表达，不会向其他角色传播。'})[scope];
-   node('audience-preview').textContent=preview;node('audience-button').title=preview;
+   node('audience-preview').textContent=preview;node('audience-detail').textContent=direct&&!select.value?'请先选择接收对象。':preview;node('audience-button').title=preview;
+   node('send').title=({scene_public:'发送 · 场景公开',direct:'发送 · 定向给 '+name,private:'发送 · 私密给 '+name,self:'发送 · 仅自己'})[scope];syncAudienceDisclosure();
  }
- function renderRecipients(view){
+ function renderRecipients(scene){
    const select=node('speech-recipient'),previous=select.value;
-   select.replaceChildren();const placeholder=document.createElement('option');placeholder.value='';placeholder.textContent='请选择接收对象';select.append(placeholder);
-   for(const person of view.scene?.recipients||[]){const option=document.createElement('option');option.value=person.id;option.textContent=person.name;select.append(option)}
-   if(Array.from(select.options).some(option=>option.value===previous))select.value=previous;
+   const people=scene?.recipients||[],signature=JSON.stringify(people);
+   if(select.dataset.people!==signature){
+     select.dataset.people=signature;select.replaceChildren();const placeholder=document.createElement('option');placeholder.value='';placeholder.textContent='请选择接收对象';select.append(placeholder);
+     for(const person of people){const option=document.createElement('option');option.value=person.id;option.textContent=person.name;select.append(option)}
+     recipientLost=!!previous&&!people.some(person=>person.id===previous);
+     if(people.some(person=>person.id===previous))select.value=previous;
+   }
    audience();
  }
  function controls(){
    const policy=latest?.expression||{speech:'free',speechChoices:[],narration:true};
-   const readingBlocked=playback.pending();
-   const disabled=readingBlocked||posting||!connected||(!['ready','error'].includes(latest?.status)&&!latest?.canInterrupt);
-   const actionDisabled=readingBlocked||posting||!connected||!['ready','error'].includes(latest?.status);
+   const readingBlocked=playback.pending(),draftLocked=posting||!!pending||!connected;
+   const draftable=policy.speech!=='none'||policy.narration||!!node('input').value||!!node('narration').value;
+   const disabled=readingBlocked||posting||sceneArtLoading||!connected||(!['ready','error'].includes(latest?.status)&&!latest?.canInterrupt);
+   const actionDisabled=!!actionGate();
    const hasLine=!!((policy.speech==='free'&&node('input').value.trim())||(policy.narration&&node('narration').value.trim()));
-   node('send').disabled=(attached?actionDisabled:disabled)||(!hasLine&&!attached)||(hasLine&&(speechScope()==='direct'||speechScope()==='private')&&!node('speech-recipient').value);
+   node('send').disabled=!!pending||(attached?actionDisabled:disabled)||(!hasLine&&!attached)||(hasLine&&(speechScope()==='direct'||speechScope()==='private')&&!node('speech-recipient').value);
    node('attached-order').disabled=actionDisabled||!hasLine;
    node('wait').hidden=!waitOption;node('wait').disabled=actionDisabled||hasLine||!!attached;
-   for(const radio of document.querySelectorAll('input[name="speech-scope"]'))radio.disabled=disabled;
-   node('audience-button').disabled=disabled;if(disabled)audienceMenu(false);
-   node('speech-recipient').disabled=disabled||!latest?.scene?.recipients?.length;
-   node('input').disabled=disabled||policy.speech!=='free';node('input').hidden=policy.speech!=='free';node('narration').disabled=disabled||!policy.narration;node('narration-panel').hidden=!policy.narration;
+   for(const radio of document.querySelectorAll('input[name="speech-scope"]'))radio.disabled=draftLocked;
+   node('audience-button').disabled=draftLocked;if(draftLocked)audienceMenu(false);
+   node('speech-recipient').disabled=draftLocked||!displayedScene?.recipients?.length;
+   node('input').readOnly=draftLocked||policy.speech!=='free';node('input').hidden=policy.speech!=='free'&&!node('input').value;
+   node('narration').readOnly=draftLocked||!policy.narration;node('narration-panel').hidden=!policy.narration&&!node('narration').value;
    for(const button of node('expression-choices').querySelectorAll('button'))button.disabled=disabled||(['direct','private'].includes(speechScope())&&!node('speech-recipient').value);
-   const canReply=!disabled&&(policy.speech!=='none'||policy.narration);
-   const mode=readingBlocked||posting||(!canReply&&!activityOpen)?'reading':activityOpen?'activity':(composerExpanded&&canReply)?'response':'reading';
+   const canReply=!disabled&&canReplyNow();
+   const mode=activityOpen?'activity':composerExpanded&&draftable?'response':'reading';
    document.querySelector('main').dataset.mode=mode;
    document.querySelector('main').dataset.hasActivity=String(!!(latest?.activity||latest?.activities?.length));
-   if(connected&&latest?.status==='ready')node('status').textContent=readingBlocked?'阅读中':'可以回应';
+   if(latest){
+     const roleResponding=latest.status==='busy'&&latest.responders?.length>0;
+     node('status').textContent=posting&&roleResponding?'角色正在回应':posting?'正在提交……':pending?'结果未确认':!connected?'连接断开':statusText(latest,readingBlocked);
+     node('status').hidden=connected&&!posting&&!pending&&latest.status==='ready';
+     node('status').dataset.state=posting?'busy':pending?'error':!connected?'disconnected':latest.status;
+   }
    node('stage-save').disabled=!canSave||saving||posting||!connected||latest?.status!=='ready'||!!latest?.tailRound?.regenerating;
    node('composer').hidden=mode!=='response';node('dialogue-wrap').hidden=mode==='response';
    // The notice lives inside whichever box is showing: below the dialogue while reading, at the foot of the composer while replying.
-   if(mode==='response')node('composer').append(node('feedback'));else node('dialogue-wrap').insertBefore(node('feedback'),node('dialogue-wrap').querySelector('.dialogue-footer'));
-   node('reply-bar').hidden=mode!=='reading'||readingBlocked||!canReply;node('reply-wait').hidden=!waitOption;node('reply-wait').disabled=actionDisabled;
-   const unit=playback.current();node('reply-speaker').textContent=unit?.speaker||'当前情景';node('reply-summary').textContent=unit?.text||'故事从你的回应开始。';
-   node('actions-toggle').disabled=actionDisabled;
-   if(actionDisabled)node('action-panel').hidden=true;
-   node('actions-toggle').setAttribute('aria-expanded',String(!node('action-panel').hidden));
-   node('continue-hint').textContent=readingBlocked?'点击或按空格继续 · 上滚查看记录':latest?.status==='busy'?'角色还在回应，新内容到达后继续':canReply?'轮到你了 · 点击这里回应':'已读完 · 可以选择行动';
-   for(const box of [node('actions'),node('inventory-list')]){
-     for(const button of box.querySelectorAll('button'))button.disabled=actionDisabled||button.dataset.unavailable==='true';
-     for(const picker of box.querySelectorAll('select,input,textarea'))picker.disabled=actionDisabled;
-   }
-   node('composer-actions').disabled=actionDisabled;node('composer-message').disabled=actionDisabled;node('message-send').disabled=actionDisabled;
+   const feedback=node('feedback');
+   if(mode==='response'){
+     if(feedback.parentElement!==node('composer'))node('composer').append(feedback);
+   }else if(feedback.parentElement!==node('dialogue-wrap'))node('dialogue-wrap').insertBefore(feedback,node('dialogue-wrap').querySelector('.dialogue-footer'));
+   node('reply-bar').hidden=mode!=='reading'||readingBlocked||!canReply;
+   if(mode==='response'&&!wasResponse)editorContext=playback.lastRead();wasResponse=mode==='response';
+   const unit=mode==='response'?editorContext:playback.current();node('reply-speaker').textContent=unit?.speaker||'当前情景';node('reply-summary').textContent=unit?.text||'故事从你的回应开始。';
+   node('composer-unread').hidden=mode!=='response'||!readingBlocked;node('composer-unread-text').textContent=playback.remaining()+' 段未读 · 草稿和接收设置已保留，读完或跳过后再发送。';
+   for(const id of ['auto-read','skip-read','reading-count'])node(id).hidden=!readingBlocked;
+   if(mode!=='response'&&!node('audience-menu').hidden)audienceMenu(false);
+   renderInventory();node('nearby-toggle').disabled=!connected;
+   if(characterMenuAnchor&&!readableCharacter(characterMenuAnchor.dataset.characterId))closeCharacterMenu();
+   renderCharacterDetail();
+   renderMoveOptions();
+   node('move-toggle').disabled=node('scene').disabled=!connected;
+   node('move-current').textContent=displayedScene?.locationName?'当前位置：'+displayedScene.locationName:'当前位置尚未确认';
+   node('move-hint').textContent=!moveReadOptions?'暂时无法核实地点。读完或跳过后再查看。':readingBlocked?'显示已读地点。读完或跳过后才能移动。':posting?'正在提交操作…':sceneArtLoading?'正在切换场景…':pending?'请先确认上一操作的结果。':'';
+   for(const id of ['move-list','inventory-list','nearby-list','character-detail-body'])syncOptionControls(node(id));
+   node('composer-message').disabled=actionDisabled;node('message-send').disabled=actionDisabled;
    updateGameplayControls(actionDisabled);
-   if(actionDisabled)node('message-panel').hidden=true;
+   if(actionDisabled&&!node('message-panel').hidden){
+     if(!returnFromIndex('message-panel'))drawer(null);
+   }
+   if(latest){
+     renderActivity(latest);
+     renderActivityOffers(readingBlocked);
+   }
+   scheduleAuto();
+   renderActionIndex();updateActionBar(mode,actionDisabled);renderReadStatus();
+   const pickups=readablePickups();
+   const stagePickup=pickups.get(playback.current()?.seq);
+   const shortcut=node('pickup-item');
+   shortcut.hidden=!stagePickup;
+   shortcut.onclick=stagePickup?()=>openPickup(stagePickup,shortcut,false):null;
+   const unreadSeq=readingBlocked?playback.current()?.seq:undefined;
+   for(const line of history.querySelectorAll('[data-history-seq]')){
+     const seq=Number(line.dataset.historySeq);
+     line.hidden=unreadSeq!==undefined&&seq>=unreadSeq;
+     const item=pickups.get(seq),previous=line.querySelector('.pickup-history');
+     if(previous&&previous.dataset.itemId!==item?.id)previous.remove();
+     if(item&&!line.querySelector('.pickup-history')){
+       const button=document.createElement('button');button.type='button';button.className='pickup-history';
+       button.dataset.itemId=item.id;button.textContent='查看物品';button.onclick=()=>openPickup(item,button,true);
+       line.querySelector('.message').append(button);
+     }
+   }
    for(const control of node('activity-card').querySelectorAll('#activity-options button,#activity-options select,#activity-options input,#activity-options textarea,#activity-manage button'))control.disabled=actionDisabled;
-  const retryAllowed=['ready','error'].includes(latest?.status)||(pending?.method==='speak'&&latest?.canInterrupt===true);
-  node('retry').hidden=!pending;node('retry').disabled=posting||!connected||!retryAllowed;
-   updateActivityStage(actionDisabled,readingBlocked);
+   renderRequestFeedback();renderHostNotice();
+   updateActivityStage(actionDisabled,readingBlocked);syncDialogueControl();
    parent.postMessage({type:'frontend-reading',pending:readingBlocked,historyOpen:!node('history-panel').hidden,mode,historySignature:JSON.stringify((latest?.history||[]).map(line=>[line.seq,line.speaker,line.text,line.segments]))},'*');
    const tail=latest?.tailRound,count=tail?.candidateIds?.length||1,index=tail?.candidateIndex||1;
    roundTools.hidden=!tail?.id||!canRegenerate;
    node('candidate-count').textContent=index+'/'+count;
    for(const id of ['candidate-prev','candidate-count','candidate-next'])node(id).hidden=count<2;
-   node('candidate-prev').disabled=posting||!connected||!tail?.canRegenerate||index<=1;
-   node('candidate-next').disabled=posting||!connected||!tail?.canRegenerate||index>=count;
-   node('regenerate-round').disabled=posting||!connected||!tail?.canRegenerate;
+   node('candidate-prev').disabled=posting||!!pending||expiredTail===tail?.id||!connected||!tail?.canRegenerate||index<=1;
+   node('candidate-next').disabled=posting||!!pending||expiredTail===tail?.id||!connected||!tail?.canRegenerate||index>=count;
+   node('regenerate-round').disabled=posting||!!pending||expiredTail===tail?.id||!connected||!tail?.canRegenerate;
    node('regenerate-round').hidden=!!tail?.regenerating;
    node('cancel-round').hidden=!tail?.regenerating;
    scheduleOpening();
+ }
+ // Status values and authored read-only panels use the same read boundary. The processing
+ // indicator at the bottom still follows runtime state immediately.
+ function renderReadStatus(){
+   const settled=connected&&canReadScene()&&!sceneArtLoading&&!posting&&['ready','error'].includes(latest?.status);
+   const snapshot=statusPlayback.update(latest,settled);
+   const mark=node('status-cut'),note=node('status-read-note');
+   const cut=!snapshot?'等待确认':settled?'':'已读快照';
+   const unread=playback.pending();
+   const copy=!snapshot?(unread?'读完或跳过未读后，这里会显示能确认的状态。':'目前还没有可确认的已读状态。'):
+     unread?'还有未读内容，当前只显示截至已读处的状态。':
+       settled?'':'当前显示上一个已读状态。';
+   if(mark.textContent!==cut)mark.textContent=cut;
+   mark.hidden=!cut;
+   if(note.textContent!==copy)note.textContent=copy;
+   note.hidden=!copy;
+   const known=snapshot?.statusBar||[],panels=snapshot?.panels||[];
+   renderGameplayPanels({panels});
+   const key=JSON.stringify([known,panels.length,!!snapshot]);
+   if(key===statusKey)return;
+   statusKey=key;
+   const presentable=known.filter(row=>publicText(row.label)&&
+     (row.holderId===null||row.self||publicText(row.holderName))&&
+     (typeof row.valueText==='string'?publicText(row.valueText):typeof row.value==='string'?publicText(row.value):row.value===null||typeof row.value!=='object'));
+   const bar=node('status-bar');bar.replaceChildren();
+   const pinned=presentable.filter(row=>row.pinned&&row.current&&row.value!==null&&typeof row.value!=='object');
+   const preferred=[...pinned.filter(row=>row.self),...pinned.filter(row=>row.holderId===null)];
+   for(const row of preferred.slice(0,2)){
+     const reading=statusRows({statusBar:[row]})[0].items[0];
+     const item=document.createElement('span');item.className='status-preview';
+     const label=document.createElement('span'),value=document.createElement('strong');
+     label.textContent=reading.label;value.textContent=reading.value;
+     item.append(label,value);bar.append(item);
+   }
+   bar.hidden=!bar.children.length;
+   const groups=statusRows({statusBar:presentable}),list=node('status-list');
+   list.replaceChildren();
+   if(snapshot&&!groups.length&&!panels.length){
+     const empty=document.createElement('p');empty.className='empty-status';empty.textContent='目前没有可显示的状态。';list.append(empty);
+   }
+   for(const group of groups){
+     const section=document.createElement('section');section.className='status-section';
+     const heading=document.createElement('h3');heading.textContent=group.holder;
+     const table=document.createElement('dl');
+     for(const item of group.items){
+       const term=document.createElement('dt'),value=document.createElement('dd');
+       term.textContent=item.label;value.textContent=item.value+(item.note?'（'+item.note+'）':'');
+       table.append(term,value);
+     }
+     section.append(heading,table);list.append(section);
+   }
  }
  function bottom(){history.scrollTop=history.scrollHeight;node('latest').hidden=true}
  history.onscroll=()=>{node('latest').hidden=history.scrollHeight-history.scrollTop-history.clientHeight<70};
@@ -251,39 +454,29 @@ export const DEFAULT_SCRIPT = String.raw`(() => {
  function committedInput(view,request){return !!request&&view.inputProgress?.committed===true&&view.inputProgress.actionId===request.actionId}
  function render(view){
    renderPluginControls(view);
-   renderGameplayPanels(view);
    waitOption=view.actions.find(option=>option.id==='wait');
    view={...view,history:view.history.filter(line=>!line.pause),actions:view.actions.filter(option=>option!==waitOption)};
-   if(posting&&committedInput(view,pending)){
-     const line=pending.method==='speak'?pending.payload:pending.payload.say;
-     if(line){if(node('input').value.trim()===line.text)node('input').value='';if(node('narration').value.trim()===(line.narration||''))node('narration').value=''}
-     if(pending.method==='perform'&&attached?.option.id===pending.payload.optionId)detach();
-     posting=false;pending=null;requestVersion++;
-   }
+   const committed=committedInput(view,pending)?pending:null;
    const candidate=tail=>tail?.candidateIds?.[(tail.candidateIndex||1)-1]||null;
-   if(latest?.tailRound?.id&&latest.tailRound.id===view.tailRound?.id&&candidate(latest.tailRound)!==candidate(view.tailRound))playback.invalidateScene();
+   const branchChanged=!!(latest?.tailRound?.id&&latest.tailRound.id===view.tailRound?.id&&candidate(latest.tailRound)!==candidate(view.tailRound));
+   if(branchChanged){
+     playback.invalidateScene();statusPlayback.invalidate();successFeedback.clear();indexSnapshot=null;
+   }
+   battleReading?.update(latest,view,stageOpen?stageId:null,branchChanged);
    renderItemChanges(latest,view);
-   latest=view;renderRecipients(view);const hadPending=playback.pending();playback.update(view.history);if(!hadPending&&playback.pending())composerExpanded=false;renderStage();
+   latest=view;playback.update(view.history);validateItemReadPrefix(view);
+   for(const id of expiredOffers)if(!view.actions.some(option=>option.id===id)&&waitOption?.id!==id)expiredOffers.delete(id);
+   if(expiredTail!==view.tailRound?.id)expiredTail=null;
+   if(committed?.battleSkill)committed.battleCommitted=true;
+   else if(committed)finishRequest(committed);
+   renderStage();
    const expression=view.expression||{speech:'free',speechChoices:[],narration:true};
    if(JSON.stringify(expression)!==expressionKey){expressionKey=JSON.stringify(expression);node('expression-choices').replaceChildren();if(expression.speech==='choices')for(const text of expression.speechChoices){const button=document.createElement('button');button.type='button';button.textContent=text;button.onclick=()=>send('speak',{text,scope:speechScope(),addresseeIds:['direct','private'].includes(speechScope())?[node('speech-recipient').value]:[]});node('expression-choices').append(button)}}
    const reading=preferences;
    node('input').maxLength=node('narration').maxLength=view.settings?.inputCharacters||2000;
    node('title').textContent=view.game.title;node('player').textContent='你 · '+view.player.name;
-   const nextStatus=JSON.stringify([view.statusBar||[],(view.panels||[]).length]);
-   if(nextStatus!==statusKey){statusKey=nextStatus;const bar=node('status-bar'),rows=statusRows(view),pinned=statusRows({statusBar:(view.statusBar||[]).filter(entry=>entry.pinned)});bar.replaceChildren();bar.hidden=!pinned.length;
-     for(const group of pinned){const section=document.createElement('span');section.className='status-group';const holder=document.createElement('small');holder.textContent=group.holder;section.append(holder);
-       for(const item of group.items){const entry=document.createElement('span');entry.className='status-item';entry.append(item.label+' ');const value=document.createElement('strong');value.textContent=item.value;entry.append(value);
-         if(item.note){const note=document.createElement('span');note.className='hint';note.textContent=item.note;entry.append(' ',note)}section.append(entry)}
-       bar.append(section)}
-     const list=node('status-list');list.replaceChildren();
-     if(!rows.length&&!(view.panels||[]).length){const empty=document.createElement('p');empty.className='empty-status';empty.textContent='你还不知道任何状态。';list.append(empty)}
-     for(const group of rows){const section=document.createElement('section');section.className='status-section';const heading=document.createElement('h3');heading.textContent=group.holder;const table=document.createElement('dl');
-       for(const item of group.items){const term=document.createElement('dt');term.textContent=item.label;const value=document.createElement('dd');value.textContent=item.value+(item.note?'（'+item.note+'）':'');table.append(term,value)}
-       section.append(heading,table);list.append(section)}}
    node('status').textContent=statusText(view,playback.pending());
    node('status').dataset.state=view.status;
-   node('status').title=view.feedback?.phase||'';
-   if(!pending)node('notice').textContent=view.canInterrupt?'可继续输入；尚未完成的回应会被打断，已发生的行动保留。':view.status==='busy'?(view.feedback?.phase||'角色正在处理，已发表的回应会立即显示。'):view.feedback?.message||'';
    const nextHistory=JSON.stringify(view.history);
    if(nextHistory!==historyKey){
      const oldTop=history.scrollTop;
@@ -291,7 +484,7 @@ export const DEFAULT_SCRIPT = String.raw`(() => {
      historyKey=nextHistory;history.replaceChildren();
      if(!view.history.length){const empty=document.createElement('div');empty.className='empty-history';const title=document.createElement('strong');title.textContent='故事从你的第一句话开始';empty.append(title,document.createTextNode('看看眼前的世界，向角色打个招呼吧。'));history.append(empty)}
      for(const line of view.history){
-       const article=document.createElement('article');article.className='line'+(line.player?' player':'');
+       const article=document.createElement('article');article.className='line'+(line.player?' player':'');article.dataset.historySeq=String(line.seq);
        const avatar=document.createElement('span');avatar.className='avatar';avatar.setAttribute('aria-hidden','true');avatar.textContent=Array.from(line.speaker)[0]||'·';
        const message=document.createElement('div');message.className='message';
        const speaker=document.createElement('strong');speaker.className='speaker';speaker.textContent=line.speaker;
@@ -301,36 +494,11 @@ export const DEFAULT_SCRIPT = String.raw`(() => {
 
      if(follow)bottom();else{history.scrollTop=oldTop;node('latest').hidden=false}
    }
-   const nextActions=JSON.stringify([view.actions,view.scene?.recipients]);
-   const drafts=new Map(),activeInput=document.activeElement,activeForm=activeInput?.closest?.('.action-form');
-   const focused=activeForm&&node('actions').contains(activeForm)?{optionId:activeForm.dataset.optionId,name:activeInput.name,start:activeInput.selectionStart,end:activeInput.selectionEnd}:null;
-   if(nextActions!==actionsKey)for(const form of node('actions').querySelectorAll('.action-form'))
-     drafts.set(form.dataset.optionId,new Map(Array.from(form.querySelectorAll('input,select,textarea'),input=>[input.name,input.value])));
-   if(nextActions!==actionsKey){
-     actionsKey=nextActions;node('actions').replaceChildren();
-     // Messages have their own composer button and panel; the action drawer keeps the rest.
-     const listed=view.actions.filter(option=>!isMessage(option));renderMessages(view.actions.filter(isMessage));
-     node('action-count').textContent=String(listed.length);
-     if(attached&&!view.actions.some(option=>option.id===attached.option.id)){detach();node('notice').textContent='附带的行动已经不可用，请重新选择。'}
-     const groups=new Map();for(const option of listed){const title=option.group||({move:'移动',interact:'物品与互动',activity:'活动',manage:'活动管理'}[option.kind]||'其他行动');if(!groups.has(title))groups.set(title,[]);groups.get(title).push(option)}
-     for(const [title,options] of groups){
-       const group=document.createElement('section');group.className='action-group';
-       const heading=document.createElement('h3');heading.textContent=title;group.append(heading);
-       for(const option of options)appendAction(group,option);
-       node('actions').append(group);
-     }
-     for(const form of node('actions').querySelectorAll('.action-form'))for(const input of form.querySelectorAll('input,select,textarea')){
-       const value=drafts.get(form.dataset.optionId)?.get(input.name);
-       if(value!==undefined&&(input.tagName!=='SELECT'||Array.from(input.options).some(option=>option.value===value)))input.value=value;
-     }
-     if(focused)for(const form of node('actions').querySelectorAll('.action-form'))if(form.dataset.optionId===focused.optionId){
-       const input=Array.from(form.querySelectorAll('input,select,textarea')).find(input=>input.name===focused.name);
-       if(input){input.focus({preventScroll:true});if(typeof focused.start==='number'&&typeof focused.end==='number')input.setSelectionRange(focused.start,focused.end)}
-     }
-     if(!listed.length){const empty=document.createElement('p');empty.className='no-actions';empty.textContent='暂时没有可用行动，仍可通过对话表达。';node('actions').append(empty)}
-   }
-   renderInventory(view);
-   renderActivity(view);
+   const messages=view.actions.filter(isMessage);
+   const nextMessages=JSON.stringify(messages);
+   if(nextMessages!==messageKey){messageKey=nextMessages;renderMessages(messages)}
+   if(!pending&&attached&&!liveOption(attached.option.id)){detach();node('notice').textContent='附带的行动已经不可用，请重新选择。'}
+   renderInventory();
    controls();
  }
  function isMessage(option){return option.action?.parameters?.bindingId==='experiment:message'}
@@ -347,71 +515,474 @@ export const DEFAULT_SCRIPT = String.raw`(() => {
  }
  function sendMessage(){
    const option=messageOptions.find(entry=>entry.id===node('message-to').value),text=node('message-text').value.trim();
-   if(!option)return;if(!text){node('notice').textContent='请先写下要发出的内容。';node('message-text').focus();return}
-   node('message-text').value='';drawer(null);controls();send('perform',{optionId:option.id,arguments:{text}});
+   if(!option||actionGate(option.id))return;if(!text){node('notice').textContent='请先写下要发出的内容。';node('message-text').focus();return}
+   send('perform',{optionId:option.id,arguments:{text}});
+ }
+ // Index rows are built from a complete read batch. The live offer can veto submission,
+ // but cannot add new labels, targets or argument choices ahead of reading.
+ let indexSnapshot=null,indexKey='',indexReturnFocus=null,indexPointerOrigin=null,indexChild=null;
+ const indexLabels={move:'前往地点',item:'使用物品',character:'交流与互动',activity:'参加活动',other:'其他'};
+ const indexFieldLabels={target:'目标',skill:'技能',recipientId:'对象',text:'内容',amount:'数量',item:'物品',itemId:'物品',destination:'地点'};
+ const opaqueText=/\b(?:character|entity|location|map|scene|status|activity|host|experiment|binding):[\w.:-]+/iu;
+ function publicText(value){return typeof value==='string'&&!opaqueText.test(value)?value.trim():''}
+ function liveOption(id){return expiredOffers.has(id)?undefined:waitOption?.id===id?waitOption:latest?.actions.find(option=>option.id===id)}
+ function actionGate(id){
+   if(!connected)return '连接尚未就绪。';
+   if(playback.pending())return '读完或跳过未读后可执行。';
+   if(posting)return '正在提交当前操作。';
+   if(pending)return '请先确认上一操作的结果。';
+   if(sceneArtLoading)return '场景正在切换。';
+   if(latest?.status==='paused')return '当前已暂停。';
+   if(!['ready','error'].includes(latest?.status))return '请等待当前处理完成。';
+   if(id&&!liveOption(id))return '此行动已不可用。';
+   if(id==='wait'&&(composerLine()||attached))return '请先处理当前草稿或附带行动。';
+   return '';
+ }
+ function syncOptionControls(container){
+   const blocked=actionGate();
+   for(const button of container.querySelectorAll('button[data-option-id]')){
+     const reason=actionGate(button.dataset.optionId);
+     button.disabled=!!reason||button.dataset.unavailable==='true';
+     const row=button.closest('.index-option');
+     if(row){
+       const hint=row.querySelector('.index-option-hint');
+       if(hint){const text=reason===blocked?'':reason;if(hint.textContent!==text)hint.textContent=text;hint.hidden=!text}
+     }
+     for(const form of [button.closest('.action-form'),button.previousElementSibling?.matches('[data-option-inputs]')?button.previousElementSibling:null])
+         for(const input of form?.querySelectorAll('input,select,textarea')||[])input.disabled=!!reason;
+   }
+ }
+ function speechAvailable(policy){return !policy||policy.speech==='free'||(policy.speech==='choices'&&!!policy.speechChoices?.length)}
+ function speechGate(id){
+   if(!speechAvailable(latest?.expression)||!readableCharacter(id))return '当前无法向这位角色发言。';
+   if(latest?.status==='busy'&&latest.canInterrupt&&!playback.pending()&&!posting&&!pending&&!sceneArtLoading)return '';
+   return actionGate();
+ }
+ function speechEntries(name){return [['direct','对 '+name+' 说'],['private','悄悄对 '+name+' 说']]}
+ function speakTo(id,scope){
+   if(speechGate(id))return;
+   drawer(null);
+   const radio=document.querySelector('input[name="speech-scope"][value="'+scope+'"]');
+   radio.checked=true;node('speech-recipient').value=id;audience();composerExpanded=true;activityOpen=false;
+   controls();(node('input').hidden?node('expression-choices').querySelector('button'):node('input'))?.focus();
+ }
+ function indexCategory(option){
+   if(option.kind==='move')return 'move';
+   if(option.kind==='activity'||option.kind==='manage'||option.target?.kind==='activity')return 'activity';
+   if(option.target?.kind==='item')return 'item';
+   if(isMessage(option)||option.target?.kind==='character'||option.characterArguments?.length)return 'character';
+   return 'other';
+ }
+ function describeIndexInputs(option,snapshot){
+   const fields=Object.create(null),recipients=snapshot.people;
+   for(const [key,spec] of Object.entries(option.argumentSchema?.properties||{})){
+     const named=option.characterArguments?.includes(key);
+     fields[key]=publicText(spec.title)||publicText(spec.description)||(Object.hasOwn(indexFieldLabels,key)?indexFieldLabels[key]:'')||'参数 '+(Object.keys(fields).length+1);
+     const presentable=value=>value===null||typeof value==='number'||typeof value==='boolean'||!!publicText(value);
+     if(named){
+       if(option.argumentSchema.required?.includes(key)&&!recipients.length)return {reason:'目前没有可选择的角色。'};
+     }else if((Array.isArray(spec.enum)?!spec.enum.every(presentable):!['string','integer','number','boolean'].includes(spec.type))||
+       (spec.default!==undefined&&!presentable(spec.default)))return {reason:'此行动缺少能在索引中显示的选项。'};
+   }
+   if(option.participantSelection&&option.participantSelection.candidates.length<option.participantSelection.min)
+     return {reason:'当前可选参与者不足。'};
+   return {fields,recipients};
+ }
+ function indexButton(label,run){
+   const button=document.createElement('button');
+   button.type='button';button.textContent=label;button.onclick=run;return button;
+ }
+ function addIndexRow(group,label,detail,search,render,fold=false){
+   const row=document.createElement(fold?'details':'div');row.className='index-option';row.dataset.search=[label,detail,...search].filter(Boolean).join(' ').toLocaleLowerCase();
+   if(fold){const summary=document.createElement('summary');summary.textContent=label;row.append(summary)}
+   const body=document.createElement('div');body.className='index-option-body';
+   if(detail){const caption=document.createElement('small');caption.className='index-option-detail';caption.textContent=detail;body.append(caption)}
+   render(body);
+   const reason=document.createElement('p');reason.className='hint index-option-hint';reason.hidden=true;body.append(reason);
+   row.append(body);group.append(row);return row;
+ }
+ function populateActionIndex(snapshot){
+   const container=node('other-actions'),move=node('index-moves'),groups=new Map();
+   move.replaceChildren();container.replaceChildren();
+   for(const [category,title] of Object.entries(indexLabels)){
+     const section=category==='move'?move:document.createElement('section');
+     section.className='action-group';section.dataset.actionCategory=category;
+     const heading=document.createElement('h3');heading.textContent=title;section.append(heading);
+     groups.set(category,section);if(category!=='move')container.append(section);
+   }
+   if(!snapshot)return;
+   for(const source of snapshot.options){
+     const category=indexCategory(source),target=source.target;
+     const item=snapshot.items.find(item=>item.id===target?.id);
+     const targetName=publicText(target?.name);
+     const title=publicText(source.label)||(targetName?'与 '+targetName+' 互动':'已授权行动');
+     const detail=[targetName&&!title.includes(targetName)?targetName:'',
+       item?.where==='held'?'背包':item?.where==='here'?'周围':item?.where==='with'?publicText(item.holderName):'',
+       publicText(source.group)].filter(Boolean).join(' · ');
+     const participants=source.participantSelection;
+     const candidates=participants?.candidates.filter(person=>publicText(person.name));
+     const option={...source,label:title,...(participants?{participantSelection:{...participants,candidates}}:{})};
+     const input=describeIndexInputs(option,snapshot),message=isMessage(option);
+     const row=addIndexRow(groups.get(category),title,detail,[indexLabels[category],...(candidates||[]).map(person=>person.name)],
+       body=>{
+         if(message){const button=indexButton(title,()=>{
+           if(actionGate(option.id))return;
+           node('message-to').value=option.id;browseFromIndex('message-panel',node('message-text'));
+         });button.dataset.optionId=option.id;body.append(button)}
+         else if(input.reason){
+           const button=indexButton(title,null),note=document.createElement('p');
+           button.disabled=true;note.className='hint';note.textContent=input.reason;body.append(button,note);
+         }else appendAction(body,option,input);
+       },!input.reason&&!message&&(!!participants||Object.keys(input.fields).length>0));
+     row.dataset.indexKey=option.id;
+   }
+   const group=groups.get('character');
+   for(const {id,name} of snapshot.people){
+     const detail=addIndexRow(group,'查看 '+name,'',[name,'角色详情'],body=>{
+       const button=indexButton('查看 '+name,()=>{
+         if(!readableCharacter(id))return;
+         indexChild={panel:'character-panel',anchor:button};
+         openCharacterDetail(id,null);
+       });button.dataset.indexCharacter=id;body.append(button);
+     });detail.dataset.indexKey='view:'+id;
+     if(!snapshot.canSpeak)continue;
+     for(const [scope,label] of speechEntries(name)){
+       const row=addIndexRow(group,label,'',[name,'交流与互动'],body=>{
+         const button=indexButton(label,()=>speakTo(id,scope));button.dataset.indexSpeech=id;body.append(button);
+       });row.dataset.indexKey=scope+':'+id;
+     }
+   }
+ }
+ function renderActionIndex(){
+   if(canReadScene()&&!sceneArtLoading&&['ready','error'].includes(latest.status)){
+     indexSnapshot={options:[...latest.actions,...(waitOption?[waitOption]:[])],items:latest.items||[],
+       people:(displayedScene?.recipients||[]).filter(person=>publicText(person.name)),canSpeak:speechAvailable(latest.expression)};
+   }
+   const separatedPeople=indexSnapshot?.people.filter(person=>readableCharacter(person.id)).map(person=>person.id);
+   // During unread, keep the text of the last observed character rows; the live view can only disable them.
+   const key=JSON.stringify(indexSnapshot);
+   if(key!==indexKey){
+     indexKey=key;
+     const box=node('actions');
+     const active=document.activeElement,focused=active?.closest?.('[data-index-key]');
+     const forms=new Map(Array.from(box.querySelectorAll('[data-index-key]'),row=>[row.dataset.indexKey,{
+       open:row.open,values:[...row.querySelectorAll('input,select,textarea')].map(input=>({value:input.value,checked:input.checked,type:input.type})),
+     }]));
+     populateActionIndex(indexSnapshot);filterActionIndex();
+     for(const row of box.querySelectorAll('[data-index-key]')){
+       const draft=forms.get(row.dataset.indexKey);
+       if(!draft)continue;
+       if(draft.open&&row.tagName==='DETAILS')row.open=true;
+       for(const [i,input] of [...row.querySelectorAll('input,select,textarea')].entries()){
+         const value=input.type==='checkbox'?draft.values.find(row=>row.type==='checkbox'&&row.value===input.value):draft.values[i];
+         if(!value||value.type!==input.type)continue;
+         if(input.type==='checkbox'){if(value.value===input.value)input.checked=value.checked}
+         else if(input.tagName!=='SELECT'||Array.from(input.options).some(option=>option.value===value.value))input.value=value.value;
+       }
+       if(row.tagName==='DETAILS'&&row.querySelector('[data-option-inputs]')){
+         row.querySelector('[data-option-inputs]').refreshSelection();
+       }
+       if(focused?.dataset.indexKey===row.dataset.indexKey&&isVisible(row)){
+         const selector=active.tagName.toLowerCase(),oldControls=[...focused.querySelectorAll(selector)];
+         const target=[...row.querySelectorAll(selector)][oldControls.indexOf(active)];
+         if(isVisible(target))target.focus({preventScroll:true});
+       }
+     }
+     if(focused&&!document.activeElement.closest('.index-option')&&!node('action-panel').hidden)node('action-search').focus({preventScroll:true});
+   }
+   const gate=actionGate(),note=node('action-gate');
+   const text=gate||(indexSnapshot?'':'读完已有内容后，可查看已确认的操作。');
+   if(note.textContent!==text)note.textContent=text;
+   note.hidden=!text;
+   syncOptionControls(node('actions'));
+   for(const button of node('actions').querySelectorAll('[data-index-speech]'))button.disabled=!!speechGate(button.dataset.indexSpeech);
+   for(const button of node('actions').querySelectorAll('[data-index-character]'))button.disabled=!separatedPeople?.includes(button.dataset.indexCharacter);
+ }
+ function filterActionIndex(){
+   const selected=node('action-category').value;
+   const words=node('action-search').value.trim().toLocaleLowerCase().split(/\s+/u).filter(Boolean);
+   let shown=0;
+   for(const group of node('actions').querySelectorAll('[data-action-category]')){
+     let any=false;
+     for(const row of group.querySelectorAll('.index-option')){
+       const matches=(!selected||selected===group.dataset.actionCategory)&&words.every(word=>row.dataset.search.includes(word));
+       row.hidden=!matches;if(matches){any=true;shown++}
+     }
+     group.hidden=!any;
+   }
+   const empty=node('action-empty');
+   empty.hidden=!!shown;
+   empty.textContent=words.length||selected?'没有符合条件的行动。':'暂无可显示的行动。';
+ }
+ function isVisible(element){return !!element?.getClientRects().length&&!element.disabled}
+ function toggleActionIndex(trigger,origin){
+   if(!node('action-panel').hidden){closeActionIndex();return}
+   indexChild=null;indexReturnFocus=[node('input'),node('narration')].includes(origin)?origin:trigger===node('composer-actions')?node('input'):trigger;
+   if(trigger===node('composer-actions'))node('composer').querySelector('.composer-more').open=false;
+   drawer('action-panel');controls();node('actions-close').focus({preventScroll:true});
+ }
+ function closeActionIndex(){
+   drawer(null);controls();
+   (isVisible(indexReturnFocus)?indexReturnFocus:node('actions-toggle')).focus({preventScroll:true});
+   indexReturnFocus=null;
+ }
+ function browseFromIndex(panel,focus){
+   indexChild={panel,anchor:document.activeElement};
+   drawer(panel);controls();focus.focus({preventScroll:true});
+ }
+ function returnFromIndex(panel){
+   if(indexChild?.panel!==panel)return false;
+   const anchor=indexChild.anchor;indexChild=null;
+   drawer('action-panel');controls();
+   (isVisible(anchor)?anchor:node('action-search')).focus({preventScroll:true});
+   return true;
+ }
+ function updateActionBar(mode,disabled){
+   const visible=mode==='reading'&&!disabled&&!stageOpen;
+   const contextual=[
+     ['activity-discover',activityReadActive||activityReadOffers.length>0],
+     ['move-toggle',!!moveReadOptions?.length],
+     ['nearby-toggle',!!itemReadView?.items.some(item=>item.where==='here')],
+   ];
+   for(const [id,available] of contextual){
+     const button=node(id),hide=!visible||!available;
+     if(hide&&!button.hidden&&document.activeElement===button)node('actions-toggle').focus({preventScroll:true});
+     button.hidden=hide;
+   }
  }
  // Item controls use the same current options and submission path as the action drawer.
- function appendAction(group,option){
-   const button=document.createElement('button');button.type='button';
+ function appendAction(group,option,display){
+   const button=document.createElement('button');button.type='button';if(display)button.setAttribute('aria-label',option.label);
+   button.dataset.optionId=option.id;
    const label=document.createElement('span');label.textContent=option.label;const arrow=document.createElement('span');arrow.textContent='↗';arrow.setAttribute('aria-hidden','true');button.append(label,arrow);
    if(option.participantSelection){
      const selection=option.participantSelection,picker=participantPicker(selection,option.label,valid=>{button.dataset.unavailable=String(!valid);controls()});
+     picker.element.dataset.optionInputs=option.id;
+     picker.element.refreshSelection=()=>{picker.update();button.dataset.unavailable=String(!picker.valid())};
      button.onclick=()=>{const npcIds=picker.read();
        if(npcIds.length<selection.min||npcIds.length>selection.max){node('notice').textContent='请选择 '+selection.min+' 至 '+selection.max+' 名参与角色';return}
        send('perform',{optionId:option.id,npcIds})};group.append(picker.element);
      button.dataset.unavailable=String(!picker.valid());
-   }else if(option.argumentSchema){const form=argumentForm(option);group.append(form);form.append(button);
+   }else if(option.argumentSchema){const form=argumentForm(option,display);group.append(form);form.append(button);
      button.onclick=()=>{let args;try{args=form.read()}catch(error){node('notice').textContent=error.message;return}act(option,args)};
-   }else button.onclick=()=>act(option);
+   }else button.onclick=()=>option.id==='wait'?send('perform',{optionId:option.id}):act(option);
    if(!button.parentNode)group.append(button);
  }
- let inventoryKey='';
- function renderInventory(view){
-   const items=view.items||[],options=view.actions.filter(option=>option.target?.kind==='item');
-   const key=JSON.stringify([items,options,view.scene?.recipients]);if(key===inventoryKey)return;inventoryKey=key;
-   const list=node('inventory-list'),open=new Set(Array.from(list.querySelectorAll('details[open]'),entry=>entry.dataset.itemId));list.replaceChildren();
-   node('inventory-count').textContent=String(items.filter(item=>item.where==='held').length);
-   for(const [held,title] of [[true,'随身物品'],[false,'附近物品']]){
-     const entries=items.filter(item=>(item.where==='held')===held);
-     if(!held&&!entries.length)continue;
-     const section=document.createElement('section');section.className='inventory-section';const heading=document.createElement('h3');heading.textContent=title;section.append(heading);
-     if(!entries.length){const empty=document.createElement('p');empty.className='hint';empty.textContent='你还没有携带物品。';section.append(empty)}
+ let moveReadOptions=null,moveKey='';
+ let displayedScene=null,sceneArtLoading=false,preparingArt='',readyBackground=null,moveTrigger=null;
+ function renderMoveOptions(){
+   const key=JSON.stringify(moveReadOptions);
+   if(key===moveKey)return;
+   moveKey=key;
+   const list=node('move-list');list.replaceChildren();
+   if(moveReadOptions?.length){
+     for(const option of moveReadOptions)appendAction(list,option);
+   }else if(moveReadOptions){
+     const empty=document.createElement('p');empty.className='hint';empty.textContent='暂无可执行的移动。';list.append(empty);
+   }
+ }
+ let inventoryKey='',itemReadView=null,itemReadHistory=[];
+ function canReadScene(){
+   return !!latest&&!playback.pending()&&(!latest.scene||latest.scene.locationId===displayedScene?.locationId);
+ }
+ function rememberReadItems(){
+   if(!canReadScene())return;
+   itemReadView={items:structuredClone(latest.items||[]),actions:structuredClone(latest.actions.filter(option=>option.target?.kind==='item'))};
+   itemReadHistory=latest.history.map(line=>JSON.stringify(line));inventoryKey='';
+ }
+ function validateItemReadPrefix(view){
+   if(itemReadHistory.some((line,index)=>line!==JSON.stringify(view.history[index]))){
+     itemReadView=null;itemReadHistory=[];moveReadOptions=null;indexSnapshot=null;activityReadOffers=[];activityReadActive=false;inventoryKey='';
+   }
+ }
+ function renderInventory(){
+   const items=itemReadView?.items||[],options=itemReadView?.actions||[];
+   const key=JSON.stringify([items,options,!!itemReadView,playback.pending()]);if(key===inventoryKey)return;inventoryKey=key;
+   node('inventory-count').textContent=itemReadView?String(items.filter(item=>item.where==='held').length):'—';
+   const nearbyList=node('nearby-list');
+   const focusedCard=nearbyList.contains(document.activeElement)?document.activeElement.closest('details[data-item-id]'):null;
+   for(const [id,where,title]of [['inventory-list','held','随身物品'],['nearby-list','here','场景物品']]){
+     const list=node(id),open=new Set(Array.from(list.querySelectorAll('details[open]'),entry=>entry.dataset.itemId));list.replaceChildren();
+     const note=document.createElement('p');note.className='hint item-snapshot-note';note.textContent=!itemReadView?'暂时无法核实你已读到的物品信息。读完或跳过后可查看。':playback.pending()?'按你已读到的内容展示；有未读内容，读完或跳过后再执行。':'按已读进度展示；操作仍由游戏规则复核。';list.append(note);
+     if(!itemReadView)continue;
+     const entries=items.filter(item=>item.where===where),section=document.createElement('section');section.className='inventory-section';const heading=document.createElement('h3');heading.textContent=title;section.append(heading);
+     if(!entries.length){const empty=document.createElement('p');empty.className='hint';empty.textContent=where==='held'?'你还没有携带物品。':'已读内容中没有场景物品。';section.append(empty)}
      for(const item of entries){
-       const card=document.createElement('details');card.className='inventory-item';card.dataset.itemId=item.id;card.open=open.has(item.id);
-       const summary=document.createElement('summary'),name=document.createElement('strong'),place=document.createElement('small');name.textContent=item.name;place.textContent=item.where==='held'?'随身携带':item.where==='here'?'在这里':'由'+(item.holderName||'别人')+'携带';summary.append(name,place);
-       const body=document.createElement('div');body.className='inventory-item-body';const description=document.createElement('p');description.className='inventory-description';description.textContent=item.kind;body.append(description);
-       const actions=document.createElement('div');actions.className='action-group inventory-actions';const available=options.filter(option=>option.target.id===item.id);
-       for(const option of available)appendAction(actions,option);
-       if(!available.length){const empty=document.createElement('p');empty.className='hint';empty.textContent='当前没有可用操作。';actions.append(empty)}
-       body.append(actions);card.append(summary,body);section.append(card);
+       section.append(itemCard(item,options,open.has(item.id),where==='held'?'随身携带':'场景承载'));
      }
      list.append(section);
+   }
+   // These rows are replaced when the read boundary changes. Keep the same authorized item
+   // in focus if it survived. A removed option must never receive focus as a new action.
+   if(focusedCard)focusNearbyItem(focusedCard.dataset.itemId);
+ }
+ // The host binds a held item to an exact custody row. Consult both the read cut and current grant.
+ function readablePickups(){
+   const bySeq=new Map();
+   if(!connected||pending||posting||(requestIssue&&requestIssue.kind!=='confirmed')||playback.pending()||!itemReadView)return bySeq;
+   const held=new Map((latest?.items||[]).filter(item=>item.where==='held').map(item=>[item.id,item.pickupResultSeq]));
+   for(const item of itemReadView.items){
+     if(item.where==='held'&&Number.isSafeInteger(item.pickupResultSeq)&&held.get(item.id)===item.pickupResultSeq)
+       bySeq.set(item.pickupResultSeq,item);
+   }
+   return bySeq;
+ }
+ let pickupOrigin=null;
+ function openPickup(item,anchor,inHistory){
+   if(!anchor.isConnected||!isVisible(anchor)||readablePickups().get(item.pickupResultSeq)?.id!==item.id)return;
+   const card=Array.from(node('inventory-list').querySelectorAll('details[data-item-id]')).find(row=>row.dataset.itemId===item.id);
+   if(!card)return;
+   drawer('inventory-panel');pickupOrigin={anchor,inHistory};controls();
+   card.open=true;const heading=card.querySelector('summary');heading.focus();heading.scrollIntoView({block:'nearest'});
+ }
+ function closePickup(){
+   const origin=pickupOrigin;drawer(origin.inHistory?'history-panel':null);controls();
+   const fallback=origin.inHistory?node('history-close'):node('dialogue-wrap').hidden?node('input'):node('dialogue');
+   (origin.anchor.isConnected&&isVisible(origin.anchor)?origin.anchor:fallback).focus({preventScroll:true});
+ }
+ function focusNearbyItem(previousId){
+   const list=node('nearby-list');
+   const summaries=Array.from(list.querySelectorAll('details[data-item-id] > summary'));
+   const target=summaries.find(summary=>summary.parentElement.dataset.itemId===previousId)||summaries[0]||node('nearby-close');
+   target.focus({preventScroll:true});
+   if(target!==node('nearby-close')){
+     const row=target.getBoundingClientRect(),viewport=list.getBoundingClientRect();
+     if(row.top<viewport.top||row.bottom>viewport.bottom)list.scrollTop+=row.top-viewport.top;
+   }
+ }
+ function itemCard(item,options,open,placeText){
+   const card=document.createElement('details');card.className='inventory-item';card.dataset.itemId=item.id;card.open=open;
+   const summary=document.createElement('summary'),name=document.createElement('strong');
+   name.textContent=item.name;summary.append(name);
+   if(placeText){const place=document.createElement('small');place.textContent=placeText;summary.append(place)}
+   const body=document.createElement('div');body.className='inventory-item-body';
+   const description=document.createElement('p');description.className='inventory-description';description.textContent='类型：'+item.kind;body.append(description);
+   const actions=document.createElement('div');actions.className='action-group inventory-actions';
+   const available=options.filter(option=>option.target.id===item.id);
+   for(const option of available)appendAction(actions,option);
+   if(!available.length){
+     const empty=document.createElement('p');empty.className='hint';empty.textContent='当前没有已授权操作。';actions.append(empty);
+   }
+   body.append(actions);card.append(summary,body);
+   return card;
+ }
+
+ let characterMenuAnchor=null,characterDetail=null,characterDetailKey='';
+ function readableCharacter(id){
+   if(!connected||!displayedScene||latest?.scene?.locationId!==displayedScene.locationId)return;
+   if(!latest.scene?.recipients?.some(person=>person.id===id))return;
+   return displayedScene.recipients?.find(person=>person.id===id);
+ }
+ function openCharacterDetail(id,anchor){
+   if(!readableCharacter(id))return;
+   characterDetail={id,anchor};drawer('character-panel');controls();node('character-close').focus();
+ }
+ function clearCharacterDetail(){
+   characterDetail=null;characterDetailKey='';
+   node('character-detail-name').textContent='';node('character-detail-body').replaceChildren();
+ }
+ function closeCharacterDetail(){
+   if(returnFromIndex('character-panel'))return;
+   const anchor=characterDetail?.anchor;
+   const returnToPortrait=anchor?.isConnected&&readableCharacter(anchor.dataset.characterId);
+   drawer(null);
+   if(returnToPortrait)anchor.focus({preventScroll:true});
+   else if(!node('composer').hidden&&!node('input').hidden&&!node('input').disabled)node('input').focus({preventScroll:true});
+   else (node('dialogue-wrap').hidden?node('scene'):node('dialogue')).focus({preventScroll:true});
+ }
+ function renderCharacterDetail(){
+   if(!characterDetail||node('character-panel').hidden)return;
+   const person=readableCharacter(characterDetail.id);
+   if(!person){closeCharacterDetail();return}
+   // Use only fields from the read snapshot. The current authorized view can withdraw a row
+   // from that snapshot, but cannot add an item or change what the row says until reading catches up.
+   const currentItems=new Set((latest.items||[]).filter(item=>item.where==='with'&&item.holderId===person.id).map(item=>item.id));
+   const items=(itemReadView?.items||[]).filter(item=>item.where==='with'&&item.holderId===person.id&&currentItems.has(item.id));
+   const currentOptions=new Set(latest.actions.map(option=>option.id));
+   const reading=playback.pending();
+   // Commit feeds can publish new custody before the round refreshes its action offers.
+   const offersReady=!reading&&['ready','error'].includes(latest.status);
+   const options=offersReady?(itemReadView?.actions||[]).filter(option=>currentOptions.has(option.id)&&currentItems.has(option.target.id)):[];
+   const key=JSON.stringify([person.name,items,options,!!itemReadView,reading]);
+   if(key===characterDetailKey)return;
+   characterDetailKey=key;
+   const body=node('character-detail-body');
+   const open=new Set([...body.querySelectorAll('details[open]')].map(card=>card.dataset.itemId));
+   const focused=document.activeElement?.closest?.('[data-item-id]');
+   const focusedId=focused&&body.contains(focused)?focused.dataset.itemId:null;
+   node('character-detail-name').textContent=person.name+' · 角色详情';
+   body.replaceChildren();
+   const section=document.createElement('section');section.className='inventory-section';
+   const heading=document.createElement('h3');heading.textContent='可见携带物';section.append(heading);
+   if(!itemReadView||reading){
+     const note=document.createElement('p');note.className='hint';
+     note.textContent=!itemReadView?'读完或跳过后，可以查看已确认的携带物。':'按你已读到的内容展示。';
+     section.append(note);
+   }
+   if(itemReadView&&!items.length){
+     const empty=document.createElement('p');empty.className='hint';empty.textContent='目前没有可显示的携带物。';section.append(empty);
+   }
+   for(const item of items)section.append(itemCard(item,options,open.has(item.id)));
+   body.append(section);
+   if(focusedId){
+     const card=[...section.querySelectorAll('details')].find(item=>item.dataset.itemId===focusedId);
+     (card?.querySelector('summary')||node('character-close')).focus({preventScroll:true});
    }
  }
  /* 进行中的活动：舞台左侧一张卡片，显示标题、阶段、目标和公开状态，以及这场活动此刻允许的操作。
     操作和暂停都来自玩家视图的 actions，提交走同一个 perform；读完当前演出前与其他行动一样置灰。 */
  const PHASES={playing:'进行中',investigation:'调查',prologue:'序章',finished:'已结束','host-aborted':'已中止'};
  let activityKey='';
+ function renderActivityOffers(reading){
+   const options=latest.actions.filter(option=>option.target?.kind==='activity'&&
+     ['host:activity-start','host:activity-resume','host:activity-abandon','host:activity-suspend','host:activity-quick']
+       .includes(option.action?.parameters?.definitionRef?.id));
+   if(canReadScene()&&['ready','error'].includes(latest.status)){
+     activityReadOffers=options;activityReadActive=hasActiveActivity(latest);
+   }
+   const list=node('activity-discover-list'),panel=node('activity-drawer');
+   const shown=activityReadOffers,active=activityReadActive;
+   if(!active&&!shown.length&&!panel.hidden)closeActivityDrawer();
+   const hint=node('activity-drawer-hint');
+   hint.textContent=reading?'读完或跳过未读后可操作。':active?'当前有活动进行中。回场景查看不会暂停或结束活动。':'';
+   const key=JSON.stringify(shown);
+   if(activityReadKey!==key){
+     activityReadKey=key;list.replaceChildren();
+     for(const option of shown){
+       const group=document.createElement('div');group.dataset.activityOption=option.id;
+       appendAction(group,option);list.append(group);
+     }
+   }
+   syncOptionControls(list);
+ }
  function renderActivity(view){
-   const running=(view.activities||[]).find(entry=>entry.active)||(view.activity?.active?view.activity:null),card=node('activity-card');
+   const card=node('activity-card');
+   if(playback.pending()){card.hidden=true;return}
+   const running=(view.activities||[]).find(entry=>entry.active)||(view.activity?.active?view.activity:null);
    document.querySelector('main').dataset.activity=String(!!running);
-   card.hidden=!running;if(!running){activityKey='';return}
+   card.hidden=!running;if(!running){activityKey='';node('activity-rules').open=false;return}
    if(!openingHalted&&auto&&running.key===stageConfig?.autoplay?.activity){card.hidden=true;return}
-   const options=view.actions.filter(option=>option.kind==='activity'&&option.target?.kind==='activity'),manage=view.actions.filter(option=>option.kind==='manage');
-   const key=JSON.stringify([running,options,manage,view.scene?.recipients]);if(key===activityKey)return;activityKey=key;
+   const options=view.actions.filter(option=>option.kind==='activity'&&option.target?.kind==='activity');
+   const manage=view.actions.filter(option=>option.kind==='manage'&&
+     (view.status!=='busy'||option.action?.parameters?.definitionRef?.id!=='host:activity-retry'));
+   const noOptions=!options.length&&view.status!=='busy';
+   const key=JSON.stringify([running,options,manage,noOptions,displayedScene?.recipients]);if(key===activityKey)return;activityKey=key;
    const shown=running.public||{};
    node('activity-title').textContent=running.title;
    node('activity-phase').textContent=shown.statusText||shown.phaseLabel||PHASES[running.phase]||running.phase;
-   node('activity-objective').textContent=shown.objective||shown.instructions||shown.description||'选择这场活动允许的操作；角色会在情景里回应。';
+   const objective=node('activity-objective');objective.textContent=typeof shown.objective==='string'?shown.objective:'';objective.hidden=!objective.textContent;
+   const instructions=node('activity-instructions');
+   instructions.textContent=[...new Set([shown.instructions,shown.description].filter(value=>typeof value==='string'&&value.trim()&&value!==shown.objective))].join('\n\n');
+   node('activity-rules').hidden=!instructions.textContent;
    const state=node('activity-state');state.replaceChildren();
    for(const row of activityRows(shown,running.private)){const block=document.createElement('div'),label=document.createElement('dt'),content=document.createElement('dd');if(row.own)block.className='own';label.textContent=row.label;content.textContent=row.value;block.append(label,content);state.append(block)}
    state.hidden=!state.children.length;
-   node('activity-result').textContent=typeof shown.lastResult==='string'?shown.lastResult:'';
+   const result=node('activity-result');result.textContent=typeof shown.lastResult==='string'?shown.lastResult:'';result.hidden=!result.textContent;
    const box=node('activity-options');box.replaceChildren();
    for(const option of options){const button=document.createElement('button');button.type='button';button.textContent=option.label;
      if(option.argumentSchema){const form=argumentForm(option);form.append(button);box.append(form);button.onclick=()=>{let args;try{args=form.read()}catch(error){node('notice').textContent=error.message;return}send('perform',{optionId:option.id,arguments:args})}}
      else{button.onclick=()=>send('perform',{optionId:option.id});box.append(button)}}
-   if(!options.length){const empty=document.createElement('p');empty.className='hint';empty.textContent='现在没有可执行的操作，等角色回应。';box.append(empty)}
+   if(noOptions){const empty=document.createElement('p');empty.className='hint';empty.textContent='当前没有可执行的活动操作。';box.append(empty)}
    const tools=node('activity-manage');tools.replaceChildren();
    for(const option of manage){const button=document.createElement('button');button.type='button';button.textContent=option.label;button.onclick=()=>send('perform',{optionId:option.id});tools.append(button)}
  }
@@ -425,69 +996,240 @@ export const DEFAULT_SCRIPT = String.raw`(() => {
  function activityRoom(){return document.querySelector('.stage-bottom').getBoundingClientRect().top-node('activity-card').getBoundingClientRect().top-12}
  // When the dialogue area grows (the composer opens), a resized card shrinks back above it.
  new ResizeObserver(()=>{const card=node('activity-card');if(!card.style.maxHeight||card.hidden)return;const room=Math.max(96,activityRoom());card.style.maxHeight=room+'px';if(parseFloat(card.style.height)>room)card.style.height=room+'px'}).observe(document.querySelector('.stage-bottom'));
- async function refresh(expectedVersion){try{const view=await api.getView();if(expectedVersion!==requestVersion)return;connected=true;render(view)}catch(error){if(expectedVersion!==requestVersion)return;node('notice').textContent=error.message;connected=false;node('status').textContent='连接断开';node('status').dataset.state='disconnected';controls()}}
+ function renderHostNotice(){
+   const notice=node('host-notice'),view=latest;
+   let text='',receiptId='';
+   const generic=successFeedback.isRoutineCompletion(view);
+   if(view&&!pending&&!requestIssue){
+     if(generic){
+       const receipt=successFeedback.read(view,playback.pending()||sceneArtLoading);
+       if(receipt){text=receipt.text;receiptId=receipt.id}
+     }else if(view.status==='error')text='处理未完成，请查看已读记录和当前可用操作。';
+     else if(view.canInterrupt)text='可以继续输入。这会打断当前处理，已发生的行动保留。';
+     else if(view.status==='busy')text='';
+     else if(view.status==='paused')text='当前已暂停。';
+     else text=view.feedback?.message||'';
+   }
+   const live=generic?'off':'polite';
+   if(notice.getAttribute('aria-live')!==live)notice.setAttribute('aria-live',live);
+   if(notice.textContent!==text)notice.textContent=text;
+   if(receiptId)notice.dataset.receipt=receiptId;
+   else delete notice.dataset.receipt;
+   if(text&&successFeedback.announce(receiptId))node('success-announcement').textContent=text;
+ }
+ function requestCopy(issue){
+   if(issue.kind==='unknown'&&issue.request.battleCommitted)return ['结算结果未确认','主机已确认提交这次出招。请勿重发，可只读检查结果。'];
+   if(issue.kind==='unknown')return ['结果未确认',issue.checked==='unreachable'?
+     '暂时无法连接以检查结果。操作可能已执行，请勿重发。':
+     issue.checked?'这次查询仍无法确认原请求。它可能已执行，请勿重发。':
+     '操作可能已执行。请勿重发，可以只读检查结果。'];
+   if(issue.kind==='confirmed')return ['已确认提交',
+     playback.pending()?'读完或跳过未读后，可查看已获授权的结果。':'已收到这次请求的提交确认，可查看当前已读结果。'];
+   return [issue.kind==='expired'?'没执行 · 选项已失效':'没执行',issue.reason];
+ }
+ function requestLine(request){return request.method==='speak'?request.payload:request.payload.say}
+ function renderRequestFeedback(){
+   const issue=requestIssue,box=node('request-feedback'),check=node('check-result'),review=node('review-request');
+   box.hidden=!issue;
+   if(!issue)return;
+   const [title,body]=requestCopy(issue);
+   if(node('request-title').textContent!==title)node('request-title').textContent=title;
+   if(node('request-detail').textContent!==body)node('request-detail').textContent=body;
+   box.dataset.kind=issue.kind;
+   check.hidden=issue.kind!=='unknown';
+   check.disabled=checking;
+   check.textContent=checking?'正在检查…':'检查结果';
+   const withDraft=!!requestLine(issue.request);
+   review.hidden=issue.kind==='confirmed'||(issue.kind==='unknown'&&(!withDraft||!node('composer').hidden));
+   review.textContent=withDraft?(issue.kind==='unknown'?'查看草稿':'核对草稿'):'重新选择';
+   if(!withDraft&&['regenerate','selectCandidate'].includes(issue.request.method))review.textContent='返回阅读';
+   node('dismiss-request').hidden=issue.kind==='unknown';
+ }
+ function finishRequest(request){
+   const wasUnknown=requestIssue?.kind==='unknown';
+   pending=null;posting=false;
+   requestIssue=wasUnknown?{kind:'confirmed',request}:null;
+   const line=requestLine(request);
+   if(line){
+     if(node('input').value.trim()===line.text)node('input').value='';
+     if(node('narration').value.trim()===(line.narration||''))node('narration').value='';
+     if(!(node('input').value||node('narration').value))composerExpanded=false;
+   }
+   const message=node('message-text');
+   if(request.message&&message.value.trim()===request.payload.arguments.text)message.value='';
+   if(request.method==='perform'&&attached?.option.id===request.payload.optionId)detach();
+   if(openingHalted&&!wasUnknown)resumeOpening();
+ }
+ function setRequestIssue(request,outcome){
+   posting=false;
+   if(outcome.kind!=='unknown')pending=null;
+   if(outcome.kind==='expired'){
+     if(request.method==='perform')expiredOffers.add(request.payload.optionId);
+     else expiredTail=request.payload.tailId;
+   }
+   requestIssue={...outcome,request};
+   node('notice').textContent='';
+   if(openingSeen)haltOpening();
+ }
+ async function refreshRequestView(version){
+   let view;
+   try{view=await api.getView()}
+   catch{if(version===requestVersion){connected=false;controls()}return false}
+   if(version!==requestVersion)return false;
+   connected=true;render(view);
+   return true;
+ }
  async function submit(request){
    const version=++requestVersion;
-   posting=true;controls();if(!request.quiet)node('notice').textContent='正在提交……';
-   try{await api.request(request.method,request.payload,request.actionId);if(version!==requestVersion)return;
-     const view=await api.getView();if(version!==requestVersion)return;
-     const line=request.method==='speak'?request.payload:request.payload.say;
-     if(line){if(node('input').value.trim()===line.text)node('input').value='';if(node('narration').value.trim()===(line.narration||''))node('narration').value=''}
-     if(request.method==='perform'&&attached?.option.id===request.payload.optionId)detach();pending=null;if(openingHalted)resumeOpening();node('notice').textContent='';render(view)}
-   catch(error){if(version!==requestVersion)return;if(openingSeen)haltOpening();if((request.method==='regenerate'||request.method==='selectCandidate')&&error.retryable===false)pending=null;node('notice').textContent=error.message+(pending?'；可重试查询同一操作结果。':'')}
-   finally{if(version===requestVersion){await refresh(version);if(version===requestVersion){posting=false;controls()}}}
+   posting=true;controls();
+   let outcome,reply;
+   try{reply=await api.request(request.method,request.payload,request.actionId);outcome=classifyReply(request.method,reply)}
+   catch(error){outcome=classifyReply(request.method,undefined,error||{})}
+   if(request.battleSkill&&outcome.kind==='acknowledged'){
+     if(committedInput(reply,request))request.battleCommitted=true;
+     if(reply.activityStage?.activityId===request.battleSkill.id&&reply.activityStage.revision===request.battleSkill.revision)outcome={kind:'unknown'};
+   }
+   if(pending!==request){
+     if(version===requestVersion&&outcome.kind==='acknowledged'){
+       successFeedback.bind(request,reply,requestIssue?.kind==='confirmed');
+       controls();
+     }
+     return;
+   }
+   if(outcome.kind==='acknowledged'){
+     successFeedback.bind(request,reply,requestIssue?.kind==='unknown');
+     finishRequest(request);
+   }
+   else setRequestIssue(request,outcome);
+   controls();
+   if(outcome.kind!=='unknown')await refreshRequestView(version);
  }
+ async function checkResult(){
+   if(!pending||posting||checking||requestIssue?.kind!=='unknown')return;
+   const request=pending,version=requestVersion,button=node('check-result');
+   const restore=document.activeElement===button;
+   checking=true;controls();
+   try{
+     const refreshed=await refreshRequestView(version);
+     if(pending===request&&requestIssue?.kind==='unknown')requestIssue.checked=refreshed?'unmatched':'unreachable';
+   }finally{
+     checking=false;controls();
+     if(restore&&(document.activeElement===document.body||document.activeElement===button)){
+       const target=requestIssue?.kind==='confirmed'?node('dismiss-request'):button;
+       if(isVisible(target))target.focus({preventScroll:true});
+     }
+   }
+ }
+ function reviewRequest(){
+   const issue=requestIssue;
+   if(!issue)return;
+   const request=issue.request;
+   if(requestLine(request)){
+     if(issue.kind==='expired'&&attached)detach();
+     drawer(null);composerExpanded=true;activityOpen=false;controls();node('input').focus({preventScroll:true});
+   }else if(request.method==='perform'){
+     const move=request.move;
+     drawer(move?'move-panel':'action-panel');controls();
+     node(move?'move-close':'actions-close').focus({preventScroll:true});
+   }else{
+     drawer(null);controls();node('dialogue').focus({preventScroll:true});
+   }
+ }
+ node('check-result').onclick=checkResult;
+ node('review-request').onclick=reviewRequest;
+ node('dismiss-request').onclick=()=>{if(requestIssue?.kind!=='unknown'){requestIssue=null;controls()}};
  // The opening reads ahead: it may submit while earlier text is still being read.
  function send(method,payload,readingAhead=false){
    const tailOperation=method==='regenerate'||method==='selectCandidate';
-   if(posting||!connected||(!tailOperation&&!readingAhead&&playback.pending())||(tailOperation?!latest?.tailRound?.canRegenerate:!['ready','error'].includes(latest?.status)&&!(method==='speak'&&latest?.canInterrupt)))return;
-   composerExpanded=false;drawer(null);pending={method,payload,actionId:api.newActionId(),...(readingAhead?{quiet:true}:{})};submit(pending);
+   if(posting||!!pending||!connected||(!tailOperation&&!readingAhead&&playback.pending())||(tailOperation?(!latest?.tailRound?.canRegenerate||expiredTail===payload.tailId):!['ready','error'].includes(latest?.status)&&!(method==='speak'&&latest?.canInterrupt)))return;
+   if(method==='perform'&&(sceneArtLoading||!liveOption(payload.optionId)))return;
+   const option=method==='perform'?liveOption(payload.optionId):null;
+   requestIssue=null;successFeedback.clear();node('notice').textContent='';
+   if(node('success-announcement').textContent)node('success-announcement').textContent='';
+   if(method!=='speak'&&!payload.say)composerExpanded=false;
+   drawer(null);pending={method,payload,actionId:api.newActionId(),move:option?.kind==='move',message:!!option&&isMessage(option),
+     battleSkill:battleReading?.submittedSkill(latest,option,payload.arguments),
+     statusOperation:option?.action?.parameters?.definitionRef?.id?.startsWith('status:')===true};
+   submit(pending);
  }
  node('regenerate-round').onclick=()=>send('regenerate',{tailId:latest.tailRound.id});
  function choose(offset){const tail=latest?.tailRound,id=tail?.candidateIds?.[(tail.candidateIndex||1)-1+offset];if(id)send('selectCandidate',{tailId:tail.id,candidateId:id})}
  node('candidate-prev').onclick=()=>choose(-1);node('candidate-next').onclick=()=>choose(1);
- node('cancel-round').onclick=async()=>{try{await api.cancelRegeneration()}catch(error){node('notice').textContent=error.message}};
- node('retry').onclick=()=>{if(!posting&&connected&&pending){if(openingHalted&&openingSeen){resumeOpening();setAuto(true)}submit(pending)}};
+ node('cancel-round').onclick=async()=>{try{await api.cancelRegeneration()}catch{node('notice').textContent='暂时无法确认是否已停止，请查看当前回合。'}};
  /* 一个回合 = 一次表达 + 至多一个行动。输入框里有话时，点选的行动先附在发送按钮旁，和这句话一起提交；没有话时直接执行。 */
  function composerLine(){return (latest?.expression&&latest.expression.speech!=='free'?'':node('input').value.trim())||(latest?.expression?.narration===false?'':node('narration').value.trim())}
- function attach(option,args){attached={option,args};node('attached-label').textContent='连同行动：'+option.label;node('attached-action').hidden=false;drawer(null);controls();node('input').focus()}
+ function attach(option,args){composerExpanded=true;attached={option,args};node('attached-label').textContent='连同行动：'+option.label;node('attached-action').hidden=false;drawer(null);controls();node('input').focus()}
  function detach(){attached=null;node('attached-action').hidden=true;controls()}
- function act(option,args){if(composerLine()){attach(option,args);return}send('perform',{optionId:option.id,...(args?{arguments:args}:{})})}
+ function act(option,args){if(actionGate(option.id))return;if(composerLine()){attach(option,args);return}send('perform',{optionId:option.id,...(args?{arguments:args}:{})})}
  node('attached-clear').onclick=detach;
  /** What the player can do with one character, from the current view only: speak to them, act on them, give
   * them something that names a character as its one input, or invite them to an activity. */
  function characterMenu(id,anchor){
-   const menu=node('character-menu'),person=(latest?.scene?.recipients||[]).find(entry=>entry.id===id);
-   if(!person||!connected){menu.hidden=true;return}
+   const menu=node('character-menu'),person=readableCharacter(id);
+   if(!person){closeCharacterMenu();return}
+   closeCharacterMenu();
+   characterMenuAnchor=anchor;
+   anchor.setAttribute('aria-expanded','true');
    menu.replaceChildren();
    const title=document.createElement('p');title.textContent=person.name;menu.append(title);
-   const busy=playback.pending()||posting||!['ready','error'].includes(latest?.status);
-   const entry=(text,run,disabled)=>{const button=document.createElement('button');button.type='button';button.setAttribute('role','menuitem');button.textContent=text;button.disabled=!!disabled;button.onclick=()=>{menu.hidden=true;run()};menu.append(button)};
-   const speakTo=scope=>{const radio=document.querySelector('input[name="speech-scope"][value="'+scope+'"]');radio.checked=true;node('speech-recipient').value=id;audience();composerExpanded=true;activityOpen=false;controls();node('input').focus()};
-   const speakBusy=playback.pending()||posting||(!['ready','error'].includes(latest?.status)&&!latest?.canInterrupt);
-   entry('对 '+person.name+' 说',()=>speakTo('direct'),speakBusy);
-   entry('悄悄对 '+person.name+' 说',()=>speakTo('private'),speakBusy);
-   for(const option of latest.actions||[]){
+   const busy=!!actionGate();
+   const entry=(text,run,disabled)=>{const button=document.createElement('button');button.type='button';button.setAttribute('role','menuitem');button.textContent=text;button.disabled=!!disabled;button.onclick=()=>{closeCharacterMenu();if(readableCharacter(id))run()};menu.append(button)};
+   if(speechAvailable(latest?.expression))for(const [scope,label] of speechEntries(person.name)){
+     entry(label,()=>speakTo(id,scope),!!speechGate(id));
+   }
+   entry('查看角色',()=>openCharacterDetail(id,anchor),false);
+   for(const option of playback.pending()?[]:latest.actions){
      if(option.kind==='manage')continue;
      const inputs=Object.keys(option.argumentSchema?.properties||{}),named=option.characterArguments||[],selection=option.participantSelection;
      if(selection){if(selection.min<=1&&selection.max>=1&&selection.candidates.some(candidate=>candidate.id===id))entry('邀请 '+person.name+'：'+String(option.label).replace(/^开始 /,''),()=>send('perform',{optionId:option.id,npcIds:[id]}),busy);continue}
      if(option.target?.kind==='character'&&option.target.id===id&&!inputs.length)entry(option.label,()=>act(option),busy);
      else if(named.length===1&&inputs.length===1&&inputs[0]===named[0])entry(option.label+' '+person.name,()=>act(option,{[named[0]]:id}),busy);
    }
-   const box=anchor.getBoundingClientRect(),width=220;
-   menu.style.left=Math.min(window.innerWidth-width-8,Math.max(8,box.left+box.width/2-width/2))+'px';
-   menu.style.top=Math.min(window.innerHeight-60,Math.max(8,box.top+box.height*0.3))+'px';
-   menu.hidden=false;menu.querySelector('button:not(:disabled)')?.focus();
+   menu.hidden=false;
+   positionCharacterMenu();
+   syncDialogueControl();(menu.querySelector('button:not(:disabled)')||anchor).focus({preventScroll:true});
  }
- document.addEventListener('click',event=>{if(!node('character-menu').hidden&&!node('character-menu').contains(event.target))node('character-menu').hidden=true});
+ function positionCharacterMenu(){
+   if(!characterMenuAnchor)return;
+   const menu=node('character-menu'),box=characterMenuAnchor.getBoundingClientRect(),gap=6,margin=8;
+   const width=menu.offsetWidth,height=menu.offsetHeight;
+   const right=box.right+gap,leftEdge=box.left-gap-width;
+   const beside=right+width<=innerWidth-margin?right:leftEdge>=margin?leftEdge:null;
+   const left=beside??box.left+(box.width-width)/2;
+   const below=box.bottom+gap;
+   const top=beside!==null?box.bottom-height:below+height<=innerHeight-margin?below:box.top-gap-height;
+   menu.style.left=Math.max(margin,Math.min(left,innerWidth-menu.offsetWidth-margin))+'px';
+   menu.style.top=Math.max(margin,Math.min(top,innerHeight-menu.offsetHeight-margin))+'px';
+ }
+ // Keep the only character trigger reachable as the conversation area grows in short windows.
+ const stageBar=document.querySelector('.stage-action-bar'),portraits=node('characters');
+ const nameplateLayout=new ResizeObserver(()=>{
+   const floor=stageBar.getBoundingClientRect().top-portraits.getBoundingClientRect().top-8;
+   portraits.style.setProperty('--nameplate-floor',floor+'px');positionCharacterMenu();
+ });
+ for(const element of [portraits,document.querySelector('.stage-bottom'),stageBar])nameplateLayout.observe(element);
+ // Let buttons handle activation natively. A held opening key cannot activate the newly focused menu item.
+ function characterActivationKey(event){
+   if(event.key!=='Enter'&&event.key!==' ')return;
+   event.stopPropagation();
+   if(event.repeat||event.isComposing||event.keyCode===229)event.preventDefault();
+ }
+ node('character-menu').onkeydown=characterActivationKey;
+ function closeCharacterMenu(returnFocus=false){
+   const anchor=characterMenuAnchor;characterMenuAnchor=null;
+   node('character-menu').hidden=true;node('character-menu').replaceChildren();if(anchor)syncDialogueControl();
+   anchor?.setAttribute('aria-expanded','false');
+   if(returnFocus&&anchor?.isConnected)anchor.focus({preventScroll:true});
+ }
+ document.addEventListener('click',event=>{if(!node('character-menu').hidden&&!node('character-menu').contains(event.target))closeCharacterMenu()});
  /** A small form for an action's player inputs: characters come from the scene, other fields follow the schema. */
- function argumentForm(option){
+ function argumentForm(option,display){
    const form=document.createElement('div');form.className='action-form';form.dataset.optionId=option.id;const fields=[],schema=option.argumentSchema,required=new Set(schema.required||[]);
    for(const [key,spec] of Object.entries(schema.properties||{})){
-     const label=document.createElement('label'),caption=document.createElement('span');caption.textContent=(spec.title||spec.description||key)+(required.has(key)?'':'（可选）');label.append(caption);
+     const label=document.createElement('label'),caption=document.createElement('span');caption.textContent=(display?.fields[key]||spec.title||spec.description||key)+(required.has(key)?'':'（可选）');label.append(caption);
      let input,read;
      const blank=picker=>{const row=document.createElement('option');row.value='';row.textContent='请选择';picker.append(row)};
-     if((option.characterArguments||[]).includes(key)){input=document.createElement('select');blank(input);for(const person of latest?.scene?.recipients||[]){const item=document.createElement('option');item.value=person.id;item.textContent=person.name;input.append(item)}read=()=>input.value||undefined}
+     if((option.characterArguments||[]).includes(key)){input=document.createElement('select');blank(input);for(const person of display?.recipients||latest?.scene?.recipients||[]){const item=document.createElement('option');item.value=person.id;item.textContent=person.name;input.append(item)}read=()=>input.value||undefined}
      else if(Array.isArray(spec.enum)){input=document.createElement('select');blank(input);for(const value of spec.enum){const item=document.createElement('option');item.value=JSON.stringify(value);item.textContent=String(value);input.append(item)}if(spec.default!==undefined)input.value=JSON.stringify(spec.default);read=()=>input.value===''?undefined:JSON.parse(input.value)}
      else if(spec.type==='boolean'){input=document.createElement('select');blank(input);for(const [value,title] of [['true','是'],['false','否']]){const item=document.createElement('option');item.value=value;item.textContent=title;input.append(item)}if(spec.default!==undefined)input.value=String(spec.default);read=()=>input.value===''?undefined:input.value==='true'}
      else if(spec.type==='integer'||spec.type==='number'){input=document.createElement('input');input.type='number';input.step='any';if(typeof spec.minimum==='number')input.min=String(spec.minimum);if(typeof spec.maximum==='number')input.max=String(spec.maximum);if(spec.default!==undefined)input.value=String(spec.default);read=()=>input.value===''?undefined:Number(input.value)}
@@ -498,38 +1240,64 @@ export const DEFAULT_SCRIPT = String.raw`(() => {
    form.read=()=>{const values={};for(const field of fields){const value=field.read();if(value===undefined){if(field.required){field.input.focus();throw new Error('请填写 '+field.caption)}continue}if(!field.input.checkValidity()){field.input.focus();throw new Error(field.caption+'：'+field.input.validationMessage)}values[field.key]=value}return values};
    return form}
 
- node('wait').onclick=node('reply-wait').onclick=()=>{if(waitOption)send('perform',{optionId:waitOption.id})};
+ node('wait').onclick=()=>{if(waitOption&&!actionGate(waitOption.id))send('perform',{optionId:waitOption.id})};
  node('reply-open').onclick=()=>{composerExpanded=true;activityOpen=false;controls();node('input').focus()};
  node('send').onclick=()=>{const text=latest?.expression&&latest.expression.speech!=='free'?'':node('input').value.trim(),narration=latest?.expression?.narration===false?'':node('narration').value.trim();if(!text&&!narration&&!attached)return;const maximum=latest?.settings?.inputCharacters||2000;if(text.length+narration.length>maximum){node('notice').textContent='发言与描写合计不能超过 '+maximum+' 个字符';return}const scope=speechScope(),addresseeIds=scope==='direct'||scope==='private'?[node('speech-recipient').value]:[];if((text||narration)&&(scope==='direct'||scope==='private')&&!addresseeIds[0])return;
    if(attached){const payload={optionId:attached.option.id,...(attached.args?{arguments:attached.args}:{})};if(text||narration)Object.assign(payload,{say:{text,narration,scope,addresseeIds},order:node('attached-order').value});send('perform',payload);return}
    send('speak',{text,narration,scope,addresseeIds})};
- for(const radio of document.querySelectorAll('input[name="speech-scope"]'))radio.onchange=()=>{audience();audienceMenu(false);controls();if(['direct','private'].includes(speechScope()))node('speech-recipient').focus()};
- function audienceMenu(open){const menu=node('audience-menu');
-   if(open){const button=node('audience-button').getBoundingClientRect(),box=document.querySelector('.stage-bottom').getBoundingClientRect();menu.style.left=(button.left-box.left)+'px';menu.style.bottom=(box.bottom-button.top+8)+'px';menu.style.maxHeight=Math.max(120,button.top-16)+'px'}
-   menu.hidden=!open;node('audience-button').setAttribute('aria-expanded',String(open))}
- node('audience-button').onclick=()=>audienceMenu(node('audience-menu').hidden);addEventListener('resize',()=>audienceMenu(false));
- document.addEventListener('click',event=>{if(!node('audience-picker').contains(event.target))audienceMenu(false)});
- node('speech-recipient').onchange=()=>{audience();controls()};
+ const sendCluster=node('send-cluster'),audienceButton=node('audience-button'),scopeMenu=node('audience-menu');
+ const compactAudience=matchMedia('(hover:none), (max-width:900px)');
+ document.querySelector('.stage-bottom').append(scopeMenu);
+ function syncAudienceDisclosure(){
+   const keyboardFocus=sendCluster.contains(document.activeElement)&&document.activeElement.matches(':focus-visible');
+   const open=compactAudience.matches||speechScope()!=='scene_public'||audienceHovered||keyboardFocus||!scopeMenu.hidden;
+   sendCluster.dataset.expanded=String(open);
+ }
+ function positionScopeMenu(){
+   const button=audienceButton.getBoundingClientRect(),box=scopeMenu.offsetParent.getBoundingClientRect();
+   const width=scopeMenu.offsetWidth;
+   scopeMenu.style.left=(Math.max(8,Math.min(button.right-width,innerWidth-width-8))-box.left)+'px';
+   scopeMenu.style.bottom=(box.bottom-button.top+6)+'px';
+   scopeMenu.style.maxHeight=Math.max(44,button.top-12)+'px';
+ }
+ function audienceMenu(open,restoreFocus=false){
+   scopeMenu.hidden=!open;
+   audienceButton.setAttribute('aria-expanded',String(open));
+   syncAudienceDisclosure();
+   if(open){
+     positionScopeMenu();
+     scopeMenu.querySelector('input:checked').focus({preventScroll:true});
+   }else if(restoreFocus)audienceButton.focus({preventScroll:true});
+ }
+ audienceButton.onclick=()=>audienceMenu(scopeMenu.hidden);
+ node('audience-done').onclick=()=>audienceMenu(false,true);
+ for(const radio of scopeMenu.querySelectorAll('input[name="speech-scope"]'))radio.onchange=()=>{audience();controls()};
+ node('speech-recipient').onchange=()=>{recipientLost=false;audience();controls()};
+ document.addEventListener('click',event=>{if(!scopeMenu.hidden&&!audienceButton.contains(event.target)&&!scopeMenu.contains(event.target))audienceMenu(false)});
+ scopeMenu.addEventListener('keydown',event=>{
+   if(event.key!=='Tab')return;
+   const first=scopeMenu.querySelector('input:checked'),last=node('audience-done');
+   if((event.shiftKey&&document.activeElement===first)||(!event.shiftKey&&document.activeElement===last)){
+     event.preventDefault();audienceMenu(false,true);
+   }
+ });
+ addEventListener('resize',()=>{syncAudienceDisclosure();if(!scopeMenu.hidden)positionScopeMenu()});
+ sendCluster.addEventListener('pointerenter',event=>{if(event.pointerType==='mouse'){audienceHovered=true;syncAudienceDisclosure()}});
+ sendCluster.addEventListener('pointerleave',()=>{audienceHovered=false;syncAudienceDisclosure()});
+ sendCluster.addEventListener('focusin',syncAudienceDisclosure);
+ sendCluster.addEventListener('focusout',()=>queueMicrotask(syncAudienceDisclosure));
+ node('send').onkeydown=event=>{if(event.key==='ArrowLeft'){event.preventDefault();audienceButton.focus()}};
+ node('composer-read').onclick=()=>{resumeDraft=true;composerExpanded=false;controls();node('dialogue').focus()};
+ node('composer-skip').onclick=()=>{playback.skip();rememberReadItems();editorContext=playback.lastRead();renderStage();controls();node('input').focus()};
  audience();
  node('input').oninput=controls;node('narration').oninput=controls;
  node('narration-panel').addEventListener('toggle',()=>{if(node('narration-panel').open)node('narration').focus()});
- node('input').onkeydown=node('narration').onkeydown=event=>{if(event.key==='Enter'&&!event.shiftKey&&!event.isComposing){event.preventDefault();node('send').click()}};
+ node('input').onkeydown=node('narration').onkeydown=event=>{if(event.key==='Enter'&&!event.shiftKey&&!event.isComposing&&event.keyCode!==229){event.preventDefault();node('send').click()}};
  let composerExpanded=false,activityOpen=false,auto=false,autoTimer=null,autoKey='',expressionKey='',sceneKey='',dialogueKey='';
  let openingSeen=false,openingPreviousAuto=false,openingHalted=false,openingTimer=null,openingRetried='';
  const toastTimers=new Map();
  function showToast(id,text){const target=node(id);target.textContent=text;target.hidden=false;clearTimeout(toastTimers.get(id));toastTimers.set(id,setTimeout(()=>target.hidden=true,4000))}
- function renderItemChanges(before,after){
-   if(!before)return;
-   const prefix=before.history.length<=after.history.length&&before.history.every((line,index)=>JSON.stringify(line)===JSON.stringify(after.history[index]));
-   if(!prefix){node('item-toast').hidden=true;return}
-   const changes=[];
-   for(const item of after.items||[]){const old=(before.items||[]).find(entry=>entry.id===item.id);
-     if(item.where==='held'&&old?.where!=='held')changes.push('你拿到了'+item.name);
-     else if(old?.where==='held'&&item.where==='with')changes.push(item.name+'交给了'+(item.holderName||'别人'));
-     else if(old?.where==='held'&&item.where==='here')changes.push('你放下了'+item.name);
-   }
-   if(changes.length)showToast('item-toast',changes.join(' · '));
- }
+ function renderItemChanges(){/* Custody results stay in the authorized narrative queue; no duplicate item toast. */}
  /** Where the head top and waist sit in a portrait (fractions of its height), from the pack's stage.json; an
   * unmarked portrait is taken as full body. The stylesheet scales it so heads line up across characters. */
  function framing(id){const own=stageConfig?.characters?.[id]?.framing;return own||{top:.03,waist:.48}}
@@ -539,10 +1307,12 @@ export const DEFAULT_SCRIPT = String.raw`(() => {
    const badge=document.createElement('div');badge.className='portrait-badge';badge.textContent=Array.from(name)[0]||'◇';
    const src=art('portraits',id);badge.hidden=!!src;
    if(src){const figure=document.createElement('div');figure.className='figure';const base=document.createElement('img');base.className='base';base.alt=name+'的立绘';base.onerror=()=>{figure.remove();badge.hidden=false};base.src=src;figure.append(base);portrait.append(figure);dress(portrait,stageConfig?.characters?.[id]?.defaultExpression,null)}portrait.append(badge);
-   const label=document.createElement('span');label.className='character-name';label.textContent=name;portrait.append(label);
-   portrait.tabIndex=0;portrait.setAttribute('role','button');portrait.setAttribute('aria-haspopup','menu');portrait.title='和'+name+'说话或做些什么';
-   portrait.onclick=event=>{event.stopPropagation();characterMenu(id,portrait)};
-   portrait.onkeydown=event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();characterMenu(id,portrait)}};
+   const label=document.createElement('button');label.type='button';label.className='character-name';
+   label.textContent=name;label.dataset.characterId=id;label.setAttribute('aria-label',name+'，角色菜单');
+   label.setAttribute('aria-haspopup','menu');label.setAttribute('aria-controls','character-menu');label.setAttribute('aria-expanded','false');
+   label.onclick=event=>{event.stopPropagation();characterMenu(id,label)};
+   label.onkeydown=characterActivationKey;
+   portrait.append(label);
    return portrait;
  }
  /** Put a pose and an expression on a portrait, from the pack's stage.json. A pose replaces the base image; an
@@ -628,7 +1398,7 @@ export const DEFAULT_SCRIPT = String.raw`(() => {
    if(node('stage-save').disabled)return;
    node('save-title').value=(latest?.scene?.locationName||'故事')+' · '+new Date().toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit'});
    node('save-title').hidden=false;node('save-title').disabled=false;node('save-confirm').hidden=false;node('save-confirm').disabled=false;
-   node('save-confirm').textContent='保存进度';node('save-cancel').textContent='取消';node('save-result').textContent='';node('save-dialog').dataset.state='idle';node('save-dialog').showModal();scheduleAuto();node('save-title').select();
+   node('save-confirm').textContent='保存进度';node('save-cancel').textContent='取消';node('save-result').textContent='';node('save-dialog').dataset.state='idle';node('save-dialog').showModal();syncDialogueControl();scheduleAuto();node('save-title').select();
  };
  function closeSave(){if(!saving)node('save-dialog').close()}
  node('save-close').onclick=node('save-cancel').onclick=closeSave;
@@ -657,28 +1427,66 @@ export const DEFAULT_SCRIPT = String.raw`(() => {
  }
  function renderStage(){
    const unit=playback.current();
-   node('reading-count').textContent=playback.pending()?'待阅读 '+playback.remaining()+' 段':'已读完';
+   node('reading-count').textContent=playback.pending()?'待阅读 '+playback.remaining()+' 段':'';
    // New views arrive while a queued text is read; only a different text is redrawn and fades in.
    const shown=JSON.stringify([unit?.seq,unit?.segmentIndex,unit?.speaker,unit?.type,unit?.text]);
    if(shown!==dialogueKey){
      dialogueKey=shown;
-     node('speaker').textContent=unit?.speaker||'序幕';node('dialogue').replaceChildren();fillText(node('dialogue'),unit?.text||'看看眼前的世界，向角色打个招呼吧。');
+     node('speaker').textContent=unit?.speaker||'序幕';node('dialogue-text').replaceChildren();fillText(node('dialogue-text'),unit?.text||'看看眼前的世界，向角色打个招呼吧。');node('dialogue').scrollTop=0;
      node('dialogue').dataset.type=unit?.type||'speech';
      node('dialogue').classList.remove('fade-in');void node('dialogue').offsetWidth;node('dialogue').classList.add('fade-in');
    }
-   const scene=playback.stageScene(latest?.scene||null),key=JSON.stringify(scene);
+   const candidate=playback.stageScene(latest?.scene||null);
+   const changingLocation=candidate?.locationId!==displayedScene?.locationId;
+   // Items and destinations lack a per-line projection. Commit a new location only when the whole
+   // authorized batch is read, and keep the old image until the new one can be shown.
+   let scene=candidate;
+   sceneArtLoading=false;
+   if(changingLocation&&displayedScene&&(playback.pending()||latest?.status==='busy'))scene=displayedScene;
+   else if(changingLocation&&!displayedScene&&playback.pending()&&candidate?.changedAt>(unit?.seq??0))scene=null;
+   else if(changingLocation){
+     const url=art('backgrounds',candidate?.locationId);
+     if(url&&readyBackground?.url!==url){
+       scene=displayedScene;
+       sceneArtLoading=true;
+       if(preparingArt!==url){
+         preparingArt=url;
+         const image=new Image();image.alt='';image.src=url;
+         const finish=loaded=>{
+           if(preparingArt!==url)return;
+           preparingArt='';readyBackground={url,image:loaded?image:null};
+           renderStage();controls();
+         };
+         image.decode().then(()=>finish(true),()=>finish(false));
+       }
+     }
+   }
+   const previousScene=displayedScene;
+   const arrived=scene?.locationId!==previousScene?.locationId;
+   displayedScene=scene;
+   renderRecipients(displayedScene);
+   if(canReadScene()){
+     if(!itemReadView||arrived)rememberReadItems();
+     if(['ready','error'].includes(latest.status))moveReadOptions=latest.actions.filter(option=>option.kind==='move');
+   }
+   const key=JSON.stringify(scene);
    if(key!==sceneKey){
-     if(sceneKey&&scene?.locationName&&node('scene').textContent!==scene.locationName)showToast('movement-toast','当前情景 · '+scene.locationName);
+     if(previousScene&&arrived&&scene?.locationName)showToast('movement-toast','当前情景 · '+scene.locationName);
     sceneKey=key;node('scene').textContent=scene?.locationName||'情景尚未开始';
-    const background=node('background'),backgroundUrl=art('backgrounds',scene?.locationId);
-    background.hidden=true;background.onerror=()=>background.hidden=true;background.onload=()=>background.hidden=false;
-    if(backgroundUrl)background.src=backgroundUrl;else background.removeAttribute('src');
-    node('character-menu').hidden=true;
+    if(arrived){
+      const image=readyBackground?.url===art('backgrounds',scene?.locationId)?readyBackground?.image:null;
+      const background=node('background');
+      if(image){image.id='background';background.replaceWith(image)}
+      else{background.hidden=true;background.removeAttribute('src')}
+    }
+    closeCharacterMenu();
     const box=node('characters'),present=scene?.recipients||[],kept=new Map();
     box.querySelector('.alone')?.remove();
+    if(arrived)for(const old of box.querySelectorAll('.portrait.leaving'))old.remove();
     for(const old of box.querySelectorAll('.portrait:not(.leaving)')){
       if(present.some(person=>person.id===old.dataset.characterId))kept.set(old.dataset.characterId,old);
-      else{old.classList.add('leaving');setTimeout(()=>old.remove(),320)}
+      else if(arrived)old.remove();
+      else{old.inert=true;old.classList.add('leaving');setTimeout(()=>old.remove(),320)}
     }
     for(const {id,name} of present)box.append(kept.get(id)||createPortrait(id,name));
     if(!present.length){const empty=document.createElement('span');empty.className='alone';empty.textContent='片刻的宁静';box.append(empty)}
@@ -689,19 +1497,19 @@ export const DEFAULT_SCRIPT = String.raw`(() => {
  }
  function scheduleAuto(){
    const key=JSON.stringify(playback.current());
-   const unobstructed=!document.querySelector('.panel:not([hidden])')&&!node('save-dialog').open;
+   const unobstructed=!composerExpanded&&!document.querySelector('.panel:not([hidden])')&&!node('save-dialog').open;
    if(autoTimer&&autoKey===key&&auto&&unobstructed)return;
    clearTimeout(autoTimer);autoTimer=null;autoKey=key;updateAutoProgress(0);
    if(auto&&playback.pending()&&unobstructed){
      const duration=Math.max(1500,Math.min(28000,Math.max(2500,(playback.current()?.text.length||0)*90)/preferences.autoSpeed));
      updateAutoProgress(duration);
-     autoTimer=setTimeout(()=>{autoTimer=null;updateAutoProgress(0);advance()},duration);
+     autoTimer=setTimeout(()=>{autoTimer=null;updateAutoProgress(0);if(!composerExpanded)advance()},duration);
    }
  }
  // Author-configured opening: perform only offered actions, queuing the whole opening for reading instead of one text at a time.
  function scheduleOpening(){
    const config=stageConfig?.autoplay;
-   if(!config||openingHalted||!latest||!connected)return;
+   if(!config||openingHalted||!latest||!connected||composerExpanded)return;
    const entry=(latest.activities||[]).find(item=>item.key===config.activity);
    const start=latest.actions.find(option=>option.target?.id===config.activity&&option.action?.parameters?.definitionRef?.id==='host:activity-start');
    if(!openingSeen&&(entry?.active||start)){
@@ -720,7 +1528,7 @@ export const DEFAULT_SCRIPT = String.raw`(() => {
    const action=failed?retry:entry?.active?(next||retry):start;
    if(!action)return;
    if(action===retry&&openingRetried===action.id){haltOpening();return}
-   openingTimer=setTimeout(()=>{openingTimer=null;if(openingHalted||!auto||posting||pending||!['ready','error'].includes(latest.status)||document.querySelector('.panel:not([hidden])')||node('save-dialog').open)return;if(!latest.actions.some(option=>option.id===action.id)){scheduleOpening();return}if(action===retry)openingRetried=action.id;send('perform',{optionId:action.id},true)},0);
+   openingTimer=setTimeout(()=>{openingTimer=null;if(openingHalted||!auto||composerExpanded||posting||pending||!['ready','error'].includes(latest.status)||document.querySelector('.panel:not([hidden])')||node('save-dialog').open)return;if(!latest.actions.some(option=>option.id===action.id)){scheduleOpening();return}if(action===retry)openingRetried=action.id;send('perform',{optionId:action.id},true)},0);
  }
  // A halted opening shows its activity card and leaves auto-read as it was before the opening.
  function haltOpening(){openingHalted=true;setAuto(openingPreviousAuto)}
@@ -728,61 +1536,183 @@ export const DEFAULT_SCRIPT = String.raw`(() => {
  function resumeOpening(){openingHalted=false;openingRetried=''}
  function canReplyNow(){
    const policy=latest?.expression||{speech:'free',speechChoices:[],narration:true};
-   return !posting&&connected&&(['ready','error'].includes(latest?.status)||latest?.canInterrupt)&&(policy.speech!=='none'||policy.narration);
+   return !posting&&!pending&&connected&&(['ready','error'].includes(latest?.status)||latest?.canInterrupt)&&(policy.speech!=='none'||policy.narration);
  }
- function advance(){
-   if(document.querySelector('.panel:not([hidden])')||node('save-dialog').open)return;
+ function advance(skip=false){
+   if(document.querySelector('.panel:not([hidden])')||node('save-dialog').open||!playback.pending())return;
    updateAutoProgress(0);
-   if(playback.pending()){
-     playback.advance();
-     renderStage();
-     controls();
-   }else if(canReplyNow()){
-     composerExpanded=true;
-     if(activityOpen)activityOpen=false;
-     controls();
-     node('input').focus();
-   }
+   const through=skip?battleReading?.boundary(playback.current()?.seq):undefined;
+   if(skip&&through!==undefined){while(playback.pending()&&playback.current().seq<=through)playback.advance()}
+   else if(skip)playback.skip();else playback.advance();
+   rememberReadItems();renderStage();
+   const complete=!playback.pending(),restore=complete&&resumeDraft;
+   if(complete)resumeDraft=false;
+   if(restore)composerExpanded=true;
+   controls();
+   if(!stageOpen&&restore)node('input').focus({preventScroll:true});
  }
  // Only one drawer is visible at a time; every drawer pauses automatic reading.
- function drawer(name){node('character-menu').hidden=true;audienceMenu(false);for(const [id,toggle] of [['history-panel','history-toggle'],['action-panel','actions-toggle'],['message-panel','composer-message'],['inventory-panel','inventory-toggle'],['status-panel','status-toggle'],['settings-panel','settings-toggle']]){node(id).hidden=id!==name;node(toggle).setAttribute('aria-expanded',String(id===name))}scheduleAuto()}
+ function drawer(name){pickupOrigin=null;if(name!=='status-panel')statusOrigin=null;if(indexChild&&indexChild.panel!==name)indexChild=null;closeCharacterMenu();audienceMenu(false);node('character-panel').hidden=name!=='character-panel';if(name!=='character-panel')clearCharacterDetail();for(const [id,toggle] of [['history-panel','history-toggle'],['action-panel','actions-toggle'],['message-panel','composer-message'],['inventory-panel','inventory-toggle'],['nearby-panel','nearby-toggle'],['move-panel','move-toggle'],['activity-drawer','activity-discover'],['status-panel','status-toggle'],['settings-panel','settings-toggle']]){node(id).hidden=id!==name;node(toggle).setAttribute('aria-expanded',String(id===name))}node('scene').setAttribute('aria-expanded',String(name==='move-panel'));node('composer-actions').setAttribute('aria-expanded',String(name==='action-panel'));scheduleAuto()}
  function historyPanel(open){if(open)drawer('history-panel');else node('history-panel').hidden=true;node('history-toggle').setAttribute('aria-expanded',String(open));if(open){clearTimeout(autoTimer);autoTimer=null;updateAutoProgress(0);node('history-close').focus();bottom()}else{node('history-toggle').focus();scheduleAuto()}controls()}
- // Clicking the dialogue while a drawer is open only closes the drawer, so the player returns to the story without skipping a line.
- node('dialogue').onclick=()=>{if(node('save-dialog').open)return;if(document.querySelector('.panel:not([hidden])')){drawer(null);controls();return}advance()};
- node('skip-read').onclick=()=>{updateAutoProgress(0);playback.skip();renderStage();if(canReplyNow())composerExpanded=true;controls();if(canReplyNow())node('input').focus()};
+ // The same reading surface supports a pointer, assistive activation and the stage keyboard shortcut.
+ const readBox=node('dialogue-wrap'),readSurface=node('dialogue'),readArrow=node('read-arrow');
+ function dailyReadAvailable(){
+   return playback.pending()&&!document.querySelector('main').inert&&!activityOpen&&!readBox.hidden&&
+     !node('save-dialog').open&&!document.querySelector('.panel:not([hidden]),#character-menu:not([hidden])');
+ }
+ function syncDialogueControl(){
+   const enabled=dailyReadAvailable();
+   readArrow.hidden=!enabled;readSurface.tabIndex=enabled?0:-1;
+   if(enabled){
+     readSurface.setAttribute('role','button');readSurface.setAttribute('aria-label','阅读下一段');
+     readSurface.setAttribute('aria-describedby','speaker dialogue-text');
+   }else for(const attribute of ['role','aria-label','aria-describedby'])readSurface.removeAttribute(attribute);
+ }
+ function selectingDialogue(){
+   const selected=getSelection();
+   return selected?.rangeCount>0&&!selected.isCollapsed&&selected.getRangeAt(0).intersectsNode(node('dialogue-text'));
+ }
+ let readingPointer=null;
+ readBox.addEventListener('pointerdown',event=>{
+   readingPointer={id:event.pointerId,x:event.clientX,y:event.clientY,scroll:readSurface.scrollTop,
+     ignore:event.button!==0||!event.isPrimary||selectingDialogue()};
+ });
+ function trackReadingPointer(event){
+   if(readingPointer?.id!==event.pointerId)return;
+   if(event.type==='pointercancel'||Math.hypot(event.clientX-readingPointer.x,event.clientY-readingPointer.y)>8)
+     readingPointer.ignore=true;
+ }
+ for(const type of ['pointermove','pointerup','pointercancel'])readBox.addEventListener(type,trackReadingPointer);
+ readBox.addEventListener('click',event=>{
+   const pointer=event.detail>0?readingPointer:null;readingPointer=null;
+   if(event.defaultPrevented||event.button!==0||event.target.closest('button,a,input,select,textarea,summary,[contenteditable],#feedback,.round-tools'))return;
+   if(pointer&&(pointer.ignore||pointer.scroll!==readSurface.scrollTop)||selectingDialogue())return;
+   if(node('save-dialog').open||document.querySelector('main').inert)return;
+   if(!node('character-menu').hidden){closeCharacterMenu(true);return}
+   if(!node('action-panel').hidden){closeActionIndex();return}
+   if(!node('nearby-panel').hidden){closeNearby();return}
+   if(pickupOrigin){closePickup();return}
+   if(document.querySelector('.panel:not([hidden])')){drawer(null);controls();return}
+   if(dailyReadAvailable())advance();
+ });
+ let heldReadKey='';
+ document.addEventListener('keydown',event=>{
+   if(event.key!==' '&&event.key!=='Enter')return;
+   if(event.repeat&&heldReadKey===event.key){
+     event.preventDefault();event.stopImmediatePropagation();return;
+   }
+   if(event.repeat||event.isComposing||event.keyCode===229||event.altKey||event.ctrlKey||event.metaKey||event.shiftKey||event.defaultPrevented)return;
+   if(![readSurface,document.body,document.documentElement,document.querySelector('main')].includes(event.target))return;
+   if(!dailyReadAvailable()||selectingDialogue())return;
+   event.preventDefault();heldReadKey=event.key;advance();
+ },true);
+ document.addEventListener('keyup',event=>{if(event.key===heldReadKey)heldReadKey=''});
+ addEventListener('blur',()=>{heldReadKey=''});
+ node('skip-read').onclick=()=>advance(true);
  // Every change of auto-read goes through here, so the button, the opening card and the timer agree.
  function setAuto(value){auto=value;node('auto-read').setAttribute('aria-pressed',String(auto));node('auto-read').classList.toggle('active',auto);if(latest)renderActivity(latest);scheduleAuto()}
  node('auto-read').onclick=()=>{if(!auto&&openingSeen&&openingHalted)resumeOpening();setAuto(!auto);controls()};
  node('history-toggle').onclick=()=>historyPanel(node('history-panel').hidden);node('history-close').onclick=()=>historyPanel(false);
- node('actions-toggle').onclick=()=>{drawer(node('action-panel').hidden?'action-panel':null);controls()};node('actions-close').onclick=()=>{drawer(null);controls()};
- node('composer-actions').onclick=()=>{drawer(node('action-panel').hidden?'action-panel':null);controls()};
- node('composer-message').onclick=()=>{const open=node('message-panel').hidden;drawer(open?'message-panel':null);controls();if(open)node('message-text').focus()};node('message-close').onclick=()=>{drawer(null);controls()};node('message-send').onclick=sendMessage;
- node('inventory-toggle').onclick=()=>{const open=node('inventory-panel').hidden;drawer(open?'inventory-panel':null);if(open)node('inventory-close').focus();controls()};node('inventory-close').onclick=()=>{drawer(null);node('inventory-toggle').focus();controls()};
- node('status-toggle').onclick=()=>{drawer(node('status-panel').hidden?'status-panel':null);controls()};node('status-close').onclick=()=>{drawer(null);controls()};
+ for(const id of ['actions-toggle','composer-actions']){
+   const trigger=node(id);
+   trigger.onpointerdown=()=>{indexPointerOrigin=document.activeElement};
+   trigger.onclick=event=>toggleActionIndex(trigger,event.detail?indexPointerOrigin:null);
+ }
+ node('actions-close').onclick=closeActionIndex;
+ node('action-search').oninput=filterActionIndex;node('action-category').onchange=filterActionIndex;
+ node('index-browse-move').onclick=()=>browseFromIndex('move-panel',node('move-close'));
+ node('index-browse-nearby').onclick=()=>openNearby(true);
+ node('inventory-toggle').onclick=()=>browseFromIndex('inventory-panel',node('inventory-close'));
+ node('composer-message').onclick=()=>{const open=node('message-panel').hidden;drawer(open?'message-panel':null);controls();if(open)node('message-text').focus()};node('message-close').onclick=()=>{if(!returnFromIndex('message-panel')){drawer(null);controls()}};node('message-send').onclick=sendMessage;
+ function closeMovePanel(){
+   if(returnFromIndex('move-panel'))return;
+   drawer(null);controls();
+   (isVisible(moveTrigger)?moveTrigger:node('scene')).focus({preventScroll:true});
+ }
+ for(const id of ['scene','move-toggle']){
+   node(id).onclick=()=>{
+     if(!node('move-panel').hidden){closeMovePanel();return}
+     moveTrigger=node(id);drawer('move-panel');controls();node('move-close').focus();
+   };
+ }
+ node('move-close').onclick=closeMovePanel;
+ function closeActivityDrawer(){
+   drawer(null);controls();(isVisible(node('activity-discover'))?node('activity-discover'):node('actions-toggle')).focus({preventScroll:true});
+ }
+ node('activity-drawer-close').onclick=closeActivityDrawer;
+ node('activity-discover').onclick=()=>{
+   if(!node('activity-drawer').hidden){closeActivityDrawer();return}
+   drawer('activity-drawer');controls();node('activity-drawer-close').focus({preventScroll:true});
+ };
+ node('character-close').onclick=closeCharacterDetail;
+ function openNearby(fromIndex){
+   if(fromIndex)indexChild={panel:'nearby-panel',anchor:node('index-browse-nearby')};
+   drawer('nearby-panel');controls();
+   node('nearby-list').scrollTop=0;focusNearbyItem();
+ }
+ function closeNearby(){
+   if(returnFromIndex('nearby-panel'))return;
+   drawer(null);controls();
+   (isVisible(node('nearby-toggle'))?node('nearby-toggle'):node('actions-toggle')).focus({preventScroll:true});
+ }
+ node('nearby-toggle').onclick=()=>{if(node('nearby-panel').hidden)openNearby(false);else closeNearby()};
+ node('nearby-close').onclick=closeNearby;
+ node('inventory-close').onclick=()=>{if(pickupOrigin){closePickup();return}if(!returnFromIndex('inventory-panel')){drawer(null);controls();node('actions-toggle').focus()}};
+ let statusOrigin=null,statusPointerOrigin=null;
+ const statusToggle=node('status-toggle'),statusPanel=node('status-panel');
+ statusToggle.onpointerdown=event=>{
+   statusPointerOrigin=[node('input'),node('narration')].includes(document.activeElement)?document.activeElement:null;
+   if(statusPointerOrigin)event.preventDefault();
+ };
+ statusToggle.onclick=event=>{
+   if(!statusPanel.hidden){closeStatusPanel(true);return}
+   statusOrigin=event.detail&&statusPointerOrigin?statusPointerOrigin:statusToggle;
+   drawer('status-panel');controls();
+   if(statusOrigin===statusToggle)node('status-close').focus({preventScroll:true});
+ };
+ function closeStatusPanel(restore){
+   const origin=statusOrigin;
+   drawer(null);controls();
+   if(restore)(isVisible(origin)?origin:statusToggle).focus({preventScroll:true});
+ }
+ node('status-close').onclick=()=>closeStatusPanel(true);
+ document.addEventListener('click',event=>{
+   if(statusPanel.hidden||statusPanel.contains(event.target)||statusToggle.contains(event.target))return;
+   // A tap on the reading surface dismisses the inspector without advancing the story.
+   const onReadingSurface=readBox.contains(event.target)&&!event.target.closest('button,a,input,select,textarea,summary,[contenteditable],#feedback,.round-tools');
+   if(onReadingSurface||event.target.closest('#skip-read,#composer-read,#composer-skip,#reply-context,#reply-open')){
+     event.preventDefault();event.stopPropagation();closeStatusPanel(true);return;
+   }
+   const focused=document.activeElement;
+   closeStatusPanel(focused===document.body||statusPanel.contains(focused));
+ },true);
  node('settings-toggle').onclick=()=>{const open=node('settings-panel').hidden;drawer(open?'settings-panel':null);if(open)node('settings-close').focus();controls()};node('settings-close').onclick=()=>{drawer(null);node('settings-toggle').focus();controls()};
  node('reply-context').onclick=()=>{composerExpanded=false;controls()};
  node('reply-context').onkeydown=event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();event.stopPropagation();composerExpanded=false;controls();node('dialogue').focus()}};
- document.addEventListener('keydown',event=>{if(node('save-dialog').open)return;if(event.key==='Escape'){if(stageOpen){parent.postMessage({type:'activity-stage-close',activityId:stageId,revision:latest?.activityStage?.revision,renderer:latest?.activityStage?.renderer},'*');return}if(!node('character-menu').hidden){node('character-menu').hidden=true;return}if(!node('audience-menu').hidden){audienceMenu(false);node('audience-button').focus();return}const toggle=document.querySelector('.stage-tools button[aria-expanded="true"]');drawer(null);composerExpanded=false;controls();toggle?.focus();return}if((event.key===' '||event.key==='Enter')&&!['INPUT','TEXTAREA','SELECT','BUTTON','SUMMARY'].includes(document.activeElement?.tagName)){event.preventDefault();advance()}});
+ document.addEventListener('keydown',event=>{if(node('save-dialog').open)return;if(event.key==='Escape'){if(!stageOpen&&!node('activity-stage').hidden)return;if(!statusPanel.hidden){event.preventDefault();closeStatusPanel(true);return}if(stageOpen){parent.postMessage({type:'activity-stage-close',activityId:stageId,revision:latest?.activityStage?.revision,renderer:latest?.activityStage?.renderer},'*');return}if(!node('character-menu').hidden){closeCharacterMenu(true);return}if(!node('audience-menu').hidden){audienceMenu(false);node('audience-button').focus();return}if(!node('character-panel').hidden){closeCharacterDetail();return}if(!node('move-panel').hidden){closeMovePanel();return}if(!node('activity-drawer').hidden){closeActivityDrawer();return}if(!node('action-panel').hidden){closeActionIndex();return}if(!node('nearby-panel').hidden){node('nearby-close').click();return}if(!node('inventory-panel').hidden){node('inventory-close').click();return}if(!node('message-panel').hidden){node('message-close').click();return}const toggle=document.querySelector('.stage-tools button[aria-expanded="true"]');drawer(null);composerExpanded=false;controls();toggle?.focus();return}});
  let lastWheel=0;
  document.addEventListener('wheel',event=>{
-   if(stageOpen)return;
+   if(!node('activity-stage').hidden||!statusPanel.hidden)return;
    if(['INPUT','TEXTAREA','SELECT'].includes(document.activeElement?.tagName))return;
-   if(event.target.closest('.panel,.character-menu,.audience-menu,.activity-card,dialog,.composer,.dialogue'))return;
+   if(event.target.closest('.panel,.character-menu,.audience-menu,.activity-card,dialog,.stage-bottom,button,a,input,textarea,select,summary,[contenteditable]'))return;
    const now=Date.now();
    if(now-lastWheel<280)return;
    if(event.deltaY<-40&&node('history-panel').hidden){lastWheel=now;historyPanel(true)}
-   else if(event.deltaY>40&&node('history-panel').hidden){lastWheel=now;advance()}
+   else if(event.deltaY>40&&dailyReadAvailable()&&!selectingDialogue()){lastWheel=now;advance()}
  },{passive:true});
- api.subscribe(event=>{if(event.type==='presentation'){if(typeof event.stageOpen==='boolean'){stageOpen=event.stageOpen;stageId=event.stageId||null}activityOpen=event.activityOpen===true;if(activityOpen)composerExpanded=false;controls()}if(event.view){connected=true;render(event.view)}if(event.type==='disconnected'){connected=false;node('status').textContent='连接断开';node('status').dataset.state='disconnected';controls()}});
- controls();api.ready.then(info=>{canRegenerate=info.capabilities.includes('regenerate');hasSpeech=info.capabilities.includes('speech');hasBgm=info.capabilities.includes('bgm');node('setting-bgm').disabled=!hasBgm;node('setting-bgm').checked=hasBgm;node('bgm-hint').textContent=hasBgm?'随阅读进度切换音乐':'尚未安装背景音乐插件';canSave=info.canSave===true;stageAssets=info.stageAssets||[];stageConfig=info.stageConfig||null;preferences=normalizePreferences(info.stagePreferences,{...info.view.settings?.reading,...info.view.settings?.audio,...(info.view.settings?.appearance?{appearance:info.view.settings.appearance}:{})});applyPreferences();node('setting-voiceEnabled').disabled=!hasSpeech;node('voice-hint').textContent=hasSpeech?'朗读当前角色的对白':'尚未安装语音服务';node('save-unavailable').hidden=canSave;connected=true;render(info.view)}).catch(error=>{node('notice').textContent=error.message;controls()});
+ api.subscribe(event=>{if(event.type==='presentation'){if(typeof event.stageOpen==='boolean'){stageOpen=event.stageOpen;stageId=event.stageId||null;if(stageOpen&&!statusPanel.hidden)drawer(null)}activityOpen=event.activityOpen===true;if(activityOpen)composerExpanded=false;controls()}if(event.view){connected=true;render(event.view)}if(event.type==='disconnected'){connected=false;if(pending&&posting)setRequestIssue(pending,{kind:'unknown'});controls()}});
+ controls();api.ready.then(info=>{canRegenerate=info.capabilities.includes('regenerate');hasSpeech=info.capabilities.includes('speech');hasBgm=info.capabilities.includes('bgm');node('setting-bgm').disabled=!hasBgm;node('setting-bgm').checked=hasBgm;node('bgm-hint').textContent=hasBgm?'随阅读进度切换音乐':'尚未安装背景音乐插件';canSave=info.canSave===true;stageAssets=info.stageAssets||[];stageConfig=info.stageConfig||null;preferences=normalizePreferences(info.stagePreferences,{...info.view.settings?.reading,...info.view.settings?.audio,...(info.view.settings?.appearance?{appearance:info.view.settings.appearance}:{})});applyPreferences();node('setting-voiceEnabled').disabled=!hasSpeech;node('voice-hint').textContent=hasSpeech?'朗读当前角色的对白':'尚未安装语音服务';node('save-unavailable').hidden=canSave;connected=true;render(info.view)}).catch(()=>{node('notice').textContent='舞台暂时无法连接。';controls()});
 })();`
 
 /** Explicit trusted renderer composition; generic default assets contain no gameplay imports. */
 export function defaultFrontendAssets(renderers: readonly ActivityStageRenderer[] = []) {
   const registered = activityStageRendererSource(renderers)
+  const hasBattle = renderers.some(row => row.moduleId === 'official-rpg' && row.id === 'official-rpg.battle')
   return {
     page: DEFAULT_PAGE,
     style: DEFAULT_STYLE + '\n' + registered.style,
-    script: DEFAULT_SCRIPT.replace('/*ACTIVITY_STAGE_RENDERERS*/[]', () => registered.script),
+    script: DEFAULT_SCRIPT.replace('/*BATTLE_READING*/null', () =>
+      hasBattle ? '(' + createRpgReading.toString() + ')()' : 'null',
+    ).replace('/*ACTIVITY_STAGE_RENDERERS*/[]', () => registered.script),
   }
 }

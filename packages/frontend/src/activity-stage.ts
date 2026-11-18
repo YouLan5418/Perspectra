@@ -1,4 +1,4 @@
-import type { ActivityStageRenderer } from '@perspectra/sdk/contracts'
+import type { ActivityStagePresentation, ActivityStageRenderer } from '@perspectra/sdk/contracts'
 import type { PlayerView } from './player-view.ts'
 export const ACTIVITY_STAGE_HTML =
   '<section id="activity-stage" class="activity-stage" aria-label="活动专属界面" tabindex="-1" hidden></section>'
@@ -41,10 +41,22 @@ export function createActivityStage(
     },
   }
   return {
+    presentationFor(view: PlayerView) {
+      const stage = view.activityStage
+      const renderer = stage && renderers.get(stage.renderer)
+      return renderer && renderer.moduleId === stage.moduleId ? renderer.presentation : undefined
+    },
     clear() {
       lifecycle.invalidate()
     },
-    update(view: PlayerView, disabled: boolean, reading: boolean, dialogue: string, notice: string) {
+    update(
+      view: PlayerView,
+      disabled: boolean,
+      reading: boolean,
+      dialogue: string,
+      notice: string,
+      presentation?: ActivityStagePresentation,
+    ) {
       const becameReady = blocked && !disabled
       current = view
       blocked = disabled
@@ -96,6 +108,7 @@ export function createActivityStage(
           reading,
           dialogue,
           notice,
+          ...(presentation ? { presentation } : {}),
           perform(id, args = {}) {
             if (
               generation !== epoch ||
@@ -150,6 +163,7 @@ export function activityStageRendererSource(renderers: readonly ActivityStageRen
             JSON.stringify(row.id) +
             ',moduleId:' +
             JSON.stringify(row.moduleId) +
+            (row.presentation ? ',presentation:' + JSON.stringify(row.presentation) : '') +
             ',create:(' +
             (/^(?:function|\(|[a-zA-Z_$][\w$]*\s*=>)/u.test(row.create.toString())
               ? row.create.toString()

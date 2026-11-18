@@ -6,8 +6,8 @@ import { referenceJson, referencePack } from './fixtures/reference.ts'
 import type { WorldJsonObject } from '@perspectra/sdk/contracts'
 
 const player = 'character:player'
-function fixture() {
-  const hooks = generateMapActivities(parseRpgConfig(referenceJson(), referencePack))[0]!.activity
+function fixture(raw = referenceJson()) {
+  const hooks = generateMapActivities(parseRpgConfig(raw, referencePack))[0]!.activity
   const scoped: WorldJsonObject = {
     activityKey: 'rpg-map-ruin-1',
     id: 'activity:test',
@@ -46,6 +46,7 @@ it('only projects visible units and the player skills, not private state or enem
   expect(view.skills.find(skill => skill.name === '普通攻击')!.targets).toEqual(['遗迹守卫'])
   expect(view.skills.find(skill => skill.name === '治疗术')).toMatchObject({
     targets: ['玩家'],
+    costs: [{ label: '魔力', amount: 3, shortfall: 3 }],
     unavailable: '魔力不足',
   })
   expect(JSON.stringify(view)).not.toMatch(/player-secret|not-a-display-field|private|strategy|stats/)
@@ -90,4 +91,39 @@ it('copies only authorized shield and status labels, omitting absent units and e
   expect(JSON.stringify(view)).not.toMatch(/private-shield|hidden-id|absent-status/)
   pub.combatEffects = [{ unitId: player, shield: { amount: -1, remaining: 2 }, statuses: [] }]
   expect(officialRpgBattleView(hooks, scoped, player, [player])).toBeUndefined()
+})
+
+it('publishes the actual price of learned skills and drops the shortfall once the balance covers it', () => {
+  const { hooks, scoped } = fixture()
+  const units = ((scoped.game as WorldJsonObject).public as WorldJsonObject).units as WorldJsonObject[]
+  const stats = units[0]!.stats as Record<string, number>
+  const skills = () => officialRpgBattleView(hooks, scoped, player, [player])!.skills
+  expect(skills().find(s => s.name === '普通攻击')?.costs).toEqual([])
+  stats.mp = 2
+  expect(skills().find(s => s.name === '火球术')?.costs).toEqual([{ label: '魔力', amount: 3, shortfall: 1 }])
+  stats.mp = 8
+  expect(skills().find(s => s.name === '火球术')).toEqual({
+    name: '火球术',
+    targets: ['遗迹守卫'],
+    costs: [{ label: '魔力', amount: 3 }],
+  })
+  delete stats.mp
+  expect(skills().find(s => s.name === '火球术')).toMatchObject({
+    unavailable: '暂无法核实',
+    costs: [{ label: '魔力', amount: 3 }],
+  })
+})
+
+it('omits a price whose stat label is unavailable here, preserving eligible choices', () => {
+  const config = referenceJson()
+  const mp = config.stats.find((stat: { key: string }) => stat.key === 'mp')
+  mp.locations = ['location:ruin-2']
+  mp.label = '本地不可见的数值'
+  const { hooks, scoped } = fixture(config)
+  const pub = (scoped.game as WorldJsonObject).public as WorldJsonObject
+  const stats = (pub.units as WorldJsonObject[])[0]!.stats as Record<string, number>
+  const skill = () => officialRpgBattleView(hooks, scoped, player, [player])!.skills.find(s => s.name === '火球术')
+  expect(skill()).toEqual({ name: '火球术', targets: ['遗迹守卫'], unavailable: '当前不可用' })
+  stats.mp = 8
+  expect(skill()).toEqual({ name: '火球术', targets: ['遗迹守卫'] })
 })

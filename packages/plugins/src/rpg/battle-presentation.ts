@@ -37,6 +37,8 @@ export interface OfficialRpgBattleView {
   readonly skills: readonly {
     readonly name: string
     readonly targets: readonly string[]
+    /** Published cast costs. An empty list is a known free skill; absent means unspecified. */
+    readonly costs?: readonly { readonly label: string; readonly amount: number; readonly shortfall?: number }[]
     readonly unavailable?: string
   }[]
 }

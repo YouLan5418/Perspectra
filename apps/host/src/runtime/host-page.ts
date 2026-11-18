@@ -9,8 +9,8 @@ export const HOST_ACTIVITY_PAGE = String.raw`<!doctype html>
 ${PARTICIPANT_PICKER_STYLE}
 /* 宿主外壳：与舞台、启动器同一套主题色；只保留一层很薄的顶栏。 */
 /* 黑白两色，跟随系统浅色／深色；变量名沿用舞台的旧名字，外壳其余规则不变。 */
-:root{--ink:#f7f7f7;--ink-0:#ffffff;--ink-2:#efefef;--ink-3:#ffffff;--lamp:#111111;--lamp-strong:#000000;--lamp-deep:#333333;--lamp-ink:#ffffff;--text:#111111;--muted:#555555;--faint:#8c8c8c;--say:#111111;--act:#5a5a5a;--narr:#333333}
-@media(prefers-color-scheme:dark){:root{--ink:#0d0d0d;--ink-0:#080808;--ink-2:#171717;--ink-3:#222222;--lamp:#f2f2f2;--lamp-strong:#ffffff;--lamp-deep:#cccccc;--lamp-ink:#111111;--text:#f2f2f2;--muted:#b3b3b3;--faint:#7c7c7c;--say:#f5f5f5;--act:#a6a6a6;--narr:#d0d0d0}}
+:root{--ink:#f7f7f7;--ink-0:#ffffff;--ink-2:#efefef;--ink-3:#ffffff;--lamp:#111111;--lamp-strong:#000000;--lamp-deep:#333333;--lamp-ink:#ffffff;--text:#111111;--muted:#555555;--faint:#8c8c8c;--say:#111111;--act:#5a5a5a;--narr:#333333;--danger-text:#92281d}
+@media(prefers-color-scheme:dark){:root{--ink:#0d0d0d;--ink-0:#080808;--ink-2:#171717;--ink-3:#222222;--lamp:#f2f2f2;--lamp-strong:#ffffff;--lamp-deep:#cccccc;--lamp-ink:#111111;--text:#f2f2f2;--muted:#b3b3b3;--faint:#7c7c7c;--say:#f5f5f5;--act:#a6a6a6;--narr:#d0d0d0;--danger-text:#f2a497}}
 :root{
   color-scheme:light dark;font:13px/1.6 "Segoe UI Variable Text","Segoe UI","PingFang SC","Microsoft YaHei UI","Microsoft YaHei",sans-serif;
   background:var(--ink);color:var(--text);
@@ -46,7 +46,7 @@ header{
 .toolbar button{padding:4px 12px;font-size:12px;border-radius:999px}
 #host-tail-tools{display:flex;align-items:center;gap:4px;margin-right:4px}
 #host-candidate-count{font-size:11.5px;color:var(--faint)}
-#escape{margin-left:4px;color:#f2a497;border-color:rgba(240,138,126,.3);background:transparent}
+#escape{margin-left:4px;color:var(--danger-text);border-color:rgba(240,138,126,.3);background:transparent}
 #escape:hover:not(:disabled){background:rgba(240,138,126,.1);border-color:rgba(240,138,126,.55)}
 #tools{position:relative}
 #tools>summary{
@@ -156,7 +156,7 @@ iframe{
   #notice,#memory-status{left:12px}
 }
 </style></head><body>
-<header><div class="brand"><strong>Perspectra</strong><small>游玩中</small></div><span id="frontend-status" role="status">正在载入</span><div class="toolbar"><span id="host-tail-tools" hidden><button id="host-candidate-prev" type="button" aria-label="上一个候选">‹</button><span id="host-candidate-count"></span><button id="host-candidate-next" type="button" aria-label="下一个候选">›</button><button id="regenerate" type="button" aria-label="重新生成" title="重新生成此回合" disabled>↻</button></span><details id="tools"><summary>工具 ···</summary><div class="tool-menu"><button id="cancel-regenerate" type="button" hidden>取消重新生成</button><button id="reload-frontend" type="button">重新加载界面</button><button id="default-frontend" type="button">切换官方默认界面</button><button id="memory" type="button" hidden>整理长期记忆</button><p>这些操作不会清空已提交的进度。</p></div></details><button id="stage-toggle" type="button" hidden aria-pressed="false">打开活动界面</button><button id="save-progress" type="button">保存进度</button><button id="escape" type="button" title="逃生：中止活动并恢复自由互动">中止活动</button></div></header>
+<header><div class="brand"><strong>Perspectra</strong><small>游玩中</small></div><span id="frontend-status" role="status">正在载入</span><div class="toolbar"><span id="host-tail-tools" hidden><button id="host-candidate-prev" type="button" aria-label="上一个候选">‹</button><span id="host-candidate-count"></span><button id="host-candidate-next" type="button" aria-label="下一个候选">›</button><button id="regenerate" type="button" aria-label="重新生成" title="重新生成此回合" disabled>↻</button></span><details id="tools"><summary>工具 ···</summary><div class="tool-menu"><button id="cancel-regenerate" type="button" hidden>取消重新生成</button><button id="reload-frontend" type="button">重新加载界面</button><button id="default-frontend" type="button">切换官方默认界面</button><button id="memory" type="button" hidden>整理长期记忆</button><p>这些操作不会清空已提交的进度。</p></div></details><button id="stage-toggle" type="button" hidden aria-pressed="false" title="仅切换查看界面，活动继续进行">返回活动</button><button id="save-progress" type="button">保存进度</button><button id="escape" type="button" title="逃生：中止活动并恢复自由互动">中止活动</button></div></header>
 <p id="notice" role="status"></p><p id="memory-status" role="status"></p>
 <details id="game" hidden><summary class="activity-heading"><small>当前活动</small><strong id="title"></strong><span id="activity-toggle"></span><span id="card-status"></span></summary><p id="round"></p><p id="activity-objective"></p><dl id="activity-state"></dl><p class="activity-section-label">可执行操作</p><div id="options"></div><p id="activity-feedback" role="status"></p><div id="management"></div></details>
 <iframe id="experience" title="游戏界面" sandbox="allow-scripts" referrerpolicy="no-referrer"></iframe>
@@ -178,7 +178,7 @@ iframe{
   }
   function post(value){if(port)port.postMessage(value)}
   let stageSession=null,stageOpen=false,stageFailed=null,stageBinding=null;
-  function presentStage(){post({type:'presentation',activityOpen:!!node('game').open&&!node('game').hidden,stageOpen,stageId:stageSession});node('stage-toggle').textContent=stageOpen?'切回默认界面':'打开活动界面';node('stage-toggle').setAttribute('aria-pressed',String(stageOpen))}
+  function presentStage(){post({type:'presentation',activityOpen:!!node('game').open&&!node('game').hidden,stageOpen,stageId:stageSession});node('stage-toggle').textContent=stageOpen?'回场景看看':'返回活动';node('stage-toggle').setAttribute('aria-pressed',String(stageOpen))}
   function syncStage(){
     const stage=init?.frontend==='default'&&playerView?.status!=='paused'?playerView?.activityStage:null;
     const id=stage?.activityId||null;

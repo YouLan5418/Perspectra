@@ -50,6 +50,7 @@ export function playerTranscript(
   names: ReadonlyMap<string, string>,
   playerId: CharacterId,
   labels: PlayerTranscriptLabels = {},
+  onCustodyLine?: (itemId: string, seq: number, pickedUpByPlayer: boolean) => void,
 ): HostState['transcript'] {
   return view.observations
     .flatMap(observation => {
@@ -87,6 +88,22 @@ export function playerTranscript(
                 ]
               : []
           }
+          // The row and its optional backpack navigation share this committed, visible observation.
+          // Other transfers supersede the earlier pickup, including an item later given back to the player.
+          const envelope = object(observation.value)
+          const ownPickup =
+            view.characterId === playerId &&
+            envelope?.observerId === playerId &&
+            typeof envelope.actionId === 'string' &&
+            envelope.actionId.length > 0 &&
+            content.contentVisibility !== 'occurrence_only' &&
+            content.actorId === playerId &&
+            transfer.characterId === playerId &&
+            transfer.fromHolderId === null &&
+            typeof transfer.fromLocationId === 'string' &&
+            transfer.toHolderId === playerId &&
+            transfer.toLocationId === null
+          onCustodyLine?.(transfer.entityId, observation.sourceSeq, ownPickup)
           // The player reads a label, not the runtime identity of the entity.
           const item = labels.entityNames?.get(transfer.entityId) ?? transfer.entityId
           const destination =

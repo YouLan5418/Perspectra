@@ -62,6 +62,11 @@ export function initialBattleValues(
     ),
   }
 }
+/** Missing amount at cast time, before any effects or later recovery. */
+export function costShortfall(balance: number, cost: number): number {
+  return Math.max(0, cost - balance)
+}
+
 /** The same eligibility calculation is used by the rule and the authorized battle projection. */
 export function valueSkillProblem(
   skill: { resourceCost?: Record<string, number>; requires?: RpgValueRequirement[] },
@@ -70,7 +75,7 @@ export function valueSkillProblem(
   read: (ref: RpgValueRef) => number,
 ): string | undefined {
   for (const [key, cost] of Object.entries(skill.resourceCost ?? {}))
-    if ((resources[key] ?? 0) < cost) return `${defs.resources[key]!.label}不足`
+    if (costShortfall(resources[key] ?? 0, cost) > 0) return `${defs.resources[key]!.label}不足`
   for (const requirement of skill.requires ?? [])
     if (read(requirement.value) < requirement.atLeast) return '战斗数值条件不满足'
 }

@@ -1,4 +1,10 @@
-import { EMPTY_BATTLE_VALUES, valueSkillProblem, type RpgValueDisplay } from './battle-values.ts'
+import {
+  EMPTY_BATTLE_VALUES,
+  costShortfall,
+  valueSkillProblem,
+  type RpgValueDisplay,
+  type RpgValueRef,
+} from './battle-values.ts'
 import { onlyHealing, skillTargetSide } from './combat-effects.ts'
 import type { ActivityHooks } from '@perspectra/sdk'
 import type { WorldJsonObject } from '@perspectra/sdk/contracts'
@@ -134,6 +140,18 @@ export function officialRpgBattleView(
     raw => raw && typeof raw === 'object' && !Array.isArray(raw) && raw.id === actorId,
   ) as WorldJsonObject
   const stats = own.stats as WorldJsonObject | undefined
+  const ownValues = unitValues.get(actorId)
+  const resources = Object.fromEntries((ownValues?.resources ?? []).map(row => [row.key, row.value]))
+  const statLabels = new Map(
+    config.stats
+      .filter(stat => !stat.locations || stat.locations.includes(config.locationId))
+      .map(stat => [stat.key, stat.label]),
+  )
+  const resourceLabels = new Map(ownValues?.resources.map(row => [row.key, row.label]))
+  const visibleValue = (ref: RpgValueRef) =>
+    (ref.scope === 'shared' ? shared : ref.kind === 'attribute' ? ownValues?.attributes : ownValues?.resources)?.find(
+      row => row.key === ref.key,
+    )?.value
   const skills = config.skills
     .filter(skill => config.characters[actorId]?.skills.includes(skill.id))
     .map(skill => {
@@ -147,30 +165,33 @@ export function officialRpgBattleView(
             (skill.scope === 'all' ? eligible.some(target => target.hp < target.maxHp) : unit.hp < unit.maxHp),
         )
         .map(unit => unit.name)
-      const missing = Object.keys(skill.cost).find(
-        key => typeof stats?.[key] !== 'number' || Number(stats[key]) < skill.cost[key]!,
-      )
-      const ownValues = unitValues.get(actorId)
-      const numericProblem = valueSkillProblem(
-        skill,
-        config.battleValues ?? EMPTY_BATTLE_VALUES,
-        Object.fromEntries((ownValues?.resources ?? []).map(row => [row.key, row.value])),
-        ref =>
-          (ref.scope === 'shared'
-            ? shared
-            : ref.kind === 'attribute'
-              ? ownValues?.attributes
-              : ownValues?.resources
-          )?.find(row => row.key === ref.key)?.value ?? 0,
-      )
+      const costs: { label: string; amount: number; shortfall?: number }[] = []
+      let allCostsPublic = true
+      let unavailable: string | undefined
+      const addCost = (label: string | undefined, amount: number, balance: unknown) => {
+        if (amount === 0) return
+        if (!label) allCostsPublic = false
+        if (typeof balance !== 'number' || !Number.isFinite(balance)) {
+          unavailable ??= '暂无法核实'
+          if (label) costs.push({ label, amount })
+          return
+        }
+        const shortfall = costShortfall(balance, amount)
+        if (shortfall > 0) unavailable ??= label ? label + '不足' : '当前不可用'
+        if (label) costs.push({ label, amount, ...(shortfall > 0 ? { shortfall } : {}) })
+      }
+      for (const [key, amount] of Object.entries(skill.cost)) addCost(statLabels.get(key), amount, stats?.[key])
+      for (const [key, amount] of Object.entries(skill.resourceCost ?? {}))
+        addCost(resourceLabels.get(key), amount, resources[key])
+      const requirementsKnown = (skill.requires ?? []).every(req => visibleValue(req.value) !== undefined)
+      unavailable ??= requirementsKnown
+        ? valueSkillProblem(skill, config.battleValues ?? EMPTY_BATTLE_VALUES, resources, ref => visibleValue(ref)!)
+        : '暂无法核实'
       return {
         name: skill.name,
         targets,
-        ...(missing
-          ? { unavailable: (config.stats.find(stat => stat.key === missing)?.label ?? missing) + '不足' }
-          : numericProblem
-            ? { unavailable: numericProblem }
-            : {}),
+        ...(allCostsPublic ? { costs } : {}),
+        ...(unavailable ? { unavailable } : {}),
       }
     })
   return {

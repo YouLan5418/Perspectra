@@ -1,0 +1,69 @@
+/* Local layout experiment only. Uses the current default frontend and handlers.
+   No root font, story font, input font, policy or submission logic changes. */
+.reply-context{display:flex;align-items:baseline;gap:12px;min-width:0;padding-top:0;padding-bottom:0}
+.reply-context span{flex:none}
+.reply-context p{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-height:none;margin:0}
+.composer-footer{column-gap:8px;row-gap:10px}
+.composer-footer .audience-picker{order:1}
+.composer-footer #recipient-panel{order:2}
+.composer-footer #attached-action{order:3}
+.composer-submit{order:4;margin-left:0}
+.composer-more{order:0;margin-left:0;margin-right:auto;flex:none}
+.composer-more>summary{list-style:none;user-select:none;color:var(--muted);font-size:12.5px;padding:5px 12px;border:1px solid var(--line-strong);border-radius:999px;white-space:nowrap}
+.composer-more>summary::-webkit-details-marker{display:none}
+.composer-more>summary:after{content:' ▴';font-size:9px}
+.composer-more[open]>summary{background:var(--surface-2);color:var(--text)}
+.composer-more-body{position:fixed;bottom:calc(100% + 12px);right:0;z-index:25;width:min(340px,calc(100vw - 56px));max-height:min(300px,calc(100dvh - 260px));overflow:auto;display:flex;flex-wrap:wrap;align-items:center;gap:10px;padding:14px;background:var(--surface);border:1px solid var(--line-strong);border-radius:12px;box-shadow:var(--shadow)}
+.composer-more-body .narration-composer{width:100%;flex:none;flex-wrap:wrap}
+.composer-more-body .narration-composer[open] textarea{flex-basis:100%;margin-top:6px}
+.composer-more-body .composer-keys{display:block;margin-left:0;flex-basis:100%}
+.composer-more-body button{font-size:12.5px;padding:5px 12px;border-radius:999px}
+/* Reading retains the existing dialogue click, auto and skip handlers. */
+.dialogue{min-height:80px;padding-top:24px;padding-bottom:10px}
+@media(max-width:1000px){.composer-more-body{max-height:min(240px,calc(100dvh - 250px))}}
+/* v0.3 interaction: Send stays on the right; audience opens to its left. */
+.send-cluster{order:4;margin-left:auto;display:flex;align-items:center;justify-content:flex-end;gap:8px;min-width:0}
+.audience-inline{display:flex;align-items:center;gap:8px;min-width:0}
+.audience-inline .audience-picker,.audience-inline #recipient-panel{order:initial}
+.send-cluster .composer-submit{order:initial;margin-left:0}
+#audience-reveal{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);padding:0;border:0}
+#audience-reveal:focus-visible{position:static;width:auto;height:auto;overflow:visible;clip-path:none;padding:5px 12px;border:1px solid var(--line-strong)}
+.composer-unread{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:0 0 10px;color:var(--muted);font-size:12.5px}
+.composer-unread span{flex:1 1 250px}
+.composer-unread button{padding:5px 10px;font-size:12.5px}
+@media(hover:none),(max-width:900px){#audience-reveal{position:static;width:auto;height:auto;overflow:visible;clip-path:none;padding:5px 12px;border:1px solid var(--line-strong);font-size:12.5px}}
+@media(max-width:640px){.send-cluster{flex:1 1 100%;flex-wrap:wrap}.audience-inline{order:-1;flex:1 1 100%;justify-content:flex-end;flex-wrap:wrap}.audience-options label:after{display:none}.composer-more-body{width:min(340px,calc(100vw - 24px))}}
+/* Send capsule: only this component changes. The right-hand send anchor is fixed. */
+.send-cluster{position:relative;isolation:isolate;gap:0;border-radius:999px}
+.send-cluster::before{content:'';position:absolute;inset:0;border:1px solid var(--line-strong);border-radius:999px;background:var(--surface-2);z-index:-1;pointer-events:none;opacity:0}
+.send-cluster[data-expanded="true"]::before{opacity:1;animation:send-capsule-open 180ms ease-out both}
+.send-cluster #send{display:grid;place-items:center;width:44px;height:44px;min-width:44px;flex:none;padding:0;border-radius:50%}
+.send-cluster #send svg{display:block;pointer-events:none}
+.send-cluster .audience-inline{min-height:44px;padding:0 8px 0 12px;gap:6px;animation:send-audience-in 180ms ease-out both}
+.send-cluster .audience-button{height:36px;padding:5px 8px;border-color:transparent;background:transparent}
+.send-cluster .composer-submit{align-items:center}
+.send-cluster #audience-reveal:focus-visible{margin-right:8px}
+@keyframes send-capsule-open{from{clip-path:inset(0 0 0 calc(100% - 44px) round 22px)}to{clip-path:inset(0 round 22px)}}
+@keyframes send-audience-in{from{opacity:0}to{opacity:1}}
+@media(hover:none),(max-width:900px){.send-cluster #audience-reveal{margin-right:8px}}
+/* Narrow/touch fallback keeps the explicit settings trigger separate from Send. */
+@media(max-width:640px){.send-cluster::before{display:none}.send-cluster .audience-inline{height:auto;padding:4px 10px;margin-bottom:8px;border:1px solid var(--line-strong);border-radius:22px;background:var(--surface-2)}}
+@media(prefers-reduced-motion:reduce){.send-cluster::before,.send-cluster .audience-inline{animation:none!important;transition:none!important}}
+.item-snapshot-note{margin-bottom:14px;padding-bottom:10px;border-bottom:1px solid var(--line)}
+.inventory-item summary:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+/* Both move triggers open the standard drawer. */
+.scene-move {
+  font: inherit;
+  letter-spacing: inherit;
+  border: 0;
+  padding: 0;
+  color: inherit;
+  background: transparent;
+  text-align: left;
+}
+.scene-move::after { content: ' ▾'; font-size: .65em; }
+.scene-move:hover:not(:disabled) { background: transparent; text-decoration: underline; }
+.move-body { padding: 16px 20px; }
+.move-body #move-list { margin-top: 12px; }
+.move-body #move-list button { width: 100%; }

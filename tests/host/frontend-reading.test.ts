@@ -298,10 +298,12 @@ it('unlocks only the request whose committed action ID appears in the public pro
 })
 it("lists an activity's public state and then what only the player knows", () => {
   const start = DEFAULT_SCRIPT.indexOf(' const activityRows=') + ' const activityRows='.length
-  const activityRows = runInNewContext(DEFAULT_SCRIPT.slice(start, DEFAULT_SCRIPT.indexOf(';\n', start))) as (
-    shown: unknown,
-    own: unknown,
-  ) => { label: string; value: string; own: boolean }[]
+  const activityRows = runInNewContext(
+    '(' + DEFAULT_SCRIPT.slice(start, DEFAULT_SCRIPT.indexOf('\n // Keep statusRows', start)).trim().slice(0, -1) + ')',
+    {
+      readableCharacter: (id: string) => (id === 'character:friend' ? { name: '留守者' } : undefined),
+    },
+  ) as (shown: unknown, own: unknown) => { label: string; value: string; own: boolean }[]
   expect(
     activityRows(
       { statusText: '第 1 夜', 存活: ['玩家', 'GPT'], 第几天: 1, 票型: null, nested: { a: 1 } },
@@ -316,18 +318,21 @@ it("lists an activity's public state and then what only the player knows", () =>
     { label: '轮到你', value: '是', own: true },
   ])
   expect(activityRows({}, undefined)).toEqual([])
+  expect(activityRows({ invitee: 'character:friend', inviter: 'character:outside' }, undefined)).toEqual([
+    { label: '受邀角色', value: '留守者', own: false },
+  ])
 })
-it('says only that a reply is coming, never who is replying', () => {
+it('distinguishes authorized responders from ordinary processing without naming them', () => {
   // Naming the responder would reveal who acts in hidden turns, such as who is awake at night in werewolf.
   const start = DEFAULT_SCRIPT.indexOf(' const statusText=') + ' const statusText='.length
   const statusText = runInNewContext(DEFAULT_SCRIPT.slice(start, DEFAULT_SCRIPT.indexOf(';\n', start))) as (
     view: unknown,
     reading: boolean,
   ) => string
-  expect(statusText({ status: 'busy', responders: ['GPT', 'Claude'] }, false)).toBe('正在回复中')
-  expect(statusText({ status: 'busy', responders: ['GPT'], canInterrupt: true }, false)).toBe('正在回复中')
-  expect(statusText({ status: 'busy' }, false)).toBe('正在回复中')
-  expect(statusText({ status: 'busy', canInterrupt: true }, false)).toBe('可以接着说')
+  expect(statusText({ status: 'busy', responders: ['GPT', 'Claude'] }, false)).toBe('角色正在回应')
+  expect(statusText({ status: 'busy', responders: ['GPT'], canInterrupt: true }, false)).toBe('角色正在回应')
+  expect(statusText({ status: 'busy' }, false)).toBe('正在处理')
+  expect(statusText({ status: 'busy', canInterrupt: true }, false)).toBe('正在处理')
   expect(statusText({ status: 'ready' }, true)).toBe('阅读中')
   expect(DEFAULT_SCRIPT).not.toContain('responders.join')
 })
@@ -448,6 +453,7 @@ it('automatically starts the configured opening, queues it ahead of reading, and
     openingRetried: '',
     openingTimer: null as unknown,
     connected: true,
+    composerExpanded: true,
     auto: false,
     posting: false,
     pending: null,
@@ -467,6 +473,15 @@ it('automatically starts the configured opening, queues it ahead of reading, and
   // The page routes every auto-read change through setAuto; here it only flips the flag the sliced code reads.
   Object.assign(context, { setAuto: (value: boolean) => (context.auto = value) })
   const schedule = runInNewContext(code + ';scheduleOpening', context) as () => void
+  schedule()
+  expect(timers).toHaveLength(0)
+  expect(context.auto).toBe(false)
+  context.composerExpanded = false
+  schedule()
+  context.composerExpanded = true
+  timers.shift()!()
+  expect(sent).toEqual([])
+  context.composerExpanded = false
   schedule()
   timers.shift()!()
   expect(sent).toEqual(['start'])
@@ -534,6 +549,7 @@ it('stops the opening on an error view after one retry, and resumes once the pla
     openingRetried: '',
     openingTimer: null as unknown,
     connected: true,
+    composerExpanded: false,
     auto: true,
     posting: false,
     pending: null,
@@ -571,4 +587,57 @@ it('stops the opening on an error view after one retry, and resumes once the pla
   schedule!()
   timers.shift()!()
   expect(sent).toEqual(['retry', 'next'])
+})
+
+it.each([false, true])('returns focus to editing only for an explicitly suspended draft (restore=%s)', restore => {
+  const start = DEFAULT_SCRIPT.indexOf(' function advance(skip=false){')
+  const end = DEFAULT_SCRIPT.indexOf('\n // Only one drawer', start)
+  const playback = createReadingPlayback()
+  playback.update([line(1, '当前对白')])
+  const focused: string[] = []
+  const context = {
+    playback,
+    resumeDraft: restore,
+    composerExpanded: false,
+    stageOpen: false,
+    document: { querySelector: () => null },
+    node: (id: string) => ({ open: false, focus: () => focused.push(id) }),
+    updateAutoProgress() {},
+    rememberReadItems() {},
+    renderStage() {},
+    controls() {},
+  }
+  runInNewContext(DEFAULT_SCRIPT.slice(start, end) + '\n advance(); advance();', context)
+  expect(playback.pending()).toBe(false)
+  expect(context.composerExpanded).toBe(restore)
+  expect(context.resumeDraft).toBe(false)
+  expect(focused).toEqual(restore ? ['input'] : [])
+})
+
+it('enters the first readable nearby item and recovers focus by identity when that list changes', () => {
+  const start = DEFAULT_SCRIPT.indexOf(' function focusNearbyItem(')
+  const end = DEFAULT_SCRIPT.indexOf('\n function itemCard(', start)
+  const focused: string[] = []
+  const item = (id: string) => ({
+    parentElement: { dataset: { itemId: id } },
+    focus: () => focused.push(id),
+    getBoundingClientRect: () => ({ top: 20, bottom: 64 }),
+  })
+  let rows = [item('entity:cup-a'), item('entity:cup-b')]
+  const list = {
+    querySelectorAll: () => rows,
+    getBoundingClientRect: () => ({ top: 0, bottom: 120 }),
+  }
+  const close = { focus: () => focused.push('close') }
+  const focusNearbyItem = runInNewContext('(' + DEFAULT_SCRIPT.slice(start, end).trim() + ')', {
+    node: (id: string) => (id === 'nearby-list' ? list : close),
+  }) as (previousId?: string) => void
+
+  focusNearbyItem()
+  focusNearbyItem('entity:cup-b')
+  rows = [item('entity:lamp')]
+  focusNearbyItem('entity:cup-b')
+  rows = []
+  focusNearbyItem()
+  expect(focused).toEqual(['entity:cup-a', 'entity:cup-b', 'entity:lamp', 'close'])
 })
