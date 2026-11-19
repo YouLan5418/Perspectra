@@ -450,6 +450,7 @@ export class WorldHostCore implements HostRuntime {
   #wakeupWarnings: string[] = []
   #cyclePlayerTurn = false
   #statusSettledBeforeReactions = false
+  #retryClockOnly = false
   #cycleSettlementEnabled = false
   /** The round's notice and error flag, for the code that runs rounds outside this class. */
   readonly #roundStatus: RoundStatus = {
@@ -1217,6 +1218,7 @@ export class WorldHostCore implements HostRuntime {
     this.#cyclePlayerTurn = false
     this.#statusSettledBeforeReactions = false
     this.#statusRoundError = undefined
+    this.#retryClockOnly = false
     this.#cycleSettlementEnabled = kind === 'character'
     this.#abortedWork = false
     const controller = (this.#continuationController = new AbortController())
@@ -1330,6 +1332,7 @@ export class WorldHostCore implements HostRuntime {
       const changed = await this.#gameplay.activity.apply(request)
       const committed = (await this.#application.head(this.#address)).headSeq > this.#rootBeforeSeq
       this.#cycleSettlementEnabled = changed && committed
+      this.#retryClockOnly = changed && !committed && request.operation === 'retry'
       this.#notice = changed ? '游戏操作已提交。' : '已返回原提交结果，没有再次执行。'
       if (changed) {
         // Show the operation's result before the next participant spends its model call.
@@ -1402,8 +1405,8 @@ export class WorldHostCore implements HostRuntime {
           hookId: 'settle',
           order: -15,
           resolve: (snapshot, cycleId) =>
-            this.#cycleSettlementEnabled
-              ? this.#worldEvents!.settle(snapshot, cycleId, this.#rootBeforeSeq)
+            this.#cycleSettlementEnabled || this.#retryClockOnly
+              ? this.#worldEvents!.settle(snapshot, cycleId, this.#rootBeforeSeq, this.#retryClockOnly)
               : undefined,
         }),
       )

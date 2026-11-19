@@ -1,12 +1,20 @@
 import type { ContentPackFacts } from './content.ts'
 
 export type Witness = 'scene' | 'global' | { readonly holds: string }
-export interface EventRule {
+export interface PackTimeThreshold {
+  readonly dayKey: string
+  readonly slotKey: string
+  readonly slots: readonly string[]
+  readonly at: { readonly day: number; readonly slot: string }
+}
+export type EventRule = (
+  | { readonly round: number; readonly crossesPackTime?: never }
+  | { readonly round?: never; readonly crossesPackTime: PackTimeThreshold }
+) & {
   readonly id: string
   readonly type: string
   readonly trigger?: 'hard' | 'paced'
   readonly duringActivity?: boolean
-  readonly round: number
   readonly location: string
   readonly witnesses: readonly Witness[]
   readonly observation: string
@@ -71,6 +79,35 @@ function write(raw: unknown): BooleanWrite {
   if (typeof row.value !== 'boolean') throw new TypeError('world-events: expected boolean effect')
   return { key: id(row.key), value: row.value }
 }
+function timing(rule: Record<string, unknown>) {
+  if (rule.when === undefined) {
+    if (typeof rule.round !== 'number' || !Number.isSafeInteger(rule.round) || rule.round < 1)
+      throw new TypeError('world-events: expected a positive round or when.crossesPackTime')
+    return { round: rule.round }
+  }
+  if (rule.round !== undefined || rule.trigger === 'paced')
+    throw new TypeError('world-events: crossesPackTime is a hard trigger and excludes round')
+  const clock = object(object(rule.when, ['crossesPackTime']).crossesPackTime, ['dayKey', 'slotKey', 'slots', 'at'])
+  const dayKey = id(clock.dayKey),
+    slotKey = id(clock.slotKey)
+  const slots = list(clock.slots, 32).map(slot => {
+    if (typeof slot !== 'string' || !slot.trim() || slot.length > 64)
+      throw new TypeError('world-events: invalid calendar slot')
+    return slot
+  })
+  const at = object(clock.at, ['day', 'slot'])
+  if (
+    dayKey === slotKey ||
+    new Set(slots).size !== slots.length ||
+    typeof at.day !== 'number' ||
+    !Number.isSafeInteger(at.day) ||
+    at.day < 0 ||
+    typeof at.slot !== 'string' ||
+    !slots.includes(at.slot)
+  )
+    throw new TypeError('world-events: invalid calendar keys, slots or threshold')
+  return { crossesPackTime: { dayKey, slotKey, slots, at: { day: at.day, slot: at.slot } } }
+}
 export function parseEventBook(raw: unknown, pack: ContentPackFacts): EventBook {
   const book = object(raw, ['rules', 'grants'])
   const rules = list(book.rules, 32).map((entry): EventRule => {
@@ -78,6 +115,7 @@ export function parseEventBook(raw: unknown, pack: ContentPackFacts): EventBook 
       'id',
       'type',
       'round',
+      'when',
       'location',
       'audience',
       'observation',
@@ -86,9 +124,6 @@ export function parseEventBook(raw: unknown, pack: ContentPackFacts): EventBook 
       'duringActivity',
     ])
     if (
-      typeof rule.round !== 'number' ||
-      !Number.isSafeInteger(rule.round) ||
-      rule.round < 1 ||
       typeof rule.location !== 'string' ||
       !pack.locationIds.includes(rule.location) ||
       typeof rule.observation !== 'string' ||
@@ -116,7 +151,7 @@ export function parseEventBook(raw: unknown, pack: ContentPackFacts): EventBook 
     return {
       id: id(rule.id),
       type: worldEventType(rule.type),
-      round: rule.round,
+      ...timing(rule),
       location: rule.location,
       ...(rule.trigger === 'paced' ? { trigger: 'paced' as const, duringActivity: rule.duringActivity === true } : {}),
       witnesses,

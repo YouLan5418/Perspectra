@@ -1,3 +1,4 @@
+import { firstPackTimeCrossing } from './pack-time.ts'
 import { randomUUID } from 'node:crypto'
 import type { WorldRoundEffects, WorldRoundSnapshot } from '@perspectra/core'
 import {
@@ -59,6 +60,7 @@ export class WorldEventRuntime {
   private readonly receipts = new Set<string>()
   private readonly handlers = new Map<WorldEventConsumer, ReturnType<WorldEventConsumer['subscription']['open']>>()
   private readonly lifetime = new AbortController()
+  private readonly warnedClocks = new Set<string>()
   private indexed = 0
   private active = false
   private liveThrough = 0
@@ -71,6 +73,17 @@ export class WorldEventRuntime {
     private readonly status: StatusRuntime | undefined,
     forbiddenKeys: ReadonlySet<string>,
   ) {
+    for (const { crossesPackTime: clock } of book.rules) {
+      if (!clock) continue
+      for (const [key, type] of [
+        [clock.dayKey, 'number'],
+        [clock.slotKey, 'string'],
+      ] as const) {
+        const def = status?.statuses.find(row => row.key === key)
+        if (!def || def.type !== type || def.owner !== 'public' || def.activities || forbiddenKeys.has(key))
+          throw new TypeError('world-events: expected pack-owned public calendar ' + type + ': ' + key)
+      }
+    }
     for (const write of [...book.rules.map(r => r.set), ...book.grants.flatMap(g => (g.effect ? [g.effect] : []))]) {
       const definition = status?.statuses.find(s => s.key === write.key)
       if (
@@ -162,7 +175,9 @@ export class WorldEventRuntime {
   }
   private eligible(snapshot: WorldRoundSnapshot, round: number): EventRule[] {
     this.index(snapshot.head.headSeq)
-    return this.book.rules.filter(rule => round >= rule.round && !this.occurrences.has(rule.id))
+    return this.book.rules.filter(
+      rule => rule.round !== undefined && round >= rule.round && !this.occurrences.has(rule.id),
+    )
   }
   private eligiblePaced(snapshot: WorldRoundSnapshot, round: number, busy: boolean) {
     return this.eligible(snapshot, round).filter(rule => rule.trigger === 'paced' && (!busy || rule.duringActivity))
@@ -176,7 +191,13 @@ export class WorldEventRuntime {
       event.pacedRound === undefined ? [] : [{ key: event.ruleId, round: event.pacedRound, seq: event.seq }],
     )
   }
-  private occurrenceEffects(snapshot: WorldRoundSnapshot, cycle: string, rules: EventRule[], pacedRound?: number) {
+  private occurrenceEffects(
+    snapshot: WorldRoundSnapshot,
+    cycle: string,
+    rules: EventRule[],
+    pacedRound?: number,
+    crossings?: ReadonlyMap<string, WorldRoundSnapshot['events']>,
+  ) {
     const events: WorldEventDraft[] = [],
       occurrences: Occurrence[] = []
     for (const rule of rules) {
@@ -201,6 +222,7 @@ export class WorldEventRuntime {
         type: rule.type,
         occurrenceId,
         cycle,
+        ...(crossings?.has(rule.id) ? { clockTransaction: crossings.get(rule.id)![0]!.transactionId } : {}),
         ...(pacedRound === undefined ? {} : { pacedRound }),
         grants: this.book.grants.filter(g => g.type === rule.type).map(grantId),
       })
@@ -223,12 +245,29 @@ export class WorldEventRuntime {
     const { events, occurrences } = this.occurrenceEffects(snapshot, cycle, [rule], round)
     return this.effects(events, occurrences, [])
   }
-  settle(snapshot: WorldRoundSnapshot, cycle: string, start: number): WorldRoundEffects | undefined {
+  settle(
+    snapshot: WorldRoundSnapshot,
+    cycle: string,
+    start: number,
+    retryClockOnly = false,
+  ): WorldRoundEffects | undefined {
+    this.index(snapshot.head.headSeq)
     const { round } = playerRoundNumber(snapshot.events, start, false)
-    const hard = this.eligible(snapshot, round).filter(rule => rule.trigger !== 'paced')
-    const { events, occurrences } = this.occurrenceEffects(snapshot, cycle, hard)
+    const crossings = new Map<string, WorldRoundSnapshot['events']>()
+    const hard = this.book.rules.filter(rule => {
+      if (rule.trigger === 'paced' || this.occurrences.has(rule.id)) return false
+      if (!rule.crossesPackTime) return !retryClockOnly && round >= rule.round
+      const crossing = firstPackTimeCrossing(snapshot.events, rule.crossesPackTime, () => {
+        if (!this.warnedClocks.has(rule.id)) console.warn('[worldEvents] invalid calendar day or slot for ' + rule.id)
+        this.warnedClocks.add(rule.id)
+      })
+      if (!crossing || (retryClockOnly && crossing.at(-1)!.seq <= start)) return false
+      crossings.set(rule.id, crossing)
+      return true
+    })
+    const { events, occurrences } = this.occurrenceEffects(snapshot, cycle, hard, undefined, crossings)
     const receipts: string[] = []
-    if (this.active)
+    if (this.active && !retryClockOnly)
       for (const event of this.occurrences.values()) {
         if (event.cycle === cycle) continue
         for (const { consumer, grant } of this.subscribers(event, 'durable')) {

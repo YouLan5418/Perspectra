@@ -7,6 +7,9 @@ import { Context } from '@deepseek-ai/cordis'
 import { installWorldEventRegistry } from '../../apps/host/src/world-event-registry.ts'
 import { spawnSync } from 'node:child_process'
 import { setTimeout as delay } from 'node:timers/promises'
+import { firstPackTimeCrossing } from '../../apps/host/src/runtime/pack-time.ts'
+import { parseEventBook } from '@perspectra/sdk'
+import type { StoredWorldEvent } from '@perspectra/sdk/contracts'
 import { WorldEventRuntime } from '../../apps/host/src/runtime/world-events.ts'
 import { executeWorldRound, WorldExecutionEngine } from '@perspectra/core'
 import { WriterLeaseService, WorldStore } from '@perspectra/core/store'
@@ -40,6 +43,7 @@ async function fixture(
   additionalRules: Record<string, unknown>[] = [],
   sharedLocation = false,
   pacing?: { keys: string[]; cooldown?: number; legacyBeat?: boolean; managedCook?: boolean },
+  calendar = false,
 ) {
   const root = mkdtempSync(join(tmpdir(), 'world-events-')),
     pack = join(root, 'pack'),
@@ -96,7 +100,12 @@ async function fixture(
   write('scenes.json', scenes)
   write('world-events.json', {
     rules: [
-      { ...rule, round, audience: { anyOf: ['scene', { holds: 'entity:thermos' }] } },
+      {
+        ...rule,
+        round: calendar ? undefined : round,
+        ...(calendar ? { when: { crossesPackTime: clock } } : {}),
+        audience: { anyOf: ['scene', { holds: 'entity:thermos' }] },
+      },
       ...additionalRules.map(extra => ({ ...rule, round, ...extra })),
     ],
     grants: [
@@ -112,6 +121,18 @@ async function fixture(
       .replace('statuses: []', "statuses: ['power','story'].map(key=>({key,label:key,owner:'public',type:'boolean'}))")
       .replace('public: {}', 'public: {power:true,story:false}'),
   )
+  if (calendar)
+    appendFileSync(
+      script,
+      `
+    statusScript.definition.statuses.push(...[['day','number'],['slot','string'],['wage','number']].map(([key,type])=>({key,label:key,type,owner:'public'})))
+    const init=statusScript.initialize, perform=statusScript.resolve
+    statusScript.initialize=ids=>{const v=init(ids);Object.assign(v.public,{day:2,slot:'午后',wage:0});return v}
+    statusScript.resolve=(truth,actor,op,...rest)=>{const r=perform(truth,actor,op,...rest)
+      if(op==='take' && !r.rejectReason) r.changes.push({holderId:null,key:'slot',value:'深夜'},{holderId:null,key:'wage',value:truth.public.wage+120})
+      return r}
+  `,
+    )
   const log = join(root, 'observed.jsonl'),
     marker = join(root, 'attempt')
   const mods = pluginIds.map((id, i) => {
@@ -167,7 +188,7 @@ async function fixture(
       models: fakeModels(stub.endpoint),
       packPath: pack,
       dataDirectory: directory,
-      ...(pacing ? { storyNodes: true } : {}),
+      ...(pacing || calendar ? { storyNodes: true } : {}),
       plugins: { ...plugins.seams, content },
     })
   }
@@ -206,7 +227,7 @@ async function fixture(
         : [],
     async restore(node: { id: string; packHash: string }) {
       await runtime.close()
-      const target = join(root, 'restored')
+      const target = join(root, 'restored-' + randomUUID())
       restoreStoryNode(data, node.id, target, node.packHash)
       runtime = await open(false, target)
     },
@@ -334,6 +355,105 @@ function failCommit(kind: 'before' | 'after' | 'receipt') {
     restore: () => spy.mockRestore(),
   }
 }
+
+const clock = { dayKey: 'day', slotKey: 'slot', slots: ['清晨', '午后', '傍晚', '深夜'], at: { day: 2, slot: '傍晚' } }
+const work = '/status take@entity:thermos {}'
+const wageWrites = (f: Awaited<ReturnType<typeof fixture>>) =>
+  f
+    .history()
+    .events.filter(e => e.eventType === 'status.updated')
+    .flatMap(e => (e.data as WorldJsonObject).changes as WorldJsonObject[])
+    .filter(c => c.key === 'wage' && c.value === 120)
+
+it('recovers a committed wage and clock crossing on reopen and at all three branch prefixes', async () => {
+  const f = await fixture(99, [], false, undefined, true)
+  const before = await f.runtime.saveNode('before A')
+  const fault = failCommit('before')
+  await f.runtime.submit(work).catch(() => undefined)
+  expect(fault.fired).toBe(true)
+  fault.restore()
+  expect(wageWrites(f)).toHaveLength(1)
+  expect(occurrences(f)).toEqual([])
+  const between = await f.runtime.saveNode('after A before B')
+  await f.reopen()
+  await f.runtime.state()
+  expect(occurrences(f)).toEqual([])
+  await f.runtime.perform(wait)
+  const [outage] = occurrences(f)
+  expect(outage).toMatchObject({ ruleId: rule.id, clockTransaction: expect.any(String) })
+  expect(wageWrites(f)).toHaveLength(1)
+  const after = await f.runtime.saveNode('after B')
+  await f.restore(before)
+  await f.runtime.perform(wait)
+  expect(occurrences(f)).toEqual([])
+  expect(wageWrites(f)).toEqual([])
+  await f.restore(between)
+  await f.runtime.perform(wait)
+  expect(occurrences(f)).toMatchObject([{ clockTransaction: outage!.clockTransaction }])
+  expect(wageWrites(f)).toHaveLength(1)
+  await f.restore(after)
+  await f.runtime.perform(wait)
+  expect(occurrences(f)).toEqual([outage])
+  expect(wageWrites(f)).toHaveLength(1)
+})
+
+it('reconciles a lost calendar-event reply and withholds live cues from regeneration', async () => {
+  const f = await fixture(99, [], false, undefined, true)
+  const fault = failCommit('after')
+  await f.runtime.submit(work).catch(() => undefined)
+  expect(fault.fired).toBe(true)
+  fault.restore()
+  const original = occurrences(f)
+  expect(original).toHaveLength(1)
+  await f.reopen()
+  await f.runtime.perform(wait)
+  expect(occurrences(f)).toEqual(original)
+  expect(f.log().filter(row => row.id === 'stage-cue')).toHaveLength(1)
+  const g = await fixture(99, [], false, undefined, true)
+  const state = await g.runtime.submit(work)
+  const first = occurrences(g)[0]!
+  await g.runtime.regenerate(state.tailRound!.id!, randomUUID())
+  expect(occurrences(g)).toHaveLength(1)
+  expect(occurrences(g)[0]!.occurrenceId).not.toBe(first.occurrenceId)
+  expect(g.log().filter(row => row.id === 'stage-cue')).toHaveLength(1)
+})
+
+it('compares whole transactions and never bridges unknown clock values', () => {
+  function row(tx: string, values: Record<string, unknown>, initial = false) {
+    return {
+      eventType: 'status.updated',
+      transactionId: tx,
+      data: {
+        source: { kind: initial ? 'initial' : 'operation' },
+        changes: Object.entries(values).map(([key, value]) => ({ key, value, holderId: null })),
+      },
+    } as unknown as StoredWorldEvent
+  }
+  const find = (...events: StoredWorldEvent[]) => firstPackTimeCrossing(events, clock, invalid)?.[0]?.transactionId
+  const invalid = vi.fn()
+  expect(
+    find(
+      row('init', { day: 1, slot: '深夜' }, true),
+      row('sleep', { day: 2 }),
+      row('sleep', { slot: '清晨' }),
+      row('later', { slot: '深夜' }),
+    ),
+  ).toBe('later')
+  expect(
+    find(row('init', { day: 2, slot: '傍晚' }, true), row('same', { slot: '傍晚' }), row('back', { slot: '午后' })),
+  ).toBeUndefined()
+  expect(find(row('init', { day: 2 }, true), row('x', { slot: '未知' }), row('y', { slot: '深夜' }))).toBeUndefined()
+  expect(invalid).toHaveBeenCalledTimes(2)
+  const facts = { locationIds: [rule.location], entityIds: [], characterIds: [], names: {}, entityLocations: {} }
+  for (const extra of [
+    { round: 1 },
+    { trigger: 'paced' },
+    { when: { crossesPackTime: { ...clock, slots: ['傍晚', '傍晚'] } } },
+  ])
+    expect(() =>
+      parseEventBook({ rules: [{ ...rule, round: undefined, when: { crossesPackTime: clock }, ...extra }] }, facts),
+    ).toThrow()
+})
 
 const paced = (id: string, round: number, duringActivity = false) => ({
   id,

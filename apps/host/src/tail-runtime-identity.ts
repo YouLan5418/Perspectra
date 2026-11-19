@@ -62,6 +62,7 @@ export function tailRuntimeIdentity(): string {
       'apps/host/src/runtime/tail-runtime.ts',
       'apps/host/src/runtime/world-runtime.ts',
       'apps/host/src/runtime/world-events.ts',
+      'apps/host/src/runtime/pack-time.ts',
       'apps/host/src/world-event-registry.ts',
       'apps/host/src/runtime/decision-format.ts',
       'apps/host/src/runtime/character-decision.ts',
