@@ -19,6 +19,8 @@ export interface FakeAnswer {
   /** Text of a non-200 answer; defaults to a fixed refusal. */
   readonly body?: string
   /** OpenAI only: tool arguments sent verbatim instead of the JSON of `tool`. */
+  /** Disconnect only after the fixture has recorded the complete request. */
+  readonly dropReply?: boolean
   readonly rawArguments?: string
   readonly plainJson?: boolean
 }
@@ -169,6 +171,10 @@ export async function startFakeProvider(
           calls.push(call)
           const result = await answer(call)
           if (response.destroyed) return
+          if (result.dropReply) {
+            response.destroy()
+            return
+          }
           if (result.status !== undefined && result.status !== 200) {
             response.writeHead(result.status, { 'content-type': 'text/plain' })
             response.end(result.body ?? 'fake provider refused: ' + result.status)

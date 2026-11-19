@@ -8,6 +8,7 @@ import { installWorldEventRegistry } from '../../apps/host/src/world-event-regis
 import { spawnSync } from 'node:child_process'
 import { setTimeout as delay } from 'node:timers/promises'
 import { firstPackTimeCrossing } from '../../apps/host/src/runtime/pack-time.ts'
+import { playSettings } from '../../apps/host/src/play-settings.ts'
 import { parseEventBook } from '@perspectra/sdk'
 import type { StoredWorldEvent } from '@perspectra/sdk/contracts'
 import { WorldEventRuntime } from '../../apps/host/src/runtime/world-events.ts'
@@ -44,6 +45,7 @@ async function fixture(
   sharedLocation = false,
   pacing?: { keys: string[]; cooldown?: number; legacyBeat?: boolean; managedCook?: boolean },
   calendar = false,
+  wakes?: { recipients: string[]; failModel?: boolean; ordinary?: boolean },
 ) {
   const root = mkdtempSync(join(tmpdir(), 'world-events-')),
     pack = join(root, 'pack'),
@@ -57,6 +59,22 @@ async function fixture(
   meta.plugins = Object.fromEntries(['pack-scripts', 'official-world-events', ...pluginIds].map(id => [id, {}]))
   meta.plugins['alternate-rules'] = { config: 'world-events.json' }
   meta.assetFiles = ['scripts/status.js', 'scripts/activities/cook.js', 'world-events.json']
+  if (wakes?.ordinary) {
+    meta.plugins['official-autonomy'] = {}
+    meta.assetFiles.push('autonomy.json')
+    write('autonomy.json', {
+      characters: [
+        {
+          characterId: 'character:friend',
+          everyPlayerTurns: 1,
+          opportunities: 2,
+          triggers: [{ actionType: 'interact', definitionId: 'status:take' }],
+          interactions: [],
+          locationIds: ['location:back-room'],
+        },
+      ],
+    })
+  }
   if (pacing) {
     meta.plugins['official-pacing'] = {}
     meta.assetFiles.push('scripts/pacing.js')
@@ -102,6 +120,7 @@ async function fixture(
     rules: [
       {
         ...rule,
+        ...(wakes ? { wakeCharacters: wakes.recipients } : {}),
         round: calendar ? undefined : round,
         ...(calendar ? { when: { crossesPackTime: clock } } : {}),
         audience: { anyOf: ['scene', { holds: 'entity:thermos' }] },
@@ -176,7 +195,9 @@ async function fixture(
   mods.push({ id: 'alternate-install', enabled: true, nativeAllowed: true, path: alternatePath })
   const plugins = await loadHostPlugins(mods, {}, {}, { gameplayIds: Object.keys(meta.plugins) })
   cleanup.push(() => plugins.close())
-  const stub = await startFakeProvider('openai', () => ({ tool: { decision: 'abstain' } }))
+  const stub = await startFakeProvider('openai', () =>
+    wakes?.failModel ? { dropReply: true } : { tool: { decision: 'abstain' } },
+  )
   cleanup.push(() => stub.close())
   async function open(replace = false, directory = data) {
     // Same locked pack and save. A different, installed Cordis generator now proposes the rule ID.
@@ -186,9 +207,12 @@ async function fixture(
     )
     return WorldHostRuntime.create({
       models: fakeModels(stub.endpoint),
+      ...(wakes
+        ? { playSettings: playSettings({ autonomyOpportunities: wakes.ordinary ? 2 : 0, autonomyNpcCalls: 2 }) }
+        : {}),
       packPath: pack,
       dataDirectory: directory,
-      ...(pacing || calendar ? { storyNodes: true } : {}),
+      ...(pacing || calendar || wakes ? { storyNodes: true } : {}),
       plugins: { ...plugins.seams, content },
     })
   }
@@ -966,4 +990,292 @@ it('never combines separate active scenes just because their physical location m
   expect(observers.map(e => ((e.data as WorldJsonObject).value as WorldJsonObject).observerId)).toEqual([
     'character:player',
   ])
+})
+
+const wakeCompanion = { recipients: ['character:companion', 'character:friend'] }
+const wakeTransitions = (f: Awaited<ReturnType<typeof fixture>>) =>
+  f.history().commits.flatMap(c => (c.a.wakeKey ? [c.a.to] : []))
+
+it('delivers one committed personal event decision outside ordinary autonomy, including retry and reopen', async () => {
+  const f = await fixture(1, [], false, undefined, false, wakeCompanion)
+  await f.runtime.perform(wait)
+  expect(f.stub.calls).toHaveLength(1)
+  const wire = f.stub.calls[0]!.userText
+  const context = JSON.parse(wire).context
+  expect(context.character.characterId).toBe('character:companion')
+  expect(context.stimulus).toEqual([{ content: { eventNotice: rule.observation } }])
+  expect(wire.split(rule.observation)).toHaveLength(2)
+  expect(wire).not.toMatch(/kitchen-blackout|power\.outage@1|wakeRecipients|:witness:/)
+  expect(wakeTransitions(f)).toEqual(['claimed', 'completed'])
+  await f.reopen()
+  expect(f.stub.calls).toHaveLength(1)
+  await f.runtime.perform(wait)
+  expect(f.stub.calls).toHaveLength(1)
+})
+
+it('holds the event decision through an active cooking turn and reopen until its participant is released', async () => {
+  const f = await fixture(2, [], false, undefined, false, wakeCompanion)
+  const start = await f.runtime.activityAction({
+    activityKey: 'cook',
+    activityId: null,
+    revision: 0,
+    operation: 'start',
+    parameters: {},
+    requestId: 'cook-start',
+  })
+  const cook = start.activities!.find(a => a.activityKey === 'cook')!
+  const step = (revision: number, operation: string) =>
+    f.runtime.activityAction({
+      activityKey: 'cook',
+      activityId: String(cook.id),
+      revision,
+      operation,
+      parameters: {},
+      requestId: 'cook-' + operation,
+    })
+  const simmer = await step(Number(cook.revision), 'heat-stove')
+  expect(f.stub.calls).toHaveLength(0)
+  for (let i = 0; i < 17; i++) await f.runtime.submit('我想调查停电。', 'cooking-line-' + i)
+  expect(f.stub.calls).toHaveLength(0)
+  const events = f
+    .history()
+    .events.filter(row => row.eventType === 'observation.upsert')
+    .map(row => (row.data as WorldJsonObject).value as WorldJsonObject)
+  const own = events.filter(row => row.observerId === 'character:companion')
+  const startAt = own.findIndex(row => (row.content as WorldJsonObject).eventNotice === rule.observation)
+  expect(startAt).toBeGreaterThanOrEqual(0)
+  expect(own.slice(startAt + 1).filter(row => JSON.stringify(row.content).includes('我想调查停电。'))).toHaveLength(17)
+  await f.reopen()
+  expect(f.stub.calls).toHaveLength(0)
+  const revision = Number(simmer.activities!.find(a => a.activityKey === 'cook')!.revision)
+  await step(revision, 'plate')
+  const wire = f.stub.calls[0]!.userText
+  expect(JSON.parse(wire).context.stimulus).toEqual([{ content: { eventNotice: rule.observation } }])
+  expect(wire.split(rule.observation)).toHaveLength(2)
+  expect(wakeTransitions(f)).toEqual(['claimed', 'completed'])
+  expect(f.stub.calls).toHaveLength(1)
+  await step(revision, 'plate')
+  expect(f.stub.calls).toHaveLength(1)
+})
+
+it.each(['before', 'after'] as const)('recovers wakeups only from committed occurrences after %s fault', async kind => {
+  const f = await fixture(1, [], false, undefined, false, wakeCompanion)
+  const fault = failCommit(kind)
+  await f.runtime.perform(wait).catch(() => undefined)
+  expect(fault.fired).toBe(true)
+  expect(f.stub.calls).toHaveLength(0)
+  expect(f.history().commits).toHaveLength(kind === 'before' ? 0 : 1)
+  fault.restore()
+  await f.reopen()
+  expect(f.stub.calls).toHaveLength(0)
+  await f.runtime.perform(wait)
+  expect(f.stub.calls).toHaveLength(1)
+  expect(wakeTransitions(f)).toEqual(['claimed', 'completed'])
+})
+
+it('withholds an indeterminate event decision across reopen and subsequent eligible windows', async () => {
+  const f = await fixture(1, [], false, undefined, false, { ...wakeCompanion, failModel: true })
+  await f.runtime.perform(wait).catch(() => undefined)
+  expect(f.stub.calls).toHaveLength(1)
+  expect(wakeTransitions(f)).toEqual(['claimed'])
+  await f.reopen()
+  await f.runtime.perform(wait)
+  expect(f.stub.calls).toHaveLength(1)
+  expect(wakeTransitions(f)).toEqual(['claimed'])
+})
+
+it('does not dispatch during candidate generation or replay a completed decision on reselect', async () => {
+  const f = await fixture(1, [], false, undefined, false, wakeCompanion)
+  const state = await f.runtime.perform(wait)
+  expect(f.stub.calls).toHaveLength(1)
+  const tail = state.tailRound!
+  const other = await f.runtime.regenerate(tail.id!, randomUUID())
+  expect(f.stub.calls).toHaveLength(1)
+  expect(wakeTransitions(f)).toEqual([])
+  await f.runtime.selectCandidate(other.tailRound!.id!, tail.candidateIds![0]!, randomUUID())
+  expect(wakeTransitions(f)).toEqual(['claimed', 'completed'])
+  await f.runtime.perform(wait)
+  expect(f.stub.calls).toHaveLength(1)
+})
+
+it('reserves each occurrence separately and leaves excess work pending to the next window', async () => {
+  const companion = ['character:companion']
+  const extra = Array.from({ length: 4 }, (_, i) => ({
+    id: 'distinct-' + i,
+    observation: '独立事项 ' + i,
+    wakeCharacters: companion,
+  }))
+  const f = await fixture(1, extra, false, undefined, false, { recipients: companion })
+  await f.runtime.perform(wait)
+  expect(f.stub.calls).toHaveLength(4)
+  expect(wakeTransitions(f).filter(s => s === 'completed')).toHaveLength(4)
+  await f.reopen()
+  await f.runtime.perform(wait)
+  expect(f.stub.calls.map(c => JSON.parse(c.userText).context.stimulus[0].content.eventNotice)).toEqual([
+    rule.observation,
+    ...extra.map(e => e.observation),
+  ])
+  expect(wakeTransitions(f).filter(s => s === 'completed')).toHaveLength(5)
+})
+
+it('serves a pending occurrence after ordinary autonomy runs out of its own budget', async () => {
+  const f = await fixture(1, [], false, undefined, false, { ...wakeCompanion, ordinary: true })
+  const fault = failCommit('after')
+  await f.runtime.submit('/act speak {"text":"自己记一下。","scope":"self","addresseeIds":[]}').catch(() => undefined)
+  expect(fault.fired).toBe(true)
+  fault.restore()
+  await f.reopen()
+  const state = await f.runtime.submit(work)
+  const prompts = f.stub.calls.map(c => JSON.parse(c.userText).context)
+  expect(prompts.some(c => c.character.characterId === 'character:friend')).toBe(true)
+  expect(
+    prompts.filter(
+      c =>
+        c.stimulus?.some((s: { content: { eventNotice?: string } }) => s.content.eventNotice === rule.observation) &&
+        c.character.characterId === 'character:companion',
+    ),
+  ).toHaveLength(1)
+  expect(wakeTransitions(f)).toEqual(['claimed', 'completed'])
+  expect(state.debug.autonomy).toMatchObject({ terminalReason: 'call_limit', autonomousCalls: 1 })
+})
+
+it('defers a committed wake when a later settlement hook fails and never runs it on reopen alone', async () => {
+  let enabled = true
+  const register = WorldExecutionEngine.prototype.registerCoreCycleEndHook
+  vi.spyOn(WorldExecutionEngine.prototype, 'registerCoreCycleEndHook').mockImplementation(function (
+    this: WorldExecutionEngine,
+    hook,
+  ) {
+    if (hook.pluginId === 'host-world-events')
+      register.call(this, {
+        pluginId: 'fault',
+        hookId: 'later',
+        order: 40,
+        resolve: () => {
+          if (enabled) throw new Error('test settlement failure')
+          return undefined
+        },
+      })
+    return register.call(this, hook)
+  })
+  const f = await fixture(1, [], false, undefined, false, wakeCompanion)
+  await f.runtime.perform(wait).catch(() => undefined)
+  expect(f.history().commits[0]!.a.occurrences).toMatchObject([{ wakeRecipients: ['character:companion'] }])
+  expect(f.stub.calls).toHaveLength(0)
+  enabled = false
+  await f.reopen()
+  expect(f.stub.calls).toHaveLength(0)
+  await f.runtime.perform(wait)
+  expect(wakeTransitions(f)).toEqual(['claimed', 'completed'])
+  expect(f.stub.calls).toHaveLength(1)
+})
+
+it('keeps other witnesses and non-witness nominees out of the decision list', async () => {
+  const f = await fixture(1, [], false, undefined, false, { recipients: ['character:friend'] })
+  await f.runtime.perform(wait)
+  expect(f.history().commits[0]!.a.occurrences).toHaveLength(1)
+  expect(
+    f
+      .history()
+      .events.filter(e => e.eventType === 'observation.upsert')
+      .some(e => JSON.stringify(e.data).includes(rule.observation)),
+  ).toBe(true)
+  expect(f.stub.calls).toHaveLength(0)
+  expect(wakeTransitions(f)).toEqual([])
+})
+
+it.each(['before claim', 'after claim', 'before completion', 'after completion'] as const)(
+  'recovers conservatively at the %s receipt boundary',
+  async fault => {
+    const f = await fixture(1, [], false, undefined, false, wakeCompanion)
+    const commit = WorldStore.prototype.commitRound
+    let fired = false
+    const spy = vi.spyOn(WorldStore.prototype, 'commitRound').mockImplementation(async function (
+      this: WorldStore,
+      request,
+    ) {
+      if (!fired && request.authority?.to === (fault.endsWith('claim') ? 'claimed' : 'completed')) {
+        fired = true
+        if (fault.startsWith('after')) await commit.call(this, request)
+        throw new Error('controlled wake receipt interruption')
+      }
+      return commit.call(this, request)
+    })
+    await f.runtime.perform(wait).catch(() => undefined)
+    expect(fired).toBe(true)
+    spy.mockRestore()
+    const calls = f.stub.calls.length
+    expect(calls).toBe(fault.endsWith('claim') ? 0 : 1)
+    await f.reopen()
+    expect(f.stub.calls).toHaveLength(calls)
+    await f.runtime.perform(wait)
+    expect(f.stub.calls).toHaveLength(fault === 'after claim' ? 0 : 1)
+    expect(wakeTransitions(f)).toEqual(
+      fault === 'before completion' || fault === 'after claim' ? ['claimed'] : ['claimed', 'completed'],
+    )
+  },
+)
+
+it('restores only the pending or completed wake at the selected story prefix', async () => {
+  const f = await fixture(2, [], false, undefined, false, wakeCompanion)
+  const before = await f.runtime.saveNode('before event')
+  await f.runtime.perform(wait)
+  const fault = failCommit('after')
+  await f.runtime.perform(wait).catch(() => undefined)
+  expect(fault.fired).toBe(true)
+  fault.restore()
+  const pending = await f.runtime.saveNode('pending decision')
+  await f.runtime.perform(wait)
+  expect(f.stub.calls).toHaveLength(1)
+  const completed = await f.runtime.saveNode('completed decision')
+  await f.restore(before)
+  await f.runtime.perform(wait)
+  expect(wakeTransitions(f)).toEqual([])
+  expect(f.stub.calls).toHaveLength(1)
+  await f.restore(pending)
+  expect(f.stub.calls).toHaveLength(1)
+  await f.runtime.perform(wait)
+  expect(f.stub.calls).toHaveLength(2)
+  expect(wakeTransitions(f)).toEqual(['claimed', 'completed'])
+  await f.restore(completed)
+  await f.runtime.perform(wait)
+  expect(f.stub.calls).toHaveLength(2)
+})
+
+it('grants each selected authorized witness its own decision', async () => {
+  const f = await fixture(
+    1,
+    [{ id: 'broadcast', audience: 'global', observation: '电台通知', wakeCharacters: wakeCompanion.recipients }],
+    false,
+    undefined,
+    false,
+    { recipients: ['character:friend'] },
+  )
+  await f.runtime.perform(wait)
+  expect(f.stub.calls.map(c => JSON.parse(c.userText).context.character.characterId)).toEqual(wakeCompanion.recipients)
+  for (const { userText } of f.stub.calls) {
+    const context = JSON.parse(userText).context
+    expect(context.stimulus).toEqual([{ content: { eventNotice: '电台通知' } }])
+    expect(userText.split('电台通知')).toHaveLength(2)
+    if (context.character.characterId === 'character:friend') expect(userText).not.toContain(rule.observation)
+  }
+})
+
+it('rejects invalid wake declarations when loading author rules', () => {
+  const facts = {
+    characterIds: ['character:player', 'character:npc'],
+    playerId: 'character:player',
+    locationIds: [rule.location],
+    entityIds: [],
+    entityLocations: {},
+    names: {},
+  }
+  for (const wakeCharacters of [
+    [],
+    ['character:player'],
+    ['missing'],
+    ['character:npc', 'character:npc'],
+    Array(9).fill('character:npc'),
+  ])
+    expect(() => parseEventBook({ rules: [{ ...rule, wakeCharacters }] }, facts)).toThrow()
 })

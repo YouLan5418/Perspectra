@@ -1,13 +1,13 @@
 import { firstPackTimeCrossing } from './pack-time.ts'
 import { randomUUID } from 'node:crypto'
-import type { WorldRoundEffects, WorldRoundSnapshot } from '@perspectra/core'
+import { activityProgress, executeWorldRound, type WorldRoundEffects, type WorldRoundSnapshot } from '@perspectra/core'
 import {
   currentCharacterLifecycle,
   currentEntityState,
   currentSceneDecisionStates,
   sceneObserverIds,
 } from '@perspectra/core/kernel'
-import { WorldStore } from '@perspectra/core/store'
+import { WorldStore, WriterLeaseService } from '@perspectra/core/store'
 import type { BooleanWrite, EventBook, EventGrant, EventRule, WorldEventEnvelope } from '@perspectra/sdk'
 import {
   playerRoundNumber,
@@ -20,6 +20,14 @@ import type { WorldEventConsumer } from '../world-event-registry.ts'
 import type { StatusRuntime } from './status-runtime.ts'
 
 const source = 'host.world-events/v1'
+export const eventWakeupsPerWindow = 4
+type WakeStatus = 'pending' | 'claimed' | 'completed'
+interface EventWake {
+  key: string
+  recipient: string
+  observationSeq: number
+  status: WakeStatus
+}
 interface IndexedOccurrence extends Occurrence {
   seq: number
 }
@@ -27,6 +35,7 @@ interface Occurrence extends WorldEventEnvelope, WorldJsonObject {
   ruleId: string
   cycle: string
   pacedRound?: number
+  wakeRecipients?: string[]
   grants: string[]
 }
 const grantId = (g: EventGrant) =>
@@ -103,6 +112,11 @@ function notices(rule: EventRule, snapshot: WorldRoundSnapshot, crossing?: World
 /** One mounted branch. The local index can be rebuilt entirely from its effective committed prefix. */
 export class WorldEventRuntime {
   private readonly occurrences = new Map<string, IndexedOccurrence>()
+  private readonly wakes = new Map<string, EventWake>()
+  private readonly configuredWakes: boolean
+  get hasWakeRules(): boolean {
+    return this.active && (this.configuredWakes || [...this.wakes.values()].some(wake => wake.status === 'pending'))
+  }
   private readonly receipts = new Set<string>()
   private readonly handlers = new Map<WorldEventConsumer, ReturnType<WorldEventConsumer['subscription']['open']>>()
   private readonly lifetime = new AbortController()
@@ -119,6 +133,7 @@ export class WorldEventRuntime {
     private readonly status: StatusRuntime | undefined,
     forbiddenKeys: ReadonlySet<string>,
   ) {
+    this.configuredWakes = book.rules.some(rule => rule.wakeCharacters?.length)
     for (const { crossesPackTime: clock, sceneNotices } of book.rules) {
       for (const group of sceneNotices ?? []) {
         if (group.fromOperation && !status?.operations.some(op => op.id === group.fromOperation))
@@ -151,6 +166,8 @@ export class WorldEventRuntime {
     this.liveThrough = this.store.head(this.address).headSeq
     this.index(this.liveThrough)
     this.active = true
+    if ([...this.wakes.values()].some(w => w.status === 'claimed'))
+      console.warn('[worldEvents] unconfirmed character decision; automatic retry withheld')
   }
   close(): void {
     this.active = false
@@ -166,10 +183,63 @@ export class WorldEventRuntime {
       if (row?.source !== source || row.packId !== this.packId) continue
       for (const raw of (row.occurrences ?? []) as Occurrence[]) {
         this.occurrences.set(raw.ruleId, { ...raw, seq: event.seq })
+        if (raw.wakeRecipients?.length) {
+          const observations = this.store.readEventsRange(this.address, event.seq - event.eventOrdinal - 1, event.seq, [
+            'observation.upsert',
+          ])
+          for (const recipient of raw.wakeRecipients) {
+            const key = raw.occurrenceId + ':witness:' + recipient
+            const witness = observations.find(
+              e => e.transactionId === event.transactionId && (e.data as WorldJsonObject).id === key,
+            )
+            const stimulus = (witness?.data as WorldJsonObject | undefined)?.value as WorldJsonObject | undefined
+            if (!witness || stimulus?.observerId !== recipient)
+              throw new Error('world-events: wake lacks its committed personal observation')
+            this.wakes.set(key, { key, recipient, observationSeq: witness.seq, status: 'pending' })
+          }
+        }
+      }
+      if (row.wakeKey !== undefined) {
+        const wake = this.wakes.get(String(row.wakeKey))
+        if (!wake || wake.status !== row.from || !['pending', 'claimed', 'completed'].includes(String(row.to)))
+          throw new Error('world-events: inconsistent wake receipt')
+        wake.status = row.to as WakeStatus
       }
       for (const id of (row.receipts ?? []) as string[]) this.receipts.add(id)
     }
     this.indexed = through
+  }
+  pendingWakes(): EventWake[] {
+    if (!this.hasWakeRules) return []
+    this.index(this.store.head(this.address).headSeq)
+    return [...this.wakes.values()].filter(wake => wake.status === 'pending')
+  }
+  async markWake(path: string, key: string, to: WakeStatus, signal: AbortSignal): Promise<boolean> {
+    if (!this.active) return false
+    const from = to === 'claimed' ? 'pending' : 'claimed'
+    const leases = new WriterLeaseService(path)
+    try {
+      const committed = await executeWorldRound(
+        { store: this.store, leases, address: this.address, owner: 'event-decision:' + randomUUID(), signal },
+        snapshot => {
+          this.index(snapshot.head.headSeq)
+          const wake = this.wakes.get(key)
+          if (!wake || wake.status !== from) return undefined
+          if (
+            to === 'claimed' &&
+            (currentCharacterLifecycle(snapshot.events, wake.recipient) !== 'active' ||
+              [...activityProgress(snapshot.events).values()].some(
+                a => a.game.active && a.participants.some(id => id === wake.recipient),
+              ))
+          )
+            return undefined
+          return { events: [], authority: { source, packId: this.packId, wakeKey: key, from, to } }
+        },
+      )
+      return committed !== undefined
+    } finally {
+      leases.close()
+    }
   }
   private invoke(consumer: WorldEventConsumer, event: Occurrence): unknown {
     consumer.signal.throwIfAborted()
@@ -257,11 +327,18 @@ export class WorldEventRuntime {
       occurrences: Occurrence[] = []
     for (const rule of rules) {
       const occurrenceId = randomUUID()
+      const visible = notices(rule, snapshot, crossings?.get(rule.id))
+      const wakeRecipients = rule.wakeCharacters?.filter(
+        id =>
+          visible.has(id) &&
+          !snapshot.manifest.playerBindings.some(p => p.characterId === id) &&
+          currentCharacterLifecycle(snapshot.events, id) === 'active',
+      )
       events.push(
         this.statusEvent(snapshot, cycle, rule.set),
         // A world occurrence is nobody's accepted action. A personal observation remains readable
         // without nominating its observer for a turn in the normal action-reaction scheduler.
-        ...[...notices(rule, snapshot, crossings?.get(rule.id))].map(
+        ...[...visible].map(
           ([observerId, text]): WorldEventDraft => ({
             eventType: 'observation.upsert',
             eventVersion: 1,
@@ -279,6 +356,7 @@ export class WorldEventRuntime {
         cycle,
         ...(crossings?.has(rule.id) ? { clockTransaction: crossings.get(rule.id)![0]!.transactionId } : {}),
         ...(pacedRound === undefined ? {} : { pacedRound }),
+        ...(wakeRecipients?.length ? { wakeRecipients } : {}),
         grants: this.book.grants.filter(g => g.type === rule.type).map(grantId),
       })
     }

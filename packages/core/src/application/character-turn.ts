@@ -273,6 +273,8 @@ export class CharacterTurn {
           'calls' | 'controlledCommitted' | 'publicationCommitted' | 'performResult' | 'lastDecision'
         >,
       ) => void
+      /** Focus one committed observation from this actor's own view, even outside the recent window. */
+      readonly focusObservationSeq?: number
       readonly stimulus?: readonly WorldJsonObject[]
       readonly continuationOf?: {
         readonly actionId: string
@@ -445,6 +447,15 @@ export class CharacterTurn {
           afterSeq === undefined
             ? ordered.slice(-(this.options.recentObservations ?? 16))
             : ordered.filter(record => record.sourceSeq > afterSeq)
+        const focused =
+          options.focusObservationSeq === undefined
+            ? undefined
+            : view.observations.find(record => record.sourceSeq === options.focusObservationSeq)
+        if (options.focusObservationSeq !== undefined && !focused)
+          throw new Error('focused observation is not in this character view')
+        const background = focused
+          ? recentObservations.filter(record => record.sourceSeq !== focused.sourceSeq)
+          : recentObservations
         const recentSelfObservations =
           afterSeq === undefined
             ? (this.options.recentSelfObservations ?? 8) === 0
@@ -455,7 +466,10 @@ export class CharacterTurn {
         let context: WorldJsonObject = {
           publicationCharacters: this.options.publicationCharacters ?? 2000,
           character: { ...character, locationId: view.locationId },
-          stimulus: withAudienceHints(options.stimulus ?? [], characterId),
+          stimulus: withAudienceHints(
+            focused ? [focused.value as WorldJsonObject] : (options.stimulus ?? []),
+            characterId,
+          ),
           cognition: new CognitionProjectionRebuilder(this.options.store).rebuildCharacterAt(
             this.options.address,
             characterId,
@@ -472,7 +486,7 @@ export class CharacterTurn {
               name: this.#manifest.characters.find(value => value.characterId === id)?.name ?? id,
             })),
           },
-          observations: recentObservations.map(record => {
+          observations: background.map(record => {
             const value = object(record.value)
             if (value.content === null || typeof value.content !== 'object' || Array.isArray(value.content))
               return record

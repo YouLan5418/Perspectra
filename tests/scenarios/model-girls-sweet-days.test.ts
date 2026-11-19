@@ -38,12 +38,27 @@ async function fixture(
   pacing = false,
   settings: Partial<PlaySettings> = {},
   initialDay = 1,
+  eventDuringBattle = false,
 ) {
   const root = mkdtempSync(join(tmpdir(), 'model-girls-sweet-days-'))
   roots.push(root)
   const pack = join(root, 'pack'),
     data = join(root, 'data')
   cpSync(resolve('examples/world-packs/model-girls-sweet-days'), pack, { recursive: true })
+  if (eventDuringBattle) {
+    const path = join(pack, 'world-events.json')
+    const book = JSON.parse(readFileSync(path, 'utf8'))
+    book.rules.push({
+      id: 'fixture-console-outage',
+      type: 'console.outage@1',
+      round: 1,
+      location: 'location:living-room',
+      set: { key: 'power-on', value: false },
+      observation: '训练场的顶灯熄灭。',
+      wakeCharacters: ['character:gpt'],
+    })
+    writeFileSync(path, JSON.stringify(book))
+  }
   // These cases pin each event's own conditions, so pacing's draws stay out unless a case is about them.
   if (!pacing) {
     const sourcePath = join(pack, 'worldpack.source.json')
@@ -1249,4 +1264,39 @@ it('lets Claude notice the bill only when she is where the player is', () => {
     ) as { stimuli: unknown[] }
   expect(bill('location:living-room').stimuli).toEqual([])
   expect(bill('location:entrance-shop').stimuli).toHaveLength(1)
+})
+
+it('keeps an event decision pending through actual RPG turns and the following activity, then delivers it on release', async () => {
+  const f = await fixture(undefined, undefined, false, true, false, { autonomyOpportunities: 0 }, 1, true)
+  await f.runtime.activityAction({
+    activityKey: 'game-battle',
+    activityId: null,
+    revision: 0,
+    operation: 'start',
+    parameters: { npcIds: ['character:gpt'] },
+    requestId: 'training',
+  })
+  await f.act('普通攻击（8伤害）')
+  expect(f.contexts.some(c => (c.activity as WorldJsonObject | undefined)?.activityKey === 'game-battle')).toBe(true)
+  expect(
+    f
+      .events()
+      .filter(e => e.eventType === 'observation.upsert' && JSON.stringify(e.data).includes('训练场的顶灯熄灭。'))
+      .length,
+  ).toBeGreaterThan(0)
+  const before = f.contexts.length
+  const result = await f.act('退出像素 RPG')
+  expect(result.activities?.find(a => a.activityKey === 'blackout-comfort')).toMatchObject({
+    game: { active: true },
+    participants: ['character:player', 'character:gpt'],
+  })
+  expect(f.contexts).toHaveLength(before)
+  await f.act('在黑暗中伸出手，轻声安慰身边的人')
+  const after = f.contexts.slice(before)
+  expect(after).toHaveLength(1)
+  expect(after[0]).toMatchObject({
+    character: { characterId: 'character:gpt' },
+    stimulus: [{ content: { eventNotice: '训练场的顶灯熄灭。' } }],
+  })
+  expect(JSON.stringify(after[0]).split('训练场的顶灯熄灭。')).toHaveLength(2)
 })

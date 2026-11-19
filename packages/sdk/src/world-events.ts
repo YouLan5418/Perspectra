@@ -17,6 +17,7 @@ export type EventRule = (
   readonly duringActivity?: boolean
   readonly location: string
   readonly witnesses: readonly Witness[]
+  readonly wakeCharacters?: readonly string[]
   readonly sceneNotices?: readonly SceneNotice[]
   readonly observation: string
   readonly set: BooleanWrite
@@ -148,6 +149,7 @@ export function parseEventBook(raw: unknown, pack: ContentPackFacts): EventBook 
       'trigger',
       'duringActivity',
       'sceneNotices',
+      'wakeCharacters',
     ])
     if (
       typeof rule.location !== 'string' ||
@@ -174,6 +176,16 @@ export function parseEventBook(raw: unknown, pack: ContentPackFacts): EventBook 
         throw new TypeError('world-events: unknown held item')
       return { holds: item }
     })
+    const wakeCharacters =
+      rule.wakeCharacters === undefined
+        ? undefined
+        : list(rule.wakeCharacters, 8).map(value => {
+            if (typeof value !== 'string' || value === pack.playerId || !pack.characterIds.includes(value))
+              throw new TypeError('world-events: wakeCharacters must name declared NPCs')
+            return value
+          })
+    if (wakeCharacters && (!wakeCharacters.length || new Set(wakeCharacters).size !== wakeCharacters.length))
+      throw new TypeError('world-events: expected distinct wakeCharacters')
     return {
       id: id(rule.id),
       type: worldEventType(rule.type),
@@ -181,6 +193,7 @@ export function parseEventBook(raw: unknown, pack: ContentPackFacts): EventBook 
       location: rule.location,
       ...(rule.trigger === 'paced' ? { trigger: 'paced' as const, duringActivity: rule.duringActivity === true } : {}),
       witnesses,
+      ...(wakeCharacters ? { wakeCharacters } : {}),
       ...(rule.sceneNotices === undefined ? {} : { sceneNotices: sceneNotices(rule, pack) }),
       observation: rule.observation,
       set: write(rule.set),

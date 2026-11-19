@@ -44,6 +44,7 @@ import { type CreatorHistoryQuery } from './creator-history.ts'
 import { type CreatorInspectionQuery, type CreatorInspectionSnapshot } from './creator-inspection.ts'
 import {
   currentLocation,
+  currentCharacterLifecycle,
   RulebookRegistry,
   type ActionAffordance,
   type CompiledWorldManifest,
@@ -151,7 +152,7 @@ import {
 } from './http-server.ts'
 import { modelCharacters, playerTranscript, sceneChangedAt } from './player-transcript.ts'
 import { DEFAULT_RUNTIME_TUNING, type RuntimeTuning } from './runtime-tuning.ts'
-import { WorldEventRuntime } from './world-events.ts'
+import { eventWakeupsPerWindow, WorldEventRuntime } from './world-events.ts'
 import { PackModules } from './pack-modules.ts'
 import { CapabilitySession, type CapabilityCatalog } from '../host-capabilities.ts'
 import { CORE_MEMORY_ID, llmTimeoutMs, type HostSeams, type ModelOptions } from '../official-bundle.ts'
@@ -356,6 +357,7 @@ export class WorldHostCore implements HostRuntime {
   #llm!: LlmInstance
   /** The modules actually in force, which can differ from what was asked for when a scheduler falls back. */
   readonly #modulesInForce: Record<string, { id: string; version: string }[]> = {}
+  #eventWakeWindow = false
   #worldEvents: WorldEventRuntime | undefined
   selectWorldEventBranch(): void {
     this.#worldEvents?.select()
@@ -1230,6 +1232,7 @@ export class WorldHostCore implements HostRuntime {
     this.#cycleSettlementEnabled = kind === 'character'
     this.#abortedWork = false
     const controller = (this.#continuationController = new AbortController())
+    this.#eventWakeWindow = kind === 'interaction' && this.#worldEvents?.hasWakeRules === true
     const autonomous =
       kind === 'interaction' && this.#gameplay.autonomy !== undefined && this.#playSettings.autonomyOpportunities > 0
     const activity = kind === 'interaction' && this.#gameplay.activity !== undefined
@@ -1245,11 +1248,13 @@ export class WorldHostCore implements HostRuntime {
             maxActivations:
               this.#playSettings.maximumNpcCalls +
               (autonomous ? this.#playSettings.autonomyNpcCalls + this.#playSettings.autonomyReactionCalls : 0) +
+              (this.#eventWakeWindow ? eventWakeupsPerWindow : 0) +
               (activity ? this.#playSettings.activityOpportunities : 0) +
               (pacing ? this.#playSettings.maximumNpcCalls : 0),
             deadlineMs:
               (this.#playSettings.reactionDeadlineSeconds +
                 (autonomous ? this.#playSettings.autonomyDeadlineSeconds : 0) +
+                (this.#eventWakeWindow ? eventWakeupsPerWindow * this.#playSettings.activationTimeoutSeconds : 0) +
                 (activity ? this.#playSettings.activityDeadlineSeconds : 0) +
                 (pacing ? this.#playSettings.reactionDeadlineSeconds : 0)) *
               1000,
@@ -1283,6 +1288,9 @@ export class WorldHostCore implements HostRuntime {
           this.#notice = [...new Set([priorNotice, this.#notice].filter(Boolean))].join(' ')
           this.#autonomyCycle = priorAutonomy
         },
+        this.#eventWakeWindow && (this.#cycleSettlementEnabled || this.#retryClockOnly)
+          ? control => this.#deliverWorldEventWakes(control)
+          : undefined,
       )
       if (result?.status === 'failed' && !this.#error) {
         this.#error = true
@@ -1959,6 +1967,61 @@ export class WorldHostCore implements HostRuntime {
       'observation.upsert',
     ])
     return rows.length > 0 && rows.every(row => (row.data as WorldJsonObject).sceneReaction === false)
+  }
+
+  /** A separate bounded allowance in the same execution cycle. Pending promises come only
+   * from committed facts on the selected branch, including a previous incomplete settlement. */
+  async #deliverWorldEventWakes(control: ExecutionCycleControl): Promise<void> {
+    const service = this.#worldEvents!
+    const pending = service.pendingWakes()
+    if (!pending.length || this.#paused || this.#closing || this.#escaping) return
+    const path = resolve(this.#dataDirectory, 'world.sqlite')
+    await this.#application.withExecutionResources(
+      { scope: this.#scope, address: this.#address, signal: control.signal },
+      async ({ store, createTurn }) => {
+        const turn = this.#turnFactory(path, store, createTurn)
+        let reserved = 0
+        for (const wake of pending) {
+          if (reserved >= eventWakeupsPerWindow || control.signal.aborted) break
+          const id = brandId(wake.recipient, 'CharacterId')
+          const active = this.#gameplay.activity?.current()
+          if (active?.game.active && active.participants.includes(id)) continue
+          if (currentCharacterLifecycle(store.readEvents(this.#address), id) !== 'active') continue
+          reserved++
+          const activation = await control.activate(id, async (signal, onProgress) => {
+            if (!(await service.markWake(path, wake.key, 'claimed', signal)))
+              return { status: 'inactive', calls: 0, controlledCommitted: false, publicationCommitted: false }
+            let attempts = 0
+            const result = await this.#track(turn()).run(id, {
+              signal,
+              onProgress,
+              maxCalls: 2,
+              maxModelCalls: 2,
+              focusObservationSeq: wake.observationSeq,
+              beforeModelCall: () => {
+                if (attempts >= 2) throw new Error('event decision model call limit')
+                attempts++
+              },
+            })
+            if (result.status === 'abstained' || result.status === 'published' || result.controlledCommitted) {
+              await service.markWake(path, wake.key, 'completed', signal)
+            } else if (attempts === 0 && !result.publicationCommitted) {
+              await service.markWake(path, wake.key, 'pending', signal)
+            } else {
+              console.warn('[worldEvents] unconfirmed character decision; automatic retry withheld')
+            }
+            return result
+          })
+          if (
+            activation.status === 'failed' ||
+            activation.status === 'interrupted' ||
+            activation.status === 'budget_exhausted'
+          )
+            break
+        }
+      },
+    )
+    await this.#refresh()
   }
 
   /** Every opportunity uses the same rules, context projection and bound CharacterTurn. */

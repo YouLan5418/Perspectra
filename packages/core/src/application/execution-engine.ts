@@ -471,9 +471,10 @@ export class WorldExecutionCycle {
   completeScheduled(
     input: ExecutionSchedulerDriver,
     bindRounds: (afterSeq: number, runRound: ExecutionRoundRunner) => Promise<void>,
+    reservedWork?: (control: ExecutionCycleControl) => Promise<void>,
   ): Promise<ExecutionCycleResult> {
     const context = input.context ?? createPluginCallContext(this.request.engine.options.scope)
-    return this.complete(async (control, afterSeq) => {
+    return (this.#completion ??= this.#finish(async (control, afterSeq) => {
       await bindRounds(afterSeq, async round => {
         const stopped = this.request.stopped()
         if (stopped) control.observe(stopped)
@@ -482,7 +483,7 @@ export class WorldExecutionCycle {
         input.onRound?.(result)
         return result
       })
-    })
+    }, reservedWork))
   }
 
   async #settleActivations(): Promise<void> {
@@ -498,6 +499,7 @@ export class WorldExecutionCycle {
 
   async #finish(
     afterSettlement?: (control: ExecutionCycleControl, afterSeq: number) => Promise<void>,
+    reservedWork?: (control: ExecutionCycleControl) => Promise<void>,
   ): Promise<ExecutionCycleResult> {
     this.#generation++
     let failure: PluginFault | undefined
@@ -537,12 +539,18 @@ export class WorldExecutionCycle {
       }
       this.#activationLifetime.abort()
       this.#activationLifetime = new AbortController()
-      if (this.#status === 'completed' && afterSeq !== undefined && afterSettlement) {
+      // A scheduler's own soft limit can stop settlement, but doesn't spend an independent
+      // allocation for previously committed work. The enclosing request still fences every activation.
+      const reservedAllowed = () =>
+        (this.#status === 'completed' || this.#status === 'budget_exhausted') && !this.request.stopped()
+      if ((this.canSettle && afterSeq !== undefined && afterSettlement) || (reservedWork && reservedAllowed())) {
         try {
           await this.run(() =>
-            invokeExecution(this.request.engine.options.scope, this.request.signal, () =>
-              afterSettlement(this.#control(this.#generation), afterSeq),
-            ),
+            invokeExecution(this.request.engine.options.scope, this.request.signal, async () => {
+              const control = this.#control(this.#generation)
+              if (this.canSettle && afterSeq !== undefined) await afterSettlement?.(control, afterSeq)
+              if (reservedAllowed()) await reservedWork?.(control)
+            }),
           )
         } catch (error) {
           if (this.request.signal.aborted && error === this.request.signal.reason)
