@@ -409,6 +409,7 @@ iframe{
     }
     else {
       add('暂停活动 · 保留进度',()=>send('suspend'),state.busy||state.paused||posting||blocked,true);
+      if(typeof a.handoffLabel==='string')add(a.handoffLabel,()=>send('host:handoff'),state.busy||state.paused||posting||blocked);
       for(const option of a.options||[]) {
         const group=document.createElement('div');group.className='operation';
         const fields=[];

@@ -67,6 +67,7 @@ export class ActivitiesRuntime {
         ...(native ? { native } : {}),
         randomSource: () => catalog.#nextRandom(),
         readCurrent: () => catalog.#current(entry.key),
+        lookup: key => catalog.#entries.get(key),
         signal: catalog.signal,
         ...(dice ? { dice } : {}),
       })

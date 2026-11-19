@@ -142,6 +142,24 @@ export function projectPlayerView(state: HostState): PlayerView {
       }
       continue
     }
+    if (active && typeof activity.handoffLabel === 'string') {
+      const action: HostAction = {
+        actionType: 'interact',
+        parameters: {
+          definitionRef: { id: 'host:activity-handoff', version: 1 },
+          activityKey: String(activity.activityKey),
+          previousId: activity.id!,
+          previousRevision: activity.revision!,
+        },
+      }
+      actions.push({
+        id: optionId(action),
+        label: activity.handoffLabel,
+        action,
+        kind: 'activity',
+        target: activityTarget(activity),
+      })
+    }
     const operation = active ? 'suspend' : activity.suspended === true ? 'resume' : 'start'
     const action: HostAction = {
       actionType: 'interact',

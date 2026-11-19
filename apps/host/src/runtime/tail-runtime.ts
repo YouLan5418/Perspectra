@@ -17,7 +17,15 @@ import { canonicalizeWorldJson, interactionPackageDescription, type WorldJsonObj
 import type { SeamProvider } from '@perspectra/sdk'
 import { compileWorldPackSource, type CompiledWorldPackV5 } from '@perspectra/world-pack'
 import { loadPackContent } from './pack-content.ts'
-import { actionText, HostBusyError, isWait, type HostAction, type HostState, type PlayerLine } from './http-server.ts'
+import {
+  handoffRequest,
+  actionText,
+  HostBusyError,
+  isWait,
+  type HostAction,
+  type HostState,
+  type PlayerLine,
+} from './http-server.ts'
 import type { WorldHostOptions, WorldHostCore } from './world-runtime.ts'
 import type { RuntimeModel, RuntimeRole } from '../model-connections.ts'
 import type { ActivityRequest } from '@perspectra/sdk/contracts'
@@ -373,6 +381,11 @@ export class TailRoundRuntime {
     idempotencyKey?: string,
     onCommitted?: () => void,
   ): Promise<HostState> {
+    const handoff = handoffRequest(action, idempotencyKey)
+    if (handoff) {
+      if (line) throw new TypeError('接力不能附带发言')
+      return this.activityAction(handoff)
+    }
     if (line !== undefined) {
       const id = String((action.parameters.definitionRef as WorldJsonObject | undefined)?.id ?? '')
       if (id.startsWith('host:')) throw new TypeError('活动管理操作不能附带发言')

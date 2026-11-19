@@ -72,6 +72,7 @@ export interface ActivityBindings {
   readonly native?: import('@perspectra/core').GameplayRuntime
   readonly randomSource: () => number
   readonly dice?: DiceInstance
+  readonly lookup?: (key: string) => ActivityRuntime | undefined
   readonly readCurrent: () => ActivityState | undefined
   readonly signal?: AbortSignal
 }
@@ -216,8 +217,23 @@ export class ActivityRuntime {
       actorId === this.playerId && !state?.game.active && state?.suspendedTurn === undefined
         ? this.#rules.operations.filter(op => op.quick).map(op => ({ id: op.id, label: op.label }))
         : []
+    let handoffLabel: string | undefined
+    if (
+      actorId === this.playerId &&
+      this.#rules.handoff &&
+      state?.game.active &&
+      state.game.phase === this.#rules.handoff.phase
+    ) {
+      try {
+        this.#handoffChoice(state, read())
+        handoffLabel = this.#rules.handoff.label
+      } catch {
+        // A broken optional destination must still leave the ordinary ending usable.
+      }
+    }
     return {
       title: this.title,
+      ...(handoffLabel ? { handoffLabel } : {}),
       activityKey: this.key,
       suspended: member && state?.suspendedTurn !== undefined,
       available: actorId === this.playerId,
@@ -645,11 +661,11 @@ export class ActivityRuntime {
     return parseActivityAutoStart(output, this.participantSelection)
   }
 
-  #startState(snapshot: ActivityWorld, parameters: WorldJsonObject, manual: boolean) {
+  #startMembers(snapshot: ActivityWorld, parameters: WorldJsonObject, manual: boolean, releasingId?: string) {
     this.#bindings.native?.admitActivityControl(snapshot.events, this.playerId, 'start', this.key)
     const current = this.state(snapshot.events)
     if (
-      [...activityProgress(snapshot.events).values()].some(state => state.game.active) ||
+      [...activityProgress(snapshot.events).values()].some(state => state.game.active && state.id !== releasingId) ||
       current?.suspendedTurn !== undefined
     )
       throw new TypeError('已有活动或存在暂停进度')
@@ -670,6 +686,10 @@ export class ActivityRuntime {
     const world = snapshot.worldView(this.playerId)
     if (npcIds.some(id => !(world.characterIds as readonly string[]).includes(id)))
       throw new TypeError('需要与游戏参与者在同一场景')
+    return { npcIds, world, current }
+  }
+  #startState(snapshot: ActivityWorld, parameters: WorldJsonObject, manual: boolean) {
+    const { npcIds, world, current } = this.#startMembers(snapshot, parameters, manual)
     const participants = [this.playerId, ...npcIds],
       truth = snapshot.truth(this.status)
     return startedActivity({
@@ -691,6 +711,60 @@ export class ActivityRuntime {
         participants,
       ),
     })
+  }
+
+  #handoffChoice(source: ActivityState, snapshot: ActivityWorld) {
+    const config = this.#rules.handoff
+    if (
+      !config ||
+      !source.game.active ||
+      source.game.phase !== config.phase ||
+      source.game.turn !== this.playerId ||
+      !this.policy(source, this.playerId).operations.includes(config.finish)
+    )
+      throw new TypeError('收尾选项已失效，请查看当前活动')
+    const target = this.#bindings.lookup?.(config.target)
+    if (!target) throw new TypeError('后续活动不可用，仍可正常结束')
+    const npcIds = source.participants.filter(id => id !== this.playerId)
+    if (
+      !target.participantSelection &&
+      (npcIds.length !== target.npcIds.length || target.npcIds.some(id => !npcIds.includes(id)))
+    )
+      throw new TypeError('参与角色与后续活动不匹配，仍可正常结束')
+    const parameters: WorldJsonObject = target.participantSelection ? { npcIds } : {}
+    target.#startMembers(snapshot, parameters, true, source.id)
+    return { target, parameters, finish: config.finish }
+  }
+
+  #handoffStart(snapshot: ActivityWorld, parameters: WorldJsonObject, actionId: string) {
+    let state: ActivityState
+    try {
+      state = this.#startState(snapshot, parameters, true)
+    } catch (cause) {
+      throw new TypeError('后续活动未通过开局检查或初始化失败。剧情仍在收尾处，可选择正常结束。', { cause })
+    }
+    if (!state.game.active) throw new TypeError('后续活动未能开始，仍可正常结束')
+    const description = this.title + '开始。'
+    const start = this.#event(state, description, this.playerId, actionId, 'start')
+    return [
+      start,
+      ...(this.#bindings.native?.deriveActivityControl(
+        snapshot.events,
+        brandId(this.playerId, 'CharacterId'),
+        'start',
+        actionId,
+        [start],
+      ) ?? []),
+      ...this.#observations(state, this.opening ?? description, this.playerId, actionId, [this.playerId], 'start'),
+      ...this.#observations(
+        state,
+        description,
+        this.playerId,
+        actionId,
+        state.participants.filter(id => id !== this.playerId),
+        'start',
+      ),
+    ]
   }
 
   /** Pure automatic-start proposal, sharing initialization and authority checks with manual starts. */
@@ -797,7 +871,7 @@ export class ActivityRuntime {
     try {
       const committed = await executeWorldRound(
         { store, leases, address: this.address, owner, actorId: this.playerId, signal: this.signal },
-        ({ head, events }) => {
+        ({ head, events, manifest, manifestHash }) => {
           const current = this.state(events)
           const foreground = [...activityProgress(events).values()].find(state => state.game.active)
           if (request.activityKey !== undefined && request.activityKey !== this.key)
@@ -810,12 +884,24 @@ export class ActivityRuntime {
             if (json(object(object(prior.data).input)) !== json(input)) throw new TypeError('同一请求 ID 不能改变内容')
             return undefined
           }
+          let operation = request.operation
+          let handoff: { target: ActivityRuntime; parameters: WorldJsonObject; finish: string } | undefined
+          if (operation === 'host:handoff') {
+            checkActivityRequest(current, request.activityId, request.revision, this.playerId)
+            if (foreground?.id !== current.id || Object.keys(request.parameters).length)
+              throw new TypeError('收尾接力请求无效')
+            handoff = this.#handoffChoice(
+              current,
+              activityWorldFromEvents(this.worldPath, this.address, head.headSeq, events, manifest),
+            )
+            operation = handoff.finish
+          }
           const actionId = owner + ':action'
-          if (['suspend', 'resume', 'abandon', 'escape'].includes(request.operation))
-            this.#bindings.native?.admitActivityControl(events, this.playerId, request.operation, this.key)
+          if (['suspend', 'resume', 'abandon', 'escape'].includes(operation))
+            this.#bindings.native?.admitActivityControl(events, this.playerId, operation, this.key)
           let state: ActivityState, description: string, drafts: WorldEventDraft[], observerIds: string[]
           let allowedMovers: readonly string[] | undefined
-          if (request.operation === 'start') {
+          if (operation === 'start') {
             if (
               foreground ||
               current?.suspendedTurn !== undefined ||
@@ -823,7 +909,6 @@ export class ActivityRuntime {
               request.revision !== 0
             )
               throw new TypeError('已有活动、存在暂停进度或开始请求失效')
-            const manifest = store.readManifest(this.address)!.manifest as CompiledWorldManifest
             state = this.#startState(
               activityWorldFromEvents(this.worldPath, this.address, head.headSeq, events, manifest),
               request.parameters,
@@ -832,7 +917,7 @@ export class ActivityRuntime {
             description = this.title + '开始。'
             observerIds = state.participants
             drafts = [this.#event(state, description, this.playerId, actionId, 'start')]
-          } else if (['suspend', 'resume', 'abandon'].includes(request.operation)) {
+          } else if (['suspend', 'resume', 'abandon'].includes(operation)) {
             if (
               !current ||
               current.id !== request.activityId ||
@@ -840,18 +925,17 @@ export class ActivityRuntime {
               Object.keys(request.parameters).length
             )
               throw new TypeError('活动控制请求已失效')
-            if (request.operation === 'suspend') {
+            if (operation === 'suspend') {
               checkActivityRequest(current, request.activityId, request.revision, this.playerId)
               state = suspendedActivity(current)
               description = this.title + '已暂停，进度保留，恢复自由互动。'
-            } else if (request.operation === 'abandon') {
+            } else if (operation === 'abandon') {
               state = abandonedActivity(current)
               description = this.title + '的暂停进度已放弃，已提交的经历仍保留。'
             } else {
               if (foreground || current.suspendedTurn === undefined)
                 throw new TypeError('请先暂停当前活动，或选择有暂停进度的活动')
               state = resumedActivity(current)
-              const manifest = store.readManifest(this.address)!.manifest as CompiledWorldManifest
               const world = this.#worldView(manifest, events, this.playerId, head.headSeq)
               const rejection = this.#mechanism.resume(this.scoped(state, this.playerId), world)
               // A hook may accept remote continuation; without one, retain the original same-scene rule.
@@ -875,21 +959,19 @@ export class ActivityRuntime {
               description = this.title + '已恢复，继续此前进度。'
             }
             observerIds = [this.playerId]
-            drafts = [this.#event(state, description, this.playerId, actionId, request.operation)]
+            drafts = [this.#event(state, description, this.playerId, actionId, operation)]
           } else {
             checkActivityRequest(current, request.activityId, request.revision, this.playerId)
-            if (request.operation === 'retry') {
+            if (operation === 'retry') {
               if (Object.keys(request.parameters).length) throw new TypeError('重试没有参数')
               retry = true
               return undefined
             }
-            if (!this.#rules.validArguments(request.operation, request.parameters))
-              throw new TypeError('游戏操作参数无效')
-            const manifest = store.readManifest(this.address)!
+            if (!this.#rules.validArguments(operation, request.parameters)) throw new TypeError('游戏操作参数无效')
             const rules = this.rulebooks().resolve('builtin:speak-move', 2, owner, this.address)
             const resolution = rules.resolve({
-              manifest: manifest.manifest as CompiledWorldManifest,
-              manifestHash: manifest.manifestHash,
+              manifest,
+              manifestHash,
               events,
               characterId: this.playerId,
               actionId,
@@ -900,7 +982,7 @@ export class ActivityRuntime {
                 parameters: {
                   targetRef: { kind: 'character', id: this.playerId },
                   bindingId: current.id,
-                  definitionRef: { id: 'activity:' + request.operation, version: 1 },
+                  definitionRef: { id: 'activity:' + operation, version: 1 },
                   arguments: { activityId: current.id, revision: current.revision, ...request.parameters },
                 },
               },
@@ -933,18 +1015,18 @@ export class ActivityRuntime {
             state = object(drafts[0]!.data).state as ActivityState
             description = String(object(drafts[0]!.data).description)
           }
-          if (!auto && ['start', 'suspend', 'resume', 'abandon'].includes(request.operation)) {
+          if (!auto && ['start', 'suspend', 'resume', 'abandon'].includes(operation)) {
             drafts.push(
               ...(this.#bindings.native?.deriveActivityControl(
                 events,
                 brandId(this.playerId, 'CharacterId'),
-                request.operation,
+                operation,
                 actionId,
                 drafts,
               ) ?? []),
             )
-          } else if (request.operation !== 'escape') this.#bindings.native?.validateCandidate([...events, ...drafts])
-          if (auto && request.operation !== 'start') throw new TypeError('只有开始可以由宿主自动发出')
+          } else if (operation !== 'escape') this.#bindings.native?.validateCandidate([...events, ...drafts])
+          if (auto && operation !== 'start') throw new TypeError('只有开始可以由宿主自动发出')
           drafts[0] = {
             ...drafts[0]!,
             data: {
@@ -956,8 +1038,8 @@ export class ActivityRuntime {
           }
           // An author's opening (the automatic notice first, then the declared opening) replaces the fixed line for
           // the player alone; it is written from the player's side, so participants keep the fixed line.
-          const sceneNotice = request.operation === 'start' ? auto?.sceneNotice : undefined
-          const notice = request.operation === 'start' ? (auto?.notice ?? this.opening ?? sceneNotice) : undefined
+          const sceneNotice = operation === 'start' ? auto?.sceneNotice : undefined
+          const notice = operation === 'start' ? (auto?.notice ?? this.opening ?? sceneNotice) : undefined
           // Everyone else present learns what happened, apart from the activity's own result line.
           const witnesses =
             sceneNotice === undefined
@@ -978,16 +1060,16 @@ export class ActivityRuntime {
             ...(quiet
               ? []
               : notice === undefined
-                ? this.#observations(state, description, this.playerId, actionId, observerIds, request.operation)
+                ? this.#observations(state, description, this.playerId, actionId, observerIds, operation)
                 : [
-                    ...this.#observations(state, notice, this.playerId, actionId, [this.playerId], request.operation),
+                    ...this.#observations(state, notice, this.playerId, actionId, [this.playerId], operation),
                     ...this.#observations(
                       state,
                       description,
                       this.playerId,
                       actionId,
                       observerIds.filter(id => id !== this.playerId),
-                      request.operation,
+                      operation,
                     ),
                   ]),
             ...sceneEventObservations({ actionId, observerIds: witnesses, text: sceneNotice ?? '' }),
@@ -1004,6 +1086,21 @@ export class ActivityRuntime {
               },
             },
           )
+          if (handoff) {
+            if (state.game.active || state.game.phase === 'host-aborted' || state.suspendedTurn !== undefined)
+              throw new TypeError('剧情尚未正常结束，无法接力')
+            // Recheck manual admission against the source's staged settlement (including moves and items).
+            const prefix = [...events, ...drafts]
+            const world = activityWorldFromEvents(
+              this.worldPath,
+              this.address,
+              head.headSeq + drafts.length,
+              prefix,
+              manifest,
+            )
+            drafts.push(...handoff.target.#handoffStart(world, handoff.parameters, actionId + ':handoff'))
+            this.#bindings.native?.validateCandidate([...events, ...drafts])
+          }
           return {
             events: drafts,
             authority: { actorId: this.playerId, request: input, status: 'accepted' },

@@ -24,7 +24,7 @@ import {
 import { HOST_ACTIVITY_PAGE } from './host-page.ts'
 import type { ActivityRequest } from '@perspectra/sdk/contracts'
 import type { KnownStatus, PlayerTruthStatus } from '@perspectra/sdk/contracts'
-import { timingSafeEqual } from 'node:crypto'
+import { randomUUID, timingSafeEqual } from 'node:crypto'
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http'
 import type { PackWeb, StageBox, StageConfig, StageMarks } from './pack-frontend.ts'
 import { canonicalizeWorldJson, type WorldJsonObject } from '@perspectra/sdk/contracts'
@@ -151,6 +151,32 @@ export function actionText(action: HostAction): string {
   return '/act ' + action.actionType + ' ' + JSON.stringify(action.parameters)
 }
 
+/** Bind the closing choice to the source the player actually saw. Only the pack names the destination. */
+export function handoffRequest(action: HostAction, requestId?: string): ActivityRequest | undefined {
+  const p = action.parameters
+  if (
+    action.actionType !== 'interact' ||
+    (p.definitionRef as WorldJsonObject | undefined)?.id !== 'host:activity-handoff'
+  )
+    return
+  if (
+    (p.definitionRef as WorldJsonObject).version !== 1 ||
+    Object.keys(p).some(key => !['activityKey', 'previousId', 'previousRevision', 'definitionRef'].includes(key)) ||
+    typeof p.activityKey !== 'string' ||
+    typeof p.previousId !== 'string' ||
+    !Number.isSafeInteger(p.previousRevision) ||
+    Number(p.previousRevision) < 1
+  )
+    throw new TypeError('收尾选项已失效，请重新查看')
+  return {
+    activityKey: p.activityKey,
+    activityId: p.previousId,
+    revision: Number(p.previousRevision),
+    operation: 'host:handoff',
+    parameters: {},
+    requestId: requestId ?? randomUUID(),
+  }
+}
 /** The player's option to let a round pass without saying or doing anything. */
 export const WAIT_ACTION: HostAction = {
   actionType: 'interact',

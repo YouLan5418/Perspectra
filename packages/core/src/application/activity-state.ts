@@ -63,6 +63,7 @@ export function activityProgress(events: readonly RulebookEvent[]): Map<string, 
 export class ActivityStateRules {
   readonly #validators = new Map<string, ReturnType<Ajv['compile']>>()
   readonly operations: Operation[]
+  readonly handoff?: { phase: string; finish: string; target: string; label: string }
   readonly title: string
   readonly opening: string | undefined
   readonly npcIds: string[]
@@ -86,6 +87,7 @@ export class ActivityStateRules {
       'title',
       Object.hasOwn(definition, 'participants') ? 'participants' : 'npcIds',
       'operations',
+      ...(Object.hasOwn(definition, 'handoff') ? ['handoff'] : []),
       ...(Object.hasOwn(definition, 'opening') ? ['opening'] : []),
     ])
     if (
@@ -154,6 +156,29 @@ export class ActivityStateRules {
       this.#validators.set(op.id, ajv.compile(schema))
       return { id: op.id, label: op.label, requiresTurn: op.requiresTurn, schema, quick: op.quick === true }
     })
+    if (definition.handoff !== undefined) {
+      const h = object(definition.handoff)
+      exact(h, ['phase', 'finish', 'target', 'label'])
+      const op = this.operations.find(op => op.id === h.finish)
+      if (
+        typeof h.phase !== 'string' ||
+        !h.phase.trim() ||
+        h.phase.length > 80 ||
+        (phases && !phases.includes(h.phase)) ||
+        typeof h.target !== 'string' ||
+        !/^[a-z][a-z0-9-]{0,40}$/u.test(h.target) ||
+        h.target === key ||
+        typeof h.label !== 'string' ||
+        !h.label.trim() ||
+        h.label.length > 80 ||
+        !op ||
+        op.id === 'escape' ||
+        op.quick ||
+        !this.validArguments(op.id, {})
+      )
+        throw new TypeError('活动接力须声明收尾阶段、可无参数执行的结束操作、其他目标活动和玩家选项名称')
+      this.handoff = { phase: h.phase, finish: op.id, target: h.target, label: h.label }
+    }
   }
   game(value: unknown, participants: string[]): Game {
     const game = object(value)

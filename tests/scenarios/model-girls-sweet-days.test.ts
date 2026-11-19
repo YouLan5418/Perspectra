@@ -2,7 +2,7 @@ import { playSettings, type PlaySettings } from '../../apps/host/src/play-settin
 import { createRoleplayCore } from '../support/roleplay-runtime.ts'
 import { type Server } from 'node:http'
 import { afterEach, expect, it, vi } from 'vitest'
-import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { appendFileSync, cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { tmpdir } from 'node:os'
 import { type WorldJsonObject } from '@perspectra/sdk/contracts'
@@ -11,7 +11,7 @@ import { WorldStore } from '@perspectra/core/store'
 import { currentEntityState, currentLocation } from '@perspectra/core/kernel'
 import { WorldHostCore } from '../../apps/host/src/runtime/world-runtime.ts'
 import { PacingScript } from '../../packages/plugins/src/pacing/index.ts'
-import { projectPlayerView } from '../../apps/host/src/runtime/frontend-adapter.ts'
+import { FrontendActions, projectPlayerView } from '../../apps/host/src/runtime/frontend-adapter.ts'
 import { loadStatus } from '../support/status-runtime.ts'
 import { createChatServer, fakeModels } from '../support/fake-provider.ts'
 
@@ -39,6 +39,7 @@ async function fixture(
   settings: Partial<PlaySettings> = {},
   initialDay = 1,
   eventDuringBattle = false,
+  configurePack?: (pack: string) => void,
 ) {
   const root = mkdtempSync(join(tmpdir(), 'model-girls-sweet-days-'))
   roots.push(root)
@@ -98,6 +99,7 @@ async function fixture(
     scene.lifecycle = scene.participantIds.length ? 'active' : 'created'
   }
   writeFileSync(join(pack, 'scenes.json'), JSON.stringify(scenes))
+  configurePack?.(pack)
   const compiled = await compileWorldPackSource(pack, [])
   const status = loadStatus(pack, compiled)!
   // Context of every character request, in call order, for tests that check what a character was told.
@@ -1299,4 +1301,208 @@ it('keeps an event decision pending through actual RPG turns and the following a
     stimulus: [{ observation: expect.stringMatching(/^context\.history\[\d+\]$/) }],
   })
   expect(JSON.stringify(after[0]).split('训练场的顶灯熄灭。')).toHaveLength(2)
+})
+
+async function epilogue(
+  mode: 'normal' | 'old' | 'away' | 'no-console' | 'move-on-finish' | 'failed-start' = 'normal',
+  wake = false,
+) {
+  const location = mode === 'away' ? 'location:kitchen' : 'location:living-room'
+  const f = await fixture(
+    { 'character:gpt': location, 'character:player': location },
+    undefined,
+    false,
+    false,
+    false,
+    { autonomyOpportunities: 0 },
+    1,
+    wake,
+    pack => {
+      const path = 'scripts/activities/epilogue.js'
+      const sourcePath = join(pack, 'worldpack.source.json')
+      const manifest = JSON.parse(readFileSync(sourcePath, 'utf8'))
+      manifest.assetFiles = manifest.assetFiles
+        .filter((s: string) => s !== 'scripts/activities/blackout-comfort.js')
+        .concat(path)
+      writeFileSync(sourcePath, JSON.stringify(manifest))
+      cpSync(resolve('tests/fixtures/handoff-epilogue.js'), join(pack, path))
+      if (mode === 'no-console') {
+        const path = join(pack, 'entities.json')
+        const entities = JSON.parse(readFileSync(path, 'utf8'))
+        entities.entities.find((e: { entityId: string }) => e.entityId === 'entity:game-console').locationId =
+          'location:kitchen'
+        writeFileSync(path, JSON.stringify(entities))
+      }
+      if (mode === 'old') appendFileSync(join(pack, path), '\ndelete activityScript.definition.handoff')
+      if (mode === 'failed-start')
+        appendFileSync(
+          join(pack, 'scripts/activities/game-battle.js'),
+          "\nactivityScript.initialize=()=>{throw new Error('fixture RPG init failure')}",
+        )
+      if (mode === 'move-on-finish')
+        appendFileSync(
+          join(pack, path),
+          `
+const resolveEnding = activityScript.resolve
+activityScript.resolve = (...args) => {
+  const result = resolveEnding(...args)
+  if (args[2] === 'finish') result.moves = [{characterId: args[1], locationId: 'location:kitchen'}]
+  return result
+}
+`,
+        )
+    },
+  )
+  await f.runtime.activityAction({
+    activityKey: 'epilogue',
+    activityId: null,
+    revision: 0,
+    operation: 'start',
+    parameters: {},
+    requestId: 'story-start',
+  })
+  expect((await f.actions()).map(o => o.label)).not.toContain('来一局 RPG')
+  await f.act('读信')
+  const ending = (await f.runtime.state()).activity!
+  const request = {
+    activityKey: 'epilogue',
+    activityId: String(ending.id),
+    revision: Number(ending.revision),
+    operation: 'host:handoff',
+    parameters: {},
+    requestId: 'play-rpg',
+  }
+  return { ...f, request, money: () => Number(f.truth().characters['character:player']!.money) }
+}
+
+it('starts the selected RPG in the closing transaction and keeps the witness pending across the slot change', async () => {
+  const f = await epilogue('normal', true),
+    before = f.money()
+  const offers = await f.actions()
+  expect(offers.map(o => o.label)).toEqual(expect.arrayContaining(['收起信，回到日常', '来一局 RPG']))
+  const go = offers.find(o => o.label === '来一局 RPG')!
+  const frontend = new FrontendActions(f.runtime)
+  const click = {
+    requestId: 'click',
+    actionId: f.request.requestId,
+    operation: 'perform' as const,
+    payload: { optionId: go.id },
+  }
+  const [view] = await Promise.all([frontend.perform(click), frontend.perform(click)])
+  expect(view.activities?.filter(a => a.active).map(a => a.key)).toEqual(['game-battle'])
+  expect((await f.runtime.state()).activity).toMatchObject({
+    activityKey: 'game-battle',
+    participants: ['character:player', 'character:gpt'],
+  })
+  expect(f.requests).toHaveLength(0)
+  await frontend.perform(click)
+  await f.runtime.activityAction(f.request)
+  await expect(f.runtime.activityAction({ ...f.request, requestId: 'double-click' })).rejects.toThrow()
+  expect(f.money()).toBe(before + 5)
+  const rows = f.events().filter(e => e.eventType === 'activity.updated')
+  const ending = rows.find(e => (e.data as WorldJsonObject).requestId === 'play-rpg')!
+  expect(
+    rows
+      .filter(e => e.transactionId === ending.transactionId)
+      .map(e => [(e.data as WorldJsonObject).activityKey, (e.data as WorldJsonObject).operation]),
+  ).toEqual([
+    ['epilogue', 'finish'],
+    ['game-battle', 'start'],
+  ])
+  await f.act('退出像素 RPG')
+  expect(f.requests.filter(r => r.actorId === 'character:gpt')).toHaveLength(1)
+}, 60000)
+
+it.each(['old', 'away', 'no-console', 'move-on-finish', 'failed-start'] as const)(
+  'leaves a usable ordinary ending on %s',
+  async mode => {
+    const f = await epilogue(mode),
+      before = f.money(),
+      head = f.events().at(-1)!.seq
+    expect((await f.actions()).some(o => o.label === '来一局 RPG')).toBe(
+      mode === 'move-on-finish' || mode === 'failed-start',
+    )
+    await expect(f.runtime.activityAction(f.request)).rejects.toThrow()
+    expect(f.events().at(-1)!.seq).toBe(head)
+    expect((await f.runtime.state()).activity).toMatchObject({
+      id: f.request.activityId,
+      revision: f.request.revision,
+      game: { phase: 'closing', active: true },
+    })
+    expect(f.money()).toBe(before)
+    await f.act('收起信，回到日常')
+    expect(f.money()).toBe(before + 5)
+    expect((await f.view()).activities?.some(a => a.active)).toBe(false)
+  },
+  60000,
+)
+
+it('allows the ordinary exit and rejects the old closing choice after a new foreground has started', async () => {
+  const f = await epilogue()
+  const old = (await f.actions()).find(o => o.label === '来一局 RPG')!
+  const cash = f.money()
+  await f.act('收起信，回到日常')
+  expect((await f.view()).activities?.some(a => a.active)).toBe(false)
+  await f.runtime.activityAction({
+    activityKey: 'game-battle',
+    activityId: null,
+    revision: 0,
+    operation: 'start',
+    parameters: { npcIds: ['character:gpt'] },
+    requestId: 'manual-rpg',
+  })
+  const active = (await f.runtime.state()).activity!
+  const head = f.events().at(-1)!.seq
+  await expect(f.runtime.perform(old.action, undefined, 'late-choice')).rejects.toThrow(/失效|活动/)
+  expect((await f.runtime.state()).activity).toMatchObject({ id: active.id, revision: active.revision })
+  expect(f.events().at(-1)!.seq).toBe(head)
+  expect(f.money()).toBe(cash + 5)
+})
+
+it('commits neither half on a storage rejection and leaves both closing choices available', async () => {
+  const f = await epilogue()
+  const cash = f.money(),
+    head = f.events().at(-1)!.seq
+  await expect(f.runtime.activityAction({ ...f.request, parameters: { target: 'other' } })).rejects.toThrow(
+    /接力请求无效/,
+  )
+  const fault = vi
+    .spyOn(WorldStore.prototype, 'commitRound')
+    .mockRejectedValueOnce(new Error('fixture: commit rejected'))
+  try {
+    await expect(f.runtime.activityAction(f.request)).rejects.toThrow('fixture: commit rejected')
+  } finally {
+    fault.mockRestore()
+  }
+  expect(f.events().at(-1)!.seq).toBe(head)
+  expect(f.money()).toBe(cash)
+  expect((await f.actions()).map(o => o.label)).toEqual(expect.arrayContaining(['来一局 RPG', '收起信，回到日常']))
+  await f.act('收起信，回到日常')
+  expect(f.money()).toBe(cash + 5)
+})
+
+it('replays a committed handoff after the storage acknowledgement is lost', async () => {
+  const f = await epilogue()
+  const cash = f.money()
+  const commit = WorldStore.prototype.commitRound
+  const fault = vi.spyOn(WorldStore.prototype, 'commitRound').mockImplementationOnce(async function (
+    this: WorldStore,
+    input,
+  ) {
+    await commit.call(this, input)
+    throw new Error('fixture: lost acknowledgement')
+  })
+  try {
+    await expect(f.runtime.activityAction(f.request)).rejects.toThrow('fixture: lost acknowledgement')
+  } finally {
+    fault.mockRestore()
+  }
+  await f.runtime.activityAction(f.request)
+  const active = (await f.view()).activities?.filter(a => a.active).map(a => a.key)
+  expect(active).toEqual(['game-battle'])
+  expect(f.money()).toBe(cash + 5)
+  const transitions = f
+    .events()
+    .filter(e => e.eventType === 'activity.updated' && e.transactionId === 'activity:play-rpg')
+  expect(transitions.map(e => (e.data as WorldJsonObject).operation)).toEqual(['finish', 'start'])
 })

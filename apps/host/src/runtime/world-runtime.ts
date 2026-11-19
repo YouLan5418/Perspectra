@@ -142,6 +142,7 @@ import {
 } from '@perspectra/core/store'
 import { adaptCompiledWorldPack, compileWorldPackSource, type CompiledWorldPackV5 } from '@perspectra/world-pack'
 import {
+  handoffRequest,
   actionText,
   HostBusyError,
   isWait,
@@ -1681,6 +1682,11 @@ export class WorldHostCore implements HostRuntime {
     idempotencyKey?: string,
     onCommitted?: () => void,
   ): Promise<HostState> {
+    const handoff = handoffRequest(action, idempotencyKey)
+    if (handoff) {
+      if (_line) throw new TypeError('接力不能附带发言')
+      return this.activityAction(handoff)
+    }
     if (isWait(action)) return this.turn([], idempotencyKey, onCommitted)
     if (
       action.actionType === 'interact' &&
