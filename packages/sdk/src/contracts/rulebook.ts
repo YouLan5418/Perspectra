@@ -48,6 +48,8 @@ export interface RulebookResolution {
    * a reaction role class is read from.
    */
   readonly resolvedRoles?: { readonly [name: string]: { readonly kind: string; readonly id: string } }
+  /** This player status result is observable but does not itself nominate a scene response. */
+  readonly sceneReaction?: false
   /** Maximum audience granted by the Rulebook; Scene policy may only narrow it. */
   readonly observationScope?: {
     readonly scope: 'scene_public' | 'direct' | 'private' | 'self'

@@ -888,6 +888,9 @@ export class RoundCoordinator {
         actorId: item.action.actorId,
         actionType: item.action.actionType,
         status: resolution.status,
+        ...(item.sourceRole === 'player' && item.action.actionType === 'interact' && resolution.sceneReaction === false
+          ? { sceneReaction: false }
+          : {}),
         skipped,
         audience,
         ...(route === undefined ? {} : { route }),

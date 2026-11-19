@@ -98,7 +98,11 @@ interface Computation {
   readonly provenance: WeakMap<object, Proposal>
   readonly activityKey?: string
   readonly targetId?: string
-  presentation?: { description: string; scope: NonNullable<RulebookResolution['observationScope']> }
+  presentation?: {
+    sceneReaction?: false
+    description: string
+    scope: NonNullable<RulebookResolution['observationScope']>
+  }
   readonly resolveSpeech?: (parameters: WorldJsonObject) => readonly WorldEventDraft[]
 }
 
@@ -1292,7 +1296,11 @@ export class GameplayRuntime {
       this.#call(module, 'validateEffect', () => {
         if (effect.kind === 'status-result') {
           if (cycle) throw new TypeError('GAMEPLAY_OPERATION_RESULT_OUTSIDE_OPERATION')
-          const result = parseStatusOperationResult(effect.result)
+          const result = parseStatusOperationResult(
+            effect.result,
+            this.#operations.get(computation.operationId)?.definition.status !== undefined &&
+              computation.actorId === this.options.manifest.playerBindings[0]?.characterId,
+          )
           if ('rejected' in result) throw new TypeError('rejections must be returned by the Handler')
           const data: StatusEventData = {
             source: {
@@ -1323,6 +1331,7 @@ export class GameplayRuntime {
               }),
             )
           computation.presentation = {
+            ...(result.sceneReaction === false ? { sceneReaction: false } : {}),
             description: result.description,
             scope: statusObservationScope(
               result.audience,
@@ -1795,6 +1804,7 @@ export class GameplayRuntime {
     return {
       status: 'accepted',
       events: [...main, ...after, ...textEvents],
+      ...(computation.presentation?.sceneReaction === false ? { sceneReaction: false } : {}),
       observationScope: computation.presentation?.scope ?? { scope: 'scene_public' },
       ...(computation.presentation ? { description: computation.presentation.description } : {}),
     }

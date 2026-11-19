@@ -35,6 +35,7 @@ export interface ActionObservationInput {
   readonly status: 'accepted' | 'rejected'
   /** A skipped group step still reports `skipped` to full-content observers. */
   readonly skipped?: boolean
+  readonly sceneReaction?: false
   readonly audience: ActionAudience
   readonly route?: MovementRoute
   /** Clauses every full-content observer receives, such as speech, interaction or relations. */
@@ -113,7 +114,18 @@ export function actionObservations(input: ActionObservationInput): {
         observerId,
       })
     const value = { observerId, actionId: input.actionId, content }
-    events.push({ eventType: 'observation.upsert', eventVersion: 1, data: { id: observationId, value } })
+    // Keep scheduling metadata outside the character's view and the player delivery.
+    events.push({
+      eventType: 'observation.upsert',
+      eventVersion: 1,
+      data: {
+        id: observationId,
+        value,
+        ...(input.sceneReaction === false && input.status === 'accepted' && !input.skipped
+          ? { sceneReaction: false }
+          : {}),
+      },
+    })
     for (const binding of input.playerBindings.filter(entry => entry.characterId === observerId)) {
       outbox.push({
         deliveryId: brandId(

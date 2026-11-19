@@ -97,6 +97,11 @@ it('parses a result, an author refusal, and refuses malformed ones', () => {
   expect(() => parseStatusOperationResult({ rejectReason: '钱不够', changes: [] })).toThrow(TypeError)
   const good = { changes: [], reveals: [], description: '好', audience: 'self' }
   expect(parseStatusOperationResult(good)).toEqual(good)
+  const passive = { ...good, sceneReaction: false }
+  expect(parseStatusOperationResult(passive, true)).toEqual(passive)
+  expect(() => parseStatusOperationResult(passive)).toThrow('玩家状态操作')
+  expect(() => parseStatusOperationResult({ ...good, sceneReaction: true }, true)).toThrow()
+  expect(() => parseStatusOperationResult({ rejectReason: '钱不够', sceneReaction: false }, true)).toThrow()
   expect(parseStatusOperationResult({ ...good, items: [] })).toEqual({ ...good, items: [] })
   expect(() => parseStatusOperationResult({ ...good, extra: 1 })).toThrow(TypeError)
   expect(() => parseStatusOperationResult({ ...good, description: 'x'.repeat(2001) })).toThrow('描述无效')

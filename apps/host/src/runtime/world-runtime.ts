@@ -1932,7 +1932,7 @@ export class WorldHostCore implements HostRuntime {
           }
           this.#allowInterruption = !this.#gameplay.activity?.current()?.game.active
           const extraWakeups = settlementReactions ? [] : this.#execution.wakeupSources()
-          if (activityOnly) {
+          if (activityOnly || (!settlementReactions && due.length > 0 && this.#onlyPassiveResults(store))) {
             await this.#autonomousRound(store, createTurn, due, extraWakeups, new Map(), runRound)
             return
           }
@@ -1950,6 +1950,15 @@ export class WorldHostCore implements HostRuntime {
         }
       },
     )
+  }
+
+  // With only passive results there is no scene wave. Give the author's due roles their
+  // ordinary opportunity round, including its original order and per-role reservation.
+  #onlyPassiveResults(store: WorldStore): boolean {
+    const rows = store.readEventsRange(this.#address, this.#rootBeforeSeq, store.head(this.#address).headSeq, [
+      'observation.upsert',
+    ])
+    return rows.length > 0 && rows.every(row => (row.data as WorldJsonObject).sceneReaction === false)
   }
 
   /** Every opportunity uses the same rules, context projection and bound CharacterTurn. */

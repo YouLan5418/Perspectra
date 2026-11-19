@@ -834,6 +834,102 @@ it('hides care without energy and rejects an earlier care option without chargin
 
 const board = '推进到下一时段（大家各自忙一阵）'
 
+it('commits the board as one ordinary action, and honors retries, occupancy and the last slot', async () => {
+  const f = await fixture(undefined, undefined, false, false, false, { autonomyOpportunities: 0 })
+  const offered = (await f.actions()).filter(a => a.label === board)
+  expect(offered).toHaveLength(1)
+  const action = offered[0]!.action
+  expect(action.parameters.definitionRef).toMatchObject({ id: 'status:next-slot' })
+  const before = f.events().length
+  const invalid = { ...action, parameters: { ...action.parameters, arguments: { extra: 1 } } }
+  await expect(f.runtime.perform(invalid)).rejects.toThrow()
+  expect(f.events()).toHaveLength(before)
+  await f.runtime.perform(action, undefined, 'first-slot')
+  const events = f.events().slice(before)
+  expect(
+    new Set(
+      events
+        .filter(e => e.eventType === 'action.resolved' || e.eventType === 'status.updated')
+        .map(e => e.transactionId),
+    ),
+  ).toEqual(new Set(['status:first-slot']))
+  expect(f.truth().public.slot).toBe('午后')
+  const after = f.events().length,
+    calls = f.requests.length
+  await f.runtime.perform(action, undefined, 'first-slot')
+  expect(f.events()).toHaveLength(after)
+  expect(f.requests).toHaveLength(calls)
+  const start = await f.runtime.activityAction({
+    activityKey: 'game-battle',
+    activityId: null,
+    revision: 0,
+    operation: 'start',
+    parameters: { npcIds: ['character:gpt'] },
+    requestId: 'start-rpg',
+  })
+  const running = start.activities!.find(row => row.activityKey === 'game-battle')!
+  expect((await f.actions()).map(a => a.label)).not.toContain(board)
+  await expect(f.runtime.perform(action)).rejects.toThrow()
+  expect((await f.runtime.state()).activities!.find(row => row.activityKey === 'game-battle')).toEqual(running)
+  expect(f.truth().public.slot).toBe('午后')
+  await f.act('退出像素 RPG')
+  await f.act(board)
+  await f.act(board)
+  const night = f.truth()
+  expect(night.public.slot).toBe('深夜')
+  await f.act(board)
+  expect(f.truth()).toEqual(night)
+  expect((await f.runtime.state()).transcript.filter(l => l.text.includes('现在已经是深夜了'))).toHaveLength(1)
+  expect(
+    f
+      .events()
+      .filter(e => e.eventType === 'activity.updated' && (e.data as WorldJsonObject).activityKey === 'schedule'),
+  ).toEqual([])
+})
+
+it('does not authorize the board as a raw frozen interaction', async () => {
+  const f = await fixture(undefined, undefined, false, false, false, { autonomyOpportunities: 0 })
+  const action = (await f.actions()).find(entry => entry.label === board)!.action
+  await f.runtime.submit('/act interact ' + JSON.stringify(action.parameters))
+  expect(
+    f
+      .events()
+      .filter(e => e.eventType === 'action.resolved')
+      .at(-1)?.data,
+  ).toMatchObject({
+    accepted: false,
+    reason: 'INTERACTION_NOT_BOUND',
+  })
+  expect(f.truth().public.slot).toBe('清晨')
+  expect(f.events().some(e => (e.data as WorldJsonObject).sceneReaction === false)).toBe(false)
+})
+
+it.each(['speech-first', 'board-first', 'private-first', 'private-last', 'other-status'] as const)(
+  'keeps only the board result passive in a mixed player turn (%s)',
+  async order => {
+    const store = 'location:entrance-shop'
+    const f = await fixture({ 'character:player': store, 'character:gpt': store }, undefined, false, false, false, {
+      autonomyOpportunities: 0,
+    })
+    const advance = '/status next-slot {}'
+    const speech = '我们走到白板旁边聊聊吧。'
+    const line = order.startsWith('private')
+      ? '/act speak ' + JSON.stringify({ text: speech, scope: 'private', addresseeIds: ['character:gpt'] })
+      : speech
+    const other = order === 'other-status' ? '/status work-parttime {}' : line
+    const state = await f.runtime.turn(order.endsWith('-first') ? [other, advance] : [advance, other])
+    expect(f.requests.map(req => req.actorId)).toEqual(['character:gpt'])
+    const context = f.contexts[0]!
+    const expected = order === 'other-status' ? '外出兼职忙活了一个时段' : speech
+    expect(JSON.stringify(context.stimulus)).toContain(expected)
+    expect(JSON.stringify(context.stimulus)).not.toContain('时间流逝，来到了')
+    expect(JSON.stringify(context.history)).toContain('时间流逝，来到了')
+    expect(JSON.stringify(f.requests)).not.toContain('sceneReaction')
+    expect(state.transcript.filter(l => l.text.includes('时间流逝，来到了'))).toHaveLength(1)
+    expect(f.truth().public.slot).toBe(order === 'other-status' ? '傍晚' : '午后')
+  },
+)
+
 it.each([
   [0, 10, 0],
   [1, 3, 2],
@@ -854,7 +950,9 @@ it.each([
     const state = await f.act(board)
     const actors = ['character:gpt', 'character:claude', 'character:deepseek']
     expect(f.requests.map(req => req.actorId)).toEqual(actors.slice(0, expected))
-    expect((state.debug.autonomy as WorldJsonObject | undefined)?.autonomousCalls ?? 0).toBe(expected)
+    const autonomy = state.debug.autonomy as WorldJsonObject | undefined
+    expect(autonomy?.autonomousCalls ?? 0).toBe(expected)
+    expect(autonomy?.reactionCalls ?? 0).toBe(0)
     expect(state.transcript.filter(l => l.text.includes('时间流逝，来到了第 2 天的午后'))).toHaveLength(1)
     expect(state.activities!.some(a => (a.game as WorldJsonObject | undefined)?.active)).toBe(false)
     if (expected !== 3) return
@@ -875,14 +973,6 @@ it.each([
     expect(outage(f)).toEqual(Object.fromEntries(['character:player', ...actors].map(id => [id, direct])))
   },
 )
-
-it('advances the time slot in one click without an activity start line', async () => {
-  const f = await fixture()
-  await f.act('推进到下一时段（大家各自忙一阵）')
-  const lines = (await f.runtime.state()).transcript.map(line => line.text)
-  expect(lines.some(text => text.includes('时间流逝，来到了第 1 天的午后'))).toBe(true)
-  expect(lines.filter(text => text.includes('开始。'))).toEqual([])
-})
 
 it('tells a character who wakes into the next morning that the day and time slot changed', async () => {
   // Everyone answers with one line, so each character has a last own action to compare against.

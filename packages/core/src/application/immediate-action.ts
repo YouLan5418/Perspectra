@@ -24,7 +24,7 @@ export function immediateActionDrafts(input: {
   readonly actorId: CharacterId
   readonly actionId: string
   readonly action: { readonly actionType: string; readonly parameters: WorldJsonValue }
-  readonly result: Pick<RulebookResolution, 'status' | 'events' | 'observationScope'>
+  readonly result: Pick<RulebookResolution, 'status' | 'events' | 'observationScope' | 'sceneReaction'>
   readonly description: string
 }): WorldEventDraft[] {
   const { scene, address, events, headSeq, actorId, actionId, action, result } = input
@@ -68,6 +68,7 @@ export function immediateActionDrafts(input: {
     actorId,
     actionType: action.actionType,
     status: accepted ? 'accepted' : 'rejected',
+    ...(action.actionType === 'interact' && result.sceneReaction === false ? { sceneReaction: false } : {}),
     audience: {
       fullContentCharacterIds: [...audience.fullContentCharacterIds, ...arrived, actorId],
       occurrenceOnlyCharacterIds: audience.occurrenceOnlyCharacterIds,

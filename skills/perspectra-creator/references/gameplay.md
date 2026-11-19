@@ -51,7 +51,8 @@ services 只在确实要求特定 Provider 时填写，如 "services": { "schedu
 - initialize(characterIds) 返回 `{ public, characters, reveals? }`，恰好包含声明的状态，characters 列出全部角色。角色私有状态默认告知本人，公共状态除非 alwaysKnown 否则谁也不知道。
 - policy(known, actorId, place) 可选，返回 `{ operations: [...], targets?: { 操作ID: [物品ID] } }`；known 是 `{ public, self, characters }` 已知值，place 是 `{ locationId, items }`。选项可见不代表执行必定成功。
 - 活动的 autoStart 可返回可选 `sceneNotice`（1–500 字），写给在场所有人；`notice` 只给玩家。不写时其他角色不知道事件内容，只知道活动开始了。
-- resolve(truth, actorId, operationId, parameters, world, targetId) 重查规则；返回 `{ changes, reveals, description, audience, items? }`，或仅返回 `{ rejectReason }`。audience 为 'self'、'scene' 或 `{ characters: [...] }`；行动者总能收到自己的结果，所以空列表等于 'self'，列出别人时行动者也会收到。
+- resolve(truth, actorId, operationId, parameters, world, targetId) 重查规则；返回 `{ changes, reveals, description, audience, items?, sceneReaction? }`，或仅返回 `{ rejectReason }`。audience 为 'self'、'scene' 或 `{ characters: [...] }`；行动者总能收到自己的结果，所以空列表等于 'self'，列出别人时行动者也会收到。
+- 玩家状态操作获准提交时可在该次结果上返回 `sceneReaction: false`。宿主照常提交状态、按 `audience` 投递描述，并保留在获准角色的经历里。官方调度器不会仅因这条观察安排即时同场回应。同一输入里的发言、其他操作和作者另行安排的自主机会仍按原规则处理。省略字段沿用原行为。
 - onRoundEnd(truth, round) 可选，每个玩家回合结束后调用一次，返回 null 或 `{ changes, reveals }`，适合推进游戏时间。
 
 changes 是 `{ holderId, key, value }`，整体替换该键（公共状态 holderId 为 null）；reveals 只写 observerId/holderId/key，值由宿主填入，作者无法告知编造的值。行动者改了自己的状态会自动知道新值；别人引起的变化（比如被偷）不会自动告知失主，失主只看到该值变成“上次确认”。余额不足、偷窃被发现这类玩法失败应作为被接受的结果返回，带上 reveals 和 description；rejectReason 只用于操作根本不成立。仅将明确公开的值设 alwaysKnown；playerTruth 是主动交给玩家前端的真值，不会自动公开给 NPC。所有脚本均为作者可信代码，不应访问凭证或复制宿主内部实现。

@@ -59,9 +59,10 @@ export function createSchedulerRound(input: SchedulerRoundInput): ExecutionSched
   if (sourceIds.some(id => !id.trim()) || new Set(sourceIds).size !== sourceIds.length)
     throw new TypeError('WAKEUP_SOURCE_ID_INVALID')
   const read = (afterSeq: number, throughSeq: number) =>
-    store
-      .readEventsRange(address, afterSeq, throughSeq, ['observation.upsert'])
-      .map(event => ({ seq: event.seq, value: (event.data as WorldJsonObject).value as WorldJsonObject }))
+    store.readEventsRange(address, afterSeq, throughSeq, ['observation.upsert']).map(event => {
+      const data = event.data as WorldJsonObject
+      return { seq: event.seq, value: data.value as WorldJsonObject, sceneReaction: data.sceneReaction !== false }
+    })
   // One reference per observer: a turn hands the model the very values this round read.
   const seen = new Map<string, WorldJsonObject>()
   let wakeupCandidates: readonly WakeupCandidate[] | undefined
@@ -172,10 +173,16 @@ export function createSchedulerRound(input: SchedulerRoundInput): ExecutionSched
     headSeq: () => store.head(address).headSeq,
     observationsSince: (afterSeq, throughSeq) => {
       const observations: SchedulerObservation[] = []
-      for (const { seq, value } of read(afterSeq, throughSeq)) {
+      for (const { seq, value, sceneReaction } of read(afterSeq, throughSeq)) {
         seen.set(key(seq, value.observerId), value)
         const content = value.content as WorldJsonObject | undefined
-        if (content === undefined || content.status !== 'accepted' || content.actorId === value.observerId) continue
+        if (
+          !sceneReaction ||
+          content === undefined ||
+          content.status !== 'accepted' ||
+          content.actorId === value.observerId
+        )
+          continue
         const id = brandId(String(value.observerId), 'CharacterId')
         const speech = content.speech as WorldJsonObject | undefined
         observations.push({

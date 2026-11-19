@@ -1,7 +1,7 @@
 {
   "sourceSchemaVersion": "worldpack-source/v5",
   "packId": "pack:model-girls-sweet-days",
-  "packVersion": "1.1.1",
+  "packVersion": "1.1.2",
   "worldFile": "world.json",
   "characterFiles": [
     "characters.json"
@@ -34,7 +34,6 @@
     "world-events.json",
     "scripts/status.js",
     "scripts/activities/prologue.js",
-    "scripts/activities/schedule.js",
     "scripts/activities/game-battle.js",
     "scripts/activities/undercover.js",
     "scripts/activities/midnight-fridge.js",

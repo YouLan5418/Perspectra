@@ -236,6 +236,12 @@ globalThis.statusScript = {
     ],
     operations: [
       {
+        id: 'next-slot',
+        label: '推进到下一时段（大家各自忙一阵）',
+        actors: 'player',
+        schema: none,
+      },
+      {
         id: 'sleep-next-day',
         label: '结束今天，休息迎接明天（恢复满精力）',
         actors: 'player',
@@ -399,6 +405,7 @@ globalThis.statusScript = {
       energy >= 1
 
     const ops = [
+      ...(actorId === 'character:player' ? ['next-slot'] : []),
       ...(actorId === 'character:player' && slot === '深夜' ? ['sleep-next-day'] : []),
       ...(canWork ? ['work-parttime'] : []),
       'buy-item',
@@ -452,6 +459,26 @@ globalThis.statusScript = {
           item.entityId === id &&
           (item.holderId === actorId || (item.holderId === null && item.locationId === world.locationId)),
       )
+
+    if (operationId === 'next-slot') {
+      if (truth.public.slot === '深夜') {
+        return {
+          changes: [],
+          reveals: [],
+          audience: 'self',
+          sceneReaction: false,
+          description: '现在已经是深夜了，可以选择「结束今天，休息迎接明天」来恢复精力。',
+        }
+      }
+      const { nextSlot, changes } = advanceSlot(truth)
+      return {
+        changes,
+        reveals: [],
+        audience: 'scene',
+        sceneReaction: false,
+        description: '时间流逝，来到了第 ' + truth.public.day + ' 天的' + nextSlot + '。屋檐下的少女们也各自忙起了手头的事。',
+      }
+    }
 
     if (operationId === 'sleep-next-day') {
       if (truth.public.slot !== '深夜') return { rejectReason: '只有深夜才能结束今天。' }

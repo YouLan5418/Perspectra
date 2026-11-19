@@ -87,13 +87,17 @@ export function admitStatusOperation(input: {
 }
 
 /** The shape of a mechanism's operation result. An author refusal is an answer; a malformed result is a fault. */
-export function parseStatusOperationResult(value: unknown):
+export function parseStatusOperationResult(
+  value: unknown,
+  playerOperation = false,
+):
   | { readonly rejected: string }
   | {
       readonly changes: unknown[]
       readonly reveals: unknown[]
       readonly description: string
       readonly audience: unknown
+      readonly sceneReaction?: false
       readonly items?: unknown
     } {
   const result = object(value, '状态操作结果')
@@ -101,7 +105,9 @@ export function parseStatusOperationResult(value: unknown):
     exact(result, ['rejectReason'])
     return { rejected: text(result.rejectReason, '状态操作拒绝说明') }
   }
-  exact(result, ['changes', 'reveals', 'description', 'audience'], ['items'])
+  exact(result, ['changes', 'reveals', 'description', 'audience'], ['items', 'sceneReaction'])
+  if (Object.hasOwn(result, 'sceneReaction') && (!playerOperation || result.sceneReaction !== false))
+    throw new TypeError('只有玩家状态操作结果可声明 sceneReaction: false')
   if (typeof result.description !== 'string' || result.description.length > 2000)
     throw new TypeError('状态操作结果描述无效')
   if (!Array.isArray(result.changes) || !Array.isArray(result.reveals)) throw new TypeError('状态变化或告知必须是列表')
@@ -110,6 +116,7 @@ export function parseStatusOperationResult(value: unknown):
     reveals: unknown[]
     description: string
     audience: unknown
+    sceneReaction?: false
     items?: unknown
   }
 }

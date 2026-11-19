@@ -20,7 +20,8 @@ const addressed = {
 const plain = { value: { observerId: a, content: { status: 'accepted', actorId: 'character:p' } } }
 const rejected = { value: { observerId: a, content: { status: 'rejected', actorId: 'character:p' } } }
 const own = { value: { observerId: a, content: { status: 'accepted', actorId: a } } }
-const events = [spoken, silent, addressed, plain, rejected, own].map((data, index) => ({
+const passive = { ...plain, sceneReaction: false }
+const events = [spoken, silent, addressed, plain, rejected, own, passive].map((data, index) => ({
   seq: index + 1,
   eventType: 'observation.upsert',
   data,
@@ -77,6 +78,14 @@ it('passes the exact observation values to the turn, even for a sequence not lis
   const { round, calls, signal } = setup()
   await round.turn(a, { signal, stimulusSeqs: [1, 4], maxCalls: 2 })
   expect(calls[0]!.stimulus).toEqual([spoken.value, plain.value])
+})
+
+it('keeps a passive observation available to a separate authorized wakeup source', async () => {
+  const { round, calls, signal } = setup([{ id: 'explicit', nominate: () => [{ characterId: a, stimulusSeqs: [7] }] }])
+  expect(round.observationsSince(6, 7)).toEqual([])
+  expect(round.wakeups!()).toEqual([{ characterId: a, stimulusSeqs: [7], opportunities: 1, sourceIds: ['explicit'] }])
+  await round.turn(a, { signal, stimulusSeqs: [7], maxCalls: 2 })
+  expect(calls[0]!.stimulus).toEqual([passive.value])
 })
 
 it("refuses another character's observation before any model work", async () => {

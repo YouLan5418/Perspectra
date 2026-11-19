@@ -62,6 +62,7 @@ export type Adjudication =
       /** The status event first, then any item changes the author asked for, in order. */
       events: WorldEventDraft[]
       description: string
+      sceneReaction?: false
       observationScope: NonNullable<RulebookResolution['observationScope']>
       /** The actor and the characters in its authorized scene: who a `scene` audience reaches. */
       sceneIds: readonly string[]
@@ -222,6 +223,7 @@ export class StatusRuntime {
               (result.events.find(event => event.eventType === 'status.updated')?.data as WorldJsonObject | undefined)
                 ?.description ?? '',
             ),
+            ...(result.sceneReaction === false ? { sceneReaction: false } : {}),
             observationScope: result.observationScope ?? { scope: 'self' },
             sceneIds: admission.sceneIds,
           }
@@ -256,6 +258,7 @@ export class StatusRuntime {
             targetId: input.targetId ?? null,
             external: external?.data ?? null,
           }),
+      actorId === input.playerId,
     )
     if ('rejected' in result) return { status: 'rejected', reason: result.rejected }
     const changes = result.changes as StatusChange[]
@@ -281,6 +284,7 @@ export class StatusRuntime {
       status: 'accepted',
       events: [{ eventType: 'status.updated', eventVersion: 1, data: data as unknown as WorldJsonObject }, ...items],
       description: result.description,
+      ...(result.sceneReaction === false ? { sceneReaction: false } : {}),
       observationScope,
       sceneIds,
     }
@@ -362,7 +366,12 @@ export class StatusRuntime {
           ...(target.kind === 'entity' ? { targetId: target.id as string } : {}),
         })
         if (result.status === 'accepted')
-          return { status: 'accepted', events: result.events, observationScope: result.observationScope }
+          return {
+            status: 'accepted',
+            events: result.events,
+            observationScope: result.observationScope,
+            ...(result.sceneReaction === false ? { sceneReaction: false } : {}),
+          }
         if (result.reason === CAPABILITY_PENDING) return { status: 'rejected', events: [], reason: CAPABILITY_PENDING }
         // The actor's own attempt failed: it learns why, and nothing about any status value.
         const rejected = rejectRulebookResolution(actorId, 'interact', REJECTED)
@@ -603,7 +612,7 @@ export class StatusRuntime {
               actorId: brandId(playerId, 'CharacterId'),
               actionId,
               action: { actionType: 'interact', parameters },
-              result: { status: 'accepted', events: accepted.events, observationScope: accepted.observationScope },
+              result: accepted,
               description: accepted.description,
             }),
           ),

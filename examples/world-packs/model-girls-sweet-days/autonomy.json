@@ -4,8 +4,8 @@
       "characterId": "character:gpt",
       "triggers": [
         {
-          "activityKey": "schedule",
-          "operation": "next-slot"
+          "actionType": "interact",
+          "definitionId": "status:next-slot"
         },
         {
           "actionType": "interact",
@@ -51,8 +51,8 @@
       "characterId": "character:claude",
       "triggers": [
         {
-          "activityKey": "schedule",
-          "operation": "next-slot"
+          "actionType": "interact",
+          "definitionId": "status:next-slot"
         },
         {
           "actionType": "interact",
@@ -96,8 +96,8 @@
       "characterId": "character:deepseek",
       "triggers": [
         {
-          "activityKey": "schedule",
-          "operation": "next-slot"
+          "actionType": "interact",
+          "definitionId": "status:next-slot"
         },
         {
           "actionType": "interact",
