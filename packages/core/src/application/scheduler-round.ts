@@ -74,7 +74,12 @@ export function createSchedulerRound(input: SchedulerRoundInput): ExecutionSched
       const value =
         seen.get(key(seq, id)) ?? read(seq - 1, seq).find(entry => String(entry.value.observerId) === String(id))?.value
       if (value === undefined) throw new TypeError(`observation ${seq} does not belong to ${id}`)
-      return value
+      // An activity can receive an event as background. Retain the identity of the authorized
+      // observation until the model renderer knows which history rows it will actually send.
+      return input.phase === 'activity' &&
+        typeof (value.content as WorldJsonObject | undefined)?.eventNotice === 'string'
+        ? { ...value, sourceSeq: seq }
+        : value
     })
   const validateTurn = (id: CharacterId, options: SchedulerTurnOptions) => {
     input.validateTurn?.(id, options)

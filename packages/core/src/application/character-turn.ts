@@ -453,9 +453,6 @@ export class CharacterTurn {
             : view.observations.find(record => record.sourceSeq === options.focusObservationSeq)
         if (options.focusObservationSeq !== undefined && !focused)
           throw new Error('focused observation is not in this character view')
-        const background = focused
-          ? recentObservations.filter(record => record.sourceSeq !== focused.sourceSeq)
-          : recentObservations
         const recentSelfObservations =
           afterSeq === undefined
             ? (this.options.recentSelfObservations ?? 8) === 0
@@ -467,9 +464,12 @@ export class CharacterTurn {
           publicationCharacters: this.options.publicationCharacters ?? 2000,
           character: { ...character, locationId: view.locationId },
           stimulus: withAudienceHints(
-            focused ? [focused.value as WorldJsonObject] : (options.stimulus ?? []),
+            focused
+              ? [{ ...(focused.value as WorldJsonObject), sourceSeq: focused.sourceSeq }]
+              : (options.stimulus ?? []),
             characterId,
           ),
+          ...(focused ? { focusObservationSeq: focused.sourceSeq } : {}),
           cognition: new CognitionProjectionRebuilder(this.options.store).rebuildCharacterAt(
             this.options.address,
             characterId,
@@ -486,7 +486,7 @@ export class CharacterTurn {
               name: this.#manifest.characters.find(value => value.characterId === id)?.name ?? id,
             })),
           },
-          observations: background.map(record => {
+          observations: recentObservations.map(record => {
             const value = object(record.value)
             if (value.content === null || typeof value.content !== 'object' || Array.isArray(value.content))
               return record

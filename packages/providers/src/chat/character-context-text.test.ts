@@ -253,3 +253,39 @@ it('puts only the unchanging profile before the growing history, everything that
     'stimulus',
   ])
 })
+
+it('keeps identical notices as separate experiences and uses only a complete visible observation for focus', () => {
+  const notice = { observerId: 'gpt', content: { eventNotice: '灯灭了。' } }
+  const context: Record<string, WorldJsonObject[string]> = {
+    character: { characterId: 'gpt' },
+    observations: [12, 45].map(sourceSeq => ({ sourceSeq, value: notice })),
+    selfObservations: [{ sourceSeq: 20, content: { text: '我去找手电。' } }],
+    activity: { activityKey: 'undercover' },
+    stimulus: [{ ...notice, sourceSeq: 45 }],
+  }
+  const wire = () => JSON.parse(characterRequestText({ context })).context
+  const ordinary = wire()
+  expect(ordinary.stimulus).toEqual([])
+  expect(ordinary.history.map((r: { kind: string }) => r.kind)).toEqual(['observed', 'self', 'observed'])
+  for (const [seq, index] of [
+    [12, 0],
+    [45, 2],
+  ] as const) {
+    context.focusObservationSeq = seq
+    context.stimulus = [{ ...notice, sourceSeq: seq }]
+    expect(wire().stimulus).toEqual([{ observation: `context.history[${index}]` }])
+    expect(wire().history).toEqual(ordinary.history)
+  }
+  // The same words at another sequence and a summary of the target are insufficient.
+  context.observations = [
+    { sourceSeq: 12, value: notice },
+    { sourceSeq: 45, value: { observerId: 'gpt', content: { summary: '雷雨' } } },
+  ]
+  context.memories = [{ text: '灯灭了。' }]
+  expect(wire().stimulus).toEqual([{ content: notice.content }])
+  delete context.focusObservationSeq
+  expect(wire().stimulus).toEqual([{ content: notice.content }])
+  context.observations = [{ sourceSeq: 45, value: notice }]
+  context.history = [{ kind: 'summary', text: '记得一场雷雨' }]
+  expect(wire().stimulus).toEqual([{ content: notice.content }])
+})

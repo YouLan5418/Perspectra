@@ -996,6 +996,15 @@ const wakeCompanion = { recipients: ['character:companion', 'character:friend'] 
 const wakeTransitions = (f: Awaited<ReturnType<typeof fixture>>) =>
   f.history().commits.flatMap(c => (c.a.wakeKey ? [c.a.to] : []))
 
+function focusedNotice(context: {
+  stimulus: { observation?: string; content?: { eventNotice?: string } }[]
+  history: { kind: string; content: { content: { eventNotice?: string } } }[]
+}) {
+  const [item] = context.stimulus
+  const match = /^context\.history\[(\d+)\]$/.exec(item?.observation ?? '')
+  return match ? context.history[Number(match[1])]?.content.content.eventNotice : item?.content?.eventNotice
+}
+
 it('delivers one committed personal event decision outside ordinary autonomy, including retry and reopen', async () => {
   const f = await fixture(1, [], false, undefined, false, wakeCompanion)
   await f.runtime.perform(wait)
@@ -1003,7 +1012,8 @@ it('delivers one committed personal event decision outside ordinary autonomy, in
   const wire = f.stub.calls[0]!.userText
   const context = JSON.parse(wire).context
   expect(context.character.characterId).toBe('character:companion')
-  expect(context.stimulus).toEqual([{ content: { eventNotice: rule.observation } }])
+  expect(context.stimulus).toEqual([{ observation: expect.stringMatching(/^context\.history\[\d+\]$/) }])
+  expect(focusedNotice(context)).toBe(rule.observation)
   expect(wire.split(rule.observation)).toHaveLength(2)
   expect(wire).not.toMatch(/kitchen-blackout|power\.outage@1|wakeRecipients|:witness:/)
   expect(wakeTransitions(f)).toEqual(['claimed', 'completed'])
@@ -1102,7 +1112,7 @@ it('reserves each occurrence separately and leaves excess work pending to the ne
   const companion = ['character:companion']
   const extra = Array.from({ length: 4 }, (_, i) => ({
     id: 'distinct-' + i,
-    observation: '独立事项 ' + i,
+    observation: i < 2 ? '又一声雷响' : '独立事项 ' + i,
     wakeCharacters: companion,
   }))
   const f = await fixture(1, extra, false, undefined, false, { recipients: companion })
@@ -1111,10 +1121,13 @@ it('reserves each occurrence separately and leaves excess work pending to the ne
   expect(wakeTransitions(f).filter(s => s === 'completed')).toHaveLength(4)
   await f.reopen()
   await f.runtime.perform(wait)
-  expect(f.stub.calls.map(c => JSON.parse(c.userText).context.stimulus[0].content.eventNotice)).toEqual([
+  expect(f.stub.calls.map(c => focusedNotice(JSON.parse(c.userText).context))).toEqual([
     rule.observation,
     ...extra.map(e => e.observation),
   ])
+  const duplicateText = f.stub.calls.slice(1, 3).map(c => JSON.parse(c.userText).context)
+  expect(duplicateText[0].history).toEqual(duplicateText[1].history)
+  expect(duplicateText[0].stimulus).not.toEqual(duplicateText[1].stimulus)
   expect(wakeTransitions(f).filter(s => s === 'completed')).toHaveLength(5)
 })
 
@@ -1129,11 +1142,7 @@ it('serves a pending occurrence after ordinary autonomy runs out of its own budg
   const prompts = f.stub.calls.map(c => JSON.parse(c.userText).context)
   expect(prompts.some(c => c.character.characterId === 'character:friend')).toBe(true)
   expect(
-    prompts.filter(
-      c =>
-        c.stimulus?.some((s: { content: { eventNotice?: string } }) => s.content.eventNotice === rule.observation) &&
-        c.character.characterId === 'character:companion',
-    ),
+    prompts.filter(c => focusedNotice(c) === rule.observation && c.character.characterId === 'character:companion'),
   ).toHaveLength(1)
   expect(wakeTransitions(f)).toEqual(['claimed', 'completed'])
   expect(state.debug.autonomy).toMatchObject({ terminalReason: 'call_limit', autonomousCalls: 1 })
@@ -1255,7 +1264,7 @@ it('grants each selected authorized witness its own decision', async () => {
   expect(f.stub.calls.map(c => JSON.parse(c.userText).context.character.characterId)).toEqual(wakeCompanion.recipients)
   for (const { userText } of f.stub.calls) {
     const context = JSON.parse(userText).context
-    expect(context.stimulus).toEqual([{ content: { eventNotice: '电台通知' } }])
+    expect(focusedNotice(context)).toBe('电台通知')
     expect(userText.split('电台通知')).toHaveLength(2)
     if (context.character.characterId === 'character:friend') expect(userText).not.toContain(rule.observation)
   }

@@ -1296,7 +1296,7 @@ it('keeps an event decision pending through actual RPG turns and the following a
   expect(after).toHaveLength(1)
   expect(after[0]).toMatchObject({
     character: { characterId: 'character:gpt' },
-    stimulus: [{ content: { eventNotice: '训练场的顶灯熄灭。' } }],
+    stimulus: [{ observation: expect.stringMatching(/^context\.history\[\d+\]$/) }],
   })
   expect(JSON.stringify(after[0]).split('训练场的顶灯熄灭。')).toHaveLength(2)
 })

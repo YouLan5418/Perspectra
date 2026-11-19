@@ -118,6 +118,14 @@ function ordered(context: WorldJsonObject): WorldJsonObject {
     ...pick(TRAILING),
   ])
 }
+/** Other stimulus fields (e.g. private audience guidance) must stay on the current request. */
+function plainEventNotice(value: WorldJsonValue): string | undefined {
+  if (!isObject(value) || Object.keys(value).length !== 1) return
+  const content = value.content
+  if (isObject(content) && Object.keys(content).length === 1 && typeof content.eventNotice === 'string')
+    return content.eventNotice
+}
+
 /** Final model-only presentation. Host requests, memory evidence and commits retain their original fields. */
 export function characterRequestText(
   request: {
@@ -127,25 +135,62 @@ export function characterRequestText(
   },
   turnInstructions?: string,
 ): string {
-  const { character, observations, selfObservations, cognition, memories, ...dynamic } = request.context
+  const { character, observations, selfObservations, cognition, memories, focusObservationSeq, ...dynamic } =
+    request.context
   const profile = isObject(character)
     ? Object.fromEntries(Object.entries(character).filter(([key]) => key !== 'locationId'))
     : character
-  const history: { seq: number; index: number; entry: WorldJsonObject }[] = []
+  const history: { seq: number; index: number; observer: WorldJsonValue | undefined; entry: WorldJsonObject }[] = []
   const append = (records: WorldJsonValue | undefined, kind: string) => {
     if (!Array.isArray(records)) return
     for (const record of records) {
       if (!isObject(record)) continue
-      // Sequence is used solely to order already-authorized evidence; it is not sent to the model.
+      // Sequence identifies and orders authorized evidence without exposing storage IDs to the model.
       const seq = typeof record.sourceSeq === 'number' ? record.sourceSeq : Number.MAX_SAFE_INTEGER
       const payload = kind === 'observed' ? record.value : record.content
       const { id: _id, observationId: _observationId, sourceSeq: _seq, ...fallback } = record
-      history.push({ seq, index: history.length, entry: { kind, content: evidence(payload ?? fallback) } })
+      history.push({
+        seq,
+        index: history.length,
+        observer: isObject(payload) ? payload.observerId : undefined,
+        entry: { kind, content: evidence(payload ?? fallback) },
+      })
     }
   }
   append(observations, 'observed')
   append(selfObservations, 'self')
   history.sort((left, right) => left.seq - right.seq || left.index - right.index)
+  // Resolve only a complete event notice in this actor's final sorted history. Summaries and
+  // identical words at a different sequence cannot stand in for the selected observation.
+  const stimulus = dynamic.stimulus
+  const actor = isObject(character) ? character.characterId : undefined
+  const renderedStimulus = Array.isArray(stimulus)
+    ? stimulus.flatMap((item): WorldJsonValue[] => {
+        const full = evidence(item)
+        const notice = plainEventNotice(full)
+        if (
+          notice === undefined ||
+          dynamic.history !== undefined ||
+          !isObject(item) ||
+          typeof item.sourceSeq !== 'number' ||
+          typeof actor !== 'string' ||
+          item.observerId !== actor
+        )
+          return [full]
+        const at = history.findIndex(
+          row =>
+            row.seq === item.sourceSeq &&
+            row.observer === actor &&
+            row.entry.kind === 'observed' &&
+            plainEventNotice(row.entry.content!) === notice,
+        )
+        if (at < 0) return [full]
+        if (focusObservationSeq === item.sourceSeq) return [{ observation: `context.history[${at}]` }]
+        return dynamic.activity === undefined ? [full] : []
+      })
+    : stimulus === undefined
+      ? undefined
+      : evidence(stimulus)
   const context: WorldJsonObject = {
     ...(profile === undefined ? {} : { character: profile }),
     history: history.map(row => row.entry),
@@ -168,7 +213,7 @@ export function characterRequestText(
     ...(dynamic.recentExecutionEvidence === undefined
       ? {}
       : { recentExecutionEvidence: evidence(dynamic.recentExecutionEvidence) }),
-    ...(dynamic.stimulus === undefined ? {} : { stimulus: evidence(dynamic.stimulus) }),
+    ...(renderedStimulus === undefined ? {} : { stimulus: renderedStimulus }),
     ...(isObject(character) && character.locationId !== undefined ? { locationId: character.locationId } : {}),
   }
   const { context: _context, ...stage } = request

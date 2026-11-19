@@ -1,6 +1,6 @@
 import { createRoleplayCore } from '../support/roleplay-runtime.ts'
 import { type Server } from 'node:http'
-import { afterEach, expect, it } from 'vitest'
+import { afterEach, expect, it, vi } from 'vitest'
 import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { tmpdir } from 'node:os'
@@ -31,8 +31,8 @@ const find = (value: unknown, test: (o: WorldJsonObject) => boolean): WorldJsonO
   return undefined
 }
 
-/** Everyone starts in the living room; heroines describe in turn and vote for the next heroine in line. */
-async function fixture(atThreshold = false) {
+/** The participants describe in turn and vote for the next heroine in line. */
+async function fixture(atThreshold = false, outageScene?: 'living-room' | 'kitchen') {
   const root = mkdtempSync(join(tmpdir(), 'model-girls-undercover-'))
   cleanup.push(() => rmSync(root, { recursive: true, force: true }))
   const pack = join(root, 'pack'),
@@ -52,33 +52,51 @@ async function fixture(atThreshold = false) {
     ),
   )
   const characters = JSON.parse(readFileSync(join(pack, 'characters.json'), 'utf8'))
-  for (const c of characters.characters) c.initialLocationId = 'location:living-room'
+  for (const c of characters.characters)
+    c.initialLocationId =
+      outageScene && c.characterId === 'character:deepseek' ? 'location:kitchen' : 'location:living-room'
   writeFileSync(join(pack, 'characters.json'), JSON.stringify(characters))
   const scenes = JSON.parse(readFileSync(join(pack, 'scenes.json'), 'utf8'))
   for (const s of scenes.scenes) {
-    s.participantIds =
-      s.locationId === 'location:living-room'
-        ? characters.characters.map((c: { characterId: string }) => c.characterId)
-        : []
+    s.participantIds = characters.characters
+      .filter((c: { initialLocationId: string }) => c.initialLocationId === s.locationId)
+      .map((c: { characterId: string }) => c.characterId)
     s.lifecycle = s.participantIds.length ? 'active' : 'created'
   }
   writeFileSync(join(pack, 'scenes.json'), JSON.stringify(scenes))
+  if (outageScene) {
+    const path = join(pack, 'world-events.json')
+    const { when: _when, sceneNotices: _notices, ...blackout } = JSON.parse(readFileSync(path, 'utf8')).rules[0]
+    writeFileSync(
+      path,
+      JSON.stringify({
+        rules: [{ ...blackout, round: 1, location: 'location:' + outageScene, wakeCharacters: ['character:gpt'] }],
+      }),
+    )
+  }
   const compiled = await compileWorldPackSource(pack, [])
   const status = loadStatus(pack, compiled)!
 
+  const voters = outageScene ? HEROINES.slice(0, 2) : HEROINES
   // What each heroine was shown, by character.
   let holdLastVote = atThreshold
-  const seen: { self: string; text: string }[] = []
+  const seen: { self: string; text: string; leading: string; tools: string }[] = []
   const server: Server = createChatServer((request, response) => {
     let body = ''
     request.on('data', chunk => (body += String(chunk)))
     request.on('end', () => {
-      const user = (JSON.parse(body).messages as { role: string; content: string }[]).findLast(m => m.role === 'user')
+      const payload = JSON.parse(body)
+      const user = (payload.messages as { role: string; content: string }[]).findLast(m => m.role === 'user')
       const input = user?.content.startsWith('{') ? JSON.parse(user.content) : {}
       const activity = find(input, o => o.activityKey === 'undercover' && typeof o.game === 'object')
       const game = activity?.game as WorldJsonObject | undefined
       const self = String(find(input.context, o => typeof o.characterId === 'string')?.characterId ?? '')
-      seen.push({ self, text: JSON.stringify(input) })
+      seen.push({
+        self,
+        text: user?.content ?? '',
+        leading: JSON.stringify(payload.messages.slice(0, payload.messages.indexOf(user))),
+        tools: JSON.stringify(payload.tools),
+      })
       let decision: WorldJsonObject = { decision: 'abstain' }
       if (input.result !== undefined)
         decision = { decision: 'publish', segments: [{ type: 'speech', text: '就这么定了。' }] }
@@ -98,7 +116,7 @@ async function fixture(atThreshold = false) {
             arguments: {
               activityId: String(activity!.id),
               revision: Number(activity!.revision),
-              target: NAMES[HEROINES[(HEROINES.indexOf(self) + 1) % 3]!]!,
+              target: NAMES[voters[(voters.indexOf(self) + 1) % voters.length]!]!,
               reason: '刚才那句太含糊了。',
             },
           },
@@ -127,7 +145,7 @@ async function fixture(atThreshold = false) {
     ),
     timeoutMs: 5000,
     // Isolate the prize check from the independent 30-yuan utility-bill beat.
-    pacingEnabled: atThreshold,
+    pacingEnabled: atThreshold || outageScene !== undefined,
   })
   cleanup.push(() => runtime.close())
   const truth = () => {
@@ -244,4 +262,73 @@ it.each(['player vote', 'retry'] as const)(
       ).not.toContainEqual(expect.objectContaining({ active: true }))
   },
   90_000,
+)
+
+it.each(['living-room', 'kitchen'] as const)(
+  'keeps the %s outage in authorized history during real game turns',
+  async scene => {
+    const witness = scene === 'living-room'
+    const rng = vi.spyOn(Math, 'random').mockReturnValue(0.999)
+    cleanup.push(() => {
+      rng.mockRestore()
+    })
+    const f = await fixture(false, scene)
+    const gpt = () => f.seen.filter(row => row.self === 'character:gpt')
+    const notice = '窗外闷雷滚过，啪的一声，屋里的灯灭了。'
+    await f.request('start', { npcIds: ['character:gpt', 'character:claude'] }, 'deal')
+    expect(f.truth().public['power-on']).toBe(false)
+    expect(gpt()).toHaveLength(0)
+    for (let i = 0; i < 2; i++) await f.runtime.submit('我这个东西很常见。', 'description-' + i)
+    const descriptions = gpt().filter(row =>
+      find(JSON.parse(row.text).context, o => o.phase === 'describe' && o.turn === 'character:gpt'),
+    )
+    expect(descriptions).toHaveLength(2)
+    expect(JSON.parse(descriptions[0]!.text).context.statusChanges).toContainEqual(
+      expect.objectContaining({ key: 'power-on', from: true, to: false }),
+    )
+    for (const row of gpt()) {
+      const ctx = JSON.parse(row.text).context
+      expect(ctx.activity.activityKey).toBe('undercover')
+      expect(find(ctx, o => '我的词' in o)).toBeDefined()
+      expect(ctx.knownStatus).toContainEqual(expect.objectContaining({ key: 'power-on', value: false }))
+      expect(row.text.split(notice).length - 1).toBe(witness ? 1 : 0)
+      expect(JSON.stringify(ctx.history).includes(notice)).toBe(witness)
+      expect(JSON.stringify(ctx.stimulus)).not.toMatch(/eventNotice|context\.history\[/)
+    }
+    const before = gpt().length
+    await f.request('vote', { target: 'GPT', reason: '她的描述。' }, 'final-vote')
+    expect((await f.current()).game).toMatchObject({ active: false, phase: 'finished' })
+    expect(gpt().length - before).toBe(witness ? 1 : 0)
+    if (!witness) return
+    const wake = gpt().at(-1)!
+    const ctx = JSON.parse(wake.text).context
+    const ref = /^context\.history\[(\d+)\]$/.exec(ctx.stimulus[0]?.observation)
+    expect(ref).not.toBeNull()
+    expect(ctx.history[Number(ref![1])].content.content).toEqual({ eventNotice: notice })
+    expect(wake.text.split(notice)).toHaveLength(2)
+    // A real new private message adds a history row after the independent decision.
+    await f.runtime.submit(
+      '/act speak ' +
+        JSON.stringify({ text: 'GPT，游戏结束了吗？', scope: 'private', addresseeIds: ['character:gpt'] }),
+    )
+    const ordinary = gpt().at(-1)!
+    expect(gpt().length - before).toBe(2)
+    const next = JSON.parse(ordinary.text).context
+    expect(JSON.stringify(next.stimulus)).not.toMatch(/eventNotice|context\.history\[/)
+    expect(next.history.slice(0, ctx.history.length)).toEqual(ctx.history)
+    // The previous closing ] becomes a comma when the new row is appended.
+    for (const [from, to] of [
+      [descriptions[0]!, wake],
+      [wake, ordinary],
+    ] as const) {
+      const history = JSON.parse(from.text).context.history
+      const end = from.text.indexOf(',"history":') + ',"history":'.length + JSON.stringify(history).length - 1
+      const prefix = from.text.slice(0, end)
+      expect(prefix).toContain(notice)
+      expect(to.text.startsWith(prefix)).toBe(true)
+      expect(from.leading).toBe(to.leading)
+      expect(from.tools).toBe(to.tools)
+    }
+  },
+  60_000,
 )
