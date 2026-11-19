@@ -216,18 +216,24 @@ it('blocks unauthenticated/opaque-origin access, grants no admin capability and 
       .toString('hex'),
   ).toBe('89504e470d0a1a0a')
 })
-it('deduplicates concurrent submissions and rejects same-ID payload changes', async () => {
+it('deduplicates concurrent submissions and recovers the original outcome by ID without replay or history', async () => {
   let release!: () => void
   const block = new Promise<void>(done => {
     release = done
   })
-  const submit = vi.fn(async () => {
+  const submit = vi.fn<HostRuntime['submit']>(async (_text, _id, onCommitted) => {
     await block
+    onCommitted?.()
     return privateState()
   })
-  const { send } = await fixture({ submit })
+  const { send, url } = await fixture({ submit })
+  const resultUrl = url + '/frontend-api/v1/action?actionId=action:test'
+  const outcome = async () => (await fetch(resultUrl, { headers: { 'x-playtest-token': token } })).json()
+  expect((await fetch(resultUrl)).status).toBe(401)
+  expect(await outcome()).toEqual({ state: 'missing' })
   const first = send('speak', { text: 'hello' })
   await vi.waitFor(() => expect(submit).toHaveBeenCalledOnce())
+  expect(await outcome()).toEqual({ state: 'pending' })
   const duplicate = send('speak', { text: 'hello' }, 'action:test', 'request:retry')
   const conflict = await send('speak', { text: 'different' }, 'action:test', 'request:conflict')
   expect(conflict.status).toBe(400)
@@ -235,6 +241,7 @@ it('deduplicates concurrent submissions and rejects same-ID payload changes', as
   const [a, b] = await Promise.all([first, duplicate])
   expect(a.status).toBe(200)
   expect(await a.json()).toEqual(await b.json())
+  expect(await outcome()).toEqual({ state: 'complete', committed: true, reply: { status: 'ready' } })
   expect(submit).toHaveBeenCalledOnce()
 })
 it('retains failed action IDs and does not execute a failed request again', async () => {

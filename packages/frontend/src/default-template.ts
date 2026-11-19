@@ -579,11 +579,7 @@ export const DEFAULT_SCRIPT = String.raw`(() => {
    for(const [key,spec] of Object.entries(option.argumentSchema?.properties||{})){
      const named=option.characterArguments?.includes(key);
      fields[key]=publicText(spec.title)||publicText(spec.description)||(Object.hasOwn(indexFieldLabels,key)?indexFieldLabels[key]:'')||'参数 '+(Object.keys(fields).length+1);
-     const presentable=value=>value===null||typeof value==='number'||typeof value==='boolean'||!!publicText(value);
-     if(named){
-       if(option.argumentSchema.required?.includes(key)&&!recipients.length)return {reason:'目前没有可选择的角色。'};
-     }else if((Array.isArray(spec.enum)?!spec.enum.every(presentable):!['string','integer','number','boolean'].includes(spec.type))||
-       (spec.default!==undefined&&!presentable(spec.default)))return {reason:'此行动缺少能在索引中显示的选项。'};
+     if(named&&option.argumentSchema.required?.includes(key)&&!recipients.length)return {reason:'目前没有可选择的角色。'};
    }
    if(option.participantSelection&&option.participantSelection.candidates.length<option.participantSelection.min)
      return {reason:'当前可选参与者不足。'};
@@ -1021,6 +1017,8 @@ export const DEFAULT_SCRIPT = String.raw`(() => {
    if(text&&successFeedback.announce(receiptId))node('success-announcement').textContent=text;
  }
  function requestCopy(issue){
+   if(issue.kind==='unknown'&&issue.checked==='pending')return ['仍在处理','主机还在处理原操作。稍后可再检查结果。'];
+   if(issue.kind==='unknown'&&issue.checked==='unmatched')return ['结果未确认','当前记录无法确认这次操作。请先核对记录，再选择继续游戏。'];
    if(issue.kind==='unknown'&&issue.request.battleCommitted)return ['结算结果未确认','主机已确认提交这次出招。请勿重发，可只读检查结果。'];
    if(issue.kind==='unknown')return ['结果未确认',issue.checked==='unreachable'?
      '暂时无法连接以检查结果。操作可能已执行，请勿重发。':
@@ -1046,7 +1044,10 @@ export const DEFAULT_SCRIPT = String.raw`(() => {
    review.hidden=issue.kind==='confirmed'||(issue.kind==='unknown'&&(!withDraft||!node('composer').hidden));
    review.textContent=withDraft?(issue.kind==='unknown'?'查看草稿':'核对草稿'):'重新选择';
    if(!withDraft&&['regenerate','selectCandidate'].includes(issue.request.method))review.textContent='返回阅读';
-   node('dismiss-request').hidden=issue.kind==='unknown';
+   const dismiss=node('dismiss-request'),unmatched=issue.kind==='unknown';
+   dismiss.hidden=unmatched&&(issue.checked!=='unmatched'||checking||!connected||latest?.status==='busy');
+   dismiss.textContent=unmatched?'继续游戏':'×';
+   dismiss.setAttribute('aria-label',unmatched?'继续游戏':'收起操作提示');
  }
  function finishRequest(request){
    const wasUnknown=requestIssue?.kind==='unknown';
@@ -1113,8 +1114,15 @@ export const DEFAULT_SCRIPT = String.raw`(() => {
    const restore=document.activeElement===button;
    checking=true;controls();
    try{
+     const result=await api.request('actionResult',{actionId:request.actionId}).catch(()=>null);
      const refreshed=await refreshRequestView(version);
-     if(pending===request&&requestIssue?.kind==='unknown')requestIssue.checked=refreshed?'unmatched':'unreachable';
+     if(pending!==request||requestIssue?.kind!=='unknown')return;
+     if(!result||!refreshed){requestIssue.checked='unreachable';return}
+     if(result.state==='pending'){requestIssue.checked='pending';return}
+     const outcome=classifyReply(request.method,result.reply,result.failure);
+     if(outcome.kind==='acknowledged'||(outcome.kind==='unknown'&&result.committed)){finishRequest(request);return}
+     if(outcome.kind==='expired'||outcome.kind==='rejected'){setRequestIssue(request,outcome);return}
+     requestIssue.checked='unmatched';
    }finally{
      checking=false;controls();
      if(restore&&(document.activeElement===document.body||document.activeElement===button)){
@@ -1140,7 +1148,13 @@ export const DEFAULT_SCRIPT = String.raw`(() => {
  }
  node('check-result').onclick=checkResult;
  node('review-request').onclick=reviewRequest;
- node('dismiss-request').onclick=()=>{if(requestIssue?.kind!=='unknown'){requestIssue=null;controls()}};
+ node('dismiss-request').onclick=()=>{
+   if(requestIssue?.kind==='unknown'){
+     if(node('dismiss-request').hidden)return;
+     pending=null;requestVersion++;
+   }
+   requestIssue=null;controls();
+ };
  // The opening reads ahead: it may submit while earlier text is still being read.
  function send(method,payload,readingAhead=false){
    const tailOperation=method==='regenerate'||method==='selectCandidate';
@@ -1233,7 +1247,7 @@ export const DEFAULT_SCRIPT = String.raw`(() => {
      let input,read;
      const blank=picker=>{const row=document.createElement('option');row.value='';row.textContent='请选择';picker.append(row)};
      if((option.characterArguments||[]).includes(key)){input=document.createElement('select');blank(input);for(const person of display?.recipients||latest?.scene?.recipients||[]){const item=document.createElement('option');item.value=person.id;item.textContent=person.name;input.append(item)}read=()=>input.value||undefined}
-     else if(Array.isArray(spec.enum)){input=document.createElement('select');blank(input);for(const value of spec.enum){const item=document.createElement('option');item.value=JSON.stringify(value);item.textContent=String(value);input.append(item)}if(spec.default!==undefined)input.value=JSON.stringify(spec.default);read=()=>input.value===''?undefined:JSON.parse(input.value)}
+     else if(Array.isArray(spec.enum)){input=document.createElement('select');blank(input);for(const value of spec.enum){const item=document.createElement('option');item.value=JSON.stringify(value);item.textContent=value!==null&&typeof value==='object'?item.value:String(value);input.append(item)}if(spec.default!==undefined)input.value=JSON.stringify(spec.default);read=()=>input.value===''?undefined:JSON.parse(input.value)}
      else if(spec.type==='boolean'){input=document.createElement('select');blank(input);for(const [value,title] of [['true','是'],['false','否']]){const item=document.createElement('option');item.value=value;item.textContent=title;input.append(item)}if(spec.default!==undefined)input.value=String(spec.default);read=()=>input.value===''?undefined:input.value==='true'}
      else if(spec.type==='integer'||spec.type==='number'){input=document.createElement('input');input.type='number';input.step='any';if(typeof spec.minimum==='number')input.min=String(spec.minimum);if(typeof spec.maximum==='number')input.max=String(spec.maximum);if(spec.default!==undefined)input.value=String(spec.default);read=()=>input.value===''?undefined:Number(input.value)}
      else if(spec.type==='string'){input=document.createElement('input');input.type='text';if(typeof spec.maxLength==='number')input.maxLength=spec.maxLength;if(typeof spec.minLength==='number')input.minLength=spec.minLength;if(spec.default!==undefined)input.value=spec.default;read=()=>input.value===''?undefined:input.value}

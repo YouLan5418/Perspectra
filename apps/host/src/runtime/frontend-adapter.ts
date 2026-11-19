@@ -388,11 +388,23 @@ export function projectPlayerView(state: HostState): PlayerView {
     actions,
   }
 }
+type FrontendActionEntry = {
+  fingerprint: string
+  result: Promise<PlayerView>
+  outcome?:
+    | { state: 'complete'; committed: boolean; reply: Pick<PlayerView, 'status' | 'feedback'> }
+    | { state: 'failed'; committed: boolean; failure: { retryable: boolean; message?: string } }
+}
+
 /** Per-running-session deduplication, including in-flight and failed results. Never evicts IDs. */
 export class FrontendActions {
-  #requests = new Map<string, { fingerprint: string; result: Promise<PlayerView> }>()
+  #requests = new Map<string, FrontendActionEntry>()
   #input: { actionId: string; committed: boolean } | undefined
   constructor(readonly runtime: HostRuntime) {}
+  actionResult(actionId: string) {
+    const request = this.#requests.get(actionId)
+    return request?.outcome ?? { state: request ? ('pending' as const) : ('missing' as const) }
+  }
   async view(): Promise<PlayerView> {
     const input = this.#input,
       committed = input?.committed === true
@@ -529,7 +541,26 @@ export class FrontendActions {
       .finally(() => {
         if (this.#input === input) this.#input = undefined
       })
-    this.#requests.set(request.actionId, { fingerprint, result })
+    const entry: FrontendActionEntry = { fingerprint, result }
+    this.#requests.set(request.actionId, entry)
+    // Only return the original operation's outcome. World and transcript data must be read from the current view.
+    void result.then(
+      ({ status, feedback }) => {
+        entry.outcome = {
+          state: 'complete',
+          committed: input.committed,
+          reply: { status, ...(feedback && { feedback }) },
+        }
+      },
+      error => {
+        const invalid = error instanceof TypeError || error instanceof RangeError
+        entry.outcome = {
+          state: 'failed',
+          committed: input.committed,
+          failure: { retryable: !invalid, ...(invalid ? { message: error.message } : {}) },
+        }
+      },
+    )
     return result
   }
 }

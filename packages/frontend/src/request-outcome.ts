@@ -12,7 +12,7 @@ export function actionReplyOutcome(
     if (
       (method === 'perform' && (message === '该操作不在玩家当前可用操作中' || message === '活动入口已失效，请刷新')) ||
       (method === 'regenerate' && message === '只能重新生成当前世界线的末端回合。') ||
-      (method === 'selectCandidate' && message === '只能切换当前末端回合或候选。')
+      (method === 'selectCandidate' && message === '只能切换当前末端回合的候选。')
     )
       return { kind: 'expired', reason: '原选项已失效，请从当前可用选项重新选择。' }
     if ((method === 'speak' || method === 'perform') && message === '接收对象已不在当前可见场景，请重新选择')

@@ -296,6 +296,25 @@ it('unlocks only the request whose committed action ID appears in the public pro
   ).toBe(false)
   expect(committedInput({ canInterrupt: true }, { actionId: 'action:current' })).toBe(false)
 })
+
+it('offers required and optional structured parameters in the action index', () => {
+  const start = DEFAULT_SCRIPT.indexOf(' function describeIndexInputs(')
+  const end = DEFAULT_SCRIPT.indexOf('\n function indexButton(', start)
+  const describe = runInNewContext('(' + DEFAULT_SCRIPT.slice(start, end).trim() + ')', {
+    publicText: (value: unknown) => (typeof value === 'string' ? value : ''),
+    indexFieldLabels: {},
+  })
+  const option = {
+    argumentSchema: {
+      required: ['pattern'],
+      properties: {
+        pattern: { type: 'object', title: '图样' },
+        accents: { type: 'array', title: '配色', default: [] },
+      },
+    },
+  }
+  expect(describe(option, { people: [] })).toEqual({ fields: { pattern: '图样', accents: '配色' }, recipients: [] })
+})
 it("lists an activity's public state and then what only the player knows", () => {
   const start = DEFAULT_SCRIPT.indexOf(' const activityRows=') + ' const activityRows='.length
   const activityRows = runInNewContext(

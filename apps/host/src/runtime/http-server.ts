@@ -487,6 +487,12 @@ export function createHostServer(
           response.end(audio.bytes)
           return
         }
+        if (request.method === 'GET' && url.pathname === '/frontend-api/v1/action') {
+          const actionId = url.searchParams.get('actionId')
+          if (!actionId || !/^[a-zA-Z0-9:-]{1,100}$/.test(actionId)) throw new TypeError('操作标识无效')
+          json(response, 200, frontendActions.actionResult(actionId))
+          return
+        }
         if (request.method === 'POST' && url.pathname === '/frontend-api/v1/action') {
           if (request.headers['content-type']?.split(';')[0] !== 'application/json')
             throw new TypeError('请求必须是 JSON')

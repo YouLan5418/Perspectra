@@ -220,6 +220,10 @@ iframe{
       try{
         if(JSON.stringify(r).length>(['synthesizeSpeech','selectBgm'].includes(r.method)?100000:Math.max(8192,(playerView?.settings?.inputCharacters||2000)*6+2048))||!r.payload||typeof r.payload!=='object'||Array.isArray(r.payload))throw new Error('前端请求格式无效');
         // These controls belong only to the bundled stage, never to a pack's capability manifest.
+        if(r.method==='actionResult'){
+          if(init.frontend!=='default'||Object.keys(r.payload).join(',')!=='actionId'||typeof r.payload.actionId!=='string'||!/^[a-zA-Z0-9:-]{1,100}$/.test(r.payload.actionId))throw new Error('结果查询无效');
+          reply({ok:true,result:await publicApi('action?actionId='+encodeURIComponent(r.payload.actionId))});return;
+        }
         if(['stagePreferences','saveProgress'].includes(r.method)){
           if(init.frontend!=='default')throw new Error('仅官方默认舞台可使用此操作');
           if(r.method==='stagePreferences'){

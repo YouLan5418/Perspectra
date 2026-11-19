@@ -6,6 +6,12 @@ it('only classifies established preflight rejections as not executed', () => {
     actionReplyOutcome('perform', undefined, { retryable: false, message: '该操作不在玩家当前可用操作中' }),
   ).toMatchObject({ kind: 'expired' })
   expect(
+    actionReplyOutcome('selectCandidate', undefined, {
+      retryable: false,
+      message: '只能切换当前末端回合的候选。',
+    }),
+  ).toMatchObject({ kind: 'expired' })
+  expect(
     actionReplyOutcome('speak', undefined, {
       retryable: false,
       message: '接收对象已不在当前可见场景，请重新选择',
