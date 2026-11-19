@@ -32,7 +32,11 @@ export function guardedActivities(
     }
   }
   const entries = instance.entries.map((entry): ActivityInstance => {
-    if (!declared.delete(entry.key) || typeof entry.hasAutoStart !== 'boolean')
+    if (
+      !declared.delete(entry.key) ||
+      typeof entry.hasAutoStart !== 'boolean' ||
+      (entry.canStart !== undefined && typeof entry.canStart !== 'function')
+    )
       throw invalidPluginResult(context, providerId, 'open:entries')
     for (const method of [
       'hasResume',
@@ -53,6 +57,16 @@ export function guardedActivities(
       ...(entry.phases === undefined ? {} : { phases: structuredClone(entry.phases) }),
       definition: structuredClone(entry.definition),
       hasAutoStart: entry.hasAutoStart,
+      ...(entry.canStart === undefined
+        ? {}
+        : {
+            canStart: world =>
+              guard('canStart', entry.key, () => {
+                const result = entry.canStart!(structuredClone(world))
+                if (typeof result !== 'boolean') throw invalidPluginResult(context, providerId, 'canStart')
+                return result
+              }),
+          }),
       hasResume: () => guard('hasResume', entry.key, entry.hasResume.bind(entry)),
       initialize: (input, random) =>
         guard('initialize', entry.key, () => entry.initialize(structuredClone(input), hostCapability(context, random))),

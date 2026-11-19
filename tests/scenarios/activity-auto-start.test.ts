@@ -46,6 +46,7 @@ async function fixture(
   hooks: { guess?: string; other?: string },
   dynamicOther = false,
   openings: { guess?: string; other?: string } = {},
+  eligibility: { guess?: string; other?: string } = {},
 ) {
   const root = mkdtempSync(join(tmpdir(), 'auto-start-'))
   roots.push(root)
@@ -68,6 +69,7 @@ async function fixture(
         "participants: { mode: 'player-select', min: 1, max: 1 }",
       )
     if (hooks[key] !== undefined) source += '\nactivityScript.autoStart = ' + hooks[key] + ';\n'
+    if (eligibility[key] !== undefined) source += '\nactivityScript.canStart = ' + eligibility[key] + ';\n'
     writeFileSync(join(pack, 'scripts/activities', key + '.js'), source)
   }
   writeFileSync(join(pack, 'scripts/status.js'), statusScript)
@@ -183,6 +185,47 @@ it('offers no manual start while the autoStart conditions are unmet, and refuses
     }),
   ).rejects.toThrow('开始条件尚未满足')
   expect(f.events().filter(event => event.eventType === 'activity.updated')).toHaveLength(0)
+})
+
+it('requires eligibility for both paths but only autoStart nominates', async () => {
+  const f = await fixture(
+    { guess: '() => ({when:[false]})', other: '() => ({when:[true]})' },
+    false,
+    {},
+    { guess: '() => true', other: '() => false' },
+  )
+  await f.runtime.submit('/status wait {}')
+  expect(f.starts()).toHaveLength(0)
+  const views = (await f.runtime.state()).activities!
+  expect(views.find(a => a.activityKey === 'guess')?.manualStart).not.toBe(false)
+  expect(views.find(a => a.activityKey === 'other')?.manualStart).toBe(false)
+  await f.runtime.activityAction({
+    activityKey: 'guess',
+    activityId: null,
+    revision: 0,
+    operation: 'start',
+    parameters: {},
+    requestId: 'manual-eligible',
+  })
+  expect(f.starts()).toHaveLength(1)
+})
+
+it('accepts a nomination with eligibility and rejects a non-boolean manual hook', async () => {
+  const f = await fixture({ guess: '() => ({when:[true]})' }, false, {}, { guess: '() => true', other: '() => "yes"' })
+  expect((await f.runtime.state()).activities!.find(a => a.activityKey === 'other')?.manualStart).toBe(false)
+  await expect(
+    f.runtime.activityAction({
+      activityKey: 'other',
+      activityId: null,
+      revision: 0,
+      operation: 'start',
+      parameters: {},
+      requestId: 'invalid-eligibility',
+    }),
+  ).rejects.toThrow()
+  expect(f.starts()).toHaveLength(0)
+  await f.runtime.submit('/status wait {}')
+  expect(f.starts().map(event => data(event).activityKey)).toEqual(['guess'])
 })
 
 it('prefers the candidate with more conditions and breaks ties with the recorded round random', async () => {

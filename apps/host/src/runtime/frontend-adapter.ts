@@ -115,7 +115,7 @@ export function projectPlayerView(state: HostState): PlayerView {
   for (const activity of activities) {
     const active = (activity.game as WorldJsonObject | undefined)?.active === true
     if (!active && foreground) continue
-    // An activity with autoStart lists its start only while the author's conditions hold.
+    // The host checks the author's start conditions against its current snapshot.
     if (!active && activity.suspended !== true && activity.manualStart === false) continue
     const quick =
       !active && activity.suspended !== true && Array.isArray(activity.quickOperations)

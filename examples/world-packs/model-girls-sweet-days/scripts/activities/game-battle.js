@@ -81,12 +81,11 @@ globalThis.activityScript = {
       { id: 'quit', label: '退出像素 RPG', requiresTurn: false, schema: none },
     ],
   },
-  initialize({ playerId, npcIds, world }) {
-    if (
-      world.locationId !== 'location:living-room' ||
-      !world.items.current.some(item => item.entityId === 'entity:game-console')
-    )
-      throw new TypeError('请在客厅游戏机旁开始 RPG。')
+  canStart(world) {
+    return world.locationId === 'location:living-room' &&
+      world.items.current.some(item => item.entityId === 'entity:game-console')
+  },
+  initialize({ playerId, npcIds }) {
     const party = [playerId, ...npcIds].map(id => ({ id, hp: 24, maxHp: 24, mp: 4, guard: false }))
     const enemyMaxHp = 35 + party.length * 12
     const game = {

@@ -221,12 +221,12 @@ export class ActivityRuntime {
       activityKey: this.key,
       suspended: member && state?.suspendedTurn !== undefined,
       available: actorId === this.playerId,
-      // A running or paused activity has no start condition to check (autoStartCandidate would return undefined).
+      // A running or paused activity has no new start to offer.
       ...(starting &&
       actorId === this.playerId &&
       !state?.game.active &&
       state?.suspendedTurn === undefined &&
-      this.hasAutoStart &&
+      (this.#mechanism.canStart !== undefined || this.hasAutoStart) &&
       !this.#manualStartAllowed(read())
         ? { manualStart: false }
         : {}),
@@ -639,12 +639,13 @@ export class ActivityRuntime {
     if (current?.game.active || current?.suspendedTurn !== undefined) return undefined
     const truth = snapshot.truth(this.status)
     const world = snapshot.worldView(this.playerId)
+    if (this.#mechanism.canStart && !this.#mechanism.canStart(world)) return undefined
     const previous = current ? this.scoped(structuredClone(current), this.playerId) : null
     const output = this.#mechanism.autoStart(truth, world, previous)
     return parseActivityAutoStart(output, this.participantSelection)
   }
 
-  #startState(snapshot: ActivityWorld, parameters: WorldJsonObject) {
+  #startState(snapshot: ActivityWorld, parameters: WorldJsonObject, manual: boolean) {
     this.#bindings.native?.admitActivityControl(snapshot.events, this.playerId, 'start', this.key)
     const current = this.state(snapshot.events)
     if (
@@ -652,6 +653,7 @@ export class ActivityRuntime {
       current?.suspendedTurn !== undefined
     )
       throw new TypeError('已有活动或存在暂停进度')
+    if (!this.#startAllowed(snapshot, manual)) throw new TypeError('这场活动的开始条件尚未满足')
     if (this.participantSelection) exact(parameters, ['npcIds'])
     else if (Object.keys(parameters).length) throw new TypeError('开始操作没有参数')
     const npcIds = this.participantSelection ? strings(parameters.npcIds) : this.npcIds
@@ -698,7 +700,7 @@ export class ActivityRuntime {
     cycleId: string,
     auto: { notice?: string; sceneNotice?: string },
   ) {
-    const state = this.#startState(snapshot, parameters),
+    const state = this.#startState(snapshot, parameters, false),
       actionId = cycleId + ':activity:' + this.key
     const description = this.title + '开始。',
       notice = auto.notice ?? this.opening ?? auto.sceneNotice
@@ -748,10 +750,15 @@ export class ActivityRuntime {
     return effects
   }
 
-  /** A script with autoStart offers its manual start only while the same conditions all hold. */
-  #manualStartAllowed(snapshot?: ActivityWorld): boolean {
+  #startAllowed(snapshot: ActivityWorld, manual: boolean): boolean {
+    if (this.#mechanism.canStart) return this.#mechanism.canStart(snapshot.worldView(this.playerId))
+    // Older scripts used the nomination conditions for manual starts too.
+    return !manual || this.autoStartCandidate(snapshot)?.met !== false
+  }
+
+  #manualStartAllowed(snapshot: ActivityWorld): boolean {
     try {
-      return this.autoStartCandidate(snapshot)?.met !== false
+      return this.#startAllowed(snapshot, true)
     } catch {
       // A broken hook hides the entry; apply re-runs it and reports the error, as automatic starts do.
       return false
@@ -763,8 +770,6 @@ export class ActivityRuntime {
     auto?: { notice?: string; sceneNotice?: string },
     quiet = false,
   ): Promise<boolean> {
-    if (request.operation === 'start' && auto === undefined && this.autoStartCandidate()?.met === false)
-      throw new TypeError('这场活动的开始条件尚未满足')
     if (request.activityId === null && this.#rules.operations.some(op => op.quick && op.id === request.operation)) {
       // Two ordinary commits: a management start, then the counted operation. A retry reuses both request IDs.
       // The player made one action, so only the operation's own result is shown.
@@ -822,6 +827,7 @@ export class ActivityRuntime {
             state = this.#startState(
               activityWorldFromEvents(this.worldPath, this.address, head.headSeq, events, manifest),
               request.parameters,
+              auto === undefined,
             )
             description = this.title + '开始。'
             observerIds = state.participants

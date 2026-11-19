@@ -44,6 +44,8 @@ export interface ActivityInstance {
   readonly phases?: readonly string[]
   readonly definition: unknown
   readonly hasAutoStart: boolean
+  /** Pure eligibility from the player-visible world. Its presence never nominates an automatic start. */
+  readonly canStart?: (world: WorldJsonObject) => boolean
   hasResume(): boolean
   /** Random draws are recorded by the core and expire when this synchronous call returns. */
   initialize(input: WorldJsonObject, random: () => number): unknown

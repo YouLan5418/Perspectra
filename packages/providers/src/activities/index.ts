@@ -35,14 +35,31 @@ export class ActivityScript implements ActivityInstance {
   readonly key: string
   readonly definition: unknown
   readonly hasAutoStart: boolean
+  readonly canStart?: (world: WorldJsonObject) => boolean
   constructor(source: Extract<ActivitySourceEntry, { readonly source: string }>) {
     this.key = source.key
     this.#script = new Script(
       source.source +
-        '\nJSON.stringify(__method === "definition" ? activityScript.definition : __method === "hasResume" ? typeof activityScript.resume === "function" : __method === "hasAutoStart" ? activityScript.autoStart !== undefined : (["simulate","onPublished","resume","autoStart"].includes(__method) && activityScript[__method] === undefined) ? null : activityScript[__method](...JSON.parse(__args)))',
+        `
+JSON.stringify((() => {
+  switch (__method) {
+    case "definition": return activityScript.definition
+    case "hasResume": return typeof activityScript.resume === "function"
+    case "startHooks": return { eligibility: activityScript.canStart !== undefined, auto: activityScript.autoStart !== undefined }
+  }
+  if (["simulate", "onPublished", "resume", "autoStart"].includes(__method) && activityScript[__method] === undefined) return null
+  return activityScript[__method](...JSON.parse(__args))
+})())`,
     )
     this.definition = this.#call('definition', [])
-    this.hasAutoStart = this.#call('hasAutoStart', []) === true
+    const hooks = this.#call('startHooks', []) as { eligibility: boolean; auto: boolean }
+    this.hasAutoStart = hooks.auto
+    if (hooks.eligibility)
+      this.canStart = world => {
+        const result = this.#call('canStart', [world])
+        if (typeof result !== 'boolean') throw new TypeError('canStart 必须返回布尔值')
+        return result
+      }
   }
   hasResume() {
     return this.#call('hasResume', []) === true

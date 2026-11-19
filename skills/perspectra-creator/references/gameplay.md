@@ -63,7 +63,8 @@ changes 是 `{ holderId, key, value }`，整体替换该键（公共状态 holde
 - definition：`{ title, npcIds | participants, operations, opening? }`。npcIds 固定参与者；`participants: { mode: 'player-select', min, max, candidates? }` 让玩家选人（1–8 个 NPC）。operations 每项 `{ id, label, requiresTurn, schema, quick? }`，最多 16 项；start、retry、suspend、resume、abandon 为保留名。opening 是 1–500 字的玩家开场文案。
 - initialize、policy、resolve：生成初始状态、限定当前角色可用的操作、同步裁定操作。resolve 也可以附带状态变化，或返回 `playerExpression: { text }`／`{ narration }` 在玩家明确选择的操作中提交公开发言或旁白。
 - schedule / onOutcome：等待，或给一个已声明角色一次处理机会；它们收到完整活动状态（含 internal 和所有人的 private），输出只有这一次激活，不进入任何视图。
-- 可选：autoStart(truth, world, previous) 在玩家回合结束时按 `when` 全部为真自动开始（每项是布尔值，或 `[标签, 布尔值]`，如 `['时段是深夜', truth?.public?.slot === '深夜']`；标签 1–80 字符，只给包透视显示条件名，不影响判定，建议都写），写了它的活动手动开始也要满足同一组条件；`quick: true` 让仅有玩家、无参数的操作一键开始并执行；simulate 返回固定演出替代一次模型响应；resume 检查暂停后能否继续。
+- 包内活动脚本可声明同步纯函数 `canStart(world): boolean`。它只读玩家视角，供入口展示和提交时复核。只声明它不会自动开始；同时声明 autoStart 时，自动开始还须获得提名。返回 false 时不公开原因。
+- 可选：autoStart(truth, world, previous) 在玩家回合结束时按 `when` 全部为真自动开始（每项是布尔值，或 `[标签, 布尔值]`，如 `['时段是深夜', truth?.public?.slot === '深夜']`；标签 1–80 字符，只给包透视显示条件名，不影响判定，建议都写），没有单独声明资格时，手动开始沿用同一组条件；`quick: true` 让仅有玩家、无参数的操作一键开始并执行；simulate 返回固定演出替代一次模型响应；resume 检查暂停后能否继续。
 
 可见范围：public 是参与者共享，不是全世界公开；private 每人只拿到自己的一份，玩家那份会显示在玩家的活动卡片上；internal 不进任何角色视图。active、phase、turn、round 每个参与者都看得到，所以隐藏回合（比如夜里轮到谁）不能写在 turn 里：公开 turn 停在一个不变的中性值，真实行动者记在 internal，并在本人 private 里标“轮到你”，相关操作 `requiresTurn: false`，resolve 自己核对，schedule 读 internal 叫醒对的人。这样做只让其他角色不知道轮到谁；默认舞台只显示“正在回复”，但公共 PlayerView 的 `responders` 仍列出正在处理的角色，活动 revision 也随夜间操作增加，所以不要对玩家宣称接口层面已隐藏。活动不能移动角色、不会自动暂停正在运行的活动，也不替角色决定是否接受邀请或怎样行动。
 

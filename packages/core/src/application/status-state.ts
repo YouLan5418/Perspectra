@@ -87,7 +87,12 @@ export function publicStatusChanges(
   const own = events.findLast(
     event => event.eventType === 'action.resolved' && object(event.data, '行动结果').actorId === actorId,
   )
-  const baseline = own ? updates.filter(event => event.seq <= own.seq) : updates.slice(0, 1)
+  // Native and pack-owned keys can be initialized by separate commits. For a role's first
+  // decision compare against the entire initial prefix, stopping before the first actual change.
+  const firstChange = own ? undefined : updates.find(event => statusData(event).source.kind !== 'initial')
+  const baseline = own
+    ? updates.filter(event => event.seq <= own.seq)
+    : updates.filter(event => !firstChange || event.seq < firstChange.seq)
   const before = new Map(
     status
       .known(baseline, actorId)

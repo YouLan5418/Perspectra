@@ -87,15 +87,18 @@ async function fixture(
   const status = loadStatus(pack, compiled)!
   // Context of every character request, in call order, for tests that check what a character was told.
   const contexts: WorldJsonObject[] = []
+  const requests: { actorId: string; messages: { role: string; content: string }[] }[] = []
   const server = createChatServer((request, response) => {
     let body = ''
     request.on('data', chunk => (body += String(chunk)))
     request.on('end', () => {
-      const user = (JSON.parse(body).messages as { role: string; content: string }[]).findLast(m => m.role === 'user')
+      const messages = JSON.parse(body).messages as { role: string; content: string }[]
+      const user = messages.findLast(m => m.role === 'user')
       let answer = decision
       if (user?.content.startsWith('{"context"')) {
         const input = JSON.parse(user.content)
         contexts.push(input.context)
+        requests.push({ actorId: input.context.character.characterId, messages })
         const activity = input.context.activity
         if (battleAgent && activity?.activityKey === 'game-battle' && activity.game?.active) {
           const self = input.context.character.characterId
@@ -170,7 +173,7 @@ async function fixture(
   const holder = (id: string) => currentEntityState(events(), id)?.holderId
   const truth = () => status.truth(events())
   const known = (id: string) => status.known(events(), id)
-  return { runtime, events, view, actions, act, kind, holder, truth, known, contexts }
+  return { runtime, events, view, actions, act, kind, holder, truth, known, contexts, requests }
 }
 
 it('plays the complete prologue and enters the first morning with committed dialogue', async () => {
@@ -514,6 +517,55 @@ it('reveals the gift incident only to its witnesses and can trigger another inci
   expect((await f.runtime.state()).activity).toMatchObject({ activityKey: 'jealousy-moment' })
 })
 
+it('offers the living-room RPG only at its console and rechecks stale starts before committing', async () => {
+  const f = await fixture()
+  const entry = () =>
+    f
+      .actions()
+      .then(actions =>
+        actions.find(
+          a =>
+            a.action.parameters.activityKey === 'game-battle' &&
+            (a.action.parameters.definitionRef as WorldJsonObject)?.id === 'host:activity-start',
+        ),
+      )
+  const start = {
+    activityKey: 'game-battle',
+    activityId: null,
+    revision: 0,
+    operation: 'start',
+    parameters: { npcIds: ['character:gpt'] },
+    requestId: 'console-start',
+  }
+  const offered = (await entry())!.action
+  await f.act('前往 玄关与街角商店')
+  expect(await entry()).toBeUndefined()
+  await expect(
+    f.runtime.perform({ ...offered, parameters: { ...offered.parameters, startParameters: start.parameters } }),
+  ).rejects.toThrow('开始条件尚未满足')
+  await expect(f.runtime.activityAction(start)).rejects.toThrow('开始条件尚未满足')
+  const starts = () =>
+    f
+      .events()
+      .filter(
+        e =>
+          e.eventType === 'activity.updated' &&
+          (e.data as WorldJsonObject).activityKey === 'game-battle' &&
+          (e.data as WorldJsonObject).operation === 'start',
+      )
+  expect(starts()).toHaveLength(0)
+  await f.act('前往 客厅')
+  expect(await entry()).toBeDefined()
+  expect(starts()).toHaveLength(0)
+  await f.runtime.activityAction(start)
+  await f.runtime.activityAction(start)
+  await expect(f.runtime.activityAction({ ...start, requestId: 'another-start' })).rejects.toThrow()
+  await f.act('退出像素 RPG')
+  await f.act('前往 玄关与街角商店')
+  await f.runtime.activityAction(start)
+  expect(starts()).toHaveLength(1)
+})
+
 it('plays a cooperative RPG to victory with characters choosing their own actions', async () => {
   const f = await fixture({ 'character:claude': 'location:living-room' }, { decision: 'abstain' }, false, true)
   const before = f.truth()
@@ -533,6 +585,14 @@ it('plays a cooperative RPG to victory with characters choosing their own action
   )?.game
   expect(game).toMatchObject({ active: false, phase: 'victory' })
   const events = JSON.stringify(f.events())
+  expect(f.contexts).toContainEqual(
+    expect.objectContaining({
+      activity: expect.objectContaining({
+        activityKey: 'game-battle',
+        game: expect.objectContaining({ active: true }),
+      }),
+    }),
+  )
   expect(events).toContain('GPT普通攻击')
   expect(events).toContain('Claude普通攻击')
   expect(events).toContain('屏幕亮起通关画面')
@@ -858,6 +918,51 @@ it('uses the aquarium ticket once, at the aquarium in the evening with a compani
   expect(f.kind('entity:aquarium-ticket')).toMatch(/^已检票的/u)
   expect(f.truth().characters['character:gpt']!['mood-note']).toContain('水族馆夜场')
   expect((await f.actions()).map(a => a.label)).not.toContain(enter)
+})
+
+it('sends each role only its committed blackout observation in the next normal decision', async () => {
+  const f = await fixture(
+    { 'character:deepseek': 'location:amusement-park', 'character:claude': 'location:aquarium' },
+    undefined,
+    false,
+    false,
+    false,
+    { autonomyOpportunities: 0 },
+    2,
+  )
+  await f.act('前往 玄关与街角商店')
+  await f.act('外出兼职打工（+120元 · 消耗1精力并度过1时段）')
+  await f.act('付款购买游乐园四人家庭套票')
+  await f.act('前往 游乐园')
+  const beforeRide = f.contexts.length
+  await f.act('用游乐园四人家庭套票和在场的人玩一趟游乐园（度过1时段）')
+  // The park visit itself gives its participant a normal turn before the separate outage settles.
+  // No role gets an additional decision when the event commits.
+  const rideTurns = f.contexts.slice(beforeRide)
+  expect(rideTurns.map(turn => (turn.character as WorldJsonObject).characterId)).toEqual(['character:deepseek'])
+  expect(rideTurns[0]!.knownStatus).toContainEqual(expect.objectContaining({ key: 'power-on', value: true }))
+  expect(outage(f)).toEqual({ 'character:player': distant, 'character:gpt': direct, 'character:deepseek': distant })
+  expect(JSON.stringify(f.requests)).not.toContain(direct)
+  expect(JSON.stringify(f.requests)).not.toContain(distant)
+  for (const [actor, notice] of [
+    ['character:gpt', direct],
+    ['character:deepseek', distant],
+    ['character:claude', null],
+  ] as const) {
+    const before = f.requests.length
+    const name = { 'character:gpt': 'GPT', 'character:deepseek': 'DeepSeek', 'character:claude': 'Claude' }[actor]
+    await f.act('给 ' + name + ' 发短信', { text: '现在方便聊天吗？' })
+    const next = f.requests.slice(before)
+    expect(next.map(row => row.actorId)).toEqual([actor])
+    const wire = JSON.stringify(next[0]!.messages)
+    expect(wire.split(direct).length - 1).toBe(notice === direct ? 1 : 0)
+    expect(wire.split(distant).length - 1).toBe(notice === distant ? 1 : 0)
+    expect(wire).not.toMatch(/day-two-blackout|power\.outage@1|clockTransaction|sceneNotices/)
+    const context = f.contexts.at(-1)!
+    expect(context.knownStatus).toContainEqual(expect.objectContaining({ key: 'power-on', value: false }))
+    expect(context.statusChanges).toContainEqual(expect.objectContaining({ key: 'power-on', from: true, to: false }))
+    if (notice) expect(JSON.stringify(context.history)).toContain(notice)
+  }
 })
 
 it('takes whoever is present to the amusement park with the family passes', async () => {
