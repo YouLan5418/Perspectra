@@ -1,6 +1,6 @@
 # 受信任活动专属舞台
 
-例如遗迹战斗显示血量与技能，计数实验显示计数与操作；宿主仍提供“切回默认界面”和强制退出。两者共享同一注册、授权、传输和 perform 路径。世界包不能上传 HTML/JS、远程模块或声明新权限来取得舞台代码执行权。
+例如遗迹战斗显示血量与技能，计数实验显示计数与操作；宿主仍提供「回场景看看」「返回活动」和独立的「中止活动」。两者共享同一注册、授权、传输和 perform 路径。世界包不能上传 HTML/JS、远程模块或声明新权限来取得舞台代码执行权。
 
 ## 注册和输入
 
@@ -38,7 +38,7 @@ factory 是编译进既有默认静态资产的自包含函数，不允许捕获
 
 ## RPG 与验证夹具
 
-RPG `content.ts` 用 playerView 产生通用 stage；`battle-presentation.ts` 和 `stage-renderer.ts` 位于 RPG 包。通用 SDK、WorldHostCore、默认模板不再认识 RPG 类型、技能或模式。原 `officialRpgBattleView` 仍是 RPG 内部白名单投影，不是独立 Host 注册途径。
+RPG `content.ts` 用 playerView 产生通用 stage；`battle-presentation.ts` 和 `stage-renderer.ts` 位于 RPG 包。RPG 专属界面以当前角色和双方状态为主，按选择技能、选择合法目标、确认的顺序展示操作。技能与目标取玩法投影和当前操作参数约束的交集，提交沿用宿主 perform。战斗记录按需展开；有未读时，默认前端只显示当前叙事及继续、跳过入口，读完后再显示最新战况。默认前端仅向 RPG 渲染器传递浏览器侧提交状态及已授权的当前自身魔力；已有投影未提供精确技能消耗。其他活动沿用各自的渲染与回退路径。原 `officialRpgBattleView` 仍是 RPG 内部白名单投影，不是独立 Host 注册途径。
 
 计数实验是测试侧受信任原生活动，拥有自己的声明、操作、状态和 playerView；不是把 RPG payload 改名，也没有使用 TRPG GM 数据。可复制其模式接入另一种本地可信活动，但本批不提供世界包任意 UI 加载器。
 

@@ -212,6 +212,50 @@ describe('player-facing playtest transcript', () => {
     expect(JSON.stringify(transcript)).not.toContain('entity:brass-key')
   })
 
+  it('recognizes a pickup only in the acting player’s complete, committed custody observation', () => {
+    const player = brandId('character:player', 'CharacterId'),
+      other = brandId('character:bob', 'CharacterId')
+    const transfer = {
+      characterId: player,
+      entityId: 'entity:cup',
+      fromHolderId: null,
+      fromLocationId: 'location:room',
+      toHolderId: player,
+      toLocationId: null,
+    }
+    const content = { status: 'accepted', actorId: player, actionType: 'interact', interaction: transfer }
+    const envelope = { observerId: player, actionId: 'action:committed', content }
+    const observed = [
+      envelope,
+      { ...envelope, observerId: other },
+      { ...envelope, content: { ...content, status: 'rejected' } },
+      { ...envelope, content: { ...content, actionType: 'private_interaction', contentVisibility: 'occurrence_only' } },
+      {
+        ...envelope,
+        content: { ...content, actorId: other, interaction: { ...transfer, characterId: other, fromHolderId: other } },
+      },
+      { ...envelope, content: { ...content, interaction: { entityId: 'entity:cup', toHolderId: player } } },
+      { ...envelope, actionId: undefined },
+      { ...envelope, content: { ...content, resultDescription: '茶杯 已交由玩家保管。', interaction: undefined } },
+    ]
+    const view = {
+      characterId: player,
+      observations: observed.map((value, i) => ({ value, sourceSeq: i + 1 })),
+    } as unknown as CharacterView
+    const results: number[] = []
+    const lines = playerTranscript(
+      view,
+      new Map(),
+      player,
+      { entityNames: new Map([['entity:cup', '茶杯']]) },
+      (_id, seq, pickup) => {
+        if (pickup) results.push(seq)
+      },
+    )
+    expect(results).toEqual([1])
+    expect(JSON.stringify(lines)).not.toMatch(/entity:cup|toHolderId|action:committed/)
+  })
+
   it('keeps the runtime identity when the author declared no Entity label', () => {
     const player = brandId('character:player', 'CharacterId')
     const address = {

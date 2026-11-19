@@ -110,6 +110,8 @@ export interface PlayerView {
     id: string
     name: string
     kind: string
+    /** Authorized result row for this held item. Absent on older views. */
+    pickupResultSeq?: number
     where: 'held' | 'here' | 'with'
     holderId?: string
     holderName?: string

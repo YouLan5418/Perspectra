@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "components": {
+    "inventory": {"anchor":"toolbar","order":2,"label":"行囊","icon":"bag","shape":"soft","tone":"forest","narrow":{"anchor":"story","order":8}},
+    "nearby": {"anchor":"toolbar","order":1,"label":"四下看看","icon":"diamond","shape":"pill","tone":"forest","narrow":{"anchor":"toolbar"}},
+    "sendAudience": {"anchor":"footer-inset","size":"large","icon":"arrow","tone":"indigo","narrow":{"anchor":"footer-end","size":"standard"}},
+    "identity": {"anchor":"above-waist","icon":"dots","shape":"soft","tone":"indigo","narrow":{"anchor":"waist","size":"large"}}
+  }
+}

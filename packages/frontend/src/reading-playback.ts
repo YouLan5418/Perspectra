@@ -69,6 +69,9 @@ export function createReadingPlayback() {
     current() {
       return units[cursor] ?? units.at(-1)
     },
+    lastRead() {
+      return cursor > 0 ? units[cursor - 1] : undefined
+    },
     advance() {
       if (cursor < units.length) cursor++
     },

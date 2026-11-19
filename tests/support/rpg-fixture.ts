@@ -64,10 +64,10 @@ export async function openRpgWorld(
   options: Pick<RpgFixtureOptions, 'decide' | 'composition'> = {},
 ) {
   const inputs: WorldJsonObject[] = []
-  const provider = await startFakeProvider('openai', call => {
+  const provider = await startFakeProvider('openai', async call => {
     const input = JSON.parse(call.userText) as WorldJsonObject
     inputs.push(input)
-    return { tool: options.decide?.(input) ?? { decision: 'abstain' } }
+    return { tool: (await options.decide?.(input)) ?? { decision: 'abstain' } }
   })
   let runtime: WorldHostRuntime
   try {

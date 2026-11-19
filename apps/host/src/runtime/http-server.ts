@@ -63,6 +63,8 @@ export interface HostState {
     readonly id: string
     readonly name: string
     readonly kind: string
+    /** Visible row confirming the latest pickup, only while this player holds the item. */
+    readonly pickupResultSeq?: number
     readonly where: 'held' | 'here' | 'with'
     readonly holderId?: string
     readonly holderName?: string
@@ -336,6 +338,7 @@ export function createHostServer(
         if (request.method === 'GET' && url.pathname === '/frontend-api/v1/init') {
           const plain = url.searchParams.get('template') === 'default'
           const useDefault = plain || !packWeb?.page
+          const stageConfig = packWeb?.components ? { characters: {}, ...stage, components: packWeb.components } : stage
           const capabilities = useDefault ? [...FRONTEND_CAPABILITIES] : [...packWeb!.manifest.capabilities]
           if (!useDefault && policy.mode === 'trusted') capabilities.push('external-network', 'browser-storage')
           if (
@@ -357,7 +360,7 @@ export function createHostServer(
             ...(useDefault
               ? {
                   canSave: !!runtime.saveNode && runtime.supportsHistoryRestore?.() !== false,
-                  ...(plain || !stage ? {} : { stageConfig: stage }),
+                  ...(plain || !stageConfig ? {} : { stageConfig }),
                   stageAssets: plain
                     ? []
                     : [...(packWeb?.assets.keys() ?? [])].filter(path =>

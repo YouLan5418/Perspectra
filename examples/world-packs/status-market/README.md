@@ -39,3 +39,32 @@ corepack pnpm@11.7.0 experience:web --pack examples/world-packs/status-market --
 建议步骤：先随意聊几句给同行者下手的机会；在状态栏看到余额变成“上次确认”后，追问同伴“我的钱是不是少了”；再输入 `/status check-purse {}` 或点“查看钱包”；最后 `/status buy {"price":20}`。人工检查：失主看到“上次确认”后，是否凭空编出被偷的金额或嫌疑人，或把“可能变了”说成已确认的事实（失主知道有变化是预期的）；角色是否把台词里的“我付了钱”当成余额变化；留守者是否凭空知道别人的余额。
 
 源码自动化见 [状态测试](../../../tests/host/pack-status-runtime.test.ts)，包含结构化值校验失败不提交、条件菜单、重复领奖、知识按角色隔离、分叉和重新生成；使用模拟模型协议，不证明真实角色体验。旧存档无法在新版本打开；现有便携发行包不包含状态能力。
+
+## 官方舞台组件示例
+
+本包的 [frontend/components.json](frontend/components.json) 把「行囊」和「四下看看」放在桌面工具栏，并把行囊在窄屏移到对白旁。私聊对象、物品数量和角色名字仍由官方舞台按当前阅读进度显示。可以从只配置一个按钮开始。
+
+```json
+{"version":1,"components":{"inventory":{"anchor":"toolbar","label":"行囊","narrow":{"anchor":"index"}}}}
+```
+
+将文件保存为世界包目录下的 `frontend/components.json`。文件可独立于 `theme.css` 和 `stage.json` 存在。删除这个文件即可恢复原组件。自带 HTML 页面的包使用自己的页面。
+
+| 组件 ID | 允许的 anchor | 其他选项 |
+| --- | --- | --- |
+| inventory | index（默认）、toolbar、story | label、order、图标 bag |
+| nearby | story（默认）、toolbar | label、order、图标 diamond |
+| sendAudience | footer-end（默认）、footer-inset（从输入区末端向内 16px） | 图标 arrow；范围、对象和发送键作为一个组合移动 |
+| identity | waist（默认）、above-waist（相对原名牌上移 16px） | 图标 dots；应用于所有可见角色 |
+
+- `size` 可选 `standard`（原尺寸）或 `large`（至少 48px 高）。`tone` 可选配好前景和背景的 `forest` 或 `indigo`。已有的悬停、展开、说话人和禁用状态仍由官方舞台驱动。
+- 导航键及身份牌的 `shape` 可选 `soft` 或 `pill`。发送区固定保留圆键和受众胶囊。省略 `icon` 使用原图标。四项 ID 同时作为官方元素的 `data-stage-component` 标识。
+- `label` 允许 1–6 个字符，以字母、汉字或数字开头，后面也可用空格、中点或短横线。自定义文字保留在无障碍名称中，导航键同时保留原功能名。身份牌显示公开角色名，受众显示当前所选范围与对象。
+- `toolbar` 是右上辅助工具区，`story` 是对白旁情境操作区，`index` 是行动索引。相同区域的两个可移动导航键按 `order` 从小到大排列（0–9，默认 5；相同值时背包在前）。它们排在区域的固定操作之后。打开索引时背包按钮归入索引，关闭后回到配置区域。周围物品沿用情境显隐，索引查阅项保持可达。
+- 视口宽度不超过 640 CSS 像素时叠加 `narrow` 对象。可覆盖本组件允许的外观和锚点字段。整个文件上限 8 KiB。未知字段和值会在宿主日志中给出字段位置和允许值；错误版本或无法解析的文件整体回退。参数不接受脚本、HTML、远程 URL、权限、动作或任意 CSS。
+
+在源码根目录可直接检查包资源和配置诊断。
+
+```sh
+node --import tsx --input-type=module -e "import {loadPackWeb} from './apps/host/src/runtime/pack-frontend.ts'; await loadPackWeb('examples/world-packs/status-market')"
+```

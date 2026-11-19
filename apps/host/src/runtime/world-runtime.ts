@@ -2676,6 +2676,33 @@ export class WorldHostCore implements HostRuntime {
     })
   }
 
+  #projectPlayerReadout(
+    view: CharacterView,
+    events: readonly StoredWorldEvent[],
+    observers: readonly CharacterId[],
+  ): void {
+    const items = this.#visibleItems(events, observers)
+    const held = new Set(items.filter(item => item.where === 'held').map(item => item.id))
+    const custody = new Map<string, { seq: number; pickup: boolean }>()
+    const transcript = playerTranscript(
+      view,
+      this.#names,
+      this.#playerId,
+      {
+        entityNames: this.#entityNames,
+        locationNames: this.#locationNames,
+      },
+      (id, seq, pickup) => {
+        if (held.has(id) && seq > (custody.get(id)?.seq ?? -1)) custody.set(id, { seq, pickup })
+      },
+    )
+    this.#transcript = this.#withPauses(transcript, events)
+    this.#items = items.map(item => {
+      const result = custody.get(item.id)
+      return result?.pickup ? { ...item, pickupResultSeq: result.seq } : item
+    })
+  }
+
   /** The player's own waits, in order, as empty entries a frontend may show however it likes. */
   #withPauses(transcript: HostState['transcript'], events: readonly StoredWorldEvent[]): HostState['transcript'] {
     const pauses = this.#gameplay.status ? pauseRounds(events) : []
@@ -2707,14 +2734,7 @@ export class WorldHostCore implements HostRuntime {
         events,
         head.headSeq,
       )
-      this.#transcript = this.#withPauses(
-        playerTranscript(await this.#displayView(view), this.#names, this.#playerId, {
-          entityNames: this.#entityNames,
-          locationNames: this.#locationNames,
-        }),
-        events,
-      )
-      this.#items = this.#visibleItems(events, scene.observerIds)
+      this.#projectPlayerReadout(await this.#displayView(view), events, scene.observerIds)
       if (this.#gameplay.activity)
         this.#projectActivity(
           activityWorldFromEvents(
@@ -2759,10 +2779,7 @@ export class WorldHostCore implements HostRuntime {
       this.#application.characterViewForPrincipal(this.#address, this.#principalId, this.#playerId),
       this.#application.head(this.#address),
     ])
-    this.#transcript = playerTranscript(await this.#displayView(view), this.#names, this.#playerId, {
-      entityNames: this.#entityNames,
-      locationNames: this.#locationNames,
-    })
+    const displayView = await this.#displayView(view)
     this.#availableActions = await this.#application.playerAffordancesForPrincipal(
       this.#address,
       this.#principalId,
@@ -2795,11 +2812,10 @@ export class WorldHostCore implements HostRuntime {
             new Map([...this.#locationNames, ...this.#entityNames, ...this.#names]),
           )
           this.#availableActions = projected.availableActions
-          this.#transcript = this.#withPauses(this.#transcript, events)
           this.#statusBar = projected.statusBar
           this.#statusTruth = projected.statusTruth
         }
-        this.#items = this.#visibleItems(events, scene.observerIds)
+        this.#projectPlayerReadout(displayView, events, scene.observerIds)
         this.#currentScene = {
           ...(view.locationId === null ? {} : { locationId: view.locationId }),
           changedAt: sceneChangedAt(events, this.#playerId),
