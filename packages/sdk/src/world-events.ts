@@ -17,8 +17,14 @@ export type EventRule = (
   readonly duringActivity?: boolean
   readonly location: string
   readonly witnesses: readonly Witness[]
+  readonly sceneNotices?: readonly SceneNotice[]
   readonly observation: string
   readonly set: BooleanWrite
+}
+export interface SceneNotice {
+  readonly locations: readonly string[]
+  readonly text: string
+  readonly fromOperation?: string
 }
 export interface BooleanWrite {
   readonly key: string
@@ -108,6 +114,25 @@ function timing(rule: Record<string, unknown>) {
     throw new TypeError('world-events: invalid calendar keys, slots or threshold')
   return { crossesPackTime: { dayKey, slotKey, slots, at: { day: at.day, slot: at.slot } } }
 }
+function sceneNotices(rule: Record<string, unknown>, pack: ContentPackFacts): SceneNotice[] {
+  if (!rule.when || (rule.audience !== undefined && rule.audience !== 'scene'))
+    throw new TypeError('world-events: sceneNotices require a calendar rule with scene audience')
+  const used = new Set([rule.location])
+  return list(rule.sceneNotices, 4).map(entry => {
+    const group = object(entry, ['locations', 'text', 'fromOperation'])
+    const text = group.text === undefined ? rule.observation : group.text
+    if (typeof text !== 'string' || !text.trim() || text.length > 512)
+      throw new TypeError('world-events: invalid scene notice')
+    const locations = list(group.locations, 16).map(loc => {
+      if (typeof loc !== 'string' || !pack.locationIds.includes(loc) || used.has(loc))
+        throw new TypeError('world-events: unknown or duplicate notice location')
+      used.add(loc)
+      return loc
+    })
+    if (!locations.length) throw new TypeError('world-events: empty notice locations')
+    return { locations, text, ...(group.fromOperation === undefined ? {} : { fromOperation: id(group.fromOperation) }) }
+  })
+}
 export function parseEventBook(raw: unknown, pack: ContentPackFacts): EventBook {
   const book = object(raw, ['rules', 'grants'])
   const rules = list(book.rules, 32).map((entry): EventRule => {
@@ -122,6 +147,7 @@ export function parseEventBook(raw: unknown, pack: ContentPackFacts): EventBook 
       'set',
       'trigger',
       'duringActivity',
+      'sceneNotices',
     ])
     if (
       typeof rule.location !== 'string' ||
@@ -155,6 +181,7 @@ export function parseEventBook(raw: unknown, pack: ContentPackFacts): EventBook 
       location: rule.location,
       ...(rule.trigger === 'paced' ? { trigger: 'paced' as const, duringActivity: rule.duringActivity === true } : {}),
       witnesses,
+      ...(rule.sceneNotices === undefined ? {} : { sceneNotices: sceneNotices(rule, pack) }),
       observation: rule.observation,
       set: write(rule.set),
     }

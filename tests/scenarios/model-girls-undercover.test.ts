@@ -32,7 +32,7 @@ const find = (value: unknown, test: (o: WorldJsonObject) => boolean): WorldJsonO
 }
 
 /** Everyone starts in the living room; heroines describe in turn and vote for the next heroine in line. */
-async function fixture() {
+async function fixture(atThreshold = false) {
   const root = mkdtempSync(join(tmpdir(), 'model-girls-undercover-'))
   cleanup.push(() => rmSync(root, { recursive: true, force: true }))
   const pack = join(root, 'pack'),
@@ -46,7 +46,10 @@ async function fixture() {
   const statusPath = join(pack, 'scripts/status.js')
   writeFileSync(
     statusPath,
-    readFileSync(statusPath, 'utf8').replace("day: 0,\n        slot: '深夜'", "day: 1,\n        slot: '清晨'"),
+    readFileSync(statusPath, 'utf8').replace(
+      "day: 0,\n        slot: '深夜'",
+      atThreshold ? "day: 2,\n        slot: '午后'" : "day: 1,\n        slot: '清晨'",
+    ),
   )
   const characters = JSON.parse(readFileSync(join(pack, 'characters.json'), 'utf8'))
   for (const c of characters.characters) c.initialLocationId = 'location:living-room'
@@ -64,6 +67,7 @@ async function fixture() {
   const status = loadStatus(pack, compiled)!
 
   // What each heroine was shown, by character.
+  let holdLastVote = atThreshold
   const seen: { self: string; text: string }[] = []
   const server: Server = createChatServer((request, response) => {
     let body = ''
@@ -80,7 +84,10 @@ async function fixture() {
         decision = { decision: 'publish', segments: [{ type: 'speech', text: '就这么定了。' }] }
       else if (game?.phase === 'describe')
         decision = { decision: 'publish', segments: [{ type: 'speech', text: '这个东西家里就有。' }] }
-      else if (game?.phase === 'vote')
+      else if (
+        game?.phase === 'vote' &&
+        !(holdLastVote && (((game.public as WorldJsonObject).已投票 as string[] | undefined)?.length ?? 0) >= 2)
+      )
         decision = {
           decision: 'perform',
           actionType: 'interact',
@@ -119,6 +126,8 @@ async function fixture() {
       'fixture',
     ),
     timeoutMs: 5000,
+    // Isolate the prize check from the independent 30-yuan utility-bill beat.
+    pacingEnabled: atThreshold,
   })
   cleanup.push(() => runtime.close())
   const truth = () => {
@@ -142,7 +151,16 @@ async function fixture() {
       requestId,
     })
   }
-  return { runtime, truth, current, request, seen }
+  return {
+    runtime,
+    truth,
+    current,
+    request,
+    seen,
+    release: () => {
+      holdLastVote = false
+    },
+  }
 }
 
 it('needs at least two heroines, keeps every word private and settles time, prize and privilege together', async () => {
@@ -190,3 +208,40 @@ it('costs no time when the player quits midway', async () => {
   expect(String((game.public as WorldJsonObject).lastResult)).toContain('答案揭晓')
   expect(f.truth().public.slot).toBe('清晨')
 }, 60000)
+
+it.each(['player vote', 'retry'] as const)(
+  'settles the pack clock when the final NPC ballot follows %s',
+  async route => {
+    const f = await fixture(true)
+    await f.request('start', { npcIds: HEROINES }, 'start')
+    for (let step = 0; step < 16; step++) {
+      const game = (await f.current()).game as WorldJsonObject
+      if (game.phase === 'vote' && ((game.public as WorldJsonObject).已投票 as string[] | undefined)?.length === 2)
+        break
+      if (game.phase === 'describe' && game.turn === 'character:player') await f.runtime.submit('家里常用。')
+      else await f.request('retry', {}, 'prepare-' + step)
+    }
+    const ballot = () => f.request('vote', { target: 'GPT', reason: '她的描述太含糊。' }, 'player-vote')
+    if (route === 'player vote') f.release()
+    await ballot()
+    if (route === 'retry') {
+      expect(f.truth().public).toMatchObject({ slot: '午后', 'power-on': true })
+      expect(((await f.current()).game as WorldJsonObject).phase).toBe('vote')
+      f.release()
+      await f.request('retry', {}, 'final-retry')
+    }
+    const game = (await f.current()).game as WorldJsonObject
+    expect(game.phase).toBe('finished')
+    const summary = game.public as WorldJsonObject
+    expect(summary.已投票).toHaveLength(4)
+    expect((summary.已投票 as string[]).at(-1)).toMatch(/^(GPT|Claude|DeepSeek)→/u)
+    expect(String(summary.lastResult)).toContain('卧底是')
+    expect(String(summary.lastResult)).toContain('傍晚')
+    expect(f.truth().public).toMatchObject({ day: 2, slot: '傍晚', 'power-on': false })
+    if (route === 'retry')
+      expect(
+        (await f.runtime.state()).activities?.filter(a => a.activityKey === 'blackout-comfort').map(a => a.game),
+      ).not.toContainEqual(expect.objectContaining({ active: true }))
+  },
+  90_000,
+)

@@ -19,20 +19,16 @@ export function firstPackTimeCrossing(
       const row = events[end++]!
       if (row.eventType !== 'status.updated') continue
       const data = row.data as unknown as StatusEventData
-      initial ||= data.source.kind === 'initial'
       for (const change of data.changes) {
         if (change.holderId !== null) continue
-        if (change.key === clock.dayKey) {
-          day = change.value
-          touched = true
-        }
-        if (change.key === clock.slotKey) {
-          slot = change.value
-          touched = true
-        }
+        if (change.key === clock.dayKey) day = change.value
+        else if (change.key === clock.slotKey) slot = change.value
+        else continue
+        initial ||= data.source.kind === 'initial'
+        touched = true
       }
     }
-    if (touched || initial) {
+    if (touched) {
       const index = typeof slot === 'string' ? clock.slots.indexOf(slot) : -1
       if (typeof day !== 'number' || !Number.isSafeInteger(day) || day < 0 || index < 0) {
         invalid()
@@ -45,4 +41,5 @@ export function firstPackTimeCrossing(
     }
     start = end
   }
+  if (day === undefined && slot === undefined) invalid()
 }

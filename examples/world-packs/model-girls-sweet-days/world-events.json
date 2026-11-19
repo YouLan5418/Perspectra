@@ -1,0 +1,51 @@
+{
+  "rules": [
+    {
+      "id": "day-two-blackout",
+      "type": "power.outage@1",
+      "when": {
+        "crossesPackTime": {
+          "dayKey": "day",
+          "slotKey": "slot",
+          "slots": [
+            "清晨",
+            "午后",
+            "傍晚",
+            "深夜"
+          ],
+          "at": {
+            "day": 2,
+            "slot": "傍晚"
+          }
+        }
+      },
+      "location": "location:entrance-shop",
+      "set": {
+        "key": "power-on",
+        "value": false
+      },
+      "observation": "窗外闷雷滚过，啪的一声，屋里的灯灭了。",
+      "sceneNotices": [
+        {
+          "locations": [
+            "location:living-room",
+            "location:kitchen",
+            "location:workspace",
+            "location:gpt-bedroom",
+            "location:deepseek-bedroom",
+            "location:bedroom",
+            "location:toilet",
+            "location:bathroom"
+          ]
+        },
+        {
+          "locations": [
+            "location:amusement-park"
+          ],
+          "fromOperation": "enter-amusement-park",
+          "text": "远处传来闷雷，朝家的方向望去，那一片住宅的灯光暗了下来。"
+        }
+      ]
+    }
+  ]
+}

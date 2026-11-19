@@ -53,16 +53,14 @@ function nextVoter(game, playerId) {
   return game.internal.order.find(id => id !== playerId && game.internal.votes[id] === undefined) ?? playerId
 }
 
-// 一局玩完度过一个时段，与 status.js 的 advanceSlot 一致：第 2 天进入傍晚时雷雨跳闸；深夜不再往后推。
+// 一局玩完度过一个时段，与 status.js 的 advanceSlot 一致：深夜不再往后推。
 function settle(truth, state, winners) {
   const playerId = state.participants[0]
   const slot = String(truth.public.slot)
   const nextSlot = SLOTS[Math.min(SLOTS.indexOf(slot) + 1, SLOTS.length - 1)]
-  const isBlackout = truth.public.day === 2 && nextSlot === '傍晚'
   const privilege = `第 ${truth.public.day} 天${slot}的谁是卧底赢家：可以向这局输了的人提一个小要求，对方可以讨价还价`
   const changes = [
     ...(nextSlot === slot ? [] : [{ holderId: null, key: 'slot', value: nextSlot }]),
-    ...(isBlackout ? [{ holderId: null, key: 'power-on', value: false }] : []),
     ...state.participants.map(id => ({
       holderId: id,
       key: 'undercover-privilege',
@@ -77,7 +75,7 @@ function settle(truth, state, winners) {
     state.participants.map(holderId => ({ observerId, holderId, key: 'undercover-privilege' })),
   )
   if (winners.includes(playerId)) reveals.push({ observerId: playerId, holderId: playerId, key: 'money' })
-  const time = nextSlot === slot ? '' : `时间来到了${nextSlot}。${isBlackout ? '窗外雷声一响，全屋跳闸停电了！' : ''}`
+  const time = nextSlot === slot ? '' : `时间来到了${nextSlot}。`
   const prize = winners.includes(playerId) ? `屋主赢得 ${PLAYER_PRIZE} 元生活费。` : ''
   const names = winners.map(id => nameOf(id, playerId)).join('、')
   return { status: { changes, reveals }, text: `${prize}赢家 ${names} 可以向输了的人提一个小要求。${time}` }

@@ -65,19 +65,9 @@ globalThis.activityScript = {
         }
       }
       const nextSlot = SLOTS[Math.min(idx + 1, SLOTS.length - 1)]
-      const isBlackout = day === 2 && nextSlot === '傍晚'
-      const changes = [
-        { holderId: null, key: 'slot', value: nextSlot },
-        ...(isBlackout
-          ? [{ holderId: null, key: 'power-on', value: false }]
-          : []),
-      ]
+      const changes = [{ holderId: null, key: 'slot', value: nextSlot }]
       closed(game)
-      const narration = isBlackout
-        ? '时间来到了第 ' +
-          day +
-          ' 天傍晚。窗外忽然雷雨交加，随着啪的一声轻响，整间屋子跳闸停电陷入了昏暗！'
-        : '时间流逝，来到了第 ' + day + ' 天的' + nextSlot + '。屋檐下的少女们也各自忙起了手头的事。'
+      const narration = '时间流逝，来到了第 ' + day + ' 天的' + nextSlot + '。屋檐下的少女们也各自忙起了手头的事。'
       return {
         game,
         description: '',

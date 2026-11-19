@@ -1,6 +1,11 @@
 // 突发心动事件 3：雨夜停电的黑暗陪伴（autoStart 自动触发）。
 // 全屋供电关闭且玩家所在房间有至少一位少女时触发一次；陪伴不代替合闸。
 const HEROINES = ['character:gpt', 'character:claude', 'character:deepseek']
+const HOME = [
+  'location:living-room', 'location:kitchen', 'location:workspace',
+  'location:gpt-bedroom', 'location:deepseek-bedroom', 'location:bedroom',
+  'location:toilet', 'location:bathroom', 'location:entrance-shop',
+]
 const NAMES = {
   'character:gpt': 'GPT',
   'character:claude': 'Claude',
@@ -46,7 +51,7 @@ const responseLines = {
 globalThis.activityScript = {
   definition: {
     title: '雨夜停电的黑暗陪伴',
-    opening: '窗外暴雨倾盆，突如其来的停电让房间陷入一片幽暗，耳边能清晰听见彼此骤然贴近的呼吸声。',
+    opening: '雨声中，身边的人挪近了一点。你听见她轻轻唤你。',
     participants: {
       mode: 'player-select',
       min: 1,
@@ -74,11 +79,12 @@ globalThis.activityScript = {
     return {
       when: [
         ['还没发生过', previous === null],
+        ['正在家中', HOME.includes(world.locationId)],
         ['全屋停电', truth?.public?.['power-on'] === false],
         ['玩家身边至少有一位少女', present.length >= 1],
       ],
       npcIds: present.length ? present : ['character:claude'],
-      notice: '轰隆一声闷雷滚过天际，房间里一片漆黑。黑暗中，大家一时停下了交谈。',
+      notice: '身边的人停下交谈，在黑暗中向你靠近了一点。',
     }
   },
   initialize({ playerId, npcIds }) {

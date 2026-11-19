@@ -32,13 +32,16 @@ interface Occurrence extends WorldEventEnvelope, WorldJsonObject {
 const grantId = (g: EventGrant) =>
   JSON.stringify([g.plugin, g.type, g.mode, g.effect?.key ?? null, g.effect?.value ?? null])
 const receiptId = (g: EventGrant, event: Occurrence) => JSON.stringify([g.plugin, g.mode, event.occurrenceId])
+function localWitnesses(snapshot: WorldRoundSnapshot, location: string) {
+  const scenes = currentSceneDecisionStates(snapshot.events).filter(
+    scene => scene.lifecycle === 'active' && scene.locationId === location,
+  )
+  // A physical place alone does not authorize a union of separate private scenes.
+  return new Set(scenes.length === 1 ? sceneObserverIds(snapshot.events, scenes[0]!) : [])
+}
 function witnesses(rule: EventRule, snapshot: WorldRoundSnapshot): string[] {
   const { events, manifest } = snapshot
-  const scenes = currentSceneDecisionStates(events).filter(
-    scene => scene.lifecycle === 'active' && scene.locationId === rule.location,
-  )
-  // A physical location alone cannot authorize a union of separate private scenes.
-  const sameScene = new Set(scenes.length === 1 ? sceneObserverIds(events, scenes[0]!) : [])
+  const sameScene = localWitnesses(snapshot, rule.location)
   return manifest.characters
     .filter(
       ({ characterId }) =>
@@ -52,6 +55,49 @@ function witnesses(rule: EventRule, snapshot: WorldRoundSnapshot): string[] {
         ),
     )
     .map(c => c.characterId)
+}
+
+// Keep the intersection of the action's committed full-content recipients at A and scene visibility at B.
+function sourceReaders(rule: EventRule, rows: WorldRoundSnapshot['events'], operation: string): Set<string> {
+  const clock = rule.crossesPackTime!
+  const writers = rows
+    .filter(row => row.eventType === 'status.updated')
+    .map(row => row.data as unknown as StatusEventData)
+    .filter(data => data.changes.some(c => c.holderId === null && (c.key === clock.dayKey || c.key === clock.slotKey)))
+  const origin = writers[0]?.source
+  if (writers.length !== 1 || origin?.kind !== 'operation' || origin.operation !== operation) return new Set()
+  const actions = rows
+    .filter(row => row.eventType === 'action.resolved')
+    .map(row => row.data as WorldJsonObject)
+    .filter(a => a.actorId === origin.actorId && a.actionType === 'interact' && a.accepted === true)
+  const actionId = actions[0]?.actionId
+  if (actions.length !== 1 || typeof actionId !== 'string') return new Set()
+  const readers = new Set<string>()
+  for (const row of rows) {
+    if (row.eventType !== 'observation.upsert') continue
+    const value = (row.data as WorldJsonObject).value as WorldJsonObject
+    const content = value.content as WorldJsonObject | undefined
+    if (
+      value.actionId === actionId &&
+      typeof value.observerId === 'string' &&
+      content?.actorId === origin.actorId &&
+      content.actionType === 'interact' &&
+      content.status === 'accepted' &&
+      content.contentVisibility !== 'occurrence_only'
+    )
+      readers.add(value.observerId)
+  }
+  return readers
+}
+function notices(rule: EventRule, snapshot: WorldRoundSnapshot, crossing?: WorldRoundSnapshot['events']) {
+  const result = new Map(witnesses(rule, snapshot).map(id => [id, rule.observation]))
+  for (const group of rule.sceneNotices ?? []) {
+    const allowed = group.fromOperation ? sourceReaders(rule, crossing ?? [], group.fromOperation) : undefined
+    for (const location of group.locations)
+      for (const id of localWitnesses(snapshot, location))
+        if (!result.has(id) && (!allowed || allowed.has(id))) result.set(id, group.text)
+  }
+  return result
 }
 
 /** One mounted branch. The local index can be rebuilt entirely from its effective committed prefix. */
@@ -73,7 +119,11 @@ export class WorldEventRuntime {
     private readonly status: StatusRuntime | undefined,
     forbiddenKeys: ReadonlySet<string>,
   ) {
-    for (const { crossesPackTime: clock } of book.rules) {
+    for (const { crossesPackTime: clock, sceneNotices } of book.rules) {
+      for (const group of sceneNotices ?? []) {
+        if (group.fromOperation && !status?.operations.some(op => op.id === group.fromOperation))
+          throw new TypeError('world-events: unknown notice source operation: ' + group.fromOperation)
+      }
       if (!clock) continue
       for (const [key, type] of [
         [clock.dayKey, 'number'],
@@ -206,13 +256,13 @@ export class WorldEventRuntime {
         this.statusEvent(snapshot, cycle, rule.set),
         // A world occurrence is nobody's accepted action. A personal observation remains readable
         // without nominating its observer for a turn in the normal action-reaction scheduler.
-        ...witnesses(rule, snapshot).map(
-          (observerId): WorldEventDraft => ({
+        ...[...notices(rule, snapshot, crossings?.get(rule.id))].map(
+          ([observerId, text]): WorldEventDraft => ({
             eventType: 'observation.upsert',
             eventVersion: 1,
             data: {
               id: occurrenceId + ':witness:' + observerId,
-              value: { observerId, content: { eventNotice: rule.observation } },
+              value: { observerId, content: { eventNotice: text } },
             },
           }),
         ),

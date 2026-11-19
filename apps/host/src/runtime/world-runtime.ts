@@ -692,6 +692,14 @@ export class WorldHostCore implements HostRuntime {
         ...(options.composition.mechanisms.dice ? ['dice' as const] : []),
       ],
     )
+    if (
+      recovered &&
+      generated?.worldEvents?.rules.some(rule => rule.crossesPackTime) &&
+      recovered.manifest.contentPack?.packHash !== pack.packHash
+    ) {
+      generated.close()
+      throw new TypeError('日历规则需要创建此存档时锁定的世界包。请选回原包或新建存档。')
+    }
     const compiled = adaptCompiledWorldPack(pack, {
       address: {
         tenantId: brandId('tenant:web-playtest', 'TenantId'),

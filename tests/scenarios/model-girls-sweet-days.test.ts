@@ -1,7 +1,7 @@
 import { playSettings, type PlaySettings } from '../../apps/host/src/play-settings.ts'
 import { createRoleplayCore } from '../support/roleplay-runtime.ts'
 import { type Server } from 'node:http'
-import { afterEach, expect, it } from 'vitest'
+import { afterEach, expect, it, vi } from 'vitest'
 import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { tmpdir } from 'node:os'
@@ -37,6 +37,7 @@ async function fixture(
   battleAgent = false,
   pacing = false,
   settings: Partial<PlaySettings> = {},
+  initialDay = 1,
 ) {
   const root = mkdtempSync(join(tmpdir(), 'model-girls-sweet-days-'))
   roots.push(root)
@@ -58,7 +59,10 @@ async function fixture(
     const statusPath = join(pack, 'scripts/status.js')
     writeFileSync(
       statusPath,
-      readFileSync(statusPath, 'utf8').replace("day: 0,\n        slot: '深夜'", "day: 1,\n        slot: '清晨'"),
+      readFileSync(statusPath, 'utf8').replace(
+        "day: 0,\n        slot: '深夜'",
+        'day: ' + initialDay + ",\n        slot: '清晨'",
+      ),
     )
   }
   const characters = JSON.parse(readFileSync(join(pack, 'characters.json'), 'utf8'))
@@ -343,6 +347,63 @@ it('triggers starlight-finale autoStart when turning on the star projector and s
   })
 })
 
+const work = '外出兼职打工（+120元 · 消耗1精力并度过1时段）'
+const direct = '窗外闷雷滚过，啪的一声，屋里的灯灭了。'
+const distant = '远处传来闷雷，朝家的方向望去，那一片住宅的灯光暗了下来。'
+
+function outage(f: Awaited<ReturnType<typeof fixture>>) {
+  const rows = f.events()
+  const power = rows.filter(
+    row =>
+      row.eventType === 'status.updated' &&
+      ((row.data as WorldJsonObject).changes as WorldJsonObject[]).some(
+        change => change.key === 'power-on' && change.value === false,
+      ),
+  )
+  expect(power).toHaveLength(1)
+  const tx = power[0]!.transactionId
+  const clock = rows.findLast(
+    row =>
+      row.eventType === 'status.updated' &&
+      ((row.data as WorldJsonObject).changes as WorldJsonObject[]).some(c => c.key === 'slot' && c.value === '傍晚') &&
+      row.seq < power[0]!.seq,
+  )
+  expect(clock).toBeDefined()
+  expect(clock!.transactionId).not.toBe(tx)
+  const notices = rows
+    .filter(row => row.transactionId === tx && row.eventType === 'observation.upsert')
+    .map(row => (row.data as WorldJsonObject).value as WorldJsonObject)
+  expect(new Set(notices.map(n => n.observerId)).size).toBe(notices.length)
+  expect(
+    rows
+      .filter(row => row.seq < power[0]!.seq)
+      .some(row => JSON.stringify(row.data).includes(direct) || JSON.stringify(row.data).includes(distant)),
+  ).toBe(false)
+  return Object.fromEntries(notices.map(n => [String(n.observerId), (n.content as WorldJsonObject).eventNotice]))
+}
+
+it('settles work wages and energy before the outage and leaves a non-participating park visitor unwarned', async () => {
+  const f = await fixture(
+    { 'character:deepseek': 'location:amusement-park' },
+    undefined,
+    false,
+    false,
+    false,
+    { autonomyOpportunities: 0 },
+    2,
+  )
+  await f.act('前往 玄关与街角商店')
+  const before = f.truth().characters['character:player']!
+  await f.act(work)
+  expect(f.truth().public['power-on']).toBe(true)
+  await f.act(work)
+  expect(f.truth().characters['character:player']).toMatchObject({
+    money: Number(before.money) + 240,
+    energy: Number(before.energy) - 2,
+  })
+  expect(outage(f)).toEqual({ 'character:player': direct, 'character:gpt': direct, 'character:claude': direct })
+}, 60_000)
+
 it('keeps a blackout through cooking and overnight rest until power is actually repaired', async () => {
   const f = await fixture(undefined, undefined, false, false, false, { autonomyOpportunities: 0 })
   // Buy strawberry cake in entrance shop first
@@ -382,6 +443,7 @@ it('keeps a blackout through cooking and overnight rest until power is actually 
   await f.act('前往 玄关与街角商店')
   await f.act('用工具包合闸恢复全屋供电')
   expect(f.truth().public['power-on']).toBe(true)
+  expect(outage(f)['character:player']).toBe(direct)
   // Two in-game days of rounds; under the full parallel suite this exceeds the default 30 s.
 }, 90_000)
 
@@ -799,7 +861,15 @@ it('uses the aquarium ticket once, at the aquarium in the evening with a compani
 })
 
 it('takes whoever is present to the amusement park with the family passes', async () => {
-  const f = await fixture({ 'character:deepseek': 'location:amusement-park' })
+  const f = await fixture(
+    { 'character:deepseek': 'location:amusement-park' },
+    undefined,
+    false,
+    false,
+    false,
+    { autonomyOpportunities: 0 },
+    2,
+  )
   await f.act('前往 玄关与街角商店')
   await f.act('外出兼职打工（+120元 · 消耗1精力并度过1时段）')
   await f.act('付款购买游乐园四人家庭套票')
@@ -807,9 +877,59 @@ it('takes whoever is present to the amusement park with the family passes', asyn
   await f.act('用游乐园四人家庭套票和在场的人玩一趟游乐园（度过1时段）')
   expect(f.truth().public.slot).toBe('傍晚')
   expect(f.kind('entity:family-passes')).toMatch(/^已使用的/u)
+  expect(outage(f)).toEqual({
+    'character:player': distant,
+    'character:deepseek': distant,
+    'character:gpt': direct,
+    'character:claude': direct,
+  })
+  expect(
+    (await f.runtime.state()).activities?.filter(a => a.activityKey === 'blackout-comfort').map(a => a.game),
+  ).not.toContainEqual(expect.objectContaining({ active: true }))
+  const messages = (await f.runtime.state()).transcript.map(line => line.text)
+  expect(messages.filter(text => text === distant)).toHaveLength(1)
+  expect(messages).not.toContain(direct)
   expect(f.truth().characters['character:deepseek']!['mood-note']).toContain('游乐园')
   expect(f.truth().characters['character:gpt']!['mood-note']).not.toContain('游乐园')
 })
+
+it('uses the scene when the delayed outage commits, while keeping the ticket action and its recipients', async () => {
+  const f = await fixture(
+    { 'character:deepseek': 'location:amusement-park' },
+    undefined,
+    false,
+    false,
+    false,
+    { autonomyOpportunities: 0 },
+    2,
+  )
+  await f.act('前往 玄关与街角商店')
+  await f.act(work)
+  await f.act('付款购买游乐园四人家庭套票')
+  await f.act('前往 游乐园')
+  const original = WorldStore.prototype.commitRound
+  const fault = vi.spyOn(WorldStore.prototype, 'commitRound').mockImplementation(async function (
+    this: WorldStore,
+    input,
+  ) {
+    if (input.authority?.source === 'host.world-events/v1') throw new Error('fixture: outage not committed')
+    return original.call(this, input)
+  })
+  try {
+    await expect(f.act('用游乐园四人家庭套票和在场的人玩一趟游乐园（度过1时段）')).rejects.toThrow()
+    expect(f.truth().public).toMatchObject({ slot: '傍晚', 'power-on': true })
+    expect(f.kind('entity:family-passes')).toMatch(/^已使用的/u)
+  } finally {
+    fault.mockRestore()
+  }
+  await f.act('前往 玄关与街角商店')
+  expect(outage(f)).toEqual({
+    'character:player': direct,
+    'character:deepseek': distant,
+    'character:gpt': direct,
+    'character:claude': direct,
+  })
+}, 60_000)
 
 it('texts DeepSeek in another room, wakes only her, and delivers her text reply back', async () => {
   const reply = {

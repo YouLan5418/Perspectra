@@ -397,6 +397,18 @@ it('recovers a committed wage and clock crossing on reopen and at all three bran
   expect(wageWrites(f)).toHaveLength(1)
 })
 
+it('refuses a changed calendar pack before activation and can reopen the original branch', async () => {
+  const f = await fixture(99, [], false, undefined, true)
+  const source = join(f.pack, 'worldpack.source.json')
+  const locked = readFileSync(source, 'utf8')
+  const before = f.history()
+  writeFileSync(source, JSON.stringify({ ...JSON.parse(locked), packVersion: '2.1.0' }))
+  await expect(f.reopen()).rejects.toThrow('锁定的世界包')
+  writeFileSync(source, locked)
+  await f.reopen()
+  expect(f.history()).toEqual(before)
+})
+
 it('reconciles a lost calendar-event reply and withholds live cues from regeneration', async () => {
   const f = await fixture(99, [], false, undefined, true)
   const fault = failCommit('after')
@@ -444,10 +456,19 @@ it('compares whole transactions and never bridges unknown clock values', () => {
   ).toBeUndefined()
   expect(find(row('init', { day: 2 }, true), row('x', { slot: '未知' }), row('y', { slot: '深夜' }))).toBeUndefined()
   expect(invalid).toHaveBeenCalledTimes(2)
+  invalid.mockClear()
+  expect(
+    find(row('native', { score: 0 }, true), row('pack', { day: 1, slot: '午后' }, true), row('due', { day: 3 })),
+  ).toBe('due')
+  expect(invalid).not.toHaveBeenCalled()
+  expect(find(row('init', { score: 0 }, true))).toBeUndefined()
+  expect(invalid).toHaveBeenCalledTimes(1)
   const facts = { locationIds: [rule.location], entityIds: [], characterIds: [], names: {}, entityLocations: {} }
   for (const extra of [
     { round: 1 },
     { trigger: 'paced' },
+    { sceneNotices: [{ locations: [rule.location] }] },
+    { audience: 'global', sceneNotices: [] },
     { when: { crossesPackTime: { ...clock, slots: ['傍晚', '傍晚'] } } },
   ])
     expect(() =>

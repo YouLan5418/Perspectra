@@ -90,17 +90,12 @@ const freshIngredients = item => typeof item?.kind === 'string' && item.kind.sta
 const isSpent = item => typeof item?.kind === 'string' && /^(吃完的|空着的|已检票的|已使用的)/.test(item.kind)
 const filledCup = item => typeof item?.kind === 'string' && item.kind.startsWith('刚泡好的特调热饮')
 
-// 外出打工或去游乐园都会度过一个时段；第 2 天进入傍晚时雷雨跳闸，与日程白板一致。
+// 外出度过一个时段；日历硬事件由宿主依据已提交的时段结算。
 function advanceSlot(truth) {
   const nextSlot = SLOTS[Math.min(SLOTS.indexOf(String(truth.public.slot)) + 1, SLOTS.length - 1)]
-  const isBlackout = truth.public.day === 2 && nextSlot === '傍晚'
   return {
     nextSlot,
-    isBlackout,
-    changes: [
-      { holderId: null, key: 'slot', value: nextSlot },
-      ...(isBlackout ? [{ holderId: null, key: 'power-on', value: false }] : []),
-    ],
+    changes: [{ holderId: null, key: 'slot', value: nextSlot }],
   }
 }
 
@@ -483,7 +478,7 @@ globalThis.statusScript = {
       if ((own.energy ?? 0) < 1) {
         return { rejectReason: '今天精力已经耗尽了，先休息或留在屋里陪大家吧。' }
       }
-      const { nextSlot, isBlackout, changes: slotChanges } = advanceSlot(truth)
+      const { nextSlot, changes: slotChanges } = advanceSlot(truth)
       const nextMoney = Number(own.money ?? 0) + 120
       const nextEnergy = Number(own.energy ?? 1) - 1
       const changes = [
@@ -499,8 +494,7 @@ globalThis.statusScript = {
           nextMoney +
           ' 元），时间来到了' +
           nextSlot +
-          '。' +
-          (isBlackout ? '刚回到玄关，窗外一道闷雷闪过，屋里啪的一声跳闸停电了！' : '不知道你不在家的这段时间，屋里的三位少女各自做了些什么？'),
+          '。不知道你不在家的这段时间，屋里的三位少女各自做了些什么？',
         audience: 'scene',
       }
     }
@@ -771,7 +765,7 @@ globalThis.statusScript = {
       if (!world.characterIds.includes('character:player') || companions.length === 0) {
         return { rejectReason: aquarium ? '双人夜场券要屋主和她一起才能用。' : '家庭套票要屋主带着大家一起才能用。' }
       }
-      const { nextSlot, isBlackout, changes } = advanceSlot(truth)
+      const { nextSlot, changes } = advanceSlot(truth)
       const allThree = companions.length === HEROINES.length
       const memory = aquarium
         ? '和屋主一起逛了水族馆夜场，在幽蓝的水光里并肩看鱼群游过，这一晚让自己有些心动'
@@ -795,8 +789,7 @@ globalThis.statusScript = {
             ? '检票走进水族馆夜场，幽蓝的大水槽前鱼群和鳐鱼缓缓游过，一直逛到闭馆，时间来到了'
             : '检票进了游乐园，旋转木马、过山车和摩天轮一路玩下来，时间来到了') +
           nextSlot +
-          '。' +
-          (isBlackout ? '出门时天边打起了闷雷，家那一片的灯光忽然全灭了——屋里怕是跳闸停电了！' : ''),
+          '。',
         audience: 'scene',
       }
     }
