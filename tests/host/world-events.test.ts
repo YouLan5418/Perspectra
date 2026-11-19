@@ -203,6 +203,20 @@ it('settles round four during cooking, delivers authorized envelopes and persist
     id: cook.id,
     game: { phase: 'simmer', public: { completed: 1 } },
   })
+  const before = dark.activities!.find(a => a.activityKey === 'cook')!
+  const withStove = () =>
+    f.runtime.activityAction({
+      activityKey: 'cook',
+      activityId: String(before.id),
+      revision: Number(before.revision),
+      operation: 'electric-finish',
+      parameters: {},
+      requestId: randomUUID(),
+    })
+  await expect(withStove()).rejects.toThrow('停电，电炉无法加热。')
+  const after = await f.runtime.state()
+  expect(after.activities).toEqual(dark.activities)
+  expect(before.game).toMatchObject({ public: { completed: 1, portions: 1 } })
   expect(f.stub.calls.length).toBe(callsBeforeOutage)
   const { events, commits } = f.history()
   expect(commits).toHaveLength(1)
@@ -224,13 +238,17 @@ it('settles round four during cooking, delivers authorized envelopes and persist
   expect(Object.keys(f.log()[0]!.event).sort()).toEqual(['occurrenceId', 'type'])
   await f.reopen(true)
   const simmer = (await f.runtime.state()).activities!.find(a => a.activityKey === 'cook')!
-  await f.runtime.activityAction({
+  const finished = await f.runtime.activityAction({
     activityKey: 'cook',
     activityId: String(simmer.id),
     revision: Number(simmer.revision),
     operation: 'plate',
     parameters: {},
     requestId: randomUUID(),
+  })
+  expect(finished.activities!.find(a => a.activityKey === 'cook')).toMatchObject({
+    id: cook.id,
+    game: { active: false, phase: 'finished', public: { completed: 2, portions: 0 } },
   })
   const ack = f.history().commits.at(-1)!
   expect(ack.a.receipts).toHaveLength(1)
