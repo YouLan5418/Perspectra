@@ -832,6 +832,50 @@ it('hides care without energy and rejects an earlier care option without chargin
   expect(f.events()).toHaveLength(before)
 })
 
+const board = '推进到下一时段（大家各自忙一阵）'
+
+it.each([
+  [0, 10, 0],
+  [1, 3, 2],
+  [1, 10, 3],
+])(
+  'keeps the board on the original autonomy budget (%i opportunities, %i calls)',
+  async (opportunities, budget, expected) => {
+    const everyone = { 'character:claude': 'location:living-room', 'character:deepseek': 'location:living-room' }
+    const f = await fixture(
+      everyone,
+      undefined,
+      false,
+      false,
+      false,
+      { autonomyOpportunities: opportunities, autonomyNpcCalls: budget },
+      2,
+    )
+    const state = await f.act(board)
+    const actors = ['character:gpt', 'character:claude', 'character:deepseek']
+    expect(f.requests.map(req => req.actorId)).toEqual(actors.slice(0, expected))
+    expect((state.debug.autonomy as WorldJsonObject | undefined)?.autonomousCalls ?? 0).toBe(expected)
+    expect(state.transcript.filter(l => l.text.includes('时间流逝，来到了第 2 天的午后'))).toHaveLength(1)
+    expect(state.activities!.some(a => (a.game as WorldJsonObject | undefined)?.active)).toBe(false)
+    if (expected !== 3) return
+    const count = f.contexts.length
+    await f.act(board)
+    const decisions = f.contexts.slice(count)
+    expect(decisions.map(c => (c.character as WorldJsonObject).characterId)).toEqual(actors)
+    for (const c of decisions) {
+      expect(c.knownStatus).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ key: 'slot', value: '傍晚' }),
+          expect.objectContaining({ key: 'power-on', value: true }),
+        ]),
+      )
+      expect(JSON.stringify(c.history)).toContain('来到了第 2 天的傍晚')
+      expect(JSON.stringify(c)).not.toContain(direct)
+    }
+    expect(outage(f)).toEqual(Object.fromEntries(['character:player', ...actors].map(id => [id, direct])))
+  },
+)
+
 it('advances the time slot in one click without an activity start line', async () => {
   const f = await fixture()
   await f.act('推进到下一时段（大家各自忙一阵）')
