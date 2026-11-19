@@ -57,6 +57,8 @@ export interface CoreCycleEndHook {
   readonly hookId: string
   /** Internal prerequisite order; equal entries retain stable plugin/hook ordering. */
   readonly order?: number
+  /** Core-only alternate resolver for facts already earned when only the scheduler's call limit stopped a round. */
+  readonly resolveOnCallLimit?: CoreCycleEndHook['resolve']
   readonly resolve: (
     snapshot: WorldRoundSnapshot,
     cycleId: string,
@@ -366,6 +368,7 @@ export class WorldExecutionCycle {
   #hasFailure = false
   #failure: unknown
   #status: ExecutionCycleTerminal = 'completed'
+  #onlyCallLimit = false
   #generation = 0
   #closed = false
   #completion: Promise<ExecutionCycleResult> | undefined
@@ -452,9 +455,13 @@ export class WorldExecutionCycle {
     else if (
       this.#status !== 'failed' &&
       ['budget_exhausted', 'call_limit', 'wave_limit', 'character_limit', 'opportunity_limit'].includes(reason)
-    )
+    ) {
+      this.#onlyCallLimit = reason === 'call_limit' && (this.#status === 'completed' || this.#onlyCallLimit)
       this.#status = 'budget_exhausted'
-    else if (this.#status === 'completed' && ['interrupted', 'stale'].includes(reason)) this.#status = 'interrupted'
+    } else if (['interrupted', 'stale'].includes(reason)) {
+      this.#onlyCallLimit = false
+      if (this.#status === 'completed') this.#status = 'interrupted'
+    }
   }
 
   get canSettle(): boolean {
@@ -488,6 +495,7 @@ export class WorldExecutionCycle {
 
   async #settleActivations(): Promise<void> {
     if (this.#pending.size > 0) {
+      this.#onlyCallLimit = false
       if (this.#status === 'completed') this.#observe(this.request.stopped() ?? 'failed')
       this.#activationLifetime.abort()
     }
@@ -507,15 +515,22 @@ export class WorldExecutionCycle {
       await this.#settleActivations()
       this.#observe(this.request.stopped() ?? '')
       let afterSeq: number | undefined
-      if (this.#status === 'completed') {
+      const limited = this.#status === 'budget_exhausted' && this.#onlyCallLimit
+      if (this.#status === 'completed' || limited) {
         for (const hook of this.request.engine.hooks()) {
+          const resolve = limited ? hook.resolveOnCallLimit : hook.resolve
+          if (!resolve) continue
           if (this.request.stopped()) {
             this.#observe(this.request.stopped()!)
             break
           }
           try {
             const committed = await this.run(() =>
-              this.request.engine.options.settle(hook, this.cycleId, this.request.signal),
+              this.request.engine.options.settle(
+                limited ? { ...hook, resolve } : hook,
+                this.cycleId,
+                this.request.signal,
+              ),
             )
             if (committed && afterSeq === undefined) afterSeq = committed.afterSeq
           } catch (error) {

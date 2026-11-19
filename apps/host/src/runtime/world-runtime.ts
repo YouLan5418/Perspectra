@@ -400,6 +400,7 @@ export class WorldHostCore implements HostRuntime {
       this.#cycleSettlementEnabled = true
       this.#error = false
       try {
+        this.#clockWindowStart = head.headSeq
         this.#rootBeforeSeq = from
         await this.#activateCharacters()
         await this.#refresh()
@@ -426,6 +427,7 @@ export class WorldHostCore implements HostRuntime {
     this.#beginWork(signal, 'character')
     try {
       const before = (await this.#application.head(this.#address)).headSeq
+      this.#clockWindowStart = before
       const result = await this.#activateCharacters(false, brandId(characterId, 'CharacterId'), signal)
       await this.#refresh()
       const expressions = this.#transcript
@@ -454,6 +456,9 @@ export class WorldHostCore implements HostRuntime {
   #cyclePlayerTurn = false
   #statusSettledBeforeReactions = false
   #retryClockOnly = false
+  // A reused stimulus prefix can predate this work. Only calendar changes committed after admission
+  // qualify for the limited settlement path; maintenance and rejected inputs never open the window.
+  #clockWindowStart: number | undefined
   #cycleSettlementEnabled = false
   /** The round's notice and error flag, for the code that runs rounds outside this class. */
   readonly #roundStatus: RoundStatus = {
@@ -1109,7 +1114,10 @@ export class WorldHostCore implements HostRuntime {
     let failed = false
     try {
       this.#rootBeforeSeq = (await this.#application.head(this.#address)).headSeq
-      if (!inputs.length) await this.#endStatusRound(true)
+      if (!inputs.length) {
+        await this.#endStatusRound(true)
+        this.#clockWindowStart = this.#rootBeforeSeq
+      }
       let react = !inputs.length
       const notices: string[] = []
       for (const [index, text] of inputs.entries()) {
@@ -1122,6 +1130,7 @@ export class WorldHostCore implements HostRuntime {
           notices.push(error.message)
           break
         }
+        if (outcome.accepted) this.#clockWindowStart = this.#rootBeforeSeq
         react ||= outcome.react
         if (outcome.notice !== undefined) notices.push(outcome.notice)
         if (!outcome.accepted) break
@@ -1230,6 +1239,7 @@ export class WorldHostCore implements HostRuntime {
     this.#statusSettledBeforeReactions = false
     this.#statusRoundError = undefined
     this.#retryClockOnly = false
+    this.#clockWindowStart = undefined
     this.#cycleSettlementEnabled = kind === 'character'
     this.#abortedWork = false
     const controller = (this.#continuationController = new AbortController())
@@ -1352,6 +1362,7 @@ export class WorldHostCore implements HostRuntime {
       this.#retryClockOnly = changed && !committed && request.operation === 'retry'
       this.#notice = changed ? '游戏操作已提交。' : '已返回原提交结果，没有再次执行。'
       if (changed) {
+        this.#clockWindowStart = this.#rootBeforeSeq
         // Show the operation's result before the next participant spends its model call.
         const store = new WorldStore(resolve(this.#dataDirectory, 'world.sqlite'))
         try {
@@ -1421,6 +1432,10 @@ export class WorldHostCore implements HostRuntime {
           pluginId: 'host-world-events',
           hookId: 'settle',
           order: -15,
+          resolveOnCallLimit: (snapshot, cycleId) =>
+            this.#clockWindowStart === undefined
+              ? undefined
+              : this.#worldEvents!.settleCurrentClock(snapshot, cycleId, this.#clockWindowStart),
           resolve: (snapshot, cycleId) =>
             this.#cycleSettlementEnabled || this.#retryClockOnly
               ? this.#worldEvents!.settle(snapshot, cycleId, this.#rootBeforeSeq, this.#retryClockOnly)

@@ -98,6 +98,65 @@ it('uses one hard deadline across cycles and refuses a new runner after same-tic
   expect(run).not.toHaveBeenCalled()
 })
 
+it('settles only an explicitly registered call-limit resolver after an ordinary call cap', async () => {
+  const { engine, request, settle } = await fixture()
+  const resolve = () => undefined,
+    clock = () => undefined
+  for (const [order, hookId] of [
+    [-20, 'status'],
+    [-15, 'hard'],
+    [-10, 'pacing'],
+  ] as const) {
+    engine.registerCoreCycleEndHook({
+      pluginId: 'host',
+      hookId,
+      order,
+      resolve,
+      ...(hookId === 'hard' ? { resolveOnCallLimit: clock } : {}),
+    })
+  }
+  const cycle = request.openCycle()
+  cycle.control.observe('call_limit')
+  const afterSettlement = vi.fn()
+  expect((await cycle.complete(afterSettlement)).status).toBe('budget_exhausted')
+  expect(settle).toHaveBeenCalledExactlyOnceWith(
+    expect.objectContaining({ hookId: 'hard', resolve: clock }),
+    cycle.cycleId,
+    request.signal,
+  )
+  expect(afterSettlement).not.toHaveBeenCalled()
+  for (const reason of [
+    'budget_exhausted',
+    'wave_limit',
+    'character_limit',
+    'opportunity_limit',
+    'stale',
+    'interrupted',
+    'plugin_failed',
+  ]) {
+    for (const reasons of [
+      [reason, 'call_limit'],
+      ['call_limit', reason],
+    ]) {
+      settle.mockClear()
+      await request.runCycle(async control => {
+        for (const r of reasons) control.observe(r)
+      })
+      expect(settle, reasons.join(',')).not.toHaveBeenCalled()
+    }
+  }
+  await request.openCycle().complete()
+  expect(settle).toHaveBeenCalledTimes(3)
+  for (const [i, hookId] of ['status', 'hard', 'pacing'].entries()) {
+    expect(settle).toHaveBeenNthCalledWith(
+      i + 1,
+      expect.objectContaining({ hookId, resolve }),
+      expect.any(String),
+      request.signal,
+    )
+  }
+})
+
 it('preserves actual commit progress when a later publication hangs and the request is cancelled', async () => {
   const { request } = await fixture()
   const cycle = request.openCycle()

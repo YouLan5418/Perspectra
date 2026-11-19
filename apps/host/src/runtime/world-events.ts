@@ -378,29 +378,33 @@ export class WorldEventRuntime {
     const { events, occurrences } = this.occurrenceEffects(snapshot, cycle, [rule], round)
     return this.effects(events, occurrences, [])
   }
+  /** A soft stop may only settle a calendar crossing actually committed in this selected branch's window. */
+  settleCurrentClock(snapshot: WorldRoundSnapshot, cycle: string, start: number) {
+    return this.active ? this.settle(snapshot, cycle, start, true) : undefined
+  }
   settle(
     snapshot: WorldRoundSnapshot,
     cycle: string,
     start: number,
-    retryClockOnly = false,
+    currentClockOnly = false,
   ): WorldRoundEffects | undefined {
     this.index(snapshot.head.headSeq)
     const { round } = playerRoundNumber(snapshot.events, start, false)
     const crossings = new Map<string, WorldRoundSnapshot['events']>()
     const hard = this.book.rules.filter(rule => {
       if (rule.trigger === 'paced' || this.occurrences.has(rule.id)) return false
-      if (!rule.crossesPackTime) return !retryClockOnly && round >= rule.round
+      if (!rule.crossesPackTime) return !currentClockOnly && round >= rule.round
       const crossing = firstPackTimeCrossing(snapshot.events, rule.crossesPackTime, () => {
         if (!this.warnedClocks.has(rule.id)) console.warn('[worldEvents] invalid calendar day or slot for ' + rule.id)
         this.warnedClocks.add(rule.id)
       })
-      if (!crossing || (retryClockOnly && crossing.at(-1)!.seq <= start)) return false
+      if (!crossing || (currentClockOnly && crossing.at(-1)!.seq <= start)) return false
       crossings.set(rule.id, crossing)
       return true
     })
     const { events, occurrences } = this.occurrenceEffects(snapshot, cycle, hard, undefined, crossings)
     const receipts: string[] = []
-    if (this.active && !retryClockOnly)
+    if (this.active && !currentClockOnly)
       for (const event of this.occurrences.values()) {
         if (event.cycle === cycle) continue
         for (const { consumer, grant } of this.subscribers(event, 'durable')) {

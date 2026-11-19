@@ -100,12 +100,24 @@ async function fixture(
   }
   writeFileSync(join(pack, 'scenes.json'), JSON.stringify(scenes))
   configurePack?.(pack)
+  return openPack(pack, data, settings, decision, battleAgent)
+}
+
+async function openPack(
+  pack: string,
+  data: string,
+  settings: Partial<PlaySettings> = {},
+  decision: WorldJsonObject = { decision: 'abstain' },
+  battleAgent = false,
+) {
   const compiled = await compileWorldPackSource(pack, [])
   const status = loadStatus(pack, compiled)!
   // Context of every character request, in call order, for tests that check what a character was told.
   const contexts: WorldJsonObject[] = []
   const requests: { actorId: string; messages: { role: string; content: string }[] }[] = []
+  let httpCalls = 0
   const server = createChatServer((request, response) => {
+    httpCalls++
     let body = ''
     request.on('data', chunk => (body += String(chunk)))
     request.on('end', () => {
@@ -153,14 +165,23 @@ async function fixture(
   servers.push(server)
   await new Promise<void>(done => server.listen(0, '127.0.0.1', done))
   const port = (server.address() as { port: number }).port
-  const runtime = await createRoleplayCore({
-    packPath: pack,
-    dataDirectory: data,
-    models: fakeModels('http://127.0.0.1:' + port + '/v1/chat/completions', 'openai', 'fixture'),
-    timeoutMs: 5000,
-    playSettings: playSettings(settings),
-  })
+  const open = (candidate = false) =>
+    createRoleplayCore({
+      candidate,
+      packPath: pack,
+      dataDirectory: data,
+      models: fakeModels('http://127.0.0.1:' + port + '/v1/chat/completions', 'openai', 'fixture'),
+      timeoutMs: 5000,
+      playSettings: playSettings(settings),
+    })
+  let runtime = await open()
   runtimes.push(runtime)
+  const reopen = async (candidate = false) => {
+    await runtime.close()
+    runtimes.splice(runtimes.indexOf(runtime), 1)
+    runtime = await open(candidate)
+    runtimes.push(runtime)
+  }
   const events = () => {
     const store = new WorldStore(join(data, 'world.sqlite'))
     try {
@@ -190,7 +211,23 @@ async function fixture(
   const holder = (id: string) => currentEntityState(events(), id)?.holderId
   const truth = () => status.truth(events())
   const known = (id: string) => status.known(events(), id)
-  return { runtime, events, view, actions, act, kind, holder, truth, known, contexts, requests }
+  return {
+    get runtime() {
+      return runtime
+    },
+    reopen,
+    httpCalls: () => httpCalls,
+    events,
+    view,
+    actions,
+    act,
+    kind,
+    holder,
+    truth,
+    known,
+    contexts,
+    requests,
+  }
 }
 
 it('plays the complete prologue and enters the first morning with committed dialogue', async () => {
@@ -902,6 +939,118 @@ it('commits the board as one ordinary action, and honors retries, occupancy and 
       .events()
       .filter(e => e.eventType === 'activity.updated' && (e.data as WorldJsonObject).activityKey === 'schedule'),
   ).toEqual([])
+})
+
+it('commits the release pack blackout at the board clock crossing even when ordinary calls reach their limit', async () => {
+  const data = mkdtempSync(join(tmpdir(), 'release-blackout-'))
+  roots.push(data)
+  const f = await openPack(resolve('examples/world-packs/model-girls-sweet-days'), data)
+  // Replay high draws so the next eligible pacing check has a reproducible outcome.
+  f.runtime.beginRoundRandom(Array<number>(128).fill(0.99))
+  await f.act('开始 序章：房间里突然多了三个人')
+  for (let i = 0; i < 60 && (await f.actions()).some(o => o.label === '继续序章'); i++) await f.act('继续序章')
+  expect(f.truth().public).toMatchObject({ day: 1, slot: '清晨' })
+  for (const label of [board, board, board, '结束今天，休息迎接明天（恢复满精力）', board]) await f.act(label)
+  expect(f.truth().public).toMatchObject({ day: 2, slot: '午后', 'power-on': true })
+  const offer = (await f.actions()).find(o => o.label === board)!.action
+  const count = f.requests.length
+  const beforeHttp = f.httpCalls()
+  const priorPacing = f.runtime.creatorInspection().pacing
+  const atDusk = await f.runtime.perform(offer, undefined, 'board-at-dusk')
+  expect(atDusk.debug.execution).toMatchObject({ status: 'budget_exhausted' })
+  expect(atDusk.debug.autonomy).toMatchObject({ autonomousCalls: 2, terminalReason: 'call_limit' })
+  expect(f.requests.slice(count).map(req => req.actorId)).toEqual(['character:gpt', 'character:claude'])
+  expect(f.runtime.creatorInspection().pacing).toEqual(priorPacing)
+  expect(f.truth().public).toMatchObject({ day: 2, slot: '傍晚', 'power-on': false })
+  expect(outage(f)).toEqual(
+    Object.fromEntries(
+      ['character:player', 'character:gpt', 'character:claude', 'character:deepseek'].map(id => [id, direct]),
+    ),
+  )
+  expect(atDusk.activities?.some(a => (a.game as WorldJsonObject)?.active)).toBe(false)
+  const head = f.events().at(-1)!.seq
+  await f.reopen()
+  await f.runtime.perform(offer, undefined, 'board-at-dusk')
+  expect(f.events().at(-1)!.seq).toBe(head)
+  expect(f.requests.length).toBe(count + 2)
+  expect(f.httpCalls()).toBe(beforeHttp + 2)
+  f.runtime.beginRoundRandom([0.99])
+  const next = await f.runtime.submit('大家都在客厅吗？')
+  expect(next.debug.execution).toMatchObject({ status: 'completed' })
+  expect(f.runtime.creatorInspection().pacing).toMatchObject({ kind: 'none', reason: { why: 'not-this-round' } })
+  expect(next.activities?.some(a => (a.game as WorldJsonObject)?.active)).toBe(false)
+  // The pack's existing companion can start in a subsequent ordinary window when its draw selects it.
+  f.runtime.beginRoundRandom([0, 0])
+  const chosen = await f.runtime.submit('我在这里。')
+  expect(chosen.activities?.find(a => a.activityKey === 'blackout-comfort')?.game).toMatchObject({ active: true })
+  expect(Object.keys(outage(f))).toHaveLength(4)
+}, 120000)
+
+it('runs a declared witness decision after the limited clock settlement, outside the ordinary allowance', async () => {
+  const everyone = { 'character:claude': 'location:living-room', 'character:deepseek': 'location:living-room' }
+  const f = await fixture(
+    everyone,
+    undefined,
+    false,
+    false,
+    false,
+    { autonomyOpportunities: 1, autonomyNpcCalls: 3 },
+    2,
+    false,
+    pack => {
+      const path = join(pack, 'world-events.json')
+      const book = JSON.parse(readFileSync(path, 'utf8'))
+      book.rules[0].wakeCharacters = ['character:gpt']
+      writeFileSync(path, JSON.stringify(book))
+    },
+  )
+  await f.act(board)
+  const count = f.requests.length
+  const state = await f.act(board)
+  expect(state.debug.execution).toMatchObject({ status: 'budget_exhausted' })
+  expect(state.debug.autonomy).toMatchObject({ autonomousCalls: 2, terminalReason: 'call_limit' })
+  expect(f.requests.slice(count).map(req => req.actorId)).toEqual([
+    'character:gpt',
+    'character:claude',
+    'character:gpt',
+  ])
+  expect(JSON.stringify(f.requests.slice(count, count + 2))).not.toContain(direct)
+  const wake = f.requests
+    .at(-1)!
+    .messages.map(m => m.content)
+    .join(' ')
+  expect(wake.split(direct)).toHaveLength(2)
+  expect(wake).not.toContain('wakeRecipients')
+  expect(f.truth().public['power-on']).toBe(false)
+  expect((await f.runtime.state()).activities?.some(a => (a.game as WorldJsonObject)?.active)).toBe(false)
+})
+
+it('keeps a limited candidate crossing private and does not settle an older crossing in a later limited window', async () => {
+  const f = await fixture(
+    undefined,
+    undefined,
+    false,
+    false,
+    false,
+    { autonomyOpportunities: 1, autonomyNpcCalls: 3 },
+    2,
+  )
+  await f.act(board)
+  await f.reopen(true)
+  const dusk = await f.act(board)
+  expect(dusk.debug.execution).toMatchObject({ status: 'budget_exhausted' })
+  expect(f.truth().public).toMatchObject({ slot: '傍晚', 'power-on': true })
+  expect(JSON.stringify(f.events())).not.toContain(direct)
+  f.runtime.selectWorldEventBranch()
+  await f.runtime.state()
+  expect(f.truth().public['power-on']).toBe(true)
+  const night = await f.act(board)
+  expect(night.debug.execution).toMatchObject({ status: 'budget_exhausted' })
+  expect(f.truth().public).toMatchObject({ slot: '深夜', 'power-on': true })
+  const ordinary = await f.runtime.submit('大家好吗？')
+  expect(ordinary.debug.execution).toMatchObject({ status: 'completed' })
+  expect(f.truth().public['power-on']).toBe(false)
+  expect(outage(f)['character:player']).toBe(direct)
 })
 
 it('does not authorize the board as a raw frozen interaction', async () => {

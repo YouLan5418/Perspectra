@@ -126,6 +126,28 @@ it('propagates commit failures as the original core error and closes grants with
   expect(() => engine.beginRequest()).toThrow('closed')
 })
 
+it('discards limited settlement effects when the request is cancelled during adjudication', async () => {
+  const { app, engine, address } = await fixture()
+  const controller = new AbortController()
+  const request = engine.beginRequest({ signal: controller.signal })
+  const before = await app.head(address)
+  const limited = vi.fn(() => {
+    controller.abort()
+    return { events: [], authority: { earned: true } }
+  })
+  engine.registerCoreCycleEndHook({
+    pluginId: 'test',
+    hookId: 'clock',
+    resolve: () => undefined,
+    resolveOnCallLimit: limited,
+  })
+  const cycle = request.openCycle()
+  cycle.control.observe('call_limit')
+  await cycle.complete()
+  expect(limited).toHaveBeenCalledOnce()
+  expect(await app.head(address)).toEqual(before)
+})
+
 it('rejects a foreign application scope before mounting a world', async () => {
   const { app, address } = await fixture()
   const other = new WorldApplication({ worldPath: 'unused-world', sessionPath: 'unused-session' })
