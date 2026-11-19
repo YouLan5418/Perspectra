@@ -172,10 +172,15 @@ export class WorldEventRuntime {
     this.indexed = through
   }
   private invoke(consumer: WorldEventConsumer, event: Occurrence): unknown {
+    consumer.signal.throwIfAborted()
+    this.lifetime.signal.throwIfAborted()
     let handler = this.handlers.get(consumer)
     if (!handler) {
-      handler = consumer.subscription.open({ signal: this.lifetime.signal })
+      const signal = AbortSignal.any([this.lifetime.signal, consumer.signal])
+      handler = consumer.subscription.open({ signal })
+      signal.throwIfAborted()
       this.handlers.set(consumer, handler)
+      signal.addEventListener('abort', () => this.handlers.delete(consumer), { once: true })
     }
     return handler(Object.freeze({ type: event.type, occurrenceId: event.occurrenceId }))
   }

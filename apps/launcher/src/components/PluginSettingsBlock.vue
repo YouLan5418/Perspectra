@@ -15,6 +15,7 @@ const SERVICE_LABELS: Record<PluginManifest['services'][number], string> = {
   frontendServices: '语音与背景音乐',
   capabilities: '外部能力（结果经世界包规则裁定）',
   playerFeed: '读取你能看到的对话',
+  worldEvents: '订阅世界包授权的世界事件',
   scheduler: '替换角色调度',
   knowledge: '替换设定知识选择',
   status: '替换状态脚本机制',

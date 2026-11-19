@@ -888,22 +888,54 @@ it('deduplicates overlapping witness predicates and rejects an undeclared state 
   )
 })
 
-it('seals startup registration and revokes a disposed fiber even without a caller-owned disposer', async () => {
+it('seals startup registration and cancels an open handler when its fiber is disposed', async () => {
   const root = new Context(),
     bind = installWorldEventRegistry(root)
   cleanup.push(() => root.fiber.dispose())
-  const sub = { type, mode: 'live' as const, open: () => () => {} }
+  const receive = vi.fn()
+  let signal: AbortSignal | undefined
+  const sub = {
+    type,
+    mode: 'live' as const,
+    open(scope: { signal: AbortSignal }) {
+      signal = scope.signal
+      return receive
+    },
+  }
   let late!: () => unknown
   const fiber = root.plugin(ctx => {
     ctx.worldEvents.subscribe(sub)
     late = () => ctx.worldEvents.subscribe(sub)
   })
   await fiber
-  const [consumer] = bind(new Map([[fiber.uid!, { id: 'stage-cue', allowed: true }]]))
+  const consumers = bind(new Map([[fiber.uid!, { id: 'stage-cue', allowed: true }]]))
+  const [consumer] = consumers
   expect(consumer!.active()).toBe(true)
   expect(late).toThrow('during plugin startup')
+
+  const f = await fixture(1, [{ id: 'second-outage', round: 2 }])
+  const mounted = new WorldEventRuntime(
+    new WorldStore(join(f.runtime.dataDirectory, 'world.sqlite')),
+    f.runtime.address,
+    'pack:multiple-activities',
+    { rules: [], grants: [{ plugin: 'stage-cue', type, mode: 'live' }] },
+    consumers,
+    undefined,
+    new Set(),
+  )
+  cleanup.push(() => mounted.close())
+  mounted.select()
+  await f.runtime.perform(wait)
+  mounted.flushLive()
+  expect(receive).toHaveBeenCalledTimes(1)
+  expect(signal?.aborted).toBe(false)
+
   await fiber.dispose()
   expect(consumer!.active()).toBe(false)
+  expect(signal?.aborted).toBe(true)
+  await f.runtime.perform(wait)
+  mounted.flushLive()
+  expect(receive).toHaveBeenCalledTimes(1)
 })
 
 it('surfaces a failed committed-record verification without delivering an unverified envelope', async () => {

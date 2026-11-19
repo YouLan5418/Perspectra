@@ -4,11 +4,13 @@ import { worldEventType, type EventSubscription, type WorldEventsApi } from '@pe
 export interface WorldEventConsumer {
   readonly plugin: string
   readonly subscription: EventSubscription
+  readonly signal: AbortSignal
   active(): boolean
 }
 interface Registration {
   ancestry: number[]
   subscription: EventSubscription
+  lifetime: AbortController
 }
 
 /** The plugin-facing service receives only subscribe. Cordis binds its method receiver to the caller. */
@@ -39,6 +41,7 @@ export function installWorldEventRegistry(root: Context) {
     }
     const entry = {
       ancestry,
+      lifetime: new AbortController(),
       subscription: Object.freeze({
         mode: subscription.mode,
         type: subscription.type,
@@ -48,6 +51,7 @@ export function installWorldEventRegistry(root: Context) {
     entries.add(entry)
     const remove = () => {
       entries.delete(entry)
+      entry.lifetime.abort()
     }
     ctx.effect(() => remove)
     return remove
@@ -63,7 +67,12 @@ export function installWorldEventRegistry(root: Context) {
       const key = JSON.stringify([owner.id, entry.subscription.mode, entry.subscription.type])
       if (keys.has(key)) throw new TypeError('duplicate world event subscription')
       keys.add(key)
-      return { plugin: owner.id, subscription: entry.subscription, active: () => entries.has(entry) }
+      return {
+        plugin: owner.id,
+        subscription: entry.subscription,
+        signal: entry.lifetime.signal,
+        active: () => entries.has(entry),
+      }
     })
   }
 }
