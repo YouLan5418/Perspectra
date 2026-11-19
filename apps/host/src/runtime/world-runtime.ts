@@ -870,7 +870,10 @@ export class WorldHostCore implements HostRuntime {
           ),
         )
       runtime.#gameplay.pacing =
-        runtime.#pacing && (runtime.#pacing.managedActivities.length || runtime.#pacing.beats.length)
+        runtime.#pacing &&
+        (runtime.#pacing.managedActivities.length ||
+          runtime.#pacing.beats.length ||
+          runtime.#pacing.worldEvents?.length)
           ? new PacingRuntime({
               mechanism: runtime.#pacing,
               worldPath: resolve(runtime.#dataDirectory, 'world.sqlite'),
@@ -1220,7 +1223,12 @@ export class WorldHostCore implements HostRuntime {
     const autonomous =
       kind === 'interaction' && this.#gameplay.autonomy !== undefined && this.#playSettings.autonomyOpportunities > 0
     const activity = kind === 'interaction' && this.#gameplay.activity !== undefined
-    const pacing = kind === 'interaction' && this.#gameplay.pacing !== undefined && this.#pacingEnabled
+    // Silent world observations require no extra activation or reaction budget.
+    const pacing =
+      kind === 'interaction' &&
+      this.#pacingEnabled &&
+      this.#pacing &&
+      (this.#pacing.beats.length || this.#pacing.managedActivities.length)
     const configured =
       kind === 'interaction'
         ? {
@@ -1425,6 +1433,7 @@ export class WorldHostCore implements HostRuntime {
                           'nominate',
                         ),
                   ),
+                this.#worldEvents,
               )
             const world = activityWorldFromEvents(
               resolve(this.#dataDirectory, 'world.sqlite'),
@@ -2334,6 +2343,7 @@ export class WorldHostCore implements HostRuntime {
         guardedPacing(
           instance,
           {
+            pacedRuleIds: this.#generated?.worldEvents?.rules.filter(r => r.trigger === 'paced').map(r => r.id) ?? [],
             hasSource: this.#pacingSource !== undefined,
             id,
             hasStatus: this.#statusSource !== undefined,

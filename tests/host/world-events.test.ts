@@ -1,5 +1,5 @@
 import { afterEach, expect, it, vi } from 'vitest'
-import { cpSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { appendFileSync, cpSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { randomUUID } from 'node:crypto'
@@ -14,6 +14,8 @@ import { brandId, type WorldJsonObject } from '@perspectra/sdk/contracts'
 import { WorldHostRuntime } from '../../apps/host/src/runtime/world-runtime.ts'
 import { loadHostPlugins } from '../../apps/host/src/host-plugins.ts'
 import { fakeModels, startFakeProvider } from '../support/fake-provider.ts'
+import { PacingScript } from '@perspectra/plugins/pacing'
+import { restoreStoryNode } from '../../apps/host/src/story-nodes.ts'
 import { officialWorldEvents } from '@perspectra/plugins/world-events'
 import { projectPlayerView } from '../../apps/host/src/runtime/frontend-adapter.ts'
 
@@ -33,7 +35,12 @@ const rule = {
   observation: '灯熄灭了。',
 }
 const wait = { actionType: 'interact', parameters: { definitionRef: { id: 'host:wait', version: 1 } } } as const
-async function fixture(round = 4, additionalRules: Record<string, unknown>[] = [], sharedLocation = false) {
+async function fixture(
+  round = 4,
+  additionalRules: Record<string, unknown>[] = [],
+  sharedLocation = false,
+  pacing?: { keys: string[]; cooldown?: number; legacyBeat?: boolean; managedCook?: boolean },
+) {
   const root = mkdtempSync(join(tmpdir(), 'world-events-')),
     pack = join(root, 'pack'),
     data = join(root, 'save')
@@ -46,9 +53,37 @@ async function fixture(round = 4, additionalRules: Record<string, unknown>[] = [
   meta.plugins = Object.fromEntries(['pack-scripts', 'official-world-events', ...pluginIds].map(id => [id, {}]))
   meta.plugins['alternate-rules'] = { config: 'world-events.json' }
   meta.assetFiles = ['scripts/status.js', 'scripts/activities/cook.js', 'world-events.json']
+  if (pacing) {
+    meta.plugins['official-pacing'] = {}
+    meta.assetFiles.push('scripts/pacing.js')
+    const definition = {
+      cycleRounds: 8,
+      chance: 1,
+      recoveryRounds: 0,
+      cooldownRounds: { low: 0, medium: 0, high: pacing.cooldown ?? 0 },
+      ...(pacing.managedCook ? { activities: { cook: { intensity: 'low' } } } : {}),
+      ...(pacing.legacyBeat ? { beats: { knock: { intensity: 'low' } } } : {}),
+      events: Object.fromEntries(pacing.keys.map(key => [key, { intensity: 'high' }])),
+    }
+    const beats = pacing.legacyBeat
+      ? `{ knock: {
+      when: truth => [['准备好', !truth.public.story]],
+      apply: () => ({changes:[{holderId:null,key:'story',value:true}]})
+    } }`
+      : '{}'
+    writeFileSync(
+      join(pack, 'scripts/pacing.js'),
+      `globalThis.pacingScript = {definition:${JSON.stringify(definition)}, beats:${beats}}`,
+    )
+  }
   delete meta.scripts
   write('worldpack.source.json', meta)
   cpSync(resolve('tests/fixtures/world-event-cook.js'), join(pack, 'scripts/activities/cook.js'))
+  if (pacing?.managedCook)
+    appendFileSync(
+      join(pack, 'scripts/activities/cook.js'),
+      "\nactivityScript.autoStart = (truth, world, previous) => ({ when: [['可开锅', truth.public.story && previous === null]] })",
+    )
   // This witness is active but remote. The other two share the kitchen scene.
   const characters = read('characters.json'),
     scenes = read('scenes.json')
@@ -122,7 +157,7 @@ async function fixture(round = 4, additionalRules: Record<string, unknown>[] = [
   cleanup.push(() => plugins.close())
   const stub = await startFakeProvider('openai', () => ({ tool: { decision: 'abstain' } }))
   cleanup.push(() => stub.close())
-  async function open(replace = false) {
+  async function open(replace = false, directory = data) {
     // Same locked pack and save. A different, installed Cordis generator now proposes the rule ID.
     if (replace) writeFileSync(useAlternate, '1')
     const content = plugins.seams.content!.map(g =>
@@ -131,7 +166,8 @@ async function fixture(round = 4, additionalRules: Record<string, unknown>[] = [
     return WorldHostRuntime.create({
       models: fakeModels(stub.endpoint),
       packPath: pack,
-      dataDirectory: data,
+      dataDirectory: directory,
+      ...(pacing ? { storyNodes: true } : {}),
       plugins: { ...plugins.seams, content },
     })
   }
@@ -168,6 +204,12 @@ async function fixture(round = 4, additionalRules: Record<string, unknown>[] = [
             .split('\n')
             .map(s => JSON.parse(s))
         : [],
+    async restore(node: { id: string; packHash: string }) {
+      await runtime.close()
+      const target = join(root, 'restored')
+      restoreStoryNode(data, node.id, target, node.packHash)
+      runtime = await open(false, target)
+    },
     async reopen(replace = false) {
       await runtime.close()
       runtime = await open(replace)
@@ -292,6 +334,185 @@ function failCommit(kind: 'before' | 'after' | 'receipt') {
     restore: () => spy.mockRestore(),
   }
 }
+
+const paced = (id: string, round: number, duringActivity = false) => ({
+  id,
+  round,
+  trigger: 'paced',
+  duringActivity,
+  observation: id,
+})
+type Fixture = Awaited<ReturnType<typeof fixture>>
+const occurrences = (f: Fixture) => f.history().commits.flatMap(commit => commit.a.occurrences as WorldJsonObject[])
+
+it('offers only the opted-in event in an occupied kitchen, leaving the same activity and NPCs in place', async () => {
+  const f = await fixture(99, [paced('optional', 2, true), paced('idle-only', 2)], false, {
+    keys: ['optional', 'idle-only'],
+  })
+  const state = await f.runtime.activityAction({
+    activityKey: 'cook',
+    activityId: null,
+    revision: 0,
+    operation: 'start',
+    parameters: {},
+    requestId: randomUUID(),
+  })
+  const cook = state.activities!.find(row => row.activityKey === 'cook')!
+  const calls = f.stub.calls.length
+  const act = (operation: string, revision: number) =>
+    f.runtime.activityAction({
+      activityKey: 'cook',
+      activityId: String(cook.id),
+      revision,
+      operation,
+      parameters: {},
+      requestId: randomUUID(),
+    })
+  const dark = await act('heat-stove', Number(cook.revision))
+  const simmer = dark.activities!.filter(row => (row.game as WorldJsonObject)?.active)
+  expect(simmer).toHaveLength(1)
+  expect(simmer[0]).toMatchObject({ id: cook.id, game: { phase: 'simmer', public: { completed: 1, portions: 1 } } })
+  expect(occurrences(f)).toMatchObject([{ ruleId: 'optional', pacedRound: 2 }])
+  expect(projectPlayerView(dark).history.some(row => row.text === 'optional')).toBe(true)
+  expect(f.log().map(row => row.id)).toEqual(['stage-cue'])
+  expect(f.stub.calls.length).toBe(calls)
+  await expect(act('electric-finish', Number(simmer[0]!.revision))).rejects.toThrow('停电')
+  await act('plate', Number(simmer[0]!.revision))
+  expect(occurrences(f)).toMatchObject([{ ruleId: 'optional' }, { ruleId: 'idle-only', pacedRound: 3 }])
+})
+
+it('settles hard rules while pacing is off, then settles due hard rules before the chosen paced rule', async () => {
+  const f = await fixture(1, [paced('optional', 1), { id: 'another-hard', round: 2 }], false, {
+    keys: ['optional'],
+    cooldown: 8,
+  })
+  await f.runtime.setPacing(false)
+  await f.runtime.perform(wait)
+  expect(occurrences(f).map(row => [row.ruleId, row.pacedRound])).toEqual([['kitchen-blackout', undefined]])
+  await f.runtime.setPacing(true)
+  await f.runtime.perform(wait)
+  expect(occurrences(f).map(row => [row.ruleId, row.pacedRound])).toEqual([
+    ['kitchen-blackout', undefined],
+    ['another-hard', undefined],
+    ['optional', 2],
+  ])
+  const [hard, selected] = f
+    .history()
+    .commits.filter(c =>
+      (c.a.occurrences as WorldJsonObject[]).some(r => ['another-hard', 'optional'].includes(String(r.ruleId))),
+    )
+  expect(hard!.tx).not.toBe(selected!.tx)
+  expect(hard!.seq).toBeLessThan(selected!.seq)
+})
+
+it('interleaves legacy beat and committed occurrence history for the same chooser', async () => {
+  const choose = vi.spyOn(PacingScript.prototype, 'choose')
+  const f = await fixture(99, [{ ...paced('second', 2), set: { key: 'story', value: false } }], false, {
+    keys: ['second'],
+    cooldown: 5,
+    legacyBeat: true,
+  })
+  await f.runtime.perform(wait)
+  await f.runtime.perform(wait)
+  await f.runtime.perform(wait)
+  expect(choose.mock.lastCall![0]).toMatchObject({
+    candidates: [{ kind: 'beat', key: 'knock' }],
+    history: {
+      round: 3,
+      fired: [
+        { kind: 'beat', key: 'knock', round: 1 },
+        { kind: 'event', key: 'second', round: 2 },
+      ],
+    },
+  })
+  expect(f.runtime.creatorInspection().pacing).toMatchObject({ reason: { why: 'cooling' } })
+})
+
+it('uses commit order when a legacy managed start and a paced event share a projected round number', async () => {
+  const choose = vi.spyOn(PacingScript.prototype, 'choose')
+  const f = await fixture(
+    99,
+    [
+      { ...paced('unlock', 1), set: { key: 'story', value: true } },
+      { ...paced('at-start', 2, true), set: { key: 'story', value: true } },
+      paced('at-simmer', 3, true),
+    ],
+    false,
+    { keys: ['unlock', 'at-start', 'at-simmer'], cooldown: 5, managedCook: true },
+  )
+  await f.runtime.perform(wait)
+  const state = await f.runtime.activityAction({
+    activityKey: 'cook',
+    activityId: null,
+    revision: 0,
+    operation: 'start',
+    parameters: {},
+    requestId: randomUUID(),
+  })
+  const cook = state.activities!.find(row => row.activityKey === 'cook')!
+  await f.runtime.activityAction({
+    activityKey: 'cook',
+    activityId: String(cook.id),
+    revision: Number(cook.revision),
+    operation: 'heat-stove',
+    parameters: {},
+    requestId: randomUUID(),
+  })
+  expect(choose.mock.lastCall![0].history.fired).toEqual([
+    { kind: 'event', key: 'unlock', round: 1 },
+    { kind: 'activity', key: 'cook', round: 1 },
+    { kind: 'event', key: 'at-start', round: 2 },
+  ])
+  expect(f.runtime.creatorInspection().pacing).toMatchObject({ reason: { why: 'cooling', round: 3 } })
+  expect(occurrences(f).map(row => row.ruleId)).toEqual(['unlock', 'at-start'])
+})
+
+it('ignores a provider choice outside the offered IDs and a rolled-back commit when deciding cooldown', async () => {
+  const f = await fixture(99, [paced('first', 1), paced('later', 9)], false, { keys: ['first', 'later'], cooldown: 12 })
+  const choose = vi
+    .spyOn(PacingScript.prototype, 'choose')
+    .mockReturnValueOnce({ kind: 'event', key: 'later', reason: {} })
+  await f.runtime.perform(wait).catch(() => undefined)
+  expect(choose.mock.calls[0]![0].candidates).toEqual([{ kind: 'event', key: 'first' }])
+  expect(occurrences(f)).toEqual([])
+  choose.mockRestore()
+  const fault = failCommit('before')
+  await f.runtime.perform(wait).catch(() => undefined)
+  expect(fault.fired).toBe(true)
+  expect(occurrences(f)).toEqual([])
+  expect(f.log()).toEqual([])
+  fault.restore()
+  await f.runtime.perform(wait)
+  expect(occurrences(f)).toMatchObject([{ ruleId: 'first', pacedRound: 3 }])
+})
+
+it('replays the selected rule and uses only the effective node prefix for its cooldown', async () => {
+  const f = await fixture(99, [paced('first', 2), paced('second', 3)], false, {
+    keys: ['first', 'second'],
+    cooldown: 6,
+  })
+  await f.runtime.perform(wait)
+  const before = await f.runtime.saveNode('before-selection')
+  const at = await f.runtime.perform(wait)
+  const original = occurrences(f)[0]!
+  expect(original).toMatchObject({ ruleId: 'first', pacedRound: 2 })
+  await f.runtime.regenerate(at.tailRound!.id!, randomUUID())
+  const replay = occurrences(f)[0]!
+  expect(replay).toMatchObject({ ruleId: 'first', pacedRound: 2 })
+  expect(replay.occurrenceId).not.toBe(original.occurrenceId)
+  expect(f.log().map(row => row.id)).toEqual(['stage-cue'])
+  await f.runtime.perform(wait)
+  expect(occurrences(f)).toHaveLength(1)
+  expect(f.runtime.creatorInspection().pacing).toMatchObject({ reason: { why: 'cooling', round: 3 } })
+  await f.restore(before)
+  expect(occurrences(f)).toEqual([])
+  await f.runtime.setPacing(false)
+  await f.runtime.perform(wait)
+  await f.runtime.setPacing(true)
+  await f.runtime.perform(wait)
+  expect(occurrences(f)).toHaveLength(1)
+  expect(occurrences(f)[0]!.pacedRound).toBe(3)
+})
 
 it.each(['before', 'after'] as const)('reconciles the committed prefix after a %s-commit fault', async kind => {
   const f = await fixture(1),

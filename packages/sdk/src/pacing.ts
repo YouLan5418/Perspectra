@@ -7,19 +7,19 @@ export interface PacingSource {
 }
 /** Something whose own conditions already hold. */
 export interface PacingCandidate {
-  readonly kind: 'activity' | 'beat'
+  readonly kind: 'activity' | 'beat' | 'event'
   readonly key: string
 }
 /** Committed facts only, so a replay, a branch or a regenerated round reads the same history. */
 export interface PacingHistory {
   readonly round: number
-  readonly fired: readonly { readonly kind: 'activity' | 'beat'; readonly key: string; readonly round: number }[]
+  readonly fired: readonly { readonly kind: PacingCandidate['kind']; readonly key: string; readonly round: number }[]
   /** Latest round each declared progress key changed or each declared activity ended. */
   readonly lastProgressRound: number
 }
 /** `reason` is for the creator's view only; it never reaches players or characters. */
 export type PacingChoice =
-  | { readonly kind: 'activity' | 'beat'; readonly key: string; readonly reason: WorldJsonObject }
+  | { readonly kind: PacingCandidate['kind']; readonly key: string; readonly reason: WorldJsonObject }
   | { readonly kind: 'none'; readonly reason: WorldJsonObject }
 /** What a beat script reads. Trusted: truth is complete, and nothing here is passed on to a character. */
 export interface PacingBeatInput {
@@ -31,6 +31,8 @@ export interface PacingInstance {
   /** Activities whose start this mechanism decides; any other activity starts as it always has. */
   readonly managedActivities: readonly string[]
   readonly beats: readonly string[]
+  /** Author-declared paced rule IDs this provider can choose by identity only. */
+  readonly worldEvents?: readonly string[]
   /** Which status keys and activities count as real progress, for the host to read from committed events. */
   readonly progress: { readonly statuses: readonly string[]; readonly activities: readonly string[] }
   intensity(candidate: PacingCandidate): PacingIntensity

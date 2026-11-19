@@ -232,6 +232,7 @@ export function guardedStatus(
 export function guardedPacing(
   instance: PacingInstance,
   world: {
+    readonly pacedRuleIds: readonly string[]
     readonly hasSource: boolean
     readonly id: string
     readonly hasStatus: boolean
@@ -247,11 +248,15 @@ export function guardedPacing(
   if (
     !Array.isArray(instance.managedActivities) ||
     !Array.isArray(instance.beats) ||
+    (instance.worldEvents !== undefined && !Array.isArray(instance.worldEvents)) ||
     !Array.isArray(instance.progress?.activities) ||
     !Array.isArray(instance.progress?.statuses)
   )
     throw invalidPluginResult(context, id, 'open:metadata')
-  if (!world.hasSource && (instance.managedActivities.length || instance.beats.length))
+  const worldEvents = [...(instance.worldEvents ?? [])]
+  if (worldEvents.some(key => !world.pacedRuleIds.includes(key)) || new Set(worldEvents).size !== worldEvents.length)
+    throw invalidPluginResult(context, id, 'open:worldEvents')
+  if (!world.hasSource && (instance.managedActivities.length || instance.beats.length || worldEvents.length))
     throw invalidPluginResult(context, id, 'open:source')
   if (instance.beats.length && !world.hasStatus) throw invalidPluginResult(context, id, 'open:status')
   for (const key of [...instance.managedActivities, ...instance.progress.activities]) {
@@ -265,6 +270,7 @@ export function guardedPacing(
   return {
     managedActivities: [...instance.managedActivities],
     beats: [...instance.beats],
+    worldEvents,
     progress: structuredClone(instance.progress),
     intensity: (candidate: PacingCandidate) =>
       mechanismValue(context, id, 'intensity', 'pacing', report, () => instance.intensity(structuredClone(candidate))),

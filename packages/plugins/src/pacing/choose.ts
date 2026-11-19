@@ -1,5 +1,5 @@
 import type { PacingCandidate, PacingChoice, PacingHistory, PacingIntensity } from '@perspectra/sdk'
-import type { PacingDefinition } from './definition.ts'
+import { candidateIntensity, type PacingDefinition } from './definition.ts'
 
 /** Where the rhythm is at this round: 0 at the trough, 1 at the crest. It paces supply, not how a scene feels. */
 export function tensionAt(round: number, cycleRounds: number): number {
@@ -24,8 +24,7 @@ export function choosePaced(
 ): PacingChoice {
   const { candidates, history, random } = input
   const { round } = history
-  const intensityOf = (candidate: { readonly kind: 'activity' | 'beat'; readonly key: string }) =>
-    (candidate.kind === 'activity' ? definition.activities : definition.beats)[candidate.key]
+  const intensityOf = (candidate: PacingCandidate) => candidateIntensity(definition, candidate)
   const idle = round - history.lastProgressRound,
     stalled = definition.stagnation
   const stagnation =

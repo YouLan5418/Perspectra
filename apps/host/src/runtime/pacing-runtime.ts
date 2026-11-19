@@ -1,6 +1,6 @@
-import type { RoundCountEvent, WorldAddress, WorldJsonObject } from '@perspectra/sdk/contracts'
+import { playerRoundNumber, type WorldAddress, type WorldJsonObject } from '@perspectra/sdk/contracts'
 import { currentLocation } from '@perspectra/core/kernel'
-import type { PacingBeatInput, PacingCandidate, PacingChoice, PacingInstance } from '@perspectra/sdk'
+import type { PacingBeatInput, PacingCandidate, PacingChoice, PacingHistory, PacingInstance } from '@perspectra/sdk'
 import {
   activityWorldFromEvents,
   beatDrafts,
@@ -13,6 +13,7 @@ import {
   type WorldRoundSnapshot,
   type WorldRoundEffects,
 } from '@perspectra/core'
+import type { WorldEventRuntime } from './world-events.ts'
 import type { ActivitiesRuntime } from './activities-runtime.ts'
 import { isPluginFault } from './plugin-runtime.ts'
 import type { StatusRuntime } from './status-runtime.ts'
@@ -27,6 +28,7 @@ export class PacingRuntime {
   #randomValues: number[] = []
   #randomReplay: readonly number[] | undefined
   #randomCursor = 0
+  readonly #legacyCountAtOccurrence = new Map<number, number>()
   constructor(
     private readonly world: {
       readonly mechanism: PacingInstance
@@ -67,6 +69,32 @@ export class PacingRuntime {
       world: { ...world.worldView(this.world.playerId), places } as WorldJsonObject,
     }
   }
+  /** The mounted branch has an immutable prefix. Count legacy firings before each paced occurrence
+   * once, using the same projector even when several decisions share a player round. */
+  #history(snapshot: WorldRoundSnapshot, start: number, events?: WorldEventRuntime): PacingHistory {
+    const mechanism = this.world.mechanism
+    const history = pacingHistory(snapshot.events, start, mechanism)
+    if (!events || !mechanism.worldEvents?.length) return history
+    const fired = [...history.fired]
+    let inserted = 0
+    for (const event of events.pacedHistory(snapshot.head.headSeq)) {
+      if (!mechanism.worldEvents.includes(event.key)) continue
+      let before = this.#legacyCountAtOccurrence.get(event.seq)
+      if (before === undefined) {
+        before = history.fired.length
+          ? pacingHistory(
+              snapshot.events.filter(row => row.seq < event.seq),
+              start,
+              mechanism,
+            ).fired.length
+          : 0
+        this.#legacyCountAtOccurrence.set(event.seq, before)
+      }
+      fired.splice(before + inserted, 0, { kind: 'event', key: event.key, round: event.round })
+      inserted++
+    }
+    return { ...history, fired }
+  }
   /** At most one pure proposal; cycle settlement owns its validation and atomic commit. */
   prepareCycle(
     snapshot: WorldRoundSnapshot,
@@ -74,24 +102,32 @@ export class PacingRuntime {
     cycleId: string,
     coreRead: <T>(work: () => T) => T,
     onWarning: (kind: 'activity' | 'beat', error: Error) => void,
+    worldEvents?: WorldEventRuntime,
   ): WorldRoundEffects | undefined {
     const { activities, mechanism, status, worldPath, address } = this.world
-    if (coreRead(() => [...activityProgress(snapshot.events).values()].some(state => state.game.active)))
-      return undefined
+    const busy = coreRead(() => [...activityProgress(snapshot.events).values()].some(state => state.game.active))
+    const eventIds =
+      worldEvents && mechanism.worldEvents?.length
+        ? coreRead(() => {
+            const { round } = playerRoundNumber(snapshot.events, turnStartSeq, false)
+            return worldEvents.pacedRuleIds(snapshot, round, busy).filter(key => mechanism.worldEvents!.includes(key))
+          })
+        : []
+    if (busy && !eventIds.length) return undefined
     const base = activityWorldFromEvents(worldPath, address, snapshot.head.headSeq, snapshot.events, snapshot.manifest)
     const world: ActivityWorld = {
       ...base,
       truth: status => coreRead(() => base.truth(status)),
       worldView: actor => coreRead(() => base.worldView(actor)),
     }
-    const ready = activities?.autoStartCandidates(world, error => onWarning('activity', error)) ?? []
+    const ready = busy ? [] : (activities?.autoStartCandidates(world, error => onWarning('activity', error)) ?? [])
     const unmanaged = ready.filter(candidate => !mechanism.managedActivities.includes(candidate.key))
     // What the author did not hand over to pacing happens as it always has.
     if (unmanaged.length) return activities!.prepareAutoStart(activities!.chooseAutoStart(unmanaged), world, cycleId)
     const candidates: PacingCandidate[] = ready.map(candidate => ({ kind: 'activity', key: candidate.key }))
     // One broken beat is left out and named; the others and the rest of the world carry on.
     const excluded: { beatId: string; error: string }[] = []
-    if (status && mechanism.beats.length) {
+    if (!busy && status && mechanism.beats.length) {
       const input = this.#input(world)
       for (const beatId of mechanism.beats) {
         try {
@@ -104,6 +140,7 @@ export class PacingRuntime {
         }
       }
     }
+    for (const key of eventIds) candidates.push({ kind: 'event', key })
     let active = true
     const random = () => {
       if (!active) throw new Error('Pacing random capability has ended')
@@ -113,10 +150,7 @@ export class PacingRuntime {
     try {
       choice = mechanism.choose({
         candidates,
-        // The committed events carry their sequence and transaction; RulebookEvent only omits them from its type.
-        history: coreRead(() =>
-          pacingHistory(world.events as unknown as readonly RoundCountEvent[], turnStartSeq, mechanism),
-        ),
+        history: coreRead(() => this.#history(snapshot, turnStartSeq, worldEvents)),
         random,
       })
     } finally {
@@ -125,12 +159,19 @@ export class PacingRuntime {
     const reason = { ...choice.reason, ...(excluded.length ? { excluded } : {}) } as WorldJsonObject
     this.#lastDecision = { ...choice, reason } as unknown as WorldJsonObject
     if (choice.kind === 'none') return undefined
+    if (choice.kind === 'event') {
+      if (!worldEvents || !eventIds.includes(choice.key)) throw new TypeError('节奏选择了条件未满足的世界事件')
+      return coreRead(() => worldEvents.settlePaced(snapshot, cycleId, turnStartSeq, choice.key, busy))
+    }
     if (choice.kind === 'activity') {
       const chosen = ready.find(candidate => candidate.key === choice.key)
       if (!chosen) throw new TypeError('节奏选择了条件未满足的活动')
       return activities!.prepareAutoStart(chosen, world, cycleId)
     }
-    if (!candidates.some(candidate => candidate.kind === 'beat' && candidate.key === choice.key))
+    if (
+      choice.kind !== 'beat' ||
+      !candidates.some(candidate => candidate.kind === 'beat' && candidate.key === choice.key)
+    )
       throw new TypeError('节奏选择了条件未满足的节拍')
     return this.#beatEffects(choice.key, world, cycleId)
   }

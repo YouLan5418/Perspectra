@@ -1,4 +1,4 @@
-import type { PacingIntensity } from '@perspectra/sdk'
+import type { PacingIntensity, PacingCandidate } from '@perspectra/sdk'
 
 export interface PacingDefinition {
   readonly cycleRounds: number
@@ -12,6 +12,7 @@ export interface PacingDefinition {
     readonly maxTensionBoost: number
   }
   readonly activities: Readonly<Record<string, PacingIntensity>>
+  readonly events: Readonly<Record<string, PacingIntensity>>
   readonly beats: Readonly<Record<string, PacingIntensity>>
   /** How many rounds the same activity or beat waits before it may come again; 0 lets it repeat at once. */
   readonly repeatAfterRounds: number
@@ -45,13 +46,13 @@ function names(value: unknown, field: string): string[] {
 }
 function intensities(
   value: unknown,
-  field: 'activities' | 'beats',
+  field: 'activities' | 'beats' | 'events',
   repeatAfter: Record<string, number>,
 ): Record<string, PacingIntensity> {
-  const result: Record<string, PacingIntensity> = {}
+  const result: Record<string, PacingIntensity> = Object.create(null)
   for (const [key, entry] of Object.entries(object(value ?? {}, field))) {
     const row = object(entry, `${field}.${key}`)
-    exact(row, `${field}.${key}`, ['intensity'], ['repeatAfterRounds'])
+    exact(row, `${field}.${key}`, ['intensity'], field === 'events' ? [] : ['repeatAfterRounds'])
     if (row.intensity !== 'low' && row.intensity !== 'medium' && row.intensity !== 'high')
       throw new TypeError(`节奏配置 ${field}.${key}.intensity 必须是 low、medium 或 high`)
     result[key] = row.intensity
@@ -72,7 +73,7 @@ export function parsePacingDefinition(value: unknown): PacingDefinition {
     root,
     'definition',
     ['cycleRounds', 'chance', 'cooldownRounds', 'recoveryRounds'],
-    ['stagnation', 'activities', 'beats', 'repeatAfterRounds'],
+    ['stagnation', 'activities', 'beats', 'events', 'repeatAfterRounds'],
   )
   const cooldown = object(root.cooldownRounds, 'cooldownRounds')
   const repeatAfter: Record<string, number> = {}
@@ -107,9 +108,15 @@ export function parsePacingDefinition(value: unknown): PacingDefinition {
     recoveryRounds: rounds(root.recoveryRounds, 'recoveryRounds', 0),
     ...(stagnation === undefined ? {} : { stagnation }),
     activities: intensities(root.activities, 'activities', repeatAfter),
+    events: intensities(root.events, 'events', repeatAfter),
     beats: intensities(root.beats, 'beats', repeatAfter),
     repeatAfterRounds:
       root.repeatAfterRounds === undefined ? 0 : rounds(root.repeatAfterRounds, 'repeatAfterRounds', 0),
     repeatAfter,
   }
+}
+
+export function candidateIntensity(definition: PacingDefinition, { kind, key }: PacingCandidate) {
+  const table = { activity: definition.activities, beat: definition.beats, event: definition.events }[kind]
+  return Object.hasOwn(table, key) ? table[key] : undefined
 }

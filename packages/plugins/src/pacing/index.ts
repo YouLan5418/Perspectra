@@ -11,7 +11,7 @@ import type {
   SeamProvider,
 } from '@perspectra/sdk'
 import { choosePaced } from './choose.ts'
-import { parsePacingDefinition, type PacingDefinition } from './definition.ts'
+import { candidateIntensity, parsePacingDefinition, type PacingDefinition } from './definition.ts'
 
 const INPUT_LIMIT = 1024 * 1024,
   OUTPUT_LIMIT = 65536
@@ -21,12 +21,14 @@ export class PacingScript implements PacingInstance {
   readonly #script: Script | undefined
   readonly #definition: PacingDefinition | undefined
   readonly managedActivities: readonly string[]
+  readonly worldEvents: readonly string[]
   readonly beats: readonly string[]
   readonly progress: { readonly statuses: readonly string[]; readonly activities: readonly string[] }
   constructor(source: PacingSource | undefined) {
     if (source === undefined) {
       this.managedActivities = []
       this.beats = []
+      this.worldEvents = []
       this.progress = { statuses: [], activities: [] }
       return
     }
@@ -45,12 +47,12 @@ export class PacingScript implements PacingInstance {
     for (const id of implemented)
       if (!declared.includes(id)) throw new TypeError(`节拍 ${id} 有实现但没有在 definition.beats 声明`)
     this.managedActivities = Object.keys(this.#definition.activities)
+    this.worldEvents = Object.keys(this.#definition.events)
     this.beats = declared
     this.progress = this.#definition.stagnation?.progress ?? { statuses: [], activities: [] }
   }
   intensity(candidate: PacingCandidate): PacingIntensity {
-    const table = candidate.kind === 'activity' ? this.#definition?.activities : this.#definition?.beats
-    const intensity = table?.[candidate.key]
+    const intensity = this.#definition && candidateIntensity(this.#definition, candidate)
     if (intensity === undefined) throw new TypeError(`节奏没有管理 ${candidate.key}`)
     return intensity
   }

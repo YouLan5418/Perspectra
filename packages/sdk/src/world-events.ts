@@ -4,6 +4,8 @@ export type Witness = 'scene' | 'global' | { readonly holds: string }
 export interface EventRule {
   readonly id: string
   readonly type: string
+  readonly trigger?: 'hard' | 'paced'
+  readonly duringActivity?: boolean
   readonly round: number
   readonly location: string
   readonly witnesses: readonly Witness[]
@@ -72,7 +74,17 @@ function write(raw: unknown): BooleanWrite {
 export function parseEventBook(raw: unknown, pack: ContentPackFacts): EventBook {
   const book = object(raw, ['rules', 'grants'])
   const rules = list(book.rules, 32).map((entry): EventRule => {
-    const rule = object(entry, ['id', 'type', 'round', 'location', 'audience', 'observation', 'set'])
+    const rule = object(entry, [
+      'id',
+      'type',
+      'round',
+      'location',
+      'audience',
+      'observation',
+      'set',
+      'trigger',
+      'duringActivity',
+    ])
     if (
       typeof rule.round !== 'number' ||
       !Number.isSafeInteger(rule.round) ||
@@ -84,6 +96,10 @@ export function parseEventBook(raw: unknown, pack: ContentPackFacts): EventBook 
       rule.observation.length > 512
     )
       throw new TypeError('world-events: invalid round, location or observation')
+    if (rule.trigger !== undefined && rule.trigger !== 'hard' && rule.trigger !== 'paced')
+      throw new TypeError('world-events: trigger must be hard or paced')
+    if (rule.duringActivity !== undefined && (rule.trigger !== 'paced' || typeof rule.duringActivity !== 'boolean'))
+      throw new TypeError('world-events: duringActivity requires a paced rule and a boolean')
     const audience = rule.audience === undefined ? 'scene' : rule.audience
     const members =
       typeof audience === 'object' && audience && 'anyOf' in audience
@@ -102,6 +118,7 @@ export function parseEventBook(raw: unknown, pack: ContentPackFacts): EventBook 
       type: worldEventType(rule.type),
       round: rule.round,
       location: rule.location,
+      ...(rule.trigger === 'paced' ? { trigger: 'paced' as const, duringActivity: rule.duringActivity === true } : {}),
       witnesses,
       observation: rule.observation,
       set: write(rule.set),

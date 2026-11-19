@@ -132,7 +132,7 @@ it('gives the same answer for the same input, with a fixed number of draws', () 
 it('never breaks a cooldown or recovery over a long run', () => {
   let seed = 12345
   const random = () => (seed = (seed * 16807) % 2147483647) / 2147483647
-  const fired: { kind: 'activity' | 'beat'; key: string; round: number }[] = []
+  const fired: Array<PacingHistory['fired'][number]> = []
   const intensityOf = { knock: 'low', rent: 'medium', storm: 'high' } as const
   for (let round = 1; round <= 10000; round++) {
     const choice = choose([knock, rent, storm], { round, fired, lastProgressRound: round }, random)

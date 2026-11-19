@@ -119,6 +119,15 @@ it('does not intervene when the draw says no, and the round still ends normally'
   expect(obj(obj(await f.runtime.state()).debug).autoStartError).toBeUndefined()
 })
 
+it('returns a managed activity to its original autoStart when pacing is switched off', async () => {
+  const f = await world(definition({ guess: { intensity: 'low' }, dice: { intensity: 'low' } }, 0))
+  await f.round([0])
+  expect(f.starts()).toEqual([])
+  await f.runtime.setPacing(false)
+  await f.round([0])
+  expect(f.starts()).toHaveLength(1)
+})
+
 it('does not evaluate while an activity runs or after escaping within the same round', async () => {
   const f = await world(definition({ guess: { intensity: 'low' }, dice: { intensity: 'low' } }))
   await f.round([0, 0])

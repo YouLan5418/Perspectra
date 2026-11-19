@@ -25,6 +25,7 @@ interface IndexedOccurrence extends Occurrence {
 interface Occurrence extends WorldEventEnvelope, WorldJsonObject {
   ruleId: string
   cycle: string
+  pacedRound?: number
   grants: string[]
 }
 const grantId = (g: EventGrant) =>
@@ -159,14 +160,26 @@ export class WorldEventRuntime {
     this.status!.validate(snapshot.events, data, [])
     return { eventType: 'status.updated', eventVersion: 1, data: data as unknown as WorldJsonObject }
   }
-  settle(snapshot: WorldRoundSnapshot, cycle: string, start: number): WorldRoundEffects | undefined {
+  private eligible(snapshot: WorldRoundSnapshot, round: number): EventRule[] {
     this.index(snapshot.head.headSeq)
-    const { round } = playerRoundNumber(snapshot.events, start, false)
+    return this.book.rules.filter(rule => round >= rule.round && !this.occurrences.has(rule.id))
+  }
+  private eligiblePaced(snapshot: WorldRoundSnapshot, round: number, busy: boolean) {
+    return this.eligible(snapshot, round).filter(rule => rule.trigger === 'paced' && (!busy || rule.duringActivity))
+  }
+  pacedRuleIds(snapshot: WorldRoundSnapshot, round: number, busy: boolean) {
+    return this.eligiblePaced(snapshot, round, busy).map(rule => rule.id)
+  }
+  pacedHistory(through: number) {
+    this.index(through)
+    return [...this.occurrences.values()].flatMap(event =>
+      event.pacedRound === undefined ? [] : [{ key: event.ruleId, round: event.pacedRound, seq: event.seq }],
+    )
+  }
+  private occurrenceEffects(snapshot: WorldRoundSnapshot, cycle: string, rules: EventRule[], pacedRound?: number) {
     const events: WorldEventDraft[] = [],
-      occurrences: Occurrence[] = [],
-      receipts: string[] = []
-    for (const rule of this.book.rules) {
-      if (round < rule.round || this.occurrences.has(rule.id)) continue
+      occurrences: Occurrence[] = []
+    for (const rule of rules) {
       const occurrenceId = randomUUID()
       events.push(
         this.statusEvent(snapshot, cycle, rule.set),
@@ -188,9 +201,33 @@ export class WorldEventRuntime {
         type: rule.type,
         occurrenceId,
         cycle,
+        ...(pacedRound === undefined ? {} : { pacedRound }),
         grants: this.book.grants.filter(g => g.type === rule.type).map(grantId),
       })
     }
+    return { events, occurrences }
+  }
+  private effects(events: WorldEventDraft[], occurrences: Occurrence[], receipts: string[]): WorldRoundEffects {
+    return { events, authority: { source, packId: this.packId, occurrences, receipts } }
+  }
+  settlePaced(
+    snapshot: WorldRoundSnapshot,
+    cycle: string,
+    start: number,
+    ruleId: string,
+    busy: boolean,
+  ): WorldRoundEffects {
+    const { round } = playerRoundNumber(snapshot.events, start, false)
+    const rule = this.eligiblePaced(snapshot, round, busy).find(rule => rule.id === ruleId)
+    if (!rule) throw new TypeError('节奏选择了条件未满足的世界事件')
+    const { events, occurrences } = this.occurrenceEffects(snapshot, cycle, [rule], round)
+    return this.effects(events, occurrences, [])
+  }
+  settle(snapshot: WorldRoundSnapshot, cycle: string, start: number): WorldRoundEffects | undefined {
+    const { round } = playerRoundNumber(snapshot.events, start, false)
+    const hard = this.eligible(snapshot, round).filter(rule => rule.trigger !== 'paced')
+    const { events, occurrences } = this.occurrenceEffects(snapshot, cycle, hard)
+    const receipts: string[] = []
     if (this.active)
       for (const event of this.occurrences.values()) {
         if (event.cycle === cycle) continue
@@ -211,9 +248,6 @@ export class WorldEventRuntime {
         }
       }
     if (!occurrences.length && !receipts.length) return undefined
-    return {
-      events,
-      authority: { source, packId: this.packId, occurrences, receipts },
-    }
+    return this.effects(events, occurrences, receipts)
   }
 }
