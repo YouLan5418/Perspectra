@@ -58,6 +58,7 @@ import { generateStatusModule, officialRpgContent, parseRpgConfig } from '@persp
 import { officialTrpgContent } from '@perspectra/plugins/trpg'
 import type { PackPluginDescriptor } from '@perspectra/world-pack'
 
+import { scheduledNotice, encounterTables, contacts, type AuthoringFeature } from './authoring-features.ts'
 import { officialWorldEvents } from '@perspectra/plugins/world-events'
 export type { RpgConfig, OfficialRpgBattleView } from '@perspectra/plugins/rpg'
 export {
@@ -67,11 +68,12 @@ export {
   readPartyList,
   EQUIPMENT_STATUS,
 } from '@perspectra/plugins/rpg'
-export const officialPackPlugins: readonly PackPluginDescriptor[] = [
+export type AuthoringPackPlugin = PackPluginDescriptor & { readonly authoring?: readonly AuthoringFeature[] }
+export const officialPackPlugins: readonly AuthoringPackPlugin[] = [
   officialRpgContent,
   officialTrpgContent,
-  officialWorldEvents,
-  { id: 'official-dice', version: '1' },
+  { ...officialWorldEvents, authoring: [scheduledNotice] },
+  { id: 'official-dice', version: '1', authoring: [encounterTables] },
   {
     id: 'official-autonomy',
     version: '1',
@@ -97,6 +99,7 @@ export const officialPackPlugins: readonly PackPluginDescriptor[] = [
   { id: 'official-pacing', version: '1' },
   {
     id: 'official-communication',
+    authoring: [contacts],
     version: '1',
     configFile: 'communication.json',
     configSchema: {

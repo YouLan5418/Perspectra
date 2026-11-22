@@ -6,6 +6,7 @@
   "exports": {
     "./runtime": "./src/runtime/world-runtime.ts",
     "./composition": "./src/official-bundle.ts",
+    "./authoring-catalog": "./src/authoring-catalog.ts",
     "./simulation": "./src/simulation/simulation.ts",
     "./editor/activity-references": "./src/editor/activity-references.ts",
     "./editor/rpg-cues": "./src/editor/rpg-cues.ts",

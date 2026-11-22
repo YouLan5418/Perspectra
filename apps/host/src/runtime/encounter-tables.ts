@@ -33,9 +33,37 @@ export interface EncounterTable {
   clockKey?: string
   rows: TableRow[]
 }
+const tableFields = {
+  table: ['key', 'title', 'clockKey', 'rows'],
+  row: [
+    'key',
+    'title',
+    'kind',
+    'text',
+    'location',
+    'conditions',
+    'weight',
+    'event',
+    'completeEvent',
+    'rewardKey',
+    'reward',
+    'duration',
+    'limit',
+  ],
+  condition: ['key', 'op', 'value'],
+} as const
 const comparisons = { eq: '=', ne: '≠', lt: '<', lte: '≤', gt: '>', gte: '≥' }
 const identifier = /^[a-z][a-z0-9-]{0,32}$/u
-function object(value: unknown, fields: string[], path: string): Record<string, unknown> {
+const tableLimits = { maxTitleLength: 80, maxTextLength: 512, maxTotalWeight: 1000 } as const
+export function encounterTableSourceFormat() {
+  return {
+    fields: structuredClone(tableFields),
+    comparisons: Object.keys(comparisons),
+    bounds: { ...tableLimits },
+    keyPattern: identifier.source,
+  }
+}
+function object(value: unknown, fields: readonly string[], path: string): Record<string, unknown> {
   if (!isJsonObject(value)) throw new TypeError(path + ' 需要对象')
   for (const key of Object.keys(value)) if (!fields.includes(key)) throw new TypeError(path + ' 未知字段 ' + key)
   return value
@@ -43,8 +71,8 @@ function object(value: unknown, fields: string[], path: string): Record<string, 
 function named(raw: Record<string, unknown>, seen: Set<string>, path: string) {
   if (typeof raw.key !== 'string' || !identifier.test(raw.key) || seen.has(raw.key))
     throw new TypeError(path + ' 标识无效或重复')
-  if (typeof raw.title !== 'string' || !raw.title.trim() || raw.title.length > 80)
-    throw new TypeError(path + ' 需要 1–80 字的名称')
+  if (typeof raw.title !== 'string' || !raw.title.trim() || raw.title.length > tableLimits.maxTitleLength)
+    throw new TypeError(path + ' 需要 1–' + tableLimits.maxTitleLength + ' 字的名称')
   seen.add(raw.key)
 }
 function positive(value: unknown) {
@@ -54,7 +82,7 @@ export function parseTables(raw: unknown, catalog: TableCatalog): EncounterTable
   if (!Array.isArray(raw)) throw new TypeError('tables 需要数组')
   const keys = new Set<string>()
   return raw.map((entry, index) => {
-    const table = object(entry, ['key', 'title', 'clockKey', 'rows'], '表 ' + (index + 1))
+    const table = object(entry, tableFields.table, '表 ' + (index + 1))
     named(table, keys, '表 ' + (index + 1))
     const varOf = (key: unknown, type: string) => catalog.variables.find(v => v.key === key && v.type === type)
     if (table.clockKey !== undefined && !varOf(table.clockKey, 'number'))
@@ -64,36 +92,18 @@ export function parseTables(raw: unknown, catalog: TableCatalog): EncounterTable
     let total = 0
     for (const [i, entry] of table.rows.entries()) {
       const path = table.title + ' › 第 ' + (i + 1) + ' 行'
-      const row = object(
-        entry,
-        [
-          'key',
-          'title',
-          'kind',
-          'text',
-          'location',
-          'conditions',
-          'weight',
-          'event',
-          'completeEvent',
-          'rewardKey',
-          'reward',
-          'duration',
-          'limit',
-        ],
-        path,
-      )
+      const row = object(entry, tableFields.row, path)
       named(row, rows, path)
       if (row.kind !== 'encounter' && row.kind !== 'quest') throw new TypeError(path + ' 请选择遭遇或委托')
-      if (row.text !== undefined && (typeof row.text !== 'string' || row.text.length > 512))
-        throw new TypeError(path + ' 描述最多 512 字')
+      if (row.text !== undefined && (typeof row.text !== 'string' || row.text.length > tableLimits.maxTextLength))
+        throw new TypeError(path + ' 描述最多 ' + tableLimits.maxTextLength + ' 字')
       if (row.location !== undefined && !catalog.locations.some(l => l.id === row.location))
         throw new TypeError(path + ' 地点不存在')
       if (row.conditions !== undefined) {
         if (!Array.isArray(row.conditions)) throw new TypeError(path + ' 条件需要数组')
         for (const [index, raw] of row.conditions.entries()) {
           const where = path + ' › 条件 ' + (index + 1)
-          const c = object(raw, ['key', 'op', 'value'], where)
+          const c = object(raw, tableFields.condition, where)
           const variable = catalog.variables.find(v => v.key === c.key)
           if (!variable || !acceptsVariableValue(variable, c.value))
             throw new TypeError(where + ' 请核对公开变量、类型和枚举取值：' + c.key)
@@ -108,7 +118,8 @@ export function parseTables(raw: unknown, catalog: TableCatalog): EncounterTable
       for (const key of ['weight', 'limit', 'reward', 'duration'])
         if (row[key] !== undefined && !positive(row[key])) throw new TypeError(path + ' › ' + key + ' 需要正整数')
       total += Number(row.weight ?? 1)
-      if (total > 1000) throw new TypeError(path + ' 总权重超过官方骰子的 1000 面上限')
+      if (total > tableLimits.maxTotalWeight)
+        throw new TypeError(path + ' 总权重超过官方骰子的 ' + tableLimits.maxTotalWeight + ' 面上限')
       if (
         (row.duration !== undefined && (!table.clockKey || row.kind !== 'quest')) ||
         (row.completeEvent !== undefined && row.kind !== 'quest')

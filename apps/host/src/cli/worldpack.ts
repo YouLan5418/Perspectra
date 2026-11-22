@@ -54,6 +54,17 @@ try {
         }),
       ).toString('utf8')}\n`,
     )
+  } else if (args[0] === 'catalog') {
+    const { listAuthoringCapabilities, describeAuthoringCapability } = await import('../authoring-catalog.ts')
+    const usage = 'worldpack catalog list | worldpack catalog detail <id>'
+    let result
+    if (args.length === 2 && args[1] === '--help') result = { command: 'catalog.help', usage }
+    else if (args.length === 2 && args[1] === 'list')
+      result = { command: 'catalog.list', ...listAuthoringCapabilities() }
+    else if (args.length === 3 && args[1] === 'detail')
+      result = { command: 'catalog.detail', ...describeAuthoringCapability(args[2]!) }
+    else throw new TypeError(usage)
+    process.stdout.write(JSON.stringify(result) + '\n')
   } else if (args[0] === 'editor') {
     const { runEditorCli } = await import('../editor/cli.ts')
     process.stdout.write(JSON.stringify(await runEditorCli(args.slice(1))) + '\n')

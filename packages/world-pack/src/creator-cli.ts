@@ -155,6 +155,8 @@ export async function executeWorldPackCli(args: readonly string[], options: Worl
   if (invocation.command === 'help') {
     return output({
       command: 'help',
+      catalog:
+        'worldpack catalog list | worldpack catalog detail <id>: read this build’s authoring definitions; pack and live Host availability are not evaluated.',
       editor: 'worldpack editor --help: open, edit, play or export a source pack; serve opens the authoring UI.',
       usage: USAGE,
       output: 'One JSON line on stdout on success; ErrorEnvelope JSON on stderr and exit code 1 on failure.',

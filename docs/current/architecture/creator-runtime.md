@@ -303,3 +303,10 @@ NPC 固定台词发表时，可选 `onPublished(state, actorId, expression)` 返
 例如给澄一个“先削弱守卫架势”的目标，她会从自己的技能效果说明里选择压制或破甲击，裁定结果确认后再发表。RPG 使用已有的原生 `projectState`，由共同 GameplayRuntime 将授权结果放入决策上下文；没有改通用 Prompt 模板，也不把技能定义重复写进持久活动状态。作者数值、护盾和持续效果均有真实模型实际操作，完整长局质量另行验收。
 
 活动桥在投影模型候选时，保留上游许可过滤后的原始选项及参数 Schema，只能收窄，不能按活动 policy 重新生成已被剔除的动作。同居示例为角色显式声明其实际使用的 attack／magic／heal／guard／vote 许可。没有恢复默认全部放行。B10 包迁移已集成；当前自动化、真实模型与便携入口结果见 [B11 记录](../../superpowers/plans/2026-11-16-composable-engine-b11-acceptance.md)。
+
+
+## 创作能力目录
+
+作者要做「第二回合响钟，在场角色听见」时，`worldpack catalog list` 可发现定时告示，`catalog detail official-world-events/scheduled-notice` 返回包级布尔状态依赖、受众与验证步骤。另有遭遇与委托表、通信联系人。稳定 ID 由提供者 ID 和功能键构成，定义版本独立于提供者版本。provider.version 对应包清单要匹配的插件版本；运行时服务有各自版本。新字段可向后兼容扩展，破坏性定义修改需提升定义版本。
+
+只读查询投影随构建的官方插件描述。事件和候选表的字段来自解析器，通信配置取插件的 schema。结果标记 `coverage: partial`，并保留包和实时 Host 的待核对状态。Host 侧适配器可从 `@perspectra/host/authoring-catalog` 调用 `listAuthoringCapabilities()` 和 `describeAuthoringCapability(id)`，按 ID 和版本复用查询结果，在自己的上下文另行核对安装、包选择、分支授权及实时可用性。CLI 查询不读取作品或存档，也不附加 Host 会话。现有作者工具用 `editor event-candidates`、`editor tables`、`editor communication` 查询具体作品，再用正式导出验证。[只读查询](../../../apps/host/src/authoring-catalog.ts) · [插件描述](../../../apps/host/src/official-pack-metadata.ts)
