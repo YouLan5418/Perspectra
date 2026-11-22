@@ -132,6 +132,13 @@ function referencesEntity(action: WorldJsonObject | null, id: string): boolean {
   // Explicit typed targets only; mentions in dialogue never establish a transfer or an attempted use.
   return parameters.entityId === id || (target.kind === 'entity' && target.id === id)
 }
+/** Look up the submitted parameters by the committed resolution's transaction and action ID. */
+export function committedAction(authority: WorldJsonObject | null | undefined, actionId: string) {
+  if (authority?.actionId === actionId) return object(authority.action)
+  return Array.isArray(authority?.actions)
+    ? (authority.actions.map(object).find(action => action.actionId === actionId) ?? null)
+    : null
+}
 /** Derive from the full committed prefix before paging, so recipient and custody evidence crosses pages. */
 export function creatorHistory(
   store: WorldStore,
@@ -151,10 +158,7 @@ export function creatorHistory(
     if (!authorities.has(event.transactionId))
       authorities.set(event.transactionId, store.readRoundAuthority(address, event.transactionId)?.authority ?? null)
     const authority = authorities.get(event.transactionId)
-    if (authority?.actionId === actionId) return object(authority.action)
-    return Array.isArray(authority?.actions)
-      ? (authority.actions.map(object).find(action => action.actionId === actionId) ?? null)
-      : null
+    return committedAction(authority, actionId)
   }
   const byTransaction = new Map<string, StoredWorldEvent[]>()
   const observations = new Map<string, StoredWorldEvent[]>()

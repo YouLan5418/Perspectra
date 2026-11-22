@@ -50,6 +50,8 @@ description: 直接编写 Perspectra v5 世界源包、从 SillyTavern PNG/JSON 
 
 用 `worldpack.cmd editor records '<源目录>'` 查角色、地点和物品；活动与规则的机器接口见 `worldpack.cmd editor --help`。修改后运行 `validate`，再用 `worldpack.cmd simulate '<源目录>' '<剧本路径>'` 核对动作、触发和状态变化。退出码 2 表示剧本已执行但未通过，查看各步的 `expectations` 和 `error`。角色表现需另行真实模型试玩。[推演脚本](references/gameplay.md#推演脚本)
 
+交接时在作品工作区保存作者确认的目标、对应的用例 ID、清单与剧本。导出完整源目录后运行 `worldpack.cmd accept '<导出目录>' '<验收清单.json>'`，把程序生成的 JSON 连同该版作品交接。交付通过须核对本次全跑的 `deliveryPassed:true` 及输入摘要。按 ID 筛选适合改作时回归，换导出内容、剧本、清单或引擎构建后要重新全跑。[清单与断言示例](references/gameplay.md#交付验收)
+
 ## 校验与实际运行
 
 有永久告别、失踪或分队的章节，按[角色退场](references/gameplay.md#角色退场)安排各人的可达地点、队伍与回程，再用已经开门的地图试着让她跟来。

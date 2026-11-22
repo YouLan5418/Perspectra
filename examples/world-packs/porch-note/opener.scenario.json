@@ -1,0 +1,50 @@
+{
+  "title": "拿刀再拆信",
+  "steps": [
+    {
+      "id": "take",
+      "interact": "status:take",
+      "target": "entity:opener",
+      "expect": {
+        "offers": [
+          {
+            "at": "before",
+            "operation": "status:take",
+            "target": "entity:opener",
+            "present": true
+          }
+        ],
+        "resolution": {
+          "status": "accepted",
+          "operation": "status:take"
+        }
+      }
+    },
+    {
+      "id": "open-choice",
+      "activity": "read-note",
+      "operation": "start",
+      "expect": {
+        "offers": [
+          {
+            "at": "after",
+            "operation": "activity:open-note",
+            "target": "read-note",
+            "present": true
+          }
+        ]
+      }
+    },
+    {
+      "id": "read",
+      "activity": "read-note",
+      "operation": "open-note",
+      "expect": {
+        "resolution": {
+          "status": "accepted"
+        },
+        "notStarted": "read-note"
+      }
+    }
+  ]
+}

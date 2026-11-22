@@ -5,7 +5,8 @@
       "interact": "investigation:search",
       "expect": {
         "resolution": {
-          "status": "accepted"
+          "status": "accepted",
+          "operation": "investigation:search"
         },
         "status": {
           "character:player.energy": 1,
@@ -32,13 +33,15 @@
         "contextExcludes": {
           "character:cheng": "clue:letter"
         }
-      }
+      },
+      "id": "search"
     },
     {
       "interact": "investigation:search",
       "expect": {
         "resolution": {
-          "status": "accepted"
+          "status": "accepted",
+          "operation": "investigation:search"
         },
         "status": {
           "character:player.energy": 0,
@@ -46,7 +49,8 @@
             "clue:letter"
           ]
         }
-      }
+      },
+      "id": "repeat"
     },
     {
       "action": {
@@ -67,7 +71,8 @@
       "expect": {
         "resolution": {
           "status": "rejected",
-          "code": "INSUFFICIENT_ENERGY"
+          "code": "INSUFFICIENT_ENERGY",
+          "operation": "investigation:search"
         },
         "status": {
           "character:player.energy": 0,
@@ -75,7 +80,8 @@
             "clue:letter"
           ]
         }
-      }
+      },
+      "id": "exhausted"
     }
   ]
 }

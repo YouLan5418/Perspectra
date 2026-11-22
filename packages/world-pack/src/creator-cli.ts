@@ -164,6 +164,8 @@ export async function executeWorldPackCli(args: readonly string[], options: Worl
       activate: 'Initialize local databases only; does not start the game Host or load Host-side extensions.',
       presets:
         'preset validate <file> accepts native library exchanges; --pack requires a bare RolePreset. Checks fields, macros and regex syntax, not style quality.',
+      accept:
+        'worldpack accept <export-dir> <manifest.json> [--only <case-id> ...]: 0 selected checks passed, 1 input/Host error, 2 acceptance failed. Only a full run can pass delivery.',
       simulate:
         'worldpack simulate <dir> <scenario.json>: run gameplay assertions in the Host using a scripted model. A failed scenario exits with code 2.',
     })

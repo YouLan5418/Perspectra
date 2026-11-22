@@ -1,0 +1,13 @@
+{
+  "cases": [
+    {
+      "id": "search-route",
+      "scenario": "scenario.json",
+      "required": [
+        "search",
+        "repeat",
+        "exhausted"
+      ]
+    }
+  ]
+}

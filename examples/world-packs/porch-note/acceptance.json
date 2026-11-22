@@ -1,0 +1,21 @@
+{
+  "cases": [
+    {
+      "id": "empty",
+      "scenario": "empty.scenario.json",
+      "required": [
+        "choices",
+        "leave"
+      ]
+    },
+    {
+      "id": "opener",
+      "scenario": "opener.scenario.json",
+      "required": [
+        "take",
+        "open-choice",
+        "read"
+      ]
+    }
+  ]
+}

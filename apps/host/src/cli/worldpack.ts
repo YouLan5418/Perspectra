@@ -57,6 +57,18 @@ try {
   } else if (args[0] === 'editor') {
     const { runEditorCli } = await import('../editor/cli.ts')
     process.stdout.write(JSON.stringify(await runEditorCli(args.slice(1))) + '\n')
+  } else if (args[0] === 'accept') {
+    if (!args[1] || !args[2] || (args.length > 3 && (args[3] !== '--only' || args.length === 4)))
+      throw new TypeError('usage: worldpack accept <export-dir> <manifest.json> [--only <case-id> ...]')
+    const { runAcceptance } = await import('../simulation/acceptance.ts')
+    try {
+      const { report, exitCode } = await runAcceptance(args[1], args[2], args.slice(4))
+      process.stdout.write(JSON.stringify(report) + '\n')
+      process.exitCode = exitCode
+    } catch {
+      // Filesystem and parser errors may contain local paths or the contents of author inputs.
+      throw new TypeError('验收清单、筛选或临时目录无效。请在本机核对输入。')
+    }
   } else if (args[0] === 'simulate') {
     if (args.length !== 3) throw new TypeError('usage: worldpack simulate <source> <scenario.json>')
     const { parseScenario, runScenario } = await import('../simulation/scenario.ts')

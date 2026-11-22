@@ -32,6 +32,8 @@ import type { ActionAffordance } from '@perspectra/core/kernel'
 
 export interface HostState {
   /** Already scoped to the player by the common gameplay runtime. Never module truth. */
+  /** At least one player-view projection failed. Partial output cannot prove absence. */
+  readonly gameplayIncomplete?: true
   readonly gameplay?: readonly {
     readonly moduleId: string
     readonly view: import('@perspectra/sdk').GameplayPlayerView

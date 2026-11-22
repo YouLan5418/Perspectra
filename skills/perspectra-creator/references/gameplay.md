@@ -285,3 +285,23 @@ model-preset.json、role-presets.json 和 frontend/ 是宿主独立读取的扩�
 使用当前源码工具时，先运行 `worldpack editor activity-pages <源包>` 枚举真实活动键和资源。在 `frontend/activities/` 下编写 HTML、CSS 及引用的包内资源，HTML 可用相对路径链接样式。在 `frontend/activity-pages.json` 以活动键绑定，例如 `{"read-note":{"html":"activities/note.html","css":"activities/note.css"}}`。CSS 选填。用 `data-activity-title`、`data-activity-field="score"` 显示授权字段，用 `<div data-activity-actions></div>` 请求宿主显示当前选项和参数表单。页面禁用作者脚本。需要按活动提交裁定时使用宿主提供的操作。
 
 也可用 `worldpack editor activity-page-import <源包> <请求.json>` 写入 `{path,text}`，用 `activity-page-save` 提交 `{key,base,page}`。修改时 `base` 取上次读取的绑定，新建用 `null`。为页面元素配置行为时，先调用 `activity-page-candidates`，传入 `key`、`html`，需要玩法动态字段时另传 `trial:true` 与试玩 `scenes`。把结果中的 `field` 原样用于 `page.elements[].rules[]` 的 `field`，同时给出 `compare`、标量 `value`、`effect`（`show`、`class` 或 `image`）。每项元素需有 HTML 内的唯一 `id`，按钮可同时填 `operation`。图片可通过 `activity-page-import` 的 `path` 与 `base64` 导入。使用 `activity-page-preview` 和 `{"key":"read-note"}` 打开本地试玩，退出预览后用 `editor export` 导出新目录。
+
+## 交付验收
+
+例如验收门廊空手开信，把以下清单和剧本放在同一个作者工作目录，分别保存为 `acceptance.json` 与 `empty.json`。正式作品使用 `editor export` 导出的完整目录。验收入口直接读取该目录的运行内容，工作区清单和剧本另外保管。
+
+```json
+{"cases":[{"id":"empty","scenario":"empty.json","required":["choices"]}]}
+```
+
+```json
+{"title":"空手看便笺","steps":[{"id":"choices","activity":"read-note","operation":"start","expect":{"started":"read-note","offers":[{"at":"after","operation":"activity:open-note","target":"read-note","present":false}]}}]}
+```
+
+`offers` 读取正式玩家选项，时点为本步前 `before` 或本步后 `after`，`target` 可省略。普通交互用定义 ID，移动用 `move` 和地点目标。检查正式玩家裁定可写 `"resolution":{"operation":"investigation:search","status":"rejected","code":"INSUFFICIENT_ENERGY"}`。关联到该操作的本步裁定须唯一。短写交互会先匹配候选；要测试过期操作被正式拒绝，可像搜证剧本那样提交完整的 `action`，在前后两步断言关键状态。活动开始按提交的 start 事件判断。
+
+每个用例的 `required` 列出必验步骤 ID，该步的每个期望都要取得证据并通过。用例与步骤 ID 使用字母、数字、下划线或短横线，以字母或数字开头，最多 80 字符。清单用例下可加 `"requiredPlans":["character:companion"]` 要求该角色在剧本中的整列桩计划都得到消费；若还关心行动结果，另写裁定断言。未标必验的步骤可作准备或探索，意外执行错误仍阻断交付。
+
+运行 `worldpack.cmd accept <导出目录> <清单.json>`；局部回归在末尾加 `--only <用例ID> [更多ID]`。退出 0 表示所选门槛通过，2 表示运行后的验收失败或证据不足，1 表示输入、引擎识别、Host 启动或运行器异常。可解析的清单会按用例返回汇总；清单或筛选本身无效时从 stderr 读错误信封。分享报告只含公共标识、计数、原因码及摘要。步骤下标及失败断言下标从 0 起。需要本机诊断时，在作者控制的目录对该剧本单独运行 `simulate`，其详细输出可含私有上下文。
+
+摘要覆盖实际输入的清单和剧本字节（含开局与桩）、完整导出目录的文件树、编译包、已载入的包内前端和本次 CLI 构建。源码运行记录工作代码与依赖锁、提交及 Node 版本；发行入口记录 CLI bundle 摘要及 Node 版本。报告只证明所列的脚本模型场景，不验证真实服务、另配的模型、未绑定的外部输入或平台运行库。作者可把不同意图分别放在有稳定 ID 的必验步骤，包内 `assertionFiles` 继续由 `worldpack test` 单独报告编译声明。

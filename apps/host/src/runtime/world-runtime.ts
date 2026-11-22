@@ -1012,6 +1012,7 @@ export class WorldHostCore implements HostRuntime {
     this.#presentationWarning = warning
     return {
       gameplay,
+      ...(warnings.length ? { gameplayIncomplete: true as const } : {}),
       playerFeedback: { phase: this.#phaseLabel, message: [this.#notice, warning].filter(Boolean).join(' ') },
       busy: this.#busy,
       canInterrupt,

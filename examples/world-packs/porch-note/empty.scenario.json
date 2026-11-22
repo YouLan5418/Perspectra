@@ -1,0 +1,38 @@
+{
+  "title": "空手读信",
+  "steps": [
+    {
+      "id": "choices",
+      "activity": "read-note",
+      "operation": "start",
+      "expect": {
+        "started": "read-note",
+        "offers": [
+          {
+            "at": "after",
+            "operation": "activity:open-note",
+            "target": "read-note",
+            "present": false
+          },
+          {
+            "at": "after",
+            "operation": "activity:ask-alin",
+            "target": "read-note",
+            "present": true
+          }
+        ]
+      }
+    },
+    {
+      "id": "leave",
+      "activity": "read-note",
+      "operation": "leave",
+      "expect": {
+        "notStarted": "read-note",
+        "resolution": {
+          "status": "accepted"
+        }
+      }
+    }
+  ]
+}

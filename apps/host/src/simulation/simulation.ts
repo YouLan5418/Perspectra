@@ -23,6 +23,7 @@ import { StatusState, committedStatusTruth } from '@perspectra/core'
 import { assembleRoleplay, type WorldComposition } from '../official-bundle.ts'
 import { WorldHostRuntime } from '../runtime/world-runtime.ts'
 import { loadPackContent } from '../runtime/pack-content.ts'
+import { committedAction } from '../runtime/creator-history.ts'
 import { ScriptedModel } from '@perspectra/providers/scripted-model'
 import { activityScriptPath } from '../runtime/activity-source.ts'
 
@@ -125,6 +126,8 @@ export interface LensTraceLine {
   readonly actorId?: string
   /** Set on `activity` lines: the activity the committed event belongs to. */
   readonly activityKey?: string
+  readonly operation?: string
+  readonly planUnmatched?: true
   readonly text: string
   readonly seq: number
 }
@@ -468,7 +471,12 @@ export class LensSimulation {
       return { decision: 'perform', actionType: action.actionType, parameters: action.parameters }
     } catch (cause) {
       if (!(cause instanceof UnmatchedAction)) throw cause
-      this.#notes.push({ kind: 'plan', actorId: characterId, text: `${name} 的计划行动这次用不上：${cause.message}` })
+      this.#notes.push({
+        kind: 'plan',
+        planUnmatched: true,
+        actorId: characterId,
+        text: `${name} 的计划行动这次用不上：${cause.message}`,
+      })
       return { decision: 'abstain' }
     }
   }
@@ -655,15 +663,16 @@ export class LensSimulation {
               : undefined
         if (typeof actor === 'string' && actor !== this.#playerId) activated.add(actor)
       }
-    const gameplay = (await this.state()).gameplay ?? []
+    const state = await this.state()
+    const gameplay = state.gameplayIncomplete ? undefined : state.gameplay
     const perceived = this.perceived(before)
     this.timings.executionMs += performance.now() - started
     return {
-      resolutions: events
-        .filter(event => event.seq > before && event.eventType === 'action.resolved')
-        .map(event => object(event.data)),
+      resolutions: this.#resolutions(
+        events.filter(event => event.seq > before && event.eventType === 'action.resolved'),
+      ),
       modelInputs: structuredClone(this.#scripted.inputs.slice(inputOffset)),
-      gameplay,
+      ...(gameplay === undefined ? {} : { gameplay }),
       index,
       step: structuredClone(step),
       lines,
@@ -746,6 +755,34 @@ export class LensSimulation {
       if (typeof value.resultDescription === 'string') return `${who ?? '有人'}：${value.resultDescription}${failed}`
     }
     return JSON.stringify(content)
+  }
+
+  #resolutions(events: StoredWorldEvent[]): WorldJsonObject[] {
+    if (!events.length) return []
+    const store = new WorldStore(join(this.#runtime.dataDirectory, 'world.sqlite'))
+    try {
+      return events.map(event => {
+        const data = object(event.data)
+        const authority = store.readRoundAuthority(this.#runtime.address, event.transactionId)?.authority
+        const action = committedAction(authority, String(data.actionId))
+        const parameters = action?.parameters as WorldJsonObject | undefined
+        let operation = data.actionType === 'interact' ? refId(parameters?.definitionRef) : data.actionType
+        // Immediate status/activity transactions store the admitted request under their owner, not in actions[].
+        const request = authority?.request as WorldJsonObject | undefined
+        if (
+          operation === undefined &&
+          data.actionId === event.transactionId + ':action' &&
+          authority?.actorId === data.actorId &&
+          typeof request?.operation === 'string'
+        ) {
+          if (event.transactionId.startsWith('status:')) operation = 'status:' + request.operation
+          if (event.transactionId.startsWith('activity:')) operation = 'activity:' + request.operation
+        }
+        return typeof operation === 'string' ? { ...data, operation } : data
+      })
+    } finally {
+      store.close()
+    }
   }
 
   #read(): StoredWorldEvent[] {
@@ -846,6 +883,7 @@ export class LensSimulation {
           kind: 'activity',
           actorId: String(data.actorId),
           activityKey: key,
+          ...(typeof data.operation === 'string' ? { operation: data.operation } : {}),
           text: `活动 ${this.#activityTitles.get(key) ?? key}（${key}）：${show(data.description)}`,
         }
       }

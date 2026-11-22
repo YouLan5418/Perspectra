@@ -206,6 +206,9 @@ Interaction 定义和绑定提供玩法可选行为，规则负责重要状态�
 
 作者可用 `worldpack simulate <源目录> <剧本.json>` 验证活动触发与结果。Host 读取当前草稿，在临时副本中启动正式运行时，用脚本模型执行步骤。结果包含动作裁定、状态变化与各角色收到的观察，剧本断言失败时退出码为 2。[剧本执行](../../../apps/host/src/simulation/scenario.ts) · [临时副本与运行时](../../../apps/host/src/simulation/simulation.ts)
 
+2026-11-22 源码新增 `worldpack accept <导出目录> <清单.json> [--only <用例ID> ...]`。例如验收门廊空手不能拆信，先用玩家的正式候选检查开信操作，再在有刀新档检查实际裁定。清单对导出内容取临时副本，每个剧本在独立 Host 新档执行同一套场景断言；交接报告只投影必验 ID、执行状态和输入身份。全跑且必验项都有证据才可交付。[验收入口](../../../apps/host/src/simulation/acceptance.ts) · [创作者用法](../../../skills/perspectra-creator/references/gameplay.md#交付验收)
+
+
 编辑器的活动流程图、规则与 RPG 配置还可在对应表单试玩。角色对白与表现仍需用真实模型验收。[活动编辑](../guides/activity-editor.md) · [工作台](../guides/world-workbench.md)
 
 物品记录可以直接查看一把钥匙在哪张地图掉落、哪个出口需要它，并跳转到相应配置。工作台和 CLI 共用[物品用途查询](../../../apps/host/src/editor/item-uses.ts)和[物品操作保存](../../../apps/host/src/editor/item-actions.ts)。[掉落与通行试玩](../../../apps/host/src/editor/rpg-exit-play.ts)在导出的临时包内经过玩家实际可用的战斗、拿起、开锁和移动入口，并核对拒绝原因和抵达地点。
