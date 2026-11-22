@@ -1,5 +1,16 @@
+import { assertStoryPosition, readStoryPosition } from './story-position.ts'
+import type { NoticeCursor } from '@perspectra/core/store'
 import { randomUUID } from 'node:crypto'
-import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, writeFileSync, copyFileSync } from 'node:fs'
+import {
+  existsSync,
+  mkdirSync,
+  rmSync,
+  readFileSync,
+  readdirSync,
+  renameSync,
+  writeFileSync,
+  copyFileSync,
+} from 'node:fs'
 import { join } from 'node:path'
 import { backup, DatabaseSync } from 'node:sqlite'
 import type { WorldAddress } from '@perspectra/sdk/contracts'
@@ -13,6 +24,7 @@ export interface StoryNode {
   headSeq: number
   tick: number
   packHash: string
+  noticeCursor?: NoticeCursor
   parentNodeId: string | null
   files: string[]
   /** The memory that wrote `core-memory.json`. Nodes older than this field came from Core. */
@@ -95,23 +107,22 @@ export async function saveStoryNode(
       )
       .get(key, key, key, key, Date.now())
     if (unfinished) throw new Error('世界尚未静止，请完成当前输入与角色反应后保存。')
-    const head = world.prepare('SELECT head_seq,tick FROM heads WHERE address_key=?').get(key) as
-      | { head_seq: number; tick: number }
-      | undefined
-    if (!head) throw new Error('世界不存在。')
-    const nodes = readStoryNodes(logicalDirectory)
+    await backup(world, join(temporary, 'world.sqlite'))
+    const previous = readStoryNodes(logicalDirectory).at(-1)
+    const position = readStoryPosition(temporary, key, previous, previous && join(root, previous.id))
     node = {
       id,
       title: title.trim(),
       createdAt: new Date().toISOString(),
-      headSeq: head.head_seq,
-      tick: head.tick,
+      ...position,
       packHash,
-      parentNodeId: nodes.at(-1)?.id ?? parentNodeId,
+      parentNodeId: previous?.id ?? parentNodeId,
       files: [],
       ...(memoryProvider === undefined ? {} : { memoryProvider }),
     }
-    await backup(world, join(temporary, 'world.sqlite'))
+  } catch (error) {
+    rmSync(temporary, { recursive: true, force: true })
+    throw error
   } finally {
     world.close()
   }
@@ -144,6 +155,7 @@ export function restoreStoryNode(source: string, nodeId: string, target: string,
   for (const name of node.files) {
     if (!existsSync(join(origin, name))) throw new Error('完整节点文件缺失，拒绝恢复。')
   }
+  assertStoryPosition(node, readStoryPosition(origin))
   for (const name of node.files) copyFileSync(join(origin, name), join(target, name))
   writeFileSync(
     join(target, 'rebuild-memory.json'),

@@ -17,3 +17,5 @@ export * from './visible-state.ts'
 export * from './world-schema.ts'
 export * from './world-store.ts'
 export * from './player-input-jobs.ts'
+
+export * from './notice-prefix.ts'

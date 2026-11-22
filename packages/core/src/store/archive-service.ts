@@ -1,9 +1,10 @@
 import { createHash } from 'node:crypto'
-import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
-import { resolve } from 'node:path'
+import { existsSync, linkSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { dirname, join, resolve } from 'node:path'
 import { backup, DatabaseSync } from 'node:sqlite'
 import { canonicalizeWorldJson, failWorld, type WorldHash, type WorldJsonObject } from '@perspectra/sdk/contracts'
 import { readPragmaInteger, rollbackAndThrow, WORLD_APPLICATION_ID } from './sqlite.ts'
+import { noticeCursorAt, noticeStorageEnabled } from './notice-prefix.ts'
 import { openWorldDatabase, WORLD_SCHEMA_VERSION } from './world-schema.ts'
 import { OperationalAuditLog } from './operational-audit.ts'
 
@@ -134,9 +135,27 @@ export class WorldArchiveService {
         correlationId,
       })
     }
-    writeFileSync(targetPath, bytes, { flag: 'wx' })
-    this.#prepareRecoveryTarget(targetPath)
-    const imported = this.#inspect(targetPath, correlationId, 'BACKUP_INVALID')
+    const temporary = mkdtempSync(join(dirname(targetPath), '.world-import-'))
+    let imported: WorldBackupArtifact
+    try {
+      const staged = join(temporary, 'world.sqlite')
+      writeFileSync(staged, bytes, { flag: 'wx' })
+      const verified = this.#inspect(staged, correlationId, 'BACKUP_INVALID')
+      if (verified.schemaVersion !== envelope.backup.schemaVersion) {
+        failWorld({
+          errorCode: 'BACKUP_INVALID',
+          category: 'integrity',
+          message: 'portable export schema version does not match SQLite',
+          retryable: false,
+          correlationId,
+        })
+      }
+      this.#prepareRecoveryTarget(staged)
+      imported = this.#inspect(staged, correlationId, 'BACKUP_INVALID')
+      linkSync(staged, targetPath)
+    } finally {
+      rmSync(temporary, { recursive: true, force: true })
+    }
     const provenance = {
       sourcePath: resolve(this.sourcePath),
       exportPath: resolve(exportPath),
@@ -202,22 +221,26 @@ export class WorldArchiveService {
       try {
         const applicationId = readPragmaInteger(db, 'application_id')
         const schemaVersion = readPragmaInteger(db, 'user_version')
+        const extended = noticeStorageEnabled(db)
         const quickCheck = db.prepare('PRAGMA quick_check').get() as { quick_check?: string }
         if (
           applicationId !== WORLD_APPLICATION_ID ||
-          schemaVersion !== WORLD_SCHEMA_VERSION ||
+          (schemaVersion !== WORLD_SCHEMA_VERSION && !extended) ||
           quickCheck.quick_check !== 'ok'
-        ) {
+        )
           throw new Error('SQLite identity, schema, or integrity check failed')
+        if (extended) {
+          for (const row of db.prepare('SELECT address_key, head_seq FROM heads').all())
+            noticeCursorAt(db, String(row.address_key), Number(row.head_seq))
+        }
+        return {
+          format: 'world-sqlite-backup/v1',
+          byteLength: bytes.byteLength,
+          fileHash: hashBytes(bytes),
+          schemaVersion,
         }
       } finally {
         db.close()
-      }
-      return {
-        format: 'world-sqlite-backup/v1',
-        byteLength: bytes.byteLength,
-        fileHash: hashBytes(bytes),
-        schemaVersion: WORLD_SCHEMA_VERSION,
       }
     } catch (error: unknown) {
       failWorld({

@@ -49,7 +49,7 @@ export class BranchOperationCoordinator {
     const drainedRounds = await this.rounds.drainAccepted(`${request.correlationId}:rounds`)
     const forkSeq = this.store.head(request.parent).headSeq
     try {
-      this.store.forkDrainedBranch(request.parent, request.child, forkSeq)
+      this.store.forkDrainedBranch(request.parent, request.child, forkSeq, 'latest')
     } catch (error: unknown) {
       try {
         this.administration.setAdmission(

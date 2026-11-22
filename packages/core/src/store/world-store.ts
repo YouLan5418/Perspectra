@@ -25,6 +25,7 @@ import {
 } from '@perspectra/sdk/contracts'
 import { parseWorldJson, rollbackAndThrow, worldJsonText } from './sqlite.ts'
 import { OperationalAuditLog } from './operational-audit.ts'
+import { resolveForkNoticeCursor, type NoticeCursor } from './notice-prefix.ts'
 import { openWorldDatabase } from './world-schema.ts'
 
 export interface ActivateBranchRequest {
@@ -454,13 +455,18 @@ export class WorldStore {
   }
 
   /** Create a child branch whose effective history stops exactly at forkSeq. */
-  forkBranch(parent: WorldAddress, child: WorldAddress, forkSeq: number): void {
-    this.#forkBranch(parent, child, forkSeq, 'open')
+  forkBranch(parent: WorldAddress, child: WorldAddress, forkSeq: number, noticeCursor?: NoticeCursor): void {
+    this.#forkBranch(parent, child, forkSeq, 'open', noticeCursor)
   }
 
   /** Fork an active source while its administrative gate is durably draining. */
-  forkDrainedBranch(parent: WorldAddress, child: WorldAddress, forkSeq: number): void {
-    this.#forkBranch(parent, child, forkSeq, 'draining')
+  forkDrainedBranch(
+    parent: WorldAddress,
+    child: WorldAddress,
+    forkSeq: number,
+    noticeCursor?: NoticeCursor | 'latest',
+  ): void {
+    this.#forkBranch(parent, child, forkSeq, 'draining', noticeCursor)
   }
 
   #forkBranch(
@@ -468,6 +474,7 @@ export class WorldStore {
     child: WorldAddress,
     forkSeq: number,
     requiredAdmission: 'open' | 'draining',
+    requestedCut?: NoticeCursor | 'latest',
   ): void {
     if (parent.tenantId !== child.tenantId || parent.worldId !== child.worldId) {
       throw new TypeError('child branch must remain in the parent tenant and world')
@@ -537,6 +544,8 @@ export class WorldStore {
       if (!Number.isSafeInteger(forkSeq) || forkSeq < 0 || forkSeq > parentHead.head_seq) {
         throw new RangeError(`forkSeq ${forkSeq} is outside parent head ${parentHead.head_seq}`)
       }
+      if (requestedCut === 'latest' && forkSeq !== parentHead.head_seq) throw new Error('分叉时当前游戏头已改变。')
+      const noticeCursor = resolveForkNoticeCursor(this.#db, parentKey, forkSeq, requestedCut)
       const forkEvent =
         forkSeq === 0 ? undefined : this.#readEventsByKey(parentKey, 0, forkSeq).find(event => event.seq === forkSeq)
       if (forkSeq !== 0 && forkEvent === undefined) throw new Error(`fork event ${forkSeq} is missing`)
@@ -558,6 +567,15 @@ export class WorldStore {
       `,
         )
         .run(childKey, child.tenantId, child.worldId, child.branchId, parentKey, forkSeq)
+      if (noticeCursor) {
+        this.#db
+          .prepare(
+            `INSERT INTO experimental_pending_notices(address_key, metadata_seq, world_seq, request_id, receipt_json)
+          SELECT ?, metadata_seq, world_seq, request_id, receipt_json FROM experimental_pending_notices
+          WHERE address_key=? AND metadata_seq<=?`,
+          )
+          .run(childKey, parentKey, noticeCursor.metadataSeq)
+      }
       this.#db
         .prepare(`INSERT INTO heads(address_key, head_seq, tick, event_hash) VALUES (?, ?, ?, ?)`)
         .run(childKey, forkSeq, forkEvent?.tick ?? 0, forkEvent?.eventHash ?? 'genesis')
@@ -573,7 +591,12 @@ export class WorldStore {
         VALUES (?, 'branch.forked', ?, ?, ?)
       `,
         )
-        .run(childKey, `fork:${child.branchId}`, worldJsonText({ parent, forkSeq }), this.operationalNow())
+        .run(
+          childKey,
+          `fork:${child.branchId}`,
+          worldJsonText({ parent, forkSeq, ...(noticeCursor ? { noticeCursor } : {}) }),
+          this.operationalNow(),
+        )
       this.#db.exec('COMMIT')
     } catch (error: unknown) {
       rollbackAndThrow(this.#db, error)

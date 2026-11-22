@@ -1,3 +1,4 @@
+import { supportsNoticeSchema } from './notice-prefix.ts'
 import type { DatabaseSync } from 'node:sqlite'
 import { PLAYER_INPUT_SCHEMA, PLAYER_INPUT_FAULT_SCHEMA } from './player-input-schema.ts'
 import { openMigratedDatabase, WORLD_APPLICATION_ID } from './sqlite.ts'
@@ -519,7 +520,7 @@ DROP TABLE world_reaction_cycles;
 export const WORLD_SCHEMA_VERSION = 21
 
 export function openWorldDatabase(path: string): DatabaseSync {
-  return openMigratedDatabase(path, WORLD_APPLICATION_ID, [
+  const migrations = [
     { version: 1, sql: WORLD_SCHEMA },
     { version: 2, sql: WORLD_LEASE_SCHEMA },
     { version: 3, sql: WORLD_ACTIVATION_SCHEMA },
@@ -544,5 +545,6 @@ export function openWorldDatabase(path: string): DatabaseSync {
     { version: 19, sql: WORLD_REACTION_EVIDENCE_SCHEMA },
     { version: 20, sql: WORLD_RETIRE_REACTION_SCHEMA },
     { version: WORLD_SCHEMA_VERSION, sql: PLAYER_INPUT_FAULT_SCHEMA },
-  ])
+  ]
+  return openMigratedDatabase(path, WORLD_APPLICATION_ID, migrations, supportsNoticeSchema)
 }

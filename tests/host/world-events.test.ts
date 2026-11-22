@@ -1,5 +1,15 @@
 import { afterEach, expect, it, vi } from 'vitest'
-import { appendFileSync, cpSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import {
+  appendFileSync,
+  cpSync,
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { randomUUID } from 'node:crypto'
@@ -13,14 +23,26 @@ import { playSettings } from '../../apps/host/src/play-settings.ts'
 import { parseEventBook } from '@perspectra/sdk'
 import type { StoredWorldEvent } from '@perspectra/sdk/contracts'
 import { WorldEventRuntime } from '../../apps/host/src/runtime/world-events.ts'
-import { executeWorldRound, WorldExecutionEngine } from '@perspectra/core'
-import { WriterLeaseService, WorldStore, WorldArchiveService, WORLD_SCHEMA_VERSION } from '@perspectra/core/store'
+import { BranchOperationCoordinator, executeWorldRound, WorldExecutionEngine } from '@perspectra/core'
+import {
+  BranchAdministration,
+  WriterLeaseService,
+  WorldStore,
+  WorldArchiveService,
+  NOTICE_SCHEMA_VERSION,
+  WORLD_SCHEMA_VERSION,
+  WORLD_APPLICATION_ID,
+  noticeCursorAt,
+  openMigratedDatabase,
+} from '@perspectra/core/store'
 import { brandId, playerRoundNumber, worldAddressKey, type WorldJsonObject } from '@perspectra/sdk/contracts'
 import { WorldHostRuntime } from '../../apps/host/src/runtime/world-runtime.ts'
 import { loadHostPlugins } from '../../apps/host/src/host-plugins.ts'
 import { fakeModels, startFakeProvider } from '../support/fake-provider.ts'
 import { PacingScript } from '@perspectra/plugins/pacing'
-import { restoreStoryNode } from '../../apps/host/src/story-nodes.ts'
+import { exportStoryNode, importStoryNode } from '../../apps/host/src/story-share.ts'
+import { exportStoryTree, importStoryTree } from '../../apps/host/src/story-backup.ts'
+import { readStoryNodes, restoreStoryNode } from '../../apps/host/src/story-nodes.ts'
 import { officialWorldEvents } from '@perspectra/plugins/world-events'
 import { projectPlayerView } from '../../apps/host/src/runtime/frontend-adapter.ts'
 
@@ -501,8 +523,31 @@ it('registers a future notice atomically without a game tick; reopening and stor
     const backup = join(f.root, 'notice-backup.sqlite'),
       restored = join(f.root, 'notice-restored.sqlite')
     const artifact = await archive.backup(backup, 'test-notice')
-    expect(artifact.schemaVersion).toBe(WORLD_SCHEMA_VERSION)
+    expect(artifact.schemaVersion).toBe(NOTICE_SCHEMA_VERSION)
+    // The same world reader contract as a v21 binary: it checks the header before applying any migration.
+    const oldMigrations = Array.from({ length: WORLD_SCHEMA_VERSION }, (_, index) => ({ version: index + 1, sql: '' }))
+    expect(() => openMigratedDatabase(backup, WORLD_APPLICATION_ID, oldMigrations)).toThrow('user_version mismatch')
+
     archive.restore(backup, restored, artifact.fileHash, 'test-notice-restore')
+    const portable = join(f.root, 'notice-export.json')
+    await archive.exportPortable(portable, 'notice-export')
+    const imported = join(f.root, 'notice-portable.sqlite')
+    expect(archive.importPortable(portable, imported, 'notice-import').schemaVersion).toBe(NOTICE_SCHEMA_VERSION)
+    const portableDb = new DatabaseSync(imported, { readOnly: true })
+    try {
+      expect(noticeCursorAt(portableDb, worldAddressKey(parent), before.headSeq).catalogHash).toBe(
+        f.runtime.pendingNoticeCatalog().target.catalogHash,
+      )
+    } finally {
+      portableDb.close()
+    }
+    const mislabeled = JSON.parse(readFileSync(portable, 'utf8'))
+    mislabeled.backup.schemaVersion = WORLD_SCHEMA_VERSION
+    writeFileSync(portable, JSON.stringify(mislabeled))
+    const wrong = join(f.root, 'mislabeled.sqlite')
+    expect(() => archive.importPortable(portable, wrong, 'notice-version')).toThrow('schema version')
+    expect(existsSync(wrong)).toBe(false)
+
     const recovered = new DatabaseSync(restored, { readOnly: true })
     try {
       expect(
@@ -540,6 +585,181 @@ it('registers a future notice atomically without a game tick; reopening and stor
   }
 })
 
+it('restores the exact two prefixes of a story node at a shared game head, including portable nodes and trees', async () => {
+  const f = await fixture(99, [], false, undefined, true)
+  const source = f.runtime.dataDirectory,
+    composition = f.runtime.options.composition!
+  const before = await f.runtime.saveNode('旧格式零登记')
+  installNoticeExperiment(f.runtime)
+  const register = (requestId: string, text: string) =>
+    f.runtime.registerPendingNotice({
+      expected: f.runtime.pendingNoticeCatalog().target,
+      requestId,
+      proposal: { ...noticeProposal, text },
+    })
+  const a = register('A', '明晚前厅招工')
+  const middle = await f.runtime.saveNode('只登记 A')
+  const b = register('B', '后天厨房招工')
+  const later = await f.runtime.saveNode('已登记 A、B')
+  expect(before.noticeCursor).toBeUndefined()
+  expect(middle.noticeCursor?.metadataSeq).toBe(1)
+  expect(later.noticeCursor).toMatchObject({
+    addressKey: middle.noticeCursor!.addressKey,
+    eventHash: middle.noticeCursor!.eventHash,
+    metadataSeq: 2,
+  })
+  expect(later.noticeCursor!.catalogHash).not.toBe(middle.noticeCursor!.catalogHash)
+  expect([before, middle, later].map(n => [n.headSeq, n.tick])).toEqual(Array(3).fill([before.headSeq, before.tick]))
+  await f.reopen()
+  const unchanged = f.history().events
+  expect(f.runtime.pendingNoticeCatalog().notices).toEqual([a, b])
+  for (const [node, notices] of [
+    [before, []],
+    [middle, [a]],
+    [later, [a, b]],
+  ] as const) {
+    await f.restore(node)
+    expect(f.runtime.pendingNoticeCatalog().notices).toEqual(notices)
+    expect(f.history().events).toEqual(unchanged)
+  }
+  await f.restore(middle)
+  const independent = register('B', b.proposal.text)
+  expect(independent).toEqual({ ...b, registrationId: independent.registrationId })
+  expect(independent.registrationId).not.toBe(b.registrationId)
+  expect(register('B', b.proposal.text)).toEqual(independent)
+  expect(f.runtime.pendingNoticeCatalog().target.catalogHash).not.toBe(later.noticeCursor!.catalogHash)
+  await f.restore(middle)
+  expect(register('A', a.proposal.text)).toEqual(a)
+  const cousin = register('B', '分叉后的不同安排')
+  expect(cousin.metadataSeq).toBe(b.metadataSeq)
+  const forked = await f.runtime.saveNode('分线的 B')
+  expect(forked.noticeCursor!.catalogHash).not.toBe(later.noticeCursor!.catalogHash)
+  await f.reopen()
+  expect(f.runtime.pendingNoticeCatalog().notices).toEqual([a, b])
+  expect(readStoryNodes(source).at(-1)).toEqual(later)
+  expect(() => register('B', cousin.proposal.text)).toThrow('不能改变内容')
+
+  const receiver = join(f.root, 'receiver'),
+    shared = join(f.root, 'middle.perspectra-story')
+  mkdirSync(receiver)
+  await exportStoryNode(source, middle.id, shared, f.pack, composition)
+  const imported = await importStoryNode(shared, receiver, f.pack, middle.packHash, composition)
+  expect(imported.node.id).not.toBe(middle.id)
+  expect(imported.node.noticeCursor).toEqual(middle.noticeCursor)
+  const tree = join(f.root, 'tree.perspectra-backup')
+  await exportStoryTree(
+    source,
+    {
+      name: '双游标',
+      packHash: later.packHash,
+      currentStorylineId: 'main',
+      storylines: [{ id: 'main', name: '主线', parentStorylineId: null, parentNodeId: null }],
+    },
+    tree,
+    f.pack,
+    composition,
+  )
+  const restored = await importStoryTree(tree, receiver, f.pack, later.packHash, composition)
+  const positions = (directory: string) =>
+    readStoryNodes(directory).map(({ id, headSeq, tick, noticeCursor }) => ({ id, headSeq, tick, noticeCursor }))
+  expect(positions(join(receiver, restored.id))).toEqual(positions(source))
+  for (const [id, notices] of [
+    [imported.id, [a]],
+    [restored.id, [a, b]],
+  ] as const) {
+    const runtime = await WorldHostRuntime.create({
+      dataDirectory: join(receiver, id),
+      packPath: f.pack,
+      models: fakeModels(f.stub.endpoint),
+      composition,
+    })
+    try {
+      expect(runtime.pendingNoticeCatalog().notices).toEqual(notices)
+      expect(runtime.creatorInspection().tick).toBe(middle.tick)
+    } finally {
+      await runtime.close()
+    }
+  }
+
+  // The two immutable snapshots are valid separately. Swapping their history order leaves game hashes unchanged.
+  const forged = JSON.parse(readFileSync(tree, 'utf8'))
+  const left = forged.nodes.find((e: { node: { id: string } }) => e.node.id === middle.id)
+  const right = forged.nodes.find((e: { node: { id: string } }) => e.node.id === later.id)
+  ;[left.objects, right.objects] = [right.objects, left.objects]
+  ;[left.node.noticeCursor, right.node.noticeCursor] = [right.node.noticeCursor, left.node.noticeCursor]
+  writeFileSync(tree, JSON.stringify(forged))
+  const installed = readdirSync(receiver)
+  await expect(importStoryTree(tree, receiver, f.pack, later.packHash, composition)).rejects.toThrow('前缀')
+  const container = JSON.parse(readFileSync(shared, 'utf8'))
+  delete container.node.noticeCursor
+  writeFileSync(shared, JSON.stringify(container))
+  await expect(importStoryNode(shared, receiver, f.pack, later.packHash, composition)).rejects.toThrow('告示游标')
+  expect(readdirSync(receiver)).toEqual(installed)
+
+  const meta = join(source, 'story-nodes', later.id, 'node.json')
+  writeFileSync(meta, JSON.stringify({ ...later, noticeCursor: forked.noticeCursor }))
+  expect(() => restoreStoryNode(source, later.id, join(f.root, 'wrong-sibling'), later.packHash)).toThrow(
+    '有效分支前缀',
+  )
+}, 60_000)
+
+it('preflights empty legacy notice tables and refuses untagged records, missing tables and damaged anchors', async () => {
+  const f = await fixture(99, [], false, undefined, true)
+  installNoticeExperiment(f.runtime)
+  const empty = await f.runtime.saveNode('有格式标记的空目录')
+  const target = f.runtime.pendingNoticeCatalog().target
+  f.runtime.registerPendingNotice({ expected: target, proposal: noticeProposal, requestId: 'A' })
+  const accepted = await f.runtime.saveNode('有登记')
+  async function openCopy(node: typeof empty, sql: string) {
+    const directory = join(f.root, randomUUID())
+    restoreStoryNode(f.runtime.dataDirectory, node.id, directory, node.packHash)
+    const db = new DatabaseSync(join(directory, 'world.sqlite'))
+    try {
+      db.exec(sql)
+    } finally {
+      db.close()
+    }
+    return WorldHostRuntime.create({
+      packPath: f.pack,
+      dataDirectory: directory,
+      models: fakeModels(f.stub.endpoint),
+      composition: f.runtime.options.composition!,
+    })
+  }
+  const old = await openCopy(empty, 'PRAGMA user_version=21')
+  try {
+    expect(old.pendingNoticeCatalog().notices).toEqual([])
+    expect((await old.saveNode('旧空实验')).noticeCursor).toBeUndefined()
+    expect(() =>
+      old.registerPendingNotice({
+        expected: old.pendingNoticeCatalog().target,
+        proposal: noticeProposal,
+        requestId: 'B',
+      }),
+    ).toThrow('没有启用')
+  } finally {
+    await old.close()
+  }
+  await expect(openCopy(accepted, 'PRAGMA user_version=21')).rejects.toThrow('未标记版本')
+  await expect(openCopy(accepted, 'DROP TABLE experimental_pending_notices')).rejects.toThrow('登记表')
+  await expect(
+    openCopy(
+      accepted,
+      "UPDATE experimental_pending_notices SET receipt_json=json_set(receipt_json,'$.afterEventHash','wrong')",
+    ),
+  ).rejects.toThrow('世界事件摘要')
+  // Omitting A was possible at the original game head, but impossible after the following game turn.
+  await f.runtime.perform(wait)
+  const db = new DatabaseSync(join(f.runtime.dataDirectory, 'world.sqlite'), { readOnly: true })
+  try {
+    expect(() =>
+      noticeCursorAt(db, worldAddressKey(f.runtime.address), f.runtime.creatorInspection().headSeq, 0),
+    ).toThrow('不能同时成立')
+  } finally {
+    db.close()
+  }
+})
+
 it('freezes the notice prefix when WorldStore forks at a game seq', async () => {
   const f = await fixture(99, [], false, undefined, true)
   installNoticeExperiment(f.runtime)
@@ -561,7 +781,61 @@ it('freezes the notice prefix when WorldStore forks at a game seq', async () => 
       proposal: noticeProposal,
       requestId: randomUUID(),
     })
-    store.forkBranch(parent, child('after'), before.headSeq)
+    const cut = noticeCursorAt(sql, worldAddressKey(parent), before.headSeq, 1)
+    store.forkBranch(parent, child('after'), before.headSeq, cut)
+    const receiptB = f.runtime.registerPendingNotice({
+      expected: f.runtime.pendingNoticeCatalog().target,
+      requestId: 'B',
+      proposal: { ...noticeProposal, text: 'B' },
+    })
+    expect(receiptB.metadataSeq).toBe(2)
+    expect(() => store.forkBranch(parent, child('ambiguous'), before.headSeq)).toThrow('明确的告示游标')
+    expect(() => store.forkBranch(parent, child('invalid'), before.headSeq, { ...cut, metadataSeq: 2 })).toThrow('前缀')
+    expect(() => store.forkBranch(parent, child('invalid'), before.headSeq - 1, cut)).toThrow('不能同时成立')
+    expect(() =>
+      store.forkBranch(parent, child('invalid'), before.headSeq, {
+        ...cut,
+        addressKey: worldAddressKey(child('after')),
+      }),
+    ).toThrow('前缀')
+    expect(
+      sql.prepare('SELECT 1 FROM branches WHERE address_key=?').get(worldAddressKey(child('invalid'))),
+    ).toBeUndefined()
+    store.forkBranch(parent, child('middle'), before.headSeq, cut)
+    expect(rows('middle')).toEqual([receipt])
+    const admin = new BranchAdministration(path)
+    try {
+      const coordinator = new BranchOperationCoordinator(
+        store,
+        admin,
+        { drainAccepted: async () => 0, close() {} },
+        { drainCritical: async () => 0 },
+      )
+      const result = await coordinator.forkAtHead({
+        parent,
+        child: child('current'),
+        reason: '当前完整存档',
+        correlationId: 'fork-current',
+      })
+      expect(result.forkSeq).toBe(before.headSeq)
+      expect(rows('current')).toEqual([receipt, receiptB])
+    } finally {
+      admin.close()
+    }
+    sql.exec(
+      "CREATE TRIGGER fail_notice_copy BEFORE INSERT ON experimental_pending_notices BEGIN SELECT RAISE(ABORT,'fixture fork copy failure'); END",
+    )
+    expect(() => store.forkBranch(parent, child('atomic'), before.headSeq, cut)).toThrow('fixture fork copy failure')
+    expect(
+      sql.prepare('SELECT 1 FROM branches WHERE address_key=?').get(worldAddressKey(child('atomic'))),
+    ).toBeUndefined()
+    expect(rows('atomic')).toEqual([])
+    sql.exec('DROP TRIGGER fail_notice_copy')
+
+    const zero = noticeCursorAt(sql, worldAddressKey(parent), before.headSeq, 0)
+    store.forkBranch(parent, child('old'), before.headSeq, zero)
+    expect(rows('old')).toEqual([])
+
     store.forkBranch(parent, child('historical'), before.headSeq - 1)
     expect(rows('before')).toEqual([])
     expect(rows('historical')).toEqual([])

@@ -145,7 +145,18 @@ function validateManifest(raw: unknown): Backup {
       n = record(entry.node),
       refs = record(entry.objects)
     keys(entry, ['lineId', 'node', 'objects'])
-    keys(n, ['id', 'title', 'createdAt', 'headSeq', 'tick', 'packHash', 'parentNodeId', 'files', 'memoryProvider'])
+    keys(n, [
+      'id',
+      'title',
+      'createdAt',
+      'headSeq',
+      'tick',
+      'packHash',
+      'parentNodeId',
+      'files',
+      'memoryProvider',
+      ...(n.noticeCursor === undefined ? [] : ['noticeCursor']),
+    ])
     storyId(n.id)
     if (n.parentNodeId !== null) storyId(n.parentNodeId)
     label(n.title)
@@ -246,7 +257,7 @@ async function validateNodes(
   composition: WorldComposition,
 ) {
   const prefixes = new Map<string, { full: string; parent: string }>()
-  const heads = new Map(b.nodes.map(e => [e.node.id, e.node.headSeq]))
+  const nodes = new Map(b.nodes.map(e => [e.node.id, e.node]))
   for (const entry of b.nodes) {
     const path = join(check, entry.node.id)
     mkdirSync(path, { recursive: true })
@@ -267,12 +278,13 @@ async function validateNodes(
       Object.keys(record(JSON.parse(readFileSync(join(path, 'core-memory.json'), 'utf8')))).length
     )
       throw new Error('无长期记忆提供者不得携带长期档案。')
-    await validateStorySnapshot(path, entry.node, packPath, composition)
+    const ancestor = entry.node.parentNodeId ? nodes.get(entry.node.parentNodeId) : undefined
+    await validateStorySnapshot(path, entry.node, packPath, composition, ancestor)
     const db = new DatabaseSync(join(path, 'world.sqlite'), { readOnly: true })
     try {
       const full = createHash('sha256'),
         parent = createHash('sha256')
-      const cutoff = entry.node.parentNodeId ? heads.get(entry.node.parentNodeId)! : 0
+      const cutoff = ancestor?.headSeq ?? 0
       for (const row of db.prepare('SELECT * FROM events ORDER BY seq').iterate()) {
         const bytes = JSON.stringify(row) + '\n'
         full.update(bytes)
@@ -288,7 +300,7 @@ async function validateNodes(
     if (!node.parentNodeId) continue
     const parent = prefixes.get(node.parentNodeId)!,
       current = prefixes.get(node.id)!
-    if (heads.get(node.parentNodeId)! > node.headSeq || parent.full !== current.parent)
+    if (nodes.get(node.parentNodeId)!.headSeq > node.headSeq || parent.full !== current.parent)
       throw new Error('节点祖先与实际世界事实前缀不一致。')
   }
 }

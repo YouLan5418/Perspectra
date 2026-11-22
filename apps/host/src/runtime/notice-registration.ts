@@ -1,9 +1,17 @@
 // Internal persistence experiment. Only disposable test saves install its table.
+import { randomUUID } from 'node:crypto'
 import { realpathSync } from 'node:fs'
 import { join } from 'node:path'
 import type { DatabaseSync } from 'node:sqlite'
 import { committedStatusTruth } from '@perspectra/core'
-import { openWorldDatabase, rollbackAndThrow, WorldStore, worldJsonText } from '@perspectra/core/store'
+import {
+  noticeStorageEnabled,
+  noticeReceipts,
+  openWorldDatabase,
+  rollbackAndThrow,
+  WorldStore,
+  worldJsonText,
+} from '@perspectra/core/store'
 import type { EventBook } from '@perspectra/sdk'
 import {
   hashWorldJson,
@@ -32,6 +40,7 @@ export interface NoticeRegistration {
   proposal: NoticeProposal
 }
 interface Receipt extends WorldJsonObject {
+  registrationId: string
   requestId: string
   metadataSeq: number
   afterWorldSeq: number
@@ -47,20 +56,11 @@ interface Scope {
   worldVersion: string
   rules: EventBook | undefined
 }
-function hasExperiment(db: DatabaseSync): boolean {
-  return !!db.prepare("SELECT 1 FROM sqlite_schema WHERE type='table' AND name='experimental_pending_notices'").get()
-}
-
 function catalog(db: DatabaseSync, scope: Scope) {
   const key = worldAddressKey(scope.address)
   const head = db.prepare('SELECT head_seq, event_hash FROM heads WHERE address_key=?').get(key)
   if (!head) throw new Error('告示目标分支不存在')
-  const rows = hasExperiment(db)
-    ? db
-        .prepare('SELECT receipt_json FROM experimental_pending_notices WHERE address_key=? ORDER BY metadata_seq')
-        .all(key)
-    : []
-  const notices: Receipt[] = rows.map(row => JSON.parse(String(row.receipt_json)) as Receipt)
+  const notices = (noticeStorageEnabled(db) ? noticeReceipts(db, key, Number(head.head_seq)) : []) as Receipt[]
   const target: NoticeTarget = {
     candidate: hashWorldJson('notice-candidate', [realpathSync(scope.directory), key]),
     worldVersion: scope.worldVersion,
@@ -111,7 +111,7 @@ export function registerNotice(scope: Scope, request: NoticeRegistration): Recei
     try {
       db.exec('BEGIN IMMEDIATE')
       try {
-        if (!hasExperiment(db)) throw new Error('此存档没有启用告示持久化实验')
+        if (!noticeStorageEnabled(db)) throw new Error('此存档没有启用告示持久化实验')
         const { target, notices } = catalog(db, scope)
         if (target.candidate !== expected.candidate) throw new Error('告示目标候选已改变')
         const prior = notices.find(row => row.requestId === requestId)
@@ -147,6 +147,7 @@ export function registerNotice(scope: Scope, request: NoticeRegistration): Recei
         )
           throw new Error('告示必须安排在未来')
         const receipt: Receipt = {
+          registrationId: randomUUID(),
           requestId,
           metadataSeq: (notices.at(-1)?.metadataSeq ?? 0) + 1,
           afterWorldSeq: target.headSeq,

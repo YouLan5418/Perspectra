@@ -1,3 +1,4 @@
+import { assertStoryPosition, readStoryPosition } from './story-position.ts'
 import { randomUUID } from 'node:crypto'
 import {
   closeSync,
@@ -70,7 +71,7 @@ function decode(path: string): { node: StoryNode; files: Record<string, Buffer> 
     files = object(raw.files)
   if (
     Object.keys(meta)
-      .filter(key => key !== 'memoryProvider')
+      .filter(key => key !== 'memoryProvider' && key !== 'noticeCursor')
       .sort()
       .join(',') !== 'createdAt,files,headSeq,id,packHash,parentNodeId,tick,title' ||
     !(meta.memoryProvider === undefined || typeof meta.memoryProvider === 'string') ||
@@ -120,6 +121,7 @@ export async function validateStorySnapshot(
   node: StoryNode,
   packPath: string,
   composition: WorldComposition,
+  parent?: StoryNode,
 ): Promise<void> {
   for (const name of node.files.filter(name => name.endsWith('.sqlite'))) {
     const db = new DatabaseSync(join(directory, name), { readOnly: true })
@@ -158,6 +160,7 @@ export async function validateStorySnapshot(
     worldId: brandId('world:web-playtest:' + node.packHash.slice(7, 23), 'WorldId'),
     branchId: brandId('branch:main', 'BranchId'),
   }
+  assertStoryPosition(node, readStoryPosition(directory, undefined, parent))
   const store = new WorldStore(join(directory, 'world.sqlite'))
   try {
     const report = store.verifyBranchIntegrity(address)

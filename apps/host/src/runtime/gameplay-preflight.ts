@@ -14,6 +14,7 @@ import {
 } from '@perspectra/core/runtime'
 import { runtimeManifestFromStored } from '@perspectra/core/kernel'
 import type { WorldHash, WorldJsonObject } from '@perspectra/sdk/contracts'
+import { noticeCursorAt, noticeStorageEnabled } from '@perspectra/core/store'
 import { readPluginSet } from './plugin-set.ts'
 import { assertSavedPackContent, type PackContent } from './pack-content.ts'
 
@@ -36,6 +37,7 @@ export async function preflightGameplay(
       .prepare('SELECT b.*,h.head_seq,h.tick,h.event_hash FROM branches b JOIN heads h ON b.address_key=h.address_key')
       .all() as Record<string, unknown>[]
     if (branch.length !== 1) throw new Error('玩法读档预检需要唯一世界分支。')
+    if (noticeStorageEnabled(db)) noticeCursorAt(db, String(branch[0]!.address_key), Number(branch[0]!.head_seq))
     const record = db
       .prepare(
         'SELECT m.manifest_json,m.manifest_hash FROM branch_activations a JOIN world_manifests m ON m.manifest_hash=a.manifest_hash',

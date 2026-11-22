@@ -30,6 +30,7 @@ export function openMigratedDatabase(
   path: string,
   applicationId: number,
   migrations: readonly SqliteMigration[],
+  acceptsExtendedVersion?: (db: DatabaseSync, version: number) => boolean,
 ): DatabaseSync {
   if (migrations.length === 0 || migrations.some((migration, index) => migration.version !== index + 1)) {
     throw new TypeError('SQLite migrations must be contiguous and start at version 1')
@@ -43,7 +44,12 @@ export function openMigratedDatabase(
     if (existingApplicationId !== 0 && existingApplicationId !== applicationId) {
       throw new Error(`SQLite application_id mismatch: expected ${applicationId}, got ${existingApplicationId}`)
     }
-    const targetVersion = migrations.length
+    // A tagged extension can be opened at its exact existing version. Never install it during migration.
+    const extended =
+      existingVersion > migrations.length &&
+      existingApplicationId === applicationId &&
+      acceptsExtendedVersion?.(db, existingVersion)
+    const targetVersion = extended ? existingVersion : migrations.length
     if (existingVersion > targetVersion) {
       throw new Error(`SQLite user_version mismatch: expected at most ${targetVersion}, got ${existingVersion}`)
     }
