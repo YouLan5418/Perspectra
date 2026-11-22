@@ -132,6 +132,29 @@ function request(
     requestId: randomUUID(),
   }
 }
+it('reopens the same save with the finished activity and starts a new instance', async () => {
+  const f = await fixture()
+  const first = await f.runtime.activityAction(request(await f.runtime.state(), 'start'))
+  const ended = await f.runtime.activityAction(request(first, 'quit'))
+  expect(ended.activity).toMatchObject({ id: first.activity!.id, game: { active: false } })
+  await f.runtime.close()
+  const committed = f.events()
+  const reopened = await WorldHostRuntime.create(f.options)
+  runtimes.push(reopened)
+  const state = await reopened.state()
+  expect(state.activity).toEqual(ended.activity)
+  expect(f.events()).toEqual(committed)
+  await expect(reopened.activityAction(request(state, 'start'))).rejects.toThrow('开始请求失效')
+  const restarted = await reopened.activityAction({
+    ...request(state, 'start'),
+    activityId: null,
+    revision: 0,
+  })
+  expect(restarted.activity).toMatchObject({ game: { active: true } })
+  expect(restarted.activity!.id).not.toBe(ended.activity!.id)
+  expect(f.events().slice(0, committed.length)).toEqual(committed)
+})
+
 function action(input: WorldJsonObject, operation = 'guess', value = 50) {
   const context = input.context as WorldJsonObject,
     activity = context.activity as WorldJsonObject

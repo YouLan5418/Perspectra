@@ -233,8 +233,8 @@ function resolve(step: LensScenarioStep, state: HostState): LensStep {
     kind: 'activity',
     request: {
       activityKey: step.activity,
-      activityId: typeof view.id === 'string' ? view.id : null,
-      revision: typeof view.revision === 'number' ? view.revision : 0,
+      activityId: step.operation !== 'start' && typeof view.id === 'string' ? view.id : null,
+      revision: step.operation !== 'start' && typeof view.revision === 'number' ? view.revision : 0,
       operation: step.operation,
       parameters: step.parameters ?? {},
     },

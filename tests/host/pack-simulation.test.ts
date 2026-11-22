@@ -70,6 +70,16 @@ function mtimes(root: string): Record<string, number> {
   return result
 }
 
+it('starts a fresh activity after the previous instance finished', async () => {
+  const lens = await open(resolve('examples/world-packs/ai-girls-awaken-v10'))
+  const result = await applyScenario(lens, {
+    title: '结束后再开一局',
+    steps: ['start', 'quit', 'start'].map(operation => ({ activity: 'default', operation })),
+  })
+  expect(result.steps.map(row => row.error)).toEqual([undefined, undefined, undefined])
+  expect(result.passed).toBe(true)
+}, 60_000)
+
 it('midnight kitchen starts the fridge event', async () => {
   const lens = await open(PACK, kitchenStart('深夜'))
   const trace = await lens.step({ kind: 'action', action: moveTo(await lens.state(), 'location:kitchen') })
