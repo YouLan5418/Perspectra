@@ -33,6 +33,7 @@ function bridge(frontend: string) {
   const context = {
     connected: false,
     frameLoaded: true,
+    pageFrame: null,
     frontendReady: true,
     epoch: 1,
     init: { frontend, capabilities: [] as string[], canSave: true },

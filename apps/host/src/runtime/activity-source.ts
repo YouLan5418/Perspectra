@@ -5,6 +5,11 @@ import { SCRIPT_SOURCE_LIMIT } from '@perspectra/sdk/contracts'
 import type { ActivitySource, ActivitySourceEntry, GeneratedActivity } from '@perspectra/sdk'
 import type { CompiledWorldPackV5 } from '@perspectra/world-pack'
 
+/** The script file of an activity key, the way the host loads them: a single-activity pack's `default` activity is
+ * `scripts/activity.js`, every other key `scripts/activities/<key>.js`. */
+export const activityScriptPath = (key: string) =>
+  key === 'default' ? 'scripts/activity.js' : `scripts/activities/${key}.js`
+
 /** 读取包内活动脚本，再合入玩法插件注册的原生活动（与包内同名脚本冲突时在开档前报错）。 */
 export function loadActivitySource(
   packPath: string,

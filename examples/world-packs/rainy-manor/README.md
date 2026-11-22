@@ -19,7 +19,7 @@
 | 角色：玩家；阿茹（爱讲故事，适合主持）；澄（好奇、冲在前面）；梅（冷静、爱挑细节） | `characters.json`、`cognition.json` |
 | 物品：茶杯、骰子盒（只是摆设，跑团里的事不碰主世界物品） | `entities.json` |
 | 跑团配置 | `trpg.json`（已在 `assetFiles` 登记） |
-| 推演脚本 | `.perspectra-lens/scenarios/` 下三份 |
+| 推演脚本 | `scenarios/` 下三份 |
 
 ## 试玩
 
@@ -32,7 +32,7 @@ corepack pnpm@11.7.0 experience:web --memory-none --pack examples/world-packs/ra
 ## 验证状态（2026-11-09）
 
 - `corepack pnpm@11.7.0 worldpack validate examples/world-packs/rainy-manor`：通过。
-- 三份推演（`node --import tsx apps/host/src/lens/cli.ts simulate examples/world-packs/rainy-manor <名字>.json`）都是 `passed: true`，退出码 0：
+- 三份推演（`node --import tsx apps/host/src/cli/worldpack.ts simulate examples/world-packs/rainy-manor examples/world-packs/rainy-manor/scenarios/<名字>.json`）都是 `passed: true`，退出码 0：
   - `scenario-game`：阿茹主持《雨夜古宅》，玩家撬门，点数只有玩家和阿茹知道，澄只知道有过检定并自己接了一句话；剧本的秘密谁也没看到；没参加的梅看不到点数、宣布和剧本（她仍听得见 AI 参与者在局内说的话）。
   - `theme-game`：梅用题目“一场没人记得的生日会”即兴主持，把真相写进私密笔记；阿茹拿到聚光灯后自己提出行动。
   - `hidden-rolls`：对澄的检定点数只有澄和阿茹知道；阿茹的暗骰只有她自己知道。

@@ -45,7 +45,16 @@ export interface PlayerView {
     recipients: { id: string; name: string }[]
   } | null
   /** `private` is the player's own record in the activity, such as a role dealt only to them. */
-  activity?: { title: string; active: boolean; phase: string; public: WorldJsonObject; private: WorldJsonObject }
+  activity?: {
+    key?: string
+    id?: string
+    revision?: number
+    title: string
+    active: boolean
+    phase: string
+    public: WorldJsonObject
+    private: WorldJsonObject
+  }
   activities?: {
     key: string
     title: string

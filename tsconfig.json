@@ -32,18 +32,8 @@
       "@perspectra/world-pack": [
         "./packages/world-pack/src/index.ts"
       ],
-      "@perspectra/world-pack/lens/view": [
-        "./packages/world-pack/src/lens/view.ts"
-      ],
-      "@perspectra/world-pack/lens/ids": [
-        "./packages/world-pack/src/lens/ids.ts"
-      ],
-      "@perspectra/world-pack/lens/rpg-view": [
-        "./packages/world-pack/src/lens/rpg-view.ts"
-      ],
-      "@perspectra/world-pack/lens/diff": [
-        "./packages/world-pack/src/lens/diff.ts"
-      ],
+      "@perspectra/world-pack/editor-fields": ["./packages/world-pack/src/editor-fields.ts"],
+      "@perspectra/world-pack/editor-config": ["./packages/world-pack/src/editor-config.ts"],
       "@perspectra/world-pack/cli": [
         "./packages/world-pack/src/creator-cli.ts"
       ],

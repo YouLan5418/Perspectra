@@ -107,7 +107,7 @@ try {
     'manifestation.json': { schemaVersion: 'worldpack-manifestation/v1', mode: 'enabled' },
     'interactions.json': {
       schemaVersion: 'worldpack-interactions/v1',
-      packages: [{ id: 'package:interactions-basic', version: 1 }],
+      packages: [],
       definitions: [],
     },
     'assertions.json': { schemaVersion: 'worldpack-assertions/v1', assertions: [] },

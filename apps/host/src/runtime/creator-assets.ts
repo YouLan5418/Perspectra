@@ -78,6 +78,10 @@ export function servePageAsset(
     )
       return missing()
     headers(response, contentType, true)
+    if (prefix === '/editor' && asset === 'index.html') {
+      const policy = String(response.getHeader('content-security-policy'))
+      response.setHeader('content-security-policy', policy.replace("img-src 'self'", "img-src 'self' data:"))
+    }
     response.end(readFileSync(target))
     return true
   } catch (error) {

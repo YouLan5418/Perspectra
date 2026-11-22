@@ -175,6 +175,15 @@ it('gives a scene transition to every moved character, not only the actor', asyn
     // The follower moves in the same commit as the leader.
     const moves = store.readEvents(runtime.address).filter(event => event.eventType === 'character.moved')
     expect(moves.at(-1)!.transactionId).toBe(moves.at(-2)!.transactionId)
+    expect(runtime.creatorHistory({ eventSeq: moves.at(-1)!.seq }).items[0]!.movement).toMatchObject({
+      source: 'rule',
+      moduleId: 'test-follow',
+      initiator: PLAYER,
+      party: 'disabled',
+      from: FRONT,
+      to: BACK,
+    })
+    expect(runtime.creatorHistory({ eventSeq: moves.at(-2)!.seq }).items[0]!.movement?.source).toBe('move')
   })
 })
 

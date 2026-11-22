@@ -6,6 +6,7 @@ import { join } from 'node:path'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
 import { crc32, deflateSync } from 'node:zlib'
+import { readPNG } from '../../skills/perspectra-creator/scripts/tavern/extract_cards.mjs'
 
 const extractor = fileURLToPath(
   new URL('../../skills/perspectra-creator/scripts/tavern/extract_cards.mjs', import.meta.url),
@@ -48,6 +49,15 @@ function card(name) {
     },
   }
 }
+
+test('reads a multi-megabyte world book stored as base64 PNG metadata', () => {
+  const value = card('大型世界书')
+  const content = '设定'.repeat(1_000_000)
+  value.data.character_book.entries.push({ enabled: true, content })
+  const encoded = Buffer.from(JSON.stringify(value)).toString('base64')
+  const { payloads } = readPNG(png(chunk('tEXt', Buffer.from('ccv3\0' + encoded))))
+  assert.equal(payloads[0].card.data.character_book.entries[0].content, content)
+})
 
 function run(input, output, cwd, projectRoot = null) {
   const args = [extractor, input, '--out', output]

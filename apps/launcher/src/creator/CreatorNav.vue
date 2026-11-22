@@ -6,6 +6,7 @@ import {
   Braces,
   Circle,
   ChartGantt,
+  Timer,
   Globe,
   Image,
   ListTree,
@@ -34,6 +35,7 @@ const groups = [
     label: '世界',
     items: [
       { id: 'world', label: '世界总览', icon: Globe },
+      { id: 'world-events', label: '世界事件与节拍', icon: Timer },
       { id: 'characters', label: '角色', icon: Users },
       { id: 'entities', label: '物品', icon: Boxes },
       { id: 'statuses', label: '状态', icon: Braces },

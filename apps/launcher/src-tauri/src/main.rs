@@ -245,9 +245,9 @@ async fn launcher_request(
                 model_keys::remove(id);
             }
         }
-        if request["operation"] == "open" || request["operation"] == "open-creator" || request["operation"] == "lens-open" {
+        if request["operation"] == "open" || request["operation"] == "open-creator" || request["operation"] == "editor-open" {
             let url = result["url"].as_str().ok_or("游戏地址无效。")?;
-            let path = if request["operation"] == "open-creator" { "/creator/" } else if request["operation"] == "lens-open" { "/lens/" } else { "/" };
+            let path = if request["operation"] == "open-creator" { "/creator/" } else if request["operation"] == "editor-open" { "/editor/" } else { "/" };
             validated_local_url(url, path)?;
             #[cfg(windows)]
             {
@@ -271,7 +271,7 @@ async fn launcher_request(
 }
 fn validated_local_url(url: &str, path: &str) -> Result<(), String> {
     let invalid = || "游戏地址无效。".to_string();
-    if !matches!(path, "/" | "/creator/" | "/lens/") { return Err(invalid()); }
+    if !matches!(path, "/" | "/creator/" | "/editor/") { return Err(invalid()); }
     let suffix = format!("{path}#token=");
     let (base, token) = url.split_once(&suffix).ok_or_else(invalid)?;
     let port = base.strip_prefix("http://127.0.0.1:").ok_or_else(invalid)?;
@@ -289,7 +289,7 @@ mod local_url_tests {
     #[test]
     fn allows_only_the_requested_host_page_and_loopback_port() {
         let token = "a".repeat(64);
-        for path in ["/", "/creator/", "/lens/"] {
+        for path in ["/", "/creator/", "/editor/"] {
             for port in ["1", "65535"] {
                 assert!(validated_local_url(&format!("http://127.0.0.1:{port}{path}#token={token}"), path).is_ok());
             }
@@ -325,8 +325,8 @@ fn main() {
             if let tauri::RunEvent::Exit = event {
                 if let Ok(mut bridge) = app.state::<Core>().0.lock() {
                     if let Some(core) = bridge.as_mut() {
-                        // The child is killed right after, so close the pack lens first: it removes its temp copy.
-                        core.request(json!({"operation":"lens-close"})).ok();
+                        // The child is killed right after, so close the editor and its previews first.
+                        core.request(json!({"operation":"editor-close"})).ok();
                         core.request(json!({"operation":"stop"})).ok();
                     }
                     *bridge = None;

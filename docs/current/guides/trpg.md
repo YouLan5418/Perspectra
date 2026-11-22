@@ -2,7 +2,7 @@
 
 2026-11-09 当前源码（分支 `feat/rpg-plugin`）：官方跑团机制 [official-trpg](../../../packages/plugins/src/trpg) 按世界包里的 `trpg.json` 生成一个叫 `trpg` 的活动：玩家请一名 AI 角色当主持人，其余角色保留各自的性格参与。验证范围分开看：
 
-- **源码已接通**：配置校验、活动脚本（筹备、邀请、提出行动、检定、主持人工具、聚光、结束）、可信掷骰、私密点数进记忆、宿主载入与存档摘要、包透视与 `worldpack validate`。
+- **源码已接通**：配置校验、活动脚本（筹备、邀请、提出行动、检定、主持人工具、聚光、结束）、可信掷骰、私密点数进记忆、宿主载入与存档摘要与 `worldpack validate`。
 - **自动测试范围**：上述各项有单元测试和真实宿主测试，见第 7 节；验收包 [雨夜古宅](../../../examples/world-packs/rainy-manor/README.md) 的三份推演通过。
 - **真实体验验收**：只有一次 GLM-5.3-Flash 的脚本化试玩（两局，玩家一方是脚本），见[雨夜古宅试玩记录](../studies/2026-11-09-rainy-manor-playtest.md)。主持人都接下了，7 次检定的讲述都和点数一致；但主持人几乎只用说话讲结果、很少用“宣布结果”，于是待处理行动堆积，聚光几乎不转。此后改为：有待处理行动时，主持人对全桌说出结果也算一次宣布（自动测试覆盖，尚未重新试玩）。没有真人试玩。
 - **发行包**：未重建，随程序发行的是否包含此机制以发行说明为准。
@@ -95,8 +95,8 @@
 ## 5. 检查你写的
 
 - `worldpack.cmd validate '<源目录>'`：检查字段、角色引用、骰子写法、剧本内容的地点引用。生成的活动脚本不超过 256 KiB。
-- [包透视](pack-lens.md)：能看到生成的跑团活动。
-- 推演：`lens simulate '<源目录>' <脚本>.json`。雨夜古宅的三份脚本在 `.perspectra-lens/scenarios/`：`npcPlans` 让主持人 `{ "kind": "perform", "interact": "activity:check", "arguments": { ... } }`，`steps` 里用 `{ "activity": "trpg", "operation": "setup", "parameters": { ... } }` 走玩家的操作，`knows` / `doesNotKnow` 查谁知道什么。**`doesNotKnow` 只检查角色的观察渠道，是冒烟检查**；真正的可见范围覆盖在 `tests/host/trpg-activity.test.ts`。推演不是试玩。
+- 在包编辑器的跑团配置中查看或修改规则，也可通过 `worldpack editor trpg <源目录>` 读取。
+- 推演：`worldpack simulate '<源目录>' <脚本>.json`。雨夜古宅的三份脚本在 `scenarios/`：`npcPlans` 让主持人 `{ "kind": "perform", "interact": "activity:check", "arguments": { ... } }`，`steps` 里用 `{ "activity": "trpg", "operation": "setup", "parameters": { ... } }` 走玩家的操作，`knows` / `doesNotKnow` 查谁知道什么。**`doesNotKnow` 只检查角色的观察渠道，是冒烟检查**；真正的可见范围覆盖在 `tests/host/trpg-activity.test.ts`。推演不是试玩。
 
 ## 6. 已知限制
 

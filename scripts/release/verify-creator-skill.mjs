@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { mkdir, mkdtemp, readFile, writeFile, access } from 'node:fs/promises'
+import { existsSync } from 'node:fs'
+import { mkdir, mkdtemp, readFile, writeFile, access, copyFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { crc32, deflateSync } from 'node:zlib'
@@ -8,10 +9,28 @@ import { crc32, deflateSync } from 'node:zlib'
 if (process.argv.length !== 3) throw new Error('usage: verify-creator-skill.mjs <program-root>')
 const root = resolve(process.argv[2])
 const skill = join(root, 'skills/perspectra-creator')
+const includesPlaytest = existsSync(join(root, 'runtime/playtest.mjs'))
+if (includesPlaytest) {
+  const directory = join(root, 'runtime/creator-assets')
+  const index = await readFile(join(directory, 'index.html'), 'utf8')
+  const assets = Array.from(index.matchAll(/(?:src|href)="\/creator\/(assets\/[\w.-]+)"/gu), match => match[1])
+  for (const extension of ['.js', '.css'])
+    assert.ok(
+      assets.some(name => name.endsWith(extension)),
+      '缺少创作者页面入口 ' + extension,
+    )
+  for (const name of assets) await access(join(directory, name))
+}
 const work = await mkdtemp(join(tmpdir(), 'Perspectra 创作验证 '))
 const source = join(work, '自己的世界')
 const node = join(root, 'runtime', process.platform === 'win32' ? 'node.exe' : 'node')
-const env = { ...process.env, PATH: '', NODE_OPTIONS: '', NODE_PATH: '' }
+const env = {
+  ...process.env,
+  PERSPECTRA_RUNTIME_ROOT: join(root, 'runtime'),
+  PATH: '',
+  NODE_OPTIONS: '',
+  NODE_PATH: '',
+}
 const run = (entry, args) => {
   const result = spawnSync(node, ['--disable-warning=ExperimentalWarning', entry, ...args], {
     cwd: work,
@@ -178,19 +197,70 @@ const manifest = JSON.parse(await readFile(join(source, 'worldpack.source.json')
 manifest.documentFiles.push('documents.json')
 manifest.markdownFiles.push('letter.md')
 manifest.assetFiles.push('knowledge.json', 'scripts/status.js')
+manifest.plugins['pack-scripts'] = {}
 await json('worldpack.source.json', manifest)
 validate()
+
+// Exercise the same two authoring paths from the distributed skill, without a repository checkout.
+const demo = join(work, '接力创作')
+const scaffold = run(script, [demo, 'pack:handoff', '交接'])
+assert.equal(scaffold.status, 0, scaffold.stderr)
+const manifestPath = join(demo, 'worldpack.source.json')
+const selected = JSON.parse(await readFile(manifestPath, 'utf8'))
+selected.assetFiles.push('scripts/activities/inspect.js', 'scripts/gameplay.cjs')
+selected.plugins['pack-scripts'] = {}
+selected.scripts = { gameplay: { entry: 'scripts/gameplay.cjs', config: { energy: 1 } } }
+await mkdir(join(demo, 'scripts/activities'), { recursive: true })
+await copyFile(join(skill, 'assets/inspect-activity.js'), join(demo, 'scripts/activities/inspect.js'))
+await copyFile(join(skill, 'assets/investigation.cjs'), join(demo, 'scripts/gameplay.cjs'))
+await writeFile(manifestPath, JSON.stringify(selected))
+const command = (...args) => {
+  const result = run(cli, args)
+  assert.equal(result.status, 0, result.stderr || result.stdout)
+  return JSON.parse(result.stdout)
+}
+command('validate', demo)
+const scenario = join(work, 'inspect.json')
+await writeFile(
+  scenario,
+  JSON.stringify({
+    title: '查询交接单',
+    steps: [
+      { activity: 'inspect', operation: 'start' },
+      { activity: 'inspect', operation: 'inspect' },
+      { activity: 'inspect', operation: 'finish', expect: { knows: { 'character:player': '把纸折回原处' } } },
+    ],
+  }),
+)
+assert.equal(command('simulate', demo, scenario).passed, true)
+const handoff = await readFile(join(skill, 'references/editor-handoff.md'), 'utf8')
+const request = JSON.parse(handoff.match(/```json\s*([\s\S]*?)```/u)[1])
+const graphFile = join(work, 'activity-edit.json')
+await writeFile(graphFile, JSON.stringify(request))
+command('editor', 'save', demo, graphFile)
+const exported = join(work, '导出成品')
+command('editor', 'export', demo, exported)
+const reopened = command('editor', 'open', exported)
+assert.deepEqual(
+  reopened.graphs.find(graph => graph.key === request.graph.key),
+  request.graph,
+)
+assert.ok(reopened.scripts.includes('inspect'))
 const report = {
   status: 'passed',
   sourceDirectory: source,
   programRoot: root,
   checks: [
+    ...(includesPlaytest ? ['creator-page-resources'] : []),
     'scaffold',
     'no-overwrite',
     'invalid-id',
     'base-validation',
     'reference-examples',
     'item-template-compile',
+    'skill-activity-simulation',
+    'skill-gameplay-compile',
+    'editor-graph-export-reopen',
     'tavern-png-json-extraction',
     'card-scripts-preserved-as-data',
     'card-capacity',
@@ -198,7 +268,7 @@ const report = {
     'native-preset-templates',
     'preset-format-macro-and-field-rejection',
   ],
-  hostStarted: false,
+  hostStarted: true,
   modelCalls: 0,
 }
 await writeFile(join(work, 'skill-result.json'), JSON.stringify(report, null, 2) + '\n')

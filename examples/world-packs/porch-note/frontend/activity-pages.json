@@ -1,0 +1,50 @@
+{
+  "read-note": {
+    "html": "activities/note.html",
+    "css": "activities/note.css",
+    "elements": [
+      {
+        "id": "letter",
+        "rules": [
+          {
+            "field": {
+              "source": "held",
+              "key": "entity:opener"
+            },
+            "compare": "eq",
+            "value": true,
+            "effect": {
+              "kind": "class",
+              "value": "can-open"
+            }
+          }
+        ]
+      },
+      {
+        "id": "open-note",
+        "operation": "activity:open-note",
+        "rules": [
+          {
+            "field": {
+              "source": "held",
+              "key": "entity:opener"
+            },
+            "compare": "eq",
+            "value": true,
+            "effect": {
+              "kind": "show"
+            }
+          }
+        ]
+      },
+      {
+        "id": "ask",
+        "operation": "activity:ask-alin"
+      },
+      {
+        "id": "leave",
+        "operation": "activity:leave"
+      }
+    ]
+  }
+}

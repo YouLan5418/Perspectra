@@ -1,12 +1,34 @@
 # RPG 玩法：rpg.json
 
+## 使用工作台命令
+
+用 `editor mode-candidates <包> <请求.json>` 查询字段可引用的已定义记录，例如 `{"mode":"rpg","path":["skills","0","effects","0","status"]}` 返回可施加的战斗状态。查询属性消耗字典可用 `{"mode":"rpg","path":["skills","0","cost"],"dictionary":true}`。选填 `config` 可从刚新增的草稿状态、技能或资源中选用。写回仍通过 `rpg-save` 校验整个配置。
+
+Codex、Claude Code 和 DSH 都可使用 `worldpack editor` 的同一组命令。所有请求文件均为 UTF-8 JSON。
+
+| 命令 | 请求与返回 |
+| --- | --- |
+| `gameplay <源包>` | 读取启用玩法、配置文件路径、原始配置、正式字段声明、角色和场景候选、RPG 活动与专属页面绑定。 |
+| `rpg-enable <源包> <请求.json>` | 传 `{"location":"location:start"}` 在已有地点生成首场遭遇，已有配置则校验后接入。 |
+| `rpg-save <源包> <请求.json>` | 从 `gameplay` 取 `file` 和 `config`。提交 `{file,base,config}`，`base` 为读取的原文对象，`config` 为仅修改所需字段的副本。冲突时重新读取并合并。 |
+| `rpg-play <源包> <请求.json>` | 传 `location`，按需传 `scenes` 和 `turns`。先省略操作取得当前候选，再用返回的名称、目标和操作键组装步骤。 |
+| `rpg-preview <源包> <请求.json>` | 传相同地点和角色起点，输出本地交互试玩地址。 |
+| `item-uses <源包> <请求.json>` | 传 `{id}`，读取物品用途、起始地点、脚本操作和 `actions.allowed`。 |
+| `rpg-item-play <源包> <请求.json>` | 消耗品传 `{"kind":"consumable","id":"entity:potion-2","initial":{"hp":15}}`，检查 `values`、`spent`、`reason`。装备传 `{"kind":"equipment","id":"entity:iron-sword","location":"location:ruin-1","skill":"strike"}`，检查 `without`、`withGear`、`difference`。槽位候选从 `gameplay.slots` 读取，通过 `rpg-save` 保存物品效果与角色槽位。 |
+| `item-actions-save <源包> <请求.json>` | 传 `{id,base,allowed}`。从 `actions.allowed` 取 base，提交含 take、drop、give 三个布尔值的 allowed。支持官方物品模板，自定义状态脚本通过源码编辑。 |
+| `rpg-exit-play <源包> <请求.json>` | 试玩本图掉落钥匙的出口。传 `{"location":"location:ruin-1","to":"location:ruin-2","scenes":{"character:cheng":"scene:ruin-1"}}`，核对 `passed` 与每步 `checks`。 |
+| `rpg-cue-candidates <源包> <请求.json>` | 提供地图 `location` 和已选的 `when,characterId,skill`，取得当前适用的触发时机、非玩家角色、已学技能和敌人。用 `gameplay.activities[].cues` 查看流程和源行号，修改 `config.maps[].scripted` 后用 `rpg-save` 保存。 |
+| `rpg-cue-play <源包> <请求.json>` | 例如 `{"location":"location:ruin-1","index":1}`。可传 `expected` 为刚保存的源行。检查 `played`，以及 `history` 中该行的实际阶段、出手回合、技能结算和发言；未完整触发时读取 `reason`。 |
+
+遗迹守卫的一步试玩请求为 `{"location":"location:ruin-1","scenes":{"character:cheng":"scene:ruin-1"},"turns":[{"operation":"skill","arguments":{"skill":"火球术","target":"遗迹守卫"}}]}`。核对 `initial.status`、`steps[].results` 和 `steps[].after.status`，再用 `worldpack editor export <源包> <新目录>` 导出并重开。
+
 本页说明官方 RPG 机制：作者在包里写一份 `rpg.json`，宿主打开世界时生成战斗、队伍与每张地图的副本活动。核对对象是随目标程序提供的 official-rpg 1；先用目标程序的 `worldpack.cmd validate` 检查，旧程序不认识 `rpg.json` 时会拒绝。
 
-**验证范围（2026-11-08）**：源码已接通；自动测试覆盖配置校验、生成的状态与活动、锁门与随行、认知隔离和存档摘要，包透视与 `validate` 都读得懂 `rpg.json`；示例包 `hill-ruins` 的三份推演通过。**没有用真实模型试玩过**：澄会不会愿意入队、固定演出读起来是否自然、战斗节奏好不好，都还没有实测，交付前要真人试玩。
+**验证范围（2026-11-08）**：源码已接通；自动测试覆盖配置校验、生成的状态与活动、锁门与随行、认知隔离和存档摘要，`validate` 能校验 `rpg.json`；示例包 `hill-ruins` 的三份推演通过。**没有用真实模型试玩过**：澄会不会愿意入队、固定演出读起来是否自然、战斗节奏好不好，都还没有实测，交付前要真人试玩。
 
 ## 1. 先看一段互动
 
-玩家在客厅对澄说：“陪我去屋后的遗迹看看吧。”澄自己决定入队（她的选项里有“加入队伍”，只能她自己选）。玩家走向遗迹一层，澄随行。到达时旁白出现：“石廊潮湿阴冷……”守卫喊“擅入者，止步”，作者写好的澄先说“小心，它的护甲很硬！”并放出火球，守卫生命 50 → 36，然后轮到玩家。玩家选“使用技能 → 火球术 → 遗迹守卫”，澄在自己的回合再来一发，玩家补上一刀，守卫倒下，铁钥匙掉在地上。玩家拿起钥匙，铁门打开，二层木箱里还有一瓶药水。玩家回家睡一觉，生命回满；留在客厅的阿茹只看见他们出门，直到玩家开口讲，才知道遗迹里发生了什么。
+玩家在客厅对澄说：“陪我去屋后的遗迹看看吧。”澄自己决定入队（她的选项里有“加入队伍”，只能她自己选）。玩家走向遗迹一层，澄随行。到达时旁白出现：“石廊潮湿阴冷……”守卫喊“擅入者，止步”，作者写好的澄先说“小心，它的护甲很硬！”并放出火球，守卫生命 50 → 36，然后轮到玩家。玩家选“使用技能 → 火球术 → 遗迹守卫”，澄在自己的回合再来一发，玩家补上一刀，守卫倒下，铁钥匙掉在地上。玩家拿起钥匙，再用钥匙打开铁门，二层木箱里还有一瓶药水。玩家回家睡一觉，生命回满；留在客厅的阿茹只看见他们出门，直到玩家开口讲，才知道遗迹里发生了什么。
 
 这里哪些是程序裁定的，哪些是角色自己的：伤害、生命、钥匙掉落、锁门、传送回家由程序按 `rpg.json` 裁定；澄是否入队、战斗里没写死时她用什么技能、说什么，由她自己决定；阿茹不在场，只收到“玩家和澄离开了客厅”。
 
@@ -96,7 +118,19 @@
 - `retreat`: `stay`（默认）撤退后留在原地；`back` 撤退也送回 `defeat.to`（不套用 `restore`），需要先写 `defeat`。只有玩家能选“撤退”。
 
 ### party：队伍
-`{ "leader": "character:player", "lockDuringBattle": true }`。`leader` 是玩家。同伴自己选“加入队伍”入队；入队后队长走到哪她跟到哪。`lockDuringBattle` 默认 true：战斗中不能离队；写 false 则战斗中允许离队。
+
+有队友需要在剧情中告别时，出发前核对实际队伍名单；玩家移动会带走同地的队员。退场后的行动范围和返程验收见[角色退场](gameplay.md#角色退场)。
+
+`{ "leader": "character:player", "lockDuringBattle": true }`。启用队伍后必填 `leader`，队长与可入队的成员都来自 `config.characters`。同场成员可自行加入并随行。`lockDuringBattle` 选填，默认 true，设为 false 允许参战成员离队。
+
+用 `gameplay` 读取包内候选和 `file`，用 `rpg-save` 提交 `file,base,config`。随后执行 `worldpack editor rpg-journey-play <源包> <请求.json>`。
+
+| 目标 | 请求 | 核对输出 |
+| --- | --- | --- |
+| 卧室休息 | `{"kind":"rest","location":"location:bedroom"}` | `available` 为真时查看各属性的 `before/after/max`。也可以选择非休息点检查操作是否隐藏。 |
+| 战败返回 | `{"kind":"defeat","location":"location:ruin-1"}` | 在有敌人的地图上低生命开局并防御，核对 `phase`、`destination`、`participants` 的实际地点和属性。 |
+| 撤退 | `{"kind":"retreat","location":"location:ruin-1"}` | 核对 `fled` 阶段、实际落点和撤退前后的属性。 |
+| 入队、随行和离队 | `{"kind":"party","member":"character:cheng","from":"location:living-room","to":"location:bedroom"}` | 选另一名 RPG 角色和两个有场景的普通地点，核对 `joined/followed/left/stayed`。 |
 
 ## 4. 战斗怎么算
 
@@ -124,10 +158,10 @@
 ## 6. 校验与推演
 
 - `worldpack.cmd validate '<源目录>'`：检查 `rpg.json`，包括字段名、引用的角色、地点、物品、敌人、技能，以及掉落、宝箱、出口规则。
-- `worldpack.cmd lens view '<源目录>'`：透视里多一个“RPG”分类，列出角色、敌人、装备、消耗品、每张地图及出口条件，自动生成的地图活动指向 `rpg.json`。
-- `worldpack.cmd lens simulate '<源目录>' '<脚本>.json'`：推演。常用写法：用 `npcPlans` 让同伴 `{ "kind": "perform", "interact": "status:rpg-join" }`；用 `{ "activity": "rpg-map-ruin-1", "operation": "skill", "parameters": { "skill": "火球术", "target": "遗迹守卫" } }` 走玩家的战斗回合；用 `start.status.characters` 改初始生命来造出失败场景；用 `knows` / `doesNotKnow` 检查阿茹有没有收到战斗内容。推演里同伴的战斗回合用不了 `npcPlans` 指定技能，用 `scripted` 的 `turn` 演出让它确定。
+- `worldpack.cmd editor gameplay '<源目录>'` 读取 RPG 配置及生成的地图活动键。
+- `worldpack.cmd simulate '<源目录>' '<脚本>.json'`：推演。常用写法：用 `npcPlans` 让同伴 `{ "kind": "perform", "interact": "status:rpg-join" }`；用 `{ "activity": "rpg-map-ruin-1", "operation": "skill", "parameters": { "skill": "火球术", "target": "遗迹守卫" } }` 走玩家的战斗回合；用 `start.status.characters` 改初始生命来造出失败场景；用 `knows` / `doesNotKnow` 检查阿茹有没有收到战斗内容。推演里同伴的战斗回合用不了 `npcPlans` 指定技能，用 `scripted` 的 `turn` 演出让它确定。
 - 推演不是试玩：桩模型不说真话，同伴会不会入队、战斗读起来是否自然，都要真实模型试玩。
 
 ## 7. 示例
 
-`hill-ruins` 是这套机制的验收包：山脚小屋、两层遗迹、铁钥匙和宝箱，同伴澄和留在家里的阿茹。照它的 `rpg.json` 复制改写最快；它的推演脚本在 `.perspectra-lens/scenarios/` 下：通关并回家睡觉、战败回家、阿茹不知道战斗细节。
+`hill-ruins` 是这套机制的验收包：山脚小屋、两层遗迹、铁钥匙和宝箱，同伴澄和留在家里的阿茹。照它的 `rpg.json` 复制改写最快；它的推演脚本在 `scenarios/` 下：通关并回家睡觉、战败回家、阿茹不知道战斗细节。

@@ -13,6 +13,26 @@ import {
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
 import { randomUUID } from 'node:crypto'
 import { join } from 'node:path'
+export {
+  processPresetText,
+  rolePreset,
+  assignPackRolePresets,
+  type RolePreset,
+  type PackRolePresets,
+} from '@perspectra/providers/chat'
+export function callablePresetCharacters<
+  T extends { characterId: string; displayName: string; controllerClass: string; lifecycle?: string | null },
+>(characters: readonly T[], player: string | undefined) {
+  return characters
+    .filter(c => c.characterId !== player && c.controllerClass !== 'manual' && (c.lifecycle ?? 'active') === 'active')
+    .map(c => ({ id: c.characterId, name: c.displayName }))
+}
+export function checkBundled(characters: readonly { id: string }[], bundle: PackRolePresets) {
+  const ids = new Set(characters.map(c => c.id))
+  for (const id of [...Object.keys(bundle.characters), ...bundle.groups.flatMap(g => g.members)])
+    if (!ids.has(id)) throw new Error('游戏包 role-presets.json 引用了此包之外或不可调用的角色。角色 ' + id)
+  return bundle
+}
 export interface PresetChoice extends RolePresetMapping {
   mode: 'auto' | 'global' | 'custom'
   override: RolePreset
@@ -50,45 +70,49 @@ export async function packRolePresets(path: string): Promise<PackRolePresets | u
     throw new Error('游戏包 role-presets.json 无法读取。')
   }
   try {
-    const value = JSON.parse(text) as Record<string, unknown>
-    if (
-      !value ||
-      typeof value !== 'object' ||
-      Array.isArray(value) ||
-      Object.keys(value).some(key => !['characters', 'groups'].includes(key)) ||
-      (value.groups !== undefined && (!Array.isArray(value.groups) || value.groups.length > 32))
-    )
-      throw new Error('fields')
-    const names = new Set<string>(),
-      members = new Set<string>()
-    const groups = ((value.groups ?? []) as unknown[]).map(entry => {
-      const group = entry as Record<string, unknown>
-      if (
-        !group ||
-        typeof group !== 'object' ||
-        Object.keys(group).sort().join(',') !== 'members,name,preset' ||
-        typeof group.name !== 'string' ||
-        !group.name.trim() ||
-        group.name.length > 80 ||
-        names.has(group.name.trim()) ||
-        !Array.isArray(group.members) ||
-        !group.members.length
-      )
-        throw new Error('group')
-      names.add(group.name.trim())
-      // A character belongs to at most one group, as in the instance mapping.
-      for (const id of group.members) {
-        if (typeof id !== 'string' || !id || id.length > 200 || members.has(id)) throw new Error('member')
-        members.add(id)
-      }
-      return { name: group.name.trim(), preset: rolePreset(group.preset), members: [...(group.members as string[])] }
-    })
-    const characters = characterPresets(value.characters ?? {})
-    if (!Object.keys(characters).length && !groups.length) throw new Error('empty')
-    return { characters, groups }
+    return parsePackRolePresets(JSON.parse(text))
   } catch {
     throw new Error('游戏包 role-presets.json 无效。')
   }
+}
+export function parsePackRolePresets(input: unknown): PackRolePresets {
+  const value = input as Record<string, unknown>
+  if (
+    !value ||
+    typeof value !== 'object' ||
+    Array.isArray(value) ||
+    Object.keys(value).some(key => !['characters', 'groups'].includes(key)) ||
+    (value.groups !== undefined && (!Array.isArray(value.groups) || value.groups.length > 32))
+  )
+    throw new Error('随包角色预设只能包含角色映射和最多 32 个角色组')
+  const names = new Set<string>(),
+    members = new Set<string>()
+  const groups = ((value.groups ?? []) as unknown[]).map(entry => {
+    const group = entry as Record<string, unknown>
+    if (
+      !group ||
+      typeof group !== 'object' ||
+      Object.keys(group).sort().join(',') !== 'members,name,preset' ||
+      typeof group.name !== 'string' ||
+      !group.name.trim() ||
+      group.name.length > 80 ||
+      names.has(group.name.trim()) ||
+      !Array.isArray(group.members) ||
+      !group.members.length
+    )
+      throw new Error('角色组需要不重复的组名、预设和至少一名成员')
+    names.add(group.name.trim())
+    // A character belongs to at most one group, as in the instance mapping.
+    for (const id of group.members) {
+      if (typeof id !== 'string' || !id || id.length > 200 || members.has(id))
+        throw new Error('角色组成员无效或重复：' + String(id))
+      members.add(id)
+    }
+    return { name: group.name.trim(), preset: rolePreset(group.preset), members: [...(group.members as string[])] }
+  })
+  const characters = characterPresets(value.characters ?? {})
+  if (!Object.keys(characters).length && !groups.length) throw new Error('随包角色预设至少需要一条角色或角色组记录')
+  return { characters, groups }
 }
 export class ModelPresets {
   global: RolePreset = {}

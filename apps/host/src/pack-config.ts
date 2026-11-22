@@ -9,9 +9,8 @@ import {
   PACK_CONFIG_BYTE_LIMIT,
 } from '@perspectra/world-pack'
 import type { HostPluginSettings } from './host-plugin-settings.ts'
-import { packValidationCatalog } from './pack-validation.ts'
+import { authoringValidators, packValidationCatalog } from './pack-validation.ts'
 import { GameplayScript } from './official-bundle.ts'
-import { validatePackScript } from './official-pack-metadata.ts'
 
 export interface PackConfigEntry {
   readonly id: string
@@ -78,7 +77,7 @@ export async function readPackConfiguration(
   try {
     validatePackAuthoring(pack, file => readAsset(packPath, file), {
       content: catalog,
-      validateScript: validatePackScript,
+      ...authoringValidators(packPath),
     })
   } catch (error) {
     validation = error instanceof Error ? error.message : 'Pack validation failed'
@@ -140,7 +139,7 @@ export async function savePackConfiguration(
     validatePackAuthoring(
       proposed,
       name => (name === file && file !== 'worldpack.source.json' ? serialized : readAsset(packPath, name)),
-      { content: catalog, validateScript: validatePackScript },
+      { content: catalog, ...authoringValidators(packPath) },
     )
     const target = inside(packPath, join(packPath, file))
     // The source path is selected by the server, not by the renderer. Keep the rename on the same filesystem.

@@ -25,6 +25,7 @@ import {
 } from '@perspectra/core/kernel'
 import { WorldStore, WriterLeaseService } from '@perspectra/core/store'
 import {
+  MAX_STATUS_OPERATIONS,
   StatusState,
   statusObject as object,
   statusExact as exact,
@@ -112,6 +113,24 @@ export class StatusRuntime {
   }
   get operations() {
     return this.#state.operations
+  }
+  /** Compare the loaded declarations with the last refreshed player projection without running a policy. */
+  inspectOperations(available: readonly ActionAffordance[]) {
+    const offered = new Set(
+      available.flatMap(action =>
+        (action.interactions ?? []).map(option => (option.definitionRef as WorldJsonObject | undefined)?.id),
+      ),
+    )
+    return {
+      limit: MAX_STATUS_OPERATIONS,
+      operations: this.operations.map(({ id, label, actors }) => ({
+        id: PREFIX + id,
+        label,
+        actors,
+        offeredToPlayer: offered.has(PREFIX + id),
+      })),
+      policyErrors: this.policyErrors,
+    }
   }
   get hasRoundHook() {
     return this.#mechanism.hasRoundHook

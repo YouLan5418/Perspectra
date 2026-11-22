@@ -1,5 +1,24 @@
 # 验证
 
+## 用命令行做真实模型试玩
+
+使用目标程序随带的 Host 命令行 `runtime/playtest.mjs`。它从完整 v5 源目录开档，可使用与 Launcher 相同的 Core 记忆。需要能运行这个入口的程序目录和作者授权的模型服务。下例在 PowerShell 中使用目标服务真实的请求地址、模型标识和一个新数据目录。
+
+```powershell
+$env:PERSPECTRA_MODEL_ENDPOINT = '<已授权的完整 chat/completions 地址>'
+$env:PERSPECTRA_MODEL = '<服务列出的完整模型 ID>'
+$env:PERSPECTRA_RUNTIME_ROOT = (Resolve-Path './runtime').Path
+& './runtime/node.exe' './runtime/playtest.mjs' --pack '<可玩源目录>' --data-dir '<独立新档目录>' --memory-core
+```
+
+让 Host 保持运行，打开它打印的本机试玩网址即可操作。自动化时也可通过同一个玩家接口，使用网址片段里的 token 作 `x-playtest-token` 请求头。先 GET `/frontend-api/v1/view` 取得当前角色、地点与 actions。向 `/frontend-api/v1/action` POST JSON，每次新动作使用新的 UUID 作为 actionId 和 requestId。操作格式为 `{"actionId":"…","requestId":"…","operation":"perform","payload":{"optionId":"当前可用的选项 ID"}}`。公开提问用 `"operation":"speak","payload":{"text":"你刚才说要带我去哪儿？","scope":"scene_public"}`。从返回的玩家视图读取发表与结果。不要在报告里写入会话 token、完整模型请求或存档。
+
+长线先在干净存档从头玩到结尾，记录转折前后玩家能做什么、关键人物知道什么、谁亲自执行了行动。关键承诺之后回头问当事人，再找未获知的人分别交谈。遇到「有对话框但角色沉默」，记录当时是否有真实模型调用、活动是否还在等选项，以及完成或暂停活动后能否接话。需要确认真实模型时记录请求标识、返回型号及成功数，用玩家实际看见的台词短摘录区分脚本与模型的表现。
+
+退场或分队时，用[已经开门的站台测试](../gameplay.md#角色退场)主动制造一次跟随尝试。真实模型试玩逐步核对这次输入新增的发表者、在场人和收信人；旧聊天记录、录音或引用来信仍可出现在历史中。
+
+使用流式服务统计时，按请求各记一次 HTTP 状态，并在首个含 `model` 的 SSE 数据块记录返回型号。取消或提前结束的流可能没有 `[DONE]`，单列未见型号或未完成的请求。分享验收报告时只保留计数、判定和必要的玩家可见摘录。
+
 ## 证据分层
 
 1. 提取保留原始载荷、未知配置与来源。CRC正确不等于schema合规或代码可运行。

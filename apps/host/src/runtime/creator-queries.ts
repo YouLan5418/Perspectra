@@ -37,10 +37,14 @@ export interface CreatorQueryHost {
   readonly executionResult?: ExecutionCycleResult | undefined
   readonly inspector: RequestInspector
   readonly records: CreatorRecords
+  readonly hasRpgParty: boolean
+  statusOperations(): CreatorInspectionSnapshot['statusOperations']
   statusTruth(events: readonly RulebookEvent[]): StatusTruth | undefined
   activityStates(events: readonly RulebookEvent[]): readonly WorldJsonObject[]
   /** Why the last round did or did not bring an event; creator only. */
   pacing(): WorldJsonObject | null
+  pacingDiagnostics(): CreatorInspectionSnapshot['pacingDiagnostics']
+  worldEvents(through: number): CreatorInspectionSnapshot['worldEvents']
   readonly memory: MemoryInstance | undefined
   readonly memoryIsCore: boolean
 }
@@ -57,7 +61,7 @@ export function creatorHistorySnapshot(host: CreatorQueryHost, input: CreatorHis
     )
       throw new TypeError('未知物品')
     return {
-      ...creatorHistory(store, host.address, host.worldVersion, query),
+      ...creatorHistory(store, host.address, host.worldVersion, query, host.hasRpgParty),
       scope: structuredClone(host.records.scope),
     }
   } finally {
@@ -158,9 +162,12 @@ export function creatorInspectionSnapshot(
       captureEnabled: host.inspector.enabled,
       characters,
       entities,
+      statusOperations: host.statusOperations(),
       statusTruth: truth ? { public: truth.public, characters: truth.characters } : null,
       activities: [...host.activityStates(events)],
       pacing: host.pacing(),
+      pacingDiagnostics: host.pacingDiagnostics(),
+      worldEvents: host.worldEvents(head.headSeq),
       events: { items: selectedEvents, nextAfterSeq, hasMore: nextAfterSeq < head.headSeq },
       limitations: [
         'holderId 表示保管或携带，不证明法律所有权。',

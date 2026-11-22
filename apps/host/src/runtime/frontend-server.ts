@@ -51,7 +51,10 @@ export function frontendAsset(
   } catch {
     /* unknown asset */
   }
-  const asset = builtins[path] ?? pack?.assets.get(path)
+  const activityAsset = path.startsWith('/frontend/activity/activities/')
+  const asset = activityAsset
+    ? pack?.assets.get(path.replace('/frontend/activity/', '/frontend/custom/'))
+    : (builtins[path] ?? pack?.assets.get(path))
   response.setHeader('cache-control', 'no-store')
   response.setHeader('x-content-type-options', 'nosniff')
   response.setHeader('referrer-policy', 'no-referrer')
@@ -75,7 +78,19 @@ export function frontendAsset(
   const trusted =
     "default-src 'none'; sandbox allow-scripts allow-same-origin; script-src 'self' 'unsafe-inline' 'unsafe-eval' http: https:; style-src 'self' 'unsafe-inline' http: https:; img-src 'self' data: blob: http: https:; font-src 'self' data: http: https:; media-src 'self' blob: http: https:; connect-src http: https:; frame-src 'none'; worker-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors " +
     hostOrigin
-  response.setHeader('content-security-policy', mode === 'trusted' ? trusted : sandbox)
+  // The Host can populate declarative fields, while authored HTML can only load local presentation assets.
+  const activityCsp =
+    "default-src 'none'; sandbox allow-same-origin; script-src 'none'; style-src 'unsafe-inline' " +
+    origin +
+    '/frontend/activity/activities/; img-src ' +
+    origin +
+    '/frontend/activity/activities/ data:; font-src ' +
+    origin +
+    '/frontend/activity/activities/; media-src ' +
+    origin +
+    "/frontend/activity/activities/; base-uri 'none'; form-action 'none'; frame-ancestors " +
+    hostOrigin
+  response.setHeader('content-security-policy', activityAsset ? activityCsp : mode === 'trusted' ? trusted : sandbox)
   if (!asset) {
     response.statusCode = 404
     response.end('包资源不存在')

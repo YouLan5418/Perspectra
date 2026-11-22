@@ -814,7 +814,7 @@ BGM、TTS 和只读 PlayerFeed 订阅可以采用外围扩展语义。同一个�
 | `@perspectra/providers` | 默认 scheduler、decision、state、activity、communication、llm 和 memory-none，含作者脚本适配及推演所需的轻量替代实现 | 相关 official 包与 provider-chat，按能力子目录和导出组织 |
 | `@perspectra/memory-core` | Python／E5 长期记忆实现及进程适配 | official-memory-core，保留独立资源与依赖边界 |
 | `@perspectra/plugins` | dice、pacing、rpg、trpg 等官方玩法和策略 | 按子路径使用；牵手／松手已迁入世界包脚本 |
-| `@perspectra/world-pack` | 游戏包格式、注入式配置校验、编译、打包、静态透视分析及推演剧本解析与断言 | world-pack 与 Lens 的内容分析、动作匹配及剧本能力 |
+| `@perspectra/world-pack` | 游戏包格式、注入式配置校验、编译、打包及字段定义 | 源包的内容分析与格式校验 |
 | `@perspectra/frontend` | 玩家视图、客户端契约、默认舞台、通用动作表单、控件与只读面板、阅读进度及音频播放接口 | frontend，继续服务现有玩家入口 |
 
 `presentation` 中与授权观察和确定性文本有关的实现，按实际作用归入 core 或公共展示模块。`agents` 中仍在使用的玩家输入、调用记录与连接逻辑逐项归位。
@@ -832,7 +832,7 @@ providers 和 plugins 按能力及玩法设置清晰子目录与子路径导出�
 | 应用目录 | 职责 |
 | --- | --- |
 | `apps/host` | CLI／HTTP 启动、游戏入口装配、静态资源服务、路由、端侧授权接入、BGM／TTS 等外围能力适配 |
-| `apps/launcher` | Tauri 与 Vue 管理界面、实例与包管理、模型连接和密钥、角色预设、故事节点和分享、创作者与 Lens 界面及本地管理服务 |
+| `apps/launcher` | Tauri 与 Vue 管理界面、实例与包管理、模型连接和密钥、角色预设、故事节点和分享、创作者控制台与包编辑界面及本地管理服务 |
 
 引擎内部执行协调进入 core，能力选择与启动配置通过公开入口传入。Host 根据清单和玩家设置进行组合解析，业务规则由所选玩法提供。
 
@@ -847,7 +847,7 @@ providers 和 plugins 按能力及玩法设置清晰子目录与子路径导出�
 - frontend 使用公共客户端和展示契约。
 - apps 负责选择实现、接入资源并连接运行端。
 
-Lens 的动态模拟与静态内容分析分别归位。动态推演通过核心与所选 Provider 构成可运行实例，界面和本地服务归应用端。
+动态推演通过核心与所选 Provider 构成可运行实例，界面和本地服务归应用端。
 
 依赖验收应检查 SDK 的独立导入、核心与具体玩法的依赖方向，以及 RPG 子入口实际加载的模块。静态检查入口需能在缺少模型连接、Python 记忆和游戏 Host 的环境中工作。
 
@@ -1009,11 +1009,11 @@ pacing 的候选计算与正式效果应用分别采用其所在路径的语义�
 | 并发读取与写租约 | 已挂载分支的只读入口不重新恢复协调器写租约；执行入口保留原检查 | B11 修复前准确复现、回归通过，便携浏览器 NPC 接续通过；首次挂载保持原行为 |
 | 记忆与模型入口 | 统一能力入口支持角色路由，授权来源与实际调用计量保留 | 本轮真实模型采用 memory-none；Python／E5 可运行不等于真实长期记忆体验验收 |
 
-对应源码见 [默认组合](../../../apps/host/src/official-bundle.ts)、[调度桥](../../../packages/core/src/application/scheduler-round.ts)、[状态脚本](../../../packages/providers/src/status/index.ts)、[活动脚本](../../../packages/providers/src/activities/index.ts)、[RPG 内容](../../../packages/plugins/src/rpg/content.ts)、[TRPG 内容](../../../packages/plugins/src/trpg/content.ts)、[规则契约](../../../packages/sdk/src/rules.ts)与 [Lens 模拟](../../../apps/host/src/lens/simulation.ts)。
+对应源码见 [默认组合](../../../apps/host/src/official-bundle.ts)、[调度桥](../../../packages/core/src/application/scheduler-round.ts)、[状态脚本](../../../packages/providers/src/status/index.ts)、[活动脚本](../../../packages/providers/src/activities/index.ts)、[RPG 内容](../../../packages/plugins/src/rpg/content.ts)、[TRPG 内容](../../../packages/plugins/src/trpg/content.ts)、[规则契约](../../../packages/sdk/src/rules.ts)与 [Lens 模拟](../../../apps/host/src/simulation/simulation.ts)。
 
 本轮补充核对了[插件装载](../../../apps/host/src/host-plugins.ts)、[机制保护](../../../apps/host/src/runtime/gameplay-services.ts)、[世界运行与关闭](../../../apps/host/src/runtime/world-runtime.ts)、[分支级 Cordis](../../../packages/core/src/runtime/runtime.ts)、[生成内容与存档检查](../../../apps/host/src/runtime/pack-content.ts)及[工具链生成器注入](../../../packages/world-pack/src/pack-content.ts)。这些路径与当前表格共同说明接通状态，体验和发行结论仍以对应验收范围为准。
 
-作者能力的基础见[状态 SDK](../../../packages/sdk/src/status.ts)、[活动 SDK](../../../packages/sdk/src/activities.ts)、[操作说明](../../../packages/providers/src/chat/character-action-explanations.ts)、[玩家视图](../../../packages/frontend/src/player-view.ts)、[默认舞台](../../../packages/frontend/src/default-template.ts)、[Lens 剧本](../../../apps/host/src/lens/scenario.ts)与[现有推演命令](../../../apps/host/src/lens/cli.ts)。
+作者能力的基础见[状态 SDK](../../../packages/sdk/src/status.ts)、[活动 SDK](../../../packages/sdk/src/activities.ts)、[操作说明](../../../packages/providers/src/chat/character-action-explanations.ts)、[玩家视图](../../../packages/frontend/src/player-view.ts)、[默认舞台](../../../packages/frontend/src/default-template.ts)、[Lens 剧本](../../../apps/host/src/simulation/scenario.ts)与[现有推演命令](../../../apps/host/src/cli/worldpack.ts)。
 
 本轮契约修订另依据[当前调度 SDK](../../../packages/sdk/src/scheduler.ts)、[决策执行能力](../../../packages/sdk/src/character-loop.ts)、[授权记忆来源](../../../packages/core/src/memory/authorized-sources.ts)、[长期记忆归档](../../../packages/memory-core/src/core-memory.ts)、[记忆来源时间](../../../packages/memory-core/python/bridge/core_bridge.py)和[角色模型选择](../../../packages/providers/src/llm/role-providers.ts)。[开发指令](../../../AGENTS.md)已按新预算目标同步，SDK 与运行时差距继续通过对应批次处理。
 
@@ -1181,7 +1181,7 @@ CLI 输出步骤与断言通过情况，失败时返回可检查的退出状态�
 | 无头推演 | 复用正式执行链、临时 SQLite 和进程内计划实现，保留授权上下文的可检查路径 |
 | 创作验收切片 | 以一个搜证实现文件、显式启用声明和剧本验证扣精力、线索、目击与拒绝 |
 | 软件包布局 | 七包作为参考，实施以真实依赖、独立导入成本和消费者确定边界 |
-| Lens 归属 | 静态分析进入工具链，动态模拟调用公开引擎入口 |
+| 推演归属 | 剧本运行在 Host，调用公开引擎入口 |
 | 旧包和存档处理 | 依据实际保留对象确定迁移或版本边界 |
 
 清单字段名、插件 ID 与版本格式、具体方法签名、脚本导出语法和数据兼容版本声明属于施工参数，在对应批次结合实际消费者固定并记录。默认表单支持的 Schema 范围在接口文档列清，各资源的收尾期限由其适配实现与调用契约具体确定。推演性能通过分阶段基准确认。

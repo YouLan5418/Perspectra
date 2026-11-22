@@ -13,7 +13,7 @@ const root = process.argv[2] ? resolve(process.argv[2]) : join(work, '程序 空
 if (!process.argv[2]) {
   await buildWorldPackCli(root)
   await cp(process.execPath, join(root, 'runtime', process.platform === 'win32' ? 'node.exe' : 'node'))
-  // lens.mjs runs the real host runtime, which reads these from the runtime folder; a full portable build has them.
+  // Gameplay simulation uses the packaged Host assets.
   await cp(resolve('packages/frontend/assets'), join(root, 'runtime', 'frontend-assets'), { recursive: true })
   await copyMemoryRuntime(join(root, 'runtime'))
 }
@@ -23,8 +23,13 @@ const source = join(work, '我的游戏')
 await cp(resolve('examples/world-packs/hand-in-hand'), source, { recursive: true })
 // A compiler check must read this asset without running it.
 await writeFile(join(source, 'scripts/status.js'), 'throw new Error("CLI must not execute gameplay scripts")\n')
-const env = { ...process.env, PATH: '', NODE_OPTIONS: '', NODE_PATH: '' }
-const lensEnv = { ...env, PERSPECTRA_RUNTIME_ROOT: join(root, 'runtime') }
+const env = {
+  ...process.env,
+  PATH: '',
+  NODE_OPTIONS: '',
+  NODE_PATH: '',
+  PERSPECTRA_RUNTIME_ROOT: join(root, 'runtime'),
+}
 const run = async args => {
   const windows = process.platform === 'win32'
   const child = windows
@@ -35,12 +40,10 @@ const run = async args => {
       )
     : spawn(
         join(root, 'runtime/node'),
-        args[0] === 'lens'
-          ? ['--disable-warning=ExperimentalWarning', join(root, 'runtime/lens.mjs'), ...args.slice(1)]
-          : ['--disable-warning=ExperimentalWarning', join(root, 'runtime/worldpack.mjs'), ...args],
+        ['--disable-warning=ExperimentalWarning', join(root, 'runtime/worldpack.mjs'), ...args],
         {
           cwd,
-          env: args[0] === 'lens' ? lensEnv : env,
+          env,
           stdio: ['ignore', 'pipe', 'pipe'],
         },
       )
@@ -100,12 +103,9 @@ await writeFile(charactersPath, JSON.stringify(characters))
 const reference = await run(['validate', source])
 assert.equal(reference.code, 1)
 assert.equal(reference.result.errorCode, 'PACK_REFERENCE_INVALID')
-// The read-only lens runs the real host runtime on a copy; the pack itself stays untouched.
-const lensSource = join(work, '透视游戏')
-await cp(resolve('examples/world-packs/hand-in-hand'), lensSource, { recursive: true })
-const lensView = await success(['lens', 'view', lensSource])
-assert.ok(lensView.view.items.length > 0, 'lens view lists the pack items')
-assert.deepEqual(lensView.changes, [])
+const playable = resolve('examples/world-packs/investigation')
+assert.ok((await success(['editor', 'records', playable])).records.length)
+assert.equal((await success(['simulate', playable, join(playable, 'scenario.json')])).passed, true)
 const missing = await run(['validate', join(work, '不存在')])
 assert.equal(missing.code, 1)
 assert.equal(typeof missing.result.message, 'string')
@@ -131,7 +131,8 @@ console.log(
       'references',
       'missing-source',
       'scripts-not-executed',
-      'lens-view',
+      'editor-records',
+      'simulate',
     ],
   }),
 )

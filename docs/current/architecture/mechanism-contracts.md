@@ -104,13 +104,13 @@ await WorldHostRuntime.create({
 
 WorldAdapters 只提供既有执行适配器上的规则和上下文投影，不读取配置、不注册 Provider、不创建机制或补默认。创作者查询只拿到状态真值／活动进度的只读函数。它不是插件的 ctx.gameplay，也不是最小核心的新接口。
 
-## 6. 透视、分享与交付
+## 6. 推演、分享与交付
 
-LensSimulation／LensSession 可接收同一 composition，重启、重载保持选择。状态起点覆盖在所选 Provider 的初始化结果上施加，再走同一 StatusState 检查；透视不另建默认脚本解释器。普通 CLI／Launcher 透视入口明确使用默认 RP，不自动加载用户的任意原生插件和凭证。
+无头推演可接收所选的世界组合。初始状态覆盖在该 Provider 的初始化结果上施加，并由 StatusState 校验。
 
 故事分享 API 可接收相同 composition，声明预检通过所选状态 Provider.open／close 和核心 StatusState；Launcher 未另传时明确使用默认 RP。预检在一次性快照副本上进行，不改发送者节点。它不执行初始化，不宣称通用插件文件、外部副作用或第三方算法快照均已支持。
 
-world-pack 库仍接收公开安装目录；CLI 进程不再预装基础交互包，并只做结构验证，不执行游戏 hook。发布脚本打包同一 CLI／Lens 入口，未复制一份状态或活动规则。源码静态检查阻止核心依赖宿主、SDK 导入运行实现、作者脚本导入原生 SDK，也保留官方机制不能依赖宿主／存储实现的边界。
+world-pack 库仍接收公开安装目录；CLI 进程不再预装基础交互包，并只做结构验证，不执行游戏 hook。发布脚本打包同一 worldpack CLI 入口，未复制一份状态或活动规则。源码静态检查阻止核心依赖宿主、SDK 导入运行实现、作者脚本导入原生 SDK，也保留官方机制不能依赖宿主／存储实现的边界。
 
 ## 7. 失败与验证范围
 

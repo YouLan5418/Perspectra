@@ -1,9 +1,10 @@
-import { packValidationCatalog } from '../pack-validation.ts'
+import { loadBoundFrontend } from '../runtime/activity-page-catalog.ts'
+import { authoringValidators, packValidationCatalog } from '../pack-validation.ts'
 import { hostPluginSettings } from '../host-plugin-settings.ts'
 import { parseWorldPackSourceManifestV5 } from '@perspectra/world-pack'
 import { join } from 'node:path'
 import { canonicalizeWorldJson, interactionPackageDescription, type WorldJsonValue } from '@perspectra/sdk/contracts'
-import { officialPackPlugins, validatePackScript } from '../official-pack-metadata.ts'
+import { officialPackPlugins } from '../official-pack-metadata.ts'
 import {
   executeWorldPackCli,
   worldPackCliErrorEnvelope,
@@ -36,6 +37,7 @@ try {
     )
     catalog = await packValidationCatalog(source, hostPluginSettings(JSON.parse(await readFile(settingsFile, 'utf8'))))
   }
+  if (args[1] && ['validate', 'compile', 'test'].includes(args[0] ?? '')) await loadBoundFrontend(args[1])
   if (args.length === 1 && (args[0] === '--version' || args[0] === 'version')) {
     process.stdout.write(
       `${Buffer.from(
@@ -52,9 +54,12 @@ try {
         }),
       ).toString('utf8')}\n`,
     )
+  } else if (args[0] === 'editor') {
+    const { runEditorCli } = await import('../editor/cli.ts')
+    process.stdout.write(JSON.stringify(await runEditorCli(args.slice(1))) + '\n')
   } else if (args[0] === 'simulate') {
     if (args.length !== 3) throw new TypeError('usage: worldpack simulate <source> <scenario.json>')
-    const { parseScenario, runScenario } = await import('../lens/scenario.ts')
+    const { parseScenario, runScenario } = await import('../simulation/scenario.ts')
     const scenario = parseScenario(JSON.parse(await readFile(args[2]!, 'utf8')))
     const startupMs = process.uptime() * 1000
     const result = await runScenario(args[1]!, scenario)
@@ -88,7 +93,7 @@ try {
         interactionPackages,
         interactionImplementations,
         content: catalog,
-        validateScript: validatePackScript,
+        ...authoringValidators(args[1]!),
       }),
     )
   }

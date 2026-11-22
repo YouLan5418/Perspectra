@@ -1,3 +1,26 @@
+import type { RolePreset } from './preset.ts'
+
+export function presetSampleMessages(preset: RolePreset) {
+  const expand = presetMacros({
+    char: '示例角色',
+    user: '示例玩家',
+    scene: '示例场景',
+    date: '示例日期',
+    time: '示例时间',
+  })
+  const messages = (preset.nodes ?? [])
+    .filter(n => n.enabled)
+    .map(n => ({ ...n, content: expand(n.content) }))
+    .filter(n => n.content.trim())
+  return [
+    { role: 'system', content: 'Core 角色契约（固定）' },
+    ...(preset.prompt?.trim() ? [{ role: 'system', content: preset.prompt }] : []),
+    ...messages.filter(n => n.position === 'beforeContext'),
+    { role: 'user', content: '当前角色的授权上下文（示例占位）' },
+    ...messages.filter(n => n.position === 'afterContext'),
+  ]
+}
+
 /** A fresh environment for each role request; no access to world variables or files. */
 export function presetMacros(values: Readonly<Record<string, string>>, random = Math.random) {
   return macroEvaluator(values, random, false)

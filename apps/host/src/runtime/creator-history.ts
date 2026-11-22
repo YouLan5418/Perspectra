@@ -20,6 +20,21 @@ export interface CreatorHistoryItem {
   action: WorldJsonObject | null
   recipients: { characterId: string; visibility: 'full' | 'occurrence_only'; observationSeq: number }[]
   relatedSeqs: number[]
+  movement?: {
+    from: string | null
+    to: string | null
+    party: 'listed' | 'unlisted' | 'unrecorded' | 'disabled'
+    rosterSeq: number | null
+    source: 'move' | 'party-follow' | 'activity' | 'gameplay' | 'rule' | 'unrecorded'
+    initiator: string | null
+    role: string | null
+    moduleId: string | null
+    activity: string | null
+    operation: string | null
+    phase: string | null
+    hook: string | null
+    rule: string | null
+  }
   entityChange: { before: EntityState | null; after: EntityState | null; followsHolder: boolean } | null
 }
 export interface CreatorHistorySnapshot {
@@ -72,6 +87,45 @@ export function creatorHistoryQuery(value: Record<string, unknown>): CreatorHist
 }
 const object = (value: unknown): WorldJsonObject =>
   value !== null && typeof value === 'object' && !Array.isArray(value) ? (value as WorldJsonObject) : {}
+const string = (value: unknown) => (typeof value === 'string' ? value : null)
+type Roster = { ids: Set<string>; seq: number }
+
+function movementDetails(
+  mover: string,
+  from: string | null,
+  data: WorldJsonObject,
+  source: WorldJsonObject,
+  verdict: WorldJsonObject,
+  hasRpgParty: boolean,
+  roster?: Roster,
+): NonNullable<CreatorHistoryItem['movement']> {
+  const follow =
+    source.kind === 'party-follow' ||
+    (source.moduleId === 'official-rpg' &&
+      source.hook === 'afterAction' &&
+      source.operation === 'move' &&
+      source.rule === 'party-follow')
+  const kind = source.kind
+  return {
+    from,
+    to: string(data.toLocationId),
+    party: !hasRpgParty ? 'disabled' : !roster ? 'unrecorded' : roster.ids.has(mover) ? 'listed' : 'unlisted',
+    rosterSeq: roster?.seq ?? null,
+    source: follow
+      ? 'party-follow'
+      : kind === 'move' || kind === 'activity' || kind === 'gameplay' || kind === 'rule'
+        ? kind
+        : 'unrecorded',
+    initiator: string(source.actorId) ?? (kind === 'move' ? mover : string(verdict.actorId)),
+    role: string(verdict.sourceRole),
+    moduleId: string(source.moduleId),
+    activity: string(source.activityKey),
+    operation: string(source.operation),
+    phase: string(source.phase),
+    hook: string(source.hook),
+    rule: string(source.rule),
+  }
+}
 function referencesEntity(action: WorldJsonObject | null, id: string): boolean {
   const parameters = object(action?.parameters),
     target = object(parameters.targetRef)
@@ -84,6 +138,7 @@ export function creatorHistory(
   address: WorldAddress,
   worldVersion: string,
   query: CreatorHistoryQuery,
+  hasRpgParty: boolean,
 ): CreatorHistorySnapshot {
   const head = store.head(address),
     events = store.readEvents(address, head.headSeq),
@@ -117,10 +172,30 @@ export function creatorHistory(
   let entityState: EntityState | undefined
   const entityEvents: StoredWorldEvent[] = []
   const matches: CreatorHistoryItem[] = []
+  let roster: Roster | undefined
+  const locations = new Map<string, string>()
   for (const event of events) {
     const data = object(event.data),
       value = object(data.value),
       actor = data.actorId ?? data.characterId
+    const mover = string(data.characterId)
+    const moving = event.eventType === 'character.moved' && mover !== null
+    const from =
+      moving && !Object.hasOwn(data, 'fromLocationId') ? (locations.get(mover) ?? null) : string(data.fromLocationId)
+    if (moving && typeof data.toLocationId === 'string') locations.set(mover, data.toLocationId)
+    if (
+      (event.eventType === 'character.created' || event.eventType === 'character.upsert') &&
+      mover &&
+      typeof data.locationId === 'string'
+    )
+      locations.set(mover, data.locationId)
+    // Read the committed prefix even when the roster change was on a different page or actor.
+    if (hasRpgParty && event.eventType === 'status.updated' && Array.isArray(data.changes)) {
+      for (const change of data.changes.map(object)) {
+        if (change.holderId === null && change.key === 'rpg-party' && Array.isArray(change.value))
+          roster = { ids: new Set(change.value.filter((id): id is string => typeof id === 'string')), seq: event.seq }
+      }
+    }
     const before = entityState ?? null
     const directEntity =
       query.entityId !== undefined && data.entityId === query.entityId && event.eventType.startsWith('entity.')
@@ -143,14 +218,33 @@ export function creatorHistory(
               candidate.eventType === 'action.resolved' &&
               (actor === undefined || object(candidate.data).actorId === actor),
           )
-    const actionIdValue = data.actionId ?? value.actionId ?? object(resolved?.data).actionId
+    const source = moving ? object(data.movementSource) : {}
+    if (moving) {
+      // A later action by the moved character may share this transaction. Only the closing
+      // verdict of this action can identify its initiator when the producer did not save an ID.
+      resolved = transaction.find(candidate => candidate.seq > event.seq && candidate.eventType === 'action.resolved')
+      const verdict = object(resolved?.data)
+      if (
+        verdict.accepted !== true ||
+        verdict.actorId !== (source.actorId ?? mover) ||
+        (!source.actorId && verdict.actionType !== 'move')
+      )
+        resolved = undefined
+    }
+    const actionIdValue = source.actionId ?? data.actionId ?? value.actionId ?? object(resolved?.data).actionId
     const actionId = typeof actionIdValue === 'string' ? actionIdValue : null
     if (actionId !== null)
       resolved = transaction.find(
         candidate => candidate.eventType === 'action.resolved' && object(candidate.data).actionId === actionId,
       )
     const action = actionFor(event, actionId)
-    const observationEvents = actionId === null ? [] : (observations.get(actionId) ?? [])
+    const actionObservers = actionId === null ? [] : (observations.get(actionId) ?? [])
+    const observationEvents = moving
+      ? actionObservers.filter(observation => {
+          const content = object(object(object(observation.data).value).content)
+          return object(content.movement).characterId === mover
+        })
+      : actionObservers
     const actorId = typeof actor === 'string' ? actor : typeof action?.actorId === 'string' ? action.actorId : null
     if (query.entityId !== undefined && !directEntity && !followsHolder && !referencesEntity(action, query.entityId))
       continue
@@ -172,6 +266,9 @@ export function creatorHistory(
       actorId,
       actionId,
       action,
+      ...(moving
+        ? { movement: movementDetails(mover, from, data, source, object(resolved?.data), hasRpgParty, roster) }
+        : {}),
       recipients: observationEvents.map(observation => {
         const observed = object(object(observation.data).value)
         return {

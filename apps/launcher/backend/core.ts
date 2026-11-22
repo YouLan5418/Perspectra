@@ -36,7 +36,14 @@ import {
 import { exportStoryTree, importStoryTree } from '../../host/src/story-backup.ts'
 import { exportStoryNode, importStoryNode } from '../../host/src/story-share.ts'
 import { readStoryNodes, restoreStoryNode, storyId } from '../../host/src/story-nodes.ts'
-import { ModelPresets, packPreset, packRolePresets, presetChoice } from '../../host/src/model-presets.ts'
+import {
+  ModelPresets,
+  packPreset,
+  packRolePresets,
+  presetChoice,
+  callablePresetCharacters,
+  checkBundled,
+} from '../../host/src/model-presets.ts'
 import {
   brokenModels,
   instanceModels,
@@ -62,7 +69,7 @@ import {
   readPackRequirements,
   requirementMessage,
 } from '../../host/src/plugin-requirements.ts'
-import { startLensServer, type LensServer } from '../../host/src/lens/server.ts'
+import { startEditorServer, type EditorServer } from '../../host/src/editor/server.ts'
 
 interface Pack {
   id: string
@@ -103,17 +110,7 @@ interface Index {
   playSettings?: Record<string, PlaySettings>
 }
 function packCharacters(pack: CompiledWorldPackV5) {
-  const player = pack.content.playerSlots[0]?.characterId
-  return pack.content.characters
-    .filter(c => c.characterId !== player && c.controllerClass !== 'manual' && (c.lifecycle ?? 'active') === 'active')
-    .map(c => ({ id: c.characterId, name: c.displayName }))
-}
-/** The package's role-presets.json may only name characters the Launcher can map in its instances. */
-function checkBundled(characters: readonly { id: string }[], bundled: PackRolePresets): PackRolePresets {
-  const ids = new Set(characters.map(c => c.id))
-  if ([...Object.keys(bundled.characters), ...bundled.groups.flatMap(g => g.members)].some(id => !ids.has(id)))
-    throw new Error('游戏包 role-presets.json 引用了此包之外或不可调用的角色。')
-  return bundled
+  return callablePresetCharacters(pack.content.characters, pack.content.playerSlots[0]?.characterId)
 }
 /** 世界包根目录的约定封面；只供启动器展示，不进入编译产物与世界事实。 */
 const COVER_FILES = [
@@ -260,11 +257,12 @@ export class LauncherCore {
   #child: ChildProcess | undefined
   #active: { instanceId: string; url: string; frontendMode: 'sandbox' | 'trusted' } | undefined
   #error = ''
-  /** Pack lens pages by pack; they read the pack source only and never touch instances or saves. */
-  #lensServers = new Map<string, LensServer>()
-  async #closeLensServers(): Promise<void> {
-    const servers = [...this.#lensServers.values()]
-    this.#lensServers.clear()
+  /** Source pack editors opened by the launcher. */
+  #editorServers = new Map<string, EditorServer>()
+  #startingGame = false
+  async #closeEditorServers(): Promise<void> {
+    const servers = [...this.#editorServers.values()]
+    this.#editorServers.clear()
     await Promise.all(servers.map(server => server.close()))
   }
   /** From the most recent game launch, kept after it stops so settings can still point at the plugin. */
@@ -684,6 +682,18 @@ export class LauncherCore {
 
   async handle(value: unknown): Promise<unknown> {
     const request = object(value)
+    if (request.operation !== 'start') return this.#dispatch(request)
+    if (this.#startingGame) throw new Error('游戏正在启动。')
+    this.#startingGame = true
+    try {
+      await Promise.all([...this.#editorServers.values()].map(server => server.waitForEditorIdle()))
+      return await this.#dispatch(request)
+    } finally {
+      this.#startingGame = false
+    }
+  }
+
+  async #dispatch(request: ReturnType<typeof object>): Promise<unknown> {
     switch (request.operation) {
       case 'snapshot':
         return this.snapshot()
@@ -1313,19 +1323,23 @@ export class LauncherCore {
         if (!this.#active) throw new Error('游戏尚未启动。')
         return { url: this.#active.url }
       }
-      case 'lens-open': {
+      case 'editor-open': {
         const pack = this.#index.packs.find(p => p.id === request.packageId)
         if (!pack) throw new Error('世界包不存在。')
         // A pack that fails validation still opens: the page shows why, which is when the author needs it most.
-        const known = this.#lensServers.get(pack.id)
+        if (this.#child || this.#startingGame) throw new Error('请结束游戏后再打开包编辑器。')
+        const key = pack.id
+        const known = this.#editorServers.get(key)
         if (known?.packPath === resolve(pack.path)) return { url: known.url }
         await known?.close()
-        const server = await startLensServer(pack.path)
-        this.#lensServers.set(pack.id, server)
+        const server = await startEditorServer(pack.path, {
+          editingAllowed: () => !this.#child && !this.#startingGame,
+        })
+        this.#editorServers.set(key, server)
         return { url: server.url }
       }
-      case 'lens-close':
-        await this.#closeLensServers()
+      case 'editor-close':
+        await this.#closeEditorServers()
         return {}
       case 'stop':
         await this.stop()
@@ -1341,12 +1355,12 @@ export class LauncherCore {
     this.#error = ''
     if (child) await terminate(child)
   }
-  /** Launcher shutdown: the game and any open pack lens. `stop` alone ends only the game. */
+  /** Launcher shutdown: the game and any open pack editor. `stop` alone ends only the game. */
   async close(): Promise<void> {
     try {
       await this.stop()
     } finally {
-      await this.#closeLensServers()
+      await this.#closeEditorServers()
     }
   }
 }

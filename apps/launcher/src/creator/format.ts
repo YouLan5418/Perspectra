@@ -175,3 +175,11 @@ export function readable(value: unknown): string {
   if (Object.keys(nested).length) return readable(nested)
   return Object.keys(record).length ? JSON.stringify(record) : ''
 }
+export const pacingReasons: Record<string, string> = {
+  'no-candidates': '没有符合条件的候选',
+  cooling: '仍在冷却期',
+  recovering: '高强度事件仍在恢复期',
+  repeated: '距离上次发生太近',
+  'not-this-round': '本轮抽取未命中',
+  chosen: '已选中候选',
+}

@@ -40,12 +40,12 @@ export interface ActivityRequest {
   readonly parameters: WorldJsonObject
   readonly requestId: string
 }
-/** One autoStart condition as the author wrote it; the label only names it for the pack lens. */
+/** One autoStart condition as the author wrote it; the label only names it for authoring tools. */
 export interface AutoStartCheck {
   readonly label: string | null
   readonly met: boolean
 }
-/** One activity's automatic-start checks for the pack lens; null checks: not checked this time, see `skipped`. */
+/** One activity's automatic-start checks for authoring tools; null checks: not checked this time, see `skipped`. */
 export interface AutoStartEvaluation {
   readonly activityKey: string
   readonly title: string
@@ -58,7 +58,7 @@ export interface AutoStartEvaluation {
   readonly error?: string
 }
 
-/** One activity as the author declared it, for the pack lens. */
+/** One activity as the author declared it, for authoring tools. */
 export interface ActivityDefinitionView {
   readonly activityKey: string
   readonly title: string

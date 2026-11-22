@@ -101,7 +101,7 @@ export class ActivityRuntime {
   get participantSelection() {
     return this.#rules.participantSelection
   }
-  /** The player-facing operations, by id and label, for the pack lens. */
+  /** The player-facing operations, by id and label, for authoring tools. */
   get operationLabels(): readonly { readonly id: string; readonly label: string }[] {
     return this.#rules.operations.map(op => ({ id: op.id, label: op.label }))
   }
@@ -172,8 +172,22 @@ export class ActivityRuntime {
   scoped(state: ActivityState, actorId: string): WorldJsonObject {
     return this.#rules.scoped(state, actorId)
   }
-  policy(state: ActivityState, actorId: string): Policy {
-    return this.#rules.policy(this.#mechanism.policy(this.scoped(state, actorId), actorId))
+  policy(
+    state: ActivityState,
+    actorId: string,
+    readWorld?: () => WorldJsonObject,
+    events?: readonly RulebookEvent[],
+  ): Policy {
+    let snapshot: ActivityWorld | undefined
+    const read = () => (snapshot ??= readActivityWorld(this.worldPath, this.address))
+    const input = this.#rules.policyInput(state, actorId, readWorld ?? (() => read().worldView(actorId)), () =>
+      Object.fromEntries(
+        (this.status?.known(events ?? read().events, actorId) ?? [])
+          .filter(row => row.holderId === null)
+          .map(row => [row.key, row.value]),
+      ),
+    )
+    return this.#rules.policy(this.#mechanism.policy(input, actorId))
   }
   options(state: ActivityState, actorId: string): WorldJsonObject[] {
     return activityOperationOptions(state, this.policy(state, actorId), this.#rules.operations, actorId)
@@ -231,6 +245,8 @@ export class ActivityRuntime {
         // A broken optional destination must still leave the ordinary ending usable.
       }
     }
+    const policy =
+      state?.game.active && member ? this.policy(state, actorId, () => read().worldView(actorId), read().events) : null
     return {
       title: this.title,
       ...(handoffLabel ? { handoffLabel } : {}),
@@ -251,8 +267,8 @@ export class ActivityRuntime {
       ...(state && member
         ? {
             ...this.scoped(state, actorId),
-            policy: state.game.active ? this.policy(state, actorId) : null,
-            options: state.game.active ? this.options(state, actorId) : [],
+            policy,
+            options: policy ? activityOperationOptions(state, policy, this.#rules.operations, actorId) : [],
           }
         : { id: null, revision: 0 }),
     }
@@ -269,6 +285,7 @@ export class ActivityRuntime {
       state,
       actorId,
       canPerform,
+      policy,
     ).map(offer =>
       offer.actionType !== 'interact'
         ? offer
@@ -321,11 +338,12 @@ export class ActivityRuntime {
     state: ActivityState,
     actorId: string,
     canPerform = true,
+    policy = this.policy(state, actorId),
   ): ActionAffordance[] {
     return filterActivityAffordances(
       base,
-      this.policy(state, actorId),
-      canPerform ? this.options(state, actorId) : [],
+      policy,
+      canPerform ? activityOperationOptions(state, policy, this.#rules.operations, actorId) : [],
       canPerform,
     )
   }
@@ -348,7 +366,18 @@ export class ActivityRuntime {
           state = this.state(context.events),
           actor = String(context.characterId)
         return state?.game.active && state.participants.includes(actor)
-          ? this.filterAffordances(values, state, actor)
+          ? this.filterAffordances(
+              values,
+              state,
+              actor,
+              true,
+              this.policy(
+                state,
+                actor,
+                () => this.#worldView(context.manifest, context.events, actor, context.asOfWorldSeq),
+                context.events,
+              ),
+            )
           : values
       },
       resolve: context => this.#resolve(context, base),
@@ -378,7 +407,12 @@ export class ActivityRuntime {
         throw new TypeError('活动绑定无效')
       const operation = definition.id.slice(9),
         op = this.#rules.operations.find(v => v.id === operation),
-        policy = this.policy(state, actor)
+        policy = this.policy(
+          state,
+          actor,
+          () => this.#worldView(context.manifest, context.events, actor, context.asOfWorldSeq),
+          context.events,
+        )
       if (!op || !policy.operations.includes(operation) || (op.requiresTurn && state.game.turn !== actor))
         throw new TypeError('尚未轮到你或操作未被允许')
       const { activityId: _id, revision: _revision, ...parameters } = args
@@ -431,7 +465,19 @@ export class ActivityRuntime {
         physical.push({
           eventType: 'character.moved',
           eventVersion: 1,
-          data: { characterId: move.characterId, fromLocationId: from, toLocationId: move.locationId },
+          data: {
+            characterId: move.characterId,
+            fromLocationId: from,
+            toLocationId: move.locationId,
+            movementSource: {
+              kind: 'activity',
+              activityKey: this.key,
+              operation,
+              phase: next.game.phase,
+              actorId: actor,
+              ...(context.actionId ? { actionId: context.actionId } : {}),
+            },
+          },
         })
       }
       if (resolved.items !== undefined)
@@ -512,7 +558,12 @@ export class ActivityRuntime {
       }
     }
     if (state?.game.active && state.participants.includes(actor)) {
-      const policy = this.policy(state, actor)
+      const policy = this.policy(
+        state,
+        actor,
+        () => this.#worldView(context.manifest, context.events, actor, context.asOfWorldSeq),
+        context.events,
+      )
       if (action.actionType === 'speak') {
         const expression = {
           ...(Object.hasOwn(p, 'text') && p.text !== '' ? { speech: p.text } : {}),
@@ -720,7 +771,9 @@ export class ActivityRuntime {
       !source.game.active ||
       source.game.phase !== config.phase ||
       source.game.turn !== this.playerId ||
-      !this.policy(source, this.playerId).operations.includes(config.finish)
+      !this.policy(source, this.playerId, () => snapshot.worldView(this.playerId), snapshot.events).operations.includes(
+        config.finish,
+      )
     )
       throw new TypeError('收尾选项已失效，请查看当前活动')
     const target = this.#bindings.lookup?.(config.target)

@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>门廊便笺 · 创作工作台线框稿</title>
+    <link rel="stylesheet" href="workbench.css">
+    <script defer src="../../../examples/world-packs/porch-note/scripts/activities/read-note.js"></script>
+    <script defer src="workbench.js"></script>
+  </head>
+  <body>
+    <header class="topbar">
+      <button class="mobile-menu" id="menu" aria-label="展开作品目录" aria-controls="navigation" aria-expanded="false">☰</button>
+      <b class="wordmark"><i aria-hidden="true"></i>Perspectra</b><span class="divider"></span>创作工作台
+      <span class="top-end">交互线框稿</span>
+    </header>
+    <div class="shell">
+      <nav id="navigation" aria-label="作品目录">
+        <div class="project-name">门廊便笺</div><small class="pack-id">pack:porch-note</small>
+        <button class="nav-overview" data-go="overview"><span aria-hidden="true">▦</span>作品总览</button>
+        <details open><summary>世界内容</summary>
+          <button data-record="characters">角色 <small>2</small></button>
+          <button data-record="places">地点 <small>2</small></button>
+          <button data-record="items">物品 <small>1</small></button>
+        </details>
+        <details open id="activity-group"><summary>活动 <small>1</small></summary>
+          <button class="nav-activity" data-go="activity">读便笺</button>
+        </details>
+        <details><summary>资源</summary>
+          <button data-record="page">专属页面 <small>1</small></button>
+          <button data-record="script">活动脚本 <small>1</small></button>
+        </details>
+      </nav>
+      <main id="main">
+        <div class="crumb"><button data-go="overview">门廊便笺</button><span>/</span><span id="crumb-page">作品总览</span></div>
+        <section id="overview">
+          <div class="page-head"><h1>作品总览</h1><button class="primary" data-play="opening">▷　试玩开局</button></div>
+          <div class="identity">
+            <div class="cover-tools">
+              <div id="cover"><div class="envelope" aria-hidden="true"></div><small>尚未设置封面</small></div>
+              <button id="cover-pick">更改封面</button><input id="cover-file" type="file" accept="image/png,image/jpeg,image/webp" hidden>
+            </div>
+            <div class="work-title"><div class="caption">作品名称</div><h2>门廊便笺</h2>
+              <p>门廊的窗台上，压着一封尚未拆开的便笺。</p>
+              <dl class="inline-meta"><div><dt>包版本</dt><dd>1.0.0</dd></div><div><dt>源格式</dt><dd>v5</dd></div></dl>
+            </div>
+          </div>
+          <section class="sheet"><h2>玩家开局</h2>
+            <dl class="facts">
+              <div><dt>起始地点</dt><dd><button class="link" data-record="places">门廊</button></dd></div>
+              <div><dt>在场角色</dt><dd><button class="link" data-record="characters">玩家、阿林</button></dd></div>
+              <div><dt>现场物品</dt><dd><button class="link" data-record="items">开信刀</button><span class="muted">放在门廊</span></dd></div>
+            </dl>
+          </section>
+          <section class="sheet"><h2>作品活动 <small>1</small></h2>
+            <div class="activity-row"><span class="row-icon" aria-hidden="true">⑂</span>
+              <div><button class="row-title" data-go="activity">读便笺</button><small>read-note</small></div>
+              <span class="choice-count" id="choice-count">3 个玩家选项</span><button data-go="activity">编辑活动 →</button>
+            </div>
+          </section>
+        </section>
+        <section id="activity" hidden>
+          <div class="flow-bar">
+            <div class="flow-location"><button data-go="overview">← 总览</button><div id="flow-path" aria-label="当前流程层级"></div></div>
+            <div class="actions"><button id="add-node" aria-controls="drawer">＋ 新增节点</button><button id="save">保存草稿</button><button class="primary" data-play="activity">▷ 试玩活动</button></div>
+          </div>
+          <div class="workspace">
+            <section class="canvas" aria-label="活动流程">
+              <div class="graph" id="flow-viewport" aria-label="流程画布" role="region" tabindex="0">
+                <div id="flow-plane"><div id="flow-stage">
+                  <svg id="edges" aria-hidden="true">
+                    <defs><marker id="flow-arrow" markerUnits="userSpaceOnUse" markerWidth="12" markerHeight="8" refX="12" refY="4" orient="auto">
+                      <path d="M0 0 L8 4 L0 8 z" fill="context-stroke"></path>
+                    </marker></defs>
+                    <g id="routes"></g>
+                  </svg>
+                  <div class="flow-node opening-node" data-flow="opening">
+                    <button class="node-heading" id="opening-node" data-drag="opening" title="点选开场，拖动调整位置">开场</button>
+                    <span id="opening-copy" class="opening-copy"></span>
+                    <span class="socket out" data-port="opening-out" aria-hidden="true"></span>
+                  </div>
+                  <div id="branches"></div>
+                  <div class="flow-end" data-flow="end"><span class="socket in" data-port="end-in" aria-hidden="true"></span><b id="exit-label">结束活动</b></div>
+                </div></div>
+              </div>
+              <div class="canvas-tools">
+                <div class="zoom-tools" aria-label="画布缩放">
+                  <button id="zoom-out" aria-label="缩小画布">−</button><output id="zoom-level" aria-label="当前缩放">100%</output><button id="zoom-in" aria-label="放大画布">＋</button>
+                </div>
+                <button id="fit-flow">适应画布</button><button id="reset-layout">整理布局</button>
+                <label class="refs"><input id="refs" type="checkbox">显示所选引用</label>
+              </div>
+              <div class="sources"><span>活动脚本</span> <a href="../../../examples/world-packs/porch-note/scripts/activities/read-note.js" target="_blank" rel="noopener">read-note.js ↗</a></div>
+            </section>
+            <aside id="drawer" aria-labelledby="drawer-title" hidden>
+              <div class="pane-head"><h2 id="drawer-title">节点属性</h2><button id="close-drawer" aria-label="关闭侧栏">×</button></div>
+              <div id="inspector"></div>
+            </aside>
+          </div>
+        </section>
+      </main>
+    </div>
+    <footer><button id="problems">问题 <b id="issue-count">0</b></button><span id="status" role="status">示例草稿</span><span class="footer-end">本机浏览器预览</span></footer>
+    <dialog id="dialog" aria-labelledby="dialog-title"><div class="dialog-head"><h2 id="dialog-title"></h2><button id="close" aria-label="关闭">×</button></div><div id="dialog-body"></div></dialog>
+  </body>
+</html>

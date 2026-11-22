@@ -21,7 +21,7 @@ output/playwright/
 
 .superpowers/
 apps/launcher/dist-creator/
-apps/launcher/dist-lens/
+apps/launcher/dist-editor/
 
 # Local SillyTavern character cards; source text stays off Git.
 Tavern Card/
@@ -33,5 +33,5 @@ nul
 # Local desktop shortcuts.
 *.lnk
 
-# Pack lens: seen snapshots, checkpoints and change requests live beside the pack source.
+# Private review snapshots from earlier versions can still exist beside source packs.
 .perspectra-lens/

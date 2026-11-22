@@ -32,6 +32,7 @@ interface Module {
   requirements: CapabilityRequirement[]
   definition: WorldJsonObject
 }
+type GeneratedModule = import('@perspectra/sdk').GeneratedStatusModule & { readonly generator: string }
 interface ExternalAction {
   module: Module
   action: WorldJsonObject
@@ -61,9 +62,29 @@ export class PackModules {
     packPath: string,
     pack: CompiledWorldPackV5,
     catalog?: CapabilityCatalog,
-    generated: readonly (import('@perspectra/sdk').GeneratedStatusModule & {
-      readonly generator: string
-    })[] = [],
+    generated: readonly GeneratedModule[] = [],
+  ): PackModules | undefined {
+    const modules = PackModules.read(packPath, pack, generated, catalog)
+    for (const requirement of modules?.requirements ?? []) {
+      if (
+        requirement.required &&
+        !catalog?.list().some(p => p.id === requirement.id && p.version === requirement.version)
+      )
+        throw new MissingCapabilityError(requirement.id + '@' + requirement.version)
+    }
+    return modules
+  }
+
+  /** All declared operations count, including those whose host capability has not yet been selected. */
+  static authoringSources(packPath: string, pack: CompiledWorldPackV5, generated: readonly GeneratedModule[]) {
+    return PackModules.read(packPath, pack, generated)?.sources
+  }
+
+  private static read(
+    packPath: string,
+    pack: CompiledWorldPackV5,
+    generated: readonly GeneratedModule[],
+    catalog?: CapabilityCatalog,
   ): PackModules | undefined {
     const declared = !!pack.plugins?.['pack-scripts'] && pack.assets.some(asset => asset.path === 'plugins.json')
     if (!declared && !generated.length) return undefined
@@ -153,10 +174,6 @@ export class PackModules {
           throw new TypeError('Conflicting module capability requirement: ' + typed.id)
         requirements.set(typed.id, typed)
         module.requirements.push(typed)
-        const installed = catalog
-          ?.list()
-          .find(provider => provider.id === typed.id && provider.version === typed.version)
-        if (!installed && typed.required) throw new MissingCapabilityError(typed.id + '@' + typed.version)
       }
       module.characters.forEach(id => result.characters.add(id))
       result.modules.push(module)

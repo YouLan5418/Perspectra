@@ -355,6 +355,11 @@ it('settles round four during cooking, delivers authorized envelopes and persist
     data: { changes: [{ key: 'story', value: true }] },
   })
   expect(f.history().commits.flatMap(c => c.a.occurrences)).toHaveLength(1)
+  expect(f.runtime.creatorInspection().worldEvents[0]?.occurrence?.deliveries).toEqual([
+    { plugin: 'stage-cue', mode: 'live', receipt: false },
+    { plugin: 'story-a', mode: 'durable', receipt: true },
+    { plugin: 'story-b', mode: 'durable', receipt: true },
+  ])
 }, 60_000)
 
 function failCommit(kind: 'before' | 'after' | 'receipt') {
@@ -538,6 +543,17 @@ it('offers only the opted-in event in an occupied kitchen, leaving the same acti
   expect(simmer).toHaveLength(1)
   expect(simmer[0]).toMatchObject({ id: cook.id, game: { phase: 'simmer', public: { completed: 1, portions: 1 } } })
   expect(occurrences(f)).toMatchObject([{ ruleId: 'optional', pacedRound: 2 }])
+  const monitor = f.runtime.creatorInspection({ limit: 1 })
+  expect(monitor.pacingDiagnostics?.decisions[0]).toMatchObject({
+    round: 2,
+    busy: true,
+    candidates: [{ kind: 'event', key: 'optional' }],
+    choice: { kind: 'event', key: 'optional' },
+  })
+  expect(monitor.worldEvents.find(r => r.rule.id === 'idle-only')).toMatchObject({
+    lastCheck: { result: 'activity', round: 2 },
+    occurrence: null,
+  })
   expect(projectPlayerView(dark).history.some(row => row.text === 'optional')).toBe(true)
   expect(f.log().map(row => row.id)).toEqual(['stage-cue'])
   expect(f.stub.calls.length).toBe(calls)
@@ -591,6 +607,17 @@ it('interleaves legacy beat and committed occurrence history for the same choose
     },
   })
   expect(f.runtime.creatorInspection().pacing).toMatchObject({ reason: { why: 'cooling' } })
+  const count = choose.mock.calls.length
+  const first = f.runtime.creatorInspection({ limit: 1 })
+  const second = f.runtime.creatorInspection({ limit: 1 })
+  expect(second.pacingDiagnostics?.decisions.map(d => [d.round, d.choice?.kind, d.beats[0]?.checks[0]?.met])).toEqual([
+    [3, 'none', true],
+    [2, 'event', false],
+    [1, 'beat', true],
+  ])
+  expect(second.pacingDiagnostics).toEqual(first.pacingDiagnostics)
+  expect(second.headSeq).toBe(first.headSeq)
+  expect(choose).toHaveBeenCalledTimes(count)
 })
 
 it('uses commit order when a legacy managed start and a paced event share a projected round number', async () => {
@@ -639,6 +666,7 @@ it('ignores a provider choice outside the offered IDs and a rolled-back commit w
     .mockReturnValueOnce({ kind: 'event', key: 'later', reason: {} })
   await f.runtime.perform(wait).catch(() => undefined)
   expect(choose.mock.calls[0]![0].candidates).toEqual([{ kind: 'event', key: 'first' }])
+  expect(f.runtime.creatorInspection().pacingDiagnostics?.decisions[0]?.error).toContain('条件未满足')
   expect(occurrences(f)).toEqual([])
   choose.mockRestore()
   const fault = failCommit('before')
@@ -649,6 +677,13 @@ it('ignores a provider choice outside the offered IDs and a rolled-back commit w
   fault.restore()
   await f.runtime.perform(wait)
   expect(occurrences(f)).toMatchObject([{ ruleId: 'first', pacedRound: 3 }])
+  const inspected = f.runtime.creatorInspection({ limit: 1 })
+  const committedId = inspected.worldEvents.find(r => r.rule.id === 'first')!.occurrence!.id
+  const [committed, rolledBack, rejected] = inspected.pacingDiagnostics!.decisions
+  expect(committed?.occurrenceId).toBe(committedId)
+  expect(rolledBack?.occurrenceId).toEqual(expect.any(String))
+  expect(rolledBack?.occurrenceId).not.toBe(committedId)
+  expect(rejected?.occurrenceId).toBeUndefined()
 })
 
 it('replays the selected rule and uses only the effective node prefix for its cooldown', async () => {
@@ -1238,15 +1273,22 @@ it('restores only the pending or completed wake at the selected story prefix', a
   expect(f.stub.calls).toHaveLength(1)
   const completed = await f.runtime.saveNode('completed decision')
   await f.restore(before)
+  expect(f.runtime.creatorInspection().worldEvents[0]?.occurrence).toBeNull()
   await f.runtime.perform(wait)
   expect(wakeTransitions(f)).toEqual([])
   expect(f.stub.calls).toHaveLength(1)
   await f.restore(pending)
+  const witnessWake = () =>
+    f.runtime
+      .creatorInspection({ limit: 1 })
+      .worldEvents[0]?.occurrence?.witnesses.find(w => w.id === 'character:companion')?.wake
+  expect(witnessWake()).toBe('pending')
   expect(f.stub.calls).toHaveLength(1)
   await f.runtime.perform(wait)
   expect(f.stub.calls).toHaveLength(2)
   expect(wakeTransitions(f)).toEqual(['claimed', 'completed'])
   await f.restore(completed)
+  expect(witnessWake()).toBe('completed')
   await f.runtime.perform(wait)
   expect(f.stub.calls).toHaveLength(2)
 })
@@ -1262,6 +1304,11 @@ it('grants each selected authorized witness its own decision', async () => {
   )
   await f.runtime.perform(wait)
   expect(f.stub.calls.map(c => JSON.parse(c.userText).context.character.characterId)).toEqual(wakeCompanion.recipients)
+  const inspected = f.runtime.creatorInspection({ limit: 1 }).worldEvents
+  expect(inspected[0]?.occurrence?.witnesses).toHaveLength(2)
+  expect(inspected[0]?.occurrence?.witnesses.every(w => w.notice === rule.observation && w.wake === null)).toBe(true)
+  expect(inspected[1]?.occurrence?.witnesses).toHaveLength(3)
+  expect(inspected[1]?.occurrence?.witnesses.every(w => w.notice === '电台通知')).toBe(true)
   for (const { userText } of f.stub.calls) {
     const context = JSON.parse(userText).context
     expect(focusedNotice(context)).toBe('电台通知')

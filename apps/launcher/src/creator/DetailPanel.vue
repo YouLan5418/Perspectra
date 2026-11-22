@@ -101,6 +101,33 @@ const relatedEvents = computed(() => {
   const seqs = new Set([...item.relatedSeqs, item.event.seq])
   return store.trace.filter(node => node.seq !== undefined && seqs.has(node.seq))
 })
+const movement = computed(() => node.value?.history?.movement)
+const movementRule = computed(() => {
+  const move = movement.value
+  if (!move) return ''
+  switch (move.source) {
+    case 'move':
+      return move.role === 'player' ? '玩家发起移动' : move.role === 'agent' ? '角色自己发起移动' : '角色的移动行动'
+    case 'party-follow':
+      return 'RPG 队伍跟随'
+    case 'activity':
+      if (move.moduleId === 'official-rpg' && move.phase === 'defeat') return 'RPG 战败返回'
+      if (move.moduleId === 'official-rpg' && move.phase === 'fled') return 'RPG 撤退返回'
+      return '活动操作移动角色'
+    case 'gameplay':
+      return move.hook === 'afterAction' ? '玩法脚本在行动结算后移动角色' : '玩法操作移动角色'
+    case 'rule':
+      return '规则插件移动角色'
+    default:
+      return '这条移动没有记录触发规则'
+  }
+})
+const rosterLabels = {
+  listed: '在随行队员名单中',
+  unlisted: '不在随行队员名单中',
+  unrecorded: '此前没有名单记录',
+  disabled: '此包未配置 RPG 队伍',
+}
 
 /** 已知角色中没有收到这次行动观察记录的人；受众由服务端按完整前缀推导。 */
 const unobserved = computed(() => {
@@ -545,6 +572,42 @@ function toneOf(value: boolean): string {
       <!-- 已提交事件 -->
       <template v-else-if="selection.kind === 'event'">
         <section v-if="tab === '正文'">
+          <div v-if="movement" class="cr-block">
+            <header><strong>移动追踪</strong></header>
+            <dl class="cr-kv">
+              <dt>从哪里来</dt>
+              <dd>{{ store.label(movement.from ?? '', 'locations') || '未记录' }}</dd>
+              <dt>到哪里去</dt>
+              <dd>{{ store.label(movement.to ?? '', 'locations') || '未记录' }}</dd>
+              <dt>移动前队伍</dt>
+              <dd>
+                {{ rosterLabels[movement.party]
+                }}<span v-if="movement.rosterSeq !== null" class="cr-muted"> · 名单记录 #{{ movement.rosterSeq }}</span>
+              </dd>
+              <dt>触发规则</dt>
+              <dd>{{ movementRule }}</dd>
+              <template v-if="movement.initiator"
+                ><dt>{{ movement.source === 'party-follow' ? '跟随的队长' : '行动发起者' }}</dt>
+                <dd>{{ store.label(movement.initiator) }}</dd></template
+              >
+              <template v-if="movement.activity"
+                ><dt>活动</dt>
+                <dd>{{ movement.activity }}</dd></template
+              >
+              <template v-if="movement.operation"
+                ><dt>操作</dt>
+                <dd>{{ movement.operation }}</dd></template
+              >
+              <template v-if="movement.moduleId"
+                ><dt>玩法模块</dt>
+                <dd>{{ movement.moduleId }}</dd></template
+              >
+              <template v-if="movement.rule"
+                ><dt>规则标识</dt>
+                <dd>{{ movement.rule }}</dd></template
+              >
+            </dl>
+          </div>
           <div class="cr-kv">
             <dt>事件类型</dt>
             <dd class="cr-mono">{{ node?.event?.eventType }}</dd>

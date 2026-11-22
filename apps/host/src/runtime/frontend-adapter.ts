@@ -250,6 +250,12 @@ export function projectPlayerView(state: HostState): PlayerView {
     ...(state.activity
       ? {
           activity: {
+            ...(running &&
+            typeof running.id === 'string' &&
+            typeof running.activityKey === 'string' &&
+            typeof running.revision === 'number'
+              ? { key: running.activityKey, id: running.id, revision: running.revision }
+              : {}),
             title: String(state.activity.title),
             active: activityGame?.active === true,
             phase: String(activityGame?.phase ?? 'not-started'),

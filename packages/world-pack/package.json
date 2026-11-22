@@ -5,10 +5,9 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
-    "./lens/view": "./src/lens/view.ts",
-    "./lens/ids": "./src/lens/ids.ts",
-    "./lens/rpg-view": "./src/lens/rpg-view.ts",
-    "./lens/diff": "./src/lens/diff.ts",
+    "./editor-fields": "./src/editor-fields.ts",
+    "./editor-config": "./src/editor-config.ts",
+    "./editor-knowledge": "./src/editor-knowledge.ts",
     "./cli": "./src/creator-cli.ts"
   },
   "dependencies": {

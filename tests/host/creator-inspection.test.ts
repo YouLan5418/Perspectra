@@ -46,7 +46,11 @@ it('reports committed custody and movement, actual request context and observati
   const state = await runtime.state()
   const take = state
     .availableActions!.flatMap(action => action.interactions ?? [])
-    .find(option => (option.definitionRef as { id: string }).id === 'status:take')!
+    .find(
+      option =>
+        (option.definitionRef as { id: string }).id === 'status:take' &&
+        (option.targetRef as { id: string }).id === 'entity:brass-key',
+    )!
   await runtime.perform({
     actionType: 'interact',
     parameters: {
@@ -58,6 +62,9 @@ it('reports committed custody and movement, actual request context and observati
   })
   const taken = runtime.creatorInspection(),
     id = (take.targetRef as { id: string }).id
+  expect(taken.statusOperations?.operations).toContainEqual(
+    expect.objectContaining({ id: 'status:drop', offeredToPlayer: true }),
+  )
   const item = taken.entities.find(entity => entity.id === id)!
   expect(item.state.holderId).toBe('character:player')
   expect(item.locationBasis).toBe('holder')
@@ -78,6 +85,16 @@ it('reads the committed world and character view without calling a model or adva
   const runtime = await fixture(),
     before = await runtime.state()
   const snapshot = runtime.creatorInspection()
+  const offeredIds = before.availableActions!.flatMap(action =>
+    (action.interactions ?? []).map(option => (option.definitionRef as { id: string }).id),
+  )
+  expect(snapshot.statusOperations).toMatchObject({ limit: 128, policyErrors: {} })
+  const operations = snapshot.statusOperations!.operations
+  expect(operations.map(op => op.id).sort()).toEqual(['status:drop', 'status:give', 'status:take'])
+  expect(new Set(operations.filter(op => op.offeredToPlayer).map(op => op.id))).toEqual(
+    new Set(offeredIds.filter(id => id.startsWith('status:'))),
+  )
+  expect(operations).toContainEqual(expect.objectContaining({ id: 'status:drop', offeredToPlayer: false }))
   expect(snapshot.characters.length).toBeGreaterThan(1)
   expect(snapshot.entities.length).toBeGreaterThan(0)
   expect(snapshot.entities.every(entity => entity.holderMeaning === 'custody')).toBe(true)
@@ -120,6 +137,7 @@ it('keeps creator data behind host authentication and accepts only bounded GET q
   const snapshot = await (await fetch(url + '/api/creator-debug?limit=1', { headers })).json()
   expect(snapshot).toMatchObject({
     captureEnabled: false,
+    statusOperations: { limit: 128, operations: expect.any(Array) },
     characters: expect.any(Array),
     events: { items: expect.any(Array) },
   })

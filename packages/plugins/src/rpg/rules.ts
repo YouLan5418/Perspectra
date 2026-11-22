@@ -112,7 +112,12 @@ export function createRpgRules(config: RpgConfig): SeamProvider<RulesInstance> {
         .map(characterId => ({
           eventType: 'character.moved',
           eventVersion: 1,
-          data: { characterId, fromLocationId, toLocationId },
+          data: {
+            characterId,
+            fromLocationId,
+            toLocationId,
+            movementSource: { kind: 'party-follow', moduleId: OFFICIAL_RPG_RULES_ID, actorId: leader },
+          },
         }))
       return follows.length ? { ...result, events: [...result.events, ...follows] } : result
     },

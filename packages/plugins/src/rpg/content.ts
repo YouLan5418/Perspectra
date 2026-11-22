@@ -150,6 +150,7 @@ export const officialRpgContent: ContentGenerator = {
               eventVersion: 1,
               data: {
                 characterId: id,
+                movementRule: 'party-follow',
                 fromLocationId: value.beforeWorld!.locationId!,
                 toLocationId: value.candidateWorld!.locationId!,
               },

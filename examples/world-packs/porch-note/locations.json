@@ -1,0 +1,13 @@
+{
+  "schemaVersion": "worldpack-locations/v1",
+  "locations": [
+    {
+      "locationId": "location:start",
+      "name": "门廊"
+    },
+    {
+      "locationId": "location:library",
+      "name": "书房"
+    }
+  ]
+}

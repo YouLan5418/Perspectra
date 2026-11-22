@@ -456,21 +456,21 @@ it('lists the session drawer rows with summaries, a sandbox warning and creator 
     ['游玩', 'frontend'],
     ['进阶', 'play'],
     ['进阶', 'pack-config'],
-    ['进阶', 'lens'],
+    ['进阶', 'editor'],
   ])
   const row = (id: string) => store.drawerRows.find(r => r.id === id)!
   expect(row('story').summary).toBe('主故事线 · 1 条故事线')
   expect(row('model').summary).toBe('actual-model')
   expect(row('preset').summary).toBe('采用包推荐')
   expect(row('frontend')).toMatchObject({ summary: '沙箱（自定义前端）', warn: true, action: '解除沙箱' })
-  // 透视不需要启动游戏。
-  expect(row('lens').disabled).toBeFalsy()
-  expect(row('lens').summary).toBe('在浏览器里查看这个包的全部设置')
+  expect(row('editor').disabled).toBeFalsy()
+  expect(row('editor')).toMatchObject({ label: '包编辑', summary: '编辑世界包源文件' })
   bridge.request.mockImplementation(async () => ({
     ...data,
     core: { state: 'running', mode: 'real', instanceId: 'instance-1', storylineId: 'main', url: '' },
   }))
   await store.refresh()
+  expect(row('editor').disabled).toBe(true)
   expect(row('frontend')).toMatchObject({ summary: '检查中', warn: false, action: '查看' })
 })
 

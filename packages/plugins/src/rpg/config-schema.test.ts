@@ -24,6 +24,12 @@ it('rejects healing elements, HP cost, old fields and out-of-bound states in bot
       raw.skills[0].cost = { hp: 1 }
     },
     (raw: Record<string, any>) => {
+      delete raw.enemies[Object.keys(raw.enemies)[0]!].skills
+    },
+    (raw: Record<string, any>) => {
+      raw.equipment[Object.keys(raw.equipment)[0]!].resistances = {}
+    },
+    (raw: Record<string, any>) => {
       raw.skills[0].power = 8
     },
     (raw: Record<string, any>) => {

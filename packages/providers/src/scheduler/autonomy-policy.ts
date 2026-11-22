@@ -42,16 +42,21 @@ const interval = (trigger: WorldJsonObject) =>
 export class AutonomyPolicy implements AutonomyInstance {
   readonly instruction = autonomyInstruction
   constructor(readonly roles: readonly AutonomousRole[]) {}
-  static parse(value: unknown, source: AutonomySource, playerId: string): AutonomyPolicy {
+  static parse(
+    value: unknown,
+    source: Omit<AutonomySource, 'definitionIds'> & Partial<Pick<AutonomySource, 'definitionIds'>>,
+    playerId: string,
+  ): AutonomyPolicy {
     const root = object(value)
     exact(root, ['characters'])
     if (!Array.isArray(root.characters) || root.characters.length > 8) throw new TypeError('自主角色最多 8 个')
     const characters = new Set(source.characterIds)
     const locations = new Set(source.locationIds)
     const targets = new Set(source.targetIds)
-    const definitions = new Set(source.definitionIds)
+    // Static pack validation precedes generation of plugin operations. The Host supplies its final catalog.
+    const definitions = source.definitionIds && new Set(source.definitionIds)
     // Activity and author status operations are named by their own scripts, not by the interaction catalog.
-    const knownDefinition = (id: string) => definitions.has(id) || isMechanismOperation(id)
+    const knownDefinition = (id: string) => definitions === undefined || definitions.has(id) || isMechanismOperation(id)
     const roles = root.characters.map(entry => {
       const row = object(entry)
       exact(

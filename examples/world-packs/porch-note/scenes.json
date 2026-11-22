@@ -1,0 +1,20 @@
+{
+  "schemaVersion": "worldpack-scenes/v2",
+  "scenes": [
+    {
+      "sceneId": "scene:start",
+      "lifecycle": "active",
+      "locationId": "location:start",
+      "participantIds": [
+        "character:player",
+        "character:companion"
+      ]
+    },
+    {
+      "sceneId": "scene:library",
+      "locationId": "location:library",
+      "lifecycle": "created",
+      "participantIds": []
+    }
+  ]
+}

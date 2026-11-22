@@ -227,6 +227,16 @@ describe('RPG map activities', () => {
     const update = f.events().findLast(e => e.eventType === 'activity.updated')!
     expect(data(update).actorId).toBe(CHENG)
     const commit = f.events().filter(e => e.transactionId === update.transactionId)
+    const returned = commit.find(e => e.eventType === 'character.moved' && data(e).characterId === CHENG)!
+    expect(f.runtime.creatorHistory({ eventSeq: returned.seq }).items[0]!.movement).toMatchObject({
+      from: RUIN1,
+      to: HOME,
+      source: 'activity',
+      moduleId: 'official-rpg',
+      activity: 'rpg-map-ruin-1',
+      phase: 'defeat',
+      initiator: CHENG,
+    })
     expect(
       commit.filter(e => e.eventType === 'character.moved').map(e => [data(e).characterId, data(e).toLocationId]),
     ).toEqual([

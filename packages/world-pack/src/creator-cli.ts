@@ -126,6 +126,7 @@ export interface WorldPackCliOptions {
   /** Installed plugin metadata and pure validators. Missing selected plugins fail closed.
    * Authoring validation never calls content generators or opens runtime providers. */
   readonly content?: readonly PackPluginDescriptor[]
+  readonly validateStatus?: (pack: CompiledWorldPackV5, read: (file: string) => string) => void
   readonly validateScript?: (source: string, config: WorldJsonObject, pack: CompiledWorldPackV5) => void
 }
 
@@ -135,6 +136,7 @@ export function validatePackAuthoring(
   options: WorldPackCliOptions,
 ): void {
   validatePackComposition(pack, options.content ?? [], read)
+  options.validateStatus?.(pack, read)
   if (pack.scripts?.gameplay) {
     if (!options.validateScript) throw new TypeError('This entry has no common gameplay script validator')
     options.validateScript(read(pack.scripts.gameplay.entry), pack.scripts.gameplay.config ?? {}, pack)
@@ -153,15 +155,17 @@ export async function executeWorldPackCli(args: readonly string[], options: Worl
   if (invocation.command === 'help') {
     return output({
       command: 'help',
+      editor: 'worldpack editor --help: open, edit, play or export a source pack; serve opens the authoring UI.',
       usage: USAGE,
       output: 'One JSON line on stdout on success; ErrorEnvelope JSON on stderr and exit code 1 on failure.',
-      validation: 'Source schema, references, assets and installed interaction selection; no full Host startup.',
+      validation:
+        'Source schema, references, assets, installed selection and composed status limits; no full Host startup.',
       test: 'Compile and adapt only; assertionsExecuted is 0. No model calls or gameplay acceptance.',
       activate: 'Initialize local databases only; does not start the game Host or load Host-side extensions.',
       presets:
         'preset validate <file> accepts native library exchanges; --pack requires a bare RolePreset. Checks fields, macros and regex syntax, not style quality.',
-      // worldpack.cmd in the program folder hands `lens` to the lens runtime before this CLI parses anything.
-      lens: 'worldpack.cmd lens view <dir> | lens requests <dir> | lens simulate <dir> <scenario.json> | lens serve <dir> [--no-open]: read-only pack lens and stub-model simulation in the real Host runtime. simulate exits 2 when a scenario did not pass. Provided by the program folder; from source run node --import tsx apps/host/src/lens/cli.ts.',
+      simulate:
+        'worldpack simulate <dir> <scenario.json>: run gameplay assertions in the Host using a scripted model. A failed scenario exits with code 2.',
     })
   }
   if (invocation.command === 'validate') {

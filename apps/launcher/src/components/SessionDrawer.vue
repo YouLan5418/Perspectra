@@ -13,7 +13,7 @@ import PlaySettingsDialog from './PlaySettingsDialog.vue'
 import PackConfigEditor from './PackConfigEditor.vue'
 
 /** 本局抽屉：一列设置行，点进去在抽屉内部翻页；原对话框在这里只渲染内容。 */
-type Page = Exclude<DrawerSection, 'lens'> | 'import' | 'export' | 'backup' | 'restore'
+type Page = Exclude<DrawerSection, 'editor'> | 'import' | 'export' | 'backup' | 'restore'
 const props = defineProps<{ open: boolean; section: DrawerSection | null }>()
 const emit = defineEmits<{ close: [] }>()
 provide('launcher-embedded', true)
@@ -33,13 +33,13 @@ const groups = computed(() =>
 watch(
   () => [props.open, props.section] as const,
   ([open, section]) => {
-    if (open) page.value = section && section !== 'lens' ? section : null
+    if (open) page.value = section && section !== 'editor' ? section : null
   },
   { immediate: true },
 )
 function choose(id: DrawerSection) {
-  if (id === 'lens') {
-    void store.openLens(store.selectedPackageId)
+  if (id === 'editor') {
+    void store.openEditor(store.selectedPackageId)
     return
   }
   page.value = id

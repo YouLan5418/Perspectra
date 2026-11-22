@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto'
 import { lstat, readFile, readdir, realpath, rename, writeFile } from 'node:fs/promises'
 import { extname, join, relative, resolve, sep } from 'node:path'
 
+import { readActivityPages, type ActivityPage } from './activity-pages.ts'
 import { readPackComponents, type PackComponents } from './pack-components.ts'
 
 export const FRONTEND_CAPABILITIES = [
@@ -30,6 +31,7 @@ export interface PackWebAsset {
 }
 export interface PackWeb {
   /** The pack's own page; absent when the pack only restyles the default stage with theme.css. */
+  readonly activityPages?: Record<string, ActivityPage>
   readonly page?: Buffer
   /** Load frontend/theme.css after the default stage's own styles. */
   readonly theme: boolean
@@ -65,7 +67,7 @@ export interface StageConfig {
   readonly characters: Readonly<Record<string, StageCharacter>>
 }
 const STAGE_NAME = /^[a-z0-9][a-z0-9_-]{0,39}$/u
-function stageConfig(bytes: Buffer, has: (path: string) => boolean): StageConfig {
+export function stageConfig(bytes: Buffer, has: (path: string) => boolean): StageConfig {
   const fail = (why: string): never => {
     throw new Error('frontend/stage.json 无效：' + why)
   }
@@ -286,11 +288,14 @@ export async function loadPackWeb(packPath: string): Promise<PackWeb | undefined
     stage =
       staging === undefined ? undefined : stageConfig(staging.bytes, path => assets.has('/frontend/custom/' + path))
   // Static stage artwork and styles need no executable page or capability manifest.
+  const activityPages = readActivityPages(assets.get('/frontend/custom/activity-pages.json')?.bytes, assets)
   const componentFile = assets.get('/frontend/custom/components.json')
   if (
     !entry &&
     [...assets.keys()].every(
       path =>
+        path === '/frontend/custom/activity-pages.json' ||
+        path.startsWith('/frontend/custom/activities/') ||
         path === '/frontend/custom/components.json' ||
         path === '/frontend/custom/theme.css' ||
         path === '/frontend/custom/stage.json' ||
@@ -299,6 +304,7 @@ export async function loadPackWeb(packPath: string): Promise<PackWeb | undefined
   ) {
     const components = componentFile && readPackComponents(componentFile.bytes)
     return {
+      activityPages,
       theme: assets.has('/frontend/custom/theme.css'),
       ...(components ? { components } : {}),
       assets,
@@ -309,7 +315,7 @@ export async function loadPackWeb(packPath: string): Promise<PackWeb | undefined
   }
   if (!entry || !source)
     throw new Error(
-      'frontend/ 必须包含 index.html 与 manifest.json；默认舞台可只放 theme.css、stage.json、components.json、portraits/ 和 backgrounds/。',
+      'frontend/ 必须包含 index.html 与 manifest.json；默认舞台可只放 theme.css、stage.json、components.json、portraits/、backgrounds/、activity-pages.json 和 activities/。',
     )
   const data = JSON.parse(source.bytes.toString('utf8')) as Record<string, unknown>
   if (
@@ -325,6 +331,7 @@ export async function loadPackWeb(packPath: string): Promise<PackWeb | undefined
       typeof c === 'string' && FRONTEND_CAPABILITIES.includes(c as (typeof FRONTEND_CAPABILITIES)[number]),
   )
   return {
+    activityPages,
     page: entry.bytes,
     theme: false,
     assets,

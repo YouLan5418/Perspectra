@@ -66,6 +66,8 @@ export class ActivityStateRules {
   readonly handoff?: { phase: string; finish: string; target: string; label: string }
   readonly title: string
   readonly opening: string | undefined
+  readonly readsStatus: boolean
+  readonly readsScene: boolean
   readonly npcIds: string[]
   readonly participantSelection?: { min: number; max: number; candidates?: string[] }
   constructor(
@@ -87,6 +89,8 @@ export class ActivityStateRules {
       'title',
       Object.hasOwn(definition, 'participants') ? 'participants' : 'npcIds',
       'operations',
+      ...(Object.hasOwn(definition, 'readsStatus') ? ['readsStatus'] : []),
+      ...(Object.hasOwn(definition, 'readsScene') ? ['readsScene'] : []),
       ...(Object.hasOwn(definition, 'handoff') ? ['handoff'] : []),
       ...(Object.hasOwn(definition, 'opening') ? ['opening'] : []),
     ])
@@ -102,6 +106,12 @@ export class ActivityStateRules {
       (typeof definition.opening !== 'string' || !definition.opening.trim() || definition.opening.length > 500)
     )
       throw new TypeError('活动开场文案必须是 1–500 字符')
+    if (definition.readsScene !== undefined && typeof definition.readsScene !== 'boolean')
+      throw new TypeError('readsScene 必须是布尔值')
+    if (definition.readsStatus !== undefined && typeof definition.readsStatus !== 'boolean')
+      throw new TypeError('readsStatus 必须是布尔值')
+    this.readsStatus = definition.readsStatus === true
+    this.readsScene = definition.readsScene === true
     this.title = definition.title
     this.opening = typeof definition.opening === 'string' ? definition.opening : undefined
     if (Object.hasOwn(definition, 'participants')) {
@@ -259,6 +269,30 @@ export class ActivityStateRules {
         round: state.game.round,
         public: state.game.public,
         private: object(state.game.private[actorId]),
+      },
+    }
+  }
+  /** Only current observable presence and the acting participant's own inventory may affect a visible choice. */
+  policyInput(
+    state: ActivityState,
+    actorId: string,
+    readWorld: () => WorldJsonObject,
+    readPublic?: () => WorldJsonObject,
+  ): WorldJsonObject {
+    const input = { ...this.scoped(state, actorId), ...(this.readsStatus ? { knownPublic: readPublic?.() ?? {} } : {}) }
+    if (!this.readsScene) return input
+    const world = readWorld()
+    const items = (world.items as WorldJsonObject | undefined)?.current
+    return {
+      ...input,
+      scene: {
+        characterIds: Array.isArray(world.characterIds) ? [...world.characterIds] : [],
+        heldEntityIds: Array.isArray(items)
+          ? items.flatMap(value => {
+              const item = value as WorldJsonObject
+              return item.holderId === actorId && typeof item.entityId === 'string' ? [item.entityId] : []
+            })
+          : [],
       },
     }
   }

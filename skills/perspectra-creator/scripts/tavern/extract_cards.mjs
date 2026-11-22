@@ -339,7 +339,7 @@ export function readPNG(blob) {
 
 function decodeBase64(raw) {
   const value = raw.toString('latin1')
-  if (!/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/u.test(value)) {
+  if (value.length % 4 !== 0 || !/^[A-Za-z0-9+/]*={0,2}$/u.test(value)) {
     throw new CardError('Invalid base64')
   }
   return Buffer.from(value, 'base64')

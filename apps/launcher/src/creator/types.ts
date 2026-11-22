@@ -75,6 +75,7 @@ export type ConsoleView =
   | 'timeline'
   | 'requests'
   | 'world'
+  | 'world-events'
   | 'characters'
   | 'entities'
   | 'statuses'

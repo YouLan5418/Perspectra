@@ -2,14 +2,45 @@
 
 2026-11-08 当前源码（分支 `feat/rpg-plugin`）：官方 RPG 机制 [official-rpg](../../../packages/plugins/src/rpg) 按世界包里的 `rpg.json` 生成战斗、队伍与每张地图的副本活动。验证范围分开看：
 
-- **源码已接通**：配置校验、状态模块、地图活动、锁门与队伍随行、宿主载入与存档摘要、包透视与 `worldpack validate`。
+- **源码已接通**：配置校验、状态模块、地图活动、锁门与队伍随行、宿主载入与存档摘要与 `worldpack validate`。
 - **自动测试范围**：上述各项都有单元测试或真实宿主测试，见第 7 节；验收包的三份推演通过。
 - **真实体验验收**：已有山脚遗迹的 GLM 试玩记录。灼烧、抗火和无固定技能的战斗仍待真实互动验收。 [试玩记录](../studies/2026-11-08-hill-ruins-glm-playtest.md)
 - **发行包**：未重建，随程序发行的是否包含此机制以发行说明为准。
 
+## 用编辑器 CLI 配置与试玩
+
+宝箱药水、装备和角色槽位与工作台共用 `gameplay`、`rpg-save`。读取的 `slots` 包含包内已声明的槽位，`config.characters[角色ID].slots` 给出该角色能穿戴的槽位。物品配置分别写入 `config.consumables[物品ID]`（例如 `{"restore":{"hp":20}}`）和 `config.equipment[物品ID]`（例如 `{"slot":"weapon","attack":3}`）。先读取原配置，提交时传 `{file,base,config}`。
+
+使用 `worldpack editor rpg-item-play <源包> <请求.json>` 运行物品试玩。
+
+| 用途 | 请求示例 | 核对结果 |
+| --- | --- | --- |
+| 使用二层药水 | `{"kind":"consumable","id":"entity:potion-2","initial":{"hp":36}}` | 从物品所在场景开始，读取使用后的各项实际值、上限、用尽标记和再次使用的拒绝原因。须先配置药水恢复效果。 |
+| 对照铁剑伤害 | `{"kind":"equipment","id":"entity:iron-sword","location":"location:ruin-1","skill":"strike"}` | 两组使用相同玩家、目标和技能，分别返回出招前后目标生命、实际扣血和两组差值。 |
+
+两种请求都必填 `kind`、`id`。消耗品的 `initial` 选填，只接受已配置的恢复属性，省略时自动设定起始值。装备对照必填遭遇地点和技能 ID。玩家从物品所在地拾取，装备对照将其他已配置的 RPG 角色放入遭遇场景。取物地点的 RPG 自动开场在准备期间暂停。仓库里的待掉落物可先用掉落路线验证，物品试玩直接核验场景地面的物品。
+
+例如把「遗迹守卫」的火球消耗从 3 改成 4，先执行 `worldpack editor gameplay <源包>`。响应包含 `file`、原始 `config`、正式 `schema`、玩家、角色、地点和场景候选，以及地图活动和页面绑定。空白包可先执行 `worldpack editor rpg-enable <源包> <请求.json>`，传入 `{"location":"location:start"}`。已有未声明的 `rpg.json` 会先校验再接入。
+
+复制原始配置，只把 `skills` 中 `id=fire` 的 `cost.mp` 改为 4。用 `worldpack editor rpg-save <源包> <请求.json>` 提交 `{file,base,config}`，其中 `base` 是读取时的完整配置，`config` 是修改后的副本。保存前会在临时目录校验源包与页面绑定。
+
+掉落与门锁使用同一个物品 ID。用 `worldpack editor item-uses <源包> <请求.json>` 传入 `{"id":"entity:iron-key"}` 可读用途、物品操作和对应的状态脚本。官方物品模板支持 `item-actions-save`，提交 `{id,base,allowed}`，其中 `base` 取自上次读取的 `actions.allowed`，`allowed` 含 `take`、`drop`、`give` 三个布尔值。空白包首次开启操作时会写入模板并登记资产。自定义脚本保留作者源码。
+
+用 `worldpack editor rpg-exit-play <源包> <请求.json>` 可试玩使用本图掉落钥匙的出口。必填字段为地图地点 `location`、出口目标 `to`，选填 `scenes` 可指定参与角色起点。遗迹示例请求为 `{"location":"location:ruin-1","to":"location:ruin-2","scenes":{"character:cheng":"scene:ruin-1"}}`。读取 `passed` 和 `checks` 判断结果。自动试玩从玩家可用的对敌技能出招，复杂战术可在玩家舞台手动验证。
+
+在 `trial.json` 写入下面的内容，然后执行 `worldpack editor rpg-play <源包> trial.json`。省略 `turns` 可先列出当前玩家看得到的操作和参数。每一步返回经过规则裁定的播报、当前阶段、玩家可见的数值和下一步操作。要打开交互舞台，用 `rpg-preview` 传同样的地点和场景。
+
+```json
+{
+  "location": "location:ruin-1",
+  "scenes": { "character:cheng": "scene:ruin-1" },
+  "turns": [{ "operation": "skill", "arguments": { "skill": "火球术", "target": "遗迹守卫" } }]
+}
+```
+
 ## 1. 一个例子
 
-玩家在客厅对澄说：“陪我去屋后的遗迹看看吧。”澄自己决定入队（她的选项里有“加入队伍”，只有她本人能选）。玩家走进遗迹一层，澄随行。到达时旁白出现：“石廊潮湿阴冷……”守卫喊“擅入者，止步”。作者写好的演出让澄说“小心，它的护甲很硬！”并放出火球，守卫生命 50 → 36，然后轮到玩家。玩家选“使用技能”，火球术，目标遗迹守卫。澄在自己的回合再来一发，玩家补上一刀，守卫倒下，铁钥匙落在地上。玩家拿起钥匙，铁门打开；二层有一个木箱，里面是一瓶药水。玩家回家，在卧室睡一觉，生命回满。留在客厅的阿茹只看见他们出门，直到玩家开口讲，才知道遗迹里发生了什么。
+玩家在客厅对澄说：“陪我去屋后的遗迹看看吧。”澄自己决定入队（她的选项里有“加入队伍”，只有她本人能选）。玩家走进遗迹一层，澄随行。到达时旁白出现：“石廊潮湿阴冷……”守卫喊“擅入者，止步”。作者写好的演出让澄说“小心，它的护甲很硬！”并放出火球，守卫生命 50 → 36，然后轮到玩家。玩家选“使用技能”，火球术，目标遗迹守卫。澄在自己的回合再来一发，玩家补上一刀，守卫倒下，铁钥匙落在地上。玩家拿起钥匙，再用钥匙打开铁门；二层有一个木箱，里面是一瓶药水。玩家回家，在卧室睡一觉，生命回满。留在客厅的阿茹只看见他们出门，直到玩家开口讲，才知道遗迹里发生了什么。
 
 哪些由程序裁定，哪些由角色决定：伤害、生命、钥匙掉落、锁门、战败传送回家由程序按 `rpg.json` 裁定；澄是否入队、没写死时她用什么技能、说什么，由她自己决定；阿茹不在场，只收到“玩家和澄离开了客厅”。作者写死的演出（上面的火球和那句话）是作者的选择，写进 `rpg.json` 的 `scripted`，程序照做。
 
@@ -38,7 +69,7 @@
 ```
 - `key`：小写字母开头，只含小写字母、数字、连字符，至多 33 字符；最多 31 项。有敌人的地图必须有名为 `hp` 的属性，它是战斗中的生命。
 - `label`：显示名，至多 36 字。
-- `locations`：可选，写了就只在这些地点显示。**只决定谁看得见，不禁止在别处修改**，所以在家睡觉能回血。山脚遗迹把生命和魔力只显示在遗迹里，在家时状态栏没有它们（用包透视的状态栏核对过）。
+- `locations`：可选，写了就只在这些地点显示。**只决定谁看得见，不禁止在别处修改**，所以在家睡觉能回血。山脚遗迹把生命和魔力只显示在遗迹里，在家时状态栏没有它们。
 
 ### characters：战斗角色
 ```json
@@ -152,6 +183,8 @@
   - 例如澄捡起了铁钥匙：玩家走向铁门会被拒绝；澄用钥匙开锁后，玩家不拿钥匙也能过去，队伍照常跟随。
 
 ### scripted：写死的演出
+
+在「玩法配置 → 遭遇地图 → 遭遇演出」可直接修改这些记录。流程图按触发时机和回合展示，试玩返回正式 Host 实际提交的出招与发言。参见[把澄的第二次火球移到第 2 轮](world-workbench.md#把澄的第二次火球移到第-2-轮)。
 ```json
 { "when": "encounter", "characterId": "character:cheng", "say": "小心，它的护甲很硬！", "skill": "fire", "target": "golem" }
 ```
@@ -167,7 +200,9 @@
 ```
 - `defeat`：我方全部倒下时，在场参与者被送到 `to`，并把 `restore` 里的属性设为这些值。有敌人的包应该写。
 - `retreat`：`stay`（默认）撤退后留在原地；`back` 同样送回 `defeat.to`，但不套用 `restore`，需要先写 `defeat`。只有玩家能选“撤退”。
-- `party.leader`：队长，就是玩家。同伴自己选“加入队伍”入队，入队后队长走到哪她跟到哪。`lockDuringBattle` 默认 true，战斗中不能离队；写 false 则战斗中允许离队。
+- `party.leader` 必填，可选择在 `characters` 中配置了数值的角色。成员在队长身边时可以自己加入，队长移动时同地点的队员随行。`lockDuringBattle` 选填，默认 true，设为 false 时参战成员也可离队。
+
+在工作台「玩法配置 → 休息与返回」可核对卧室的休息操作、战败与撤退的实际落点。「队伍」提供跟随和离队试玩。见[配置步骤和 CLI 请求](world-workbench.md#设置卧室休息战败回家和同伴随行)。
 
 ## 4. 战斗怎么算
 
@@ -180,9 +215,9 @@
 ## 5. 检查你写的
 
 - `worldpack.cmd validate '<源目录>'`：检查字段名、引用的角色/地点/物品/敌人/技能，以及掉落、宝箱、出口规则；RPG 配置生成原生状态与活动定义，并检查活动和状态的运行限额；不再拼接地图脚本文本。
-- [包透视](pack-lens.md)：多一个“RPG”分类，列出角色、敌人、装备、消耗品、每张地图与出口条件，生成的地图活动指向 `rpg.json`。
+- 在[包编辑器](world-workbench.md)的 RPG 玩法中查看角色、敌人、装备、地图及出口条件。
 - 在仓库根目录运行 `node --import tsx tests/experiments/hill-ruins-combat-effects.ts`。把打印出的新目录载入 Launcher，拿起并装备客厅里的抗火护甲，邀请澄同行，再去遗迹一层。这个实验配置关闭了遗迹一层的固定技能。
-- 推演：`lens simulate '<源目录>' <脚本>.json`。山脚遗迹的三份脚本在 `.perspectra-lens/scenarios/`。常用写法：`npcPlans` 让澄 `{ "kind": "perform", "interact": "status:rpg-join" }`；`{ "activity": "rpg-map-ruin-1", "operation": "skill", "parameters": { "skill": "火球术", "target": "遗迹守卫" } }` 走玩家的战斗回合；`start.status.characters` 改初始生命造出失败场景；`knows` / `doesNotKnow` 检查阿茹有没有收到战斗内容。推演里同伴的战斗回合不能用 `npcPlans` 指定技能，用 `scripted` 的 `turn` 演出让它确定。推演不是试玩。
+- 推演：`worldpack simulate '<源目录>' <脚本>.json`。山脚遗迹的三份脚本在 `scenarios/`。常用写法：`npcPlans` 让澄 `{ "kind": "perform", "interact": "status:rpg-join" }`；`{ "activity": "rpg-map-ruin-1", "operation": "skill", "parameters": { "skill": "火球术", "target": "遗迹守卫" } }` 走玩家的战斗回合；`start.status.characters` 改初始生命造出失败场景；`knows` / `doesNotKnow` 检查阿茹有没有收到战斗内容。推演里同伴的战斗回合不能用 `npcPlans` 指定技能，用 `scripted` 的 `turn` 演出让它确定。推演不是试玩。
 
 ## 6. 已知限制
 
@@ -208,7 +243,7 @@
 
 ## 7. 验证了什么，没验证什么
 
-- 自动测试：[config.test.ts](../../../packages/plugins/src/rpg/config.test.ts)、[status-module.test.ts](../../../packages/plugins/src/rpg/status-module.test.ts)、[map-activity.test.ts](../../../packages/plugins/src/rpg/map-activity.test.ts)；真实宿主：`tests/host/rpg-map-activity.test.ts`、`rpg-perform-path.test.ts`、`rpg-party.test.ts`、`rpg-pack.test.ts`、`lens-rpg.test.ts`、`rpg-story-share.test.ts`。
+- 自动测试：[config.test.ts](../../../packages/plugins/src/rpg/config.test.ts)、[status-module.test.ts](../../../packages/plugins/src/rpg/status-module.test.ts)、[map-activity.test.ts](../../../packages/plugins/src/rpg/map-activity.test.ts)；真实宿主：`tests/host/rpg-map-activity.test.ts`、`rpg-perform-path.test.ts`、`rpg-party.test.ts`、`rpg-pack.test.ts`、`simulation-rpg.test.ts`、`rpg-story-share.test.ts`。
 - 验收包：[山脚遗迹](../../../examples/world-packs/hill-ruins/README.md) 的三份推演通过（通关并回家睡觉、战败回家、阿茹不知道战斗细节）。
 - 2026-11-16 [B11 真实试玩](../../superpowers/plans/2026-11-16-composable-engine-b11-acceptance.md)：本机 8025 DeepSeek Flash 实际选择破甲、护盾、持续伤害／再生、压制、怒击、唤雨与雨中火球，核对正式状态及结果续写。专属／默认舞台在隔离便携程序中显示同一数值，玩家施法后同伴和敌人回合正常收束。
 - **未验证**：完整一局的平衡、长期决策稳定性、同伴入队意愿与固定演出自然度；原生 Launcher 窗口和干净机器。短夹具试玩通过不替代这些体验验收。

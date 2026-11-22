@@ -189,7 +189,15 @@ describe('RPG locked exits and party', () => {
   })
 
   it('when the player moves, Cheng follows in the same commit and Ah-Ru at home sees both leave', async () => {
-    const f = await fixture({ decide: chengPlays(statusAction('rpg-join')) })
+    let leaving = false,
+      returning = false
+    const f = await fixture({
+      decide: chengPlays(
+        statusAction('rpg-join'),
+        () => (leaving ? statusAction('rpg-leave') : undefined),
+        () => (returning ? moveAction(HOME) : undefined),
+      ),
+    })
     await say(f, '澄，跟我来。')
     await f.move(BEDROOM)
     expect(where(f, PLAYER)).toBe(BEDROOM)
@@ -198,11 +206,33 @@ describe('RPG locked exits and party', () => {
     const moves = f.events().filter(e => e.eventType === 'character.moved')
     expect(moves.map(e => data(e).characterId)).toEqual([PLAYER, CHENG])
     expect(moves[0]!.transactionId).toBe(moves[1]!.transactionId)
-    expect(data(moves[1]!)).toEqual({ characterId: CHENG, fromLocationId: HOME, toLocationId: BEDROOM })
+    const follow = f.runtime.creatorHistory({ eventSeq: moves[1]!.seq }).items[0]!
+    expect(follow.movement).toMatchObject({
+      from: HOME,
+      to: BEDROOM,
+      source: 'party-follow',
+      initiator: PLAYER,
+      party: 'listed',
+    })
+    expect(f.runtime.creatorHistory({ eventSeq: moves[0]!.seq }).items[0]!.movement).toMatchObject({
+      source: 'move',
+      role: 'player',
+    })
+    expect(follow.recipients.filter(recipient => recipient.characterId === ARU)).toHaveLength(1)
     // Ah-Ru stays home: she sees each of them go, not where to.
     expect(seenMoves(f, ARU, PLAYER)).toEqual([{ characterId: PLAYER, fromLocationId: HOME }])
     expect(seenMoves(f, ARU, CHENG)).toEqual([{ characterId: CHENG, fromLocationId: HOME }])
     expect(seenMoves(f, CHENG, CHENG)).toEqual([{ characterId: CHENG, fromLocationId: HOME, toLocationId: BEDROOM }])
+    leaving = true
+    await say(f, '澄，我们在这里分开吧。')
+    expect(partyList(f.events())).toEqual([])
+    returning = true
+    await say(f, '你接下来去哪里？')
+    const history = f.runtime.creatorHistory({ characterId: CHENG, eventType: 'character.moved' }).items
+    expect(history.map(item => item.movement)).toEqual([
+      expect.objectContaining({ source: 'party-follow', party: 'listed', from: HOME, to: BEDROOM }),
+      expect.objectContaining({ source: 'move', role: 'agent', party: 'unlisted', from: BEDROOM, to: HOME }),
+    ])
   })
 
   it('a member who is elsewhere when the leader moves does not follow and no longer counts as in the party', async () => {
@@ -233,6 +263,17 @@ describe('RPG locked exits and party', () => {
     expect(partyList(f.events())).toEqual([])
 
     // She did not see that; when they meet again she can still join, and does.
+    const earlierMove = f.runtime.creatorHistory({ characterId: CHENG, eventType: 'character.moved', limit: 1 })
+      .items[0]!
+    expect(earlierMove.movement).toMatchObject({
+      from: HOME,
+      to: BEDROOM,
+      source: 'move',
+      role: 'agent',
+      initiator: CHENG,
+      party: 'listed',
+    })
+    expect(earlierMove.movement!.rosterSeq).toBeLessThan(earlierMove.event.seq)
     await f.move(BEDROOM)
     expect(partyMembers(f.events(), PLAYER)).toEqual([])
     expect(offered(f, CHENG)).toContain('status:rpg-join')

@@ -1,0 +1,27 @@
+{
+  "schemaVersion": "worldpack-characters/v3",
+  "characters": [
+    {
+      "characterId": "character:player",
+      "displayName": "玩家",
+      "controllerClass": "manual",
+      "pronouns": "你",
+      "initialLocationId": "location:start",
+      "portrayal": {
+        "summary": "由玩家决定身份与表达。",
+        "speakingStyle": "由玩家决定。"
+      }
+    },
+    {
+      "characterId": "character:companion",
+      "displayName": "阿林",
+      "controllerClass": "scripted",
+      "pronouns": "她",
+      "initialLocationId": "location:start",
+      "portrayal": {
+        "summary": "阿林住在门廊旁边，认得窗台上的信封。",
+        "speakingStyle": "用简短自然的句子回应。"
+      }
+    }
+  ]
+}

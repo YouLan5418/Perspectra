@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { asRecord, dateTimeLabel, durationLabel, inlineJson, KIND_LABEL, truncate } from './format.ts'
+import { asRecord, dateTimeLabel, durationLabel, inlineJson, KIND_LABEL, pacingReasons, truncate } from './format.ts'
 import { useCreatorStore } from './store.ts'
 
 const store = useCreatorStore()
@@ -10,6 +10,8 @@ const recent = computed(() =>
     .filter(node => !node.processing)
     .slice(0, 12),
 )
+const pacing = computed(() => store.world?.pacing)
+const reason = computed(() => asRecord(pacing.value?.reason))
 const publicStatuses = computed(() => Object.entries(asRecord(store.world?.statusTruth?.public)))
 </script>
 
@@ -55,6 +57,20 @@ const publicStatuses = computed(() => Object.entries(asRecord(store.world?.statu
       </div>
     </section>
 
+    <section class="cr-section">
+      <h2>最近一次剧情节奏判定</h2>
+      <p v-if="pacing">
+        <span v-if="reason.round != null">第 {{ reason.round }} 轮 · </span>
+        {{ pacingReasons[String(reason.why)] ?? reason.why ?? '未报告原因' }}
+        <span v-if="pacing.key"> · {{ pacing.key }}</span>
+      </p>
+      <p v-else class="cr-muted">当前实例尚无节奏判定记录。</p>
+      <button class="cr-button" @click="store.view = 'world-events'">查看世界事件与节拍</button>
+      <details v-if="pacing">
+        <summary>判定详情</summary>
+        <pre class="cr-pre">{{ JSON.stringify(pacing, null, 2) }}</pre>
+      </details>
+    </section>
     <section class="cr-section">
       <h2>角色（{{ store.characters.length }}）</h2>
       <div class="cr-list-head" style="grid-template-columns: minmax(120px, 1fr) minmax(0, 1.4fr) 110px 110px">

@@ -15,7 +15,7 @@ import {
   readPackConfiguration as readPackConfig,
   openGame,
   openCreator as openCreatorPage,
-  openLensPage,
+  openEditorPage,
   packCover,
   listConnectionModels,
   setConnectionKey,
@@ -44,7 +44,7 @@ import {
 import { availableModel, historyTo } from '../domain.ts'
 import type { CoreStatus, GamePackage } from '../types.ts'
 
-export type DrawerSection = 'story' | 'model' | 'preset' | 'frontend' | 'play' | 'lens' | 'pack-config'
+export type DrawerSection = 'story' | 'model' | 'preset' | 'frontend' | 'play' | 'editor' | 'pack-config'
 export interface DrawerRow {
   id: DrawerSection
   group: '游玩' | '进阶'
@@ -355,7 +355,7 @@ export const useLauncherStore = defineStore('launcher', () => {
       play = currentPlaySettings.value
     const presetMode = presets.value.instances[selectedInstanceId.value]?.mode
     const sandboxed = summary.frontend === 'sandbox'
-    const lensBlocked = selectedPackage.value?.validation.status === 'blocked'
+    const packBlocked = selectedPackage.value?.validation.status === 'blocked'
     return [
       {
         id: 'story',
@@ -398,10 +398,11 @@ export const useLauncherStore = defineStore('launcher', () => {
         disabled: running.value,
       },
       {
-        id: 'lens',
+        id: 'editor',
         group: '进阶',
-        label: '透视',
-        summary: lensBlocked ? '包校验失败，打开可查看原因' : '在浏览器里查看这个包的全部设置',
+        label: '包编辑',
+        disabled: running.value,
+        summary: running.value ? '结束游戏后可编辑' : packBlocked ? '包校验失败，打开可查看原因' : '编辑世界包源文件',
         action: '打开',
       },
     ]
@@ -820,16 +821,16 @@ export const useLauncherStore = defineStore('launcher', () => {
       notice.value = error instanceof Error ? error.message : '创作者页面打开失败。'
     }
   }
-  async function openLens(packageId: string) {
+  async function openEditor(packageId: string) {
     if (!real) {
-      notice.value = '浏览器预览没有透视服务；可用 lens:dev 查看透视页面样例。'
+      notice.value = '请通过启动器或 worldpack editor serve 打开包编辑器。'
       return
     }
     try {
-      await openLensPage(packageId)
-      notice.value = '透视已在系统浏览器打开。'
+      await openEditorPage(packageId)
+      notice.value = '创作工作台已在系统浏览器打开。'
     } catch (error) {
-      notice.value = error instanceof Error ? error.message : '透视打开失败。'
+      notice.value = error instanceof Error ? error.message : '包编辑器打开失败。'
     }
   }
   async function backupTree(path: string): Promise<boolean> {
@@ -888,7 +889,7 @@ export const useLauncherStore = defineStore('launcher', () => {
     selectStoryline,
     forkStory,
     openCreator,
-    openLens,
+    openEditor,
     savePresetDrafts,
     libraryAction,
     presetCharacters,

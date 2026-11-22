@@ -268,7 +268,12 @@ export class SpeakMoveRulebook {
       const moveEvent: WorldEventDraft = {
         eventType: 'character.moved',
         eventVersion: 1,
-        data: { characterId, fromLocationId: from ?? null, toLocationId: target },
+        data: {
+          characterId,
+          fromLocationId: from ?? null,
+          toLocationId: target,
+          movementSource: { kind: 'move', rule: 'builtin:speak-move/v2' },
+        },
       }
       return {
         status: 'accepted',

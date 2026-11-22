@@ -382,6 +382,9 @@ export function createHostServer(
             frontend: useDefault ? 'default' : 'custom',
             frontendMode: useDefault ? 'sandbox' : policy.mode,
             frontendOrigin: useDefault || policy.mode !== 'trusted' ? '' : policy.origin,
+            ...(!plain && packWeb?.activityPages && Object.keys(packWeb.activityPages).length
+              ? { activityPages: packWeb.activityPages }
+              : {}),
             ...(packWeb?.theme && !plain ? { theme: true } : {}),
             ...(useDefault
               ? {

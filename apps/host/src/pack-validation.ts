@@ -5,13 +5,33 @@ import {
   compileWorldPackSource,
   validatePackAuthoring,
   parseWorldPackSourceManifestV5,
+  type CompiledWorldPackV5,
   type WorldPackComposition,
   type PackPluginDescriptor,
 } from '@perspectra/world-pack'
 import { hostPluginSettings, hostPluginNativeAllowed, type HostPluginSettings } from './host-plugin-settings.ts'
 import { readPluginManifest } from './plugin-manifest-file.ts'
-import { officialPackPlugins, validatePackScript } from './official-pack-metadata.ts'
+import {
+  authoringRpgModules,
+  officialPackPlugins,
+  validatePackScript,
+  validateStatusSource,
+} from './official-pack-metadata.ts'
 import { installPluginResolver } from './plugin-resolve.ts'
+
+import { PackModules } from './runtime/pack-modules.ts'
+import { loadStatusSource } from './runtime/status-source.ts'
+
+export function authoringValidators(packPath: string) {
+  return {
+    validateScript: validatePackScript,
+    validateStatus(pack: CompiledWorldPackV5, read: (file: string) => string) {
+      if (pack.services?.status && pack.services.status !== 'official-status') return
+      const modules = PackModules.authoringSources(packPath, pack, authoringRpgModules(pack, read))
+      validateStatusSource(loadStatusSource(packPath, pack, modules), pack)
+    },
+  }
+}
 
 /** Discovery is data-only. Permission, enablement and version are checked before importing validators. */
 export async function packValidationCatalog(
@@ -66,7 +86,7 @@ export async function validateInstalledPack(
   const pack = await compileWorldPackSource(packPath, [])
   validatePackAuthoring(pack, file => readFileSync(join(packPath, file), 'utf8'), {
     content,
-    validateScript: validatePackScript,
+    ...authoringValidators(packPath),
   })
   return Object.keys(pack.services ?? {}).length
     ? '尚待宿主核对 services：' +

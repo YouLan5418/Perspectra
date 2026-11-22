@@ -1,5 +1,6 @@
 import { officialPackPlugins, validatePackScript } from '../../../apps/host/src/official-pack-metadata.ts'
-import { cp, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { authoringValidators } from '../../../apps/host/src/pack-validation.ts'
+import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -76,9 +77,74 @@ describe('World Pack creator CLI', () => {
       command: 'help',
       test: expect.stringContaining('assertionsExecuted is 0'),
       validation: expect.stringContaining('no full Host startup'),
-      // A creator Skill that does not see lens in --help concludes the program is too old for simulation.
-      lens: expect.stringContaining('lens simulate'),
+      simulate: expect.stringContaining('worldpack simulate'),
     })
+  })
+
+  it('counts author, RPG and pack module status operations before opening a world', async () => {
+    const root = await temporaryRoot()
+    await cp(fileURLToPath(new URL('../../../tests/fixtures/rpg-pack/', import.meta.url)), root, { recursive: true })
+    const script = join(root, 'scripts/status.js')
+    const manifestPath = join(root, 'worldpack.source.json')
+    const manifest = JSON.parse(await readFile(manifestPath, 'utf8'))
+    const writeOperations = (count: number) =>
+      writeFile(
+        script,
+        `globalThis.statusScript = { definition: { statuses: [], operations:
+      Array.from({ length: ${count} }, (_, i) => ({ id: 'chapter-' + i, label: '章节 ' + i, schema: {type:'object', properties:{}, additionalProperties:false} }))
+    }, initialize() { throw new Error('validation must not start the world') } }`,
+      )
+    const validate = () =>
+      executeWorldPackCli(['validate', root], { ...authoringValidators(root), content: officialPackPlugins })
+
+    // This RPG fixture generates seven operations, including unlock, join and leave.
+    await writeOperations(121)
+    await expect(validate()).resolves.toContain('"status":"valid"')
+    await writeOperations(122)
+    await expect(validate()).rejects.toThrow(
+      /129 项，上限为 128 项.*scripts\/status\.js（122 个操作）.*rpg（7 个操作）/u,
+    )
+
+    // Removing RPG leaves all 128 slots to the authored script.
+    delete manifest.plugins['official-rpg']
+    await writeFile(manifestPath, JSON.stringify(manifest))
+    await writeOperations(128)
+    await expect(validate()).resolves.toContain('"status":"valid"')
+
+    // The capability itself need not be installed to count the module's declared action.
+    manifest.assetFiles.push('plugins.json', 'plugins/chapter.js')
+    await writeFile(manifestPath, JSON.stringify(manifest))
+    await mkdir(join(root, 'plugins'))
+    await writeFile(
+      join(root, 'plugins.json'),
+      JSON.stringify({
+        modules: [
+          {
+            id: 'chapter',
+            entry: 'plugins/chapter.js',
+            characters: ['character:player'],
+            capabilities: [{ id: 'device', version: '1', config: {}, required: true }],
+          },
+        ],
+      }),
+    )
+    await writeFile(
+      join(root, 'plugins/chapter.js'),
+      `globalThis.packPlugin = {definition: {statuses: [], actions: [
+      {id: 'ring', label: '铃响', schema: {type:'object', properties:{}, additionalProperties:false}, capability:'device', method:'ring'}
+    ]}}`,
+    )
+    await expect(validate()).rejects.toThrow(/129 项，上限为 128 项.*chapter（1 个操作）/u)
+    await writeOperations(127)
+    await expect(validate()).resolves.toContain('"status":"valid"')
+    await writeFile(
+      script,
+      `globalThis.statusScript = { definition: { operations: [], statuses: Array.from({ length: 65 }, (_, i) => ({key: 's-' + i})) } }`,
+    )
+    await expect(validate()).rejects.toThrow('状态字段共 65 项，上限为 64 项')
+    delete manifest.plugins['pack-scripts']
+    await writeFile(manifestPath, JSON.stringify(manifest))
+    await expect(validate()).resolves.toContain('"status":"valid"')
   })
 
   it('validates, compiles, inspects, and tests the current v5 Pack', async () => {

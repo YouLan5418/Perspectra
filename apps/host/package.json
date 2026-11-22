@@ -6,12 +6,15 @@
   "exports": {
     "./runtime": "./src/runtime/world-runtime.ts",
     "./composition": "./src/official-bundle.ts",
-    "./simulation": "./src/lens/simulation.ts",
+    "./simulation": "./src/simulation/simulation.ts",
+    "./editor/activity-references": "./src/editor/activity-references.ts",
+    "./editor/rpg-cues": "./src/editor/rpg-cues.ts",
     "./play-settings": "./src/play-settings.ts",
     "./plugin-settings": "./src/host-plugin-settings.ts"
   },
   "dependencies": {
     "@perspectra/frontend": "workspace:*",
+    "@vue/compiler-dom": "3.5.43",
     "@perspectra/world-pack": "workspace:*",
     "@perspectra/sdk": "workspace:*",
     "@perspectra/plugins": "workspace:*",

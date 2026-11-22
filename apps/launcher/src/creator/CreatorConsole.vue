@@ -14,6 +14,7 @@ import TimelineView from './TimelineView.vue'
 import StatusView from './StatusView.vue'
 import StageView from './StageView.vue'
 import WorldView from './WorldView.vue'
+import WorldEventsView from './WorldEventsView.vue'
 import { useCreatorStore, POLL_MS } from './store.ts'
 import './creator.css'
 import './timeline.css'
@@ -37,6 +38,7 @@ const views = {
   timeline: TimelineView,
   requests: RequestsView,
   world: WorldView,
+  'world-events': WorldEventsView,
   characters: CharactersView,
   entities: EntitiesView,
   statuses: StatusView,

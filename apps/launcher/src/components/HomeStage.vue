@@ -10,7 +10,7 @@ import {
   Square,
   Cpu,
   GitFork,
-  ScanEye,
+  NotebookPen,
 } from '@lucide/vue'
 import { useLauncherStore } from '../stores/launcher.ts'
 
@@ -94,9 +94,14 @@ const playLabel = computed(() =>
         >
           载入世界包
         </button>
-        <!-- 还没有实例时没有抽屉，透视入口留在这里。 -->
-        <button v-if="pack" class="stage-ghost" title="在浏览器里查看这个包的全部设置" @click="store.openLens(pack.id)">
-          <ScanEye :size="15" />透视
+        <button
+          v-if="pack"
+          class="stage-ghost"
+          :disabled="store.running"
+          :title="store.running ? '结束游戏后可编辑' : '编辑世界包源文件'"
+          @click="store.openEditor(pack.id)"
+        >
+          <NotebookPen :size="15" />包编辑
         </button>
       </div>
     </section>

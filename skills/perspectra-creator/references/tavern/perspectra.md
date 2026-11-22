@@ -32,13 +32,13 @@
 
 ## 目标宿主预检清单
 
-以下是2026-10-22当前源码的检索快照，不是永久规格；每次转换重新确认声明及消费点。提取器只自动读取其中部分常量，剩余项须定向读源码。
+下表以 2026-10-22 的检索快照为基础，状态操作上限已按当前版本更新。转换时用目标版本的 `worldpack validate` 核对实际作品。
 
 | 边界 | 本次源码快照 | 核查位置 |
 | --- | --- | --- |
 | 知识 | 4096条、每条256关键词、每关键词512 UTF-16单元、整轮65536 UTF-16单元、配置1MiB UTF-8 | `pack-knowledge.ts`常量、load/select；单条长于本包maximumCharacters时加载即报错，用`scripts/split-knowledge.mjs`拆分；按优先级整条跳过仍可能令低优先级条目本轮进不去 |
 | 文档/包 | 文档4096、单Markdown256KiB、单JSON1MiB、源总量16MiB、单asset8MiB | `world-pack/src/schema.ts`、`compiler.ts`；字节与字符不可混用 |
-| 状态 | 64状态、32操作；源码256KiB UTF-8（含拼合的包内插件模块）；调用输入/输出1MiB UTF-8；单值规范JSON16384 UTF-16单元，总值524288单元；单次物品效果至多8项 | `pack-status.ts`parse、call、validateValue、reduce、parseItemChanges；实际值并非按字节计 |
+| 状态 | 64 个状态字段、合计 128 个状态操作；源码256KiB UTF-8（含拼合的包内插件模块）；调用输入/输出1MiB UTF-8；单值规范JSON16384 UTF-16单元，总值524288单元；单次物品效果至多8项 | `pack-status.ts`parse、call、validateValue、reduce、parseItemChanges；实际值并非按字节计 |
 | 活动 | 16操作、8 NPC；opening500 UTF-16单元；源码262144字节，通常调用输入/输出65536 UTF-16单元，simulate输入另有较高限额；VM100ms | `pack-activity.ts`constructor、load、call、simulate；不能拿simulate预算套普通hook |
 | 预设 | 64提示节点，单节点32000、附加prompt 16000、总提示64000 UTF-16单元；32文本规则，替换正文4000单元 | `provider-chat/src/preset.ts`及runtime；位置是beforeContext/afterContext，不支持任意消息楼层 |
 | 世界初始化 | 恰好一个PlayerSlot；角色controller为manual/scripted | `world-pack/src/compiler.ts`、`contracts.ts`，不要猜narrator类型 |

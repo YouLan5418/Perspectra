@@ -1,5 +1,49 @@
 # 当前创作者运行时
 
+停电后同伴听见了雷声，远处的角色可能只收到另一段通知。作者在试玩监控的「世界事件与节拍」展开停电规则，可以逐人读通知原文、看谁获安排唤醒和谁已完成处理。宿主用同一事务里的发生 ID 对齐观察，用所选分支的提交记录恢复唤醒进度和插件回执。节拍器另外保留当前实例最近 16 次结算时实际用过的候选、条件和选择理由，作者可以直接点候选查对应的事件规则。[事件运行时](../../../apps/host/src/runtime/world-events.ts) · [节奏运行时](../../../apps/host/src/runtime/pacing-runtime.ts) · [监控页](../../../apps/launcher/src/creator/WorldEventsView.vue)
+
+澄跟队长去了卧室，退队后又自己回到客厅。作者在试玩时间线点这两次移动，能分别看到「RPG 队伍跟随」和「角色自己发起移动」。调试接口按移动事件之前的已提交记录读取随行队员名单和名单序号，队长单独担任带队者。移动的产生方在裁定时记录规则，活动另记活动键、操作和结算阶段。旧记录缺少规则时显示未记录。玩家和角色观察沿用各自可见的来去方向。[事件历史](../../../apps/host/src/runtime/creator-history.ts) · [移动详情](../../../apps/launcher/src/creator/DetailPanel.vue)
+
+作者在包编辑器里将「门廊」改为「回廊」，保存后可用 `worldpack editor records <源目录>` 读取同一条地点记录。启动器在游戏启动和运行期间暂停源包编辑。[创作工作台](../guides/world-workbench.md) · [编辑服务](../../../apps/host/src/editor/server.ts)
+
+作者在已有 128 个状态操作的包里再增加一次交接，`worldpack validate` 会报告组合后的 129 项、上限和来源。CLI 的 `validate/compile/test`、工作台源包预检和配置保存共用这项检查。它读取已启用的包内状态脚本、模块与官方 RPG 配置，复用开档的状态定义校验；纯校验不会运行第三方内容生成器，替换状态服务的作品仍需按所选宿主试玩。[作者校验](../../../apps/host/src/pack-validation.ts) · [角色退场与玩法示例](../../../skills/perspectra-creator/references/gameplay.md#角色退场)
+
+试玩时，作者可在创作者控制台「状态」里核对已加载的操作数、适用角色和玩家最近一次候选。「世界总览」显示最近一次剧情节奏判定。两项都从宿主读已有数据，打开页面不执行许可脚本，也不推进剧情。随试玩宿主分发的独立工具包需要包含控制台网页及其脚本和样式。[调试接口与覆盖清单](../creator-debug-api.md#需求覆盖与接受的限制)
+
+作者在「玩家开局」选择角色后，包编辑命令在源包写锁内同步玩家槽与角色控制方式。界面按玩家槽标记角色。开局有地点的启用场景与参与角色初始地点的冲突，按同一规则在编辑草稿和 CLI 记录列表中显示。[记录读写](../../../apps/host/src/editor/world-records.ts) · [开局字段](../../../packages/world-pack/src/editor-fields.ts)
+
+作者在客厅的地点页勾选开局参与者时，工作台在源包写锁内重新核对这个地点绑定的未关闭场景，再写入场景的状态与成员。多个未关闭场景会使普通移动无法选定目标。编辑器和 CLI 报告同一组绑定冲突，作者可以从总览、地点或场景跳到每条配置。[地点开局表单](../../../apps/launcher/src/creator/LocationOpening.vue) · [移动时选择场景](../../../packages/core/src/application/scene-decision.ts)
+
+作者给客厅添加物品、替换背景，或给阿林编辑人设、初始认知、通讯和立绘时，可在当前记录的详情区切换。各分区复用原有记录、开局设置、通讯与舞台命令。工作台从记录接口读取清单中已启用的插件，以此显示角色的可用玩法分区。[工作台](../../../apps/launcher/src/creator/WorldWorkbench.vue) · [地点物品](../../../apps/launcher/src/creator/LocationItems.vue)
+
+玩家拿到开信刀后，能在「读便笺」选择「展开便笺」。正式包编辑器从总览进入活动画布，分组、成员与节点坐标随草稿保存，导出时单列在源包的 `creator-layouts/` 目录中。单独移动节点会保留相同的运行脚本。Host 仍按原有选项合同裁定。网页和外部 CLI 的 `activity-references` 使用同一引用索引，按活动、选项、组合条件成员及本地变量作用域定位。[图数据](../../../apps/host/src/editor/activity-graph.ts) · [引用索引](../../../apps/host/src/editor/activity-references.ts) · [活动编辑器](../guides/activity-editor.md)
+
+玩家可以在门廊选择作者命名的「倾听门外动静」，执行后由包内脚本给行动者一条观察。「日常交互」和外部 CLI 读取清单的 `scripts.gameplay`，直接编辑同一个 CommonJS 文件。加入草稿只生成作者指定的一个操作。保存时在临时副本检查脚本并打开新档，验证通过后按原入口和配置写回。试玩从独立新档的玩家舞台进入，候选和裁定走运行时已有的操作路径。[创作步骤](../guides/world-workbench.md#只添加作品需要的日常交互) · [脚本读写和校验](../../../apps/host/src/editor/interaction-script.ts) · [运行时加载](../../../packages/providers/src/activities/gameplay-script.ts)
+
+门廊停电时，作者可以为隔壁写一条不同的观察。事件表单从作品读取日历、地点、持有物和唤醒角色，按已启用的状态脚本与模块列出通知来源操作。表单和 CLI 保存同一种事件声明，经 SDK 解析后导出，接收者仍由正式事件运行时判定。[世界事件表单](../guides/world-workbench.md#选择世界事件的触发与观察范围) · [候选与反向引用](../../../apps/host/src/editor/event-options.ts)
+
+阿林在开场露出笑容时，工作台把她的初始表情连到本角色的表情记录，拼合图贴片按所选图片的行列提供格子。浏览器和 CLI 共用素材路径、候选与编辑命令。保存使用默认舞台解析器核对几何范围和图片引用，导出再对已生成的活动核对开场操作。美术与布局用于呈现，玩家的合法活动操作仍由宿主提供。[舞台表单](../guides/world-workbench.md#给角色配立绘和初始表情) · [舞台配置读写](../../../apps/host/src/editor/stage.ts)
+
+作者可以从独立工作台创建玩家、同行者和同场开局，再通过正式 Host 用一轮对白验证。工作台按清单列出的文件读取基础记录，修改时根据稳定 ID 和字段原值写回对应记录；角色新增后的默认认知、记忆沿用编译器规则。浏览器和无头命令共用字段和候选，同一工作区的保存通过短时文件锁串行处理。当前表单、外部创作 CLI、限定范围的反向引用和真实开局用法见[整包创作工作台](../guides/world-workbench.md)。
+
+阿林知道柜号，玩家不知道。作者把阿林选为事实受众后，编译器在她的开局判断中写入命题。观察、判断等初始认知也按角色装入。工作台和 CLI 复用同一套字段声明、引用候选与保存操作，在临时副本通过正式包校验后再写入清单指定的源文件。[开局表单与 CLI](../guides/world-workbench.md#设置谁在开局就知道一件事) · [源文件读写](../../../apps/host/src/editor/world-setup.ts)
+
+玩家可给异地的阿林发信，能否收到她主动发来的信由相反方向的联系人记录决定。「角色通讯录」让作者从两端勾选同一组有向联系人。新包启用官方通信只创建空通讯录。保存和导出使用角色 ID 及正式通信规则校验关系，玩家收发仍走 Host 的消息入口。[通讯录工作台](../guides/world-workbench.md#设置单向或双向通讯录) · [配置读写](../../../apps/host/src/editor/communication.ts)
+
+玩家在门廊说话，可以让在另一房间的阿林获得自主处理机会。工作台从正式活动定义、玩法与状态操作以及已保存活动图读取候选，经官方自主策略解析后保存。开局由 Host 分派机会并检查角色允许执行的行动。相关测试检查了异地角色实际收到一次自主请求，并核对请求里的对白可见性。[自主机会表单](../guides/world-workbench.md#给角色设置主动行动的机会) · [配置与候选](../../../apps/host/src/editor/autonomy.ts)
+
+玩家向遗迹守卫施放火球时，魔力和生命的变化都由官方 RPG 插件裁定。工作台与外部 Agent 使用同一套玩法配置和保存命令，保留包内实际配置路径。开启 RPG 会登记其官方依赖，保存会用正式导出校验候选配置。无头试玩从实际可用操作提交，交互试玩打开相同 Host 的玩家舞台。见[玩法工作台](../guides/world-workbench.md#配置和试玩一场-rpg-遭遇)、[配置与保存](../../../apps/host/src/editor/rpg.ts)和[试玩](../../../apps/host/src/editor/rpg-play.ts)。
+
+玩家搜查门廊时，流程图和专属页面都按同一活动操作读取最新精力。选项的 `ruling` 可用表单定义消耗或引用包内 JavaScript。成功后，扣费、结果赋值与活动进度走现有活动提交路径。编辑器和 CLI 共用声明、读取及保存入口。导出把引用的函数编入活动，裁定源文件可单独修改。见[操作裁定](../guides/activity-editor.md#给选项添加裁定)、[声明校验](../../../apps/host/src/editor/adjudication.ts)和[裁定代码生成](../../../apps/host/src/editor/adjudication-code.ts)。
+
+门廊断电后，只有阿林有机会从世界书得知备用灯的位置。投放使用官方知识选择器，依次检查角色受众、该角色已知上下文上的条件、关键词和预算。作者工作台将文档元数据、Markdown 与投放配置合为一条记录，两端按字段保存。对照试玩把同一句发言送入独立新档，读取该步脚本化模型传输实际收到的知识条目，结果只含角色和命中情况。实现见[知识编辑与导出](../../../apps/host/src/editor/knowledge.ts)、[投放对照试玩](../../../apps/host/src/editor/knowledge-play.ts)和[运行时选择器](../../../packages/providers/src/knowledge/selection.ts)。
+
+市集委托条目能从原生 `self.quests.market.stage` 条件读回记录键和枚举。工作台和外部 CLI 通过同一字段目录选择角色、地点、物品、已知状态、活动变量和本次刺激。组合条件导出为知识插件原有的对象 Schema，活动变量附带所属活动键，每一项比较都要求路径存在。受众和条件仍在角色请求的已授权视图上计算。实现见[字段目录](../../../apps/host/src/editor/knowledge-fields.ts)和[条件读写](../../../packages/world-pack/src/editor-knowledge.ts)。
+
+门廊断电以后，读信活动可以收起「在灯下继续读」选项。带有世界变量条件的生成脚本显式声明 `readsStatus`，Host 和核心在选项策略中只投影该行动者已经知道的公共值。共享、私有和内部的活动变量各自使用现有活动状态分区。世界变量赋值通过已有的活动状态结果与进度一起裁定。事件试玩从已提交回合的发生记录读取规则键和唤醒名单，再按同一事务和发生 ID 对照个人观察。规则草稿和标准源包之间的转换见[规则源文件处理](../../../apps/host/src/editor/rule-source.ts)，保存与引用检查见[规则编辑命令](../../../apps/host/src/editor/rules.ts)。
+
+在门廊向阿林求助时，活动可以按当前玩家的可见角色提供选项。显式设置 `readsScene: true` 的活动，其 `policy` 同时取得执行者可见的角色 ID 和本人持有的物品 ID。Host 展示选项与核心提交前的复核共用这套投影。独立编辑器和无头 CLI 共享活动图、条件候选、三方合并保存和导出入口。试玩用正式 Host 和临时存档验证活动。操作与适用范围见[活动编辑器](../guides/activity-editor.md)，实现见[编辑命令](../../../apps/host/src/editor/commands.ts)和[活动策略输入](../../../packages/core/src/application/activity-state.ts)。
+
 2026-11-17 核对：以重构后的 main `97d4dcde` 为基线，普通观察与通用唤醒机会合并时优先普通预算；后台竞争时减少可选调用预留，最后一次普通调用仅允许表达。玩家操作提交通过请求自身的回调确认，前端按 actionId 解除提交锁，复用统一视图字段清单；核心硬预算、权限和周期结算判定保留。例子、测试与真实模型短测见[主干调度优化](../studies/2026-11-17-main-scheduling-responsiveness.md)。
 
 
@@ -60,6 +104,8 @@ RPG Maker 方向暂停继续扩展自研 RPG Core 战斗规则。[桥接骨架](
 
 2026-10-24 创作资源：仓库的 [perspectra-creator](../../../skills/perspectra-creator/SKILL.md) 通过 [CLI 构建函数](../../../scripts/build/build-worldpack-cli.mjs)复制到程序的同名 skills 目录，整合原创世界包、旧 tavern-to-perspectra 的静态卡片提取／容量分析及迁移流程、原生预设创作与模板。脚手架使用随包 Node，卡片提取使用随包 Python；不执行原卡脚本，不依赖旧 Skill 或仓库。它不增加运行时插件或预装试玩包。[Skill 检查脚本](../../../scripts/release/verify-creator-skill.mjs)在独立环境验证脚手架、防覆盖、文档示例、合成 PNG／JSON 卡的数据保留，以及原生预设模板和非法字段／宏拒绝；真实迁移作品与角色体验仍需单独验收。
 
+例如阿林和小余同属「门廊来客」，给阿林单独写一个角色提示后，作者可在[整包创作工作台](../guides/world-workbench.md)的同场试玩中比较两人的实际请求。[预设编辑命令](../../../apps/host/src/editor/presets.ts)读写包推荐、专属与组预设的作者草稿，保存、导出和 Launcher 分配共同校验成员资格。[角色请求对照](../../../apps/host/src/editor/preset-play.ts)从导出快照启动正式 Host，使用本地固定响应并读取实际请求检查记录，按角色返回预设来源、生成参数及展开的预设消息。实例预设与全局设置由 Launcher 管理。
+
 预设创作可让同行者少写总结、保留自己的语气；不会授予其读取信件秘密的权限。CLI 进程新增 `preset validate <file> [--pack]`，直接复用 [rolePreset](../../../packages/providers/src/chat/preset.ts) 和[预设库导入](../../../packages/providers/src/chat/preset-library.ts)校验；包推荐模式只接受裸 RolePreset，预设库模式支持交换格式。它只检查字段、宏与正则语法，不执行文本替换、不写入预设库、不证明风格效果。世界包 validate 仍不自动加载预设扩展，需分别检查；详见[预设创作](../../../skills/perspectra-creator/references/presets.md)。
 
 2026-10-24 创作校验入口：例如作者修改同行者拿钥匙的作品后，可在程序目录调用 `worldpack.cmd validate <源目录>`，让创作 Skill 读取退出码及 JSON 诊断。便携构建复用 [CLI 进程入口](../../../apps/host/src/cli/worldpack.ts)和[构建函数](../../../scripts/build/build-worldpack-cli.mjs)，随包 Node 与 jieba-wasm 执行，不依赖创作者的源码环境；`--version` 给出程序与格式版本，`--help` 说明范围。B7 起 CLI 执行所选定义的元数据及纯配置校验，包内共同定义在 VM 中读取；不执行玩法行动或启动完整宿主；`test` 仅编译适配，不执行声明断言。独立目录、空 PATH、中文和空格路径以及错误码已由[隔离检查](../../../scripts/release/verify-worldpack-cli.mjs)覆盖；这次不涉及角色协议，也未据此声称真实模型体验或完整发行包通过。操作见[创作指南](../guides/world-pack-authoring.md#6-校验与试玩)。
@@ -118,7 +164,7 @@ World Pack 用于定义人物、地点、物品、认知、场景、叙事与 In
 
 玩家点“静观”（让这一轮过去）时，不论 triggers 怎么写，都算一次符合条件的玩家回合：例如 triggers 只写了“拿起钥匙”的角色，玩家静观时也会按 everyPlayerTurns 的节奏得到机会。静观本身不产生任何可观察的内容，所以角色拿到的新刺激为空，只能凭自己的目标和处境行动。静观要求包有状态脚本（轮次记在那里），活动进行中不提供。
 
-同一玩家事务在同一计数组里即使匹配多个条件也只计一次；单独计数的条件各算各的。包透视的角色卡把这些行为写成一句，例如“玩家每完成 1 次下列行为，给她 1 次主动机会：活动「日程」的「推进到下一个时段」、移动到别处（每 3 次单独计）；玩家静观也算一次。其他行为不计数。”宿主从完整已提交事件及现有行动记录推导次数，不使用世界 tick，不另存计数器；节点、分叉与末端候选随同一事件前缀恢复。取消、沉默、预算未覆盖的机会不补发、不积攒，不恢复未提交队列。
+同一玩家事务在同一计数组里即使匹配多个条件也只计一次；单独计数的条件各算各的。宿主从完整已提交事件及现有行动记录推导次数，不使用世界 tick，不另存计数器；节点、分叉与末端候选随同一事件前缀恢复。取消、沉默、预算未覆盖的机会不补发、不积攒，不恢复未提交队列。
 
 默认每个自主机会最多一次受控操作及结果续写；有调用余量时可主动召回补问。作者交互和区域限制同时过滤 affordances 并在 Rulebook 裁定时检查，不能靠直接模型参数绕过；声明也不能凭空提供未注册的交互或包内操作。自定义交互中的所有业务语义仍由其实现负责，运行时不解析自由文字来证明目标已完成。
 
@@ -134,6 +180,8 @@ Interaction 定义和绑定提供玩法可选行为，规则负责重要状态�
 
 ## 包内活动
 
+例如，玩家拿着开信刀且门廊有电时可以展开便笺。低代码活动将「全部满足」或「满足任一项」保存为一层 `all` 或 `any`。成员可引用在场角色、持有物品、可读世界变量、共享或当前行动者的活动变量。流程图和外部 Agent CLI 使用相同的图与保存校验。生成脚本用玩家视图过滤可选操作，正式执行再以实际场景、持有者和规则状态裁定。物品与变量的反向引用可定位到具体成员。活动试玩可以指定条件中公共变量的开局值，并执行包里已有的拾取操作。见[活动编译](../../../apps/host/src/editor/activity-graph.ts)和[三组试玩起点](../guides/activity-editor.md#让展开便笺同时检查物品和灯光)。
+
 例如作者可以固定与同行者猜数字，也可以让玩家选择邀请留守者约会；被邀请者自己通过操作接受或拒绝。当前活动桥位于实验宿主。可信本地脚本声明 title、operations，以及固定 npcIds 或动态 participants（player-select、人数与可选候选白名单），可选 opening 作为玩家看到的开场文案（参与者仍收到固定开场行）；initialize 收到本次实际选定的 npcIds，policy 决定各主体表达／操作许可，resolve 同步裁定。`schedule(state)` 与 `onOutcome(result, state)` 接收完整已提交活动状态，包括 internal 和所有参与者的 private，只返回 wait 或一次参与角色激活，不把这些输入传给角色或前端。policy、resume 仍读取对应主体的授权视图。可选 simulate(request) 只接收本次角色的授权请求，为该角色提供局部固定演出决策，null 表示调用真实模型；不因此获得完整活动状态，仅替换响应来源，不改变预设输出处理、格式校验、Rulebook、事务提交或观察分发。源码见[活动桥](../../../apps/host/src/runtime/activity-runtime.ts)。
 
 每场最多 8 个 NPC，玩家身份由宿主绑定，开始时参与者须存在且属于玩家当前授权场景；动态名单开始后固定，暂停与恢复保留同一名单。状态 public 只在参与者间共享，private 仅给对应角色，internal 不进入角色视图；脚本不能直接写世界或调用模型。活动结果按参与者或 self 投递，非参与者不获得活动视图、许可限制或活动调度资格，仍按普通交流和行动的观察权限知情。结果范围 self 只限制结果收件人，不能补救把秘密写进 public 的错误。接口例子和旁观者边界见[活动指南](../guides/activity-and-variables.md)。
@@ -146,26 +194,19 @@ Interaction 定义和绑定提供玩法可选行为，规则负责重要状态�
 
 2026-10-24 创作边界澄清：例如作者可以在送礼后写入角色专属的心动印象，引导接下来的反应，也可以显式编排剧情与固定演出。尊重角色主体性不要求每个游戏包都采用完全自主的感情发展；作者可以用已有状态与活动机制影响角色，仍须遵守信息接收范围，以及位置、物品等权威事实的正式提交规则。[屋檐下的心动日程](../../../examples/world-packs/model-girls-sweet-days/README.md)保留这种引导，弱化部分绝对结论；这些包内选择不构成引擎对其他作者的限制。
 
-## 包透视与桩模型推演（2026-10-31，当前源码）
+## 离线推演与编辑器试玩
 
-例如作者想知道“深夜冰箱”为什么没触发：把起点设成“傍晚，玩家走进厨房”，推演逐步列出玩家移动被规则接受、自动事件检查里“时段是深夜”为 ✘，角色没有被叫醒，回合结束钩子推进了时间；作者不必开游戏，也不必读脚本。
+作者可用 `worldpack simulate <源目录> <剧本.json>` 验证活动触发与结果。Host 读取当前草稿，在临时副本中启动正式运行时，用脚本模型执行步骤。结果包含动作裁定、状态变化与各角色收到的观察，剧本断言失败时退出码为 2。[剧本执行](../../../apps/host/src/simulation/scenario.ts) · [临时副本与运行时](../../../apps/host/src/simulation/simulation.ts)
 
-[apps/host/src/lens](../../../apps/host/src/lens) 把世界包源目录变成只读视图，并在一份临时副本上启动**真实的** [WorldHostRuntime](../../../apps/host/src/runtime/world-runtime.ts)，只做两处替换：数据目录是临时目录，模型是[桩](../../../tests/support/stub-model.ts)（角色默认弃权，或照推演计划说话、尝试行动，仍经规则裁定）。没有另写一套简化规则；起点（状态初始值、场景位置、跳过的自动开场活动）是在运行时启动前改写临时副本里的初始数据，不在运行中途写入事实。宿主为此新增了只读接口：[ActivitiesRuntime](../../../apps/host/src/runtime/activities-runtime.ts) 报告每个 autoStart 活动的逐条检查（`lastAutoStart` 取最近一轮，`evaluateAutoStart` 按已提交状态重算且不开始任何活动）和活动声明，没有检查结果时用 `skipped` 说明原因（有活动在进行、活动有暂停进度、hook 返回 null）；ActivityRuntime 接受 `when` 里的 `[标签, 布尔值]`，标签不改变触发语义。
+编辑器的活动流程图、规则与 RPG 配置还可在对应表单试玩。角色对白与表现仍需用真实模型验收。[活动编辑](../guides/activity-editor.md) · [工作台](../guides/world-workbench.md)
 
-文件分工：[view.ts](../../../packages/world-pack/src/lens/view.ts) 生成按分类、有稳定 id 的条目列表，[diff.ts](../../../packages/world-pack/src/lens/diff.ts) 按条目比较，[store.ts](../../../apps/host/src/lens/store.ts) 在包源目录的 `.perspectra-lens/` 里保存“已看过”快照、命名对比点、待改清单与推演脚本，[scenario.ts](../../../apps/host/src/lens/scenario.ts) 解析并执行推演脚本，[session.ts](../../../apps/host/src/lens/session.ts) 把一次打开的视图、基准、清单与一个推演串行起来，供 [LauncherCore](../../../apps/launcher/backend/core.ts) 的 `lens-*` 操作和 [Launcher 透视窗口](../../../apps/launcher/src/lens/LensWindow.vue)使用；[cli.ts](../../../apps/host/src/lens/cli.ts) 是 AI 用的只读命令行（`worldpack.cmd lens view|requests|simulate`）。只有窗口的“已看过”能移动基准，只有窗口能新增或关闭待改条目。
+物品记录可以直接查看一把钥匙在哪张地图掉落、哪个出口需要它，并跳转到相应配置。工作台和 CLI 共用[物品用途查询](../../../apps/host/src/editor/item-uses.ts)和[物品操作保存](../../../apps/host/src/editor/item-actions.ts)。[掉落与通行试玩](../../../apps/host/src/editor/rpg-exit-play.ts)在导出的临时包内经过玩家实际可用的战斗、拿起、开锁和移动入口，并核对拒绝原因和抵达地点。
 
-2026-11-01：透视从 Launcher 窗口里的面板改成独立的本机网页，这样作者能和 AI 的窗口并排看，长操作也不再占住 Launcher 的请求队列，不用先载入包，校验失败的包也能看到原因。[server.ts](../../../apps/host/src/lens/server.ts) 只监听 127.0.0.1，令牌随 `#token=` 传给页面（和创作者页面同样的做法），会话在页面请求时才打开，文件监听发现包改动后由页面提示“重新读取”。页面入口在 [apps/launcher/src/lens/main.ts](../../../apps/launcher/src/lens/main.ts)，单独构建到 `dist-lens`，发行包复制到 `runtime/lens-assets`。Launcher 的 `lens-open` 只负责启动服务并返回地址，由 Rust 校验后交给系统浏览器；原来逐项转发的 `lens-*` 操作已删除。
+二层宝箱药水可从物品记录选择恢复属性，装备从包内已有槽位选择，角色记录可就地创建槽位。保存仍使用现有 RPG 配置路径和冲突校验。药水试玩用推演的临时起始数值核对真实拾取、恢复和用尽状态，装备对照从玩家技能那次提交读取目标生命。见[工作台操作](../guides/world-workbench.md#给宝箱药水配置恢复效果)和[物品试玩](../../../apps/host/src/editor/rpg-item-play.ts)。
 
-2026-11-07（一次从零创作走查后）：例如小林的推演计划是“拿蛋糕、吃蛋糕”，拿完后的跟进机会只允许说话，以前桩模型照样交出“吃”，运行时把它当无效输出丢掉，不留记录。现在 [simulation.ts](../../../apps/host/src/lens/simulation.ts) 读请求里的 `canPerform`，把行动留到她下一次机会；计划对不上她当时的选项时，按玩家步骤同一套匹配列出可用项。这两种情况都在逐步经过里记一条 `plan` 行。推演结果带 `passed` 和 `unusedNpcPlans`，没通过时 CLI 退出码为 2。`worldpack --help` 新增 `lens` 一项。推演临时目录不可写时，报错写出目录和可能原因。运行时本身没有改动。
+玩家在卧室休息、战败回家或和澄同行时，工作台与 CLI 均从同一份 RPG 源配置读取规则。两端的试玩在临时包内通过 Host 操作执行，核对状态属性、活动结束阶段、参与者位置和队伍名单。见[配置与操作](../guides/world-workbench.md#设置卧室休息战败回家和同伴随行)和[试玩实现](../../../apps/host/src/editor/rpg-journey-play.ts)。
 
-2026-11-08：推演每一步多了 `perceived`，按角色列出这一步进入她授权视图的观察。它直接用 [CharacterViewBuilder](../../../packages/core/src/store/character-view.ts) 在已提交事件上构建，和角色调用拿到的是同一份，透视没有另写一套“谁该知道”的判断。观察内容按说话、移动、带 `resultDescription` 的行动结果转成一行文字，其余形状原样显示为 JSON。脚本期望新增 `knows` / `doesNotKnow`，按子串匹配该角色到目前为止的全部观察。透视是作者工具，能看到所有角色的视图；这不改变角色之间的权限边界。
-
-作者操作与用法见[包透视指南](../guides/pack-lens.md)。边界：
-
-- 源码已接通：上述全部。自动测试：`tests/host/lens-*.test.ts`、`tests/desktop/lens-launcher.test.ts`、Launcher 的 `apps/launcher/src/lens/store.test.ts`，以及 `scripts/release/verify-worldpack-cli.mjs` 的 `lens view` 冒烟。
-- 待验收：真实 Tauri 窗口配真实包的操作；随发行包使用 `lens.mjs`（构建脚本已加入，需要 `PERSPECTRA_RUNTIME_ROOT` 指向运行目录）；AI 实际按清单改一轮；NPC 按 `npcOptions` 里的选项实际执行一遍。
-- 推演不证明体验：桩模型不产生真实对白，角色是否自然、有没有主体性仍靠真实模型试玩。
-- 限制：不自动分叉试跑每个活动选项；不翻译脚本代码，条件说明只来自作者写的标签和运行时结果；“复制给 AI”只复制当时的清单文本。
+澄在第二轮说「再来一发」并施放火球时，地图编辑器、活动流程图和 CLI 都从同一份 `maps[].scripted` 推导节点与字段候选。试玩用提交前的活动版本确定出手回合，以活动结算和角色公开发言分别验证技能和台词。官方战斗裁定可按当前作者演出所指的技能与敌人 ID 区分同名记录。见[演出试玩](../../../apps/host/src/editor/rpg-cue-play.ts)和[操作示例](../guides/world-workbench.md#把澄的第二次火球移到第-2-轮)。
 
 ## RPG 玩法（2026-11-08，分支 feat/rpg-plugin）
 
@@ -173,7 +214,7 @@ Interaction 定义和绑定提供玩法可选行为，规则负责重要状态�
 
 官方机制包 [official-rpg](../../../packages/plugins/src/rpg) 由清单 plugins 选择，读取锁定的 rpg.json（或显式 config 路径），展开原生状态、地图活动、限制与派生定义。必须同时显式选择 official-dice。Host 的 [pack-content.ts](../../../apps/host/src/runtime/pack-content.ts) 负责通用装载，规则由共同执行边界裁定。存档用 gameplayData 的插件身份及数据版本检查兼容，代码／配置摘要仅用于尾部候选环境比较；分享和读档继续核对实际状态。详见 [B6 记录](../../superpowers/plans/2026-11-15-composable-engine-b6-rpg-trpg.md)与 [B7 记录](../../superpowers/plans/2026-11-15-composable-engine-b7-packs.md)。未把源码和自动化结果视作真实模型或发行验收。
 
-2026-11-08 建立的 ctx.content 接缝继续使用。B7 将内容发现改为按 plugins 显式选择，不再根据根目录 JSON 中的 plugin 字段自动装载。所选插件需已安装、版本匹配并被允许执行；未选择的玩法不会因配置文件存在而启动。纯校验由声明式 Schema 和注入的 validateConfig 执行，不调用 generate；宿主打开时才展开原生定义并检查重复注册。第三方元数据传入开档、尾轮、分享与 Lens 预检，避免后续入口遗失同一选择。Lens 的 RPG 只读视图仍属于其自己的展示逻辑。
+2026-11-08 建立的 ctx.content 接缝继续使用。B7 将内容发现改为按 plugins 显式选择，不再根据根目录 JSON 中的 plugin 字段自动装载。所选插件需已安装、版本匹配并被允许执行；未选择的玩法不会因配置文件存在而启动。纯校验由声明式 Schema 和注入的 validateConfig 执行，不调用 generate；宿主打开时才展开原生定义并检查重复注册。第三方元数据传入开档、尾轮、分享与推演预检，避免后续入口遗失同一选择。
 
 ## 跑团玩法（2026-11-09，分支 feat/rpg-plugin）
 
@@ -183,7 +224,9 @@ Interaction 定义和绑定提供玩法可选行为，规则负责重要状态�
 
 ## 创作入口与限制
 
-先看[字段手册](../guides/world-pack-authoring.md)、[试玩步骤](../guides/creator-playtest.md)和[自定义网页](../guides/web-ui.md)。`frontend/` 含 index.html 时须带 manifest.json，使用 iframe 公共玩家接口；只放 theme.css、portraits/、backgrounds/ 与 stage.json 时沿用官方舞台，不需要 manifest。未提供时使用官方默认模板。这些前端资源不改变世界包编译身份；新实验使用独立数据目录。
+在已有遗迹包里，作者可给一项技能添加护盾和净化。在新世界里，同一套字段控件也可以建跑团剧本，把一封信放进已登记的剧本地点。控件读取官方插件的配置声明来显示必填、选填、枚举、对象、列表及可切换的效果类型。实际保存依次校验完整包、检查源文件是否已被外部修改并写回。浏览器和 CLI 读取同一份角色、技能、状态、地点候选。相关实现见[字段候选](../../../packages/world-pack/src/editor-config.ts)、[配置保存](../../../apps/host/src/editor/mode-source.ts)及[跑团入口](../../../apps/host/src/editor/trpg.ts)。
+
+先看[字段手册](../guides/world-pack-authoring.md)、[试玩步骤](../guides/creator-playtest.md)和[自定义网页](../guides/web-ui.md)。`frontend/` 含 index.html 时须带 manifest.json，使用 iframe 公共玩家接口；只放主题、美术、舞台配置或活动页面资源时沿用默认前端。`frontend/activity-pages.json` 可按活动键绑定本地 HTML 和可选 CSS。活动进行时 Host 在独立的禁脚本 iframe 内显示它，向声明式标记填入玩家可见字段与当前活动选项。工作台和 CLI 共用绑定、候选、导入与预览入口。每个已命名元素可按当前 PlayerView 的标量、物品、操作或阶段做条件展示。宿主在视图变化时更新可见性、CSS 类与本地图片，并把已绑定按钮接到现有 perform 路径。见[活动专属舞台](../guides/activity-stages.md)。未提供时使用官方默认模板。这些前端资源不改变世界包编译身份；新实验使用独立数据目录。
 
 随包 Skill 与宿主应按同一次构建使用。产品 0.3.1、源格式 v5 和编译器 0.5.0 相同，也不能证明完整活动状态调度等 10-28 新增能力可用；应核对 build-info 与当次验收记录。仓库文档和 Skill 的更新不会修改已发布的 candidate4，所需随包文档与构建步骤见[构建说明](../../../scripts/release/BUILD.md)。
 
@@ -237,11 +280,11 @@ NPC 固定台词发表时，可选 `onPublished(state, actorId, expression)` 返
 
 ## B9 无头推演接线（2026-11-15）
 
-玩家搜查后精力减少、线索进入自己的面板，同房澄仅看到翻找。`worldpack simulate <source> <scenario.json>` 与 Lens 共用 `runScenario`；`LensSimulation` 通过 `WorldHostRuntime.create/perform/submit` 接到 `WorldApplication.createExecutionEngine` 与正式周期。`ScriptedModel` 仅实现现有 `llmTransport`，保留官方预设与 Default DecisionService 授权组装；这条路径不启动 HTTP 模型桩、不读取真实模型凭据。
+玩家搜查后精力减少、线索进入自己的面板，同房澄仅看到翻找。`worldpack simulate <source> <scenario.json>` 调用 `runScenario`；`LensSimulation` 通过 `WorldHostRuntime.create/perform/submit` 接到 `WorldApplication.createExecutionEngine` 与正式周期。`ScriptedModel` 仅实现现有 `llmTransport`，保留官方预设与 Default DecisionService 授权组装；这条路径不启动 HTTP 模型桩、不读取真实模型凭据。
 
 结果包含逐步真实裁定、角色观察、实际模型输入和玩家玩法投影。状态回放直接读临时 SQLite 的已提交事件，包含共同玩法状态；候选缺失和正式拒绝分开处理。`fault` 匹配实际插件故障，状态断言检查失败后未提交的效果；`contextExcludes` 必须有实际请求才可通过。全部输出属于作者诊断，不回流角色共享上下文。
 
-[搜证示例](../../../examples/world-packs/investigation/README.md)包含显式启用、实现和三步剧本。计时与实际验证见 [B9 记录](../../superpowers/plans/2026-11-15-composable-engine-b9-simulation.md)；实际 HTTP 桩仍留在旧测试支持文件，不在新的 Lens 执行路径中。没有实施 B10 包迁移或 B11 真实模型／发行验收。
+[搜证示例](../../../examples/world-packs/investigation/README.md)包含显式启用、实现和三步剧本。计时与实际验证见 [B9 记录](../../superpowers/plans/2026-11-15-composable-engine-b9-simulation.md)；实际 HTTP 桩仍留在旧测试支持文件，不在无头推演执行路径中。没有实施 B10 包迁移或 B11 真实模型／发行验收。
 
 
 ## B11：作者定义在真实模型中的消费（2026-11-16）

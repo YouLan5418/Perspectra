@@ -1,0 +1,11 @@
+{
+  "schemaVersion": "worldpack-entities/v2",
+  "entities": [
+    {
+      "entityId": "entity:opener",
+      "locationId": "location:start",
+      "name": "开信刀",
+      "kind": "tool"
+    }
+  ]
+}

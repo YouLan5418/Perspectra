@@ -373,6 +373,25 @@ export const MOCK_HISTORY: CreatorHistoryItem[] = MOCK_EVENTS.map(event => {
           })),
     relatedSeqs: [],
     entityChange: MOCK_ENTITY_CHANGE[event.seq] ?? null,
+    ...(event.eventType === 'character.moved'
+      ? {
+          movement: {
+            from: data.fromLocationId,
+            to: data.toLocationId,
+            party: 'disabled',
+            rosterSeq: null,
+            source: 'unrecorded',
+            initiator: null,
+            role: null,
+            moduleId: null,
+            activity: null,
+            operation: null,
+            phase: null,
+            hook: null,
+            rule: null,
+          },
+        }
+      : {}),
     transaction: transaction as never,
   } as unknown as CreatorHistoryItem
 })
@@ -883,6 +902,8 @@ export function mockDebug(characterId?: string): CreatorInspectionSnapshot {
   return {
     capturedAt: new Date().toISOString(),
     pacing: null,
+    pacingDiagnostics: null,
+    worldEvents: [],
     address,
     worldVersion: '0.1.0-preview',
     title: '雪夜旅店',
@@ -895,6 +916,14 @@ export function mockDebug(characterId?: string): CreatorInspectionSnapshot {
     captureEnabled: true,
     characters,
     entities,
+    statusOperations: {
+      limit: 128,
+      operations: [
+        { id: 'status:unlock', label: '打开门闩', actors: 'player', offeredToPlayer: false },
+        { id: 'status:inspect', label: '检查钥匙', actors: 'any', offeredToPlayer: true },
+      ],
+      policyErrors: {},
+    },
     statusTruth: {
       public: { timeOfDay: '深夜', gateOpen: false },
       characters: { 'character:lin': { energy: 74 }, 'character:lu': { energy: 52 } },

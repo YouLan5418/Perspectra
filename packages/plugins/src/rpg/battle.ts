@@ -186,7 +186,18 @@ function cloneGame(value: unknown): MapBattleGameState {
 export function createRpgMapBattleHooks(config: MapBattleConfig): ActivityHooks {
   const playerId = config.playerId
   const party = [playerId, ...config.npcIds]
-  const nameOf = (id: string): string => config.names[id] || id
+  // Target buttons and their schema share display names. Distinguish homonyms within this encounter only.
+  const unitsById = [...party.map(id => ({ id, name: config.names[id] || id })), ...config.enemies]
+  const reserved = new Set(unitsById.map(u => u.name))
+  const battleNames = new Map<string, string>()
+  for (const unit of unitsById) {
+    if (!unitsById.some(other => other.id !== unit.id && other.name === unit.name)) continue
+    let label = unit.name + ' · ' + unit.id
+    while (reserved.has(label)) label += '·'
+    reserved.add(label)
+    battleNames.set(unit.id, label)
+  }
+  const nameOf = (id: string): string => battleNames.get(id) || config.names[id] || id
   const statLabel = (key: string): string => config.stats.find(stat => stat.key === key)?.label ?? key
   const skillById = (id: string): RpgSkill | undefined => config.skills.find(skill => skill.id === id)
   const statusById = (id: string): RpgCombatStatus | undefined => config.combatStatuses[id]
@@ -210,7 +221,7 @@ export function createRpgMapBattleHooks(config: MapBattleConfig): ActivityHooks 
     valueSkillProblem(skill, valueDefs, game.internal.values?.units[actor] ?? {}, ref =>
       readValue(game, actor, actor, ref),
     )
-  const enemies = config.enemies
+  const enemies = config.enemies.map(e => ({ ...e, name: battleNames.get(e.id) ?? e.name }))
   const enemyName = (id: string): string => enemies.find(enemy => enemy.id === id)?.name ?? id
   const unitNames = [...party.map(nameOf), ...enemies.map(enemy => enemy.name)]
   const skillNames: string[] = []
@@ -974,17 +985,25 @@ export function createRpgMapBattleHooks(config: MapBattleConfig): ActivityHooks 
 
       if (operation === 'skill') {
         const actorConfig = config.characters[actorId]
-        const used = config.skills.find(
-          skill => skill.name === parameters.skill && actorConfig?.skills.includes(skill.id),
-        )
-        if (!used) return reject('你没有学会这个技能。')
-        const victim = units.find(unit => unit.name === parameters.target)
+        // Published operations carry display names. An outstanding authored cue also identifies its skill and target by ID.
+        const cueSkill = skillOf(cueNow)
         const scripted =
-          cueNow !== undefined &&
-          cueNow.skill === used.id &&
+          !!cueNow &&
+          !!cueSkill &&
+          cueNow.characterId === actorId &&
+          actorConfig?.skills.includes(cueSkill.id) === true &&
+          cueSkill.name === parameters.skill &&
           (!cueNow.target || enemyName(cueNow.target) === parameters.target) &&
           !pub.said.includes(cueNow.index) &&
           !pub.noted.includes(cueNow.index)
+        const used = scripted
+          ? cueSkill
+          : config.skills.find(skill => skill.name === parameters.skill && actorConfig?.skills.includes(skill.id))
+        if (!used) return reject('你没有学会这个技能。')
+        const victim =
+          scripted && cueNow.target
+            ? units.find(unit => unit.id === cueNow.target)
+            : units.find(unit => unit.name === parameters.target)
         const heal = onlyHealing(used)
         const validTarget = (unit: BattleUnit | undefined): unit is BattleUnit =>
           Boolean(

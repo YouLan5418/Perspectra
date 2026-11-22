@@ -1,4 +1,11 @@
-import type { CharacterView, StoredWorldEvent, WorldAddress, WorldJsonObject } from '@perspectra/sdk/contracts'
+import type {
+  AutoStartCheck,
+  CharacterView,
+  StoredWorldEvent,
+  WorldAddress,
+  WorldJsonObject,
+} from '@perspectra/sdk/contracts'
+import type { EventRule, PacingCandidate, PacingChoice } from '@perspectra/sdk'
 import type { InspectedRequest } from '@perspectra/providers/chat'
 
 /** Host-only read API. No paths, provider configuration or arbitrary commands accepted. */
@@ -7,6 +14,40 @@ export interface CreatorInspectionQuery {
   afterSeq?: number
   limit?: number
   memoryOffset?: number
+}
+export interface EventRuleCheck {
+  seq: number
+  round: number
+  result: 'round' | 'clock' | 'clock-invalid' | 'clock-window' | 'activity' | 'ready'
+}
+export interface InspectedEventRule {
+  rule: EventRule
+  lastCheck: EventRuleCheck | null
+  occurrence: {
+    id: string
+    seq: number
+    cycle: string
+    pacedRound: number | null
+    clockTransaction: string | null
+    witnesses: { id: string; seq: number; notice: string; wake: 'pending' | 'claimed' | 'completed' | null }[]
+    deliveries: { plugin: string; mode: 'live' | 'durable'; receipt: boolean }[]
+  } | null
+}
+export interface InspectedPacingDecision {
+  id: number
+  cycle: string
+  seq: number
+  round: number
+  busy: boolean
+  candidates: readonly PacingCandidate[] | null
+  beats: { id: string; checks: readonly AutoStartCheck[]; error?: string }[]
+  choice: PacingChoice | null
+  occurrenceId?: string
+  skipped?: 'activity-in-progress' | 'unmanaged-activity'
+  priorityActivity?: string
+  lastFired?: PacingCandidate & { round: number }
+  lastProgressRound?: number
+  error?: string
 }
 export interface CreatorInspectionSnapshot {
   capturedAt: string
@@ -41,6 +82,13 @@ export interface CreatorInspectionSnapshot {
   }[]
   /** Why the last round did or did not bring an event. */
   pacing: WorldJsonObject | null
+  pacingDiagnostics: { enabled: boolean; managedEvents: readonly string[]; decisions: InspectedPacingDecision[] } | null
+  worldEvents: InspectedEventRule[]
+  statusOperations: {
+    limit: number
+    operations: { id: string; label: string; actors: 'player' | 'npc' | 'any'; offeredToPlayer: boolean }[]
+    policyErrors: Record<string, string>
+  } | null
   statusTruth: { public: WorldJsonObject; characters: Record<string, WorldJsonObject> } | null
   activities: WorldJsonObject[]
   events: { items: StoredWorldEvent[]; nextAfterSeq: number; hasMore: boolean }

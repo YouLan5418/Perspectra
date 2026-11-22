@@ -6,7 +6,7 @@ import { assembleRoleplay, officialRpgContent, type WorldComposition } from '../
 import { loadActivitySource } from '../../apps/host/src/runtime/activity-source.ts'
 import { PackModules } from '../../apps/host/src/runtime/pack-modules.ts'
 import { loadPackContent } from '../../apps/host/src/runtime/pack-content.ts'
-import { LensSimulation } from '../../apps/host/src/lens/simulation.ts'
+import { LensSimulation } from '../../apps/host/src/simulation/simulation.ts'
 import { copyRpgFixture, openRpgWorld } from '../support/rpg-fixture.ts'
 
 const CHENG = 'character:cheng',

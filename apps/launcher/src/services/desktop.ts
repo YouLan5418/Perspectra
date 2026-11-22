@@ -7,9 +7,9 @@ import type { CoreSnapshot, PluginManifestInfo, ThinkingLevel } from '../core-ty
 export async function coreRequest(operation: string, data: Record<string, unknown> = {}): Promise<CoreSnapshot> {
   return invoke<CoreSnapshot>('launcher_request', { request: { operation, ...data } })
 }
-/** 透视是独立的本机页面，不需要实例；地址由桌面端校验后交给系统浏览器。 */
-export async function openLensPage(packageId: string): Promise<void> {
-  await invoke('launcher_request', { request: { operation: 'lens-open', packageId } })
+/** 桌面端校验包编辑器的本机地址，再交给系统浏览器打开。 */
+export async function openEditorPage(packageId: string): Promise<void> {
+  await invoke('launcher_request', { request: { operation: 'editor-open', packageId } })
 }
 export async function openGame(): Promise<void> {
   await invoke('launcher_request', { request: { operation: 'open' } })

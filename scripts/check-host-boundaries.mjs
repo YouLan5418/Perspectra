@@ -9,7 +9,7 @@ const pathOf = file => relative(root, file).replaceAll('\\', '/')
 function walk(dir, visit) {
   if (!existsSync(dir)) return
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
-    if (['node_modules', 'dist', 'dist-creator', 'dist-lens', 'target', 'assets', '__pycache__'].includes(entry.name))
+    if (['node_modules', 'dist', 'dist-creator', 'dist-editor', 'target', 'assets', '__pycache__'].includes(entry.name))
       continue
     const file = join(dir, entry.name)
     if (entry.isDirectory()) walk(file, visit)
@@ -35,14 +35,17 @@ const compositions = new Set(
     'save-preflight.ts',
     'runtime/web-entry.ts',
     'story-share.ts',
-    'lens/simulation.ts',
+    'simulation/simulation.ts',
   ].map(file => 'apps/host/src/' + file),
 )
 const browserExports = new Set([
+  '@perspectra/host/editor/activity-references',
+  '@perspectra/host/editor/rpg-cues',
   '@perspectra/host/play-settings',
   '@perspectra/host/plugin-settings',
-  '@perspectra/world-pack/lens/ids',
-  '@perspectra/world-pack/lens/diff',
+  '@perspectra/world-pack/editor-fields',
+  '@perspectra/world-pack/editor-config',
+  '@perspectra/world-pack/editor-knowledge',
   ...['preset', 'preset-library', 'preset-macros', 'preset-regex', 'prompt-cache'].map(
     name => '@perspectra/providers/chat/' + name,
   ),

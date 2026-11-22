@@ -85,7 +85,7 @@ export interface WorldComposition {
   readonly modelChannel?: typeof composeModelChannel
 }
 
-/** The standard RP install chosen by apps/host/src/Lens entry points, never by WorldHostCore. */
+/** The standard RP install chosen by game and simulation entry points, never by WorldHostCore. */
 export function assembleRoleplay(plugins: Partial<HostSeams> = {}): WorldComposition {
   return {
     interactionPackages: defaultInteractionPackages(),

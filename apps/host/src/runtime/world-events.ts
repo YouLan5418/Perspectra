@@ -18,6 +18,7 @@ import {
 } from '@perspectra/sdk/contracts'
 import type { WorldEventConsumer } from '../world-event-registry.ts'
 import type { StatusRuntime } from './status-runtime.ts'
+import type { EventRuleCheck, InspectedEventRule } from './creator-inspection.ts'
 
 const source = 'host.world-events/v1'
 export const eventWakeupsPerWindow = 4
@@ -30,6 +31,7 @@ interface EventWake {
 }
 interface IndexedOccurrence extends Occurrence {
   seq: number
+  witnesses: { id: string; seq: number; notice: string }[]
 }
 interface Occurrence extends WorldEventEnvelope, WorldJsonObject {
   ruleId: string
@@ -112,6 +114,7 @@ function notices(rule: EventRule, snapshot: WorldRoundSnapshot, crossing?: World
 /** One mounted branch. The local index can be rebuilt entirely from its effective committed prefix. */
 export class WorldEventRuntime {
   private readonly occurrences = new Map<string, IndexedOccurrence>()
+  private readonly checks = new Map<string, EventRuleCheck>()
   private readonly wakes = new Map<string, EventWake>()
   private readonly configuredWakes: boolean
   get hasWakeRules(): boolean {
@@ -181,22 +184,31 @@ export class WorldEventRuntime {
     for (const event of this.store.readEventsRange(this.address, this.indexed, through, ['world.tick-advanced'])) {
       const row = this.store.readRoundAuthority(this.address, event.transactionId)?.authority
       if (row?.source !== source || row.packId !== this.packId) continue
-      for (const raw of (row.occurrences ?? []) as Occurrence[]) {
-        this.occurrences.set(raw.ruleId, { ...raw, seq: event.seq })
-        if (raw.wakeRecipients?.length) {
-          const observations = this.store.readEventsRange(this.address, event.seq - event.eventOrdinal - 1, event.seq, [
+      const occurrences = (row.occurrences ?? []) as Occurrence[]
+      const observations = occurrences.length
+        ? this.store.readEventsRange(this.address, event.seq - event.eventOrdinal - 1, event.seq, [
             'observation.upsert',
           ])
-          for (const recipient of raw.wakeRecipients) {
-            const key = raw.occurrenceId + ':witness:' + recipient
-            const witness = observations.find(
-              e => e.transactionId === event.transactionId && (e.data as WorldJsonObject).id === key,
-            )
-            const stimulus = (witness?.data as WorldJsonObject | undefined)?.value as WorldJsonObject | undefined
-            if (!witness || stimulus?.observerId !== recipient)
-              throw new Error('world-events: wake lacks its committed personal observation')
-            this.wakes.set(key, { key, recipient, observationSeq: witness.seq, status: 'pending' })
-          }
+        : []
+      for (const raw of occurrences) {
+        const witnesses = observations.flatMap(observation => {
+          const data = observation.data as WorldJsonObject
+          const value = data.value as WorldJsonObject
+          const id = value.observerId
+          const notice = (value.content as WorldJsonObject | undefined)?.eventNotice
+          return observation.transactionId === event.transactionId &&
+            typeof id === 'string' &&
+            data.id === raw.occurrenceId + ':witness:' + id &&
+            typeof notice === 'string'
+            ? [{ id, notice, seq: observation.seq }]
+            : []
+        })
+        this.occurrences.set(raw.ruleId, { ...raw, seq: event.seq, witnesses })
+        for (const recipient of raw.wakeRecipients ?? []) {
+          const key = raw.occurrenceId + ':witness:' + recipient
+          const witness = witnesses.find(w => w.id === recipient)
+          if (!witness) throw new Error('world-events: wake lacks its committed personal observation')
+          this.wakes.set(key, { key, recipient, observationSeq: witness.seq, status: 'pending' })
         }
       }
       if (row.wakeKey !== undefined) {
@@ -213,6 +225,37 @@ export class WorldEventRuntime {
     if (!this.hasWakeRules) return []
     this.index(this.store.head(this.address).headSeq)
     return [...this.wakes.values()].filter(wake => wake.status === 'pending')
+  }
+  inspect(through: number): InspectedEventRule[] {
+    this.index(through)
+    return this.book.rules.map(rule => {
+      const event = this.occurrences.get(rule.id)
+      const check = this.checks.get(rule.id)
+      return {
+        rule: structuredClone(rule),
+        lastCheck: check ? { ...check } : null,
+        occurrence: event
+          ? {
+              id: event.occurrenceId,
+              seq: event.seq,
+              cycle: event.cycle,
+              pacedRound: event.pacedRound ?? null,
+              clockTransaction: typeof event.clockTransaction === 'string' ? event.clockTransaction : null,
+              witnesses: event.witnesses.map(w => ({
+                ...w,
+                wake: this.wakes.get(event.occurrenceId + ':witness:' + w.id)?.status ?? null,
+              })),
+              deliveries: this.book.grants
+                .filter(g => event.grants.includes(grantId(g)))
+                .map(g => ({
+                  plugin: g.plugin,
+                  mode: g.mode,
+                  receipt: this.receipts.has(receiptId(g, event)),
+                })),
+            }
+          : null,
+      }
+    })
   }
   async markWake(path: string, key: string, to: WakeStatus, signal: AbortSignal): Promise<boolean> {
     if (!this.active) return false
@@ -298,14 +341,14 @@ export class WorldEventRuntime {
     this.status!.validate(snapshot.events, data, [])
     return { eventType: 'status.updated', eventVersion: 1, data: data as unknown as WorldJsonObject }
   }
-  private eligible(snapshot: WorldRoundSnapshot, round: number): EventRule[] {
-    this.index(snapshot.head.headSeq)
-    return this.book.rules.filter(
-      rule => rule.round !== undefined && round >= rule.round && !this.occurrences.has(rule.id),
-    )
-  }
   private eligiblePaced(snapshot: WorldRoundSnapshot, round: number, busy: boolean) {
-    return this.eligible(snapshot, round).filter(rule => rule.trigger === 'paced' && (!busy || rule.duringActivity))
+    this.index(snapshot.head.headSeq)
+    return this.book.rules.filter(rule => {
+      if (rule.trigger !== 'paced' || rule.round === undefined || this.occurrences.has(rule.id)) return false
+      const result = round < rule.round ? 'round' : busy && !rule.duringActivity ? 'activity' : 'ready'
+      this.checks.set(rule.id, { seq: snapshot.head.headSeq, round, result })
+      return result === 'ready'
+    })
   }
   pacedRuleIds(snapshot: WorldRoundSnapshot, round: number, busy: boolean) {
     return this.eligiblePaced(snapshot, round, busy).map(rule => rule.id)
@@ -362,16 +405,10 @@ export class WorldEventRuntime {
     }
     return { events, occurrences }
   }
-  private effects(events: WorldEventDraft[], occurrences: Occurrence[], receipts: string[]): WorldRoundEffects {
-    return { events, authority: { source, packId: this.packId, occurrences, receipts } }
+  private effects(events: WorldEventDraft[], occurrences: Occurrence[], receipts: string[]) {
+    return { events, authority: { source, packId: this.packId, occurrences, receipts } } satisfies WorldRoundEffects
   }
-  settlePaced(
-    snapshot: WorldRoundSnapshot,
-    cycle: string,
-    start: number,
-    ruleId: string,
-    busy: boolean,
-  ): WorldRoundEffects {
+  settlePaced(snapshot: WorldRoundSnapshot, cycle: string, start: number, ruleId: string, busy: boolean) {
     const { round } = playerRoundNumber(snapshot.events, start, false)
     const rule = this.eligiblePaced(snapshot, round, busy).find(rule => rule.id === ruleId)
     if (!rule) throw new TypeError('节奏选择了条件未满足的世界事件')
@@ -393,14 +430,21 @@ export class WorldEventRuntime {
     const crossings = new Map<string, WorldRoundSnapshot['events']>()
     const hard = this.book.rules.filter(rule => {
       if (rule.trigger === 'paced' || this.occurrences.has(rule.id)) return false
-      if (!rule.crossesPackTime) return !currentClockOnly && round >= rule.round
+      const checked = (result: EventRuleCheck['result']) => {
+        this.checks.set(rule.id, { seq: snapshot.head.headSeq, round, result })
+        return result === 'ready'
+      }
+      if (!rule.crossesPackTime) return !currentClockOnly && checked(round >= rule.round ? 'ready' : 'round')
+      let invalid = false
       const crossing = firstPackTimeCrossing(snapshot.events, rule.crossesPackTime, () => {
+        invalid = true
         if (!this.warnedClocks.has(rule.id)) console.warn('[worldEvents] invalid calendar day or slot for ' + rule.id)
         this.warnedClocks.add(rule.id)
       })
-      if (!crossing || (currentClockOnly && crossing.at(-1)!.seq <= start)) return false
+      if (!crossing) return checked(invalid ? 'clock-invalid' : 'clock')
+      if (currentClockOnly && crossing.at(-1)!.seq <= start) return checked('clock-window')
       crossings.set(rule.id, crossing)
-      return true
+      return checked('ready')
     })
     const { events, occurrences } = this.occurrenceEffects(snapshot, cycle, hard, undefined, crossings)
     const receipts: string[] = []

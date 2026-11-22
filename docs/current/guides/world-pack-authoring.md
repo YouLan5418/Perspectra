@@ -35,7 +35,9 @@ services 只在确实要求特定 Provider 时填写，如 "services": { "schedu
 
 ## 1. 从一个可以运行的包开始
 
-只有程序包的创作者可以使用随包 [perspectra-creator Skill](../../../skills/perspectra-creator/SKILL.md)，用自带 Node 在新目录生成一个玩家、一个 NPC 和一个地点的空白 v5 源包，再逐步补作品内容。它还整合[酒馆卡静态提取与迁移](../../../skills/perspectra-creator/references/tavern.md)和[原生预设创作](../../../skills/perspectra-creator/references/presets.md)，卡片提取使用随包 Python，预设提供包推荐与预设库模板，并用 preset validate 单独校验。将整个 Skill 目录复制到所用 AI 工具的 Skill 目录；它不要求仓库、pnpm 或全局 Node／Python。下面的示例属于源码仓库，不附在本轮程序包中。
+AI 可以使用随包的 [perspectra-creator skill](../../../skills/perspectra-creator/SKILL.md) 独立创作。例如作者想接着改信件剧情，可以先直接写角色、受众、地点和活动脚本；想在画布上继续改选择，向作者交付低代码草稿和已导出的可玩源目录。[两种做法和请求示例](../../../skills/perspectra-creator/references/editor-handoff.md)
+
+将整个 skill 目录交给使用的 AI。脚手架和[酒馆卡静态提取器](../../../skills/perspectra-creator/references/tavern.md)都使用 Node 标准库，程序内附 Node。[原生预设](../../../skills/perspectra-creator/references/presets.md)可用 preset validate 单独校验。下面的示例属于源码仓库。
 
 | 示例 | 适合验证 |
 | --- | --- |
@@ -176,6 +178,6 @@ corepack pnpm@11.7.0 worldpack test examples/world-packs/launcher-demo
 
 校验检查源格式、引用、声明资产与已安装交互选择，不执行玩法脚本，也不加载完整宿主的状态、活动、知识、前端及预设扩展配置；`worldpack test` 当前返回 `status: compiled`、`assertionsExecuted: 0`，只编译和适配断言计划，不能当成断言执行成功或真实角色体验通过。可以用 `worldpack compile <源目录> --out <文件>` 导出编译制品，并用 `worldpack inspect <文件>` 查看；**Launcher 和当前网页的 --pack 仍传源目录，不传该制品**。
 
-加载修改后的包并创建新实例，进行 [真实模型试玩](creator-playtest.md)。同一兼容包可以续玩，内容改变后旧实例可能因摘要不一致拒绝启动；保留原包及旧存档，不强行改哈希。新实验使用新目录，不写入 `D:/worlds` 历史数据。
+加载修改后的包并创建新实例，进行[真实模型试玩](creator-playtest.md)。让玩家在下一轮向知情角色追问刚才约定的事，再向当时不在场的角色问同一个问题。核对两人的回答与各自实际收到的观察。无界面测试可使用[随 skill 的 Host 命令行说明](../../../skills/perspectra-creator/references/tavern/validation.md#用命令行做真实模型试玩)。同一兼容包可以续玩，内容改变后旧实例可能因摘要不一致拒绝启动。保留原包及旧存档，新实验使用新目录，不写入 `D:/worlds` 历史数据。
 
 发布给测试者时带齐源清单引用、后端脚本、推荐预设和前端资源；删除密钥、数据库、私有日志及模型请求。公开静态前端素材绝不能放秘密。说明所需宿主版本、建议模型、已验证玩法和已知限制；当前不提供包 ZIP 自动导入或跨版本存档迁移保证。

@@ -17,6 +17,7 @@ import {
 } from '@perspectra/sdk/contracts'
 import { currentLocation, type RulebookEvent } from '@perspectra/core/kernel'
 const NAME = /^[a-z][a-z0-9-]{0,40}$/u
+export const MAX_STATUS_OPERATIONS = 128
 const RESERVED = ['start', 'retry', 'suspend', 'resume', 'abandon']
 export function statusObject(value: unknown, what = '状态数据'): Record<string, unknown> {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new TypeError(what + '必须是对象')
@@ -139,13 +140,12 @@ export class StatusState {
     this.#entityNames = new Map(entities.map(e => [e.entityId, e.name ?? e.entityId]))
     const definition = object(structuredClone(rawDefinition), '状态定义')
     exact(definition, ['statuses', 'operations'])
-    if (
-      !Array.isArray(definition.statuses) ||
-      definition.statuses.length > 64 ||
-      !Array.isArray(definition.operations) ||
-      definition.operations.length > 32
-    )
-      throw new TypeError('状态或操作数量无效')
+    if (!Array.isArray(definition.statuses) || !Array.isArray(definition.operations))
+      throw new TypeError('状态定义中的 statuses 和 operations 必须是数组')
+    if (definition.statuses.length > 64)
+      throw new TypeError(`状态字段共 ${definition.statuses.length} 项，上限为 64 项`)
+    if (definition.operations.length > MAX_STATUS_OPERATIONS)
+      throw new TypeError(`状态操作共 ${definition.operations.length} 项，上限为 ${MAX_STATUS_OPERATIONS} 项`)
     const ajv = new Ajv({ strict: true, allErrors: false })
     this.statuses = definition.statuses.map(value => {
       const s = object(value, '状态声明')

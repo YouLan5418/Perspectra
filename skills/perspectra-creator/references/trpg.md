@@ -1,5 +1,7 @@
 # 跑团玩法：trpg.json
 
+外部 Agent 可用 `worldpack editor trpg <包>` 读取配置、Schema、选用的文件及角色候选。用 `trpg-enable <包> <请求.json>` 提交 `{}`，接入已有配置或为新包创建起始模板。用 `mode-candidates` 提交 `{"mode":"trpg","path":["hosts","0"]}` 枚举主持人，剧本内的公开地点可按具体内容行查询，例如 `["scenarios","0","content","2","location"]`。选填 `config` 可用未保存的草稿计算候选。用 `trpg-save` 提交 `{file,base,config}`。保存时会校验角色、模板键和可见性。
+
 本页说明官方跑团机制：作者在包里写一份 `trpg.json`，宿主打开世界时生成一个叫 `trpg` 的活动，玩家请一名 AI 角色当主持人，其余 AI 角色保留各自的性格参与。核对对象是随目标程序提供的 official-trpg 1；先用目标程序的 `worldpack.cmd validate` 检查，旧程序不认识 `trpg.json` 时会拒绝。
 
 **验证范围（2026-11-09）**：源码已接通；自动测试覆盖配置校验、生成的活动、点数的可见范围、暗骰、主持人错误、重新生成不重掷、记忆里标明是游戏；示例包 `rainy-manor` 的三份推演通过。真实模型只有一次 GLM-5.3-Flash 的脚本化试玩（两局，玩家一方是脚本），见目标程序仓库的 `docs/current/studies/2026-11-09-rainy-manor-playtest.md`；之后改过的调度（有待处理行动时主持人对全桌说出结果算宣布）没有重新试玩。没有真人试玩，交付前要真人试玩。
@@ -53,4 +55,4 @@
 ## 6. 检查
 
 - `worldpack.cmd validate '<源目录>'`：字段、角色引用、骰子写法、剧本内容的地点引用，生成的活动脚本不超过 256 KiB。
-- `lens simulate '<源目录>' <脚本>.json`：`rainy-manor` 的三份脚本在 `.perspectra-lens/scenarios/`。`doesNotKnow` 只查观察渠道，是冒烟检查；推演不是试玩。
+- `worldpack simulate '<源目录>' <脚本>.json`：`rainy-manor` 的三份脚本在 `scenarios/`。`doesNotKnow` 只查观察渠道，是冒烟检查；推演不是试玩。

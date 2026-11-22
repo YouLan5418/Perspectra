@@ -20,7 +20,7 @@
 | 物品：铁剑、两瓶药水（客厅一瓶，遗迹二层木箱一瓶）、铁钥匙（在宝库里，守卫倒下后落到一层地面） | `entities.json` |
 | RPG 配置 | `rpg.json`（已在 `assetFiles` 登记） |
 | 物品规则 | `scripts/status.js` |
-| 推演脚本 | `.perspectra-lens/scenarios/` 下三份 |
+| 推演脚本 | `scenarios/` 下三份 |
 
 阿茹没有写进 `rpg.json` 的 `characters`：那里除玩家以外的角色都是“同行 NPC”，必须全部在场，地图内容才会开始。
 
@@ -37,11 +37,11 @@ corepack pnpm@11.7.0 experience:web --memory-none --pack examples/world-packs/hi
 ## 验证状态（2026-11-08）
 
 - `corepack pnpm@11.7.0 worldpack validate examples/world-packs/hill-ruins`：通过。
-- 三份推演（`node --import tsx apps/host/src/lens/cli.ts simulate examples/world-packs/hill-ruins <名字>.json`）都是 `passed: true`，退出码 0：
+- 三份推演（`node --import tsx apps/host/src/cli/worldpack.ts simulate examples/world-packs/hill-ruins examples/world-packs/hill-ruins/scenarios/<名字>.json`）都是 `passed: true`，退出码 0：
   - `clear-and-rest`：澄入队，到遗迹一层开战，打赢，铁钥匙落地，拿钥匙，铁门放行，二层拿药水，回家睡觉，生命回满。
   - `defeat-back-home`：带着重伤战败，传送回客厅，生命为 1，阿茹不知道战斗。
   - `aru-knows-nothing`：阿茹只知道他们离开，不知道遗迹和战斗。
-- 另用包透视的状态栏核对过：在客厅时没有生命和魔力，进入遗迹后出现。这一项没有写进推演脚本。
+- 另核对过状态栏：在客厅时没有生命和魔力，进入遗迹后出现。这一项没有写进推演脚本。
 - **没有用真实模型试玩过。** 澄是否愿意入队、写死的台词读起来是否自然、没写死的回合她怎么打、战斗节奏是否合适，都是未验证。推演只证明规则、触发和信息差，不证明体验。
 
 ## 已知限制

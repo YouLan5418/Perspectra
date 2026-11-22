@@ -25,7 +25,7 @@ node scripts/release/verify-worldpack-cli.mjs
 
 此命令在新临时目录创建 CLI、Node 与 jieba-wasm 的隔离布局，并在空 PATH、源码外工作目录中实际运行 `worldpack.cmd`。覆盖版本、帮助、校验、编译、概要、适配、本地数据库初始化，以及参数、源格式、引用和缺失目录错误；还验证校验不会执行玩法脚本。产物和夹具目录写在末尾 JSON 的 `root`、`evidenceDirectory`。可传已构建程序根目录，改为检查实际发行载荷：`node scripts/release/verify-worldpack-cli.mjs <程序目录>`。此检查不是可公开分发的完整程序包，也不代替完整宿主或真实体验验收。
 
-同一构建函数还复制仓库 `skills/perspectra-creator` 到程序根目录的 skills，排除 `.py`、Node 测试文件、Python 缓存及 Git Bash 重定向遗留的空 nul 文件；源目录保留原样。Skill 的静态酒馆卡提取器使用随包 Node，不执行原卡脚本。运行 `node scripts/release/verify-creator-skill.mjs <完整程序目录>`，使用实际随包 Node 检查脚手架拒绝覆盖、合成卡片 PNG／JSON 提取与容量报告、预设模板和 CLI；不使用真实私人卡片，也不执行原卡脚本或真实模型调用。输出 sourceDirectory 可作为后续 `verify-portable.mjs` 的外部源包参数，检查宿主扩展与包推荐预设启动；夹具不进入程序载荷。Skill 的 Markdown 结构校验不能代替这些可执行检查。
+同一构建函数还复制仓库 `skills/perspectra-creator` 到程序根目录的 skills，排除 `.py`、Node 测试文件、Python 缓存及 Git Bash 重定向遗留的空 nul 文件；源目录保留原样。Skill 的静态酒馆卡提取器使用随包 Node，不执行原卡脚本。运行 `node scripts/release/verify-creator-skill.mjs <完整程序目录>`，使用实际随包 Node 检查脚手架拒绝覆盖、合成卡片 PNG／JSON 提取与容量报告、预设模板和 CLI；同时在空 PATH 下用真实宿主离线推演随 skill 的手写活动，检查低代码草稿导出后能重开编辑。本项回归仅用合成测试材料与脚本模型。输出 sourceDirectory 可作为后续 `verify-portable.mjs` 的外部源包参数，检查宿主扩展与包推荐预设启动；夹具不进入程序载荷。Skill 的 Markdown 结构校验不能代替这些可执行检查。
 
 只核对本次宿主与 Core 目录迁移时，可运行 Node 隔离布局检查。它在全新的 `.tmp/core-layout-*` 目录分别验证 TypeScript 源码、仓库 cwd 下无 `PERSPECTRA_RUNTIME_ROOT` 的 bundled backend、隔离 Node runtime；每种布局都会启动默认 Core HTTP Host、实际调用 Core worker 和本地 E5 CPU worker。检查不调用外部模型，隔离布局只复制 Node worker、原生 ONNX 依赖和六个模型资产；通过不代表 Tauri 窗口、完整便携包或干净系统验收。
 

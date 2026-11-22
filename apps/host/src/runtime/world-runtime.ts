@@ -302,9 +302,14 @@ export class WorldHostCore implements HostRuntime {
       inspector: this.#inspector,
       activationCycle: this.#activationCycle,
       executionResult: this.#lastExecutionResult,
+      statusOperations: () => this.#gameplay.status?.inspectOperations(this.#availableActions) ?? null,
+      hasRpgParty:
+        this.#generated?.gameplayData['official-rpg']?.statuses.some(status => status.key === 'rpg-party') ?? false,
       statusTruth: events => this.#gameplay.status?.truth(events),
       activityStates: events => this.#gameplay.activity?.debugStates(events) ?? [],
       pacing: () => this.#gameplay.pacing?.lastDecision ?? null,
+      pacingDiagnostics: () => this.#gameplay.pacing?.inspect(this.#pacingEnabled) ?? null,
+      worldEvents: through => this.#worldEvents?.inspect(through) ?? [],
       worldVersion: this.#worldVersion,
       title: this.#title,
       packHash: this.#packHash,
@@ -1541,13 +1546,13 @@ export class WorldHostCore implements HostRuntime {
       }
     }
   }
-  /** Automatic-start checks for the pack lens: the last round's, or recomputed now without starting anything. */
+  /** Automatic-start checks for authoring tools: the last round's, or recomputed now without starting anything. */
   autoStartEvaluations(mode: 'last' | 'now'): readonly AutoStartEvaluation[] {
     return (
       (mode === 'last' ? this.#gameplay.activity?.lastAutoStart() : this.#gameplay.activity?.evaluateAutoStart()) ?? []
     )
   }
-  /** The author's status definition (statuses and operations) from the loaded status script, for the pack lens. */
+  /** The author's status definition (statuses and operations) from the loaded status script, for authoring tools. */
   statusDefinition(): {
     readonly statuses: readonly StatusDefinition[]
     readonly operations: readonly StatusOperation[]
@@ -1563,7 +1568,7 @@ export class WorldHostCore implements HostRuntime {
     return this.#gameplay.activity?.definitions() ?? []
   }
   /**
-   * What a non-player character would be offered right now, for the pack lens: the same resolver chain and context
+   * What a non-player character would be offered right now, for authoring tools: the same resolver chain and context
    * her turn request uses (core, communication, status policy, running activity), narrowed by her autonomy
    * whitelist when she is an autonomous role. Reads committed events only; nothing is resolved or written.
    */

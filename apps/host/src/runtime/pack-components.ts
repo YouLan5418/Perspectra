@@ -24,6 +24,20 @@ const symbols = {
   statusSummary: ['meter'],
 } as const
 const safeKey = (s: string) => s.replace(/[^A-Za-z0-9_-]/gu, '?').slice(0, 40)
+export const stageComponents = Object.keys(regions) as Component[]
+export function componentStyle(id: Component) {
+  return {
+    movable: ['inventory', 'nearby', 'location', 'statusSummary', 'history', 'activity'].includes(id),
+    renameable: ['inventory', 'nearby', 'history', 'activity'].includes(id),
+    choices: {
+      anchor: regions[id],
+      icon: symbols[id],
+      size: ['standard', 'large'],
+      tone: ['forest', 'indigo'],
+      ...(id === 'sendAudience' ? {} : { shape: ['soft', 'pill'] }),
+    } as Record<string, readonly string[]>,
+  }
+}
 
 export function readPackComponents(
   bytes: Buffer,
@@ -53,8 +67,7 @@ export function readPackComponents(
       issue(path + ' 应为对象，已忽略。')
       return result
     }
-    const movable = ['inventory', 'nearby', 'location', 'statusSummary', 'history', 'activity'].includes(id)
-    const renameable = ['inventory', 'nearby', 'history', 'activity'].includes(id)
+    const { movable, renameable, choices } = componentStyle(id)
     for (const [key, v] of Object.entries(value)) {
       if (key === 'narrow' && allowNarrow) {
         const override = style(id, v, path + '.narrow', false)
@@ -69,18 +82,7 @@ export function readPackComponents(
         result.label = v
         continue
       }
-      const allowed: readonly string[] =
-        key === 'anchor'
-          ? regions[id]
-          : key === 'icon'
-            ? symbols[id]
-            : key === 'size'
-              ? ['standard', 'large']
-              : key === 'tone'
-                ? ['forest', 'indigo']
-                : key === 'shape' && id !== 'sendAudience'
-                  ? ['soft', 'pill']
-                  : []
+      const allowed = Object.hasOwn(choices, key) ? choices[key]! : []
       if (typeof v === 'string' && allowed.includes(v)) {
         result[key as 'anchor' | 'icon' | 'size' | 'tone' | 'shape'] = v
       } else {

@@ -1,0 +1,15 @@
+{
+  "schemaVersion": "worldpack-memory/v2",
+  "characters": [
+    {
+      "characterId": "character:player",
+      "profile": "standard",
+      "attentionTopics": []
+    },
+    {
+      "characterId": "character:companion",
+      "profile": "standard",
+      "attentionTopics": []
+    }
+  ]
+}

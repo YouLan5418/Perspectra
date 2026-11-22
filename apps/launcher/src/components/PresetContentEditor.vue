@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch, onBeforeUnmount } from 'vue'
 import { rolePreset, type RolePreset, type PromptNode, type TextRule } from '@perspectra/providers/chat/preset'
-import { presetMacros } from '@perspectra/providers/chat/preset-macros'
+import { presetSampleMessages } from '@perspectra/providers/chat/preset-macros'
 import { REGEX_WORKER_PROGRAM, type TextResult } from '@perspectra/providers/chat/preset-regex'
 const props = defineProps<{ modelValue: RolePreset }>()
 const emit = defineEmits<{ 'update:modelValue': [RolePreset] }>()
@@ -151,24 +151,7 @@ async function inspect() {
   busy.value = true
   try {
     const preset = rolePreset(props.modelValue)
-    const expand = presetMacros({
-      char: '示例角色',
-      user: '示例玩家',
-      scene: '示例场景',
-      date: '示例日期',
-      time: '示例时间',
-    })
-    const messages = (preset.nodes ?? [])
-      .filter(n => n.enabled)
-      .map(n => ({ ...n, content: expand(n.content) }))
-      .filter(n => n.content.trim())
-    sampleMessages.value = [
-      { role: 'system', content: 'Core 角色契约（固定）' },
-      ...(preset.prompt?.trim() ? [{ role: 'system', content: preset.prompt }] : []),
-      ...messages.filter(n => n.position === 'beforeContext'),
-      { role: 'user', content: '当前角色的授权上下文（示例占位）' },
-      ...messages.filter(n => n.position === 'afterContext'),
-    ]
+    sampleMessages.value = presetSampleMessages(preset)
     const url = URL.createObjectURL(
       new Blob(
         [

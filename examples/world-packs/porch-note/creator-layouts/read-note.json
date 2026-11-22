@@ -1,0 +1,14 @@
+[
+  {
+    "id": "unseal",
+    "title": "拆阅便笺"
+  },
+  {
+    "id": "open-note",
+    "parent": "unseal"
+  },
+  {
+    "id": "ask-alin",
+    "parent": "unseal"
+  }
+]

@@ -88,6 +88,8 @@ interface Operation {
 interface Proposal {
   readonly module: Module
   readonly effect: GameplayEffect
+  readonly operation: string
+  readonly hook: 'handler' | 'afterAction'
 }
 interface Computation {
   readonly actorId: CharacterId
@@ -689,10 +691,30 @@ export class GameplayRuntime {
     }
     throw new TypeError('GAMEPLAY_ACTIVITY_MISSING: ' + key)
   }
+  #policyInput(
+    rules: ActivityStateRules,
+    state: Parameters<ActivityStateRules['policyInput']>[0],
+    events: readonly RulebookEvent[],
+    actor: CharacterId,
+    module: Module,
+  ) {
+    return rules.policyInput(
+      state,
+      actor,
+      () => this.#world(events, actor),
+      () =>
+        statusObject(
+          (
+            this.options.projectKnownStatus?.(events, actor) ??
+            knownStatusView(module.state.known(statusEvents(events, module), actor), actor)
+          ).public,
+        ) as WorldJsonObject,
+    )
+  }
   #activityAdmission(operation: Operation, events: readonly RulebookEvent[], actorId: CharacterId): string | undefined {
     const binding = operation.definition.activity
     if (!binding) return undefined
-    const { definition } = this.#activity(binding.key)
+    const { definition, module } = this.#activity(binding.key)
     const declared = definition.operations.find(item => item.id === binding.operationId)
     if (!declared) throw new TypeError('GAMEPLAY_ACTIVITY_OPERATION_MISSING')
     const state = activityProgress(events).get(binding.key)
@@ -711,7 +733,7 @@ export class GameplayRuntime {
       )
       const policy = rules.policy(
         this.#call(this.#activity(binding.key).module, 'activity.policy', () =>
-          definition.behavior!.policy(rules.scoped(state, actorId), actorId),
+          definition.behavior!.policy(this.#policyInput(rules, state, events, actorId, module), actorId),
         ),
       )
       if (!policy.operations.includes(binding.operationId)) return '尚未轮到你或操作未被允许'
@@ -942,6 +964,8 @@ export class GameplayRuntime {
         [
           {
             module,
+            operation: computation.operationId,
+            hook: 'handler',
             effect: { kind: 'activity', activityKey: key, state, description: definition.opening ?? definition.title },
           },
         ],
@@ -1026,7 +1050,14 @@ export class GameplayRuntime {
         provenance: new WeakMap(),
       }
       const events = this.#effects(
-        [{ module, effect: { kind: 'activity', activityKey: key, state, description: '活动状态已更新。' } }],
+        [
+          {
+            module,
+            operation: computation.operationId,
+            hook: 'handler',
+            effect: { kind: 'activity', activityKey: key, state, description: '活动状态已更新。' },
+          },
+        ],
         computation,
       )
       // Forced escape remains unconditional; ordinary lifecycle actions share the single derivation layer.
@@ -1173,10 +1204,18 @@ export class GameplayRuntime {
     }
     return undefined
   }
-  #proposals(module: Module, effects: readonly GameplayEffect[], computation: Computation): Proposal[] {
+  #proposals(
+    module: Module,
+    effects: readonly GameplayEffect[],
+    computation: Computation,
+    operation = computation.operationId,
+    hook: Proposal['hook'] = 'handler',
+  ): Proposal[] {
     return this.#call(module, 'acceptEffects', () => {
       if (!Array.isArray(effects)) throw new TypeError('GAMEPLAY_EFFECTS_INVALID: expected an array')
-      return effects.map(effect => computation.provenance.get(effect) ?? { module, effect: copy(effect) })
+      return effects.map(
+        effect => computation.provenance.get(effect) ?? { module, effect: copy(effect), operation, hook },
+      )
     })
   }
   #compute(computation: Computation): GameplayComputation {
@@ -1205,11 +1244,13 @@ export class GameplayRuntime {
         ...resolution,
         // The registered reference and its compiled result Schema establish this erased generic link.
         outcome: resolution.outcome as TOutcome,
-        effects: this.#proposals(operation.module, resolution.effects, computation).map(proposal => {
-          const effect = readonlyData(proposal.effect)
-          computation.provenance.set(effect, { module: proposal.module, effect })
-          return effect
-        }),
+        effects: this.#proposals(operation.module, resolution.effects, computation, operation.definition.id).map(
+          proposal => {
+            const effect = readonlyData(proposal.effect)
+            computation.provenance.set(effect, { ...proposal, effect })
+            return effect
+          },
+        ),
       }
     }
     // The caller explicitly expires this capability immediately after the synchronous callback.
@@ -1292,7 +1333,7 @@ export class GameplayRuntime {
       statuses.set(module, group)
     }
     const activities = new Set<string>()
-    for (const { module, effect } of proposals)
+    for (const { module, effect, operation, hook } of proposals)
       this.#call(module, 'validateEffect', () => {
         if (effect.kind === 'status-result') {
           if (cycle) throw new TypeError('GAMEPLAY_OPERATION_RESULT_OUTSIDE_OPERATION')
@@ -1386,7 +1427,20 @@ export class GameplayRuntime {
               events.push({
                 eventType: 'character.moved',
                 eventVersion: 1,
-                data: { characterId: move.characterId, fromLocationId, toLocationId: move.locationId },
+                data: {
+                  characterId: move.characterId,
+                  fromLocationId,
+                  toLocationId: move.locationId,
+                  movementSource: {
+                    kind: 'activity',
+                    moduleId: module.definition.id,
+                    activityKey: activity.key,
+                    operation,
+                    phase: result.next.game.phase,
+                    actorId: computation.actorId,
+                    actionId: computation.actionId,
+                  },
+                },
               })
           }
           if (result.items !== undefined) {
@@ -1427,7 +1481,10 @@ export class GameplayRuntime {
               throw new TypeError('GAMEPLAY_PLAYER_EXPRESSION_INVALID')
             const policy = rules.policy(
               this.#call(module, 'activity.policy', () =>
-                activity.behavior!.policy(rules.scoped(state, computation.actorId), computation.actorId),
+                activity.behavior!.policy(
+                  this.#policyInput(rules, state, computation.events, computation.actorId, module),
+                  computation.actorId,
+                ),
               ),
             )
             checkActivityExpression(
@@ -1572,7 +1629,24 @@ export class GameplayRuntime {
               actorId: computation.actorId,
               allowedMovers: [...allowedMovers],
             })
-            events.push(event)
+            if (event.eventType === 'character.moved') {
+              const { movementRule, ...route } = event.data as WorldJsonObject
+              events.push({
+                ...event,
+                data: {
+                  ...route,
+                  movementSource: {
+                    kind: 'gameplay',
+                    moduleId: module.definition.id,
+                    operation,
+                    hook,
+                    actorId: computation.actorId,
+                    actionId: computation.actionId,
+                    ...(typeof movementRule === 'string' ? { rule: movementRule } : {}),
+                  },
+                },
+              })
+            } else events.push(event)
           }
         } else throw new TypeError('GAMEPLAY_EFFECT_KIND_UNKNOWN')
       })
@@ -1699,7 +1773,7 @@ export class GameplayRuntime {
           )
           const policy = rules.policy(
             this.#call(module, 'activity.policy', () =>
-              definition.behavior!.policy(rules.scoped(state, actorId), actorId),
+              definition.behavior!.policy(this.#policyInput(rules, state, events, actorId, module), actorId),
             ),
           )
           if (!policy.interactions.includes(operationId))
@@ -2108,6 +2182,8 @@ export class GameplayRuntime {
                 compute,
               }),
               computation,
+              computation.operationId,
+              'afterAction',
             ),
           ),
         )

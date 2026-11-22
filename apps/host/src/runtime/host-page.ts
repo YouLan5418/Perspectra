@@ -1,3 +1,4 @@
+import { ACTIVITY_PAGE_CLIENT } from './activity-page-client.ts'
 import { PLAYER_VIEW_PATCH_FIELDS } from '@perspectra/frontend'
 import { stagePreferences, createParticipantPicker, PARTICIPANT_PICKER_STYLE } from '@perspectra/frontend'
 
@@ -82,6 +83,7 @@ iframe{
   -webkit-backdrop-filter:blur(22px) saturate(140%);
   transition:border-color .2s var(--ease-out),padding .25s var(--ease-out);
 }
+body:has(#activity-page) #game{display:none}
 #game:hover{border-color:var(--gold-line)}
 #game:not([open]){width:310px;padding:12px 16px}
 #game[open] > :not(summary){animation:expandDown .26s var(--ease-out)}
@@ -170,7 +172,7 @@ iframe{
   const frame=node('experience');
   let port=null,connected=false,frameLoaded=false,frontendReady=false,useDefault=false,init=null,playerView=null;
   let epoch=0,streamController=null,readingPending=true,historyOpen=false,presentationMode='reading',readHistorySignature='',shownActivity,panelOpenSent=null;
-  function revoke(){readingPending=true;historyOpen=false;shownActivity=undefined;panelOpenSent=null;readHistorySignature='';node('game').open=false;epoch++;if(port)port.close();port=null;connected=false;frameLoaded=false;frontendReady=false}
+  function revoke(){clearPage();stageBinding=null;readingPending=true;historyOpen=false;shownActivity=undefined;panelOpenSent=null;readHistorySignature='';node('game').open=false;epoch++;if(port)port.close();port=null;connected=false;frameLoaded=false;frontendReady=false}
   async function publicApi(path,payload){
     const response=await fetch('/frontend-api/v1/'+path,{method:payload===undefined?'GET':'POST',
       headers:{'x-playtest-token':token,'content-type':'application/json'},...(payload===undefined?{}:{body:JSON.stringify(payload)})});
@@ -178,11 +180,12 @@ iframe{
   }
   function post(value){if(port)port.postMessage(value)}
   let stageSession=null,stageOpen=false,stageFailed=null,stageBinding=null;
-  function presentStage(){post({type:'presentation',activityOpen:!!node('game').open&&!node('game').hidden,stageOpen,stageId:stageSession});node('stage-toggle').textContent=stageOpen?'回场景看看':'返回活动';node('stage-toggle').setAttribute('aria-pressed',String(stageOpen))}
+  ${ACTIVITY_PAGE_CLIENT}
+  function presentStage(){updatePage();post({type:'presentation',activityOpen:!!node('game').open&&!node('game').hidden,stageOpen:stageOpen&&!boundPage(),stageId:stageSession});node('stage-toggle').textContent=stageOpen?'回场景看看':'返回活动';node('stage-toggle').setAttribute('aria-pressed',String(stageOpen))}
   function syncStage(){
     const stage=init?.frontend==='default'&&playerView?.status!=='paused'?playerView?.activityStage:null;
-    const id=stage?.activityId||null;
-    const binding=stage?JSON.stringify([stage.moduleId,stage.renderer,id]):null;
+    const page=boundPage(), id=page?playerView.activity.id:(stage?.activityId||null);
+    const binding=page?JSON.stringify(['page',page.html,id]):stage?JSON.stringify([stage.moduleId,stage.renderer,id]):null;
     if(binding!==stageBinding){stageBinding=binding;stageSession=id;stageOpen=!!id;stageFailed=null}
     node('stage-toggle').hidden=!id||stageFailed===id;
     if(!id||stageFailed===id)stageOpen=false;
@@ -190,7 +193,7 @@ iframe{
   }
   node('stage-toggle').onclick=()=>{if(!stageSession||stageFailed===stageSession)return;stageOpen=!stageOpen;presentStage()};
   window.addEventListener('message',event=>{
-    if(init?.frontend!=='default'||event.source!==frame.contentWindow||event.origin!=='null'||event.data?.activityId!==stageSession||event.data?.revision!==playerView?.activityStage?.revision||event.data?.renderer!==playerView?.activityStage?.renderer)return;
+    if(boundPage()||init?.frontend!=='default'||event.source!==frame.contentWindow||event.origin!=='null'||event.data?.activityId!==stageSession||event.data?.revision!==playerView?.activityStage?.revision||event.data?.renderer!==playerView?.activityStage?.renderer)return;
     if(event.data.type==='activity-stage-failed'){stageFailed=stageSession;stageOpen=false;syncStage()}
     if(event.data.type==='activity-stage-close'){stageOpen=false;presentStage()}
   });
@@ -236,6 +239,7 @@ iframe{
           if(!init.canSave||Object.keys(r.payload).join(',')!=='title'||typeof r.payload.title!=='string'||r.payload.title.length>80)throw new Error('保存请求无效');
           const result=await api('/api/story-save',{title:r.payload.title});reply({ok:true,result:result.node});return;
         }
+        if(pageFrame&&r.method==='perform')throw new Error('请在当前活动页面操作');
         const grant={view:'view',history:'history',speak:'speak',perform:'perform',regenerate:'regenerate',selectCandidate:'regenerate',cancelRegeneration:'regenerate',setPluginControl:'perform',resource:'resources',synthesizeSpeech:'speech',selectBgm:'bgm',getBgmAudio:'bgm'}[r.method];
         if(!grant||!init.capabilities.includes(grant))throw new Error('前端没有该能力');
         if(['view','history'].includes(r.method)){

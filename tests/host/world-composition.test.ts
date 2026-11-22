@@ -8,8 +8,7 @@ import {
   WorldHostRuntime,
   type WorldHostCoreOptions,
 } from '../../apps/host/src/runtime/world-runtime.ts'
-import { LensSimulation } from '../../apps/host/src/lens/simulation.ts'
-import { LensSession } from '../../apps/host/src/lens/session.ts'
+import { LensSimulation } from '../../apps/host/src/simulation/simulation.ts'
 import { exportStoryNode, importStoryNode } from '../../apps/host/src/story-share.ts'
 import { startFakeProvider, fakeModels } from '../support/fake-provider.ts'
 import type { SeamProvider, StatusInstance } from '@perspectra/sdk'
@@ -17,11 +16,9 @@ import { PluginFaultError } from '../../apps/host/src/runtime/plugin-runtime.ts'
 
 const roots: string[] = [],
   runtimes: WorldHostRuntime[] = [],
-  sessions: LensSession[] = [],
   simulations: LensSimulation[] = [],
   servers: Awaited<ReturnType<typeof startFakeProvider>>[] = []
 afterEach(async () => {
-  for (const session of sessions.splice(0)) await session.close()
   for (const simulation of simulations.splice(0)) await simulation.close()
   for (const runtime of runtimes.splice(0)) await runtime.close()
   for (const server of servers.splice(0)) await server.close()
@@ -154,15 +151,6 @@ it('uses the selected status definition and initializer for Lens opening overrid
   expect(simulation.statusDefinition().statuses.map(status => status.key)).toEqual(['custom'])
   await simulation.close()
   expect(opened.every(entry => entry.closed)).toBe(true)
-})
-it('retains the selected composition across Lens restarts and reloads', async () => {
-  const { composition } = customStatus(),
-    session = await LensSession.open(pack(true), composition)
-  sessions.push(session)
-  await session.restart({ status: { public: { custom: 9 } } })
-  const reloaded = await session.reload()
-  expect(reloaded.view.items.some(item => item.title === '自定义状态')).toBe(true)
-  expect(JSON.stringify(reloaded.simulation.state)).not.toContain('the selected native interpreter')
 })
 it('opens and closes the selected status provider for share preflight without a second interpreter', async () => {
   const { composition, opened } = customStatus(),

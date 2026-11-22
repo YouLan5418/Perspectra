@@ -1,4 +1,4 @@
-import type { InteractionPackageImplementation } from '@perspectra/sdk/contracts'
+import type { InteractionPackageImplementation, WorldJsonObject } from '@perspectra/sdk/contracts'
 import { assertPhysicalEffects } from '@perspectra/core'
 import { createCoreRulebookRegistry, RulebookRegistry, type RulebookResolver } from '@perspectra/core/kernel'
 import type { ActionAffordance, RulesInstance, RuleResolution } from '@perspectra/sdk'
@@ -76,23 +76,58 @@ export function guardedRules(
     ...(resolve
       ? {
           resolve: (input, next) => {
+            const forwardedMoves: WorldJsonObject[] = []
             return guarded(
               'resolve',
               input,
               current => {
                 const result = next(current)
                 // A real downstream failure remains a Host callback failure.
-                if (result.status === 'accepted')
+                if (result.status === 'accepted') {
                   assertPhysicalEffects({ manifest: current.manifest, events: current.events, drafts: result.events })
+                  for (const event of result.events)
+                    if (event.eventType === 'character.moved')
+                      forwardedMoves.push(structuredClone(event.data as WorldJsonObject))
+                }
                 return result
               },
               onward => {
                 const value = resolve.call(instance, structuredClone(input), onward)
                 if (!isRuleResolution(value)) throw invalidPluginResult(context, id, 'resolve')
                 // Validation of data returned by this plugin belongs to this plugin's fault boundary.
-                if (value.status === 'accepted')
-                  assertPhysicalEffects({ manifest: input.manifest, events: input.events, drafts: value.events })
-                return value
+                if (value.status !== 'accepted') return value
+                assertPhysicalEffects({ manifest: input.manifest, events: input.events, drafts: value.events })
+                if (!value.events.some(event => event.eventType === 'character.moved')) return value
+                return {
+                  ...value,
+                  events: value.events.map(event => {
+                    if (event.eventType !== 'character.moved') return event
+                    const data = event.data as WorldJsonObject
+                    // Preserve the downstream producer on an unchanged route, including pass-through layers.
+                    const forwarded = forwardedMoves.find(
+                      move =>
+                        move.characterId === data.characterId &&
+                        move.fromLocationId === data.fromLocationId &&
+                        move.toLocationId === data.toLocationId,
+                    )
+                    if (forwarded?.movementSource)
+                      return { ...event, data: { ...data, movementSource: forwarded.movementSource } }
+                    if (isRecord(data.movementSource) && data.movementSource.moduleId === id) return event
+                    return {
+                      ...event,
+                      data: {
+                        ...data,
+                        movementSource: {
+                          kind: 'rule',
+                          moduleId: id,
+                          actorId: input.characterId,
+                          operation: input.action.actionType,
+                          ...(input.actionId ? { actionId: input.actionId } : {}),
+                        },
+                      },
+                    }
+                  }),
+                }
               },
             )
           },

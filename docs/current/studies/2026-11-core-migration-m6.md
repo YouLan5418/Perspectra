@@ -14,7 +14,7 @@
 | WorldHostRuntime／[TailRoundRuntime](../../../apps/host/src/runtime/tail-runtime.ts) | 默认 RP 由公共桌面入口明确选择；显式组合原样传给候选。环境比较使用实际安装目录与所选 Provider，不再写死基础交互 |
 | [WorldAdapters](../../../apps/host/src/runtime/world-adapters.ts) | 原 WorldGameplay 的 prepare／load 装配方法退出，剩下执行适配器上的规则与上下文投影。宿主启动阶段显式绑定适配器；没有 ctx.gameplay，也没有并行旧生产类 |
 | [创作者查询](../../../apps/host/src/runtime/creator-queries.ts) | 只接收 statusTruth／activityStates 只读能力，不获取整个适配器集合，不另建状态或活动解释器 |
-| [Lens](../../../apps/host/src/lens/simulation.ts)／[会话](../../../apps/host/src/lens/session.ts) | 可接收同一组合并贯穿重启／重载；起点状态覆盖所选 Provider.initialize 的结果，再沿正式 StatusState 检查。删除直接制造默认 StatusScripts 的路径，不再重写 status.js 来覆盖初始值 |
+| [Lens](../../../apps/host/src/simulation/simulation.ts)／当时的 Lens 会话 | 可接收同一组合并贯穿重启／重载；起点状态覆盖所选 Provider.initialize 的结果，再沿正式 StatusState 检查。删除直接制造默认 StatusScripts 的路径，不再重写 status.js 来覆盖初始值 |
 | [故事分享](../../../apps/host/src/story-share.ts) | 可明确传入相同组合；一次性副本上的状态声明预检通过所选 Provider.open／close 和 StatusState，复用[公共角色描述](../../../apps/host/src/runtime/world-cast.ts)。不执行初始化、不改发送者节点 |
 | [静态边界](../../../scripts/check-host-boundaries.mjs) | 保留所有原边界；补核心依赖宿主、SDK 运行时依赖实现、世界包脚本导入 Cordis／原生 SDK 的拒绝检查与回归 |
 | 创作 Skill、CLI 与发布 | Skill 同步层次和格式含义；world-pack 库仍消费公开安装契约，进程明确选择基础交互，结构校验不执行 hook。发布入口打包同一 CLI／Lens；记忆布局检查改从公开包根导入 coreRunner，而非私有 worker 文件 |

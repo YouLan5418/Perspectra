@@ -5,8 +5,8 @@ import { rmSync } from 'node:fs'
 import scenarioJson from '../../examples/rpg-mv/scenario.json' with { type: 'json' }
 import { addRpgMvExample } from '../support/rpg-mv-fixture.ts'
 import { copyRpgFixture, openRpgFixture, type RpgFixture } from '../support/rpg-fixture.ts'
-import { LensSimulation } from '../../apps/host/src/lens/simulation.ts'
-import { applyScenario, parseScenario } from '../../apps/host/src/lens/scenario.ts'
+import { LensSimulation } from '../../apps/host/src/simulation/simulation.ts'
+import { applyScenario, parseScenario } from '../../apps/host/src/simulation/scenario.ts'
 import { FrontendActions, projectPlayerView } from '../../apps/host/src/runtime/frontend-adapter.ts'
 
 type Json = Record<string, any>

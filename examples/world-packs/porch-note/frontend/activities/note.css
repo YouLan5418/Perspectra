@@ -1,0 +1,8 @@
+:root { color-scheme: light; font-family: Georgia, "Songti SC", serif; color: #352e24; background: #eae4d7; }
+body { margin: 0; padding: clamp(20px, 8vw, 100px); }
+main { margin: auto; max-width: 34rem; padding: clamp(24px, 6vw, 64px); background: #fffaf0; border-top: 4px solid #746449; box-shadow: 0 8px 32px #453a251a; }
+h1 { font-size: 2rem; font-weight: 500; }
+p { line-height: 1.8; margin-bottom: 2rem; }
+button { padding: .7rem 1rem; margin: .25rem 0; border: 1px solid #827153; color: #3b3022; background: transparent; cursor: pointer; font: inherit; }
+main.can-open { border-top-color: #ae592b; background: #fff5db; }
+button:focus-visible { outline: 2px solid #574222; outline-offset: 2px; }

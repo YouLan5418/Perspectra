@@ -61,7 +61,7 @@ execFileSync(process.execPath, ['scripts/release/verify-worldpack-cli.mjs', root
   windowsHide: true,
 })
 await access(join(root, 'runtime/creator-assets/index.html'))
-await access(join(root, 'runtime/lens-assets/index.html'))
+await access(join(root, 'runtime/editor-assets/index.html'))
 const runtime = join(root, 'runtime')
 async function checkNodeOnly(directory, relative = '') {
   for (const entry of await readdir(directory, { withFileTypes: true })) {

@@ -7,12 +7,12 @@
 
 搜证的最短阅读路线：
 
-1. [worldpack CLI](../../../apps/host/src/cli/worldpack.ts) 的 `simulate` 分支解析场景并调用 [runScenario](../../../apps/host/src/lens/scenario.ts)。
-2. [LensSimulation](../../../apps/host/src/lens/simulation.ts) 创建隔离目录和 SQLite，经 [WorldHostRuntime](../../../apps/host/src/runtime/world-runtime.ts) 装配正式引擎；[ScriptedModel](../../../packages/providers/src/scripted-model/index.ts) 只替换发送，授权组装仍由正式 DecisionService 完成。
+1. [worldpack CLI](../../../apps/host/src/cli/worldpack.ts) 的 `simulate` 分支解析场景并调用 [runScenario](../../../apps/host/src/simulation/scenario.ts)。
+2. [LensSimulation](../../../apps/host/src/simulation/simulation.ts) 创建隔离目录和 SQLite，经 [WorldHostRuntime](../../../apps/host/src/runtime/world-runtime.ts) 装配正式引擎；[ScriptedModel](../../../packages/providers/src/scripted-model/index.ts) 只替换发送，授权组装仍由正式 DecisionService 完成。
 3. [execution-engine](../../../packages/core/src/application/execution-engine.ts) 执行周期，[gameplay-runtime](../../../packages/core/src/application/gameplay-runtime.ts) 合取限制、选择处理器，[RoundCoordinator](../../../packages/core/src/application/round-coordinator.ts) 经 Store 原子提交事实。
-4. 回到 Lens 的 `events`、`perceived`、`modelInputs` 和玩家 `gameplay`，再读 `scenario.check` 与 [搜证回归](../../../tests/host/lens-simulation.test.ts)，区分事实、角色授权观察和玩家面板。
+4. 回到推演结果的 `events`、`perceived`、`modelInputs` 和玩家 `gameplay`，再读 `scenario.check` 与 [搜证回归](../../../tests/host/pack-simulation.test.ts)，区分事实、角色授权观察和玩家面板。
 
-静态分析另从 [buildLensView](../../../packages/world-pack/src/lens/view.ts) 进入：它接收结构化只读开场信息，不导入 Host；动态装配、故障与行为断言保留在 Host。
+作者查看角色或地点时，工作台和 `worldpack editor records` 都读取同一份[源包记录](../../../apps/host/src/editor/world-records.ts)。
 
 
 2026-11-05 M5：例如后室同伴收到玩家短信后，自主处理自己的目标。通信选项与消息计算由 ctx.communication 提供，自主配置、触发频率和许可由 ctx.autonomy 提供；两者不直接提交事件。CommunicationRules 与执行适配绑定真实收发者，AutonomyRuntime 提取交易摘要并检查声明范围，机会继续交现有 scheduler／characterLoop。源码与验证边界见[M5 记录](../studies/2026-11-core-migration-m5.md)。
