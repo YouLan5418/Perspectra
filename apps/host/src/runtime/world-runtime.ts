@@ -58,6 +58,7 @@ import {
   type AudioPreferences,
 } from '../play-settings.ts'
 import type { RuntimeRoleModels } from '../model-connections.ts'
+import { readNoticeCatalog, registerNotice, type NoticeRegistration } from './notice-registration.ts'
 import { TailRoundRuntime } from './tail-runtime.ts'
 import { assertSettled, snapshotTail } from '../tail-storage.ts'
 import {
@@ -1573,6 +1574,22 @@ export class WorldHostCore implements HostRuntime {
     return (
       (mode === 'last' ? this.#gameplay.activity?.lastAutoStart() : this.#gameplay.activity?.evaluateAutoStart()) ?? []
     )
+  }
+  // The test fixture supplies the storage experiment. Neither method is an HTTP or plugin capability.
+  #noticeScope() {
+    if (this.#closing || this.#busy || this.#savingNode || this.#escaping) throw new HostBusyError('世界正在处理行动。')
+    return {
+      directory: this.#dataDirectory,
+      address: this.#address,
+      worldVersion: this.#worldVersion,
+      rules: this.#generated?.worldEvents,
+    }
+  }
+  pendingNoticeCatalog() {
+    return readNoticeCatalog(this.#noticeScope())
+  }
+  registerPendingNotice(request: NoticeRegistration) {
+    return registerNotice(this.#noticeScope(), request)
   }
   /** The author's status definition (statuses and operations) from the loaded status script, for authoring tools. */
   statusDefinition(): {

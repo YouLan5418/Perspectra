@@ -290,6 +290,8 @@ NPC 固定台词发表时，可选 `onPublished(state, actorId, expression)` 返
 
 玩家搜查后精力减少、线索进入自己的面板，同房澄仅看到翻找。`worldpack simulate <source> <scenario.json>` 调用 `runScenario`；`LensSimulation` 通过 `WorldHostRuntime.create/perform/submit` 接到 `WorldApplication.createExecutionEngine` 与正式周期。`ScriptedModel` 仅实现现有 `llmTransport`，保留官方预设与 Default DecisionService 授权组装；这条路径不启动 HTTP 模型桩、不读取真实模型凭据。
 
+同一活动结束后再开一局时，页面和推演简写都会用空实例 ID 与修订号 0 发出 `start`。同档正常关闭再启动仍能看到上一局的结束结果，续做进行中的操作则使用该实例的 ID 和修订号。[Host 续档回归](../../../tests/host/pack-activity.test.ts) · [推演简写回归](../../../tests/host/pack-simulation.test.ts)
+
 结果包含逐步真实裁定、角色观察、实际模型输入和玩家玩法投影。状态回放直接读临时 SQLite 的已提交事件，包含共同玩法状态；候选缺失和正式拒绝分开处理。`fault` 匹配实际插件故障，状态断言检查失败后未提交的效果；`contextExcludes` 必须有实际请求才可通过。全部输出属于作者诊断，不回流角色共享上下文。
 
 [搜证示例](../../../examples/world-packs/investigation/README.md)包含显式启用、实现和三步剧本。计时与实际验证见 [B9 记录](../../superpowers/plans/2026-11-15-composable-engine-b9-simulation.md)；实际 HTTP 桩仍留在旧测试支持文件，不在无头推演执行路径中。没有实施 B10 包迁移或 B11 真实模型／发行验收。
@@ -300,3 +302,11 @@ NPC 固定台词发表时，可选 `onPublished(state, actorId, expression)` 返
 例如给澄一个“先削弱守卫架势”的目标，她会从自己的技能效果说明里选择压制或破甲击，裁定结果确认后再发表。RPG 使用已有的原生 `projectState`，由共同 GameplayRuntime 将授权结果放入决策上下文；没有改通用 Prompt 模板，也不把技能定义重复写进持久活动状态。作者数值、护盾和持续效果均有真实模型实际操作，完整长局质量另行验收。
 
 活动桥在投影模型候选时，保留上游许可过滤后的原始选项及参数 Schema，只能收窄，不能按活动 policy 重新生成已被剔除的动作。同居示例为角色显式声明其实际使用的 attack／magic／heal／guard／vote 许可。没有恢复默认全部放行。B10 包迁移已集成；当前自动化、真实模型与便携入口结果见 [B11 记录](../../superpowers/plans/2026-11-16-composable-engine-b11-acceptance.md)。
+
+## 未来告示的存档实验
+
+例如创作者登记“明晚前厅招工”时，角色还在做饭。本地实验保存了这项安排、当前日历和登记时的世界事件前缀。玩家和角色此时看不到告示。测试通过 Host 内部方法提交，资料表只在临时测试存档创建。关闭重开后可重读登记。[Host 登记实现](../../../apps/host/src/runtime/notice-registration.ts) · [实验表](../../../experiments/director-registration/schema.sql) · [Host 与 Store 验收](../../../tests/host/world-events.test.ts)
+
+每个世界分支分别保存告示序号，登记前后可以有相同的世界事件序号、游戏 tick 和世界事件哈希。Host 将当前候选目录身份、选择版本、世界头和告示目录摘要一起用于预检。同一候选上重试已登记请求可读回原回执。准入日历取自锁定包已有规则，存下登记时日历、时段顺序、目标日期、有效世界事件序号和哈希。实验只处理登记，跨越判定和张贴尚未接入。
+
+末端候选和故事节点备份实际 SQLite 文件。SQLite 逻辑分支则在分出时冻结父分支中世界锚点不晚于切点的告示。若多个登记共享同一个世界头，事后只指定世界序号无法选出它们中间的时刻，精确恢复可用当时保存的节点。现有世界完整性哈希只校验游戏历史，告示目录有独立内容摘要。正式存档协议仍为 v21；采用独立目录前须决定历史查询的双序号与旧归档恢复方式。另一种方案是把独立的零 tick 元数据提交纳入世界事件序列，需要相应调整 manifest、提交协议与末端候选头校验。

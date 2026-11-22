@@ -3,6 +3,7 @@ import { appendFileSync, cpSync, existsSync, mkdtempSync, readFileSync, rmSync, 
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { randomUUID } from 'node:crypto'
+import { DatabaseSync } from 'node:sqlite'
 import { Context } from '@deepseek-ai/cordis'
 import { installWorldEventRegistry } from '../../apps/host/src/world-event-registry.ts'
 import { spawnSync } from 'node:child_process'
@@ -13,8 +14,8 @@ import { parseEventBook } from '@perspectra/sdk'
 import type { StoredWorldEvent } from '@perspectra/sdk/contracts'
 import { WorldEventRuntime } from '../../apps/host/src/runtime/world-events.ts'
 import { executeWorldRound, WorldExecutionEngine } from '@perspectra/core'
-import { WriterLeaseService, WorldStore } from '@perspectra/core/store'
-import { brandId, type WorldJsonObject } from '@perspectra/sdk/contracts'
+import { WriterLeaseService, WorldStore, WorldArchiveService, WORLD_SCHEMA_VERSION } from '@perspectra/core/store'
+import { brandId, playerRoundNumber, worldAddressKey, type WorldJsonObject } from '@perspectra/sdk/contracts'
 import { WorldHostRuntime } from '../../apps/host/src/runtime/world-runtime.ts'
 import { loadHostPlugins } from '../../apps/host/src/host-plugins.ts'
 import { fakeModels, startFakeProvider } from '../support/fake-provider.ts'
@@ -46,6 +47,7 @@ async function fixture(
   pacing?: { keys: string[]; cooldown?: number; legacyBeat?: boolean; managedCook?: boolean },
   calendar = false,
   wakes?: { recipients: string[]; failModel?: boolean; ordinary?: boolean },
+  configurePack?: (pack: string) => void,
 ) {
   const root = mkdtempSync(join(tmpdir(), 'world-events-')),
     pack = join(root, 'pack'),
@@ -193,6 +195,7 @@ async function fixture(
     JSON.stringify({ id: 'alternate-rules', name: 'replacement', version: '1', services: ['content'] }),
   )
   mods.push({ id: 'alternate-install', enabled: true, nativeAllowed: true, path: alternatePath })
+  configurePack?.(pack)
   const plugins = await loadHostPlugins(mods, {}, {}, { gameplayIds: Object.keys(meta.plugins) })
   cleanup.push(() => plugins.close())
   const stub = await startFakeProvider('openai', () =>
@@ -393,6 +396,213 @@ const wageWrites = (f: Awaited<ReturnType<typeof fixture>>) =>
     .events.filter(e => e.eventType === 'status.updated')
     .flatMap(e => (e.data as WorldJsonObject).changes as WorldJsonObject[])
     .filter(c => c.key === 'wage' && c.value === 120)
+
+const noticeProposal = { text: '明晚前厅招工', day: 3, slot: '傍晚', calendarRule: rule.id }
+
+function installNoticeExperiment(runtime: WorldHostRuntime) {
+  const db = new DatabaseSync(join(runtime.dataDirectory, 'world.sqlite'))
+  try {
+    db.exec(readFileSync(resolve('experiments/director-registration/schema.sql'), 'utf8'))
+  } finally {
+    db.close()
+  }
+}
+
+it('registers a future notice atomically without a game tick; reopening and story nodes preserve their own prefix', async () => {
+  const heldWake = { id: 'shift-change', round: 1, audience: 'scene', wakeCharacters: ['character:companion'] }
+  const f = await fixture(99, [heldWake], false, undefined, true, { recipients: ['character:companion'] }, pack => {
+    appendFileSync(
+      join(pack, 'scripts/status.js'),
+      `
+      statusScript.definition.statuses.push({key:'shift-left', label:'剩余工期', owner:'public', type:'number'})
+      const initializeCountdown = statusScript.initialize
+      statusScript.initialize = ids => {
+        const truth = initializeCountdown(ids)
+        truth.public['shift-left'] = 4
+        return truth
+      }
+      statusScript.onRoundEnd = truth => ({
+        changes: [{holderId:null, key:'shift-left', value:truth.public['shift-left'] - 1}], reveals:[]
+      })
+    `,
+    )
+  })
+  expect(f.runtime.creatorInspection().statusTruth?.public['shift-left']).toBe(4)
+  const unmodified = f.runtime.pendingNoticeCatalog()
+  expect(unmodified.notices).toEqual([])
+  expect(() =>
+    f.runtime.registerPendingNotice({ expected: unmodified.target, requestId: randomUUID(), proposal: noticeProposal }),
+  ).toThrow('没有启用')
+  await f.runtime.activityAction({
+    activityKey: 'cook',
+    activityId: null,
+    revision: 0,
+    operation: 'start',
+    parameters: {},
+    requestId: randomUUID(),
+  })
+  const world = () => {
+    const view = f.runtime.creatorInspection()
+    const events = f.history().events
+    return {
+      events,
+      headSeq: view.headSeq,
+      tick: view.tick,
+      round: playerRoundNumber(events, view.headSeq, false),
+      calendar: view.statusTruth?.public,
+      activities: view.activities,
+      wakes: view.worldEvents.flatMap(row => row.occurrence?.witnesses.map(w => [w.id, w.wake]) ?? []),
+      modelCalls: f.stub.calls.length,
+    }
+  }
+  const before = world()
+  expect(before.wakes).toContainEqual(['character:companion', 'pending'])
+  expect(before.activities.length).toBeGreaterThan(0)
+  expect(before.calendar).toMatchObject({ day: 2, slot: '午后', 'shift-left': 3 })
+  const nodeBefore = await f.runtime.saveNode('登记前')
+  installNoticeExperiment(f.runtime)
+  const first = f.runtime.pendingNoticeCatalog()
+  const request = { requestId: randomUUID(), proposal: noticeProposal, expected: first.target }
+  const path = join(f.runtime.dataDirectory, 'world.sqlite')
+  const store = new WorldStore(path),
+    sql = new DatabaseSync(path),
+    parent = f.runtime.address
+  try {
+    const integrity = store.verifyBranchIntegrity(parent)
+    expect(() => f.runtime.registerPendingNotice({ ...request, proposal: { ...noticeProposal, day: 1 } })).toThrow(
+      '必须安排在未来',
+    )
+    expect(() =>
+      f.runtime.registerPendingNotice({ ...request, proposal: { ...noticeProposal, slot: '未知' } }),
+    ).toThrow('告示日历无效')
+    sql.exec(
+      "CREATE TRIGGER fail_notice AFTER INSERT ON experimental_pending_notices BEGIN SELECT RAISE(ABORT,'fixture notice failure'); END;",
+    )
+    expect(() => f.runtime.registerPendingNotice(request)).toThrow('fixture notice failure')
+    expect(f.runtime.pendingNoticeCatalog()).toEqual(first)
+    sql.exec('DROP TRIGGER fail_notice')
+    const receipt = f.runtime.registerPendingNotice(request)
+    expect(receipt).toMatchObject({
+      metadataSeq: 1,
+      afterWorldSeq: before.headSeq,
+      afterEventHash: first.target.eventHash,
+      baseline: { day: 2, slot: '午后' },
+      proposal: noticeProposal,
+    })
+    expect(f.runtime.registerPendingNotice(request)).toEqual(receipt)
+    expect(() =>
+      f.runtime.registerPendingNotice({ ...request, proposal: { ...noticeProposal, text: '替换' } }),
+    ).toThrow('不能改变内容')
+    expect(() => f.runtime.registerPendingNotice({ ...request, requestId: randomUUID() })).toThrow('前缀已过期')
+    expect(world()).toEqual(before)
+    expect(store.verifyBranchIntegrity(parent)).toEqual(integrity)
+    expect(f.runtime.pendingNoticeCatalog().target.catalogHash).not.toBe(first.target.catalogHash)
+    const archive = new WorldArchiveService(path)
+    const backup = join(f.root, 'notice-backup.sqlite'),
+      restored = join(f.root, 'notice-restored.sqlite')
+    const artifact = await archive.backup(backup, 'test-notice')
+    expect(artifact.schemaVersion).toBe(WORLD_SCHEMA_VERSION)
+    archive.restore(backup, restored, artifact.fileHash, 'test-notice-restore')
+    const recovered = new DatabaseSync(restored, { readOnly: true })
+    try {
+      expect(
+        JSON.parse(
+          String(recovered.prepare('SELECT receipt_json FROM experimental_pending_notices').get()!.receipt_json),
+        ),
+      ).toEqual(receipt)
+    } finally {
+      recovered.close()
+    }
+    const nodeAfter = await f.runtime.saveNode('登记后')
+    expect([nodeBefore.headSeq, nodeBefore.tick]).toEqual([nodeAfter.headSeq, nodeAfter.tick])
+    await f.reopen()
+    expect(f.runtime.pendingNoticeCatalog().notices).toEqual([receipt])
+    expect(f.runtime.registerPendingNotice(request)).toEqual(receipt)
+    expect(world()).toEqual(before)
+    await f.restore(nodeBefore)
+    const copied = f.runtime.pendingNoticeCatalog()
+    expect(copied.notices).toEqual([])
+    expect(copied.target).toMatchObject({
+      headSeq: first.target.headSeq,
+      eventHash: first.target.eventHash,
+      catalogHash: first.target.catalogHash,
+    })
+    expect(f.runtime.creatorInspection().tick).toBe(before.tick)
+    expect(copied.target.candidate).not.toBe(first.target.candidate)
+    installNoticeExperiment(f.runtime)
+    expect(() => f.runtime.registerPendingNotice(request)).toThrow('目标候选已改变')
+    await f.restore(nodeAfter)
+    expect(f.runtime.pendingNoticeCatalog().notices).toEqual([receipt])
+    expect(f.history().events).toEqual(before.events)
+  } finally {
+    sql.close()
+    store.close()
+  }
+})
+
+it('freezes the notice prefix when WorldStore forks at a game seq', async () => {
+  const f = await fixture(99, [], false, undefined, true)
+  installNoticeExperiment(f.runtime)
+  const before = f.runtime.pendingNoticeCatalog().target
+  const path = join(f.runtime.dataDirectory, 'world.sqlite')
+  const store = new WorldStore(path),
+    sql = new DatabaseSync(path),
+    parent = f.runtime.address
+  const child = (name: string) => ({ ...parent, branchId: brandId('branch:' + name, 'BranchId') })
+  const rows = (name: string) =>
+    sql
+      .prepare('SELECT receipt_json FROM experimental_pending_notices WHERE address_key=? ORDER BY metadata_seq')
+      .all(worldAddressKey(child(name)))
+      .map(row => JSON.parse(String(row.receipt_json)))
+  try {
+    store.forkBranch(parent, child('before'), before.headSeq)
+    const receipt = f.runtime.registerPendingNotice({
+      expected: before,
+      proposal: noticeProposal,
+      requestId: randomUUID(),
+    })
+    store.forkBranch(parent, child('after'), before.headSeq)
+    store.forkBranch(parent, child('historical'), before.headSeq - 1)
+    expect(rows('before')).toEqual([])
+    expect(rows('historical')).toEqual([])
+    expect(rows('after')).toEqual([receipt])
+    store.forkBranch(child('after'), child('grandchild'), before.headSeq - 1)
+    expect(rows('grandchild')).toEqual([])
+  } finally {
+    sql.close()
+    store.close()
+  }
+})
+
+it('rejects a sibling candidate at the same game head and keeps a pending notice on the selected tail', async () => {
+  const f = await fixture(99, [], false, undefined, true)
+  installNoticeExperiment(f.runtime)
+  const stale = f.runtime.pendingNoticeCatalog().target
+  const played = await f.runtime.perform(wait)
+  expect(() =>
+    f.runtime.registerPendingNotice({ expected: stale, proposal: noticeProposal, requestId: randomUUID() }),
+  ).toThrow('前缀已过期')
+  const original = f.runtime.pendingNoticeCatalog()
+  const request = { requestId: randomUUID(), proposal: noticeProposal, expected: original.target }
+  const receipt = f.runtime.registerPendingNotice(request)
+  const regenerated = await f.runtime.regenerate(played.tailRound!.id!, randomUUID())
+  const other = f.runtime.pendingNoticeCatalog()
+  expect(other.target.headSeq).toEqual(original.target.headSeq)
+  expect(other.notices).toEqual([])
+  expect(() => f.runtime.registerPendingNotice(request)).toThrow('目标候选已改变')
+  const otherReceipt = f.runtime.registerPendingNotice({
+    ...request,
+    expected: other.target,
+    proposal: { ...noticeProposal, text: '另一条线路的告示' },
+  })
+  expect(otherReceipt.metadataSeq).toBe(receipt.metadataSeq)
+  const hash = f.runtime.pendingNoticeCatalog().target.catalogHash
+  const oldId = regenerated.tailRound!.candidateIds![0]!
+  await f.runtime.selectCandidate(regenerated.tailRound!.id!, oldId, randomUUID())
+  expect(f.runtime.pendingNoticeCatalog().target.catalogHash).not.toBe(hash)
+  expect(f.runtime.pendingNoticeCatalog().notices).toEqual([receipt])
+  expect(f.runtime.registerPendingNotice(request)).toEqual(receipt)
+})
 
 it('recovers a committed wage and clock crossing on reopen and at all three branch prefixes', async () => {
   const f = await fixture(99, [], false, undefined, true)

@@ -1,3 +1,4 @@
+import type { NoticeRegistration } from './notice-registration.ts'
 import { readPacingPreference } from './pacing-preference.ts'
 import { tailRuntimeIdentity } from '../tail-runtime-identity.ts'
 import { randomUUID } from 'node:crypto'
@@ -92,6 +93,17 @@ export class TailRoundRuntime {
   }
   get dataDirectory(): string {
     return resolve(this.options.dataDirectory, this.#selection.directory)
+  }
+  #noticeHost() {
+    if (this.#busy || this.#closed || this.#escaping || this.#regenerating || this.#interrupting)
+      throw new HostBusyError('请等待世界切换完成。')
+    return this.#runtime
+  }
+  pendingNoticeCatalog() {
+    return this.#noticeHost().pendingNoticeCatalog()
+  }
+  registerPendingNotice(request: NoticeRegistration) {
+    return this.#noticeHost().registerPendingNotice(request)
   }
   requestInspection(enabled?: boolean) {
     if (this.#closed || this.#regenerating || this.#interrupting) throw new HostBusyError('请等待世界切换完成。')
