@@ -4,8 +4,11 @@ import { hashWorldJson, type WorldHash, type WorldJsonObject } from '@perspectra
 import { readPragmaInteger, WORLD_APPLICATION_ID } from './sqlite.ts'
 
 const REGISTRATION_ONLY_VERSION = 21001
-export const NOTICE_SCHEMA_VERSION = 21002
-export interface NoticeProposal extends WorldJsonObject {
+export const POSTING_ONLY_VERSION = 21002
+export const NOTICE_SCHEMA_VERSION = 21003
+const noticeVersions = [REGISTRATION_ONLY_VERSION, POSTING_ONLY_VERSION, NOTICE_SCHEMA_VERSION]
+export type NoticeProposal = WorldJsonObject & {
+  readonly commission?: 'signup'
   readonly text: string
   readonly calendarRule: string
   readonly day: number
@@ -33,12 +36,12 @@ function hasNoticeTable(db: DatabaseSync) {
   return !!db.prepare("SELECT 1 FROM sqlite_schema WHERE type='table' AND name='experimental_pending_notices'").get()
 }
 export function supportsNoticeSchema(db: DatabaseSync, version: number): boolean {
-  return (version === NOTICE_SCHEMA_VERSION || version === REGISTRATION_ONLY_VERSION) && hasNoticeTable(db)
+  return noticeVersions.includes(version) && hasNoticeTable(db)
 }
 
 export function noticeStorageEnabled(db: DatabaseSync): boolean {
   const version = readPragmaInteger(db, 'user_version')
-  if (version === NOTICE_SCHEMA_VERSION || version === REGISTRATION_ONLY_VERSION) {
+  if (noticeVersions.includes(version)) {
     if (readPragmaInteger(db, 'application_id') === WORLD_APPLICATION_ID && supportsNoticeSchema(db, version))
       return true
     throw new Error('告示实验存档缺少格式标识或登记表。')
@@ -71,10 +74,17 @@ export function noticeReceipts(db: DatabaseSync, key: string, headSeq: number): 
       'SELECT metadata_seq, world_seq, request_id, receipt_json FROM experimental_pending_notices WHERE address_key=? ORDER BY metadata_seq',
     )
     .all(key)
+  const version = readPragmaInteger(db, 'user_version')
   let previousAnchor = 0,
     previousHash = 'genesis'
   return rows.map((row, index) => {
     const receipt = JSON.parse(String(row.receipt_json)) as NoticeReceipt
+    if (
+      receipt.proposal &&
+      Object.hasOwn(receipt.proposal, 'commission') &&
+      (version !== NOTICE_SCHEMA_VERSION || receipt.proposal.commission !== 'signup')
+    )
+      throw new Error('告示委托与存档格式不一致。')
     const anchor = Number(row.world_seq)
     if (
       typeof receipt.registrationId !== 'string' ||

@@ -27,6 +27,7 @@ import { readPragmaInteger, parseWorldJson, rollbackAndThrow, worldJsonText } fr
 import { OperationalAuditLog } from './operational-audit.ts'
 import {
   NOTICE_SCHEMA_VERSION,
+  POSTING_ONLY_VERSION,
   assertNoticeForkBoundary,
   noticeReceipts,
   resolveForkNoticeCursor,
@@ -1364,9 +1365,13 @@ export class WorldStore {
     return this.#authorityRow(transactionId, address)
   }
 
+  noticeCommissionsEnabled(): boolean {
+    return readPragmaInteger(this.#db, 'user_version') === NOTICE_SCHEMA_VERSION
+  }
+
   /** Only the posting-capable experiment can feed schedules into game settlement. */
   pendingNoticeDefinitions(address: WorldAddress): readonly NoticeReceipt[] {
-    if (readPragmaInteger(this.#db, 'user_version') !== NOTICE_SCHEMA_VERSION) return []
+    if (![POSTING_ONLY_VERSION, NOTICE_SCHEMA_VERSION].includes(readPragmaInteger(this.#db, 'user_version'))) return []
     const key = worldAddressKey(address)
     return noticeReceipts(this.#db, key, this.#headRow(key).head_seq)
   }

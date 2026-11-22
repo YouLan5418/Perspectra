@@ -110,6 +110,19 @@ export function projectPlayerView(state: HostState): PlayerView {
         })
       }
   }
+  for (const { occurrenceId, operation, label } of state.boardChoices ?? []) {
+    const action: HostAction = {
+      actionType: 'interact',
+      parameters: { definitionRef: { id: 'host:notice-board', version: 1 }, occurrenceId, operation },
+    }
+    actions.push({
+      id: optionId(action),
+      label,
+      action,
+      kind: 'interact',
+      target: { kind: 'item', id: occurrenceId, name: '告示栏' },
+    })
+  }
   const activities = state.activities ?? (state.activity ? [state.activity] : [])
   const foreground = activities.some(activity => (activity.game as WorldJsonObject | undefined)?.active === true)
   for (const activity of activities) {

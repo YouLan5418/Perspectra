@@ -1,3 +1,4 @@
+import { boardCommand, type BoardOperation } from './notice-commission.ts'
 import { assertServiceRequirements } from '@perspectra/world-pack'
 import { bindNativeGameplay } from '@perspectra/sdk'
 import { createWorldCast } from './world-cast.ts'
@@ -498,6 +499,7 @@ export class WorldHostCore implements HostRuntime {
   readonly #playSettings: PlaySettings
   readonly #tuning: RuntimeTuning
   #transcript: HostState['transcript'] = []
+  #boardChoices: NonNullable<HostState['boardChoices']> = []
   #availableActions: NonNullable<HostState['availableActions']> = []
   #statusBar: HostState['statusBar']
   #statusTruth: HostState['statusTruth']
@@ -1033,6 +1035,7 @@ export class WorldHostCore implements HostRuntime {
         audio: { ...(this.#options.audio ?? DEFAULT_AUDIO) },
         ...(this.#options.appearance ? { appearance: this.#options.appearance } : {}),
       },
+      ...(!this.#paused && !this.#busy && this.#boardChoices.length ? { boardChoices: this.#boardChoices } : {}),
       availableActions: this.#availableActions,
       actionLabels: this.#actionLabels,
       actionNames: Object.fromEntries(
@@ -1260,6 +1263,7 @@ export class WorldHostCore implements HostRuntime {
   }
 
   #beginWork(signal?: AbortSignal, kind: 'interaction' | 'character' | 'maintenance' = 'interaction'): void {
+    if (this.#busy || this.#closing) throw new HostBusyError('请等待当前行动完成。')
     if (this.#capabilities?.resultUnknown) throw new TypeError('外部执行结果尚未确认，请检查外部游戏后重新启动实例。')
     this.#allowInterruption = false
     this.#autonomyCycle = undefined
@@ -1308,6 +1312,9 @@ export class WorldHostCore implements HostRuntime {
     if (request.signal.aborted) controller.abort(request.signal.reason)
     this.#executionCycle = request.openCycle()
     this.#executionControl = this.#executionCycle.control
+    this.#occupyHost()
+  }
+  #occupyHost(): void {
     this.#busy = true
     this.#phaseLabel = '正在提交操作'
     this.#workDone = new Promise<void>(done => {
@@ -1367,11 +1374,14 @@ export class WorldHostCore implements HostRuntime {
       this.#executionControl = undefined
       this.#continuationController = undefined
       this.#allowInterruption = false
-      this.#busy = false
-      this.#phaseLabel = this.#paused ? 'NPC 已暂停' : '可以输入'
-      this.#finishWork?.()
-      this.#finishWork = undefined
+      this.#releaseHost()
     }
+  }
+  #releaseHost(): void {
+    this.#busy = false
+    this.#phaseLabel = this.#paused ? 'NPC 已暂停' : '可以输入'
+    this.#finishWork?.()
+    this.#finishWork = undefined
   }
   async activityAction(request: ActivityRequest): Promise<HostState> {
     return WorldStore.withEventReadCache(() => this.#activityAction(request))
@@ -1599,7 +1609,12 @@ export class WorldHostCore implements HostRuntime {
   knownNotices() {
     return this.#worldEvents?.knownNotices(this.#playerId) ?? []
   }
-  async readPostedNotice(occurrenceId: string, beforeCommit: () => void) {
+  async applyBoardAction(
+    occurrenceId: string,
+    operation: BoardOperation,
+    beforeCommit?: () => void,
+    onCommitted?: () => void,
+  ) {
     if (
       this.#busy ||
       this.#closing ||
@@ -1610,16 +1625,25 @@ export class WorldHostCore implements HostRuntime {
     )
       throw new HostBusyError('请等待当前行动完成。')
     if (!this.#worldEvents || this.#gameplay.activity?.current()?.game.active)
-      throw new TypeError('当前无法查看这张告示。')
-    await this.#application.yieldWriter(this.#address)
-    const result = await this.#worldEvents.readPostedNotice(
-      resolve(this.#dataDirectory, 'world.sqlite'),
-      this.#playerId,
-      occurrenceId,
-      beforeCommit,
-    )
-    await this.#refresh()
-    return result
+      throw new TypeError(operation === 'read' ? '当前无法查看这张告示。' : '当前无法办理这项告示操作。')
+    // Board commands reserve the same host slot as a turn, without opening a game cycle.
+    this.#occupyHost()
+    try {
+      await this.#application.yieldWriter(this.#address)
+      await this.#worldEvents.applyBoardAction(
+        resolve(this.#dataDirectory, 'world.sqlite'),
+        this.#playerId,
+        occurrenceId,
+        operation,
+        beforeCommit,
+      )
+      onCommitted?.()
+      this.#error = false
+      this.#notice = operation === 'read' ? '已查看告示。' : operation === 'enroll' ? '已报名。' : '已放弃报名。'
+      await this.#refresh()
+    } finally {
+      this.#releaseHost()
+    }
   }
 
   /** The author's status definition (statuses and operations) from the loaded status script, for authoring tools. */
@@ -1772,6 +1796,16 @@ export class WorldHostCore implements HostRuntime {
     idempotencyKey?: string,
     onCommitted?: () => void,
   ): Promise<HostState> {
+    const board = boardCommand(action, _line)
+    if (board) {
+      this.holdCognition()
+      try {
+        await this.applyBoardAction(board.occurrenceId, board.operation, undefined, onCommitted)
+        return await this.state()
+      } finally {
+        this.releaseCognition()
+      }
+    }
     const handoff = handoffRequest(action, idempotencyKey)
     if (handoff) {
       if (_line) throw new TypeError('接力不能附带发言')
@@ -1886,6 +1920,8 @@ export class WorldHostCore implements HostRuntime {
 
   async #close(): Promise<void> {
     this.#closing = true
+    // A board write is local and has no execution cycle to abort. Drain it before disposing the store.
+    if (this.#busy && !this.#executionCycle) await this.#workDone
     this.#pluginsReady = false
     this.#inspector.configure(false)
     const scope = this.#scope
@@ -2989,6 +3025,7 @@ export class WorldHostCore implements HostRuntime {
       const availability = new CharacterRuntimeAvailabilityService(worldPath)
       try {
         const events = world.readEvents(this.#address, view.asOfWorldSeq)
+        this.#boardChoices = this.#worldEvents?.boardChoices(this.#playerId, events, view.asOfWorldSeq) ?? []
         if (this.#gameplay.activity)
           activityWorld = activityWorldFromEvents(worldPath, this.#address, view.asOfWorldSeq, events, this.#entities)
         const scene = new SceneDecisionService(world, availability).decideFromEvents(

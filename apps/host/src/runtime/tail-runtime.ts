@@ -1,3 +1,4 @@
+import { boardCommand, type BoardOperation } from './notice-commission.ts'
 import type { NoticeRegistration } from './notice-registration.ts'
 import { readPacingPreference } from './pacing-preference.ts'
 import { tailRuntimeIdentity } from '../tail-runtime-identity.ts'
@@ -113,11 +114,29 @@ export class TailRoundRuntime {
     return this.#noticeHost().knownNotices()
   }
   async readPostedNotice(occurrenceId: string) {
-    const host = this.#noticeHost()
+    await this.#applyBoardAction(occurrenceId, 'read')
+    return this.knownNotices().find(post => post.occurrenceId === occurrenceId)!
+  }
+  async #applyBoardAction(occurrenceId: string, operation: BoardOperation, onCommitted?: () => void) {
+    const host = this.#noticeHost(),
+      previous = this.#selection
     this.#begin()
     host.holdCognition()
     try {
-      return await host.readPostedNotice(occurrenceId, () => this.#write({ ...this.#selection, tail: null }))
+      await host.applyBoardAction(
+        occurrenceId,
+        operation,
+        () => this.#write({ ...this.#selection, tail: null }),
+        onCommitted,
+      )
+      this.#notice = ''
+    } catch (error) {
+      // A failed write can keep the old regeneration candidate only if its settled game head still matches.
+      if (previous.tail && this.#selection !== previous) {
+        const head = assertSettled(this.dataDirectory, host.address)
+        if (head.headSeq === previous.tail.headSeq && head.tick === previous.tail.tick) this.#write(previous)
+      }
+      throw error
     } finally {
       host.releaseCognition()
       this.#end()
@@ -412,6 +431,11 @@ export class TailRoundRuntime {
     idempotencyKey?: string,
     onCommitted?: () => void,
   ): Promise<HostState> {
+    const board = boardCommand(action, line)
+    if (board) {
+      await this.#applyBoardAction(board.occurrenceId, board.operation, onCommitted)
+      return this.state()
+    }
     const handoff = handoffRequest(action, idempotencyKey)
     if (handoff) {
       if (line) throw new TypeError('接力不能附带发言')

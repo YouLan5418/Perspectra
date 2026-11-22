@@ -38,7 +38,7 @@ import {
   openMigratedDatabase,
 } from '@perspectra/core/store'
 import { brandId, playerRoundNumber, worldAddressKey, type WorldJsonObject } from '@perspectra/sdk/contracts'
-import { WorldHostRuntime } from '../../apps/host/src/runtime/world-runtime.ts'
+import { WorldHostCore, WorldHostRuntime } from '../../apps/host/src/runtime/world-runtime.ts'
 import { loadHostPlugins } from '../../apps/host/src/host-plugins.ts'
 import { fakeModels, startFakeProvider } from '../support/fake-provider.ts'
 import { PacingScript } from '@perspectra/plugins/pacing'
@@ -46,7 +46,7 @@ import { exportStoryNode, importStoryNode } from '../../apps/host/src/story-shar
 import { exportStoryTree, importStoryTree } from '../../apps/host/src/story-backup.ts'
 import { readStoryNodes, restoreStoryNode } from '../../apps/host/src/story-nodes.ts'
 import { officialWorldEvents } from '@perspectra/plugins/world-events'
-import { projectPlayerView } from '../../apps/host/src/runtime/frontend-adapter.ts'
+import { FrontendActions, projectPlayerView } from '../../apps/host/src/runtime/frontend-adapter.ts'
 
 const cleanup: (() => unknown)[] = []
 afterEach(async () => {
@@ -245,7 +245,7 @@ async function fixture(
   }
   let runtime = await open()
   cleanup.push(() => runtime.close())
-  function history() {
+  function history(authoritySource = source) {
     const db = new WorldStore(join(runtime.dataDirectory, 'world.sqlite'))
     try {
       const events = db.readEvents(runtime.address)
@@ -253,7 +253,7 @@ async function fixture(
         .filter(e => e.eventType === 'world.tick-advanced')
         .flatMap(e => {
           const a = db.readRoundAuthority(runtime.address, e.transactionId)?.authority
-          return a?.source === source ? [{ seq: e.seq, tx: e.transactionId, a }] : []
+          return a?.source === authoritySource ? [{ seq: e.seq, tx: e.transactionId, a }] : []
         })
       return { events, commits }
     } finally {
@@ -389,7 +389,7 @@ it('settles round four during cooking, delivers authorized envelopes and persist
   ])
 }, 60_000)
 
-function failCommit(kind: 'before' | 'after' | 'receipt') {
+function failCommit(kind: 'before' | 'after' | 'receipt', authoritySource = source) {
   const original = WorldStore.prototype.commitRound
   let fired = false
   const spy = vi.spyOn(WorldStore.prototype, 'commitRound').mockImplementation(async function (
@@ -397,7 +397,7 @@ function failCommit(kind: 'before' | 'after' | 'receipt') {
     request,
   ) {
     const matches =
-      request.authority?.source === source &&
+      request.authority?.source === authoritySource &&
       (kind !== 'receipt' || (request.authority.receipts as string[]).length > 0)
     if (!matches || fired) return original.call(this, request)
     fired = true
@@ -1098,7 +1098,7 @@ it('keeps later board access separate from the static witness gate, wake and plu
     writeFileSync(path, JSON.stringify(book))
   })
   installNoticeExperiment(f.runtime)
-  schedules(f)
+  f.runtime.registerPendingNotice(signupRequest(f))
   await f.runtime.submit(work)
   const [fact] = postings(f),
     id = String(fact!.occurrenceId)
@@ -1117,6 +1117,9 @@ it('keeps later board access separate from the static witness gate, wake and plu
   const original = f.runtime.knownNotices()
   expect(original).toHaveLength(1)
   expect(await f.runtime.readPostedNotice(id)).toEqual(original[0])
+  await expect(f.runtime.perform(boardAction('withdraw', id))).rejects.toThrow('当前无法办理')
+  await f.runtime.perform(boardAction('enroll', id))
+  expect(f.history(commissionSource).commits.map(r => r.a.evidenceSeq)).toEqual([original[0]!.readAt])
   expect(f.history().commits.filter(c => c.a.noticeRead)).toHaveLength(1)
   expect(f.runtime.creatorInspection().worldEvents[0]!.occurrence).toEqual(before)
   expect(f.log()).toEqual(callbacks)
@@ -2240,4 +2243,290 @@ it('rejects invalid wake declarations when loading author rules', () => {
     Array(9).fill('character:npc'),
   ])
     expect(() => parseEventBook({ rules: [{ ...rule, wakeCharacters }] }, facts)).toThrow()
+})
+
+const commissionSource = 'host.notice-commission/v1'
+const signupProposal = { ...postProposal, commission: 'signup' as const }
+function boardAction(operation: string, occurrenceId: string) {
+  return {
+    actionType: 'interact' as const,
+    parameters: { definitionRef: { id: 'host:notice-board', version: 1 }, operation, occurrenceId },
+  }
+}
+function signupRequest(f: Fixture) {
+  return { expected: f.runtime.pendingNoticeCatalog().target, requestId: 'one-sheet', proposal: signupProposal }
+}
+async function boardOptions(f: Fixture) {
+  return projectPlayerView(await f.runtime.state()).actions.filter(
+    action => (action.action.parameters.definitionRef as WorldJsonObject | undefined)?.id === 'host:notice-board',
+  )
+}
+
+it('offers a bound player one voluntary signup per witnessed posting, recovers a lost response and preserves withdrawal', async () => {
+  const f = await boardFixture('location:front-room')
+  const issued = () => f.history(commissionSource).commits
+  const decide = (op: string, id: string) => f.runtime.perform(boardAction(op, id))
+  expect(() => f.runtime.registerPendingNotice(signupRequest(f))).toThrow('没有启用')
+  installNoticeExperiment(f.runtime)
+  const empty = await f.runtime.saveNode('没有招工安排')
+  const request = signupRequest(f)
+  expect(() =>
+    f.runtime.registerPendingNotice({ ...request, proposal: { ...signupProposal, script: 'noop' } }),
+  ).toThrow('无效')
+  const receipt = f.runtime.registerPendingNotice(request)
+  expect(f.runtime.registerPendingNotice(request)).toEqual(receipt)
+  expect(() => f.runtime.registerPendingNotice({ ...request, proposal: postProposal })).toThrow('不能改变内容')
+  expect(f.runtime.pendingNoticeCatalog().notices).toEqual([receipt])
+  expect(issued()).toEqual([])
+  expect(await boardOptions(f)).toEqual([])
+  expect(JSON.stringify(await f.runtime.state())).not.toContain(postText)
+  await expect(decide('enroll', receipt.registrationId)).rejects.toThrow('当前无法办理这项告示操作。')
+  expect(f.runtime.creatorInspection().headSeq).toBe(empty.headSeq)
+  await f.runtime.submit(work)
+  const id = String(postings(f)[0]!.occurrenceId)
+  const witness = f.runtime.knownNotices()[0]!
+  expect(witness).toMatchObject({ occurrenceId: id, witnessedAt: expect.any(Number), readAt: null })
+  const observed = await f.runtime.saveNode('已目击，自愿选择前')
+  const original = f.history(),
+    calls = f.stub.calls.length
+  expect(await boardOptions(f)).toMatchObject([{ label: '报名：' + postText }])
+  await expect(decide('withdraw', id)).rejects.toThrow('当前无法办理这项告示操作。')
+  await expect(decide('enroll', 'made-up-occurrence')).rejects.toThrow('当前无法办理这项告示操作。')
+  expect(issued()).toEqual([])
+  const fault = failCommit('after', commissionSource)
+  await expect(decide('enroll', id)).rejects.toThrow()
+  expect(fault.fired).toBe(true)
+  fault.restore()
+  await f.reopen()
+  expect(await boardOptions(f)).toMatchObject([{ label: '已报名，放弃：' + postText }])
+  const enrolled = await f.runtime.saveNode('已报名')
+  const [enrollment] = issued()
+  expect(enrollment!.a).toMatchObject({
+    actorId: 'character:player',
+    occurrenceId: id,
+    operation: 'enroll',
+    evidenceSeq: witness.witnessedAt,
+  })
+  await decide('enroll', id)
+  expect(issued()).toEqual([enrollment])
+  expect(f.runtime.creatorInspection().headSeq).toBe(enrolled.headSeq)
+  await decide('withdraw', id)
+  await decide('withdraw', id)
+  await expect(decide('enroll', id)).rejects.toThrow('当前无法办理这项告示操作。')
+  const withdrawn = await f.runtime.saveNode('自愿放弃')
+  const both = issued()
+  expect(both.map(row => row.a.operation)).toEqual(['enroll', 'withdraw'])
+  expect(
+    f
+      .history()
+      .events.slice(original.events.length)
+      .map(row => row.eventType),
+  ).toEqual(['world.tick-advanced', 'world.tick-advanced'])
+  expect(f.history().commits).toEqual(original.commits)
+  expect(f.runtime.knownNotices()).toEqual([witness])
+  expect(f.stub.calls).toHaveLength(calls)
+  const isolated = join(f.root, 'direct-core')
+  restoreStoryNode(f.runtime.dataDirectory, observed.id, isolated, observed.packHash)
+  const core = await WorldHostCore.create({
+    ...f.runtime.options,
+    composition: f.runtime.options.composition!,
+    dataDirectory: isolated,
+  })
+  try {
+    const menu = projectPlayerView(await core.state())
+    const choice = menu.actions.find(o => o.label === '报名：' + postText)!
+    const first = core.perform(choice.action)
+    await expect(core.perform(choice.action)).rejects.toThrow('等待当前行动')
+    const result = await first
+    const withdraw = projectPlayerView(result).actions.find(o => o.label === '已报名，放弃：' + postText)!
+    const finishing = core.perform(withdraw.action)
+    const closing = core.close()
+    await finishing
+    await closing
+    const saved = new WorldStore(join(isolated, 'world.sqlite'))
+    try {
+      const persisted = saved
+        .readEvents(core.address)
+        .filter(e => e.eventType === 'world.tick-advanced')
+        .map(e => saved.readRoundAuthority(core.address, e.transactionId)?.authority)
+        .filter(a => a?.source === commissionSource)
+      expect(persisted.map(a => a!.operation)).toEqual(['enroll', 'withdraw'])
+    } finally {
+      saved.close()
+    }
+  } finally {
+    await core.close()
+  }
+  // Also fork a SQLite logical branch at each committed boundary, sharing the same physical database.
+  const probe = join(f.root, 'commission-forks.sqlite')
+  cpSync(join(f.runtime.dataDirectory, 'story-nodes', withdrawn.id, 'world.sqlite'), probe)
+  const store = new WorldStore(probe)
+  try {
+    for (const [node, expected] of [
+      [observed, ['enroll']],
+      [enrolled, ['withdraw']],
+      [withdrawn, []],
+    ] as const) {
+      const child = { ...f.runtime.address, branchId: brandId('branch:' + node.id, 'BranchId') }
+      store.forkBranch(f.runtime.address, child, node.headSeq)
+      const index = new WorldEventRuntime(
+        new WorldStore(probe),
+        child,
+        'pack:multiple-activities',
+        { rules: [], grants: [] },
+        [],
+        undefined,
+        new Set(),
+      )
+      try {
+        index.select()
+        expect(index.knownNotices('character:player')).toEqual([witness])
+        expect(
+          index.boardChoices('character:player', store.readEvents(child), node.headSeq).map(o => o.operation),
+        ).toEqual(expected)
+      } finally {
+        index.close()
+      }
+    }
+  } finally {
+    store.close()
+  }
+  await f.restore(withdrawn)
+  expect(issued()).toEqual(both)
+  expect(await boardOptions(f)).toEqual([])
+  await f.restore(enrolled)
+  expect(issued()).toEqual([enrollment])
+  expect(await boardOptions(f)).toMatchObject([{ label: '已报名，放弃：' + postText }])
+  await f.restore(observed)
+  expect(issued()).toEqual([])
+  expect(await boardOptions(f)).toMatchObject([{ label: '报名：' + postText }])
+  await f.runtime.activityAction({
+    activityKey: 'cook',
+    activityId: null,
+    revision: 0,
+    operation: 'start',
+    parameters: {},
+    requestId: randomUUID(),
+  })
+  expect(await boardOptions(f)).toEqual([])
+  await expect(decide('enroll', id)).rejects.toThrow('当前无法办理这项告示操作。')
+  await f.restore(empty)
+  expect(f.runtime.pendingNoticeCatalog().notices).toEqual([])
+  expect(f.runtime.knownNotices()).toEqual([])
+  const sibling = f.runtime.registerPendingNotice(signupRequest(f))
+  expect(sibling.afterWorldSeq).toBe(receipt.afterWorldSeq)
+  expect(sibling.registrationId).not.toBe(receipt.registrationId)
+  await f.runtime.submit(work)
+  const [siblingOption] = await boardOptions(f)
+  expect(siblingOption!.label).toBe('报名：' + postText)
+  expect(siblingOption!.action.parameters.occurrenceId).not.toBe(id)
+  await expect(decide('enroll', id)).rejects.toThrow('当前无法办理这项告示操作。')
+  expect(issued()).toEqual([])
+  await f.runtime.perform(siblingOption!.action)
+  expect(issued().map(r => r.a.occurrenceId)).toEqual([siblingOption!.action.parameters.occurrenceId])
+  await f.reopen()
+  expect(issued()).toEqual(both)
+}, 60_000)
+
+it('requires an independent later read, rechecks the board on submit, and isolates enrollment from other postings and story branches', async () => {
+  const f = await boardFixture()
+  installNoticeExperiment(f.runtime)
+  f.runtime.registerPendingNotice(signupRequest(f))
+  f.runtime.registerPendingNotice({
+    ...signupRequest(f),
+    requestId: 'plain',
+    proposal: { ...postProposal, text: '普通告示' },
+  })
+  await f.runtime.submit(work)
+  const [offer, plain] = postings(f).map(p => String(p.occurrenceId)) as [string, string]
+  const enroll = (id: string) => f.runtime.perform(boardAction('enroll', id))
+  expect(await boardOptions(f)).toEqual([])
+  await expect(enroll(offer)).rejects.toThrow('当前无法办理这项告示操作。')
+  await f.runtime.submit('/act move {"locationId":"location:back-room"}')
+  const unread = await f.runtime.saveNode('已到场但未阅读')
+  const before = f.history()
+  const choices = await boardOptions(f)
+  expect(choices.map(o => o.label)).toEqual(['查看告示栏上的第1张告示', '查看告示栏上的第2张告示'])
+  expect(JSON.stringify(await f.runtime.state())).not.toContain(postText)
+  await expect(enroll(offer)).rejects.toThrow('当前无法办理这项告示操作。')
+  await expect(enroll('guessed')).rejects.toThrow('当前无法办理这项告示操作。')
+  const spoof = boardAction('enroll', offer)
+  await expect(
+    f.runtime.perform({ ...spoof, parameters: { ...spoof.parameters, actorId: 'character:friend' } }),
+  ).rejects.toThrow('当前无法办理这项告示操作。')
+  const ui = new FrontendActions(f.runtime)
+  const req = (optionId: string) => ({
+    operation: 'perform' as const,
+    payload: { optionId },
+    requestId: randomUUID(),
+    actionId: randomUUID(),
+  })
+  await expect(ui.perform(req('guessed'))).rejects.toThrow('不在玩家当前可用操作中')
+  expect(f.history()).toEqual(before)
+  await ui.perform(req(choices.find(o => o.action.parameters.occurrenceId === plain)!.id))
+  await expect(enroll(plain)).rejects.toThrow('当前无法办理这项告示操作。')
+  await expect(enroll(offer)).rejects.toThrow('当前无法办理这项告示操作。')
+  await ui.perform(req(choices.find(o => o.action.parameters.occurrenceId === offer)!.id))
+  const read = await f.runtime.saveNode('看完两张告示，还没报名')
+  const evidence = f.runtime.knownNotices().find(p => p.occurrenceId === offer)!
+  expect(evidence).toMatchObject({ witnessedAt: null, readAt: expect.any(Number) })
+  const [option] = await boardOptions(f)
+  expect(option!.label).toBe('报名：' + postText)
+  await f.runtime.submit('/act move {"locationId":"location:front-room"}')
+  expect(await boardOptions(f)).toEqual([])
+  await expect(f.runtime.perform(option!.action)).rejects.toThrow('当前无法办理这项告示操作。')
+  expect(f.history(commissionSource).commits).toEqual([])
+  await f.runtime.submit('/act move {"locationId":"location:back-room"}')
+  const beforeSignup = f.history(),
+    records = f.runtime.knownNotices(),
+    calls = f.stub.calls.length
+  const tailBefore = (await f.runtime.state()).tailRound
+  const fault = failCommit('before', commissionSource)
+  await expect(enroll(offer)).rejects.toThrow()
+  fault.restore()
+  expect((await f.runtime.state()).tailRound).toEqual(tailBefore)
+  expect(f.history()).toEqual(beforeSignup)
+  expect(f.history(commissionSource).commits).toEqual([])
+  const submit = req(option!.id)
+  await ui.perform(submit)
+  await ui.perform(submit)
+  expect(ui.actionResult(submit.actionId)).toMatchObject({ state: 'complete', committed: true })
+  expect(f.history(commissionSource).commits.map(r => r.a)).toMatchObject([
+    { operation: 'enroll', evidenceSeq: evidence.readAt, occurrenceId: offer },
+  ])
+  expect(f.history().commits).toEqual(beforeSignup.commits)
+  expect(f.runtime.knownNotices()).toEqual(records)
+  expect(f.stub.calls).toHaveLength(calls)
+  const joined = await f.runtime.saveNode('读后报名')
+  await f.restore(unread)
+  expect(f.runtime.knownNotices()).toEqual([])
+  await expect(enroll(offer)).rejects.toThrow('当前无法办理这项告示操作。')
+  await f.restore(read)
+  expect(f.runtime.knownNotices()).toEqual(records)
+  expect(f.history(commissionSource).commits).toEqual([])
+  await f.restore(joined)
+  expect(f.runtime.knownNotices()).toEqual(records)
+  expect(await boardOptions(f)).toMatchObject([{ label: '已报名，放弃：' + postText }])
+}, 60_000)
+
+it('keeps an existing 21002 board readable while refusing an atomic commission definition', async () => {
+  const f = await boardFixture('location:front-room')
+  installNoticeExperiment(f.runtime)
+  const db = new DatabaseSync(join(f.runtime.dataDirectory, 'world.sqlite'))
+  try {
+    db.exec('PRAGMA user_version=21002')
+  } finally {
+    db.close()
+  }
+  await f.reopen()
+  expect(() => f.runtime.registerPendingNotice(signupRequest(f))).toThrow('没有启用告示委托')
+  expect(f.runtime.pendingNoticeCatalog().notices).toEqual([])
+  schedules(f)
+  await f.runtime.submit(work)
+  const [post] = postings(f)
+  expect(f.runtime.knownNotices()).toMatchObject([{ occurrenceId: post!.occurrenceId }])
+  expect(await boardOptions(f)).toEqual([])
+  await expect(f.runtime.perform(boardAction('enroll', String(post!.occurrenceId)))).rejects.toThrow(
+    '当前无法办理这项告示操作。',
+  )
 })

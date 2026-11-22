@@ -31,6 +31,7 @@ function occurrenceIdentity(registrationId: string, clockTransaction: string) {
 }
 interface Posted {
   fact: Posting
+  signup: boolean
   witnesses: Map<string, number>
   postedAt: number
   readers: Map<string, { seq: number; committedAt: number }>
@@ -126,6 +127,7 @@ export class NoticeBoard {
       this.postedRegistrations.add(fact.registrationId)
       this.posts.set(fact.occurrenceId, {
         fact,
+        signup: receipt.proposal.commission === 'signup',
         postedAt: committedAt,
         witnesses: evidence(observations, fact, 'witness'),
         readers: new Map(),
@@ -180,10 +182,31 @@ export class NoticeBoard {
     return { postings, events }
   }
 
-  available(actor: string, events: WorldRoundSnapshot['events']) {
+  /** Only index a commission against a prior personal observation of that exact posting. */
+  signupEvidence(actor: string, occurrenceId: string, through: number): number | undefined {
+    const post = this.posts.get(occurrenceId)
+    if (!post?.signup || post.postedAt > through) return
+    const witness = post.witnesses.get(actor)
+    if (witness !== undefined) return witness
+    const read = post.readers.get(actor)
+    return read && read.committedAt <= through ? read.seq : undefined
+  }
+  localNotices(actor: string, events: WorldRoundSnapshot['events'], through: number) {
+    const access = new Map<string, boolean>()
     return [...this.posts.values()]
-      .filter(post => localWitnesses(events, post.fact.location).has(actor))
-      .map(post => post.fact.occurrenceId)
+      .filter(({ postedAt, fact }) => {
+        if (postedAt > through) return false
+        if (!access.has(fact.location)) access.set(fact.location, localWitnesses(events, fact.location).has(actor))
+        return access.get(fact.location)
+      })
+      .map(({ fact, witnesses, readers }) => ({
+        occurrenceId: fact.occurrenceId,
+        text: fact.text,
+        known: witnesses.has(actor) || (readers.get(actor)?.committedAt ?? Infinity) <= through,
+      }))
+  }
+  available(actor: string, events: WorldRoundSnapshot['events']) {
+    return this.localNotices(actor, events, events.at(-1)?.seq ?? 0).map(post => post.occurrenceId)
   }
   known(actor: string, through: number) {
     return [...this.posts.values()].flatMap(({ fact, postedAt, witnesses, readers }) => {

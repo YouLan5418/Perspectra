@@ -1,3 +1,4 @@
+import { commissionSource, NoticeCommissions, type BoardOperation } from './notice-commission.ts'
 import { localWitnesses, NoticeBoard } from './notice-board.ts'
 import { firstPackTimeCrossing } from './pack-time.ts'
 import { randomUUID } from 'node:crypto'
@@ -103,6 +104,7 @@ function notices(rule: EventRule, snapshot: WorldRoundSnapshot, crossing?: World
 /** One mounted branch. The local index can be rebuilt entirely from its effective committed prefix. */
 export class WorldEventRuntime {
   private readonly board = new NoticeBoard()
+  private readonly commissions = new NoticeCommissions(this.board)
   private readonly occurrences = new Map<string, IndexedOccurrence>()
   private readonly checks = new Map<string, EventRuleCheck>()
   private readonly wakes = new Map<string, EventWake>()
@@ -175,7 +177,12 @@ export class WorldEventRuntime {
     let registrations: readonly NoticeReceipt[] | undefined
     for (const event of this.store.readEventsRange(this.address, this.indexed, through, ['world.tick-advanced'])) {
       const row = this.store.readRoundAuthority(this.address, event.transactionId)?.authority
-      if (row?.source !== source || row.packId !== this.packId) continue
+      if (row?.packId !== this.packId) continue
+      if (row.source === commissionSource) {
+        this.commissions.index(row, event.seq)
+        continue
+      }
+      if (row.source !== source) continue
       const occurrences = (row.occurrences ?? []) as Occurrence[]
       const observations =
         occurrences.length || row.noticePostings || row.noticeRead
@@ -267,7 +274,20 @@ export class WorldEventRuntime {
     if (through > this.indexed) this.index(through)
     return this.board.known(actor, through)
   }
-  async readPostedNotice(path: string, actorId: string, occurrenceId: string, beforeCommit: () => void) {
+  boardChoices(actor: string, events: WorldRoundSnapshot['events'], through: number) {
+    if (!this.store.noticeCommissionsEnabled()) return []
+    if (through > this.indexed) this.index(through)
+    return this.commissions.choices(actor, events, through)
+  }
+  async applyBoardAction(
+    path: string,
+    actorId: string,
+    occurrenceId: string,
+    operation: BoardOperation,
+    beforeCommit?: () => void,
+  ) {
+    if (operation !== 'read' && !this.store.noticeCommissionsEnabled())
+      throw new TypeError('当前无法办理这项告示操作。')
     const leases = new WriterLeaseService(path)
     try {
       await executeWorldRound(
@@ -275,22 +295,30 @@ export class WorldEventRuntime {
           store: this.store,
           leases,
           address: this.address,
-          owner: 'read-notice:' + randomUUID(),
+          owner: 'notice-board:' + randomUUID(),
           actorId,
           captureCognition: this.captureCognition,
         },
         snapshot => {
           this.index(snapshot.head.headSeq)
+          if (operation !== 'read') {
+            const signup = this.commissions.adjudicate(actorId, occurrenceId, operation, snapshot)
+            if (!signup) return
+            beforeCommit?.()
+            return { events: [], authority: { source: commissionSource, packId: this.packId, ...signup } }
+          }
+          if ([...activityProgress(snapshot.events).values()].some(activity => activity.game.active))
+            throw new TypeError('当前无法查看这张告示。')
           const draft = this.board.read(actorId, occurrenceId, snapshot)
           if (!draft) return
-          beforeCommit()
+          beforeCommit?.()
           return {
             events: [draft],
             authority: { source, packId: this.packId, actorId, noticeRead: { actorId, occurrenceId } },
           }
         },
       )
-      return this.knownNotices(actorId).find(post => post.occurrenceId === occurrenceId)!
+      this.index(this.store.head(this.address).headSeq)
     } finally {
       leases.close()
     }

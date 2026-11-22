@@ -8,6 +8,8 @@ import {
   type NoticeReceipt,
   type NoticeProposal,
   noticeStorageEnabled,
+  NOTICE_SCHEMA_VERSION,
+  readPragmaInteger,
   noticeReceipts,
   openWorldDatabase,
   rollbackAndThrow,
@@ -70,7 +72,8 @@ export function registerNotice(scope: Scope, request: NoticeRegistration): Notic
     throw new TypeError('无效告示请求 ID')
   if (
     !proposal ||
-    Object.keys(proposal).some(key => !['text', 'calendarRule', 'day', 'slot'].includes(key)) ||
+    Object.keys(proposal).some(key => !['text', 'calendarRule', 'day', 'slot', 'commission'].includes(key)) ||
+    (Object.hasOwn(proposal, 'commission') && proposal.commission !== 'signup') ||
     typeof proposal.text !== 'string' ||
     !proposal.text.trim() ||
     proposal.text.length > 2000 ||
@@ -93,6 +96,8 @@ export function registerNotice(scope: Scope, request: NoticeRegistration): Notic
       db.exec('BEGIN IMMEDIATE')
       try {
         if (!noticeStorageEnabled(db)) throw new Error('此存档没有启用告示持久化实验')
+        if (proposal.commission && readPragmaInteger(db, 'user_version') !== NOTICE_SCHEMA_VERSION)
+          throw new Error('此存档没有启用告示委托实验')
         const { target, notices } = catalog(db, scope)
         if (target.candidate !== expected.candidate) throw new Error('告示目标候选已改变')
         const prior = notices.find(row => row.requestId === requestId)
