@@ -3,7 +3,25 @@ import type { DatabaseSync } from 'node:sqlite'
 import { hashWorldJson, type WorldHash, type WorldJsonObject } from '@perspectra/sdk/contracts'
 import { readPragmaInteger, WORLD_APPLICATION_ID } from './sqlite.ts'
 
-export const NOTICE_SCHEMA_VERSION = 21001
+const REGISTRATION_ONLY_VERSION = 21001
+export const NOTICE_SCHEMA_VERSION = 21002
+export interface NoticeProposal extends WorldJsonObject {
+  readonly text: string
+  readonly calendarRule: string
+  readonly day: number
+  readonly slot: string
+}
+export interface NoticeReceipt extends WorldJsonObject {
+  registrationId: string
+  requestId: string
+  metadataSeq: number
+  afterWorldSeq: number
+  afterEventHash: string
+  baseline: { day: number; slot: string }
+  calendar: { dayKey: string; slotKey: string; slots: readonly string[] }
+  location: string
+  proposal: NoticeProposal
+}
 export interface NoticeCursor extends WorldJsonObject {
   addressKey: string
   eventHash: string
@@ -15,12 +33,12 @@ function hasNoticeTable(db: DatabaseSync) {
   return !!db.prepare("SELECT 1 FROM sqlite_schema WHERE type='table' AND name='experimental_pending_notices'").get()
 }
 export function supportsNoticeSchema(db: DatabaseSync, version: number): boolean {
-  return version === NOTICE_SCHEMA_VERSION && hasNoticeTable(db)
+  return (version === NOTICE_SCHEMA_VERSION || version === REGISTRATION_ONLY_VERSION) && hasNoticeTable(db)
 }
 
 export function noticeStorageEnabled(db: DatabaseSync): boolean {
   const version = readPragmaInteger(db, 'user_version')
-  if (version === NOTICE_SCHEMA_VERSION) {
+  if (version === NOTICE_SCHEMA_VERSION || version === REGISTRATION_ONLY_VERSION) {
     if (readPragmaInteger(db, 'application_id') === WORLD_APPLICATION_ID && supportsNoticeSchema(db, version))
       return true
     throw new Error('告示实验存档缺少格式标识或登记表。')
@@ -47,7 +65,7 @@ function eventHashAt(db: DatabaseSync, key: string, seq: number): string {
   return String(row.event_hash)
 }
 
-export function noticeReceipts(db: DatabaseSync, key: string, headSeq: number): WorldJsonObject[] {
+export function noticeReceipts(db: DatabaseSync, key: string, headSeq: number): NoticeReceipt[] {
   const rows = db
     .prepare(
       'SELECT metadata_seq, world_seq, request_id, receipt_json FROM experimental_pending_notices WHERE address_key=? ORDER BY metadata_seq',
@@ -56,7 +74,7 @@ export function noticeReceipts(db: DatabaseSync, key: string, headSeq: number): 
   let previousAnchor = 0,
     previousHash = 'genesis'
   return rows.map((row, index) => {
-    const receipt = JSON.parse(String(row.receipt_json)) as WorldJsonObject
+    const receipt = JSON.parse(String(row.receipt_json)) as NoticeReceipt
     const anchor = Number(row.world_seq)
     if (
       typeof receipt.registrationId !== 'string' ||
@@ -136,4 +154,16 @@ export function resolveForkNoticeCursor(
     .get(worldSeq, key, worldSeq)!
   if (counts.at_cut) throw new Error('同一游戏头有多种告示前缀，分叉需要明确的告示游标。')
   return noticeCursorAt(db, key, worldSeq, Number(counts.through))
+}
+
+/** A fork must not expose a personal observation without the posting or reading that authorized it. */
+export function assertNoticeForkBoundary(db: DatabaseSync, transactionId: string, forkSeq: number) {
+  const split = db
+    .prepare(
+      `SELECT 1 FROM round_commits c JOIN round_authority a USING(transaction_id)
+    WHERE c.transaction_id=? AND c.head_seq>? AND json_extract(a.authority_json,'$.source')='host.world-events/v1'
+      AND (json_type(a.authority_json,'$.noticePostings')='array' OR json_type(a.authority_json,'$.noticeRead')='object')`,
+    )
+    .get(transactionId, forkSeq)
+  if (split) throw new Error('不可在告示张贴或阅读事务中间分叉。')
 }

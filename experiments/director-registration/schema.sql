@@ -16,5 +16,5 @@ CREATE TABLE experimental_pending_notices (
 ) STRICT;
 
 -- Distinct opt-in format. Schema-21 hosts must refuse to open these files.
-PRAGMA user_version = 21001;
+PRAGMA user_version = 21002;
 COMMIT;

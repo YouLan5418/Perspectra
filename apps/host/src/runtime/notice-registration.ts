@@ -5,6 +5,8 @@ import { join } from 'node:path'
 import type { DatabaseSync } from 'node:sqlite'
 import { committedStatusTruth } from '@perspectra/core'
 import {
+  type NoticeReceipt,
+  type NoticeProposal,
   noticeStorageEnabled,
   noticeReceipts,
   openWorldDatabase,
@@ -13,20 +15,10 @@ import {
   worldJsonText,
 } from '@perspectra/core/store'
 import type { EventBook } from '@perspectra/sdk'
-import {
-  hashWorldJson,
-  worldAddressKey,
-  type WorldAddress,
-  type WorldHash,
-  type WorldJsonObject,
-} from '@perspectra/sdk/contracts'
+import { hashWorldJson, worldAddressKey, type WorldAddress, type WorldHash } from '@perspectra/sdk/contracts'
 
-export interface NoticeProposal extends WorldJsonObject {
-  readonly text: string
-  readonly calendarRule: string
-  readonly day: number
-  readonly slot: string
-}
+export type { NoticeProposal } from '@perspectra/core/store'
+
 interface NoticeTarget {
   candidate: WorldHash
   worldVersion: string
@@ -39,17 +31,6 @@ export interface NoticeRegistration {
   requestId: string
   proposal: NoticeProposal
 }
-interface Receipt extends WorldJsonObject {
-  registrationId: string
-  requestId: string
-  metadataSeq: number
-  afterWorldSeq: number
-  afterEventHash: string
-  baseline: { day: number; slot: string }
-  calendar: { dayKey: string; slotKey: string; slots: readonly string[] }
-  location: string
-  proposal: NoticeProposal
-}
 interface Scope {
   directory: string
   address: WorldAddress
@@ -60,7 +41,7 @@ function catalog(db: DatabaseSync, scope: Scope) {
   const key = worldAddressKey(scope.address)
   const head = db.prepare('SELECT head_seq, event_hash FROM heads WHERE address_key=?').get(key)
   if (!head) throw new Error('告示目标分支不存在')
-  const notices = (noticeStorageEnabled(db) ? noticeReceipts(db, key, Number(head.head_seq)) : []) as Receipt[]
+  const notices = noticeStorageEnabled(db) ? noticeReceipts(db, key, Number(head.head_seq)) : []
   const target: NoticeTarget = {
     candidate: hashWorldJson('notice-candidate', [realpathSync(scope.directory), key]),
     worldVersion: scope.worldVersion,
@@ -83,7 +64,7 @@ export function readNoticeCatalog(scope: Scope) {
   }
 }
 
-export function registerNotice(scope: Scope, request: NoticeRegistration): Receipt {
+export function registerNotice(scope: Scope, request: NoticeRegistration): NoticeReceipt {
   const { requestId, proposal, expected } = request
   if (typeof requestId !== 'string' || !/^[a-zA-Z0-9:_-]{1,128}$/.test(requestId))
     throw new TypeError('无效告示请求 ID')
@@ -146,7 +127,7 @@ export function registerNotice(scope: Scope, request: NoticeRegistration): Recei
           (proposal.day === day && clock.slots.indexOf(proposal.slot) <= clock.slots.indexOf(slot))
         )
           throw new Error('告示必须安排在未来')
-        const receipt: Receipt = {
+        const receipt: NoticeReceipt = {
           registrationId: randomUUID(),
           requestId,
           metadataSeq: (notices.at(-1)?.metadataSeq ?? 0) + 1,

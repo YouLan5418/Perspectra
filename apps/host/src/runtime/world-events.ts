@@ -1,13 +1,9 @@
+import { localWitnesses, NoticeBoard } from './notice-board.ts'
 import { firstPackTimeCrossing } from './pack-time.ts'
 import { randomUUID } from 'node:crypto'
 import { activityProgress, executeWorldRound, type WorldRoundEffects, type WorldRoundSnapshot } from '@perspectra/core'
-import {
-  currentCharacterLifecycle,
-  currentEntityState,
-  currentSceneDecisionStates,
-  sceneObserverIds,
-} from '@perspectra/core/kernel'
-import { WorldStore, WriterLeaseService } from '@perspectra/core/store'
+import { currentCharacterLifecycle, currentEntityState } from '@perspectra/core/kernel'
+import { WorldStore, WriterLeaseService, type NoticeReceipt } from '@perspectra/core/store'
 import type { BooleanWrite, EventBook, EventGrant, EventRule, WorldEventEnvelope } from '@perspectra/sdk'
 import {
   playerRoundNumber,
@@ -43,16 +39,9 @@ interface Occurrence extends WorldEventEnvelope, WorldJsonObject {
 const grantId = (g: EventGrant) =>
   JSON.stringify([g.plugin, g.type, g.mode, g.effect?.key ?? null, g.effect?.value ?? null])
 const receiptId = (g: EventGrant, event: Occurrence) => JSON.stringify([g.plugin, g.mode, event.occurrenceId])
-function localWitnesses(snapshot: WorldRoundSnapshot, location: string) {
-  const scenes = currentSceneDecisionStates(snapshot.events).filter(
-    scene => scene.lifecycle === 'active' && scene.locationId === location,
-  )
-  // A physical place alone does not authorize a union of separate private scenes.
-  return new Set(scenes.length === 1 ? sceneObserverIds(snapshot.events, scenes[0]!) : [])
-}
 function witnesses(rule: EventRule, snapshot: WorldRoundSnapshot): string[] {
   const { events, manifest } = snapshot
-  const sameScene = localWitnesses(snapshot, rule.location)
+  const sameScene = localWitnesses(snapshot.events, rule.location)
   return manifest.characters
     .filter(
       ({ characterId }) =>
@@ -105,7 +94,7 @@ function notices(rule: EventRule, snapshot: WorldRoundSnapshot, crossing?: World
   for (const group of rule.sceneNotices ?? []) {
     const allowed = group.fromOperation ? sourceReaders(rule, crossing ?? [], group.fromOperation) : undefined
     for (const location of group.locations)
-      for (const id of localWitnesses(snapshot, location))
+      for (const id of localWitnesses(snapshot.events, location))
         if (!result.has(id) && (!allowed || allowed.has(id))) result.set(id, group.text)
   }
   return result
@@ -113,6 +102,7 @@ function notices(rule: EventRule, snapshot: WorldRoundSnapshot, crossing?: World
 
 /** One mounted branch. The local index can be rebuilt entirely from its effective committed prefix. */
 export class WorldEventRuntime {
+  private readonly board = new NoticeBoard()
   private readonly occurrences = new Map<string, IndexedOccurrence>()
   private readonly checks = new Map<string, EventRuleCheck>()
   private readonly wakes = new Map<string, EventWake>()
@@ -135,6 +125,7 @@ export class WorldEventRuntime {
     private readonly consumers: readonly WorldEventConsumer[],
     private readonly status: StatusRuntime | undefined,
     forbiddenKeys: ReadonlySet<string>,
+    private readonly captureCognition = false,
   ) {
     this.configuredWakes = book.rules.some(rule => rule.wakeCharacters?.length)
     for (const { crossesPackTime: clock, sceneNotices } of book.rules) {
@@ -181,15 +172,19 @@ export class WorldEventRuntime {
   private index(through: number): void {
     if (through === this.indexed) return
     if (through < this.indexed) throw new Error('world event instance requires remount after rewind')
+    let registrations: readonly NoticeReceipt[] | undefined
     for (const event of this.store.readEventsRange(this.address, this.indexed, through, ['world.tick-advanced'])) {
       const row = this.store.readRoundAuthority(this.address, event.transactionId)?.authority
       if (row?.source !== source || row.packId !== this.packId) continue
       const occurrences = (row.occurrences ?? []) as Occurrence[]
-      const observations = occurrences.length
-        ? this.store.readEventsRange(this.address, event.seq - event.eventOrdinal - 1, event.seq, [
-            'observation.upsert',
-          ])
-        : []
+      const observations =
+        occurrences.length || row.noticePostings || row.noticeRead
+          ? this.store.readEventsRange(this.address, event.seq - event.eventOrdinal - 1, event.seq, [
+              'observation.upsert',
+            ])
+          : []
+      if (row.noticePostings) registrations ??= this.store.pendingNoticeDefinitions(this.address)
+      if (row.noticePostings || row.noticeRead) this.board.index(row, observations, event.seq, registrations)
       for (const raw of occurrences) {
         const witnesses = observations.flatMap(observation => {
           const data = observation.data as WorldJsonObject
@@ -262,6 +257,43 @@ export class WorldEventRuntime {
     return [...this.occurrences.values()]
       .filter(e => e.seq <= through && e.witnesses.some(w => w.id === actor))
       .map(e => e.ruleId)
+  }
+  boardNotices(actor: string) {
+    const head = this.store.head(this.address).headSeq
+    this.index(head)
+    return this.board.available(actor, this.store.readEvents(this.address, head))
+  }
+  knownNotices(actor: string, through = this.store.head(this.address).headSeq) {
+    if (through > this.indexed) this.index(through)
+    return this.board.known(actor, through)
+  }
+  async readPostedNotice(path: string, actorId: string, occurrenceId: string, beforeCommit: () => void) {
+    const leases = new WriterLeaseService(path)
+    try {
+      await executeWorldRound(
+        {
+          store: this.store,
+          leases,
+          address: this.address,
+          owner: 'read-notice:' + randomUUID(),
+          actorId,
+          captureCognition: this.captureCognition,
+        },
+        snapshot => {
+          this.index(snapshot.head.headSeq)
+          const draft = this.board.read(actorId, occurrenceId, snapshot)
+          if (!draft) return
+          beforeCommit()
+          return {
+            events: [draft],
+            authority: { source, packId: this.packId, actorId, noticeRead: { actorId, occurrenceId } },
+          }
+        },
+      )
+      return this.knownNotices(actorId).find(post => post.occurrenceId === occurrenceId)!
+    } finally {
+      leases.close()
+    }
   }
   async markWake(path: string, key: string, to: WakeStatus, signal: AbortSignal): Promise<boolean> {
     if (!this.active) return false
@@ -473,7 +505,11 @@ export class WorldEventRuntime {
           }
         }
       }
-    if (!occurrences.length && !receipts.length) return undefined
-    return this.effects(events, occurrences, receipts)
+    const board = this.board.settle(this.store, this.address, this.book, snapshot, currentClockOnly ? start : undefined)
+    if (!occurrences.length && !receipts.length && !board.postings.length) return undefined
+    const result = this.effects([...events, ...board.events], occurrences, receipts)
+    return board.postings.length
+      ? { ...result, authority: { ...result.authority, noticePostings: board.postings } }
+      : result
   }
 }

@@ -930,6 +930,7 @@ export class WorldHostCore implements HostRuntime {
             options.plugins?.worldEventConsumers ?? [],
             status,
             excluded,
+            compiled.manifest.plugins.some(plugin => plugin.pluginId === 'builtin:agent-context'),
           )
           if (!options.candidate) service.select()
           runtime.#worldEvents = runtime.#scope.own('host:worldEvents', service, () => service.close())
@@ -1591,6 +1592,36 @@ export class WorldHostCore implements HostRuntime {
   registerPendingNotice(request: NoticeRegistration) {
     return registerNotice(this.#noticeScope(), request)
   }
+  boardNotices() {
+    if (this.#paused || this.#gameplay.activity?.current()?.game.active) return []
+    return this.#worldEvents?.boardNotices(this.#playerId) ?? []
+  }
+  knownNotices() {
+    return this.#worldEvents?.knownNotices(this.#playerId) ?? []
+  }
+  async readPostedNotice(occurrenceId: string, beforeCommit: () => void) {
+    if (
+      this.#busy ||
+      this.#closing ||
+      this.#paused ||
+      this.#savingNode ||
+      this.#escaping ||
+      this.#capabilities?.resultUnknown
+    )
+      throw new HostBusyError('请等待当前行动完成。')
+    if (!this.#worldEvents || this.#gameplay.activity?.current()?.game.active)
+      throw new TypeError('当前无法查看这张告示。')
+    await this.#application.yieldWriter(this.#address)
+    const result = await this.#worldEvents.readPostedNotice(
+      resolve(this.#dataDirectory, 'world.sqlite'),
+      this.#playerId,
+      occurrenceId,
+      beforeCommit,
+    )
+    await this.#refresh()
+    return result
+  }
+
   /** The author's status definition (statuses and operations) from the loaded status script, for authoring tools. */
   statusDefinition(): {
     readonly statuses: readonly StatusDefinition[]

@@ -23,9 +23,16 @@ import {
   type WorldJsonObject,
   type WorldJsonValue,
 } from '@perspectra/sdk/contracts'
-import { parseWorldJson, rollbackAndThrow, worldJsonText } from './sqlite.ts'
+import { readPragmaInteger, parseWorldJson, rollbackAndThrow, worldJsonText } from './sqlite.ts'
 import { OperationalAuditLog } from './operational-audit.ts'
-import { resolveForkNoticeCursor, type NoticeCursor } from './notice-prefix.ts'
+import {
+  NOTICE_SCHEMA_VERSION,
+  assertNoticeForkBoundary,
+  noticeReceipts,
+  resolveForkNoticeCursor,
+  type NoticeCursor,
+  type NoticeReceipt,
+} from './notice-prefix.ts'
 import { openWorldDatabase } from './world-schema.ts'
 
 export interface ActivateBranchRequest {
@@ -549,6 +556,7 @@ export class WorldStore {
       const forkEvent =
         forkSeq === 0 ? undefined : this.#readEventsByKey(parentKey, 0, forkSeq).find(event => event.seq === forkSeq)
       if (forkSeq !== 0 && forkEvent === undefined) throw new Error(`fork event ${forkSeq} is missing`)
+      if (noticeCursor && forkEvent) assertNoticeForkBoundary(this.#db, forkEvent.transactionId, forkSeq)
       if (this.#branchDepth(parentKey) >= 8) {
         failWorld({
           errorCode: 'BRANCH_DEPTH_LIMIT',
@@ -1354,6 +1362,13 @@ export class WorldStore {
   readRoundAuthority(address: WorldAddress, transactionId: TransactionId): StoredRoundAuthority | undefined {
     if (!this.#transactionIsEffective(worldAddressKey(address), transactionId)) return undefined
     return this.#authorityRow(transactionId, address)
+  }
+
+  /** Only the posting-capable experiment can feed schedules into game settlement. */
+  pendingNoticeDefinitions(address: WorldAddress): readonly NoticeReceipt[] {
+    if (readPragmaInteger(this.#db, 'user_version') !== NOTICE_SCHEMA_VERSION) return []
+    const key = worldAddressKey(address)
+    return noticeReceipts(this.#db, key, this.#headRow(key).head_seq)
   }
 
   /** Verify the effective Event chain, Head, and every local committed Round without mutating authority. */

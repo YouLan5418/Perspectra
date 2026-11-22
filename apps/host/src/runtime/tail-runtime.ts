@@ -105,6 +105,25 @@ export class TailRoundRuntime {
   registerPendingNotice(request: NoticeRegistration) {
     return this.#noticeHost().registerPendingNotice(request)
   }
+  // Internal player command. The bound character comes from the mounted Host.
+  boardNotices() {
+    return this.#noticeHost().boardNotices()
+  }
+  knownNotices() {
+    return this.#noticeHost().knownNotices()
+  }
+  async readPostedNotice(occurrenceId: string) {
+    const host = this.#noticeHost()
+    this.#begin()
+    host.holdCognition()
+    try {
+      return await host.readPostedNotice(occurrenceId, () => this.#write({ ...this.#selection, tail: null }))
+    } finally {
+      host.releaseCognition()
+      this.#end()
+    }
+  }
+
   requestInspection(enabled?: boolean) {
     if (this.#closed || this.#regenerating || this.#interrupting) throw new HostBusyError('请等待世界切换完成。')
     return this.#runtime.requestInspection(enabled)

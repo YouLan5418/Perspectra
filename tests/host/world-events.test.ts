@@ -18,6 +18,7 @@ import { Context } from '@deepseek-ai/cordis'
 import { installWorldEventRegistry } from '../../apps/host/src/world-event-registry.ts'
 import { spawnSync } from 'node:child_process'
 import { setTimeout as delay } from 'node:timers/promises'
+import { NoticeBoard } from '../../apps/host/src/runtime/notice-board.ts'
 import { firstPackTimeCrossing } from '../../apps/host/src/runtime/pack-time.ts'
 import { playSettings } from '../../apps/host/src/play-settings.ts'
 import { parseEventBook } from '@perspectra/sdk'
@@ -25,6 +26,7 @@ import type { StoredWorldEvent } from '@perspectra/sdk/contracts'
 import { WorldEventRuntime } from '../../apps/host/src/runtime/world-events.ts'
 import { BranchOperationCoordinator, executeWorldRound, WorldExecutionEngine } from '@perspectra/core'
 import {
+  CharacterViewBuilder,
   BranchAdministration,
   WriterLeaseService,
   WorldStore,
@@ -876,6 +878,426 @@ it('rejects a sibling candidate at the same game head and keeps a pending notice
   expect(f.runtime.pendingNoticeCatalog().target.catalogHash).not.toBe(hash)
   expect(f.runtime.pendingNoticeCatalog().notices).toEqual([receipt])
   expect(f.runtime.registerPendingNotice(request)).toEqual(receipt)
+})
+
+const postText = '试验招工告示：明天请到后室集合。'
+const postProposal = { ...noticeProposal, text: postText, day: 2, slot: '傍晚' }
+
+async function boardFixture(location = 'location:back-room', shared = false, rewind = false) {
+  return fixture(99, [], shared, undefined, true, undefined, pack => {
+    const path = join(pack, 'world-events.json'),
+      book = JSON.parse(readFileSync(path, 'utf8'))
+    book.rules[0].location = location
+    book.rules[0].when.crossesPackTime.at.day = 8
+    writeFileSync(path, JSON.stringify(book))
+    if (rewind)
+      appendFileSync(
+        join(pack, 'scripts/status.js'),
+        `
+      const originalClock=statusScript.resolve
+      statusScript.resolve=(truth,actor,op,...rest)=>{
+        const result=originalClock(truth,actor,op,...rest)
+        if(op==='drop' && !result.rejectReason) result.changes.push({holderId:null,key:'slot',value:'午后'})
+        return result
+      }
+    `,
+      )
+  })
+}
+function schedules(f: Fixture) {
+  return f.runtime.registerPendingNotice({
+    expected: f.runtime.pendingNoticeCatalog().target,
+    requestId: 'board-test',
+    proposal: postProposal,
+  })
+}
+function postings(f: Fixture) {
+  return f.history().commits.flatMap(row => (row.a.noticePostings ?? []) as WorldJsonObject[])
+}
+function visibleRecords(f: Fixture, actor: string) {
+  const store = new WorldStore(join(f.runtime.dataDirectory, 'world.sqlite'))
+  try {
+    return new CharacterViewBuilder(store).rebuildAt(
+      f.runtime.address,
+      brandId(actor, 'CharacterId'),
+      store.head(f.runtime.address).headSeq,
+    ).observations
+  } finally {
+    store.close()
+  }
+}
+it('posts once on the first complete crossing after registration, recovers the posting gap and keeps later reading personal', async () => {
+  const f = await boardFixture()
+  const sourceDirectory = f.runtime.dataDirectory
+  installNoticeExperiment(f.runtime)
+  const before = await f.runtime.saveNode('登记之前')
+  const registration = schedules(f)
+  const pending = await f.runtime.saveNode('登记后未到点')
+  expect(pending.headSeq).toBe(before.headSeq)
+  expect(pending.tick).toBe(before.tick)
+  expect(f.runtime.boardNotices()).toEqual([])
+  expect(f.runtime.knownNotices()).toEqual([])
+  expect(JSON.stringify(projectPlayerView(await f.runtime.state()))).not.toContain(postText)
+  for (const actor of ['character:player', 'character:friend', 'character:companion'])
+    expect(JSON.stringify(visibleRecords(f, actor))).not.toContain(postText)
+  await expect(f.runtime.readPostedNotice(registration.registrationId)).rejects.toThrow('当前无法查看')
+  const fault = failCommit('before')
+  await f.runtime.submit(work).catch(() => undefined)
+  expect(fault.fired).toBe(true)
+  fault.restore()
+  expect(wageWrites(f)).toHaveLength(1)
+  expect(postings(f)).toEqual([])
+  expect(f.history().events.some(e => JSON.stringify(e.data).includes(postText))).toBe(false)
+  const due = await f.runtime.saveNode('越线事务已提交，告示尚未张贴')
+  const crossing = wageWrites(f)
+  await f.reopen()
+  expect(postings(f)).toEqual([])
+  expect(wageWrites(f)).toEqual(crossing)
+  const crossTx = f
+    .history()
+    .events.find(
+      e => e.seq > pending.headSeq && e.eventType === 'status.updated' && JSON.stringify(e.data).includes('深夜'),
+    )!.transactionId
+  await f.runtime.perform(wait)
+  const facts = postings(f)
+  expect(facts).toHaveLength(1)
+  const post = facts[0]!,
+    id = String(post.occurrenceId)
+  expect(post).toMatchObject({
+    registrationId: registration.registrationId,
+    location: 'location:back-room',
+    text: postText,
+    clockTransaction: crossTx,
+  })
+  const postingTxn = f.history().commits.find(row => row.a.noticePostings)!.tx
+  const postingRows = f.history().events.filter(row => row.transactionId === postingTxn)
+  expect(postingRows.map(e => e.eventType)).toEqual(['observation.upsert', 'world.tick-advanced'])
+  expect(postingRows[0]!.data).toMatchObject({
+    value: { observerId: 'character:friend', noticeSource: 'witness', noticeOccurrenceId: id },
+  })
+  expect(JSON.stringify(visibleRecords(f, 'character:friend'))).toContain(postText)
+  expect(JSON.stringify(visibleRecords(f, 'character:player'))).not.toContain(postText)
+  expect(f.log()).toEqual([])
+  expect(f.runtime.creatorInspection().statusTruth!.public.power).toBe(true)
+  expect(f.runtime.boardNotices()).toEqual([])
+  await expect(f.runtime.readPostedNotice(id)).rejects.toThrow('当前无法查看')
+  await f.runtime.submit('/act move {"locationId":"location:back-room"}')
+  expect(f.runtime.boardNotices()).toEqual([id])
+  expect(f.runtime.knownNotices()).toEqual([])
+  expect(JSON.stringify(projectPlayerView(await f.runtime.state()))).not.toContain(postText)
+  expect(JSON.stringify(visibleRecords(f, 'character:player'))).not.toContain(postText)
+  await expect(f.runtime.readPostedNotice('guessed')).rejects.toThrow('当前无法查看')
+  const unread = await f.runtime.saveNode('已到场但还没读')
+  const actualBefore = f.history().events
+  const inspected = () => f.runtime.creatorInspection().worldEvents.map(row => row.occurrence)
+  const witnessesAndWakes = inspected()
+  const calls = f.stub.calls.length
+  const learned = await f.runtime.readPostedNotice(id)
+  expect(learned).toMatchObject({ occurrenceId: id, text: postText, witnessedAt: null, readAt: expect.any(Number) })
+  expect(learned.readAt!).toBeGreaterThan(unread.headSeq)
+  const readRows = f.history().events.slice(actualBefore.length)
+  expect(readRows.map(e => e.eventType)).toEqual(['observation.upsert', 'world.tick-advanced'])
+  expect(readRows[0]).toMatchObject({
+    seq: learned.readAt,
+    data: { value: { observerId: 'character:player', noticeSource: 'read', noticeOccurrenceId: id } },
+  })
+  expect(f.runtime.knownNotices()).toEqual([learned])
+  expect(JSON.stringify(projectPlayerView(await f.runtime.state()))).toContain(postText)
+  expect(JSON.stringify(visibleRecords(f, 'character:companion'))).not.toContain(postText)
+  const read = await f.runtime.saveNode('已读')
+  const forkDb = join(f.root, 'partial-notice.sqlite')
+  cpSync(join(f.runtime.dataDirectory, 'story-nodes', read.id, 'world.sqlite'), forkDb)
+  const forkStore = new WorldStore(forkDb)
+  try {
+    const parent = f.runtime.address,
+      child = { ...parent, branchId: brandId('branch:partial-notice', 'BranchId') }
+    for (const seq of [postingRows[0]!.seq, readRows[0]!.seq]) {
+      expect(() => forkStore.forkBranch(parent, child, seq)).toThrow('事务中间')
+    }
+    forkStore.forkBranch(parent, child, readRows.at(-1)!.seq)
+  } finally {
+    forkStore.close()
+  }
+
+  expect(await f.runtime.readPostedNotice(id)).toEqual(learned)
+  expect(f.history().events).toEqual([...actualBefore, ...readRows])
+  expect(f.stub.calls).toHaveLength(calls)
+  expect(inspected()).toEqual(witnessesAndWakes)
+  expect(f.log()).toEqual([])
+  for (const [node, known] of [
+    [unread, []],
+    [read, [learned]],
+  ] as const) {
+    await f.restore(node)
+    expect(f.runtime.knownNotices()).toEqual(known)
+    expect(postings(f)).toEqual(facts)
+    expect(f.history().events.filter(row => row.transactionId === postingTxn)).toEqual(postingRows)
+    expect(inspected()).toEqual(witnessesAndWakes)
+    expect(JSON.stringify(visibleRecords(f, 'character:player')).includes(postText)).toBe(node.id === read.id)
+  }
+  await f.restore(due)
+  expect(postings(f)).toEqual([])
+  await f.runtime.perform(wait)
+  expect(postings(f)).toEqual(facts)
+  await f.restore(pending)
+  expect(postings(f)).toEqual([])
+  await f.runtime.submit(work)
+  expect(postings(f)).toHaveLength(1)
+  expect(postings(f)[0]!.registrationId).toBe(registration.registrationId)
+  await f.restore(before)
+  await f.runtime.submit(work)
+  expect(postings(f)).toEqual([])
+  expect(f.runtime.knownNotices()).toEqual([])
+  const mixed = join(f.root, 'missing-registration')
+  restoreStoryNode(sourceDirectory, read.id, mixed, read.packHash)
+  const mixedDb = new DatabaseSync(join(mixed, 'world.sqlite'))
+  try {
+    mixedDb.exec('DELETE FROM experimental_pending_notices')
+  } finally {
+    mixedDb.close()
+  }
+  await expect(
+    WorldHostRuntime.create({
+      packPath: f.pack,
+      dataDirectory: mixed,
+      models: fakeModels(f.stub.endpoint),
+      composition: f.runtime.options.composition!,
+    }),
+  ).rejects.toThrow('告示张贴与有效分支的登记不一致')
+}, 60_000)
+
+it('ignores a historical crossing before registration and never combines private scenes at one place', async () => {
+  const f = await boardFixture('location:front-room', true, true)
+  installNoticeExperiment(f.runtime)
+  await f.runtime.submit('/status take@entity:brass-key {}')
+  expect(f.runtime.creatorInspection().statusTruth!.public.slot).toBe('深夜')
+  expect(() => schedules(f)).toThrow('未来')
+  await f.runtime.submit('/status drop@entity:brass-key {}')
+  expect(f.runtime.creatorInspection().statusTruth!.public.slot).toBe('午后')
+  schedules(f)
+  await f.runtime.perform(wait)
+  expect(postings(f)).toEqual([])
+  await f.runtime.submit(work)
+  expect(postings(f)).toHaveLength(1)
+  expect(f.history().events.filter(e => JSON.stringify(e.data).includes(postText))).toEqual([])
+  const id = String(postings(f)[0]!.occurrenceId)
+  expect(f.runtime.boardNotices()).toEqual([])
+  await expect(f.runtime.readPostedNotice(id)).rejects.toThrow('当前无法查看')
+  expect(f.runtime.knownNotices()).toEqual([])
+  await f.reopen()
+  await f.runtime.perform(wait)
+  expect(postings(f)).toHaveLength(1)
+})
+
+it('keeps later board access separate from the static witness gate, wake and plugin receipts', async () => {
+  const f = await fixture(99, [], false, undefined, true, { recipients: ['character:friend'] }, pack => {
+    const path = join(pack, 'world-events.json'),
+      book = JSON.parse(readFileSync(path, 'utf8'))
+    book.rules[0].location = 'location:back-room'
+    book.rules[0].audience = 'scene'
+    writeFileSync(path, JSON.stringify(book))
+  })
+  installNoticeExperiment(f.runtime)
+  schedules(f)
+  await f.runtime.submit(work)
+  const [fact] = postings(f),
+    id = String(fact!.occurrenceId)
+  expect(f.log().filter(r => r.id === 'stage-cue')).toHaveLength(1)
+  await f.runtime.submit('/act move {"locationId":"location:back-room"}')
+  const before = f.runtime.creatorInspection().worldEvents[0]!.occurrence
+  expect(before?.witnesses).toEqual([
+    expect.objectContaining({ id: 'character:friend', wake: expect.stringMatching(/pending|completed|claimed/) }),
+  ])
+  const callbacks = f.log(),
+    calls = f.stub.calls.length
+  const fault = failCommit('after')
+  await expect(f.runtime.readPostedNotice(id)).rejects.toThrow()
+  fault.restore()
+  await f.reopen()
+  const original = f.runtime.knownNotices()
+  expect(original).toHaveLength(1)
+  expect(await f.runtime.readPostedNotice(id)).toEqual(original[0])
+  expect(f.history().commits.filter(c => c.a.noticeRead)).toHaveLength(1)
+  expect(f.runtime.creatorInspection().worldEvents[0]!.occurrence).toEqual(before)
+  expect(f.log()).toEqual(callbacks)
+  expect(f.stub.calls).toHaveLength(calls)
+  const index = new WorldEventRuntime(
+    new WorldStore(join(f.runtime.dataDirectory, 'world.sqlite')),
+    f.runtime.address,
+    'pack:multiple-activities',
+    { rules: [], grants: [] },
+    [],
+    undefined,
+    new Set(),
+  )
+  try {
+    index.select()
+    const through = f.runtime.creatorInspection().headSeq
+    expect(index.witnessedRules('character:friend', through)).toEqual([rule.id])
+    expect(index.witnessedRules('character:player', through)).toEqual([])
+    expect(index.knownNotices('character:friend', through)[0]).toMatchObject({
+      occurrenceId: id,
+      witnessedAt: expect.any(Number),
+      readAt: null,
+    })
+    expect(index.knownNotices('character:player', original[0]!.readAt!)).toEqual([])
+    expect(index.knownNotices('character:player', through)).toEqual(original)
+  } finally {
+    index.close()
+  }
+})
+
+it('uses the complete day and slot across midnight and checks visibility again on an explicit read', async () => {
+  const f = await fixture(99, [], false, undefined, true, undefined, pack => {
+    appendFileSync(
+      join(pack, 'scripts/status.js'),
+      `
+      const prev=statusScript.resolve
+      statusScript.resolve=(truth,actor,op,params,world,item)=>{
+        const r=prev(truth,actor,op,params,world,item)
+        if(op==='take' && item==='entity:brass-key' && !r.rejectReason){
+          r.changes=r.changes.filter(c=>c.key!=='slot')
+          r.changes.push({holderId:null,key:'day',value:3},{holderId:null,key:'slot',value:'清晨'})
+        }
+        return r
+      }
+    `,
+    )
+  })
+  installNoticeExperiment(f.runtime)
+  f.runtime.registerPendingNotice({
+    expected: f.runtime.pendingNoticeCatalog().target,
+    requestId: 'overnight',
+    proposal: { ...postProposal, day: 3 },
+  })
+  await f.runtime.submit('/status take@entity:brass-key {}')
+  expect(f.runtime.creatorInspection().statusTruth!.public).toMatchObject({ day: 3, slot: '清晨' })
+  expect(postings(f)).toEqual([])
+  expect(f.stub.calls.length).toBeGreaterThan(0)
+  expect(JSON.stringify(f.stub.calls)).not.toContain(postText)
+  expect(JSON.stringify(await f.runtime.state())).not.toContain(postText)
+  await f.runtime.submit(work)
+  const id = String(postings(f)[0]!.occurrenceId)
+  expect(f.runtime.boardNotices()).toEqual([id])
+  await f.runtime.saveNode('使写入者静止')
+  // Seed the same committed visibility that sceneObserverIds uses for speech and observations.
+  const file = join(f.runtime.dataDirectory, 'world.sqlite'),
+    store = new WorldStore(file),
+    leases = new WriterLeaseService(file)
+  try {
+    await executeWorldRound({ store, leases, address: f.runtime.address, owner: 'fixture:board-hidden' }, () => ({
+      events: [
+        {
+          eventType: 'visibility.upsert',
+          eventVersion: 1,
+          data: {
+            id: 'board-hidden',
+            value: { observerId: 'character:player', sceneId: 'scene:front-room', visible: false },
+          },
+        },
+      ],
+      authority: { source: 'fixture:visibility' },
+    }))
+  } finally {
+    leases.close()
+    store.close()
+  }
+  const head = f.history().events.length
+  expect(f.runtime.boardNotices()).toEqual([])
+  await expect(f.runtime.readPostedNotice(id)).rejects.toThrow('当前无法查看')
+  expect(f.history().events).toHaveLength(head)
+  expect(f.runtime.knownNotices()[0]).toMatchObject({ occurrenceId: id, witnessedAt: expect.any(Number), readAt: null })
+})
+
+it('does not publish from a logical fork inside a clock transaction; a later complete clock can establish a new crossing', async () => {
+  const f = await boardFixture()
+  installNoticeExperiment(f.runtime)
+  schedules(f)
+  await f.runtime.submit(work)
+  const post = postings(f)[0]!
+  const clockRow = f
+    .history()
+    .events.find(row => row.transactionId === post.clockTransaction && row.eventType === 'status.updated')!
+  const snapshot = await f.runtime.saveNode('复制完整世界用于逻辑分支')
+  const path = join(f.root, 'partial-clock.sqlite')
+  cpSync(join(f.runtime.dataDirectory, 'story-nodes', snapshot.id, 'world.sqlite'), path)
+  const store = new WorldStore(path),
+    leases = new WriterLeaseService(path),
+    parent = f.runtime.address,
+    child = { ...parent, branchId: brandId('branch:cut-clock', 'BranchId') }
+  const book = { rules: f.runtime.creatorInspection().worldEvents.map(r => r.rule), grants: [] }
+  const board = new NoticeBoard()
+  const check = async () => {
+    let result: WorldJsonObject[] = []
+    await executeWorldRound({ store, leases, address: child, owner: randomUUID() }, snap => {
+      result = board.settle(store, child, book, snap).postings
+      return undefined
+    })
+    return result
+  }
+  const clockWrite = async (day: number, slot: string) => {
+    const tx = randomUUID()
+    await executeWorldRound({ store, leases, address: child, owner: tx }, () => ({
+      events: [
+        {
+          eventType: 'status.updated',
+          eventVersion: 1,
+          data: {
+            source: { kind: 'cycle', cycleId: tx },
+            changes: [
+              { holderId: null, key: 'day', value: day },
+              { holderId: null, key: 'slot', value: slot },
+            ],
+            reveals: [],
+          },
+        },
+      ],
+      authority: { source: 'fixture:calendar' },
+    }))
+    return tx
+  }
+  try {
+    expect(clockRow.seq).toBeLessThan(store.committedRound(parent, clockRow.transactionId)!.headSeq)
+    store.forkBranch(parent, child, clockRow.seq)
+    expect(await check()).toEqual([])
+    await clockWrite(2, '深夜')
+    expect(await check()).toEqual([])
+    await clockWrite(2, '午后')
+    const complete = await clockWrite(2, '傍晚')
+    const recovered = await check()
+    expect(recovered).toHaveLength(1)
+    expect(recovered[0]!.registrationId).toBe(post.registrationId)
+    expect(recovered[0]!.clockTransaction).toBe(complete)
+  } finally {
+    leases.close()
+    store.close()
+  }
+})
+
+it('keeps the pre-registration candidate isolated at the same game head and the 21001 prototype registration-only', async () => {
+  const f = await boardFixture('location:front-room')
+  installNoticeExperiment(f.runtime)
+  const played = await f.runtime.perform(wait)
+  schedules(f)
+  const gameHead = f.runtime.pendingNoticeCatalog().target.headSeq
+  await f.runtime.regenerate(played.tailRound!.id!, randomUUID())
+  expect(f.runtime.pendingNoticeCatalog().target.headSeq).toBe(gameHead)
+  expect(f.runtime.pendingNoticeCatalog().notices).toEqual([])
+  await f.runtime.submit(work)
+  expect(postings(f)).toEqual([])
+  const g = await boardFixture('location:front-room')
+  installNoticeExperiment(g.runtime)
+  const db = new DatabaseSync(join(g.runtime.dataDirectory, 'world.sqlite'))
+  try {
+    db.exec('PRAGMA user_version=21001')
+  } finally {
+    db.close()
+  }
+  schedules(g)
+  await g.reopen()
+  await g.runtime.submit(work)
+  expect(g.runtime.pendingNoticeCatalog().notices).toHaveLength(1)
+  expect(postings(g)).toEqual([])
 })
 
 it('recovers a committed wage and clock crossing on reopen and at all three branch prefixes', async () => {

@@ -7,10 +7,22 @@ export function firstPackTimeCrossing(
   events: readonly StoredWorldEvent[],
   clock: PackTimeThreshold,
   invalid: () => void,
+  activation?: {
+    afterWorldSeq: number
+    day: number
+    slot: string
+    complete: (first: StoredWorldEvent, last: StoredWorldEvent) => boolean
+  },
 ): readonly StoredWorldEvent[] | undefined {
   const target = clock.slots.indexOf(clock.at.slot)
-  let day: unknown, slot: unknown, previous: boolean | undefined
-  for (let start = 0; start < events.length; ) {
+  let day: unknown = activation?.day,
+    slot: unknown = activation?.slot
+  let previous =
+    activation &&
+    (activation.day > clock.at.day ||
+      (activation.day === clock.at.day && clock.slots.indexOf(activation.slot) >= target))
+  // WorldRoundSnapshot contains the complete effective prefix starting at seq 1.
+  for (let start = activation?.afterWorldSeq ?? 0; start < events.length; ) {
     const tx = events[start]!.transactionId
     let end = start,
       touched = false,
@@ -28,7 +40,11 @@ export function firstPackTimeCrossing(
         touched = true
       }
     }
-    if (touched) {
+    if (touched && activation && !activation.complete(events[start]!, events[end - 1]!)) {
+      // A logical fork can end partway through its parent's transaction.
+      day = slot = previous = undefined
+      invalid()
+    } else if (touched) {
       const index = typeof slot === 'string' ? clock.slots.indexOf(slot) : -1
       if (typeof day !== 'number' || !Number.isSafeInteger(day) || day < 0 || index < 0) {
         invalid()
