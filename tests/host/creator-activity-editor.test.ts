@@ -8,6 +8,7 @@ import { EditConflict, readProject, saveGraph } from '../../apps/host/src/editor
 import { exportProject, playActivity } from '../../apps/host/src/editor/export.ts'
 import { applyAssistantChanges, assistActivity } from '../../apps/host/src/editor/assistant.ts'
 import { LensSimulation, matchAction } from '../../apps/host/src/simulation/simulation.ts'
+import type { ChoiceCondition } from '../../apps/host/src/editor/activity-graph.ts'
 
 let temp: string, source: string
 beforeEach(() => {
@@ -16,6 +17,103 @@ beforeEach(() => {
   cpSync(resolve('examples/world-packs/porch-note'), source, { recursive: true })
 })
 afterEach(() => rmSync(temp, { recursive: true, force: true }))
+it('uses the real journey, party and scene to gate a delivery and its departure', async () => {
+  const travel = join(temp, 'journey')
+  cpSync(resolve('examples/world-packs/hill-ruins'), travel, { recursive: true })
+  const bedroom = 'location:bedroom',
+    home = 'location:living-room',
+    companion = 'character:cheng'
+  const choice = (id: string, condition: ChoiceCondition, next: 'end' | 'stay') => ({
+    id,
+    label: id,
+    condition,
+    next,
+    result: id,
+    speech: '',
+  })
+  const key = 'delivery'
+  expect(readProject(travel).partyCharacters.map(c => c.id)).toEqual([companion])
+  const deposited = { kind: 'local' as const, ref: 'deposited', value: true }
+  saveGraph(travel, null, {
+    key,
+    title: '秘密交付',
+    opening: '',
+    variables: [{ key: 'deposited', label: '已存放', scope: 'shared', type: 'boolean', initial: false }],
+    choices: [
+      choice('together', { kind: 'party', ref: companion }, 'end'),
+      choice('meet', { kind: 'present', ref: companion }, 'stay'),
+      {
+        ...choice(
+          'deposit',
+          {
+            kind: 'all',
+            conditions: [
+              { kind: 'location', ref: bedroom },
+              { kind: 'alone' },
+              { kind: 'present', ref: companion, negate: true },
+            ],
+          },
+          'stay',
+        ),
+        effect: deposited,
+      },
+      choice(
+        'settle',
+        { kind: 'all', conditions: [deposited, { kind: 'location', ref: bedroom, negate: true }] },
+        'end',
+      ),
+    ],
+  })
+  const { directory } = await exportProject(travel, join(temp, 'journey-export'))
+  const sim = await LensSimulation.open(directory)
+  try {
+    async function move(to: string) {
+      const action = matchAction({ move: to }, (await sim.state()).availableActions ?? [])
+      expect((await sim.step({ kind: 'action', action })).error).toBeUndefined()
+    }
+    async function state() {
+      return (await sim.state()).activities!.find(a => a.activityKey === key)!
+    }
+    async function act(operation: string) {
+      const active = operation === 'start' ? undefined : await state()
+      const trace = await sim.step({
+        kind: 'activity',
+        request: {
+          activityKey: key,
+          activityId: active ? String(active.id) : null,
+          revision: Number(active?.revision ?? 0),
+          operation,
+          parameters: {},
+        },
+      })
+      expect(trace.error).toBeUndefined()
+    }
+    const options = async () => JSON.stringify((await state()).options)
+    sim.setNpcPlans({ [companion]: [{ kind: 'perform', interact: 'status:rpg-join' }] })
+    await sim.step({ kind: 'say', text: '澄，一起出发吧。' })
+    await move(bedroom)
+    await act('start')
+    expect(await options()).toContain('activity:together')
+    expect(await options()).not.toContain('activity:deposit')
+    await act('together')
+    await move(home)
+    sim.setNpcPlans({ [companion]: [{ kind: 'perform', interact: 'status:rpg-leave' }] })
+    await sim.step({ kind: 'say', text: '澄，在客厅等我吧。' })
+    await move(bedroom)
+    await act('start')
+    expect(await options()).not.toContain('activity:together')
+    await act('deposit')
+    expect(await options()).not.toContain('activity:meet')
+    expect(await options()).not.toContain('activity:settle')
+    await move(home)
+    expect(await options()).toContain('activity:meet')
+    expect(await options()).not.toContain('activity:together')
+    expect(await options()).toContain('activity:settle')
+    await act('settle')
+  } finally {
+    await sim.close()
+  }
+}, 90_000)
 it('opens a newly created world, exports its first activity and plays it in the host', async () => {
   const empty = join(temp, 'new-world')
   execFileSync(

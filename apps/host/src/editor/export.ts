@@ -9,6 +9,7 @@ import { validateExportedEvents } from './event-options.ts'
 import { materializePresets } from './presets.ts'
 import { checkKnowledgeActivities, materializeKnowledge } from './knowledge.ts'
 import { ruleEdits, materializeRules } from './rule-source.ts'
+import { materializeTables } from './encounter-tables.ts'
 import { randomUUID } from 'node:crypto'
 import {
   copyFileSync,
@@ -75,6 +76,7 @@ export async function buildSource(
   const originalManifest = readFileSync(packPath(root, manifestFile), 'utf8')
   const raw = JSON.parse(originalManifest)
   materializeRules(root, target, assets, raw, ruleEdits(root))
+  materializeTables(root, target, assets, raw)
   materializeKnowledge(root, target, raw, assets)
   if (snapshot.graphs.length && assets.has('knowledge.json')) checkKnowledgeActivities(root, snapshot.graphs)
   materializePresets(root, target, assets)

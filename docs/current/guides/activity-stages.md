@@ -43,6 +43,8 @@ HTML 可直接用 `<link rel="stylesheet" href="./note.css">`，也可以链接�
 
 在 HTML 中给按钮、图片或容器一个唯一的 `id`。在「活动专属页面 → 元素交互与显示」选择该元素，给按钮选「点击时执行什么」，再点「添加显示条件」。两项都选填。绑定在页面记录的 `elements` 数组中，工作台保留原 HTML 与 CSS。带参数的操作会在已绑定按钮旁显示对应表单；宿主只提交当前实例提供的选项。
 
+制作地图时，为每个地点按钮选择「前往 · 地点名」。例如 `{"id":"library","operation":"move:location:library"}` 把按钮绑定到玩家实际前往书房的操作；也可在 HTML 写 `data-activity-operation="move:location:library"`。按钮随当前可用移动刷新，门锁等规则仍在宿主裁定。启用官方 RPG 队伍时，同处出发地的在队角色按标准移动随行。地图不需要再存一份玩家坐标。
+
 例如，选择「展开便笺」按钮，点击操作选同名活动选项，显示条件选「玩家持有 · 开信刀 → 等于 → 是」。信封本身也可按同一条件应用已有 CSS 类。完整配置见[门廊便笺](../../../examples/world-packs/porch-note/frontend/activity-pages.json)。
 
 | 条件来源 | 候选与运行时取值 |

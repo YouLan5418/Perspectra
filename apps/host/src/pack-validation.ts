@@ -21,11 +21,13 @@ import { installPluginResolver } from './plugin-resolve.ts'
 
 import { PackModules } from './runtime/pack-modules.ts'
 import { loadStatusSource } from './runtime/status-source.ts'
+import { loadTables } from './runtime/table-source.ts'
 
 export function authoringValidators(packPath: string) {
   return {
     validateScript: validatePackScript,
     validateStatus(pack: CompiledWorldPackV5, read: (file: string) => string) {
+      loadTables(pack, read)
       if (pack.services?.status && pack.services.status !== 'official-status') return
       const modules = PackModules.authoringSources(packPath, pack, authoringRpgModules(pack, read))
       validateStatusSource(loadStatusSource(packPath, pack, modules), pack)

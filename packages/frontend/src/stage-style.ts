@@ -317,6 +317,12 @@ main:has(.panel:not(.action-panel):not(.status-panel):not([hidden])) .stage-bott
 .index-filters{padding:12px 16px;border-bottom:1px solid var(--line);display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px}
 .index-filters :is(input,select){min-width:0;min-height:42px;font-size:14px}
 .index-filters p{grid-column:1/-1}
+.index-counter{flex:none;max-height:46%;overflow:auto;padding:8px 16px;border-top:1px solid var(--line);font-size:14px}
+.index-counter p{margin:4px 0;white-space:pre-wrap;overflow-wrap:anywhere}
+.index-counter summary,.index-counter button{cursor:pointer}
+.index-form{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.index-counter :is(select,input){min-width:0;min-height:36px;max-width:100%}
+.index-counter input{flex:1 1 12ch}
 #actions{overscroll-behavior:contain;padding-bottom:10px}
 #actions .action-group{padding:10px 16px 4px}
 #actions .action-group h3{margin:4px 0 8px;font-size:13px;color:var(--muted)}

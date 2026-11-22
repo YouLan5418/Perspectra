@@ -36,6 +36,7 @@ export interface LoadedPluginDataCompatibility {
 
 /** 玩法插件为当前包构造的原生状态模块、原生活动、规则层与持久数据兼容声明。 */
 export interface PackContent {
+  readonly responders?: Readonly<Record<string, readonly string[]>>
   readonly worldEvents?: EventBook
   readonly scriptDefinitions: ReadonlySet<ContentGameplay>
   readonly configs: ReadonlyMap<ContentGameplay, import('@perspectra/sdk/contracts').WorldJsonObject>
@@ -212,6 +213,7 @@ export function loadPackContent(
     compatibility,
     gameplayData,
     hashes,
+    ...(pack.scripts?.gameplay.responders && { responders: pack.scripts.gameplay.responders }),
     scriptDefinitions,
     configs,
     close: () => script?.close(),

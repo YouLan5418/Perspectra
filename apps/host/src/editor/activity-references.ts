@@ -1,6 +1,7 @@
 import {
   acceptsVariableValue,
   conditionLeaves,
+  conditionCatalog,
   rulingTargets,
   variableCandidates,
 } from '@perspectra/world-pack/editor-fields'
@@ -13,7 +14,7 @@ export interface ActivityReference {
   source: string
   field: string
   fieldLabel: string
-  kind: 'present' | 'held' | 'world' | 'local' | 'script'
+  kind: 'present' | 'location' | 'held' | 'world' | 'local' | 'script'
   id: string
   scope: string
   target: string
@@ -55,9 +56,15 @@ export function activityReferences(project: EditorProject, graphs: EditorGraph[]
         const group = 'conditions' in choice.condition
         const field = group ? 'condition/' + i : 'condition'
         const label = group ? '出现条件 ' + (i + 1) : '出现条件'
-        if (leaf.kind === 'present' || leaf.kind === 'held') {
-          const records = leaf.kind === 'held' ? project.items : project.characters
-          add(field, label, leaf.kind, leaf.ref, records.find(r => r.id === leaf.ref)?.name)
+        if (leaf.kind === 'present' || leaf.kind === 'held' || leaf.kind === 'location' || leaf.kind === 'party') {
+          const records = project[conditionCatalog[leaf.kind]]
+          add(
+            field,
+            label,
+            leaf.kind === 'party' ? 'present' : leaf.kind,
+            leaf.ref,
+            records.find(r => r.id === leaf.ref)?.name,
+          )
         } else if ('value' in leaf) {
           const def = readers.find(v => v.kind === leaf.kind && v.key === leaf.ref)
           add(field, label, leaf.kind, leaf.ref, def?.label, !!def && acceptsVariableValue(def, leaf.value))

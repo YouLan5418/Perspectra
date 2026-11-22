@@ -53,6 +53,8 @@ export interface CharacterTurnRequest {
   readonly context: WorldJsonObject
   readonly continuation: boolean
   readonly canPerform?: boolean
+  /** A separate conversation opportunity, outside any scripted activity turn. */
+  readonly expressionOnly?: boolean
   readonly result?: WorldJsonObject
   readonly canContinueAfterPublish?: boolean
   readonly afterPublication?: boolean
@@ -265,6 +267,8 @@ export class CharacterTurn {
       readonly maxCalls?: 1 | 2 | 3
       /** Strict decision-call ceiling, including result-aware follow-ups. */
       readonly maxModelCalls?: number
+      /** An aside during an activity can publish or abstain while the scripted choice stays open. */
+      readonly expressionOnly?: boolean
       readonly beforeModelCall?: () => void
       readonly onCommitted?: (asOfWorldSeq: number, headSeq: number) => void
       readonly onProgress?: (
@@ -390,7 +394,7 @@ export class CharacterTurn {
         if (busy) throw new Error('character activation operation is busy')
         modelFailure = undefined
         const { canContinueAfterPublish, afterPublication } = settings
-        const canPerform = settings.canPerform && options.continuationOf === undefined
+        const canPerform = settings.canPerform && options.continuationOf === undefined && !options.expressionOnly
         const attemptId = attempt++
         let head = this.options.store.head(this.options.address)
         asOfWorldSeq = head.headSeq
@@ -540,6 +544,7 @@ export class CharacterTurn {
           continuation:
             settings.continuation || options.continuationOf !== undefined || publicationFailure !== undefined,
           canPerform,
+          ...(options.expressionOnly ? { expressionOnly: true } : {}),
           // Not tied to canPerform, so the offered tool stays the same across steps; `before` still needs a perform,
           // and perform is refused once canPerform is false.
           canExpressBeforeAction: this.options.beforeActionExpression === true && context.activity === undefined,
@@ -882,7 +887,7 @@ export class CharacterTurn {
         maxCalls: options.maxCalls ?? 2,
         maxModelCalls: options.maxModelCalls ?? Infinity,
         continuation: options.continuationOf !== undefined,
-        continueAfterPublish: this.options.continueAfterPublish === true,
+        continueAfterPublish: this.options.continueAfterPublish === true && !options.expressionOnly,
         get calls() {
           return calls
         },

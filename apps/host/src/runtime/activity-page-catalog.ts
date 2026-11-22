@@ -14,6 +14,7 @@ export interface ActivityMenu {
   title: string
   operations: { id: string; label: string }[]
   phases: readonly string[]
+  destinations?: readonly string[]
 }
 export function readActivityMenus(root: string, pack: CompiledWorldPackV5, content: PackContent | undefined) {
   const menus = new Map<string, ActivityMenu>()
@@ -38,6 +39,8 @@ export function readActivityMenus(root: string, pack: CompiledWorldPackV5, conte
         operations: a.operations.map(o => ({ id: 'activity:' + o.id, label: o.label })),
       })
     }
+  const destinations = pack.content.locations.map(l => l.locationId)
+  for (const menu of menus.values()) menu.destinations = destinations
   return menus
 }
 export async function packActivityCatalog(root: string) {
@@ -56,6 +59,7 @@ export function checkPageOperations(
   layout: ReturnType<typeof readPageElements>,
 ) {
   const ids = new Set(menu.operations.map(o => o.id))
+  for (const id of menu.destinations ?? []) ids.add('move:' + id)
   const overridden = new Set(page.elements?.filter(el => el.operation).map(el => el.id))
   for (const button of layout.buttons) {
     if ((!button.id || !overridden.has(button.id)) && !ids.has(button.operation))

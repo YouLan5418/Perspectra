@@ -1,6 +1,6 @@
 import { pageFieldValue, pageRuleMatches } from './activity-page-rules.ts'
 
-/** Trusted Host code operates a script-disabled HTML document. Only offered activity actions can be submitted. */
+/** Activity pages submit only current Host candidates, including bound travel destinations. */
 export const ACTIVITY_PAGE_CLIENT = String.raw`
 const readPageField = (${pageFieldValue.toString()})
 const matchesPageRule = (${pageRuleMatches.toString()})
@@ -75,7 +75,8 @@ function boundPage() {
 }
 function pageActions() {
   return (playerView?.actions || []).filter(
-    o => o.kind === 'activity' && o.target?.kind === 'activity' && o.target.id === playerView.activity.key,
+    o => (o.kind === 'move' && o.target?.kind === 'location') ||
+      (o.kind === 'activity' && o.target?.kind === 'activity' && o.target.id === playerView.activity.key),
   )
 }
 function pageIdentity() {
@@ -302,6 +303,7 @@ function updatePage() {
   for (const group of doc.querySelectorAll('[data-activity-actions]')) {
     group.replaceChildren()
     for (const option of actions) {
+      if (option.kind === 'move') continue
       const row = doc.createElement('div'),
         btn = doc.createElement('button')
       btn.type = 'button'
@@ -313,7 +315,7 @@ function updatePage() {
   }
   for (const btn of doc.querySelectorAll('button[data-activity-operation]')) {
     const op = btn.getAttribute('data-activity-operation')
-    const matches = actions.filter(o => o.action.parameters.definitionRef?.id === op)
+    const matches = actions.filter(o => (o.kind === 'move' ? 'move:' + o.target.id : o.action.parameters.definitionRef?.id) === op)
     const option = matches.length === 1 ? matches[0] : null
     const args = option?.argumentSchema?.properties
     // Editor-bound buttons get controls for the arguments on the currently offered operation.

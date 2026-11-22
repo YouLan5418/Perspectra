@@ -609,7 +609,7 @@ it('stops the opening on an error view after one retry, and resumes once the pla
 })
 
 it.each([false, true])('returns focus to editing only for an explicitly suspended draft (restore=%s)', restore => {
-  const start = DEFAULT_SCRIPT.indexOf(' function advance(skip=false){')
+  const start = DEFAULT_SCRIPT.indexOf(' function advance(')
   const end = DEFAULT_SCRIPT.indexOf('\n // Only one drawer', start)
   const playback = createReadingPlayback()
   playback.update([line(1, '当前对白')])

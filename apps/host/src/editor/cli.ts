@@ -11,7 +11,8 @@ export async function runEditorCli(args: string[]) {
   const [command, source, arg, extra] = args
   const usage =
     'worldpack editor serve [pack] [--no-open] | create <new-dir> <opening.json> | world-setup <pack> [request.json] | interaction-script/interaction-preview/stage/autonomy/communication/trpg/gameplay/scripts/activity-pages/overview/activity-references/open/records/event-candidates/knowledge/knowledge-fields/knowledge-candidates/presets/preset-candidates/preset-validate <pack> | interaction-script-save/interaction-script-draft/interaction-script-assist/stage-save/stage-candidates/stage-art-import/stage-art-preview/autonomy-enable/autonomy-save/communication-enable/communication-save/world-setup-save/world-setup-candidates/mode-candidates/trpg-enable/trpg-save/item-uses/item-actions-save/rpg-cue-candidates/rpg-cue-play/rpg-journey-play/rpg-item-play/rpg-exit-play/rpg-enable/rpg-save/rpg-play/rpg-preview/script-read/script-save/script-assist/ruling-candidates/activity-page-candidates/activity-page-save/activity-page-import/activity-page-preview/preset-save/preset-assist/preset-play/preset-sample/preset-references/knowledge-save/knowledge-budget/knowledge-condition/event-references/knowledge-references/knowledge-assist/knowledge-play/save/play/assist/rule-save/rule-assist/rule-candidates/rule-references/rule-play/record-save/location-opening-save/record-assist/candidates/references/opening <pack> <request.json> | export <pack> <new-dir>'
-  if (!command || command === '--help') return { usage }
+  if (!command || command === '--help')
+    return { usage: usage + ' | tables <pack> | tables-save/tables-preview <pack> <request.json>' }
   if (extra) throw new TypeError(usage)
   if (
     (command === 'serve' && (arg === undefined || arg === '--no-open')) ||
@@ -61,6 +62,7 @@ export async function runEditorCli(args: string[]) {
   if (
     [
       'gameplay',
+      'tables',
       'stage',
       'interaction-script',
       'event-candidates',
@@ -89,6 +91,8 @@ export async function runEditorCli(args: string[]) {
     [
       'activity-references',
       'save',
+      'tables-save',
+      'tables-preview',
       'stage',
       'stage-save',
       'stage-candidates',

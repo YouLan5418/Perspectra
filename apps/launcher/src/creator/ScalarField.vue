@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { EditorVariable, Scalar } from '@perspectra/world-pack/editor-fields'
-defineProps<{ definition: EditorVariable; modelValue: Scalar }>()
+defineProps<{ definition: Pick<EditorVariable, 'type' | 'options'>; modelValue: Scalar }>()
 const emit = defineEmits<{ 'update:modelValue': [value: Scalar] }>()
 </script>
 <template>

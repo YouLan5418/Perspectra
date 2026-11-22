@@ -116,6 +116,7 @@ export function ruleSources(root: string, edits = ruleEdits(root)) {
         ...(choices ? { options: choices } : {}),
         editable: false,
         readable: v.alwaysKnown === true,
+        ...(v.locations ? { locations: v.locations } : {}),
         writable: simple,
         ...(v.activities ? { activities: v.activities } : {}),
       },

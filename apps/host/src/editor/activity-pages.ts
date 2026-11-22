@@ -11,6 +11,7 @@ import {
 } from '../runtime/activity-pages.ts'
 import { packActivityCatalog, checkPageOperations } from '../runtime/activity-page-catalog.ts'
 import { EditConflict, packPath, readProject } from './project.ts'
+import { addDraftTableMenus } from './encounter-tables.ts'
 
 export function pageBindings(root: string) {
   const file = packPath(root, activityPagesFile)
@@ -29,12 +30,19 @@ function pageFiles(root: string) {
   return files.sort()
 }
 export function withDraftActivities(
+  root: string,
   menus: Awaited<ReturnType<typeof packActivityCatalog>>,
   project: ReturnType<typeof readProject>,
 ) {
+  addDraftTableMenus(
+    root,
+    menus,
+    project.locations.map(l => l.id),
+  )
   for (const g of project.graphs)
     menus.set(g.key, {
       title: g.title,
+      destinations: project.locations.map(l => l.id),
       phases: ['choice'],
       operations: g.choices.map(c => ({ id: 'activity:' + c.id, label: c.label })),
     })
@@ -43,7 +51,7 @@ export function withDraftActivities(
 export async function activityPages(source: string) {
   const root = realpathSync(source),
     project = readProject(root),
-    menus = withDraftActivities(await packActivityCatalog(root), project)
+    menus = withDraftActivities(root, await packActivityCatalog(root), project)
   return {
     activities: [...menus].map(([key, menu]) => ({ key, title: menu.title })),
     declarations: Object.fromEntries(menus),

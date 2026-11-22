@@ -5,8 +5,10 @@ import { scriptEntries } from './adjudication-files.ts'
 import { rulingTargets } from '@perspectra/world-pack/editor-fields'
 import { validateRuling } from './adjudication.ts'
 import { ruleCatalog } from './rule-source.ts'
-import { variableCandidates, acceptsVariableValue } from '@perspectra/world-pack/editor-fields'
+import { officialPackPlugins } from '../official-pack-metadata.ts'
+import { variableCandidates, acceptsVariableValue, conditionCatalog } from '@perspectra/world-pack/editor-fields'
 import { randomUUID } from 'node:crypto'
+import { isTableActivity } from './encounter-tables.ts'
 import {
   closeSync,
   existsSync,
@@ -82,6 +84,12 @@ export function readProject(source: string) {
       parseWorldPackLocationsSource(json(root, file), file).locations.map(l => [l.locationId, l.name] as const),
     ),
   )
+  const rpg = m.plugins?.['official-rpg']
+  const rpgFile = rpg?.config ?? officialPackPlugins.find(p => p.id === 'official-rpg')!.configFile!
+  const rpgConfig =
+    rpg && m.assetFiles.includes(rpgFile) && existsSync(packPath(root, rpgFile))
+      ? (json(root, rpgFile) as { party?: { leader: string }; characters?: Record<string, unknown> } | null)
+      : undefined
   const scenes = m.sceneFiles.flatMap(file =>
     parseWorldPackScenesSourceV2(json(root, file), file).scenes.map(s => ({
       id: s.sceneId,
@@ -119,6 +127,10 @@ export function readProject(source: string) {
     rules: ruleCatalog(root),
     characters,
     items,
+    locations: [...names].map(([id, name]) => ({ id, name: name ?? id })),
+    partyCharacters: rpgConfig?.party
+      ? characters.filter(c => c.id !== rpgConfig.party!.leader && Object.hasOwn(rpgConfig.characters ?? {}, c.id))
+      : [],
     scenes,
     graphs: [...graphs.values()],
     scripts,
@@ -134,8 +146,8 @@ export function validateReferences(graph: EditorGraph, project: EditorProject) {
       ...conditionReferences(choice.condition),
       { use: choice.effect, field: 'effect', label: '结果赋值' },
     ]) {
-      if (use?.kind === 'present' || use?.kind === 'held') {
-        const records = use.kind === 'present' ? project.characters : project.items
+      if (use && (use.kind === 'present' || use.kind === 'held' || use.kind === 'party' || use.kind === 'location')) {
+        const records = project[conditionCatalog[use.kind]]
         if (!records.some(r => r.id === use.ref))
           throw new TypeError([graph.key, choice.id, label, '引用不存在 ' + use.ref].join(' › '))
       }
@@ -249,6 +261,7 @@ export function writeGraph(source: string, rawBase: unknown, rawGraph: unknown) 
     const project = readProject(root),
       current = project.graphs.find(g => g.key === graph.key) ?? null
     const saved = mergeGraph(base, graph, current)
+    if (isTableActivity(root, graph.key)) throw new TypeError('活动标识已用于候选表：' + graph.key)
     validateReferences(saved, project)
     if (current?.variables?.length && JSON.stringify(current.variables) !== JSON.stringify(saved.variables ?? []))
       checkKnowledgeActivities(root, [saved])

@@ -406,6 +406,7 @@ export function projectPlayerView(state: HostState): PlayerView {
       ...(line.speakerId === undefined ? {} : { speakerId: line.speakerId }),
       text: line.text,
       player: line.player,
+      ...(line.interactionReceipt && { interactionReceipt: true as const }),
       ...(line.segments === undefined ? {} : { segments: line.segments }),
       ...(line.pause ? { pause: true as const } : {}),
     })),

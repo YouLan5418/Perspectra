@@ -64,7 +64,7 @@ export async function autonomyBook(source: string) {
     { id: descriptor.id, version: descriptor.version, configFile: descriptor.configFile! },
   ])
   try {
-    const menus = withDraftActivities(readActivityMenus(root, pack, content), readProject(root)),
+    const menus = withDraftActivities(root, readActivityMenus(root, pack, content), readProject(root)),
       operations = new Map<string, string>()
     const activities = [...menus].map(([id, menu]) => ({
       id,

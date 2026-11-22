@@ -73,10 +73,14 @@ function variableUse(raw: Record<string, unknown>): VariableUse {
   return { kind: raw.kind, ref: variableKey(raw.ref), value: raw.value as VariableUse['value'] }
 }
 function readLeaf(value: unknown): ConditionLeaf {
-  const p = row(value, ['kind', 'ref', 'value'])
-  if (p.kind === 'always' && Object.keys(p).length === 1) return { kind: 'always' }
+  const p = row(value, ['kind', 'ref', 'value', 'negate'])
+  if ((p.kind === 'always' || p.kind === 'alone') && Object.keys(p).length === 1) return { kind: p.kind }
+  if (Object.hasOwn(p, 'negate') && (p.negate !== true || (p.kind !== 'present' && p.kind !== 'location')))
+    throw new TypeError('只有地点和在场条件可取反')
   if (p.kind === 'world' || p.kind === 'local') return variableUse(p)
-  if ((p.kind === 'present' || p.kind === 'held') && !Object.hasOwn(p, 'value'))
+  if ((p.kind === 'present' || p.kind === 'location') && !Object.hasOwn(p, 'value'))
+    return { kind: p.kind, ref: text(p.ref, '引用', 200), ...(p.negate ? { negate: true } : {}) }
+  if ((p.kind === 'held' || p.kind === 'party') && !Object.hasOwn(p, 'value'))
     return { kind: p.kind, ref: text(p.ref, '引用', 200) }
   throw new TypeError('选项条件无效')
 }
@@ -179,7 +183,27 @@ function parseLayout(raw: unknown, choices: string[]): LayoutNode[] {
 const header = '// Perspectra authored activity\nconst graph = '
 export function activityScript(graph: EditorGraph, sources: Record<string, string> = {}): string {
   const hasRulings = graph.choices.some(c => c.ruling)
-  const worldConditions = graph.choices.some(c => conditionLeaves(c.condition).some(p => p.kind === 'world'))
+  const predicates = graph.choices.flatMap(c => conditionLeaves(c.condition))
+  const party = predicates.some(p => p.kind === 'party')
+  const worldConditions = party || predicates.some(p => p.kind === 'world')
+  const places = predicates.some(p => p.kind === 'location')
+  const presence = predicates.some(p => p.kind === 'alone' || (p.kind === 'present' && p.negate))
+  // Emit only the new checks a graph uses to preserve the source signatures of existing exports.
+  const sceneChecks: string[] = []
+  if (places)
+    sceneChecks.push(
+      "if (condition.kind === 'location') return typeof scene.locationId === 'string' && (scene.locationId === condition.ref) !== !!condition.negate",
+    )
+  if (presence)
+    sceneChecks.push(
+      "if (condition.kind === 'alone') return scene.characterIds.length === 1 && scene.characterIds[0] === scene.actorId",
+      "if (condition.kind === 'present' && condition.negate) return scene.characterIds.includes(scene.actorId) && !scene.characterIds.includes(condition.ref)",
+    )
+  if (party)
+    sceneChecks.push(
+      "if (condition.kind === 'party') return scene.characterIds.includes(condition.ref) && Array.isArray(known['rpg-party']) && known['rpg-party'].includes(condition.ref)",
+    )
+  const sceneCode = sceneChecks.map(check => '  ' + check + '\n').join('')
   const usesVariables = hasRulings || !!graph.variables?.length || worldConditions || graph.choices.some(c => c.effect)
   const readsStatus = worldConditions || graph.choices.some(c => c.ruling?.target.kind === 'world')
   const args = usesVariables ? ', game, known' : ''
@@ -223,7 +247,7 @@ ${
   }
 `
     : ''
-}  return (condition.kind === 'present' ? scene.characterIds : scene.heldEntityIds).includes(condition.ref)
+}${sceneCode}  return (condition.kind === 'present' ? scene.characterIds : scene.heldEntityIds).includes(condition.ref)
 }
 globalThis.activityScript = {
   definition: {
@@ -243,13 +267,13 @@ ${
 }    return { active: true, phase: 'choice', turn: playerId, round: 1,
       public: {statusText:graph.opening${usesVariables ? ",variables:values('shared')" : ''}}, private: {[playerId]:{${usesVariables ? "variables:values('private')" : ''}}}, internal: {${usesVariables ? "variables:values('internal')" : ''}} }
   },
-  policy(view) {
+  policy(view${presence ? ', actor' : ''}) {
     return { speech:'free', speechChoices:[], narration:true, move:true, interactions:[],
-      operations:graph.choices.filter(choice => available(choice, view.scene${usesVariables ? ', view.game, view.knownPublic ?? {}' : ''})).map(choice => choice.id) }
+      operations:graph.choices.filter(choice => available(choice, ${presence ? '{...view.scene, actorId:actor}' : 'view.scene'}${usesVariables ? ', view.game, view.knownPublic ?? {}' : ''})).map(choice => choice.id) }
   },
   resolve(state, actor, operation, parameters, world${readsStatus ? ', truth' : ''}) {
     const choice = graph.choices.find(c => c.id === operation)
-    const scene = { characterIds: world.characterIds, heldEntityIds: world.items.current.filter(i => i.holderId === actor).map(i => i.entityId) }
+    const scene = { ${places ? 'locationId: world.locationId, ' : ''}${presence ? 'actorId: actor, ' : ''}characterIds: world.characterIds, heldEntityIds: world.items.current.filter(i => i.holderId === actor).map(i => i.entityId) }
     if (!choice || !available(choice, scene${usesVariables ? ', {...state.game, private:state.game.private[actor]}, ' + (readsStatus ? 'truth.public' : '{}') : ''})) return {rejectReason:'条件已改变，请重新选择。'}
     const active = choice.next === 'stay'
 ${

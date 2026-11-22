@@ -116,7 +116,14 @@ function writePlayerSelection(
   if (!player) throw new TypeError('请选择已有角色')
   const promote = player.values.controllerClass !== 'manual'
   if (changed || promote) {
-    const plugins = manifest(root).plugins
+    const { plugins, scripts } = manifest(root)
+    const responding = Object.entries(scripts?.gameplay.responders ?? {}).filter(([, roles]) =>
+      roles.includes(playerId),
+    )
+    if (responding.length)
+      throw new TypeError(
+        '请先在日常交互中移除' + player.name + '的回应配置：' + responding.map(([id]) => id).join('、'),
+      )
     const autonomy = plugins?.['official-autonomy']
     if (autonomy) {
       const config = read(root, autonomy.config ?? 'autonomy.json')

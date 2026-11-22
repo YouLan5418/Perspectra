@@ -135,7 +135,13 @@ export interface WorldPackComposition extends WorldJsonObject {
   readonly plugins?: { readonly [id: string]: { readonly version?: string; readonly config?: string } }
   /** Hard provider identity requirements. Ordinary packs omit this and use player/host choices. */
   readonly services?: { readonly [service: string]: string }
-  readonly scripts?: { readonly gameplay: { readonly entry: string; readonly config?: WorldJsonObject } }
+  readonly scripts?: {
+    readonly gameplay: {
+      readonly entry: string
+      readonly config?: WorldJsonObject
+      readonly responders?: Readonly<Record<string, readonly string[]>>
+    }
+  }
 }
 
 /** The supported source manifest selects the world's interaction file. */

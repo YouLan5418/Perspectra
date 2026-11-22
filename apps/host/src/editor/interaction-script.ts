@@ -9,6 +9,7 @@ import { runEditorAgent } from './assistant.ts'
 import { buildSource } from './export.ts'
 import { manifest, manifestFile, packPath, EditConflict } from './project.ts'
 import { acquireSourceLock, writeAtomic } from './source-files.ts'
+import { presetCandidates } from './presets.ts'
 
 const blank = `module.exports = {
   id: 'pack-interactions',
@@ -29,6 +30,7 @@ function current(root: string) {
     enabled: !!declaration,
     source: existsSync(file) ? readFileSync(file, 'utf8') : null,
     config: declaration?.config ?? {},
+    responders: declaration?.responders ?? {},
   }
 }
 export function interactionScript(root: string) {
@@ -40,7 +42,7 @@ export function interactionScript(root: string) {
   } catch (e) {
     error = (e as Error).message
   }
-  return { base, source: base.source ?? blank, operations, error }
+  return { base, source: base.source ?? blank, operations, characters: presetCandidates(root), error }
 }
 
 export function draftInteraction(root: string, body: Record<string, unknown>) {
@@ -74,13 +76,24 @@ module.exports = {
   return { source: next, operations: gameplayOperationList(next, path) }
 }
 
-function register(root: string, path: string, config: Record<string, unknown>) {
+function register(root: string, path: string, config: Record<string, unknown>, responders: Record<string, unknown>) {
   const raw = JSON.parse(readFileSync(packPath(root, manifestFile), 'utf8'))
   const old = raw.scripts?.gameplay
-  if (old?.entry === path && isDeepStrictEqual(old.config ?? {}, config) && raw.assetFiles.includes(path)) return
+  if (
+    old?.entry === path &&
+    isDeepStrictEqual(old.config ?? {}, config) &&
+    isDeepStrictEqual(old.responders ?? {}, responders) &&
+    raw.assetFiles.includes(path)
+  )
+    return
   raw.scripts = {
     ...raw.scripts,
-    gameplay: { entry: path, ...(Object.keys(config).length || old?.config ? { config } : {}) },
+    gameplay: {
+      ...old,
+      entry: path,
+      ...(Object.keys(config).length || old?.config ? { config } : {}),
+      responders: Object.keys(responders).length ? responders : undefined,
+    },
   }
   if (!raw.assetFiles.includes(path)) raw.assetFiles.push(path)
   writeAtomic(root, manifestFile, JSON.stringify(raw, null, 2) + '\n')
@@ -94,8 +107,12 @@ export async function saveInteractionScript(sourceRoot: string, body: Record<str
     throw new TypeError('保存需要脚本源码、包配置和读取时的 base')
   const release = acquireSourceLock(root)
   try {
-    const before = current(root),
-      desired = { ...before, enabled: true, source, config }
+    const before = current(root)
+    const responders = body.responders === undefined ? before.responders : body.responders
+    if (!responders || typeof responders !== 'object' || Array.isArray(responders))
+      throw new TypeError('回应配置需要按操作 ID 填写')
+    const policies = responders as Record<string, unknown>
+    const desired = { ...before, enabled: true, source, config, responders: policies }
     if (!isDeepStrictEqual(before, body.base)) {
       if (isDeepStrictEqual(before, desired) && (body.base as { path?: string }).path === before.path)
         return interactionScript(root)
@@ -106,7 +123,7 @@ export async function saveInteractionScript(sourceRoot: string, body: Record<str
     try {
       await buildSource(root, temp, undefined, stage => {
         writeAtomic(stage, before.path, source)
-        register(stage, before.path, config)
+        register(stage, before.path, config, policies)
       })
       signal?.throwIfAborted()
       // Registration in an actual fresh world also checks operation IDs, services, schemas and competing handlers.
@@ -120,7 +137,7 @@ export async function saveInteractionScript(sourceRoot: string, body: Record<str
     if (!isDeepStrictEqual(before, latest)) throw new EditConflict(before.path, before, latest, desired)
     if (before.source !== source) writeAtomic(root, before.path, source)
     try {
-      register(root, before.path, config)
+      register(root, before.path, config, policies)
     } catch (e) {
       if (before.source !== source) {
         if (before.source === null) rmSync(packPath(root, before.path))

@@ -31,7 +31,9 @@ export async function stageBook(source: string, body: Record<string, unknown> = 
   const root = realpathSync(source),
     kind = stageKind(body.kind)
   const menus =
-    kind === 'stage' ? withDraftActivities(await packActivityCatalog(root), readProject(root)) : new Map<never, never>()
+    kind === 'stage'
+      ? withDraftActivities(root, await packActivityCatalog(root), readProject(root))
+      : new Map<never, never>()
   const records = worldRecords(root).records
   const options = (kind: 'character' | 'location') =>
     records.filter(r => r.kind === kind).map(({ id, name }) => ({ id, name }))

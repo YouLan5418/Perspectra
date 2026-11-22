@@ -16,9 +16,26 @@ const operations = ref<Book['operations']>([]),
   message = ref(''),
   preview = ref('')
 const conflict = ref(false)
+const responders = ref<Record<string, string[]>>({})
+const choosing = ref<string[]>([])
+const missingOperations = computed(() =>
+  Object.keys(responders.value).filter(id => !operations.value.some(op => op.id === id)),
+)
+function setMode(id: string, mode: string) {
+  choosing.value = choosing.value.filter(key => key !== id)
+  if (mode === 'default') delete responders.value[id]
+  else {
+    if (mode === 'selected') choosing.value.push(id)
+    responders.value[id] = []
+  }
+}
 const pretty = (value: unknown) => JSON.stringify(value, null, 2)
 const dirty = computed(
-  () => book.value && (source.value !== book.value.source || config.value !== pretty(book.value.base.config)),
+  () =>
+    book.value &&
+    (source.value !== book.value.source ||
+      config.value !== pretty(book.value.base.config) ||
+      pretty(responders.value) !== pretty(book.value.base.responders)),
 )
 watch(
   [source, config],
@@ -32,6 +49,8 @@ function load(b: Book) {
   book.value = b
   source.value = b.source
   config.value = pretty(b.base.config)
+  responders.value = Object.fromEntries(Object.entries(b.base.responders).map(([id, roles]) => [id, [...roles]]))
+  choosing.value = Object.keys(responders.value).filter(id => responders.value[id]!.length)
   operations.value = b.operations
   inspected.value = b.source
   conflict.value = false
@@ -56,6 +75,7 @@ async function work(action: () => Promise<void>) {
 async function save(explicit = false) {
   if (!book.value) throw Error('日常交互尚未载入')
   if (conflict.value) throw Error('源包已变化，请先重新载入')
+  if (choosing.value.some(id => !responders.value[id]?.length)) throw Error('请为指定回应的操作选择至少一位角色')
   if (!dirty.value && (!explicit || book.value.base.enabled)) return
   try {
     load(
@@ -63,6 +83,7 @@ async function save(explicit = false) {
         base: book.value.base,
         source: source.value,
         config: JSON.parse(config.value),
+        responders: responders.value,
       }),
     )
     message.value = '交互脚本已保存'
@@ -115,11 +136,28 @@ defineExpose({
           <code>{{ op.id }}</code>
           <p v-if="op.group || op.targetKind">{{ [op.group, op.targetKind].filter(Boolean).join(' · ') }}</p>
           <p v-if="op.whenToUse">{{ op.whenToUse }}</p>
+          <label
+            >玩家单独执行后
+            <select
+              :value="!responders[op.id] ? 'default' : choosing.includes(op.id) ? 'selected' : 'none'"
+              @change="setMode(op.id, ($event.target as HTMLSelectElement).value)"
+            >
+              <option value="default">按场景回应</option>
+              <option value="none">只给操作回执</option>
+              <option value="selected" :disabled="!book.characters.length">指定可回应角色</option>
+            </select>
+          </label>
+          <label v-for="person in choosing.includes(op.id) ? book.characters : []" :key="person.id">
+            <span><input v-model="responders[op.id]" type="checkbox" :value="person.id" /> {{ person.name }}</span>
+          </label>
           <details class="parameters">
             <summary>参数结构</summary>
             <pre>{{ pretty(op.parameters) }}</pre>
           </details>
         </details>
+        <p v-for="unknownId in missingOperations" :key="unknownId" role="alert">
+          回应配置引用了缺失的操作 {{ unknownId }} <button @click="setMode(unknownId, 'default')">移除引用</button>
+        </p>
         <h3>新增交互</h3>
         <label>操作名称<input v-model="label" placeholder="倾听门外动静" /></label>
         <label>操作 ID<input v-model="id" placeholder="porch:listen" /></label>

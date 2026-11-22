@@ -58,12 +58,15 @@ export class ActivitiesRuntime {
     ownerId = 'official-activities',
     isCoreError: (error: unknown) => boolean = () => false,
     native?: import('@perspectra/core').GameplayRuntime,
+    eventReader?: (key: string) => ((actor: string, through: number) => string[]) | undefined,
   ): ActivitiesRuntime | undefined {
     if (!mechanism.entries.length) return undefined
     const catalog = new ActivitiesRuntime(worldPath, address, playerId, coreRules, mechanism, ownerId, isCoreError)
     for (const entry of mechanism.entries) {
       if (catalog.#entries.has(entry.key)) throw new TypeError('重复的活动标识：' + entry.key)
+      const witnessed = eventReader?.(entry.key)
       const activity = new ActivityRuntime(entry, worldPath, address, playerId, entry.key, status, coreRules, {
+        ...(witnessed ? { witnessed } : {}),
         ...(native ? { native } : {}),
         randomSource: () => catalog.#nextRandom(),
         readCurrent: () => catalog.#current(entry.key),
@@ -379,15 +382,15 @@ export class ActivitiesRuntime {
   async escape(): Promise<void> {
     await this.#selected()?.escape()
   }
-  async speak(...args: Parameters<ActivityRuntime['speak']>): Promise<void> {
+  async speak(...args: Parameters<ActivityRuntime['speak']>) {
     const entry = this.#selected()
     if (!entry) throw new TypeError('没有运行中的活动')
-    await entry.speak(...args)
+    return entry.speak(...args)
   }
-  async worldAction(...args: Parameters<ActivityRuntime['worldAction']>): Promise<void> {
+  async worldAction(...args: Parameters<ActivityRuntime['worldAction']>) {
     const entry = this.#selected()
     if (!entry) throw new TypeError('没有运行中的活动')
-    await entry.worldAction(...args)
+    return entry.worldAction(...args)
   }
   projectContext(...args: Parameters<ActivityRuntime['projectContext']>) {
     return this.#selected()?.projectContext(...args) ?? args[0]

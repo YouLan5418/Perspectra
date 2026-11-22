@@ -14,6 +14,7 @@ export interface WorldVariableDefinition extends EditorVariable {
   alwaysKnown?: boolean
 }
 export interface WorldVariable extends WorldVariableDefinition {
+  locations?: readonly string[]
   editable: boolean
   readable: boolean
   writable: boolean
@@ -24,8 +25,18 @@ export interface VariableUse {
   ref: string
   value: Scalar
 }
-export type ConditionPredicate = { kind: 'present' | 'held'; ref: string } | VariableUse
+export type ConditionPredicate =
+  | { kind: 'present' | 'location'; ref: string; negate?: true }
+  | { kind: 'held' | 'party'; ref: string }
+  | { kind: 'alone' }
+  | VariableUse
 export type ConditionLeaf = { kind: 'always' } | ConditionPredicate
+export const conditionCatalog = {
+  present: 'characters',
+  party: 'partyCharacters',
+  location: 'locations',
+  held: 'items',
+} as const
 export type ChoiceCondition = ConditionLeaf | { kind: 'all' | 'any'; conditions: ConditionPredicate[] }
 export function conditionLeaves(condition: ChoiceCondition): ConditionLeaf[] {
   return 'conditions' in condition ? condition.conditions : [condition]
@@ -53,7 +64,7 @@ export function rulingTargets(world: WorldVariable[], local: LocalVariable[], ac
     v.kind === 'world' ? v.readable : v.scope !== 'internal',
   )
 }
-export function acceptsVariableValue(v: EditorVariable, value: unknown): value is Scalar {
+export function acceptsVariableValue(v: Pick<EditorVariable, 'type' | 'options'>, value: unknown): value is Scalar {
   return (
     typeof value === v.type &&
     (typeof value !== 'number' || (Number.isSafeInteger(value) && !Object.is(value, -0))) &&

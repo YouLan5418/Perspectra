@@ -28,6 +28,10 @@ export function pageFieldValue(field: PageField, view: PlayerView): unknown {
     case 'held':
       return view.items?.some(i => i.id === field.key && i.where === 'held') ?? false
     case 'available':
+      if (field.key.startsWith('move:'))
+        return view.actions.some(
+          o => o.kind === 'move' && o.target?.kind === 'location' && 'move:' + o.target.id === field.key,
+        )
       return view.actions.some(
         o =>
           o.kind === 'activity' &&

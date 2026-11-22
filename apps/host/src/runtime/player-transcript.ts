@@ -64,6 +64,23 @@ export function playerTranscript(
       if (typeof content?.eventNotice === 'string')
         return [{ seq: observation.sourceSeq, speaker: '旁白', text: content.eventNotice, player: false }]
       if (content?.status !== 'accepted') return []
+      // Common-script results are projected separately for each recipient by the rulebook.
+      if (
+        typeof content.operationId === 'string' &&
+        typeof content.resultDescription === 'string' &&
+        content.resultDescription.trim() &&
+        typeof content.actorId === 'string' &&
+        !content.actionType
+      )
+        return [
+          {
+            seq: observation.sourceSeq,
+            speaker: '游戏结果',
+            text: content.resultDescription,
+            player: false,
+            ...(content.actorId === playerId ? { interactionReceipt: true as const } : {}),
+          },
+        ]
       if (
         typeof speech?.characterId !== 'string' ||
         (typeof speech.text !== 'string' && speech.segments === undefined)
@@ -83,6 +100,11 @@ export function playerTranscript(
                       ? {}
                       : { speakerId: brandId(content.actorId, 'CharacterId') }),
                     text: content.resultDescription,
+                    ...(content.actorId === playerId &&
+                    !object(content.activity) &&
+                    !object(object(content.resultMetadata)?.activity)
+                      ? { interactionReceipt: true as const }
+                      : {}),
                     player: false,
                   },
                 ]

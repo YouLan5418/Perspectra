@@ -169,6 +169,17 @@ export function validatePackScript(source: string, config: WorldJsonObject, pack
   const script = new GameplayScript(source)
   try {
     const definition = script.definition
+    for (const [id, roles] of Object.entries(pack.scripts?.gameplay.responders ?? {})) {
+      if (!definition.operations.some(op => op.id === id)) throw new TypeError('未知回应配置操作：' + id)
+      for (const role of roles)
+        if (
+          !pack.content.characters.some(
+            c => c.characterId === role && c.controllerClass !== 'manual' && (c.lifecycle ?? 'active') === 'active',
+          ) ||
+          pack.content.playerSlots.some(s => s.characterId === role)
+        )
+          throw new TypeError(id + ' 的回应角色必须是包内 NPC：' + role)
+    }
     if (definition.states || definition.statusPolicy) {
       validateStateDefinition(
         { statuses: definition.states ?? [], operations: definition.statusPolicy?.operations ?? [] },

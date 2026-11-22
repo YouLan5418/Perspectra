@@ -73,10 +73,21 @@ export function parsePackComposition(root: Record<string, unknown>, assets: read
     if (
       !object(script) ||
       typeof script.entry !== 'string' ||
-      Object.keys(script).some(key => !['entry', 'config'].includes(key)) ||
+      Object.keys(script).some(key => !['entry', 'config', 'responders'].includes(key)) ||
       (script.config !== undefined && !object(script.config))
     )
       invalid('/scripts/gameplay is invalid')
+    const responders = (script as Record<string, unknown>).responders
+    if (responders !== undefined) {
+      if (!object(responders)) invalid('/scripts/gameplay/responders must be an operation map')
+      for (const [id, roles] of Object.entries(responders as Record<string, unknown>))
+        if (
+          !Array.isArray(roles) ||
+          roles.some(role => typeof role !== 'string') ||
+          new Set(roles).size !== roles.length
+        )
+          invalid('/scripts/gameplay/responders/' + id + ' must contain unique character IDs')
+    }
     paths.push((script as Record<string, unknown>).entry as string)
     Object.assign(result, { scripts: root.scripts })
   }

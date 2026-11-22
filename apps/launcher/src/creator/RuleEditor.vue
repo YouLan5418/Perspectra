@@ -23,10 +23,12 @@ const props = defineProps<{
 const emit = defineEmits<{
   activity: [key: string, choice: string, field: string, reference: string]
   knowledge: [id: string]
+  tables: [id: string, field: string]
 }>()
 type RefRow =
   | ReturnType<typeof ruleReferences>[number]
   | { section: 'knowledge'; id: string; label: string; field: string }
+  | { section: 'tables'; id: string; label: string; field: string }
 type Kind = 'variable' | 'event' | 'pacing'
 const labels = { variable: '世界变量', event: '世界事件', pacing: '事件节奏表' } as const
 const data = ref<EditorProject['rules']>({ variables: [], events: [], pacing: [] }),
@@ -238,6 +240,7 @@ function reset() {
 async function follow(r: RefRow) {
   if (r.section === 'activity') emit('activity', r.id, r.choice!, r.field, 'world/' + id.value)
   else if (r.section === 'knowledge') emit('knowledge', r.id)
+  else if (r.section === 'tables') emit('tables', r.id, r.field)
   else await select(r.section, r.id)
 }
 async function play() {

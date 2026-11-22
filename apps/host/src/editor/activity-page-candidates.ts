@@ -5,6 +5,7 @@ import { activityAssetPath } from '../runtime/activity-pages.ts'
 import { readPageElements } from '../runtime/activity-page-elements.ts'
 import { packPath, readProject } from './project.ts'
 import { packActivityCatalog } from '../runtime/activity-page-catalog.ts'
+import { withDraftActivities } from './activity-pages.ts'
 import { openPageTrial } from './activity-page-preview.ts'
 
 export interface PageFieldChoice {
@@ -66,7 +67,7 @@ export async function activityPageCandidates(source: string, body: Record<string
     graph = project.graphs.find(g => g.key === key)
   const menu = graph
     ? { phases: ['choice'], operations: graph.choices.map(c => ({ id: 'activity:' + c.id, label: c.label })) }
-    : (await packActivityCatalog(root)).get(key)
+    : withDraftActivities(root, await packActivityCatalog(root), project).get(key)
   if (!menu) throw new TypeError('找不到当前活动')
   const fields: PageFieldChoice[] = [
     {
@@ -96,6 +97,7 @@ export async function activityPageCandidates(source: string, body: Record<string
   for (const item of project.items)
     fields.push({ field: { source: 'held', key: item.id }, label: '玩家持有 · ' + item.name, type: 'boolean' })
   const ops = new Map(menu.operations.map(o => [o.id, o.label]))
+  for (const l of project.locations) ops.set('move:' + l.id, '前往 · ' + l.name)
   let sampled = false
   if (body.trial === true) {
     const { sim, view } = await openPageTrial(root, body, signal)

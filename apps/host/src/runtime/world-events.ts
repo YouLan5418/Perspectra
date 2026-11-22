@@ -257,6 +257,12 @@ export class WorldEventRuntime {
       }
     })
   }
+  witnessedRules(actor: string, through: number): string[] {
+    if (through > this.indexed) this.index(through)
+    return [...this.occurrences.values()]
+      .filter(e => e.seq <= through && e.witnesses.some(w => w.id === actor))
+      .map(e => e.ruleId)
+  }
   async markWake(path: string, key: string, to: WakeStatus, signal: AbortSignal): Promise<boolean> {
     if (!this.active) return false
     const from = to === 'claimed' ? 'pending' : 'claimed'

@@ -1,4 +1,5 @@
 import { checkKnowledgeVariable } from './knowledge.ts'
+import { validateTableReferences } from './encounter-tables.ts'
 import { writeAtomic } from './source-files.ts'
 import { eventOptions, checkNoticeOperations } from './event-options.ts'
 import { conditionReferences } from './activity-graph.ts'
@@ -145,6 +146,7 @@ export function saveRule(source: string, body: Record<string, unknown>) {
       if (g.effect && !eventVariables(data.variables).some(v => v.key === g.effect!.key))
         throw new TypeError(g.plugin + ' › 订阅写入状态需要包级公共布尔变量 ' + g.effect.key)
     for (const graph of project.graphs) validateReferences(graph, { ...project, rules: data })
+    validateTableReferences(root, { locations: project.locations, rules: data })
     if (kind === 'grants' && data.eventText && !ruleEdits(root).grants) {
       // An imported book already has a destination; edit just grants and read the file again on every save.
       const original = JSON.parse(data.eventText)

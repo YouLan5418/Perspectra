@@ -46,6 +46,7 @@ import { assistActivity, applyAssistantChanges } from './assistant.ts'
 import { worldRecords, queryRecords, saveRecord, saveLocationOpening } from './world-records.ts'
 import { assistRecord, previewOpening } from './workspace.ts'
 import { fields } from '@perspectra/world-pack/editor-fields'
+import { encounterTables, saveTables, previewTable, tableReferences } from './encounter-tables.ts'
 
 /** The browser and agent CLI both call these operations. */
 export async function editorCommand(
@@ -55,6 +56,12 @@ export async function editorCommand(
   signal?: AbortSignal,
 ) {
   switch (body.operation) {
+    case 'tables':
+      return encounterTables(root)
+    case 'tables-save':
+      return saveTables(root, body)
+    case 'tables-preview':
+      return previewTable(root, body)
     case 'interaction-script':
       return interactionScript(root)
     case 'interaction-script-save':
@@ -187,6 +194,7 @@ export async function editorCommand(
     case 'rule-references':
       return [
         ...ruleReferences(readProject(root), body.kind, body.id, body.activity),
+        ...tableReferences(root, body.kind, body.id),
         ...(body.kind === 'local' ? knowledgeReferences(root, body.kind, body.id, body.activity) : []),
       ]
     case 'rule-play':

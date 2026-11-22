@@ -15,6 +15,7 @@ import {
 } from '@lucide/vue'
 import { editorRequest, selectEditorWorkspace } from './editor-api.ts'
 import InteractionScript from './InteractionScript.vue'
+import EncounterTables from './EncounterTables.vue'
 import RulingScripts from './RulingScripts.vue'
 import StageEditor from './StageEditor.vue'
 import WorldSetupEditor from './WorldSetupEditor.vue'
@@ -68,6 +69,7 @@ type WorkSection =
   | 'presets'
   | 'pages'
   | 'interactions'
+  | 'tables'
   | 'scripts'
   | 'gameplay'
   | 'trpg'
@@ -84,6 +86,7 @@ const sectionLabels: Record<WorkSection, string> = {
   activity: '活动流程图',
   rules: '变量与世界事件',
   interactions: '日常交互',
+  tables: '遭遇与委托表',
   scripts: '规则脚本',
   knowledge: '知识库',
   presets: '文风与模型预设',
@@ -96,7 +99,12 @@ const categories = [
   { title: '作品总览', main: 'overview', icon: BookOpen, entries: ['slot', 'setup'] },
   { title: '地点与舞台', main: 'location', icon: MapPin, entries: ['scene', 'item', 'stage'] },
   { title: '角色', main: 'character', icon: Users, entries: ['knowledge'] },
-  { title: '活动与规则', main: 'activity', icon: Workflow, entries: ['rules', 'interactions', 'scripts', 'pages'] },
+  {
+    title: '活动与规则',
+    main: 'activity',
+    icon: Workflow,
+    entries: ['rules', 'tables', 'interactions', 'scripts', 'pages'],
+  },
   {
     title: '玩法与设置',
     main: 'gameplay',
@@ -167,6 +175,8 @@ const initialField = ref<string>(),
   initialEvent = ref<string>()
 const pageKey = ref<string>()
 const interactionsEditor = ref<InstanceType<typeof InteractionScript>>()
+const tablesEditor = ref<InstanceType<typeof EncounterTables>>()
+const tableKey = ref<string>()
 const scriptsEditor = ref<InstanceType<typeof RulingScripts>>()
 const scriptKey = ref<string>()
 const pageEditor = ref<InstanceType<typeof ActivityPageEditor>>()
@@ -188,10 +198,10 @@ async function loadReaderRefs(e: Event) {
         : ['event-references', 'knowledge-references']
       ).map(operation => editorRequest<AuthorReference[]>(operation, { kind, id })),
     )
-    const uses =
-      kind === 'character'
-        ? await editorRequest<ActivityReference[]>('activity-references', { kind: 'present', id })
-        : []
+    const uses = await editorRequest<ActivityReference[]>('activity-references', {
+      kind: kind === 'character' ? 'present' : 'location',
+      id,
+    })
     if (record.value?.id === id) {
       readerRefs.value = results.flat()
       actorUses.value = uses
@@ -232,6 +242,7 @@ const currentFields = computed(() =>
   section.value === 'communication' ||
   section.value === 'trpg' ||
   section.value === 'interactions' ||
+  section.value === 'tables' ||
   section.value === 'scripts'
     ? []
     : fields[section.value],
@@ -325,6 +336,7 @@ function view(kind: WorkSection, id?: string, field?: string) {
   mobileDirectory.value = false
   initialField.value = field
   if (kind === 'rules') initialEvent.value = id
+  if (kind === 'tables') tableKey.value = id
   if (kind === 'setup') setupCharacter.value = id
   if (kind === 'communication') contactCharacter.value = id
   if (kind === 'gameplay') gameplayLocation.value = id
@@ -359,6 +371,7 @@ async function save() {
     await interactionsEditor.value?.flush()
     return
   }
+  if (section.value === 'tables') return tablesEditor.value?.flush()
   if (section.value === 'scripts') {
     await scriptsEditor.value?.flush()
     return
@@ -436,7 +449,15 @@ async function choose(kind: WorkSection, id?: string, field?: string, targetFace
 }
 async function openDefinition(r: ActivityReference) {
   const section =
-    r.kind === 'present' ? 'character' : r.kind === 'held' ? 'item' : r.kind === 'world' ? 'rules' : 'scripts'
+    r.kind === 'present'
+      ? 'character'
+      : r.kind === 'location'
+        ? 'location'
+        : r.kind === 'held'
+          ? 'item'
+          : r.kind === 'world'
+            ? 'rules'
+            : 'scripts'
   await choose(section, r.kind === 'script' ? 'ruling/' + r.id : r.id, r.kind === 'world' ? 'variable' : undefined)
   if (!error.value) returnRef.value = r
 }
@@ -480,6 +501,7 @@ function begin() {
     section.value === 'communication' ||
     section.value === 'trpg' ||
     section.value === 'interactions' ||
+    section.value === 'tables' ||
     section.value === 'scripts'
   )
     return
@@ -503,6 +525,7 @@ function options(f: WorldField) {
     section.value === 'communication' ||
     section.value === 'trpg' ||
     section.value === 'interactions' ||
+    section.value === 'tables' ||
     section.value === 'scripts'
   )
     return []
@@ -823,6 +846,9 @@ onMounted(() => {
         />
       </div>
       <div v-if="section === 'interactions'" class="activities"><InteractionScript ref="interactionsEditor" /></div>
+      <div v-if="section === 'tables'" class="activities">
+        <EncounterTables ref="tablesEditor" :initial="tableKey" :field="initialField" />
+      </div>
       <div v-if="section === 'scripts'" class="activities">
         <RulingScripts :key="scriptKey ?? ''" ref="scriptsEditor" :initial="scriptKey" @activity="focusActivity" />
       </div>
@@ -842,6 +868,7 @@ onMounted(() => {
           :initial-variable="initialField === 'variable' ? initialEvent : undefined"
           :records="book.records"
           @activity="focusActivity"
+          @tables="(id, field) => choose('tables', id, field)"
           @knowledge="id => choose('knowledge', id)"
         />
       </div>
@@ -873,6 +900,7 @@ onMounted(() => {
           section !== 'autonomy' &&
           section !== 'communication' &&
           section !== 'interactions' &&
+          section !== 'tables' &&
           section !== 'scripts'
         "
         ><section class="register">

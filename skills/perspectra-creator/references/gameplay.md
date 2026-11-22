@@ -1,5 +1,44 @@
 # 用包内规则扩展玩法
 
+## 遭遇与委托表
+
+玩家在门廊查看差事。潮位达到 3 时可以抽到「代投便笺」，亲自听过交班铃后可以交付，领取 7 枚邮戳。潮位、更次、邮戳及交班铃都是这部作品自己定义的内容，另一个包可选完全不同的变量和事件。
+
+直接写 v5 源包时，把配置文件列入 `worldpack.source.json` 的 `assetFiles`，并在已有 `plugins` 中声明 `"official-dice":{"config":"gameplay-tables.json"}`。已给骰子配置文件的包就在该文件中加 `tables`。例如，包内已启用的 `scripts/status.js` 定义了始终公开的数字变量 `tide`、`watch` 和 `stamps`，世界事件定义了 `bell`，可以写：
+
+```json
+{
+  "tables": [{
+    "key": "porch", "title": "门廊差事", "clockKey": "watch",
+    "rows": [
+      {
+        "key": "letter", "kind": "quest", "title": "代投便笺", "location": "location:start",
+        "conditions": [{"key":"tide","op":"gte","value":3}],
+        "weight": 1, "limit": 2, "duration": 2, "completeEvent": "bell",
+        "rewardKey": "stamps", "reward": 7
+      },
+      {"key":"cat","kind":"encounter","title":"送信猫","weight":3,"text":"一只猫从台阶下探出头来。"}
+    ]
+  }]
+}
+```
+
+- 表必填 `key`、`title`、非空 `rows`。候选必填 `key`、`title`、`kind`。其余字段按需填写。表键和行键分别在自己的范围内唯一，以小写字母开头，可用小写字母、数字和连字符，最长 33 个字符。
+- `conditions` 中所有条件都满足才入选。字符串、枚举和布尔值支持 `eq`、`ne`，数值还支持 `gt`、`gte`、`lt`、`lte`。变量取自包的基础状态脚本，须始终公开、无地点和活动范围。枚举从变量定义中选；数值和布尔按 JSON 原类型填写。时段、天气、季节或潮位均可由作者自行建模。
+- `location` 选包内地点。`event` 要求玩家曾经见证指定世界事件。`completeEvent` 用同一规则判断委托能否交付。节拍事件先加入包的节奏表，再在候选上引用。该引用只检查玩家实际收到的观察。抽表的时机是玩家操作原生活动 `table-<表键>` 中的「抽取候选」。
+- `weight` 默认 1，合格行按权重抽一次。上例两行都合格时概率为 1/4 和 3/4。权重是正整数，单表总权重最多 1000。`limit` 按抽中次数累计，放弃、离开或重进都保留已用次数。
+- 遭遇抽中即结算，委托要先接受再交付。每张表同一时间可保留一个待接受或已接受的委托。`duration` 表示从接受那一刻起，作者指定的整数计时变量 `clockKey` 可以再前进多少。更次为 3 时接取、期限为 2，最迟更次 5 可以交付，到了 6 可放弃。奖励同时填 `rewardKey` 和正整数 `reward`，指定可写的公共数值变量。物品转移或复杂结算走作品的活动裁定脚本。
+
+编辑器入口为「活动与规则 → 遭遇与委托表」。外部 agent 用 `worldpack editor tables <包目录>` 获取基础配置和引用目录，`tables-save <包目录> <请求.json>` 提交 `{"base":读取时的base,"tables":[...]}`。编辑器保存到 `creator-tables.json` 草稿；`worldpack editor export <包目录> <新目录>` 会一并生成可玩的规则与表，随后对导出目录运行 `worldpack validate`。
+
+用 `worldpack editor tables-preview <包目录> <请求.json>` 预览。上例可传 `{"key":"porch","location":"location:start","values":{"tide":3,"watch":2},"counts":{"letter":0},"events":[]}`。也可把完整未保存的表放在 `table` 字段中。返回每行匹配项、排除原因与有效总权重；预览不会掷骰或消耗次数。验收时分别降低一次潮位、用尽一次出现次数，再在正式活动中跨两次进入完成交付，核对邮戳只发一次。
+
+## 在柜台连续办事和交谈
+
+连续寄养时，每次 `resolve` 提交一份名册变更。用 `npc.projectResult` 为实际经手的角色投影回执，`npc.formatResult` 写出个体名、编号和游戏内领取时间。这样即使柜员当时没有开口，玩家随后问“第一只什么时候领”，她也能按自己收到的记录回答。敏感结果只向获准的角色投影。
+
+在 `worldpack.source.json` 的 `scripts.gameplay.responders` 按操作 ID 配置玩家单独执行后的回应机会。例如 `{"clinic:admit":[],"shop:order":["character:clerk"]}` 表示寄养只显示回执，下单时可由观察到此事的柜员回应。省略某个操作沿用场景调度。玩家另行开口或同时说话并行动时，仍走发言规则。编辑器的「日常交互」可选角色，CLI 的 `interaction-script-save` 可随草稿传同一张 `responders` 表，`validate` 会检查操作和角色引用。
+
 ## 用编辑器 CLI 配置自主机会
 
 用 `worldpack editor autonomy <pack>` 读取当前配置、字段声明和活动操作目录，用 `autonomy-enable` 启用空角色列表。添加 NPC 后，用 `mode-candidates` 携带 `{"mode":"autonomy","path":["characters","0","triggers","0","operation"],"config":...}` 获取所选活动的操作。用 `autonomy-save` 带回 `file`、原 `base`、完整新 `config`。活动触发同时引用活动键和操作键。列出角色可尝试的交互和地点，台词和行动由角色决定。
@@ -10,6 +49,8 @@
 
 
 ## B7 显式组合与共同脚本（源码）
+
+写全新的玩法或查可用的 SDK，读[玩法插件与 SDK](gameplay-plugins.md)。附带的搜证示例可以随作品运行，也可以由本机原生插件注册，供多个包选用。
 
 列入 assetFiles 只说明它是资产，不会自动启用玩法。添加或删除玩法时同步修改 worldpack.source.json 的 plugins；无需填满 services。
 
@@ -71,7 +112,7 @@ changes 是 `{ holderId, key, value }`，整体替换该键（公共状态 holde
 
 ## 活动
 
-有局部回合、参与者或胜负的小游戏才用活动：单场写 `scripts/activity.js`，多场写 `scripts/activities/<标识>.js`，都登记进 assetFiles。多场各自保留进度，一次只运行一场，玩家可以暂停一场去玩另一场。脚本定义 `globalThis.activityScript`：
+需要保留当前步骤和可选操作的剧情、轮流行动的小游戏，都可以做成活动。单场写 `scripts/activity.js`，多场写 `scripts/activities/<标识>.js`，都登记进 assetFiles。多场各自保留进度，一次只运行一场，玩家可以暂停一场去玩另一场。脚本定义 `globalThis.activityScript`：
 
 - definition：`{ title, npcIds | participants, operations, opening? }`。npcIds 固定参与者；`participants: { mode: 'player-select', min, max, candidates? }` 让玩家选人（1–8 个 NPC）。operations 每项 `{ id, label, requiresTurn, schema, quick? }`，最多 16 项；start、retry、suspend、resume、abandon 为保留名。opening 是 1–500 字的玩家开场文案。
 - initialize、policy、resolve：生成初始状态、限定当前角色可用的操作、同步裁定操作。resolve 也可以附带状态变化，或返回 `playerExpression: { text }`／`{ narration }` 在玩家明确选择的操作中提交公开发言或旁白。
@@ -84,6 +125,22 @@ changes 是 `{ holderId, key, value }`，整体替换该键（公共状态 holde
 可见范围：public 是参与者共享，不是全世界公开；private 每人只拿到自己的一份，玩家那份会显示在玩家的活动卡片上；internal 不进任何角色视图。active、phase、turn、round 每个参与者都看得到，所以隐藏回合（比如夜里轮到谁）不能写在 turn 里：公开 turn 停在一个不变的中性值，真实行动者记在 internal，并在本人 private 里标“轮到你”，相关操作 `requiresTurn: false`，resolve 自己核对，schedule 读 internal 叫醒对的人。这样做只让其他角色不知道轮到谁；默认舞台只显示“正在回复”，但公共 PlayerView 的 `responders` 仍列出正在处理的角色，活动 revision 也随夜间操作增加，所以不要对玩家宣称接口层面已隐藏。活动不能移动角色、不会自动暂停正在运行的活动，也不替角色决定是否接受邀请或怎样行动。
 
 细节以目标程序附带的同版本说明或可运行源包为准；字段对不上时用 Launcher 新实例实际加载检查，不猜字段声称已接通。
+
+### 活动发言与剧情选择
+
+例如玩家查完临靠条，可以先问守船人“我该认什么信号？”，聊完再决定留位还是撤签。在玩家这一步的 `policy` 返回值里设置 `speech`，其他许可照常填写。随附的[单人活动模板](../assets/inspect-activity.js)展示了完整的 `policy` 和 `schedule`。
+
+| 作者想让玩家怎么说 | 玩家这一步的设置 | 等待选择时的效果 |
+| --- | --- | --- |
+| 自由向在场角色提问 | `speech: 'free'`，`speechChoices: []`；`schedule` 返回 `{kind:'wait'}` | 玩家单独发送一句话后，听到原话的角色可按自己的认知回答或沉默。守船人只需在场，无需加入 `npcIds`。 |
+| 玩家只能从几句台词中选 | `speech: 'choices'`，在 `speechChoices` 列出原文 | 只能发表列出的台词。若某句代表签约或退出，由对应的活动操作或 `onPublished` 推进剧情。 |
+| 本阶段禁止玩家说话 | `speech: 'none'`，`speechChoices: []` | 玩家仍可执行获准的活动操作。`narration` 单独控制动作描写。 |
+
+定向发言只给指定角色原话。私语时，旁人可以知道发生了交谈，只有听到内容的人才有这次接话机会。普通插话只给听众表达的机会，保留活动步骤和选项。带着操作一起提交的台词、纯描写和固定选句都沿用各自的流程。
+
+需要严格控制演出顺序时，在对应阶段用 `choices` 或 `none`，开放提问时再恢复 `free`。单独返回 `wait` 仍允许自由对白的听众接话。若定义了 `onPublished(state, actorId, expression)`，按剧情条件判断何时返回新 `game`，普通闲聊返回 `null`。
+
+当前低代码活动图生成的脚本使用 `speech: 'free'`。选项上的「玩家发言」填写点选后发表的台词。要按阶段切换发言许可，在手写活动脚本的 `policy` 中判断当前阶段。
 
 ## 剧情节奏
 
@@ -211,7 +268,9 @@ model-preset.json、role-presets.json 和 frontend/ 是宿主独立读取的扩�
 
 ## 活动选项的低代码裁定和普通脚本
 
-用 `editor open` 读取活动图和物品、角色候选，用 `rule-candidates` 的 `{"activity":"read-note","field":"condition"}` 枚举变量。复用现有选项 ID。要同时检查开信刀和已声明的公共布尔变量，把该选项的 `condition` 写为 `{"kind":"all","conditions":[{"kind":"held","ref":"entity:opener"},{"kind":"world","ref":"power-on","value":true}]}`。`any` 表示任一项，成员至少两项，可混合 `present`、`held`、`world` 和 `local`。始终可选用独立的 `{"kind":"always"}`。
+用 `editor open` 读取活动图和物品、角色、地点及随队角色候选，用 `rule-candidates` 的 `{"activity":"read-note","field":"condition"}` 枚举变量。复用现有选项 ID。要同时检查开信刀和公共布尔变量，把选项的 `condition` 写为 `{"kind":"all","conditions":[{"kind":"held","ref":"entity:opener"},{"kind":"world","ref":"power-on","value":true}]}`。`any` 表示任一项。组合至少两项；始终可选用独立的 `{"kind":"always"}`。
+
+自定义地图可以给活动页按钮绑定 `move:<已有地点ID>`，沿用玩家实际移动和已配置的官方 RPG 队伍随行。任务条件可选 `{"kind":"location","ref":"地点ID"}`、`{"kind":"present","ref":"角色ID"}`、`{"kind":"alone"}`，或从 `partyCharacters` 选 `{"kind":"party","ref":"角色ID"}`（在场且已知随队）。地点和在场条件加 `"negate":true` 表示当前不在。要等玩家交付并离场才结算，用「在指定地点且独处」提交存放标记，再用「已有标记且不在该地」结算。在途故事直接读取这些事实，勿把图鉴里的旅行变量当作角色已经移动。
 
 保存后，分别用 `editor play` 提交 `{"key":"read-note","world":{"power-on":true}}`、`{"key":"read-note","take":["entity:opener"],"world":{"power-on":false}}` 和 `{"key":"read-note","take":["entity:opener"],"world":{"power-on":true},"choice":"open-note"}`。前两次查 `checks[].available`，第三次查执行记录。`take` 会按顺序执行包里的拾取操作。`item-uses` 和 `rule-references` 返回活动、选项和字段，组合成员的 `field` 用从零开始的 `condition/0`、`condition/1` 标识。
 

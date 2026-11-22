@@ -49,7 +49,7 @@ export function createAutonomyRound(input: {
     maximumCallsPerCharacter: settings.maximumCallsPerCharacter,
     reactionDeadlineSeconds: settings.autonomyDeadlineSeconds,
   }
-  return createSchedulerRound({
+  const round = createSchedulerRound({
     phase: 'opportunity',
     store,
     address,
@@ -83,4 +83,16 @@ export function createAutonomyRound(input: {
       reactionLimits: limits,
     },
   })
+  if (!input.counts.size) return round
+  // Count a conversation opportunity once, even when several sources also nominate its listener.
+  return {
+    ...round,
+    wakeups: () =>
+      round.wakeups!().flatMap(candidate => {
+        const used = input.counts.get(candidate.characterId) ?? 0
+        if (!used) return [candidate]
+        const remaining = Math.min(candidate.opportunities ?? 1, settings.maximumCallsPerCharacter) - used
+        return remaining > 0 ? [{ ...candidate, opportunities: remaining }] : []
+      }),
+  }
 }

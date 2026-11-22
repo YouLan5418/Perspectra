@@ -42,7 +42,8 @@ function name(value: unknown): string {
 }
 function operationId(value: unknown) {
   const id = name(value)
-  if (!id.startsWith('activity:') && id !== 'host:activity-handoff') throw new TypeError('请选择当前活动的操作')
+  if (!id.startsWith('activity:') && id !== 'host:activity-handoff' && !(id.startsWith('move:') && id.length > 5))
+    throw new TypeError('请选择当前活动的操作或移动目的地')
   return id
 }
 function readField(raw: unknown): PageField {

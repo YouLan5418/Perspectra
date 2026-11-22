@@ -129,6 +129,7 @@ export interface PlayerView {
     seq: number
     speaker: string
     speakerId?: CharacterId
+    interactionReceipt?: true
     text: string
     player: boolean
     segments?: readonly import('@perspectra/sdk/contracts').ExpressionSegment[]

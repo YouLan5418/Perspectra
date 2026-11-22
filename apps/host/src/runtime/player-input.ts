@@ -9,6 +9,7 @@ import type { WorldAdapters } from './world-adapters.ts'
 export interface GameplayInputOutcome {
   readonly accepted: boolean
   readonly react: boolean
+  readonly speechListeners?: readonly string[]
 }
 
 /** `/status <operation>[@<item>] <json>`: a status operation, done to an item when one is named. */
@@ -40,12 +41,13 @@ export async function routeGameplayInput(input: {
   const { gameplay, status, worldPath, address, playerId, manifest, publicationCharacters, text, key, inActivity } =
     input
   if (inActivity) {
+    let speechListeners: readonly string[] = []
     // A refusal throws: an activity commits nothing for a rejected player action.
     if (text.startsWith('/act ')) {
       const match = /^\/act (speak|move|interact) (.+)$/u.exec(text)
       if (match === null) throw new TypeError('动作命令格式无效')
       const parameters = JSON.parse(match[2]!) as WorldJsonObject
-      await gameplay.activity!.worldAction({ actionType: match[1]!, parameters }, key, input.signal)
+      speechListeners = await gameplay.activity!.worldAction({ actionType: match[1]!, parameters }, key, input.signal)
     } else if (text.startsWith('/status ')) {
       // During an activity a status operation is an ordinary interaction under the activity's policy.
       const command = statusCommand(text)
@@ -65,9 +67,9 @@ export async function routeGameplayInput(input: {
         key,
         input.signal,
       )
-    } else await gameplay.activity!.speak(text, key, input.signal)
+    } else speechListeners = await gameplay.activity!.speak(text, key, input.signal)
     status.set('操作已提交；单纯对白不消耗游戏行动回合。', undefined)
-    return { accepted: true, react: true }
+    return { accepted: true, react: true, speechListeners }
   }
   if (text.startsWith('/message ')) {
     if (!gameplay.communication) throw new TypeError('本包没有开启短信')

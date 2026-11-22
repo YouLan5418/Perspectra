@@ -1,0 +1,6 @@
+{
+  "id": "example-investigation",
+  "name": "搜证玩法",
+  "version": "1",
+  "services": ["content"]
+}

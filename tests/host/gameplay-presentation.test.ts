@@ -1,4 +1,4 @@
-import { mkdtempSync } from 'node:fs'
+import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { ScriptedModel } from '../../packages/providers/src/scripted-model/index.ts'
@@ -37,6 +37,38 @@ async function open(change?: (source: string) => string) {
   return { ...world, send, view: async () => projectPlayerView(await world.runtime.state()) }
 }
 const energy = (view: PlayerView) => view.panels?.find(row => row.kind === 'property-table')?.properties?.[0]?.value
+
+it.each([{ roles: [] }, { roles: ['character:cheng'] }])(
+  'keeps the private search receipt while limiting the operation response to $roles',
+  async ({ roles }) => {
+    const f = investigationFixture(),
+      path = join(f.pack, 'worldpack.source.json')
+    cleanups.push(() => rmSync(f.root, { recursive: true, force: true }))
+    const source = JSON.parse(readFileSync(path, 'utf8'))
+    source.scripts.gameplay.responders = { 'investigation:search': roles }
+    writeFileSync(path, JSON.stringify(source))
+    const model = new ScriptedModel()
+    const runtime = await WorldHostRuntime.create({
+      packPath: f.pack,
+      dataDirectory: f.data,
+      models: model.models,
+      composition: assembleRoleplay({ llmTransport: model.provider }),
+    })
+    cleanups.push(() => runtime.close())
+    const search = projectPlayerView(await runtime.state()).actions.find(o => o.label === '搜查房间')!
+    const after = await new FrontendActions(runtime).perform(
+      frontendActionRequest({
+        actionId: 'limit-search',
+        requestId: 'limit-search',
+        operation: 'perform',
+        payload: { optionId: search.id },
+      }),
+    )
+    expect(after.history.some(row => row.interactionReceipt && row.text.includes('发现线索'))).toBe(true)
+    expect([...new Set(model.inputs.map(row => row.characterId))]).toEqual(roles)
+    expect(JSON.stringify(model.inputs)).not.toContain('clue:letter')
+  },
+)
 
 it('connects authored labels, open classification, editable parameters, private panels and formally adjudicated controls', async () => {
   const f = await open()

@@ -251,6 +251,7 @@ export function isV5SourcePackDirectory(packPath: string): boolean {
 interface InputOutcome {
   readonly accepted: boolean
   readonly react: boolean
+  readonly speechListeners?: readonly string[]
   readonly notice?: string
 }
 
@@ -433,7 +434,7 @@ export class WorldHostCore implements HostRuntime {
     try {
       const before = (await this.#application.head(this.#address)).headSeq
       this.#clockWindowStart = before
-      const result = await this.#activateCharacters(false, brandId(characterId, 'CharacterId'), signal)
+      const result = await this.#activateCharacters('scene', brandId(characterId, 'CharacterId'), signal)
       await this.#refresh()
       const expressions = this.#transcript
         .filter(line => line.seq > before && line.speakerId === characterId)
@@ -639,6 +640,7 @@ export class WorldHostCore implements HostRuntime {
     beforeModelCall?: () => void,
   ): Promise<unknown> {
     const characterId = String((request.context.character as WorldJsonObject).characterId)
+    const useActivitySimulation = !request.expressionOnly
     this.#roleCalls.delete(characterId)
     this.#pluginFailures.delete(characterId)
     this.#pluginFailureCauses.delete(characterId)
@@ -647,7 +649,7 @@ export class WorldHostCore implements HostRuntime {
       llm: this.#llm,
       memory: this.#memory,
       presetsPrepare: this.#options.plugins?.llm === undefined,
-      simulate: visible => this.#gameplay.activity?.simulate(visible),
+      simulate: visible => (useActivitySimulation ? this.#gameplay.activity?.simulate(visible) : undefined),
       spendCall: beforeModelCall ?? (() => {}),
       trace: (id, visible, source, raw) => {
         if (this.#inspector.enabled)
@@ -876,6 +878,10 @@ export class WorldHostCore implements HostRuntime {
               runtime.#options.plugins!.activities!.id,
               error => runtime.#callbackErrors.has(error),
               runtime.#gameplay.native,
+              key =>
+                activitySource?.eventTables.includes(key)
+                  ? (actor, through) => runtime.#worldEvents?.witnessedRules(actor, through) ?? []
+                  : undefined,
             )
       runtime.#gameplay.activity =
         activityRuntime === undefined
@@ -1124,6 +1130,8 @@ export class WorldHostCore implements HostRuntime {
         this.#clockWindowStart = this.#rootBeforeSeq
       }
       let react = !inputs.length
+      let speechListeners: readonly string[] = []
+      let operationResponders: readonly string[] | undefined
       const notices: string[] = []
       for (const [index, text] of inputs.entries()) {
         let outcome: InputOutcome
@@ -1137,6 +1145,12 @@ export class WorldHostCore implements HostRuntime {
         }
         if (outcome.accepted) this.#clockWindowStart = this.#rootBeforeSeq
         react ||= outcome.react
+        if (outcome.react && inputs.length === 1 && this.#generated?.responders && text.startsWith('/act interact ')) {
+          const id = JSON.parse(text.slice('/act interact '.length))?.definitionRef?.id
+          if (typeof id === 'string' && Object.hasOwn(this.#generated.responders, id))
+            operationResponders = outcome.accepted ? this.#generated.responders[id] : []
+        }
+        if (inputs.length === 1 && outcome.speechListeners) speechListeners = outcome.speechListeners
         if (outcome.notice !== undefined) notices.push(outcome.notice)
         if (!outcome.accepted) break
       }
@@ -1145,7 +1159,15 @@ export class WorldHostCore implements HostRuntime {
       this.#cycleSettlementEnabled = committed || !inputs.length
       if (react) {
         await this.#refresh()
-        await this.#activateCharacters(inActivity)
+        await this.#activateCharacters(
+          speechListeners.length
+            ? { speechListeners }
+            : operationResponders
+              ? { operationResponders }
+              : inActivity
+                ? 'activity'
+                : 'scene',
+        )
       }
       if (committed) this.#cyclePlayerTurn = true
       if (notices.length) this.#notice = [...notices, this.#notice].filter(Boolean).join(' ')
@@ -1299,7 +1321,7 @@ export class WorldHostCore implements HostRuntime {
           const priorNotice = this.#notice,
             priorAutonomy = this.#autonomyCycle
           this.#rootBeforeSeq = afterSeq
-          await this.#activateCharacters(false, undefined, undefined, runRound, true)
+          await this.#activateCharacters('scene', undefined, undefined, runRound, true)
           await this.#refresh()
           this.#notice = [...new Set([priorNotice, this.#notice].filter(Boolean))].join(' ')
           this.#autonomyCycle = priorAutonomy
@@ -1375,7 +1397,7 @@ export class WorldHostCore implements HostRuntime {
         } finally {
           store.close()
         }
-        await this.#activateCharacters(true)
+        await this.#activateCharacters('activity')
         if (committed) this.#cyclePlayerTurn = true
       }
     } catch (error) {
@@ -1875,7 +1897,11 @@ export class WorldHostCore implements HostRuntime {
   }
 
   async #activateCharacters(
-    activityOnly = false,
+    source:
+      | 'scene'
+      | 'activity'
+      | { speechListeners: readonly string[] }
+      | { operationResponders: readonly string[] } = 'scene',
     requestedCharacter?: CharacterId,
     requestSignal?: AbortSignal,
     runRound: ExecutionRoundRunner = round => this.#scheduleRound(round),
@@ -1966,8 +1992,17 @@ export class WorldHostCore implements HostRuntime {
           }
           this.#allowInterruption = !this.#gameplay.activity?.current()?.game.active
           const extraWakeups = settlementReactions ? [] : this.#execution.wakeupSources()
-          if (activityOnly || (!settlementReactions && due.length > 0 && this.#onlyPassiveResults(store))) {
-            await this.#autonomousRound(store, createTurn, due, extraWakeups, new Map(), runRound)
+          if (source !== 'scene' || (!settlementReactions && due.length > 0 && this.#onlyPassiveResults(store))) {
+            const counts = new Map<CharacterId, number>()
+            if (typeof source === 'object' && !activity) {
+              const aside = 'speechListeners' in source
+              const eligible = aside ? (active?.game.active ? source.speechListeners : []) : source.operationResponders
+              if (eligible.length) {
+                const replies = await this.#runSceneReactions(store, turn, [], [], active, runRound, eligible, aside)
+                for (const { characterId } of replies) counts.set(characterId, (counts.get(characterId) ?? 0) + 1)
+              }
+            }
+            await this.#autonomousRound(store, createTurn, due, extraWakeups, counts, runRound)
             return
           }
           await this.#runSceneReactions(
@@ -2101,7 +2136,9 @@ export class WorldHostCore implements HostRuntime {
     extraWakeups: readonly WakeupSource[],
     active: ReturnType<ActivitiesRuntime['current']> | undefined,
     runRound: ExecutionRoundRunner,
-  ): Promise<void> {
+    eligible?: readonly string[],
+    expressionOnly = true,
+  ) {
     const controller = this.#continuationController!
     const dynamic =
       !this.#options.serialScheduling && !this.#gameplay.activity?.current()?.game.active && !this.#serialDecisions
@@ -2115,9 +2152,20 @@ export class WorldHostCore implements HostRuntime {
       createSchedulerRound({
         store,
         address: this.#address,
-        turn: this.#track(turn),
+        turn: this.#track(
+          eligible && expressionOnly
+            ? { run: (id, options) => turn.run(id, { ...options, expressionOnly: true }) }
+            : turn,
+        ),
+        ...(eligible && {
+          validateTurn: (id: CharacterId) => {
+            if (!eligible.includes(id)) throw new TypeError('这名角色不在本次交互的回应范围内')
+          },
+        }),
         afterSeq: this.#rootBeforeSeq,
-        characterIds: this.#characterIds.filter(id => !active?.game.active || !active.participants.includes(id)),
+        characterIds: this.#characterIds.filter(id =>
+          eligible ? eligible.includes(id) : !active?.game.active || !active.participants.includes(id),
+        ),
         signal: controller.signal,
         presentCharacterIds: () =>
           (this.#currentScene?.recipients ?? []).map(person => brandId(person.id, 'CharacterId')),
@@ -2149,6 +2197,7 @@ export class WorldHostCore implements HostRuntime {
     this.#autonomyCycle = autonomy
     reactionNotice(this.#roundStatus, cycle, this.#roleCalls, this.#pluginFailures)
     if (autonomy) autonomyNotice(this.#roundStatus, autonomy.terminalReason)
+    return cycle.activations
   }
 
   #services(id: string, pluginContext: PluginCallContext): WorldServices {

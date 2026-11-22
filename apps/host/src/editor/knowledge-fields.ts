@@ -28,7 +28,7 @@ export async function knowledgeFields(root: string) {
       project = readProject(root),
       all = worldRecords(root).records
     const status = editorStatusOperations(root, pack, content),
-      menus = withDraftActivities(readActivityMenus(root, pack, content), project)
+      menus = withDraftActivities(root, readActivityMenus(root, pack, content), project)
     const records = (kind: string) => all.filter(r => r.kind === kind).map(r => ({ value: r.id, label: r.name }))
     const strings = (values: readonly string[]) => values.map(value => ({ value, label: value }))
     const actors = records('character'),

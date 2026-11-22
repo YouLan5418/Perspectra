@@ -162,6 +162,110 @@ it('keeps the mounted application through activity handoffs and tail backups', a
   expect(creates).not.toHaveBeenCalled()
 })
 
+it('lets only listeners answer a standalone line while the activity waits for the same player choice', async () => {
+  const f = await fixture(`activityScript.simulate = () => { throw new Error('只有正式演出才使用脚本'); };`)
+  const started = await choose(f.runtime, '开始 other')
+  const before = progress(started, 'other')
+  const options = (state: HostState) => projectPlayerView(state).actions.map(action => action.label)
+  for (const [scope, listener] of [
+    ['private', 'character:friend'],
+    ['direct', 'character:companion'],
+  ] as const) {
+    const line = '/act speak ' + JSON.stringify({ text: '我该认什么信号？', scope, addresseeIds: [listener] })
+    const key = randomUUID()
+    const previousCalls = f.inputs.length
+    const answered = await f.runtime.submit(line, key)
+    const calls = f.inputs.slice(previousCalls)
+    expect(calls).toHaveLength(1)
+    const context = calls[0]!.context as WorldJsonObject
+    expect(context.character).toMatchObject({ characterId: listener })
+    expect(JSON.stringify(context)).toContain('我该认什么信号？')
+    expect(JSON.stringify(context)).not.toContain('other-internal-secret')
+    expect(JSON.stringify(context).includes('other-npc-secret')).toBe(listener === 'character:companion')
+    expect((context.affordances as WorldJsonObject[]).every(offer => offer.actionType === 'speak')).toBe(true)
+    expect(calls[0]!.turnInstructions).toContain('本步不能 perform')
+    expect(progress(answered, 'other')).toEqual(before)
+    expect(options(answered)).toEqual(options(started))
+    await f.runtime.submit(line, key)
+    expect(f.inputs.length).toBe(previousCalls + 1)
+  }
+  const calls = f.inputs.length
+  await f.runtime.submit('/act speak {"text":"我自己想想。","scope":"self"}')
+  expect(f.inputs).toHaveLength(calls)
+  const finished = await f.runtime.activityAction(request(await f.runtime.state(), 'other', 'guess', { value: 73 }))
+  expect(progress(finished, 'other').game).toMatchObject({ active: false, phase: 'finished' })
+})
+
+it('keeps fixed dialogue choices and narration out of the free conversation round', async () => {
+  const f = await fixture(`
+    const policy = activityScript.policy;
+    activityScript.policy = (...args) => ({...policy(...args), speech:'choices', speechChoices:['同意'], narration:true});
+  `)
+  const started = await choose(f.runtime, '开始 other')
+  const said = await f.runtime.submit('同意')
+  expect(progress(said, 'other')).toEqual(progress(started, 'other'))
+  const narrated = await f.runtime.submit('/act speak {"text":"","narration":"点了点头","scope":"scene_public"}')
+  expect(progress(narrated, 'other')).toEqual(progress(started, 'other'))
+  expect(f.inputs).toHaveLength(0)
+})
+
+it('delivers plain speech to the scene when a waiting activity has only the player', async () => {
+  const f = await fixture(`
+    activityScript.definition.npcIds = [];
+    const initialize = activityScript.initialize;
+    activityScript.initialize = input => ({...initialize(input), private:{[input.playerId]:{}}});
+    const policy = activityScript.policy;
+    activityScript.policy = (...args) => ({...policy(...args), narration:true});
+  `)
+  const started = await choose(f.runtime, '开始 other')
+  await f.runtime.submit('/act speak {"text":"","narration":"看向水面。","scope":"scene_public"}')
+  expect(f.inputs).toHaveLength(0)
+  const after = await f.runtime.submit('应该认什么灯号？')
+  expect(f.inputs.length).toBeGreaterThan(0)
+  expect(f.inputs.every(call => JSON.stringify(call.context).includes('应该认什么灯号？'))).toBe(true)
+  expect(progress(after, 'other')).toEqual(progress(started, 'other'))
+})
+
+it('keeps an authored publication step on the activity schedule', async () => {
+  const f = await fixture(`
+    activityScript.onPublished = state => ({ ...state.game, phase:'answered' });
+  `)
+  const started = await choose(f.runtime, '开始 other')
+  const after = await f.runtime.submit('我的答案是七。')
+  expect(progress(after, 'other').game).toMatchObject({ phase: 'answered' })
+  expect(Number(after.activity!.revision)).toBe(Number(started.activity!.revision) + 1)
+  expect(f.inputs).toHaveLength(0)
+})
+
+it('counts a private answer toward the same listener’s autonomous opportunity', async () => {
+  const f = await fixture()
+  const file = join(f.pack, 'worldpack.source.json')
+  const manifest = JSON.parse(readFileSync(file, 'utf8'))
+  manifest.plugins['official-autonomy'] = {}
+  manifest.assetFiles.push('autonomy.json')
+  writeFileSync(file, JSON.stringify(manifest))
+  writeFileSync(
+    join(f.pack, 'autonomy.json'),
+    JSON.stringify({
+      characters: [
+        {
+          characterId: 'character:friend',
+          triggers: [{ actionType: 'speak' }],
+          everyPlayerTurns: 1,
+          opportunities: 1,
+          interactions: [],
+          locationIds: ['location:front-room'],
+        },
+      ],
+    }),
+  )
+  const runtime = await f.create(join(f.root, 'autonomous-world'))
+  await choose(runtime, '开始 other')
+  await runtime.submit('/act speak {"text":"你听见了吗？","scope":"private","addresseeIds":["character:friend"]}')
+  expect(f.inputs).toHaveLength(1)
+  expect(f.inputs[0]!.turnInstructions).toContain('本步不能 perform')
+})
+
 it('shows the player operation in the activity panel while the next participant is still deciding', async () => {
   const f = await fixture()
   const started = await choose(f.runtime, '开始 guess')

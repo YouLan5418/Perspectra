@@ -52,6 +52,7 @@ export interface HostState {
     readonly seq: number
     readonly speaker: string
     readonly speakerId?: import('@perspectra/sdk/contracts').CharacterId
+    readonly interactionReceipt?: true
     readonly text: string
     readonly player: boolean
     readonly segments?: readonly import('@perspectra/sdk/contracts').ExpressionSegment[]

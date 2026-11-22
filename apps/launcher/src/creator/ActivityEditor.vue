@@ -3,6 +3,7 @@ import { computed, nextTick, onMounted, onBeforeUnmount, ref, watch } from 'vue'
 import {
   variableCandidates,
   conditionLeaves,
+  conditionCatalog,
   type ConditionLeaf,
   type Scalar,
   parseVariable,
@@ -374,7 +375,8 @@ const rulingControl = ref<InstanceType<typeof ChoiceRuling>>()
 function focusField(field: string, reference?: string) {
   if (field.startsWith('condition')) {
     let index = Number(field.split('/')[1] ?? 0)
-    const matches = (leaf: ConditionLeaf) => leaf.kind !== 'always' && leaf.kind + '/' + leaf.ref === reference
+    const matches = (leaf: ConditionLeaf) =>
+      'ref' in leaf && (leaf.kind === 'party' ? 'present' : leaf.kind) + '/' + leaf.ref === reference
     const row = leaves.value[index]
     if (!row || (reference && !matches(row))) {
       const remaining = leaves.value.flatMap((leaf, i) => (matches(leaf) ? [i] : []))
@@ -404,7 +406,14 @@ const conditions = computed(() => {
     p = project.value
   const rows = [
     ...(!addingCondition.value && leaves.value.length === 1 ? [{ value: 'always', label: '始终可选', key: '' }] : []),
+    { value: 'alone', label: '玩家独自在场', key: '' },
     ...(p?.characters ?? []).map(c => ({ value: 'present/' + c.id, label: c.name + '在场', key: c.id })),
+    ...(p?.characters ?? []).map(c => ({ value: '!present/' + c.id, label: c.name + '不在场', key: c.id })),
+    ...(p?.partyCharacters ?? []).map(c => ({ value: 'party/' + c.id, label: c.name + '在场且随队', key: c.id })),
+    ...(p?.locations ?? []).flatMap(l => [
+      { value: 'location/' + l.id, label: '玩家在' + l.name, key: l.id },
+      { value: '!location/' + l.id, label: '玩家不在' + l.name, key: l.id },
+    ]),
     ...variableRows('condition').map(v => ({
       value: v.kind + '/' + v.key,
       label: (v.kind === 'world' ? '世界' : '本活动') + ' · ' + v.label,
@@ -417,7 +426,7 @@ const conditions = computed(() => {
 const conditionValue = computed(() => {
   if (addingCondition.value) return ''
   const c = activeLeaf.value
-  return c && c.kind !== 'always' ? c.kind + '/' + c.ref : 'always'
+  return c && 'ref' in c ? ('negate' in c && c.negate ? '!' : '') + c.kind + '/' + c.ref : (c?.kind ?? 'always')
 })
 function writeCondition(leaf: ConditionLeaf) {
   const c = choice.value
@@ -451,8 +460,11 @@ function setCondition(value: string) {
     selectVariable(value, 'condition')
     return
   }
-  if (kind === 'always') writeCondition({ kind: 'always' })
-  else if (kind === 'held' || kind === 'present') writeCondition({ kind, ref: id.join('/') })
+  if (kind === 'always' || kind === 'alone') writeCondition({ kind })
+  else if (kind === '!location' || kind === '!present')
+    writeCondition({ kind: kind === '!location' ? 'location' : 'present', negate: true, ref: id.join('/') })
+  else if (kind === 'held' || kind === 'present' || kind === 'location' || kind === 'party')
+    writeCondition({ kind, ref: id.join('/') })
 }
 function assignmentLabel(use: NonNullable<EditorChoice['effect']>) {
   const v = variableRows('effect').find(r => r.kind === use.kind && r.key === use.ref)
@@ -465,15 +477,18 @@ function describe(c: ChoiceCondition): string {
       c.conditions.map(describe).join(c.kind === 'all' ? ' 且 ' : ' 或 ')
     )
   if (c.kind === 'always') return '始终可选'
+  if (c.kind === 'alone') return '玩家独自在场'
   if (c.kind === 'world' || c.kind === 'local')
     return (
       (variableRows('condition').find(v => v.kind === c.kind && v.key === c.ref)?.label ?? c.ref) +
       ' = ' +
       String(c.value)
     )
-  const refs = c.kind === 'held' ? project.value?.items : project.value?.characters
+  const refs = project.value?.[conditionCatalog[c.kind]]
   const name = refs?.find(r => r.id === c.ref)?.name ?? c.ref
-  return c.kind === 'held' ? '玩家持有' + name : name + '在场'
+  if (c.kind === 'location') return (c.negate ? '玩家不在' : '玩家在') + name
+  if (c.kind === 'party') return name + '在场且随队'
+  return c.kind === 'held' ? '玩家持有' + name : name + ('negate' in c && c.negate ? '不在场' : '在场')
 }
 async function run(id?: string) {
   await work(async () => {
@@ -808,7 +823,7 @@ onMounted(() => {
               条件 {{ i + 1 }} · {{ describe(leaf) }}
             </button>
           </fieldset>
-          <label>查找条件<input v-model="search" type="search" placeholder="角色、物品、变量名称或 ID" /></label>
+          <label>查找条件<input v-model="search" type="search" placeholder="地点、角色、物品、变量名称或 ID" /></label>
           <label
             >{{ addingCondition ? '新增条件' : '出现条件'
             }}<select

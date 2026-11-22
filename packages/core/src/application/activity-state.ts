@@ -286,6 +286,7 @@ export class ActivityStateRules {
     return {
       ...input,
       scene: {
+        locationId: typeof world.locationId === 'string' ? world.locationId : null,
         characterIds: Array.isArray(world.characterIds) ? [...world.characterIds] : [],
         heldEntityIds: Array.isArray(items)
           ? items.flatMap(value => {

@@ -102,7 +102,15 @@ it('retains an imported entry path and config, rejects stale or invalid saves, a
   expect(invalid).not.toEqual(assisted.source)
   await expect(saveInteractionScript(root, { base, config: base.config, source: invalid })).rejects.toThrow()
   expect(interactionScript(root).base).toEqual(base)
-  const saved = await saveInteractionScript(root, { base, source: assisted.source, config: base.config })
+  for (const responders of [{ 'unknown:op': [] }, { 'house:knock': ['character:missing'] }]) {
+    await expect(
+      saveInteractionScript(root, { base, source: assisted.source, config: base.config, responders }),
+    ).rejects.toThrow()
+    expect(interactionScript(root).base).toEqual(base)
+  }
+  const responders = { 'house:knock': [], 'investigation:search': [book.characters[0]!.id] }
+  const saved = await saveInteractionScript(root, { base, source: assisted.source, config: base.config, responders })
+  expect(interactionScript(root).base.responders).toEqual(responders)
   expect(saved.base.config).toEqual(raw.scripts.gameplay.config)
   expect(saved.operations.map(o => o.id)).toEqual([...book.operations.map(o => o.id), 'house:knock'])
   await expect(saveInteractionScript(root, { base, source: book.source, config: base.config })).rejects.toThrow(

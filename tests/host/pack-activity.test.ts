@@ -321,6 +321,7 @@ describe('creator activity and host escape', () => {
     const f = await fixture()
     const start = await f.runtime.activityAction(request(await f.runtime.state(), 'start'))
     const spoken = await f.runtime.submit('我先想一想。')
+    expect(f.inputs).toHaveLength(1)
     expect(spoken.activity?.revision).toBe(start.activity?.revision)
     expect((spoken.activity!.game as WorldJsonObject).turn).toBe('character:player')
     const pending = await f.runtime.activityAction(request(spoken, 'pass'))
@@ -333,7 +334,7 @@ describe('creator activity and host escape', () => {
     ).rejects.toThrow()
     await expect(f.runtime.activityAction(request(pending, 'quit', { narration: '非法' }))).rejects.toThrow(/参数/u)
     expect((await f.runtime.state()).debug.headSeq).toBe(before)
-    expect(f.inputs).toHaveLength(1)
+    expect(f.inputs).toHaveLength(2)
   })
   it('rejects the whole model output and keeps abstain separate from a committed pass', async () => {
     const f = await fixture(input => ({ ...action(input), speech: '非法混合', narration: '顺便拿起牌' }))
@@ -1082,9 +1083,17 @@ describe('activity results that move participants and items', () => {
     const update = events.findLast(e => e.eventType === 'activity.updated')!
     const commit = events.filter(e => e.transactionId === update.transactionId)
     const moved = commit.filter(e => e.eventType === 'character.moved').map(e => e.data as WorldJsonObject)
+    const movementSource = {
+      kind: 'activity',
+      activityKey: 'default',
+      operation: 'quit',
+      phase: 'quit',
+      actorId: 'character:player',
+      actionId: expect.any(String),
+    }
     expect(moved).toEqual([
-      { characterId: 'character:player', fromLocationId: 'location:bedroom', toLocationId: HOME },
-      { characterId: 'character:gpt', fromLocationId: 'location:bedroom', toLocationId: HOME },
+      { characterId: 'character:player', fromLocationId: 'location:bedroom', toLocationId: HOME, movementSource },
+      { characterId: 'character:gpt', fromLocationId: 'location:bedroom', toLocationId: HOME, movementSource },
     ])
     const transfers = commit.filter(e => e.eventType === 'entity.transferred').map(e => e.data as WorldJsonObject)
     expect(transfers.map(t => [t.entityId, t.toHolderId, t.toLocationId])).toEqual([

@@ -23,6 +23,16 @@ beforeEach(() => {
 })
 afterEach(() => rmSync(temp, { recursive: true, force: true }))
 
+it('binds a map button to a declared destination and validates it on export', async () => {
+  const candidates = await activityPageCandidates(source, { key })
+  expect(candidates.operations).toContainEqual({ id: 'move:location:library', label: '前往 · 书房' })
+  const page = { ...original, elements: [{ id: 'leave', operation: 'move:location:library' }] }
+  await saveActivityPage(source, { key, base: original, page })
+  await expect(validateExportedPages(source)).resolves.toBeUndefined()
+  const invalid = { ...page, elements: [{ id: 'leave', operation: 'move:location:missing' }] }
+  await expect(saveActivityPage(source, { key, base: page, page: invalid })).rejects.toThrow(/找不到操作/)
+})
+
 it('discovers existing activity keys, preserves imported bytes and resolves bindings per activity', async () => {
   expect((await activityPages('examples/world-packs/hill-ruins')).activities).toContainEqual({
     key: 'rpg-map-ruin-1',

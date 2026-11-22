@@ -13,6 +13,8 @@ description: 直接编写 Perspectra v5 世界源包、从 SillyTavern PNG/JSON 
 - 配合作者：读[与编辑器协作](references/editor-handoff.md#与编辑器协作)，沿用现有源目录、ID、草稿和布局，并交付可重开的导出包。
 - 酒馆角色卡分析／转换：读[酒馆卡迁移](references/tavern.md)。本 Skill 已收录旧 tavern-to-perspectra 的提取器、容量分析与迁移／验收方法，不依赖另装旧 Skill。只评估时不建包；明确转换时继续完成源包与所需规则。
 - RPG 玩法（战斗、队伍、副本地图）：读[RPG 玩法](references/rpg.md)，在包里写 `rpg.json`。
+- 从零写一种玩法，或把它做成可跨作品安装的原生插件：读[玩法插件与 SDK](references/gameplay-plugins.md)，内含两种入口、可复制示例、宿主服务清单与验收步骤。
+- 条件遭遇、委托和奖励抽取：按作品已有变量写[遭遇与委托表](references/gameplay.md#遭遇与委托表)，用同一份条件预览匹配和排除原因。
 - 跑团玩法（AI 主持人、可信掷骰、检定）：读[跑团玩法](references/trpg.md)，在包里写 `trpg.json`。
 - 预设创作／修改：读[原生预设](references/presets.md)，按包推荐或命名交换格式输出。仅做预设时不生成游戏包；同时迁移卡和创作预设时共用本次选定人物及风格。
 
@@ -52,7 +54,7 @@ description: 直接编写 Perspectra v5 世界源包、从 SillyTavern PNG/JSON 
 
 有永久告别、失踪或分队的章节，按[角色退场](references/gameplay.md#角色退场)安排各人的可达地点、队伍与回程，再用已经开门的地图试着让她跟来。
 
-凡是脚本写了「某角色告诉玩家、答应或亲手交给玩家某物」，就在下一轮用自然语言回头问这个角色。分别核对玩家看见的文案、当事人有权收到的观察、实际对白与世界状态。再问一位没在场的人。活动中若允许发言，也要试角色会不会回应。无图形界面时可用[正式 Host 试玩入口](references/tavern/validation.md#用命令行做真实模型试玩)。
+凡是脚本写了「某角色告诉玩家、答应或亲手交给玩家某物」，就在下一轮用自然语言回头问这个角色。分别核对玩家看见的文案、当事人有权收到的观察、实际对白与世界状态。再问一位没在场的人。活动等待选择时，按作者意图设置自由发言、固定台词或禁言。允许自由提问的作品，在原选项上直接问在场角色，聊完再选一次。[活动发言与剧情选择](references/gameplay.md#活动发言与剧情选择) · [正式 Host 试玩入口](references/tavern/validation.md#用命令行做真实模型试玩)
 
 用目标程序的 `validate` 修正文件、引用和资产错误，再运行 `test`。读取退出码及 JSON；非零失败不得当成功。包契约诊断通常有 `details.diagnostics[].file/jsonPointer/message`，命令错误使用 `INVALID_REQUEST`。
 

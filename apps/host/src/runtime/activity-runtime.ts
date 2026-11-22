@@ -3,6 +3,7 @@ import {
   brandId,
   checkExpressionPolicy,
   parseExpressionSegments,
+  publicationSegments,
   resolutionAuthority,
   type WorldAddress,
   type WorldJsonObject,
@@ -69,6 +70,7 @@ import type { StatusRuntime } from './status-runtime.ts'
 /** What the catalog lends each activity: one round's random sequence, the live committed prefix, its lifetime, and
  * the dice that roll from that sequence while resolve runs. */
 export interface ActivityBindings {
+  readonly witnessed?: (actor: string, through: number) => string[]
   readonly native?: import('@perspectra/core').GameplayRuntime
   readonly randomSource: () => number
   readonly dice?: DiceInstance
@@ -177,6 +179,7 @@ export class ActivityRuntime {
     actorId: string,
     readWorld?: () => WorldJsonObject,
     events?: readonly RulebookEvent[],
+    throughSeq?: number,
   ): Policy {
     let snapshot: ActivityWorld | undefined
     const read = () => (snapshot ??= readActivityWorld(this.worldPath, this.address))
@@ -187,7 +190,10 @@ export class ActivityRuntime {
           .map(row => [row.key, row.value]),
       ),
     )
-    return this.#rules.policy(this.#mechanism.policy(input, actorId))
+    const view = this.#bindings.witnessed
+      ? { ...input, witnessedEvents: this.#bindings.witnessed(actorId, throughSeq ?? read().headSeq) }
+      : input
+    return this.#rules.policy(this.#mechanism.policy(view, actorId))
   }
   options(state: ActivityState, actorId: string): WorldJsonObject[] {
     return activityOperationOptions(state, this.policy(state, actorId), this.#rules.operations, actorId)
@@ -246,7 +252,15 @@ export class ActivityRuntime {
       }
     }
     const policy =
-      state?.game.active && member ? this.policy(state, actorId, () => read().worldView(actorId), read().events) : null
+      state?.game.active && member
+        ? this.policy(
+            state,
+            actorId,
+            () => read().worldView(actorId),
+            this.#rules.readsStatus ? read().events : undefined,
+            this.#bindings.witnessed ? read().headSeq : undefined,
+          )
+        : null
     return {
       title: this.title,
       ...(handoffLabel ? { handoffLabel } : {}),
@@ -376,6 +390,7 @@ export class ActivityRuntime {
                 actor,
                 () => this.#worldView(context.manifest, context.events, actor, context.asOfWorldSeq),
                 context.events,
+                context.asOfWorldSeq,
               ),
             )
           : values
@@ -412,6 +427,7 @@ export class ActivityRuntime {
           actor,
           () => this.#worldView(context.manifest, context.events, actor, context.asOfWorldSeq),
           context.events,
+          context.asOfWorldSeq,
         )
       if (!op || !policy.operations.includes(operation) || (op.requiresTurn && state.game.turn !== actor))
         throw new TypeError('尚未轮到你或操作未被允许')
@@ -434,7 +450,16 @@ export class ActivityRuntime {
           actor,
           operation,
           parameters,
-          { ...world, participantHeldItems },
+          {
+            ...world,
+            participantHeldItems,
+            ...(this.#bindings.witnessed
+              ? {
+                  witnessedEvents:
+                    context.asOfWorldSeq === undefined ? [] : this.#bindings.witnessed(actor, context.asOfWorldSeq),
+                }
+              : {}),
+          },
           this.status?.truth(context.events) ?? null,
         ),
         this.#rules,
@@ -563,6 +588,7 @@ export class ActivityRuntime {
         actor,
         () => this.#worldView(context.manifest, context.events, actor, context.asOfWorldSeq),
         context.events,
+        context.asOfWorldSeq,
       )
       if (action.actionType === 'speak') {
         const expression = {
@@ -1195,11 +1221,12 @@ export class ActivityRuntime {
       store.close()
     }
   }
-  async speak(text: string, requestId: string, signal?: AbortSignal): Promise<void> {
+  async speak(text: string, requestId: string, signal?: AbortSignal) {
+    const addresseeIds = this.current()?.participants.slice(1) ?? []
     return this.worldAction(
       {
         actionType: 'speak',
-        parameters: { text, scope: 'direct', addresseeIds: this.current()?.participants.slice(1) ?? [] },
+        parameters: { text, scope: addresseeIds.length ? 'direct' : 'scene_public', addresseeIds },
       },
       requestId,
       signal,
@@ -1209,11 +1236,12 @@ export class ActivityRuntime {
     action: { actionType: string; parameters: WorldJsonObject },
     requestId: string,
     signal?: AbortSignal,
-  ): Promise<void> {
+  ): Promise<string[]> {
     const store = new WorldStore(this.worldPath),
       leases = new WriterLeaseService(this.worldPath),
       owner = 'activity-world:' + requestId
     const availability = new CharacterRuntimeAvailabilityService(this.worldPath)
+    let listeners: string[] = []
     try {
       const committed = await executeWorldRound(
         {
@@ -1231,11 +1259,13 @@ export class ActivityRuntime {
             if (json(object(prior.authority.action)) !== json(action)) throw new TypeError('同一请求不能改变内容')
             return
           }
+          let freeSpeech = false
           if (action.actionType === 'speak') {
-            const policy = this.policy(state, this.playerId)
+            const policy = this.policy(state, this.playerId, undefined, events)
+            freeSpeech = policy.speech === 'free'
             checkActivityExpression(policy, {
-              ...(Object.hasOwn(action.parameters, 'text') ? { speech: action.parameters.text } : {}),
-              ...(Object.hasOwn(action.parameters, 'narration') ? { narration: action.parameters.narration } : {}),
+              ...(action.parameters.text ? { speech: action.parameters.text } : {}),
+              ...(action.parameters.narration ? { narration: action.parameters.narration } : {}),
             })
           }
           const manifest = store.readManifest(this.address)!,
@@ -1282,6 +1312,26 @@ export class ActivityRuntime {
             description: String(description),
           })
           const operation = String(object(object(action.parameters).definitionRef ?? {}).id).startsWith('activity:')
+          // If the author consumed this publication as an activity step, its own scheduler handles the result.
+          if (freeSpeech && !result.events.some(event => event.eventType === 'activity.updated')) {
+            listeners = drafts.flatMap(draft => {
+              if (draft.eventType !== 'observation.upsert') return []
+              const value = object(object(draft.data).value)
+              const content = value.content as WorldJsonObject | undefined
+              if (
+                value.actionId !== owner ||
+                content?.actorId !== this.playerId ||
+                value.observerId === this.playerId ||
+                typeof value.observerId !== 'string'
+              )
+                return []
+              const speech = content.speech as WorldJsonObject | undefined
+              return speech &&
+                publicationSegments(speech).some(segment => segment.type === 'speech' && segment.text.trim())
+                ? [value.observerId]
+                : []
+            })
+          }
           // An activity operation sent as a world action may move the participants its result names; the player's own
           // move may bring along whoever the rules walk with her, such as a party.
           const allowedMovers = operation
@@ -1297,6 +1347,7 @@ export class ActivityRuntime {
         },
       )
       if (committed) this.status?.externalActions?.committed()
+      return committed ? listeners : []
     } catch (error) {
       this.status?.externalActions?.failed()
       throw error

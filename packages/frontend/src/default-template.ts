@@ -71,6 +71,15 @@ export const DEFAULT_PAGE = String.raw`<!doctype html>
       <section id="index-moves" class="action-group" hidden></section><div id="other-actions"></div>
       <p id="action-empty" class="no-actions" hidden></p>
     </div>
+    <div class="index-counter">
+      <p id="index-line" aria-live="polite" hidden></p><button id="index-next" type="button" hidden>读下一段</button>
+      <div id="index-feedback"></div>
+      <details id="index-talk" hidden><summary>向在场角色说话</summary><div class="index-form">
+        <select id="index-recipient" aria-label="交谈对象"></select>
+        <input id="index-text" aria-label="向角色发言" autocomplete="off" placeholder="想问什么？">
+        <select id="index-choices" aria-label="选择发言" hidden></select><button id="index-send" type="button">发送</button>
+      </div></details>
+    </div>
   </section>
   <section id="activity-drawer" class="panel" aria-label="活动" hidden>
     <div class="panel-header"><span>活动</span><button id="activity-drawer-close" type="button" aria-label="关闭活动">×</button></div>
@@ -337,7 +346,9 @@ export const DEFAULT_SCRIPT = String.raw`(() => {
    node('composer').hidden=mode!=='response';node('dialogue-wrap').hidden=mode==='response';
    // The notice lives inside whichever box is showing: below the dialogue while reading, at the foot of the composer while replying.
    const feedback=node('feedback');
-   if(mode==='response'){
+   if(!node('action-panel').hidden){
+     if(feedback.parentElement!==node('index-feedback'))node('index-feedback').append(feedback);
+   }else if(mode==='response'){
      if(feedback.parentElement!==node('composer'))node('composer').append(feedback);
    }else if(feedback.parentElement!==node('dialogue-wrap'))node('dialogue-wrap').insertBefore(feedback,node('dialogue-wrap').querySelector('.dialogue-footer'));
    node('reply-bar').hidden=mode!=='reading'||readingBlocked||!canReply;
@@ -461,11 +472,15 @@ export const DEFAULT_SCRIPT = String.raw`(() => {
    const candidate=tail=>tail?.candidateIds?.[(tail.candidateIndex||1)-1]||null;
    const branchChanged=!!(latest?.tailRound?.id&&latest.tailRound.id===view.tailRound?.id&&candidate(latest.tailRound)!==candidate(view.tailRound));
    if(branchChanged){
-     playback.invalidateScene();statusPlayback.invalidate();successFeedback.clear();indexSnapshot=null;
+     playback.invalidateScene();statusPlayback.invalidate();successFeedback.clear();indexSnapshot=null;indexSince=null;
    }
    battleReading?.update(latest,view,stageOpen?stageId:null,branchChanged);
    renderItemChanges(latest,view);
    latest=view;playback.update(view.history);validateItemReadPrefix(view);
+   // A single confirmed receipt stays printed at the counter while the player chooses the next service.
+   if(indexSince!==null&&!node('action-panel').hidden&&playback.remaining()===1&&view.history.at(-1)?.interactionReceipt&&playback.current().seq>indexSince){
+     playback.advance();rememberReadItems();
+   }
    for(const id of expiredOffers)if(!view.actions.some(option=>option.id===id)&&waitOption?.id!==id)expiredOffers.delete(id);
    if(expiredTail!==view.tailRound?.id)expiredTail=null;
    if(committed?.battleSkill)committed.battleCommitted=true;
@@ -522,6 +537,7 @@ export const DEFAULT_SCRIPT = String.raw`(() => {
  // Index rows are built from a complete read batch. The live offer can veto submission,
  // but cannot add new labels, targets or argument choices ahead of reading.
  let indexSnapshot=null,indexKey='',indexReturnFocus=null,indexPointerOrigin=null,indexChild=null;
+ let indexSince=null,indexScope='direct';
  const indexLabels={move:'前往地点',item:'使用物品',character:'交流与互动',activity:'参加活动',other:'其他'};
  const indexFieldLabels={target:'目标',skill:'技能',recipientId:'对象',text:'内容',amount:'数量',item:'物品',itemId:'物品',destination:'地点'};
  const opaqueText=/\b(?:character|entity|location|map|scene|status|activity|host|experiment|binding):[\w.:-]+/iu;
@@ -562,6 +578,10 @@ export const DEFAULT_SCRIPT = String.raw`(() => {
  function speechEntries(name){return [['direct','对 '+name+' 说'],['private','悄悄对 '+name+' 说']]}
  function speakTo(id,scope){
    if(speechGate(id))return;
+   if(!node('action-panel').hidden){
+     node('index-recipient').value=id;indexScope=scope;node('index-talk').open=true;renderIndexTalk();
+     (node('index-text').hidden?node('index-choices'):node('index-text')).focus();return;
+   }
    drawer(null);
    const radio=document.querySelector('input[name="speech-scope"][value="'+scope+'"]');
    radio.checked=true;node('speech-recipient').value=id;audience();composerExpanded=true;activityOpen=false;
@@ -611,7 +631,7 @@ export const DEFAULT_SCRIPT = String.raw`(() => {
    for(const source of snapshot.options){
      const category=indexCategory(source),target=source.target;
      const item=snapshot.items.find(item=>item.id===target?.id);
-     const targetName=publicText(target?.name);
+     const targetName=target?.name===target?.id&&/^[\w.-]+:/u.test(target?.id||'')?'':publicText(target?.name);
      const title=publicText(source.label)||(targetName?'与 '+targetName+' 互动':'已授权行动');
      const detail=[targetName&&!title.includes(targetName)?targetName:'',
        item?.where==='held'?'背包':item?.where==='here'?'周围':item?.where==='with'?publicText(item.holderName):'',
@@ -653,14 +673,15 @@ export const DEFAULT_SCRIPT = String.raw`(() => {
  function renderActionIndex(){
    if(canReadScene()&&!sceneArtLoading&&['ready','error'].includes(latest.status)){
      indexSnapshot={options:[...latest.actions,...(waitOption?[waitOption]:[])],items:latest.items||[],
-       people:(displayedScene?.recipients||[]).filter(person=>publicText(person.name)),canSpeak:speechAvailable(latest.expression)};
+       people:(displayedScene?.recipients||[]).filter(person=>publicText(person.name)),canSpeak:speechAvailable(latest.expression),
+       speech:latest.expression?.speech??'free',speechChoices:latest.expression?.speechChoices??[]};
    }
    const separatedPeople=indexSnapshot?.people.filter(person=>readableCharacter(person.id)).map(person=>person.id);
    // During unread, keep the text of the last observed character rows; the live view can only disable them.
    const key=JSON.stringify(indexSnapshot);
    if(key!==indexKey){
      indexKey=key;
-     const box=node('actions');
+     const box=node('actions'),scroll=box.scrollTop;
      const active=document.activeElement,focused=active?.closest?.('[data-index-key]');
      const forms=new Map(Array.from(box.querySelectorAll('[data-index-key]'),row=>[row.dataset.indexKey,{
        open:row.open,values:[...row.querySelectorAll('input,select,textarea')].map(input=>({value:input.value,checked:input.checked,type:input.type})),
@@ -686,6 +707,7 @@ export const DEFAULT_SCRIPT = String.raw`(() => {
        }
      }
      if(focused&&!document.activeElement.closest('.index-option')&&!node('action-panel').hidden)node('action-search').focus({preventScroll:true});
+     box.scrollTop=scroll;
    }
    const gate=actionGate(),note=node('action-gate');
    const text=gate||(indexSnapshot?'':'读完已有内容后，可查看已确认的操作。');
@@ -694,7 +716,41 @@ export const DEFAULT_SCRIPT = String.raw`(() => {
    syncOptionControls(node('actions'));
    for(const button of node('actions').querySelectorAll('[data-index-speech]'))button.disabled=!!speechGate(button.dataset.indexSpeech);
    for(const button of node('actions').querySelectorAll('[data-index-character]'))button.disabled=!separatedPeople?.includes(button.dataset.indexCharacter);
+   renderIndexTalk();
  }
+ function renderIndexTalk(){
+   if(node('action-panel').hidden)return;
+   const details=node('index-talk'),recipient=node('index-recipient'),field=node('index-text'),choices=node('index-choices');
+   const people=(indexSnapshot?.people||[]).filter(person=>readableCharacter(person.id));
+   const previous=recipient.value;
+   const optionsKey=JSON.stringify(people);
+   if(recipient.dataset.key!==optionsKey){
+     recipient.dataset.key=optionsKey;recipient.replaceChildren(...people.map(p=>new Option(p.name,p.id)));
+     if(previous||field.value)recipient.value=previous;
+   }
+   details.hidden=!indexSnapshot?.canSpeak||(!people.length&&!field.value);
+   const free=indexSnapshot?.speech==='free';
+   const lines=indexSnapshot?.speechChoices||[];
+   if(choices.dataset.key!==JSON.stringify(lines)){choices.dataset.key=JSON.stringify(lines);choices.replaceChildren(...lines.map(text=>new Option(text,text)))}
+   field.maxLength=latest?.settings?.inputCharacters||2000;field.hidden=!free;choices.hidden=free;
+   recipient.disabled=field.readOnly=choices.disabled=posting||!!pending;
+   details.querySelector('summary').textContent=indexScope==='private'?'悄悄对角色说':'向在场角色说话';
+   node('index-send').disabled=!!speechGate(recipient.value)||!(free?field.value.trim():choices.value);
+   const unit=playback.current(),reading=playback.pending(),line=node('index-line');
+   const text=unit&&(reading||(indexSince!==null&&unit.seq>indexSince))?unit.speaker+' · '+unit.text:'';
+   if(line.textContent!==text)line.textContent=text;line.hidden=!text;node('index-next').hidden=!reading;
+ }
+ node('index-next').onclick=()=>advance(false,true);
+ node('index-text').oninput=node('index-recipient').onchange=node('index-choices').onchange=renderIndexTalk;
+ node('index-text').onkeydown=event=>{
+   if(event.key==='Enter'&&!event.isComposing){event.preventDefault();node('index-send').click()}
+ };
+ node('index-send').onclick=()=>{
+   const id=node('index-recipient').value;
+   if(speechGate(id)||node('index-send').disabled)return;
+   const text=node('index-text').hidden?node('index-choices').value:node('index-text').value.trim();
+   send('speak',{text,scope:indexScope,addresseeIds:[id]},false,true);
+ };
  function filterActionIndex(){
    const selected=node('action-category').value;
    const words=node('action-search').value.trim().toLocaleLowerCase().split(/\s+/u).filter(Boolean);
@@ -719,6 +775,7 @@ export const DEFAULT_SCRIPT = String.raw`(() => {
    drawer('action-panel');controls();node('actions-close').focus({preventScroll:true});
  }
  function closeActionIndex(){
+   indexSince=null;
    drawer(null);controls();
    (isVisible(indexReturnFocus)?indexReturnFocus:node('actions-toggle')).focus({preventScroll:true});
    indexReturnFocus=null;
@@ -1054,7 +1111,10 @@ export const DEFAULT_SCRIPT = String.raw`(() => {
    pending=null;posting=false;
    requestIssue=wasUnknown?{kind:'confirmed',request}:null;
    const line=requestLine(request);
-   if(line){
+   if(line&&request.index){
+     if(node('index-text').value.trim()===line.text)node('index-text').value='';
+     node('index-talk').open=false;
+   }else if(line){
      if(node('input').value.trim()===line.text)node('input').value='';
      if(node('narration').value.trim()===(line.narration||''))node('narration').value='';
      if(!(node('input').value||node('narration').value))composerExpanded=false;
@@ -1135,6 +1195,9 @@ export const DEFAULT_SCRIPT = String.raw`(() => {
    const issue=requestIssue;
    if(!issue)return;
    const request=issue.request;
+   if(request.index&&request.method==='speak'){
+     drawer('action-panel');node('index-talk').open=true;controls();(node('index-text').hidden?node('index-choices'):node('index-text')).focus();return;
+   }
    if(requestLine(request)){
      if(issue.kind==='expired'&&attached)detach();
      drawer(null);composerExpanded=true;activityOpen=false;controls();node('input').focus({preventScroll:true});
@@ -1156,7 +1219,7 @@ export const DEFAULT_SCRIPT = String.raw`(() => {
    requestIssue=null;controls();
  };
  // The opening reads ahead: it may submit while earlier text is still being read.
- function send(method,payload,readingAhead=false){
+ function send(method,payload,readingAhead=false,indexSpeech=false){
    const tailOperation=method==='regenerate'||method==='selectCandidate';
    if(posting||!!pending||!connected||(!tailOperation&&!readingAhead&&playback.pending())||(tailOperation?(!latest?.tailRound?.canRegenerate||expiredTail===payload.tailId):!['ready','error'].includes(latest?.status)&&!(method==='speak'&&latest?.canInterrupt)))return;
    if(method==='perform'&&(sceneArtLoading||!liveOption(payload.optionId)))return;
@@ -1164,7 +1227,10 @@ export const DEFAULT_SCRIPT = String.raw`(() => {
    requestIssue=null;successFeedback.clear();node('notice').textContent='';
    if(node('success-announcement').textContent)node('success-announcement').textContent='';
    if(method!=='speak'&&!payload.say)composerExpanded=false;
-   drawer(null);pending={method,payload,actionId:api.newActionId(),move:option?.kind==='move',message:!!option&&isMessage(option),
+   const index=!node('action-panel').hidden&&(indexSpeech||(option?.kind==='interact'&&option.id!=='wait'&&!isMessage(option)&&!payload.say));
+   if(index)indexSince=latest.history.at(-1)?.seq??-1;
+   else drawer(null);
+   pending={method,payload,index,actionId:api.newActionId(),move:option?.kind==='move',message:!!option&&isMessage(option),
      battleSkill:battleReading?.submittedSkill(latest,option,payload.arguments),
      statusOperation:option?.action?.parameters?.definitionRef?.id?.startsWith('status:')===true};
    submit(pending);
@@ -1556,8 +1622,8 @@ export const DEFAULT_SCRIPT = String.raw`(() => {
    const policy=latest?.expression||{speech:'free',speechChoices:[],narration:true};
    return !posting&&!pending&&connected&&(['ready','error'].includes(latest?.status)||latest?.canInterrupt)&&(policy.speech!=='none'||policy.narration);
  }
- function advance(skip=false){
-   if(document.querySelector('.panel:not([hidden])')||node('save-dialog').open||!playback.pending())return;
+ function advance(skip=false,fromIndex=false){
+   if((fromIndex?node('action-panel').hidden:document.querySelector('.panel:not([hidden])'))||node('save-dialog').open||!playback.pending())return;
    updateAutoProgress(0);
    const through=skip?battleReading?.boundary(playback.current()?.seq):undefined;
    if(skip&&through!==undefined){while(playback.pending()&&playback.current().seq<=through)playback.advance()}
