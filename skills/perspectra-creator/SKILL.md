@@ -1,14 +1,16 @@
 ---
 name: perspectra-creator
-description: 直接编写 Perspectra v5 世界源包、从 SillyTavern PNG/JSON 重创剧情与玩法，或与作者用编辑器、CLI 协作维护作品及原生预设。
+description: 把构想、角色卡或大纲做成可试玩的 Perspectra v5 世界，按作者反馈接续同一作品、验证并交接。也用于直接改包、酒馆卡迁移、编辑器协作和原生预设。
 ---
 
 # Perspectra 创作
 
-先定玩家在什么地方遇到谁、此刻可以做什么、谁知道哪些事，以及哪个行动会改变后续处境。交付物是有内容且能继续编辑的 v5 源目录。只提供本 skill 也可直接写文件；装有 worldpack 时用它验证，有工作台时再按作者需要协作。
+先用作者给的材料确定玩家、出场角色和第一件可玩的事。可持续编辑的作品使用 v5 源目录。有目标程序时，用它核对实际支持和玩家能看到的结果。
 
 ## 选择本次工作
 
+- 从一句构想、角色卡、大纲开场，或接手续作、按试玩反馈推进下一幕，读[逐幕创作与接手](references/authoring.md)。多轮作品可在作者工程中沿用现有记录或取用 [AUTHORING.md 模板](assets/AUTHORING.md)。
+- 只咨询时直接回答。明确的一次小改直接定位原包、改动并核对效果，可跳过工作区模板。
 - 原创或修改源包：读[源包与人物](references/world-pack.md)和[直接写文件](references/editor-handoff.md#直接写文件)。可用随附脚手架和活动模板，无需编辑器 CLI。
 - 配合作者：读[与编辑器协作](references/editor-handoff.md#与编辑器协作)，沿用现有源目录、ID、草稿和布局，并交付可重开的导出包。
 - 酒馆角色卡分析／转换：读[酒馆卡迁移](references/tavern.md)。本 Skill 已收录旧 tavern-to-perspectra 的提取器、容量分析与迁移／验收方法，不依赖另装旧 Skill。只评估时不建包；明确转换时继续完成源包与所需规则。
@@ -48,9 +50,7 @@ description: 直接编写 Perspectra v5 世界源包、从 SillyTavern PNG/JSON 
 
 ## 用推演自查
 
-用 `worldpack.cmd editor records '<源目录>'` 查角色、地点和物品；活动与规则的机器接口见 `worldpack.cmd editor --help`。修改后运行 `validate`，再用 `worldpack.cmd simulate '<源目录>' '<剧本路径>'` 核对动作、触发和状态变化。退出码 2 表示剧本已执行但未通过，查看各步的 `expectations` 和 `error`。角色表现需另行真实模型试玩。[推演脚本](references/gameplay.md#推演脚本)
-
-交接时在作品工作区保存作者确认的目标、对应的用例 ID、清单与剧本。导出完整源目录后运行 `worldpack.cmd accept '<导出目录>' '<验收清单.json>'`，把程序生成的 JSON 连同该版作品交接。交付通过须核对本次全跑的 `deliveryPassed:true` 及输入摘要。按 ID 筛选适合改作时回归，换导出内容、剧本、清单或引擎构建后要重新全跑。[清单与断言示例](references/gameplay.md#交付验收)
+先查目标程序的 `--help`。用 `editor records` 核对对象 ID，用 [simulate 单剧本推演](references/gameplay.md#推演脚本)探索动作和状态。构建提供 `accept` 时，对正式导出的完整源目录按[清单与断言示例](references/gameplay.md#交付验收)运行。按 ID 筛选用于局部回归。当前版本的交付结论、旧构建的可验范围及同版试玩，按[交接时怎样记证据](references/authoring.md#交接时怎样记证据)记录。
 
 ## 校验与实际运行
 
