@@ -848,6 +848,17 @@ export const useLauncherStore = defineStore('launcher', () => {
     notice.value = '整树已恢复为独立实例，原实例保留；无独立保存头的线路从已保存叉点继续。恢复未调用模型。'
     return true
   }
+  async function exportExcerpt(
+    path: string,
+    range: { rounds: number } | { nodeId: string },
+    perspective: 'player' | 'world',
+    instanceId: string,
+    lineId: string,
+  ) {
+    if (!real || !(await action('story-excerpt', { instanceId, lineId, path, perspective, ...range }))) return false
+    notice.value = '游玩片段已保存到所选文件。'
+    return true
+  }
   async function exportStory(nodeId: string, path: string): Promise<boolean> {
     if (!real) return false
     if (!(await action('story-export', { instanceId: selectedInstanceId.value, nodeId, path }))) return false
@@ -885,6 +896,7 @@ export const useLauncherStore = defineStore('launcher', () => {
     backupTree,
     restoreTree,
     exportStory,
+    exportExcerpt,
     importStory,
     selectStoryline,
     forkStory,

@@ -106,6 +106,15 @@ export async function chooseStoryFile(): Promise<string | null> {
   })
   return typeof path === 'string' ? path : null
 }
+export async function chooseExcerptDestination(extension: 'md' | 'json'): Promise<string | null> {
+  if (!isTauri()) return null
+  const { save } = await import('@tauri-apps/plugin-dialog')
+  return save({
+    title: '导出最近游玩片段',
+    defaultPath: '游玩片段.' + extension,
+    filters: [{ name: extension === 'md' ? 'Markdown' : 'JSON', extensions: [extension] }],
+  })
+}
 export async function chooseStoryDestination(): Promise<string | null> {
   if (!isTauri()) return null
   const { save } = await import('@tauri-apps/plugin-dialog')

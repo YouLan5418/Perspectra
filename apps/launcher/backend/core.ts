@@ -34,6 +34,7 @@ import {
   type RolePreset,
 } from '@perspectra/providers/chat'
 import { exportStoryTree, importStoryTree } from '../../host/src/story-backup.ts'
+import { exportStoryExcerpt } from '../../host/src/story-excerpt-export.ts'
 import { exportStoryNode, importStoryNode } from '../../host/src/story-share.ts'
 import { readStoryNodes, restoreStoryNode, storyId } from '../../host/src/story-nodes.ts'
 import {
@@ -935,6 +936,19 @@ export class LauncherCore {
           await rm(join(this.root, 'instances', imported.id), { recursive: true, force: true })
           throw error
         }
+        return this.snapshot()
+      }
+      case 'story-excerpt': {
+        const instance = this.#instance(request.instanceId)
+        const perspective = request.perspective ?? 'player'
+        if (perspective !== 'player' && perspective !== 'world') throw new TypeError('视角无效。')
+        if (request.rounds !== undefined && typeof request.rounds !== 'number') throw new TypeError('回合数无效。')
+        exportStoryExcerpt(this.root, instance.id, text(request.path, '导出路径'), {
+          perspective,
+          expectedLine: text(request.lineId, '故事线'),
+          ...(request.rounds === undefined ? {} : { rounds: request.rounds }),
+          ...(request.nodeId === undefined ? {} : { nodeId: storyId(request.nodeId) }),
+        })
         return this.snapshot()
       }
       case 'story-export': {

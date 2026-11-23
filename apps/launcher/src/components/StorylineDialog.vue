@@ -6,7 +6,7 @@ import { Button } from './ui/button/index.ts'
 import DialogFrame from './DialogFrame.vue'
 
 const props = defineProps<{ open: boolean }>()
-const emit = defineEmits<{ close: []; import: []; export: [nodeId: string]; backup: []; restore: [] }>()
+const emit = defineEmits<{ close: []; import: []; export: [nodeId: string]; backup: []; restore: []; excerpt: [] }>()
 const store = useLauncherStore()
 const selectedNodeId = ref('')
 const name = ref('我的新故事')
@@ -41,6 +41,9 @@ async function fork() {
     <p v-if="store.currentInstance?.storyError" role="alert">{{ store.currentInstance.storyError }}</p>
 
     <div class="dialog-actions">
+      <Button variant="outline" :disabled="!store.real || store.busy || !store.currentInstance" @click="emit('excerpt')"
+        >导出最近游玩片段</Button
+      >
       <Button
         variant="outline"
         :disabled="store.busy || !store.currentInstance || !!store.currentInstance.storyError"

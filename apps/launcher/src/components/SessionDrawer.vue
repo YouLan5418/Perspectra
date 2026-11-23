@@ -4,6 +4,7 @@ import { ChevronLeft, ChevronRight, Plus, Trash2, X } from '@lucide/vue'
 import { useLauncherStore, type DrawerSection } from '../stores/launcher.ts'
 import StorylineDialog from './StorylineDialog.vue'
 import ImportDialog from './ImportDialog.vue'
+import ExcerptDialog from './ExcerptDialog.vue'
 import ExportDialog from './ExportDialog.vue'
 import BackupDialog from './BackupDialog.vue'
 import ModelConfigDialog from './ModelConfigDialog.vue'
@@ -13,7 +14,7 @@ import PlaySettingsDialog from './PlaySettingsDialog.vue'
 import PackConfigEditor from './PackConfigEditor.vue'
 
 /** 本局抽屉：一列设置行，点进去在抽屉内部翻页；原对话框在这里只渲染内容。 */
-type Page = Exclude<DrawerSection, 'editor'> | 'import' | 'export' | 'backup' | 'restore'
+type Page = Exclude<DrawerSection, 'editor'> | 'import' | 'export' | 'backup' | 'restore' | 'excerpt'
 const props = defineProps<{ open: boolean; section: DrawerSection | null }>()
 const emit = defineEmits<{ close: [] }>()
 provide('launcher-embedded', true)
@@ -46,7 +47,7 @@ function choose(id: DrawerSection) {
 }
 function back() {
   if (!leave()) return
-  page.value = ['import', 'export', 'backup', 'restore'].includes(page.value ?? '') ? 'story' : null
+  page.value = ['import', 'export', 'backup', 'restore', 'excerpt'].includes(page.value ?? '') ? 'story' : null
 }
 function close() {
   if (leave()) emit('close')
@@ -61,7 +62,7 @@ watch(
 const runningNotice = computed(() =>
   !store.running || page.value === 'frontend'
     ? ''
-    : page.value === 'story' || ['import', 'export', 'backup', 'restore'].includes(page.value ?? '')
+    : page.value === 'story' || ['import', 'export', 'backup', 'restore', 'excerpt'].includes(page.value ?? '')
       ? '游戏运行中：可以浏览和导出存档，切换故事线与导入需先结束游戏'
       : '修改将在下次启动游戏时生效',
 )
@@ -144,11 +145,13 @@ function removeCurrent() {
             @close="back"
             @import="page = 'import'"
             @export="showExport"
+            @excerpt="page = 'excerpt'"
             @backup="page = 'backup'"
             @restore="page = 'restore'"
           />
           <BackupDialog :open="shown('backup') || shown('restore')" :restore="page === 'restore'" @close="back" />
           <ImportDialog :open="shown('import')" mode="story" @close="back" />
+          <ExcerptDialog v-if="shown('excerpt')" @close="back" />
           <ExportDialog :open="shown('export')" :initial-node-id="exportNodeId" @close="back" />
           <ModelConfigDialog :open="shown('model')" @close="back" />
           <PresetDialog :open="shown('preset')" @close="back" />

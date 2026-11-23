@@ -55,3 +55,15 @@
 程序附带的 [perspectra-creator Skill](skills/perspectra-creator/SKILL.md) 提供空白源包脚手架、人物与私有知识写法、物品规则模板，已整合原 tavern-to-perspectra 的静态提取、容量分析、迁移和验收流程，还附带原生预设创作指南及两种模板。酒馆卡提取使用随包 Node 脚本；原脚本、EJS 和正则保留为数据，所需行为由 AI 按当前规则重写，不自动运行原卡，也不是兼容器。工具不需要 pnpm、源码或 Python。安装整个 Skill 目录到所用 AI 工具后，提供本程序解压路径及创作需求即可；作品输出到自己的新目录。
 
 按任务阅读 skill 内的[直接写包和交接编辑器](skills/perspectra-creator/references/editor-handoff.md)、[源包与人物](skills/perspectra-creator/references/world-pack.md)、[玩法扩展](skills/perspectra-creator/references/gameplay.md)和[酒馆卡迁移](skills/perspectra-creator/references/tavern.md)。这些参考随 skill 一起分发。
+
+### 把已经玩过的片段交给写作者
+
+桌面 Launcher 的故事线页面提供「导出最近游玩片段」。命令行使用同一个导出器。可从 Launcher 数据位置设置打开实例目录，实例子目录名就是实例 ID。第一个参数是含 `launcher.json` 的 Launcher 数据目录；输出选该目录外尚不存在的文件。下例的目录和 UUID 请换成自己的。
+
+```powershell
+& 'D:\Perspectra\worldpack.cmd' excerpt --help
+& 'D:\Perspectra\worldpack.cmd' excerpt 'D:\游戏数据' '11111111-1111-4111-8111-111111111111' --out 'D:\写作\最近片段.md'
+& 'D:\Perspectra\worldpack.cmd' excerpt 'D:\游戏数据' '11111111-1111-4111-8111-111111111111' --rounds 3 --perspective world --out 'D:\写作\三回合.json'
+```
+
+默认取最近 20 个有记录的玩家回合和玩家视角。用 `--from-node <节点UUID>` 可从当前线某个可追溯节点保存后起算，与 `--rounds` 二选一。显式选择 `world` 会加上世界事件的提交序号与数量。阅读时请区分当场获知、后来收到的转述和实际行动结果。导出后由玩家决定交给谁，游戏不会向模型发送片段。

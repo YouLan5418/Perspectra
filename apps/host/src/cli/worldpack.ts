@@ -54,6 +54,42 @@ try {
         }),
       ).toString('utf8')}\n`,
     )
+  } else if (args[0] === 'excerpt') {
+    const usage =
+      'worldpack excerpt <launcher-data> <instance-id> --out <new.md|new.json> [--rounds N | --from-node ID] [--perspective player|world]'
+    if (args.length === 2 && args[1] === '--help') process.stdout.write(JSON.stringify({ usage }) + '\n')
+    else {
+      const values = new Map<string, string>()
+      for (let i = 3; i < args.length; i += 2) {
+        const key = args[i]!,
+          v = args[i + 1]
+        if (!['--out', '--rounds', '--from-node', '--perspective'].includes(key) || !v || values.has(key))
+          throw new TypeError(usage)
+        values.set(key, v)
+      }
+      const out = values.get('--out'),
+        rounds = values.get('--rounds'),
+        nodeId = values.get('--from-node'),
+        perspective = values.get('--perspective') ?? 'player'
+      if (
+        !args[1] ||
+        !args[2] ||
+        !out ||
+        (rounds !== undefined && !/^[1-9]\d*$/.test(rounds)) ||
+        (perspective !== 'world' && perspective !== 'player')
+      )
+        throw new TypeError(usage)
+      const { exportStoryExcerpt } = await import('../story-excerpt-export.ts')
+      process.stdout.write(
+        JSON.stringify(
+          exportStoryExcerpt(args[1], args[2], out, {
+            perspective,
+            ...(rounds === undefined ? {} : { rounds: Number(rounds) }),
+            ...(nodeId === undefined ? {} : { nodeId }),
+          }),
+        ) + '\n',
+      )
+    }
   } else if (args[0] === 'editor') {
     const { runEditorCli } = await import('../editor/cli.ts')
     process.stdout.write(JSON.stringify(await runEditorCli(args.slice(1))) + '\n')
